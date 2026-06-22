@@ -4,6 +4,7 @@
 
 import hashlib
 import logging
+import re
 import shutil
 import tempfile
 import threading
@@ -11,6 +12,44 @@ from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+# Список зарезервированных имен Windows (регистронезависимый)
+WINDOWS_RESERVED_NAMES = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    "com1",
+    "com2",
+    "com3",
+    "com4",
+    "com5",
+    "com6",
+    "com7",
+    "com8",
+    "com9",
+    "lpt1",
+    "lpt2",
+    "lpt3",
+    "lpt4",
+    "lpt5",
+    "lpt6",
+    "lpt7",
+    "lpt8",
+    "lpt9",
+}
+
+
+def is_windows_reserved_path(path: Path) -> bool:
+    """Проверяет, является ли имя файла или папки зарезервированным устройством Windows."""
+    stem = path.stem.lower()
+    if stem in WINDOWS_RESERVED_NAMES:
+        return True
+    for part in path.parts:
+        if part.lower() in WINDOWS_RESERVED_NAMES:
+            return True
+    return False
 
 
 class SafePathManager:
@@ -27,8 +66,14 @@ class SafePathManager:
     def requires_safe_path(self, path_str: str) -> bool:
         """
         Проверяет, требует ли путь создания безопасной копии.
-        Срабатывает на любые не-ASCII символы, пробелы и превышение лимита длины.
+        Добавлена проверка на системные зарезервированные устройства Windows.
         """
+        original_path = Path(path_str)
+
+        # Защита от WinError 87 (зарезервированные устройства вроде NUL)
+        if is_windows_reserved_path(original_path):
+            return True
+
         # Проверка на не-ASCII символы (кириллица, эмодзи и т.д.)
         if not path_str.isascii():
             return True
