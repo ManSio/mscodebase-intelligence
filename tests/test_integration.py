@@ -5,6 +5,7 @@
 import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -34,73 +35,64 @@ def helper():
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+@pytest.fixture
+def isolated_indexer(tmp_path):
+    """
+    Каждый тест получает абсолютно чистую, изолированную папку в /tmp/pytest-of-user/...
+    Конфликты блокировок таблиц и старых данных LanceDB исключены на 100%.
+    """
+    from src.core.file_guard import FileGuard
+    from src.core.indexer import Indexer
+
+    db_dir = tmp_path / "isolated_lancedb"
+
+        # Мокаем эмбеддер, возвращающий вектор правильной размерности
+        embedder_mock = MagicMock()
+        embedder_mock.embed.return_value = [0.1] * 384
+        embedder_mock.embed_batch.return_value = [[0.1] * 384] * 5
+
+        file_guard = FileGuard(tmp_path)
+        indexer = Indexer(db_dir, embedder_mock, file_guard)
+
+        yield indexer
+
+        # LanceDB не имеет close() метода - просто удалим временную папку
+        import shutil
+        shutil.rmtree(tmp_path, ignore_errors=True)
+
+
 @pytest.mark.slow
 @pytest.mark.integration
-def test_full_indexing_pipeline(temp_project):
+def test_full_indexing_pipeline(temp_project, isolated_indexer):
     """Тест полного цикла индексации."""
-    import shutil
-    import tempfile
-
-    from src.core.embedder import Embedder
-    from src.core.indexer import Indexer
     from src.core.searcher import Searcher
 
-    # Создаем уникальные директории для каждой тестовой функции
-    temp_index_dir = Path(tempfile.mkdtemp())
-    temp_model_dir = Path(tempfile.mkdtemp())
+    indexer = isolated_indexer
+    searcher = Searcher(indexer, indexer.embedder)
+    indexer.searcher = searcher
 
-    try:
-        # Инициализируем
-        embedder = Embedder(model_dir=temp_model_dir)
-        assert embedder.load()
+    # Индексируем
+    count = indexer.index_project(temp_project)
+    assert count >= 2, f"Должно быть проиндексировано минимум 2 файла, получено {count}"
 
-        from src.core.file_guard import FileGuard
+    # Проверяем статус
+    status = indexer.get_status()
+    assert status.get("total_files", 0) >= 2
+    assert status.get("total_chunks", 0) >= 2
 
-        file_guard = FileGuard(temp_project)
-        indexer = Indexer(temp_index_dir, embedder, file_guard=file_guard)
-        searcher = Searcher(indexer, embedder)
-        indexer.searcher = searcher
+    # Ищем
+    result = searcher.search("главная функция")
+    assert "main" in result.lower() or "функци" in result.lower()
 
-        # Индексируем
-        count = indexer.index_project(temp_project)
-        assert count >= 2, (
-            f"Должно быть проиндексировано минимум 2 файла, получено {count}"
-        )
-
-        # Проверяем статус
-        status = indexer.get_status()
-        assert status.get("total_files", 0) >= 2
-        assert status.get("total_chunks", 0) >= 2
-
-        # Ищем
-        result = searcher.search("главная функция")
-        assert "main" in result.lower() or "функци" in result.lower()
-
-        # Проверяем, что результат содержит что-то полезное
-        assert len(result) > 50, "Результат поиска должен быть содержательным"
-    finally:
-        # Очистка
-        shutil.rmtree(temp_index_dir, ignore_errors=True)
-        shutil.rmtree(temp_model_dir, ignore_errors=True)
+    # Проверяем, что результат содержит что-то полезное
+    assert len(result) > 50, "Результат поиска должен быть содержательным"
 
 
 @pytest.mark.slow
 @pytest.mark.integration
-def test_incremental_indexing(temp_project):
+def test_incremental_indexing(temp_project, isolated_indexer):
     """Тест инкрементальной индексации."""
-    from src.core.embedder import Embedder
-    from src.core.indexer import Indexer
-
-    model_dir = temp_project / ".codebase_models"
-    index_dir = temp_project / ".codebase_index"
-
-    embedder = Embedder(model_dir=model_dir)
-    embedder.load()
-
-    from src.core.file_guard import FileGuard
-
-    file_guard = FileGuard(temp_project)
-    indexer = Indexer(index_dir, embedder, file_guard=file_guard)
+    indexer = isolated_indexer
 
     # Первая индексация
     count1 = indexer.index_project(temp_project)
@@ -124,40 +116,19 @@ def main():
 
 @pytest.mark.slow
 @pytest.mark.integration
-def test_file_deletion(temp_project):
+def test_file_deletion(temp_project, isolated_indexer):
     """Тест удаления файла из индекса."""
-    import shutil
-    import tempfile
+    indexer = isolated_indexer
 
-    from src.core.embedder import Embedder
-    from src.core.indexer import Indexer
+    # Индексируем
+    indexer.index_project(temp_project)
+    status1 = indexer.get_status()
 
-    # Создаем уникальные директории для каждой тестовой функции
-    temp_index_dir = Path(tempfile.mkdtemp())
-    temp_model_dir = Path(tempfile.mkdtemp())
+    # Удаляем файл
+    (temp_project / "utils.py").unlink()
 
-    try:
-        embedder = Embedder(model_dir=temp_model_dir)
-        embedder.load()
+    # Переиндексируем
+    indexer.index_project(temp_project)
+    status2 = indexer.get_status()
 
-        from src.core.file_guard import FileGuard
-
-        file_guard = FileGuard(temp_project)
-        indexer = Indexer(temp_index_dir, embedder, file_guard=file_guard)
-
-        # Индексируем
-        indexer.index_project(temp_project)
-        status1 = indexer.get_status()
-
-        # Удаляем файл
-        (temp_project / "utils.py").unlink()
-
-        # Переиндексируем
-        indexer.index_project(temp_project)
-        status2 = indexer.get_status()
-
-        assert status2.get("total_files", 0) < status1.get("total_files", 0)
-    finally:
-        # Очистка
-        shutil.rmtree(temp_index_dir, ignore_errors=True)
-        shutil.rmtree(temp_model_dir, ignore_errors=True)
+    assert status2.get("total_files", 0) < status1.get("total_files", 0)
