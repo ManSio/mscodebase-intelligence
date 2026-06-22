@@ -1,305 +1,209 @@
 """
-MSCodeBase Intelligence MCP Server — Главный обработчик.
-Реализует паттерн Producer-Consumer через асинхронную очередь и двухуровневый граф контекста.
+MSCodebase Intelligence MCP Server — Фоновый асинхронный брокер на базе неблокирующих очередей `asyncio.Queue`. Отрабатывает конкурентные запросы на индексацию от Zed IDE по паттерну Producer-Consumer.
 """
 
 import asyncio
 import logging
 import os
 import sys
-import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger("mscodebase_server")
+from src.core.context_engine import get_context
+from src.core.file_guard import FileGuard
+from src.core.indexer import Indexer
+from src.core.remote_embedder import RemoteEmbedder
+from src.core.searcher import Searcher
+from src.core.symbol_index import SymbolIndex
 
-# --- Глобальные инстансы архитектуры ---
-embedder_instance = None
-indexer_instance = None
-searcher_instance = None
+logger = logging.getLogger("mscodebase_server.handler")
 
-# Потокобезопасная асинхронная очередь задач
-_task_queue: asyncio.Queue = asyncio.Queue()
-_loop_instance: Optional[asyncio.AbstractEventLoop] = None
-_indexing_lock = threading.Lock()
+_task_queue: asyncio.Queue = None
+_worker_task: asyncio.Task = None
 
 
-async def background_worker():
-    """
-    Фоновый Consumer. Последовательно забирает задачи из очереди.
-    Исключает гонку потоков при сохранении файлов в Zed.
-    """
-    global indexer_instance
-    logger.info("👷 Фоновый воркер асинхронной очереди задач (LanceDB Engine) запущен.")
-
+async def background_queue_worker(indexer: Indexer):
+    """Изолированный бесконечный потребитель задач в одном потоке Event Loop."""
+    logger.info("⚙️ Асинхронный Queue-воркер запущен.")
     while True:
-        task_data = await _task_queue.get()
+        project_path = await _task_queue.get()
         try:
-            task_type = task_data.get("type")
-            file_path = Path(task_data.get("path"))
-
-            if not indexer_instance:
-                continue
-
-            with _indexing_lock:
-                if task_type == "file_changed":
-                    if file_path.exists() and indexer_instance.file_guard.is_supported(
-                        file_path
-                    ):
-                        logger.info(
-                            f"🔄 Инкрементальное обновление графа для: {file_path.name}"
-                        )
-                        indexer_instance.delete_file_from_index(file_path)
-
-                        try:
-                            with open(file_path, "rb") as f:
-                                raw = f.read()
-                            content = raw.decode("utf-8", errors="replace")
-
-                            parsed_chunks, _ = indexer_instance.parser.parse_file(
-                                file_path
-                            )
-                            chunks_text = (
-                                [c["text"] for c in parsed_chunks]
-                                if parsed_chunks
-                                else [content]
-                            )
-
-                            embs = indexer_instance.embedder.embed_batch(chunks_text)
-                            if embs and embs[0]:
-                                records = []
-                                for idx, emb in enumerate(embs):
-                                    chunk_meta = (
-                                        parsed_chunks[idx] if parsed_chunks else {}
-                                    )
-                                    records.append(
-                                        {
-                                            "vector": emb,
-                                            "id": f"watch_{hash(str(file_path))}_{idx}",
-                                            "document": chunks_text[idx],
-                                            "file_path": str(file_path),
-                                            "chunk_index": idx,
-                                            "start_line": int(
-                                                chunk_meta.get("start_line", 0)
-                                            ),
-                                            "end_line": int(
-                                                chunk_meta.get("end_line", 0)
-                                            ),
-                                            "type": str(
-                                                chunk_meta.get("type", "code_block")
-                                            ),
-                                            "symbol_name": str(
-                                                chunk_meta.get("symbol_name", "")
-                                            ),
-                                            "parent_symbol": "",
-                                        }
-                                    )
-                                indexer_instance.table.add(records)
-                                if indexer_instance.searcher:
-                                    indexer_instance.searcher.reindex()
-                                logger.info(
-                                    f"✅ Файл {file_path.name} атомарно обновлен в LanceDB."
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"Не удалось обновить файл {file_path.name}: {e}"
-                            )
-
-                elif task_type == "file_deleted":
-                    logger.info(f"🗑️ Удаление из графа LanceDB: {file_path.name}")
-                    indexer_instance.delete_file_from_index(file_path)
-                    if indexer_instance.searcher:
-                        indexer_instance.searcher.reindex()
-
+            logger.info(
+                f"🔄 Фоновый воркер: Старт индексации проекта: {project_path.name}"
+            )
+            await asyncio.to_thread(indexer.index_project, project_path)
+            logger.info(
+                f"✅ Фоновый воркер: Индексация проекта {project_path.name} успешно завершена."
+            )
         except Exception as e:
-            logger.error(f"Ошибка выполнения фоновой задачи: {e}")
+            logger.error(
+                f"❌ Критическая ошибка выполнения внутри воркера: {e}", exc_info=True
+            )
         finally:
             _task_queue.task_done()
 
 
-def submit_indexing_task(task_type: str, path_str: str):
-    """Публикация задачи в очередь (вызывается из вотчера Watchdog)."""
-    global _loop_instance
-    if _loop_instance and _loop_instance.is_running():
-        asyncio.run_coroutine_threadsafe(
-            _task_queue.put({"type": task_type, "path": path_str}), _loop_instance
-        )
-        logger.debug(f"📥 Путь добавлен в очередь воркера: {Path(path_str).name}")
-
-
 def create_mcp_server() -> FastMCP:
-    """Сборка MCP сервера на базе локального LanceDB графа."""
-    global embedder_instance, indexer_instance, searcher_instance
-
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
+    db_base_dir = ext_root / ".codebase_indices" / "lancedb_v2"
 
-    from src.core.file_guard import FileGuard
-    from src.core.indexer import Indexer
-    from src.core.remote_embedder import RemoteEmbedder
+    embedder = RemoteEmbedder(port=1234)
+    file_guard = FileGuard()
+    indexer = Indexer(db_base_dir, embedder, file_guard)
+    searcher = Searcher(indexer, embedder)
+    indexer.searcher = searcher
+    symbol_indexer = SymbolIndex()
 
-    file_guard = FileGuard(project_path=ext_root)
-    embedder_instance = RemoteEmbedder()
-
-    # Директория для хранения LanceDB данных внутри плагина
-    db_dir = ext_root / ".codebase_indices" / "lancedb_v2"
-
-    indexer_instance = Indexer(
-        db_path=db_dir, embedder=embedder_instance, file_guard=file_guard
-    )
+    def ensure_worker_started():
+        global _task_queue, _worker_task
+        if _task_queue is None:
+            _task_queue = asyncio.Queue()
+            _worker_task = asyncio.create_task(background_queue_worker(indexer))
+            logger.info(
+                "⚡ Очередь asyncio.Queue и фоновый Task успешно инициализированы."
+            )
 
     @mcp.tool()
-    def search_code(query: str, top_k: int = 3) -> str:
-        """Двухуровневый семантический поиск по графу кодовой базы"""
-        with _indexing_lock:
-            if not indexer_instance:
-                return "❌ Сервер не готов."
-            try:
-                query_vector = embedder_instance.embed(query)
-                if not query_vector:
-                    return "⚠️ Не удалось получить эмбеддинг запроса."
+    def get_index_status(**kwargs) -> str:
+        """Возвращает текущую статистику заполнения векторной базы данных LanceDB."""
+        stats = indexer.get_status()
+        if "error" in stats:
+            return f"❌ Ошибка получения статуса: {stats['error']}"
+        return (
+            f"📊 Статус базы данных MSCodebase:\n"
+            f"  • Всего фрагментов кода в базе: {stats.get('total_chunks', 0)}\n"
+            f"  • Проиндексировано уникальных файлов: {stats.get('unique_files', 0)}\n"
+            f"  • Состояние движка: {stats.get('status', 'unknown')}"
+        )
 
-                results = (
-                    indexer_instance.table.search(query_vector).limit(top_k).to_pandas()
-                )
+    @mcp.tool()
+    async def index_project_dir(path: str, **kwargs) -> str:
+        """Добавляет директорию проекта в неблокирующую очередь задач на фоновую синхронизацию."""
+        ensure_worker_started()
+        target_path = Path(path).resolve()
+        if not target_path.exists():
+            return f"❌ Указанный путь не существует: {path}"
 
-                if results.empty:
-                    return "Ничего не найдено."
+        await _task_queue.put(target_path)
+        return (
+            f"🚀 Проект '{target_path.name}' успешно добавлен в очередь на фоновую индексацию.\n"
+            f"Задач ожидает в очереди: {_task_queue.qsize()}"
+        )
 
-                formatted_output = []
-                for _, row in results.iterrows():
-                    output_block = f"📄 Файл: {row['file_path']} (Линии: {row['start_line']}-{row['end_line']})\n"
-                    output_block += (
-                        f"Type: {row['type']} | Symbol: {row['symbol_name']}\n"
+    @mcp.tool()
+    def search_code(query: str, **kwargs) -> str:
+        """Выполняет гибридный поиск по фрагментам исходного кода проекта."""
+        return searcher.search(query, limit=6)
+
+    @mcp.tool()
+    def get_context(query: str, **kwargs) -> str:
+        """Генерирует интеллектуальный упакованный контекст для AI-ассистента в стиле Cursor @codebase."""
+        from src.core.context_engine import get_context as get_context_func
+
+        return get_context_func(query, searcher)
+
+    @mcp.tool()
+    def get_symbol_info(query: str, **kwargs) -> str:
+        """Находит определения и использования функций, классов или методов по их имени."""
+        if not symbol_indexer:
+            return "❌ Индекс символов не инициализирован или отключен."
+
+        results = symbol_indexer.search_symbols(query, top_k=5)
+        if not results:
+            return f"🔍 Символ '{query}' не найден в структуре проекта."
+
+        output = [f"🗂️ Найдено совпадений для символа '{query}':\n"]
+        for res in results:
+            output.append(f"• Название: {res.get('symbol')}")
+            # Показываем определения и количество использований
+            defs = res.get("defined_in", [])
+            if defs:
+                output.append(f"  Определения:")
+                for d in defs[:3]:  # Показываем до 3 определений
+                    output.append(
+                        f"    - {d.get('file')}:{d.get('line')} ({d.get('kind')})"
                     )
-
-                    if row["parent_symbol"] and row["type"] in [
-                        "method_definition",
-                        "method_declaration",
-                    ]:
-                        parent_cls = row["parent_symbol"]
-                        output_block += f"ℹ️ Контекст: Метод принадлежит классу/структуре `{parent_cls}`\n"
-
-                    output_block += f"```\n{row['document']}\n```\n"
-                    formatted_output.append(output_block)
-
-                return f"📊 Найденный семантический контекст:\n\n" + "\n".join(
-                    formatted_output
+            output.append(f"  Используется в {res.get('used_in_count', 0)} файлах")
+            if res.get("used_in_files"):
+                output.append(
+                    f"  Файлы использования: {', '.join(res['used_in_files'][:5])}"
                 )
-            except Exception as e:
-                return f"❌ Ошибка выполнения гибридного поиска: {e}"
+            output.append("")
+        return "\n".join(output)
 
     @mcp.tool()
-    def index_status() -> str:
-        """Статус базы данных LanceDB"""
-        if indexer_instance:
-            stats = indexer_instance.get_status()
-            return f"📊 Статус LanceDB индекса:\n- Всего семантических чанков: {stats['total_chunks']}\n- Уникальных файлов в графе: {stats['total_files']}\n- Движок: {stats['engine']}"
-        return "❌ Ядро недоступно."
+    def get_repo_map(project_root: str = ".", **kwargs) -> str:
+        """Возвращает карту репозитория: структуру директорий + символы в файлах.
 
-    @mcp.tool()
-    def reindex_all(project_path: str) -> str:
-        """Полная переиндексация проекта в фоновом системном потоке"""
+        Args:
+            project_root: Корневая директория проекта (по умолчанию ".").
 
-        def run_sync():
-            with _indexing_lock:
-                try:
-                    indexer_instance.clear_index()
-                    indexer_instance.index_project(Path(project_path))
-                except Exception as ex:
-                    logger.error(f"Ошибка переиндексации: {ex}")
+        Returns:
+            JSON-подобная структура с ключами:
+            - "structure": список директорий и файлов
+            - "symbols_by_file": словарь file_path -> список символов
+            - "all_symbols": список всех уникальных символов
+            - "total_files": общее количество файлов
+            - "total_symbols": общее количество символов
+        """
+        if not symbol_indexer:
+            return "❌ Индекс символов не инициализирован или отключен."
 
-        threading.Thread(target=run_sync, daemon=True).start()
-        return "🔄 Перестроение графа LanceDB запущено в фоновом потоке."
-
-    @mcp.tool()
-    def get_context_tool(query: str, top_k: int = 5) -> str:
-        """Интеллектуальный сбор контекста из кода под вопрос AI-агента"""
-        with _indexing_lock:
-            if not indexer_instance:
-                return "❌ Сервер не готов."
-            try:
-                query_vector = embedder_instance.embed(query)
-                if not query_vector:
-                    return "⚠️ Не удалось получить эмбеддинг запроса."
-
-                results = (
-                    indexer_instance.table.search(query_vector).limit(top_k).to_pandas()
-                )
-
-                if results.empty:
-                    return "Контекст не найден."
-
-                blocks = []
-                for _, row in results.iterrows():
-                    blocks.append(
-                        f"Файл: {row['file_path']}:{row['start_line']}-{row['end_line']}\n"
-                        f"```\n{row['document']}\n```"
-                    )
-
-                return "📚 Контекст из кодовой базы:\n\n" + "\n\n".join(blocks)
-            except Exception as e:
-                return f"❌ Ошибка: {e}"
-
-    @mcp.tool()
-    def file_search(pattern: str) -> str:
-        """Поиск файлов по имени внутри индекса"""
         try:
-            df = indexer_instance.table.to_pandas()
-            matches = df[df["file_path"].str.contains(pattern, case=False, na=False)]
-            files = matches["file_path"].unique()
-            if len(files) == 0:
-                return f"🔍 Файлы по маске '{pattern}' не найдены."
-            return f"🔍 Найдено файлов ({len(files)}):\n" + "\n".join(sorted(files))
+            repo_map = symbol_indexer.get_repo_map(project_root)
+
+            # Форматируем красиво для MCP
+            output = ["🗺️ Карта репозитория MSCodebase:\n"]
+            output.append(f"📁 Всего файлов: {repo_map['total_files']}")
+            output.append(f"🔤 Всего символов: {repo_map['total_symbols']}\n")
+
+            output.append("📂 Структура директорий:")
+            for item in repo_map["structure"]:
+                if item["type"] == "directory":
+                    output.append(f"  📁 {item['path']}/")
+                else:
+                    output.append(f"  📄 {item['path']}")
+
+            output.append("\n🔍 Символы по файлам:")
+            for file_path, symbols in repo_map["symbols_by_file"].items():
+                if symbols:
+                    output.append(f"\n  📄 {file_path}:")
+                    for sym in symbols[:5]:  # Показываем до 5 символов на файл
+                        defs = sym.get("definitions", [])
+                        refs = sym.get("references", [])
+                        output.append(f"    • {sym['name']} ({sym['kind']})")
+                        if defs:
+                            def_lines = ", ".join([f"{d['line']}" for d in defs])
+                            output.append(f"      Определения: {def_lines}")
+                        if refs:
+                            output.append(f"      Использования: {len(refs)} раз(а)")
+
+            if repo_map["all_symbols"]:
+                output.append(f"\n📋 Все символы ({len(repo_map['all_symbols'])}):")
+                output.append(f"  {', '.join(repo_map['all_symbols'][:20])}")
+                if len(repo_map["all_symbols"]) > 20:
+                    output.append(f"  ... и еще {len(repo_map['all_symbols']) - 20}")
+
+            return "\n".join(output)
+
         except Exception as e:
-            return f"❌ Ошибка поиска: {e}"
+            logger.error(f"Ошибка получения карты репозитория: {e}")
+            return f"❌ Ошибка получения карты репозитория: {e}"
 
     return mcp
 
 
-async def run_server_async():
-    """Асинхронный запуск MCP сервера с фоновым воркером."""
-    global _loop_instance
-    _loop_instance = asyncio.get_running_loop()
-    _loop_instance.create_task(background_worker())
-    mcp = create_mcp_server()
-    if mcp:
-        await mcp.run_stdio_async()
-
-
 def run_server(original_stdout=None):
-    """Запуск stdio MCP-сервера."""
-    global _loop_instance
     mcp = create_mcp_server()
     if mcp:
         try:
             if original_stdout:
                 sys.stdout = original_stdout
-
-            async def main():
-                global _loop_instance
-                _loop_instance = asyncio.get_event_loop()
-                _loop_instance.create_task(background_worker())
-                await mcp.run_stdio_async()
-
-            asyncio.run(main())
+            asyncio.run(mcp.run_stdio_async())
         except KeyboardInterrupt:
-            logger.info("Сервер остановлен.")
+            logger.info("Сервер остановлен пользователем.")
         except Exception as e:
-            import traceback
-
-            crash_log = (
-                Path(__file__).resolve().parent.parent.parent / "crash_debug.log"
-            )
-            with open(crash_log, "a", encoding="utf-8") as f:
-                f.write(f"\nHandler Crash:\n")
-                traceback.print_exc(file=f)
-
-
-if __name__ == "__main__":
-    run_server()
+            logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
