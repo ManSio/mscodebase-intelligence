@@ -38,36 +38,50 @@ def helper():
 @pytest.mark.integration
 def test_full_indexing_pipeline(temp_project):
     """Тест полного цикла индексации."""
+    import shutil
+    import tempfile
+
     from src.core.embedder import Embedder
     from src.core.indexer import Indexer
     from src.core.searcher import Searcher
 
-    model_dir = temp_project / ".codebase_models"
-    index_dir = temp_project / ".codebase_index"
+    # Создаем уникальные директории для каждой тестовой функции
+    temp_index_dir = Path(tempfile.mkdtemp())
+    temp_model_dir = Path(tempfile.mkdtemp())
 
-    # Инициализируем
-    embedder = Embedder(model_dir=model_dir)
-    assert embedder.load()
+    try:
+        # Инициализируем
+        embedder = Embedder(model_dir=temp_model_dir)
+        assert embedder.load()
 
-    from src.core.file_guard import FileGuard
+        from src.core.file_guard import FileGuard
 
-    file_guard = FileGuard(temp_project)
-    indexer = Indexer(index_dir, embedder, file_guard=file_guard)
-    searcher = Searcher(indexer, embedder)
-    indexer.searcher = searcher
+        file_guard = FileGuard(temp_project)
+        indexer = Indexer(temp_index_dir, embedder, file_guard=file_guard)
+        searcher = Searcher(indexer, embedder)
+        indexer.searcher = searcher
 
-    # Индексируем
-    count = indexer.index_project(temp_project)
-    assert count >= 2, f"Должно быть проиндексировано минимум 2 файла, получено {count}"
+        # Индексируем
+        count = indexer.index_project(temp_project)
+        assert count >= 2, (
+            f"Должно быть проиндексировано минимум 2 файла, получено {count}"
+        )
 
-    # Проверяем статус
-    status = indexer.get_status()
-    assert status["total_files"] >= 2
-    assert status["total_chunks"] >= 2
+        # Проверяем статус
+        status = indexer.get_status()
+        assert status.get("total_files", 0) >= 2
+        assert status.get("total_chunks", 0) >= 2
 
-    # Ищем
-    result = searcher.search("главная функция")
-    assert "main" in result.lower() or "функци" in result.lower()
+        # Ищем
+        result = searcher.search("главная функция")
+        assert "main" in result.lower() or "функци" in result.lower()
+
+        # Проверяем, что результат содержит что-то полезное
+        assert len(result) > 50, "Результат поиска должен быть содержательным"
+    finally:
+        # Очистка
+        shutil.rmtree(temp_index_dir, ignore_errors=True)
+        shutil.rmtree(temp_model_dir, ignore_errors=True)
 
 
 @pytest.mark.slow
@@ -112,29 +126,38 @@ def main():
 @pytest.mark.integration
 def test_file_deletion(temp_project):
     """Тест удаления файла из индекса."""
+    import shutil
+    import tempfile
+
     from src.core.embedder import Embedder
     from src.core.indexer import Indexer
 
-    model_dir = temp_project / ".codebase_models"
-    index_dir = temp_project / ".codebase_index"
+    # Создаем уникальные директории для каждой тестовой функции
+    temp_index_dir = Path(tempfile.mkdtemp())
+    temp_model_dir = Path(tempfile.mkdtemp())
 
-    embedder = Embedder(model_dir=model_dir)
-    embedder.load()
+    try:
+        embedder = Embedder(model_dir=temp_model_dir)
+        embedder.load()
 
-    from src.core.file_guard import FileGuard
+        from src.core.file_guard import FileGuard
 
-    file_guard = FileGuard(temp_project)
-    indexer = Indexer(index_dir, embedder, file_guard=file_guard)
+        file_guard = FileGuard(temp_project)
+        indexer = Indexer(temp_index_dir, embedder, file_guard=file_guard)
 
-    # Индексируем
-    indexer.index_project(temp_project)
-    status1 = indexer.get_status()
+        # Индексируем
+        indexer.index_project(temp_project)
+        status1 = indexer.get_status()
 
-    # Удаляем файл
-    (temp_project / "utils.py").unlink()
+        # Удаляем файл
+        (temp_project / "utils.py").unlink()
 
-    # Переиндексируем
-    indexer.index_project(temp_project)
-    status2 = indexer.get_status()
+        # Переиндексируем
+        indexer.index_project(temp_project)
+        status2 = indexer.get_status()
 
-    assert status2["total_files"] < status1["total_files"]
+        assert status2.get("total_files", 0) < status1.get("total_files", 0)
+    finally:
+        # Очистка
+        shutil.rmtree(temp_index_dir, ignore_errors=True)
+        shutil.rmtree(temp_model_dir, ignore_errors=True)

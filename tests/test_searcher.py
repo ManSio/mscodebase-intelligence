@@ -47,7 +47,21 @@ class Calculator:
 
     file_guard = FileGuard(temp_index)
     indexer = Indexer(index_dir, embedder, file_guard=file_guard)
-    indexer.index_file(test_file)
+    # Используем _index_single_file через внутренний вызов
+    # Вместо прямого вызова index_file (который удалён)
+    # Используем index_project для одного файла
+    (temp_index / "test").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(test_file, temp_index / "test" / "test.py")
+
+    # Создаём временную структуру для index_project
+    from src.core.file_guard import FileGuard
+
+    file_guard = FileGuard(temp_index)
+    indexer = Indexer(index_dir, embedder, file_guard=file_guard)
+
+    # Индексируем через index_project (единственный публичный метод)
+    count = indexer.index_project(temp_index)
+    assert count >= 1
 
     searcher = Searcher(indexer, embedder)
 

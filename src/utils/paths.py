@@ -38,6 +38,14 @@ class SafePathManager:
             return True
         return False
 
+    def is_safe_to_process(self, path: Path) -> bool:
+        """Проверяет, можно ли обрабатывать путь напрямую.
+
+        Возвращает True для обычных путей (безопасно),
+        False - если требуется специальная обработка (не-ASCII, длинный).
+        """
+        return not self.requires_safe_path(str(path))
+
     def get_safe_path(self, original_path: Path) -> Path:
         if not original_path.exists():
             return original_path

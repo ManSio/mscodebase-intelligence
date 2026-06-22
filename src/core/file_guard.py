@@ -103,6 +103,14 @@ class FileGuard:
             except Exception as e:
                 logger.warning(f"Не удалось загрузить .gitignore: {e}")
 
+    def should_skip_dir(self, dir_name: str) -> bool:
+        """Проверяет, нужно ли пропускать директорию при обходе."""
+        return dir_name in self.SKIP_DIRS
+
+    def should_skip_file(self, file_path: Path) -> bool:
+        """Проверяет, нужно ли пропускать файл."""
+        return not self.is_safe_to_index(file_path)
+
     def is_safe_to_index(self, file_path: Path) -> bool:
         """Проверяет, безопасен ли файл для индексации. Выполняется от быстрых проверок к медленным."""
 
@@ -178,6 +186,14 @@ class FileGuard:
             # Если файл невозможно прочитать (нет прав, заблокирован ОС), лучше его пропустить
             logger.debug(f"Ошибка чтения файла {file_path}: {e}")
             return True
+
+    def should_skip_dir(self, dir_name: str) -> bool:
+        """Проверяет, нужно ли пропускать директорию при обходе."""
+        return dir_name in self.SKIP_DIRS
+
+    def should_skip_file(self, file_path: Path) -> bool:
+        """Проверяет, нужно ли пропускать файл."""
+        return not self.is_safe_to_index(file_path)
 
     @classmethod
     def get_default_extensions(cls) -> Set[str]:

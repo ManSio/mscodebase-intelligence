@@ -47,7 +47,7 @@ class Indexer:
         )
 
         self.table_name = "codebase_chunks"
-        if self.table_name in self.db.table_names():
+        if self.table_name in self.db.list_tables():
             self.table = self.db.open_table(self.table_name)
         else:
             self.table = self.db.create_table(self.table_name, schema=self.schema)
@@ -67,13 +67,19 @@ class Indexer:
         try:
             total_chunks = len(self.table)
             if total_chunks == 0:
-                return {"total_chunks": 0, "unique_files": 0, "status": "empty"}
+                return {
+                    "total_chunks": 0,
+                    "unique_files": 0,
+                    "total_files": 0,
+                    "status": "empty",
+                }
 
             df = self.table.to_pandas()
             unique_files = df["file_path"].nunique()
             return {
                 "total_chunks": total_chunks,
                 "unique_files": int(unique_files),
+                "total_files": int(unique_files),
                 "status": "active",
             }
         except Exception as e:
@@ -123,7 +129,7 @@ class Indexer:
     def _index_single_file(self, full_path: Path, rel_path_str: str) -> bool:
         """Индицирует один файл, если его хэш изменился."""
         try:
-            safe_read_path = self.path_manager.get_safe_read_path(full_path)
+            safe_read_path = self.path_manager.get_safe_path(full_path)
             current_hash = self._calculate_file_hash(safe_read_path)
 
             # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB

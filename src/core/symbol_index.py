@@ -188,3 +188,165 @@ class SymbolIndex:
                 "total_references": total_refs,
                 "tracked_files": len(self._file_to_symbols),
             }
+
+    def get_symbol_count(self) -> int:
+        """Возвращает общее количество уникальных символов."""
+        with self._lock:
+            return len(self._definitions)
+
+    def index_project(self, project_path: str, parser) -> None:
+        """
+        Индексирует проект с помощью парсера (Tree-sitter).
+
+        Args:
+            project_path: Корневая директория проекта
+            parser: Экземпляр CodeParser для парсинга файлов
+        """
+        import os
+        from pathlib import Path
+
+        project_root = Path(project_path)
+
+        # Обходим все файлы в проекте
+        for root, dirs, files in os.walk(project_path):
+            # Фильтрация директорий
+            dirs[:] = [d for d in dirs if not self._should_skip_dir(d)]
+
+            for file in files:
+                file_path = Path(root) / file
+
+                # Парсим файл
+                chunks, symbols = parser.parse_file(file_path)
+
+                if symbols:
+                    # Добавляем определения в индекс
+                    rel_path = str(file_path.relative_to(project_root))
+                    self.add_definitions(rel_path, symbols)
+
+    def _should_skip_dir(self, dir_name: str) -> bool:
+        """Определяет, следует ли пропускать директорию."""
+        skip_dirs = {
+            ".git",
+            "node_modules",
+            "venv",
+            ".venv",
+            "__pycache__",
+            "dist",
+            "build",
+            "target",
+            ".tox",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".pytest_cache",
+            "htmlcov",
+            ".coverage",
+            ".codebase_index",
+            ".codebase_models",
+            ".zed",
+            ".idea",
+            ".vscode",
+            "out",
+        }
+        return dir_name in skip_dirs
+
+    def get_repo_map(self, project_root: str) -> Dict:
+        """
+        Возвращает карту репозитория: структуру директорий + символы в файлах.
+
+        Args:
+            project_root: Корневая директория проекта
+
+        Returns:
+            Словарь с ключами:
+            - "structure": список директорий и файлов
+            - "symbols_by_file": словарь file_path -> список символов
+            - "all_symbols": список всех уникальных символов
+        """
+        with self._lock:
+            # Структура директорий
+            structure = []
+            symbols_by_file = {}
+            all_symbols = []
+
+            # Собираем все файлы, которые мы отслеживаем
+            all_files = set(self._file_to_symbols.keys())
+
+            # Строим иерархическую структуру
+            dir_structure = {}
+            for file_path in all_files:
+                # Относительный путь от project_root
+                rel_path = file_path.replace(project_root, "").lstrip("/\\")
+                parts = rel_path.split("/") if "/" in rel_path else rel_path.split("\\")
+
+                current = dir_structure
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {"__dirs__": [], "__files__": []}
+                    current = current[part]
+
+                # Добавляем файл
+                filename = parts[-1]
+                current["__files__"].append(filename)
+
+                # Собираем символы для этого файла
+                file_symbols = []
+                for symbol_name in self._file_to_symbols.get(file_path, []):
+                    defs = self._definitions.get(symbol_name, [])
+                    refs = self._references.get(symbol_name, [])
+
+                    # Находим определения в этом файле
+                    file_defs = [d for d in defs if d.file_path == file_path]
+                    file_refs = [r for r in refs if r.file_path == file_path]
+
+                    if file_defs or file_refs:
+                        symbol_info = {
+                            "name": symbol_name,
+                            "kind": file_defs[0].kind if file_defs else "unknown",
+                            "definitions": [
+                                {"line": d.line, "context": d.kind} for d in file_defs
+                            ],
+                            "references": [{"line": r.line} for r in file_refs],
+                            "total_definitions": len(file_defs),
+                            "total_references": len(file_refs),
+                        }
+                        file_symbols.append(symbol_info)
+                        all_symbols.append(symbol_name)
+
+                symbols_by_file[file_path] = file_symbols
+
+            # Преобразуем иерархическую структуру в плоский список
+            def flatten_structure(node, path=""):
+                items = []
+                for key, value in node.items():
+                    if key == "__dirs__":
+                        continue
+                    elif key == "__files__":
+                        for filename in value:
+                            items.append(
+                                {
+                                    "type": "file",
+                                    "name": filename,
+                                    "path": f"{path}/{filename}" if path else filename,
+                                }
+                            )
+                    else:
+                        dir_path = f"{path}/{key}" if path else key
+                        items.append(
+                            {
+                                "type": "directory",
+                                "name": key,
+                                "path": dir_path,
+                            }
+                        )
+                        items.extend(flatten_structure(value, dir_path))
+                return items
+
+            structure = flatten_structure(dir_structure)
+
+            return {
+                "structure": structure,
+                "symbols_by_file": symbols_by_file,
+                "all_symbols": list(set(all_symbols)),
+                "total_files": len(all_files),
+                "total_symbols": len(all_symbols),
+            }
