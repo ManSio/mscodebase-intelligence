@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MSCodebase Intelligence"
-version = "1.0.0"
+version = "1.1.0"
 description = "Semantic code search for Zed IDE via MCP"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,9 +42,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-username/MSCodebase-Intelligence"
-Repository = "https://github.com/your-username/MSCodebase-Intelligence"
-Issues = "https://github.com/your-username/MSCodebase-Intelligence/issues"
+Homepage = "https://github.com/ManSio/mscodebase-intelligence"
+Repository = "https://github.com/ManSio/mscodebase-intelligence"
+Issues = "https://github.com/ManSio/mscodebase-intelligence/issues"
 
 [project.scripts]
 mscodebase-mcp = "src.main:main"
