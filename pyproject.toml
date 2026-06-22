@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MSCodebase Intelligence"
+version = "1.0.0"
+description = "Semantic code search for Zed IDE via MCP"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "MSCodebase Intelligence Team"}]
+keywords = ["zed", "mcp", "code-search", "embeddings", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "chromadb>=0.5.0",
+    "onnxruntime>=1.16.0",
+    "transformers>=4.36.0",
+    "sentence-transformers>=2.3.0",
+    "numpy>=1.24.0",
+    "huggingface_hub>=0.20.0",
+    "tree-sitter>=0.21.0",
+    "tree-sitter-python>=0.21.0",
+    "tree-sitter-rust>=0.21.0",
+    "tree-sitter-typescript>=0.21.0",
+    "tree-sitter-javascript>=0.21.0",
+    "tree-sitter-go>=0.21.0",
+    "rank-bm25>=0.2.2",
+    "watchdog>=3.0.0",
+    "tqdm>=4.66.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/MSCodebase-Intelligence"
+Repository = "https://github.com/your-username/MSCodebase-Intelligence"
+Issues = "https://github.com/your-username/MSCodebase-Intelligence/issues"
+
+[project.scripts]
+mscodebase-mcp = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

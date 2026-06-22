@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Project data — всё, что генерируется при работе
+.codebase_index/
+.codebase_indices/
+.codebase_models/
+*.db
+*.sqlite3
+
+# Runtime state
+.model_server.refcount
+.model_server.port
+crash_debug.log
+Agent Panel
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# Windows reserved names
+nul
