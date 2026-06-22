@@ -71,7 +71,7 @@ def create_mcp_server() -> FastMCP:
 
     # Инициализация компонентов ядра
     embedder = RemoteEmbedder(port=1234)
-    file_guard = FileGuard()
+    file_guard = FileGuard(ext_root)
     indexer = Indexer(db_base_dir, embedder, file_guard)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
