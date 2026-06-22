@@ -1,10 +1,11 @@
 """
 Утилиты для работы с путями.
+Обеспечивает полную защиту от специфики Windows (длинные пути, зарезервированные имена устройств).
 """
 
 import hashlib
 import logging
-import re
+import os
 import shutil
 import tempfile
 import threading
@@ -13,8 +14,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
-# Список зарезервированных имен Windows (регистронезависимый)
+# Полный список зарезервированных имен устройств Windows (регистронезависимый)
 WINDOWS_RESERVED_NAMES = {
     "con",
     "prn",
@@ -41,14 +41,37 @@ WINDOWS_RESERVED_NAMES = {
 }
 
 
+def to_win_long_path(path_str: str) -> str:
+    """
+    Преобразует путь в формат длинных путей Windows (\\\\?\\), если запущено на Windows.
+    Это предотвращает падения на лимите в 260 символов (MAX_PATH).
+    """
+    if os.name != "nt":
+        return path_str
+
+    abs_path = os.path.abspath(path_str)
+    if abs_path.startswith("\\\\?\\"):
+        return abs_path
+
+    if abs_path.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + abs_path[2:]
+    return "\\\\?\\" + abs_path
+
+
 def is_windows_reserved_path(path: Path) -> bool:
-    """Проверяет, является ли имя файла или папки зарезервированным устройством Windows."""
-    stem = path.stem.lower()
-    if stem in WINDOWS_RESERVED_NAMES:
-        return True
-    for part in path.parts:
-        if part.lower() in WINDOWS_RESERVED_NAMES:
+    """
+    Проверяет, содержит ли путь зарезервированные системные имена Windows (например, NUL, CON).
+    """
+    try:
+        stem = path.stem.lower()
+        if stem in WINDOWS_RESERVED_NAMES:
             return True
+
+        for part in path.parts:
+            if part.lower() in WINDOWS_RESERVED_NAMES:
+                return True
+    except Exception:
+        pass
     return False
 
 
@@ -66,62 +89,68 @@ class SafePathManager:
     def requires_safe_path(self, path_str: str) -> bool:
         """
         Проверяет, требует ли путь создания безопасной копии.
-        Добавлена проверка на системные зарезервированные устройства Windows.
+        Срабатывает на любые не-ASCII символы, пробелы, превышение лимита длины или системные имена Windows.
         """
         original_path = Path(path_str)
 
-        # Защита от WinError 87 (зарезервированные устройства вроде NUL)
         if is_windows_reserved_path(original_path):
             return True
 
-        # Проверка на не-ASCII символы (кириллица, эмодзи и т.д.)
         if not path_str.isascii():
             return True
 
-        # Проверка на пробелы
         if " " in path_str:
             return True
 
-        # Проверка на длину (с запасом от Windows MAX_PATH 260)
         if len(path_str) > 200:
             return True
 
         return False
 
-    def get_safe_path(self, original_path: Path) -> Path:
+    def get_safe_path(self, original_path_str: str) -> Path:
         """
-        Возвращает абсолютно безопасный ASCII-путь к файлу.
-        Если оригинальный путь проблемный, создает временную копию с уникальным именем.
+        Возвращает безопасный путь к файлу.
+        Если путь проблемный — создает его хэшированную копию во временной директории.
         """
-        path_str = str(original_path.resolve())
+        if not self.requires_safe_path(original_path_str):
+            return Path(original_path_str)
 
-        if not self.requires_safe_path(path_str):
+        original_path = Path(original_path_str)
+
+        # Если это системное зарезервированное устройство Windows, физически прочитать его нельзя
+        if is_windows_reserved_path(original_path):
+            logger.warning(
+                f"⚠️ Обнаружено системное устройство Windows в путях: {original_path_str}. Возвращаем fallback."
+            )
             return original_path
 
-        # Потокобезопасное создание временной директории
         with self._lock:
             if self._temp_dir is None:
-                self._temp_dir = Path(tempfile.mkdtemp(prefix="zed_idx_safe_"))
+                self._temp_dir = Path(tempfile.mkdtemp(prefix="mscodebase_safe_paths_"))
+                logger.debug(f"📁 Создана папка для безопасных путей: {self._temp_dir}")
 
-        # Генерируем уникальное имя файла на основе хэша полного пути
-        # Это исключает коллизии для файлов с одинаковыми именами в разных папках
-        path_hash = hashlib.md5(path_str.encode("utf-8")).hexdigest()
-
-        # Сохраняем оригинальное расширение для корректной работы Tree-sitter/парсеров
+        # Хэшируем исходный абсолютный путь, чтобы избежать коллизий имен
+        path_hash = hashlib.md5(
+            original_path_str.encode("utf-8", errors="ignore")
+        ).hexdigest()
         safe_name = f"{path_hash}{original_path.suffix}"
         safe_path = self._temp_dir / safe_name
 
-        # Копируем файл только если его еще нет или он устарел
         try:
-            # Сравниваем время изменения, если файл уже существует (защита от изменения исходника)
+            # Защита длинных путей при операциях копирования
+            win_src = to_win_long_path(str(original_path))
+            win_dst = to_win_long_path(str(safe_path))
+
             if (
                 not safe_path.exists()
                 or safe_path.stat().st_mtime < original_path.stat().st_mtime
             ):
-                shutil.copy2(original_path, safe_path)
+                shutil.copy2(win_src, win_dst)
         except Exception as e:
-            logger.warning(f"Не удалось создать безопасную копию {original_path}: {e}")
-            return original_path  # Возвращаем оригинал как fallback
+            logger.warning(
+                f"❌ Не удалось создать безопасную копию {original_path_str}: {e}"
+            )
+            return original_path
 
         return safe_path
 
@@ -140,5 +169,4 @@ class SafePathManager:
                     self._temp_dir = None
 
     def __del__(self):
-        """Гарантирует очистку мусора при уничтожении объекта сборщиком."""
         self.cleanup()
