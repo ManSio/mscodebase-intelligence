@@ -103,10 +103,8 @@ def main():
         from src.mcp.handler import run_server
 
         logger.info("Запуск MCP сервера...")
-        # Передаем оригинальный stdout для связи с Zed через stdio
-        awaitable = run_server(original_stdout)
-        if awaitable is not None:
-            asyncio.run(awaitable)
+        # run_server сам создаёт event loop и запускает stdio
+        run_server(original_stdout)
 
     except KeyboardInterrupt:
         logger.info("Сервер остановлен пользователем.")

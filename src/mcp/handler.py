@@ -149,6 +149,35 @@ def create_mcp_server() -> FastMCP:
     # --- ИНСТРУМЕНТЫ MCP ---
 
     @mcp.tool()
+    def index_status() -> str:
+        """Показать текущий статус и наполнение локальной базы индексов проекта"""
+        if indexer_instance:
+            stats = indexer_instance.get_status()
+            return (
+                f"📊 Статус индекса:\n"
+                f"- Чанков в базе: {stats['total_chunks']}\n"
+                f"- Индексированных файлов: {stats['total_files']}\n"
+                f"- Путь к БД: {stats['db_path']}"
+            )
+        return "❌ Ядро индексации недоступно."
+
+    @mcp.tool()
+    def reindex_all(project_path: str) -> str:
+        """Принудительное полное перестроение поискового векторного индекса проекта"""
+
+        def run_sync():
+            with _indexing_lock:
+                try:
+                    indexer_instance.clear_index()
+                    count = indexer_instance.index_project(Path(project_path))
+                    logger.info(f"Фоновая переиндексация завершена. Файлов: {count}")
+                except Exception as ex:
+                    logger.error(f"Ошибка фоновой переиндексации: {ex}")
+
+        threading.Thread(target=run_sync, daemon=True).start()
+        return "🔄 Тяжелая задача полной переиндексации успешно запущена в фоне. Сервер продолжает отвечать на запросы."
+
+    @mcp.tool()
     def search_code(query: str, top_k: int = 5) -> str:
         """Гибридный поиск по всей кодовой базе проекта (Векторный + Ключевые слова)"""
         with _indexing_lock:
@@ -164,46 +193,34 @@ def create_mcp_server() -> FastMCP:
                 return get_context(query, searcher=searcher_instance, top_k=top_k)
             return "❌ Контекстный движок недоступен."
 
-    @mcp.tool()
-    def index_project_status() -> str:
-        """Возвращает текущий статус и наполнение локальной базы индексов"""
-        if indexer_instance:
-            stats = indexer_instance.get_status()
-            return f"📊 Статус индекса:\n- Чанков в базе: {stats['total_chunks']}\n- Индексированных файлов: {stats['total_files']}\n- Путь к БД: {stats['db_path']}"
-        return "❌ Ядро индексации недоступно."
-
-    @mcp.tool()
-    def force_reindex_all(project_path: str) -> str:
-        """Принудительное полное перестроение поискового векторного индекса проекта"""
-
-        def run_sync():
-            with _indexing_lock:
-                try:
-                    indexer_instance.clear_index()
-                    count = indexer_instance.index_project(Path(project_path))
-                    logger.info(f"Фоновая переиндексация завершена. Файлов: {count}")
-                except Exception as ex:
-                    logger.error(f"Ошибка фоновой переиндексации: {ex}")
-
-        threading.Thread(target=run_sync, daemon=True).start()
-        return "🔄 Тяжелая задача полной переиндексации успешно запущена в фоне. Сервер продолжает отвечать на запросы."
-
     return mcp
+
+
+async def run_server_async():
+    """Асинхронный запуск MCP сервера с фоновым воркером."""
+    global _loop_instance
+    _loop_instance = asyncio.get_running_loop()
+    _loop_instance.create_task(background_worker())
+    mcp = create_mcp_server()
+    if mcp:
+        await mcp.run_stdio_async()
 
 
 def run_server(original_stdout=None):
     """Точка входа для запуска stdio сервера."""
-    global _loop_instance
     mcp = create_mcp_server()
     if mcp:
         try:
             if original_stdout:
                 sys.stdout = original_stdout
 
-            _loop_instance = asyncio.get_event_loop()
-            _loop_instance.create_task(background_worker())
+            async def main():
+                global _loop_instance
+                _loop_instance = asyncio.get_event_loop()
+                _loop_instance.create_task(background_worker())
+                await mcp.run_stdio_async()
 
-            _loop_instance.run_until_complete(mcp.run_stdio_async())
+            asyncio.run(main())
         except KeyboardInterrupt:
             logger.info("Сервер остановлен пользователем.")
         except Exception as e:
