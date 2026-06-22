@@ -28,7 +28,11 @@ class Searcher:
         if self.indexer.table is None or len(self.indexer.table) == 0:
             return []
         try:
-            df = self.indexer.table.search(query_vector).limit(limit).to_pandas()
+            df = (
+                self.indexer.table.search(query_vector, vector_column_name="vector")
+                .limit(limit)
+                .to_pandas()
+            )
             results = []
             for _, row in df.iterrows():
                 results.append(

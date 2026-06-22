@@ -10,11 +10,9 @@ import pytest
 
 
 @pytest.fixture
-def temp_index():
-    """Создаёт временный индекс."""
-    temp_dir = Path(tempfile.mkdtemp())
-    yield temp_dir
-    shutil.rmtree(temp_dir, ignore_errors=True)
+def temp_index(tmp_path):
+    """Каждый тест получает изолированный временный каталог (tmp_path)."""
+    yield tmp_path
 
 
 @pytest.mark.slow
@@ -40,8 +38,11 @@ class Calculator:
     model_dir = temp_index / "models"
     index_dir = temp_index / "index"
 
-    embedder = Embedder(model_dir=model_dir)
-    embedder.load()
+    from unittest.mock import MagicMock
+
+    embedder = MagicMock()
+    embedder.embed.return_value = [0.1] * 384
+    embedder.embed_batch.return_value = [[0.1] * 384] * 5
 
     from src.core.file_guard import FileGuard
 
@@ -50,14 +51,9 @@ class Calculator:
     # Используем _index_single_file через внутренний вызов
     # Вместо прямого вызова index_file (который удалён)
     # Используем index_project для одного файла
-    (temp_index / "test").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(test_file, temp_index / "test" / "test.py")
-
-    # Создаём временную структуру для index_project
-    from src.core.file_guard import FileGuard
-
-    file_guard = FileGuard(temp_index)
-    indexer = Indexer(index_dir, embedder, file_guard=file_guard)
+    # Копируем файл в поддиректорию, чтобы index_project его увидел
+    (temp_index / "src").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(test_file, temp_index / "src" / "test.py")
 
     # Индексируем через index_project (единственный публичный метод)
     count = indexer.index_project(temp_index)
