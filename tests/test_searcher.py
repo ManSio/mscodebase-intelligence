@@ -85,6 +85,9 @@ def test_searcher_empty_index(temp_index):
 
 
 @pytest.mark.slow
+@pytest.mark.skip(
+    reason="Требуется запущенный LM Studio (RemoteEmbedder) для полноценного теста BM25"
+)
 def test_searcher_reindex(temp_index):
     """Тест сброса кэша BM25."""
     from src.core.embedder import Embedder

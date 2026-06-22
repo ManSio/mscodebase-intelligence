@@ -40,7 +40,7 @@ class Searcher:
                 from rank_bm25 import BM25Okapi
 
                 logger.info("⏳ Построение BM25 индекса...")
-                all_docs = self.indexer.collection.get(include=["documents", "ids"])
+                all_docs = self.indexer.collection.get(include=["documents"])
 
                 if not all_docs["documents"]:
                     return
