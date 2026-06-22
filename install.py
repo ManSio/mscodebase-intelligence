@@ -37,15 +37,27 @@ def main():
             ".git",
             "__pycache__",
             "venv",
+            ".venv",
             ".codebase_indices",
             ".codebase_models",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".mypy_cache",
+            ".zed",
+            ".idea",
+            ".vscode",
         ]:
             continue
         target = ZED_EXT_DIR / item.name
-        if item.is_dir():
-            shutil.copytree(str(item), str(target), dirs_exist_ok=True)
-        else:
-            shutil.copy2(str(item), str(target))
+        try:
+            if item.is_dir():
+                shutil.copytree(str(item), str(target), dirs_exist_ok=True)
+                print(f"  └─ Скопирована папка: {item.name}")
+            else:
+                shutil.copy2(str(item), str(target))
+                print(f"  └─ Скопирован файл: {item.name}")
+        except Exception as e:
+            print(f"  ⚠️ Пропущен элемент {item.name} из-за ошибки: {e}")
 
     # 2. Создание изолированного Venv
     print("\n[2/5] Создание изолированного Python Virtual Environment...")
