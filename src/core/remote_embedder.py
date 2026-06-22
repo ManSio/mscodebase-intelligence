@@ -14,12 +14,11 @@ class RemoteEmbedder:
     def __init__(
         self, port: int = 1234, host: str = "127.0.0.1", timeout: float = 60.0
     ):
-        """Инициализация эмбеддера под LM Studio / Ollama."""
+        """Инициализация эмбеддера под LM Studio."""
         self.host = host
         self.port = port
         self.timeout = timeout
         self.base_url = f"http://{host}:{port}"
-        # Твоя рабочая локальная модель векторизации
         self.model_name = "text-embedding-bge-m3"
         logger.info(f"🔌 Эмбеддер инициализирован на целевой адрес: {self.base_url}")
 
@@ -46,22 +45,17 @@ class RemoteEmbedder:
     def embed_batch(
         self, texts: List[str], is_query: bool = False
     ) -> List[List[float]]:
-        """
-        Прямая батч-отправка чанков кода в LM Studio.
-        Правка: Никаких блокирующих флагов старта! Запрос отправляется принудительно.
-        """
+        """Прямая батч-отправка чанков кода в LM Studio."""
         if not texts:
             return []
 
         try:
             url = f"{self.base_url}/v1/embeddings"
             payload = {"model": self.model_name, "input": texts}
-            # Увеличиваем таймаут до 60 секунд, так как батчи могут обрабатываться долго
             with httpx.Client(timeout=60.0) as client:
                 r = client.post(url, json=payload)
                 if r.status_code == 200:
                     data = r.json().get("data", [])
-                    # Гарантируем сохранение порядка следования чанков через сортировку индексов
                     data = sorted(data, key=lambda x: x.get("index", 0))
                     return [item["embedding"] for item in data]
                 else:
@@ -71,5 +65,4 @@ class RemoteEmbedder:
         except Exception as e:
             logger.error(f"❌ Ошибка физической батч-отправки пакета в LM Studio: {e}")
 
-        # В случае падения возвращаем пустую матрицу соответствующего размера, чтобы не уронить индексер
         return [[] for _ in texts]
