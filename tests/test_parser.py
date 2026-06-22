@@ -11,7 +11,9 @@ import pytest
 @pytest.fixture
 def temp_file():
     """Создаёт временный файл."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    ) as f:
         path = Path(f.name)
     yield path
     path.unlink(missing_ok=True)
@@ -65,7 +67,9 @@ def test_parser_markdown(temp_file):
     from src.core.parser import CodeParser
 
     md_file = temp_file.with_suffix(".md")
-    md_file.write_text("# Header 1\n\nContent 1\n\n# Header 2\n\nContent 2")
+    md_file.write_text(
+        "# Header 1\n\nContent 1\n\n# Header 2\n\nContent 2", encoding="utf-8"
+    )
 
     parser = CodeParser()
     result = parser.parse_file(md_file)
@@ -81,7 +85,7 @@ def test_parser_unsupported_extension(temp_file):
     from src.core.parser import CodeParser
 
     bin_file = temp_file.with_suffix(".bin")
-    bin_file.write_text("binary content")
+    bin_file.write_text("binary content", encoding="utf-8")
 
     parser = CodeParser()
     result = parser.parse_file(bin_file)
