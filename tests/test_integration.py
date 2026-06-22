@@ -46,19 +46,20 @@ def isolated_indexer(tmp_path):
 
     db_dir = tmp_path / "isolated_lancedb"
 
-        # Мокаем эмбеддер, возвращающий вектор правильной размерности
-        embedder_mock = MagicMock()
-        embedder_mock.embed.return_value = [0.1] * 384
-        embedder_mock.embed_batch.return_value = [[0.1] * 384] * 5
+    # Мокаем эмбеддер, возвращающий вектор правильной размерности
+    embedder_mock = MagicMock()
+    embedder_mock.embed.return_value = [0.1] * 384
+    embedder_mock.embed_batch.return_value = [[0.1] * 384] * 5
 
-        file_guard = FileGuard(tmp_path)
-        indexer = Indexer(db_dir, embedder_mock, file_guard)
+    file_guard = FileGuard(tmp_path)
+    indexer = Indexer(db_dir, embedder_mock, file_guard)
 
-        yield indexer
+    yield indexer
 
-        # LanceDB не имеет close() метода - просто удалим временную папку
-        import shutil
-        shutil.rmtree(tmp_path, ignore_errors=True)
+    # LanceDB не имеет close() метода - просто удалим временную папку
+    import shutil
+
+    shutil.rmtree(tmp_path, ignore_errors=True)
 
 
 @pytest.mark.slow

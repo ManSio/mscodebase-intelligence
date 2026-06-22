@@ -26,11 +26,19 @@ class Indexer:
         self.searcher = None
 
         # Настройка директории базы данных
-        db_dir = Path(to_win_long_path(db_path))
-        db_dir.mkdir(parents=True, exist_ok=True)
+        # На Windows tmp_path может содержать \\?\ префикс.
+        # LanceDB (Rust) не понимает этот префикс — снимаем его.
+        raw_path = str(db_path.resolve())
+        if raw_path.startswith("\\\\?\\"):
+            lancedb_path = raw_path[4:]
+        else:
+            lancedb_path = raw_path
 
-        # Подключение к LanceDB
-        self.db = lancedb.connect(str(db_dir))
+        # Создаём директорию через \\?\ если нужно (обходит MAX_PATH)
+        Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
+
+        # Подключение к LanceDB (чистый путь, без \\?\)
+        self.db = lancedb.connect(lancedb_path)
 
         # Схема таблицы: id, vector, text, file_path, file_hash, chunk_index
         self.schema = pa.schema(
