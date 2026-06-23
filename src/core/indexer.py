@@ -100,6 +100,38 @@ class Indexer:
 
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
 
+    def switch_project(self, project_path: Path) -> None:
+        """
+        Динамически переключает базу данных на проект.
+        Позволяет использовать один инстанс Indexer для разных проектов.
+        """
+        new_db_path = _generate_unique_db_path(project_path)
+        if new_db_path == self.db_path:
+            return  # Уже на нужной базе
+
+        logger.info(f"🔄 Переключение БД: {self.db_path.name} → {new_db_path.name}")
+        self.db_path = new_db_path
+        self.path_manager = SafePathManager(new_db_path.parent)
+
+        # Переподключаемся к новой базе
+        raw_path = str(new_db_path.resolve())
+        if raw_path.startswith("\\?\\"):
+            lancedb_path = raw_path[4:]
+        else:
+            lancedb_path = raw_path
+
+        Path(to_win_long_path(new_db_path)).mkdir(parents=True, exist_ok=True)
+        self.db = lancedb.connect(lancedb_path)
+
+        # Открываем или создаём таблицу
+        try:
+            self.table = self.db.open_table(self.table_name)
+            logger.info(f"📦 Открыта таблица: {self.table_name}")
+        except Exception:
+            self.table = self.db.create_table(self.table_name, schema=self.schema)
+            logger.info(f"📦 Создана таблица: {self.table_name}")
+
+
     def _calculate_file_hash(self, safe_path: Path) -> str:
         """Вычисляет хэш файла для отслеживания изменений (SHA256)."""
         hasher = hashlib.sha256()
@@ -288,3 +320,4 @@ class Indexer:
             self.searcher.reindex()
 
         return indexed_count
+

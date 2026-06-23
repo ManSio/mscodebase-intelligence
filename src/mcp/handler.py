@@ -61,6 +61,9 @@ async def background_queue_worker(
             )
             _last_index_error = None  # Сбрасываем старую ошибку перед началом работы
 
+            # === МУЛЬТИПРОЕКТНОСТЬ: Динамическое переключение БД ===
+            indexer.switch_project(project_path)
+
             # Создаём FileGuard под конкретный проект (чтобы .gitignore работал правильно)
             project_file_guard = FileGuard(project_path)
             indexer.file_guard = project_file_guard
