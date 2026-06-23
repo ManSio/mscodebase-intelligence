@@ -290,6 +290,8 @@ class SymbolIndex:
 
                 # Добавляем файл
                 filename = parts[-1]
+                if "__files__" not in current:
+                    current["__files__"] = []
                 current["__files__"].append(filename)
 
                 # Собираем символы для этого файла

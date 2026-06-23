@@ -25,6 +25,9 @@ def get_context(query: str, searcher) -> str:
         total_chars = 0
 
         for chunk in chunks:
+            # Проверяем, не вернулась ли ошибка
+            if "error" in chunk:
+                return f"❌ Ошибка поиска: {chunk['error']}"
             file_path = chunk["metadata"]["file"]
             doc = chunk["text"]
             chunk_idx = chunk["metadata"]["chunk_index"]
