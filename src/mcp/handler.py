@@ -143,22 +143,18 @@ def create_mcp_server() -> "FastMCP":
 
     # Добавляем семафор для ограничения параллельных запросов к LM Studio
     # Это предотвращает перегрузку LM Studio при параллельной индексации в нескольких окнах
-    from asyncio import Semaphore
+    import threading
 
-    embedder._lm_studio_semaphore = Semaphore(
+    embedder._lm_studio_semaphore = threading.Semaphore(
         2
     )  # Ограничиваем до 2 параллельных запросов
 
     # Оборачиваем embed_batch методом, который использует семафор
     original_embed_batch = embedder.embed_batch
 
-    async def embed_batch_with_semaphore(texts, is_query=False):
-        async with embedder._lm_studio_semaphore:
-            # Выполняем синхронный embed_batch в потоке, чтобы не блокировать event loop
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
-                None, original_embed_batch, texts, is_query
-            )
+    def embed_batch_with_semaphore(texts, is_query=False):
+        with embedder._lm_studio_semaphore:
+            return original_embed_batch(texts, is_query)
 
     embedder.embed_batch = embed_batch_with_semaphore
 
