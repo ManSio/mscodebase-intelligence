@@ -49,7 +49,7 @@ async def background_queue_worker(
 ):
     """
     Единственный потребитель задач индексации.
-    Последовательно обновляет как векторный LanceDB индекс, так и структурный SymbolIndex.
+    Последовательно и независимо обновляет как векторный LanceDB индекс, так и структурный SymbolIndex.
     """
     global _last_index_error
     logger.info("⚙️ Асинхронный Queue-воркер запущен и готов к обработке задач.")
@@ -59,29 +59,59 @@ async def background_queue_worker(
             logger.info(
                 f"🔄 Фоновый воркер: Старт полной индексации проекта: {project_path.name}"
             )
+            _last_index_error = None  # Сбрасываем старую ошибку перед началом работы
 
             # Создаём FileGuard под конкретный проект (чтобы .gitignore работал правильно)
             project_file_guard = FileGuard(project_path)
             indexer.file_guard = project_file_guard
 
-            # 1. Векторная индексация (выполняется в пуле потоков)
-            indexed_count = await asyncio.to_thread(indexer.index_project, project_path)
-
-            # 2. Структурный парсинг символов Tree-sitter (выполняется в пуле потоков)
-            if hasattr(symbol_index, "index_project"):
-                await asyncio.to_thread(
-                    symbol_index.index_project, project_path, parser
+            # 1. ВЕКТОРНАЯ ИНДЕКСАЦИЯ (LanceDB + LM Studio)
+            indexed_count = 0
+            try:
+                logger.info("📡 Старт векторной индексации (шаг 1)...")
+                indexed_count = await asyncio.to_thread(
+                    indexer.index_project, project_path
+                )
+                logger.info(
+                    f"🔹 Шаг 1 завершен. Проиндексировано фрагментов: {indexed_count}"
+                )
+            except Exception as emb_err:
+                _last_index_error = f"Ошибка векторного индекса (LM Studio?): {emb_err}"
+                logger.error(
+                    f"⚠️ Сбой на шаге 1 (векторная индексация): {emb_err}", exc_info=True
                 )
 
-            logger.info(
-                f"✅ Фоновый воркер: Проект {project_path.name} полностью синхронизирован "
-                f"({indexed_count} файлов)."
-            )
-            _last_index_error = None
-        except Exception as e:
-            _last_index_error = str(e)
+            # 2. СТРУКТУРНЫЙ ПАРСИНГ СИМВОЛОВ (Tree-sitter)
+            try:
+                if hasattr(symbol_index, "index_project"):
+                    logger.info("🌳 Старт структурного парсинга Tree-sitter (шаг 2)...")
+                    await asyncio.to_thread(
+                        symbol_index.index_project, project_path, parser
+                    )
+                    logger.info("🔹 Шаг 2 завершен успешно.")
+            except Exception as sym_err:
+                logger.error(
+                    f"⚠️ Сбой на шаге 2 (Tree-sitter / Repo Map): {sym_err}",
+                    exc_info=True,
+                )
+                if not _last_index_error:
+                    _last_index_error = f"Ошибка парсера символов: {sym_err}"
+
+            if not _last_index_error:
+                logger.info(
+                    f"✅ Фоновый воркер: Проект {project_path.name} успешно синхронизирован "
+                    f"({indexed_count} файлов)."
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Индексация завершена частично из-за ошибок. Статус: {_last_index_error}"
+                )
+
+        except Exception as critical_err:
+            _last_index_error = f"Критический сбой цикла воркера: {critical_err}"
             logger.error(
-                f"❌ Критическая ошибка выполнения внутри воркера: {e}", exc_info=True
+                f"❌ Критическая ошибка выполнения внутри воркера: {critical_err}",
+                exc_info=True,
             )
         finally:
             _signal_all_events()
