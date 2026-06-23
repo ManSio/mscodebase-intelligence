@@ -3,7 +3,6 @@ MSCodebase Intelligence — Контекстный движок сборки к�
 """
 
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +14,8 @@ def get_context(query: str, searcher) -> str:
         return "Запрос пуст."
 
     try:
-        query_vector = searcher.embedder.embed(query)
-        chunks = searcher.vector_search(query_vector, limit=8)
+        # Используем гибридный поиск вместо чистого векторного
+        chunks = searcher.hybrid_search(query, limit=8)
 
         if not chunks:
             return "Релевантный контекст не найден."
@@ -25,9 +24,6 @@ def get_context(query: str, searcher) -> str:
         total_chars = 0
 
         for chunk in chunks:
-            # Проверяем, не вернулась ли ошибка
-            if "error" in chunk:
-                return f"❌ Ошибка поиска: {chunk['error']}"
             file_path = chunk["metadata"]["file"]
             doc = chunk["text"]
             chunk_idx = chunk["metadata"]["chunk_index"]
