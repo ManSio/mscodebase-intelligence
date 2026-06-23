@@ -68,7 +68,7 @@ class Indexer:
             [
                 pa.field("id", pa.string()),
                 pa.field(
-                    "vector", pa.list_(pa.float32(), 384)
+                    "vector", pa.list_(pa.float32(), 1024)
                 ),  # Фиксируем под MiniLM / BGE размерность
                 pa.field("text", pa.string()),
                 pa.field("file_path", pa.string()),
@@ -199,9 +199,9 @@ class Indexer:
             data_records = []
             for i, (chunk_text, chunk_vec) in enumerate(zip(chunks, embeddings)):
                 # Нормализация вектора под размерность схемы
-                if len(chunk_vec) != 384:
+                if len(chunk_vec) != 1024:
                     # Приведение размерности (дополнение нулями или обрезка) при форс-мажорах API
-                    chunk_vec = chunk_vec[:384] + [0.0] * (384 - len(chunk_vec))
+                    chunk_vec = chunk_vec[:1024] + [0.0] * (1024 - len(chunk_vec))
 
                 data_records.append(
                     {

@@ -27,6 +27,7 @@ class Searcher:
         """Прямой векторный поиск через таблицу LanceDB."""
         if self.indexer.table is None or len(self.indexer.table) == 0:
             return []
+
         try:
             df = (
                 self.indexer.table.search(query_vector, vector_column_name="vector")
@@ -47,15 +48,26 @@ class Searcher:
             return results
         except Exception as e:
             logger.error(f"Ошибка векторного поиска LanceDB: {e}")
-            return []
+            return [{"error": str(e)}]
 
     def search(self, query: str, limit: int = 5) -> str:
         """Фолбэк-метод гибридного поиска для MCP-инструмента search_code."""
         try:
             query_vector = self.embedder.embed(query)
+            if not query_vector:
+                return "❌ Эмбеддер недоступен: пустой вектор запроса."
+            logger.debug(f"🔍 Query vector dim: {len(query_vector)}")
             v_results = self.vector_search(query_vector, limit=limit)
             if not v_results:
-                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                return f"🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен). Вектор: {len(query_vector)} dims."
+
+            # Проверяем, не вернулась ли ошибка вместо результатов
+            if v_results and "error" in v_results[0]:
+                return f"❌ Ошибка векторного поиска: {v_results[0]['error']}"
+
+            # Проверяем, не все ли вектора - нули (fallback)
+            if v_results and all(v == 0.0 for v in query_vector):
+                return f"⚠️ Внимание: эмбеддер вернул нулевые вектора (режим fallback). Проверьте LM Studio/ONNX."
 
             output = [f"📊 Найдено {len(v_results)} релевантных фрагментов кода:\n"]
             for i, res in enumerate(v_results, 1):
