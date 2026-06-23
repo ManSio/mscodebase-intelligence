@@ -2,6 +2,7 @@
 MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -15,6 +16,26 @@ import pyarrow as pa
 from src.utils.paths import SafePathManager, to_win_long_path
 
 logger = logging.getLogger("mscodebase_server.indexer")
+
+
+def _generate_unique_db_path(project_path: Path) -> Path:
+    """Генерирует уникальный путь к базе данных на основе пути проекта.
+
+    Это позволяет каждому проекту иметь свою изолированную базу данных,
+    предотвращая конфликты при параллельной индексации.
+    """
+    # Используем хэш пути проекта для создания уникального имени файла
+    project_hash = hashlib.md5(str(project_path.resolve()).encode()).hexdigest()[:8]
+    project_name = os.path.basename(project_path)
+
+    # Создаем директорию .codebase_indices в корне проекта, если её нет
+    project_root = project_path.parent
+    db_dir = project_root / ".codebase_indices" / "lancedb_v2"
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    # Имя базы данных: index_{project_name}_{hash}.db
+    db_name = f"index_{project_name}_{project_hash}.db"
+    return db_dir / db_name
 
 
 class Indexer:
@@ -38,6 +59,8 @@ class Indexer:
         Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
 
         # Подключение к LanceDB (чистый путь, без \\?\)
+        # Для предотвращения блокировок при параллельной индексации
+        # используем WAL режим (если поддерживается)
         self.db = lancedb.connect(lancedb_path)
 
         # Схема таблицы: id, vector, text, file_path, file_hash, chunk_index

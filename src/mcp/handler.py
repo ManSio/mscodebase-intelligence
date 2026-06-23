@@ -93,16 +93,44 @@ def create_mcp_server() -> "FastMCP":
 
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
-    db_base_dir = ext_root / ".codebase_indices" / "lancedb_v2"
-    db_base_dir.mkdir(parents=True, exist_ok=True)
 
     # Инициализация компонентов ядра
     embedder = RemoteEmbedder(port=1234)
     # FileGuard пересоздаётся в queue_worker под конкретный проект для правильного .gitignore
     default_file_guard = FileGuard(ext_root)
-    indexer = Indexer(db_base_dir, embedder, default_file_guard)
+
+    # Создаём изолированную базу данных для каждого проекта
+    # Импортируем функцию здесь, чтобы избежать циклических импортов
+    from src.core.indexer import _generate_unique_db_path
+
+    # Для начальной инициализации используем корневую директорию проекта
+    # В реальности путь к базе будет переопределен в background_queue_worker
+    # для каждого конкретного проекта, который индексируется
+    initial_db_path = _generate_unique_db_path(ext_root)
+    indexer = Indexer(initial_db_path, embedder, default_file_guard)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
+
+    # Добавляем семафор для ограничения параллельных запросов к LM Studio
+    # Это предотвращает перегрузку LM Studio при параллельной индексации в нескольких окнах
+    from asyncio import Semaphore
+
+    embedder._lm_studio_semaphore = Semaphore(
+        2
+    )  # Ограничиваем до 2 параллельных запросов
+
+    # Оборачиваем embed_batch методом, который использует семафор
+    original_embed_batch = embedder.embed_batch
+
+    async def embed_batch_with_semaphore(texts, is_query=False):
+        async with embedder._lm_studio_semaphore:
+            # Выполняем синхронный embed_batch в потоке, чтобы не блокировать event loop
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, original_embed_batch, texts, is_query
+            )
+
+    embedder.embed_batch = embed_batch_with_semaphore
 
     # SymbolIndex — in-memory индекс символов
     symbol_index = SymbolIndex()
