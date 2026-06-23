@@ -9,12 +9,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from mcp.server.fastmcp import FastMCP
-
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
+
+# Импорт FastMCP отложен — он выполняется внутри create_mcp_server(),
+# когда sys.path уже правильно настроен (src/ удалён из sys.path).
+# Это предотвращает shadow-конфликт: src/mcp/ не должен перекрывать site-packages mcp.
 
 # Безопасный импорт движков контекста и символов
 try:
@@ -63,7 +65,9 @@ async def background_queue_worker(indexer: Indexer, symbol_index: SymbolIndex):
             _task_queue.task_done()
 
 
-def create_mcp_server() -> FastMCP:
+def create_mcp_server() -> "FastMCP":
+    from mcp.server.fastmcp import FastMCP  # Отложенный импорт — см. комментарий выше
+
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
     db_base_dir = ext_root / ".codebase_indices" / "lancedb_v2"

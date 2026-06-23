@@ -103,7 +103,7 @@ def main():
         settings_data["context_servers"] = {}
 
     # Задаем абсолютные жесткие пути запуска, чтобы Zed никогда не терял плагин
-    main_script_path = ZED_EXT_DIR / "main.py"
+    main_script_path = ZED_EXT_DIR / "src" / "main.py"
     settings_data["context_servers"]["mscodebase-intelligence"] = {
         "command": str(PYTHON_EXE),
         "args": [str(main_script_path)],

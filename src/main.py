@@ -9,8 +9,18 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# ⚠️ КРИТИЧЕСКИ ВАЖНО: Убираем src/ из sys.path, чтобы не перекрывать
+# пакет mcp из site-packages.
+script_dir = str(Path(__file__).resolve().parent)
+if script_dir in sys.path:
+    sys.path.remove(script_dir)
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# После удаления src/ из sys.path модули src.* всё ещё доступны
+# через PROJECT_ROOT, но import mcp теперь правильно идёт в site-packages.
 
 
 def log_crash(error: BaseException) -> None:
