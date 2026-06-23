@@ -154,8 +154,8 @@ def create_mcp_server() -> "FastMCP":
     async def index_project_dir(path: str, **kwargs) -> str:
         """Добавляет директорию проекта в фоновую очередь на синхронизацию.
 
-        Возвращает результат сразу после завершения индексации (с таймаутом 60с).
-        При превышении таймаута — сообщает о фоновой обработке.
+        Возвращает результат сразу после запуска процесса в фоне.
+        Индексация выполняется асинхронно, не блокируя интерфейс Zed.
         """
         global _last_index_error
         _last_index_error = None
@@ -165,37 +165,12 @@ def create_mcp_server() -> "FastMCP":
         if not target_path.exists():
             return f"❌ Указанный путь не существует: {path}"
 
-        # Создаём событие для отслеживания завершения этой задачи
-        task_event = asyncio.Event()
-        _task_events.append(task_event)
-
+        # Просто добавляем задачу в очередь и возвращаем ответ о запуске
+        # Индексация выполняется асинхронно в фоне воркером
         await _task_queue.put(target_path)
 
-        # Ждём завершения задачи с таймаутом
-        try:
-            await asyncio.wait_for(task_event.wait(), timeout=60.0)
-        except asyncio.TimeoutError:
-            return (
-                f"⏳ Проект '{target_path.name}' индексируется в фоне...\n"
-                f"💡 Проверьте статус через get_index_status()"
-            )
-        finally:
-            # Очищаем событие
-            if task_event in _task_events:
-                _task_events.remove(task_event)
-
-        # Задача завершена — проверяем результат
-        if _last_index_error:
-            return f"❌ Ошибка индексации: {_last_index_error}"
-
-        stats = indexer.get_status()
-        total_symbols = symbol_index.get_symbol_count()
-        return (
-            f"✅ Проект '{target_path.name}' полностью проиндексирован!\n"
-            f"  • {stats.get('unique_files', 0)} файлов\n"
-            f"  • {stats.get('total_chunks', 0)} фрагментов кода\n"
-            f"  • {total_symbols} символов"
-        )
+        # Возвращаем JSON-ответ о запуске в фоне, не ожидая завершения
+        return f'{{\n  "status": "success",\n  "message": "Индексация проекта {target_path.name} успешно запущена в фоновом режиме."\n}}'
 
     # 3. Инструмент MCP: Семантический поиск кусков кода
     @mcp.tool()
