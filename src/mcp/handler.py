@@ -181,7 +181,7 @@ def create_mcp_server() -> "FastMCP":
 
     # 1. Инструмент MCP: Статус базы
     @mcp.tool()
-    def get_index_status(**kwargs) -> str:
+    def get_index_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текущую статистику заполнения векторной базы данных LanceDB и индекса символов."""
         stats = indexer.get_status()
         if "error" in stats:
@@ -209,7 +209,9 @@ def create_mcp_server() -> "FastMCP":
 
     # 2. Инструмент MCP: Добавление проекта в очередь
     @mcp.tool()
-    async def index_project_dir(path: str, **kwargs) -> str:
+    async def index_project_dir(
+        path: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Добавляет директорию проекта в фоновую очередь на синхронизацию.
 
         Возвращает результат сразу после запуска процесса в фоне.
@@ -232,19 +234,19 @@ def create_mcp_server() -> "FastMCP":
 
     # 3. Инструмент MCP: Семантический поиск кусков кода
     @mcp.tool()
-    def search_code(query: str, **kwargs) -> str:
+    def search_code(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Выполняет гибридный семантический поиск по фрагментам исходного кода проекта."""
         return searcher.search(query, limit=6)
 
     # 4. Инструмент MCP: Cursor @codebase Контекст-движок
     @mcp.tool()
-    def get_context(query: str, **kwargs) -> str:
+    def get_context(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Генерирует интеллектуальный упакованный контекст для AI-ассистента в стиле Cursor @codebase."""
         return get_context_func(query, searcher)
 
     # 5. Инструмент MCP: Точный поиск определений и использований
     @mcp.tool()
-    def get_symbol_info(query: str, **kwargs) -> str:
+    def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Ищет точные совпадения для определений и использований по их имени."""
         if not symbol_index:
             return "❌ Индекс символов не инициализирован."
@@ -285,7 +287,7 @@ def create_mcp_server() -> "FastMCP":
 
     # 6. Инструмент MCP: Генерация читаемой Repo Map структуры
     @mcp.tool()
-    def get_repo_map(project_root: str, **kwargs) -> str:
+    def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы."""
         if not symbol_index:
             return "❌ Движок анализа структуры недоступен."
