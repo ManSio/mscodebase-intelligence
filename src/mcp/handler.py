@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
@@ -21,6 +21,7 @@ from src.core.searcher import Searcher
 # Безопасный импорт движков контекста и символов
 try:
     from src.core.context_engine import get_context as get_context_func
+    from src.core.parser import CodeParser
     from src.core.symbol_index import SymbolIndex
 except ImportError as e:
     logging.getLogger("mscodebase_server.handler").error(
@@ -30,15 +31,27 @@ except ImportError as e:
 
 logger = logging.getLogger("mscodebase_server.handler")
 
-_task_queue: asyncio.Queue = None
-_worker_task: asyncio.Task = None
+_task_queue: Optional[asyncio.Queue] = None
+_worker_task: Optional[asyncio.Task] = None
+_last_index_error: Optional[str] = None  # Последняя ошибка индексации
+_task_events: list = []  # Список asyncio.Event для отслеживания завершения задач
 
 
-async def background_queue_worker(indexer: Indexer, symbol_index: SymbolIndex):
+def _signal_all_events():
+    """Сигналит всем ожидающим событиям о завершении задачи."""
+    events = _task_events[:]  # копия, т.к. список может измениться
+    for ev in events:
+        ev.set()
+
+
+async def background_queue_worker(
+    indexer: Indexer, symbol_index: SymbolIndex, parser: "CodeParser"
+):
     """
     Единственный потребитель задач индексации.
     Последовательно обновляет как векторный LanceDB индекс, так и структурный SymbolIndex.
     """
+    global _last_index_error
     logger.info("⚙️ Асинхронный Queue-воркер запущен и готов к обработке задач.")
     while True:
         project_path = await _task_queue.get()
@@ -47,21 +60,31 @@ async def background_queue_worker(indexer: Indexer, symbol_index: SymbolIndex):
                 f"🔄 Фоновый воркер: Старт полной индексации проекта: {project_path.name}"
             )
 
+            # Создаём FileGuard под конкретный проект (чтобы .gitignore работал правильно)
+            project_file_guard = FileGuard(project_path)
+            indexer.file_guard = project_file_guard
+
             # 1. Векторная индексация (выполняется в пуле потоков)
-            await asyncio.to_thread(indexer.index_project, project_path)
+            indexed_count = await asyncio.to_thread(indexer.index_project, project_path)
 
             # 2. Структурный парсинг символов Tree-sitter (выполняется в пуле потоков)
             if hasattr(symbol_index, "index_project"):
-                await asyncio.to_thread(symbol_index.index_project, project_path)
+                await asyncio.to_thread(
+                    symbol_index.index_project, project_path, parser
+                )
 
             logger.info(
-                f"✅ Фоновый воркер: Проект {project_path.name} полностью синхронизирован (Векторы + Символы)."
+                f"✅ Фоновый воркер: Проект {project_path.name} полностью синхронизирован "
+                f"({indexed_count} файлов)."
             )
+            _last_index_error = None
         except Exception as e:
+            _last_index_error = str(e)
             logger.error(
                 f"❌ Критическая ошибка выполнения внутри воркера: {e}", exc_info=True
             )
         finally:
+            _signal_all_events()
             _task_queue.task_done()
 
 
@@ -75,25 +98,24 @@ def create_mcp_server() -> "FastMCP":
 
     # Инициализация компонентов ядра
     embedder = RemoteEmbedder(port=1234)
-    file_guard = FileGuard(ext_root)
-    indexer = Indexer(db_base_dir, embedder, file_guard)
+    # FileGuard пересоздаётся в queue_worker под конкретный проект для правильного .gitignore
+    default_file_guard = FileGuard(ext_root)
+    indexer = Indexer(db_base_dir, embedder, default_file_guard)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
 
-    # ИСПРАВЛЕНО: SymbolIndex() не принимает аргументов (in-memory индекс)
+    # SymbolIndex — in-memory индекс символов
     symbol_index = SymbolIndex()
 
-    # ⚠️ ВАЖНО: Сюда нужно передать твой реальный объект парсера Tree-sitter!
-    # Например: from src.core.parser import CodeParser; parser = CodeParser()
-    # Пока ставим заглушку None, замени её на реальный экземпляр парсера.
-    parser_instance = None
+    # Настоящий экземпляр CodeParser для Tree-sitter
+    code_parser = CodeParser()
 
     def ensure_worker_started():
         global _task_queue, _worker_task
         if _task_queue is None:
             _task_queue = asyncio.Queue()
             _worker_task = asyncio.create_task(
-                background_queue_worker(indexer, symbol_index)
+                background_queue_worker(indexer, symbol_index, code_parser)
             )
             logger.info(
                 "⚡ Очередь asyncio.Queue и фоновый Task успешно инициализированы."
@@ -113,7 +135,7 @@ def create_mcp_server() -> "FastMCP":
             else "N/A"
         )
 
-        return (
+        output = (
             f"📊 Статус базы данных MSCodebase:\n"
             f"  • Всего фрагментов кода в базе (LanceDB): {stats.get('total_chunks', 0)}\n"
             f"  • Проиндексировано уникальных файлов: {stats.get('unique_files', 0)}\n"
@@ -121,19 +143,58 @@ def create_mcp_server() -> "FastMCP":
             f"  • Состояние движка: {stats.get('status', 'unknown')}"
         )
 
+        # Добавляем последнюю ошибку индексации, если есть
+        if _last_index_error:
+            output += f"\n  ⚠️ Последняя ошибка индексации: {_last_index_error}"
+
+        return output
+
     # 2. Инструмент MCP: Добавление проекта в очередь
     @mcp.tool()
     async def index_project_dir(path: str, **kwargs) -> str:
-        """Добавляет директорию проекта в неблокирующую очередь задач на фоновую синхронизацию."""
+        """Добавляет директорию проекта в фоновую очередь на синхронизацию.
+
+        Возвращает результат сразу после завершения индексации (с таймаутом 60с).
+        При превышении таймаута — сообщает о фоновой обработке.
+        """
+        global _last_index_error
+        _last_index_error = None
+
         ensure_worker_started()
         target_path = Path(path).resolve()
         if not target_path.exists():
             return f"❌ Указанный путь не существует: {path}"
 
+        # Создаём событие для отслеживания завершения этой задачи
+        task_event = asyncio.Event()
+        _task_events.append(task_event)
+
         await _task_queue.put(target_path)
+
+        # Ждём завершения задачи с таймаутом
+        try:
+            await asyncio.wait_for(task_event.wait(), timeout=60.0)
+        except asyncio.TimeoutError:
+            return (
+                f"⏳ Проект '{target_path.name}' индексируется в фоне...\n"
+                f"💡 Проверьте статус через get_index_status()"
+            )
+        finally:
+            # Очищаем событие
+            if task_event in _task_events:
+                _task_events.remove(task_event)
+
+        # Задача завершена — проверяем результат
+        if _last_index_error:
+            return f"❌ Ошибка индексации: {_last_index_error}"
+
+        stats = indexer.get_status()
+        total_symbols = symbol_index.get_symbol_count()
         return (
-            f"🚀 Проект '{target_path.name}' успешно добавлен в очередь на фоновую индексацию.\n"
-            f"Задач ожидает в очереди: {_task_queue.qsize()}"
+            f"✅ Проект '{target_path.name}' полностью проиндексирован!\n"
+            f"  • {stats.get('unique_files', 0)} файлов\n"
+            f"  • {stats.get('total_chunks', 0)} фрагментов кода\n"
+            f"  • {total_symbols} символов"
         )
 
     # 3. Инструмент MCP: Семантический поиск кусков кода
@@ -218,9 +279,17 @@ def create_mcp_server() -> "FastMCP":
                     output.append(f"{prefix} {item['name']} ({item['path']})")
 
                     file_path = item["path"]
-                    # Безопасно извлекаем символы, учитывая, что они могут быть как словарями, так и объектами
-                    if file_path in raw_map.get("symbols_by_file", {}):
-                        for sym in raw_map["symbols_by_file"][file_path]:
+                    # Ищем совпадение ключа с разными разделителями (Windows vs POSIX)
+                    symbols_entry = raw_map.get("symbols_by_file", {}).get(file_path)
+                    if symbols_entry is None:
+                        # Fallback: пробуем с обратным слешем на Windows
+                        file_path_alt = file_path.replace("/", "\\")
+                        symbols_entry = raw_map.get("symbols_by_file", {}).get(
+                            file_path_alt
+                        )
+
+                    if symbols_entry:
+                        for sym in symbols_entry:
                             s_name = (
                                 sym.get("name")
                                 if isinstance(sym, dict)

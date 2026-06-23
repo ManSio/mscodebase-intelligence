@@ -97,8 +97,16 @@ class RemoteEmbedder:
                     r = client.post(self.lm_studio_url, json=payload)
                     if r.status_code == 200:
                         data = r.json().get("data", [])
-                        data = sorted(data, key=lambda x: x.get("index", 0))
-                        return [item["embedding"] for item in data]
+                        if not data:
+                            logger.warning(
+                                f"LM Studio вернул пустой список embeddings. "
+                                f"Проверьте что модель '{self.model_name}' поддерживает embeddings. "
+                                f"Падаем в ONNX."
+                            )
+                            self.mode = "onnx"
+                        else:
+                            data = sorted(data, key=lambda x: x.get("index", 0))
+                            return [item["embedding"] for item in data]
                     else:
                         logger.warning(
                             f"LM Studio отклонил запрос (HTTP {r.status_code}). Падаем в ONNX."

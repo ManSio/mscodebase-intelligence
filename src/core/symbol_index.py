@@ -147,18 +147,18 @@ class SymbolIndex:
                 "used_in_files": list(unique_files_using)[:10],  # топ-10
             }
 
-    def search_symbols(self, query: str, top_k: int = 10) -> List[Dict]:
+    def search_symbols(self, query: str, top_k: int = 10) -> List[SymbolRef]:
         """
         Поиск символов по имени (частичное совпадение).
-        Возвращает символы, отсортированные по числу использований (популярности).
+        Возвращает плоский список SymbolRef (определения + использования),
+        отсортированный по популярности символа.
         """
         query_lower = query.lower()
         scored: List[Tuple[int, str]] = []
 
         with self._lock:
-            for name, defs in self._definitions.items():
+            for name in self._definitions:
                 if query_lower in name.lower():
-                    # Популярность = сколько файлов используют
                     refs = self._references.get(name, [])
                     unique_users = len(set(r.file_path for r in refs))
                     scored.append((unique_users, name))
@@ -166,11 +166,13 @@ class SymbolIndex:
         # Сортируем по популярности
         scored.sort(key=lambda x: -x[0])
 
-        results = []
+        results: List[SymbolRef] = []
         for _, name in scored[:top_k]:
-            ctx = self.get_symbol_context(name)
-            if ctx:
-                results.append(ctx)
+            with self._lock:
+                defs = self._definitions.get(name, [])
+                refs = self._references.get(name, [])
+            results.extend(defs)
+            results.extend(refs)
 
         return results
 
@@ -215,12 +217,14 @@ class SymbolIndex:
             for file in files:
                 file_path = Path(root) / file
 
-                # Парсим файл
+                # Парсим файл (parser.parse_file возвращает кортеж (chunks, symbols))
                 chunks, symbols = parser.parse_file(file_path)
 
                 if symbols:
                     # Добавляем определения в индекс
                     rel_path = str(file_path.relative_to(project_root))
+                    # Удаляем старые данные об этом файле перед добавлением новых
+                    self.remove_file(rel_path)
                     self.add_definitions(rel_path, symbols)
 
     def _should_skip_dir(self, dir_name: str) -> bool:

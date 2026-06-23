@@ -99,45 +99,13 @@ class Indexer:
             logger.error(f"Ошибка получения статистики индекса: {e}")
             return {"error": str(e)}
 
-    def index_project(self, project_path: Path) -> int:
+    def _escape_file_path_for_lance(self, file_path: str) -> str:
+        """Экранирует file_path для безопасного использования в where/delete запросах LanceDB.
+        LanceDB не поддерживает параметризованные запросы, поэтому экранируем вручную.
         """
-        Полное сканирование проекта:
-        1. Инкрементально добавляет новые/измененные файлы.
-        2. Автоматически удаляет из базы файлы, стертые с диска (Pruning).
-        """
-        logger.info(f"🚀 Старт фоновой синхронизации проекта: {project_path}")
-        indexed_count = 0
-        current_files_on_disk: Set[str] = set()
-
-        if not self.path_manager.is_safe_to_process(project_path):
-            return 0
-
-        # Шаг 1: Сканирование диска и обновление базы
-        for root, dirs, files in os.walk(to_win_long_path(project_path)):
-            # Фильтрация директорий «на лету"
-            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
-
-            for file_name in files:
-                full_path = Path(root) / file_name
-                if not self.path_manager.is_safe_to_process(full_path):
-                    continue
-
-                if self.file_guard.should_skip_file(full_path):
-                    continue
-
-                rel_path_str = str(full_path.relative_to(project_path))
-                current_files_on_disk.add(rel_path_str)
-
-                if self._index_single_file(full_path, rel_path_str):
-                    indexed_count += 1
-
-        # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
-        self.prune_deleted_files(current_files_on_disk)
-
-        if indexed_count > 0 and self.searcher:
-            self.searcher.reindex()
-
-        return indexed_count
+        # Экранируем одинарные кавычки (удвоением) и обратные слеши
+        escaped = file_path.replace("'", "''")
+        return escaped
 
     def _index_single_file(self, full_path: Path, rel_path_str: str) -> bool:
         """Индицирует один файл, если его хэш изменился."""
@@ -145,18 +113,33 @@ class Indexer:
             safe_read_path = self.path_manager.get_safe_path(full_path)
             current_hash = self._calculate_file_hash(safe_read_path)
 
-            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB
-            if len(self.table) > 0:
-                existing = (
-                    self.table.search()
-                    .where(f"file_path = '{rel_path_str}'", prefilter=True)
-                    .to_pandas()
-                )
-                if not existing.empty and existing["file_hash"].iloc[0] == current_hash:
-                    return False  # Файл не изменялся, пропускаем
+            # Экранируем путь для SQL-like where-выражений LanceDB
+            escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
-                # Если файл изменился — сначала удаляем его старые чанки
-                self.table.delete(f"file_path = '{rel_path_str}'")
+            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB
+            # Используем to_pandas() вместо .search().where() для совместимости
+            # со всеми версиями LanceDB
+            existing_hash = None
+            try:
+                df_all = self.table.to_pandas()
+                if not df_all.empty:
+                    match = df_all[df_all["file_path"] == rel_path_str]
+                    if not match.empty:
+                        existing_hash = match["file_hash"].iloc[0]
+            except Exception:
+                pass
+
+            if existing_hash == current_hash:
+                return False  # Файл не изменился, пропускаем
+
+            # Если файл изменился или новый — удаляем его старые чанки
+            if existing_hash is not None:
+                try:
+                    self.table.delete(f"file_path = '{escaped_path}'")
+                except Exception as del_err:
+                    logger.debug(
+                        f"delete() не нашёл запись (первичная индексация): {del_err}"
+                    )
 
             # Гарантированное бинарное чтение с защитой от UnicodeDecodeError
             with open(str(safe_read_path), "rb") as f:
@@ -224,8 +207,51 @@ class Indexer:
                     f"🧹 Обнаружены удаленные файлы. Начинается чистка базы от мёртвого груза..."
                 )
                 for file_path in deleted_files:
-                    self.table.delete(f"file_path = '{file_path}'")
+                    escaped = self._escape_file_path_for_lance(file_path)
+                    self.table.delete(f"file_path = '{escaped}'")
                     logger.info(f"  └─ Изъят из индекса: {file_path}")
                 logger.info("✅ База данных полностью синхронизирована с диском.")
         except Exception as e:
             logger.error(f"Ошибка при выполнении операции Pruning: {e}")
+
+    def index_project(self, project_path: Path) -> int:
+        """
+        Полное сканирование проекта:
+        1. Инкрементально добавляет новые/измененные файлы.
+        2. Автоматически удаляет из базы файлы, стертые с диска (Pruning).
+        """
+        logger.info(f"🚀 Старт фоновой синхронизации проекта: {project_path}")
+        indexed_count = 0
+        current_files_on_disk: Set[str] = set()
+
+        if not self.path_manager.is_safe_to_process(project_path):
+            return 0
+
+        # Шаг 1: Сканирование диска и обновление базы
+        # Используем сырой путь (без \\?\) для os.walk, иначе relative_to не сработает
+        walk_root = str(project_path.resolve())
+        for root, dirs, files in os.walk(walk_root):
+            # Фильтрация директорий «на лету"
+            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
+
+            for file_name in files:
+                full_path = Path(root) / file_name
+                if not self.path_manager.is_safe_to_process(full_path):
+                    continue
+
+                if self.file_guard.should_skip_file(full_path):
+                    continue
+
+                rel_path_str = str(full_path.relative_to(project_path))
+                current_files_on_disk.add(rel_path_str)
+
+                if self._index_single_file(full_path, rel_path_str):
+                    indexed_count += 1
+
+        # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
+        self.prune_deleted_files(current_files_on_disk)
+
+        if indexed_count > 0 and self.searcher:
+            self.searcher.reindex()
+
+        return indexed_count
