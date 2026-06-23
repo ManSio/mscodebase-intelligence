@@ -55,15 +55,25 @@ class Indexer:
         )
 
         self.table_name = "codebase_chunks"
-        # Некоторые версии LanceDB кэшируют список таблиц, из-за чего
-        # list_tables() может не увидеть существующую таблицу.
-        # Пробуем открыть — если не получается, создаём.
+        # LanceDB может кэшировать список таблиц, из-за чего open_table и create_table
+        # могут кидать race condition. Пробуем открыть, при ошибке — создаём,
+        # при "already exists" — пробуем открыть снова.
         try:
             self.table = self.db.open_table(self.table_name)
             logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
-        except Exception:
-            self.table = self.db.create_table(self.table_name, schema=self.schema)
-            logger.info(f"📦 Создана новая таблица: {self.table_name}")
+        except Exception as open_err:
+            logger.debug(f"Не удалось открыть таблицу: {open_err}. Пробуем создать.")
+            try:
+                self.table = self.db.create_table(self.table_name, schema=self.schema)
+                logger.info(f"📦 Создана новая таблица: {self.table_name}")
+            except Exception as create_err:
+                # Если таблица уже существует (race condition) — пробуем открыть ещё раз
+                err_str = str(create_err).lower()
+                if "already exists" in err_str:
+                    self.table = self.db.open_table(self.table_name)
+                    logger.info(f"📦 Открыта таблица после гонки: {self.table_name}")
+                else:
+                    raise
 
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
 
