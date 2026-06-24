@@ -13,9 +13,97 @@ logger = logging.getLogger(__name__)
 class SemanticChunker:
     """Semantic code chunker using AST parsing for intelligent segmentation."""
 
-    def __init__(self):
+    def __init__(self, target_chunk_size: int = 1000):
         self.parsers = {}
+        self.target_chunk_size = target_chunk_size
         self._setup_parsers()
+
+    def process_file(self, file_path: str) -> list[dict]:
+        """Обрабатывает файл и возвращает чанки"""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return self.chunk_text(content, file_path)
+        except Exception as e:
+            logger.warning(
+                f"[CHUNKER PROCESS_ERROR] Не удалось обработать файл {file_path}: {e}"
+            )
+            return []
+
+    def chunk_text(self, text: str, file_path: str) -> list[dict]:
+        """Умный чанкинг текста с использованием tree-sitter и фоллбэком"""
+        chunks = []
+
+        # 1. Пытаемся распарсить через tree-sitter (если поддерживается)
+        try:
+            # Здесь должна быть твоя инициализация tree-sitter парсера в зависимости от расширения
+            # parser = get_parser_for_file(file_path)
+            # tree = parser.parse(bytes(text, "utf8"))
+            # chunks = self._recursive_ast_traverse(tree.root_node, text)
+            pass
+        except Exception as e:
+            logger.warning(
+                f"[CHUNKER AST_ERROR] Ошибка парсинга AST для {file_path}, переключаемся на текстовый фоллбэк. Причина: {e}"
+            )
+            chunks = []
+
+        # 2. Критический Fallback: если AST-парсинг не дал чанков (глобальный код, импорты, простой текст или ошибка)
+        if not chunks:
+            logger.info(
+                f"[CHUNKER FALLBACK] Запуск текстового line-based чанкера для {file_path}"
+            )
+            chunks = self._line_based_fallback(text)
+
+        return chunks
+
+    def _recursive_ast_traverse(self, node, text: str) -> list[dict]:
+        """Рекурсивный обход дерева для сбора контента с учетом лимитов"""
+        chunks = []
+        node_text = text[node.start_byte : node.end_byte]
+
+        # Если узел сам по себе укладывается в лимит — берем его целиком (включая глобальный контекст)
+        if len(node_text) <= self.target_chunk_size:
+            if node_text.strip():
+                chunks.append({"text": node_text, "type": node.type})
+        else:
+            # Если узел слишком большой (например, весь модуль или огромный класс) — спускаемся к детям
+            if node.child_count > 0:
+                for child in node.children:
+                    chunks.extend(self._recursive_ast_traverse(child, text))
+            else:
+                # Если детей нет, но блок огромный (например, длинная строка текста) — режем принудительно
+                chunks.append(
+                    {
+                        "text": node_text[: self.target_chunk_size],
+                        "type": f"{node.type}_truncated",
+                    }
+                )
+
+        return chunks
+
+    def _line_based_fallback(self, text: str) -> list[dict]:
+        """Разбиение текста по строкам со скользящим окном, если AST не помог"""
+        chunks = []
+        lines = text.splitlines()
+        current_chunk = []
+        current_length = 0
+
+        for line in lines:
+            current_chunk.append(line)
+            current_length += len(line) + 1  # +1 для \n
+
+            if current_length >= self.target_chunk_size:
+                chunks.append(
+                    {"text": "\n".join(current_chunk), "type": "text_fallback"}
+                )
+                # Очищаем окно (можно добавить пересечение/overlap строк, если нужно)
+                current_chunk = []
+                current_length = 0
+
+        if current_chunk:
+            chunks.append({"text": "\n".join(current_chunk), "type": "text_fallback"})
+
+        return chunks
 
     def _setup_parsers(self):
         """Setup language parsers for different file extensions."""

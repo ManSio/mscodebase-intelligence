@@ -389,6 +389,39 @@ class FileWatcher:
         self._use_watchdog = True
         self.poll_interval = int(os.getenv("POLL_INTERVAL", "10"))
 
+    def handle_file_event(self, raw_path: str | Path):
+        """Единая точка входа для всех событий файловой системы (изменения/создания)"""
+        try:
+            # 1. Жесткая нормализация пути под Windows
+            norm_path = Path(raw_path).resolve().as_posix().lower()
+
+            logger.info(f"[WATCHER EVENT] Обнаружено изменение в файле: {norm_path}")
+
+            # 2. Проверяем через обновленный IntegrityChecker (который внутри использует ContentCache)
+            if self.indexer.integrity_checker.has_changed(norm_path):
+                logger.info(
+                    f"[WATCHER INDEXING] Файл {norm_path} изменился. Запуск чанкера..."
+                )
+
+                # Передаем нормализованный путь в чанкер
+                self.indexer.chunker.process_file(norm_path)
+            else:
+                logger.debug(
+                    f"[WATCHER SKIP] Изменений в хэше файла {norm_path} не обнаружено."
+                )
+
+        except PermissionError as e:
+            logger.error(
+                f"[WATCHER LOCK_ERROR] Файл заблокирован Windows во время обработки: {raw_path}",
+                exc_info=True,
+            )
+        except Exception as e:
+            # Исправляем «молчаливое» исключение — добавляем структурированный префикс и exc_info
+            logger.error(
+                f"[WATCHER RECOVERY] Непредвиденная ошибка при обработке файла {raw_path}: {e}",
+                exc_info=True,
+            )
+
     def start(self):
         if self._use_watchdog:
             try:

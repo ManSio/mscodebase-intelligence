@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from .content_cache import ContentCache
+
 logger = logging.getLogger(__name__)
 
 
@@ -173,11 +175,11 @@ class MerkleTree:
 
 
 class IntegrityChecker:
-    """Main integrity checker that coordinates Merkle Tree operations."""
+    """Main integrity checker that coordinates content cache operations."""
 
     def __init__(self, project_path: Path):
         self.project_path = project_path
-        self.merkle_tree = MerkleTree(project_path)
+        self.content_cache = ContentCache(project_path)
         self.last_root_hash: Optional[str] = None
 
     def check_integrity(self, gitignore_patterns: Set[str] = None) -> Dict:
@@ -189,17 +191,17 @@ class IntegrityChecker:
         Returns:
             Dict with integrity check results
         """
-        current_root_hash = self.merkle_tree.build_tree(gitignore_patterns)
+        current_root_hash = self.content_cache.build_cache(gitignore_patterns)
 
         result = {
             "root_hash": current_root_hash,
-            "file_count": len(self.merkle_tree.tree),
+            "file_count": self.content_cache.get_cache_stats()["file_count"],
             "has_changes": self.last_root_hash != current_root_hash,
             "changed_files": [],
         }
 
         if result["has_changes"]:
-            result["changed_files"] = self.merkle_tree.find_changed_files(
+            result["changed_files"] = self.content_cache.find_changed_files(
                 self.last_root_hash
             )
 
@@ -214,8 +216,8 @@ class IntegrityChecker:
 
     def get_file_hash(self, file_path: Path) -> Optional[str]:
         """Get hash of specific file."""
-        return self.merkle_tree.get_file_hash(file_path)
+        return self.content_cache.get_file_hash(file_path)
 
     def is_file_in_tree(self, file_path: Path) -> bool:
-        """Check if file is in the Merkle Tree."""
-        return file_path in self.merkle_tree.tree
+        """Check if file is in the content cache."""
+        return self.content_cache.is_file_in_cache(file_path)

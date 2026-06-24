@@ -170,9 +170,16 @@ class FileGuard:
                     return False
 
                 # Если поймали PermissionError (WinError 32) — спим и пробуем снова
-                logger.debug(
-                    f"[FILEGUARD RETRY] File locked by OS (attempt {attempt + 1}/{max_retries}). Retrying..."
-                )
+                # PermissionError — это подкласс OSError, специфичный для Windows
+                # Мы обрабатываем его отдельно для лучшего логирования
+                if isinstance(e, PermissionError):
+                    logger.debug(
+                        f"[FILEGUARD RETRY] File locked by OS (PermissionError) (attempt {attempt + 1}/{max_retries}). Retrying..."
+                    )
+                else:
+                    logger.debug(
+                        f"[FILEGUARD RETRY] File locked by OS (attempt {attempt + 1}/{max_retries}). Retrying..."
+                    )
                 time.sleep(retry_delay)
 
         # Проверка размера файла после успешного получения статов

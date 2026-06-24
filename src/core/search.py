@@ -142,15 +142,23 @@ class HybridSearchEngine:
         # Process vector results
         for rank, result in enumerate(vector_results, 1):
             result_id = result["id"]
-            # RRF formula: 1 / (k + rank)
-            score = 1.0 / (self.rrf_k + rank)
+            # RRF formula: 1 / (k + rank) - protect against division by zero
+            denominator = self.rrf_k + rank
+            if denominator > 0:
+                score = 1.0 / denominator
+            else:
+                score = 0.0
             scores[result_id] = scores.get(result_id, 0) + score
 
         # Process lexical results
         for rank, result in enumerate(lexical_results, 1):
             result_id = result["id"]
-            # RRF formula: 1 / (k + rank)
-            score = 1.0 / (self.rrf_k + rank)
+            # RRF formula: 1 / (k + rank) - protect against division by zero
+            denominator = self.rrf_k + rank
+            if denominator > 0:
+                score = 1.0 / denominator
+            else:
+                score = 0.0
             scores[result_id] = scores.get(result_id, 0) + score
 
         # Sort by combined score and return top_k
