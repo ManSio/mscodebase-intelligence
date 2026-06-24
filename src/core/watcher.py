@@ -125,43 +125,78 @@ class IndexerHandler:
         """
         # Проверяем, безопасен ли путь для обработки
         if not self.indexer.path_manager.is_safe_to_process(file_path):
+            logger.debug(f"[WATCHER SKIP] File not safe to process: {file_path}")
             return
 
         # Проверяем, не должен ли файл быть пропущен
         if self.indexer.file_guard.should_skip_file(file_path):
+            logger.debug(f"[WATCHER SKIP] File guard skipped: {file_path}")
             return
 
-        # Вычисляем относительный путь к проекту
+        # Вычисляем относительный путь к проекту и нормализуем в POSIX формат
         try:
-            rel_path_str = str(file_path.relative_to(self.indexer.project_path))
+            rel_path = file_path.relative_to(self.indexer.project_path)
+            rel_path_str = rel_path.as_posix()  # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ
+            logger.debug(f"[WATCHER TARGET] Normalized path: {rel_path_str}")
         except ValueError:
             # Файл не является частью проекта
+            logger.debug(f"[WATCHER SKIP] File not in project: {file_path}")
             return
 
         # Проверяем, изменился ли файл (по хэшу)
         current_hash = self.indexer._calculate_file_hash(file_path)
+        logger.debug(
+            f"[WATCHER HASH] Current hash for {rel_path_str}: {current_hash[:16]}..."
+        )
 
         # Проверяем, есть ли файл в базе данных
         existing_hash = self._get_existing_file_hash(rel_path_str)
 
         if existing_hash == current_hash:
             # Файл не изменился, пропускаем
+            logger.debug(f"[WATCHER SKIP] File unchanged: {rel_path_str}")
             return
 
         # Файл изменился или новый - переиндексируем его
-        self._index_single_file(file_path, rel_path_str)
+        logger.info(f"[WATCHER INDEX] Indexing changed file: {rel_path_str}")
+        success = self._index_single_file(file_path, rel_path_str)
+
+        if success:
+            logger.info(f"[WATCHER SUCCESS] Successfully indexed: {rel_path_str}")
+        else:
+            logger.error(f"[WATCHER ERROR] Failed to index: {rel_path_str}")
 
     def _get_existing_file_hash(self, rel_path_str: str) -> Optional[str]:
         """Получает хэш существующего файла из базы данных."""
         try:
             df = self.indexer.table.to_pandas()
             if df.empty:
+                logger.debug("[WATCHER DB] Database is empty")
                 return None
 
-            match = df[df["file_path"] == rel_path_str]
+            # Нормализуем путь для сравнения
+            normalized_path = (
+                rel_path_str.as_posix()
+                if hasattr(rel_path_str, "as_posix")
+                else rel_path_str.replace("\\", "/")
+            )
+
+            logger.debug(f"[WATCHER DB] Looking for path: {normalized_path}")
+            match = df[df["file_path"] == normalized_path]
+
             if not match.empty:
-                return match["file_hash"].iloc[0]
-        except Exception:
+                existing_hash = match["file_hash"].iloc[0]
+                logger.debug(
+                    f"[WATCHER DB] Found existing hash: {existing_hash[:16]}..."
+                )
+                return existing_hash
+            else:
+                logger.debug(
+                    f"[WATCHER DB] No match found in database for: {normalized_path}"
+                )
+
+        except Exception as e:
+            logger.error(f"[WATCHER DB ERROR] Failed to query database: {e}")
             pass
         return None
 

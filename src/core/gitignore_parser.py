@@ -74,8 +74,9 @@ def should_exclude_by_gitignore(
         rel_path = file_path.relative_to(project_path)
         rel_path_str = str(rel_path)
 
-        # Преобразуем в POSIX путь (с слешами)
+        # Преобразуем в POSIX путь (с слешами) - КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ
         rel_path_posix = rel_path_str.replace(os.sep, "/")
+        logger.debug(f"[GITIGNORE] Checking file: {rel_path_posix}")
 
         # Проверяем каждый паттерн
         for pattern in gitignore_patterns:
@@ -84,17 +85,21 @@ def should_exclude_by_gitignore(
 
                 if fnmatch.fnmatch(rel_path_posix, pattern):
                     logger.debug(
-                        f"Файл {rel_path_posix} исключен .gitignore паттерном: {pattern}"
+                        f"[GITIGNORE] File {rel_path_posix} excluded by .gitignore pattern: {pattern}"
                     )
                     return True
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[GITIGNORE] Pattern matching error for {pattern}: {e}")
                 continue
 
     except ValueError:
         # Файл не является частью проекта
+        logger.debug(f"[GITIGNORE] File not in project: {file_path}")
         return False
     except Exception as e:
-        logger.debug(f"Ошибка проверки .gitignore для {file_path}: {e}")
+        logger.error(
+            f"[GITIGNORE ERROR] Failed to check .gitignore for {file_path}: {e}"
+        )
 
     return False
 
@@ -157,6 +162,7 @@ def is_file_excluded_by_gitignore(
         rel_path = file_path.relative_to(project_path)
         rel_path_str = str(rel_path)
         rel_path_posix = rel_path_str.replace(os.sep, "/")
+        logger.debug(f"[GITIGNORE] Checking file: {rel_path_posix}")
 
         for pattern in gitignore_patterns:
             try:
@@ -164,16 +170,20 @@ def is_file_excluded_by_gitignore(
 
                 if fnmatch.fnmatch(rel_path_posix, pattern):
                     logger.debug(
-                        f"Файл {rel_path_posix} исключен .gitignore паттерном: {pattern}"
+                        f"[GITIGNORE] File {rel_path_posix} excluded by .gitignore pattern: {pattern}"
                     )
                     return True
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[GITIGNORE] Pattern matching error for {pattern}: {e}")
                 continue
 
     except ValueError:
+        logger.debug(f"[GITIGNORE] File not in project: {file_path}")
         return False
     except Exception as e:
-        logger.debug(f"Ошибка проверки .gitignore для {file_path}: {e}")
+        logger.error(
+            f"[GITIGNORE ERROR] Failed to check .gitignore for {file_path}: {e}"
+        )
 
     return False
 

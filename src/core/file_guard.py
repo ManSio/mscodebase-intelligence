@@ -4,6 +4,7 @@ Guardrails для файловой системы - защита от бинар
 
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Set
 
@@ -102,20 +103,25 @@ class FileGuard:
         )
 
     def is_safe_to_index(self, file_path: Path) -> bool:
-        """Проверяет, безопасен ли файл для индексации. Выполняется от быстрых проверок к медленным."""
+        """Проверяет, безопасен ли файл для индексации.
+        Выполняется от быстрых проверок к медленным с защитой от блокировок Windows.
+        """
 
-        # 1. БЫСТРЫЕ ПРОВЕРКИ СТРОК (Без обращений к диску)
+        # 1. БЫСТРЫЕ ПРОВЕРКИ СТРОК (Без обращения к диску)
 
         # Проверка расширения
         if file_path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
+            logger.debug(f"[FILEGUARD SKIP] Unsupported extension: {file_path.suffix}")
             return False
 
         # Простая эвристика минифицированных файлов по имени
         if ".min." in file_path.name.lower():
+            logger.debug(f"[FILEGUARD SKIP] Minified file: {file_path.name}")
             return False
 
         # Проверка директорий (если хоть одна часть пути в черном списке - игнорим)
         if any(part in self.SKIP_DIRS for part in file_path.parts):
+            logger.debug(f"[FILEGUARD SKIP] Skipped directory: {file_path}")
             return False
 
         # Проверка .gitignore (Требует POSIX путей)
@@ -128,27 +134,60 @@ class FileGuard:
                 if is_file_excluded_by_gitignore(
                     file_path, self.project_path, self._gitignore_patterns
                 ):
+                    logger.debug(
+                        f"[FILEGUARD SKIP] Excluded by .gitignore: {file_path}"
+                    )
                     return False
             except ValueError:
                 # Если файл не является частью проекта
+                logger.debug(f"[FILEGUARD SKIP] File not in project: {file_path}")
                 pass
 
-        # 2. МЕДЛЕННЫЕ ПРОВЕРКИ (I/O Файловой системы)
+        # 2. МЕДЛЕННЫЕ ПРОВЕРКИ (I/O Файловой системы) с Retry-логикой под Windows
+        max_retries = 3
+        retry_delay = 0.05  # 50 миллисекунд задержки между попытками
+        st_size = 0
 
-        # Проверка размера файла (Защита от OOM при чтении)
-        try:
-            if file_path.stat().st_size > self.MAX_FILE_SIZE_BYTES:
+        for attempt in range(max_retries):
+            try:
+                # Пытаемся получить информацию о файле
+                st_size = file_path.stat().st_size
+
+                # Дополнительная проверка: если размер 0, возможно, файл еще пишется.
+                # Даем ему шанс заполниться, если это не пустой файл изначально.
+                if st_size == 0 and attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+
+                break  # Если всё успешно прочиталось, выходим из цикла ретраев
+
+            except (FileNotFoundError, OSError) as e:
+                if attempt == max_retries - 1:
+                    # Если это была последняя попытка — логируем жесткий пропуск
+                    logger.debug(
+                        f"[FILEGUARD SKIP] File stat permanent error after {max_retries} attempts: {e}"
+                    )
+                    return False
+
+                # Если поймали PermissionError (WinError 32) — спим и пробуем снова
                 logger.debug(
-                    f"Пропускаю большой файл (>{self.MAX_FILE_SIZE_BYTES} bytes): {file_path}"
+                    f"[FILEGUARD RETRY] File locked by OS (attempt {attempt + 1}/{max_retries}). Retrying..."
                 )
-                return False
-        except (FileNotFoundError, OSError):
+                time.sleep(retry_delay)
+
+        # Проверка размера файла после успешного получения статов
+        if st_size > self.MAX_FILE_SIZE_BYTES:
+            logger.debug(
+                f"[FILEGUARD SKIP] Large file (>{self.MAX_FILE_SIZE_BYTES} bytes): {file_path}"
+            )
             return False
 
         # Проверка контента на бинарность и минификацию
         if self._is_binary_or_minified(file_path):
+            logger.debug(f"[FILEGUARD SKIP] Binary or minified file: {file_path}")
             return False
 
+        logger.debug(f"[FILEGUARD OK] File passed all checks: {file_path}")
         return True
 
     def _is_binary_or_minified(self, file_path: Path) -> bool:
