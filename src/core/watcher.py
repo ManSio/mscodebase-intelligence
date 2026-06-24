@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import threading
@@ -38,8 +39,9 @@ class IndexerHandler:
             self.indexer.queue_event("modified", str(path))
         else:
             try:
-                if self.indexer.index_file(path):
-                    self._trigger_reindex()
+                # Используем инкрементальную индексацию через index_project
+                # для минимальной нагрузки при изменении одного файла
+                self._handle_single_file_change(path)
             except Exception as e:
                 logger.error(f"Ошибка обработки изменения {path}: {e}")
 
@@ -56,8 +58,7 @@ class IndexerHandler:
             self.indexer.queue_event("created", str(path))
         else:
             try:
-                if self.indexer.index_file(path):
-                    self._trigger_reindex()
+                self._handle_single_file_change(path)
             except Exception as e:
                 logger.error(f"Ошибка обработки создания {path}: {e}")
 
@@ -71,7 +72,8 @@ class IndexerHandler:
 
         logger.info(f"🗑️ Удалён: {path.name}")
         try:
-            self.indexer.delete_file(path)
+            # Удаляем файл из базы данных
+            self.indexer.prune_deleted_files({str(path)})
             self._trigger_reindex()
         except Exception as e:
             logger.error(f"Ошибка обработки удаления {path}: {e}")
@@ -95,21 +97,146 @@ class IndexerHandler:
         try:
             # Сценарий атомарного сохранения IDE (переименование из .tmp в .py)
             if not is_src_code and is_dst_code:
-                if self.indexer.index_file(dst):
-                    self._trigger_reindex()
+                self._handle_single_file_change(dst)
 
             # Сценарий перемещения/переименования валидного кода
             elif is_src_code and is_dst_code:
-                self.indexer.move_file(src, dst)
+                # Удаляем старый путь, добавляем новый
+                self.indexer.prune_deleted_files({str(src)})
+                self._handle_single_file_change(dst)
                 self._trigger_reindex()
 
             # Сценарий "удаления" (переименование из .py в .tmp или .bak)
             elif is_src_code and not is_dst_code:
-                self.indexer.delete_file(src)
+                self.indexer.prune_deleted_files({str(src)})
                 self._trigger_reindex()
 
         except Exception as e:
             logger.error(f"Ошибка обработки перемещения: {e}")
+
+    def _handle_single_file_change(self, file_path: Path):
+        """Обрабатывает изменение одного файла с минимальной нагрузкой.
+
+        Вместо переиндексации всего проекта, мы:
+        1. Проверяем, безопасен ли файл для обработки
+        2. Вычисляем хэш файла
+        3. Проверяем, изменился ли файл в базе данных
+        4. Если изменился - переиндексируем только этот файл
+        """
+        # Проверяем, безопасен ли путь для обработки
+        if not self.indexer.path_manager.is_safe_to_process(file_path):
+            return
+
+        # Проверяем, не должен ли файл быть пропущен
+        if self.indexer.file_guard.should_skip_file(file_path):
+            return
+
+        # Вычисляем относительный путь к проекту
+        try:
+            rel_path_str = str(file_path.relative_to(self.indexer.project_path))
+        except ValueError:
+            # Файл не является частью проекта
+            return
+
+        # Проверяем, изменился ли файл (по хэшу)
+        current_hash = self.indexer._calculate_file_hash(file_path)
+
+        # Проверяем, есть ли файл в базе данных
+        existing_hash = self._get_existing_file_hash(rel_path_str)
+
+        if existing_hash == current_hash:
+            # Файл не изменился, пропускаем
+            return
+
+        # Файл изменился или новый - переиндексируем его
+        self._index_single_file(file_path, rel_path_str)
+
+    def _get_existing_file_hash(self, rel_path_str: str) -> Optional[str]:
+        """Получает хэш существующего файла из базы данных."""
+        try:
+            df = self.indexer.table.to_pandas()
+            if df.empty:
+                return None
+
+            match = df[df["file_path"] == rel_path_str]
+            if not match.empty:
+                return match["file_hash"].iloc[0]
+        except Exception:
+            pass
+        return None
+
+    def _index_single_file(self, file_path: Path, rel_path_str: str) -> bool:
+        """Индексирует один файл, если его хэш изменился."""
+        try:
+            # Читаем и обрабатываем файл
+            safe_read_path = self.indexer.path_manager.get_safe_path(file_path)
+            current_hash = self.indexer._calculate_file_hash(safe_read_path)
+
+            # Экранируем путь для SQL-like where-выражений LanceDB
+            escaped_path = self.indexer._escape_file_path_for_lance(rel_path_str)
+
+            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB
+            existing_hash = self._get_existing_file_hash(rel_path_str)
+
+            if existing_hash == current_hash:
+                return False  # Файл не изменился, пропускаем
+
+            # Если файл изменился или новый — удаляем его старые чанки
+            if existing_hash is not None:
+                try:
+                    self.indexer.table.delete(f"file_path = '{escaped_path}'")
+                except Exception as del_err:
+                    logger.debug(f"delete() не нашёл запись: {del_err}")
+
+            # Читаем содержимое файла
+            with open(str(safe_read_path), "rb") as f:
+                raw_data = f.read()
+            content = raw_data.decode("utf-8", errors="replace")
+
+            if not content.strip():
+                return False
+
+            # Чанкирование (по 1000 символов с перекрытием 200)
+            chunks = [content[i : i + 1000] for i in range(0, len(content), 800)]
+            if not chunks:
+                return False
+
+            # Получение эмбеддингов через провайдер
+            embeddings = self.indexer.embedder.embed_batch(chunks)
+            if not embeddings or any(len(e) == 0 for e in embeddings):
+                logger.warning(
+                    f"⚠️ Пустые эмбеддинги для файла {rel_path_str}. Пропуск записи."
+                )
+                return False
+
+            # Подготовка данных для PyArrow
+            data_records = []
+            for i, (chunk_text, chunk_vec) in enumerate(zip(chunks, embeddings)):
+                # Нормализация вектора под размерность схемы
+                if len(chunk_vec) != 1024:
+                    chunk_vec = chunk_vec[:1024] + [0.0] * (1024 - len(chunk_vec))
+
+                data_records.append(
+                    {
+                        "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
+                        "vector": chunk_vec,
+                        "text": chunk_text,
+                        "file_path": rel_path_str,
+                        "file_hash": current_hash,
+                        "chunk_index": i,
+                    }
+                )
+
+            # Атомарная запись пачки чанков в таблицу
+            self.indexer.table.add(data_records)
+            logger.info(
+                f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunks)} чанков)"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Критический сбой индексации файла {rel_path_str}: {e}")
+            return False
 
 
 class PollingWatcher:

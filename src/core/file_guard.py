@@ -81,7 +81,7 @@ class FileGuard:
 
     def __init__(self, project_path: Path):
         self.project_path = project_path
-        self._gitignore_spec = None
+        self._gitignore_patterns = set()
         self._load_gitignore()
 
     def should_skip_dir(self, dir_name: str) -> bool:
@@ -94,22 +94,12 @@ class FileGuard:
 
     def _load_gitignore(self):
         """Загружает правила из .gitignore."""
-        gitignore_path = self.project_path / ".gitignore"
-        if gitignore_path.exists():
-            try:
-                import pathspec  # type: ignore[import-not-found]
+        from src.core.gitignore_parser import load_gitignore_patterns
 
-                with open(gitignore_path, "r", encoding="utf-8") as f:
-                    self._gitignore_spec = pathspec.PathSpec.from_lines(  # type: ignore[import-untyped]
-                        "gitwildmatch", f
-                    )
-                logger.info(f"✅ Загружен .gitignore: {gitignore_path}")
-            except ImportError:
-                logger.warning(
-                    "Модуль 'pathspec' не установлен, .gitignore игнорируется."
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось загрузить .gitignore: {e}")
+        self._gitignore_patterns = load_gitignore_patterns(self.project_path)
+        logger.info(
+            f"✅ Загружено {len(self._gitignore_patterns)} паттернов .gitignore: {self.project_path / '.gitignore'}"
+        )
 
     def is_safe_to_index(self, file_path: Path) -> bool:
         """Проверяет, безопасен ли файл для индексации. Выполняется от быстрых проверок к медленным."""
@@ -129,11 +119,15 @@ class FileGuard:
             return False
 
         # Проверка .gitignore (Требует POSIX путей)
-        if self._gitignore_spec:
+        if self._gitignore_patterns:
             try:
                 rel_path = str(file_path.relative_to(self.project_path))
                 rel_path_posix = rel_path.replace(os.sep, "/")
-                if self._gitignore_spec.match_file(rel_path_posix):
+                from src.core.gitignore_parser import is_file_excluded_by_gitignore
+
+                if is_file_excluded_by_gitignore(
+                    file_path, self.project_path, self._gitignore_patterns
+                ):
                     return False
             except ValueError:
                 # Если файл не является частью проекта
