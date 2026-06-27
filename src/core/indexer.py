@@ -39,12 +39,13 @@ def _generate_unique_db_path(project_path: Path) -> Path:
 
 
 class Indexer:
-    def __init__(self, db_path: Path, embedder, file_guard):
+    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
         self.path_manager = SafePathManager(db_path.parent)
         self.searcher = None
+        self.project_path = project_path or db_path.parent.parent.parent
 
         # Настройка директории базы данных
         # На Windows tmp_path может содержать \\?\ префикс.
@@ -111,6 +112,7 @@ class Indexer:
 
         logger.info(f"🔄 Переключение БД: {self.db_path.name} → {new_db_path.name}")
         self.db_path = new_db_path
+        self.project_path = project_path
         self.path_manager = SafePathManager(new_db_path.parent)
 
         # Переподключаемся к новой базе

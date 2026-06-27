@@ -95,7 +95,7 @@ def init_components(project_root: Path):
     db_path = _generate_unique_db_path(project_root)
     _embedder = RemoteEmbedder(port=1234)
     _file_guard = FileGuard(project_root)
-    _indexer = Indexer(db_path, _embedder, _file_guard)
+    _indexer = Indexer(db_path, _embedder, _file_guard, project_path=project_root)
 
     logger.info(f"LSP: Инициализирован Indexer для {project_root.name}")
 

@@ -134,7 +134,7 @@ def create_mcp_server() -> "FastMCP":
     from src.core.indexer import _generate_unique_db_path
 
     initial_db_path = _generate_unique_db_path(ext_root)
-    indexer = Indexer(initial_db_path, embedder, default_file_guard)
+    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
 
