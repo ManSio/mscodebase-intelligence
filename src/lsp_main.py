@@ -140,7 +140,14 @@ def _process_watched_changes(changes):
         # FileChangeType.Deleted == 3
         if change.type == 3:
             logger.info(f"[LSP DELETE] {file_path.name}")
-            _indexer.prune_deleted_files({rel_path_str})
+            # Удаляем только конкретный файл из базы (не вызываем prune_deleted_files
+            # с одним элементом — это удалит все остальные файлы из базы!)
+            try:
+                escaped = _indexer._escape_file_path_for_lance(rel_path_str)
+                _indexer.table.delete(f"file_path = '{escaped}'")
+                logger.info(f"  └─ Изъят из индекса: {rel_path_str}")
+            except Exception as del_err:
+                logger.debug(f"delete() не нашёл запись: {del_err}")
             need_search_reindex = True
 
         # FileChangeType.Created == 1 или Changed == 2

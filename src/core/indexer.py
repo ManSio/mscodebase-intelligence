@@ -259,8 +259,19 @@ class Indexer:
             return False
 
     def prune_deleted_files(self, active_files_on_disk: Set[str]):
-        """Удаляет из базы данных файлы, которых больше нет на физическом диске."""
+        """Удаляет из базы данных файлы, которых больше нет на физическом диске.
+
+        Args:
+            active_files_on_disk: Полный набор файлов на диске (не только удалённые!).
+
+        Warning:
+            НЕ вызывайте эту функцию с одним элементом — это удалит все
+            остальные файлы из базы! Используйте delete_file() для одиночного удаления.
+        """
         if len(self.table) == 0:
+            return
+        if not active_files_on_disk:
+            logger.warning("⚠️ prune_deleted_files вызван с пустым набором файлов. Пропуск.")
             return
 
         try:
@@ -279,6 +290,17 @@ class Indexer:
                 logger.info("✅ База данных полностью синхронизирована с диском.")
         except Exception as e:
             logger.error(f"Ошибка при выполнении операции Pruning: {e}")
+
+    def delete_file(self, rel_path_str: str) -> bool:
+        """Удаляет один файл из базы по относительному пути. Безопасно для одиночного удаления."""
+        try:
+            escaped = self._escape_file_path_for_lance(rel_path_str)
+            self.table.delete(f"file_path = '{escaped}'")
+            logger.info(f"🗑️ Удалён файл: {rel_path_str}")
+            return True
+        except Exception as e:
+            logger.debug(f"delete_file() не нашёл запись {rel_path_str}: {e}")
+            return False
 
     def index_project(self, project_path: Path) -> int:
         """
