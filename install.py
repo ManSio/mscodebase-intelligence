@@ -11,6 +11,7 @@ MSCodebase Intelligence — Продакшен автоматический ус
 """
 
 import json
+import logging
 import os
 import shutil
 import socket
@@ -19,20 +20,32 @@ import sys
 import time
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
+# Импорт утилит из zed_config для кроссплатформенности и избежания дублирования
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
+from zed_config import get_zed_config_dir, get_python_path, patch_zed_settings, SERVER_NAME
+
 # ──────────────────────────────────────────────────────────────
 # Константы
 # ──────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (
-    Path(os.environ["LOCALAPPDATA"]) / "Zed" / "extensions" / "mscodebase-intelligence"
+    Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "Zed" / "extensions" / "mscodebase-intelligence"
 )
 VENV_DIR = ZED_EXT_DIR / "venv"
-PYTHON_EXE = VENV_DIR / "Scripts" / "python.exe"
+
+# Кроссплатформенный путь к Python в venv
+if sys.platform == "win32":
+    PYTHON_EXE = VENV_DIR / "Scripts" / "python.exe"
+else:
+    PYTHON_EXE = VENV_DIR / "bin" / "python3"
+
 UNINSTALLER = ZED_EXT_DIR / "uninstall.bat"
 
-LM_STUDIO_HOST = "127.0.0.1"
-LM_STUDIO_PORT = 1234
+LM_STUDIO_HOST = os.environ.get("LM_STUDIO_HOST", "127.0.0.1")
+LM_STUDIO_PORT = int(os.environ.get("LM_STUDIO_PORT", "1234"))
 LM_STUDIO_TIMEOUT_SEC = 3
 
 EXPECTED_SCHEMA_FIELDS = {
@@ -442,9 +455,15 @@ def _build_uninstall_bat(python_exe: str, zed_ext_dir: str) -> str:
         "echo ==================================================",
         "echo [1/3] Removing Zed IDE settings...",
         f'"{python_exe}" -c "',
-        "import json, pathlib, os, re",
-        "p = pathlib.Path(os.environ['USERPROFILE']) / '.config' / 'zed' / 'settings.json'",
-        "if not p.exists(): p = pathlib.Path(os.environ['APPDATA']) / 'Zed' / 'settings.json'",
+        "import json, pathlib, os, re, sys",
+        "# Кроссплатформенный поиск директории настроек Zed",
+        "if sys.platform == 'win32':",
+        "    p = pathlib.Path(os.environ.get('APPDATA', '')) / 'Zed' / 'settings.json'",
+        "    if not p.exists():",
+        "        p = pathlib.Path(os.environ.get('USERPROFILE', pathlib.Path.home())) / '.config' / 'zed' / 'settings.json'",
+        "else:",
+        "    p = pathlib.Path.home() / '.config' / 'zed' / 'settings.json'",
+        "if p.exists():",
         "if p.exists():",
         "    content = p.read_text(encoding='utf-8')",
         f"    clean = re.sub({_RX_COMMENT}, '', content, flags=re.MULTILINE)",
@@ -495,7 +514,7 @@ def generate_semaphore_config() -> dict:
 # Главная функция
 # ──────────────────────────────────────────────────────────────
 
-TOTAL_STEPS = 8
+TOTAL_STEPS = 9
 
 
 def main():
@@ -504,9 +523,28 @@ def main():
     banner("MSCodebase Intelligence\nInstaller & Updater")
 
     # ══════════════════════════════════════════════════════════
-    # Шаг 0: Проверка LM Studio / Ollama
+    # Шаг 0: Проверка наличия Zed IDE
     # ══════════════════════════════════════════════════════════
-    step_header(0, TOTAL_STEPS, "Проверка LM Studio / Ollama")
+    step_header(0, TOTAL_STEPS, "Проверка наличия Zed IDE")
+
+    zed_config_dir = get_zed_config_dir()
+    if not zed_config_dir.exists():
+        # Пытаемся создать — возможно Zed ещё не запускался
+        try:
+            zed_config_dir.mkdir(parents=True, exist_ok=True)
+            info(f"Создана директория настроек Zed: {zed_config_dir}")
+            warn("Zed IDE ещё не был запущен. Запустите Zed хотя бы раз для корректной работы.")
+        except Exception as e:
+            fail(f"Не удалось создать директорию настроек Zed: {e}")
+            info("Убедитесь что Zed IDE установлен и у вас есть права на запись.")
+            return
+    else:
+        ok(f"Директория настроек Zed найдена: {Color.DIM}{zed_config_dir}{Color.RESET}")
+
+    # ══════════════════════════════════════════════════════════
+    # Шаг 1: Проверка LM Studio / Ollama
+    # ══════════════════════════════════════════════════════════
+    step_header(1, TOTAL_STEPS, "Проверка LM Studio / Ollama")
     lm_available = check_lm_studio_available()
     fallback_mode = not lm_available
 
@@ -583,17 +621,34 @@ def main():
     # ══════════════════════════════════════════════════════════
     step_header(3, TOTAL_STEPS, "Установка зависимостей (LanceDB, PyArrow, Tree-sitter)")
 
-    run_cmd_visible(
-        f'"{PYTHON_EXE}" -m pip install --upgrade pip',
-        label="Обновление pip"
-    )
+    # Обновление pip с обработкой ошибок
+    try:
+        pip_update_ok = run_cmd_visible(
+            f'"{PYTHON_EXE}" -m pip install --upgrade pip',
+            label="Обновление pip"
+        )
+        if not pip_update_ok:
+            warn("Не удалось обновить pip — продолжаем с текущей версией")
+    except Exception as e:
+        warn(f"Ошибка при обновлении pip: {e}")
 
-    if not run_cmd_visible(
-        f'"{PYTHON_EXE}" -m pip install -r requirements.txt',
-        cwd=ZED_EXT_DIR,
-        label="Установка пакетов"
-    ):
-        fail("Критическая ошибка установки Python-пакетов")
+    # Установка зависимостей с обработкой ошибок
+    try:
+        pip_install_ok = run_cmd_visible(
+            f'"{PYTHON_EXE}" -m pip install -r requirements.txt',
+            cwd=ZED_EXT_DIR,
+            label="Установка пакетов"
+        )
+        if not pip_install_ok:
+            fail("Критическая ошибка установки Python-пакетов")
+            info("Проверьте:")
+            info(f"  1. Python установлен: {PYTHON_EXE}")
+            info("  2. requirements.txt существует в директории расширения")
+            info("  3. Интернет-соединение доступно")
+            info("  4. Попробуйте вручную: pip install -r requirements.txt")
+            return
+    except Exception as e:
+        fail(f"Непредвиденная ошибка при установке пакетов: {e}")
         return
 
     ok("Все зависимости установлены")
@@ -616,19 +671,36 @@ def main():
     handler(msg)
 
     # ══════════════════════════════════════════════════════════
-    # Шаг 5: Интеграция в Zed IDE
+    # Шаг 5: Интеграция в Zed IDE (через zed_config.patch_zed_settings)
     # ══════════════════════════════════════════════════════════
     step_header(5, TOTAL_STEPS, "Интеграция MCP + LSP в Zed IDE")
 
-    zed_config_dir = Path(os.environ["USERPROFILE"]) / ".config" / "zed"
-    if sys.platform == "win32":
-        alt_path = Path(os.environ["APPDATA"]) / "Zed"
-        if alt_path.exists():
-            zed_config_dir = alt_path
+    # Проверка: существует ли директория настроек Zed?
+    zed_config_dir = get_zed_config_dir()
+    if not zed_config_dir.exists():
+        # Пытаемся создать (Zed может не быть запущен)
+        zed_config_dir.mkdir(parents=True, exist_ok=True)
+        if not zed_config_dir.exists():
+            fail(f"Директория настроек Zed не найдена: {zed_config_dir}")
+            info("Убедитесь что Zed IDE установлен и запущен хотя бы раз.")
+            return
 
+    # Используем patch_zed_settings из zed_config.py (без дублирования логики)
+    # Формируем команду для MCP-сервера
+    main_script_path = ZED_EXT_DIR / "src" / "main.py"
+    python_exe_path = get_python_path()
+    mcp_command = f"{python_exe_path} -u -m src.main"
+
+    # Вызываем патчер настроек (единая логика из zed_config.py)
+    if patch_zed_settings(command=mcp_command, mode="global"):
+        ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
+        detail(f"Команда: {Color.DIM}{mcp_command}{Color.RESET}")
+    else:
+        fail("Не удалось настроить MCP-сервер в Zed")
+        return
+
+    # LSP-сервер и language servers настраиваются отдельно (patch_zed_settings не покрывает)
     settings_json_path = zed_config_dir / "settings.json"
-    zed_config_dir.mkdir(parents=True, exist_ok=True)
-
     settings_data = {}
     if settings_json_path.exists():
         try:
@@ -638,16 +710,6 @@ def main():
             settings_data = json.loads(content_clean)
         except Exception:
             settings_data = {}
-
-    # MCP-сервер
-    if "context_servers" not in settings_data:
-        settings_data["context_servers"] = {}
-    main_script_path = ZED_EXT_DIR / "src" / "main.py"
-    settings_data["context_servers"]["mscodebase-intelligence"] = {
-        "command": str(PYTHON_EXE),
-        "args": [str(main_script_path)],
-    }
-    detail(f"MCP: {Color.DIM}{main_script_path}{Color.RESET}")
 
     # LSP-сервер
     if "lsp" not in settings_data:
@@ -671,40 +733,14 @@ def main():
         if "mscodebase-lsp" not in lang_config["language_servers"]:
             lang_config["language_servers"].append("mscodebase-lsp")
 
-    # Семафор
+    # Семафор и fallback mode
     sem_config = generate_semaphore_config()
     if "mscodebase" not in settings_data:
         settings_data["mscodebase"] = {}
     settings_data["mscodebase"]["semaphore"] = sem_config
     settings_data["mscodebase"]["fallback_mode"] = fallback_mode
 
-    # Системные правила для AI-агента
-    custom_instructions = (
-        "MSCodeBase Core Rules: "
-        "STATE-AWARENESS: IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, "
-        "switch to grep/regex. IF chunks > 0, use search_code for semantic, get_symbol_info for exact names. "
-        "RECONNAISSANCE: NEVER guess line numbers. Use get_symbol_info or grep before read_file. "
-        "CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files. "
-        "SAFE WRITING: Read target lines again before edit. Preserve indentation and style. "
-        "ERROR HANDLING: Do not retry same tool with same params. Pivot to alternative. "
-        "WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). "
-        "POST-MODIFICATION: After writing, call index_project_dir + get_index_status. "
-        "SEARCH TOOLS: search_code (semantic), deep_search (iterative multi-pass), "
-        "cross_repo_search (multi-project with @-mentions), context_search (similar code by fragment), "
-        "structural_search (AST patterns: class_inheritance, function_with_decorator, async_function, etc.), "
-        "get_logs (recent errors). Use deep_search for complex research. Use cross_repo_search for mono-repo. "
-        "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
-    )
-
-    if "agent" not in settings_data:
-        settings_data["agent"] = {}
-
-    current_prompt = settings_data["agent"].get("system_prompt", "")
-    if custom_instructions not in current_prompt:
-        settings_data["agent"]["system_prompt"] = (
-            f"{custom_instructions}\n{current_prompt}"
-        ).strip()
-
+    # Сохраняем настройки
     settings_json_path.write_text(
         json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
     )
@@ -739,7 +775,7 @@ def main():
         info("Локальные скиллы не найдены (.agents/) — используются глобальные")
 
     # Копируем AGENTS.md если его нет в глобальной локации
-    global_agents = Path(os.environ["USERPROFILE"]) / ".agents" / "AGENTS.md"
+    global_agents = Path(os.environ.get("USERPROFILE", Path.home())) / ".agents" / "AGENTS.md"
     project_agents = PROJECT_ROOT / "AGENTS.md"
     if project_agents.exists() and not global_agents.exists():
         try:

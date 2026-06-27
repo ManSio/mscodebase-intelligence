@@ -10,13 +10,21 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# Нормализуем пути для Windows-совместимости (убираем разницу слешей)
+_normalized_sys_path = [str(Path(p).resolve()) for p in sys.path]
+
 # ⚠️ КРИТИЧЕСКИ ВАЖНО: Убираем src/ из sys.path, чтобы не перекрывать
 # пакет mcp из site-packages.
-script_dir = str(Path(__file__).resolve().parent)
-if script_dir in sys.path:
-    sys.path.remove(script_dir)
+script_dir_resolved = str(Path(__file__).resolve().parent.resolve())
+if script_dir_resolved in _normalized_sys_path:
+    # Находим и удаляем точное вхождение (с учётом нормализации)
+    for _i, _p in enumerate(sys.path):
+        if str(Path(_p).resolve()) == script_dir_resolved:
+            sys.path.pop(_i)
+            break
 
-if str(PROJECT_ROOT) not in sys.path:
+project_root_resolved = str(PROJECT_ROOT.resolve())
+if project_root_resolved not in [str(Path(p).resolve()) for p in sys.path]:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # После удаления src/ из sys.path модули src.* всё ещё доступны
@@ -64,9 +72,11 @@ def setup_logging():
 
 
 def main():
-    """Главная функция запуска."""
+    """Главная функция запуска MCP-сервера."""
     original_stdout = setup_logging()
     logger = logging.getLogger("MSCodebase")
+    logger.info("MSCodebase Intelligence MCP Server запускается...")
+    logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
 
     try:
         # Обработка аргументов командной строки

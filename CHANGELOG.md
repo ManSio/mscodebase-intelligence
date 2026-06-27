@@ -1,6 +1,19 @@
 # CHANGELOG
 
-## [Unreleased] — 2026-06-27
+## [Unreleased] — 2026-06-28
+
+### Документация
+- Удалён `PROJECT_DOCS.md` — полностью дублировал README + ARCHITECTURE
+- Удалён `CODE_OF_CONDUCT.md` — стандартный Contributor Covenant без контактных данных
+- Удалён `AI_PROMPT.md` — содержимое перенесено в раздел "AI Agent Usage" в README.md
+- Переписан `TESTING.md` — убраны теоретические сценарии, добавлены реальные тесты и команды запуска
+- Обновлён `CONTRIBUTING.md` — убраны общие фразы, добавлены конкретные команды проекта
+- Обновлён `ARCHITECTURE.md` — убраны упоминания ChromaDB (миграция на LanceDB завершена)
+- Обновлён `README.md` — добавлен раздел "AI Agent Usage", обновлена структура файлов
+
+---
+
+## [1.1.0] — 2026-06-22
 
 ### Исправлено
 - `src/mcp/server.py` — `@mcp.prompt()` перемещён внутрь `create_mcp_server()` (исправлен `NameError: name 'mcp' is not defined`)

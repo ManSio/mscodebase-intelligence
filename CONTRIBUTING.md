@@ -1,196 +1,86 @@
 # Contributing
 
-Thanks for your interest in contributing to MSCodebase Intelligence! This document outlines the contribution guidelines to help you get started.
+## Setup
 
-## 🎯 Getting Started
-
-### Prerequisites
-
-- **Python 3.10+**
-- **LM Studio** with running embedding server on port 1234
-- **Zed IDE** (for testing)
-
-### Development Setup
-
-```bash
-# Clone the repository
+```powershell
 git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd mscodebase-intelligence
-
-# Create and activate virtual environment
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
-# Install dependencies
+cd MSCodeBase
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## 📋 Code Quality Standards
+## Code Style
 
-### Linting and Formatting
-
-We use standard Python conventions with some project-specific adjustments:
-
-- **Line length**: 88 characters (Black default)
+- **Formatter**: Black (line length 88)
 - **Import order**: isort
-- **Code style**: Black
-- **Type hints**: Required for public APIs
+- **Type hints**: required for public APIs
+- **Logging**: `logging.getLogger(__name__)` — never `print()` in production code
 
-### Testing
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific test file
-pytest tests/test_searcher.py
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-```
-
-### Commit Message Guidelines
-
-Follow these conventions for commit messages:
-
-- **Subject line**: Start with imperative, keep under 50 characters
-- **Body**: Explain what and why, wrap at 72 characters
-- **Scope**: Use scope in parentheses for specific components
-- **Examples**:
-  - `feat(searcher): add BM25 hybrid search implementation`
-  - `fix(indexer): handle empty embeddings from LM Studio`
-  - `docs: update README with architecture diagram`
-
-## 🔧 Development Workflow
-
-### 1. Branching Strategy
-
-- **Main**: Production-ready code
-- **Development**: Current development work
-- **Feature branches**: For specific features/bugs
-- **Feature/xxx**: Feature branches named after GitHub issue
-
-### 2. Pull Request Process
-
-1. **Create branch** from `development`
-2. **Make changes** following code standards
-3. **Run tests** locally
-4. **Create pull request** with description
-5. **Request reviews** from maintainers
-6. **Address feedback** and update PR
-7. **Merge** after approval
-
-### 3. Local Testing
-
-Before submitting changes, ensure:
-
-```bash
-# Test the specific component
-pytest tests/test_searcher.py -v
-
-# Test integration
-pytest tests/test_integration.py -v
-
-# Check for any linting issues
+```powershell
+# Check formatting
 black --check src/
 isort --check-only src/
+
+# Auto-format
+black src/
+isort src/
 ```
 
-## 🚀 Feature Requests
+## Running Tests
 
-### New Features
+```powershell
+# Full suite
+pytest tests/ -v
 
-1. **Open an issue** with clear description
-2. **Discuss** in comments if needed
-3. **Create PR** with implementation
-4. **Update documentation** accordingly
+# Single module
+pytest tests/test_searcher.py -v
 
-### Bug Reports
+# With coverage
+pytest tests/ --cov=src --cov-report=term-missing
 
-1. **Reproduce** the issue locally
-2. **Create issue** with:
-   - Clear steps to reproduce
-   - Expected vs actual behavior
-   - Log output if applicable
-3. **Test fix** before submitting PR
-
-## 📚 Documentation
-
-### Writing Documentation
-
-- Use Markdown for all documentation
-- Follow existing style and formatting
-- Include examples where helpful
-- Update API documentation for new features
-
-### Updating README
-
-- Keep examples up-to-date
-- Update installation instructions
-- Add new features to "Capabilities" section
-- Update architecture diagrams when needed
-
-## 🏷️ Versioning
-
-We use semantic versioning (SemVer):
-
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes (backward compatible)
-
-## 🤝 Community Guidelines
-
-### Code of Conduct
-
-Please behave professionally and respectfully in all interactions. We follow the open-source community code of conduct.
-
-### Communication
-
-- Use clear, respectful language
-- Provide constructive feedback
-- Be patient with contributors new to the project
-- Focus on code and technical issues
-
-## 🔄 Updating Dependencies
-
-### Python Dependencies
-
-```bash
-# Update requirements.txt from pyproject.toml
-pip install -r requirements.txt
-
-# Update pyproject.toml dependencies
-# Edit pyproject.toml directly, then:
-pip install -e .
+# Smoke test (requires project on disk)
+python test_connection.py
 ```
 
-### Third-Party Libraries
+All tests must pass before creating a PR.
 
-When updating external dependencies:
+## Commit Messages
 
-1. **Check compatibility** with existing code
-2. **Run full test suite** after updates
-3. **Update CHANGELOG.md**
-4. **Consider semantic versioning** impact
+Format: `type(scope): description`
 
-## 📝 License
+- `feat(searcher): add BM25 hybrid search implementation`
+- `fix(indexer): handle empty embeddings from LM Studio`
+- `docs: update README with architecture diagram`
+- `test(cross-repo): add @-mention parsing tests`
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+## Pull Request Process
 
-## 🙏 Acknowledgments
+1. Create branch from `development`
+2. Make changes following code standards above
+3. Run `pytest tests/ -v` and `black --check src/`
+4. Create PR with description of what changed and why
+5. Address review feedback
 
-Special thanks to all contributors who have helped make this project better!
+## Adding New MCP Tools
+
+1. Implement the tool function in `src/mcp/server.py` inside `create_mcp_server()`
+2. Register it with `@mcp.tool()`
+3. Add unit tests in `tests/`
+4. Update `README.md` tool table and `ARCHITECTURE.md` tools section
+5. Add entry to `CHANGELOG.md`
+
+## Adding New Core Modules
+
+1. Create module in `src/core/`
+2. Import and wire it in `src/mcp/server.py` or `src/core/indexer.py`
+3. Add tests in `tests/test_<module_name>.py`
+4. Update architecture diagram in `ARCHITECTURE.md`
+
+## Versioning
+
+We use SemVer: MAJOR (breaking), MINOR (new features), PATCH (bug fixes).
 
 ---
 
-*Last updated: 2026-06-27*
-
-## 📬 Contact
-
-For questions or issues not covered here:
-
-- **GitHub Issues**: [ManSio/mscodebase-intelligence](https://github.com/ManSio/mscodebase-intelligence/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ManSio/mscodebase-intelligence/discussions)
+*Last updated: 2026-06-28*

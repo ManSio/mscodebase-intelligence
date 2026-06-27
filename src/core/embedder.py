@@ -133,7 +133,7 @@ class Embedder:
             f"📥 Модель не найдена. Скачиваю {self.model_name} в {self.model_dir}..."
         )
         try:
-            from download_model import download_onnx_model
+            from scripts.download_model import download_onnx_model
 
             self.model_dir.mkdir(parents=True, exist_ok=True)
             download_onnx_model(self.model_name, self.model_dir)
@@ -148,7 +148,18 @@ class Embedder:
             return False
 
     def load(self) -> bool:
-        """Загружает локальную модель или проверяет конфигурацию внешнего API."""
+        """Загружает локальную модель или проверяет конфигурацию внешнего API.
+
+        Реализует graceful degradation:
+        1. Пробуем LM Studio (если доступен)
+        2. Пробуем внешний API (Ollama/OpenAI)
+        3. Пробуем локальный ONNX Runtime
+        4. Если ничего не доступно — переключаемся на fallback с предупреждением
+
+        Returns:
+            True если загрузка успешна (даже в fallback-режиме),
+            False если произошла критическая ошибка.
+        """
         # Автоопределение: если LM Studio запущен — используем его
         if self.provider == "onnx":
             if self._try_lm_studio():
@@ -162,19 +173,28 @@ class Embedder:
             )
             return True
 
+        # Пробуем загрузить локальную ONNX модель
         try:
             if not self._ensure_model_downloaded():
-                logger.warning("⚠️ Поиск будет отключен до появления модели embeddings.")
+                logger.warning(
+                    "⚠️ Модель embeddings не найдена. "
+                    "Выполните: python download_model.py --model " + self.model_name
+                )
                 self.is_available = False
-                return True
+                self.active_provider = "fallback"
+                return True  # Не критическая ошибка — работаем без embeddings
 
             import onnxruntime as ort
             from transformers import AutoTokenizer
 
             model_path = self.model_dir / "onnx" / "model.onnx"
             if not model_path.exists():
-                logger.error(f"Файл модели не найден по пути: {model_path}")
+                logger.error(
+                    f"❌ Файл модели не найден по пути: {model_path}. "
+                    f"Удалите папку {self.model_dir} и запустите download_model.py заново."
+                )
                 self.is_available = False
+                self.active_provider = "fallback"
                 return True
 
             # Автовыбор лучшего доступного бэкенда: CUDA → DirectML → CPU
@@ -217,10 +237,24 @@ class Embedder:
             )
             return True
 
-        except Exception as e:
-            logger.error(f"❌ Ошибка загрузки ONNX Runtime: {e}", exc_info=True)
+        except ImportError as e:
+            logger.error(
+                f"❌ Не установлены зависимости ONNX: {e}. "
+                f"Выполните: pip install onnxruntime transformers"
+            )
             self.is_available = False
-            return True
+            self.active_provider = "fallback"
+            return True  # Graceful degradation
+
+        except Exception as e:
+            logger.error(
+                f"❌ Ошибка загрузки ONNX Runtime: {e}. "
+                f"Embedder переключён в fallback-режим.",
+                exc_info=True,
+            )
+            self.is_available = False
+            self.active_provider = "fallback"
+            return True  # Graceful degradation — не падаем
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:
         """Создаёт векторное представление одного фрагмента текста."""

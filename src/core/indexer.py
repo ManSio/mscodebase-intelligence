@@ -103,10 +103,25 @@ class Indexer:
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
 
     def switch_project(self, project_path: Path) -> None:
-        """
-        Динамически переключает базу данных на проект.
+        """Динамически переключает базу данных на проект.
+
         Позволяет использовать один инстанс Indexer для разных проектов.
+
+        Args:
+            project_path: Путь к корневой директории проекта.
+                Должен существовать и быть директорией.
+
+        Raises:
+            FileNotFoundError: Если project_path не существует.
+            NotADirectoryError: Если project_path не является директорией.
         """
+        project_path = Path(project_path).resolve()
+
+        if not project_path.exists():
+            raise FileNotFoundError(f"Путь проекта не существует: {project_path}")
+        if not project_path.is_dir():
+            raise NotADirectoryError(f"Путь не является директорией: {project_path}")
+
         new_db_path = _generate_unique_db_path(project_path)
         if new_db_path == self.db_path:
             return  # Уже на нужной базе
@@ -323,16 +338,35 @@ class Indexer:
             return False
 
     def index_project(self, project_path: Path) -> int:
-        """
-        Полное сканирование проекта:
+        """Полное сканирование проекта.
+
         1. Инкрементально добавляет новые/измененные файлы.
         2. Автоматически удаляет из базы файлы, стертые с диска (Pruning).
+
+        Args:
+            project_path: Путь к корневой директории проекта.
+                Должен существовать и быть директорией.
+
+        Returns:
+            Количество индексированных (новых/изменённых) файлов.
+
+        Raises:
+            FileNotFoundError: Если project_path не существует.
+            NotADirectoryError: Если project_path не является директорией.
         """
+        project_path = Path(project_path).resolve()
+
+        if not project_path.exists():
+            raise FileNotFoundError(f"Путь проекта не существует: {project_path}")
+        if not project_path.is_dir():
+            raise NotADirectoryError(f"Путь не является директорией: {project_path}")
+
         logger.info(f"🚀 Старт фоновой синхронизации проекта: {project_path}")
         indexed_count = 0
         current_files_on_disk: Set[str] = set()
 
         if not self.path_manager.is_safe_to_process(project_path):
+            logger.warning(f"Путь не прошёл проверку безопасности: {project_path}")
             return 0
 
         # Шаг 1: Сканирование диска и обновление базы

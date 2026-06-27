@@ -53,4 +53,12 @@ logs/
 
 # Windows reserved names
 nul
+
+# Agent diary — internal tracking
 AGENT_DIARY.md
+
+# Scripts — development utilities
+scripts/
+
+# LSP setup doc — internal reference
+LSP_SETUP.md

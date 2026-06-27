@@ -35,52 +35,135 @@ class Searcher:
             logger.debug("🔄 Индекс BM25 сброшен для реиндексации")
 
     def _build_bm25_index(self) -> None:
-        """Ленивая инициализация BM25 индекса из текущей таблицы LanceDB."""
+        """Ленивая инициализация BM25 индекса из текущей таблицы LanceDB.
+
+        Потокобезопасна: использует _bm25_lock для предотвращения конкурентного
+        построения индекса из нескольких потоков.
+        """
         if self._bm25 is not None:
             return
-        if self.indexer.table is None or len(self.indexer.table) == 0:
-            return
 
-        try:
-            df = self.indexer.table.to_pandas()
-            if df.empty:
+        with self._bm25_lock:
+            # Double-check после захвата блокировки
+            if self._bm25 is not None:
+                return
+            if self.indexer.table is None or len(self.indexer.table) == 0:
                 return
 
-            # Считаем TF для каждого термина в каждом документе
-            doc_count = len(df)
-            term_doc_freq: Dict[str, int] = {}
-            term_doc_scores: Dict[str, Dict[str, float]] = {}
+            try:
+                df = self.indexer.table.to_pandas()
+                if df.empty:
+                    return
 
-            for idx, row in df.iterrows():
-                doc_id = f"{row['file_path']}:{row['chunk_index']}"
-                text = str(row.get("text", ""))
-                tokens = _tokenize(text, self._tokenizer_re)
+                # Считаем TF для каждого термина в каждом документе
+                doc_count = len(df)
+                term_doc_freq: Dict[str, int] = {}
+                term_doc_scores: Dict[str, Dict[str, float]] = {}
 
-                # TF (частота термина в документе)
-                term_tf: Dict[str, float] = {}
-                for token in tokens:
-                    term_tf[token] = term_tf.get(token, 0) + 1
+                for idx, row in df.iterrows():
+                    doc_id = f"{row['file_path']}:{row['chunk_index']}"
+                    text = str(row.get("text", ""))
+                    tokens = _tokenize(text, self._tokenizer_re)
 
-                # Сохраняем TF для документа
-                self._bm25_ids.append(doc_id)
-                term_doc_scores[doc_id] = term_tf
+                    # TF (частота термина в документе)
+                    term_tf: Dict[str, float] = {}
+                    for token in tokens:
+                        term_tf[token] = term_tf.get(token, 0) + 1
 
-                # DF (число документов, содержащих термин)
-                for token in term_tf:
-                    term_doc_freq[token] = term_doc_freq.get(token, 0) + 1
+                    # Сохраняем TF для документа
+                    self._bm25_ids.append(doc_id)
+                    term_doc_scores[doc_id] = term_tf
 
-            # Вычисляем IDF: log((N - df + 0.5) / (df + 0.5))
-            self._bm25 = {}
-            for doc_id, tf_dict in term_doc_scores.items():
-                self._bm25[doc_id] = {}
-                for term, tf in tf_dict.items():
-                    df = term_doc_freq.get(term, 0)
-                    idf = math.log((doc_count - df + 0.5) / (df + 0.5) + 1)
-                    self._bm25[doc_id][term] = tf * idf
+                    # DF (число документов, содержащих термин)
+                    for token in term_tf:
+                        term_doc_freq[token] = term_doc_freq.get(token, 0) + 1
 
-            logger.debug(f"📊 BM25 индекс построен: {len(self._bm25)} документов")
-        except Exception as e:
-            logger.error(f"Ошибка построения BM25 индекса: {e}")
+                # Вычисляем IDF: log((N - df + 0.5) / (df + 0.5))
+                self._bm25 = {}
+                for doc_id, tf_dict in term_doc_scores.items():
+                    self._bm25[doc_id] = {}
+                    for term, tf in tf_dict.items():
+                        df = term_doc_freq.get(term, 0)
+                        idf = math.log((doc_count - df + 0.5) / (df + 0.5) + 1)
+                        self._bm25[doc_id][term] = tf * idf
+
+                logger.debug(f"📊 BM25 индекс построен: {len(self._bm25)} документов")
+            except Exception as e:
+                logger.error(f"Ошибка построения BM25 индекса: {e}")
+
+    def incremental_update_bm25(self, new_chunks: List[dict]) -> None:
+        """Инкрементально обновляет BM25 индекс при добавлении новых чанков.
+
+        Вместо полной перестройки индекса (что дорого при большом объёме данных)
+        добавляет только новые документы в существующий индекс.
+
+        Args:
+            new_chunks: Список новых чанков с ключами 'file_path', 'chunk_index', 'text'.
+                Каждый элемент должен содержать как минимум:
+                - file_path: относительный путь к файлу
+                - chunk_index: индекс чанка
+                - text: текстовое содержимое чанка
+
+        Returns:
+            None
+        """
+        if not new_chunks:
+            return
+
+        with self._bm25_lock:
+            # Если индекс ещё не построен — полная перестройка
+            if self._bm25 is None:
+                self._build_bm25_index()
+                return
+
+            try:
+                # Получаем текущее количество документов для IDF
+                doc_count = len(self._bm25)
+
+                # Загружаем DF из существующего индекса
+                term_doc_freq: Dict[str, int] = {}
+                for doc_id, tf_dict in self._bm25.items():
+                    for term in tf_dict:
+                        term_doc_freq[term] = term_doc_freq.get(term, 0) + 1
+
+                # Добавляем новые чанки
+                for chunk in new_chunks:
+                    doc_id = f"{chunk['file_path']}:{chunk['chunk_index']}"
+                    if doc_id in self._bm25:
+                        continue  # Уже есть — пропускаем
+
+                    text = str(chunk.get("text", ""))
+                    tokens = _tokenize(text, self._tokenizer_re)
+
+                    # TF для нового документа
+                    term_tf: Dict[str, float] = {}
+                    for token in tokens:
+                        term_tf[token] = term_tf.get(token, 0) + 1
+
+                    self._bm25_ids.append(doc_id)
+                    self._bm25[doc_id] = term_tf
+
+                    # Обновляем DF
+                    for token in term_tf:
+                        term_doc_freq[token] = term_doc_freq.get(token, 0) + 1
+
+                # Пересчитываем IDF для всех документов (включая новые)
+                total_docs = doc_count + len(new_chunks)
+                for doc_id, tf_dict in self._bm25.items():
+                    for term, tf in tf_dict.items():
+                        df = term_doc_freq.get(term, 0)
+                        idf = math.log((total_docs - df + 0.5) / (df + 0.5) + 1)
+                        self._bm25[doc_id][term] = tf * idf
+
+                logger.debug(
+                    f"📊 BM25 индекс обновлён инкрементально: "
+                    f"+{len(new_chunks)} документов, всего {len(self._bm25)}"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка инкрементального обновления BM25: {e}")
+                # При ошибке сбрасываем индекс для полной перестройки
+                self._bm25 = None
+                self._bm25_ids = []
 
     def _bm25_search(self, query: str, limit: int = 5) -> List[dict]:
         """Полнотекстовый поиск BM25 по текущей базе."""

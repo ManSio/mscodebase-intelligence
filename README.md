@@ -18,6 +18,19 @@
 - **Zed Editor** (latest version)
 - **Python 3.10+**
 - **LM Studio** (recommended) or Ollama for embeddings
+- **Git** (for repository cloning)
+
+### Python Dependencies
+
+Core dependencies (auto-installed):
+- `mcp` — MCP protocol for Zed integration
+- `pygls` + `lsprotocol` — LSP protocol for proactive indexing
+- `lancedb` + `pyarrow` — Vector storage
+- `transformers` + `onnxruntime` + `huggingface_hub` — Local embeddings
+- `tree-sitter` + language bindings — AST parsing
+- `httpx` — HTTP client
+- `pathspec` — Gitignore pattern matching
+- `python-dotenv` — Environment configuration
 
 ### Installation
 
@@ -122,6 +135,45 @@ Vector indexes are isolated per project in:
 | `LM_STUDIO_HOST` | `127.0.0.1` | LM Studio host |
 | `LM_STUDIO_PORT` | `1234` | LM Studio port |
 
+## 🤖 AI Agent Usage
+
+### How It Works in Zed
+
+1. **MCP server** starts with Zed and handles AI assistant requests
+2. **LSP server** starts when a project opens and auto-indexes on `Ctrl+S`
+3. Both servers share the same LanceDB — fresh embeddings are always available
+
+### Workflow for New Projects
+
+1. `get_index_status()` — check if project is indexed
+2. If empty — `index_project_dir(path="...")` to start indexing (runs async)
+3. Use `search_code`, `get_context`, `get_symbol_info` for analysis
+4. After external changes — `scan_changes()` to detect diffs
+
+### Tool Selection Guide
+
+| Task | Tool |
+|------|------|
+| Find code by concept | `search_code(query="...")` |
+| Complex multi-part query | `search_code(agentic=True)` or `deep_search()` |
+| Search across repos | `cross_repo_search("query @backend @frontend")` |
+| Get symbol definition + callers | `get_symbol_info(query="ClassName")` |
+| Gather compressed context | `get_context(query="...")` |
+| Project structure overview | `get_repo_map(project_root="...")` |
+| Find similar code by fragment | `context_search(selected_code="...")` |
+| Search by AST patterns | `structural_search(pattern="class_inheritance")` |
+| Detect external changes | `scan_changes(project_root="...")` |
+| Check system health | `watcher_status()` |
+| Check error logs | `get_logs(project_root="...")` |
+
+### Best Practices
+
+- Use natural language in search: `"функция для валидации email"` works better than `"validateEmail"`
+- Combine tools: find a symbol via `search_code`, then get details via `get_symbol_info`
+- For refactoring: use `get_symbol_info` to find all dependents before changing
+- Read files in 50-line chunks, not entire files
+- Normalize Windows paths to POSIX lowercase: `path.as_posix().lower()`
+
 ## 🛠️ Development
 
 ### Setup
@@ -163,9 +215,9 @@ MSCodeBase/
 ├── README.md                      # This file
 ├── ARCHITECTURE.md                # Technical deep-dive
 ├── CHANGELOG.md                   # Version history
-├── TESTING.md                     # QA scenarios
+├── TESTING.md                     # Test suite reference
 ├── SECURITY.md                    # Security policy
-└── AI_PROMPT.md                   # AI assistant instructions
+└── CONTRIBUTING.md                # Contribution guide
 ```
 
 ## 📄 License

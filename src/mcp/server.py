@@ -270,6 +270,9 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("search_code", query)
 
+        if not query or not query.strip():
+            return "❌ Пустой поисковый запрос. Укажите что искать."
+
         # Определяем режим: agentic или обычный
         use_agentic = False
         if kwargs and kwargs.get("agentic") in (True, "true", "1", 1):
@@ -292,10 +295,17 @@ def create_mcp_server() -> "FastMCP":
             # Если 2+ индикатора или запрос > 50 символов — agentic
             use_agentic = indicators_count >= 2 or len(query) > 50
 
-        if use_agentic:
-            return self._agentic_search_handler(query, symbol_index)
-        else:
-            return searcher.search(query, limit=6)
+        try:
+            if use_agentic:
+                return self._agentic_search_handler(query, symbol_index)
+            else:
+                return searcher.search(query, limit=6)
+        except Exception as e:
+            logger.error(f"Ошибка search_code: {e}", exc_info=True)
+            return (
+                f"❌ Ошибка при выполнении поиска: {type(e).__name__}: {e}\n"
+                f"Попробуйте переформулировать запрос или проверьте логи через get_logs()."
+            )
 
     def _agentic_search_handler(self, query: str, symbol_index) -> str:
         """Обработчик Agentic Code Search для search_code."""
@@ -365,7 +375,11 @@ def create_mcp_server() -> "FastMCP":
         DO NOT use it to read entire files — use grep + targeted read_file instead.
         """
         _debug_log("get_context", query)
-        return get_context_func(query, searcher)
+        try:
+            return get_context_func(query, searcher)
+        except Exception as e:
+            logger.error(f"Ошибка get_context: {e}", exc_info=True)
+            return f"❌ Ошибка получения контекста: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -650,7 +664,11 @@ def create_mcp_server() -> "FastMCP":
         empty results. Fall back to grep/find_path instead.
         """
         _debug_log("context_search", selected_code[:80])
-        return searcher.context_search(selected_code, limit=5)
+        try:
+            return searcher.context_search(selected_code, limit=5)
+        except Exception as e:
+            logger.error(f"Ошибка context_search: {e}", exc_info=True)
+            return f"❌ Ошибка поиска по коду: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def structural_search(
@@ -722,7 +740,11 @@ def create_mcp_server() -> "FastMCP":
         empty results. Fall back to grep/find_path instead.
         """
         _debug_log("deep_search", query)
-        return searcher.deep_search(query, limit=8)
+        try:
+            return searcher.deep_search(query, limit=8)
+        except Exception as e:
+            logger.error(f"Ошибка deep_search: {e}", exc_info=True)
+            return f"❌ Ошибка глубокого поиска: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def cross_repo_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -750,7 +772,11 @@ def create_mcp_server() -> "FastMCP":
         CRITICAL: All projects must be indexed first via index_project_dir.
         """
         _debug_log("cross_repo_search", query)
-        return multi_project_searcher.search(query, limit=8)
+        try:
+            return multi_project_searcher.search(query, limit=8)
+        except Exception as e:
+            logger.error(f"Ошибка cross_repo_search: {e}", exc_info=True)
+            return f"❌ Ошибка кросс-проектного поиска: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:

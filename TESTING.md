@@ -1,51 +1,78 @@
-# 📑 МЕТОДОЛОГИЯ И СЦЕНАРИИ ТЕСТИРОВАНИЯ (QA)
+# Testing
 
-Сценарии для регрессионного и нагрузочного тестирования расширения.
+## Test Suite
 
-### Сценарий 1: Валидация нормализации путей (Path Validation Test)
+| File | Tests | What It Covers |
+|------|-------|----------------|
+| `tests/test_agentic_search.py` | 12 | Query decomposition, subquery relations, deduplication, result limits |
+| `tests/test_cross_repo_search.py` | 14 | @-mention parsing, ProjectRegistry, RRF merge, cross-repo output |
+| `tests/test_deep_search.py` | — | Iterative search with query refinement |
+| `tests/test_embedder.py` | — | LM Studio / Ollama / ONNX embedder |
+| `tests/test_indexer_project_path.py` | — | Path normalization and DB path generation |
+| `tests/test_integration.py` | — | End-to-end MCP server + indexer + searcher |
+| `tests/test_mutation_core.py` | — | Core mutation/change detection |
+| `tests/test_parser.py` | — | Tree-sitter AST parsing |
+| `tests/test_searcher.py` | — | Hybrid search (BM25 + Dense + RRF) |
+| `test_connection.py` | 1 | Smoke test: FileGuard + MCP server init |
+| `test_automation.py` | — | Automated test runner |
 
-* **Цель:** Проверить, что расширение генерирует один и тот же хеш для одного проекта независимо от формата путей Windows.
-* **Шаги:**
-  1. Инициализировать индекс для пути `D:\Work\Project_Beta`.
-  2. Повторно запросить индекс с путём `d:/work/project_beta`.
-* **Ожидаемый результат:** `_generate_unique_db_path` вернёт идентичный путь: `<PARENT_DIR>/.codebase_indices/lancedb_v2/index_Project_Beta_a3019552.db`.
+## Running Tests
 
-### Сценарий 2: Изоляция контекста при переключении окон (Context Switch Test)
+```powershell
+# Run full suite
+pytest tests/ -v
 
-* **Цель:** Изоляция запросов между проектами.
-* **Шаги:**
-  1. Переключить среду с `Project_Alpha` на `Project_Beta`.
-  2. Вызвать `get_context`.
-* **Ожидаемый результат:** Векторы идут строго из БД текущего проекта, данные соседа не подмешиваются.
+# Run a single test module
+pytest tests/test_agentic_search.py -v
+pytest tests/test_cross_repo_search.py -v
 
-### Сценарий 3: Инкрементальное обновление через LSP (File Monitor Test)
+# Run with coverage
+pytest tests/ --cov=src --cov-report=term-missing
 
-* **Цель:** Корректность индексации при изменении файлов в реальном времени.
-* **Шаги:**
-  1. Изменить файл в проекте.
-  2. Дождаться события `textDocument/didSave`.
-* **Ожидаемый результат:** Индексируется только изменённый файл, старые векторы перезаписываются.
+# Run the smoke test (requires project on disk)
+python test_connection.py
+```
 
-### Сценарий 4: Тест поочередного сброса и удержания RAM (Memory Sequence Test)
+## Expected Results
 
-* **Цель:** Проверить освобождение памяти при переключении проектов.
-* **Шаги:**
-  1. Открыть крупный проект, запустить полную индексацию.
-  2. Закрыть и открыть другой проект.
-  3. Проверить потребление RAM.
-* **Ожидаемый результат:** Старый процесс завершается, новый занимает базовую позицию (~117-118 MB).
+### `tests/test_agentic_search.py`
 
-### Сценарий 5: Валидация схемы LanceDB (Schema Validation Test)
+All 12 tests should pass. Key assertions:
 
-* **Цель:** Проверить корректность миграции при изменении схемы.
-* **Шаги:**
-  1. Запустить `install.py` на существующей БД.
-* **Ожидаемый результат:** `validate_lancedb_schema()` возвращает `"ok"`, `"mismatch"` или `"empty"` без падений.
+- `test_simple_query_unchanged` — single-word query stays as 1 subquery
+- `test_split_by_and` — `"авторизация и проверка прав"` → 2 subqueries
+- `test_split_by_question_words` — `"как работает ... и где ..."` → ≥2 subqueries
+- `test_max_subqueries_limit` — never more than 4 subqueries
+- `test_deduplication_across_subqueries` — same file:chunk not duplicated
+- `test_max_total_results_limit` — results capped at `max_total_results`
 
-### Сценарий 6: Fallback-режим (No Embedder Test)
+### `tests/test_cross_repo_search.py`
 
-* **Цель:** Работа без LM Studio.
-* **Шаги:**
-  1. Остановить LM Studio.
-  2. Запустить расширение.
-* **Ожидаемый результат:** Переход в fallback-режим, Tree-sitter + текстовые индексы работают, векторный поиск недоступен.
+All 14 tests should pass. Key assertions:
+
+- `test_no_mentions` — plain query returns unchanged, empty project list
+- `test_single_mention` — `"auth @backend"` → query=`"auth"`, projects=`["backend"]`
+- `test_find_by_prefix` — prefix `"backend"` matches `"backend-api"` and `"backend-worker"`
+- `test_merge_results_rrf` — results from multiple projects merged correctly
+- `test_merge_deduplication` — same filename in different projects kept as separate results
+
+### `test_connection.py`
+
+Expected output:
+
+```
+🔍 Проверка проекта: D:\Project\MSCodeBase
+✅ FileGuard: src/main.py прошел проверку
+⏳ Инициализация компонентов...
+✅ Компоненты созданы успешно!
+```
+
+## CI Requirements
+
+- Python 3.10+
+- All tests in `tests/` must pass before merge
+- `test_connection.py` requires the project source tree on disk (not CI-friendly)
+
+---
+
+*Last updated: 2026-06-28*

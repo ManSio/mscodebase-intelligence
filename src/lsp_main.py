@@ -283,7 +283,14 @@ def main():
         logger.error("LSP: Не удалось запустить сервер (отсутствуют зависимости)")
         sys.exit(1)
 
-    logger.info("LSP: Запуск сервера через stdio...")
+    logger.info("=" * 60)
+    logger.info("MSCodeBase LSP Server запущен")
+    logger.info(f"Версия: 1.0.0")
+    logger.info(f"Python: {sys.version.split()[0]}")
+    logger.info(f"Рабочая директория: {Path.cwd()}")
+    logger.info(f"Поддерживаемые расширения: {len(SUPPORTED_EXTENSIONS)} типов")
+    logger.info("Ожидание подключения Zed через stdio...")
+    logger.info("=" * 60)
     server.start_io()
 
 
