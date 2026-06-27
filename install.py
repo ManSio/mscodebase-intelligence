@@ -366,6 +366,31 @@ def main():
     settings_data["mscodebase"]["semaphore"] = sem_config
     settings_data["mscodebase"]["fallback_mode"] = fallback_mode
 
+    # ──────────────────────────────────────────────────
+    # Инжект системных правил для AI-ассистента Zed
+    # ──────────────────────────────────────────────────
+    custom_instructions = (
+        "MSCodeBase Core Rules: "
+        "STATE-AWARENESS: IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, "
+        "switch to grep/regex. IF chunks > 0, use search_code for semantic, get_symbol_info for exact names. "
+        "RECONNAISSANCE: NEVER guess line numbers. Use get_symbol_info or grep before read_file. "
+        "CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files. "
+        "SAFE WRITING: Read target lines again before edit. Preserve indentation and style. "
+        "ERROR HANDLING: Do not retry same tool with same params. Pivot to alternative. "
+        "WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). "
+        "POST-MODIFICATION: After writing, call index_project_dir + get_index_status. "
+        "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
+    )
+
+    if "assistant" not in settings_data:
+        settings_data["assistant"] = {}
+
+    current_prompt = settings_data["assistant"].get("system_prompt", "")
+    if custom_instructions not in current_prompt:
+        settings_data["assistant"]["system_prompt"] = (
+            f"{custom_instructions}\n{current_prompt}"
+        ).strip()
+
     settings_json_path.write_text(
         json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
     )

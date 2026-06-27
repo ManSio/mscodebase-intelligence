@@ -166,7 +166,12 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def get_index_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает текущую статистику заполнения векторной базы данных LanceDB и индекса символов."""
+        """Возвращает текущую статистику заполнения векторной базы данных LanceDB и индекса символов.
+
+        CRITICAL USAGE RULE:
+        If this tool returns status 'empty' (0 chunks), you MUST immediately fall back to
+        grep/find_path tools. Do NOT attempt semantic vector searches on empty index.
+        """
         _debug_log("get_index_status")
         stats = indexer.get_status()
         if "error" in stats:
@@ -201,7 +206,12 @@ def create_mcp_server() -> "FastMCP":
     async def index_project_dir(
         path: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Добавляет директорию проекта в фоновую очередь на первичную синхронизацию."""
+        """Добавляет директорию проекта в фоновую очередь на первичную синхронизацию.
+
+        CRITICAL USAGE RULES:
+        1. Normalize Windows paths to POSIX lowercase before calling: path.as_posix().lower()
+        2. After calling this, ALWAYS call get_index_status() to verify cache state.
+        """
         _debug_log("index_project_dir", path)
         global _last_index_error
         _last_index_error = None
@@ -226,6 +236,9 @@ def create_mcp_server() -> "FastMCP":
         НЕ ИСПОЛЬЗУЙ КОГДА:
         - Нужно найти конкретный файл по пути -> используй find_path
         - Нужно точное совпадение имени класса -> используй grep
+
+        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
+        empty results. Fall back to grep/find_path instead.
         """
         _debug_log("search_code", query)
         return searcher.search(query, limit=6)
@@ -236,6 +249,10 @@ def create_mcp_server() -> "FastMCP":
 
         В отличие от search_code, возвращает сжатый контекст с несколькими фрагментами,
         оптимизированный под токены. Идеален для быстрого погружения в незнакомый код.
+
+        CRITICAL USAGE RULE:
+        Only use this tool for targeted context retrieval (specific query).
+        DO NOT use it to read entire files — use grep + targeted read_file instead.
         """
         _debug_log("get_context", query)
         return get_context_func(query, searcher)
@@ -254,6 +271,10 @@ def create_mcp_server() -> "FastMCP":
         - callers: кто вызывает этот символ (прямые и косвенные зависимости)
         - callees: какие символы вызывает сам этот символ
         - impact_files: список файлов, которые затронет изменение символа
+
+        CRITICAL USAGE RULE (MANDATORY):
+        You MUST call this tool BEFORE using read_file to inspect implementation details.
+        This prevents blind reading and ensures you understand the impact scope first.
         """
         _debug_log("get_symbol_info", query)
         if not symbol_index:
@@ -332,7 +353,12 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы."""
+        """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
+
+        CRITICAL USAGE RULE:
+        Use this tool for project overview ONLY. To read actual code, use grep + targeted
+        read_file (max 50 lines per chunk). Never attempt to parse the full map as code.
+        """
         _debug_log("get_repo_map", project_root)
         if not symbol_index:
             return "❌ Движок анализа структуры недоступен."
@@ -398,6 +424,8 @@ def create_mcp_server() -> "FastMCP":
         - Какие символы добавлены/изменены
         - Кто зависит от этих символов (impact analysis)
         - Текстовое резюме архитектурного влияния
+
+        CRITICAL: Normalize Windows paths: path.as_posix().lower() before calling.
         """
         _debug_log("scan_changes", project_root)
         target_path = Path(project_root).resolve()
@@ -450,7 +478,12 @@ def create_mcp_server() -> "FastMCP":
     # 8. Инструмент MCP: Статус компонентов архитектуры
     @mcp.tool()
     def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга."""
+        """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга.
+
+        CRITICAL USAGE RULE:
+        Call this tool to check system health. If embedder mode is 'fallback' or 'onnx',
+        notify the user that LM Studio is not connected for full functionality.
+        """
         _debug_log("watcher_status")
         lines = ["👁️ Статус компонентов архитектуры:"]
 
@@ -503,3 +536,62 @@ def run_server(original_stdout=None):
             logger.info("Сервер остановлен пользователем.")
         except Exception as e:
             logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
+
+
+# ==========================================
+# MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА
+# ==========================================
+
+@mcp.prompt(
+    name="mscodebase-rules",
+    description="Системные правила для идеальной работы с кодовой базой MSCodeBase",
+)
+def mscodebase_rules() -> str:
+    """Системные правила для идеальной работы с кодовой базой MSCodeBase."""
+    return """
+# MSCODEBASE INTELLIGENCE CORE SYSTEM RULES
+
+You operate under a strict deterministic execution matrix. Every action must be verified before execution. No assumptions allowed.
+
+## 1. STATE-AWARENESS RULES (Database Index Status)
+- IF `get_index_status` returns chunks = 0 or status = "empty":
+  - You are FORBIDDEN from using `search_code` (semantic vector search).
+  - You MUST immediately switch to `grep` or regex-based text search tools.
+- IF `get_index_status` returns chunks > 0:
+  - For semantic, conceptual, or broad questions ("how does X work?"), use `search_code`.
+  - For exact variable names, function definitions, or specific files, use `get_symbol_info` or regex search.
+
+## 2. RECONNAISSANCE BEFORE ACTION (No Blind Reads/Writes)
+- NEVER guess line numbers. Calling `read_file` with speculative ranges (e.g., 1-100 on a random file) is a Critical Failure.
+- BEFORE reading or modifying any file, you MUST discover the exact location using `get_symbol_info` or text search.
+- Once the line numbers are known from tool output, you may proceed to read.
+
+## 3. CONTEXT BUDGET AND CHUNKING (Anti-Bloat Rules)
+- Your maximum allowed reading window is 50 lines per `read_file` call.
+- If a function spans more than 50 lines, read the first 50 lines, analyze them, and then make a subsequent targeted call for the next chunk if strictly necessary.
+- NEVER ingest entire files into the conversation context unless the file is under 50 lines total.
+
+## 4. SAFE WRITING AND CODE MODIFICATION
+- BEFORE generating a search-and-replace block or modifying code, you MUST read the target lines again to ensure your local memory matches the absolute truth of the file.
+- When writing code, preserve the exact indentation, style, and architectural patterns of the surrounding file.
+
+## 5. ERROR HANDLING AND FAIL-SAFES
+- IF an MCP tool returns an error or empty result:
+  - Do not retry the exact same tool with the exact same parameters.
+  - Pivot to an alternative tool (e.g., if symbol search failed, try raw text grep).
+  - If all technical tools fail, report the exact error signature to the user and ask for clarification.
+
+## 6. WINDOWS PATH NORMALIZATION
+- Always normalize paths to POSIX lowercase before passing to tools: `path.as_posix().lower()`
+
+## 7. POST-MODIFICATION SYNC
+- After writing any file, immediately call `index_project_dir(path)` to force re-indexing.
+- Call `get_index_status()` to verify that the cache matches the updated state.
+
+## 8. STACK & CONSTRAINTS
+- Backend: Python 3.11+, FastAPI (DI via `Depends`).
+- Database: SQLAlchemy Async + SQLite (Alembic migrations only).
+- Time: IANA timezone from `.env` via standard `zoneinfo` (NO pytz).
+- Windows native deployment only. NO Docker.
+- NEVER mock or stub functions.
+    """
