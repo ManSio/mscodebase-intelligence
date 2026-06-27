@@ -43,6 +43,17 @@
 
 ---
 
+## [2026-06-27 17:30] — [Type: Docs] — Обновлены правила для новых MCP-инструментов
+
+**Изменено:**
+- `.agents/skills/mscodebase-rules/SKILL.md` — добавлены context_search, get_logs
+- `C:\Users\misha\AppData\Roaming\Zed\AGENTS.md` — добавлены context_search, get_logs
+- `src/mcp/server.py` — промпт mscodebase-rules обновлен с упоминанием новых инструментов
+
+**Статус:** ✅
+
+---
+
 ## [2026-06-27 17:00] — [Type: Feature] — Централизованное логирование + MCP-инструмент get_logs
 
 **Проблема:**

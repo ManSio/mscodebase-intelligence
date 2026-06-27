@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map, scan_changes."
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map, scan_changes, context_search, get_logs."
 ---
 
 # MSCodeBase Tool Selection Rules
@@ -16,6 +16,8 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | Quick onboarding into unfamiliar code | MCP `get_context` | Compressed context tailored for token efficiency |
 | Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
 | Check system health | MCP `watcher_status` | Embedder mode, LSP status |
+| Find similar code / duplicates / alternative implementations | MCP `context_search` | Semantic search by selected code fragment |
+| Diagnose errors / check logs | MCP `get_logs` | Last errors and warnings from project logs |
 
 ## Mandatory Rules
 
