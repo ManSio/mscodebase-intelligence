@@ -45,7 +45,8 @@ class RemoteEmbedder:
         # Первичный тест доступности инфраструктуры
         self.mode = "lm_studio"
         self._preferred_mode = "lm_studio"  # режим, к которому стремимся вернуться
-        if not self._check_lm_studio():
+        _lm_available = self._check_lm_studio()
+        if not _lm_available:
             if os.getenv("EMBEDDING_PROVIDER") == "ollama":
                 self.mode = "ollama"
                 self._preferred_mode = "ollama"
@@ -56,18 +57,22 @@ class RemoteEmbedder:
                 logger.info(
                     "⚠️ Внешние API не обнаружены. Будет задействован ЛОКАЛЬНЫЙ движок ONNX Runtime."
                 )
-                logger.info(
-                    f"🔄 Фоновый сканер будет проверять LM Studio каждые {_PROVIDER_SCAN_INTERVAL}с."
-                )
 
-        # Запуск фонового сканера доступности провайдера
+        # Запуск фонового сканера доступности провайдера (только если LM Studio ещё не доступен)
         self._scanner_stop = threading.Event()
-        self._scanner_thread = threading.Thread(
-            target=self._provider_scanner_loop,
-            name="mscodebase-provider-scanner",
-            daemon=True,
-        )
-        self._scanner_thread.start()
+        if not _lm_available:
+            logger.info(
+                f"🔄 Фоновый сканер будет проверять LM Studio каждые {_PROVIDER_SCAN_INTERVAL}с."
+            )
+            self._scanner_thread = threading.Thread(
+                target=self._provider_scanner_loop,
+                name="mscodebase-provider-scanner",
+                daemon=True,
+            )
+            self._scanner_thread.start()
+        else:
+            logger.info("✅ LM Studio доступен при старте. Фоновый сканер не запускается.")
+            self._scanner_thread = None
 
     def _check_lm_studio(self) -> bool:
         """Быстрая проверка доступности порта LM Studio."""
@@ -95,11 +100,12 @@ class RemoteEmbedder:
         """Фоновый поток: периодически проверяет, появился ли внешний провайдер.
 
         Если LM Studio / Ollama запустились после старта Zed — автоматически
-        переключается с ONNX на внешний API без перезапуска IDE.
+        переключается с ONNX на внешний API и завершает цикл (break).
+        Повторный опрос после успешного подключения не производится.
         """
         while not self._scanner_stop.wait(_PROVIDER_SCAN_INTERVAL):
             try:
-                # Если уже на LM Studio — просто проверяем что он ещё жив
+                # Если уже на LM Studio — проверяем что он ещё жив
                 with self._mode_lock:
                     current = self.mode
 
@@ -112,7 +118,10 @@ class RemoteEmbedder:
                             "📡 LM Studio пропал. Переключаюсь на ONNX. "
                             "Сканер продолжит поиск."
                         )
-                    continue
+                        continue
+                    # LM Studio ещё жив — выходим из цикла, дальше проверять нечего
+                    logger.debug("LM Studio стабилен. Сканер завершает работу.")
+                    break
 
                 if current == "ollama":
                     if not self._check_ollama():
@@ -123,7 +132,10 @@ class RemoteEmbedder:
                             "📡 Ollama пропал. Переключаюсь на ONNX. "
                             "Сканер продолжит поиск."
                         )
-                    continue
+                        continue
+                    # Ollama ещё жив — выходим из цикла
+                    logger.debug("Ollama стабилен. Сканер завершает работу.")
+                    break
 
                 # current == "onnx" или "fallback" — ищем внешний провайдер
                 if self._check_lm_studio():
@@ -131,15 +143,19 @@ class RemoteEmbedder:
                         self.mode = "lm_studio"
                         self._preferred_mode = "lm_studio"
                     logger.info(
-                        "🌐 LM Studio обнаружен! Автоматически переключаюсь с ONNX → LM Studio."
+                        "🌐 LM Studio обнаружен! Переключаюсь с ONNX → LM Studio. "
+                        "Сканер остановлен."
                     )
+                    return  # Успешное подключение — завершаем поток
                 elif self._check_ollama():
                     with self._mode_lock:
                         self.mode = "ollama"
                         self._preferred_mode = "ollama"
                     logger.info(
-                        "🌐 Ollama обнаружен! Автоматически переключаюсь с ONNX → Ollama."
+                        "� Ollama обнаружен! Переключаюсь с ONNX → Ollama. "
+                        "Сканер остановлен."
                     )
+                    return  # Успешное подключение — завершаем поток
 
             except Exception as e:
                 logger.debug(f"Сканер провайдера: ошибка проверки: {e}")
@@ -147,6 +163,9 @@ class RemoteEmbedder:
     def stop_scanner(self):
         """Останавливает фоновый сканер (вызывается при shutdown)."""
         self._scanner_stop.set()
+        if self._scanner_thread is not None:
+            self._scanner_thread.join(timeout=5.0)
+            self._scanner_thread = None
 
     def _init_onnx(self):
         """Отложенная сборка тяжелого локального ONNX контекста только при реальной необходимости."""
