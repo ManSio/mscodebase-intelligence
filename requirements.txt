@@ -25,7 +25,6 @@ tree-sitter-go>=0.21.0
 
 # Search & Utils
 rank-bm25>=0.2.2
-watchdog>=3.0.0
 pathspec>=0.14.0
 requests>=2.31.0
 httpx>=0.24.0

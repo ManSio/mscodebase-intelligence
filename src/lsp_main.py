@@ -1,7 +1,12 @@
 """
-MSCodeBase LSP Server — проактивный индексатор через Language Server Protocol.
+MSCodeBase LSP Server - проактивный индексатор через Language Server Protocol.
 
-Интегрируется в Zed как language server и реагирует на сохранение файлов.
+Интегрируется в Zed как language server и получает события файлов напрямую
+от Rust-ядра редактора. Никакого polling, watchdog или ручного трекинга.
+
+Два источника событий:
+1. didSave - пользователь нажал Ctrl+S (файл гарантированно свободен от локов)
+2. didChangeWatchedFiles - встроенный в Zed Rust-watcher заметил изменения на диске
 """
 
 import asyncio
@@ -11,7 +16,6 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-# Настраиваем логирование в stderr (stdout занят LSP протоколом)
 logging.basicConfig(
     stream=sys.stderr,
     level=logging.INFO,
@@ -20,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MSCodeBase-LSP")
 
-# Поддерживаемые расширения
+# Поддерживаемые расширения (код + конфиги + документация)
 SUPPORTED_EXTENSIONS = {
     ".py",
     ".rs",
@@ -54,55 +58,41 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
-def get_project_root() -> Path:
-    """Определяет корень проекта (текущая директория или через PROJECT_PATH)."""
-    project_path = os.environ.get("PROJECT_PATH", ".")
-    return Path(project_path).resolve()
-
-
-def get_db_path(project_root: Path) -> Path:
-    """Генерирует путь к базе данных для проекта."""
-    import hashlib
-
-    project_hash = hashlib.md5(str(project_root).encode()).hexdigest()[:8]
-    project_name = project_root.name
-    db_dir = project_root.parent / ".codebase_indices" / "lancedb_v2"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir / f"index_{project_name}_{project_hash}.db"
-
-
-def normalize_path(uri_path: str) -> Path:
-    """Нормализует URI путь из LSP в файловую систему."""
-    parsed = urlparse(uri_path)
+def _uri_to_path(uri: str) -> Path:
+    """Безопасная конвертация URI от редактора в системный Path (с учетом Windows)."""
+    parsed = urlparse(uri)
     raw_path = parsed.path
-
-    # Windows: убираем ведущий слеш
     if sys.platform == "win32" and raw_path.startswith("/"):
         raw_path = raw_path.lstrip("/")
-
     return Path(raw_path).resolve()
+
+
+def _get_rel_path_str(file_path: Path, project_path: Path) -> str:
+    """Возвращает нормализованный относительный POSIX-путь для LanceDB."""
+    return file_path.relative_to(project_path).as_posix()
 
 
 # Глобальные переменные для lazy init
 _indexer = None
 _embedder = None
 _file_guard = None
+_project_path = None
 
 
-def init_components():
-    """Ленивая инициализация компонентов."""
-    global _indexer, _embedder, _file_guard
+def init_components(project_root: Path):
+    """Ленивая инициализация компонентов ядра."""
+    global _indexer, _embedder, _file_guard, _project_path
 
     if _indexer is not None:
         return
 
+    _project_path = project_root
+
     from src.core.file_guard import FileGuard
-    from src.core.indexer import Indexer
+    from src.core.indexer import Indexer, _generate_unique_db_path
     from src.core.remote_embedder import RemoteEmbedder
 
-    project_root = get_project_root()
-    db_path = get_db_path(project_root)
-
+    db_path = _generate_unique_db_path(project_root)
     _embedder = RemoteEmbedder(port=1234)
     _file_guard = FileGuard(project_root)
     _indexer = Indexer(db_path, _embedder, _file_guard)
@@ -110,25 +100,59 @@ def init_components():
     logger.info(f"LSP: Инициализирован Indexer для {project_root.name}")
 
 
-def index_file_async(file_path: Path) -> None:
-    """Синхронный вызов индексации (будет запущен в executor)."""
+def _execute_file_indexing(file_path: Path):
+    """Оркестрация проверки хеша и чанкера (вызывается в thread-пуле)."""
+    if _indexer is None:
+        init_components(_project_path or Path.cwd())
+
+    # Проверки безопасности
+    if not _indexer.path_manager.is_safe_to_process(file_path):
+        return
+    if _indexer.file_guard.should_skip_file(file_path):
+        return
+
     try:
-        if _indexer is None:
-            init_components()
+        rel_path_str = _get_rel_path_str(file_path, _indexer.project_path)
+    except ValueError:
+        return
 
-        # Получаем относительный путь
-        project_root = get_project_root()
-        rel_path = str(file_path.relative_to(project_root))
+    logger.info(f"[LSP INDEXING] Анализ файла: {rel_path_str}")
+    success = _indexer._index_single_file(file_path, rel_path_str)
 
-        # Индексируем файл
-        if _indexer is not None:
-            _indexer.index_file(file_path, project_root)
-            logger.info(f"LSP: ✅ Проиндексирован: {rel_path}")
-        else:
-            logger.warning("LSP: Indexer не инициализирован, пропуск")
+    if success and _indexer.searcher:
+        _indexer.searcher.reindex()
 
-    except Exception as e:
-        logger.error(f"LSP: ❌ Ошибка индексации {file_path}: {e}")
+
+def _process_watched_changes(changes):
+    """Синхронный воркер для обработки пачки внешних событий диска."""
+    need_search_reindex = False
+
+    for change in changes:
+        file_path = _uri_to_path(change.uri)
+        if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+
+        try:
+            rel_path_str = _get_rel_path_str(file_path, _indexer.project_path)
+        except ValueError:
+            continue
+
+        # FileChangeType.Deleted == 3
+        if change.type == 3:
+            logger.info(f"[LSP DELETE] {file_path.name}")
+            _indexer.prune_deleted_files({rel_path_str})
+            need_search_reindex = True
+
+        # FileChangeType.Created == 1 или Changed == 2
+        elif change.type in (1, 2):
+            logger.info(
+                f"[LSP {'CREATE' if change.type == 1 else 'CHANGE'}] {file_path.name}"
+            )
+            if _indexer._index_single_file(file_path, rel_path_str):
+                need_search_reindex = True
+
+    if need_search_reindex and _indexer.searcher:
+        _indexer.searcher.reindex()
 
 
 # ============================================================================
@@ -140,6 +164,7 @@ try:
         TEXT_DOCUMENT_DID_SAVE,
         DidSaveTextDocumentParams,
         InitializeParams,
+        InitializeResult,
         TextDocumentSyncKind,
     )
     from pygls.lsp.server import LanguageServer
@@ -153,40 +178,82 @@ try:
 
     server = MSCodeBaseLanguageServer("mscodebase-lsp", "1.0.0")
 
+    # === 1. ОБРАБОТКА ИЗМЕНЕНИЙ ПРИ СОХРАНЕНИИ (ГОРЯЧИЙ СЦЕНАРИЙ) ===
     @server.feature(TEXT_DOCUMENT_DID_SAVE)
     async def did_save(ls: MSCodeBaseLanguageServer, params: DidSaveTextDocumentParams):
-        """Обработчик сохранения файла — триггерит индексацию."""
+        """Триггерится нативным Ctrl+S в Zed. Файл уже свободен от локов Windows."""
         try:
-            file_path = normalize_path(params.text_document.uri)
+            file_path = _uri_to_path(params.text_document.uri)
 
-            # Фильтруем по расширениям
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
 
-            logger.info(f"LSP: 💾 Файл сохранён: {file_path.name}")
+            logger.info(f"[LSP EVENT] Файл сохранен пользователем: {file_path.name}")
 
-            # Индексируем в executor (не блокируем LSP loop)
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, index_file_async, file_path)
+            await loop.run_in_executor(None, _execute_file_indexing, file_path)
 
         except Exception as e:
-            logger.error(f"LSP: ❌ Ошибка обработки didSave: {e}")
+            logger.error(
+                f"[LSP RECOVERY] Ошибка при сохранении файла: {e}", exc_info=True
+            )
 
+    # === 2. ОБРАБОТКА ВНЕШНИХ ИЗМЕНЕНИЙ (git checkout, удаление вне редактора) ===
+    @server.feature("workspace/didChangeWatchedFiles")
+    async def did_change_watched_files(ls: MSCodeBaseLanguageServer, params):
+        """
+        Вызывается, когда встроенный в Zed (Rust) файловый watcher
+        заметил физические изменения на диске.
+        """
+        try:
+            if _indexer is None:
+                return
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _process_watched_changes, params.changes)
+        except Exception as e:
+            logger.error(
+                f"[LSP RECOVERY] Ошибка обработки изменений воркспейса: {e}",
+                exc_info=True,
+            )
+
+    # === 3. ИНИЦИАЛИЗАЦИЯ ===
     @server.feature("initialize")
-    async def initialize(ls: MSCodeBaseLanguageServer, params: InitializeParams):
-        """Инициализация сервера."""
-        init_components()
-        ls._initialized = True
-        logger.info("LSP: Сервер инициализирован")
+    async def on_initialize(ls: MSCodeBaseLanguageServer, params: InitializeParams):
+        """При старте забираем у Zed реальный корень открытого проекта."""
+        project_root = Path(urlparse(params.root_uri).path)
+        if sys.platform == "win32" and str(project_root).startswith("\\"):
+            project_root = Path(str(project_root).lstrip("\\"))
 
-        # Возвращаем capabilities
-        from lsprotocol.types import InitializeResult
+        logger.info(f"[LSP INIT] Запуск на корне воркспейса: {project_root}")
+
+        init_components(project_root)
+        ls._initialized = True
 
         return InitializeResult(
             capabilities={
                 "text_document_sync": TextDocumentSyncKind.Incremental,
             }
         )
+
+    @server.feature("initialized")
+    async def on_initialized(ls: MSCodeBaseLanguageServer, params):
+        """После успешной инициализации подписываемся на системный watcher редактора."""
+        try:
+            from lsprotocol.types import (
+                DidChangeWatchedFilesRegistrationOptions,
+                FileSystemWatcher,
+            )
+
+            options = DidChangeWatchedFilesRegistrationOptions(
+                watchers=[FileSystemWatcher(glob_pattern="**/*")]
+            )
+            await ls.register_capability_async(
+                "workspace/didChangeWatchedFiles", options
+            )
+            logger.info("[LSP INIT] Подписка на системные события файлов Zed оформлена")
+        except Exception as e:
+            logger.warning(f"[LSP INIT] Не удалось подписаться на watcher: {e}")
 
 except ImportError:
     logger.warning("pygls/lsprotocol не установлены. LSP-сервер недоступен.")

@@ -1,6 +1,4 @@
-"""
-MSCodebase Intelligence MCP Server — Фоновый асинхронный воркер и полный набор из 6 инструментов MCP
-"""
+"""MSCodebase Intelligence MCP Server - Фоновый асинхронный воркер и полный набор из 8 инструментов MCP"""
 
 import asyncio
 import logging
@@ -352,6 +350,77 @@ def create_mcp_server() -> "FastMCP":
         except Exception as e:
             logger.error(f"Ошибка при работе инструмента get_repo_map: {e}")
             return f"❌ Ошибка генерации Repo Map: {str(e)}"
+
+    # 7. Инструмент MCP: Ручной запуск сканирования изменений
+    @mcp.tool()
+    def scan_changes(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Принудительно сканирует проект на наличие новых, изменённых или удалённых файлов по mtime/хешу.
+        Используйте когда: создали/удалили файлы вне Zed, или подозреваете рассинхронизацию базы.
+        """
+        target_path = Path(project_root).resolve()
+        if not target_path.exists():
+            return f"❌ Указанный путь не существует: {project_root}"
+
+        try:
+            # Переключаем БД на нужный проект
+            indexer.switch_project(target_path)
+            project_file_guard = FileGuard(target_path)
+            indexer.file_guard = project_file_guard
+
+            # Запускаем инкрементальное сканирование
+            indexed_count = indexer.index_project(target_path)
+
+            # Обновляем SymbolIndex
+            if hasattr(symbol_index, "index_project"):
+                symbol_index.index_project(target_path, code_parser)
+
+            return (
+                f"🔍 Сканирование завершено: {target_path.name}\n"
+                f"  • Обновлено/добавлено файлов: {indexed_count}\n"
+                f"  • Режим эмбеддера: {getattr(embedder, 'mode', 'unknown')}"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка scan_changes: {e}")
+            return f"❌ Ошибка сканирования: {str(e)}"
+
+    # 8. Инструмент MCP: Статус мониторинга и провайдера
+    @mcp.tool()
+    def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает статус файлового мониторинга (LSP-watcher) и текущего провайдера эмбеддингов.
+        Показывает: активен ли LSP-сервер, режим эмбеддера, статус сканера провайдера.
+        """
+        lines = ["👁️ Статус мониторинга:"]
+
+        # LSP-сервер
+        try:
+            from src.lsp_main import server as lsp_server
+
+            if lsp_server is not None:
+                lines.append("  • LSP-сервер: ✅ запущен (события файлов от Zed)")
+            else:
+                lines.append("  • LSP-сервер: ⏹️ недоступен (pygls не установлен)")
+        except Exception:
+            lines.append("  • LSP-сервер: ⏹️ не инициализирован")
+
+        # Embedder provider
+        embedder_mode = getattr(embedder, "mode", "unknown")
+        mode_label = {
+            "lm_studio": "🌐 LM Studio",
+            "ollama": "🦙 Ollama",
+            "onnx": "⚙️ ONNX (локальный)",
+            "fallback": "⚠️ Заглушка",
+        }.get(embedder_mode, embedder_mode)
+        lines.append(f"  • Режим эмбеддера: {mode_label}")
+
+        # Provider scanner
+        scanner_alive = (
+            hasattr(embedder, "_scanner_thread") and embedder._scanner_thread.is_alive()
+        )
+        lines.append(
+            f"  • Сканер провайдера: {'✅ работает' if scanner_alive else '⏹️ остановлен'}"
+        )
+
+        return "\n".join(lines)
 
     return mcp
 

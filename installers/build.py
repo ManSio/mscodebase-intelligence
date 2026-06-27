@@ -63,8 +63,6 @@ def build():
         "--hidden-import",
         "rank_bm25",
         "--hidden-import",
-        "watchdog",
-        "--hidden-import",
         "dotenv",
         "src/main.py",
     ]
