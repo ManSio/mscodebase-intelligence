@@ -31,6 +31,19 @@ _last_index_error: Optional[str] = None
 _task_events: list = []
 
 
+def _debug_log(tool_name: str, detail: str = ""):
+    """Маркерная запись для проверки живости MCP-сервера."""
+    import datetime
+
+    try:
+        log_path = Path(__file__).resolve().parent.parent.parent / "mcp_debug.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"[{ts}] MCP tool called: {tool_name} | {detail[:80]}\n")
+    except Exception:
+        pass
+
+
 def _signal_all_events():
     """Сигналит всем ожидающим событиям о завершении задачи."""
     events = _task_events[:]
@@ -154,6 +167,7 @@ def create_mcp_server() -> "FastMCP":
     @mcp.tool()
     def get_index_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текущую статистику заполнения векторной базы данных LanceDB и индекса символов."""
+        _debug_log("get_index_status")
         stats = indexer.get_status()
         if "error" in stats:
             return f"❌ Ошибка получения статуса: {stats['error']}"
@@ -188,6 +202,7 @@ def create_mcp_server() -> "FastMCP":
         path: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Добавляет директорию проекта в фоновую очередь на первичную синхронизацию."""
+        _debug_log("index_project_dir", path)
         global _last_index_error
         _last_index_error = None
 
@@ -201,20 +216,92 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def search_code(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Выполняет гибридный семантический поиск по фрагментам исходного кода проекта."""
+        """Концептуальный и семантический поиск по смыслу, а не по буквам.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Запрос абстрактный: 'как работает авторизация', 'где обработка ошибок сети'
+        - Нужно найти код по смыслу, даже если точных слов в коде нет
+        - grep не нашёл результатов потому что термины отличаются
+
+        НЕ ИСПОЛЬЗУЙ КОГДА:
+        - Нужно найти конкретный файл по пути -> используй find_path
+        - Нужно точное совпадение имени класса -> используй grep
+        """
+        _debug_log("search_code", query)
         return searcher.search(query, limit=6)
 
     @mcp.tool()
     def get_context(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Генерирует интеллектуальный упакованный контекст для AI-ассистента в стиле Cursor @codebase."""
+        """Генерирует интеллектуальный упакованный контекст для AI-ассистента в стиле Cursor @codebase.
+
+        В отличие от search_code, возвращает сжатый контекст с несколькими фрагментами,
+        оптимизированный под токены. Идеален для быстрого погружения в незнакомый код.
+        """
+        _debug_log("get_context", query)
         return get_context_func(query, searcher)
 
     @mcp.tool()
     def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Ищет точные совпадения для определений и использований по их имени."""
+        """Граф вызовов (Call Graph) для символа: определение + кто вызывает + что вызывает сам символ.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно переписать функцию и понять, что из-за этого сломается
+        - Нужно найти все места, где вызывается данный метод/класс
+        - Нужно понять зависимости между модулями проекта
+
+        Возвращает:
+        - definition: где определён символ (файл, строка, тип)
+        - callers: кто вызывает этот символ (прямые и косвенные зависимости)
+        - callees: какие символы вызывает сам этот символ
+        - impact_files: список файлов, которые затронет изменение символа
+        """
+        _debug_log("get_symbol_info", query)
         if not symbol_index:
             return "❌ Индекс символов не инициализирован."
         try:
+            # Сначала пробуем Call Graph (новая логика)
+            call_graph = symbol_index.build_call_graph(query, depth=2)
+
+            if (
+                call_graph["definition"]
+                or call_graph["callers"]
+                or call_graph["callees"]
+            ):
+                output = [f"🗂️ Call Graph для символа '{query}':\n"]
+
+                if call_graph["definition"]:
+                    output.append("📍 Определение:")
+                    for d in call_graph["definition"]:
+                        output.append(
+                            f"  • [{d['kind'].upper()}] {d['file']}:{d['line']}"
+                        )
+
+                if call_graph["callers"]:
+                    output.append("\n📞 Кто вызывает (прямые и косвенные зависимости):")
+                    for c in call_graph["callers"][:15]:
+                        kind_label = (
+                            "(косвенный)" if c.get("kind") == "indirect_caller" else ""
+                        )
+                        sym_name = c.get("symbol", query)
+                        output.append(
+                            f"  • {sym_name} в {c['file']}:{c['line']} {kind_label}"
+                        )
+
+                if call_graph["callees"]:
+                    output.append("\n📤 Что вызывает этот символ:")
+                    for c in call_graph["callees"][:10]:
+                        output.append(
+                            f"  • {c['symbol']} [{c['kind'].upper()}] в {c['file']}:{c['line']}"
+                        )
+
+                if call_graph["impact_files"]:
+                    output.append(
+                        f"\n⚠️ Файлы, затронутые изменением '{query}': {', '.join(call_graph['impact_files'][:10])}"
+                    )
+
+                return "\n".join(output)
+
+            # Fallback: старый поиск по имени
             results = symbol_index.search_symbols(query)
             if not results:
                 return f"🔍 Символ '{query}' не найден в структуре определений проекта."
@@ -246,6 +333,7 @@ def create_mcp_server() -> "FastMCP":
     @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы."""
+        _debug_log("get_repo_map", project_root)
         if not symbol_index:
             return "❌ Движок анализа структуры недоступен."
         try:
@@ -294,14 +382,24 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка при работе инструмента get_repo_map: {e}")
             return f"❌ Ошибка генерации Repo Map: {str(e)}"
 
-    # 7. Инструмент MCP: Ручной запуск сканирования изменений
+    # 7. Инструмент MCP: Архитектурный дифф при сканировании изменений
     @mcp.tool()
     async def scan_changes(
         project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Принудительно сканирует проект на наличие новых, изменённых или удалённых файлов по mtime/хешу.
-        Используйте когда: создали/удалили файлы вне Zed, или подозреваете рассинхронизацию базы.
+        """Сканирует проект на изменения и возвращает архитектурный дифф.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Создали/удалили файлы вне Zed (git pull, git checkout)
+        - Подозреваешь рассинхронизацию базы с диском
+        - Нужно понять влияние изменений на архитектуру проекта
+
+        В отличие от простого 'список изменённых файлов', показывает:
+        - Какие символы добавлены/изменены
+        - Кто зависит от этих символов (impact analysis)
+        - Текстовое резюме архитектурного влияния
         """
+        _debug_log("scan_changes", project_root)
         target_path = Path(project_root).resolve()
         if not target_path.exists():
             return f"❌ Указанный путь не существует: {project_root}"
@@ -311,21 +409,39 @@ def create_mcp_server() -> "FastMCP":
             project_file_guard = FileGuard(target_path)
             indexer.file_guard = project_file_guard
 
-            # Тяжёлая дисковая операция - в пуле потоков, не блокируем event loop
+            # Тяжёлая дисковая операция - в пуле потоков
             logger.info(
                 f"🔄 Ручной запуск сканирования изменений для {target_path.name}..."
             )
             indexed_count = await asyncio.to_thread(indexer.index_project, target_path)
 
+            # Обновляем SymbolIndex
             if hasattr(symbol_index, "index_project"):
                 await asyncio.to_thread(
                     symbol_index.index_project, target_path, code_parser
                 )
 
+            # Архитектурный дифф: какие символы затронуты
+            arch_diff = ""
+            if hasattr(symbol_index, "get_architectural_diff") and indexed_count > 0:
+                # Получаем список файлов, которые были обновлены
+                try:
+                    df = indexer.table.to_pandas()
+                    changed_files = list(df["file_path"].unique())[:20]
+                    diff_result = symbol_index.get_architectural_diff(changed_files)
+                    if diff_result.get("impact_summary"):
+                        arch_diff = f"\n\n🏗️ Архитектурный анализ изменений:\n{diff_result['impact_summary']}"
+                    if diff_result.get("impact_files"):
+                        arch_diff += f"\n\n⚠️ Файлы под ударом: {', '.join(diff_result['impact_files'][:8])}"
+                except Exception as diff_err:
+                    logger.debug(f"Не удалось построить архитектурный дифф: {diff_err}")
+
+            embedder_mode = getattr(embedder, "mode", "unknown")
             return (
-                f"🔍 Инкрементальное сканирование завершено: {target_path.name}\n"
+                f"🔍 Инкрементальное сканирование: {target_path.name}\n"
                 f"  • Обновлено/добавлено файлов: {indexed_count}\n"
-                f"  • Режим эмбеддера: {getattr(embedder, 'mode', 'unknown')}"
+                f"  • Режим эмбеддера: {embedder_mode}"
+                f"{arch_diff}"
             )
         except Exception as e:
             logger.error(f"Ошибка scan_changes: {e}", exc_info=True)
@@ -335,6 +451,7 @@ def create_mcp_server() -> "FastMCP":
     @mcp.tool()
     def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга."""
+        _debug_log("watcher_status")
         lines = ["👁️ Статус компонентов архитектуры:"]
 
         # Проверка доступности кода LSP в контексте текущего окружения

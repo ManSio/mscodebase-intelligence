@@ -47,6 +47,7 @@ class SymbolIndex:
     """
     Индекс символов проекта.
     Хранит: какой файл определяет символ, какие файлы его используют.
+    Поддерживает построение графа вызовов (Call Graph).
     """
 
     def __init__(self):
@@ -56,6 +57,10 @@ class SymbolIndex:
         self._references: Dict[str, List[SymbolRef]] = {}
         # file_path -> set of symbols (быстрый lookup при удалении файла)
         self._file_to_symbols: Dict[str, Set[str]] = {}
+        # file_path -> set of symbol names defined in this file
+        self._file_to_defs: Dict[str, Set[str]] = {}
+        # file_path -> set of symbol names called/used in this file
+        self._file_to_calls: Dict[str, Set[str]] = {}
 
         # Регулярка для поиска идентификаторов в тексте
         self._id_pattern = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
@@ -66,13 +71,18 @@ class SymbolIndex:
         """
         Добавляет определения символов из распаршенного файла.
         symbols: список {name, line, kind} от парсера.
+        Также строит связи вызовов: какие символы данный файл использует.
         """
         with self._lock:
             if file_path not in self._file_to_symbols:
                 self._file_to_symbols[file_path] = set()
+            if file_path not in self._file_to_defs:
+                self._file_to_defs[file_path] = set()
 
+            defined_names = set()
             for sym in symbols:
                 name = sym["name"]
+                defined_names.add(name)
                 ref = SymbolRef(
                     symbol=name,
                     file_path=file_path,
@@ -91,10 +101,26 @@ class SymbolIndex:
                     self._definitions[name].append(ref)
                 self._file_to_symbols[file_path].add(name)
 
+            self._file_to_defs[file_path] = defined_names
+
+            # Строим связи вызовов: какие определённые в проекте символы
+            # используются в этом файле (кроме собственных определений)
+            calls_in_file = set()
+            for name in defined_names:
+                # Ищем использования этого символа в других файлах
+                if name in self._references:
+                    for ref in self._references[name]:
+                        if ref.file_path != file_path:
+                            calls_in_file.add(name)
+                            break
+            self._file_to_calls[file_path] = calls_in_file
+
     def remove_file(self, file_path: str) -> None:
         """Удаляет все записи о файле (при удалении/переиндексации)."""
         with self._lock:
             symbols = self._file_to_symbols.pop(file_path, set())
+            self._file_to_defs.pop(file_path, None)
+            self._file_to_calls.pop(file_path, None)
             for sym in symbols:
                 # Удаляем определения
                 if sym in self._definitions:
@@ -175,6 +201,154 @@ class SymbolIndex:
             results.extend(refs)
 
         return results
+
+    # --- Граф вызовов (Call Graph) ---
+
+    def build_call_graph(self, symbol: str, depth: int = 2) -> Dict:
+        """Строит граф вызовов для символа.
+
+        Возвращает:
+        - definition: где определён символ
+        - callers: кто вызывает этот символ (обратные связи)
+        - callees: какие символы вызывает этот символ (прямые связи)
+        - impact_files: файлы, которые затронет изменение символа
+        """
+        with self._lock:
+            result = {
+                "symbol": symbol,
+                "definition": [],
+                "callers": [],
+                "callees": [],
+                "impact_files": set(),
+            }
+
+            # 1. Определение символа
+            defs = self._definitions.get(symbol, [])
+            for d in defs:
+                result["definition"].append(
+                    {
+                        "file": d.file_path,
+                        "line": d.line,
+                        "kind": d.kind,
+                    }
+                )
+                result["impact_files"].add(d.file_path)
+
+            # 2. Кто вызывает этот символ (callers)
+            refs = self._references.get(symbol, [])
+            caller_files = set()
+            for r in refs:
+                if not r.is_definition:
+                    result["callers"].append(
+                        {
+                            "file": r.file_path,
+                            "line": r.line,
+                            "kind": r.kind,
+                        }
+                    )
+                    caller_files.add(r.file_path)
+                    result["impact_files"].add(r.file_path)
+
+            # 3. Какие символы вызывает файл, где определён этот символ (callees)
+            for d in defs:
+                file_calls = self._file_to_calls.get(d.file_path, set())
+                for called_sym in file_calls:
+                    if called_sym == symbol:
+                        continue
+                    called_defs = self._definitions.get(called_sym, [])
+                    for cd in called_defs:
+                        result["callees"].append(
+                            {
+                                "symbol": called_sym,
+                                "file": cd.file_path,
+                                "line": cd.line,
+                                "kind": cd.kind,
+                            }
+                        )
+                        result["impact_files"].add(cd.file_path)
+
+            # 4. Если depth > 1, рекурсивно ищем кто вызывает callers
+            if depth > 1 and caller_files:
+                for caller_file in list(caller_files)[:5]:  # лимит чтобы не раздувать
+                    file_defs = self._file_to_defs.get(caller_file, set())
+                    for sym_name in file_defs:
+                        sym_refs = self._references.get(sym_name, [])
+                        for sr in sym_refs:
+                            if not sr.is_definition and sr.file_path != caller_file:
+                                result["callers"].append(
+                                    {
+                                        "symbol": sym_name,
+                                        "file": sr.file_path,
+                                        "line": sr.line,
+                                        "kind": "indirect_caller",
+                                    }
+                                )
+                                result["impact_files"].add(sr.file_path)
+
+            result["impact_files"] = sorted(result["impact_files"])
+            return result
+
+    def get_architectural_diff(self, changed_files: List[str]) -> Dict:
+        """Анализирует влияние изменений в файлах на архитектуру проекта.
+
+        Возвращает:
+        - added_symbols: новые символы в изменённых файлах
+        - affected_callers: кто зависит от изменённых файлов
+        - impact_summary: текстовое резюме для AI
+        """
+        with self._lock:
+            added_symbols = []
+            affected_callers = []
+            all_impact_files = set()
+
+            for file_path in changed_files:
+                defs = self._file_to_defs.get(file_path, set())
+                for sym_name in defs:
+                    sym_defs = self._definitions.get(sym_name, [])
+                    for sd in sym_defs:
+                        if sd.file_path == file_path:
+                            added_symbols.append(
+                                {
+                                    "symbol": sym_name,
+                                    "kind": sd.kind,
+                                    "line": sd.line,
+                                }
+                            )
+
+                    # Кто ещё использует этот символ?
+                    refs = self._references.get(sym_name, [])
+                    for r in refs:
+                        if r.file_path != file_path:
+                            affected_callers.append(
+                                {
+                                    "symbol": sym_name,
+                                    "called_from": r.file_path,
+                                    "line": r.line,
+                                }
+                            )
+                            all_impact_files.add(r.file_path)
+
+            # Формируем текстовое резюме
+            summary_parts = []
+            for sym in added_symbols[:10]:
+                callers = [c for c in affected_callers if c["symbol"] == sym["symbol"]]
+                if callers:
+                    files = list(set(c["called_from"] for c in callers))[:3]
+                    summary_parts.append(
+                        f"{sym['kind'].upper()} {sym['symbol']} -> используется в {', '.join(files)}"
+                    )
+                else:
+                    summary_parts.append(
+                        f"{sym['kind'].upper()} {sym['symbol']} (нет внешних зависимостей)"
+                    )
+
+            return {
+                "changed_files": changed_files,
+                "added_symbols": added_symbols,
+                "affected_callers": affected_callers,
+                "impact_files": sorted(all_impact_files),
+                "impact_summary": "\n".join(summary_parts),
+            }
 
     # --- Статистика ---
 
