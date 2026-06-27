@@ -1,11 +1,10 @@
 import sys
 from pathlib import Path
 
-# Добавляем корень проекта в sys.path
 sys.path.append(str(Path(__file__).parent))
 
 from src.core.file_guard import FileGuard
-from src.mcp.handler import create_mcp_server
+from src.mcp.server import create_mcp_server
 
 
 def test_setup():
@@ -24,22 +23,8 @@ def test_setup():
 
     # 2. Тест загрузки сервера (инициализация объектов)
     print("⏳ Инициализация компонентов...")
-    create_mcp_server()  # type: ignore[unused-variable]
+    create_mcp_server()
     print("✅ Компоненты созданы успешно!")
-
-    # Ждём небольшого времени, чтобы фоновая инициализация успела начаться
-    import time
-
-    time.sleep(2)
-
-    # Проверяем статус
-    from src.mcp.handler import SERVER_READY, SERVER_STATUS_MESSAGE
-
-    print(f"📊 Статус сервера: {SERVER_STATUS_MESSAGE}")
-    if SERVER_READY:
-        print("✅ Сервер готов к работе!")
-    else:
-        print("⚠️ Сервер всё ещё инициализируется (это нормально для фоновой загрузки)")
 
 
 if __name__ == "__main__":

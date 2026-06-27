@@ -110,7 +110,7 @@ def main():
             return
 
         # Запуск MCP сервера
-        from src.mcp.handler import run_server
+        from src.mcp.server import run_server
 
         logger.info("Запуск MCP сервера...")
         # run_server сам создаёт event loop и запускает stdio
