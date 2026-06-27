@@ -1,29 +1,29 @@
 ---
 name: mscodebase-rules
-description: Правила выбора инструментов AI-агента в Zed. Определяет, какой инструмент использовать в зависимости от задачи: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map.
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map."
 ---
 
-# Правила выбора инструментов MSCodeBase
+# MSCodeBase Tool Selection Rules
 
-## Таблица выбора инструментов
+## Tool Selection Matrix
 
-| Ситуация | Что использовать | Почему |
+| Scenario | Tool to Use | Rationale |
 |---|---|---|
-| Найти конкретный файл по пути или точное имя класса/функции | `grep` / `find_path` | Мгновенно, 100% точность |
-| Понять архитектуру, найти логику "на словах", взаимосвязи | MCP `search_code` | Векторный поиск по смыслу свяжет абстрактные сущности |
-| Переписать функцию и понять, что сломается | MCP `get_symbol_info` (Call Graph) | Покажет все зависимые модули и вызовы |
-| Создали/удалили файлы вне Zed | MCP `scan_changes` | Архитектурный дифф + impact analysis |
-| Быстрое погружение в незнакомый код | MCP `get_context` | Сжатый контекст под токены |
-| Обзор структуры проекта | MCP `get_repo_map` | Дерево файлов + символы |
+| Find a specific file by path or exact class/function name | `grep` / `find_path` | Instant, 100% exact match accuracy |
+| Understand architecture, search by concept/intent, find relationships | MCP `search_code` | Semantic vector search connects abstract concepts |
+| Rewrite a function and analyze what will break | MCP `get_symbol_info` (Call Graph) | Shows all dependent modules and inbound calls |
+| Files created/deleted outside of Zed | MCP `scan_changes` | Architectural diff + impact analysis |
+| Quick onboarding into unfamiliar code | MCP `get_context` | Compressed context tailored for token efficiency |
+| Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
 
-## Обязательные правила
+## Mandatory Rules
 
-**1. ПЕРЕД редактированием функции/класса — ОБЯЗАТЕЛЬНО вызови `get_symbol_info`**, чтобы понять влияние изменений на зависимые модули и вызывающий код.
+**1. BEFORE editing any function or class — ALWAYS call `get_symbol_info`** to fully understand the impact of your changes on dependent modules and caller code.
 
-**2. Если `grep` не нашёл результатов — попробуй `search_code`** (семантический поиск по векторной базе).
+**2. If `grep` yields no results — try `search_code`** (semantic search via the vector database).
 
-**3. После `git pull` / `git checkout` — вызови `scan_changes`** для отслеживания изменённых файлов вне Zed.
+**3. After `git pull` / `git checkout` — call `scan_changes`** to track file modifications made outside of Zed.
 
-**4. Запрет на слепые правки:** Если `read_file` вернул Outline вместо полного текста — сначала прочитай конкретные строки (`start_line`/`end_line`), которые планируешь менять. Не предлагай код изменений не видя актуального содержимого.
+**4. No Blind Edits:** If `read_file` returns an Outline instead of the full text — you MUST first read the specific lines (`start_line`/`end_line`) you plan to modify. Never propose edits without seeing the up-to-date contents.
 
-**5. Оптимизация контекста:** Читай код точечными микро-кусками. Не пытайся заглотить файлы целиком без необходимости.
+**5. Context Optimization:** Read code in targeted, small chunks. Do not attempt to ingest entire files unless absolutely necessary.
