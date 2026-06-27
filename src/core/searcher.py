@@ -4,6 +4,7 @@ import re
 import threading
 from typing import Dict, List, Optional
 
+from src.core.query_expansion import expand_query
 from src.core.reranker import SearchResultReranker
 
 logger = logging.getLogger(__name__)
@@ -207,39 +208,63 @@ class Searcher:
 
         return results
 
-    def hybrid_search(self, query: str, limit: int = 5, use_rrf: bool = True) -> List[dict]:
+    def hybrid_search(self, query: str, limit: int = 5, use_rrf: bool = True, expand: bool = True) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
         Алгоритм:
-        1. Выполняем BM25 поиск для точных совпадений терминов
-        2. Выполняем векторный поиск для семантически релевантных результатов
-        3. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
+        1. (Опционально) Расширяем запрос синонимами через query expansion
+        2. Выполняем BM25 поиск для точных совпадений терминов
+        3. Выполняем векторный поиск для семантически релевантных результатов
+        4. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
 
         Args:
             query: Поисковый запрос
             limit: Максимальное число результатов
             use_rrf: Использовать RRF (True) или реранкер (False)
+            expand: Использовать query expansion (синонимы, стемминг)
         """
-        # BM25 поиск (sparse)
-        bm25_results = self._bm25_search(query, limit=limit * 2)
+        # Query Expansion: генерируем варианты запроса
+        if expand:
+            query_variants = expand_query(query, max_expansions=3)
+        else:
+            query_variants = [query]
 
-        # Векторный поиск (dense)
-        dense_results = []
-        try:
-            query_vector = self.embedder.embed(query)
-            if query_vector:
-                dense_results = self.vector_search(query_vector, limit=limit * 2)
-                dense_results = [r for r in dense_results if "error" not in r]
-        except Exception as e:
-            logger.warning(f"Не удалось выполнить dense поиск: {e}")
+        # Собираем результаты от всех вариантов
+        all_bm25_results = []
+        all_dense_results = []
+
+        for variant in query_variants:
+            # BM25 поиск (sparse)
+            bm25_results = self._bm25_search(variant, limit=limit * 2)
+            all_bm25_results.extend(bm25_results)
+
+            # Векторный поиск (dense) — только для оригинального запроса
+            # (варианты синонимов дают те же эмбеддинги)
+            if variant == query and not all_dense_results:
+                try:
+                    query_vector = self.embedder.embed(variant)
+                    if query_vector:
+                        dense_results = self.vector_search(query_vector, limit=limit * 2)
+                        all_dense_results = [r for r in dense_results if "error" not in r]
+                except Exception as e:
+                    logger.warning(f"Не удалось выполнить dense поиск: {e}")
+
+        # Дедупликация BM25 результатов
+        seen_keys = set()
+        unique_bm25 = []
+        for r in all_bm25_results:
+            key = f"{r['metadata']['file']}:{r['metadata']['chunk_index']}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                unique_bm25.append(r)
 
         if use_rrf:
             # RRF Fusion — устойчив к разным масштабам скоров
-            return self._reciprocal_rank_fusion(bm25_results, dense_results, limit=limit)
+            return self._reciprocal_rank_fusion(unique_bm25, all_dense_results, limit=limit)
         else:
             # Fallback: реранкер с relevance factor
             reranked = self._reranker.rerank_results(
-                query, bm25_results, dense_results, limit=limit
+                query, unique_bm25, all_dense_results, limit=limit
             )
             results = []
             for res in reranked:
