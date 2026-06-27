@@ -382,12 +382,12 @@ def main():
         "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
     )
 
-    if "assistant" not in settings_data:
-        settings_data["assistant"] = {}
+    if "agent" not in settings_data:
+        settings_data["agent"] = {}
 
-    current_prompt = settings_data["assistant"].get("system_prompt", "")
+    current_prompt = settings_data["agent"].get("system_prompt", "")
     if custom_instructions not in current_prompt:
-        settings_data["assistant"]["system_prompt"] = (
+        settings_data["agent"]["system_prompt"] = (
             f"{custom_instructions}\n{current_prompt}"
         ).strip()
 

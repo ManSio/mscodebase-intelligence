@@ -522,33 +522,17 @@ def create_mcp_server() -> "FastMCP":
 
         return "\n".join(lines)
 
-    return mcp
+    # ==========================================
+    # MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА
+    # ==========================================
 
-
-def run_server(original_stdout=None):
-    mcp = create_mcp_server()
-    if mcp:
-        try:
-            if original_stdout:
-                sys.stdout = original_stdout
-            asyncio.run(mcp.run_stdio_async())
-        except KeyboardInterrupt:
-            logger.info("Сервер остановлен пользователем.")
-        except Exception as e:
-            logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
-
-
-# ==========================================
-# MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА
-# ==========================================
-
-@mcp.prompt(
-    name="mscodebase-rules",
-    description="Системные правила для идеальной работы с кодовой базой MSCodeBase",
-)
-def mscodebase_rules() -> str:
-    """Системные правила для идеальной работы с кодовой базой MSCodeBase."""
-    return """
+    @mcp.prompt(
+        name="mscodebase-rules",
+        description="Системные правила для идеальной работы с кодовой базой MSCodeBase",
+    )
+    def mscodebase_rules() -> str:
+        """Системные правила для идеальной работы с кодовой базой MSCodeBase."""
+        return """
 # MSCODEBASE INTELLIGENCE CORE SYSTEM RULES
 
 You operate under a strict deterministic execution matrix. Every action must be verified before execution. No assumptions allowed.
@@ -595,3 +579,18 @@ You operate under a strict deterministic execution matrix. Every action must be 
 - Windows native deployment only. NO Docker.
 - NEVER mock or stub functions.
     """
+
+    return mcp
+
+
+def run_server(original_stdout=None):
+    mcp = create_mcp_server()
+    if mcp:
+        try:
+            if original_stdout:
+                sys.stdout = original_stdout
+            asyncio.run(mcp.run_stdio_async())
+        except KeyboardInterrupt:
+            logger.info("Сервер остановлен пользователем.")
+        except Exception as e:
+            logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
