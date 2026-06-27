@@ -513,9 +513,8 @@ def create_mcp_server() -> "FastMCP":
         lines.append(f"  • Режим эмбеддера: {mode_label}")
 
         # Активность фонового потока проверки доступности провайдера
-        scanner_alive = (
-            hasattr(embedder, "_scanner_thread") and embedder._scanner_thread.is_alive()
-        )
+        scanner_thread = getattr(embedder, "_scanner_thread", None)
+        scanner_alive = scanner_thread is not None and scanner_thread.is_alive()
         lines.append(
             f"  • Пинг-сканер доступности ИИ-хоста: {'✅ Активен' if scanner_alive else '⏹️ Отключен'}"
         )
