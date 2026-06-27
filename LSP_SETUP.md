@@ -6,29 +6,32 @@
 
 ## Ручная настройка
 
-Добавьте в `.zed/settings.json` или в глобальные настройки Zed:
+Добавьте в глобальные настройки Zed (`%APPDATA%\Zed\settings.json`):
 
 ```json
 {
   "lsp": {
     "mscodebase-lsp": {
       "command": "python",
-      "args": ["-m", "src.lsp_main"]
+      "args": ["-u", "D:/Path/To/MSCodeBase/src/lsp_main.py"]
     }
   },
 
   "languages": {
     "Python": {
-      "language_servers": ["pyright", "mscodebase-lsp"]
+      "language_servers": ["mscodebase-lsp"]
     },
     "TypeScript": {
-      "language_servers": ["typescript-language-server", "mscodebase-lsp"]
+      "language_servers": ["mscodebase-lsp"]
     },
     "Rust": {
-      "language_servers": ["rust-analyzer", "mscodebase-lsp"]
+      "language_servers": ["mscodebase-lsp"]
     },
     "Go": {
-      "language_servers": ["gopls", "mscodebase-lsp"]
+      "language_servers": ["mscodebase-lsp"]
+    },
+    "JavaScript": {
+      "language_servers": ["mscodebase-lsp"]
     }
   }
 }
@@ -45,4 +48,4 @@
 
 - **Нет конфликтов файлов** — Zed гарантирует, что файл записан и готов к чтению
 - **Нет отдельных процессов-вотчеров** — используется встроенный механизм Zed
-- **Мгновенный отклик** — индекс всегда актуален
+- **Мгновенный отклик** — индекс всегда актуелен

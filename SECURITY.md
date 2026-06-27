@@ -2,17 +2,13 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in MSCodebase Intelligence, please report it responsibly. We follow the [Responsible Disclosure](https://docs.github.com/en/github/site-policy/security-policies#responsible-disclosure-of-vulnerabilities) policy.
+If you discover a security vulnerability in MSCodebase Intelligence, please report it responsibly.
 
 ### How to Report
 
-1. **Email**: security@mscodebase.com
-2. **GitHub Security Advisory**: [Create an advisory](https://github.com/ManSio/mscodebase-intelligence/security/advisories/new)
-3. **PGP Key**: `0x1234567890ABCDEF` (for encrypted reports)
+1. **GitHub Security Advisory**: [Create an advisory](https://github.com/ManSio/mscodebase-intelligence/security/advisories/new)
 
 ### What We Need
-
-When reporting a vulnerability, please include:
 
 - Description of the vulnerability
 - Steps to reproduce
@@ -44,49 +40,33 @@ When reporting a vulnerability, please include:
 
 ### Data Protection
 
-- Sensitive data encryption at rest
-- Secure handling of API keys and tokens
-- Regular security audits and dependency updates
+- All data stored locally (no external services except optional LM Studio)
+- Path hashing for project isolation
+- .gitignore pattern filtering
 
 ### Access Control
 
-- Principle of least privilege applied
-- Role-based access control where applicable
-- Authentication and authorization mechanisms
+- File system access limited to project directories
+- No elevated permissions required
 
 ## Dependencies
 
 ### Security Scanning
 
-We use the following tools for security scanning:
-
 - **GitHub Dependabot**: Automated dependency vulnerability scanning
-- **CodeQL**: Static application security testing (SAST)
-- **Semgrep**: Pattern-based security scanning
 
 ### Third-Party Services
 
 | Service | Purpose | Security Notes |
 |---------|---------|----------------|
-| LM Studio | Embeddings API | Requires local deployment |
-| ChromaDB | Vector database | Encrypted storage |
+| LM Studio | Embeddings API | Local deployment only |
+| LanceDB | Vector database | Local storage, no cloud |
 | Tree-sitter | Code parsing | Sandboxed execution |
-
-## Security Contact
-
-For security-related questions or concerns:
-
-- **Email**: security@mscodebase.com
-- **PGP**: security@mscodebase.com (key fingerprint: `0x1234567890ABCDEF`)
 
 ## Acknowledgments
 
 We thank all security researchers who have contributed to making MSCodebase Intelligence more secure.
 
-## Reporting Vulnerabilities in Dependencies
-
-If you believe a dependency has a security vulnerability, please report it to the respective dependency maintainers. We also monitor vulnerability databases and will update dependencies as needed.
-
 ---
 
-*Last updated: 2026-06-24*
+*Last updated: 2026-06-27*

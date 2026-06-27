@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map."
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, get_symbol_info, get_context, get_repo_map, scan_changes."
 ---
 
 # MSCodeBase Tool Selection Rules
@@ -15,6 +15,7 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | Files created/deleted outside of Zed | MCP `scan_changes` | Architectural diff + impact analysis |
 | Quick onboarding into unfamiliar code | MCP `get_context` | Compressed context tailored for token efficiency |
 | Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
+| Check system health | MCP `watcher_status` | Embedder mode, LSP status |
 
 ## Mandatory Rules
 
@@ -26,4 +27,10 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 
 **4. No Blind Edits:** If `read_file` returns an Outline instead of the full text — you MUST first read the specific lines (`start_line`/`end_line`) you plan to modify. Never propose edits without seeing the up-to-date contents.
 
-**5. Context Optimization:** Read code in targeted, small chunks. Do not attempt to ingest entire files unless absolutely necessary.
+**5. Context Optimization:** Read code in targeted, small chunks (max 50 lines). Do not attempt to ingest entire files unless absolutely necessary.
+
+**6. State Awareness:** If `get_index_status` returns 0 chunks — FORBIDDEN to use `search_code`. Switch to `grep` or `find_path` immediately.
+
+**7. Path Normalization:** Always normalize paths to POSIX lowercase: `path.as_posix().lower()` before passing to tools.
+
+**8. Post-Modification Sync:** After writing any file, call `index_project_dir(path)` + `get_index_status()` to verify cache state.

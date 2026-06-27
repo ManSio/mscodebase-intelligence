@@ -218,12 +218,12 @@ def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool
         "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
     )
 
-    if "assistant" not in settings:
-        settings["assistant"] = {}
+    if "agent" not in settings:
+        settings["agent"] = {}
 
-    current_prompt = settings["assistant"].get("system_prompt", "")
+    current_prompt = settings["agent"].get("system_prompt", "")
     if custom_instructions not in current_prompt:
-        settings["assistant"]["system_prompt"] = (
+        settings["agent"]["system_prompt"] = (
             f"{custom_instructions}\n{current_prompt}"
         ).strip()
 
