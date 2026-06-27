@@ -495,7 +495,7 @@ def generate_semaphore_config() -> dict:
 # Главная функция
 # ──────────────────────────────────────────────────────────────
 
-TOTAL_STEPS = 7
+TOTAL_STEPS = 8
 
 
 def main():
@@ -689,6 +689,10 @@ def main():
         "ERROR HANDLING: Do not retry same tool with same params. Pivot to alternative. "
         "WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). "
         "POST-MODIFICATION: After writing, call index_project_dir + get_index_status. "
+        "SEARCH TOOLS: search_code (semantic), deep_search (iterative multi-pass), "
+        "cross_repo_search (multi-project with @-mentions), context_search (similar code by fragment), "
+        "structural_search (AST patterns: class_inheritance, function_with_decorator, async_function, etc.), "
+        "get_logs (recent errors). Use deep_search for complex research. Use cross_repo_search for mono-repo. "
         "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
     )
 
@@ -712,9 +716,56 @@ def main():
         detail(f"Режим: {Color.GREEN}Полный{Color.RESET} (векторный + структурный + текстовый)")
 
     # ══════════════════════════════════════════════════════════
-    # Шаг 6: Деинсталлятор
+    # Шаг 6: Установка скиллов и AGENTS.md
     # ══════════════════════════════════════════════════════════
-    step_header(6, TOTAL_STEPS, "Генерация деинсталлятора")
+    step_header(6, TOTAL_STEPS, "Установка скиллов и системных правил")
+
+    # Копируем .agents/skills в расширение
+    src_agents = PROJECT_ROOT / ".agents"
+    dst_agents = ZED_EXT_DIR / ".agents"
+    if src_agents.exists():
+        spinner = Spinner("Копирование скиллов (.agents/skills)")
+        try:
+            shutil.copytree(
+                str(src_agents), str(dst_agents),
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            spinner.done(f"Скиллы скопированы: {Color.DIM}{dst_agents}{Color.RESET}")
+        except Exception as e:
+            spinner.done(f"Ошибка копирования скиллов: {e}")
+            warn("Скиллы не скопированы — используются глобальные")
+    else:
+        info("Локальные скиллы не найдены (.agents/) — используются глобальные")
+
+    # Копируем AGENTS.md если его нет в глобальной локации
+    global_agents = Path(os.environ["USERPROFILE"]) / ".agents" / "AGENTS.md"
+    project_agents = PROJECT_ROOT / "AGENTS.md"
+    if project_agents.exists() and not global_agents.exists():
+        try:
+            global_agents.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(project_agents), str(global_agents))
+            ok(f"AGENTS.md установлен: {Color.DIM}{global_agents}{Color.RESET}")
+        except Exception as e:
+            warn(f"Не удалось установить AGENTS.md: {e}")
+
+    # Обновляем глобальный AGENTS.md если он устарел (проверяем по маркеру)
+    if global_agents.exists():
+        try:
+            current_content = global_agents.read_text(encoding="utf-8")
+            if "deep_search" not in current_content and "cross_repo_search" not in current_content:
+                warn("Глобальный AGENTS.md не содержит новых инструментов (deep_search, cross_repo_search)")
+                info("Обновите AGENTS.md вручную или запустите: python install.py")
+                if project_agents.exists():
+                    shutil.copy2(str(project_agents), str(global_agents))
+                    ok(f"AGENTS.md обновлён из проекта")
+        except Exception as e:
+            warn(f"Ошибка проверки AGENTS.md: {e}")
+
+    # ══════════════════════════════════════════════════════════
+    # Шаг 7: Деинсталлятор
+    # ══════════════════════════════════════════════════════════
+    step_header(7, TOTAL_STEPS, "Генерация деинсталлятора")
 
     uninst_content = _build_uninstall_bat(str(PYTHON_EXE), str(ZED_EXT_DIR))
     UNINSTALLER.write_text(uninst_content, encoding="utf-8")

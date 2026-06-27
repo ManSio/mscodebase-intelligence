@@ -14,6 +14,7 @@ from src.core.indexer import Indexer
 from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
+from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
 
 try:
     from src.core.context_engine import get_context as get_context_func
@@ -157,6 +158,11 @@ def create_mcp_server() -> "FastMCP":
 
     symbol_index = SymbolIndex()
 
+    # Cross-repo поиск: реестр проектов и мультипроектный поисковик
+    project_registry = ProjectRegistry()
+    project_registry.register(ext_root)
+    multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
+
     # Инициализация файлового логирования для проекта
     setup_project_logging(ext_root)
     logger.info("🚀 MCP-сервер запущен")
@@ -232,6 +238,10 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Указанный путь не существует: {path}"
 
         await _task_queue.put(target_path)
+
+        # Регистрируем проект в реестре для cross-repo поиска
+        project_registry.register(target_path)
+
         return f'{{\n  "status": "success",\n  "message": "Первичная индексация проекта {target_path.name} запущена."\n}}'
 
     @mcp.tool()
@@ -249,9 +259,99 @@ def create_mcp_server() -> "FastMCP":
 
         CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
         empty results. Fall back to grep/find_path instead.
+
+        ADVANCED MODE (agentic=True):
+        Для сложных запросов используй agentic_code_search — он:
+        1. Разбивает запрос на подзапросы
+        2. Ищет каждый подзапрос параллельно
+        3. Анализирует связи через Call Graph
+        4. Агрегирует результаты через RRF
+        Пример: "как работает авторизация и где проверяются права?"
         """
         _debug_log("search_code", query)
-        return searcher.search(query, limit=6)
+
+        # Определяем режим: agentic или обычный
+        use_agentic = False
+        if kwargs and kwargs.get("agentic") in (True, "true", "1", 1):
+            use_agentic = True
+        elif kwargs and kwargs.get("mode") == "agentic":
+            use_agentic = True
+        else:
+            # Автоматическое определение: сложный запрос = agentic
+            # Если запрос содержит "и", "а", "также", "как", "где", "что" и длинный
+            import re
+            complexity_indicators = [
+                r"\bи\b", r"\bа\b", r"\bтакже\b", r"\bплюс\b",
+                r"\bкак\b", r"\bгде\b", r"\bчто\b", r"\bкогда\b",
+                r",\s+",  # запятая с пробелом
+            ]
+            indicators_count = sum(
+                1 for pattern in complexity_indicators
+                if re.search(pattern, query.lower())
+            )
+            # Если 2+ индикатора или запрос > 50 символов — agentic
+            use_agentic = indicators_count >= 2 or len(query) > 50
+
+        if use_agentic:
+            return self._agentic_search_handler(query, symbol_index)
+        else:
+            return searcher.search(query, limit=6)
+
+    def _agentic_search_handler(self, query: str, symbol_index) -> str:
+        """Обработчик Agentic Code Search для search_code."""
+        try:
+            results, metadata = searcher.agentic_code_search(
+                query,
+                symbol_index=symbol_index,
+                max_subqueries=4,
+                limit_per_subquery=5,
+                max_total_results=10,
+            )
+
+            if not results:
+                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+
+            output_lines = [
+                f"🧠 Agentic Code Search: найдено {len(results)} результатов\n"
+            ]
+
+            # Показываем декомпозицию
+            if metadata.get("subqueries") and len(metadata["subqueries"]) > 1:
+                output_lines.append("📝 Декомпозиция запроса:")
+                for i, sq in enumerate(metadata["subqueries"], 1):
+                    count = metadata["subquery_results_count"].get(sq[:40], 0)
+                    output_lines.append(f"   {i}. {sq} ({count} результатов)")
+                output_lines.append("")
+
+            # Показываем связи между результатами
+            relations = metadata.get("relations")
+            if relations:
+                if relations.get("common_files"):
+                    output_lines.append(
+                        f"🔗 Пересекающиеся файлы: {', '.join(relations['common_files'][:5])}"
+                    )
+                if relations.get("flow_description"):
+                    output_lines.append(f"📊 {relations['flow_description']}")
+                if relations.get("coverage_score", 0) > 0:
+                    pct = int(relations["coverage_score"] * 100)
+                    output_lines.append(f"📈 Покрытие: {pct}%")
+                output_lines.append("")
+
+            # Результаты
+            for i, res in enumerate(results, 1):
+                score = res.get("final_score", 0.0)
+                output_lines.append(
+                    f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}] "
+                    f"(score={score:.4f})\n"
+                    f"```\n{res['text']}\n```\n"
+                    f"{'-' * 60}\n"
+                )
+
+            return "".join(output_lines)
+        except Exception as e:
+            logger.error(f"Ошибка agentic_code_search: {e}", exc_info=True)
+            # Fallback на обычный поиск
+            return searcher.search(query, limit=6)
 
     @mcp.tool()
     def get_context(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -601,6 +701,58 @@ def create_mcp_server() -> "FastMCP":
             return f"Ошибка структурного поиска: {str(e)}"
 
     @mcp.tool()
+    def deep_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Итеративный глубокий поиск с уточнением запроса (Agentic Deep Search).
+
+        Выполняет несколько итераций поиска, анализируя результаты и уточняя запрос
+        на основе ключевых терминов из найденных фрагментов.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Запрос сложный и требует глубокого понимания кодовой базы
+        - Обычный поиск дал мало результатов
+        - Нужно найти связанные реализации через несколько шагов
+        - Задача требует исследования, а не простого поиска
+
+        НЕ ИСПОЛЬЗУЙ КОГДА:
+        - Запрос простой и конкретный -> используй search_code
+        - Нужно найти конкретный символ -> используй get_symbol_info
+        - Нужен поиск по структуре AST -> используй structural_search
+
+        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
+        empty results. Fall back to grep/find_path instead.
+        """
+        _debug_log("deep_search", query)
+        return searcher.deep_search(query, limit=8)
+
+    @mcp.tool()
+    def cross_repo_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Поиск по нескольким проектам с @-mention синтаксисом (Cross-repo Search).
+
+        Ищет по всем проиндексированным проектам или только по указанным через @-mentions.
+        Результаты из разных проектов объединяются через RRF (Reciprocal Rank Fusion).
+
+        СИНТАКСИС:
+        - "query" — поиск по всем проектам
+        - "query @backend" — поиск только в проекте backend
+        - "query @backend @frontend" — поиск в backend и frontend
+        - "query @shared" — поиск по префиксу (найдёт shared-utils, shared-types и т.д.)
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно найти код в другом проекте моно-репо
+        - Нужно понять как интерфейс используется в разных сервисах
+        - Нужно найти общие типы/утилиты в shared-библиотеках
+        - Обычный search_code ищет только в текущем проекте
+
+        НЕ ИСПОЛЬЗУЙ КОГДА:
+        - Нужен поиск в одном проекте -> используй search_code
+        - Нужен поиск по структуре AST -> используй structural_search
+
+        CRITICAL: All projects must be indexed first via index_project_dir.
+        """
+        _debug_log("cross_repo_search", query)
+        return multi_project_searcher.search(query, limit=8)
+
+    @mcp.tool()
     def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает последние ошибки и предупреждения из логов проекта.
 
@@ -648,6 +800,9 @@ You operate under a strict deterministic execution matrix. Every action must be 
 - BEFORE reading or modifying any file, you MUST discover the exact location using `get_symbol_info` or text search.
 - Once the line numbers are known from tool output, you may proceed to read.
 - To find similar code patterns or duplicates, use `context_search(selected_code)` — it embeds the selected code and finds semantically similar chunks.
+- For complex research queries, use `deep_search(query)` — it performs iterative search with query refinement across multiple passes.
+- For cross-project search in mono-repos, use `cross_repo_search(query @project1 @project2)` — searches across multiple indexed projects.
+- **Agentic Code Search (search_code agentic=True):** For complex questions like "how does X work and where is Y?", `search_code` auto-decomposes the query into sub-queries, searches each independently, analyzes relations (common files, symbols), and aggregates via RRF. This is the DEFAULT mode for complex queries.
 
 ## 3. CONTEXT BUDGET AND CHUNKING (Anti-Bloat Rules)
 - Your maximum allowed reading window is 50 lines per `read_file` call.

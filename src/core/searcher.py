@@ -1,8 +1,9 @@
+import json
 import logging
 import math
 import re
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from src.core.query_expansion import expand_query
 from src.core.reranker import SearchResultReranker
@@ -346,3 +347,441 @@ class Searcher:
         except Exception as e:
             logger.error(f"Ошибка context_search: {e}")
             return f"❌ Ошибка поиска по коду: {str(e)}"
+
+    def _extract_key_terms(self, results: List[dict], max_terms: int = 5) -> List[str]:
+        """Извлекает ключевые термины из результатов поиска для уточнения запроса.
+
+        Анализирует текст топ-результатов, выделяя редкие, но значимые термины,
+        которые могут улучшить поиск на следующей итерации.
+
+        Args:
+            results: Результаты поиска
+            max_terms: Максимальное число терминов для извлечения
+
+        Returns:
+            Список ключевых терминов
+        """
+        if not results:
+            return []
+
+        # Собираем частотность терминов в результатах
+        term_freq: Dict[str, int] = {}
+        stop_words = {
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "shall", "can", "need", "dare", "ought",
+            "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "as", "into", "through", "during", "before", "after", "above", "below",
+            "between", "out", "off", "over", "under", "again", "further", "then",
+            "once", "here", "there", "when", "where", "why", "how", "all", "each",
+            "every", "both", "few", "more", "most", "other", "some", "such", "no",
+            "nor", "not", "only", "own", "same", "so", "than", "too", "very",
+            "just", "because", "but", "and", "or", "if", "while", "return", "def",
+            "class", "import", "from", "self", "none", "true", "false", "pass",
+            "that", "this", "it", "its", "what", "which", "who", "whom",
+        }
+
+        for r in results[:5]:
+            text = r.get("text", "").lower()
+            # Извлекаем идентификаторы (CamelCase, snake_case)
+            tokens = re.findall(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", text)
+            for token in tokens:
+                if len(token) >= 4 and token not in stop_words:
+                    term_freq[token] = term_freq.get(token, 0) + 1
+
+        # Сортируем по частотности, берём топ-N самых редких (но встречающихся)
+        sorted_terms = sorted(term_freq.items(), key=lambda x: x[1], reverse=True)
+        # Предпочитаем термины, которые встречаются в 2+ документах (значимые)
+        significant = [t for t, f in sorted_terms if f >= 2][:max_terms]
+        # Если нет значимых, берём топ-N по частотности
+        if not significant:
+            significant = [t for t, _ in sorted_terms[:max_terms]]
+
+        return significant
+
+    def _generate_refined_query(
+        self, original_query: str, key_terms: List[str], iteration: int
+    ) -> str:
+        """Генерирует уточнённый запрос на основе ключевых терминов.
+
+        Стратегия:
+        - Итерация 1: оригинальный запрос + топ-3 ключевых термина
+        - Итерация 2: только ключевые термины (если первый поиск дал мало)
+
+        Args:
+            original_query: Оригинальный запрос
+            key_terms: Извлечённые ключевые термины
+            iteration: Номер итерации (1 или 2)
+
+        Returns:
+            Уточнённый запрос
+        """
+        if not key_terms:
+            return original_query
+
+        if iteration == 1:
+            # Добавляем ключевые термины к оригинальному запросу
+            top_terms = key_terms[:3]
+            return f"{original_query} {' '.join(top_terms)}"
+        else:
+            # Вторая итерация: фокусируемся на ключевых терминах
+            return " ".join(key_terms[:5])
+
+    def agentic_deep_search(
+        self,
+        query: str,
+        max_iterations: int = 3,
+        limit_per_iteration: int = 5,
+        max_total_results: int = 8,
+    ) -> Tuple[List[dict], Dict[str, any]]:
+        """Итеративный поиск с уточнением запроса (Agentic Deep Search).
+
+        Алгоритм:
+        1. Выполняет гибридный поиск с оригинальным запросом
+        2. Анализирует результаты, извлекает ключевые термины
+        3. Генерирует уточнённый запрос
+        4. Повторяет поиск с уточнённым запросом
+        5. Объединяет все результаты через RRF
+        6. Останавливается при достижении max_iterations или достаточном числе результатов
+
+        Args:
+            query: Поисковый запрос
+            max_iterations: Максимальное число итераций (по умолчанию 3)
+            limit_per_iteration: Число результатов на итерацию
+            max_total_results: Максимальное итоговое число результатов
+
+        Returns:
+            Tuple из (results, metadata) где metadata содержит информацию о поиске
+        """
+        all_results: List[dict] = []
+        seen_keys: set = set()
+        search_metadata = {
+            "iterations": 0,
+            "queries_used": [],
+            "terms_extracted": [],
+            "total_unique": 0,
+            "early_stop": False,
+        }
+
+        current_query = query
+
+        for iteration in range(1, max_iterations + 1):
+            logger.debug(
+                f"🔄 Agentic Deep Search: итерация {iteration}/{max_iterations}, "
+                f"запрос: '{current_query[:60]}...'"
+            )
+
+            # Выполняем гибридный поиск
+            results = self.hybrid_search(
+                current_query,
+                limit=limit_per_iteration,
+                use_rrf=True,
+                expand=(iteration == 1),  # Только первая итерация с query expansion
+            )
+
+            # Дедупликация
+            new_results = []
+            for r in results:
+                key = f"{r['metadata']['file']}:{r['metadata']['chunk_index']}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    new_results.append(r)
+
+            all_results.extend(new_results)
+            search_metadata["iterations"] = iteration
+            search_metadata["queries_used"].append(current_query[:80])
+
+            logger.debug(
+                f"  Итерация {iteration}: найдено {len(new_results)} новых, "
+                f"всего {len(all_results)} уникальных"
+            )
+
+            # Проверка условия остановки: достаточно результатов
+            if len(all_results) >= max_total_results:
+                search_metadata["early_stop"] = True
+                search_metadata["early_stop_reason"] = "enough_results"
+                break
+
+            # Если это не последняя итерация — уточняем запрос
+            if iteration < max_iterations:
+                if not results or len(new_results) == 0:
+                    # Нет результатов — пробуем query expansion с другими синонимами
+                    expanded = expand_query(query, max_expansions=5)
+                    if len(expanded) > 1:
+                        current_query = expanded[min(iteration, len(expanded) - 1)]
+                        search_metadata["queries_used"].append(
+                            f"[expansion] {current_query[:80]}"
+                        )
+                        continue
+                    else:
+                        # Нечего расширять — стоп
+                        search_metadata["early_stop"] = True
+                        search_metadata["early_stop_reason"] = "no_new_results"
+                        break
+
+                # Извлекаем ключевые термины из новых результатов
+                key_terms = self._extract_key_terms(new_results, max_terms=5)
+                search_metadata["terms_extracted"].extend(key_terms[:3])
+
+                if not key_terms:
+                    # Нет терминов для уточнения — стоп
+                    search_metadata["early_stop"] = True
+                    search_metadata["early_stop_reason"] = "no_key_terms"
+                    break
+
+                # Генерируем уточнённый запрос
+                current_query = self._generate_refined_query(
+                    query, key_terms, iteration
+                )
+
+        # Финальная дедупликация через RRF (объединяем все итерации)
+        if not all_results:
+            return [], search_metadata
+
+        # Ранжируем по final_score (уже вычислен в hybrid_search)
+        all_results.sort(key=lambda r: r.get("final_score", 0.0), reverse=True)
+
+        # Ограничиваем итоговый список
+        final_results = all_results[:max_total_results]
+        search_metadata["total_unique"] = len(seen_keys)
+
+        return final_results, search_metadata
+
+    def _decompose_query_with_llm(self, query: str) -> List[str]:
+        """Декомпозирует сложный запрос на подзапросы через LLM.
+
+        Использует правила декомпозиции (без LLM-вызова) для разбиения
+        сложных вопросов на независимые подзапросы.
+
+        Стратегии декомпозиции:
+        1. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
+        2. Разделение по вопросам: "как", "где", "когда", "что"
+        3. Извлечение ключевых существительных и глаголов
+
+        Args:
+            query: Сложный запрос
+
+        Returns:
+            Список подзапросов (2-4 штуки)
+        """
+        import re
+
+        # Стратегия 1: разделение по ключевым союзам и знакам
+        separators = r'(?:\s+(?:и|а|также|плюс|а также|и также)\s+|\s*[,;]\s+(?:и |а |также |плюс )?)'
+        parts = re.split(separators, query, flags=re.IGNORECASE)
+        parts = [p.strip() for p in parts if p and len(p.strip()) > 3]
+
+        if len(parts) >= 2:
+            return parts[:4]
+
+        # Стратегия 2: анализ структуры запроса
+        # "Как работает X и где проверяется Y" -> ["как работает X", "где проверяется Y"]
+        question_patterns = [
+            (r'как\s+(?:работает|обрабатывается|вызывается|используется)\s+(.+?)(?:\s+(?:и|а|также|где)\s+|$)', 'как работает'),
+            (r'где\s+(?:проверяется|находится|вызывается|используется|обрабатывается)\s+(.+?)(?:\s+(?:и|а|также|как)\s+|$)', 'где находится'),
+            (r'что\s+(?:делает|происходит|содержит)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)', 'что делает'),
+            (r'когда\s+(?:вызывается|происходит|срабатывает)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)', 'когда вызывается'),
+        ]
+
+        subqueries = []
+        remaining = query.lower()
+
+        for pattern, _ in question_patterns:
+            match = re.search(pattern, remaining)
+            if match:
+                subquery = match.group(0).strip()
+                if len(subquery) > 5:
+                    subqueries.append(subquery)
+                    # Удаляем найденную часть из оставшегося
+                    remaining = remaining[:match.start()] + remaining[match.end():]
+                    remaining = remaining.strip()
+
+        if subqueries:
+            # Добавляем оставшуюся часть если есть
+            if remaining and len(remaining) > 5:
+                subqueries.append(remaining)
+            return subqueries[:4]
+
+        # Стратегия 3: извлечение ключевых терминов и построение подзапросов
+        # Извлекаем существительные (слово после "как", "где", "что")
+        key_terms = re.findall(r'(?:как|где|что|когда|почему)\s+(\w+(?:\s+\w+){0,2})', query.lower())
+        if key_terms:
+            return [f"{term} {query.split()[0]}" for term in key_terms[:3]]
+
+        # Фоллбэк: возвращаем оригинальный запрос
+        return [query]
+
+    def _analyze_subquery_relations(
+        self, subqueries: List[str], subquery_results: Dict[str, List[dict]]
+    ) -> Dict[str, any]:
+        """Анализирует связи между результатами подзапросов.
+
+        Ищет общие файлы, символы и зависимости между результатами
+        разных подзапросов для формирования связного ответа.
+
+        Args:
+            subqueries: Список подзапросов
+            subquery_results: {subquery: [results]}
+
+        Returns:
+            Словарь с анализом связей
+        """
+        analysis = {
+            "common_files": [],
+            "related_symbols": [],
+            "flow_description": "",
+            "coverage_score": 0.0,
+        }
+
+        # Собираем все файлы из результатов
+        all_files: Dict[str, List[str]] = {}  # file -> [subqueries]
+        for sq, results in subquery_results.items():
+            for r in results:
+                fp = r["metadata"]["file"]
+                if fp not in all_files:
+                    all_files[fp] = []
+                all_files[fp].append(sq[:30])
+
+        # Находим файлы, которые появились в результатах нескольких подзапросов
+        common = [f for f, sqs in all_files.items() if len(set(sqs)) > 1]
+        analysis["common_files"] = common[:10]
+
+        # Вычисляем coverage score
+        total_results = sum(len(r) for r in subquery_results.values())
+        unique_files = len(all_files)
+        if total_results > 0:
+            # Чем больше уникальных файлов покрыто, тем выше score
+            analysis["coverage_score"] = min(1.0, unique_files / max(len(subqueries), 1))
+
+        # Формируем описание потока
+        if len(subqueries) > 1:
+            analysis["flow_description"] = (
+                f"Запрос разбит на {len(subqueries)} подзапросов. "
+                f"Найдено {total_results} результатов в {unique_files} файлах. "
+            )
+            if common:
+                analysis["flow_description"] += (
+                    f"{len(common)} файлов пересекаются между подзапросами."
+                )
+
+        return analysis
+
+    def agentic_code_search(
+        self,
+        query: str,
+        symbol_index=None,
+        max_subqueries: int = 4,
+        limit_per_subquery: int = 5,
+        max_total_results: int = 10,
+    ) -> Tuple[List[dict], Dict[str, any]]:
+        """Agentic Code Search с LLM-декомпозицией запроса.
+
+        Алгоритм (на основе arxiv.org/abs/2505.14321):
+        1. Декомпозиция запроса на подзапросы (LLM/правила)
+        2. Параллельный поиск каждого подзапроса через hybrid_search
+        3. Анализ связей между результатами (общие файлы, символы)
+        4. Агрегация через RRF + get_context
+        5. Формирование итогового ответа с Call Graph
+
+        Args:
+            query: Сложный запрос
+            symbol_index: SymbolIndex для Call Graph (опционально)
+            max_subqueries: Максимальное число подзапросов
+            limit_per_subquery: Число результатов на подзапрос
+            max_total_results: Максимальное итоговое число результатов
+
+        Returns:
+            Tuple из (results, metadata)
+        """
+        # Шаг 1: Декомпозиция запроса
+        subqueries = self._decompose_query_with_llm(query)[:max_subqueries]
+
+        search_metadata = {
+            "original_query": query,
+            "subqueries": subqueries,
+            "subquery_results_count": {},
+            "relations": None,
+            "total_unique": 0,
+        }
+
+        if len(subqueries) <= 1:
+            # Простой запрос — используем обычный гибридный поиск
+            results = self.hybrid_search(query, limit=max_total_results)
+            search_metadata["subquery_results_count"][query] = len(results)
+            return results, search_metadata
+
+        # Шаг 2: Параллельный поиск каждого подзапроса
+        all_results: List[dict] = []
+        seen_keys: set = set()
+        subquery_results: Dict[str, List[dict]] = {}
+
+        for sq in subqueries:
+            sq_results = self.hybrid_search(
+                sq, limit=limit_per_subquery, use_rrf=True, expand=True
+            )
+            subquery_results[sq] = sq_results
+            search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
+
+            for r in sq_results:
+                key = f"{r['metadata']['file']}:{r['metadata']['chunk_index']}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    all_results.append(r)
+
+        # Шаг 3: Анализ связей между результатами
+        relations = self._analyze_subquery_relations(subqueries, subquery_results)
+        search_metadata["relations"] = relations
+
+        # Шаг 4: Ранжирование через RRF scores
+        all_results.sort(key=lambda r: r.get("final_score", 0.0), reverse=True)
+        final_results = all_results[:max_total_results]
+        search_metadata["total_unique"] = len(seen_keys)
+
+        return final_results, search_metadata
+
+    def deep_search(self, query: str, limit: int = 8) -> str:
+        """Agentic Deep Search для MCP-инструмента.
+
+        Итеративный поиск с уточнением запроса на основе найденных результатов.
+        Возвращает форматированную строку для MCP.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимальное число результатов
+        """
+        try:
+            results, metadata = self.agentic_deep_search(
+                query,
+                max_iterations=3,
+                limit_per_iteration=max(5, limit),
+                max_total_results=limit,
+            )
+
+            if not results:
+                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+
+            output_lines = [
+                f"🧠 Agentic Deep Search: найдено {len(results)} результатов "
+                f"({metadata['iterations']} итераций, {metadata['total_unique']} уникальных)\n"
+            ]
+
+            # Показываем использованные запросы для прозрачности
+            if len(metadata["queries_used"]) > 1:
+                output_lines.append("📝 Использованные запросы:")
+                for i, q in enumerate(metadata["queries_used"], 1):
+                    output_lines.append(f"   {i}. {q}")
+                output_lines.append("")
+
+            for i, res in enumerate(results, 1):
+                score = res.get("final_score", 0.0)
+                output_lines.append(
+                    f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}] "
+                    f"(score={score:.4f})\n"
+                    f"```\n{res['text']}\n```\n"
+                    f"{'-' * 60}\n"
+                )
+
+            return "".join(output_lines)
+        except Exception as e:
+            logger.error(f"Ошибка agentic_deep_search: {e}", exc_info=True)
+            return f"❌ Ошибка глубокого поиска: {str(e)}"

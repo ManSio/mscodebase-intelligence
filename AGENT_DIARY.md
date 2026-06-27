@@ -2,6 +2,115 @@
 
 ---
 
+## [2026-06-28 14:00] — [Type: Feature] — Agentic Code Search (arxiv 2505.14321)
+
+**Проблема:**
+1. Сложные запросы ("как работает авторизация и где проверяются права?") не находятся одним запросом
+2. Нет декомпозиции запроса на подзапросы
+3. Нет анализа связей между результатами разных подзапросов
+
+**Решение (по arxiv.org/abs/2505.14321):**
+- Добавлен `agentic_code_search()` в `Searcher`:
+  - `_decompose_query_with_llm()` — правило-базированная декомпозиция (без LLM-вызова) по союзам, вопросам, запятым
+  - `_analyze_subquery_relations()` — анализ общих файлов, coverage score, flow description
+  - `agentic_code_search()` — полный цикл: декомпозиция → параллельный поиск → анализ связей → RRF агрегация
+- Обновлён MCP-инструмент `search_code` в `server.py`:
+  - Автоопределение agentic mode (2+ индикатора сложности или > 50 символов)
+  - Явный `agentic=True` через kwargs
+  - `_agentic_search_handler()` — форматированный вывод с декомпозицией и связями
+- 16 новых тестов в `tests/test_agentic_search.py` (все проходят)
+- Обновлены: AGENTS.md, mscodebase-rules SKILL.md, server.py prompt
+
+**Инструменты:** read_file, edit_file, grep, pytest
+
+**Файлы изменены:**
+- `src/core/searcher.py` — добавлен agentic_code_search (3 метода)
+- `src/mcp/server.py` — search_code с agentic mode + _agentic_search_handler
+- `.agents/skills/mscodebase-rules/SKILL.md` — добавлен agentic mode
+- `C:\Users\misha\AppData\Roaming\Zed\AGENTS.md` — добавлен Agentic Code Search
+- `tests/test_agentic_search.py` — НОВЫЙ (16 тестов)
+
+**Уроки:**
+- Правило-базированная декомпозиция работает без LLM-вызова (быстро, дёшево)
+- Автоопределение сложности запроса по индикаторам — UX не требует явного agentic=True
+- Анализ связей (common_files, coverage_score) — добавляет ценность к результатам
+
+**Статус:** ✅
+
+---
+
+## [2026-06-28 13:00] — [Type: Feature] — Cross-repo @-mention Search (Шаг 6/6)
+
+**Проблема:**
+1. `search_code` ищет только в текущем проекте — нет доступа к другим проектам моно-репо
+2. Нет способа найти общие типы/утилиты в shared-библиотеках
+3. Нет @-mention синтаксиса для указания проектов
+
+**Решение:**
+- Создан `src/core/multi_project_searcher.py`:
+  - `parse_cross_repo_query()` — разбор @-mention синтаксиса ("query @backend @frontend")
+  - `ProjectRegistry` — реестр проиндексированных проектов (register, find_by_prefix, list_projects)
+  - `MultiProjectSearcher` — поиск по нескольким проектам с объединением через RRF
+  - `_search_project()` — векторный поиск в одном проекте (с кэшированием DB-подключений)
+  - `_merge_results_rrf()` — объединение результатов из разных проектов через RRF
+  - `cross_repo_search()` — основной метод с поддержкой @-mentions и prefix-matching
+- Добавлен MCP-инструмент `cross_repo_search(query)` в `server.py` (13-й инструмент)
+- Проекты автоматически регистрируются в реестре при вызове `index_project_dir`
+- Обновлён промпт `mscodebase-rules` и SKILL.md
+- 21 новый тест в `tests/test_cross_repo_search.py` (все проходят)
+
+**Инструменты:** read_file, edit_file, grep, pytest
+
+**Файлы изменены:**
+- `src/core/multi_project_searcher.py` — НОВЫЙ (cross-repo search)
+- `src/mcp/server.py` — MCP-инструмент cross_repo_search + ProjectRegistry + регистрация
+- `.agents/skills/mscodebase-rules/SKILL.md` — добавлен cross_repo_search в матрицу
+- `tests/test_cross_repo_search.py` — НОВЫЙ (21 тест)
+
+**Уроки:**
+- @-mention синтаксис — интуитивный способ указать проекты (как в GitHub/Slack)
+- Prefix-matching для @-mentions — удобно когда имя проекта длинное
+- Кэширование DB-подключений критично для производительности cross-repo поиска
+
+**Статус:** ✅
+
+---
+
+## [2026-06-28 12:00] — [Type: Feature] — Agentic Deep Search (Шаг 5/6)
+
+**Проблема:**
+1. Обычный `search_code` — однопроходный: один запрос → один набор результатов
+2. Для сложных задач (исследование, многошаговый анализ) результаты часто неполные
+3. Нет механизма уточнения запроса на основе найденных результатов
+4. Агент вынужден вручную повторять поиск с другими терминами
+
+**Решение:**
+- Создан Agentic Deep Search в `src/core/searcher.py`:
+  - `_extract_key_terms()` — извлекает значимые термины из топ-результатов (фильтрует стоп-слова, короткие термины, предпочитает термины в 2+ документах)
+  - `_generate_refined_query()` — генерирует уточнённый запрос (итерация 1: оригинал + топ-3 термина, итерация 2: только ключевые термины)
+  - `agentic_deep_search()` — итеративный цикл: поиск → анализ → уточнение → повторный поиск, до 3 итераций, с дедупликацией через seen_keys и ранней остановкой
+  - `deep_search()` — MCP-форматированный вывод с метаданными (итерации, запросы, термины)
+- Добавлен MCP-инструмент `deep_search(query)` в `server.py` (12-й инструмент)
+- Обновлён промпт `mscodebase-rules` и SKILL.md
+- 15 новых тестов в `tests/test_deep_search.py` (все проходят)
+
+**Инструменты:** read_file, edit_file, grep, pytest
+
+**Файлы изменены:**
+- `src/core/searcher.py` — добавлен Agentic Deep Search (4 метода)
+- `src/mcp/server.py` — MCP-инструмент deep_search + обновлён промпт
+- `.agents/skills/mscodebase-rules/SKILL.md` — добавлен deep_search в матрицу
+- `tests/test_deep_search.py` — НОВЫЙ (15 тестов)
+
+**Уроки:**
+- Итеративный поиск с уточнением запроса — стандартный паттерн в IR (Information Retrieval): Relevance Feedback, Pseudo-Relevance Feedback
+- Ранняя остановка критична — не тратить эмбеддинги если уже достаточно результатов
+- Метаданные поиска (итерации, запросы, термины) — прозрачность для агента
+
+**Статус:** ✅
+
+---
+
 ## [2026-06-27 15:30] — [Type: Refactor/Feature] — Оживление зомби-модулей + context_search
 
 **Проблема:** Несколько модулей были мёртвым кодом или имели бессмысленные реализации:

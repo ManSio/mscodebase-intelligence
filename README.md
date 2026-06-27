@@ -44,32 +44,41 @@ Use the `@mscodebase-intelligence` MCP tools in Zed chat:
 | `get_index_status` | Check if project is indexed |
 | `index_project_dir` | Force full re-indexing |
 | `search_code` | Semantic search by concept |
+| `deep_search` | Iterative search with query refinement |
+| `cross_repo_search` | Search across multiple indexed projects (use @-mentions) |
 | `get_context` | Gather relevant code chunks |
 | `get_symbol_info` | Find definition + call graph |
 | `get_repo_map` | Project structure overview |
 | `scan_changes` | Detect changes made outside Zed |
+| `context_search` | Find similar code by fragment |
+| `structural_search` | Search by AST patterns |
 | `watcher_status` | Check system health |
+| `get_logs` | Check project error logs |
 
 ## 🏗️ Architecture
 
 ```
 MSCodeBase Intelligence
 ├── MCP Server (src/mcp/server.py)
-│   ├── Tools: search_code, get_context, get_symbol_info, scan_changes
+│   ├── Tools: search_code, deep_search, cross_repo_search, get_context, get_symbol_info,
+│   │         scan_changes, context_search, structural_search, get_logs, watcher_status
 │   └── Prompts: mscodebase-rules (system rules for AI agent)
 ├── LSP Server (src/lsp_main.py)
 │   └── Auto-indexes on file save
 └── Core Engine (src/core/)
     ├── indexer.py          — LanceDB vector storage + file scanning
-    ├── searcher.py         — Hybrid search (vector + BM25)
+    ├── searcher.py         — Hybrid search (BM25 + Dense + RRF) + Agentic Deep Search
+    ├── multi_project_searcher.py — Cross-repo search with @-mention syntax
     ├── symbol_index.py     — Tree-sitter symbol definitions + call graph
     ├── context_engine.py   — Compressed context generation
+    ├── query_expansion.py  — Synonym expansion + stemming
+    ├── structural_search.py — AST pattern matching (13 patterns)
     ├── remote_embedder.py  — LM Studio / Ollama / ONNX embeddings
     ├── parser.py           — Tree-sitter AST parsing
     ├── file_guard.py       — Security filtering + gitignore
     ├── gitignore_parser.py — Pattern matching
-    ├── searcher.py         — Hybrid search (BM25 + Dense + RRF fusion)
     ├── reranker.py         — Result reranking with relevance factor
+    ├── log_manager.py      — File logging with rotation (2MB × 3)
     ├── integrity.py        — Merkle Tree change detection
     └── content_cache.py    — File hash caching
 ```
