@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.file_guard import FileGuard
+from src.core.structural_search import StructuralSearcher
 from src.core.indexer import Indexer
 from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
 from src.core.remote_embedder import RemoteEmbedder
@@ -550,6 +551,54 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("context_search", selected_code[:80])
         return searcher.context_search(selected_code, limit=5)
+
+    @mcp.tool()
+    def structural_search(
+        project_root: str,
+        pattern: str = "class_inheritance",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Поиск по AST-паттернам (Structural Search).
+
+        Ищет код не по тексту, а по структуре через Tree-sitter queries.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно найти все классы наследующие от Base
+        - Нужно найти все функции с декоратором @app.get
+        - Нужно найти все async def, with statement, comprehensions
+        - Нужна структура кода, а не текстовый поиск
+
+        ДОСТУПНЫЕ ПАТТЕРНЫ:
+        - class_inheritance — классы с наследованием
+        - class_with_decorator — классы с декораторами
+        - function_with_decorator — функции с декораторами
+        - async_function — async функции
+        - method_with_type_hints — методы с аннотациями типов
+        - class_with_init — классы с __init__
+        - import_from — импорты from X import Y
+        - try_except — try/except блоки
+        - list_comprehension — list comprehensions
+        - dict_comprehension — dict comprehensions
+        - lambda — лямбда-функции
+        - with_statement — with statements
+        - comprehension — любые comprehensions
+        """
+        _debug_log("structural_search", f"{project_root} | {pattern}")
+        target_path = Path(project_root).resolve()
+        if not target_path.exists():
+            return f"Указанный путь не существует: {project_root}"
+
+        try:
+            searcher = StructuralSearcher(parser)
+            result = searcher.search(
+                target_path,
+                pattern_name=pattern,
+                max_results=30,
+            )
+            return searcher.format_results(result)
+        except Exception as e:
+            logger.error(f"Ошибка structural_search: {e}")
+            return f"Ошибка структурного поиска: {str(e)}"
 
     @mcp.tool()
     def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
