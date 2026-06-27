@@ -41,8 +41,8 @@ class Calculator:
     from unittest.mock import MagicMock
 
     embedder = MagicMock()
-    embedder.embed.return_value = [0.1] * 384
-    embedder.embed_batch.return_value = [[0.1] * 384] * 5
+    embedder.embed.return_value = [0.1] * 1024
+    embedder.embed_batch.return_value = [[0.1] * 1024] * 5
 
     from src.core.file_guard import FileGuard
 

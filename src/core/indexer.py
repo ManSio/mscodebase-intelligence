@@ -39,13 +39,14 @@ def _generate_unique_db_path(project_path: Path) -> Path:
 
 
 class Indexer:
-    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None):
+    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None, parser=None):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
         self.path_manager = SafePathManager(db_path.parent)
         self.searcher = None
         self.project_path = project_path or db_path.parent.parent.parent
+        self.parser = parser  # CodeParser для AST-aware чанкинга
 
         # Настройка директории базы данных
         # На Windows tmp_path может содержать \\?\ префикс.
@@ -215,13 +216,32 @@ class Indexer:
             if not content.strip():
                 return False
 
-            # Чанкирование (по 1000 символов с перекрытием 200)
-            chunks = [content[i : i + 1000] for i in range(0, len(content), 800)]
-            if not chunks:
+            # AST-aware чанкинг через CodeParser (если доступен)
+            # Fallback: примитивное деление по 1000 символов с перекрытием 200
+            chunk_texts = []
+            if self.parser is not None:
+                try:
+                    ast_chunks, _symbols = self.parser.parse_file(full_path)
+                    if ast_chunks:
+                        chunk_texts = [c["text"] for c in ast_chunks if c.get("text", "").strip()]
+                        logger.debug(
+                            f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
+                        )
+                except Exception as ast_err:
+                    logger.warning(
+                        f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"
+                    )
+                    chunk_texts = []
+
+            if not chunk_texts:
+                # Fallback: символьное деление с перекрытием
+                chunk_texts = [content[i : i + 1000] for i in range(0, len(content), 800)]
+
+            if not chunk_texts:
                 return False
 
             # Получение эмбеддингов через провайдер (LM Studio)
-            embeddings = self.embedder.embed_batch(chunks)
+            embeddings = self.embedder.embed_batch(chunk_texts)
             if not embeddings or any(len(e) == 0 for e in embeddings):
                 logger.warning(
                     f"⚠️ Пустые эмбеддинги для файла {rel_path_str}. Пропуск записи."
@@ -230,7 +250,7 @@ class Indexer:
 
             # Подготовка данных для PyArrow
             data_records = []
-            for i, (chunk_text, chunk_vec) in enumerate(zip(chunks, embeddings)):
+            for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
                 # Нормализация вектора под размерность схемы
                 if len(chunk_vec) != 1024:
                     # Приведение размерности (дополнение нулями или обрезка) при форс-мажорах API
@@ -250,7 +270,7 @@ class Indexer:
             # Атомарная запись пачки чанков в таблицу
             self.table.add(data_records)
             logger.info(
-                f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunks)} чанков)"
+                f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunk_texts)} чанков)"
             )
             return True
 

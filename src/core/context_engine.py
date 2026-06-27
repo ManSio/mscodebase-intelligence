@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTEXT_CHARS = 3000
+MAX_CONTEXT_CHARS = 8000
 
 
 def get_context(query: str, searcher) -> str:
@@ -14,8 +14,8 @@ def get_context(query: str, searcher) -> str:
         return "Запрос пуст."
 
     try:
-        # Используем гибридный поиск вместо чистого векторного
-        chunks = searcher.hybrid_search(query, limit=8)
+        # Используем гибридный поиск с RRF
+        chunks = searcher.hybrid_search(query, limit=10)
 
         if not chunks:
             return "Релевантный контекст не найден."
@@ -27,8 +27,13 @@ def get_context(query: str, searcher) -> str:
             file_path = chunk["metadata"]["file"]
             doc = chunk["text"]
             chunk_idx = chunk["metadata"]["chunk_index"]
+            final_score = chunk.get("final_score", 0.0)
 
-            block = f"📄 Файл: {file_path} (Фрагмент #{chunk_idx})\n```\n{doc}\n```\n"
+            # Сжимаем: если чанк > 600 символов, обрезаем с маркером
+            if len(doc) > 600:
+                doc = doc[:600] + "\n..."
+
+            block = f"📄 {file_path}:{chunk_idx} (score={final_score:.4f})\n```\n{doc}\n```\n"
 
             if total_chars + len(block) > MAX_CONTEXT_CHARS - 100:
                 break
@@ -37,7 +42,7 @@ def get_context(query: str, searcher) -> str:
             total_chars += len(block)
 
         return (
-            f"📊 Сформированный контекст проекта ({len(lines)} фрагментов):\n\n"
+            f"📊 Сформированный контекст ({len(lines)} фрагментов, RRF fusion):\n\n"
             + "\n".join(lines)
         )
     except Exception as e:

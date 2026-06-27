@@ -4,6 +4,8 @@ import re
 import threading
 from typing import Dict, List, Optional
 
+from src.core.reranker import SearchResultReranker
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +24,7 @@ class Searcher:
         self._bm25_ids: List[str] = []
         self._bm25_lock = threading.Lock()
         self._tokenizer_re = re.compile(r"\W+")
+        self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
 
     def reindex(self):
         with self._bm25_lock:
@@ -149,57 +152,105 @@ class Searcher:
             logger.error(f"Ошибка векторного поиска LanceDB: {e}")
             return [{"error": str(e)}]
 
-    def hybrid_search(self, query: str, limit: int = 5) -> List[dict]:
+    def _reciprocal_rank_fusion(
+        self,
+        bm25_results: List[dict],
+        dense_results: List[dict],
+        limit: int = 5,
+        rrf_k: int = 60,
+    ) -> List[dict]:
+        """Reciprocal Rank Fusion (RRF) для объединения BM25 и dense результатов.
+
+        Формула: rrf_score(d) = Σ 1/(k + rank_i(d))
+        RRF устойчив к разным масштабам скоров и не требует нормализации.
+
+        Args:
+            bm25_results: Результаты BM25 поиска
+            dense_results: Результаты векторного поиска
+            limit: Максимальное число результатов
+            rrf_k: Константа RRF (обычно 60), сглаживает вклад рангов
+        """
+        scores: Dict[str, float] = {}
+        results_map: Dict[str, dict] = {}
+
+        # BM25 ранги
+        for rank, result in enumerate(bm25_results, 1):
+            key = f"{result['metadata']['file']}:{result['metadata']['chunk_index']}"
+            scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
+            if key not in results_map:
+                results_map[key] = {**result, "bm25_score": 1.0 / (rrf_k + rank), "dense_score": 0.0}
+            else:
+                results_map[key]["bm25_score"] = 1.0 / (rrf_k + rank)
+
+        # Dense ранги
+        for rank, result in enumerate(dense_results, 1):
+            key = f"{result['metadata']['file']}:{result['metadata']['chunk_index']}"
+            scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
+            if key not in results_map:
+                results_map[key] = {**result, "bm25_score": 0.0, "dense_score": 1.0 / (rrf_k + rank)}
+            else:
+                results_map[key]["dense_score"] = 1.0 / (rrf_k + rank)
+
+        # Сортировка по RRF скору
+        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+
+        results = []
+        for key in sorted_keys:
+            result = results_map[key]
+            results.append({
+                "text": result["text"],
+                "metadata": result["metadata"],
+                "bm25_score": result["bm25_score"],
+                "dense_score": result["dense_score"],
+                "final_score": scores[key],
+            })
+
+        return results
+
+    def hybrid_search(self, query: str, limit: int = 5, use_rrf: bool = True) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
         Алгоритм:
         1. Выполняем BM25 поиск для точных совпадений терминов
         2. Выполняем векторный поиск для семантически релевантных результатов
-        3. Объединяем результаты с весом: BM25 = 0.3, Dense = 0.7
-        """
-        results_map: Dict[str, dict] = {}
+        3. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
 
+        Args:
+            query: Поисковый запрос
+            limit: Максимальное число результатов
+            use_rrf: Использовать RRF (True) или реранкер (False)
+        """
         # BM25 поиск (sparse)
         bm25_results = self._bm25_search(query, limit=limit * 2)
-        for i, res in enumerate(bm25_results):
-            key = f"{res['metadata']['file']}:{res['metadata']['chunk_index']}"
-            results_map[key] = {
-                "text": res["text"],
-                "metadata": res["metadata"],
-                "bm25_score": 1.0 - (i / len(bm25_results)) if bm25_results else 0,
-                "dense_score": 0.0,
-            }
 
         # Векторный поиск (dense)
+        dense_results = []
         try:
             query_vector = self.embedder.embed(query)
             if query_vector:
                 dense_results = self.vector_search(query_vector, limit=limit * 2)
-                for i, res in enumerate(dense_results):
-                    if "error" in res:
-                        continue
-                    key = f"{res['metadata']['file']}:{res['metadata']['chunk_index']}"
-                    if key in results_map:
-                        results_map[key]["dense_score"] = 1.0 - (i / len(dense_results))
-                    else:
-                        results_map[key] = {
-                            "text": res["text"],
-                            "metadata": res["metadata"],
-                            "bm25_score": 0.0,
-                            "dense_score": 1.0 - (i / len(dense_results)),
-                        }
+                dense_results = [r for r in dense_results if "error" not in r]
         except Exception as e:
             logger.warning(f"Не удалось выполнить dense поиск: {e}")
 
-        # Комбинируем скоры
-        combined = []
-        for key, res in results_map.items():
-            final_score = res["bm25_score"] * 0.3 + res["dense_score"] * 0.7
-            combined.append((final_score, res))
-
-        # Сортируем и ограничиваем
-        combined.sort(key=lambda x: x[0], reverse=True)
-        return [res for _, res in combined[:limit]]
+        if use_rrf:
+            # RRF Fusion — устойчив к разным масштабам скоров
+            return self._reciprocal_rank_fusion(bm25_results, dense_results, limit=limit)
+        else:
+            # Fallback: реранкер с relevance factor
+            reranked = self._reranker.rerank_results(
+                query, bm25_results, dense_results, limit=limit
+            )
+            results = []
+            for res in reranked:
+                results.append({
+                    "text": res["text"],
+                    "metadata": res["metadata"],
+                    "bm25_score": res.get("bm25_score", 0.0),
+                    "dense_score": res.get("dense_score", 0.0),
+                    "final_score": res.get("final_score", 0.0),
+                })
+            return results
 
     def search(self, query: str, limit: int = 5) -> str:
         """Гибридный поиск для MCP-инструмента search_code."""
@@ -220,3 +271,53 @@ class Searcher:
             return "".join(output)
         except Exception as e:
             return f"❌ Ошибка поискового движка: {str(e)}"
+
+    def context_search(self, selected_code: str, limit: int = 5) -> str:
+        """Поиск похожего кода по выделенному фрагменту.
+
+        Эмбеддит выделенный код и ищет семантически похожие чанки.
+        Полезно для: поиска дубликатов, похожих реализаций, альтернативных подходов.
+
+        Args:
+            selected_code: Выделенный фрагмент кода
+            limit: Максимальное число результатов
+        """
+        if not selected_code.strip():
+            return "❌ Пустой фрагмент кода для поиска."
+
+        try:
+            query_vector = self.embedder.embed(selected_code)
+            if not query_vector:
+                return "❌ Эмбеддер недоступен. Невозможно векторизовать код."
+
+            results = self.vector_search(query_vector, limit=limit)
+            results = [r for r in results if "error" not in r]
+
+            if not results:
+                return "🔍 Похожий код не найден."
+
+            # Фильтруем точные совпадения (тот же текст = дубликат)
+            unique_results = []
+            seen_texts = set()
+            for r in results:
+                text_key = r["text"].strip()[:200]
+                if text_key not in seen_texts and r["text"].strip() != selected_code.strip():
+                    seen_texts.add(text_key)
+                    unique_results.append(r)
+
+            if not unique_results:
+                return "🔍 Точные совпадения найдены, но уникальных похожих фрагментов нет."
+
+            output = [
+                f"🔍 Найдено {len(unique_results)} похожих фрагментов кода:\n"
+            ]
+            for i, res in enumerate(unique_results, 1):
+                output.append(
+                    f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}]\n"
+                    f"```\n{res['text'][:500]}\n```\n"
+                    f"{'-' * 60}\n"
+                )
+            return "".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка context_search: {e}")
+            return f"❌ Ошибка поиска по коду: {str(e)}"

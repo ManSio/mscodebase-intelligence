@@ -65,17 +65,12 @@ def test_symbol_index_mutation_survival():
 
     # Проверяем строгое соответствие типов (чтобы не пропустить TypeError в рантайме)
     for res in results:
-        # search_symbols возвращает словари, а не SymbolRef объекты
-        assert isinstance(res, dict), "Мутант выжил: search_symbols вернул не словарь!"
-        assert "symbol" in res, "Мутант выжил: у результата пропал ключ 'symbol'!"
-        assert "defined_in" in res, (
-            "Мутант выжил: у результата пропал ключ 'defined_in'!"
-        )
-        assert isinstance(res["defined_in"], list), (
-            "Мутант выжил: defined_in не список!"
-        )
-        assert all(isinstance(d, dict) and "line" in d for d in res["defined_in"]), (
-            "Мутант выжил: структура defined_in повреждена!"
+        # search_symbols возвращает SymbolRef объекты с атрибутами
+        assert hasattr(res, "symbol"), "Мутант выжил: у результата пропал атрибут 'symbol'!"
+        assert hasattr(res, "file_path"), "Мутант выжил: у результата пропал атрибут 'file_path'!"
+        assert hasattr(res, "kind"), "Мутант выжил: у результата пропал атрибут 'kind'!"
+        assert res.symbol == "my_func", (
+            f"Мутант выжил: символ = '{res.symbol}', а не 'my_func'!"
         )
 
 
@@ -94,21 +89,21 @@ async def test_context_engine_with_semantic_mutations():
         {"text": "class Engine: pass", "metadata": {"file": "b.py", "chunk_index": 1}},
     ]
 
-    mock_searcher.embedder.embed.return_value = [0.1, 0.2, 0.3]
-    mock_searcher.vector_search.return_value = valid_chunks
+    # get_context вызывает searcher.hybrid_search(), мокаем её
+    mock_searcher.hybrid_search.return_value = [
+        {"text": "def test(): pass", "metadata": {"file": "a.py", "chunk_index": 0}, "final_score": 0.05},
+        {"text": "class Engine: pass", "metadata": {"file": "b.py", "chunk_index": 1}, "final_score": 0.03},
+    ]
 
     # 1. Тест нормального поведения
     ctx = get_context("ищи движок", mock_searcher)
-    assert "📊 Сформированный контекст проекта" in ctx
+    assert "📊 Сформированный контекст" in ctx
     assert "def test(): pass" in ctx
 
-    # 2. МУТАЦИОННАЯ АТАКА: Подсовываем уничтоженный эмбеддинг и пустую выдачу базы
-    mutated_vector = SemanticMutator.mutate_vector([0.1, 0.2, 0.3], noise_level=2.0)
-    mock_searcher.embedder.embed.return_value = mutated_vector
-    mock_searcher.vector_search.return_value = []  # База ничего не нашла из-за шума
+    # 2. МУТАЦИОННАЯ АТАКА: Пустая выдача базы
+    mock_searcher.hybrid_search.return_value = []
 
     ctx_mutated = get_context("ищи движок", mock_searcher)
-    # Тест должен убить мутанта (падение), если движок контекста не умеет обрабатывать пустые результаты
     assert (
         "Релевантный контекст не найден." in ctx_mutated
         or "Запрос пуст." in ctx_mutated

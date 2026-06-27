@@ -66,11 +66,10 @@ MSCodeBase Intelligence
     ├── context_engine.py   — Compressed context generation
     ├── remote_embedder.py  — LM Studio / Ollama / ONNX embeddings
     ├── parser.py           — Tree-sitter AST parsing
-    ├── chunker.py         — Semantic code chunking
     ├── file_guard.py       — Security filtering + gitignore
     ├── gitignore_parser.py — Pattern matching
-    ├── search.py           — RRF fusion search engine
-    ├── reranker.py         — Result reranking
+    ├── searcher.py         — Hybrid search (BM25 + Dense + RRF fusion)
+    ├── reranker.py         — Result reranking with relevance factor
     ├── integrity.py        — Merkle Tree change detection
     └── content_cache.py    — File hash caching
 ```

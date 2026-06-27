@@ -52,6 +52,14 @@ def setup_logging():
         stream=sys.stderr,
     )
 
+    # 3. Подключаем файловое логирование (проект определится позже в create_mcp_server)
+    try:
+        from src.core.log_manager import setup_project_logging
+        ext_root = Path(__file__).resolve().parent.parent
+        setup_project_logging(ext_root)
+    except Exception:
+        pass  # Файловое логирование опционально
+
     return original_stdout
 
 

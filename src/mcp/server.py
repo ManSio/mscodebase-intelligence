@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
+from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 
@@ -71,6 +72,10 @@ async def background_queue_worker(
 
             # МУЛЬТИПРОЕКТНОСТЬ: Динамическое переключение БД под конкретную папку
             indexer.switch_project(project_path)
+
+            # Переключаем логирование на новый проект
+            setup_project_logging(project_path)
+            logger.info(f"🔄 Переключение на проект: {project_path.name}")
 
             project_file_guard = FileGuard(project_path)
             indexer.file_guard = project_file_guard
@@ -134,7 +139,8 @@ def create_mcp_server() -> "FastMCP":
     from src.core.indexer import _generate_unique_db_path
 
     initial_db_path = _generate_unique_db_path(ext_root)
-    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root)
+    code_parser = CodeParser()
+    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root, parser=code_parser)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
 
@@ -149,7 +155,10 @@ def create_mcp_server() -> "FastMCP":
     embedder.embed_batch = embed_batch_with_semaphore
 
     symbol_index = SymbolIndex()
-    code_parser = CodeParser()
+
+    # Инициализация файлового логирования для проекта
+    setup_project_logging(ext_root)
+    logger.info("🚀 MCP-сервер запущен")
 
     def ensure_worker_started():
         global _task_queue, _worker_task
@@ -520,6 +529,47 @@ def create_mcp_server() -> "FastMCP":
         )
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    def context_search(selected_code: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Поиск похожего кода по выделенному фрагменту (Context Search).
+
+        Эмбеддит выделенный код и ищет семантически похожие фрагменты в базе.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно найти дубликаты или похожие реализации
+        - Хочешь увидеть альтернативные подходы к решению задачи
+        - Нужно найти все места, где используется похожий паттерн
+
+        НЕ ИСПОЛЬЗУЙ КОГДА:
+        - Нужно найти конкретный символ -> используй get_symbol_info
+        - Нужен семантический поиск по описанию -> используй search_code
+
+        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
+        empty results. Fall back to grep/find_path instead.
+        """
+        _debug_log("context_search", selected_code[:80])
+        return searcher.context_search(selected_code, limit=5)
+
+    @mcp.tool()
+    def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает последние ошибки и предупреждения из логов проекта.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Что-то работает неправильно и нужно понять причину
+        - Индексация зависла или вернула 0 чанков
+        - Поиск не даёт результатов — возможно эмбеддер упал
+        - Нужно быстро диагностировать проблему без чтения файлов вручную
+
+        Логи хранятся в .codebase_indices/logs/<project>.log с ротацией по 2MB.
+        Автоочистка логов старше 7 дней.
+        Читает только хвост файла (64KB) — не грузит систему.
+        """
+        _debug_log("get_logs", project_root)
+        target_path = Path(project_root).resolve()
+        if not target_path.exists():
+            return f"❌ Указанный путь не существует: {project_root}"
+        return get_log_summary(target_path)
 
     # ==========================================
     # MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА

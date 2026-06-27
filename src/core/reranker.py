@@ -161,45 +161,60 @@ class SearchResultReranker:
         return 1.0
 
     def _contains_technical_terms(self, text: str) -> bool:
-        """Проверяет, содержит ли текст технические термины."""
+        """Проверяет, содержит ли текст технические термины (кодовые паттерны).
+
+        Ищет реальные конструкции языков программирования и SQL/API,
+        а не одиночные символы, которые встречаются в любом тексте.
+        """
         technical_patterns = [
-            r"def ",
-            r"class ",
-            r"import ",
-            r"from ",
-            r"function ",
-            r"#",
-            r"//",
-            r"/*",
-            r"*/",
-            r"@",
-            r"<",
-            r">",
-            r"\{",
-            r"\}",
-            r"\(",
-            r"\)",
-            r"\[",
-            r"\]",
-            r"\.",
-            r"\,",
-            r";",
-            r":",
-            r"=",
-            r"==",
-            r"!=",
-            r"\+",
-            r"-",
-            r"\*",
-            r"/",
-            r"%",
-            r"\^",
+            # Python / JS ключевые слова определения
+            r"\bdef ",
+            r"\basync def ",
+            r"\bclass ",
+            r"\bfunction ",
+            r"\bconst ",
+            r"\blet ",
+            r"\bvar ",
+            r"\bimport ",
+            r"\bfrom ",
+            r"\breturn ",
+            r"\braise ",
+            r"\btry:",
+            r"\bexcept\b",
+            r"\bwith ",
+            r"\bawait ",
+            r"\basync ",
+            # Декораторы
+            r"@\w+",
+            # Аннотации типов (Python-style)
+            r": (str|int|bool|float|List|Dict|Optional|Tuple|Set|Any)\b",
+            r"-> (str|int|bool|float|List|Dict|Optional|Tuple|Set|Any)\b",
+            # SQL паттерны
+            r"\bSELECT\b",
+            r"\bINSERT\b",
+            r"\bUPDATE\b",
+            r"\bDELETE\b",
+            r"\bCREATE TABLE\b",
+            r"\bFROM\b",
+            r"\bWHERE\b",
+            r"\bJOIN\b",
+            # API паттерны (FastAPI / Flask / Express)
+            r"@(app|router|blueprint)\.",
+            r"\bapp\.(get|post|put|delete|patch)\b",
+            # Структуры данных / управления
+            r"\bif __name__\b",
+            r"\belif\b",
+            r"\belse:",
+            r"\bfor \w+ in ",
+            r"\bwhile ",
+            r"\blambda ",
+            r"\byield ",
         ]
 
         import re
 
         for pattern in technical_patterns:
-            if re.search(pattern, text):
+            if re.search(pattern, text, re.IGNORECASE):
                 return True
 
         return False

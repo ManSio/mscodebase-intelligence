@@ -287,7 +287,7 @@ class RemoteEmbedder:
         logger.critical(
             "⚠️ ВНИМАНИЕ: Все движки векторизации недоступны. Генерация пустых заглушек."
         )
-        return [[0.0] * 384 for _ in texts]
+        return [[0.0] * 1024 for _ in texts]
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:
         """Получить вектор для одного текстового фрагмента."""

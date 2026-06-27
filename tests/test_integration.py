@@ -48,8 +48,8 @@ def isolated_indexer(tmp_path):
 
     # Мокаем эмбеддер, возвращающий вектор правильной размерности
     embedder_mock = MagicMock()
-    embedder_mock.embed.return_value = [0.1] * 384
-    embedder_mock.embed_batch.return_value = [[0.1] * 384] * 5
+    embedder_mock.embed.return_value = [0.1] * 1024
+    embedder_mock.embed_batch.return_value = [[0.1] * 1024] * 5
 
     file_guard = FileGuard(tmp_path)
     indexer = Indexer(db_dir, embedder_mock, file_guard)

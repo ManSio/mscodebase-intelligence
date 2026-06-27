@@ -72,7 +72,6 @@ db_name = f"index_{project_name}_{project_hash}.db"
 | ContextEngine | `src/core/context_engine.py` | Сжатый контекст для AI |
 | RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama / ONNX |
 | Parser | `src/core/parser.py` | Tree-sitter AST парсер |
-| Chunker | `src/core/chunker.py` | Семантический чанкинг кода |
 | FileGuard | `src/core/file_guard.py` | Фильтрация файлов + gitignore |
 | Integrity | `src/core/integrity.py` | Merkle Tree для детекции изменений |
 | ContentCache | `src/core/content_cache.py` | Кэш хешей файлов |

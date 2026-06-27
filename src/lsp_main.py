@@ -24,6 +24,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MSCodeBase-LSP")
 
+# Подключаем файловое логирование
+try:
+    from src.core.log_manager import setup_project_logging
+    _ext_root = Path(__file__).resolve().parent.parent
+    setup_project_logging(_ext_root)
+except Exception:
+    pass  # Файловое логирование опционально
+
 # Поддерживаемые расширения (код + конфиги + документация)
 SUPPORTED_EXTENSIONS = {
     ".py",
@@ -91,11 +99,13 @@ def init_components(project_root: Path):
     from src.core.file_guard import FileGuard
     from src.core.indexer import Indexer, _generate_unique_db_path
     from src.core.remote_embedder import RemoteEmbedder
+    from src.core.parser import CodeParser
 
     db_path = _generate_unique_db_path(project_root)
     _embedder = RemoteEmbedder(port=1234)
     _file_guard = FileGuard(project_root)
-    _indexer = Indexer(db_path, _embedder, _file_guard, project_path=project_root)
+    _code_parser = CodeParser()
+    _indexer = Indexer(db_path, _embedder, _file_guard, project_path=project_root, parser=_code_parser)
 
     logger.info(f"LSP: Инициализирован Indexer для {project_root.name}")
 
