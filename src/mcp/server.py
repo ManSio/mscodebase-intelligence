@@ -294,6 +294,84 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка при работе инструмента get_repo_map: {e}")
             return f"❌ Ошибка генерации Repo Map: {str(e)}"
 
+    # 7. Инструмент MCP: Ручной запуск сканирования изменений
+    @mcp.tool()
+    async def scan_changes(
+        project_root: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Принудительно сканирует проект на наличие новых, изменённых или удалённых файлов по mtime/хешу.
+        Используйте когда: создали/удалили файлы вне Zed, или подозреваете рассинхронизацию базы.
+        """
+        target_path = Path(project_root).resolve()
+        if not target_path.exists():
+            return f"❌ Указанный путь не существует: {project_root}"
+
+        try:
+            indexer.switch_project(target_path)
+            project_file_guard = FileGuard(target_path)
+            indexer.file_guard = project_file_guard
+
+            # Тяжёлая дисковая операция - в пуле потоков, не блокируем event loop
+            logger.info(
+                f"🔄 Ручной запуск сканирования изменений для {target_path.name}..."
+            )
+            indexed_count = await asyncio.to_thread(indexer.index_project, target_path)
+
+            if hasattr(symbol_index, "index_project"):
+                await asyncio.to_thread(
+                    symbol_index.index_project, target_path, code_parser
+                )
+
+            return (
+                f"🔍 Инкрементальное сканирование завершено: {target_path.name}\n"
+                f"  • Обновлено/добавлено файлов: {indexed_count}\n"
+                f"  • Режим эмбеддера: {getattr(embedder, 'mode', 'unknown')}"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка scan_changes: {e}", exc_info=True)
+            return f"❌ Ошибка сканирования: {str(e)}"
+
+    # 8. Инструмент MCP: Статус компонентов архитектуры
+    @mcp.tool()
+    def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга."""
+        lines = ["👁️ Статус компонентов архитектуры:"]
+
+        # Проверка доступности кода LSP в контексте текущего окружения
+        try:
+            from src.lsp_main import server as lsp_server
+
+            if lsp_server is not None:
+                lines.append(
+                    "  • Архитектура LSP: ✅ Модули успешно загружены в ядро расширения"
+                )
+            else:
+                lines.append(
+                    "  • Архитектура LSP: ⏹️ Ошибка инициализации объекта сервера"
+                )
+        except Exception as lsp_err:
+            lines.append(f"  • Архитектура LSP: ⏹️ Ошибка импорта: {lsp_err}")
+
+        # Режим работы эмбеддера
+        embedder_mode = getattr(embedder, "mode", "unknown")
+        mode_label = {
+            "lm_studio": "🌐 LM Studio (Внешний порт 1234)",
+            "ollama": "🦙 Ollama API",
+            "onnx": "⚙️ ONNX (Локальный CPU/GPU)",
+            "fallback": "⚠️ Fallback-заглушка (Тестовый режим)",
+        }.get(embedder_mode, embedder_mode)
+        lines.append(f"  • Режим эмбеддера: {mode_label}")
+
+        # Активность фонового потока проверки доступности провайдера
+        scanner_alive = (
+            hasattr(embedder, "_scanner_thread") and embedder._scanner_thread.is_alive()
+        )
+        lines.append(
+            f"  • Пинг-сканер доступности ИИ-хоста: {'✅ Активен' if scanner_alive else '⏹️ Отключен'}"
+        )
+
+        return "\n".join(lines)
+
     return mcp
 
 
