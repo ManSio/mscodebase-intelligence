@@ -1,0 +1,41 @@
+{
+  // LSP Server (проактивный индексатор)
+  "lsp": {
+    "mscodebase-lsp": {
+      "command": "python",
+      "args": ["-m", "src.lsp_main"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  },
+
+  // Подключаем LSP к языкам
+  "languages": {
+    "Python": {
+      "language_servers": ["pyright", "mscodebase-lsp"]
+    },
+    "TypeScript": {
+      "language_servers": ["typescript-language-server", "mscodebase-lsp"]
+    },
+    "Rust": {
+      "language_servers": ["rust-analyzer", "mscodebase-lsp"]
+    },
+    "Go": {
+      "language_servers": ["gopls", "mscodebase-lsp"]
+    }
+  },
+
+  // MCP Server (реактивный для AI-ассистента)
+  "context_servers": {
+    "mscodebase-intelligence": {
+      "command": "python",
+      "args": ["-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  },
+
+  "context_servers_to_query": ["mscodebase-intelligence"]
+}

@@ -131,7 +131,6 @@ class Indexer:
             self.table = self.db.create_table(self.table_name, schema=self.schema)
             logger.info(f"📦 Создана таблица: {self.table_name}")
 
-
     def _calculate_file_hash(self, safe_path: Path) -> str:
         """Вычисляет хэш файла для отслеживания изменений (SHA256)."""
         hasher = hashlib.sha256()
@@ -321,3 +320,24 @@ class Indexer:
 
         return indexed_count
 
+    def index_file(self, full_path: Path, project_path: Path) -> bool:
+        """Публичный метод для индексации одного файла (вызывается из LSP-сервера).
+
+        Args:
+            full_path: Абсолютный путь к файлу
+            project_path: Корневая директория проекта
+
+        Returns:
+            True если файл был проиндексирован, False если пропущен
+        """
+        try:
+            if not self.path_manager.is_safe_to_process(full_path):
+                return False
+            if self.file_guard.should_skip_file(full_path):
+                return False
+
+            rel_path_str = str(full_path.relative_to(project_path))
+            return self._index_single_file(full_path, rel_path_str)
+        except Exception as e:
+            logger.error(f"[index_file] Ошибка индексации {full_path}: {e}")
+            return False

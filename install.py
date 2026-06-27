@@ -75,8 +75,8 @@ def main():
         print("❌ Критическая ошибка установки Python-пакетов.")
         return
 
-    # 4. Интеграция в экосистему настроек Zed IDE
-    print("\n[4/5] Интеграция MCP-сервера в конфигурационный файл настроек Zed...")
+    # 4. Интеграция MCP + LSP в настройки Zed IDE
+    print("\n[4/6] Интеграция MCP-сервера и LSP-сервера в настройки Zed...")
     zed_config_dir = Path(os.environ["USERPROFILE"]) / ".config" / "zed"
     if sys.platform == "win32":
         # Проверка стандартного альтернативного пути Windows для настроек Zed
@@ -109,32 +109,75 @@ def main():
         "args": [str(main_script_path)],
     }
 
+    # Настраиваем LSP-сервер для проактивной индексации
+    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
+    if "lsp" not in settings_data:
+        settings_data["lsp"] = {}
+    settings_data["lsp"]["mscodebase-lsp"] = {
+        "command": str(PYTHON_EXE),
+        "arguments": ["-u", str(lsp_script_path)],
+    }
+
+    # Добавляем mscodebase-lsp в language_servers для основных языков
+    if "languages" not in settings_data:
+        settings_data["languages"] = {}
+    for lang in ["Python", "TypeScript", "Rust", "Go", "JavaScript"]:
+        if lang not in settings_data["languages"]:
+            settings_data["languages"][lang] = {}
+        lang_config = settings_data["languages"][lang]
+        if "language_servers" not in lang_config:
+            lang_config["language_servers"] = []
+        if "mscodebase-lsp" not in lang_config["language_servers"]:
+            lang_config["language_servers"].append("mscodebase-lsp")
+
     settings_json_path.write_text(
         json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    print(f"  └─ Успешно прописано в: {settings_json_path}")
+    print(f"  └─ MCP + LSP прописаны в: {settings_json_path}")
 
     # 5. Генерация автоматического деинсталлятора
-    print("\n[5/5] Создание утилиты полной очистки (uninstall.bat)...")
+    print("\n[5/6] Создание утилиты полной очистки (uninstall.bat)...")
     uninst_content = f"""@echo off
 chcp 65001 >nul
 echo ==================================================
 echo  Удаление плагина MSCodebase Intelligence...
 echo ==================================================
-echo [1/2] Удаление настроек из Zed IDE...
+echo [1/3] Удаление настроек из Zed IDE...
 "{PYTHON_EXE}" -c "
-import json, pathlib, os
+import json, pathlib, os, re
 p = pathlib.Path(os.environ['USERPROFILE']) / '.config' / 'zed' / 'settings.json'
 if not p.exists(): p = pathlib.Path(os.environ['APPDATA']) / 'Zed' / 'settings.json'
 if p.exists():
-    d = json.loads(p.read_text(encoding='utf-8'))
+    content = p.read_text(encoding='utf-8')
+    clean = re.sub(r'^\s*//.*$', '', content, flags=re.MULTILINE)
+    clean = re.sub(r',\s*}}', '}}', clean)
+    clean = re.sub(r',\s*]', ']', clean)
+    d = json.loads(clean)
+    # Удаляем MCP-сервер
     if 'context_servers' in d and 'mscodebase-intelligence' in d['context_servers']:
         del d['context_servers']['mscodebase-intelligence']
         if not d['context_servers']:
             del d['context_servers']
-        p.write_text(json.dumps(d, indent=2), encoding='utf-8')
+    # Удаляем LSP-сервер
+    if 'lsp' in d and 'mscodebase-lsp' in d['lsp']:
+        del d['lsp']['mscodebase-lsp']
+        if not d['lsp']:
+            del d['lsp']
+    # Удаляем mscodebase-lsp из language_servers
+    if 'languages' in d:
+        for lang in list(d['languages'].keys()):
+            lang_cfg = d['languages'][lang]
+            if 'language_servers' in lang_cfg and 'mscodebase-lsp' in lang_cfg['language_servers']:
+                lang_cfg['language_servers'].remove('mscodebase-lsp')
+                if not lang_cfg['language_servers']:
+                    del lang_cfg['language_servers']
+            if not lang_cfg:
+                del d['languages'][lang]
+        if not d['languages']:
+            del d['languages']
+    p.write_text(json.dumps(d, indent=2, ensure_ascii=False), encoding='utf-8')
 "
-echo [2/2] Стирание рабочих директорий и баз данных индексов...
+echo [2/3] Стирание рабочих директорий и баз данных индексов...
 timeout /t 2 >nul
 rd /s /q "{ZED_EXT_DIR}"
 echo ✅ Удаление полностью завершено! Перезапустите Zed.

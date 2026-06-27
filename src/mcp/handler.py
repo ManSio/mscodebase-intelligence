@@ -192,12 +192,22 @@ def create_mcp_server() -> "FastMCP":
             else "N/A"
         )
 
+        # Текущий режим эмбеддера (LM Studio / Ollama / ONNX)
+        embedder_mode = getattr(embedder, "mode", "unknown")
+        mode_label = {
+            "lm_studio": "🌐 LM Studio",
+            "ollama": "🦙 Ollama",
+            "onnx": "⚙️ ONNX (локальный)",
+            "fallback": "⚠️ Заглушка",
+        }.get(embedder_mode, embedder_mode)
+
         output = (
             f"📊 Статус базы данных MSCodebase:\n"
             f"  • Всего фрагментов кода в базе (LanceDB): {stats.get('total_chunks', 0)}\n"
             f"  • Проиндексировано уникальных файлов: {stats.get('unique_files', 0)}\n"
             f"  • Найдено структурных символов (Tree-sitter): {total_symbols}\n"
-            f"  • Состояние движка: {stats.get('status', 'unknown')}"
+            f"  • Состояние движка: {stats.get('status', 'unknown')}\n"
+            f"  • Режим эмбеддера: {mode_label}"
         )
 
         # Добавляем последнюю ошибку индексации, если есть

@@ -303,6 +303,15 @@ The extension requires the following permissions:
 3. **Performance**: Initial indexing may take time for very large repositories
 4. **Platform Specific**: Some Windows-specific features may not work on other platforms
 
+## 🤖 AI Assistant Prompt
+
+Для корректного использования расширения AI-ассистентом см. файл `AI_PROMPT.md`.
+
+Кратко:
+- Используйте `@mscodebase-intelligence` для поиска кода
+- При первом открытии проекта запустите индексацию через `index_project_dir`
+- Комбинируйте `search_code`, `get_context` и `get_symbol_info` для глубокого анализа
+
 ## 📄 License
 
 MSCodeBase Intelligence is licensed under the MIT License. See the LICENSE file for more information.
