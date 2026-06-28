@@ -13,6 +13,7 @@ import lancedb
 import numpy as np
 import pyarrow as pa
 
+from src.core.chunk_summarizer import ChunkSummarizer, format_chunk_for_embedding
 from src.utils.paths import SafePathManager, to_win_long_path
 
 logger = logging.getLogger("mscodebase_server.indexer")
@@ -41,7 +42,8 @@ def _generate_unique_db_path(project_path: Path) -> Path:
 
 
 class Indexer:
-    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None, parser=None):
+    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None, parser=None,
+                 enable_summaries: bool = True):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
@@ -49,6 +51,13 @@ class Indexer:
         self.searcher = None
         self.project_path = project_path or db_path.parent.parent.parent
         self.parser = parser  # CodeParser для AST-aware чанкинга
+
+        # Chunk Summarizer для LLM-описаний
+        self.enable_summaries = enable_summaries
+        self.summarizer = None
+        if enable_summaries:
+            cache_dir = db_path.parent / "summaries_cache"
+            self.summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
 
         # Настройка директории базы данных
         # На Windows tmp_path может содержать \\?\ префикс.
@@ -67,10 +76,11 @@ class Indexer:
         # используем WAL режим (если поддерживается)
         self.db = lancedb.connect(lancedb_path)
 
-        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source
+        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source, summary
         # text — компактный чанк (сигнатура + превью) для эмбеддинга и экономии токенов
         # text_full — полный текст функции/метода (для детального анализа по запросу)
         # source — источник индексации: 'lsp_vfs' (память IDE) или 'filesystem' (диск)
+        # summary — LLM-описание чанка (для улучшения семантического поиска)
         self.schema = pa.schema(
             [
                 pa.field("id", pa.string()),
@@ -84,6 +94,7 @@ class Indexer:
                 pa.field("chunk_index", pa.int32()),
                 pa.field("source", pa.string()),
                 pa.field("indexed_at", pa.string()),
+                pa.field("summary", pa.string()),
             ]
         )
 
@@ -124,6 +135,9 @@ class Indexer:
                                 "file_path": str(row["file_path"]),
                                 "file_hash": str(row["file_hash"]),
                                 "chunk_index": c_idx,
+                                "source": str(row.get("source", "filesystem")),
+                                "indexed_at": str(row.get("indexed_at", "")),
+                                "summary": str(row.get("summary", "")),
                             })
 
                     # 2. АТОМАРНАЯ СМЕНА ТАБЛИЦЫ (только если сбор данных выше не упал)
@@ -411,6 +425,14 @@ class Indexer:
                 # Полный текст для детального анализа (если есть)
                 full_text = chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
 
+                # Генерируем LLM-описание если включено
+                summary = ""
+                if self.summarizer and self.enable_summaries:
+                    symbol_name = ""
+                    if self.parser and hasattr(self.parser, '_current_symbol'):
+                        symbol_name = getattr(self.parser, '_current_symbol', '')
+                    summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
+
                 data_records.append(
                     {
                         "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
@@ -422,6 +444,7 @@ class Indexer:
                         "chunk_index": i,
                         "source": source,
                         "indexed_at": datetime.now().isoformat(),
+                        "summary": summary,
                     }
                 )
 
@@ -603,6 +626,10 @@ class Indexer:
 
         if progress_callback:
             progress_callback("", total_files, total_files, "complete")
+
+        # Сохраняем кэш суммари
+        if self.summarizer:
+            self.summarizer.save_cache()
 
         logger.info(
             f"✅ Индексация завершена: {indexed_count} новых/изменённых, "

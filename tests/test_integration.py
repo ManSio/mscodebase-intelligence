@@ -52,7 +52,7 @@ def isolated_indexer(tmp_path):
     embedder_mock.embed_batch.return_value = [[0.1] * 1024] * 5
 
     file_guard = FileGuard(tmp_path)
-    indexer = Indexer(db_dir, embedder_mock, file_guard)
+    indexer = Indexer(db_dir, embedder_mock, file_guard, project_path=tmp_path, enable_summaries=False)
 
     yield indexer
 
