@@ -249,6 +249,10 @@ def create_mcp_server() -> "FastMCP":
         Используйте этот инструмент когда хотите принудительно обновить индекс
         конкретного файла без ожидания автоматического watcher.
 
+        ПРИОРИТЕТ ИСТОЧНИКА:
+        1. LSP VFS (память) — если файл открыт в Zed, берём актуальный текст из буфера
+        2. Диск — fallback если файл не открыт в Zed
+
         Args:
             file_path: Абсолютный или относительный путь к файлу
 
@@ -266,9 +270,42 @@ def create_mcp_server() -> "FastMCP":
             except ValueError:
                 return f"❌ Файл вне проекта: {file_path}"
 
-            if indexer._index_single_file(path, rel_path):
+            # Пытаемся получить текст из LSP VFS (актуальная версия из памяти Zed)
+            content = None
+            try:
+                from src.hybrid_server import server as lsp_server
+                if lsp_server and hasattr(lsp_server, 'workspace'):
+                    uri = f"file:///{str(path).replace(chr(92), '/')}"
+                    doc = lsp_server.workspace.get_document(uri)
+                    if doc and hasattr(doc, 'source'):
+                        content = doc.source
+                        logger.info(f"📝 notify_change: взял из LSP VFS ({len(content)} chars)")
+            except Exception as e:
+                logger.debug(f"notify_change: LSP VFS недоступен, fallback на диск: {e}")
+
+            # Если есть shared_indexer (hybrid mode) — используем его
+            try:
+                from src.hybrid_server import shared_indexer
+                if shared_indexer._initialized:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Мы уже в async контексте — планируем задачу
+                        asyncio.ensure_future(
+                            shared_indexer.index_file(path, content)
+                        )
+                    else:
+                        loop.run_until_complete(
+                            shared_indexer.index_file(path, content)
+                        )
+                    return f"✅ Обновлено (hybrid): {rel_path}"
+            except ImportError:
+                pass
+
+            # Fallback: обычный indexer (legacy mode)
+            if indexer._index_single_file(path, rel_path, content=content):
                 return f"✅ Обновлено: {rel_path}"
-            return f"�️ Без изменений: {rel_path}"
+            return f"⏭️ Без изменений: {rel_path}"
         except Exception as e:
             logger.error(f"Ошибка notify_change: {e}")
             return f"❌ Ошибка: {e}"
