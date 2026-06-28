@@ -1,0 +1,17 @@
+{
+  "mcp": {
+    "servers": {
+      "mscodebase-intelligence": {
+        "command": "python",
+        "args": ["-m", "src.mcp.server"],
+        "timeout_seconds": 30,
+        "initialization_timeout_seconds": 60,
+      },
+    },
+  },
+  "assistant": {
+    "version": "2",
+    "provider": "copilot",
+    "tool_call_timeout_ms": 30000,
+  },
+}
