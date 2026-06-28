@@ -729,6 +729,50 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
+    def get_branch_info(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Информация о текущей git-ветке и индексе.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно узнать текущую ветку и состояние индекса
+        - Проверить что индекс соответствует ветке
+        - Список всех индексов для веток
+
+        Returns:
+            Информация о ветке, пути к БД, количестве чанков
+        """
+        _debug_log("get_branch_info", project_root)
+        try:
+            from src.core.branch_aware_index import BranchAwareIndex
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            branch_index = BranchAwareIndex(target_path)
+            info = branch_index.get_branch_info()
+
+            output = [
+                f"🌿 Branch Info:",
+                f"  • Текущая ветка: {info['branch']}",
+                f"  • Путь к БД: {info['db_path']}",
+                f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
+                f"  • Чанков в индексе: {info['total_chunks']}",
+            ]
+
+            # Список всех индексов
+            all_indices = branch_index.list_branch_indices()
+            if all_indices:
+                output.append(f"")
+                output.append(f"📁 Все индексы веток:")
+                for branch, chunks in all_indices.items():
+                    output.append(f"  • {branch}: {chunks} чанков")
+
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка get_branch_info: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 
