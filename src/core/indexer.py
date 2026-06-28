@@ -65,7 +65,9 @@ class Indexer:
         # используем WAL режим (если поддерживается)
         self.db = lancedb.connect(lancedb_path)
 
-        # Схема таблицы: id, vector, text, file_path, file_hash, chunk_index
+        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index
+        # text — компактный чанк (сигнатура + превью) для эмбеддинга и экономии токенов
+        # text_full — полный текст функции/метода (для детального анализа по запросу)
         self.schema = pa.schema(
             [
                 pa.field("id", pa.string()),
@@ -73,6 +75,7 @@ class Indexer:
                     "vector", pa.list_(pa.float32(), 1024)
                 ),  # Фиксируем под MiniLM / BGE размерность
                 pa.field("text", pa.string()),
+                pa.field("text_full", pa.string()),
                 pa.field("file_path", pa.string()),
                 pa.field("file_hash", pa.string()),
                 pa.field("chunk_index", pa.int32()),
@@ -289,12 +292,22 @@ class Indexer:
 
             # AST-aware чанкинг через CodeParser (если доступен)
             # Fallback: примитивное деление по 1000 символов с перекрытием 200
-            chunk_texts = []
+            #
+            # Стратегия экономии токенов:
+            # - text_compact (сигнатура + 3 строки тела) → для эмбеддинга и поиска
+            # - text_full (полный код функции) → для детального анализа по запросу
+            chunk_texts = []       # компактные тексты для эмбеддинга
+            chunk_texts_full = []  # полные тексты для хранения
             if self.parser is not None:
                 try:
                     ast_chunks, _symbols = self.parser.parse_file(full_path)
                     if ast_chunks:
-                        chunk_texts = [c["text"] for c in ast_chunks if c.get("text", "").strip()]
+                        for c in ast_chunks:
+                            compact = c.get("text_compact", "") or c.get("text", "")
+                            full = c.get("text", "")
+                            if compact.strip():
+                                chunk_texts.append(compact)
+                                chunk_texts_full.append(full)
                         logger.debug(
                             f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
                         )
@@ -307,11 +320,13 @@ class Indexer:
             if not chunk_texts:
                 # Fallback: символьное деление с перекрытием
                 chunk_texts = [content[i : i + 1000] for i in range(0, len(content), 800)]
+                chunk_texts_full = chunk_texts  # fallback: текст и полный текст одинаковы
 
             if not chunk_texts:
                 return False
 
             # Получение эмбеддингов через провайдер (LM Studio)
+            # Эмбеддинги считаются от компактных танков — быстрее и точнее
             embeddings = self.embedder.embed_batch(chunk_texts)
             if not embeddings or any(len(e) == 0 for e in embeddings):
                 logger.warning(
@@ -327,11 +342,15 @@ class Indexer:
                     # Приведение размерности (дополнение нулями или обрезка) при форс-мажорах API
                     chunk_vec = chunk_vec[:1024] + [0.0] * (1024 - len(chunk_vec))
 
+                # Полный текст для детального анализа (если есть)
+                full_text = chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
+
                 data_records.append(
                     {
                         "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
                         "vector": chunk_vec,
                         "text": chunk_text,
+                        "text_full": full_text,
                         "file_path": rel_path_str,
                         "file_hash": current_hash,
                         "chunk_index": i,

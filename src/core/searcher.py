@@ -204,6 +204,7 @@ class Searcher:
                     results.append(
                         {
                             "text": row["text"],
+                            "text_full": row.get("text_full", row["text"]),
                             "metadata": {
                                 "file": row["file_path"],
                                 "chunk_index": row["chunk_index"],
@@ -231,6 +232,7 @@ class Searcher:
                 results.append(
                     {
                         "text": row["text"],
+                        "text_full": row.get("text_full", row["text"]),
                         "metadata": {
                             "file": row["file_path"],
                             "chunk_index": row["chunk_index"],
@@ -405,9 +407,11 @@ class Searcher:
                 f"📊 Найдено {len(results)} релевантных фрагментов кода (гибридный поиск):\n"
             ]
             for i, res in enumerate(results, 1):
+                # Используем text_full если есть (полный код функции), иначе text
+                code_text = res.get("text_full") or res["text"]
                 output.append(
                     f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}]\n"
-                    f"```\n{res['text']}\n```\n"
+                    f"```\n{code_text}\n```\n"
                     f"{'-' * 60}\n"
                 )
             return "".join(output)
@@ -454,9 +458,11 @@ class Searcher:
                 f"🔍 Найдено {len(unique_results)} похожих фрагментов кода:\n"
             ]
             for i, res in enumerate(unique_results, 1):
+                # Используем text_full если есть (полный код функции), иначе text
+                code_text = res.get("text_full") or res["text"]
                 output.append(
                     f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}]\n"
-                    f"```\n{res['text'][:500]}\n```\n"
+                    f"```\n{code_text[:500]}\n```\n"
                     f"{'-' * 60}\n"
                 )
             return "".join(output)
@@ -1224,10 +1230,12 @@ class Searcher:
 
             for i, res in enumerate(results, 1):
                 score = res.get("final_score", 0.0)
+                # Используем text_full если есть (полный код функции), иначе text
+                code_text = res.get("text_full") or res["text"]
                 output_lines.append(
                     f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}] "
                     f"(score={score:.4f})\n"
-                    f"```\n{res['text']}\n```\n"
+                    f"```\n{code_text}\n```\n"
                     f"{'-' * 60}\n"
                 )
 
