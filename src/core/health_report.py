@@ -46,7 +46,13 @@ class HealthReport:
         # 4. Проверка компонентов
         self._check_components()
 
-        # 5. Формирование итогового отчёта
+        # 5. Execution Contract верификация
+        self._check_execution_contract()
+
+        # 6. Synthetic monitoring (качество поиска)
+        self._check_search_quality()
+
+        # 7. Формирование итогового отчёта
         return self._build_report()
 
     def _check_index_integrity(self):
@@ -230,6 +236,114 @@ class HealthReport:
         else:
             self.warnings.append({"component": "symbol_index", "message": "SymbolIndex недоступен"})
 
+    def _check_execution_contract(self):
+        """Верификация Execution Contract: git state, tests, pushes."""
+        import subprocess
+
+        # 1. Git state
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(self.project_path)
+            )
+            if result.returncode == 0:
+                dirty_files = [f for f in result.stdout.strip().split("\n") if f]
+                if dirty_files:
+                    self.warnings.append({
+                        "component": "execution_contract",
+                        "message": f"Незакоммиченные изменения: {len(dirty_files)} файлов",
+                        "files": dirty_files[:5]
+                    })
+                self.metrics["git_dirty_files"] = len(dirty_files)
+
+            # 2. Check if ahead of remote
+            result = subprocess.run(
+                ["git", "status", "-sb"],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(self.project_path)
+            )
+            if result.returncode == 0:
+                status_line = result.stdout.strip().split("\n")[0] if result.stdout else ""
+                if "ahead" in status_line:
+                    self.issues.append({
+                        "component": "execution_contract",
+                        "severity": "warning",
+                        "message": f"Локальная ветка опережает remote: {status_line}"
+                    })
+                self.metrics["git_synced"] = "ahead" not in status_line
+
+            # 3. Last commit info
+            result = subprocess.run(
+                ["git", "log", "-1", "--oneline"],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(self.project_path)
+            )
+            if result.returncode == 0:
+                self.metrics["last_commit"] = result.stdout.strip()
+
+        except subprocess.TimeoutExpired:
+            self.warnings.append({"component": "execution_contract", "message": "Git timeout"})
+        except FileNotFoundError:
+            self.warnings.append({"component": "execution_contract", "message": "Git not found"})
+        except Exception as e:
+            self.warnings.append({"component": "execution_contract", "message": f"Git error: {e}"})
+
+    def _check_search_quality(self):
+        """Synthetic monitoring: проверка качества семантического поиска.
+
+        Выполняет тестовые запросы и проверяет что поиск находит релевантные результаты.
+        """
+        if not self.indexer or not hasattr(self.indexer, 'searcher') or not self.indexer.searcher:
+            self.warnings.append({
+                "component": "search_quality",
+                "message": "Searcher недоступен для synthetic monitoring"
+            })
+            return
+
+        try:
+            searcher = self.indexer.searcher
+
+            # Тест 1: Поиск по имени известного символа
+            test_queries = [
+                "index file",
+                "search code",
+                "embed text",
+            ]
+
+            results_found = 0
+            results_total = 0
+
+            for query in test_queries:
+                try:
+                    results = searcher.search(query, limit=3)
+                    results_total += 1
+                    if results and len(results) > 0:
+                        results_found += 1
+                except Exception:
+                    pass
+
+            self.metrics["search_quality_total_tests"] = results_total
+            self.metrics["search_quality_passed"] = results_found
+
+            if results_total > 0 and results_found < results_total:
+                self.warnings.append({
+                    "component": "search_quality",
+                    "message": f"Search quality degraded: {results_found}/{results_total} tests passed"
+                })
+            elif results_found == 0 and results_total > 0:
+                self.issues.append({
+                    "component": "search_quality",
+                    "severity": "critical",
+                    "message": "Semantic search returns no results for basic queries"
+                })
+
+        except Exception as e:
+            self.warnings.append({
+                "component": "search_quality",
+                "message": f"Synthetic monitoring error: {e}"
+            })
+
     def _build_report(self) -> Dict[str, Any]:
         """Формирование итогового отчёта."""
         total_issues = len(self.issues)
@@ -295,6 +409,28 @@ def format_health_report(report: Dict[str, Any]) -> str:
     if not report.get("issues") and not report.get("warnings"):
         lines.append("")
         lines.append("✅ Всё в порядке. Проблем не обнаружено.")
+
+    # Execution Contract section
+    metrics = report.get("metrics", {})
+    if metrics.get("last_commit") or metrics.get("git_synced") is not None:
+        lines.append("")
+        lines.append("🔒 Execution Contract:")
+        if metrics.get("last_commit"):
+            lines.append(f"  • Last commit: {metrics['last_commit']}")
+        if metrics.get("git_synced") is not None:
+            sync_status = "✅ Synced" if metrics["git_synced"] else "⚠️ Ahead of remote"
+            lines.append(f"  • Git: {sync_status}")
+        if metrics.get("git_dirty_files", 0) > 0:
+            lines.append(f"  • Dirty files: {metrics['git_dirty_files']}")
+
+    # Search Quality section
+    if metrics.get("search_quality_total_tests") is not None:
+        lines.append("")
+        lines.append("🔍 Search Quality (Synthetic Monitoring):")
+        passed = metrics.get("search_quality_passed", 0)
+        total = metrics.get("search_quality_total_tests", 0)
+        quality_emoji = "✅" if passed == total else "⚠️" if passed > 0 else "❌"
+        lines.append(f"  {quality_emoji} Tests passed: {passed}/{total}")
 
     lines.append("")
     lines.append("=" * 50)
