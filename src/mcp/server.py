@@ -685,6 +685,50 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка анализа влияния: {str(e)}"
 
     @mcp.tool()
+    def get_repo_rank(project_root: str, top_k: int = 20, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает RepoRank — рейтинг важности символов проекта.
+
+        Использует алгоритм PageRank на графе вызовов:
+        - Символы с высоким rank — "сердце" проекта
+        - Используются чаще всего и критически важны
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять какие функции/классы самые важные
+        - Определить приоритеты для рефакторинга
+        - Найти "центральные" модули проекта
+
+        Args:
+            project_root: Путь к проекту
+            top_k: Количество топ-символов (по умолчанию 20)
+
+        Returns:
+            Список символов с RepoRank score (0-1)
+        """
+        _debug_log("get_repo_rank", f"{project_root}, top_k={top_k}")
+        if not symbol_index:
+            return "❌ Движок анализа структуры недоступен."
+        try:
+            ranks = symbol_index.compute_repo_rank()
+            if not ranks:
+                return "⚠️ Граф вызовов пуст. Нет данных для RepoRank."
+
+            # Сортируем по score
+            sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:top_k]
+
+            output = [f"🏆 RepoRank: Top-{len(sorted_ranks)} символов\n"]
+            for i, (symbol, score) in enumerate(sorted_ranks, 1):
+                # Получаем информацию о символе
+                defs = symbol_index.find_definitions(symbol)
+                kind = defs[0].kind if defs else "unknown"
+                file = defs[0].file_path if defs else "unknown"
+                output.append(f"  {i}. [{score:.3f}] {symbol} ({kind}) — {file}")
+
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка get_repo_rank: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 

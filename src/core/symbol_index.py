@@ -713,6 +713,68 @@ class SymbolIndex:
         }
         return dir_name in skip_dirs
 
+    def compute_repo_rank(self, damping: float = 0.85, iterations: int = 20) -> Dict[str, float]:
+        """Вычисляет PageRank для символов на графе вызовов.
+
+        Алгоритм PageRank адаптирован для графа вызовов:
+        - Узлы: символы (функции, классы)
+        - Рёбра: вызовы (caller → callee)
+        - Вес: количество вызовов
+
+        Символы с высоким RepoRank — "сердце" проекта.
+        Они используются чаще всего и критически важны.
+
+        Args:
+            damping: Коэффициент затухания (стандартный 0.85)
+            iterations: Количество итераций
+
+        Returns:
+            {symbol: score} — нормализованные скоры (0-1)
+        """
+        with self._lock:
+            # Собираем все символы
+            all_symbols = set(self._definitions.keys())
+            for sym, refs in self._references.items():
+                all_symbols.add(sym)
+                for r in refs:
+                    all_symbols.add(r.symbol)
+
+            if not all_symbols:
+                return {}
+
+            # Инициализируем скоры
+            n = len(all_symbols)
+            scores = {sym: 1.0 / n for sym in all_symbols}
+
+            # Строим обратный граф: для каждого symbol — кто его вызывает
+            # (нужно для PageRank — голоса идут ОТ callers К callee)
+            incoming = {sym: [] for sym in all_symbols}
+            for callee, refs in self._references.items():
+                for ref in refs:
+                    if not ref.is_definition and ref.symbol in incoming:
+                        incoming[callee].append(ref.symbol)
+
+            # Итерации PageRank
+            for _ in range(iterations):
+                new_scores = {}
+                for sym in all_symbols:
+                    rank_sum = 0.0
+                    for caller in incoming.get(sym, []):
+                        # Количество исходящих связей caller'а
+                        out_degree = len(self._references.get(caller, []))
+                        if out_degree > 0:
+                            rank_sum += scores[caller] / out_degree
+                    new_scores[sym] = (1 - damping) / n + damping * rank_sum
+                scores = new_scores
+
+            # Нормализация (максимальный = 1.0)
+            if scores:
+                max_score = max(scores.values())
+                if max_score > 0:
+                    scores = {k: v / max_score for k, v in scores.items()}
+
+            return scores
+
     def get_repo_map(self, project_root: str) -> Dict:
         """
         Возвращает карту репозитория: структуру директорий + символы в файлах.
