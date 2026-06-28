@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import math
@@ -6,7 +7,7 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 from src.core.query_expansion import expand_query
-from src.core.reranker import SearchResultReranker
+from src.core.reranker import MultiProviderReranker, SearchResultReranker
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,9 @@ class Searcher:
         self._bm25_lock = threading.Lock()
         self._tokenizer_re = re.compile(r"\W+")
         self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
+        # Мульти-провайдерный реранкер (Ollama / LM Studio) — ленивая инициализация
+        self._multi_reranker: Optional[MultiProviderReranker] = None
+        self._multi_reranker_initialized: bool = False
 
     def reindex(self):
         with self._bm25_lock:
@@ -344,22 +348,24 @@ class Searcher:
 
         if use_rrf:
             # RRF Fusion — устойчив к разным масштабам скоров
-            return self._reciprocal_rank_fusion(unique_bm25, all_dense_results, limit=limit)
+            rrf_results = self._reciprocal_rank_fusion(unique_bm25, all_dense_results, limit=limit)
         else:
             # Fallback: реранкер с relevance factor
             reranked = self._reranker.rerank_results(
                 query, unique_bm25, all_dense_results, limit=limit
             )
-            results = []
+            rrf_results = []
             for res in reranked:
-                results.append({
+                rrf_results.append({
                     "text": res["text"],
                     "metadata": res["metadata"],
                     "bm25_score": res.get("bm25_score", 0.0),
                     "dense_score": res.get("dense_score", 0.0),
                     "final_score": res.get("final_score", 0.0),
                 })
-            return results
+
+        # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
+        return self._apply_multi_reranker(query, rrf_results, limit)
 
     def search(self, query: str, limit: int = 5) -> str:
         """Гибридный поиск для MCP-инструмента search_code."""
@@ -917,6 +923,79 @@ class Searcher:
 
         return analysis
 
+    def _ensure_multi_reranker(self) -> Optional[MultiProviderReranker]:
+        """Ленивая синхронная инициализация мульти-провайдерного реранкера.
+
+        Использует asyncio.run() для однократного пинга провайдеров.
+        Потокобезопасна через _multi_reranker_initialized флаг.
+        """
+        if self._multi_reranker_initialized:
+            return self._multi_reranker
+
+        self._multi_reranker_initialized = True
+        try:
+            reranker = MultiProviderReranker()
+            # Синхронный запуск асинхронной инициализации
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Уже внутри event loop — используем ThreadPoolExecutor
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(asyncio.run, reranker.initialize())
+                    future.result(timeout=5)
+            else:
+                asyncio.run(reranker.initialize())
+
+            self._multi_reranker = reranker
+            return reranker
+        except Exception as e:
+            logger.warning(f"Не удалось инициализировать MultiProviderReranker: {e}")
+            self._multi_reranker = None
+            return None
+
+    def _apply_multi_reranker(
+        self,
+        query: str,
+        rrf_results: List[dict],
+        top_n: int,
+    ) -> List[dict]:
+        """Синхронно применяет мульти-провайдерный реранкинг если доступен.
+
+        Внутри запускает async rerank через asyncio.run() или отдельный loop,
+        чтобы сохранить совместимость с синхронными вызывающими кодами.
+        """
+        if not rrf_results:
+            return rrf_results
+
+        reranker = self._ensure_multi_reranker()
+        if reranker is None or not reranker.is_available:
+            return rrf_results
+
+        try:
+            # Проверяем, находимся ли мы внутри работающего event loop
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Уже внутри event loop — запускаем в отдельном потоке
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(
+                        asyncio.run, reranker.rerank(query, rrf_results, top_n=top_n)
+                    )
+                    return future.result(timeout=int(reranker.inference_timeout) + 5)
+            else:
+                return asyncio.run(reranker.rerank(query, rrf_results, top_n=top_n))
+        except Exception as e:
+            logger.warning(f"MultiProviderReranker ошибка: {e}. Fallback к RRF.")
+            return rrf_results
+
     def agentic_code_search(
         self,
         query: str,
@@ -1031,6 +1110,20 @@ class Searcher:
         all_results.sort(key=lambda r: r.get("final_score", 0.0), reverse=True)
         final_results = all_results[:max_total_results]
         search_metadata["total_unique"] = len(seen_keys)
+
+        # Шаг 6: Мульти-провайдерный реранкинг (опциональный, синхронный)
+        try:
+            reranker = self._ensure_multi_reranker()
+            if reranker is not None and reranker.is_available and final_results:
+                final_results = asyncio.run(reranker.rerank(
+                    query, final_results, top_n=max_total_results
+                ))
+                search_metadata["reranker_used"] = True
+            else:
+                search_metadata["reranker_used"] = False
+        except Exception as e:
+            logger.warning(f"Реранкинг в agentic_code_search пропущен: {e}")
+            search_metadata["reranker_used"] = False
 
         return final_results, search_metadata
 

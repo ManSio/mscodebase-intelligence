@@ -2,6 +2,70 @@
 
 ---
 
+## [2026-06-28 20:00] — [Type: Refactor/Feature] — Multi-Provider Reranker (Ollama/LM Studio)
+
+**Проблема:**
+1. Локальный ONNX Runtime ломается на Windows при обновлении Python
+2. Лог показывает: `Ошибка сборки локального ONNX-детектора: Локальные веса ONNX не найдены`
+3. Тяжёлые бинарные зависимости (onnxruntime, transformers) утяжеляют расширение
+
+**Решение:**
+- Полностью удалён `onnxruntime` и `transformers` из `requirements.txt` и `pyproject.toml`
+- Создан новый `src/core/reranker.py` с классом `MultiProviderReranker`
+  - Асинхронный пинг LM Studio (1234) и Ollama (11434) при инициализации
+  - Пакетный (batch) запрос: все чанки одним промптом (усечение до 800 символов)
+  - Строгий JSON-ответ через `response_format={"type": "json_object"}`
+  - 4-уровневый парсер: чистый JSON → markdown → regex → отдельные объекты
+  - Приоритет: Ollama → LM Studio → fallback к RRF
+- Обновлён `src/core/searcher.py`:
+  - Добавлен `_multi_reranker` (ленивая синхронная инициализация)
+  - `_apply_multi_reranker()` вызывается после RRF в `hybrid_search` и `agentic_code_search`
+  - Синхронный враппер через `asyncio.run` + `ThreadPoolExecutor` для совместимости
+- Создан `tests/test_reranker.py` — 20 тестов (все проходят)
+  - LM Studio сортировка, Ollama сортировка, приоритет Ollama
+  - Fallback при недоступности, таймаут, connection error
+  - Парсинг повреждённого JSON, markdown, regex
+  - Edge cases: пустой список, один чанк, обрезка текста
+
+**Инструменты:** write_file, edit_file, diagnostics, terminal (pytest), index_project_dir
+**Файлы:** src/core/reranker.py (переписан), src/core/searcher.py (обновлён), tests/test_reranker.py (создан), requirements.txt, pyproject.toml
+**Статус:** ✅ Все тесты реранкера и agentic search проходят (45/45)
+
+---
+
+## [2026-06-28 20:30] — [Type: Docs] — Обновление документации для Multi-Provider Reranker
+
+**Задача:** Синхронизировать документацию с изменениями в коде.
+
+**Обновлённые файлы:**
+- `README.md`:
+  - Badge тестов: 118 → 138
+  - Features: Hybrid Search теперь включает Multi-Provider Reranking
+  - Quick Start: добавлена секция «Optional: Enable LLM Reranking» с Ollama/LM Studio инструкциями
+  - Environment Variables: добавлен `OLLAMA_URL`
+  - Architecture diagram: добавлен MultiProviderReranker в data flow
+  - Project Structure: добавлен `test_reranker.py` (20 tests), удалён `download_model.py`
+  - Новая секция «Multi-Provider Reranking» с диаграммой
+- `ARCHITECTURE.md`:
+  - Векторное окружение: Fallback ONNX → Multi-Provider (Ollama/LM Studio)
+  - Модули: добавлен Reranker, обновлены Searcher и RemoteEmbedder
+  - Новая секция 8: Multi-Provider Reranker (архитектура, приоритет, безопасность, batching)
+  - Ограничения: убрана зависимость от ONNX, добавлено про httpx
+- `CHANGELOG.md`:
+  - Добавлен релиз [1.3.0] с полным описанием Multi-Provider Reranker
+  - Обновлено тестовое покрытие: 118 → 138
+  - Cleanup: удалены onnxruntime + transformers
+- `TESTING.md`:
+  - Таблица тестов: добавлен `test_reranker.py` (20 tests), общее число 131
+  - Новый раздел «Reranker Testing» с категориями тестов
+  - CI: добавлено примечание про отсутствие внешних зависимостей
+
+**Инструменты:** read_file, edit_file, diagnostics, terminal (pytest)
+**Файлы:** README.md, ARCHITECTURE.md, CHANGELOG.md, TESTING.md
+**Статус:** ✅ Документация синхронизирована с кодом, тесты 45/45
+
+---
+
 ## [2026-06-28 14:00] — [Type: Feature] — Agentic Code Search (arxiv 2505.14321)
 
 **Проблема:**

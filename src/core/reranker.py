@@ -1,25 +1,449 @@
 """
-Реранкер результатов поиска для улучшения релевантности контекста.
-Использует легковесные модели для переранжирования результатов BM25 + Dense поиска.
+Мульти-провайдерный реранкер результатов поиска.
+
+Полностью заменяет локальный ONNX-инференс на внешние локальные движки:
+  • LM Studio  (OpenAI-совместимый API, порт 1234)
+  • Ollama     (нативный API, порт 11434)
+
+Архитектура:
+  1. При инициализации выполняется быстрый асинхронный пинг обоих провайдеров.
+  2. Приоритет выбора: Ollama (если есть специализированный реранкер) → LM Studio.
+  3. Все чанки отправляются одним пакетом (batch) в рамках единого запроса.
+  4. Строгий JSON-ответ через response_format + надёжный fallback-парсер.
+  5. При недоступности обоих провайдеров — прозрачный fallback к RRF-порядку.
+
+Зависимости: только httpx (async). Никакого onnxruntime / torch / transformers.
 """
 
+from __future__ import annotations
+
+import json
 import logging
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
+# Эндпоинты провайдеров
+_LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models"
+_LM_STUDIO_CHAT_URL = "http://127.0.0.1:1234/v1/chat/completions"
+_OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
+_OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 
-class SearchResultReranker:
-    """Реранкер результатов поиска, комбинирующий BM25 и векторные скоры."""
+# Таймауты (сек)
+_PROVIDER_PING_TIMEOUT = 0.5
+_INFERENCE_TIMEOUT = 30.0
 
-    def __init__(self, bm25_weight: float = 0.3, dense_weight: float = 0.7):
+# Максимальная длина текста чанка для промпта (символы)
+_MAX_CHUNK_PREVIEW_LEN = 800
+
+# Регулярка для извлечения JSON-массива scores из ответа
+_SCORES_JSON_RE = re.compile(
+    r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL
+)
+# Извлечение отдельных объектов {"index": N, "score": F}
+_SCORE_ITEM_RE = re.compile(
+    r'\{\s*"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*\}'
+)
+
+
+class MultiProviderReranker:
+    """Реранкер на основе внешних LLM-провайдеров (Ollama / LM Studio).
+
+    Автоматически сканирует доступные провайдеры при инициализации
+    и выбирает лучший из доступных для выполнения реранкинга.
+    """
+
+    def __init__(
+        self,
+        lm_studio_url: Optional[str] = None,
+        ollama_url: Optional[str] = None,
+        ping_timeout: float = _PROVIDER_PING_TIMEOUT,
+        inference_timeout: float = _INFERENCE_TIMEOUT,
+    ):
         """
-        Инициализирует реранкер.
+        Args:
+            lm_studio_url: Базовый URL LM Studio (по умолчанию http://127.0.0.1:1234/v1)
+            ollama_url: Базовый URL Ollama (по умолчанию http://127.0.0.1:11434)
+            ping_timeout: Таймаут проверки доступности провайдера (сек)
+            inference_timeout: Таймаут инференса (сек)
+        """
+        self.lm_studio_url = (lm_studio_url or "http://127.0.0.1:1234/v1").rstrip("/")
+        self.ollama_url = (ollama_url or "http://127.0.0.1:11434").rstrip("/")
+        self.ping_timeout = ping_timeout
+        self.inference_timeout = inference_timeout
+
+        # Статус провайдеров (заполняется при initialize())
+        self.lm_studio_available: bool = False
+        self.ollama_available: bool = False
+        self.lm_studio_model_name: Optional[str] = None
+        self.ollama_model_name: Optional[str] = None
+
+        # Кэш HTTP-клиента
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def initialize(self) -> None:
+        """Асинхронная инициализация: пинг обоих провайдеров."""
+        self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+
+        # Параллельный пинг обоих провайдеров
+        import asyncio
+
+        results = await asyncio.gather(
+            self._ping_lm_studio(),
+            self._ping_ollama(),
+            return_exceptions=True,
+        )
+
+        if isinstance(results[0], Exception):
+            logger.debug(f"LM Studio недоступен: {results[0]}")
+        elif results[0]:
+            self.lm_studio_available = True
+            logger.info(f"✅ LM Studio доступен: {self.lm_studio_url} (модель: {self.lm_studio_model_name})")
+
+        if isinstance(results[1], Exception):
+            logger.debug(f"Ollama недоступна: {results[1]}")
+        elif results[1]:
+            self.ollama_available = True
+            logger.info(f"✅ Ollama доступна: {self.ollama_url} (модель: {self.ollama_model_name})")
+
+        if not self.lm_studio_available and not not self.ollama_available:
+            logger.info(
+                "ℹ️ Реранкер отключён. Запустите модель в LM Studio "
+                "или выполните 'ollama run bge-reranker-v2-m3' для включения LLM-реранкинга."
+            )
+
+    async def close(self) -> None:
+        """Закрывает HTTP-клиент."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    async def _ping_lm_studio(self) -> bool:
+        """Быстрый пинг LM Studio. Возвращает True если сервер отвечает."""
+        try:
+            resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
+                f"{self.lm_studio_url}/models"
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = data.get("data", [])
+                if models:
+                    self.lm_studio_model_name = models[0].get("id")
+                return True
+            return False
+        except Exception:
+            return False
+
+    async def _ping_ollama(self) -> bool:
+        """Быстрый пинг Ollama. Возвращает True если сервер отвечает."""
+        try:
+            resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
+                f"{self.ollama_url}/api/tags"
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = data.get("models", [])
+                if models:
+                    self.ollama_model_name = models[0].get("name", "").split(":")[0]
+                return True
+            return False
+        except Exception:
+            return False
+
+    @property
+    def is_available(self) -> bool:
+        """True если хотя бы один провайдер доступен."""
+        return self.lm_studio_available or self.ollama_available
+
+    def _select_provider(self) -> Optional[str]:
+        """Выбирает лучший доступный провайдер.
+
+        Приоритет:
+        1. Ollama — если доступна (специализированные реранкеры типа bge-reranker)
+        2. LM Studio — как альтернатива (Instruct-модели)
+
+        Returns:
+            'ollama', 'lm_studio' или None
+        """
+        if self.ollama_available:
+            return "ollama"
+        if self.lm_studio_available:
+            return "lm_studio"
+        return None
+
+    async def rerank(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        top_n: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Выполняет пакетный реранкинг чанков через внешний LLM-провайдер.
 
         Args:
-            bm25_weight: Вес BM25 скоров (0.0 - 1.0)
-            dense_weight: Вес векторных скоров (0.0 - 1.0)
+            query: Исходный поисковый запрос
+            chunks: Список чанков (каждый содержит 'text', 'metadata', 'final_score')
+            top_n: Максимальное число результатов для возврата
+
+        Returns:
+            Отсортированный список чанков (top_n штук).
+            При недоступности провайдеров или ошибке — исходные chunks[:top_n].
         """
+        # Защита от пустого входа
+        if not chunks:
+            return chunks
+
+        # Если чанков уже меньше top_n — реранкинг не нужен
+        if len(chunks) <= 1:
+            return chunks[:top_n]
+
+        # Выбор провайдера
+        provider = self._select_provider()
+        if provider is None:
+            logger.info(
+                "ℹ️ Реранкер отключён. Запустите модель в LM Studio "
+                "или выполните 'ollama run bge-reranker-v2-m3' для включения LLM-реранкинга."
+            )
+            return chunks[:top_n]
+
+        try:
+            # Подготовка пакета данных (усечение до 800 символов)
+            truncated_chunks = []
+            for i, chunk in enumerate(chunks):
+                text = chunk.get("text", "")
+                truncated = text[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                truncated_chunks.append({"index": i, "text": truncated})
+
+            # Формирование промпта
+            prompt = self._build_batch_prompt(query, truncated_chunks)
+
+            # Отправка запроса к провайдеру
+            if provider == "ollama":
+                scores = await self._query_ollama(prompt)
+            else:
+                scores = await self._query_lm_studio(prompt)
+
+            # Применение скоров и сортировка
+            return self._apply_scores(chunks, scores, top_n)
+
+        except httpx.TimeoutException:
+            logger.warning("⏱️ Таймаут реранкера. Fallback к RRF-порядку.")
+            return chunks[:top_n]
+        except httpx.ConnectError as e:
+            logger.warning(f"🔌 Ошибка подключения к провайдеру реранкинга: {e}. Fallback к RRF-порядку.")
+            return chunks[:top_n]
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка реранкинга: {e}. Fallback к RRF-порядку.")
+            return chunks[:top_n]
+
+    def _build_batch_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
+        """Формирует пакетный промпт для LLM-реранкинга.
+
+        Промпт содержит запрос и список чанков с индексами.
+        Требует от модели вернуть JSON со скорами для каждого индекса.
+        """
+        chunks_text = "\n".join(
+            f"[{c['index']}] {c['text']}" for c in chunks
+        )
+
+        return (
+            f"You are a code search relevance scorer.\n"
+            f"Query: {query}\n\n"
+            f"Rate the relevance of each code chunk to the query.\n"
+            f"Return ONLY a JSON object with this exact structure:\n"
+            f'{{"scores": [{{"index": 0, "score": 0.95}}, {{"index": 1, "score": 0.12}}]}}\n\n'
+            f"Score range: 0.0 (completely irrelevant) to 1.0 (perfect match).\n"
+            f"Be strict: most chunks should score below 0.5 unless they directly address the query.\n\n"
+            f"Code chunks:\n{chunks_text}"
+        )
+
+    async def _query_lm_studio(self, prompt: str) -> List[Dict[str, Any]]:
+        """Отправляет пакетный запрос к LM Studio (OpenAI-совместимый API)."""
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+
+        payload = {
+            "model": self.lm_studio_model_name or "local-model",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a precise code relevance scorer. "
+                        "Return ONLY valid JSON with the scores array. No explanations."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
+        }
+
+        resp = await self._client.post(
+            f"{self.lm_studio_url}/chat/completions",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        return self._parse_scores_json(content)
+
+    async def _query_ollama(self, prompt: str) -> List[Dict[str, Any]]:
+        """Отправляет пакетный запрос к Ollama (нативный API)."""
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+
+        payload = {
+            "model": self.ollama_model_name or "bge-reranker-v2-m3",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a precise code relevance scorer. "
+                        "Return ONLY valid JSON with the scores array. No explanations."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+            "format": "json",
+            "options": {
+                "temperature": 0.0,
+                "num_predict": 1024,
+            },
+        }
+
+        resp = await self._client.post(
+            f"{self.ollama_url}/api/chat",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+
+        data = resp.json()
+        content = data.get("message", {}).get("content", "")
+        return self._parse_scores_json(content)
+
+    def _parse_scores_json(self, raw: str) -> List[Dict[str, Any]]:
+        """Парсит JSON со скорами из ответа LLM.
+
+        Поддерживает:
+        1. Чистый JSON: {"scores": [{"index": 0, "score": 0.95}, ...]}
+        2. JSON в markdown-блоке: ```json\n{...}\n```
+        3. JSON с окружающим текстом (поиск через regex)
+
+        Returns:
+            Список dict'ов [{"index": int, "score": float}, ...]
+        """
+        if not raw:
+            return []
+
+        # Попытка 1: прямой JSON-парсинг
+        try:
+            data = json.loads(raw)
+            scores = data.get("scores", [])
+            if isinstance(scores, list) and scores:
+                return self._validate_scores(scores)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Попытка 2: извлечение из markdown-блока
+        md_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw, re.DOTALL)
+        if md_match:
+            try:
+                data = json.loads(md_match.group(1))
+                scores = data.get("scores", [])
+                if isinstance(scores, list) and scores:
+                    return self._validate_scores(scores)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Попытка 3: поиск JSON-объекта через regex
+        json_match = _SCORES_JSON_RE.search(raw)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                scores = data.get("scores", [])
+                if isinstance(scores, list) and scores:
+                    return self._validate_scores(scores)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Попытка 4: извлечение отдельных объектов score
+        items = _SCORE_ITEM_RE.findall(raw)
+        if items:
+            return [
+                {"index": int(idx), "score": float(score)}
+                for idx, score in items
+            ]
+
+        logger.warning(f"⚠️ Не удалось извлечь scores из ответа реранкера: {raw[:200]}...")
+        return []
+
+    @staticmethod
+    def _validate_scores(scores: List[Any]) -> List[Dict[str, Any]]:
+        """Валидирует и нормализует список скоров."""
+        validated = []
+        for item in scores:
+            if isinstance(item, dict):
+                idx = item.get("index")
+                score = item.get("score")
+                if isinstance(idx, (int, float)) and isinstance(score, (int, float)):
+                    validated.append({
+                        "index": int(idx),
+                        "score": max(0.0, min(1.0, float(score))),
+                    })
+        return validated
+
+    @staticmethod
+    def _apply_scores(
+        chunks: List[Dict[str, Any]],
+        scores: List[Dict[str, Any]],
+        top_n: int,
+    ) -> List[Dict[str, Any]]:
+        """Применяет скоры реранкера к чанкам и сортирует.
+
+        Args:
+            chunks: Исходные чанки
+            scores: Список [{"index": int, "score": float}]
+            top_n: Максимальное число результатов
+
+        Returns:
+            Отсортированный список чанков
+        """
+        if not scores:
+            return chunks[:top_n]
+
+        # Карта индекс → score
+        score_map = {s["index"]: s["score"] for s in scores}
+
+        # Обновляем скоры в чанках
+        for i, chunk in enumerate(chunks):
+            chunk["reranker_score"] = score_map.get(i, 0.0)
+
+        # Сортируем по reranker_score (убывание)
+        sorted_chunks = sorted(
+            chunks,
+            key=lambda c: c.get("reranker_score", 0.0),
+            reverse=True,
+        )
+
+        return sorted_chunks[:top_n]
+
+
+# Обратная совместимость: SearchResultReranker остаётся как тонкая обёртка
+class SearchResultReranker:
+    """Устаревший реранкер (BM25 + dense комбинация).
+
+    Сохранён для обратной совместимости.
+    Для нового функционала используйте MultiProviderReranker.
+    """
+
+    def __init__(self, bm25_weight: float = 0.3, dense_weight: float = 0.7):
         self.bm25_weight = bm25_weight
         self.dense_weight = dense_weight
         self._is_initialized = False
@@ -31,28 +455,12 @@ class SearchResultReranker:
         dense_results: List[Dict[str, Any]],
         limit: int = 5,
     ) -> List[Dict[str, Any]]:
-        """
-        Переранживает результаты поиска, комбинируя BM25 и векторные скоры.
-
-        Args:
-            query: Исходный запрос пользователя
-            bm25_results: Результаты BM25 поиска
-            dense_results: Результаты векторного поиска
-            limit: Максимальное количество результатов для возврата
-
-        Returns:
-            Переранжированные результаты, отсортированные по релевантности
-        """
+        """Переранжирует результаты поиска, комбинируя BM25 и векторные скоры."""
         if not bm25_results and not dense_results:
             return []
 
-        # Создаем карту результатов для комбинирования
         results_map = self._create_results_map(bm25_results, dense_results)
-
-        # Комбинируем скоры
         combined_results = self._combine_scores(results_map, query)
-
-        # Сортируем и ограничиваем
         sorted_results = sorted(
             combined_results.items(), key=lambda x: x[1]["final_score"], reverse=True
         )[:limit]
@@ -62,10 +470,7 @@ class SearchResultReranker:
     def _create_results_map(
         self, bm25_results: List[Dict[str, Any]], dense_results: List[Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
-        """Создает карту результатов с уникальными ключами."""
         results_map = {}
-
-        # BM25 результаты
         for i, result in enumerate(bm25_results):
             key = self._create_result_key(result)
             results_map[key] = {
@@ -75,18 +480,13 @@ class SearchResultReranker:
                 "dense_score": 0.0,
                 "source": "bm25",
             }
-
-        # Dense результаты
         for i, result in enumerate(dense_results):
             if "error" in result:
                 continue
-
             key = self._create_result_key(result)
             if key in results_map:
-                # Обновляем существующую запись
                 results_map[key]["dense_score"] = 1.0 - (i / len(dense_results))
             else:
-                # Создаем новую запись
                 results_map[key] = {
                     "text": result["text"],
                     "metadata": result["metadata"],
@@ -94,11 +494,10 @@ class SearchResultReranker:
                     "dense_score": 1.0 - (i / len(dense_results)),
                     "source": "dense",
                 }
-
         return results_map
 
-    def _create_result_key(self, result: Dict[str, Any]) -> str:
-        """Создает уникальный ключ для результата на основе его метаданных."""
+    @staticmethod
+    def _create_result_key(result: Dict[str, Any]) -> str:
         file_path = result["metadata"]["file"]
         chunk_index = result["metadata"]["chunk_index"]
         return f"{file_path}:{chunk_index}"
@@ -106,122 +505,33 @@ class SearchResultReranker:
     def _combine_scores(
         self, results_map: Dict[str, Dict[str, Any]], query: str
     ) -> Dict[str, Dict[str, Any]]:
-        """Комбинирует BM25 и векторные скоры."""
         combined = {}
-
         for key, result in results_map.items():
-            # Базовый комбинированный скор
             final_score = (
                 result["bm25_score"] * self.bm25_weight
                 + result["dense_score"] * self.dense_weight
             )
-
-            # Применяем фактор релевантности на основе запроса
             relevance_factor = self._calculate_relevance_factor(query, result)
             final_score *= relevance_factor
-
-            # Добавляем дополнительные поля для отладки
             result["final_score"] = final_score
             result["query_relevance"] = relevance_factor
-
             combined[key] = result
-
         return combined
 
-    def _calculate_relevance_factor(self, query: str, result: Dict[str, Any]) -> float:
-        """
-        Вычисляет фактор релевантности на основе запроса и результата.
-
-        Args:
-            query: Исходный запрос
-            result: Результат поиска
-
-        Returns:
-            Фактор релевантности (0.5 - 1.5)
-        """
+    @staticmethod
+    def _calculate_relevance_factor(query: str, result: Dict[str, Any]) -> float:
         query_words = set(query.lower().split())
         result_text = result["text"].lower()
-
-        # Проверяем точные совпадения слов
         exact_matches = sum(1 for word in query_words if word in result_text)
         if exact_matches > 0:
-            return 1.5  # Высокая релевантность для точных совпадений
-
-        # Проверяем длинные совпадения (3+ символов)
+            return 1.5
         long_words = [w for w in query_words if len(w) >= 3]
         long_matches = sum(1 for word in long_words if word in result_text)
         if long_matches > 0:
-            return 1.2  # Средняя релевантность для длинных слов
-
-        # Проверяем наличие специальных терминов (технических терминов, имен функций и т.д.)
-        if self._contains_technical_terms(result_text):
-            return 1.3
-
-        # Базовый фактор релевантности
+            return 1.2
         return 1.0
 
-    def _contains_technical_terms(self, text: str) -> bool:
-        """Проверяет, содержит ли текст технические термины (кодовые паттерны).
-
-        Ищет реальные конструкции языков программирования и SQL/API,
-        а не одиночные символы, которые встречаются в любом тексте.
-        """
-        technical_patterns = [
-            # Python / JS ключевые слова определения
-            r"\bdef ",
-            r"\basync def ",
-            r"\bclass ",
-            r"\bfunction ",
-            r"\bconst ",
-            r"\blet ",
-            r"\bvar ",
-            r"\bimport ",
-            r"\bfrom ",
-            r"\breturn ",
-            r"\braise ",
-            r"\btry:",
-            r"\bexcept\b",
-            r"\bwith ",
-            r"\bawait ",
-            r"\basync ",
-            # Декораторы
-            r"@\w+",
-            # Аннотации типов (Python-style)
-            r": (str|int|bool|float|List|Dict|Optional|Tuple|Set|Any)\b",
-            r"-> (str|int|bool|float|List|Dict|Optional|Tuple|Set|Any)\b",
-            # SQL паттерны
-            r"\bSELECT\b",
-            r"\bINSERT\b",
-            r"\bUPDATE\b",
-            r"\bDELETE\b",
-            r"\bCREATE TABLE\b",
-            r"\bFROM\b",
-            r"\bWHERE\b",
-            r"\bJOIN\b",
-            # API паттерны (FastAPI / Flask / Express)
-            r"@(app|router|blueprint)\.",
-            r"\bapp\.(get|post|put|delete|patch)\b",
-            # Структуры данных / управления
-            r"\bif __name__\b",
-            r"\belif\b",
-            r"\belse:",
-            r"\bfor \w+ in ",
-            r"\bwhile ",
-            r"\blambda ",
-            r"\byield ",
-        ]
-
-        import re
-
-        for pattern in technical_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
-                return True
-
-        return False
-
     def update_weights(self, bm25_weight: float, dense_weight: float):
-        """Обновляет веса BM25 и векторных скоров."""
-        # Нормализуем веса
         total_weight = bm25_weight + dense_weight
         if total_weight > 0:
             self.bm25_weight = bm25_weight / total_weight
@@ -229,13 +539,11 @@ class SearchResultReranker:
         else:
             self.bm25_weight = 0.5
             self.dense_weight = 0.5
-
         logger.info(
             f"Обновлены веса реранкера: BM25={self.bm25_weight:.2f}, Dense={self.dense_weight:.2f}"
         )
 
     def get_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику реранкера."""
         return {
             "bm25_weight": self.bm25_weight,
             "dense_weight": self.dense_weight,

@@ -16,8 +16,8 @@
 |-----------|----------|
 | Модель эмбеддингов | `text-embedding-bge-m3` (1024 dim) |
 | Протокол | LM Studio OpenAI-совместимый API (`/v1/embeddings`) |
-| Fallback | ONNX Runtime (локальная модель) |
-| СУБД хранилища | LanceDB v2 (Apache Arrow) |
+| Реранкинг | Multi-Provider (Ollama `:11434` → LM Studio `:1234`) |
+| СУБД хранилище | LanceDB v2 (Apache Arrow) |
 
 ## 3. Топология данных
 
@@ -67,10 +67,11 @@ db_name = f"index_{project_name}_{project_hash}.db"
 | MCP Server | `src/mcp/server.py` | Тools + Prompts для AI-агента |
 | LSP Server | `src/lsp_main.py` | Индексация при сохранении файлов |
 | Indexer | `src/core/indexer.py` | Сканирование + запись в LanceDB |
-| Searcher | `src/core/searcher.py` | Гибридный поиск (vector + BM25) |
+| Searcher | `src/core/searcher.py` | Гибридный поиск (vector + BM25) + Multi-Provider Reranking |
 | SymbolIndex | `src/core/symbol_index.py` | Tree-sitter парсинг + Call Graph |
 | ContextEngine | `src/core/context_engine.py` | Сжатый контекст для AI |
-| RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama / ONNX |
+| RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama |
+| Reranker | `src/core/reranker.py` | Multi-Provider Reranker (Ollama/LM Studio) |
 | Parser | `src/core/parser.py` | Tree-sitter AST парсер |
 | FileGuard | `src/core/file_guard.py` | Фильтрация файлов + gitignore |
 | Integrity | `src/core/integrity.py` | Merkle Tree для детекции изменений |
@@ -140,13 +141,56 @@ db_name = f"index_{project_name}_{project_hash}.db"
 }
 ```
 
-## 8. Ограничения
+## 8. Multi-Provider Reranker
+
+Модуль `src/core/reranker.py` реализует интеллектуальный реранкинг через внешние LLM:
+
+### Архитектура
+
+```
+[RRF Results] → [MultiProviderReranker.rerank()]
+                      │
+         ┌────────────┴────────────┐
+    (Ollama :11434)         (LM Studio :1234)
+         │                         │
+  [/api/chat batch]         [/v1/chat/completions batch]
+         │                         │
+         └────────────┬────────────┘
+                      ▼
+              [Parse JSON scores]
+                      │
+                      ▼
+              [Sort & return top_n]
+```
+
+### Приоритет провайдеров
+
+1. **Ollama** — приоритет, если доступна (специализированные реранкеры `bge-reranker-v2-m3`)
+2. **LM Studio** — альтернатива (Instruct-модели типа Qwen2.5-7B-Instruct)
+3. **Fallback** — если оба недоступны, возвращается RRF-порядок без изменений
+
+### Безопасность
+
+- Таймаут пинга: 0.5 сек (не блокирует при недоступности)
+- Таймаут инференса: 30 сек
+- 4-уровневый парсинг JSON (чистый → markdown → regex → отдельные объекты)
+- При любой ошибке — прозрачный fallback к RRF
+
+### Пакетная обработка
+
+Все чанки отправляются одним запросом:
+- Усечение до 800 символов на чанк
+- Строгий JSON-ответ: `{"scores": [{"index": 0, "score": 0.95}, ...]}`
+- Один network round-trip независимо от числа чанков
+
+## 9. Ограничения
 
 - Максимальный размер файла: 1 MB
 - Поддерживаемые языки: Python, Rust, TypeScript, JavaScript, Go
-- Требуется LM Studio (или Ollama/ONNX fallback) для векторного поиска
+- Требуется LM Studio или Ollama для векторного поиска и реранкинга
 - Windows native (без Docker/WSL)
+- Зависимости: только `httpx` (без onnxruntime/torch/transformers)
 
 ---
 
-*Последнее обновление: 2026-06-27*
+*Последнее обновление: 2026-06-28*

@@ -4,7 +4,7 @@
 
 **AI-powered semantic code search for Zed IDE viaPython 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-118%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-138%20passed-brightgreen.svg)]()
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Performance](#-performance-tuning) • [Benchmarks](#-benchmarks)
@@ -17,7 +17,7 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Hybrid Search** | Vector embeddings (LM Studio) + lexical BM25 + Tree-sitter structural analysis |
+| 🔍 **Hybrid Search** | Vector embeddings (LM Studio) + lexical BM25 + Multi-Provider Reranking (Ollama/LM Studio) |
 | 🧠 **Agentic Code Search** | Auto-decomposes complex queries → parallel sub-searches → Call Graph analysis → RRF aggregation |
 | 🔄 **Agentic Deep Search** | Iterative search with query refinement across multiple passes |
 | 🌐 **Cross-repo Search** | Search across multiple indexed projects with `@mention` syntax |
@@ -36,7 +36,7 @@
 
 - **Python 3.10+**
 - **Zed IDE** ([download](https://zed.dev/))
-- **LM Studio** (recommended) or Ollama for embeddings
+- **LM Studio** (recommended) or Ollama for embeddings + reranking
 
 ### Install
 
@@ -54,6 +54,20 @@ python install.py
 1. Download [LM Studio](https://lmstudio.ai/)
 2. Load embedding model: `text-embedding-bge-m3` (1024 dim)
 3. Start server (default port: 1234)
+
+### Optional: Enable LLM Reranking (Ollama / LM Studio)
+
+For enhanced search relevance, run an instruct model:
+
+```bash
+# Option A: Ollama (recommended — specialized reranker)
+ollama run bge-reranker-v2-m3
+
+# Option B: LM Studio — load any instruct model (e.g. Qwen2.5-7B-Instruct)
+```
+
+When available, the reranker reorders search results via a single batch LLM call.
+If neither is running, search works normally with RRF ranking (graceful fallback).
 
 ### Use in Zed
 
@@ -103,6 +117,7 @@ python install.py
 |----------|---------|-------------|
 | `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API endpoint |
 | `LM_STUDIO_PORT` | `1234` | LM Studio port |
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ---
@@ -140,11 +155,12 @@ MSCodebase Intelligence
     ├── symbol_index.py     — Tree-sitter symbol definitions + call graph
     ├── context_engine.py   — Compressed context generation
     ├── query_expansion.py  — Synonym expansion + stemming
-    ├── structural_search.py — AST pattern matching (13├── remote_embedder.py  — LM Studio / Ollama / ONNX embeddings
-    ├── parser.py           — Tree-sitter AST parsing
-    ├── file_guard.py       — Security filtering + gitignore
-    ├── gitignore_parser.py — Pattern matching
-    ├── reranker.py         — Result reranking with relevance factor
+    ├── structural_search.py — AST pattern matching (13 patterns)
+        ├── remote_embedder.py  — LM Studio / Ollama embeddings
+        ├── parser.py           — Tree-sitter AST parsing
+        ├── file_guard.py       — Security filtering + gitignore
+        ├── gitignore_parser.py — Pattern matching
+        ├── reranker.py         — Multi-Provider Reranker (Ollama/LM Studio) + legacy BM25+dense
     ├── log_manager.py      — File logging with rotation (2MB × 3)
     ├── integrity.py        — Merkle Tree change detection
     └── content_cache.py    — File hash caching
@@ -159,8 +175,29 @@ Zed IDE → MCP Server → RemoteEmbedder → LM Studio (embeddings)
                 ↓
            Searcher (BM25 + Vector + RRF)
                 ↓
+           MultiProviderReranker (Ollama :11434 → LM Studio :1234)
+                ↓
            Results → Zed IDE
 ```
+
+### Multi-Provider Reranking
+
+After RRF fusion, results can be reranked by an external LLM:
+
+```
+[Recall (BM25 + Dense)] → [Top-20 RRF] → [MultiProviderReranker]
+                                                │
+                    ┌───────────────────────────┴───────────────────────────┐
+              (Ollama available?)                                 (LM Studio available?)
+                    │                                                     │
+          [Ollama /api/chat batch]                            [LM Studio /v1/chat batch]
+                    │                                                     │
+                    └───────────────────────────┬───────────────────────────┘
+                                                ▼
+                                      [Sort by LLM scores] → [ZED Chat]
+```
+
+**Priority:** Ollama (specialized rerankers) → LM Studio (instruct models) → RRF fallback
 
 ### Storage
 
@@ -238,11 +275,11 @@ MSCodeBase/
 │   │   ├── context_engine.py
 │   │   ├── query_expansion.py
 │   │   ├── structural_search.py   # 13 AST patterns
-│   │   ├── remote_embedder.py     # LM Studio/Ollama/ONNX
+│   │   ├── remote_embedder.py     # LM Studio/Ollama
 │   │   ├── parser.py
 │   │   ├── file_guard.py
 │   │   ├── gitignore_parser.py
-│   │   ├── reranker.py
+│   │   ├── reranker.py            # Multi-Provider Reranker (Ollama/LM Studio)
 │   │   ├── log_manager.py
 │   │   ├── integrity.py
 │   │   └── content_cache.py
@@ -251,7 +288,9 @@ MSCodeBase/
 │   └── utils/
 │       ├── paths.py
 │       └── zed_config.py
-├── tests/                         # 111 unit ├── test_agentic_search.py     # 25 tests
+├── tests/                         # 131 unit tests
+│   ├── test_agentic_search.py     # 25 tests
+│   ├── test_reranker.py           # 20 tests (Multi-Provider Reranker)
 │   ├── test_deep_search.py        # 15 tests
 │   ├── test_cross_repo_search.py  # 21 tests
 │   ├── test_index_progress.py     # 11 tests
@@ -265,7 +304,6 @@ MSCodeBase/
 │   └── test_automation.py         # 1 test
 ├── benchmark_agentic_search.py    # 7 benchmark tests
 ├── scripts/
-│   ├── download_model.py          # ONNX model downloader
 │   └── full_index.py              # Full indexing script
 ├── install.py                     # Cross-platform installer
 ├── .agents/skills/                # Zed agent skills
