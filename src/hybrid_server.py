@@ -20,6 +20,13 @@ from pathlib import Path
 from typing import Optional, Set
 from urllib.parse import urlparse
 
+# ⚠️ КРИТИЧНО: убираем src/ из sys.path ДО любого импорта!
+# При запуске "python -u src/hybrid_server.py" Python автоматически добавляет
+# src/ в sys.path[0], и наш src/mcp/ затеняет библиотеку mcp (pip-пакет).
+# Убираем все пути, содержащие src/mcp, чтобы mcp резолвился из site-packages.
+_script_dir = str(Path(__file__).resolve().parent)
+sys.path = [p for p in sys.path if p != _script_dir]
+
 # Настройка логирования
 logging.basicConfig(
     stream=sys.stderr,
@@ -29,7 +36,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MSCodeBase-Hybrid")
 
-# Добавляем проект в PYTHONPATH
+# Импортируем mcp-библиотеку (теперь из site-packages, не из src/mcp/)
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+import uvicorn  # noqa: E402
+
+# Добавляем проект в PYTHONPATH (теперь безопасно — mcp уже в sys.modules)
 _ext_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ext_root))
 
@@ -38,7 +49,11 @@ from src.core.remote_embedder import RemoteEmbedder
 from src.core.file_guard import FileGuard
 from src.core.parser import CodeParser
 from src.core.searcher import Searcher
-from src.core.log_manager import setup_project_logging
+from src.core.log_manager import setup_project_logging, get_log_summary
+from src.core.symbol_index import SymbolIndex
+from src.core.structural_search import StructuralSearcher
+from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
+from src.core.context_engine import get_context as get_context_func
 
 # Настройка файлового логирования
 setup_project_logging(_ext_root)
@@ -71,16 +86,24 @@ class SharedIndexer:
         self.project_path = project_path
 
         db_path = _generate_unique_db_path(project_path)
-        embedder = RemoteEmbedder(port=1234)
+        self.embedder = RemoteEmbedder(port=1234)
         file_guard = FileGuard(project_path)
-        parser = CodeParser()
+        self.parser = CodeParser()
 
         self.indexer = Indexer(
-            db_path, embedder, file_guard,
-            project_path=project_path, parser=parser
+            db_path, self.embedder, file_guard,
+            project_path=project_path, parser=self.parser
         )
-        self.searcher = Searcher(self.indexer, embedder)
+        self.searcher = Searcher(self.indexer, self.embedder)
         self.indexer.searcher = self.searcher
+
+        # Структурный индекс символов (Tree-sitter)
+        self.symbol_index = SymbolIndex()
+
+        # Cross-repo поиск
+        self.project_registry = ProjectRegistry()
+        self.project_registry.register(project_path)
+        self.multi_project_searcher = MultiProjectSearcher(self.embedder, self.project_registry)
 
         self._initialized = True
         logger.info(f"✅ SharedIndexer initialized for {project_path}")
@@ -299,9 +322,6 @@ async def did_change_watched_files(ls: LanguageServer, params):
 def start_mcp_server():
     """Запуск MCP-сервера через SSE в отдельном потоке."""
     try:
-        from mcp.server.fastmcp import FastMCP
-        import uvicorn
-
         mcp = FastMCP("mscodebase-mcp")
 
         @mcp.tool()
