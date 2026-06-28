@@ -73,9 +73,9 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 
 **5. Context Optimization:** Read code in targeted, small chunks (max 50 lines). Do not attempt to ingest entire files unless absolutely necessary.
 
-**6. State Awareness:** If `get_index_status` returns 0 chunks — FORBIDDEN to use `search_code`. Switch to `grep` or `find_path` immediately.
+**6. State Awareness:** The index now uses warmup on startup — 0 chunks means truly empty (first run). If empty, trigger `index_project_dir` and wait for completion before using `search_code`.
 
-**7. Path Normalization:** Always normalize paths to POSIX lowercase: `path.as_posix().lower()` before passing to tools.
+**7. Path Protocol:** Use native Windows paths (backslashes) when passing to MCP tools. Do NOT normalize to POSIX lowercase — our tools handle Windows paths natively.
 
 **8. Post-Modification Sync:** After writing any file, call `index_project_dir(path)` + `get_index_status()` to verify cache state. Use `get_index_progress()` to monitor async indexing progress.
 

@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-06-28 23:00] — [Type: Meta] — MCP Tool Priority & Configuration Audit
+
+**Проблема:**
+1. Агент систематически игнорировал MCP-инструменты, используя встроенные grep/read_file
+2. Причина: инерция мышления — воспринимал search_code как "объект разработки", а не рабочий инструмент
+3. Отсутствовало явное правило приоритета MCP над встроенными инструментами
+
+**Решение:**
+- Добавлено правило MCP Priority Rule в AGENTS.md (пункт 1 раздела 1)
+- Исправлены названия инструментов (edit_file_tool → edit_file, grep, read_file, diagnostics)
+- Исправлен стек технологий (FastAPI → LanceDB/Tree-sitter/LM Studio)
+- Исправлено правило путей (POSIX → native Windows)
+- Обновлены skills: mscodebase-rules, code-search-analysis
+- Создан .zed/mcp_settings.json с увеличенными таймаутами
+
+**Инструменты:** read_file, edit_file, terminal (python)
+**Файлы:** AGENTS.md, .agents/skills/*/SKILL.md, .zed/mcp_settings.json
+**Статус:** ✅
+
+---
+
 ## [2026-06-28 21:30] — [Type: Fix] — Cold Start Race Condition (Status Warmup)
 
 **Проблема:**
