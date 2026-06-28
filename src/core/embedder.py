@@ -376,9 +376,7 @@ class Embedder:
                 try:
                     response = await client.post(url, json=payload, headers=headers)
                     response.raise_for_status()
-                    res_json = response.json()
-
-                    if self.provider == "ollama":
+                    res_json = response                    if self.provider == "ollama":
                         if "embeddings" in res_json:
                             all_embeddings.extend(res_json["embeddings"])
                         elif "embedding" in res_json and len(sub_batch) == 1:
@@ -393,6 +391,11 @@ class Embedder:
                             data = sorted(data, key=lambda x: x["index"])
                         batch_embs = [item["embedding"] for item in data]
                         all_embeddings.extend(batch_embs)
+
+                    logger.info(
+                        f"✅ LM Studio: {len(sub_batch)} эмбеддингов получено "
+                        f"(batch {i // api_batch_size + 1}, model={self.model_name})"
+                    )
 
                 except Exception as e:
                     logger.error(
