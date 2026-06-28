@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-06-28 23:30] — [Type: Feature] — Impact Analysis MCP Tool (Phase 1)
+
+**Проблема:**
+- Нет инструмента для оценки риска изменения/удаления символа
+- Пользователь не знает, что сломается при рефакторинге
+
+**Решение:**
+- Добавлен `SymbolIndex.get_impact_analysis()` — BFS-обход + risk score (0-100) + risk level
+- Добавлен MCP tool `impact_analysis` — структурированный отчёт
+- 9 новых тестов: direct/transitive callers, risk levels, depth, score calculation
+- Обновлена документация: 14 → 15 tools
+- Обновлён VISION.md: Phase 1 частично выполнена
+
+**Инструменты:** search_code, get_symbol_info, write_file, edit_file, terminal (pytest)
+**Файлы:** `src/core/symbol_index.py`, `src/mcp/server.py`, `tests/test_symbol_index_call_graph.py`, `VISION.md`, `README.md`, `.agents/skills/mscodebase-rules/SKILL.md`
+**Статус:** ✅ 142 теста пройдены
+
+---
+
+## [2026-06-28 23:15] — [Type: Docs] — Полное обновление AGENTS.md
+
+**Проблема:**
+- AGENTS.md не содержал правил про дневник (чтение/запись)
+- 14 инструментов вместо 15 (не хватало impact_analysis)
+- Нет явного запрета использовать grep/read_file когда есть MCP
+
+**Решение:**
+- Добавлен раздел 4: AGENT DIARY (правила чтения/записи дневника)
+- Обновлена таблица инструментов: 14 → 15
+- Добавлена иерархия MCP → Fallback с запретом использовать встроенные тулы
+- Обновлён IMPACT ANALYSIS раздел (impact_analysis + get_symbol_info)
+- Синхронизирован глобальный AGENTS.md в Zed
+
+**Инструменты:** read_file, write_file, terminal (cp)
+**Файлы:** `AGENTS.md` (проект + глобальный Zed)
+**Статус:** ✅
+
+---
+
 ## [2026-06-28 23:00] — [Type: Meta] — MCP Tool Priority & Configuration Audit
 
 **Проблема:**

@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from src.core.file_guard import FileGuard
 from src.core.structural_search import StructuralSearcher
 from src.core.indexer import Indexer
+from src.core.execution_contract import ExecutionContract
 from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
@@ -1050,6 +1051,64 @@ You operate under a strict deterministic execution matrix. Every action must be 
     """
 
     return mcp
+
+    @mcp.tool()
+    def verify_action(action_type: str, **kwargs) -> str:
+        """Верификация выполненного действия (Execution Contract).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - После git commit/push — подтвердить что изменения реально записаны
+        - После записи файла — подтвердить что файл существует и содержит ожидаемое
+        - После индексации — подтвердить статус через get_index_status
+
+        Args:
+            action_type: 'file_write' | 'git_commit' | 'git_push' | 'index_sync'
+            **kwargs: параметры для верификации (file_path, expected_content, commit_message)
+
+        Returns:
+            Отчёт о верификации с статусом ✅ или ❌.
+        """
+        _debug_log("verify_action", action_type)
+        try:
+            contract = ExecutionContract()
+            results = []
+
+            if action_type == "file_write":
+                file_path = kwargs.get("file_path", "")
+                expected = kwargs.get("expected_content")
+                result = contract.verify_file_write(file_path, expected)
+                results.append(result)
+
+            elif action_type == "git_commit":
+                expected_msg = kwargs.get("expected_message")
+                result = contract.verify_git_commit(expected_msg)
+                results.append(result)
+
+            elif action_type == "git_push":
+                result = contract.verify_git_push()
+                results.append(result)
+
+            elif action_type == "index_sync":
+                project_root = kwargs.get("project_root", "")
+                result = contract.verify_index_sync(project_root)
+                results.append(result)
+
+            elif action_type == "all":
+                # Полная верификация после commit+push
+                file_path = kwargs.get("file_path")
+                if file_path:
+                    results.append(contract.verify_file_write(file_path))
+                results.append(contract.verify_git_commit())
+                results.append(contract.verify_git_push())
+
+            else:
+                return f"❌ Неизвестный тип действия: {action_type}"
+
+            return format_verification_report(results)
+
+        except Exception as e:
+            logger.error(f"Ошибка verify_action: {e}")
+            return f"❌ Ошибка верификации: {str(e)}"
 
 
 def run_server(original_stdout=None):
