@@ -837,7 +837,7 @@ def create_mcp_server() -> "FastMCP":
             return f"Указанный путь не существует: {project_root}"
 
         try:
-            searcher = StructuralSearcher(parser)
+            searcher = StructuralSearcher(code_parser)
             result = searcher.search(
                 target_path,
                 pattern_name=pattern,
