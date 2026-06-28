@@ -212,7 +212,77 @@ try:
 
     server = MSCodeBaseLanguageServer("mscodebase-lsp", "1.0.0")
 
-    # === 1. ОБРАБОТКА ИЗМЕНЕНИЙ ПРИ СОХРАНЕНИИ (ГОРЯЧИЙ СЦЕНАРИЙ) ===
+    # === 1. ЖИЗНЕННЫЙ ЦИКЛ ДОКУМЕНТА (didOpen, didChange, didClose) ===
+    # Эти события приходят от Zed когда ИИ-ассистент меняет код в закрытых файлах!
+
+    @server.feature("textDocument/didOpen")
+    async def did_open(ls: MSCodeBaseLanguageServer, params):
+        """Вызывается когда Zed открывает файл (в т.ч. в фоне для ИИ-ассистента)."""
+        try:
+            file_path = _uri_to_path(params.text_document.uri)
+            logger.info(f"[LSP DID_OPEN] {file_path.name}")
+
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                return
+
+            # При didOpen текст гарантированно в памяти pygls
+            content = None
+            try:
+                document = ls.workspace.get_document(params.text_document.uri)
+                content = document.source
+            except Exception:
+                pass
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+        except Exception as e:
+            logger.error(f"[LSP DID_OPEN] Error: {e}")
+
+    @server.feature("textDocument/didChange")
+    async def did_change(ls: MSCodeBaseLanguageServer, params):
+        """Вызывается при каждом изменении текста (включая правки ИИ-ассистента)."""
+        try:
+            file_path = _uri_to_path(params.text_document.uri)
+
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                return
+
+            # При didChange текст в памяти pygls уже обновлён
+            content = None
+            try:
+                document = ls.workspace.get_document(params.text_document.uri)
+                content = document.source
+            except Exception:
+                pass
+
+            logger.info(f"[LSP DID_CHANGE] {file_path.name} ({len(content) if content else 0} chars)")
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+        except Exception as e:
+            logger.error(f"[LSP DID_CHANGE] Error: {e}")
+
+    @server.feature("textDocument/didClose")
+    async def did_close(ls: MSCodeBaseLanguageServer, params):
+        """Вызывается когда Zed закрывает буфер (в т.ч. после работы ИИ-ассистента).
+
+        В этот момент Zed уже зафлашил все изменения на диск,
+        поэтому можно безопасно прочитать файл с диска.
+        """
+        try:
+            file_path = _uri_to_path(params.text_document.uri)
+            logger.info(f"[LSP DID_CLOSE] {file_path.name}")
+
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                return
+
+            # При didClose буфер закрыт — файл на диске гарантированно актуален
+            # Читаем с диска (content=None)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _execute_file_indexing, file_path, None)
+        except Exception as e:
+            logger.error(f"[LSP DID_CLOSE] Error: {e}")
+
     @server.feature(TEXT_DOCUMENT_DID_SAVE)
     async def did_save(ls: MSCodeBaseLanguageServer, params: DidSaveTextDocumentParams):
         """Триггерится нативным Ctrl+S в Zed. Файл уже свободен от локов Windows."""
