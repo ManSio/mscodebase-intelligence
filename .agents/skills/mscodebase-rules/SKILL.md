@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, deep_search, cross_repo_search, get_symbol_info, get_context, get_repo_map, scan_changes, context_search, structural_search, get_logs, get_index_progress. Use search_code(agentic=True) for complex multi-part questions."
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, deep_search, cross_repo_search, get_symbol_info, impact_analysis, get_context, get_repo_map, scan_changes, context_search, structural_search, get_logs, get_index_progress. Use search_code(agentic=True) for complex multi-part questions."
 ---
 
 # MSCodeBase Tool Selection Rules
@@ -13,7 +13,8 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | Understand architecture, search by concept/intent, find relationships | MCP `search_code` | Semantic vector search connects abstract concepts |
 | Complex research queries, multi-step investigation | MCP `deep_search` | Iterative search with query refinement across multiple passes |
 | Cross-project search in mono-repos | MCP `cross_repo_search` | Search across multiple indexed projects with @-mention syntax |
-| Rewrite a function and analyze what will break | MCP `get_symbol_info` (Call Graph) | Shows all dependent modules and inbound calls |
+| Rewrite a function and analyze what will break | MCP `impact_analysis` | Risk score, affected files, callers count |
+| Find callers/callees of a symbol | MCP `get_symbol_info` (Call Graph) | Shows definition + direct dependencies |
 | Files created/deleted outside of Zed | MCP `scan_changes` | Architectural diff + impact analysis |
 | Quick onboarding into unfamiliar code | MCP `get_context` | Compressed context tailored for token efficiency |
 | Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
@@ -24,7 +25,7 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | Diagnose errors / check logs | MCP `get_logs` | Last errors and warnings from project logs |
 | Check indexing progress | MCP `get_index_progress` | Progress of async indexing (phase, percent, files done/total) |
 
-## Available MCP Tools (14 total)
+## Available MCP Tools (15 total)
 
 | # | Tool | Purpose |
 |---|---|---|
@@ -34,14 +35,15 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | 4 | `deep_search` | Iterative multi-pass search with query refinement |
 | 5 | `cross_repo_search` | Multi-project search with @-mentions |
 | 6 | `get_context` | Compressed multi-chunk context |
-| 7 | `get_symbol_info` | Call graph + impact analysis |
-| 8 | `get_repo_map` | Project structure + symbols |
-| 9 | `scan_changes` | Architectural diff |
-| 10 | `context_search` | Similar code by fragment |
-| 11 | `structural_search` | AST pattern matching (13 patterns) |
-| 12 | `watcher_status` | System health |
-| 13 | `get_logs` | Recent errors from logs |
-| 14 | `get_index_progress` | Indexing progress (phase, percent, files done/total) |
+| 7 | `get_symbol_info` | Call graph: definition + callers + callees |
+| 8 | `impact_analysis` | Risk assessment: score, affected files, risk level |
+| 9 | `get_repo_map` | Project structure + symbols |
+| 10 | `scan_changes` | Architectural diff |
+| 11 | `context_search` | Similar code by fragment |
+| 12 | `structural_search` | AST pattern matching (13 patterns) |
+| 13 | `watcher_status` | System health |
+| 14 | `get_logs` | Recent errors from logs |
+| 15 | `get_index_progress` | Indexing progress (phase, percent, files done/total) |
 
 ## AST Patterns (structural_search)
 

@@ -587,6 +587,64 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка при поиске информации о символе: {str(e)}"
 
     @mcp.tool()
+    def impact_analysis(symbol: str, depth: int = 3, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Анализ влияния изменения/удаления символа на весь проект.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять, что сломается при изменении функции/класса
+        - Оценить риск рефакторинга перед внесением изменений
+        - Найти все зависимости символа (прямые и косвенные)
+        - Определить scope изменений для code review
+
+        Args:
+            symbol: Имя символа (функция, класс, метод)
+            depth: Глубина анализа графа (1-5, по умолчанию 3)
+
+        Returns:
+            Структурированный отчёт с метриками риска:
+            - direct_callers: сколько напрямую вызывает этот символ
+            - transitive_callers: косвенные зависимости
+            - affected_files: файлы, которые нужно проверить
+            - risk_level: low | medium | high | critical
+            - risk_score: 0-100
+        """
+        _debug_log("impact_analysis", f"{symbol}, depth={depth}")
+        if not symbol_index:
+            return "❌ Движок анализа структуры недоступен."
+        try:
+            result = symbol_index.get_impact_analysis(symbol, depth=depth)
+
+            if not result.get("call_graph", {}).get("definition"):
+                return f"⚠️ Символ '{symbol}' не найден в индексе."
+
+            output = [
+                f"🎯 Impact Analysis: {symbol}",
+                f"",
+                f"📊 Метрики влияния:",
+                f"  • Прямые вызывающие: {result['direct_callers']}",
+                f"  • Косвенные вызывающие: {result['transitive_callers']}",
+                f"  • Прямые зависимости: {result['direct_callees']}",
+                f"  • Косвенные зависимости: {result['transitive_callees']}",
+                f"",
+                f"⚠️ Риск: {result['risk_level'].upper()} (score: {result['risk_score']}/100)",
+                f"",
+                f"📁 Затронутые файлы ({len(result['affected_files'])}):",
+            ]
+            for f in result["affected_files"][:15]:
+                output.append(f"  • {f}")
+            if len(result["affected_files"]) > 15:
+                output.append(f"  ... и ещё {len(result['affected_files']) - 15}")
+
+            if result["affected_modules"]:
+                output.append(f"")
+                output.append(f"📦 Затронутые модули: {', '.join(result['affected_modules'])}")
+
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка при работе инструмента impact_analysis: {e}")
+            return f"❌ Ошибка анализа влияния: {str(e)}"
+
+    @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 

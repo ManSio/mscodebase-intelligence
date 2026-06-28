@@ -489,6 +489,75 @@ class SymbolIndex:
             result["impact_files"] = sorted(result["impact_files"])
             return result
 
+    def get_impact_analysis(self, symbol: str, depth: int = 3) -> Dict:
+        """Анализ влияния изменения/удаления символа на проект.
+
+        Расширяет build_call_graph метриками риска и агрегированной статистикой.
+
+        Args:
+            symbol: Имя символа для анализа
+            depth: Глубина обхода графа (1-5)
+
+        Returns:
+            {
+                'symbol': str,
+                'direct_callers': int,
+                'transitive_callers': int,
+                'direct_callees': int,
+                'transitive_callees': int,
+                'affected_files': List[str],
+                'affected_modules': List[str],
+                'risk_level': str,        # 'low' | 'medium' | 'high' | 'critical'
+                'risk_score': int,        # 0-100
+                'call_graph': Dict,       # Полный граф из build_call_graph
+            }
+        """
+        call_graph = self.build_call_graph(symbol, depth=depth)
+
+        direct_callers = sum(1 for c in call_graph["callers"] if c.get("depth") == 1)
+        transitive_callers = len(call_graph["callers"]) - direct_callers
+        direct_callees = sum(1 for c in call_graph["callees"] if c.get("depth") == 1)
+        transitive_callees = len(call_graph["callees"]) - direct_callees
+
+        affected_files = call_graph.get("impact_files", [])
+        affected_modules = set()
+        for f in affected_files:
+            parts = f.replace("\\", "/").split("/")
+            for part in parts:
+                if part and "." not in part and part != "src":
+                    affected_modules.add(part)
+                    break
+
+        risk_score = 0
+        risk_score += min(direct_callers * 5, 30)
+        risk_score += min(transitive_callers * 2, 20)
+        risk_score += min(len(affected_files) * 3, 25)
+        risk_score += min(len(affected_modules) * 5, 15)
+        risk_score += min(direct_callees * 2, 10)
+        risk_score = min(risk_score, 100)
+
+        if risk_score >= 70:
+            risk_level = "critical"
+        elif risk_score >= 50:
+            risk_level = "high"
+        elif risk_score >= 25:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+
+        return {
+            "symbol": symbol,
+            "direct_callers": direct_callers,
+            "transitive_callers": transitive_callers,
+            "direct_callees": direct_callees,
+            "transitive_callees": transitive_callees,
+            "affected_files": affected_files,
+            "affected_modules": sorted(affected_modules),
+            "risk_level": risk_level,
+            "risk_score": risk_score,
+            "call_graph": call_graph,
+        }
+
     def get_architectural_diff(self, changed_files: List[str]) -> Dict:
         """Анализирует влияние изменений в файлах на архитектуру проекта.
 

@@ -51,10 +51,10 @@
 
 ## Roadmap до 90%+
 
-### Phase 1: Enhanced Graph (目标: 85%)
+### Phase 1: Enhanced Graph (目标: 85%) — IN PROGRESS
 
+- [x] **Impact Analysis** — `impact_analysis` MCP tool: risk score, affected files, risk level
 - [ ] **Полный граф зависимостей** — function, class, module, API route, event как узлы
-- [ ] **Impact Analysis** — "что сломается при изменении X?"
 - [ ] **Graph query API** — MCP tool `query_graph(query)`
 
 ### Phase 2: Semantic Enhancement (目标: 88%)

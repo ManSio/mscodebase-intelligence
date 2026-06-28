@@ -409,6 +409,127 @@ def test_parser_extract_calls_unsupported_extension():
     assert calls == []
 
 
+# ── Тест 6: Impact Analysis ───────────────────────────────────────────────
+
+
+def test_impact_analysis_basic(populated_index):
+    """get_impact_analysis возвращает корректные метрики."""
+    result = populated_index.get_impact_analysis("authenticate", depth=2)
+
+    assert result["symbol"] == "authenticate"
+    assert result["direct_callers"] >= 0
+    assert result["transitive_callers"] >= 0
+    assert result["direct_callees"] >= 0
+    assert result["transitive_callees"] >= 0
+    assert isinstance(result["affected_files"], list)
+    assert isinstance(result["affected_modules"], list)
+    assert result["risk_level"] in ("low", "medium", "high", "critical")
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_impact_analysis_direct_callers(populated_index):
+    """get_impact_analysis правильно считает direct_callers."""
+    # authenticate вызывается никем (top-level функция)
+    result = populated_index.get_impact_analysis("authenticate", depth=2)
+    assert result["direct_callers"] == 0
+
+    # validate_token вызывается из authenticate
+    result = populated_index.get_impact_analysis("validate_token", depth=2)
+    assert result["direct_callers"] == 1
+
+
+def test_impact_analysis_direct_callees(populated_index):
+    """get_impact_analysis правильно считает direct_callees."""
+    # authenticate вызывает validate_token и get_user
+    result = populated_index.get_impact_analysis("authenticate", depth=1)
+    assert result["direct_callees"] == 2
+
+
+def test_impact_analysis_transitive(populated_index):
+    """get_impact_analysis находит косвенные зависимости."""
+    # authenticate → validate_token → check_signature (transitive callee)
+    result = populated_index.get_impact_analysis("authenticate", depth=3)
+    assert result["transitive_callees"] >= 1
+    assert "check_signature" in [
+        c["symbol"] for c in result["call_graph"]["callees"]
+    ]
+
+
+def test_impact_analysis_affected_files(populated_index):
+    """get_impact_analysis собирает affected_files."""
+    result = populated_index.get_impact_analysis("authenticate", depth=3)
+
+    # Должен затронуть main.py, auth.py, utils.py
+    files = result["affected_files"]
+    assert "main.py" in files
+    assert "auth.py" in files
+
+
+def test_impact_analysis_risk_levels(populated_index):
+    """get_impact_analysis корректно определяет risk_level."""
+    # Символ без зависимостей — low risk
+    result = populated_index.get_impact_analysis("log_event", depth=2)
+    assert result["risk_level"] == "low"
+    assert result["risk_score"] < 25
+
+    # Символ с зависимостями — medium+ risk
+    result = populated_index.get_impact_analysis("authenticate", depth=3)
+    assert result["risk_score"] >= 0
+
+
+def test_impact_analysis_nonexistent_symbol(symbol_index):
+    """get_impact_analysis для несуществующего символа не падает."""
+    result = symbol_index.get_impact_analysis("nonexistent", depth=2)
+
+    assert result["symbol"] == "nonexistent"
+    assert result["direct_callers"] == 0
+    assert result["direct_callees"] == 0
+    assert result["affected_files"] == []
+    assert result["risk_level"] == "low"
+    assert result["risk_score"] == 0
+
+
+def test_impact_analysis_depth_limit(populated_index):
+    """get_impact_analysis ограничивает глубину."""
+    # depth=1 — только прямые связи
+    result_shallow = populated_index.get_impact_analysis("authenticate", depth=1)
+
+    # depth=3 — больше косвенных связей
+    result_deep = populated_index.get_impact_analysis("authenticate", depth=3)
+
+    # Глубокий анализ должен найти больше или столько же
+    assert result_deep["transitive_callees"] >= result_shallow["transitive_callees"]
+
+
+def test_risk_score_calculation(symbol_index):
+    """Risk score растёт с увеличением зависимостей."""
+    # Создаём символ с одним caller
+    symbol_index.add_definitions("test.py", [
+        {"name": "single_caller", "line": 1, "kind": "function"},
+        {"name": "caller1", "line": 10, "kind": "function"},
+    ])
+    symbol_index.add_references("test.py", [
+        {"caller": "caller1", "callee": "single_caller", "line": 11, "file": "test.py"},
+    ])
+
+    result_single = symbol_index.get_impact_analysis("single_caller", depth=2)
+
+    # Добавляем ещё 4 caller'ов
+    for i in range(2, 6):
+        symbol_index.add_definitions("test.py", [
+            {"name": f"caller{i}", "line": i * 10, "kind": "function"},
+        ])
+        symbol_index.add_references("test.py", [
+            {"caller": f"caller{i}", "callee": "single_caller", "line": i * 10 + 1, "file": "test.py"},
+        ])
+
+    result_multiple = symbol_index.get_impact_analysis("single_caller", depth=2)
+
+    # Больше caller'ов = выше score
+    assert result_multiple["risk_score"] >= result_single["risk_score"]
+    assert result_multiple["direct_callers"] == 5
+
+
 # ── Тест 6: Статистика ────────────────────────────────────────────────────
 
 

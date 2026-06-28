@@ -97,7 +97,7 @@ Add to your project's `.zed/settings.json` (or let `install.py` do it):
 
 ---
 
-## �️ Tools (14 total)
+## �️ Tools (15 total)
 
 | Tool | When to Use |
 |------|-------------|
@@ -109,7 +109,8 @@ Add to your project's `.zed/settings.json` (or let `install.py` do it):
 | `deep_search` | Iterative search with query refinement (research tasks) |
 | `cross_repo_search` | Multi-project search (`query @backend @frontend`) |
 | `get_context` | Gather relevant code chunks for a query |
-| `get_symbol_info` | Find definition + call graph (callers, callees, impact) |
+| `get_symbol_info` | Find definition + call graph (callers, callees) |
+| `impact_analysis` | **NEW** Analyze impact of changing/deleting a symbol (risk score, affected files) |
 | `get_repo_map` | Project structure overview (files + key symbols) |
 | `scan_changes` | Detect changes made outside Zed (git pull, checkout) |
 | `context_search` | Find similar code by embedding a selected fragment |
