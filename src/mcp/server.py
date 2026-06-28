@@ -363,29 +363,29 @@ def create_mcp_server() -> "FastMCP":
         if not query or not query.strip():
             return "❌ Пустой поисковый запрос. Укажите что искать."
 
-        # Определяем режим: agentic или обычный
-        use_agentic = False
-        if kwargs and kwargs.get("agentic") in (True, "true", "1", 1):
-            use_agentic = True
-        elif kwargs and kwargs.get("mode") == "agentic":
-            use_agentic = True
-        else:
-            # Автоматическое определение: сложный запрос = agentic
-            # Если запрос содержит "и", "а", "также", "как", "где", "что" и длинный
-            import re
-            complexity_indicators = [
-                r"\bи\b", r"\bа\b", r"\bтакже\b", r"\bплюс\b",
-                r"\bкак\b", r"\bгде\b", r"\bчто\b", r"\bкогда\b",
-                r",\s+",  # запятая с пробелом
-            ]
-            indicators_count = sum(
-                1 for pattern in complexity_indicators
-                if re.search(pattern, query.lower())
-            )
-            # Если 2+ индикатора или запрос > 50 символов — agentic
-            use_agentic = indicators_count >= 2 or len(query) > 50
-
         try:
+            # Определяем режим: agentic или обычный
+            use_agentic = False
+            if kwargs and kwargs.get("agentic") in (True, "true", "1", 1):
+                use_agentic = True
+            elif kwargs and kwargs.get("mode") == "agentic":
+                use_agentic = True
+            else:
+                # Автоматическое определение: сложный запрос = agentic
+                # Если запрос содержит "и", "а", "также", "как", "где", "что" и длинный
+                import re
+                complexity_indicators = [
+                    r"\bи\b", r"\bа\b", r"\bтакже\b", r"\bплюс\b",
+                    r"\bкак\b", r"\bгде\b", r"\bчто\b", r"\bкогда\b",
+                    r",\s+",  # запятая с пробелом
+                ]
+                indicators_count = sum(
+                    1 for pattern in complexity_indicators
+                    if re.search(pattern, query.lower())
+                )
+                # Если 2+ индикатора или запрос > 50 символов — agentic
+                use_agentic = indicators_count >= 2 or len(query) > 50
+
             if use_agentic:
                 return _agentic_search_handler(query, symbol_index)
             else:

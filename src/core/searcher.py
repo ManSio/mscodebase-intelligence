@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import math
@@ -350,9 +351,10 @@ class Searcher:
             # (варианты синонимов дают те же эмбеддинги)
             if variant == query and not all_dense_results:
                 try:
-                    # Используем async embedder если доступен
-                    if hasattr(self.embedder, 'embed_batch_async'):
-                        query_vectors = await self.embedder.embed_batch_async([variant], is_query=True)
+                    # Используем async embedder если доступен (и это реальная корутина, а не MagicMock)
+                    embed_async = getattr(self.embedder, 'embed_batch_async', None)
+                    if embed_async is not None and inspect.iscoroutinefunction(embed_async):
+                        query_vectors = await embed_async([variant], is_query=True)
                         query_vector = query_vectors[0] if query_vectors else None
                     else:
                         query_vector = self.embedder.embed(variant)

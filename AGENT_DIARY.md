@@ -2,6 +2,29 @@
 
 ---
 
+## [2026-06-28 21:30] — [Type: Fix] — Cold Start Race Condition (Status Warmup)
+
+**Проблема:**
+1. При старте ZED инструмент выдаёт статус `0` чанков, пока не начнётся повторная индексация
+2. Агент думает, что база пустая/не готова, и игнорирует локальный индекс
+3. Переключается на встроенные методы поиска вместо мощного MSCodeBase
+4. Это race condition между lazy-инициализацией LanceDB и планировщиком агента
+
+**Решение:**
+- Добавлен `_warmup_status()` — мгновенный подсчёт чанков через `table.count_rows()` в `__init__`
+- Кэш `_cached_total_chunks` инициализируется при создании инстанса
+- `get_status()` мгновенно возвращает кэш (без `to_pandas()` при >0)
+- Инкремент кэша в `_index_single_file` при добавлении чанков
+- Декремент кэша в `delete_file` и `prune_deleted_files` при удалении
+- `prune_deleted_files` теперь возвращает `int` (количество удалённых файлов)
+- Все операции с кэшем защищены `max(0, ...)` от отрицательных значений
+
+**Инструменты:** read_file, edit_file, terminal (pytest), diagnostics, get_index_status
+**Файлы:** `src/core/indexer.py`
+**Статус:** ✅ Все тесты пройдены (кроме уже существующих багов в searcher async/await)
+
+---
+
 ## [2026-06-28 20:00] — [Type: Refactor/Feature] — Multi-Provider Reranker (Ollama/LM Studio)
 
 **Проблема:**

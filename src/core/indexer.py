@@ -100,7 +100,36 @@ class Indexer:
                 else:
                     raise
 
+        # Прогрев статуса: мгновенный подсчёт существующих чанков без сканирования диска.
+        # Решает race condition "холодного старта" — агент Zed видит реальное количество
+        # чанков с первой миллисекунды, не дожидаясь завершения lazy-инициализации LanceDB.
+        self._cached_total_chunks: int = 0
+        self._warmup_status()
+
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
+
+    def _warmup_status(self) -> None:
+        """Мгновенный прогрев кэша количества чанков при старте.
+
+        Открывает существующую таблицу LanceDB и считает количество записей
+        без запуска сканирования диска и без обращения к эмбеддеру.
+        Результат сохраняется в self._cached_total_chunks.
+
+        При первом запуске (база ещё не существует) кэш остаётся 0.
+        Любая ошибка прогрева логируется как debug и не ломает инициализацию.
+        """
+        try:
+            if self.table is None:
+                return
+            count = self.table.count_rows()
+            self._cached_total_chunks = count
+            if count > 0:
+                logger.info(f"🔥 Прогрев статуса: в базе {count} чанков (cold start предотвращён)")
+            else:
+                logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
+        except Exception as e:
+            logger.debug(f"🔥 Прогрев статуса не удался: {e}. Кэш = 0.")
+            self._cached_total_chunks = 0
 
     def switch_project(self, project_path: Path) -> None:
         """Динамически переключает базу данных на проект.
@@ -158,16 +187,30 @@ class Indexer:
         return hasher.hexdigest()
 
     def get_status(self) -> Dict[str, Any]:
-        """Возвращает статистику базы данных."""
+        """Возвращает статистику базы данных.
+
+        Использует кэш количества чанков (_cached_total_chunks) для мгновенного
+        ответа без сканирования таблицы. При пустой базе или ошибке кэша
+        выполняет полный подсчёт через to_pandas() как fallback.
+        """
         try:
-            total_chunks = len(self.table)
+            total_chunks = self._cached_total_chunks
+
             if total_chunks == 0:
-                return {
-                    "total_chunks": 0,
-                    "unique_files": 0,
-                    "total_files": 0,
-                    "status": "empty",
-                }
+                # Fallback: полный подсчёт (для случаев, когда кэш не прогрет)
+                try:
+                    total_chunks = self.table.count_rows()
+                    self._cached_total_chunks = total_chunks
+                except Exception:
+                    pass
+
+                if total_chunks == 0:
+                    return {
+                        "total_chunks": 0,
+                        "unique_files": 0,
+                        "total_files": 0,
+                        "status": "empty",
+                    }
 
             df = self.table.to_pandas()
             unique_files = df["file_path"].nunique()
@@ -217,7 +260,20 @@ class Indexer:
             # Если файл изменился или новый — удаляем его старые чанки
             if existing_hash is not None:
                 try:
+                    # Подсчёт старых чанков для корректного декремента кэша
+                    old_chunks = 0
+                    try:
+                        df_check = self.table.to_pandas()
+                        if not df_check.empty:
+                            old_chunks = int((df_check["file_path"] == rel_path_str).sum())
+                    except Exception:
+                        pass
+
                     self.table.delete(f"file_path = '{escaped_path}'")
+
+                    # Декремент кэша на количество удалённых старых чанков
+                    if old_chunks > 0:
+                        self._cached_total_chunks = max(0, self._cached_total_chunks - old_chunks)
                 except Exception as del_err:
                     logger.debug(
                         f"delete() не нашёл запись (первичная индексация): {del_err}"
@@ -284,6 +340,11 @@ class Indexer:
 
             # Атомарная запись пачки чанков в таблицу
             self.table.add(data_records)
+
+            # Синхронизация кэша: инкремент на количество добавленных чанков
+            # (старые чанки этого файла уже были удалены выше, поэтому чистый +N)
+            self._cached_total_chunks += len(data_records)
+
             logger.info(
                 f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunk_texts)} чанков)"
             )
@@ -293,21 +354,24 @@ class Indexer:
             logger.error(f"❌ Критический сбой индексации файла {rel_path_str}: {e}")
             return False
 
-    def prune_deleted_files(self, active_files_on_disk: Set[str]):
+    def prune_deleted_files(self, active_files_on_disk: Set[str]) -> int:
         """Удаляет из базы данных файлы, которых больше нет на физическом диске.
 
         Args:
             active_files_on_disk: Полный набор файлов на диске (не только удалённые!).
 
+        Returns:
+            Количество удалённых файлов.
+
         Warning:
             НЕ вызывайте эту функцию с одним элементом — это удалит все
             остальные файлы из базы! Используйте delete_file() для одиночного удаления.
         """
-        if len(self.table) == 0:
-            return
+        if self._cached_total_chunks == 0:
+            return 0
         if not active_files_on_disk:
             logger.warning("⚠️ prune_deleted_files вызван с пустым набором файлов. Пропуск.")
-            return
+            return 0
 
         try:
             df = self.table.to_pandas()
@@ -318,19 +382,48 @@ class Indexer:
                 logger.info(
                     f"🧹 Обнаружены удаленные файлы. Начинается чистка базы от мёртвого груза..."
                 )
+                total_deleted_chunks = 0
                 for file_path in deleted_files:
                     escaped = self._escape_file_path_for_lance(file_path)
+
+                    # Подсчёт чанков для декремента кэша
+                    file_chunks = int((df["file_path"] == file_path).sum())
+                    total_deleted_chunks += file_chunks
+
                     self.table.delete(f"file_path = '{escaped}'")
                     logger.info(f"  └─ Изъят из индекса: {file_path}")
+
+                # Синхронизация кэша: декремент на количество удалённых чанков
+                if total_deleted_chunks > 0:
+                    self._cached_total_chunks = max(0, self._cached_total_chunks - total_deleted_chunks)
+
                 logger.info("✅ База данных полностью синхронизирована с диском.")
+                return len(deleted_files)
+            return 0
         except Exception as e:
             logger.error(f"Ошибка при выполнении операции Pruning: {e}")
+            return 0
 
     def delete_file(self, rel_path_str: str) -> bool:
         """Удаляет один файл из базы по относительному пути. Безопасно для одиночного удаления."""
         try:
             escaped = self._escape_file_path_for_lance(rel_path_str)
+
+            # Подсчёт количества удаляемых чанков для корректного декремента кэша
+            deleted_count = 0
+            try:
+                df_all = self.table.to_pandas()
+                if not df_all.empty:
+                    deleted_count = int((df_all["file_path"] == rel_path_str).sum())
+            except Exception:
+                pass
+
             self.table.delete(f"file_path = '{escaped}'")
+
+            # Синхронизация кэша: декремент на количество удалённых чанков
+            if deleted_count > 0:
+                self._cached_total_chunks = max(0, self._cached_total_chunks - deleted_count)
+
             logger.info(f"🗑️ Удалён файл: {rel_path_str}")
             return True
         except Exception as e:
