@@ -461,6 +461,21 @@ MSCodeBase/
 
 ---
 
+## 🗺️ Roadmap
+
+**Текущий уровень: 75–82%** от лучших GraphRAG Code Memory систем.
+
+| Фаза | Цель | Ключевые фичи |
+|------|------|---------------|
+| **Phase 1** | 85% | Impact Analysis, полный граф зависимостей, Graph Query API |
+| **Phase 2** | 88% | LLM-описания чанков (+40-50% качество), RepoRank, branch-aware индекс |
+| **Phase 3** | 92% | Semantic commit memory, bug correlation, auto relations |
+| **Phase 4** | 95% | Full GraphRAG, knowledge graph navigation, cross-project graph |
+
+Подробнее: [VISION.md](VISION.md)
+
+---
+
 ## � Security
 
 - **Local-only storage** — all data stored locally (no cloud)
