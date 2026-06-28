@@ -773,6 +773,112 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
+    def get_commit_history(project_root: str, limit: int = 10, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает семантическую историю изменений проекта.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять историю изменений файла или символа
+        - Найти какие файлы обычно меняются вместе
+        - Определить стабильность модуля
+
+        Args:
+            project_root: Путь к проекту
+            limit: Количество последних коммитов
+
+        Returns:
+            История коммитов с метаданными
+        """
+        _debug_log("get_commit_history", f"{project_root}, limit={limit}")
+        try:
+            from src.core.commit_memory import CommitMemory
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+            commits = memory.fetch_commits(limit=limit)
+
+            if not commits:
+                return "⚠️ Нет коммитов или git недоступен."
+
+            output = [f"📜 Commit History (последние {len(commits)}):\n"]
+
+            for i, commit in enumerate(commits[:limit], 1):
+                hash_short = commit["hash"][:8]
+                date = commit.get("date", "")[:10]
+                msg = commit.get("message", "")[:60]
+                files = len(commit.get("files", []))
+                output.append(f"  {i}. [{hash_short}] {date} — {msg}")
+                output.append(f"     Файлов изменено: {files}")
+
+            # Статистика
+            stats = memory.get_stats()
+            output.append(f"")
+            output.append(f"� Статистика:")
+            output.append(f"  • Всего коммитов: {stats['total']}")
+            if stats.get("authors"):
+                for author, count in stats["authors"].items():
+                    output.append(f"  • {author}: {count} коммитов")
+
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка get_commit_history: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def get_file_history(project_root: str, file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает историю изменений конкретного файла.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять эволюцию файла
+        - Найти кто и когда менял файл
+        - Определить стабильность модуля
+
+        Args:
+            project_root: Путь к проекту
+            file_path: Относительный путь к файлу
+
+        Returns:
+            История изменений файла
+        """
+        _debug_log("get_file_history", f"{project_root}, {file_path}")
+        try:
+            from src.core.commit_memory import CommitMemory
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+
+            # Получаем коммиты для файла
+            commits = memory.get_commits_for_file(file_path)
+            stability = memory.get_file_stability(file_path)
+
+            if not commits:
+                return f"⚠️ Нет коммитов для файла: {file_path}"
+
+            output = [
+                f"� File History: {file_path}",
+                f"� Стабильность: {stability['stability']}",
+                f"� Количество изменений: {stability['change_count']}",
+                f"",
+                f"Последние коммиты:\n",
+            ]
+
+            for i, commit in enumerate(commits[:10], 1):
+                hash_short = commit["hash"][:8]
+                date = commit.get("date", "")[:10]
+                msg = commit.get("message", "")[:60]
+                output.append(f"  {i}. [{hash_short}] {date} — {msg}")
+
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка get_file_history: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 
