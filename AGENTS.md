@@ -121,9 +121,9 @@ notify_change        →→→       нет аналога
 
 **Цепочка верификации после каждого edit_file/write_file:**
 1. `edit_file` / `write_file` → запись
-2. `verify_action(action_type='file_write', file_path=...)` → подтверждение записи
-3. `notify_change(file_path=...)` → обновление индекса
-4. `get_index_status()` → подтверждение синхронизации
+2. `notify_change(file_path=...)` → обновление индекса (читает из LSP VFS, не с диска!)
+3. `get_index_status()` → подтверждение синхронизации
+4. `verify_action(action_type='file_write', file_path=...)` → подтверждение записи (опционально)
 
 **После git commit+push:**
 1. `git commit` + `git push` → выполнение
