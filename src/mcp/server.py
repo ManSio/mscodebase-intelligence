@@ -18,7 +18,6 @@ from src.core.searcher import Searcher
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
 
 try:
-    from src.core.context_engine import get_context as get_context_func
     from src.core.parser import CodeParser
     from src.core.symbol_index import SymbolIndex
 except ImportError as e:
@@ -492,24 +491,6 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка agentic_code_search: {e}", exc_info=True)
             # Fallback на обычный поиск
             return searcher.search(query, limit=6)
-
-    @mcp.tool()
-    def get_context(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Генерирует интеллектуальный упакованный контекст для AI-ассистента в стиле Cursor @codebase.
-
-        В отличие от search_code, возвращает сжатый контекст с несколькими фрагментами,
-        оптимизированный под токены. Идеален для быстрого погружения в незнакомый код.
-
-        CRITICAL USAGE RULE:
-        Only use this tool for targeted context retrieval (specific query).
-        DO NOT use it to read entire files — use grep + targeted read_file instead.
-        """
-        _debug_log("get_context", query)
-        try:
-            return get_context_func(query, searcher)
-        except Exception as e:
-            logger.error(f"Ошибка get_context: {e}", exc_info=True)
-            return f"❌ Ошибка получения контекста: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:

@@ -124,7 +124,11 @@ class MultiProviderReranker:
             self._client = None
 
     async def _ping_lm_studio(self) -> bool:
-        """Быстрый пинг LM Studio. Возвращает True если сервер отвечает."""
+        """Быстрый пинг LM Studio. Возвращает True если сервер отвечает.
+
+        Сохраняет Instruct-модель (без embed/rerank в имени) для LLM-реранкинга.
+        Если Instruct нет — сохраняет первую модель (для embedding-реранкинга).
+        """
         try:
             resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
                 f"{self.lm_studio_url}/models"
@@ -133,7 +137,15 @@ class MultiProviderReranker:
                 data = resp.json()
                 models = data.get("data", [])
                 if models:
-                    self.lm_studio_model_name = models[0].get("id")
+                    # Ищем Instruct-модель для LLM-реранкинга
+                    instruct_model = None
+                    for m in models:
+                        mid = m.get("id", "").lower()
+                        if "embed" not in mid and "rerank" not in mid:
+                            instruct_model = m.get("id")
+                            break
+                    # Если нашли Instruct — используем её, иначе первую
+                    self.lm_studio_model_name = instruct_model or models[0].get("id")
                 return True
             return False
         except Exception:

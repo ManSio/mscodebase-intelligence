@@ -53,7 +53,6 @@ from src.core.log_manager import setup_project_logging, get_log_summary
 from src.core.symbol_index import SymbolIndex
 from src.core.structural_search import StructuralSearcher
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-from src.core.context_engine import get_context as get_context_func
 
 # Настройка файлового логирования
 setup_project_logging(_ext_root)

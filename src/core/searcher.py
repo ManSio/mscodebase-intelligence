@@ -7,8 +7,34 @@ import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
-from src.core.query_expansion import expand_query
 from src.core.reranker import MultiProviderReranker, SearchResultReranker
+
+# Простая функция расширения запроса синонимами (встроена после удаления query_expansion.py)
+_QUERY_SYNONYMS = {
+    "auth": ["authentication", "login", "authorize"],
+    "login": ["auth", "signin", "authenticate"],
+    "config": ["configuration", "settings", "options"],
+    "error": ["exception", "failure", "bug"],
+    "create": ["add", "insert", "new"],
+    "delete": ["remove", "destroy", "clear"],
+    "update": ["edit", "modify", "change"],
+    "get": ["fetch", "retrieve", "read"],
+}
+
+
+def _expand_query(query: str, max_expansions: int = 3) -> List[str]:
+    """Расширяет запрос синонимами для улучшения полноты поиска."""
+    variants = [query]
+    words = query.lower().split()
+    for word in words:
+        synonyms = _QUERY_SYNONYMS.get(word, [])
+        for syn in synonyms[:max_expansions - 1]:
+            variant = query.replace(word, syn, 1)
+            if variant not in variants:
+                variants.append(variant)
+                if len(variants) >= max_expansions:
+                    return variants
+    return variants
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +362,7 @@ class Searcher:
         """
         # Query Expansion: генерируем варианты запроса
         if expand:
-            query_variants = expand_query(query, max_expansions=3)
+            query_variants = _expand_query(query, max_expansions=3)
         else:
             query_variants = [query]
 
@@ -628,7 +654,7 @@ class Searcher:
             if iteration < max_iterations:
                 if not results or len(new_results) == 0:
                     # Нет результатов — пробуем query expansion с другими синонимами
-                    expanded = expand_query(query, max_expansions=5)
+                    expanded = _expand_query(query, max_expansions=5)
                     if len(expanded) > 1:
                         current_query = expanded[min(iteration, len(expanded) - 1)]
                         search_metadata["queries_used"].append(
