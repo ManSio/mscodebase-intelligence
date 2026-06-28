@@ -58,9 +58,9 @@ class RemoteEmbedder:
                     "⚠️ Внешние API не обнаружены. Будет задействован ЛОКАЛЬНЫЙ движок ONNX Runtime."
                 )
 
-        # Запуск фонового сканера доступности провайдера (только если LM Studio ещё не доступен)
+        # Запуск фонового сканера доступности провайдера (LM Studio/Ollama)
         self._scanner_stop = threading.Event()
-        if not _lm_available:
+        if not _lm_available or self.mode in ("onnx", "fallback"):
             logger.info(
                 f"🔄 Фоновый сканер будет проверять LM Studio каждые {_PROVIDER_SCAN_INTERVAL}с."
             )
@@ -152,7 +152,7 @@ class RemoteEmbedder:
                         self.mode = "ollama"
                         self._preferred_mode = "ollama"
                     logger.info(
-                        "� Ollama обнаружен! Переключаюсь с ONNX → Ollama. "
+                        "🌐 Ollama обнаружен! Переключаюсь с ONNX → Ollama. "
                         "Сканер остановлен."
                     )
                     return  # Успешное подключение — завершаем поток
@@ -283,7 +283,15 @@ class RemoteEmbedder:
                 except Exception as e:
                     logger.error(f"Ошибка вычислений внутри ONNX Runtime: {e}")
 
-        # Режим 3: Честный заглушечный вектор (Защита сервера от падения)
+        # Режим 3: Fallback — пробуем переключиться на LM Studio
+        if self._check_lm_studio():
+            with self._mode_lock:
+                self.mode = "lm_studio"
+            logger.info("🌐 Fallback: LM Studio обнаружен, переключаюсь на него.")
+            # Рекурсивный вызов с новым режимом
+            return self.embed_batch(texts, is_query)
+
+        # Режим 4: Честный заглушечный вектор (Защита сервера от падения)
         logger.critical(
             "⚠️ ВНИМАНИЕ: Все движки векторизации недоступны. Генерация пустых заглушек."
         )

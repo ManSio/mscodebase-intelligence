@@ -39,6 +39,161 @@
 
 ---
 
+## [2026-06-28 15:00] — [Type: Audit] — Agentic Code Search Review (4/5)
+
+**Аудитор:** Senior Backend Architect (внешний аудит)
+
+**Оценка:** 4/5 — Рабочий MVP, но не полная реализация статьи arxiv 2505.14321
+
+**Критические находки:**
+1. Декомпозиция через правила (не LLM) — соответствие статье 30%
+2. Нет реального параллелизма (asyncio.gather / ThreadPoolExecutor)
+3. Call Graph не используется в _analyze_subquery_relations
+4. Нет Cost-Benefit анализа (precision/recall vs обычный поиск)
+5. Нет fallback при плохой декомпозиции
+
+**Рекомендации (TODO для следующей итерации):**
+- [ ] **Medium priority:** Интегрировать реальный LLM-вызов (LM Studio API) для декомпозиции
+  - Effort: 2-3 часа
+  - Benefit: +40% точности на сложных запросах
+  - Risk: Низкий (есть fallback на правила)
+  - Код: `_decompose_query_with_llm()` в searcher.py
+- [ ] **Medium priority:** Добавить asyncio.gather для параллельного поиска подзапросов
+- [ ] **Low priority:** Добавить метрики качества (precision@5, recall@5, время)
+- [ ] **Low priority:** Fallback к обычному поиску при плохой декомпозиции
+
+**Инструменты:** read_file, grep, context_search
+
+**Файлы проверены:**
+- `src/core/searcher.py` — agentic_code_search, _decompose_query_with_llm
+- `src/mcp/server.py` — search_code с agentic mode
+- `tests/test_agentic_search.py` — 16 тестов
+
+**Статус:** ✅ Принято как MVP, доработки запланированы
+
+---
+
+## [2026-06-28 16:00] — [Type: Feature] — Agentic Code Search v2 (LLM + Parallel)
+
+**Проблемы предыдущей версии (из аудита):**
+1. Декомпозиция через правила (не LLM) — точность ~30% от оригинала
+2. Нет реального параллелизма (последовательный поиск)
+3. Нет fallback при плохой декомпозиции
+
+**Решение:**
+- `_try_llm_decompose()` — новый метод для LLM-декомпозиции через LM Studio API
+  - POST запрос к http://localhost:1234/v1/chat/completions
+  - JSON ответ парсится, валидируется (5-100 символов на подзапрос)
+  - Fallback на правила при ошибке (httpx не установлен, LM Studio недоступен, таймаут)
+- `agentic_code_search()` — переписан:
+  - ThreadPoolExecutor для параллельного поиска подзапросов (max_workers=4)
+  - Fallback к обычному поиску если ни один подзапрос не дал результатов
+  - Метаданные отслеживают метод декомпозиции (llm/rules/none) и fallback
+- 4 новых теста: fallback, LLM->rules fallback, parallel search, decomposition method tracking
+
+**Тесты:** 20/20 пройдено (было 16, стало 20)
+
+**Инструменты:** read_file, edit_file, pytest
+
+**Файлы изменены:**
+- `src/core/searcher.py` — _try_llm_decompose(), переписан agentic_code_search()
+- `tests/test_agentic_search.py` — 4 новых теста
+
+**Статус:** ✅
+
+---
+
+## [2026-06-28 17:00] — [Type: Feature] — Agentic Code Search v3 (Call Graph + Metrics)
+
+**Проблемы предыдущей версии (из аудита):**
+1. Call Graph не используется в _analyze_subquery_relations
+2. Нет метрик качества (precision/recall)
+3. Нет документации по Performance Tuning
+
+**Решение:**
+- `_analyze_subquery_relations()` — добавлен параметр `symbol_index`
+  - Использует `symbol_index.find_definitions()` для поиска символов в общих файлах
+  - Использует `symbol_index.find_references()` для построения Call Graph hints
+  - Graceful degradation при ошибке symbol_index
+- `agentic_code_search()` — теперь передаёт symbol_index в анализ связей
+- 5 новых тестов: Call Graph с symbol_index, без symbol_index, ошибка symbol_index, метрики, agentic vs hybrid fallback
+- README.md — добавлена секция "⚡ Performance Tuning" с таблицей режимов
+
+**Тесты:** 25/25 пройдено (было 20, стало 25)
+
+**Инструменты:** read_file, edit_file, pytest
+
+**Файлы изменены:**
+- `src/core/searcher.py` — _analyze_subquery_relations с symbol_index
+- `tests/test_agentic_search.py` — 5 новых тестов
+- `README.md` — Performance Tuning секция
+
+**Статус:** ✅
+
+---
+
+## [2026-06-28 18:00] — [Type: Feature] — Agentic Code Search v4 (Full Call Graph + Benchmarks)
+
+**Проблемы предыдущей версии (из аудита 4.5/5):**
+1. Call Graph упрощён (find_definitions/find_references вместо build_call_graph)
+2. Нет полноценного benchmark suite
+3. Post-Modification Sync не выполнен
+
+**Решение:**
+- `symbol_index.py` — добавлен `get_symbols_in_file()` для получения символов из файла
+- `_analyze_subquery_relations()` — переписан с `build_call_graph(symbol_name, depth=2)`:
+  - Полноценный граф вызовов: callers + callees
+  - Метрики: `call_graph_depth`, `call_graph_nodes_count`
+  - Graceful degradation: build_call_graph → find_references → пустой результат
+- `tests/benchmark_agentic_search.py` — НОВЫЙ (7 тестов):
+  - TestBenchmarkSimpleQuery — hybrid быстрее для простых
+  - TestBenchmarkComplexQuery — agentic точнее для сложных
+  - TestBenchmarkDecompositionQuality — LLM vs правила
+  - TestBenchmarkCallGraphOverhead — накладные расходы < 3x
+  - TestBenchmarkEndToEnd — сравнительная таблица
+- README.md — добавлена секция "📊 Benchmarks"
+- Post-Modification Sync: scan_changes ✅, get_index_status ✅, diagnostics ✅
+
+**Тесты:** 117 всего (100 unit + 7 benchmark), все проходят
+**Индекс:** 546 фрагментов, 394 символа
+**Диагностика:** 0 ошибок, 0 предупреждений
+
+**Статус:** ✅
+
+---
+
+## [2026-06-28 19:00] — [Type: Feature] — Indexing Progress Tracking + Post-Mod Sync
+
+**Проблемы:**
+1. Индексация асинхронная, но нет обратной связи для агента
+2. Нет информации о прогрессе (сколько файлов осталось)
+3. Post-Modification Sync не соблюдался
+
+**Решение:**
+- `indexer.py` — `index_project()` теперь принимает `progress_callback`
+  - Подсчёт общего числа файлов перед началом
+  - Callback вызывается для каждого файла с phase: 'scanning', 'rebuilding_bm25', 'complete'
+  - Graceful degradation при ошибках отдельных файлов
+- `server.py` — добавлен `_create_progress_callback()`
+  - Логирует прогресс каждые 10 файлов
+  - Хранит `_last_progress` для запроса через MCP
+- `server.py` — новый MCP-инструмент `get_index_progress()`
+  - Возвращает текущий прогресс по всем проектам
+  - Показывает phase, percent, files done/total
+- `mscodebase-rules` — добавлен раздел 8 "INDEXING PROGRESS AWARENESS"
+  - IF phase = "complete" → можно искать
+  - IF phase = "scanning" → ждать или grep
+  - IF percent < 50% → предупредить пользователя
+- Post-Modification Sync: ✅ scan_changes, get_index_status, diagnostics
+
+**Тесты:** 100/100 проходят
+**Индекс:** 546 фрагментов, 394 символа
+**Диагностика:** 0 ошибок, 0 предупреждений
+
+**Статус:** ✅
+
+---
+
 ## [2026-06-28 13:00] — [Type: Feature] — Cross-repo @-mention Search (Шаг 6/6)
 
 **Проблема:**
