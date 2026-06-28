@@ -304,7 +304,8 @@ def create_mcp_server() -> "FastMCP":
                 pass
 
             # Fallback: обычный indexer (legacy mode)
-            if indexer._index_single_file(path, rel_path, content=content):
+            source = "lsp_vfs" if content is not None else "filesystem"
+            if indexer._index_single_file(path, rel_path, content=content, source=source):
                 return f"✅ Обновлено: {rel_path}"
             return f"⏭️ Без изменений: {rel_path}"
         except Exception as e:

@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -66,9 +67,10 @@ class Indexer:
         # используем WAL режим (если поддерживается)
         self.db = lancedb.connect(lancedb_path)
 
-        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index
+        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source
         # text — компактный чанк (сигнатура + превью) для эмбеддинга и экономии токенов
         # text_full — полный текст функции/метода (для детального анализа по запросу)
+        # source — источник индексации: 'lsp_vfs' (память IDE) или 'filesystem' (диск)
         self.schema = pa.schema(
             [
                 pa.field("id", pa.string()),
@@ -80,6 +82,8 @@ class Indexer:
                 pa.field("file_path", pa.string()),
                 pa.field("file_hash", pa.string()),
                 pa.field("chunk_index", pa.int32()),
+                pa.field("source", pa.string()),
+                pa.field("indexed_at", pa.string()),
             ]
         )
 
@@ -289,13 +293,14 @@ class Indexer:
         escaped = file_path.replace("'", "''")
         return escaped
 
-    def _index_single_file(self, full_path: Path, rel_path_str: str, content: Optional[str] = None) -> bool:
+    def _index_single_file(self, full_path: Path, rel_path_str: str, content: Optional[str] = None, source: str = "filesystem") -> bool:
         """Индицирует один файл, если его хэш изменился.
 
         Args:
             full_path: Абсолютный путь к файлу
             rel_path_str: Относительный путь для хранения в базе
             content: Готовый текст файла (из памяти LSP). Если None — читает с диска.
+            source: источник индексации — 'lsp_vfs' (память IDE) или 'filesystem' (диск)
         """
         try:
             safe_read_path = self.path_manager.get_safe_path(full_path)
@@ -415,6 +420,8 @@ class Indexer:
                         "file_path": rel_path_str,
                         "file_hash": current_hash,
                         "chunk_index": i,
+                        "source": source,
+                        "indexed_at": datetime.now().isoformat(),
                     }
                 )
 
