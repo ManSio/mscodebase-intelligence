@@ -140,18 +140,24 @@ from pygls.lsp.server import LanguageServer
 server = LanguageServer("mscodebase-lsp", "2.0.0")
 
 
-@server.feature("initialize")
-async def on_initialize(ls: LanguageServer, params: InitializeParams):
-    """Инициализация LSP-сервера."""
+@server.feature("initialized")
+async def on_initialized(ls: LanguageServer, params):
+    """Инициализация после подключения Zed (params пустой — это нормально)."""
     try:
-        workspace = params.workspace_folders[0] if params.workspace_folders else None
-        if workspace:
-            project_path = uri_to_path(workspace.uri)
-        else:
-            project_path = Path.cwd()
+        # Используем root_path из pygls (надёжнее чем params.workspace_folders)
+        root_path = ls.workspace.root_path
+        if not root_path:
+            root_path = str(Path.cwd())
 
+        project_path = Path(root_path).resolve()
         shared_indexer.initialize(project_path)
         logger.info(f"🚀 LSP initialized for {project_path}")
+
+        # Холодный старт — индексация всех файлов
+        logger.info("🔄 Cold start indexing...")
+        shared_indexer.indexer.index_project(project_path)
+        logger.info("✅ Cold start complete")
+
     except Exception as e:
         logger.error(f"LSP init error: {e}")
 
@@ -238,11 +244,15 @@ def start_mcp_server():
         @mcp.tool()
         def search_code(query: str) -> str:
             """Поиск кода по базе."""
+            if not shared_indexer._initialized:
+                return "⏳ Индексатор ещё инициализируется..."
             return shared_indexer.search(query)
 
         @mcp.tool()
         def get_index_status() -> str:
             """Статус индекса."""
+            if not shared_indexer._initialized:
+                return "⏳ Индексатор ещё инициализируется..."
             status = shared_indexer.get_status()
             return f"Chunks: {status.get('total_chunks', 0)}, Files: {status.get('unique_files', 0)}"
 
