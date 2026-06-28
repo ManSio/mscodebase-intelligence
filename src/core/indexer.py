@@ -88,7 +88,42 @@ class Indexer:
         # при "already exists" — пробуем открыть снова.
         try:
             self.table = self.db.open_table(self.table_name)
-            logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
+            # Проверяем что схема содержит text_full (миграция)
+            existing_fields = [f.name for f in self.table.schema]
+            if "text_full" not in existing_fields:
+                logger.warning(f"⚠️ Миграция: добавляем text_full в существующую таблицу")
+                # Читаем существующие данные
+                try:
+                    old_df = self.table.to_pandas()
+                    # Добавляем text_full = text (копируем значение)
+                    if "text_full" not in old_df.columns:
+                        old_df["text_full"] = old_df["text"]
+                    # Удаляем старую таблицу и создаём новую
+                    self.db.drop_table(self.table_name)
+                    self.table = self.db.create_table(self.table_name, schema=self.schema)
+                    # Восстанавливаем данные
+                    if len(old_df) > 0:
+                        records = []
+                        for _, row in old_df.iterrows():
+                            records.append({
+                                "id": row["id"],
+                                "vector": row["vector"],
+                                "text": row["text"],
+                                "text_full": row["text_full"],
+                                "file_path": row["file_path"],
+                                "file_hash": row["file_hash"],
+                                "chunk_index": int(row["chunk_index"]),
+                            })
+                        self.table.add(records)
+                        logger.info(f"📦 Миграция завершена: {len(records)} записей восстановлено")
+                    else:
+                        logger.info(f"📦 Миграция завершена: таблица была пустой")
+                except Exception as mig_err:
+                    logger.error(f"Ошибка миграции: {mig_err}, создаём пустую таблицу")
+                    self.db.drop_table(self.table_name)
+                    self.table = self.db.create_table(self.table_name, schema=self.schema)
+            else:
+                logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
         except Exception as open_err:
             logger.debug(f"Не удалось открыть таблицу: {open_err}. Пробуем создать.")
             try:
@@ -235,18 +270,30 @@ class Indexer:
         escaped = file_path.replace("'", "''")
         return escaped
 
-    def _index_single_file(self, full_path: Path, rel_path_str: str) -> bool:
-        """Индицирует один файл, если его хэш изменился."""
+    def _index_single_file(self, full_path: Path, rel_path_str: str, content: Optional[str] = None) -> bool:
+        """Индицирует один файл, если его хэш изменился.
+
+        Args:
+            full_path: Абсолютный путь к файлу
+            rel_path_str: Относительный путь для хранения в базе
+            content: Готовый текст файла (из памяти LSP). Если None — читает с диска.
+        """
         try:
             safe_read_path = self.path_manager.get_safe_path(full_path)
-            current_hash = self._calculate_file_hash(safe_read_path)
+
+            # Если контент не передан — читаем с диска
+            if content is None:
+                with open(str(safe_read_path), "rb") as f:
+                    raw_data = f.read()
+                content = raw_data.decode("utf-8", errors="replace")
+
+            # Вычисляем хэш из контента (не с диска)
+            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
 
             # Экранируем путь для SQL-like where-выражений LanceDB
             escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
             # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB
-            # Используем to_pandas() вместо .search().where() для совместимости
-            # со всеми версиями LanceDB
             existing_hash = None
             try:
                 df_all = self.table.to_pandas()
@@ -281,11 +328,6 @@ class Indexer:
                     logger.debug(
                         f"delete() не нашёл запись (первичная индексация): {del_err}"
                     )
-
-            # Гарантированное бинарное чтение с защитой от UnicodeDecodeError
-            with open(str(safe_read_path), "rb") as f:
-                raw_data = f.read()
-            content = raw_data.decode("utf-8", errors="replace")
 
             if not content.strip():
                 return False
@@ -543,12 +585,13 @@ class Indexer:
 
         return indexed_count
 
-    def index_file(self, full_path: Path, project_path: Path) -> bool:
+    def index_file(self, full_path: Path, project_path: Path, content: Optional[str] = None) -> bool:
         """Публичный метод для индексации одного файла (вызывается из LSP-сервера).
 
         Args:
             full_path: Абсолютный путь к файлу
             project_path: Корневая директория проекта
+            content: Готовый текст файла из памяти LSP (didSave). Если None — читает с диска.
 
         Returns:
             True если файл был проиндексирован, False если пропущен
@@ -560,7 +603,7 @@ class Indexer:
                 return False
 
             rel_path_str = str(full_path.relative_to(project_path))
-            return self._index_single_file(full_path, rel_path_str)
+            return self._index_single_file(full_path, rel_path_str, content=content)
         except Exception as e:
             logger.error(f"[index_file] Ошибка индексации {full_path}: {e}")
             return False

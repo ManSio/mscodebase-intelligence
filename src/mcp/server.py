@@ -221,102 +221,13 @@ def create_mcp_server() -> "FastMCP":
     logger.info("🚀 MCP-сервер запущен")
 
     # ==========================================
-    # FILE WATCHER — ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ
+    # ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ ЧЕРЕЗ LSP
     # ==========================================
-    # Используем watchdog для отслеживания изменений файлов.
-    # Это решает проблему блокировки файлов на Windows — watcher
-    # использует ReadDirectoryChangesW с debounce, что позволяет
-    # избежать каскада событий при Ctrl+S.
-    _file_watcher = None
-    _file_watcher_stop_event = threading.Event()
-
-    def _start_file_watcher():
-        """Запускает фоновый watcher для инкрементальной индексации."""
-        try:
-            from watchdog.observers import Observer
-            from watchdog.events import FileSystemEventHandler
-
-            class _ChangeHandler(FileSystemEventHandler):
-                def __init__(self):
-                    self._pending = {}
-                    self._lock = threading.Lock()
-                    self._debounce_timer = None
-
-                def _schedule_index(self, file_path: str):
-                    """Планирует индексацию с debounce 2 секунды."""
-                    with self._lock:
-                        self._pending[file_path] = time.time()
-
-                    if self._debounce_timer is not None:
-                        self._debounce_timer.cancel()
-
-                    self._debounce_timer = threading.Timer(
-                        2.0, self._flush_pending
-                    )
-                    self._debounce_timer.daemon = True
-                    self._debounce_timer.start()
-
-                def _flush_pending(self):
-                    """Выполняет индексацию накопившихся изменений."""
-                    with self._lock:
-                        pending = self._pending.copy()
-                        self._pending.clear()
-
-                    if not pending:
-                        return
-
-                    for file_path in pending:
-                        try:
-                            path = Path(file_path)
-                            if not path.exists():
-                                continue
-                            if path.suffix.lower() not in {".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go", ".md"}:
-                                continue
-
-                            try:
-                                rel_path = str(path.relative_to(ext_root))
-                            except ValueError:
-                                continue
-
-                            logger.info(f"[WATCHER] Изменение: {rel_path}")
-                            indexer._index_single_file(path, rel_path)
-                        except Exception as e:
-                            logger.debug(f"[WATCHER] Ошибка индексации {file_path}: {e}")
-
-                def on_modified(self, event):
-                    if not event.is_directory:
-                        self._schedule_index(event.src_path)
-
-                def on_created(self, event):
-                    if not event.is_directory:
-                        self._schedule_index(event.src_path)
-
-                def on_deleted(self, event):
-                    if not event.is_directory:
-                        try:
-                            path = Path(event.src_path)
-                            rel_path = str(path.relative_to(ext_root))
-                            escaped = indexer._escape_file_path_for_lance(rel_path)
-                            indexer.table.delete(f"file_path = '{escaped}'")
-                            logger.info(f"[WATCHER] Удалён: {rel_path}")
-                        except Exception as e:
-                            logger.debug(f"[WATCHER] Ошибка удаления: {e}")
-
-            handler = _ChangeHandler()
-            observer = Observer()
-            observer.schedule(handler, str(ext_root), recursive=True)
-            observer.daemon = True
-            observer.start()
-            _file_watcher = observer
-            logger.info("[WATCHER] Файловый watcher запущен (debounce 2s)")
-        except ImportError:
-            logger.warning("[WATCHER] watchdog не установлен — инкрементальная индексация отключена")
-        except Exception as e:
-            logger.warning(f"[WATCHER] Не удалось запустить watcher: {e}")
-
-    # Запускаем watcher в фоновом потоке (daemon=False чтобы не умирал)
-    _watcher_thread = threading.Thread(target=_start_file_watcher, daemon=False)
-    _watcher_thread.start()
+    # LSP-сервер (src/lsp_main.py) получает события didSave от Zed
+    # и индексирует файлы напрямую из памяти (без чтения с диска).
+    # MCP-сервер только читает базу для поиска.
+    # Watdog больше не нужен — LSP делает всю работу!
+    logger.info("📦 MCP-сервер работает в режиме read-only (индексация через LSP)")
 
     def ensure_worker_started():
         global _task_queue, _worker_task

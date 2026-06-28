@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
 logging.basicConfig(
@@ -110,8 +111,13 @@ def init_components(project_root: Path):
     logger.info(f"LSP: Инициализирован Indexer для {project_root.name}")
 
 
-def _execute_file_indexing(file_path: Path):
-    """Оркестрация проверки хеша и чанкера (вызывается в thread-пуле)."""
+def _execute_file_indexing(file_path: Path, content: Optional[str] = None):
+    """Оркестрация проверки хеша и чанкера (вызывается в thread-пуле).
+
+    Args:
+        file_path: Путь к файлу
+        content: Текст файла из памяти LSP. Если None — читает с диска.
+    """
     if _indexer is None:
         init_components(_project_path or Path.cwd())
 
@@ -126,8 +132,8 @@ def _execute_file_indexing(file_path: Path):
     except ValueError:
         return
 
-    logger.info(f"[LSP INDEXING] Анализ файла: {rel_path_str}")
-    success = _indexer._index_single_file(file_path, rel_path_str)
+    logger.info(f"[LSP INDEXING] Анализ файла: {rel_path_str} (from_memory={content is not None})")
+    success = _indexer._index_single_file(file_path, rel_path_str, content=content)
 
     if success and _indexer.searcher:
         _indexer.searcher.reindex()
@@ -213,17 +219,32 @@ try:
         try:
             file_path = _uri_to_path(params.text_document.uri)
 
+            logger.info(f"[LSP DID_SAVE] File: {file_path.name}, Suffix: {file_path.suffix}")
+
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                logger.info(f"[LSP DID_SAVE] Skip unsupported: {file_path.suffix}")
                 return
 
-            logger.info(f"[LSP EVENT] Файл сохранен пользователем: {file_path.name}")
+            # Берём текст из памяти LSP (pygls хранит актуальное содержимое)
+            # Это решает проблему отложенной записи на диск в Windows!
+            content = None
+            try:
+                document = ls.workspace.get_document(params.text_document.uri)
+                content = document.source
+                logger.info(f"[LSP DID_SAVE] Got {len(content)} chars from memory")
+            except Exception as mem_err:
+                logger.warning(f"[LSP DID_SAVE] Could not get from memory: {mem_err}")
+
+            logger.info(f"[LSP DID_SAVE] Starting indexing: {file_path.name}")
 
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _execute_file_indexing, file_path)
+            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+
+            logger.info(f"[LSP DID_SAVE] Indexing complete: {file_path.name}")
 
         except Exception as e:
             logger.error(
-                f"[LSP RECOVERY] Ошибка при сохранении файла: {e}", exc_info=True
+                f"[LSP DID_SAVE] Error: {e}", exc_info=True,
             )
 
     # === 2. ОБРАБОТКА ВНЕШНИХ ИЗМЕНЕНИЙ (git checkout, удаление вне редактора) ===
