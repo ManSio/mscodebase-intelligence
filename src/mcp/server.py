@@ -13,6 +13,7 @@ from src.core.file_guard import FileGuard
 from src.core.structural_search import StructuralSearcher
 from src.core.indexer import Indexer
 from src.core.execution_contract import ExecutionContract
+from src.core.health_report import HealthReport, format_health_report
 from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
@@ -1008,6 +1009,40 @@ def create_mcp_server() -> "FastMCP":
         if not target_path.exists():
             return f"❌ Указанный путь не существует: {project_root}"
         return get_log_summary(target_path)
+
+    @mcp.tool()
+    def get_health_report(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Самодиагностика системы — проверяет здоровье индекса, логов, синхронизации.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно проверить общее состояние системы
+        - Поиск возвращает странные результаты
+        - Подозреваешь что индекс рассинхронизирован с диском
+        - Хочешь увидеть все ошибки и предупреждения в одном отчёте
+
+        Возвращает:
+            - overall_health: healthy / warning / critical
+            - metrics: количество чанков, файлов, символов, ошибок
+            - issues: критические проблемы
+            - warnings: предупреждения
+        """
+        _debug_log("get_health_report", project_root)
+        try:
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            report = HealthReport(
+                project_path=target_path,
+                indexer=indexer if 'indexer' in dir() else None,
+                symbol_index=symbol_index if 'symbol_index' in dir() else None,
+                embedder=embedder if 'embedder' in dir() else None,
+            )
+            result = report.run_full_diagnostic()
+            return format_health_report(result)
+        except Exception as e:
+            logger.error(f"Ошибка get_health_report: {e}")
+            return f"❌ Ошибка диагностики: {str(e)}"
 
     # ==========================================
     # MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА
