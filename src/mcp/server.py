@@ -220,6 +220,104 @@ def create_mcp_server() -> "FastMCP":
     setup_project_logging(ext_root)
     logger.info("🚀 MCP-сервер запущен")
 
+    # ==========================================
+    # FILE WATCHER — ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ
+    # ==========================================
+    # Используем watchdog для отслеживания изменений файлов.
+    # Это решает проблему блокировки файлов на Windows — watcher
+    # использует ReadDirectoryChangesW с debounce, что позволяет
+    # избежать каскада событий при Ctrl+S.
+    _file_watcher = None
+    _file_watcher_stop_event = threading.Event()
+
+    def _start_file_watcher():
+        """Запускает фоновый watcher для инкрементальной индексации."""
+        try:
+            from watchdog.observers import Observer
+            from watchdog.events import FileSystemEventHandler
+
+            class _ChangeHandler(FileSystemEventHandler):
+                def __init__(self):
+                    self._pending = {}
+                    self._lock = threading.Lock()
+                    self._debounce_timer = None
+
+                def _schedule_index(self, file_path: str):
+                    """Планирует индексацию с debounce 2 секунды."""
+                    with self._lock:
+                        self._pending[file_path] = time.time()
+
+                    if self._debounce_timer is not None:
+                        self._debounce_timer.cancel()
+
+                    self._debounce_timer = threading.Timer(
+                        2.0, self._flush_pending
+                    )
+                    self._debounce_timer.daemon = True
+                    self._debounce_timer.start()
+
+                def _flush_pending(self):
+                    """Выполняет индексацию накопившихся изменений."""
+                    with self._lock:
+                        pending = self._pending.copy()
+                        self._pending.clear()
+
+                    if not pending:
+                        return
+
+                    for file_path in pending:
+                        try:
+                            path = Path(file_path)
+                            if not path.exists():
+                                continue
+                            if path.suffix.lower() not in {".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go", ".md"}:
+                                continue
+
+                            try:
+                                rel_path = str(path.relative_to(ext_root))
+                            except ValueError:
+                                continue
+
+                            logger.info(f"[WATCHER] Изменение: {rel_path}")
+                            indexer._index_single_file(path, rel_path)
+                        except Exception as e:
+                            logger.debug(f"[WATCHER] Ошибка индексации {file_path}: {e}")
+
+                def on_modified(self, event):
+                    if not event.is_directory:
+                        self._schedule_index(event.src_path)
+
+                def on_created(self, event):
+                    if not event.is_directory:
+                        self._schedule_index(event.src_path)
+
+                def on_deleted(self, event):
+                    if not event.is_directory:
+                        try:
+                            path = Path(event.src_path)
+                            rel_path = str(path.relative_to(ext_root))
+                            escaped = indexer._escape_file_path_for_lance(rel_path)
+                            indexer.table.delete(f"file_path = '{escaped}'")
+                            logger.info(f"[WATCHER] Удалён: {rel_path}")
+                        except Exception as e:
+                            logger.debug(f"[WATCHER] Ошибка удаления: {e}")
+
+            handler = _ChangeHandler()
+            observer = Observer()
+            observer.schedule(handler, str(ext_root), recursive=True)
+            observer.daemon = True
+            observer.start()
+            _file_watcher = observer
+            logger.info("[WATCHER] Файловый watcher запущен (debounce 2s)")
+        except ImportError:
+            logger.warning("[WATCHER] watchdog не установлен — инкрементальная индексация отключена")
+        except Exception as e:
+            logger.warning(f"[WATCHER] Не удалось запустить watcher: {e}")
+
+    # Запускаем watcher в фоновом потоке
+    _watcher_thread = threading.Thread(target=_start_file_watcher, daemon=True)
+    _watcher_thread.start()
+
     def ensure_worker_started():
         global _task_queue, _worker_task
         if _task_queue is None:
@@ -232,6 +330,37 @@ def create_mcp_server() -> "FastMCP":
     # ==========================================
     # ИНСТРУМЕНТЫ MCP ДЛЯ AI-АГЕНТА (ZED PROMPT)
     # ==========================================
+
+    @mcp.tool()
+    def notify_change(file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Уведомляет об изменении файла (для внешних вызовов, например из LSP).
+
+        Используйте этот инструмент когда хотите принудительно обновить индекс
+        конкретного файла без ожидания автоматического watcher.
+
+        Args:
+            file_path: Абсолютный или относительный путь к файлу
+
+        Returns:
+            Статус обновления индекса
+        """
+        _debug_log("notify_change", file_path)
+        try:
+            path = Path(file_path).resolve()
+            if not path.exists():
+                return f"❌ Файл не существует: {file_path}"
+
+            try:
+                rel_path = str(path.relative_to(ext_root))
+            except ValueError:
+                return f"❌ Файл вне проекта: {file_path}"
+
+            if indexer._index_single_file(path, rel_path):
+                return f"✅ Обновлено: {rel_path}"
+            return f"�️ Без изменений: {rel_path}"
+        except Exception as e:
+            logger.error(f"Ошибка notify_change: {e}")
+            return f"❌ Ошибка: {e}"
 
     @mcp.tool()
     def get_index_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -316,9 +445,10 @@ def create_mcp_server() -> "FastMCP":
         """Добавляет директорию проекта в фоновую очередь на первичную синхронизацию.
 
         CRITICAL USAGE RULES:
-        1. Normalize Windows paths to POSIX lowercase before calling: path.as_posix().lower()
+        1. Use native Windows paths (backslashes) — do NOT normalize to POSIX.
         2. After calling this, ALWAYS call get_index_status() to verify cache state.
         3. Используй get_index_progress() для отслеживания прогресса.
+        4. Watcher автоматически обнаружит изменения через 2-3 секунды.
         """
         _debug_log("index_project_dir", path)
         global _last_index_error
@@ -946,7 +1076,7 @@ You operate under a strict deterministic execution matrix. Every action must be 
 ## 6. PATH PROTOCOL
 - Use native Windows paths (backslashes) when passing to MCP tools.
 - Do NOT normalize to POSIX lowercase — our tools handle Windows paths natively.
-- Example: `D:\Project\MSCodeBase\src\core\indexer.py`
+- Example: `D:\\Project\\MSCodeBase\\src\\core\\indexer.py`
 
 ## 7. POST-MODIFICATION SYNC
 - After writing any file, immediately call `index_project_dir(path)` to force re-indexing.
