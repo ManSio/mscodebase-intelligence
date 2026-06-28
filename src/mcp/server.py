@@ -314,8 +314,8 @@ def create_mcp_server() -> "FastMCP":
         except Exception as e:
             logger.warning(f"[WATCHER] Не удалось запустить watcher: {e}")
 
-    # Запускаем watcher в фоновом потоке
-    _watcher_thread = threading.Thread(target=_start_file_watcher, daemon=True)
+    # Запускаем watcher в фоновом потоке (daemon=False чтобы не умирал)
+    _watcher_thread = threading.Thread(target=_start_file_watcher, daemon=False)
     _watcher_thread.start()
 
     def ensure_worker_started():

@@ -137,39 +137,50 @@ def _process_watched_changes(changes):
     """Синхронный воркер для обработки пачки внешних событий диска."""
     need_search_reindex = False
 
+    logger.info(f"[LSP WATCHER] Received {len(changes)} file change(s)")
+
     for change in changes:
         file_path = _uri_to_path(change.uri)
         if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            logger.debug(f"[LSP WATCHER] Skip unsupported: {file_path.name}")
             continue
 
         try:
             rel_path_str = _get_rel_path_str(file_path, _indexer.project_path)
         except ValueError:
+            logger.debug(f"[LSP WATCHER] Skip (not in project): {file_path.name}")
             continue
 
         # FileChangeType.Deleted == 3
         if change.type == 3:
-            logger.info(f"[LSP DELETE] {file_path.name}")
-            # Удаляем только конкретный файл из базы (не вызываем prune_deleted_files
-            # с одним элементом — это удалит все остальные файлы из базы!)
+            logger.info(f"[LSP DELETE] {rel_path_str}")
             try:
                 escaped = _indexer._escape_file_path_for_lance(rel_path_str)
                 _indexer.table.delete(f"file_path = '{escaped}'")
-                logger.info(f"  └─ Изъят из индекса: {rel_path_str}")
+                logger.info(f"  └─ Deleted from index: {rel_path_str}")
             except Exception as del_err:
                 logger.debug(f"delete() не нашёл запись: {del_err}")
             need_search_reindex = True
 
         # FileChangeType.Created == 1 или Changed == 2
         elif change.type in (1, 2):
-            logger.info(
-                f"[LSP {'CREATE' if change.type == 1 else 'CHANGE'}] {file_path.name}"
-            )
-            if _indexer._index_single_file(file_path, rel_path_str):
-                need_search_reindex = True
+            change_type = 'CREATE' if change.type == 1 else 'CHANGE'
+            logger.info(f"[LSP {change_type}] {rel_path_str}")
+            try:
+                if _indexer._index_single_file(file_path, rel_path_str):
+                    logger.info(f"  └─ Reindexed: {rel_path_str}")
+                    need_search_reindex = True
+                else:
+                    logger.info(f"  └─ No changes (hash match): {rel_path_str}")
+            except Exception as e:
+                logger.error(f"  └─ Indexing failed: {rel_path_str}: {e}")
 
     if need_search_reindex and _indexer.searcher:
+        logger.info("[LSP WATCHER] Rebuilding BM25 index...")
         _indexer.searcher.reindex()
+        logger.info("[LSP WATCHER] BM25 rebuild complete")
+    elif not need_search_reindex:
+        logger.info("[LSP WATCHER] No indexing needed")
 
 
 # ============================================================================
@@ -224,7 +235,12 @@ try:
         """
         try:
             if _indexer is None:
+                logger.warning("[LSP WATCHER] Indexer not initialized, skip")
                 return
+
+            logger.info(f"[LSP WATCHER] Zed sent {len(params.changes)} change(s)")
+            for change in params.changes:
+                logger.info(f"  - URI: {change.uri}, Type: {change.type}")
 
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _process_watched_changes, params.changes)
