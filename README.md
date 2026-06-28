@@ -2,12 +2,15 @@
 
 # MSCodebase Intelligence
 
-**AI-powered semantic code search for Zed IDE viaPython 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+**AI-powered semantic code search for Zed IDE**
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-160%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-133%20passed-brightgreen.svg)]()
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Performance](#-performance-tuning) • [Benchmarks](#-benchmarks)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-tools-14-total) • [Architecture](#-architecture) • [Development](#-development)
+
+*Last updated: 2026-06-28*
 
 </div>
 
@@ -19,13 +22,13 @@
 |---------|-------------|
 | 🔍 **Hybrid Search** | Vector embeddings (LM Studio) + lexical BM25 + Multi-Provider Reranking (Ollama/LM Studio) |
 | 🧠 **Agentic Code Search** | Auto-decomposes complex queries → parallel sub-searches → Call Graph analysis → RRF aggregation |
-| 🔄 **Agentic Deep Search** | Iterative search with query refinement across multiple passes |
+| � **Agentic Deep Search** | Iterative search with query refinement across multiple passes |
 | 🌐 **Cross-repo Search** | Search across multiple indexed projects with `@mention` syntax |
 | 📊 **Progress Tracking** | Real-time indexing progress with phase, percent, files done/total |
 | 🌳 **Call Graph** | Bidirectional BFS (depth 2+): callers, callees, call chains, impact analysis |
-| 🔧 **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
+| � **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
 | 🔎 **Context Search** | Find similar code by embedding selected fragment |
-| ⚡ **LSP + MCP Hybrid** | Single-process architecture: LSP for indexing, MCP for AI tools |
+| � **LSP + MCP Hybrid** | Single-process architecture: LSP for indexing, MCP for AI tools |
 | 💾 **LanceDB v2** | Local vector storage with per-project isolation |
 | 🧠 **In-Memory Indexing** | Reads from LSP VFS (no disk delay on Windows) |
 
@@ -94,29 +97,145 @@ Add to your project's `.zed/settings.json` (or let `install.py` do it):
 
 ---
 
-## � Tools (14 total)
+## �️ Tools (14 total)
 
 | Tool | When to Use |
 |------|-------------|
-| `get_index_status` | Check if project is indexed |
-| `get_index_progress` | Check indexing progress (phase, percent) |
-| `index_project_dir` | Force full re-indexing |
-| `search_code` | Semantic search by concept |
-| `search_code(agentic=True)` | Complex multi-part queries |
-| `deep_search` with refinement |
+| `get_index_status` | Check if project is indexed (chunks, symbols, status) |
+| `get_index_progress` | Check indexing progress (phase, percent, files done/total) |
+| `index_project_dir` | Force full re-indexing of a project directory |
+| `search_code` | Semantic search by concept (simple queries) |
+| `search_code(agentic=True)` | Complex multi-part queries with auto-decomposition |
+| `deep_search` | Iterative search with query refinement (research tasks) |
 | `cross_repo_search` | Multi-project search (`query @backend @frontend`) |
-| `get_context` | Gather relevant code chunks |
-| `get_symbol_info` | Find definition + call graph |
-| `get_repo_map` | Project structure overview |
-| `scan_changes` | Detect changes made outside Zed |
-| `context_search` | Find similar code by fragment |
-| `structural_search` | Search by AST patterns |
-| `watcher_status` | Check system health |
-| `get_logs` | Check project error logs |
+| `get_context` | Gather relevant code chunks for a query |
+| `get_symbol_info` | Find definition + call graph (callers, callees, impact) |
+| `get_repo_map` | Project structure overview (files + key symbols) |
+| `scan_changes` | Detect changes made outside Zed (git pull, checkout) |
+| `context_search` | Find similar code by embedding a selected fragment |
+| `structural_search` | Search by AST patterns (13 patterns available) |
+| `watcher_status` | Check system health (embedder, LSP status) |
+| `get_logs` | Read recent errors/warnings from project logs |
 
 ---
 
-## ⚡ Performance Tuning
+## �️ Architecture
+
+### Hybrid LSP + MCP (Single Process)
+
+```
+�─────────────────────────────────────────────────────────────┐
+│                    Hybrid Server (src/hybrid_server.py)      │
+│                                                             │
+│  ┌─────────────────────┐    ┌─────────────────────────┐    │
+│  │   LSP Server (stdio) │    │   MCP Server (HTTP/SSE) │    │
+│  │                      │    │                         │    │
+│  │  Receives from Zed:  │    │  Provides 14 tools for  │    │
+│  │  - didOpen           │    │  AI assistants via      │    │
+│  │  - didChange         │    │  @mscodebase-intelligence│   │
+│  │  - didSave           │    │                         │    │
+│  │  - didClose          │    │                         │    │
+│  └──────────�───────────�    └───────────┬─────────────┘    │
+│             │                            │                  │
+│             └────────────┬───────────────┘                  │
+│                          │                                  │
+│                   �──────▼──────┐                           │
+│                   │  Shared     │                           │
+│                   │  Indexer    │                           │
+│                   │  (LanceDB)  │                           │
+│                   └─────────────┘                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Hybrid?
+
+| Problem | Old (Separate Processes) | New (Hybrid) |
+|---------|--------------------------|--------------|
+| WinError 5 (file locks) | ❌ Conflicts between LSP & MCP | ✅ Single process, no conflicts |
+| Disk write delay on Windows | ❌ `didSave` before physical write | ✅ Read from LSP VFS memory |
+| AI edits to closed files | ❌ Not detected | ✅ `didOpen`/`didChange`/`didClose` |
+| Memory usage | ❌ Two Python processes | ✅ One process, shared state |
+
+### Components
+
+```
+MSCodebase Intelligence
+├── Hybrid Server (src/hybrid_server.py)     ← LSP + MCP in one process
+│   ├── LSP Handler (stdio)                 ← Receives events from Zed
+│   ├── MCP Handler (HTTP/SSE :8765)        ← Provides 14 tools for AI
+│   └── SharedIndexer                       ← Single LanceDB instance
+├── Core Engine (src/core/)
+│   ├── indexer.py          — LanceDB vector storage + file scanning
+│   ├── searcher.py         — Hybrid search (BM25 + Dense + RRF)
+│   ├── multi_project_searcher.py — Cross-repo search
+│   ├── symbol_index.py     — Call Graph (BFS, impact analysis)
+│   ├── structural_search.py — 13 AST patterns
+│   ├── remote_embedder.py  — LM Studio / Ollama embeddings
+│   ├── parser.py           — Tree-sitter AST parsing
+│   ├── reranker.py         — Multi-Provider Reranker (Ollama/LM Studio)
+│   ├── file_guard.py       — Security filtering + binary detection
+│   ├── gitignore_parser.py — .gitignore pattern matching
+│   └── log_manager.py      — Project log management
+└── Legacy (src/lsp_main.py, src/mcp/server.py)  ← Kept for reference
+```
+
+### Data Flow
+
+```
+Zed IDE ──stdio──→ LSP Server ──→ SharedIndexer ──→ LanceDB
+   │                                           ↑
+   └──HTTP/SSE──→ MCP Server ──────────────────┘
+                      ↓
+               AI Assistant Tools
+                      ↓
+               RemoteEmbedder → LM Studio (embeddings)
+                      ↓
+               MultiProviderReranker (Ollama → LM Studio)
+                      ↓
+               Results → Zed IDE
+```
+
+### LSP Events Handled
+
+| Event | When | Action |
+|-------|------|--------|
+| `didOpen` | File opened (including background for AI) | Index from memory |
+| `didChange` | Text changed (including AI edits) | Re-index from memory |
+| `didSave` | Ctrl+S pressed | Re-index from memory (not disk!) |
+| `didClose` | File closed (buffer flushed to disk) | Final index from disk |
+| `didChangeWatchedFiles` | External changes (git, etc.) | Re-index from disk |
+
+### Multi-Provider Reranking
+
+After RRF fusion, results can be reranked by an external LLM:
+
+```
+[Recall (BM25 + Dense)] → [Top-20 RRF] → [MultiProviderReranker]
+                                                │
+                    �───────────────────────────┴───────────────────────────┐
+              (Ollama available?)                                 (LM Studio available?)
+                    │                                                     │
+          [Ollama /api/chat batch]                            [LM Studio /v1/chat batch]
+                    │                                                     │
+                    └───────────────────────────�───────────────────────────┘
+                                                ▼
+                                      [Sort by LLM scores] → [ZED Chat]
+```
+
+**Priority:** Ollama (specialized rerankers) → LM Studio (instruct models) → RRF fallback
+
+### Storage
+
+Vector indexes are isolated per project:
+```
+<PROJECT_ROOT>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
+```
+
+> For full architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## � Performance Tuning
 
 ### Search Modes
 
@@ -172,115 +291,6 @@ pytest tests/benchmark_agentic_search.py -v -m benchmark
 | Simple (1 concept) | ~50ms | ~150ms | Hybrid |
 | Complex (3+ concepts) | ~100ms | ~300ms | Agentic |
 | Cross-project | N/A | ~500ms | Cross-repo |
-
----
-
-## 🏗️ Architecture
-
-### Hybrid LSP + MCP (Single Process)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Hybrid Server (src/hybrid_server.py)      │
-│                                                             │
-│  ┌─────────────────────┐    ┌─────────────────────────┐    │
-│  │   LSP Server (stdio) │    │   MCP Server (HTTP/SSE) │    │
-│  │                      │    │                         │    │
-│  │  Receives from Zed:  │    │  Provides tools for AI: │    │
-│  │  - didOpen           │    │  - search_code          │    │
-│  │  - didChange         │    │  - get_index_status     │    │
-│  │  - didSave           │    │  - read_live_file       │    │
-│  │  - didClose          │    │  - ...                  │    │
-│  └──────────┬───────────┘    └───────────┬─────────────┘    │
-│             │                            │                  │
-│             └────────────┬───────────────┘                  │
-│                          │                                  │
-│                   ┌──────▼──────┐                           │
-│                   │  Shared     │                           │
-│                   │  Indexer    │                           │
-│                   │  (LanceDB)  │                           │
-│                   └─────────────┘                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Why Hybrid?
-
-| Problem | Old (Separate Processes) | New (Hybrid) |
-|---------|--------------------------|--------------|
-| WinError 5 (file locks) | ❌ Conflicts between LSP & MCP | ✅ Single process, no conflicts |
-| Disk write delay on Windows | ❌ `didSave` before physical write | ✅ Read from LSP VFS memory |
-| AI edits to closed files | ❌ Not detected | ✅ `didOpen`/`didChange`/`didClose` |
-| Memory usage | ❌ Two Python processes | ✅ One process, shared state |
-
-### Components
-
-```
-MSCodebase Intelligence
-├── Hybrid Server (src/hybrid_server.py)     ← LSP + MCP in one process
-│   ├── LSP Handler (stdio)                 ← Receives events from Zed
-│   ├── MCP Handler (HTTP/SSE :8765)        ← Provides tools for AI
-│   └── SharedIndexer                       ← Single LanceDB instance
-├── Core Engine (src/core/)
-│   ├── indexer.py          — LanceDB vector storage + file scanning
-│   ├── searcher.py         — Hybrid search (BM25 + Dense + RRF)
-│   ├── remote_embedder.py  — LM Studio / Ollama embeddings
-│   ├── parser.py           — Tree-sitter AST parsing
-│   ├── reranker.py         — Multi-Provider Reranker (Ollama/LM Studio)
-│   └── ...
-└── Legacy (src/lsp_main.py, src/mcp/server.py)  ← Kept for reference
-```
-
-### Data Flow
-
-```
-Zed IDE ──stdio──→ LSP Server ──→ SharedIndexer ──→ LanceDB
-   │                                           ↑
-   └──HTTP/SSE──→ MCP Server ──────────────────┘
-                      ↓
-               AI Assistant Tools
-                      ↓
-               RemoteEmbedder → LM Studio (embeddings)
-                      ↓
-               MultiProviderReranker (Ollama → LM Studio)
-                      ↓
-               Results → Zed IDE
-```
-
-### LSP Events Handled
-
-| Event | When | Action |
-|-------|------|--------|
-| `didOpen` | File opened (including background for AI) | Index from memory |
-| `didChange` | Text changed (including AI edits) | Re-index from memory |
-| `didSave` | Ctrl+S pressed | Re-index from memory (not disk!) |
-| `didClose` | File closed (buffer flushed to disk) | Final index from disk |
-| `didChangeWatchedFiles` | External changes (git, etc.) | Re-index from disk |
-
-### Multi-Provider Reranking
-
-After RRF fusion, results can be reranked by an external LLM:
-
-```
-[Recall (BM25 + Dense)] → [Top-20 RRF] → [MultiProviderReranker]
-                                                │
-                    ┌───────────────────────────┴───────────────────────────┐
-              (Ollama available?)                                 (LM Studio available?)
-                    │                                                     │
-          [Ollama /api/chat batch]                            [LM Studio /v1/chat batch]
-                    │                                                     │
-                    └───────────────────────────┬───────────────────────────┘
-                                                ▼
-                                      [Sort by LLM scores] → [ZED Chat]
-```
-
-**Priority:** Ollama (specialized rerankers) → LM Studio (instruct models) → RRF fallback
-
-### Storage
-
-Vector indexes are isolated per project:
-```
-<PROJECT_ROOT>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
-```
 
 ---
 
@@ -359,7 +369,7 @@ pip install -r requirements.txt
 ### Run Tests
 
 ```bash
-# All tests
+# All tests (133 tests)
 pytest tests/ -v
 
 # Without slow tests
@@ -399,49 +409,45 @@ isort --check-only src/ tests/
 ```
 MSCodeBase/
 ├── src/
-│   ├── main.py                    # MCP entry point
-│   ├── lsp_main.py                # LSP server entry
-│   ├── core/                      # Core engine modules
-│   │   ├── indexer.py             # LanceDB + progress callback
-│   │   ├── searcher.py            # Hybrid search + agentic
+│   ├── hybrid_server.py            # Hybrid LSP + MCP entry point
+│   ├── main.py                     # Legacy MCP entry point
+│   ├── lsp_main.py                 # Legacy LSP entry point
+│   ├── core/                       # Core engine modules
+│   │   ├── indexer.py              # LanceDB + progress callback
+│   │   ├── searcher.py             # Hybrid search + agentic
 │   │   ├── multi_project_searcher.py
-│   │   ├── symbol_index.py        # Call Graph
-│   │   ├── context_engine.py
-│   │   ├── query_expansion.py
-│   │   ├── structural_search.py   # 13 AST patterns
-│   │   ├── remote_embedder.py     # LM Studio/Ollama
-│   │   ├── parser.py
-│   │   ├── file_guard.py
+│   │   ├── symbol_index.py         # Call Graph
+│   │   ├── structural_search.py    # 13 AST patterns
+│   │   ├── remote_embedder.py      # LM Studio/Ollama
+│   │   ├── parser.py               # Tree-sitter
+│   │   ├── reranker.py             # Multi-Provider Reranker
+│   │   ├── file_guard.py           # Security + binary detection
 │   │   ├── gitignore_parser.py
-│   │   ├── reranker.py            # Multi-Provider Reranker (Ollama/LM Studio)
-│   │   ├── log_manager.py
-│   │   ├── integrity.py
-│   │   └── content_cache.py
-│   ├── mcp/                       # MCP server + tools
-│   │   └── server.py              # 14 MCP tools + prompts
+│   │   └── log_manager.py
+│   ├── mcp/                        # MCP server + tools
+│   │   └── server.py               # 14 MCP tools + prompts
 │   └── utils/
 │       ├── paths.py
 │       └── zed_config.py
-├── tests/                         # 153 unit tests
-│   ├── test_agentic_search.py     # 25 tests
-│   ├── test_reranker.py           # 20 tests (Multi-Provider Reranker)
-│   ├── test_symbol_index_call_graph.py # 22 tests (Call Graph BFS)
-│   ├── test_deep_search.py        # 15 tests
-│   ├── test_cross_repo_search.py  # 21 tests
-│   ├── test_index_progress.py     # 11 tests
-│   ├── test_searcher.py           # 4 tests
-│   ├── test_indexer_project_path.py # 6 tests
-│   ├── test_multi_project_query_expansion.py # 25 tests
-│   ├── test_embedder.py           # 6 tests
-│   ├── test_parser.py             # 4 tests
-│   ├── test_connection.py         # 1 test
-│   ├── test_mutation_core.py      # 3 tests
-│   └── test_automation.py         # 1 test
-├── benchmark_agentic_search.py    # 7 benchmark tests
+├── tests/                          # 133 unit tests
+│   ├── test_agentic_search.py
+│   ├── test_reranker.py
+│   ├── test_symbol_index_call_graph.py
+│   ├── test_deep_search.py
+│   ├── test_cross_repo_search.py
+│   ├── test_index_progress.py
+│   ├── test_searcher.py
+│   ├── test_indexer_project_path.py
+│   ├── test_integration.py
+│   ├── test_parser.py
+│   ├── test_connection.py
+│   ├── test_automation.py
+│   └── conftest.py
+├── benchmark_agentic_search.py     # 7 benchmark tests
 ├── scripts/
-│   └── full_index.py              # Full indexing script
-├── install.py                     # Cross-platform installer
-├── .agents/skills/                # Zed agent skills
+│   └── full_index.py               # Full indexing script
+├── install.py                      # Cross-platform installer
+├── .agents/skills/                 # Zed agent skills
 │   └── mscodebase-rules/SKILL.md
 ├── pyproject.toml
 ├── requirements.txt
@@ -455,36 +461,7 @@ MSCodeBase/
 
 ---
 
-## 📝 Changelog
-
-### v2.0.0 (2026-06-28) — Hybrid Architecture
-
-**Breaking Changes:**
-- New entry point: `src/hybrid_server.py` (replaces `lsp_main.py` + `mcp/server.py`)
-- MCP now runs via HTTP/SSE on port 8765 (not stdio)
-- Requires `.zed/settings.json` update
-
-**New Features:**
-- ⚡ **Hybrid LSP + MCP** — single process, shared memory
-- 🧠 **In-Memory Indexing** — reads from LSP VFS (no disk delay on Windows)
-- 🔄 **Full Document Sync** — receives complete file content via `didChange`
-- 🛡️ **No WinError 5** — single process eliminates file lock conflicts
-- 🤖 **AI Edit Detection** — catches `didOpen`/`didChange`/`didClose` for background edits
-
-**Technical Details:**
-- LSP events: `didOpen`, `didChange`, `didSave`, `didClose`, `didChangeWatchedFiles`
-- MCP server: FastMCP with SSE transport on `http://127.0.0.1:8765/sse`
-- SharedIndexer: single LanceDB instance accessible by both LSP and MCP
-- Cold start: automatic full indexing on LSP initialization
-
-**Migration:**
-1. Update `.zed/settings.json` (see Configuration section)
-2. Restart Zed
-3. Old `lsp_main.py` and `mcp/server.py` kept for reference
-
----
-
-## 🔒 Security
+## � Security
 
 - **Local-only storage** — all data stored locally (no cloud)
 - **Path hashing** — project isolation via path hashing
@@ -496,7 +473,7 @@ See [SECURITY.md](SECURITY.md) for details.
 
 ---
 
-## 🤝 Contributing
+## � Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)

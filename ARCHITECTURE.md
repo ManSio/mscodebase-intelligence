@@ -4,9 +4,9 @@
 
 | Параметр | Значение |
 |----------|----------|
-| CPU | AMD Ryzen 5 5600H (12 логических ядер, 3.3 GHz) |
+| CPU | AMD Ryzen 5 5600H (6 ядер / 12 потоков, 3.3–4.2 GHz) |
 | RAM | 16 GB DDR4 (3200 MHz) |
-| GPU | AMD Radeon(TM) Graphics |
+| GPU | AMD Radeon Graphics (встроенная) |
 | Диск | SSD 341 GB (NTFS), диск `D:` |
 | OS | Windows 11 Home Insider Preview |
 
@@ -16,7 +16,7 @@
 |-----------|----------|
 | Модель эмбеддингов | `text-embedding-bge-m3` (1024 dim) |
 | Протокол | LM Studio OpenAI-совместимый API (`/v1/embeddings`) |
-| Реранкинг | Multi-Provider (Ollama `:11434` → LM Studio `:1234`) |
+| Реранкинг | Multi-Provider (Ollama `:11434` → LM Studio `:1234` → RRF fallback) |
 | СУБД хранилище | LanceDB v2 (Apache Arrow) |
 
 ## 3. Топология данных
@@ -39,58 +39,68 @@ db_name = f"index_{project_name}_{project_hash}.db"
 
 ## 4. Архитектура системы
 
-### 4.1. Потоки данных
+### 4.1. Потоки данных (Hybrid LSP + MCP)
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  Zed IDE    │────▶│  MCP Server  │────▶│  RemoteEmbedder │
-│  (AI Agent) │     │  (server.py) │     │  (LM Studio)    │
-└─────────────┘     └──────────────┘     └─────────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │   Indexer    │
-                    │ (LanceDB v2) │
-                    └──────────────┘
-                           ▲
-                           │
-┌─────────────┐     ┌──────────────┐
-│  Zed IDE    │────▶│  LSP Server  │
-│  (on save)  │     │ (lsp_main.py)│
-└─────────────┘     └──────────────┘
+                        ┌──────────────────────────────────────┐
+                        │         hybrid_server.py            │
+                        │    (LSP stdio + MCP HTTP/SSE)       │
+                        │         Единый процесс              │
+                        └──────────────────────────────────────┘
+                           │                    │
+              ┌────────────┴────────┐          │
+              ▼                     ▼          ▼
+       ┌─────────────┐      ┌──────────────┐  ┌─────────────────┐
+       │  Zed IDE    │      │  MCP Tools   │  │  RemoteEmbedder │
+       │ (LSP client)│      │  (AI Agent)  │  │  (LM Studio)    │
+       └─────────────┘      └──────────────┘  └─────────────────┘
+              │                    │
+              ▼                    ▼
+       ┌──────────────────────────────────────┐
+       │          Общая память процесса        │
+       │  ┌────────────┐  ┌────────────────┐  │
+       │  │  Indexer   │  │  SymbolIndex   │  │
+       │  │ (LanceDB)  │  │  (Call Graph)  │  │
+       │  └────────────┘  └────────────────┘  │
+       └──────────────────────────────────────┘
 ```
 
 ### 4.2. Модули
 
 | Модуль | Файл | Назначение |
 |--------|------|------------|
-| MCP Server | `src/mcp/server.py` | Тools + Prompts для AI-агента |
-| LSP Server | `src/lsp_main.py` | Индексация при сохранении файлов |
-| Indexer | `src/core/indexer.py` | Сканирование + запись в LanceDB |
-| Searcher | `src/core/searcher.py` | Гибридный поиск (vector + BM25) + Multi-Provider Reranking |
-| SymbolIndex | `src/core/symbol_index.py` | Tree-sitter парсинг + Call Graph |
-| ContextEngine | `src/core/context_engine.py` | Сжатый контекст для AI |
-| RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama |
-| Reranker | `src/core/reranker.py` | Multi-Provider Reranker (Ollama/LM Studio) |
+| Hybrid Server | `src/hybrid_server.py` | Главная точка входа: LSP + MCP в одном процессе |
+| LSP Server (legacy) | `src/lsp_main.py` | Автономный LSP-сервер (сохранён для обратной совместимости) |
+| MCP Server (legacy) | `src/main.py` | Автономный MCP-сервер (сохранён для обратной совместимости) |
+| Indexer | `src/core/indexer.py` | Сканирование + запись в LanceDB + миграция схем |
+| Searcher | `src/core/searcher.py` | Гибридный поиск (BM25 + vector) + Multi-Provider Reranking |
+| Reranker | `src/core/reranker.py` | MultiProviderReranker (Ollama → LM Studio → RRF fallback) |
 | SymbolIndex | `src/core/symbol_index.py` | Bidirectional Call Graph (BFS depth 2+) + References |
-| Parser | `src/core/parser.py` | Tree-sitter AST парсер |
+| Parser | `src/core/parser.py` | Tree-sitter AST парсер + extract_calls() |
+| RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama клиент для эмбеддингов |
 | FileGuard | `src/core/file_guard.py` | Фильтрация файлов + gitignore |
-| Integrity | `src/core/integrity.py` | Merkle Tree для детекции изменений |
-| ContentCache | `src/core/content_cache.py` | Кэш хешей файлов |
+| MultiProjectSearcher | `src/core/multi_project_searcher.py` | Кросс-репозиторный поиск (RRF fusion) |
+| StructuralSearch | `src/core/structural_search.py` | AST-паттерн поиск (наследование, декораторы, async) |
+| MCP Tools | `src/mcp/server.py` | Все 14 MCP-инструментов |
 
-## 5. MCP Tools
+## 5. MCP Tools (14 инструментов)
 
-| Tool | Тип | Описание |
-|------|-----|----------|
-| `get_index_status` | sync | Статус индекса (chunks, files, symbols) |
-| `index_project_dir` | async | Запуск полной индексации проекта |
-| `search_code` | sync | Семантический поиск (vector + BM25) |
-| `get_context` | sync | Сжатый контекст по запросу |
-| `get_symbol_info` | sync | Call Graph: definition + callers + callees |
-| `get_repo_map` | sync | Карта проекта (файлы + символы) |
-| `scan_changes` | async | Архитектурный дифф изменений |
-| `watcher_status` | sync | Статус компонентов (embedder, LSP) |
-| `get_index_progress` | sync | Прогресс индексации (phase, percent, files done/total) |
+| # | Tool | Тип | Описание |
+|---|------|-----|----------|
+| 1 | `get_index_status` | sync | Статус индекса: chunks, files, symbols (LanceDB + SymbolIndex) |
+| 2 | `get_index_progress` | sync | Прогресс индексации по проектам (phase, percent, files done/total) |
+| 3 | `index_project_dir` | async | Запуск полной первичной индексации проекта (фоновая очередь) |
+| 4 | `search_code` | sync | Семантический поиск (BM25 + vector + rerank); `agentic=True` для глубокого поиска |
+| 5 | `deep_search` | sync | Итеративный глубокий поиск с уточнением запроса (multi-step research) |
+| 6 | `cross_repo_search` | sync | Поиск по нескольким проектам с `@-mention` синтаксисом (RRF fusion) |
+| 7 | `get_symbol_info` | sync | Call Graph: definition + callers + callees + impact_files |
+| 8 | `get_repo_map` | sync | Карта проекта: дерево файлов + ключевые символы |
+| 9 | `scan_changes` | async | Архитектурный дифф изменений (git pull/checkout detection) |
+| 10 | `watcher_status` | sync | Статус компонентов: embedder mode, LSP health |
+| 11 | `context_search` | sync | Поиск похожего кода по выделенному фрагменту (дубликаты, альтернативы) |
+| 12 | `structural_search` | sync | Поиск по AST-паттернам (class_inheritance, async_function, decorator и т.д.) |
+| 13 | `notify_change` | sync | Принудительное обновление индекса файла (внешний вызов, например из LSP) |
+| 14 | `get_logs` | sync | Последние ошибки/warning из логов проекта (`.codebase_indices/logs/`) |
 
 ## 6. MCP Prompts
 
@@ -98,7 +108,7 @@ db_name = f"index_{project_name}_{project_hash}.db"
 |--------|------------|
 | `mscodebase-rules` | Системные правила для AI-агента (state-awareness, context budget, safe writing) |
 
-## 7. Установка
+## 7. Установка и конфигурация
 
 Скрипт `install.py` выполняет:
 
@@ -116,13 +126,13 @@ db_name = f"index_{project_name}_{project_hash}.db"
   "context_servers": {
     "mscodebase-intelligence": {
       "command": "<venv_python>",
-      "args": ["<ext_dir>/src/main.py"]
+      "args": ["<ext_dir>/src/hybrid_server.py"]
     }
   },
   "lsp": {
     "mscodebase-lsp": {
       "command": "<venv_python>",
-      "arguments": ["-u", "<ext_dir>/src/lsp_main.py"]
+      "arguments": ["-u", "<ext_dir>/src/hybrid_server.py"]
     }
   },
   "languages": {
@@ -141,6 +151,8 @@ db_name = f"index_{project_name}_{project_hash}.db"
   }
 }
 ```
+
+> **Примечание:** `hybrid_server.py` одновременно обслуживает LSP (stdio) и MCP (HTTP/SSE) — это устраняет конфликты доступа к диску (WinError 5) и обеспечивает чтение из общей памяти процесса.
 
 ## 8. Multi-Provider Reranker
 
@@ -184,14 +196,6 @@ db_name = f"index_{project_name}_{project_hash}.db"
 - Строгий JSON-ответ: `{"scores": [{"index": 0, "score": 0.95}, ...]}`
 - Один network round-trip независимо от числа чанков
 
-## 9. Ограничения
-
-- Максимальный размер файла: 1 MB
-- Поддерживаемые языки: Python, Rust, TypeScript, JavaScript, Go
-- Требуется LM Studio или Ollama для векторного поиска и реранкинга
-- Windows native (без Docker/WSL)
-- Зависимости: только `httpx` (без onnxruntime/torch/transformers)
-
 ## 9. Call Graph (Граф вызовов)
 
 Модуль `src/core/symbol_index.py` реализует двунаправленный граф вызовов:
@@ -230,6 +234,15 @@ build_call_graph(symbol, depth=2):
 - Рекурсивный обход AST
 - Идентификация `call_expression`, `function_invocation`
 - Поддержка method calls (obj.method()), scoped (module::func)
+
+## 10. Ограничения
+
+- Максимальный размер файла: 1 MB
+- Поддерживаемые языки: Python, Rust, TypeScript, JavaScript, Go
+- Требуется LM Studio или Ollama для векторного поиска и реранкинга
+- Windows native (без Docker/WSL)
+- Зависимости: только `httpx` (без onnxruntime/torch/transformers)
+- Время: только `zoneinfo`, без `pytz`
 
 ---
 
