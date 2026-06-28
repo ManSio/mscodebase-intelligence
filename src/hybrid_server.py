@@ -52,12 +52,16 @@ SUPPORTED_EXTENSIONS = {
 
 
 class SharedIndexer:
-    """Общий индексатор для LSP и MCP серверов."""
+    """Общий индексатор для LSP и MCP серверов.
+
+    Использует asyncio.Lock для безопасного доступа из разных корутин.
+    """
 
     def __init__(self):
         self.indexer: Optional[Indexer] = None
         self.project_path: Optional[Path] = None
         self._initialized = False
+        self._lock = asyncio.Lock()  # Синхронизация доступа к индексу
 
     def initialize(self, project_path: Path):
         """Инициализация индексатора."""
@@ -81,17 +85,21 @@ class SharedIndexer:
         self._initialized = True
         logger.info(f"✅ SharedIndexer initialized for {project_path}")
 
-    def index_file(self, file_path: Path, content: Optional[str] = None) -> bool:
-        """Индексировать один файл."""
+    async def index_file(self, file_path: Path, content: Optional[str] = None) -> bool:
+        """Индексировать один файл (thread-safe через asyncio.Lock)."""
         if not self._initialized or self.indexer is None:
             return False
 
-        try:
-            rel_path = str(file_path.relative_to(self.project_path))
-            return self.indexer._index_single_file(file_path, rel_path, content=content)
-        except Exception as e:
-            logger.error(f"Index error: {e}")
-            return False
+        async with self._lock:  # Защита от гонок
+            try:
+                rel_path = str(file_path.relative_to(self.project_path))
+                # Запускаем синхронный индексатор в thread pool
+                return await asyncio.to_thread(
+                    self.indexer._index_single_file, file_path, rel_path, content
+                )
+            except Exception as e:
+                logger.error(f"Index error: {e}")
+                return False
 
     def search(self, query: str, limit: int = 6) -> str:
         """Поиск по базе."""
@@ -153,9 +161,33 @@ async def on_initialized(ls: LanguageServer, params):
         shared_indexer.initialize(project_path)
         logger.info(f"🚀 LSP initialized for {project_path}")
 
+        # Регистрируем file watcher для отслеживания внешних изменений
+        # (git checkout, правки ИИ в закрытых файлах)
+        try:
+            from lsprotocol.types import (
+                DidChangeWatchedFilesRegistrationOptions,
+                FileSystemWatcher,
+            )
+            await ls.register_capability_async(
+                "workspace/didChangeWatchedFiles",
+                DidChangeWatchedFilesRegistrationOptions(
+                    watchers=[
+                        FileSystemWatcher(glob_pattern="**/*.py"),
+                        FileSystemWatcher(glob_pattern="**/*.ts"),
+                        FileSystemWatcher(glob_pattern="**/*.rs"),
+                        FileSystemWatcher(glob_pattern="**/*.js"),
+                        FileSystemWatcher(glob_pattern="**/*.go"),
+                        FileSystemWatcher(glob_pattern="**/*.md"),
+                    ]
+                )
+            )
+            logger.info("👁️ File watcher registered for external changes")
+        except Exception as watch_err:
+            logger.warning(f"Could not register watcher: {watch_err}")
+
         # Холодный старт — индексация всех файлов
         logger.info("🔄 Cold start indexing...")
-        shared_indexer.indexer.index_project(project_path)
+        await asyncio.to_thread(shared_indexer.indexer.index_project, project_path)
         logger.info("✅ Cold start complete")
 
     except Exception as e:
@@ -179,7 +211,7 @@ async def did_open(ls: LanguageServer, params: DidOpenTextDocumentParams):
         pass
 
     logger.info(f"📂 DID_OPEN: {file_path.name}")
-    shared_indexer.index_file(file_path, content)
+    await shared_indexer.index_file(file_path, content)
 
 
 @server.feature(TEXT_DOCUMENT_DID_CHANGE)
@@ -199,7 +231,7 @@ async def did_change(ls: LanguageServer, params: DidChangeTextDocumentParams):
         pass
 
     logger.info(f"✏️ DID_CHANGE: {file_path.name} ({len(content) if content else 0} chars)")
-    shared_indexer.index_file(file_path, content)
+    await shared_indexer.index_file(file_path, content)
 
 
 @server.feature(TEXT_DOCUMENT_DID_CLOSE)
@@ -226,7 +258,38 @@ async def did_save(ls: LanguageServer, params: DidSaveTextDocumentParams):
     except Exception as e:
         logger.warning(f"DID_SAVE: could not get from memory: {e}")
 
-    shared_indexer.index_file(file_path, content)
+    await shared_indexer.index_file(file_path, content)
+
+
+@server.feature("workspace/didChangeWatchedFiles")
+async def did_change_watched_files(ls: LanguageServer, params):
+    """Внешние изменения файлов (git checkout, правки ИИ в закрытых файлах)."""
+    try:
+        for change in params.changes:
+            file_path = uri_to_path(change.uri)
+
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+
+            # FileChangeType: 1=Created, 2=Changed, 3=Deleted
+            change_type = change.type
+
+            if change_type == 3:  # Deleted
+                logger.info(f"🗑️ WATCHER DELETE: {file_path.name}")
+                if shared_indexer.indexer:
+                    try:
+                        rel_path = str(file_path.relative_to(shared_indexer.project_path))
+                        escaped = shared_indexer.indexer._escape_file_path_for_lance(rel_path)
+                        shared_indexer.indexer.table.delete(f"file_path = '{escaped}'")
+                    except Exception as e:
+                        logger.debug(f"Delete error: {e}")
+            else:  # Created or Changed
+                logger.info(f"👁️ WATCHER CHANGE: {file_path.name} (type={change_type})")
+                # Читаем с диска (файл уже на диске)
+                await shared_indexer.index_file(file_path, content=None)
+
+    except Exception as e:
+        logger.error(f"WATCHER error: {e}")
 
 
 # ============================================================================
