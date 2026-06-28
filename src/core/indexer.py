@@ -7,7 +7,7 @@ import hashlib
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 import lancedb
 import numpy as np
@@ -337,7 +337,9 @@ class Indexer:
             logger.debug(f"delete_file() не нашёл запись {rel_path_str}: {e}")
             return False
 
-    def index_project(self, project_path: Path) -> int:
+    def index_project(
+        self, project_path: Path, progress_callback: Optional[callable] = None
+    ) -> int:
         """Полное сканирование проекта.
 
         1. Инкрементально добавляет новые/измененные файлы.
@@ -346,6 +348,9 @@ class Indexer:
         Args:
             project_path: Путь к корневой директории проекта.
                 Должен существовать и быть директорией.
+            progress_callback: Опциональный callback для отслеживания прогресса.
+                Вызывается с аргументами: (current_file, files_done, files_total, phase)
+                phase: 'scanning', 'embedding', 'complete'
 
         Returns:
             Количество индексированных (новых/изменённых) файлов.
@@ -367,34 +372,62 @@ class Indexer:
 
         if not self.path_manager.is_safe_to_process(project_path):
             logger.warning(f"Путь не прошёл проверку безопасности: {project_path}")
+            if progress_callback:
+                progress_callback("", 0, 0, "error_security")
             return 0
 
-        # Шаг 1: Сканирование диска и обновление базы
-        # Используем сырой путь (без \\?\) для os.walk, иначе relative_to не сработает
+        # Подсчёт общего числа файлов для прогресса
+        all_files: list = []
         walk_root = str(project_path.resolve())
         for root, dirs, files in os.walk(walk_root):
-            # Фильтрация директорий «на лету"
             dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
-
             for file_name in files:
                 full_path = Path(root) / file_name
-                if not self.path_manager.is_safe_to_process(full_path):
-                    continue
-
                 if self.file_guard.should_skip_file(full_path):
                     continue
+                all_files.append((root, file_name, full_path))
 
-                rel_path_str = str(full_path.relative_to(project_path))
-                current_files_on_disk.add(rel_path_str)
+        total_files = len(all_files)
+        logger.info(f"📁 Найдено {total_files} файлов для индексации")
 
+        if progress_callback:
+            progress_callback("", 0, total_files, "scanning")
+
+        # Шаг 1: Сканирование диска и обновление базы
+        for idx, (root, file_name, full_path) in enumerate(all_files):
+            rel_path_str = str(full_path.relative_to(project_path))
+            current_files_on_disk.add(rel_path_str)
+
+            if progress_callback:
+                progress_callback(file_name, idx + 1, total_files, "scanning")
+
+            try:
                 if self._index_single_file(full_path, rel_path_str):
                     indexed_count += 1
+            except Exception as e:
+                logger.warning(f"Ошибка индексации {rel_path_str}: {e}")
 
         # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
-        self.prune_deleted_files(current_files_on_disk)
+        pruned = self.prune_deleted_files(current_files_on_disk)
+        if pruned > 0:
+            logger.info(f"🗑️ Удалено {pruned} устаревших файлов из базы")
 
+        # Шаг 3: Перестройка BM25 индекса
         if indexed_count > 0 and self.searcher:
+            if progress_callback:
+                progress_callback("", total_files, total_files, "rebuilding_bm25")
             self.searcher.reindex()
+
+        # Шаг 4: Финальная статистика
+        final_stats = self.get_status()
+
+        if progress_callback:
+            progress_callback("", total_files, total_files, "complete")
+
+        logger.info(
+            f"✅ Индексация завершена: {indexed_count} новых/изменённых, "
+            f"{pruned} удалено, всего {final_stats.get('total_chunks', 0)} чанков"
+        )
 
         return indexed_count
 

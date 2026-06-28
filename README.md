@@ -1,64 +1,80 @@
-# MSCodeBase Intelligence
+<div align="center">
 
-**Enterprise-grade code search and analysis extension for Zed IDE.**
+# MSCodebase Intelligence
 
-## ✨ Key Features
+**AI-powered semantic code search for Zed IDE viaPython 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-118%20passed-brightgreen.svg)]()
+[![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 
-- **Hybrid Search**: Vector embeddings (LM Studio) + lexical BM25 + Tree-sitter structural analysis
-- **Semantic Chunking**: AST-based code segmentation preserving structure
-- **Call Graph Analysis**: Find definitions, callees, and impact scope for any symbol
-- **Architectural Diff**: Track changes and their impact across the codebase
-- **Real-time Indexing**: LSP-powered incremental updates on file save
-- **Windows Native**: Full Windows support with path normalization (no Docker, no WSL)
+[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Performance](#-performance-tuning) • [Benchmarks](#-benchmarks)
 
-## 📋 Quick Start
+</div>
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Hybrid Search** | Vector embeddings (LM Studio) + lexical BM25 + Tree-sitter structural analysis |
+| 🧠 **Agentic Code Search** | Auto-decomposes complex queries → parallel sub-searches → Call Graph analysis → RRF aggregation |
+| 🔄 **Agentic Deep Search** | Iterative search with query refinement across multiple passes |
+| 🌐 **Cross-repo Search** | Search across multiple indexed projects with `@mention` syntax |
+| 📊 **Progress Tracking** | Real-time indexing progress with phase, percent, files done/total |
+| 🌳 **Call Graph** | Find definitions, callees, and impact scope for any symbol |
+| � **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
+| � **Context Search** | Find similar code by embedding selected fragment |
+| � **LSP Integration** | Auto-index on file save |
+| 💾 **LanceDB v2** | Local vector storage with per-project isolation |
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Zed Editor** (latest version)
 - **Python 3.10+**
+- **Zed IDE** ([download](https://zed.dev/))
 - **LM Studio** (recommended) or Ollama for embeddings
-- **Git** (for repository cloning)
 
-### Python Dependencies
+### Install
 
-Core dependencies (auto-installed):
-- `mcp` — MCP protocol for Zed integration
-- `pygls` + `lsprotocol` — LSP protocol for proactive indexing
-- `lancedb` + `pyarrow` — Vector storage
-- `transformers` + `onnxruntime` + `huggingface_hub` — Local embeddings
-- `tree-sitter` + language bindings — AST parsing
-- `httpx` — HTTP client
-- `pathspec` — Gitignore pattern matching
-- `python-dotenv` — Environment configuration
-
-### Installation
-
-```powershell
+```bash
 # Clone repository
 git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd MSCodeBase
+cd mscodebase-intelligence
 
 # Run installer (copies extension, creates venv, configures Zed)
 python install.py
 ```
 
-After installation:
-1. Launch LM Studio and enable the embedding server (port 1234)
-2. Restart Zed IDE
-3. Open your project — indexing starts automatically
+### Start LM Studio
 
-### Usage
+1. Download [LM Studio](https://lmstudio.ai/)
+2. Load embedding model: `text-embedding-bge-m3` (1024 dim)
+3. Start server (default port: 1234)
 
-Use the `@mscodebase-intelligence` MCP tools in Zed chat:
+### Use in Zed
+
+1. Restart Zed IDE
+2. Open your project
+3. Indexing starts automatically
+4. Use `@mscodebase-intelligence` MCP tools in chat
+
+---
+
+## � Tools (14 total)
 
 | Tool | When to Use |
 |------|-------------|
 | `get_index_status` | Check if project is indexed |
+| `get_index_progress` | Check indexing progress (phase, percent) |
 | `index_project_dir` | Force full re-indexing |
 | `search_code` | Semantic search by concept |
-| `deep_search` | Iterative search with query refinement |
-| `cross_repo_search` | Search across multiple indexed projects (use @-mentions) |
+| `search_code(agentic=True)` | Complex multi-part queries |
+| `deep_search` with refinement |
+| `cross_repo_search` | Multi-project search (`query @backend @frontend`) |
 | `get_context` | Gather relevant code chunks |
 | `get_symbol_info` | Find definition + call graph |
 | `get_repo_map` | Project structure overview |
@@ -68,25 +84,63 @@ Use the `@mscodebase-intelligence` MCP tools in Zed chat:
 | `watcher_status` | Check system health |
 | `get_logs` | Check project error logs |
 
-## 🏗️ Architecture
+---
+
+## � Performance Tuning
+
+### Search Modes
+
+| Mode | When | Latency | Accuracy |
+|:---|:---|:---|:---:|
+| `search_code(query)` | Simple, single concept | ~100ms | High |
+| `search_code(agentic=True)` | Complex (2+ concepts) | ~300-500ms | Very High |
+| `deep_search(query)` | Research tasks | ~1-3s | Highest |
+| `cross_repo_search(query @repo)` | Multi-project | ~500ms-2s | High |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API endpoint |
+| `LM_STUDIO_PORT` | `1234` | LM Studio port |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+
+---
+
+## � Benchmarks
+
+```bash
+pytest tests/benchmark_agentic_search.py -v -m benchmark
+```
+
+| Query Type | Hybrid | Agentic | Winner |
+|:---|:---|:---|:---:|
+| Simple (1 concept) | ~50ms | ~150ms | Hybrid |
+| Complex (3+ concepts) | ~100ms | ~300ms | Agentic |
+| Cross-project | N/A | ~500ms | Cross-repo |
+
+---
+
+## �️ Architecture
 
 ```
-MSCodeBase Intelligence
+MSCodebase Intelligence
 ├── MCP Server (src/mcp/server.py)
-│   ├── Tools: search_code, deep_search, cross_repo_search, get_context, get_symbol_info,
-│   │         scan_changes, context_search, structural_search, get_logs, watcher_status
+│   ├── 14 Tools: search_code, deep_search, cross_repo_search, get_context,
+│   │            get_symbol_info, get_repo_map, scan_changes, context_search,
+│   │            structural_search, get_logs, watcher_status, get_index_status,
+│   │            get_index_progress, index_project_dir
 │   └── Prompts: mscodebase-rules (system rules for AI agent)
 ├── LSP Server (src/lsp_main.py)
 │   └── Auto-indexes on file save
 └── Core Engine (src/core/)
-    ├── indexer.py          — LanceDB vector storage + file scanning
+    ├── indexer.py          — LanceDB vector storage + file scanning + progress callback
     ├── searcher.py         — Hybrid search (BM25 + Dense + RRF) + Agentic Deep Search
     ├── multi_project_searcher.py — Cross-repo search with @-mention syntax
     ├── symbol_index.py     — Tree-sitter symbol definitions + call graph
     ├── context_engine.py   — Compressed context generation
     ├── query_expansion.py  — Synonym expansion + stemming
-    ├── structural_search.py — AST pattern matching (13 patterns)
-    ├── remote_embedder.py  — LM Studio / Ollama / ONNX embeddings
+    ├── structural_search.py — AST pattern matching (13├── remote_embedder.py  — LM Studio / Ollama / ONNX embeddings
     ├── parser.py           — Tree-sitter AST parsing
     ├── file_guard.py       — Security filtering + gitignore
     ├── gitignore_parser.py — Pattern matching
@@ -96,105 +150,78 @@ MSCodeBase Intelligence
     └── content_cache.py    — File hash caching
 ```
 
-### Data Storage
+### Data Flow
 
-Vector indexes are isolated per project in:
 ```
-<PARENT_DIR>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
-```
-
-## ⚙️ Configuration
-
-### Zed Settings (auto-configured by `install.py`)
-
-```json
-{
-  "context_servers": {
-    "mscodebase-intelligence": {
-      "command": "python",
-      "args": ["D:/Path/To/MSCodeBase/src/main.py"]
-    }
-  },
-  "lsp": {
-    "mscodebase-lsp": {
-      "command": "python",
-      "args": ["-u", "D:/Path/To/MSCodeBase/src/lsp_main.py"]
-    }
-  },
-  "agent": {
-    "system_prompt": "MSCodeBase Core Rules: ..."
-  }
-}
+Zed IDE → MCP Server → RemoteEmbedder → LM Studio (embeddings)
+                ↓
+           Indexer (LanceDB)
+                ↓
+           Searcher (BM25 + Vector + RRF)
+                ↓
+           Results → Zed IDE
 ```
 
-### Environment Variables
+### Storage
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `LM_STUDIO_HOST` | `127.0.0.1` | LM Studio host |
-| `LM_STUDIO_PORT` | `1234` | LM Studio port |
+Vector indexes are isolated per project:
+```
+<PROJECT_ROOT>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
+```
 
-## 🤖 AI Agent Usage
-
-### How It Works in Zed
-
-1. **MCP server** starts with Zed and handles AI assistant requests
-2. **LSP server** starts when a project opens and auto-indexes on `Ctrl+S`
-3. Both servers share the same LanceDB — fresh embeddings are always available
-
-### Workflow for New Projects
-
-1. `get_index_status()` — check if project is indexed
-2. If empty — `index_project_dir(path="...")` to start indexing (runs async)
-3. Use `search_code`, `get_context`, `get_symbol_info` for analysis
-4. After external changes — `scan_changes()` to detect diffs
-
-### Tool Selection Guide
-
-| Task | Tool |
-|------|------|
-| Find code by concept | `search_code(query="...")` |
-| Complex multi-part query | `search_code(agentic=True)` or `deep_search()` |
-| Search across repos | `cross_repo_search("query @backend @frontend")` |
-| Get symbol definition + callers | `get_symbol_info(query="ClassName")` |
-| Gather compressed context | `get_context(query="...")` |
-| Project structure overview | `get_repo_map(project_root="...")` |
-| Find similar code by fragment | `context_search(selected_code="...")` |
-| Search by AST patterns | `structural_search(pattern="class_inheritance")` |
-| Detect external changes | `scan_changes(project_root="...")` |
-| Check system health | `watcher_status()` |
-| Check error logs | `get_logs(project_root="...")` |
-
-### Best Practices
-
-- Use natural language in search: `"функция для валидации email"` works better than `"validateEmail"`
-- Combine tools: find a symbol via `search_code`, then get details via `get_symbol_info`
-- For refactoring: use `get_symbol_info` to find all dependents before changing
-- Read files in 50-line chunks, not entire files
-- Normalize Windows paths to POSIX lowercase: `path.as_posix().lower()`
+---
 
 ## 🛠️ Development
 
 ### Setup
 
-```powershell
+```bash
+# Clone
+git clone https://github.com/ManSio/mscodebase-intelligence.git
+cd mscodebase-intelligence
+
+# Create venv
 python -m venv venv
-venv\Scripts\activate
+source venv/bin/activate  # Linux/macOS
+# or
+venv\Scripts\activate     # Windows
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### Running Tests
+### Run Tests
 
-```powershell
+```bash
+# All tests
 pytest tests/ -v
+
+# Without slow tests
+pytest tests/ -m "not slow" -v
+
+# Only benchmarks
+pytest tests/benchmark_agentic_search.py -v -m benchmark
 ```
 
-### Running MCP Server Manually
+### Run MCP Server Manually
 
-```powershell
+```bash
 python -m src.main
 ```
+
+### Code Quality
+
+```bash
+# Format
+black src/ tests/
+isort src/ tests/
+
+# Check
+black --check src/ tests/
+isort --check-only src/ tests/
+```
+
+---
 
 ## 📁 Project Structure
 
@@ -204,22 +231,100 @@ MSCodeBase/
 │   ├── main.py                    # MCP entry point
 │   ├── lsp_main.py                # LSP server entry
 │   ├── core/                      # Core engine modules
+│   │   ├── indexer.py             # LanceDB + progress callback
+│   │   ├── searcher.py            # Hybrid search + agentic
+│   │   ├── multi_project_searcher.py
+│   │   ├── symbol_index.py        # Call Graph
+│   │   ├── context_engine.py
+│   │   ├── query_expansion.py
+│   │   ├── structural_search.py   # 13 AST patterns
+│   │   ├── remote_embedder.py     # LM Studio/Ollama/ONNX
+│   │   ├── parser.py
+│   │   ├── file_guard.py
+│   │   ├── gitignore_parser.py
+│   │   ├── reranker.py
+│   │   ├── log_manager.py
+│   │   ├── integrity.py
+│   │   └── content_cache.py
 │   ├── mcp/                       # MCP server + tools
-│   └── utils/                     # Path management, zed config
-├── tests/                         # Test suite
-├── install.py                     # Deployment script
-├── installers/                    # Build scripts
+│   │   └── server.py              # 14 MCP tools + prompts
+│   └── utils/
+│       ├── paths.py
+│       └── zed_config.py
+├── tests/                         # 111 unit ├── test_agentic_search.py     # 25 tests
+│   ├── test_deep_search.py        # 15 tests
+│   ├── test_cross_repo_search.py  # 21 tests
+│   ├── test_index_progress.py     # 11 tests
+│   ├── test_searcher.py           # 4 tests
+│   ├── test_indexer_project_path.py # 6 tests
+│   ├── test_multi_project_query_expansion.py # 25 tests
+│   ├── test_embedder.py           # 6 tests
+│   ├── test_parser.py             # 4 tests
+│   ├── test_connection.py         # 1 test
+│   ├── test_mutation_core.py      # 3 tests
+│   └── test_automation.py         # 1 test
+├── benchmark_agentic_search.py    # 7 benchmark tests
+├── scripts/
+│   ├── download_model.py          # ONNX model downloader
+│   └── full_index.py              # Full indexing script
+├── install.py                     # Cross-platform installer
 ├── .agents/skills/                # Zed agent skills
-├── pyproject.toml                 # Project metadata
-├── requirements.txt               # Dependencies
-├── README.md                      # This file
-├── ARCHITECTURE.md                # Technical deep-dive
-├── CHANGELOG.md                   # Version history
-├── TESTING.md                     # Test suite reference
-├── SECURITY.md                    # Security policy
-└── CONTRIBUTING.md                # Contribution guide
+│   └── mscodebase-rules/SKILL.md
+├── pyproject.toml
+├── requirements.txt
+├── README.md
+├── ARCHITECTURE.md
+├── CHANGELOG.md
+├── TESTING.md
+├── CONTRIBUTING.md
+└── SECURITY.md
 ```
 
-## 📄 License
+---
 
-MIT License. See `LICENSE` for details.
+## 🔒 Security
+
+- **Local-only storage** — all data stored locally (no cloud)
+- **Path hashing** — project isolation via path hashing
+- **Gitignore filtering** — respects .gitignore patterns
+- **File guard** — security filtering + binary detection
+- **No elevated permissions** — runs as regular user
+
+See [SECURITY.md](SECURITY.md) for details.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make changes following code standards
+4. Run tests: `pytest tests/ -v`
+5. Commit: `feat(module): add amazing feature`
+6. Push and create PR
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## � License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## 🔗 Links
+
+- **Repository**: https://github.com/ManSio/mscodebase-intelligence
+- **Issues**: https://github.com/ManSio/mscodebase-intelligence/issues
+- **LM Studio**: https://lmstudio.ai/
+- **Zed IDE**: https://zed.dev/
+- **MCP Protocol**: https://modelcontextprotocol.io/
+
+---
+
+<div align="center">
+
+Built with ❤️ for the Zed community
+
+</div>

@@ -633,13 +633,14 @@ class Searcher:
     def _decompose_query_with_llm(self, query: str) -> List[str]:
         """Декомпозирует сложный запрос на подзапросы через LLM.
 
-        Использует правила декомпозиции (без LLM-вызова) для разбиения
-        сложных вопросов на независимые подзапросы.
+        Пытается использовать LM Studio API для семантической декомпозиции.
+        При недоступности LLM — fallback на правило-базированные эвристики.
 
-        Стратегии декомпозиции:
-        1. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
-        2. Разделение по вопросам: "как", "где", "когда", "что"
-        3. Извлечение ключевых существительных и глаголов
+        Стратегии (в порядке приоритета):
+        1. LLM-декомпозиция через LM Studio API (http://localhost:1234)
+        2. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
+        3. Разделение по вопросам: "как", "где", "когда", "что"
+        4. Извлечение ключевых существительных и глаголов
 
         Args:
             query: Сложный запрос
@@ -648,6 +649,15 @@ class Searcher:
             Список подзапросов (2-4 штуки)
         """
         import re
+
+        # Попытка 1: LLM-декомпозиция через LM Studio API
+        llm_subqueries = self._try_llm_decompose(query)
+        if llm_subqueries and len(llm_subqueries) >= 2:
+            logger.debug(f"🧠 LLM декомпозиция: {len(llm_subqueries)} подзапросов")
+            return llm_subqueries[:4]
+
+        # Fallback: правило-базированная декомпозиция
+        logger.debug("⚠️ LLM недоступен, используем правила декомпозиции")
 
         # Стратегия 1: разделение по ключевым союзам и знакам
         separators = r'(?:\s+(?:и|а|также|плюс|а также|и также)\s+|\s*[,;]\s+(?:и |а |также |плюс )?)'
@@ -694,17 +704,106 @@ class Searcher:
         # Фоллбэк: возвращаем оригинальный запрос
         return [query]
 
+    def _try_llm_decompose(self, query: str) -> Optional[List[str]]:
+        """Пытается декомпозировать запрос через LM Studio API.
+
+        Использует локальный LM Studio (http://localhost:1234) для разбиения
+        сложного запроса на семантически независимые подзапросы.
+
+        Args:
+            query: Сложный запрос для декомпозиции
+
+        Returns:
+            Список подзапросов или None при ошибке
+        """
+        try:
+            import httpx
+
+            # Проверяем доступность LM Studio
+            lm_url = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
+            api_key = os.getenv("API_KEY", "sk-local")
+
+            # Быстрая проверка живости (1 секунда)
+            httpx.get(lm_url.replace("/v1", ""), timeout=1.0)
+
+            # Запрос на декомпозицию
+            system_prompt = (
+                "You are a code search query decomposer. Given a complex query about code, "
+                "split it into 2-4 independent sub-queries that can be searched separately.\n\n"
+                "Rules:\n"
+                "- Each sub-query should focus on ONE concept\n"
+                "- Sub-queries must be independent (no shared context needed)\n"
+                "- Use natural language, keep sub-queries under 15 words each\n"
+                "- Return ONLY a JSON array of strings, no explanation\n\n"
+                "Example:\n"
+                'Input: "How does authentication work and where are permissions checked?"\n'
+                'Output: ["authentication flow implementation", "permission checking locations"]\n'
+            )
+
+            response = httpx.post(
+                f"{lm_url}/chat/completions",
+                json={
+                    "model": "local-model",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": query},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 200,
+                },
+                timeout=5.0,
+            )
+
+            if response.status_code != 200:
+                logger.debug(f"LM Studio вернул статус {response.status_code}")
+                return None
+
+            # Парсим ответ
+            result = response.json()
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            # Извлекаем JSON массив из ответа
+            # LLM может вернуть ```json [...] ``` или просто [...]
+            import json as json_module
+            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            if json_match:
+                subqueries = json_module.loads(json_match.group())
+                # Валидация: каждый подзапрос должен быть строкой 5-100 символов
+                valid = [
+                    sq.strip() for sq in subqueries
+                    if isinstance(sq, str) and 5 <= len(sq.strip()) <= 100
+                ]
+                if len(valid) >= 2:
+                    return valid
+
+            logger.debug(f"Не удалось распарсить ответ LLM: {content[:100]}")
+            return None
+
+        except ImportError:
+            logger.debug("httpx не установлен, LLM-декомпозиция недоступна")
+            return None
+        except Exception as e:
+            logger.debug(f"LLM-декомпозиция недоступна: {e}")
+            return None
+
     def _analyze_subquery_relations(
-        self, subqueries: List[str], subquery_results: Dict[str, List[dict]]
+        self,
+        subqueries: List[str],
+        subquery_results: Dict[str, List[dict]],
+        symbol_index=None,
     ) -> Dict[str, any]:
         """Анализирует связи между результатами подзапросов.
 
         Ищет общие файлы, символы и зависимости между результатами
         разных подзапросов для формирования связного ответа.
 
+        Если передан symbol_index — использует Call Graph для поиска
+        связанных символов (определения, вызовы) в общих файлах.
+
         Args:
             subqueries: Список подзапросов
             subquery_results: {subquery: [results]}
+            symbol_index: SymbolIndex для Call Graph (опционально)
 
         Returns:
             Словарь с анализом связей
@@ -712,8 +811,11 @@ class Searcher:
         analysis = {
             "common_files": [],
             "related_symbols": [],
+            "call_graph_hints": [],
             "flow_description": "",
             "coverage_score": 0.0,
+            "call_graph_depth": 0,
+            "call_graph_nodes_count": 0,
         }
 
         # Собираем все файлы из результатов
@@ -747,6 +849,72 @@ class Searcher:
                     f"{len(common)} файлов пересекаются между подзапросами."
                 )
 
+        # Call Graph анализ через build_call_graph
+        if symbol_index and hasattr(symbol_index, "build_call_graph"):
+            try:
+                nodes_count = 0
+                max_depth = 0
+                for file_path in common[:5]:  # Топ-5 общих файлов
+                    # Получаем символы, определённые в этом файле
+                    sym_names = symbol_index.get_symbols_in_file(file_path)
+                    if not sym_names:
+                        continue
+
+                    for sym_name in sym_names[:3]:  # Топ-3 символа на файл
+                        call_graph = symbol_index.build_call_graph(sym_name, depth=2)
+
+                        # Собираем информацию об определении
+                        if call_graph.get("definition"):
+                            for defn in call_graph["definition"]:
+                                analysis["related_symbols"].append({
+                                    "name": call_graph["symbol"],
+                                    "file": defn.get("file", file_path),
+                                    "line": defn.get("line", 0),
+                                    "kind": defn.get("kind", "unknown"),
+                                })
+
+                        # Собираем информацию о вызовах (callers + callees)
+                        callers = call_graph.get("callers", [])
+                        callees = call_graph.get("callees", [])
+                        impact_files = call_graph.get("impact_files", [])
+
+                        if callers or callees:
+                            analysis["call_graph_hints"].append({
+                                "symbol": call_graph["symbol"],
+                                "callers_count": len(callers),
+                                "callees_count": len(callees),
+                                "impact_files_count": len(impact_files),
+                                "called_from": [c.get("file", "") for c in callers[:3]],
+                                "calls_to": [c.get("symbol", "") for c in callees[:3]],
+                            })
+
+                        # Подсчёт узлов графа
+                        graph_nodes = len(call_graph.get("definition", [])) + len(callers) + len(callees)
+                        nodes_count += graph_nodes
+                        # Определяем глубину: если есть indirect_caller — depth=2
+                        has_indirect = any(c.get("kind") == "indirect_caller" for c in callers)
+                        depth = 2 if has_indirect else 1
+                        max_depth = max(max_depth, depth)
+
+                analysis["call_graph_depth"] = max_depth
+                analysis["call_graph_nodes_count"] = nodes_count
+            except Exception as e:
+                logger.debug(f"Call Graph анализ недоступен, fallback: {e}")
+                # Fallback на упрощённый подход
+                try:
+                    for file_path in common[:5]:
+                        sym_names = symbol_index.get_symbols_in_file(file_path)
+                        for sym_name in sym_names[:2]:
+                            refs = symbol_index.find_references(sym_name)
+                            if refs:
+                                analysis["call_graph_hints"].append({
+                                    "symbol": sym_name,
+                                    "reference_count": len(refs),
+                                    "referenced_in": [r.file_path for r in refs[:3]],
+                                })
+                except Exception as e2:
+                    logger.debug(f"Fallback анализ тоже недоступен: {e2}")
+
         return analysis
 
     def agentic_code_search(
@@ -760,11 +928,11 @@ class Searcher:
         """Agentic Code Search с LLM-декомпозицией запроса.
 
         Алгоритм (на основе arxiv.org/abs/2505.14321):
-        1. Декомпозиция запроса на подзапросы (LLM/правила)
-        2. Параллельный поиск каждого подзапроса через hybrid_search
+        1. Декомпозиция запроса на подзапросы (LLM с fallback на правила)
+        2. Параллельный поиск каждого подзапроса через asyncio.gather
         3. Анализ связей между результатами (общие файлы, символы)
-        4. Агрегация через RRF + get_context
-        5. Формирование итогового ответа с Call Graph
+        4. Агрегация через RRF
+        5. Fallback к обычному поиску при плохой декомпозиции
 
         Args:
             query: Сложный запрос
@@ -782,40 +950,84 @@ class Searcher:
         search_metadata = {
             "original_query": query,
             "subqueries": subqueries,
+            "decomposition_method": "llm" if len(subqueries) >= 2 and subqueries != [query] else "rules",
             "subquery_results_count": {},
             "relations": None,
             "total_unique": 0,
+            "fallback_used": False,
         }
 
         if len(subqueries) <= 1:
             # Простой запрос — используем обычный гибридный поиск
             results = self.hybrid_search(query, limit=max_total_results)
             search_metadata["subquery_results_count"][query] = len(results)
+            search_metadata["decomposition_method"] = "none"
             return results, search_metadata
 
-        # Шаг 2: Параллельный поиск каждого подзапроса
-        all_results: List[dict] = []
-        seen_keys: set = set()
+        # Шаг 2: Параллельный поиск каждого подзапроса через ThreadPoolExecutor
+        # (asyncio.gather не подходит для sync hybrid_search — используем потоки)
         subquery_results: Dict[str, List[dict]] = {}
 
-        for sq in subqueries:
-            sq_results = self.hybrid_search(
-                sq, limit=limit_per_subquery, use_rrf=True, expand=True
-            )
-            subquery_results[sq] = sq_results
-            search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            for r in sq_results:
+            with ThreadPoolExecutor(max_workers=min(len(subqueries), 4)) as executor:
+                future_to_sq = {
+                    executor.submit(
+                        self.hybrid_search, sq, limit_per_subquery, True, True
+                    ): sq
+                    for sq in subqueries
+                }
+
+                for future in as_completed(future_to_sq):
+                    sq = future_to_sq[future]
+                    try:
+                        sq_results = future.result(timeout=30)
+                        subquery_results[sq] = sq_results
+                        search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
+                    except Exception as e:
+                        logger.warning(f"Поиск подзапроса '{sq[:30]}' удался: {e}")
+                        subquery_results[sq] = []
+                        search_metadata["subquery_results_count"][sq[:40]] = 0
+
+        except Exception as e:
+            # Fallback: последовательный поиск при ошибке ThreadPool
+            logger.warning(f"ThreadPoolExecutor недоступен ({e}), fallback на последовательный поиск")
+            for sq in subqueries:
+                sq_results = self.hybrid_search(
+                    sq, limit=limit_per_subquery, use_rrf=True, expand=True
+                )
+                subquery_results[sq] = sq_results
+                search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
+
+        # Шаг 2.5: Fallback при плохой декомпозиции
+        # Если ни один подзапрос не дал результатов — ищем оригинальный запрос
+        total_subquery_results = sum(len(r) for r in subquery_results.values())
+        if total_subquery_results == 0:
+            logger.info("⚠️ Декомпозиция не дала результатов, fallback на обычный поиск")
+            search_metadata["fallback_used"] = True
+            results = self.hybrid_search(query, limit=max_total_results)
+            search_metadata["subquery_results_count"][f"[fallback] {query[:40]}"] = len(results)
+            return results, search_metadata
+
+        # Шаг 3: Дедупликация и сборка результатов
+        all_results: List[dict] = []
+        seen_keys: set = set()
+
+        for sq in subqueries:
+            for r in subquery_results.get(sq, []):
                 key = f"{r['metadata']['file']}:{r['metadata']['chunk_index']}"
                 if key not in seen_keys:
                     seen_keys.add(key)
                     all_results.append(r)
 
-        # Шаг 3: Анализ связей между результатами
-        relations = self._analyze_subquery_relations(subqueries, subquery_results)
+        # Шаг 4: Анализ связей между результатами (с Call Graph если доступен)
+        relations = self._analyze_subquery_relations(
+            subqueries, subquery_results, symbol_index=symbol_index
+        )
         search_metadata["relations"] = relations
 
-        # Шаг 4: Ранжирование через RRF scores
+        # Шаг 5: Ранжирование через RRF scores
         all_results.sort(key=lambda r: r.get("final_score", 0.0), reverse=True)
         final_results = all_results[:max_total_results]
         search_metadata["total_unique"] = len(seen_keys)

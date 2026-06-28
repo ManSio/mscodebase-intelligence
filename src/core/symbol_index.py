@@ -150,6 +150,18 @@ class SymbolIndex:
         with self._lock:
             return list(self._references.get(symbol, []))
 
+    def get_symbols_in_file(self, file_path: str) -> List[str]:
+        """Возвращает список имён символов, определённых в файле.
+
+        Args:
+            file_path: Путь к файлу
+
+        Returns:
+            Список имён символов (уникальные)
+        """
+        with self._lock:
+            return list(self._file_to_defs.get(file_path, set()))
+
     def get_symbol_context(self, symbol: str) -> Dict:
         """
         Возвращает контекст символа для обогащения результатов поиска.

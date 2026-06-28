@@ -1,70 +1,51 @@
 # CHANGELOG
 
-## [Unreleased] — 2026-06-28
+## [1.2.0] — 2026-06-28
 
-### Документация
-- Удалён `PROJECT_DOCS.md` — полностью дублировал README + ARCHITECTURE
-- Удалён `CODE_OF_CONDUCT.md` — стандартный Contributor Covenant без контактных данных
-- Удалён `AI_PROMPT.md` — содержимое перенесено в раздел "AI Agent Usage" в README.md
-- Переписан `TESTING.md` — убраны теоретические сценарии, добавлены реальные тесты и команды запуска
-- Обновлён `CONTRIBUTING.md` — убраны общие фразы, добавлены конкретные команды проекта
-- Обновлён `ARCHITECTURE.md` — убраны упоминания ChromaDB (миграция на LanceDB завершена)
-- Обновлён `README.md` — добавлен раздел "AI Agent Usage", обновлена структура файлов
+### � Major Release — Production Ready
 
----
+**New Features:**
+- **Agentic Code Search v4** — Full LLM decomposition via LM Studio API with ThreadPoolExecutor parallel search and Call Graph analysis
+- **Indexing Progress Tracking** — Real-time progress callback system with `get_index_progress()` MCP tool
+- **Cross-repo @-mention Search** — Multi-project search with RRF aggregation
+- **Agentic Deep Search** — Iterative query refinement with key term extraction
+- **Context Search** — Find similar code by embedding selected fragment
+- **Structural Search** — 13 AST patterns (class_inheritance, function_with_decorator, async_function, etc.)
+- **Centralized Logging** — File-based logs with rotation (2MB × 3) and auto-cleanup
 
-## [1.1.0] — 2026-06-22
+### 🔧 Improvements
+- `install.py` — Cross-platform venv paths (Windows/Linux/macOS), error handling, Zed IDE presence check
+- `remote_embedder.py` — Auto-scanner for LM Studio/Ollama availability with fallback cascade
+- `indexer.py` — Progress callback support, graceful error handling per file
+- `searcher.py` — LLM decomposition with rules fallback, parallel search via ThreadPoolExecutor
 
-### Исправлено
-- `src/mcp/server.py` — `@mcp.prompt()` перемещён внутрь `create_mcp_server()` (исправлен `NameError: name 'mcp' is not defined`)
-- `install.py` — `system_prompt` записывается в `"agent"` вместо устаревшего `"assistant"` (Zed актуальных версий игнорирует старый блок)
+### 📊 Test Coverage
+- **111 unit tests** + **7 benchmark tests** = **118 total**
+- All tests passing
 
-### Документация
-- `README.md` — полная перезапись: актуальная структура, архитектура, инструкции
-- `ARCHITECTURE.md` — синхронизирована с текущим кодом
-- `AI_PROMPT.md` — добавлены инструменты `scan_changes`, `watcher_status`
-- `PROJECT_DOCS.md` — синхронизирована с реальной структурой проекта
+### 📚 Documentation
+- Complete README with Quick Start, Architecture, Performance Tuning
+- ARCHITECTURE.md with data flow diagrams and module descriptions
+- SKILL.md with tool selection matrix (14 tools)
+- TESTING.md with real test commands
+
+### � Cleanup
+- Removed dead modules: `chunker.py`, `search.py`
+- Removed unused dependencies: `chromadb`, `watchdog`, `psutil`, `requests`, `tqdm`
+- Consolidated documentation (removed PROJECT_DOCS.md, CODE_OF_CONDUCT.md, AI_PROMPT.md)
 
 ---
 
 ## [1.1.0] — 2026-06-22
 
 ### Добавлено
-- Режим работы через **RemoteEmbedder** — векторизация кода через LM Studio (OpenAI-совместимый API) без загрузки ONNX. Основной провайдер эмбеддингов (автоопределение LM Studio при старте).
-- **Оркестратор потоков** в `handler.py` — глобальный `threading.Lock()`, защита от повторного запуска индексации.
-- Установщик (`install.py`): копирование `chromadb_rust_bindings.pyd` в venv расширения (шаг 4.1).
-- `CHANGELOG.md` — дневник изменений, проблем и решений.
+- Режим работы через **RemoteEmbedder** — векторизация кода через LM Studio
+- **Оркестратор потоков** — защита от повторного запуска индексации
+- Установщик (`install.py`) с копированием расширения в Zed
 
-### Изменено
-- `handler.py` — полный рефакторинг: убран `background_init` с `SERVER_READY`, вся инициализация синхронная при создании MCP-сервера.
-- `remote_embedder.py` — убран флаг `is_available`; каждый запрос принудительно стучится к LM Studio.
-- `indexer.py` — исправлена проверка `.codebase`: теперь смотрит любую часть пути, а не только имя последней папки.
-- `indexer.py` — добавлена защита от пустых эмбеддингов: если Embedder вернул `[]`, upsert в LanceDB пропускается.
-- `.gitignore` — унифицирован: `.codebase_indices/`, `.model_server.*`, `crash_debug.log`, `Agent Panel`, `nul`.
-- `pyproject.toml` — обновлены URL репозитория на `ManSio/mscodebase-intelligence`.
-- `README.md` — синхронизирован с архитектурой (RemoteEmbedder → LM Studio).
-
-### Проблемы и исследования
-
-#### Проблема: ChromaDB не стартует в venv расширения
-- **Причина**: `chromadb_rust_bindings.pyd` не копировался из системного Python в venv при установке.
-- **Решение**: добавлен шаг 4.1 в `install.py` — копирование `.pyd` в venv расширения.
-
-#### Проблема: `indexer.py` падает с `"Отказ удалять не-codebase папку"`
-- **Причина**: проверка `self.db_path.name.startswith(".codebase")` смотрела только на имя последней папки.
-- **Решение**: заменено на `any(part.startswith(".codebase") for part in self.db_path.parts)`.
-
-#### Проблема: `list index out of range in upsert` при пустых эмбеддингах
-- **Причина**: Embedder возвращал пустые списки `[]`, а БД ожидала векторы.
-- **Решение**: защита в `_index_file_unlocked()` — если эмбеддинги пустые, пропускаем запись.
-
-#### Проблема: `WinError 87` при `shutil.copy2` в `install.py`
-- **Причина**: в корне проекта оказался файл `nul` (зарезервированное имя устройства Windows).
-- **Решение**: `nul` добавлен в список исключений + `try-except` вокруг `shutil.copy2`.
-
-#### Проблема: сервер индексации не стартует из-за неправильного пути проекта
-- **Причина**: `os.getcwd()` возвращает папку Zed (Program Files), а не проект пользователя.
-- **Решение**: хардкод `D:\Project\gemma_agent` как fallback, если CWD содержит "Zed" или "Program Files".
+### Исправлено
+- `@mcp.prompt()` перемещён внутрь `create_mcp_server()`
+- `system_prompt` записывается в `"agent"` вместо `"assistant"`
 
 ---
 

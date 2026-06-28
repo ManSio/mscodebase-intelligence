@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -54,6 +55,56 @@ def _signal_all_events():
         ev.set()
 
 
+_last_progress: Dict[str, Any] = {}
+_progress_lock = threading.Lock()
+
+
+def _cleanup_old_progress():
+    """Удаляет записи прогресса старше 1 часа (защита от memory leak)."""
+    now = time.time()
+    expired = [
+        k for k, v in _last_progress.items()
+        if now - v.get("timestamp", 0) > 3600
+    ]
+    for k in expired:
+        del _last_progress[k]
+
+
+def _create_progress_callback(project_name: str):
+    """Создаёт callback для отслеживания прогресса индексации.
+
+    Возвращает callable который обновляет внутренний счётчик прогресса
+    и логирует каждые 10 файлов.
+    Потокобезопасен через _progress_lock.
+    """
+    def progress_callback(file_name: str, done: int, total: int, phase: str):
+        try:
+            # Обновляем внутренний счётчик (потокобезопасно)
+            progress_info = {
+                "project": project_name,
+                "phase": phase,
+                "files_done": done,
+                "files_total": total,
+                "current_file": file_name,
+                "percent": (done / total * 100) if total > 0 else 0,
+                "timestamp": time.time(),
+            }
+            with _progress_lock:
+                _last_progress[project_name] = progress_info
+
+            # Логируем прогресс каждые 10 файлов или на ключевых этапах
+            if done % 10 == 0 or phase in ("complete", "rebuilding_bm25", "error_security"):
+                logger.info(
+                    f"📊 Прогресс индексации [{project_name}]: "
+                    f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
+                )
+        except Exception as e:
+            # Ошибка callback не должна прерывать индексацию
+            logger.debug(f"Progress callback error (non-critical): {e}")
+
+    return progress_callback
+
+
 async def background_queue_worker(
     indexer: Indexer, symbol_index: SymbolIndex, parser: "CodeParser"
 ):
@@ -86,8 +137,10 @@ async def background_queue_worker(
             indexed_count = 0
             try:
                 logger.info("📡 Старт векторного сканирования всего проекта...")
+                # Создаём progress callback для отслеживания
+                progress_cb = _create_progress_callback(project_path.name)
                 indexed_count = await asyncio.to_thread(
-                    indexer.index_project, project_path
+                    indexer.index_project, project_path, progress_callback=progress_cb
                 )
                 logger.info(f"🔹 Шаг 1 (Векторы) завершен. Фрагментов: {indexed_count}")
             except Exception as emb_err:
@@ -219,6 +272,44 @@ def create_mcp_server() -> "FastMCP":
         return output
 
     @mcp.tool()
+    def get_index_progress(kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает текущий прогресс индексации для всех проектов.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Хочешь понять сколько осталось до завершения индексации
+        - Нужно решить подождать или уже можно искать
+        - Индексация запущена но статус неизвестен
+
+        Возвращает форматированный статус по каждому проекту.
+        """
+        _debug_log("get_index_progress")
+
+        # Очистка старых записей (потокобезопасно)
+        _cleanup_old_progress()
+
+        with _progress_lock:
+            progress_copy = _last_progress.copy()
+
+        if not progress_copy:
+            return "📊 Индексация не запущена. Используйте index_project_dir для начала."
+
+        lines = ["📊 Прогресс индексации:"]
+        for project, info in progress_copy.items():
+            status_emoji = "✅" if info["phase"] == "complete" else "🔄"
+            lines.append(
+                f"  {status_emoji} {project}: "
+                f"{info['files_done']}/{info['files_total']} "
+                f"({info['percent']:.0f}%) — {info['phase']}"
+            )
+            if info["phase"] == "complete":
+                lines.append(f"     ✅ Индексация завершена, можно искать!")
+            elif info["percent"] > 0:
+                remaining = info["files_total"] - info["files_done"]
+                lines.append(f"     ⏳ Осталось ~{remaining} файлов")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def index_project_dir(
         path: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -227,6 +318,7 @@ def create_mcp_server() -> "FastMCP":
         CRITICAL USAGE RULES:
         1. Normalize Windows paths to POSIX lowercase before calling: path.as_posix().lower()
         2. After calling this, ALWAYS call get_index_status() to verify cache state.
+        3. Используй get_index_progress() для отслеживания прогресса.
         """
         _debug_log("index_project_dir", path)
         global _last_index_error
@@ -852,6 +944,15 @@ You operate under a strict deterministic execution matrix. Every action must be 
 ## 7. POST-MODIFICATION SYNC
 - After writing any file, immediately call `index_project_dir(path)` to force re-indexing.
 - Call `get_index_status()` to verify that the cache matches the updated state.
+- Use `get_index_progress()` to check indexing progress before searching.
+
+## 8. INDEXING PROGRESS AWARENESS
+- After `index_project_dir()`, indexing runs asynchronously in background.
+- Use `get_index_progress()` to check current status (files done/total, phase).
+- IF phase = "complete" → safe to use `search_code` and other search tools.
+- IF phase = "scanning" or "rebuilding_bm25" → wait or use grep as fallback.
+- IF percent < 50% → warn user that indexing is still in progress.
+- IF percent >= 80% → indexing almost done, results may be partial but usable.
 
 ## 8. STACK & CONSTRAINTS
 - Backend: Python 3.11+, FastAPI (DI via `Depends`).

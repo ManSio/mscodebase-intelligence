@@ -88,6 +88,7 @@ db_name = f"index_{project_name}_{project_hash}.db"
 | `get_repo_map` | sync | Карта проекта (файлы + символы) |
 | `scan_changes` | async | Архитектурный дифф изменений |
 | `watcher_status` | sync | Статус компонентов (embedder, LSP) |
+| `get_index_progress` | sync | Прогресс индексации (phase, percent, files done/total) |
 
 ## 6. MCP Prompts
 

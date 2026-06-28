@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, deep_search, cross_repo_search, get_symbol_info, get_context, get_repo_map, scan_changes, context_search, structural_search, get_logs. Use search_code(agentic=True) for complex multi-part questions."
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, deep_search, cross_repo_search, get_symbol_info, get_context, get_repo_map, scan_changes, context_search, structural_search, get_logs, get_index_progress. Use search_code(agentic=True) for complex multi-part questions."
 ---
 
 # MSCodeBase Tool Selection Rules
@@ -22,8 +22,9 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | Search by code structure (not text) | MCP `structural_search` | 13 AST patterns (class_inheritance, decorator, async, etc.) |
 | Complex multi-part questions | MCP `search_code(agentic=True)` | Auto-decomposes into sub-queries, searches, analyzes relations |
 | Diagnose errors / check logs | MCP `get_logs` | Last errors and warnings from project logs |
+| Check indexing progress | MCP `get_index_progress` | Progress of async indexing (phase, percent, files done/total) |
 
-## Available MCP Tools (13 total)
+## Available MCP Tools (14 total)
 
 | # | Tool | Purpose |
 |---|---|---|
@@ -40,6 +41,7 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | 11 | `structural_search` | AST pattern matching (13 patterns) |
 | 12 | `watcher_status` | System health |
 | 13 | `get_logs` | Recent errors from logs |
+| 14 | `get_index_progress` | Indexing progress (phase, percent, files done/total) |
 
 ## AST Patterns (structural_search)
 
@@ -75,10 +77,16 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 
 **7. Path Normalization:** Always normalize paths to POSIX lowercase: `path.as_posix().lower()` before passing to tools.
 
-**8. Post-Modification Sync:** After writing any file, call `index_project_dir(path)` + `get_index_status()` to verify cache state.
+**8. Post-Modification Sync:** After writing any file, call `index_project_dir(path)` + `get_index_status()` to verify cache state. Use `get_index_progress()` to monitor async indexing progress.
 
-**9. Complex Research:** Use `deep_search` for multi-step investigations. Use `cross_repo_search` with @-mentions for cross-project queries.
+**9. Indexing Progress Awareness:** After `index_project_dir()`, indexing runs async. Use `get_index_progress()` to check status:
+- phase="complete" → safe to use `search_code`
+- phase="scanning" → wait or use `grep` as fallback
+- percent < 50% → warn user indexing still in progress
+- percent >= 80% → indexing almost done, results may be partial
 
-**10. Structural Analysis:** Use `structural_search` when you need code by structure (not text). 13 AST patterns available.
+**10. Complex Research:** Use `deep_search` for multi-step investigations. Use `cross_repo_search` with @-mentions for cross-project queries.
 
-**11. Agentic Code Search:** Use `search_code(agentic=True)` or simply `search_code` for complex multi-part questions. Auto-decomposes query → parallel sub-searches → relation analysis → RRF aggregation. Based on arxiv.org/abs/2505.14321.
+**11. Structural Analysis:** Use `structural_search` when you need code by structure (not text). 13 AST patterns available.
+
+**12. Agentic Code Search:** Use `search_code(agentic=True)` or simply `search_code` for complex multi-part questions. Auto-decomposes query → parallel sub-searches → relation analysis → RRF aggregation. Based on arxiv.org/abs/2505.14321.

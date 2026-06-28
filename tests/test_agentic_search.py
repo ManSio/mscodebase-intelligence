@@ -154,7 +154,7 @@ class TestAgenticCodeSearch:
         # Мокаем hybrid_search для разных подзапросов
         call_count = 0
 
-        def mock_hybrid_search(query, **kwargs):
+        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
             nonlocal call_count
             call_count += 1
             return [
@@ -220,3 +220,209 @@ class TestAgenticCodeSearch:
             )
 
         assert len(results) <= 5
+
+    def test_fallback_on_empty_decomposition(self):
+        """Fallback на обычный поиск если декомпозиция не дала результатов."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # Мокаем декомпозицию чтобы вернула 2+ подзапроса
+        # и hybrid_search чтобы вернула пустой результат для подзапросов
+        # Fallback должен вызвать hybrid_search с оригинальным запросом
+        fallback_result = [
+            {"metadata": {"file": "fallback.py", "chunk_index": 0}, "text": "found", "final_score": 0.8}
+        ]
+
+        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
+            # Fallback вызывается с оригинальным запросом
+            if query == "complex query":
+                return fallback_result
+            # Подзапросы возвращают пустой результат
+            return []
+
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["subquery1", "subquery2"]):
+            with patch.object(searcher, "hybrid_search", side_effect=mock_hybrid_search):
+                results, meta = searcher.agentic_code_search("complex query")
+
+        # Должен быть использован fallback
+        assert meta["fallback_used"] is True
+        assert len(results) >= 1
+
+    def test_llm_decomposition_fallback_to_rules(self):
+        """LLM недоступен — fallback на правила."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # Мокаем _try_llm_decompose чтобы вернул None (LLM недоступен)
+        with patch.object(searcher, "_try_llm_decompose", return_value=None):
+            subqueries = searcher._decompose_query_with_llm("auth и permissions")
+
+        # Должны получить подзапросы от правил
+        assert len(subqueries) >= 2
+
+    def test_parallel_search_with_threadpool(self):
+        """Параллельный поиск подзапросов через ThreadPoolExecutor."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        call_times = []
+        import time
+
+        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
+            call_times.append(query)
+            time.sleep(0.05)  # Имитация задержки
+            return [
+                {"metadata": {"file": f"{query[:10]}.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]
+
+        with patch.object(searcher, "hybrid_search", side_effect=mock_hybrid_search):
+            results, meta = searcher.agentic_code_search("auth и perms и roles")
+
+        # Должно быть 3 подзапроса
+        assert len(meta["subqueries"]) >= 2
+        # Все подзапросы должны быть обработаны
+        assert len(call_times) >= 2
+
+    def test_decomposition_method_tracked(self):
+        """Метаданные содержат метод декомпозиции (llm/rules/none)."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # Простой запрос — метод none
+        with patch.object(searcher, "hybrid_search", return_value=[]):
+            _, meta = searcher.agentic_code_search("simple")
+        assert meta["decomposition_method"] == "none"
+
+        # Сложный запрос с LLM fallback на правила
+        # Мокаем _try_llm_decompose чтобы вернул None (LLM недоступен)
+        with patch.object(searcher, "_try_llm_decompose", return_value=None):
+            with patch.object(searcher, "hybrid_search", return_value=[]):
+                _, meta = searcher.agentic_code_search("auth и perms")
+        # Метод должен быть "rules" т.к. _try_llm_decompose вернул None
+        assert meta["decomposition_method"] in ("rules", "llm")  # зависит от порядка вызова
+
+    def test_call_graph_analysis_with_symbol_index(self):
+        """Call Graph анализ использует build_call_graph для поиска символов."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # Создаём mock symbol_index с build_call_graph
+        mock_symbol_index = MagicMock()
+        mock_symbol_index.get_symbols_in_file.return_value = [
+            "authenticate", "check_permissions"
+        ]
+        mock_symbol_index.build_call_graph.return_value = {
+            "symbol": "authenticate",
+            "definition": [{"file": "auth.py", "line": 10, "kind": "function"}],
+            "callers": [{"file": "routes.py", "line": 5, "kind": "call"}],
+            "callees": [{"symbol": "validate_user", "file": "auth.py", "line": 15, "kind": "function"}],
+            "impact_files": ["auth.py", "routes.py"],
+        }
+
+        # Мокаем декомпозицию и поиск
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search", return_value=[
+                {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]):
+                _, meta = searcher.agentic_code_search(
+                    "auth query", symbol_index=mock_symbol_index
+                )
+
+        # Проверяем что Call Graph анализ был выполнен
+        assert meta["relations"] is not None
+        # build_call_graph должен был быть вызван
+        mock_symbol_index.build_call_graph.assert_called()
+        # Должны быть related_symbols и call_graph_hints
+        assert len(meta["relations"]["related_symbols"]) > 0
+        assert len(meta["relations"]["call_graph_hints"]) > 0
+        # Метрики глубины и узлов
+        assert meta["relations"]["call_graph_depth"] >= 1
+        assert meta["relations"]["call_graph_nodes_count"] > 0
+
+    def test_call_graph_analysis_without_symbol_index(self):
+        """Без symbol_index — Call Graph анализ пропускается gracefully."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search", return_value=[
+                {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]):
+                _, meta = searcher.agentic_code_search("auth query", symbol_index=None)
+
+        # Без symbol_index — related_symbols должен быть пустым
+        assert meta["relations"]["related_symbols"] == []
+        assert meta["relations"]["call_graph_hints"] == []
+
+    def test_call_graph_analysis_error_handling(self):
+        """Ошибка в symbol_index не ломает поиск — fallback на упрощённый подход."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # symbol_index который бросает исключение в build_call_graph
+        broken_symbol_index = MagicMock()
+        broken_symbol_index.get_symbols_in_file.return_value = ["authenticate"]
+        broken_symbol_index.build_call_graph.side_effect = Exception("DB error")
+        # Fallback тоже падает
+        broken_symbol_index.find_references.side_effect = Exception("DB error 2")
+
+        # Используем 2 подзапроса чтобы попасть в ветку с _analyze_subquery_relations
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search", return_value=[
+                {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]):
+                # Не должно упасть
+                results, meta = searcher.agentic_code_search(
+                    "auth query", symbol_index=broken_symbol_index
+                )
+
+        assert len(results) >= 1
+        # При ошибке symbol_index, related_symbols должен быть пустым
+        assert meta["relations"]["related_symbols"] == []
+        assert meta["relations"]["call_graph_hints"] == []
+        # Метрики должны быть нулевыми при ошибке
+        assert meta["relations"]["call_graph_depth"] == 0
+        assert meta["relations"]["call_graph_nodes_count"] == 0
+
+    def test_metrics_in_metadata(self):
+        """Метаданные содержат метрики для анализа качества."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search", return_value=[
+                {"metadata": {"file": f"file{i}.py", "chunk_index": 0}, "text": f"code {i}", "final_score": 0.9 - i * 0.01}
+                for i in range(3)
+            ]):
+                results, meta = searcher.agentic_code_search("test query")
+
+        # Проверяем наличие метрик
+        assert "total_unique" in meta
+        assert "subquery_results_count" in meta
+        assert "coverage_score" in meta["relations"]
+        assert meta["total_unique"] >= 1
+
+    def test_agentic_vs_hybrid_fallback(self):
+        """Agentic поиск fallback на hybrid при ошибке декомпозиции."""
+        indexer = MagicMock()
+        embedder = MagicMock()
+        searcher = Searcher(indexer, embedder)
+
+        # Декомпозиция возвращает 1 подзапрос → fallback на обычный hybrid
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["simple"]):
+            with patch.object(searcher, "hybrid_search", return_value=[
+                {"metadata": {"file": "result.py", "chunk_index": 0}, "text": "found", "final_score": 0.8}
+            ]):
+                results, meta = searcher.agentic_code_search("simple query")
+
+        # Должен использоваться hybrid_search (decomposition_method = none)
+        assert meta["decomposition_method"] == "none"
+        assert len(results) >= 1

@@ -3,22 +3,23 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "MSCodebase Intelligence"
-version = "1.1.0"
-description = "Semantic code search for Zed IDE via MCP"
+name = "mscodebase-intelligence"
+version = "1.2.0"
+description = "AI-powered semantic code search for Zed IDE via MCP with hybrid vector+BM2"
 readme = "README.md"
-requires-python = ">=3.10"
 license = {text = "MIT"}
-authors = [{name = "MSCodebase Intelligence Team"}]
-keywords = ["zed", "mcp", "code-search", "embeddings", "ai"]
+authors = [{name = "ManSio"}]
+requires-python = ">=3.10"
+keywords = ["zed", "mcp", "code-search", "embeddings", "ai", "lancedb", "semantic-search"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     # MCP Protocol
@@ -58,6 +59,7 @@ dev = [
 Homepage = "https://github.com/ManSio/mscodebase-intelligence"
 Repository = "https://github.com/ManSio/mscodebase-intelligence"
 Issues = "https://github.com/ManSio/mscodebase-intelligence/issues"
+Documentation = "https://github.com/ManSio/mscodebase-intelligence/blob/main/README.md"
 
 [project.scripts]
 mscodebase-mcp = "src.main:main"
@@ -76,7 +78,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "asyncio: marks tests as asyncio tests",
-    "skipif: marks tests as skipped if condition is true",
+    "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
 ]
 norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index"]
 addopts = "-v --tb=short"

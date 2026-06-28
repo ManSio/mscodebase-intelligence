@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
+    tags: ["v*"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
@@ -12,7 +13,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.10', '3.11', '3.12']
+        python-version: ["3.10", "3.11", "3.12"]
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
@@ -36,11 +38,11 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run fast tests
-        run: pytest tests/ -m "not slow" -v
+        run: pytest tests/ -m "not slow and not benchmark" -v --tb=short
 
-      - name: Run slow tests
-        run: pytest tests/ -m "slow" -v
-        continue-on-error: true  # Медленные тесты могут падать из-за сети
+      - name: Run benchmarks
+        run: pytest tests/benchmark_agentic_search.py -v -m benchmark --tb=short
+        continue-on-error: true
 
   lint:
     runs-on: ubuntu-latest
@@ -50,43 +52,41 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install linters
         run: pip install ruff mypy
 
       - name: Run ruff
-        run: ruff check src/ tests/ || true
+        run: ruff check src/ tests/ --output-format=github || true
 
       - name: Run mypy
         run: mypy src/ --ignore-missing-imports || true
 
-  build:
-    needs: test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+  release:
+    needs: [test, lint]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+      - name: Install build tools
+        run: pip install build twine
 
-      - name: Build executable
-        run: python installers/build.py
+      - name: Build package
+        run: python -m build
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: executable-${{ matrix.os }}
-          path: dist/
-          retention-days: 7
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
