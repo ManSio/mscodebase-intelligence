@@ -55,19 +55,24 @@ python install.py
 2. Load embedding model: `text-embedding-bge-m3` (1024 dim)
 3. Start server (default port: 1234)
 
-### Optional: Enable LLM Reranking (Ollama / LM Studio)
+### Optional: Enable Enhanced Reranking
 
-For enhanced search relevance, run an instruct model:
+For improved search relevance, the reranker supports two modes:
 
+**Mode 1: Embedding-based (cosine similarity)** — works out of the box with any embedding model:
+- Uses `text-embedding-bge-m3` (already loaded)
+- No additional setup required
+- ~500MB RAM, fast
+
+**Mode 2: LLM-based (chat/completions)** — for maximum quality:
 ```bash
-# Option A: Ollama (recommended — specialized reranker)
+# Ollama (recommended for dedicated reranker)
 ollama run bge-reranker-v2-m3
 
-# Option B: LM Studio — load any instruct model (e.g. Qwen2.5-7B-Instruct)
+# LM Studio — load any instruct model (e.g. Qwen2.5-0.5B-Instruct, ~400MB)
 ```
 
-When available, the reranker reorders search results via a single batch LLM call.
-If neither is running, search works normally with RRF ranking (graceful fallback).
+**Priority:** Embedding rerank (always available) → LLM rerank (if Instruct model loaded) → RRF fallback
 
 ### Use in Zed
 

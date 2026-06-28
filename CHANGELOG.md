@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [1.4.1] — 2026-06-28
+
+### 🔧 Fix: Embedding-based Reranker for LM Studio Compatibility
+
+**Problem:**
+- LM Studio has no native `/v1/rerank` endpoint
+- LM Studio only loads embedding models (no LLM Instruct models)
+- `input` parameter format caused "Expected array, received object" errors
+
+**Solution:**
+- Added `_embedding_rerank()` method using cosine similarity
+- Works with any embedding model (BGE-M3, Nomic, etc.)
+- Fixed `input` format: now strictly `list[str]` (JSON array)
+- Added `_check_llm_available()` to detect Instruct models
+- Priority: Embedding rerank → LLM rerank → RRF fallback
+
+**Tests:**
+- 5 new tests for embedding rerank (cosine similarity, fallback, edge cases)
+- Total: 25 reranker tests (all passing)
+
+---
+
 ## [1.4.0] — 2026-06-28
 
 ### 🚀 Major Release — Deep Call Graph (Depth 2+)

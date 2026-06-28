@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 # Эндпоинты провайдеров
 _LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models"
 _LM_STUDIO_CHAT_URL = "http://127.0.0.1:1234/v1/chat/completions"
+_LM_STUDIO_EMBEDDINGS_URL = "http://127.0.0.1:1234/v1/embeddings"
 _OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 _OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
+_OLLAMA_EMBEDDINGS_URL = "http://127.0.0.1:11434/api/embeddings"
 
 # Таймауты (сек)
 _PROVIDER_PING_TIMEOUT = 0.5
@@ -180,7 +182,11 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Выполняет пакетный реранкинг чанков через внешний LLM-провайдер.
+        """Выполняет пакетный реранкинг чанков через внешний провайдер.
+
+        Поддерживает два режима:
+        1. **LLM-реранкинг** (chat/completions) — если есть Instruct-модель
+        2. **Embedding-реранкинг** (cosine similarity) — fallback для embedding-моделей
 
         Args:
             query: Исходный поисковый запрос
@@ -209,24 +215,36 @@ class MultiProviderReranker:
             return chunks[:top_n]
 
         try:
-            # Подготовка пакета данных (усечение до 800 символов)
-            truncated_chunks = []
-            for i, chunk in enumerate(chunks):
-                text = chunk.get("text", "")
-                truncated = text[:_MAX_CHUNK_PREVIEW_LEN].strip()
-                truncated_chunks.append({"index": i, "text": truncated})
+            # Пробуем LLM-реранкинг (chat/completions) если есть Instruct-модель
+            llm_available = await self._check_llm_available(provider)
 
-            # Формирование промпта
-            prompt = self._build_batch_prompt(query, truncated_chunks)
+            if llm_available:
+                # LLM-реранкинг через chat
+                truncated_chunks = []
+                for i, chunk in enumerate(chunks):
+                    text = chunk.get("text", "")
+                    truncated = text[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                    truncated_chunks.append({"index": i, "text": truncated})
 
-            # Отправка запроса к провайдеру
-            if provider == "ollama":
-                scores = await self._query_ollama(prompt)
-            else:
-                scores = await self._query_lm_studio(prompt)
+                prompt = self._build_batch_prompt(query, truncated_chunks)
 
-            # Применение скоров и сортировка
-            return self._apply_scores(chunks, scores, top_n)
+                if provider == "ollama":
+                    scores = await self._query_ollama(prompt)
+                else:
+                    scores = await self._query_lm_studio(prompt)
+
+                if scores:
+                    return self._apply_scores(chunks, scores, top_n)
+
+            # Fallback: embedding-реранкинг (cosine similarity)
+            # Работает с BGE-M3 и другими embedding-моделями
+            scores = await self._embedding_rerank(query, chunks, provider)
+            if scores:
+                logger.debug(f"Embedding rerank: {len(scores)} scores computed")
+                return self._apply_scores(chunks, scores, top_n)
+
+            # Если ничего не сработало — возвращаем исходный порядок
+            return chunks[:top_n]
 
         except httpx.TimeoutException:
             logger.warning("⏱️ Таймаут реранкера. Fallback к RRF-порядку.")
@@ -237,6 +255,32 @@ class MultiProviderReranker:
         except Exception as e:
             logger.warning(f"⚠️ Ошибка реранкинга: {e}. Fallback к RRF-порядку.")
             return chunks[:top_n]
+
+    async def _check_llm_available(self, provider: str) -> bool:
+        """Проверяет есть ли Instruct-модель для LLM-реранкинга.
+
+        LM Studio: проверяет наличие моделей с type != 'embeddings'.
+        Ollama: всегда True (может загрузить любую модель).
+        """
+        if provider == "ollama":
+            return True  # Ollama может загрузить любую модель
+
+        # LM Studio: проверяем наличие LLM (не embedding)
+        try:
+            if not self._client:
+                self._client = httpx.AsyncClient(timeout=2)
+            resp = await self._client.get(f"{self.lm_studio_url}/models")
+            if resp.status_code == 200:
+                models = resp.json().get("data", [])
+                # Проверяем есть ли модель с capabilities.chat или type != 'embeddings'
+                for m in models:
+                    # В LM Studio v1 API нет поля type, проверяем по имени
+                    model_id = m.get("id", "").lower()
+                    if "embed" not in model_id and "rerank" not in model_id:
+                        return True
+            return False
+        except Exception:
+            return False
 
     def _build_batch_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
         """Формирует пакетный промпт для LLM-реранкинга.
@@ -327,6 +371,93 @@ class MultiProviderReranker:
         data = resp.json()
         content = data.get("message", {}).get("content", "")
         return self._parse_scores_json(content)
+
+    async def _embedding_rerank(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        provider: str,
+    ) -> List[Dict[str, Any]]:
+        """Реранкинг через embedding API + cosine similarity.
+
+        Используется когда в LM Studio/Ollama нет LLM (Instruct) моделей,
+        но есть embedding модели (BGE-M3, Nomic и т.д.).
+
+        Args:
+            query: Поисковый запрос
+            chunks: Список чанков для реранкинга
+            provider: 'lm_studio' или 'ollama'
+
+        Returns:
+            Список score'ов [{"index": int, "score": float}, ...]
+        """
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+
+        # Подготавливаем тексты: query + все чанки
+        texts = [f"query: {query}"]  # [0] = query
+        for chunk in chunks:
+            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+            texts.append(f"passage: {text}")  # [1..n] = chunks
+
+        # Выбираем URL и модель
+        if provider == "lm_studio":
+            url = f"{self.lm_studio_url}/embeddings"
+            model = self.lm_studio_model_name or "text-embedding-bge-m3"
+        else:
+            url = f"{self.ollama_url}/api/embeddings"
+            model = self.ollama_model_name or "bge-m3"
+
+        # Отправляем batch запрос
+        # Важно: input должен быть массивом строк (не объектом!)
+        payload = {
+            "model": model,
+            "input": texts,  # list[str] — строго массив!
+        }
+
+        try:
+            resp = await self._client.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        except Exception as e:
+            logger.warning(f"Embedding rerank failed: {e}")
+            return []
+
+        # Парсим ответ
+        data = resp.json()
+        embeddings = data.get("data", [])
+        if len(embeddings) < 2:
+            return []
+
+        # Извлекаем векторы
+        query_vec = embeddings[0].get("embedding", [])
+        chunk_vecs = [e.get("embedding", []) for e in embeddings[1:]]
+
+        # Считаем cosine similarity
+        scores = []
+        for i, vec in enumerate(chunk_vecs):
+            score = self._cosine_similarity(query_vec, vec)
+            scores.append({"index": i, "score": score})
+
+        return scores
+
+    @staticmethod
+    def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+        """Вычисляет cosine similarity между двумя векторами."""
+        if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+            return 0.0
+
+        dot = sum(a * b for a, b in zip(vec_a, vec_b))
+        norm_a = sum(a * a for a in vec_a) ** 0.5
+        norm_b = sum(b * b for b in vec_b) ** 0.5
+
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+
+        return dot / (norm_a * norm_b)
 
     def _parse_scores_json(self, raw: str) -> List[Dict[str, Any]]:
         """Парсит JSON со скорами из ответа LLM.
