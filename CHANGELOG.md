@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## [2.0.0] — 2026-06-28
+
+### 🚀 Major: Hybrid LSP + MCP Architecture
+
+**Problem:**
+- Separate LSP and MCP processes caused WinError 5 (file lock conflicts) on Windows
+- `didSave` arrives before physical disk write (Windows I/O buffering)
+- AI edits to closed files not detected by LSP
+- watchdog.py couldn't detect changes in memory buffers
+
+**Solution:**
+- **Single-process architecture**: LSP (stdio) + MCP (HTTP/SSE) in one Python process
+- **In-Memory Indexing**: Reads from LSP VFS (`document.source`) instead of disk
+- **Full Document Sync**: Receives complete file content via `didChange` events
+- **AI Edit Detection**: Catches `didOpen`/`didChange`/`didClose` for background edits
+- **No file lock conflicts**: Single process accesses LanceDB
+
+**New Files:**
+- `src/hybrid_server.py` — Hybrid LSP + MCP server
+- `.zed/settings.json` — Project-level Zed configuration
+
+**Configuration Changes:**
+- MCP now runs via HTTP/SSE on `http://127.0.0.1:8765/sse` (not stdio)
+- LSP uses `hybrid_server.py` entry point
+- Recommended: `autosave: "on_focus_change"` in Zed settings
+
+**Technical Details:**
+- LSP events: `didOpen`, `didChange`, `didSave`, `didClose`, `didChangeWatchedFiles`
+- MCP server: FastMCP with SSE transport
+- SharedIndexer: single LanceDB instance for both LSP and MCP
+- Cold start: automatic full indexing on LSP initialization
+
+**Migration:**
+1. Update `.zed/settings.json` (see README)
+2. Restart Zed
+3. Old `lsp_main.py` and `mcp/server.py` kept for reference
+
+**Breaking Changes:**
+- Entry point changed from `lsp_main.py` to `hybrid_server.py`
+- MCP URL changed from stdio to `http://127.0.0.1:8765/sse`
+- Requires Zed restart after update
+
+---
+
 ## [1.4.2] — 2026-06-28
 
 ### 🚀 Major: Async Migration (ThreadPoolExecutor → asyncio.gather)

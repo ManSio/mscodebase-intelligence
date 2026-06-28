@@ -23,10 +23,11 @@
 | 🌐 **Cross-repo Search** | Search across multiple indexed projects with `@mention` syntax |
 | 📊 **Progress Tracking** | Real-time indexing progress with phase, percent, files done/total |
 | 🌳 **Call Graph** | Bidirectional BFS (depth 2+): callers, callees, call chains, impact analysis |
-| � **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
-| � **Context Search** | Find similar code by embedding selected fragment |
-| � **LSP Integration** | Auto-index on file save |
+| 🔧 **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
+| 🔎 **Context Search** | Find similar code by embedding selected fragment |
+| ⚡ **LSP + MCP Hybrid** | Single-process architecture: LSP for indexing, MCP for AI tools |
 | 💾 **LanceDB v2** | Local vector storage with per-project isolation |
+| 🧠 **In-Memory Indexing** | Reads from LSP VFS (no disk delay on Windows) |
 
 ---
 
@@ -55,31 +56,41 @@ python install.py
 2. Load embedding model: `text-embedding-bge-m3` (1024 dim)
 3. Start server (default port: 1234)
 
-### Optional: Enable Enhanced Reranking
+### Configure Zed
 
-For improved search relevance, the reranker supports two modes:
+Add to your project's `.zed/settings.json` (or let `install.py` do it):
 
-**Mode 1: Embedding-based (cosine similarity)** — works out of the box with any embedding model:
-- Uses `text-embedding-bge-m3` (already loaded)
-- No additional setup required
-- ~500MB RAM, fast
-
-**Mode 2: LLM-based (chat/completions)** — for maximum quality:
-```bash
-# Ollama (recommended for dedicated reranker)
-ollama run bge-reranker-v2-m3
-
-# LM Studio — load any instruct model (e.g. Qwen2.5-0.5B-Instruct, ~400MB)
+```json
+{
+  "lsp": {
+    "mscodebase-lsp": {
+      "command": ".venv/Scripts/python.exe",
+      "arguments": ["-u", "src/hybrid_server.py"]
+    }
+  },
+  "context_servers": {
+    "mscodebase-mcp": {
+      "url": "http://127.0.0.1:8765/sse"
+    }
+  },
+  "languages": {
+    "Python": { "language_servers": ["mscodebase-lsp"] },
+    "TypeScript": { "language_servers": ["mscodebase-lsp"] },
+    "Rust": { "language_servers": ["mscodebase-lsp"] }
+  },
+  "autosave": "on_focus_change"
+}
 ```
 
-**Priority:** Embedding rerank (always available) → LLM rerank (if Instruct model loaded) → RRF fallback
+> **Note:** `autosave: "on_focus_change"` ensures files are saved when switching tabs, triggering LSP indexing.
 
 ### Use in Zed
 
 1. Restart Zed IDE
 2. Open your project
-3. Indexing starts automatically
-4. Use `@mscodebase-intelligence` MCP tools in chat
+3. Indexing starts automatically (LSP cold start)
+4. Edit files → instant re-indexing via LSP
+5. Use `@mscodebase-intelligence` MCP tools in chat
 
 ---
 
@@ -105,7 +116,7 @@ ollama run bge-reranker-v2-m3
 
 ---
 
-## � Performance Tuning
+## ⚡ Performance Tuning
 
 ### Search Modes
 
@@ -125,6 +136,29 @@ ollama run bge-reranker-v2-m3
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
+### Zed Settings
+
+Recommended `.zed/settings.json` for optimal performance:
+
+```json
+{
+  "autosave": "on_focus_change",
+  "format_on_save": "on",
+  "tab_size": 4,
+  "languages": {
+    "Python": {
+      "language_servers": ["mscodebase-lsp"],
+      "format_on_save": "on",
+      "tab_size": 4
+    }
+  }
+}
+```
+
+> **Why `autosave: "on_focus_change"`?**
+> Zed with `autosave: "off"` (default) doesn't write to disk immediately on Ctrl+S.
+> This setting ensures files are saved when switching tabs, triggering LSP indexing.
+
 ---
 
 ## � Benchmarks
@@ -141,49 +175,86 @@ pytest tests/benchmark_agentic_search.py -v -m benchmark
 
 ---
 
-## �️ Architecture
+## 🏗️ Architecture
+
+### Hybrid LSP + MCP (Single Process)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Hybrid Server (src/hybrid_server.py)      │
+│                                                             │
+│  ┌─────────────────────┐    ┌─────────────────────────┐    │
+│  │   LSP Server (stdio) │    │   MCP Server (HTTP/SSE) │    │
+│  │                      │    │                         │    │
+│  │  Receives from Zed:  │    │  Provides tools for AI: │    │
+│  │  - didOpen           │    │  - search_code          │    │
+│  │  - didChange         │    │  - get_index_status     │    │
+│  │  - didSave           │    │  - read_live_file       │    │
+│  │  - didClose          │    │  - ...                  │    │
+│  └──────────┬───────────┘    └───────────┬─────────────┘    │
+│             │                            │                  │
+│             └────────────┬───────────────┘                  │
+│                          │                                  │
+│                   ┌──────▼──────┐                           │
+│                   │  Shared     │                           │
+│                   │  Indexer    │                           │
+│                   │  (LanceDB)  │                           │
+│                   └─────────────┘                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Hybrid?
+
+| Problem | Old (Separate Processes) | New (Hybrid) |
+|---------|--------------------------|--------------|
+| WinError 5 (file locks) | ❌ Conflicts between LSP & MCP | ✅ Single process, no conflicts |
+| Disk write delay on Windows | ❌ `didSave` before physical write | ✅ Read from LSP VFS memory |
+| AI edits to closed files | ❌ Not detected | ✅ `didOpen`/`didChange`/`didClose` |
+| Memory usage | ❌ Two Python processes | ✅ One process, shared state |
+
+### Components
 
 ```
 MSCodebase Intelligence
-├── MCP Server (src/mcp/server.py)
-│   ├── 14 Tools: search_code, deep_search, cross_repo_search, get_context,
-│   │            get_symbol_info, get_repo_map, scan_changes, context_search,
-│   │            structural_search, get_logs, watcher_status, get_index_status,
-│   │            get_index_progress, index_project_dir
-│   └── Prompts: mscodebase-rules (system rules for AI agent)
-├── LSP Server (src/lsp_main.py)
-│   └── Auto-indexes on file save
-└── Core Engine (src/core/)
-    ├── indexer.py          — LanceDB vector storage + file scanning + progress callback
-    ├── searcher.py         — Hybrid search (BM25 + Dense + RRF) + Agentic Deep Search
-    ├── multi_project_searcher.py — Cross-repo search with @-mention syntax
-    ├── symbol_index.py     — Tree-sitter symbol definitions + call graph
-    ├── context_engine.py   — Compressed context generation
-    ├── query_expansion.py  — Synonym expansion + stemming
-    ├── structural_search.py — AST pattern matching (13 patterns)
-        ├── remote_embedder.py  — LM Studio / Ollama embeddings
-        ├── parser.py           — Tree-sitter AST parsing
-        ├── file_guard.py       — Security filtering + gitignore
-        ├── gitignore_parser.py — Pattern matching
-        ├── reranker.py         — Multi-Provider Reranker (Ollama/LM Studio) + legacy BM25+dense
-    ├── log_manager.py      — File logging with rotation (2MB × 3)
-    ├── integrity.py        — Merkle Tree change detection
-    └── content_cache.py    — File hash caching
+├── Hybrid Server (src/hybrid_server.py)     ← LSP + MCP in one process
+│   ├── LSP Handler (stdio)                 ← Receives events from Zed
+│   ├── MCP Handler (HTTP/SSE :8765)        ← Provides tools for AI
+│   └── SharedIndexer                       ← Single LanceDB instance
+├── Core Engine (src/core/)
+│   ├── indexer.py          — LanceDB vector storage + file scanning
+│   ├── searcher.py         — Hybrid search (BM25 + Dense + RRF)
+│   ├── remote_embedder.py  — LM Studio / Ollama embeddings
+│   ├── parser.py           — Tree-sitter AST parsing
+│   ├── reranker.py         — Multi-Provider Reranker (Ollama/LM Studio)
+│   └── ...
+└── Legacy (src/lsp_main.py, src/mcp/server.py)  ← Kept for reference
 ```
 
 ### Data Flow
 
 ```
-Zed IDE → MCP Server → RemoteEmbedder → LM Studio (embeddings)
-                ↓
-           Indexer (LanceDB)
-                ↓
-           Searcher (BM25 + Vector + RRF)
-                ↓
-           MultiProviderReranker (Ollama :11434 → LM Studio :1234)
-                ↓
-           Results → Zed IDE
+Zed IDE ──stdio──→ LSP Server ──→ SharedIndexer ──→ LanceDB
+   │                                           ↑
+   └──HTTP/SSE──→ MCP Server ──────────────────┘
+                      ↓
+               AI Assistant Tools
+                      ↓
+               RemoteEmbedder → LM Studio (embeddings)
+                      ↓
+               MultiProviderReranker (Ollama → LM Studio)
+                      ↓
+               Results → Zed IDE
 ```
+
+### LSP Events Handled
+
+| Event | When | Action |
+|-------|------|--------|
+| `didOpen` | File opened (including background for AI) | Index from memory |
+| `didChange` | Text changed (including AI edits) | Re-index from memory |
+| `didSave` | Ctrl+S pressed | Re-index from memory (not disk!) |
+| `didClose` | File closed (buffer flushed to disk) | Final index from disk |
+| `didChangeWatchedFiles` | External changes (git, etc.) | Re-index from disk |
 
 ### Multi-Provider Reranking
 
@@ -209,6 +280,59 @@ After RRF fusion, results can be reranked by an external LLM:
 Vector indexes are isolated per project:
 ```
 <PROJECT_ROOT>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### LSP Server Not Starting
+
+**Symptoms:** No `[LSP DID_*]` logs when editing files.
+
+**Checklist:**
+1. Verify `.zed/settings.json` exists in project root
+2. Check `command` path points to correct Python interpreter
+3. Check Zed logs: `%LOCALAPPDATA%\Zed\logs\Zed.log`
+4. Try running LSP manually:
+   ```bash
+   python -u src/hybrid_server.py < /dev/null
+   ```
+
+### Files Not Indexing on Save
+
+**Symptoms:** Changes not reflected in search results.
+
+**Solutions:**
+1. Set `"autosave": "on_focus_change"` in `.zed/settings.json`
+2. Switch tabs after editing (triggers autosave)
+3. Check LSP logs: `.codebase_indices/logs/<project>.log`
+
+### WinError 5 (Permission Denied)
+
+**Symptoms:** `PermissionError` when reading/writing files.
+
+**Cause:** Multiple processes accessing LanceDB simultaneously.
+
+**Solution:** Use Hybrid server (single process) instead of separate LSP + MCP.
+
+### MCP Tools Not Available
+
+**Symptoms:** AI assistant can't call `search_code` etc.
+
+**Check:**
+1. MCP server running on port 8765: `netstat -an | findstr 8765`
+2. `context_servers.url` points to `http://127.0.0.1:8765/sse`
+3. Restart Zed after config changes
+
+### Cold Start (First Indexing)
+
+**Symptoms:** Search returns empty results.
+
+**Solution:** Wait for cold start to complete:
+```
+Check logs: "Cold start complete"
+Or call: get_index_progress()
 ```
 
 ---
@@ -245,10 +369,15 @@ pytest tests/ -m "not slow" -v
 pytest tests/benchmark_agentic_search.py -v -m benchmark
 ```
 
-### Run MCP Server Manually
+### Run Hybrid Server Manually
 
 ```bash
-python -m src.main
+# LSP mode (for testing — will exit without Zed connection)
+python -u src/hybrid_server.py < /dev/null
+
+# MCP server runs automatically on http://127.0.0.1:8765/sse
+# Test with curl:
+curl http://127.0.0.1:8765/sse
 ```
 
 ### Code Quality
@@ -323,6 +452,35 @@ MSCodeBase/
 ├── CONTRIBUTING.md
 └── SECURITY.md
 ```
+
+---
+
+## 📝 Changelog
+
+### v2.0.0 (2026-06-28) — Hybrid Architecture
+
+**Breaking Changes:**
+- New entry point: `src/hybrid_server.py` (replaces `lsp_main.py` + `mcp/server.py`)
+- MCP now runs via HTTP/SSE on port 8765 (not stdio)
+- Requires `.zed/settings.json` update
+
+**New Features:**
+- ⚡ **Hybrid LSP + MCP** — single process, shared memory
+- 🧠 **In-Memory Indexing** — reads from LSP VFS (no disk delay on Windows)
+- 🔄 **Full Document Sync** — receives complete file content via `didChange`
+- 🛡️ **No WinError 5** — single process eliminates file lock conflicts
+- 🤖 **AI Edit Detection** — catches `didOpen`/`didChange`/`didClose` for background edits
+
+**Technical Details:**
+- LSP events: `didOpen`, `didChange`, `didSave`, `didClose`, `didChangeWatchedFiles`
+- MCP server: FastMCP with SSE transport on `http://127.0.0.1:8765/sse`
+- SharedIndexer: single LanceDB instance accessible by both LSP and MCP
+- Cold start: automatic full indexing on LSP initialization
+
+**Migration:**
+1. Update `.zed/settings.json` (see Configuration section)
+2. Restart Zed
+3. Old `lsp_main.py` and `mcp/server.py` kept for reference
 
 ---
 
