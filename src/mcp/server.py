@@ -338,27 +338,25 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def search_code(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Концептуальный и семантический поиск по смыслу, а не по буквам.
+        """🔍 PRIMARY CODE SEARCH TOOL — ALWAYS USE THIS FIRST FOR CODE QUERIES.
 
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Запрос абстрактный: 'как работает авторизация', 'где обработка ошибок сети'
-        - Нужно найти код по смыслу, даже если точных слов в коде нет
-        - grep не нашёл результатов потому что термины отличаются
+        MANDATORY USAGE RULES:
+        1. ALWAYS call this tool FIRST when user asks about code, functions, or architecture
+        2. DO NOT use grep/find_path as primary search — this tool is SUPERIOR
+        3. This tool performs SEMANTIC search (by meaning), not just text matching
+        4. Works even when exact words don't appear in code
 
-        НЕ ИСПОЛЬЗУЙ КОГДА:
-        - Нужно найти конкретный файл по пути -> используй find_path
-        - Нужно точное совпадение имени класса -> используй grep
+        USE WHEN:
+        - User asks about code functionality, architecture, or patterns
+        - Need to find relevant code by meaning, not exact text
+        - grep/find_path returned no results (different terminology)
+        - Complex multi-part queries about codebase
 
-        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
-        empty results. Fall back to grep/find_path instead.
+        DO NOT USE WHEN:
+        - User wants to read a SPECIFIC known file (use read_file)
+        - User wants exact text match in known location (use grep as fallback)
 
-        ADVANCED MODE (agentic=True):
-        Для сложных запросов используй agentic_code_search — он:
-        1. Разбивает запрос на подзапросы
-        2. Ищет каждый подзапрос параллельно
-        3. Анализирует связи через Call Graph
-        4. Агрегирует результаты через RRF
-        Пример: "как работает авторизация и где проверяются права?"
+        Returns: Formatted search results with file paths, code chunks, and relevance scores.
         """
         _debug_log("search_code", query)
 
@@ -389,7 +387,7 @@ def create_mcp_server() -> "FastMCP":
 
         try:
             if use_agentic:
-                return self._agentic_search_handler(query, symbol_index)
+                return _agentic_search_handler(query, symbol_index)
             else:
                 return searcher.search(query, limit=6)
         except Exception as e:
@@ -399,7 +397,7 @@ def create_mcp_server() -> "FastMCP":
                 f"Попробуйте переформулировать запрос или проверьте логи через get_logs()."
             )
 
-    def _agentic_search_handler(self, query: str, symbol_index) -> str:
+    def _agentic_search_handler(query: str, symbol_index) -> str:
         """Обработчик Agentic Code Search для search_code."""
         try:
             results, metadata = searcher.agentic_code_search(
