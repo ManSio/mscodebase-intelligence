@@ -90,3 +90,7 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 **11. Structural Analysis:** Use `structural_search` when you need code by structure (not text). 13 AST patterns available.
 
 **12. Agentic Code Search:** Use `search_code(agentic=True)` or simply `search_code` for complex multi-part questions. Auto-decomposes query → parallel sub-searches → relation analysis → RRF aggregation. Based on arxiv.org/abs/2505.14321.
+
+**13. MCP Quality over grep:** ALWAYS prefer MCP semantic tools (`search_code`, `deep_search`, `get_context`) over `grep`/`find_path` for code research. MCP tools find by concept/intent, not exact text — they catch relationships and context that grep misses. Use `grep` only for exact symbol names or when MCP index is empty.
+
+**14. LanceDB Migration Safety:** NEVER call `drop_table` before data is fully validated in memory. Migration pattern: read → validate in memory → drop old → create new → insert. If validation fails, preserve original table. Always guard `chunk_index` against NaN/Float from Pandas with `pd.notna()` check.

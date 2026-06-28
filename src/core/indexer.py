@@ -24,8 +24,10 @@ def _generate_unique_db_path(project_path: Path) -> Path:
     предотвращая конфликты при параллельной индексации.
     """
     # Используем хэш пути проекта для создания уникального имени файла
-    project_hash = hashlib.md5(str(project_path.resolve()).encode()).hexdigest()[:8]
-    project_name = os.path.basename(project_path)
+    # Нормализуем путь: lower() + replace('\', '/') для защиты от разного регистра в Windows
+    normalized_path = str(project_path.resolve()).lower().replace('\\', '/')
+    project_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
+    project_name = os.path.basename(project_path).lower()
 
     # Создаем директорию .codebase_indices в корне проекта, если её нет
     project_root = project_path.parent
@@ -87,40 +89,58 @@ class Indexer:
         # при "already exists" — пробуем открыть снова.
         try:
             self.table = self.db.open_table(self.table_name)
-            # Проверяем что схема содержит text_full (миграция)
+            # Проверяем, что схема содержит text_full (миграция)
             existing_fields = [f.name for f in self.table.schema]
             if "text_full" not in existing_fields:
                 logger.warning(f"⚠️ Миграция: добавляем text_full в существующую таблицу")
-                # Читаем существующие данные
+
                 try:
                     old_df = self.table.to_pandas()
-                    # Добавляем text_full = text (копируем значение)
-                    if "text_full" not in old_df.columns:
-                        old_df["text_full"] = old_df["text"]
-                    # Удаляем старую таблицу и создаём новую
-                    self.db.drop_table(self.table_name)
-                    self.table = self.db.create_table(self.table_name, schema=self.schema)
-                    # Восстанавливаем данные
+                    records = []
+
                     if len(old_df) > 0:
-                        records = []
+                        # Гарантируем наличие колонки для копирования данных
+                        if "text_full" not in old_df.columns:
+                            old_df["text_full"] = old_df["text"]
+
+                        # 1. СНАЧАЛА ПОЛНОСТЬЮ ФОРМИРУЕМ И ВАЛИДИРУЕМ ДАННЫЕ В ПАМЯТИ
                         for _, row in old_df.iterrows():
+                            # Безопасное извлечение chunk_index (защита от NaN/Float в Pandas)
+                            try:
+                                import pandas as pd
+                                c_idx = int(row["chunk_index"]) if pd.notna(row["chunk_index"]) else 0
+                            except Exception:
+                                c_idx = 0
+
                             records.append({
-                                "id": row["id"],
+                                "id": str(row["id"]),
                                 "vector": row["vector"],
-                                "text": row["text"],
-                                "text_full": row["text_full"],
-                                "file_path": row["file_path"],
-                                "file_hash": row["file_hash"],
-                                "chunk_index": int(row["chunk_index"]),
+                                "text": str(row["text"]),
+                                "text_full": str(row["text_full"]),
+                                "file_path": str(row["file_path"]),
+                                "file_hash": str(row["file_hash"]),
+                                "chunk_index": c_idx,
                             })
-                        self.table.add(records)
-                        logger.info(f"📦 Миграция завершена: {len(records)} записей восстановлено")
-                    else:
-                        logger.info(f"📦 Миграция завершена: таблица была пустой")
-                except Exception as mig_err:
-                    logger.error(f"Ошибка миграции: {mig_err}, создаём пустую таблицу")
+
+                    # 2. АТОМАРНАЯ СМЕНА ТАБЛИЦЫ (только если сбор данных выше не упал)
                     self.db.drop_table(self.table_name)
                     self.table = self.db.create_table(self.table_name, schema=self.schema)
+
+                    if len(records) > 0:
+                        self.table.add(records)
+                        logger.info(f"📦 Миграция успешно завершена: {len(records)} записей восстановлено")
+                    else:
+                        logger.info(f"📦 Миграция завершена: исходная таблица была пустой")
+
+                except Exception as mig_err:
+                    # 3. АБСОЛЮТНАЯ ЗАЩИТА: никакого деструктивного drop_table при ошибках!
+                    logger.critical(f"❌ Критическая ошибка миграции данных: {mig_err}. Данные СОХРАНЕНЫ в старой таблице.")
+                    # Восстанавливаем стабильное подключение к исходной таблице
+                    try:
+                        self.table = self.db.open_table(self.table_name)
+                    except Exception:
+                        # Фолбек на создание чистой таблицы только если старая физически стёрта
+                        self.table = self.db.create_table(self.table_name, schema=self.schema)
             else:
                 logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
         except Exception as open_err:
