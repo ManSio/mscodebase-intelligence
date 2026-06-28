@@ -126,7 +126,7 @@ class MultiProjectSearcher:
 
         db = self._db_cache[path_key]
         try:
-            table = db.open_table("code_chunks")
+            table = db.open_table("codebase_chunks")
             if len(table) == 0:
                 return None
             return table

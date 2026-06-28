@@ -111,7 +111,7 @@ class MultiProviderReranker:
             self.ollama_available = True
             logger.info(f"✅ Ollama доступна: {self.ollama_url} (модель: {self.ollama_model_name})")
 
-        if not self.lm_studio_available and not not self.ollama_available:
+        if not self.lm_studio_available and not self.ollama_available:
             logger.info(
                 "ℹ️ Реранкер отключён. Запустите модель в LM Studio "
                 "или выполните 'ollama run bge-reranker-v2-m3' для включения LLM-реранкинга."

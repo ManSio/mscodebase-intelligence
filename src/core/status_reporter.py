@@ -6,6 +6,7 @@
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -30,7 +31,7 @@ class StatusReporter:
     def _collect_status(self, indexer, searcher) -> Dict[str, Any]:
         """Собирает полную информацию о состоянии."""
         status = {
-            "timestamp": int(os.time()),
+            "timestamp": int(time.time()),
             "project_path": str(self.project_path),
             "indexer": self._get_indexer_status(indexer),
             "searcher": self._get_searcher_status(searcher),
@@ -129,10 +130,10 @@ class StatusReporter:
                 "progress_percentage": 0.0,
                 "estimated_remaining": 0,
                 "indexing_speed": 0.0,  # чанков в секунду
-                "last_update": int(os.time()),
-            }
+                "last_update": int(time.time()),
+                            }
 
-            # Вычисляем примерный прогресс (упрощенная версия)
+                            # Вычисляем примерный прогресс (упрощенная версия)
             if base_status.get("total_files", 0) > 0:
                 progress["progress_percentage"] = (
                     base_status.get("unique_files", 0)
@@ -151,8 +152,8 @@ class StatusReporter:
                 "progress_percentage": 0.0,
                 "estimated_remaining": 0,
                 "indexing_speed": 0.0,
-                "last_update": int(os.time()),
-                "error": str(e),
+                "last_update": int(time.time()),
+                                "error": str(e),
             }
 
     def _get_health_status(self, indexer) -> Dict[str, Any]:
