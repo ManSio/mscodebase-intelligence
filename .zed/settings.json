@@ -1,0 +1,34 @@
+{
+  "lsp": {
+    "mscodebase-lsp": {
+      "command": "C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe",
+      "arguments": [
+        "-u",
+        "C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\src\\hybrid_server.py",
+      ],
+    },
+  },
+  "context_servers": {
+    "mscodebase-mcp": {
+      "url": "http://127.0.0.1:8765/mcp",
+    },
+  },
+  "languages": {
+    "Python": {
+      "language_servers": ["mscodebase-lsp"],
+    },
+    "TypeScript": {
+      "language_servers": ["mscodebase-lsp"],
+    },
+    "Rust": {
+      "language_servers": ["mscodebase-lsp"],
+    },
+    "Go": {
+      "language_servers": ["mscodebase-lsp"],
+    },
+    "JavaScript": {
+      "language_servers": ["mscodebase-lsp"],
+    },
+  },
+  "autosave": "on_focus_change",
+}

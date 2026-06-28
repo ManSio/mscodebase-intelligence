@@ -1,7 +1,7 @@
 """
-MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
+# MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
-
+#mansio super purerlknvlxcnvk sd
 import asyncio
 import hashlib
 import logging
