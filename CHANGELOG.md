@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [1.4.2] — 2026-06-28
+
+### 🚀 Major: Async Migration (ThreadPoolExecutor → asyncio.gather)
+
+**Problem:**
+- `agentic_code_search` used `ThreadPoolExecutor` (4 OS threads)
+- `Embedder.embed_batch()` used synchronous `httpx.post()` (blocking)
+- Mixed sync/async code caused complexity
+
+**Solution:**
+- `Embedder.embed_batch_async()` — async version with `httpx.AsyncClient`
+- `Searcher.hybrid_search_async()` — fully async hybrid search
+- `Searcher.agentic_code_search_async()` — uses `asyncio.gather` (zero threads!)
+- `_apply_multi_reranker_async()` — native async reranker
+- Backward compatible: sync wrappers use `asyncio.run()` when no loop running
+
+**Performance:**
+- 0 OS threads for parallel subquery search (was 4)
+- Native async I/O for embeddings and reranking
+- ~8MB memory savings from eliminated thread stacks
+
+**Tests:**
+- All 25 agentic search tests updated for async mocks
+- 72 total tests passing
+
+---
+
 ## [1.4.1] — 2026-06-28
 
 ### 🔧 Fix: Embedding-based Reranker for LM Studio Compatibility

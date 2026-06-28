@@ -132,6 +132,7 @@ class TestAgenticCodeSearch:
 
     def test_simple_query_uses_hybrid_search(self):
         """Простой запрос использует обычный hybrid_search."""
+        import asyncio
         indexer = MagicMock()
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
@@ -139,36 +140,39 @@ class TestAgenticCodeSearch:
         mock_results = [
             {"metadata": {"file": "a.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
         ]
-        with patch.object(searcher, "hybrid_search", return_value=mock_results):
+        # Мокаем async версию
+        async def mock_async(*args, **kwargs):
+            return mock_results
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_async):
             results, meta = searcher.agentic_code_search("simple query")
 
         assert len(results) == 1
         assert len(meta["subqueries"]) == 1
 
     def test_complex_query_decomposes_and_searches(self):
-        """Сложный запрос разбивается и ищется по частям."""
+        """Сложный запрос разбивается и ищется по частям через asyncio.gather."""
         indexer = MagicMock()
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
-        # Мокаем hybrid_search для разных подзапросов
+        # Мокаем async hybrid_search для разных подзапросов
         call_count = 0
 
-        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
+        async def mock_hybrid_search_async(query, limit=5, use_rrf=True, expand=True):
             nonlocal call_count
             call_count += 1
             return [
                 {"metadata": {"file": f"file{call_count}.py", "chunk_index": 0}, "text": f"code {query}", "final_score": 0.9}
             ]
 
-        with patch.object(searcher, "hybrid_search", side_effect=mock_hybrid_search):
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_hybrid_search_async):
             results, meta = searcher.agentic_code_search(
                 "как работает авторизация и где проверяются права"
             )
 
         # Должно быть несколько подзапросов
         assert len(meta["subqueries"]) >= 2
-        # Должно быть несколько вызовов hybrid_search
+        # Должно быть несколько вызовов hybrid_search_async
         assert call_count >= 2
 
     def test_deduplication_across_subqueries(self):
@@ -179,7 +183,9 @@ class TestAgenticCodeSearch:
 
         same_result = {"metadata": {"file": "shared.py", "chunk_index": 0}, "text": "shared code", "final_score": 0.8}
 
-        with patch.object(searcher, "hybrid_search", return_value=[same_result]):
+        async def mock_async(*args, **kwargs):
+            return [same_result]
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_async):
             results, meta = searcher.agentic_code_search(
                 "auth и permissions"
             )
@@ -194,9 +200,11 @@ class TestAgenticCodeSearch:
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
-        with patch.object(searcher, "hybrid_search", return_value=[
-            {"metadata": {"file": "a.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
-        ]):
+        async def mock_async(*args, **kwargs):
+            return [
+                {"metadata": {"file": "a.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_async):
             _, meta = searcher.agentic_code_search("auth и perms")
 
         assert meta["relations"] is not None
@@ -214,7 +222,9 @@ class TestAgenticCodeSearch:
             for i in range(20)
         ]
 
-        with patch.object(searcher, "hybrid_search", return_value=many_results):
+        async def mock_async(*args, **kwargs):
+            return many_results
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_async):
             results, _ = searcher.agentic_code_search(
                 "auth и perms", max_total_results=5
             )
@@ -234,7 +244,7 @@ class TestAgenticCodeSearch:
             {"metadata": {"file": "fallback.py", "chunk_index": 0}, "text": "found", "final_score": 0.8}
         ]
 
-        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
+        async def mock_hybrid_search_async(query, limit=5, use_rrf=True, expand=True):
             # Fallback вызывается с оригинальным запросом
             if query == "complex query":
                 return fallback_result
@@ -242,7 +252,7 @@ class TestAgenticCodeSearch:
             return []
 
         with patch.object(searcher, "_decompose_query_with_llm", return_value=["subquery1", "subquery2"]):
-            with patch.object(searcher, "hybrid_search", side_effect=mock_hybrid_search):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_hybrid_search_async):
                 results, meta = searcher.agentic_code_search("complex query")
 
         # Должен быть использован fallback
@@ -263,22 +273,22 @@ class TestAgenticCodeSearch:
         assert len(subqueries) >= 2
 
     def test_parallel_search_with_threadpool(self):
-        """Параллельный поиск подзапросов через ThreadPoolExecutor."""
+        """Параллельный поиск подзапросов через asyncio.gather."""
         indexer = MagicMock()
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
         call_times = []
-        import time
+        import asyncio
 
-        def mock_hybrid_search(query, limit=5, use_rrf=True, expand=True):
+        async def mock_hybrid_search_async(query, limit=5, use_rrf=True, expand=True):
             call_times.append(query)
-            time.sleep(0.05)  # Имитация задержки
+            await asyncio.sleep(0.01)  # Имитация задержки
             return [
                 {"metadata": {"file": f"{query[:10]}.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
             ]
 
-        with patch.object(searcher, "hybrid_search", side_effect=mock_hybrid_search):
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_hybrid_search_async):
             results, meta = searcher.agentic_code_search("auth и perms и roles")
 
         # Должно быть 3 подзапроса
@@ -293,14 +303,16 @@ class TestAgenticCodeSearch:
         searcher = Searcher(indexer, embedder)
 
         # Простой запрос — метод none
-        with patch.object(searcher, "hybrid_search", return_value=[]):
+        async def mock_empty(*args, **kwargs):
+            return []
+        with patch.object(searcher, "hybrid_search_async", side_effect=mock_empty):
             _, meta = searcher.agentic_code_search("simple")
         assert meta["decomposition_method"] == "none"
 
         # Сложный запрос с LLM fallback на правила
         # Мокаем _try_llm_decompose чтобы вернул None (LLM недоступен)
         with patch.object(searcher, "_try_llm_decompose", return_value=None):
-            with patch.object(searcher, "hybrid_search", return_value=[]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_empty):
                 _, meta = searcher.agentic_code_search("auth и perms")
         # Метод должен быть "rules" т.к. _try_llm_decompose вернул None
         assert meta["decomposition_method"] in ("rules", "llm")  # зависит от порядка вызова
@@ -325,10 +337,12 @@ class TestAgenticCodeSearch:
         }
 
         # Мокаем декомпозицию и поиск
-        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
-            with patch.object(searcher, "hybrid_search", return_value=[
+        async def mock_auth(*args, **kwargs):
+            return [
                 {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
-            ]):
+            ]
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_auth):
                 _, meta = searcher.agentic_code_search(
                     "auth query", symbol_index=mock_symbol_index
                 )
@@ -350,10 +364,12 @@ class TestAgenticCodeSearch:
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
-        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
-            with patch.object(searcher, "hybrid_search", return_value=[
+        async def mock_auth(*args, **kwargs):
+            return [
                 {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
-            ]):
+            ]
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_auth):
                 _, meta = searcher.agentic_code_search("auth query", symbol_index=None)
 
         # Без symbol_index — related_symbols должен быть пустым
@@ -373,11 +389,13 @@ class TestAgenticCodeSearch:
         # Fallback тоже падает
         broken_symbol_index.find_references.side_effect = Exception("DB error 2")
 
+        async def mock_auth(*args, **kwargs):
+            return [
+                {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
+            ]
         # Используем 2 подзапроса чтобы попасть в ветку с _analyze_subquery_relations
         with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
-            with patch.object(searcher, "hybrid_search", return_value=[
-                {"metadata": {"file": "auth.py", "chunk_index": 0}, "text": "code", "final_score": 0.8}
-            ]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_auth):
                 # Не должно упасть
                 results, meta = searcher.agentic_code_search(
                     "auth query", symbol_index=broken_symbol_index
@@ -397,11 +415,14 @@ class TestAgenticCodeSearch:
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
+        test_results = [
+            {"metadata": {"file": f"file{i}.py", "chunk_index": 0}, "text": f"code {i}", "final_score": 0.9 - i * 0.01}
+            for i in range(3)
+        ]
+        async def mock_async(*args, **kwargs):
+            return test_results
         with patch.object(searcher, "_decompose_query_with_llm", return_value=["sub1", "sub2"]):
-            with patch.object(searcher, "hybrid_search", return_value=[
-                {"metadata": {"file": f"file{i}.py", "chunk_index": 0}, "text": f"code {i}", "final_score": 0.9 - i * 0.01}
-                for i in range(3)
-            ]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_async):
                 results, meta = searcher.agentic_code_search("test query")
 
         # Проверяем наличие метрик
@@ -417,10 +438,12 @@ class TestAgenticCodeSearch:
         searcher = Searcher(indexer, embedder)
 
         # Декомпозиция возвращает 1 подзапрос → fallback на обычный hybrid
-        with patch.object(searcher, "_decompose_query_with_llm", return_value=["simple"]):
-            with patch.object(searcher, "hybrid_search", return_value=[
+        async def mock_result(*args, **kwargs):
+            return [
                 {"metadata": {"file": "result.py", "chunk_index": 0}, "text": "found", "final_score": 0.8}
-            ]):
+            ]
+        with patch.object(searcher, "_decompose_query_with_llm", return_value=["simple"]):
+            with patch.object(searcher, "hybrid_search_async", side_effect=mock_result):
                 results, meta = searcher.agentic_code_search("simple query")
 
         # Должен использоваться hybrid_search (decomposition_method = none)

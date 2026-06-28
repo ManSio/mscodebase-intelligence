@@ -299,17 +299,37 @@ class Searcher:
     def hybrid_search(self, query: str, limit: int = 5, use_rrf: bool = True, expand: bool = True) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
+        Синхронная обёртка для обратной совместимости.
+        Используйте hybrid_search_async() для async контекста.
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Уже внутри event loop — запускаем в отдельном потоке
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run, self.hybrid_search_async(query, limit, use_rrf, expand)
+                )
+                return future.result(timeout=30)
+        else:
+            return asyncio.run(self.hybrid_search_async(query, limit, use_rrf, expand))
+
+    async def hybrid_search_async(
+        self, query: str, limit: int = 5, use_rrf: bool = True, expand: bool = True
+    ) -> List[dict]:
+        """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
+
         Алгоритм:
         1. (Опционально) Расширяем запрос синонимами через query expansion
         2. Выполняем BM25 поиск для точных совпадений терминов
         3. Выполняем векторный поиск для семантически релевантных результатов
         4. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
-
-        Args:
-            query: Поисковый запрос
-            limit: Максимальное число результатов
-            use_rrf: Использовать RRF (True) или реранкер (False)
-            expand: Использовать query expansion (синонимы, стемминг)
+        5. Опциональный мульти-провайдерный реранкинг
         """
         # Query Expansion: генерируем варианты запроса
         if expand:
@@ -330,7 +350,12 @@ class Searcher:
             # (варианты синонимов дают те же эмбеддинги)
             if variant == query and not all_dense_results:
                 try:
-                    query_vector = self.embedder.embed(variant)
+                    # Используем async embedder если доступен
+                    if hasattr(self.embedder, 'embed_batch_async'):
+                        query_vectors = await self.embedder.embed_batch_async([variant], is_query=True)
+                        query_vector = query_vectors[0] if query_vectors else None
+                    else:
+                        query_vector = self.embedder.embed(variant)
                     if query_vector:
                         dense_results = self.vector_search(query_vector, limit=limit * 2)
                         all_dense_results = [r for r in dense_results if "error" not in r]
@@ -365,7 +390,7 @@ class Searcher:
                 })
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
-        return self._apply_multi_reranker(query, rrf_results, limit)
+        return await self._apply_multi_reranker_async(query, rrf_results, limit)
 
     def search(self, query: str, limit: int = 5) -> str:
         """Гибридный поиск для MCP-инструмента search_code."""
@@ -924,32 +949,30 @@ class Searcher:
         return analysis
 
     def _ensure_multi_reranker(self) -> Optional[MultiProviderReranker]:
-        """Ленивая синхронная инициализация мульти-провайдерного реранкера.
-
-        Использует asyncio.run() для однократного пинга провайдеров.
-        Потокобезопасна через _multi_reranker_initialized флаг.
-        """
+        """Ленивая синхронная инициализация мульти-провайдерного реранкера."""
         if self._multi_reranker_initialized:
             return self._multi_reranker
 
         self._multi_reranker_initialized = True
         try:
             reranker = MultiProviderReranker()
-            # Синхронный запуск асинхронной инициализации
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
+            asyncio.run(reranker.initialize())
+            self._multi_reranker = reranker
+            return reranker
+        except Exception as e:
+            logger.warning(f"Не удалось инициализировать MultiProviderReranker: {e}")
+            self._multi_reranker = None
+            return None
 
-            if loop and loop.is_running():
-                # Уже внутри event loop — используем ThreadPoolExecutor
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, reranker.initialize())
-                    future.result(timeout=5)
-            else:
-                asyncio.run(reranker.initialize())
+    async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
+        """Ленивая async инициализация мульти-провайдерного реранкера."""
+        if self._multi_reranker_initialized:
+            return self._multi_reranker
 
+        self._multi_reranker_initialized = True
+        try:
+            reranker = MultiProviderReranker()
+            await reranker.initialize()
             self._multi_reranker = reranker
             return reranker
         except Exception as e:
@@ -963,35 +986,39 @@ class Searcher:
         rrf_results: List[dict],
         top_n: int,
     ) -> List[dict]:
-        """Синхронно применяет мульти-провайдерный реранкинг если доступен.
+        """Синхронная обёртка для мульти-провайдерного реранкинга."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
 
-        Внутри запускает async rerank через asyncio.run() или отдельный loop,
-        чтобы сохранить совместимость с синхронными вызывающими кодами.
-        """
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run, self._apply_multi_reranker_async(query, rrf_results, top_n)
+                )
+                return future.result(timeout=35)
+        else:
+            return asyncio.run(self._apply_multi_reranker_async(query, rrf_results, top_n))
+
+    async def _apply_multi_reranker_async(
+        self,
+        query: str,
+        rrf_results: List[dict],
+        top_n: int,
+    ) -> List[dict]:
+        """Асинхронный мульти-провайдерный реранкинг."""
         if not rrf_results:
             return rrf_results
 
-        reranker = self._ensure_multi_reranker()
+        reranker = await self._ensure_multi_reranker_async()
         if reranker is None or not reranker.is_available:
             return rrf_results
 
         try:
-            # Проверяем, находимся ли мы внутри работающего event loop
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # Уже внутри event loop — запускаем в отдельном потоке
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(
-                        asyncio.run, reranker.rerank(query, rrf_results, top_n=top_n)
-                    )
-                    return future.result(timeout=int(reranker.inference_timeout) + 5)
-            else:
-                return asyncio.run(reranker.rerank(query, rrf_results, top_n=top_n))
+            return await reranker.rerank(query, rrf_results, top_n=top_n)
         except Exception as e:
             logger.warning(f"MultiProviderReranker ошибка: {e}. Fallback к RRF.")
             return rrf_results
@@ -1006,9 +1033,45 @@ class Searcher:
     ) -> Tuple[List[dict], Dict[str, any]]:
         """Agentic Code Search с LLM-декомпозицией запроса.
 
+        Синхронная обёртка для обратной совместимости.
+        Используйте agentic_code_search_async() для async контекста.
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run,
+                    self.agentic_code_search_async(
+                        query, symbol_index, max_subqueries, limit_per_subquery, max_total_results
+                    )
+                )
+                return future.result(timeout=60)
+        else:
+            return asyncio.run(
+                self.agentic_code_search_async(
+                    query, symbol_index, max_subqueries, limit_per_subquery, max_total_results
+                )
+            )
+
+    async def agentic_code_search_async(
+        self,
+        query: str,
+        symbol_index=None,
+        max_subqueries: int = 4,
+        limit_per_subquery: int = 5,
+        max_total_results: int = 10,
+    ) -> Tuple[List[dict], Dict[str, any]]:
+        """Асинхронный Agentic Code Search с LLM-декомпозицией запроса.
+
         Алгоритм (на основе arxiv.org/abs/2505.14321):
         1. Декомпозиция запроса на подзапросы (LLM с fallback на правила)
-        2. Параллельный поиск каждого подзапроса через asyncio.gather
+        2. **Параллельный поиск через asyncio.gather** (без ThreadPoolExecutor)
         3. Анализ связей между результатами (общие файлы, символы)
         4. Агрегация через RRF
         5. Fallback к обычному поиску при плохой декомпозиции
@@ -1038,42 +1101,39 @@ class Searcher:
 
         if len(subqueries) <= 1:
             # Простой запрос — используем обычный гибридный поиск
-            results = self.hybrid_search(query, limit=max_total_results)
+            results = await self.hybrid_search_async(query, limit=max_total_results)
             search_metadata["subquery_results_count"][query] = len(results)
             search_metadata["decomposition_method"] = "none"
             return results, search_metadata
 
-        # Шаг 2: Параллельный поиск каждого подзапроса через ThreadPoolExecutor
-        # (asyncio.gather не подходит для sync hybrid_search — используем потоки)
+        # Шаг 2: Параллельный поиск через asyncio.gather (без потоков!)
         subquery_results: Dict[str, List[dict]] = {}
 
         try:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            # Создаём задачи для параллельного выполнения
+            tasks = [
+                self.hybrid_search_async(sq, limit=limit_per_subquery, use_rrf=True, expand=True)
+                for sq in subqueries
+            ]
 
-            with ThreadPoolExecutor(max_workers=min(len(subqueries), 4)) as executor:
-                future_to_sq = {
-                    executor.submit(
-                        self.hybrid_search, sq, limit_per_subquery, True, True
-                    ): sq
-                    for sq in subqueries
-                }
+            # Запускаем все задачи параллельно
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
 
-                for future in as_completed(future_to_sq):
-                    sq = future_to_sq[future]
-                    try:
-                        sq_results = future.result(timeout=30)
-                        subquery_results[sq] = sq_results
-                        search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
-                    except Exception as e:
-                        logger.warning(f"Поиск подзапроса '{sq[:30]}' удался: {e}")
-                        subquery_results[sq] = []
-                        search_metadata["subquery_results_count"][sq[:40]] = 0
+            # Обрабатываем результаты
+            for sq, sq_results in zip(subqueries, results_list):
+                if isinstance(sq_results, Exception):
+                    logger.warning(f"Поиск подзапроса '{sq[:30]}' дал ошибку: {sq_results}")
+                    subquery_results[sq] = []
+                    search_metadata["subquery_results_count"][sq[:40]] = 0
+                else:
+                    subquery_results[sq] = sq_results
+                    search_metadata["subquery_results_count"][sq[:40]] = len(sq_results)
 
         except Exception as e:
-            # Fallback: последовательный поиск при ошибке ThreadPool
-            logger.warning(f"ThreadPoolExecutor недоступен ({e}), fallback на последовательный поиск")
+            # Fallback: последовательный поиск при ошибке
+            logger.warning(f"asyncio.gather ошибка ({e}), fallback на последовательный поиск")
             for sq in subqueries:
-                sq_results = self.hybrid_search(
+                sq_results = await self.hybrid_search_async(
                     sq, limit=limit_per_subquery, use_rrf=True, expand=True
                 )
                 subquery_results[sq] = sq_results
@@ -1085,7 +1145,7 @@ class Searcher:
         if total_subquery_results == 0:
             logger.info("⚠️ Декомпозиция не дала результатов, fallback на обычный поиск")
             search_metadata["fallback_used"] = True
-            results = self.hybrid_search(query, limit=max_total_results)
+            results = await self.hybrid_search_async(query, limit=max_total_results)
             search_metadata["subquery_results_count"][f"[fallback] {query[:40]}"] = len(results)
             return results, search_metadata
 
@@ -1111,18 +1171,18 @@ class Searcher:
         final_results = all_results[:max_total_results]
         search_metadata["total_unique"] = len(seen_keys)
 
-        # Шаг 6: Мульти-провайдерный реранкинг (опциональный, синхронный)
+        # Шаг 6: Мульти-провайдерный реранкинг (опциональный, async)
         try:
-            reranker = self._ensure_multi_reranker()
+            reranker = await self._ensure_multi_reranker_async()
             if reranker is not None and reranker.is_available and final_results:
-                final_results = asyncio.run(reranker.rerank(
+                final_results = await reranker.rerank(
                     query, final_results, top_n=max_total_results
-                ))
+                )
                 search_metadata["reranker_used"] = True
             else:
                 search_metadata["reranker_used"] = False
         except Exception as e:
-            logger.warning(f"Реранкинг в agentic_code_search пропущен: {e}")
+            logger.warning(f"Реранкинг в agentic_code_search_async пропущен: {e}")
             search_metadata["reranker_used"] = False
 
         return final_results, search_metadata

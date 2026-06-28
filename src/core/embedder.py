@@ -328,7 +328,30 @@ class Embedder:
         return all_embeddings
 
     def _embed_batch_api(self, texts: List[str]) -> List[List[float]]:
-        """Высокопроизводительный пакетный запрос к внешним API (Ollama / OpenAI / LM Studio)."""
+        """Высокопроизводительный пакетный запрос к внешним API (Ollama / OpenAI / LM Studio).
+
+        Синхронная обёртка для обратной совместимости.
+        Используйте _embed_batch_api_async() для async контекста.
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Уже внутри event loop — запускаем в отдельном потоке
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run, self._embed_batch_api_async(texts)
+                )
+                return future.result(timeout=65)
+        else:
+            return asyncio.run(self._embed_batch_api_async(texts))
+
+    async def _embed_batch_api_async(self, texts: List[str]) -> List[List[float]]:
+        """Асинверсия пакетного запроса к внешним API (Ollama / OpenAI / LM Studio)."""
         import httpx
 
         headers = {
@@ -339,43 +362,65 @@ class Embedder:
         all_embeddings = []
         api_batch_size = 32
 
-        for i in range(0, len(texts), api_batch_size):
-            sub_batch = texts[i : i + api_batch_size]
-
-            if self.provider == "ollama":
-                url = f"{self.api_url}/api/embed"
-                payload = {"model": self.model_name, "input": sub_batch}
-            else:
-                url = f"{self.api_url}/embeddings"
-                payload = {"model": self.model_name, "input": sub_batch}
-
-            try:
-                response = httpx.post(url, json=payload, headers=headers, timeout=60.0)
-                response.raise_for_status()
-                res_json = response.json()
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for i in range(0, len(texts), api_batch_size):
+                sub_batch = texts[i : i + api_batch_size]
 
                 if self.provider == "ollama":
-                    if "embeddings" in res_json:
-                        all_embeddings.extend(res_json["embeddings"])
-                    elif "embedding" in res_json and len(sub_batch) == 1:
-                        all_embeddings.append(res_json["embedding"])
-                    else:
-                        raise KeyError(
-                            "Нетипичный формат ответа Ollama API. Проверьте имя модели."
-                        )
+                    url = f"{self.api_url}/api/embed"
+                    payload = {"model": self.model_name, "input": sub_batch}
                 else:
-                    data = res_json.get("data", [])
-                    if data and "index" in data[0]:
-                        data = sorted(data, key=lambda x: x["index"])
-                    batch_embs = [item["embedding"] for item in data]
-                    all_embeddings.extend(batch_embs)
+                    url = f"{self.api_url}/embeddings"
+                    payload = {"model": self.model_name, "input": sub_batch}
 
-            except Exception as e:
-                logger.error(
-                    f"❌ Ошибка сетевого API эмбеддингов ({self.provider}): {e}"
-                )
-                raise RuntimeError(
-                    f"Сбой внешнего API Эмбеддингов ({self.provider}): {e}"
-                )
+                try:
+                    response = await client.post(url, json=payload, headers=headers)
+                    response.raise_for_status()
+                    res_json = response.json()
+
+                    if self.provider == "ollama":
+                        if "embeddings" in res_json:
+                            all_embeddings.extend(res_json["embeddings"])
+                        elif "embedding" in res_json and len(sub_batch) == 1:
+                            all_embeddings.append(res_json["embedding"])
+                        else:
+                            raise KeyError(
+                                "Нетипичный формат ответа Ollama API. Проверьте имя модели."
+                            )
+                    else:
+                        data = res_json.get("data", [])
+                        if data and "index" in data[0]:
+                            data = sorted(data, key=lambda x: x["index"])
+                        batch_embs = [item["embedding"] for item in data]
+                        all_embeddings.extend(batch_embs)
+
+                except Exception as e:
+                    logger.error(
+                        f"❌ Ошибка сетевого API эмбеддингов ({self.provider}): {e}"
+                    )
+                    raise RuntimeError(
+                        f"Сбой внешнего API Эмбеддингов ({self.provider}): {e}"
+                    )
 
         return all_embeddings
+
+    async def embed_batch_async(
+        self, texts: List[str], is_query: bool = False
+    ) -> List[List[float]]:
+        """Асинхронная версия embed_batch()."""
+        if not texts:
+            return []
+
+        # Добавляем префиксы, если модель их требует (E5, BGE, GTE и т.д.)
+        prefix = self._query_prefix if is_query else self._doc_prefix
+        if prefix:
+            texts = [prefix + t for t in texts]
+
+        if self.provider == "onnx":
+            if not self.is_available:
+                return [[] for _ in texts]
+            # ONNX — синхронный, запускаем в thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self._embed_batch_onnx, texts)
+        else:
+            return await self._embed_batch_api_async(texts)
