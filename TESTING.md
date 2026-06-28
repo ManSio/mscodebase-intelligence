@@ -17,7 +17,8 @@
 | `tests/test_searcher.py` | 4 | Hybrid search (BM25 + Dense + RRF) |
 | `test_connection.py` | 1 | Smoke test: FileGuard + MCP server init |
 | `test_automation.py` | 1 | Automated test runner |
-| **Total** | **131** | |
+| `tests/test_symbol_index_call_graph.py` | 22 | Call Graph BFS, references, cyclic calls, parser extract_calls |
+| **Total** | **153** | |
 
 ## Running Tests
 

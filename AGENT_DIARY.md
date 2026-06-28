@@ -66,6 +66,45 @@
 
 ---
 
+## [2026-06-28 21:00] — [Type: Feature] — Deep Call Graph (BFS Depth 2+)
+
+**Проблема:**
+1. `symbol_index.py` хранил только definitions — граф вызовов был плоским
+2. `_references` всегда был пуст — парсер не извлекал вызовы функций
+3. `build_call_graph` находил только прямые связи без глубины
+
+**Решение:**
+- `parser.py` — добавлен метод `extract_calls()`:
+  - Рекурсивный обход AST для извлечения call_expression
+  - Поддержка method calls (obj.method()), scoped (module::func)
+  - Возвращает список {caller, callee, line, file}
+- `symbol_index.py` — добавлен метод `add_references()`:
+  - Хранит двунаправленные связи (caller → callee и callee ← caller)
+  - Дедупликация, пропуск self-calls
+- `symbol_index.py` — переписан `build_call_graph()`:
+  - BFS (breadth-first search) с настраиваемой глубиной (1-5)
+  - Отдельные проходы для callers (вверх) и callees (вниз)
+  - Защита от циклов через visited-множества
+  - Формирование call_chain для контекста
+- `symbol_index.py` — добавлен `get_call_chain()`:
+  - direction: 'up' (callers), 'down' (callees), 'both'
+  - max_depth до 3 по умолчанию
+- `symbol_index.py` — расширен `get_symbol_context()`:
+  - Теперь включает calls_count и calls (кого вызывает символ)
+- `index_project()` — теперь вызывает `extract_calls()` и `add_references()`
+- 22 новых теста в `tests/test_symbol_index_call_graph.py`
+  - References: создание связей, дедупликация, skip self-calls
+  - Call Graph: callees, callers, depth=2, impact_files, call_chain
+  - Call Chain: up, down, both, total_connected
+  - Edge cases: несуществующий символ, лимит глубины, циклы
+  - Parser: extract_calls для Python, method calls, пустой файл
+
+**Инструменты:** read_file, write_file, edit_file, diagnostics, terminal (pytest)
+**Файлы:** src/core/parser.py (extract_calls), src/core/symbol_index.py (add_references, BFS), tests/test_symbol_index_call_graph.py
+**Статус:** ✅ Все 67 тестов проходят (20 reranker + 25 agentic + 22 call graph)
+
+---
+
 ## [2026-06-28 14:00] — [Type: Feature] — Agentic Code Search (arxiv 2505.14321)
 
 **Проблема:**

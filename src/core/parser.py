@@ -24,6 +24,23 @@ class CodeParser:
         "function_declaration",
     }
 
+    # Узлы вызовов функций — для построения графа вызовов
+    CALL_NODES = {
+        "call_expression",      # Python, JS, Go, Rust
+        "call",                  # Альтернативные грамматики
+        "function_invocation",   # Java
+        "invocation_expression", # Java (method invocation)
+        "macro_invocation",      # Rust macros!
+    }
+
+    # Типы узлов, которые мы считаем "идентификаторами" при поиске вызовов
+    CALL_IDENTIFIER_TYPES = {
+        "identifier",
+        "type_identifier",
+        "field_expression",     # obj.method()
+        "scoped_identifier",     # module::func()
+    }
+
     # Узлы-контейнеры, чьи имена мы запоминаем для контекста
     CONTAINER_NODES = {
         "class_definition",
@@ -245,6 +262,121 @@ class CodeParser:
             if child.type == node_type:
                 return child
         return None
+
+    def extract_calls(self, file_path: Path) -> List[Dict]:
+        """Извлекает все вызовы функций из файла для построения графа вызовов.
+
+        Возвращает список словарей:
+        [
+            {
+                "caller": "function_name",   # кто вызывает
+                "callee": "called_function",  # кого вызывают
+                "line": 42,                    # строка вызова
+                "file": "path/to/file.py",     # файл
+            },
+            ...
+        ]
+        """
+        ext = file_path.suffix.lower()
+        if ext not in self.parsers or ext == ".md":
+            return []
+
+        try:
+            with open(file_path, "rb") as f:
+                code = f.read()
+        except Exception:
+            return []
+
+        if not code.strip():
+            return []
+
+        parser = self.parsers[ext]
+        tree = parser.parse(code)
+
+        calls = []
+        self._extract_calls_recursive(
+            tree.root_node, code, file_path, calls, current_function=""
+        )
+        return calls
+
+    def _extract_calls_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        calls: List[Dict],
+        current_function: str,
+    ):
+        """Рекурсивно извлекает вызовы функций из AST.
+
+        Args:
+            node: Текущий узел AST
+            code: Исходный код файла
+            file_path: Путь к файлу
+            calls: Накопитель результатов
+            current_function: Имя текущей функции (контекст вызова)
+        """
+        # Обновляем контекст текущей функции
+        if node.type in self.TARGET_NODES:
+            name_node = self._find_child_by_type(
+                node, "identifier"
+            ) or self._find_child_by_type(node, "name")
+            if name_node:
+                current_function = code[
+                    name_node.start_byte : name_node.end_byte
+                ].decode("utf-8", errors="ignore")
+
+        # Если это узел вызова — извлекаем имя вызываемой функции
+        if node.type in self.CALL_NODES:
+            callee_name = self._extract_callee_name(node, code)
+            if callee_name and current_function:
+                calls.append({
+                    "caller": current_function,
+                    "callee": callee_name,
+                    "line": node.start_point[0],
+                    "file": str(file_path),
+                })
+
+        # Рекурсивно обходим детей
+        for child in node.children:
+            self._extract_calls_recursive(
+                child, code, file_path, calls, current_function
+            )
+
+    def _extract_callee_name(self, call_node, code: bytes) -> str:
+        """Извлекает имя вызываемой функции из узла вызова.
+
+        Поддерживает:
+        - Простые вызовы: func() → "func"
+        - Методы объектов: obj.method() → "method"
+        - Цепочки: a.b.c() → "c"
+        - Scoped: module::func() → "func"
+        """
+        # Ищем идентификатор среди прямых детей
+        for child in call_node.children:
+            if child.type in self.CALL_IDENTIFIER_TYPES:
+                name = code[child.start_byte : child.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+                # Для field_expression (obj.method) берём последнюю часть
+                if child.type == "field_expression":
+                    # field_expression: obj.field → ищем identifier внутри
+                    for subchild in child.children:
+                        if subchild.type == "identifier":
+                            return code[
+                                subchild.start_byte : subchild.end_byte
+                            ].decode("utf-8", errors="ignore")
+                        elif subchild.type == "property_identifier":
+                            return code[
+                                subchild.start_byte : subchild.end_byte
+                            ].decode("utf-8", errors="ignore")
+                # Для scoped_identifier (module::func) берём последний сегмент
+                elif child.type == "scoped_identifier":
+                    parts = name.split("::")
+                    return parts[-1] if parts else name
+                else:
+                    return name
+        return ""
 
     def _chunk_giant_text(
         self,

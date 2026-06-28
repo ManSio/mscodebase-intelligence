@@ -72,6 +72,7 @@ db_name = f"index_{project_name}_{project_hash}.db"
 | ContextEngine | `src/core/context_engine.py` | Сжатый контекст для AI |
 | RemoteEmbedder | `src/core/remote_embedder.py` | LM Studio / Ollama |
 | Reranker | `src/core/reranker.py` | Multi-Provider Reranker (Ollama/LM Studio) |
+| SymbolIndex | `src/core/symbol_index.py` | Bidirectional Call Graph (BFS depth 2+) + References |
 | Parser | `src/core/parser.py` | Tree-sitter AST парсер |
 | FileGuard | `src/core/file_guard.py` | Фильтрация файлов + gitignore |
 | Integrity | `src/core/integrity.py` | Merkle Tree для детекции изменений |
@@ -190,6 +191,45 @@ db_name = f"index_{project_name}_{project_hash}.db"
 - Требуется LM Studio или Ollama для векторного поиска и реранкинга
 - Windows native (без Docker/WSL)
 - Зависимости: только `httpx` (без onnxruntime/torch/transformers)
+
+## 9. Call Graph (Граф вызовов)
+
+Модуль `src/core/symbol_index.py` реализует двунаправленный граф вызовов:
+
+### Архитектура
+
+```
+[SymbolIndex]
+    │
+    ├── _definitions: symbol → [SymbolRef]  (кто определён где)
+    ├── _references:  symbol → [SymbolRef]  (кто вызывает символ)
+    ├── _file_to_defs:   file → {symbols}   (символы в файле)
+    └── _file_to_calls:  file → {symbols}   (вызовы в файле)
+```
+
+### Алгоритм BFS
+
+```
+build_call_graph(symbol, depth=2):
+    1. Находим определения символа
+    2. BFS вверх (callers): кто вызывает → кто вызывает вызывающих
+    3. BFS вниз (callees): кого вызывает → кого вызывает вызываемый
+    4. Собираем impact_files (все затронутые файлы)
+    5. Формируем call_chain для контекста
+```
+
+### Защита от циклов
+
+- Множество `visited_callers` и `visited_callees`
+- Ограничение глубины до 5 (автоматически)
+- Дедупликация результатов
+
+### Извлечение вызовов
+
+`parser.py` → `extract_calls()`:
+- Рекурсивный обход AST
+- Идентификация `call_expression`, `function_invocation`
+- Поддержка method calls (obj.method()), scoped (module::func)
 
 ---
 

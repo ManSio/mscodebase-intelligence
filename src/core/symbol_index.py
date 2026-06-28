@@ -71,7 +71,6 @@ class SymbolIndex:
         """
         Добавляет определения символов из распаршенного файла.
         symbols: список {name, line, kind} от парсера.
-        Также строит связи вызовов: какие символы данный файл использует.
         """
         with self._lock:
             if file_path not in self._file_to_symbols:
@@ -103,17 +102,64 @@ class SymbolIndex:
 
             self._file_to_defs[file_path] = defined_names
 
-            # Строим связи вызовов: какие определённые в проекте символы
-            # используются в этом файле (кроме собственных определений)
-            calls_in_file = set()
-            for name in defined_names:
-                # Ищем использования этого символа в других файлах
-                if name in self._references:
-                    for ref in self._references[name]:
-                        if ref.file_path != file_path:
-                            calls_in_file.add(name)
-                            break
-            self._file_to_calls[file_path] = calls_in_file
+    def add_references(self, file_path: str, calls: List[Dict]) -> None:
+        """
+        Добавляет связи вызовов (references) из распаршенного файла.
+
+        calls: список {caller, callee, line, file} от parser.extract_calls().
+        Строит двунаправленный граф: caller → callee (прямые связи)
+        и callee ← caller (обратные связи для поиска callers).
+
+        Args:
+            file_path: Путь к файлу (относительный)
+            calls: Список вызовов функций
+        """
+        with self._lock:
+            if file_path not in self._file_to_symbols:
+                self._file_to_symbols[file_path] = set()
+            if file_path not in self._file_to_calls:
+                self._file_to_calls[file_path] = set()
+
+            for call in calls:
+                caller = call.get("caller", "")
+                callee = call.get("callee", "")
+                line = call.get("line", 0)
+
+                if not caller or not callee or caller == callee:
+                    continue
+
+                # Прямая связь: caller вызывает callee
+                # Добавляем callee в список вызываемых символов caller
+                if callee not in self._references:
+                    self._references[callee] = []
+
+                # Не дублируем одну и ту же связь
+                existing = {
+                    (r.file_path, r.line)
+                    for r in self._references[callee]
+                    if r.symbol == caller
+                }
+                if (file_path, line) not in existing:
+                    self._references[callee].append(
+                        SymbolRef(
+                            symbol=caller,
+                            file_path=file_path,
+                            line=line,
+                            kind="call",
+                            is_definition=False,
+                        )
+                    )
+
+                # Обратная связь: caller вызывает callee
+                # Добавляем callee в список вызовов файла
+                self._file_to_calls[file_path].add(callee)
+                self._file_to_symbols[file_path].add(caller)
+                self._file_to_symbols[file_path].add(callee)
+
+                # Также добавляем caller в _definitions если его там нет
+                # (он может быть определён в другом файле)
+                if caller not in self._definitions:
+                    self._definitions[caller] = []
 
     def remove_file(self, file_path: str) -> None:
         """Удаляет все записи о файле (при удалении/переиндексации)."""
@@ -165,7 +211,7 @@ class SymbolIndex:
     def get_symbol_context(self, symbol: str) -> Dict:
         """
         Возвращает контекст символа для обогащения результатов поиска.
-        Используется search_code чтобы показать "эта функция используется в N файлах".
+        Включает определения, вызовы и граф вызовов.
         """
         with self._lock:
             defs = self._definitions.get(symbol, [])
@@ -174,7 +220,18 @@ class SymbolIndex:
             if not defs and not refs:
                 return {}
 
-            unique_files_using = set(r.file_path for r in refs)
+            unique_files_using = set(r.file_path for r in refs if not r.is_definition)
+
+            # Находим callees (кого вызывает этот символ)
+            callees = []
+            for callee_sym, callee_refs in self._references.items():
+                for ref in callee_refs:
+                    if ref.symbol == symbol and not ref.is_definition:
+                        callees.append({
+                            "symbol": callee_sym,
+                            "file": ref.file_path,
+                            "line": ref.line,
+                        })
 
             return {
                 "symbol": symbol,
@@ -183,7 +240,88 @@ class SymbolIndex:
                 ],
                 "used_in_count": len(unique_files_using),
                 "used_in_files": list(unique_files_using)[:10],  # топ-10
+                "calls_count": len(callees),
+                "calls": callees[:10],  # топ-10 вызовов
             }
+
+    def get_call_chain(self, symbol: str, direction: str = "both", max_depth: int = 3) -> Dict:
+        """Возвращает цепочку вызовов для символа.
+
+        Args:
+            symbol: Имя символа
+            direction: 'up' (callers), 'down' (callees), 'both'
+            max_depth: Максимальная глубина обхода
+
+        Returns:
+            {
+                'symbol': str,
+                'callers_chain': [...],  # Кто вызывает (вверх по стеку)
+                'callees_chain': [...],  # Кого вызывает (вниз по стеку)
+                'total_connected': int,  # Всего связанных символов
+            }
+        """
+        with self._lock:
+            result = {
+                "symbol": symbol,
+                "callers_chain": [],
+                "callees_chain": [],
+                "total_connected": 0,
+            }
+
+            visited: Set[str] = set()
+
+            # Callers (вверх — кто вызывает)
+            if direction in ("up", "both"):
+                current_level = {symbol}
+                for d in range(max_depth):
+                    next_level = set()
+                    for sym in current_level:
+                        if sym in visited:
+                            continue
+                        visited.add(sym)
+                        refs = self._references.get(sym, [])
+                        for r in refs:
+                            if not r.is_definition and r.symbol != symbol:
+                                result["callers_chain"].append({
+                                    "symbol": r.symbol,
+                                    "file": r.file_path,
+                                    "line": r.line,
+                                    "depth": d + 1,
+                                })
+                                next_level.add(r.symbol)
+                    current_level = next_level
+                    if not current_level:
+                        break
+
+            # Callees (вниз — кого вызывает)
+            if direction in ("down", "both"):
+                current_level = {symbol}
+                visited_callees: Set[str] = set()
+                for d in range(max_depth):
+                    next_level = set()
+                    for sym in current_level:
+                        if sym in visited_callees:
+                            continue
+                        visited_callees.add(sym)
+                        # Ищем все callee для sym
+                        for callee_sym, callee_refs in self._references.items():
+                            if callee_sym in visited_callees:
+                                continue
+                            for ref in callee_refs:
+                                if ref.symbol == sym and not ref.is_definition:
+                                    result["callees_chain"].append({
+                                        "symbol": callee_sym,
+                                        "file": ref.file_path,
+                                        "line": ref.line,
+                                        "depth": d + 1,
+                                    })
+                                    next_level.add(callee_sym)
+                    current_level = next_level
+                    if not current_level:
+                        break
+
+            result["total_connected"] = len(result["callers_chain"]) + len(result["callees_chain"])
+            return result
 
     def search_symbols(self, query: str, top_k: int = 10) -> List[SymbolRef]:
         """
@@ -217,13 +355,20 @@ class SymbolIndex:
     # --- Граф вызовов (Call Graph) ---
 
     def build_call_graph(self, symbol: str, depth: int = 2) -> Dict:
-        """Строит граф вызовов для символа.
+        """Строит двунаправленный граф вызовов для символа с заданной глубиной.
+
+        Алгоритм BFS (breadth-first search):
+        - Уровень 0: сам символ + его определения
+        - Уровень 1: прямые callers (кто вызывает) + callees (кого вызывает)
+        - Уровень 2+: рекурсивно расширяем граф на прямых соседей
 
         Возвращает:
         - definition: где определён символ
         - callers: кто вызывает этот символ (обратные связи)
         - callees: какие символы вызывает этот символ (прямые связи)
+        - call_chain: цепочка вызовов для контекста
         - impact_files: файлы, которые затронет изменение символа
+        - depth_reached: фактическая глубина обхода
         """
         with self._lock:
             result = {
@@ -231,8 +376,19 @@ class SymbolIndex:
                 "definition": [],
                 "callers": [],
                 "callees": [],
+                "call_chain": [],
                 "impact_files": set(),
+                "depth_reached": 0,
             }
+
+            if depth < 1:
+                depth = 1
+            if depth > 5:
+                depth = 5  # Защита от слишком глубокого обхода
+
+            # Множество обработанных символов для избежания циклов
+            visited_callers: Set[str] = set()
+            visited_callees: Set[str] = set()
 
             # 1. Определение символа
             defs = self._definitions.get(symbol, [])
@@ -246,56 +402,89 @@ class SymbolIndex:
                 )
                 result["impact_files"].add(d.file_path)
 
-            # 2. Кто вызывает этот символ (callers)
-            refs = self._references.get(symbol, [])
-            caller_files = set()
-            for r in refs:
-                if not r.is_definition:
-                    result["callers"].append(
-                        {
+            # 2. BFS для callers (кто вызывает этот символ)
+            current_level_callers = {symbol}
+            for level in range(depth):
+                next_level_callers = set()
+                for sym in current_level_callers:
+                    if sym in visited_callers:
+                        continue
+                    visited_callers.add(sym)
+
+                    refs = self._references.get(sym, [])
+                    for r in refs:
+                        if r.is_definition:
+                            continue
+                        caller_sym = r.symbol
+                        if caller_sym == symbol:
+                            continue
+
+                        caller_entry = {
+                            "symbol": caller_sym,
                             "file": r.file_path,
                             "line": r.line,
                             "kind": r.kind,
+                            "depth": level + 1,
                         }
-                    )
-                    caller_files.add(r.file_path)
-                    result["impact_files"].add(r.file_path)
+                        # Дедупликация
+                        if not any(
+                            c.get("symbol") == caller_sym and c.get("file") == r.file_path
+                            for c in result["callers"]
+                        ):
+                            result["callers"].append(caller_entry)
+                            result["impact_files"].add(r.file_path)
+                            next_level_callers.add(caller_sym)
 
-            # 3. Какие символы вызывает файл, где определён этот символ (callees)
-            for d in defs:
-                file_calls = self._file_to_calls.get(d.file_path, set())
-                for called_sym in file_calls:
-                    if called_sym == symbol:
+                current_level_callers = next_level_callers
+                if not current_level_callers:
+                    break
+                result["depth_reached"] = level + 1
+
+            # 3. BFS для callees (кого вызывает этот символ)
+            current_level_callees = {symbol}
+            for level in range(depth):
+                next_level_callees = set()
+                for sym in current_level_callees:
+                    if sym in visited_callees:
                         continue
-                    called_defs = self._definitions.get(called_sym, [])
-                    for cd in called_defs:
-                        result["callees"].append(
-                            {
-                                "symbol": called_sym,
-                                "file": cd.file_path,
-                                "line": cd.line,
-                                "kind": cd.kind,
-                            }
-                        )
-                        result["impact_files"].add(cd.file_path)
+                    visited_callees.add(sym)
 
-            # 4. Если depth > 1, рекурсивно ищем кто вызывает callers
-            if depth > 1 and caller_files:
-                for caller_file in list(caller_files)[:5]:  # лимит чтобы не раздувать
-                    file_defs = self._file_to_defs.get(caller_file, set())
-                    for sym_name in file_defs:
-                        sym_refs = self._references.get(sym_name, [])
-                        for sr in sym_refs:
-                            if not sr.is_definition and sr.file_path != caller_file:
-                                result["callers"].append(
-                                    {
-                                        "symbol": sym_name,
-                                        "file": sr.file_path,
-                                        "line": sr.line,
-                                        "kind": "indirect_caller",
-                                    }
-                                )
-                                result["impact_files"].add(sr.file_path)
+                    # Ищем все символы, которые вызывает sym
+                    # Для этого ищем в _references записи где sym является caller
+                    for callee_sym, callee_refs in self._references.items():
+                        if callee_sym == symbol:
+                            continue
+                        for ref in callee_refs:
+                            if ref.symbol == sym and not ref.is_definition:
+                                callee_entry = {
+                                    "symbol": callee_sym,
+                                    "file": ref.file_path,
+                                    "line": ref.line,
+                                    "kind": ref.kind,
+                                    "depth": level + 1,
+                                }
+                                # Дедупликация
+                                if not any(
+                                    c.get("symbol") == callee_sym
+                                    for c in result["callees"]
+                                ):
+                                    result["callees"].append(callee_entry)
+                                    result["impact_files"].add(ref.file_path)
+                                    next_level_callees.add(callee_sym)
+
+                current_level_callees = next_level_callees
+                if not current_level_callees:
+                    break
+
+            # 4. Строим call_chain для контекста (путь вызовов)
+            if result["callers"]:
+                top_callers = sorted(
+                    result["callers"],
+                    key=lambda c: c.get("depth", 99),
+                )[:5]
+                result["call_chain"] = [
+                    f"{c['symbol']} ({c['file']}:{c['line']})" for c in top_callers
+                ]
 
             result["impact_files"] = sorted(result["impact_files"])
             return result
@@ -386,6 +575,10 @@ class SymbolIndex:
         """
         Индексирует проект с помощью парсера (Tree-sitter).
 
+        Извлекает:
+        - Определения символов (definitions)
+        - Вызовы функций (references/calls) для построения графа вызовов
+
         Args:
             project_path: Корневая директория проекта
             parser: Экземпляр CodeParser для парсинга файлов
@@ -406,12 +599,24 @@ class SymbolIndex:
                 # Парсим файл (parser.parse_file возвращает кортеж (chunks, symbols))
                 chunks, symbols = parser.parse_file(file_path)
 
+                # Относительный путь для индекса
+                rel_path = str(file_path.relative_to(project_root))
+
+                # Удаляем старые данные об этом файле перед добавлением новых
+                self.remove_file(rel_path)
+
+                # Добавляем определения
                 if symbols:
-                    # Добавляем определения в индекс
-                    rel_path = str(file_path.relative_to(project_root))
-                    # Удаляем старые данные об этом файле перед добавлением новых
-                    self.remove_file(rel_path)
                     self.add_definitions(rel_path, symbols)
+
+                # Извлекаем и добавляем вызовы функций для графа вызовов
+                if hasattr(parser, "extract_calls"):
+                    calls = parser.extract_calls(file_path)
+                    if calls:
+                        # Нормализуем пути в calls
+                        for call in calls:
+                            call["file"] = rel_path
+                        self.add_references(rel_path, calls)
 
     def _should_skip_dir(self, dir_name: str) -> bool:
         """Определяет, следует ли пропускать директорию."""

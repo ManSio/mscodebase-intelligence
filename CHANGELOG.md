@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## [1.4.0] — 2026-06-28
+
+### 🚀 Major Release — Deep Call Graph (Depth 2+)
+
+**New Features:**
+- **Bidirectional Call Graph** (`src/core/symbol_index.py`):
+  - BFS-based graph traversal with configurable depth (1-5)
+  - `build_call_graph()` now finds both callers and callees at depth 2+
+  - Cycle detection to prevent infinite loops
+  - `get_call_chain()` for upstream/downstream traversal
+  - `get_symbol_context()` enriched with calls info
+- **Call Extraction** (`src/core/parser.py`):
+  - `extract_calls()` method extracts function invocations from AST
+  - Supports: simple calls, method calls (obj.method()), scoped (module::func)
+  - `add_references()` in SymbolIndex for storing call relationships
+- **Integration** — `index_project()` now extracts calls during indexing
+- **Tests** — 22 new unit tests in `tests/test_symbol_index_call_graph.py`
+
+### 📊 Test Coverage
+- **153 unit tests** + **7 benchmark tests** = **160 total**
+
+---
+
 ## [1.3.0] — 2026-06-28
 
 ### 🚀 Major Release — Multi-Provider Reranking

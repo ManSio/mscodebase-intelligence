@@ -4,7 +4,7 @@
 
 **AI-powered semantic code search for Zed IDE viaPython 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-138%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-160%20passed-brightgreen.svg)]()
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Performance](#-performance-tuning) • [Benchmarks](#-benchmarks)
@@ -22,7 +22,7 @@
 | 🔄 **Agentic Deep Search** | Iterative search with query refinement across multiple passes |
 | 🌐 **Cross-repo Search** | Search across multiple indexed projects with `@mention` syntax |
 | 📊 **Progress Tracking** | Real-time indexing progress with phase, percent, files done/total |
-| 🌳 **Call Graph** | Find definitions, callees, and impact scope for any symbol |
+| 🌳 **Call Graph** | Bidirectional BFS (depth 2+): callers, callees, call chains, impact analysis |
 | � **Structural Search** | 13 AST patterns (class_inheritance, decorator, async, etc.) |
 | � **Context Search** | Find similar code by embedding selected fragment |
 | � **LSP Integration** | Auto-index on file save |
@@ -288,9 +288,10 @@ MSCodeBase/
 │   └── utils/
 │       ├── paths.py
 │       └── zed_config.py
-├── tests/                         # 131 unit tests
+├── tests/                         # 153 unit tests
 │   ├── test_agentic_search.py     # 25 tests
 │   ├── test_reranker.py           # 20 tests (Multi-Provider Reranker)
+│   ├── test_symbol_index_call_graph.py # 22 tests (Call Graph BFS)
 │   ├── test_deep_search.py        # 15 tests
 │   ├── test_cross_repo_search.py  # 21 tests
 │   ├── test_index_progress.py     # 11 tests
