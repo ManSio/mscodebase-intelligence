@@ -327,14 +327,14 @@ class MultiProviderReranker:
                     "role": "system",
                     "content": (
                         "You are a precise code relevance scorer. "
-                        "Return ONLY valid JSON with the scores array. No explanations."
+                        "Return ONLY valid JSON with the scores array. No explanations. "
+                        'Example: {"scores": [0.9, 0.7, 0.5, 0.3, 0.1]}'
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.0,
             "max_tokens": 1024,
-            "response_format": {"type": "json_object"},
         }
 
         resp = await self._client.post(
