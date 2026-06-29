@@ -63,11 +63,12 @@
 - [ ] **RepoRank** — PageRank на графе вызовов для приоритизации
 - [ ] **Branch-aware индекс** — разные индексы для разных веток
 
-### Phase 3: Code Memory (目标: 92%)
+### Phase 3: Code Memory (目标: 92%) — IN PROGRESS
 
-- [ ] **Semantic commit memory** — история изменений с контекстом
-- [ ] **Автоматические связи** — "эта функция чаще всего меняется вместе с X"
-- [ ] **Bug correlation** — какие файлы чаще участвуют в багах
+- [x] **Semantic commit memory** — история изменений с контекстом (Phase 2.4)
+- [x] **Bug correlation** — какие файлы чаще участвуют в багах
+- [x] **Auto relation extraction** — cochange + bug + call relations → knowledge graph
+- [ ] **GraphRAG query engine** — навигация по графу знаний
 
 ### Phase 4: Full GraphRAG (目标: 95%)
 

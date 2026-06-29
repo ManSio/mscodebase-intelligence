@@ -879,6 +879,159 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
+    def get_bug_correlation(project_root: str, file_path: str = "", kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Анализ связи багов с изменениями в коде (Bug Correlation).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять какие модули чаще всего ломаются
+        - Определить "горячие точки" проекта
+        - Найти файлы с высокой баго-нагрузкой
+        - Оценить риск изменения файла
+
+        Args:
+            project_root: Путь к проекту
+            file_path: Путь к файлу (опционально — если нужен анализ конкретного файла)
+
+        Returns:
+            Отчёт по баго-корреляции
+        """
+        _debug_log("get_bug_correlation", f"{project_root}, {file_path}")
+        try:
+            from src.core.commit_memory import CommitMemory
+            from src.core.bug_correlation import BugCorrelation
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+            bug_corr = BugCorrelation(memory)
+
+            if file_path:
+                # Детальный анализ конкретного файла
+                history = bug_corr.get_bug_history_for_file(file_path)
+
+                output = [
+                    f"🐛 Bug History: {file_path}",
+                    f"",
+                    f"  Риски: {history['bug_risk'].upper()}",
+                    f"  Баг-коммитов: {history['bug_count']}/{history['total_commits']}",
+                    f"  Баго-доля: {history['bug_ratio']:.1%}",
+                    f"",
+                ]
+
+                if history['bug_commits']:
+                    output.append("  Последние баг-фиксы:")
+                    for i, commit in enumerate(history['bug_commits'][:5], 1):
+                        hash_short = commit["hash"][:8]
+                        date = commit.get("date", "")[:10]
+                        msg = commit.get("message", "")[:50]
+                        output.append(f"    {i}. [{hash_short}] {date} — {msg}")
+
+                return "\n".join(output)
+            else:
+                # Общий анализ по проекту
+                stats = bug_corr.analyze()
+                hotspots = bug_corr.get_hotspots(10)
+
+                output = [
+                    f"🐛 Bug Correlation Analysis",
+                    f"",
+                    f"  Всего коммитов: {stats['total_commits']}",
+                    f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
+                    f"  Уникальных ""проблемных"" файлов: {len(bug_corr._file_bug_count)}",
+                    f"",
+                    f"  🔥 Топ-10 горячих точек:",
+                ]
+
+                for i, hotspot in enumerate(hotspots, 1):
+                    risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(hotspot['risk'], "⚪")
+                    output.append(
+                        f"    {i}. {risk_emoji} {hotspot['file']} "
+                        f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
+                    )
+
+                return "\n".join(output)
+
+        except Exception as e:
+            logger.error(f"Ошибка get_bug_correlation: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def get_related_files(project_root: str, file_path: str, max_depth: int = 1, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Находит файлы связанные с данным (Knowledge Graph).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять какие файлы затронет изменение
+        - Ищете ""родственные"" модули
+        - Хотите оценить каскадный эффект рефакторинга
+
+        Типы связей:
+        - cochange: файлы меняющиеся вместе
+        - bug_correlation: связанные через баг-фиксы
+        - call: вызовы между символами
+
+        Args:
+            project_root: Путь к проекту
+            file_path: Целевой файл
+            max_depth: Глубина поиска (1 или 2)
+
+        Returns:
+            Список связанных файлов
+        """
+        _debug_log("get_related_files", f"{project_root}, {file_path}, depth={max_depth}")
+        try:
+            from src.core.commit_memory import CommitMemory
+            from src.core.relation_extractor import RelationExtractor
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+            extractor = RelationExtractor(memory)
+
+            # Строим граф знаний
+            extractor.extract_all_relations()
+            related = extractor.get_related_files(file_path, max_depth=max_depth)
+
+            if not related:
+                return f"⚠️ Связанные файлы не найдены для: {file_path}"
+
+            output = [
+                f"🔗 Related Files: {file_path}",
+                f"  Глубина поиска: {max_depth}",
+                f"  Найдено связей: {len(related)}",
+                f"",
+            ]
+
+            for i, rel in enumerate(related[:15], 1):
+                path_str = " → ".join(rel['path'])
+                output.append(
+                    f"  {i}. [{rel['depth']}] {rel['file']} "
+                    f"(weight: {rel['total_weight']:.1f})"
+                )
+                if rel['depth'] > 1:
+                    output.append(f"     Путь: {path_str}")
+
+            # Добавляем сводку по типам связей
+            summary = extractor.get_relation_summary()
+            output.extend([
+                f"",
+                f"  📊 Граф знаков:",
+                f"     Всего связей: {summary['total_relations']}",
+            ])
+            if 'by_type' in summary:
+                for rel_type, count in summary['by_type'].items():
+                    output.append(f"     - {rel_type}: {count}")
+
+            return "\n".join(output)
+
+        except Exception as e:
+            logger.error(f"Ошибка get_related_files: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 

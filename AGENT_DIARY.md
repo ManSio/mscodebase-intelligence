@@ -2,7 +2,53 @@
 
 ---
 
-## [2026-06-28 23:30] — [Type: Feature] — Impact Analysis MCP Tool (Phase 1)
+## [2026-06-29 14:00] — [Type: Feature] — Phase 3: Bug Correlation + Relation Extraction
+
+**Проблема:**
+- Нет инструментов для анализа баго-нагрузки файлов
+- Нет автоматического извлечения связей между файлами
+- Пользователь не знает какие файлы "горячие" и чаще всего ломаются
+
+**Решение:**
+- Создан `src/core/bug_correlation.py` — BugCorrelation класс:
+  - Определение баг-фиксов по ключевым словам (fix, bug, hotfix, resolve, error, crash...)
+  - Топ проблемных файлов (top_buggy_files)
+  - Горячие точки (hotspots) с учётом давности баг-фиксов
+  - Баго-история для файла/символа с уровнем риска (low/medium/high/critical)
+- Создан `src/core/relation_extractor.py` — RelationExtractor класс:
+  - Cochange relations — файлы меняющиеся вместе
+  - Bug correlations — файлы связанные через баг-фиксы
+  - Call relations — вызовы из SymbolIndex
+  - Построение графа знаний (build_knowledge_graph)
+  - Поиск связанных файлов с глубиной (depth 1-2)
+- Добавлены 2 новых MCP tool:
+  - `get_bug_correlation` — анализ баго-корреляции
+  - `get_related_files` — поиск связанных файлов через knowledge graph
+- 15 новых тестов (все проходят)
+- Обновлён VISION.md: Phase 3 IN PROGRESS
+
+**Инструменты:** write_file, edit_file, terminal (pytest), diagnostics, search_code
+**Файлы:** src/core/bug_correlation.py, src/core/relation_extractor.py, src/mcp/server.py, tests/test_bug_correlation.py, tests/test_relation_extractor.py, VISION.md
+**Статус:** ✅ 219 тестов пройдено (было 204, +15)
+
+---
+
+## [2026-06-29 13:30] — [Type: Feature] — watcher_status: автозагрузка моделей LM Studio
+
+**Проблема:**
+- Пользователь забывает загрузить модели в LM Studio
+- Первый поиск может быть долгим из-за загрузки модели по требованию
+
+**Решение:**
+- Добавлена проверка состояния моделей через `/api/v0/models`
+- Показ загруженных/незагруженных моделей в VRAM
+- Автоматическая warmup-загрузка если embedding/instruct не в памяти
+- Загрузка embedding через `POST /v1/embeddings` с "warmup"
+- Загрузка instruct через `POST /v1/chat/completions` с "hi"
+
+**Инструменты:** edit_file, watcher_status
+**Файлы:** src/mcp/server.py
+**Статус:** ✅ Закоммичено и запушено (c3978dc)
 
 **Проблема:**
 - Нет инструмента для оценки риска изменения/удаления символа
