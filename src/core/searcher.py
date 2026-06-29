@@ -47,6 +47,11 @@ def _tokenize(text: str, tokenizer_re: re.Pattern) -> List[str]:
 class Searcher:
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
+    # Режимы поиска
+    MODE_FAST = "fast"       # ~300ms: embed + vector only
+    MODE_QUALITY = "quality" # ~1200ms: embed + vector + rerank
+    MODE_DEEP = "deep"       # ~2-5s: full analysis + graph
+
     def __init__(self, indexer, embedder):
         self.indexer = indexer
         self.embedder = embedder
@@ -58,6 +63,9 @@ class Searcher:
         # Мульти-провайдерный реранкер (Ollama / LM Studio) — ленивая инициализация
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
+        # Кэш запросов (query -> results)
+        self._cache: Dict[str, List[dict]] = {}
+        self._cache_max_size = 100
 
     def reindex(self):
         with self._bm25_lock:
@@ -443,6 +451,92 @@ class Searcher:
             return "".join(output)
         except Exception as e:
             return f"❌ Ошибка поискового движка: {str(e)}"
+
+    def search_with_mode(
+        self,
+        query: str,
+        mode: str = "quality",
+        limit: int = 5,
+    ) -> Dict:
+        """Поиск с выбором режима (fast/quality/deep).
+
+        Args:
+            query: Поисковый запрос
+            mode: Режим поиска
+                - fast: ~300ms, только embedding + vector
+                - quality: ~1200ms, + reranker
+                - deep: ~2-5s, + graph analysis
+            limit: Максимум результатов
+
+        Returns:
+            {
+                results: [...],
+                mode: str,
+                timing_ms: {...},
+                cache_hit: bool,
+            }
+        """
+        import time
+
+        t0 = time.perf_counter()
+        timing = {}
+        cache_hit = False
+
+        # Проверяем кэш
+        cache_key = f"{mode}:{query}:{limit}"
+        if cache_key in self._cache:
+            results = self._cache[cache_key]
+            cache_hit = True
+            timing["total_ms"] = (time.perf_counter() - t0) * 1000
+            return {
+                "results": results,
+                "mode": mode,
+                "timing_ms": timing,
+                "cache_hit": cache_hit,
+            }
+
+        results = []
+
+        if mode == self.MODE_FAST:
+            # FAST: embed + vector only
+            t1 = time.perf_counter()
+            query_vector = self.embedder.embed(query)
+            timing["embed_ms"] = (time.perf_counter() - t1) * 1000
+
+            if query_vector:
+                t1 = time.perf_counter()
+                results = self.vector_search(query_vector, limit=limit)
+                timing["search_ms"] = (time.perf_counter() - t1) * 1000
+
+        elif mode == self.MODE_DEEP:
+            # DEEP: quality + graph context
+            t1 = time.perf_counter()
+            results = self.hybrid_search(query, limit=limit)
+            timing["search_ms"] = (time.perf_counter() - t1) * 1000
+
+            # TODO: Add graph context expansion
+
+        else:
+            # QUALITY (default): hybrid with rerank
+            t1 = time.perf_counter()
+            results = self.hybrid_search(query, limit=limit)
+            timing["search_ms"] = (time.perf_counter() - t1) * 1000
+
+        timing["total_ms"] = (time.perf_counter() - t0) * 1000
+
+        # Сохраняем в кэш
+        if len(self._cache) >= self._cache_max_size:
+            # Удаляем самый старый
+            oldest_key = next(iter(self._cache))
+            del self._cache[oldest_key]
+        self._cache[cache_key] = results
+
+        return {
+            "results": results,
+            "mode": mode,
+            "timing_ms": timing,
+            "cache_hit": cache_hit,
+        }
 
     def context_search(self, selected_code: str, limit: int = 5) -> str:
         """Поиск похожего кода по выделенному фрагменту.

@@ -6,12 +6,14 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.file_guard import FileGuard
 from src.core.structural_search import StructuralSearcher
 from src.core.indexer import Indexer
+from src.core.eta_predictor import ETAPredictor
 from src.core.execution_contract import ExecutionContract
 from src.core.health_report import HealthReport, format_health_report
 from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
@@ -38,6 +40,10 @@ _task_events: list = []
 # Task Queue для фоновых задач (Bug Correlation, Relations, etc.)
 from src.core.task_queue import get_task_queue as _get_task_queue
 _background_task_queue = _get_task_queue()
+
+# ETA Predictor — предсказание времени выполнения
+from src.core.eta_predictor import get_predictor as _get_predictor
+_eta_predictor = _get_predictor()
 
 
 def _debug_log(tool_name: str, detail: str = ""):
@@ -1266,7 +1272,17 @@ def create_mcp_server() -> "FastMCP":
             else:
                 return f"❌ Неизвестный тип задачи: {task_type}"
 
-            return f"✅ Задача поставлена в очередь\n   ID: {task_id}\n   Тип: {task_type}\n   Проверьте результат: get_task_status('{task_id}')"
+            # Предсказываем ETA
+            eta = _eta_predictor.estimate(task_type)
+            eta_str = _eta_predictor.format_eta(eta)
+
+            return (
+                f"✅ Задача поставлена в очередь\n"
+                f"   ID: {task_id}\n"
+                f"   Тип: {task_type}\n"
+                f"   ETA: {eta_str}\n"
+                f"   Проверьте: get_task_status('{task_id}')"
+            )
 
         except Exception as e:
             logger.error(f"Ошибка submit_background_task: {e}")
@@ -1316,11 +1332,163 @@ def create_mcp_server() -> "FastMCP":
         elif status['status'] == 'failed':
             lines.append(f"\n❌ Ошибка: {status['error']}")
         elif status['status'] == 'running':
-            lines.append(f"\n🔄 Выполняется...")
+            # Показываем примерное время оставшееся
+            progress = status['progress']
+            if progress > 0.05:
+                elapsed = (datetime.now() - datetime.fromisoformat(status['started_at'])).total_seconds()
+                estimated_total = elapsed / progress
+                remaining = estimated_total * (1 - progress)
+                lines.append(f"\n🔄 Выполняется... (~{remaining:.0f}с осталось)")
+            else:
+                lines.append(f"\n🔄 Выполняется...")
         elif status['status'] == 'queued':
             lines.append(f"\n⏳ В очереди...")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    def predict_eta(operation: str, items: int = 1, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Предсказывает время выполнения операции (ETA).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять сколько займёт операция
+        - Планируешь массовый анализ
+        - Хочешь оценить стоимость в токенах
+
+        Доступные операции:
+        - 'search' — гибридный поиск
+        - 'index_file' — индексация одного файла
+        - 'index_project' — индексация всего проекта
+        - 'bug_correlation' — анализ баго-нагрузки
+        - 'knowledge_graph' — построение графа знаний
+        - 'impact_analysis' — анализ влияния изменения
+        - 'file_history' — история файла
+        - 'commit_analysis' — анализ коммитов
+
+        Args:
+            operation: Тип операции
+            items: Количество элементов (файлов, запросов)
+
+        Returns:
+            Предсказание времени и стоимости
+        """
+        _debug_log("predict_eta", f"{operation}, items={items}")
+        try:
+            est = _eta_predictor.estimate(operation, items)
+            eta_str = _eta_predictor.format_eta(est)
+
+            lines = [
+                f"⏱️ ETA Prediction: {est['operation']}",
+                f"",
+                f"   Операция: {operation}",
+                f"   Количество: {items}",
+                f"   Время: {eta_str}",
+                f"   Токенов: ~{est['tokens_estimate']}",
+                f"   Уверенность: {est['confidence']}",
+            ]
+
+            # Примерная стоимость
+            tokens = est['tokens_estimate']
+            cost_gpt4 = (tokens / 1000) * 0.01
+            lines.append(f"   Стоимость (GPT-4): ~${cost_gpt4:.4f}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка predict_eta: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def smart_search(query: str, mode: str = "quality", limit: int = 5, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Умный поиск с выбором режима (FAST/QUALITY/DEEP).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужен быстрый поиск (fast, ~300ms)
+        - Нужен качественный поиск с reranker (quality, ~1200ms)
+        - Нужен глубокий анализ (deep, ~2-5s)
+
+        Режимы:
+        - 'fast' — embedding + vector search, ~300ms
+        - 'quality' — + LLM reranker, ~1200ms
+        - 'deep' — + graph analysis, ~2-5s
+
+        Args:
+            query: Поисковый запрос
+            mode: Режим (fast/quality/deep)
+            limit: Максимум результатов
+
+        Returns:
+            Результаты поиска с метриками
+        """
+        _debug_log("smart_search", f"{mode}, {query[:30]}")
+        try:
+            searcher = _get_searcher()
+            if not searcher:
+                return "❌ Поисковый движок недоступен. Запустите index_project_dir."
+
+            result = searcher.search_with_mode(query, mode=mode, limit=limit)
+            results = result["results"]
+            timing = result["timing_ms"]
+
+            if not results:
+                return f"🔍 По запросу '{query}' ничего не найдено."
+
+            # Форматируем результат
+            mode_emoji = {"fast": "⚡", "quality": "🎯", "deep": "🔬"}
+            lines = [
+                f"{mode_emoji.get(mode, '🔍')} Smart Search [{mode.upper()}]",
+                f"",
+                f"   Query: {query}",
+                f"   Results: {len(results)}",
+                f"   Time: {timing.get('total_ms', 0):.0f}ms",
+            ]
+
+            if result.get("cache_hit"):
+                lines.append(f"   Cache: HIT ✅")
+
+            if "embed_ms" in timing:
+                lines.append(f"   Embed: {timing['embed_ms']:.0f}ms")
+            if "search_ms" in timing:
+                lines.append(f"   Search: {timing['search_ms']:.0f}ms")
+
+            lines.append("")
+
+            for i, res in enumerate(results[:limit], 1):
+                code_text = res.get("text_full") or res["text"]
+                score = res.get("final_score", res.get("score", 0))
+                lines.append(
+                    f"{i}. 📄 {res['metadata']['file']} "
+                    f"[Chunk #{res['metadata']['chunk_index']}] "
+                    f"(score: {score:.3f})"
+                )
+                lines.append(f"```\n{code_text[:300]}\n```")
+                lines.append("-" * 40)
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка smart_search: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    def _get_searcher():
+        """Получает или создаёт searcher."""
+        global _last_searcher
+        if "_last_searcher" not in globals() or _last_searcher is None:
+            try:
+                ext_root = Path(__file__).resolve().parent.parent.parent
+                from src.core.indexer import Indexer, _generate_unique_db_path
+                from src.core.remote_embedder import RemoteEmbedder
+                from src.core.file_guard import FileGuard
+
+                embedder = RemoteEmbedder(port=1234)
+                file_guard = FileGuard(ext_root)
+                db_path = _generate_unique_db_path(ext_root)
+                indexer = Indexer(db_path, embedder, file_guard, project_path=ext_root)
+                _last_searcher = Searcher(indexer, embedder)
+            except Exception as e:
+                logger.error(f"Не удалось создать searcher: {e}")
+                return None
+        return _last_searcher
 
     @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
