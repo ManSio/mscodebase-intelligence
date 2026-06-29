@@ -872,7 +872,109 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка анализа влияния: {str(e)}"
 
     @mcp.tool()
-    def get_repo_rank(project_root: str, top_k: int = 20, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def find_similar_bugs(error_message: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Находит похожие баги из истории проекта.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Получил ошибку и хочешь знать как решали раньше
+        - Ищешь похожие проблемы в истории коммитов
+        - Хочешь понять паттерны багов в проекте
+
+        Args:
+            error_message: Описание ошибки или исключения
+            project_root: Путь к проекту
+
+        Returns:
+            Список похожих баг-фиксов из истории
+        """
+        _debug_log("find_similar_bugs", f"{error_message[:50]}, {project_root}")
+        try:
+            from src.core.commit_memory import CommitMemory
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+            similar = memory.find_similar_bugs(error_message, max_results=5)
+
+            if not similar:
+                return f"⚠️ Похожие баги не найдены для: {error_message[:50]}"
+
+            output = [
+                f"🔍 Similar Bugs Found: {len(similar)}",
+                f"",
+                f"  Query: {error_message[:60]}",
+                f"",
+            ]
+
+            for i, bug in enumerate(similar, 1):
+                output.append(f"  {i}. [{bug['hash']}] {bug['date'][:10]}")
+                output.append(f"     {bug['message'][:70]}")
+                output.append(f"     Relevance: {bug['relevance_score']}")
+                if bug['files']:
+                    output.append(f"     Files: {', '.join(bug['files'][:3])}")
+                output.append("")
+
+            return "\n".join(output)
+
+        except Exception as e:
+            logger.error(f"Ошибка find_similar_bugs: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def get_hotspots(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Находит 'горячие точки' — файлы с высоким баго-рейтом.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Хочешь знать какие файлы чаще всего ломаются
+        - Планируешь рефакторинг
+        - Оцениваешь риски изменения
+
+        Args:
+            project_root: Путь к проекту
+
+        Returns:
+            Список файлов с метриками риска
+        """
+        _debug_log("get_hotspots", project_root)
+        try:
+            from src.core.commit_memory import CommitMemory
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            memory = CommitMemory(target_path)
+            hotspots = memory.get_hotspots(min_changes=3)
+
+            if not hotspots:
+                return "⚠️ Горячие точки не найдены"
+
+            output = [
+                f"🔥 Hotspots (files with high bug rate):",
+                f"",
+            ]
+
+            for i, h in enumerate(hotspots[:10], 1):
+                risk_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(h["risk"], "⚪")
+                output.append(
+                    f"  {i}. {risk_emoji} {h['file']}"
+                )
+                output.append(
+                    f"     Changes: {h['total_changes']}, "
+                    f"Bugfixes: {h['bugfix_changes']}, "
+                    f"Bug ratio: {h['bug_ratio']:.0%}"
+                )
+
+            return "\n".join(output)
+
+        except Exception as e:
+            logger.error(f"Ошибка get_hotspots: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает RepoRank — рейтинг важности символов проекта.
 
         Использует алгоритм PageRank на графе вызовов:

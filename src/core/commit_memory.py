@@ -64,7 +64,9 @@ class CommitMemory:
             result = subprocess.run(
                 ["git", "log", f"--max-count={limit}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=iso", "--name-only"],
                 capture_output=True, text=True, timeout=30,
-                cwd=str(self.project_path)
+                cwd=str(self.project_path),
+                encoding="utf-8",
+                errors="replace",
             )
 
             if result.returncode != 0:
@@ -243,6 +245,125 @@ class CommitMemory:
                 results.append(commit)
 
         return results
+
+    def find_similar_bugs(self, error_message: str, max_results: int = 5) -> List[Dict]:
+        """Находит похожие баги из истории коммитов.
+
+        Ищет по ключевым словам из error_message в коммитах с fix/bug/hotfix.
+
+        Args:
+            error_message: Описание ошибки или исключения
+            max_results: Максимум результатов
+
+        Returns:
+            Список похожих баг-фиксов с контекстом
+        """
+        if not self._commits:
+            self.fetch_commits()
+
+        # Извлекаем ключевые слова из ошибки
+        keywords = self._extract_keywords(error_message)
+
+        # Ищем только в баг-фиксах
+        bug_keywords = ['fix', 'bug', 'hotfix', 'resolve', 'error', 'crash', 'issue']
+        bug_commits = [
+            c for c in self._commits
+            if any(bk in c.get("message", "").lower() for bk in bug_keywords)
+        ]
+
+        # Скоринг по совпадению ключевых слов
+        scored = []
+        for commit in bug_commits:
+            message = commit.get("message", "").lower()
+            score = sum(1 for kw in keywords if kw in message)
+            if score > 0:
+                scored.append((score, commit))
+
+        # Сортируем по score
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        results = []
+        for score, commit in scored[:max_results]:
+            results.append({
+                "hash": commit.get("hash", "")[:8],
+                "message": commit.get("message", ""),
+                "date": commit.get("date", ""),
+                "files": commit.get("files", []),
+                "relevance_score": score,
+            })
+
+        return results
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Извлекает ключевые слова из текста ошибки."""
+        # Убираем общие слова
+        stop_words = {
+            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+            'could', 'should', 'may', 'might', 'can', 'cannot',
+            'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+            'and', 'or', 'but', 'not', 'no', 'if', 'then', 'else',
+            'this', 'that', 'it', 'its', 'my', 'your', 'our',
+        }
+
+        # Разбиваем на слова, фильтруем
+        words = text.lower().split()
+        keywords = [
+            w.strip('.,;:()[]{}')
+            for w in words
+            if w.strip('.,;:()[]{}') not in stop_words
+            and len(w.strip('.,;:()[]{}')) > 2
+        ]
+
+        return keywords[:10]  # Топ-10 ключевых слов
+
+    def get_hotspots(self, min_changes: int = 5) -> List[Dict]:
+        """Находит 'горячие точки' — файлы с частыми изменениями.
+
+        Args:
+            min_changes: Минимум изменений для включения
+
+        Returns:
+            Список файлов с метриками изменений
+        """
+        if not self._commits:
+            self.fetch_commits()
+
+        # Считаем изменения по файлам
+        file_changes: Dict[str, Dict] = {}
+
+        for commit in self._commits:
+            message = commit.get("message", "").lower()
+            is_bugfix = any(bk in message for bk in ['fix', 'bug', 'hotfix', 'resolve'])
+
+            for f in commit.get("files", []):
+                if f not in file_changes:
+                    file_changes[f] = {
+                        "total": 0,
+                        "bugfixes": 0,
+                        "last_change": None,
+                    }
+                file_changes[f]["total"] += 1
+                if is_bugfix:
+                    file_changes[f]["bugfixes"] += 1
+                file_changes[f]["last_change"] = commit.get("date", "")
+
+        # Фильтруем и сортируем
+        hotspots = []
+        for f, metrics in file_changes.items():
+            if metrics["total"] >= min_changes:
+                bug_ratio = metrics["bugfixes"] / metrics["total"]
+                hotspots.append({
+                    "file": f,
+                    "total_changes": metrics["total"],
+                    "bugfix_changes": metrics["bugfixes"],
+                    "bug_ratio": round(bug_ratio, 2),
+                    "risk": "high" if bug_ratio > 0.3 else "medium" if bug_ratio > 0.1 else "low",
+                    "last_change": metrics["last_change"],
+                })
+
+        hotspots.sort(key=lambda x: x["bug_ratio"], reverse=True)
+        return hotspots
 
     def get_stats(self) -> Dict:
         """Статистика коммитов."""
