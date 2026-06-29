@@ -35,6 +35,10 @@ _worker_task: Optional[asyncio.Task] = None
 _last_index_error: Optional[str] = None
 _task_events: list = []
 
+# Task Queue для фоновых задач (Bug Correlation, Relations, etc.)
+from src.core.task_queue import get_task_queue as _get_task_queue
+_background_task_queue = _get_task_queue()
+
 
 def _debug_log(tool_name: str, detail: str = ""):
     """Маркерная запись для проверки живости MCP-сервера."""
@@ -54,6 +58,73 @@ def _signal_all_events():
     events = _task_events[:]
     for ev in events:
         ev.set()
+
+
+# ══════════════════════════════════════════════════════════
+# Фоновые задачи для Task Queue
+# ══════════════════════════════════════════════════════════
+
+def _run_bug_correlation(memory) -> str:
+    """Выполняет анализ баго-корреляции в фоне."""
+    from src.core.bug_correlation import BugCorrelation
+
+    bug_corr = BugCorrelation(memory)
+    stats = bug_corr.analyze()
+    hotspots = bug_corr.get_hotspots(10)
+
+    lines = [
+        f"🐛 Bug Correlation Analysis",
+        f"",
+        f"  Всего коммитов: {stats['total_commits']}",
+        f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
+        f"  Уникальных проблемных файлов: {len(bug_corr._file_bug_count)}",
+        f"",
+        f"  🔥 Топ-10 горячих точек:",
+    ]
+
+    for i, hotspot in enumerate(hotspots, 1):
+        risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(hotspot['risk'], "⚪")
+        lines.append(
+            f"    {i}. {risk_emoji} {hotspot['file']} "
+            f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
+        )
+
+    return "\n".join(lines)
+
+
+def _run_build_graph(memory) -> str:
+    """Строит граф знаний в фоне."""
+    from src.core.relation_extractor import RelationExtractor
+
+    extractor = RelationExtractor(memory)
+    relations = extractor.extract_all_relations()
+    summary = extractor.get_relation_summary()
+
+    lines = [
+        f"🔗 Knowledge Graph Built",
+        f"",
+        f"  Всего связей: {summary['total_relations']}",
+    ]
+
+    if 'by_type' in summary:
+        for rel_type, count in summary['by_type'].items():
+            lines.append(f"   - {rel_type}: {count}")
+
+    # Топ-10 cochange связей
+    cochange = relations.get('cochange', [])
+    if cochange:
+        lines.append(f"\n  📊 Топ cochange связи:")
+        for rel in cochange[:10]:
+            lines.append(f"     {rel['source']} ↔ {rel['target']} (weight: {rel['weight']})")
+
+    return "\n".join(lines)
+
+
+def _run_full_analysis(memory) -> str:
+    """Полный анализ: баги + граф знаний."""
+    bug_result = _run_bug_correlation(memory)
+    graph_result = _run_build_graph(memory)
+    return f"{bug_result}\n\n{graph_result}"
 
 
 _last_progress: Dict[str, Any] = {}
@@ -261,6 +332,11 @@ def create_mcp_server() -> "FastMCP":
                 background_queue_worker(indexer, symbol_index, code_parser)
             )
             logger.info("⚡ Очередь задач для первичной сборки инициализирована.")
+
+        # Запускаем TaskQueue для фоновых задач
+        if not _background_task_queue._worker_task:
+            asyncio.create_task(_background_task_queue.start())
+            logger.info("⚡ TaskQueue для фоновых задач запущена.")
 
     # ==========================================
     # ИНСТРУМЕНТЫ MCP ДЛЯ AI-АГЕНТА (ZED PROMPT)
@@ -1044,7 +1120,7 @@ def create_mcp_server() -> "FastMCP":
                     f"",
                     f"  Всего коммитов: {stats['total_commits']}",
                     f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
-                    f"  Уникальных ""проблемных"" файлов: {len(bug_corr._file_bug_count)}",
+                    f"  Уникальных проблемных файлов: {len(bug_corr._file_bug_count)}",
                     f"",
                     f"  🔥 Топ-10 горячих точек:",
                 ]
@@ -1135,6 +1211,116 @@ def create_mcp_server() -> "FastMCP":
         except Exception as e:
             logger.error(f"Ошибка get_related_files: {e}")
             return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def submit_background_task(task_type: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Запускает долгую задачу в фоне.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно проанализировать баги по всему проекту
+        - Построить граф знаний
+        - Выполнить тяжёлые вычисления без таймаута
+
+        Доступные типы задач:
+        - 'bug_correlation' — анализ баго-нагрузки
+        - 'build_knowledge_graph' — построение графа знаний
+        - 'full_analysis' — полный анализ (баги + связи)
+
+        Args:
+            task_type: Тип задачи
+            project_root: Путь к проекту
+
+        Returns:
+            task_id для отслеживания прогресса
+        """
+        _debug_log("submit_background_task", f"{task_type}, {project_root}")
+        try:
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            from src.core.commit_memory import CommitMemory
+            from src.core.bug_correlation import BugCorrelation
+            from src.core.relation_extractor import RelationExtractor
+
+            memory = CommitMemory(target_path)
+
+            if task_type == "bug_correlation":
+                task_id = _background_task_queue.submit_sync(
+                    "Bug Correlation Analysis",
+                    _run_bug_correlation,
+                    memory,
+                )
+            elif task_type == "build_knowledge_graph":
+                task_id = _background_task_queue.submit_sync(
+                    "Build Knowledge Graph",
+                    _run_build_graph,
+                    memory,
+                )
+            elif task_type == "full_analysis":
+                task_id = _background_task_queue.submit_sync(
+                    "Full Analysis",
+                    _run_full_analysis,
+                    memory,
+                )
+            else:
+                return f"❌ Неизвестный тип задачи: {task_type}"
+
+            return f"✅ Задача поставлена в очередь\n   ID: {task_id}\n   Тип: {task_type}\n   Проверьте результат: get_task_status('{task_id}')"
+
+        except Exception as e:
+            logger.error(f"Ошибка submit_background_task: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def get_task_status(task_id: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Возвращает статус фоновой задачи.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно проверить завершилась ли фоновая задача
+        - Получить результат долгого анализа
+        - Отследить прогресс
+
+        Args:
+            task_id: ID задачи (из submit_background_task)
+
+        Returns:
+            Статус задачи и результат если завершена
+        """
+        _debug_log("get_task_status", task_id)
+        status = _background_task_queue.get_status(task_id)
+        if not status:
+            return f"❌ Задача не найдена: {task_id}"
+
+        lines = [
+            f"📋 Задача: {status['name']}",
+            f"   ID: {status['id']}",
+            f"   Статус: {status['status']}",
+            f"   Прогресс: {status['progress']*100:.0f}%",
+            f"   Создана: {status['created_at']}",
+        ]
+
+        if status['started_at']:
+            lines.append(f"   Начата: {status['started_at']}")
+        if status['completed_at']:
+            lines.append(f"   Завершена: {status['completed_at']}")
+
+        if status['status'] == 'completed':
+            lines.append(f"\n✅ Результат:")
+            result = status['result']
+            if isinstance(result, str):
+                lines.append(result)
+            elif isinstance(result, dict):
+                for k, v in result.items():
+                    lines.append(f"   {k}: {v}")
+        elif status['status'] == 'failed':
+            lines.append(f"\n❌ Ошибка: {status['error']}")
+        elif status['status'] == 'running':
+            lines.append(f"\n🔄 Выполняется...")
+        elif status['status'] == 'queued':
+            lines.append(f"\n⏳ В очереди...")
+
+        return "\n".join(lines)
 
     @mcp.tool()
     def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
