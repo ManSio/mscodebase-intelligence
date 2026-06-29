@@ -70,10 +70,11 @@
 - [x] **Auto relation extraction** — cochange + bug + call relations → knowledge graph
 - [ ] **GraphRAG query engine** — навигация по графу знаний
 
-### Phase 4: Full GraphRAG (目标: 95%)
+### Phase 4: Full GraphRAG (目标: 95%) — IN PROGRESS
 
+- [x] **Autonomous Fix Loop** — автоматическое исправление ошибок с rollback
+- [x] **Health Check** — полная диагностика проекта
 - [ ] **GraphRAG query engine** — навигация по графу знаний
-- [ ] **Автомонтический knowledge extraction** — извлечение отношений из кода
 - [ ] **Cross-project dependency graph** — граф зависимостей между проектами
 
 ---

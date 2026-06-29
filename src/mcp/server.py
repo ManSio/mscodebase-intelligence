@@ -43,6 +43,7 @@ _background_task_queue = _get_task_queue()
 
 # ETA Predictor — предсказание времени выполнения
 from src.core.eta_predictor import get_predictor as _get_predictor
+from src.core.autonomous_fix import AutonomousFixLoop
 _eta_predictor = _get_predictor()
 
 
@@ -1498,6 +1499,63 @@ def create_mcp_server() -> "FastMCP":
 
         except Exception as e:
             logger.error(f"Ошибка predict_eta: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def run_health_check(kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Полная проверка здоровья проекта.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно проверить что проект в порядке
+        - После изменений кода
+        - Для диагностики проблем
+
+        Проверяет:
+        - Тесты (pytest)
+        - Git status
+        - Общее состояние
+
+        Returns:
+            Отчет о здоровье проекта
+        """
+        _debug_log("run_health_check")
+        try:
+            from src.core.autonomous_fix import AutonomousFixLoop
+
+            ext_root = Path(__file__).resolve().parent.parent.parent
+            fix_loop = AutonomousFixLoop(ext_root)
+            health = fix_loop.health_check()
+
+            lines = [
+                f"🏥 Project Health Check",
+                f"",
+                f"   Время: {health['timestamp'][:19]}",
+            ]
+
+            # Tests
+            tests = health.get("tests", {})
+            if tests:
+                status_emoji = "✅" if tests.get("success") else "❌"
+                lines.append(f"   Тесты: {status_emoji} {tests.get('passed', 0)} passed, {tests.get('failed', 0)} failed")
+
+            # Git
+            git = health.get("git_status", {})
+            if git:
+                if git.get("dirty"):
+                    lines.append(f"   Git: ⚠️ {len(git.get('dirty_files', []))} uncommitted files")
+                else:
+                    lines.append(f"   Git: ✅ clean")
+
+            # Overall
+            overall = health.get("overall", "unknown")
+            overall_emoji = "✅" if overall == "healthy" else "❌"
+            lines.append(f"")
+            lines.append(f"   Итого: {overall_emoji} {overall}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка health_check: {e}")
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
