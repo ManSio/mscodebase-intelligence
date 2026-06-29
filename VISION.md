@@ -74,7 +74,7 @@
 
 - [x] **Autonomous Fix Loop** — автоматическое исправление ошибок с rollback
 - [x] **Health Check** — полная диагностика проекта
-- [ ] **GraphRAG query engine** — навигация по графу знаний
+- [x] **GraphRAG query engine** — навигация по графу знаний (impact, feature, deps, tests)
 - [ ] **Cross-project dependency graph** — граф зависимостей между проектами
 
 ---

@@ -44,6 +44,7 @@ _background_task_queue = _get_task_queue()
 # ETA Predictor — предсказание времени выполнения
 from src.core.eta_predictor import get_predictor as _get_predictor
 from src.core.autonomous_fix import AutonomousFixLoop
+from src.core.graph_rag import GraphRAGQueryEngine
 _eta_predictor = _get_predictor()
 
 
@@ -1556,6 +1557,103 @@ def create_mcp_server() -> "FastMCP":
 
         except Exception as e:
             logger.error(f"Ошибка health_check: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
+    def graph_query(query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Запрос к графу знаний (GraphRAG).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно узнать что затронет изменение
+        - Ищешь код связанный с фичей
+        - Нужны зависимости файла/символа
+        - Ищешь связанные тесты
+
+        Типы запросов:
+        - 'impact' — что сломается если изменить target
+        - 'feature' — весь код связанный с фичей
+        - 'deps' — зависимости файла
+        - 'tests' — какие тесты запустить
+
+        Args:
+            query_type: Тип запроса (impact/feature/deps/tests)
+            target: Имя символа, файла или фичи
+
+        Returns:
+            Результат запроса к графу знаний
+        """
+        _debug_log("graph_query", f"{query_type}, {target}")
+        try:
+            from src.core.graph_rag import GraphRAGQueryEngine
+
+            ext_root = Path(__file__).resolve().parent.parent.parent
+            engine = GraphRAGQueryEngine(
+                ext_root,
+                symbol_index=symbol_index if 'symbol_index' in dir() else None,
+            )
+
+            if query_type == "impact":
+                result = engine.query_impact(target)
+                lines = [
+                    f"🎯 Impact Analysis: {target}",
+                    f"",
+                    f"  Риск: {result.get('risk_score', 0)}/100",
+                    f"",
+                    f"  Прямое влияние ({len(result.get('direct_impact', []))}):",
+                ]
+                for f in result.get("direct_impact", [])[:5]:
+                    lines.append(f"    - {f}")
+                if result.get("tests_to_run"):
+                    lines.append(f"")
+                    lines.append(f"  Тесты: {', '.join(result['tests_to_run'][:3])}")
+
+            elif query_type == "feature":
+                result = engine.query_feature(target)
+                lines = [
+                    f"🔍 Feature: {target}",
+                    f"",
+                    f"  Файлов: {len(result.get('files', []))}",
+                    f"  Символов: {len(result.get('symbols', []))}",
+                ]
+                if result.get("files"):
+                    lines.append(f"")
+                    lines.append(f"  Файлы:")
+                    for f in result["files"][:5]:
+                        lines.append(f"    - {f}")
+
+            elif query_type == "deps":
+                result = engine.query_dependencies(target)
+                lines = [
+                    f"🔗 Dependencies: {target}",
+                    f"",
+                    f"  Зависит от ({len(result.get('depends_on', []))}):",
+                ]
+                for f in result.get("depends_on", [])[:5]:
+                    lines.append(f"    - {f}")
+                lines.append(f"")
+                lines.append(f"  Используется в ({len(result.get('depended_by', []))}):")
+                for f in result.get("depended_by", [])[:5]:
+                    lines.append(f"    - {f}")
+
+            elif query_type == "tests":
+                tests = engine.query_tests(target)
+                lines = [
+                    f"🧪 Tests for: {target}",
+                    f"",
+                ]
+                if tests:
+                    for t in tests:
+                        lines.append(f"  - {t}")
+                else:
+                    lines.append(f"  Тесты не найдены")
+
+            else:
+                return f"❌ Неизвестный тип запроса: {query_type}"
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка graph_query: {e}")
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
