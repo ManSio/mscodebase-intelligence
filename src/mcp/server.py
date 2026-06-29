@@ -156,6 +156,20 @@ async def background_queue_worker(
                         symbol_index.index_project, project_path, parser
                     )
                     logger.info("🔹 Шаг 2 (Символы) завершен успешно.")
+
+                    # Сохраняем SymbolIndex на диск (persistence)
+                    try:
+                        from src.core.index_guard import IndexGuard
+                        guard = IndexGuard(indexer.db_path, project_path)
+                        guard.save_symbol_index(symbol_index)
+                        logger.info("💾 SymbolIndex сохранён на диск.")
+                    except Exception as save_err:
+                        logger.warning(f"Не удалось сохранить SymbolIndex: {save_err}")
+
+                    # Обновляем счётчик символов для get_index_status
+                    global _total_symbols_count
+                    _total_symbols_count = len(symbol_index._definitions)
+
             except Exception as sym_err:
                 logger.error(
                     f"⚠️ Сбой на шаге 2 (Tree-sitter): {sym_err}", exc_info=True
@@ -211,6 +225,15 @@ def create_mcp_server() -> "FastMCP":
     embedder.embed_batch = embed_batch_with_semaphore
 
     symbol_index = SymbolIndex()
+
+    # Загружаем SymbolIndex из кэша если есть (persistence между перезапусками)
+    try:
+        from src.core.index_guard import IndexGuard
+        guard = IndexGuard(initial_db_path, ext_root)
+        if guard.load_symbol_index(symbol_index):
+            logger.info(f"📦 SymbolIndex загружен из кэша: {len(symbol_index._definitions)} символов")
+    except Exception as e:
+        logger.debug(f"SymbolIndex cache не загружен: {e}")
 
     # Cross-repo поиск: реестр проектов и мультипроектный поисковик
     project_registry = ProjectRegistry()
@@ -349,6 +372,88 @@ def create_mcp_server() -> "FastMCP":
         if _last_index_error:
             output += f"\n  ⚠️ Последняя ошибка индексации: {_last_index_error}"
         return output
+
+    @mcp.tool()
+    def index_health(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Полная диагностика и самовосстановление индекса.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - get_index_status показывает 0 чанков или 0 символов
+        - Поиск возвращает пустые результаты
+        - Подозреваешь что индекс повреждён
+        - Хочешь проверить здоровье базы данных
+
+        Проверяет:
+        - Схему LanceDB (совместимость)
+        - Целостность данных
+        - SymbolIndex (Tree-sitter)
+        - Нужна ли переиндексация
+
+        Автоматически восстанавливает:
+        - Несовместимую схему (миграция)
+        - Потерянный SymbolIndex (пересоздание из кэша)
+        - Пустую таблицу (запуск reindex)
+        """
+        _debug_log("index_health", project_root)
+        try:
+            from src.core.index_guard import IndexGuard, quick_health_check
+
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            # Находим путь к БД
+            normalized_path = str(target_path.resolve()).lower().replace('\\', '/')
+            project_hash = __import__('hashlib').md5(normalized_path.encode()).hexdigest()[:8]
+            project_name = target_path.name.lower()
+            db_path = target_path.parent / ".codebase_indices" / "lancedb_v2" / f"index_{project_name}_{project_hash}.db"
+
+            if not db_path.exists():
+                return (
+                    f"⚠️ База данных не найдена: {db_path.name}\n"
+                    f"   Запустите index_project_dir для создания."
+                )
+
+            # Быстрая проверка
+            health = quick_health_check(db_path)
+
+            lines = [f"🏥 Index Health Check: {target_path.name}"]
+            lines.append("")
+            lines.append(f"  Таблица LanceDB: {'✅' if health['table_exists'] else '❌'}")
+            lines.append(f"  Чанков: {health['row_count']}")
+            lines.append(f"  Схема OK: {'✅' if health['schema_ok'] else '❌'}")
+            lines.append(f"  SymbolIndex: {'✅' if health['symbol_index_exists'] else '❌ (будет пересоздан'}")
+            lines.append(f"  Общий статус: {'✅ Здоров' if health['healthy'] else '⚠️ Требует внимания'}")
+
+            if health.get("error"):
+                lines.append(f"\n  Ошибка: {health['error']}")
+
+            # Если есть проблемы — запускаем полную проверку
+            if not health["healthy"]:
+                lines.append(f"\n🔧 Запуск самовосстановления...")
+                try:
+                    import lancedb
+                    db = lancedb.connect(str(db_path))
+                    guard = IndexGuard(db_path, target_path)
+                    report = guard.check_and_repair(db)
+
+                    lines.append(f"  Статус: {report['status']}")
+                    if report['actions_taken']:
+                        lines.append(f"  Действия: {', '.join(report['actions_taken'])}")
+                    if report['errors']:
+                        lines.append(f"  Ошибки: {', '.join(report['errors'])}")
+
+                    if report['status'] == 'needs_reindex':
+                        lines.append(f"\n  ⚠️ Требуется переиндексация!")
+                        lines.append(f"  Вызовите: index_project_dir('{project_root}')")
+                except Exception as e:
+                    lines.append(f"  ❌ Ошибка восстановления: {e}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка index_health: {e}")
+            return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
     def get_index_progress(kwargs: Optional[Dict[str, Any]] = None) -> str:

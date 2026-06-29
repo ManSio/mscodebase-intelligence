@@ -14,6 +14,7 @@ import numpy as np
 import pyarrow as pa
 
 from src.core.chunk_summarizer import ChunkSummarizer, format_chunk_for_embedding
+from src.core.index_guard import IndexGuard
 from src.utils.paths import SafePathManager, to_win_long_path
 
 logger = logging.getLogger("mscodebase_server.indexer")
@@ -180,6 +181,22 @@ class Indexer:
         # чанков с первой миллисекунды, не дожидаясь завершения lazy-инициализации LanceDB.
         self._cached_total_chunks: int = 0
         self._warmup_status()
+
+        # ══════════════════════════════════════════════════════════
+        # Index Guard: самовосстановление при сбоях
+        # ══════════════════════════════════════════════════════════
+        self._index_guard = IndexGuard(db_path, self.project_path)
+        guard_report = self._index_guard.check_and_repair(self.db)
+        if guard_report["status"] != "ok":
+            logger.warning(
+                f"⚠️ Index Guard: {guard_report['status']} — "
+                f"{', '.join(guard_report['actions_taken'])}"
+            )
+            # Перезагружаем таблицу после возможных изменений
+            try:
+                self.table = self.db.open_table(self.table_name)
+            except Exception:
+                pass
 
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
 
@@ -630,6 +647,10 @@ class Indexer:
         # Сохраняем кэш суммари
         if self.summarizer:
             self.summarizer.save_cache()
+
+        # Сохраняем SymbolIndex на диск (persistence между перезапусками)
+        if hasattr(self, '_symbol_index') and self._symbol_index:
+            self._index_guard.save_symbol_index(self._symbol_index)
 
         logger.info(
             f"✅ Индексация завершена: {indexed_count} новых/изменённых, "
