@@ -1010,6 +1010,11 @@ def create_mcp_server() -> "FastMCP":
         CRITICAL USAGE RULE:
         Call this tool to check system health. If embedder mode is 'fallback' or 'onnx',
         notify the user that LM Studio is not connected for full functionality.
+
+        АВТОЗАГРУЗКА МОДЕЛЕЙ:
+        При вызове автоматически проверяет какие модели загружены в VRAM.
+        Если критические модели (embedding/instruct) не загружены — отправляет
+        тестовый запрос для загрузки «по требованию».
         """
         _debug_log("watcher_status")
         lines = ["👁️ Статус компонентов архитектуры:"]
@@ -1045,6 +1050,94 @@ def create_mcp_server() -> "FastMCP":
         lines.append(
             f"  • Пинг-сканер доступности ИИ-хоста: {'✅ Активен' if scanner_alive else '⏹️ Отключен'}"
         )
+
+        # ══════════════════════════════════════════════════════════
+        # Проверка загруженных моделей в LM Studio + автозагрузка
+        # ══════════════════════════════════════════════════════════
+        if embedder_mode in ("lm_studio", "ollama"):
+            try:
+                import httpx
+                host = getattr(embedder, "host", "127.0.0.1")
+                port = getattr(embedder, "port", 1234)
+
+                # Запрашиваем список моделей с их состоянием
+                with httpx.Client(timeout=3.0) as client:
+                    r = client.get(f"http://{host}:{port}/api/v0/models")
+                    if r.status_code == 200:
+                        models = r.json().get("data", [])
+                        loaded = [m for m in models if m.get("state") == "loaded"]
+                        not_loaded = [m for m in models if m.get("state") != "loaded"]
+
+                        lines.append("")
+                        lines.append(f"📦 Модели LM Studio: {len(loaded)}/{len(models)} в VRAM")
+
+                        if loaded:
+                            for m in loaded:
+                                mtype = m.get("type", "?")
+                                lines.append(f"   ✅ [{mtype}] {m.get('id', '')}")
+
+                        if not_loaded:
+                            for m in not_loaded:
+                                mtype = m.get("type", "?")
+                                lines.append(f"   ⚪ [{mtype}] {m.get('id', '')}")
+
+                        # Автозагрузка: если ни одна embedding-модель не в VRAM
+                        embedding_loaded = any(
+                            m.get("type") == "embeddings" for m in loaded
+                        )
+                        instruct_loaded = any(
+                            m.get("type") in ("llm", "vlm") for m in loaded
+                        )
+
+                        if not embedding_loaded or not instruct_loaded:
+                            lines.append("")
+                            lines.append("🔄 Автозагрузка моделей...")
+
+                            # Загружаем embedding-модель
+                            if not embedding_loaded:
+                                embed_model = getattr(embedder, "model_name", "text-embedding-bge-m3")
+                                try:
+                                    r_load = client.post(
+                                        f"http://{host}:{port}/v1/embeddings",
+                                        json={"model": embed_model, "input": "warmup"},
+                                        timeout=60.0,
+                                    )
+                                    if r_load.status_code == 200:
+                                        lines.append(f"   ✅ Embedding '{embed_model}' загружена")
+                                    else:
+                                        lines.append(f"   ⚠️ Embedding '{embed_model}': HTTP {r_load.status_code}")
+                                except Exception as e:
+                                    lines.append(f"   ❌ Embedding '{embed_model}': {e}")
+
+                            # Загружаем instruct-модель (для реранкинга)
+                            if not instruct_loaded:
+                                # Ищем первую instruct-модель в списке доступных
+                                instruct_candidates = [
+                                    m for m in not_loaded
+                                    if m.get("type") in ("llm", "vlm")
+                                ]
+                                if instruct_candidates:
+                                    instruct_model = instruct_candidates[0].get("id")
+                                    try:
+                                        r_inst = client.post(
+                                            f"http://{host}:{port}/v1/chat/completions",
+                                            json={
+                                                "model": instruct_model,
+                                                "messages": [{"role": "user", "content": "hi"}],
+                                                "max_tokens": 1,
+                                            },
+                                            timeout=120.0,
+                                        )
+                                        if r_inst.status_code == 200:
+                                            lines.append(f"   ✅ Instruct '{instruct_model}' загружена")
+                                        else:
+                                            lines.append(f"   ⚠️ Instruct '{instruct_model}': HTTP {r_inst.status_code}")
+                                    except Exception as e:
+                                        lines.append(f"   ❌ Instruct '{instruct_model}': {e}")
+                    else:
+                        lines.append(f"  • Модели LM Studio: ⚠️ HTTP {r.status_code}")
+            except Exception as e:
+                lines.append(f"  • Модели LM Studio: ❌ Ошибка: {e}")
 
         return "\n".join(lines)
 
