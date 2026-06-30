@@ -45,6 +45,8 @@ _background_task_queue = _get_task_queue()
 from src.core.eta_predictor import get_predictor as _get_predictor
 from src.core.autonomous_fix import AutonomousFixLoop
 from src.core.graph_rag import GraphRAGQueryEngine
+from src.core.cross_project_deps import CrossProjectDependencyGraph
+from src.core.chunk_summarizer import ChunkSummarizer
 _eta_predictor = _get_predictor()
 
 
@@ -578,6 +580,87 @@ def create_mcp_server() -> "FastMCP":
         return "\n".join(lines)
 
     @mcp.tool()
+    def get_index_timeline(kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Временная шкала индексации — когда данные были добавлены в базу.
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять когда данные были проиндексированы
+        - Хочешь увидеть свежесть данных
+        - Нужно найти устаревшие чанки для переиндексации
+
+        Returns:
+            Временная шкала с группировкой по дате
+        """
+        _debug_log("get_index_timeline")
+
+        try:
+            import lancedb
+            import pandas as pd
+            from collections import defaultdict
+
+            # Определяем путь к базе через indexer
+            if not indexer or not hasattr(indexer, 'table') or indexer.table is None:
+                return "❌ База данных не найдена. Выполните индексацию проекта."
+
+            table = indexer.table
+            df = table.to_pandas()
+
+            if df.empty:
+                return "📊 База данных пуста. Нет данных для анализа."
+
+            total_chunks = len(df)
+
+            # Группируем по дате (YYYY-MM-DD)
+            date_counts: Dict[str, int] = defaultdict(int)
+            oldest_dt: Optional[datetime] = None
+            newest_dt: Optional[datetime] = None
+            chunks_without_ts = 0
+
+            for _, row in df.iterrows():
+                indexed_at = row.get("indexed_at", "")
+                if not indexed_at:
+                    chunks_without_ts += 1
+                    continue
+
+                try:
+                    dt = datetime.fromisoformat(str(indexed_at))
+                    date_key = dt.strftime("%Y-%m-%d")
+                    date_counts[date_key] += 1
+
+                    if oldest_dt is None or dt < oldest_dt:
+                        oldest_dt = dt
+                    if newest_dt is None or dt > newest_dt:
+                        newest_dt = dt
+                except (ValueError, TypeError):
+                    chunks_without_ts += 1
+
+            # Формируем вывод
+            lines = ["📅 Временная шкала индексации:\n"]
+            lines.append(f"  Всего чанков: {total_chunks}")
+
+            if oldest_dt:
+                lines.append(f"  Самый старый: {oldest_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+            if newest_dt:
+                lines.append(f"  Самый новый: {newest_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+            if chunks_without_ts:
+                lines.append(f"  Без метки времени: {chunks_without_ts}")
+
+            if date_counts:
+                lines.append("\n  Гистограмма (дата → чанков):")
+                # Сортируем по дате
+                for date_str in sorted(date_counts.keys()):
+                    count = date_counts[date_str]
+                    # Простая текстовая гистограмма
+                    bar = "█" * min(count // 5, 40)  # масштаб: 1 символ = 5 чанков
+                    lines.append(f"    {date_str} │ {count:4d} {bar}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Ошибка get_index_timeline: {e}", exc_info=True)
+            return f"❌ Ошибка при анализе временной шкалы: {type(e).__name__}: {e}"
+
+    @mcp.tool()
     async def index_project_dir(
         path: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -625,6 +708,14 @@ def create_mcp_server() -> "FastMCP":
         - Exact text match in known location → use grep as fallback only
 
         The 1-2s latency is INVESTED TIME that saves 3-5x more during generation.
+
+        Time Filtering (опционально):
+        - kwargs["since"]: ISO datetime string (напр. "2026-06-30T14:30:00") —
+          искать только чанки проиндексированные после этого времени.
+        - kwargs["before"]: ISO datetime string — искать только чанки
+          проиндексированные до этого времени.
+        - Можно комбинировать: since + before = диапазон времени.
+        - Чанки без indexed_at исключаются при фильтрации.
         """
         _debug_log("search_code", query)
 
@@ -654,10 +745,14 @@ def create_mcp_server() -> "FastMCP":
                 # Если 2+ индикатора или запрос > 50 символов — agentic
                 use_agentic = indicators_count >= 2 or len(query) > 50
 
+            # Извлекаем временные фильтры из kwargs
+            since = kwargs.get("since") if kwargs else None
+            before = kwargs.get("before") if kwargs else None
+
             if use_agentic:
                 return _agentic_search_handler(query, symbol_index)
             else:
-                return searcher.search(query, limit=6)
+                return searcher.search(query, limit=6, since=since, before=before)
         except Exception as e:
             logger.error(f"Ошибка search_code: {e}", exc_info=True)
             return (
@@ -1657,6 +1752,131 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
+    def generate_chunk_summaries(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Генерация LLM-описаний для чанков кода (Chunk Summarizer).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно улучшить качество поиска добавив контекстные описания
+        - После индексации нового проекта
+        - Для обновления описаний после значительных изменений кода
+
+        Описания сохраняются в поле 'summary' каждого чанка и используются
+        при гибридном поиске для улучшения релевантности.
+
+        Args:
+            project_root: Путь к проекту
+
+        Returns:
+            Отчёт о генерации описаний
+        """
+        _debug_log("generate_chunk_summaries")
+        try:
+            target_path = Path(project_root).resolve()
+            if not target_path.exists():
+                return f"❌ Путь не существует: {project_root}"
+
+            # Получаем таблицу LanceDB
+            table = indexer.table
+            if table is None:
+                return "❌ Таблица LanceDB не инициализирована"
+
+            # Читаем все записи
+            df = table.to_pandas()
+            if df.empty:
+                return "❌ База пуста — сначала выполните индексацию"
+
+            # Находим чанки без summary (пустая строка или NaN)
+            has_summary_col = "summary" in df.columns
+            if has_summary_col:
+                mask_no_summary = df["summary"].isna() | (df["summary"] == "") | (df["summary"].str.strip() == "")
+                chunks_without = df[mask_no_summary]
+            else:
+                chunks_without = df
+
+            total_chunks = len(df)
+            chunks_to_process = len(chunks_without)
+
+            if chunks_to_process == 0:
+                return (
+                    f"✅ Все {total_chunks} чанков уже имеют описания.\n"
+                    f"   Генерация не требуется."
+                )
+
+            # Создаём ChunkSummarizer с текущим embedder
+            cache_dir = indexer.db_path.parent / "summaries_cache"
+            summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
+
+            # Генерируем описания батчами (по 50 чанков)
+            batch_size = 50
+            updated_count = 0
+            error_count = 0
+            start_time = time.time()
+
+            for batch_start in range(0, chunks_to_process, batch_size):
+                batch_df = chunks_without.iloc[batch_start:batch_start + batch_size]
+                records_to_update = []
+
+                for idx, row in batch_df.iterrows():
+                    try:
+                        code = row.get("text", "")
+                        symbol_name = row.get("symbol_name", "")
+                        context = row.get("file_path", "")
+                        summary = summarizer.summarize_chunk(code, symbol_name, context)
+                        records_to_update.append({
+                            "id": row["id"],
+                            "vector": row["vector"],
+                            "text": row["text"],
+                            "text_full": row.get("text_full", row["text"]),
+                            "file_path": row["file_path"],
+                            "file_hash": row.get("file_hash", ""),
+                            "chunk_index": row.get("chunk_index", 0),
+                            "source": row.get("source", ""),
+                            "indexed_at": row.get("indexed_at", ""),
+                            "summary": summary,
+                        })
+                        updated_count += 1
+                    except Exception as e:
+                        logger.debug(f"Ошибка генерации summary для чанка {row.get('id', '?')}: {e}")
+                        error_count += 1
+
+                # Удаляем старые записи батча и добавляем обновлённые
+                if records_to_update:
+                    try:
+                        batch_ids = [r["id"] for r in records_to_update]
+                        # Удаляем по одной записи (LanceDB filter)
+                        for rid in batch_ids:
+                            try:
+                                table.delete(f"id = '{rid}'")
+                            except Exception:
+                                pass
+                        table.add(records_to_update)
+                    except Exception as e:
+                        logger.warning(f"Ошибка обновления батча в LanceDB: {e}")
+                        error_count += len(records_to_update)
+                        updated_count -= len(records_to_update)
+
+            # Сохраняем кэш суммари
+            summarizer.save_cache()
+
+            elapsed = time.time() - start_time
+            stats = summarizer.get_stats()
+
+            return (
+                f"📝 Генерация описаний завершена\n"
+                f"   Всего чанков: {total_chunks}\n"
+                f"   Без описаний было: {chunks_to_process}\n"
+                f"   Обновлено: {updated_count}\n"
+                f"   Ошибок: {error_count}\n"
+                f"   LLM-генераций: {stats.get('generated', 0)}\n"
+                f"   Попаданий в кэш: {stats.get('cache_hits', 0)}\n"
+                f"   Время: {elapsed:.1f}s"
+            )
+
+        except Exception as e:
+            logger.error(f"Ошибка generate_chunk_summaries: {e}")
+            return f"❌ Ошибка: {str(e)}"
+
+    @mcp.tool()
     def smart_search(query: str, mode: str = "quality", limit: int = 5, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Умный поиск с выбором режима (FAST/QUALITY/DEEP).
 
@@ -2146,7 +2366,116 @@ def create_mcp_server() -> "FastMCP":
             return multi_project_searcher.search(query, limit=8)
         except Exception as e:
             logger.error(f"Ошибка cross_repo_search: {e}", exc_info=True)
-            return f"❌ Ошибка кросс-проектного поиска: {type(e).__name__}: {e}"
+            return f"❌ Ошибка кросс-проектного поиска: {type(e).__name__}:{e}"
+
+    @mcp.tool()
+    def cross_project_deps(
+        action: str = "graph",
+        project_name: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Анализ зависимостей между проектами в моно-репо (Cross-project Dependency Graph).
+
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять зависимости между проектами моно-репо
+        - Ищешь циклические зависимости
+        - Нужно оценить влияние изменений в одном проекте на другие
+        - Ищешь общие интерфейсы между проектами
+
+        Типы запросов (action):
+        - 'graph' — полный граф зависимостей между проектами
+        - 'deps' — зависимости конкретного проекта (укажи project_name)
+        - 'cycles' — найти циклические зависимости
+        - 'shared' — общие интерфейсы между проектами
+        - 'impact' — влияние изменений в проекте (укажи project_name)
+        - 'path' — кратчайший путь зависимости (укажи from/to в kwargs)
+
+        НЕ ИСПОЛЬЗУЙ КОГДА:
+        - Нужен поиск в одном проекте -> используй get_related_files
+        - Нужен поиск кода -> используй cross_repo_search
+
+        Args:
+            action: Тип запроса (graph/deps/cycles/shared/impact/path)
+            project_name: Имя проекта (для deps/impact)
+            kwargs: Дополнительные параметры (direction, from_project, to_project)
+
+        Returns:
+            Результат анализа зависимостей между проектами
+        """
+        _debug_log("cross_project_deps", f"{action}, {project_name}")
+        try:
+            deps_graph = CrossProjectDependencyGraph(
+                project_registry=multi_project_searcher.registry
+                if 'multi_project_searcher' in dir()
+                else None,
+            )
+
+            if action == "graph":
+                graph = deps_graph.build_dependency_graph()
+                return deps_graph.format_dependency_graph(graph)
+
+            elif action == "deps":
+                if not project_name:
+                    return "❌ Укажите project_name для action='deps'"
+                direction = (kwargs or {}).get("direction", "both")
+                deps = deps_graph.get_project_dependencies(project_name, direction=direction)
+                return deps_graph.format_project_deps(deps)
+
+            elif action == "cycles":
+                cycles = deps_graph.find_circular_dependencies()
+                if not cycles:
+                    return "✅ Циклических зависимостей не обнаружено."
+                lines = ["🔄 Циклические зависимости:\n"]
+                for i, cycle in enumerate(cycles, 1):
+                    lines.append(f"  {i}. {' → '.join(cycle)} → {cycle[0]}")
+                return "\n".join(lines)
+
+            elif action == "shared":
+                shared = deps_graph.find_shared_interfaces()
+                if not shared:
+                    return "✅ Общих интерфейсов между проектами не найдено."
+                lines = [f"🔗 Общие интерфейсы ({len(shared)}):\n"]
+                for i, iface in enumerate(shared[:10], 1):
+                    projects = ", ".join(iface.get("projects", []))
+                    conflict = " ⚠️ конфликт" if iface.get("potential_conflict") else ""
+                    lines.append(f"  {i}. {iface.get('symbol', '?')} → [{projects}]{conflict}")
+                return "\n".join(lines)
+
+            elif action == "impact":
+                if not project_name:
+                    return "❌ Укажите project_name для action='impact'"
+                impact = deps_graph.analyze_impact(project_name)
+                lines = [
+                    f"🎯 Влияние изменений в {project_name}:\n",
+                    f"  Риск: {impact.get('risk_level', 'unknown')}",
+                    f"  Прямо затронуты ({len(impact.get('directly_affected', []))}):",
+                ]
+                for p in impact.get("directly_affected", [])[:5]:
+                    lines.append(f"    - {p}")
+                transitive = impact.get("transitively_affected", [])
+                if transitive:
+                    lines.append(f"  Косвенно затронуты ({len(transitive)}):")
+                    for p in transitive[:5]:
+                        lines.append(f"    - {p}")
+                return "\n".join(lines)
+
+            elif action == "path":
+                extra = kwargs or {}
+                from_proj = extra.get("from_project", "")
+                to_proj = extra.get("to_project", "")
+                if not from_proj or not to_proj:
+                    return "❌ Укажите from_project и to_project в kwargs для action='path'"
+                path = deps_graph.get_dependency_path(from_proj, to_proj)
+                if not path:
+                    return f"❌ Путь зависимости от {from_proj} до {to_proj} не найден."
+                return f"🔗 Путь: {' → '.join(path)}"
+
+            else:
+                return f"❌ Неизвестный action: {action}. Доступные: graph, deps, cycles, shared, impact, path"
+
+        except Exception as e:
+            logger.error(f"Ошибка cross_project_deps: {e}", exc_info=True)
+            return f"❌ Ошибка: {type(e).__name__}: {e}"
 
     @mcp.tool()
     def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:

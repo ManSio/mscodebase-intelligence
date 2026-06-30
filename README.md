@@ -8,9 +8,9 @@
 [![Tests](https://img.shields.io/badge/tests-133%20passed-brightgreen.svg)]()
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-tools-14-total) • [Architecture](#-architecture) • [Development](#-development)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-tools-21-total) • [Architecture](#-architecture) • [Development](#-development)
 
-*Last updated: 2026-06-28*
+*Last updated: 2026-06-30*
 
 </div>
 
@@ -97,7 +97,7 @@ Add to your project's `.zed/settings.json` (or let `install.py` do it):
 
 ---
 
-## �️ Tools (15 total)
+## �️ Tools (21 total)
 
 | Tool | When to Use |
 |------|-------------|
@@ -110,13 +110,18 @@ Add to your project's `.zed/settings.json` (or let `install.py` do it):
 | `cross_repo_search` | Multi-project search (`query @backend @frontend`) |
 | `get_context` | Gather relevant code chunks for a query |
 | `get_symbol_info` | Find definition + call graph (callers, callees) |
-| `impact_analysis` | **NEW** Analyze impact of changing/deleting a symbol (risk score, affected files) |
-| `get_repo_map` | Project structure overview (files + key symbols) |
+| `impact_analysis` | Analyze impact of changing/deleting a symbol (risk score, affected files) |
+| `get_repo_map` | Project structure overview with RepoRank (files + key symbols) |
 | `scan_changes` | Detect changes made outside Zed (git pull, checkout) |
 | `context_search` | Find similar code by embedding a selected fragment |
 | `structural_search` | Search by AST patterns (13 patterns available) |
 | `watcher_status` | Check system health (embedder, LSP status) |
 | `get_logs` | Read recent errors/warnings from project logs |
+| `get_branch_info` | Branch-aware index info (different indexes per branch) |
+| `cross_project_deps` | Cross-project dependency graph analysis |
+| `generate_chunk_summaries` | LLM-generated descriptions for code chunks |
+| `get_index_timeline` | Index history timeline |
+| `graph_query` | GraphRAG navigation (impact, feature, deps, tests) |
 
 ---
 
@@ -464,16 +469,16 @@ MSCodeBase/
 
 ## 🗺️ Roadmap
 
-**Текущий уровень: 75–82%** от лучших GraphRAG Code Memory систем.
+**Текущий уровень: 90–95%** от лучших GraphRAG Code Memory систем.
 
-| Фаза | Цель | Ключевые фичи |
-|------|------|---------------|
-| **Phase 1** | 85% | Impact Analysis, полный граф зависимостей, Graph Query API |
-| **Phase 2** | 88% | LLM-описания чанков (+40-50% качество), RepoRank, branch-aware индекс |
-| **Phase 3** | 92% | Semantic commit memory, bug correlation, auto relations |
-| **Phase 4** | 95% | Full GraphRAG, knowledge graph navigation, cross-project graph |
+| Фаза | Цель | Статус | Ключевые фичи |
+|------|------|--------|---------------|
+| **Phase 1** | 85% | ✅ Complete | Impact Analysis, полный граф зависимостей, Graph Query API |
+| **Phase 2** | 88% | ✅ Complete | LLM-описания чанков (+40-50% качество), RepoRank, branch-aware индекс |
+| **Phase 3** | 92% | ✅ Complete | Semantic commit memory, bug correlation, auto relations, GraphRAG engine |
+| **Phase 4** | 95% | ✅ Complete | Full GraphRAG, knowledge graph navigation, cross-project graph, time-aware search |
 
-Подробнее: [VISION.md](VISION.md)
+Все фазы завершены. Подробнее: [VISION.md](VISION.md)
 
 ---
 

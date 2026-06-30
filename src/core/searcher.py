@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import threading
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from src.core.reranker import MultiProviderReranker, SearchResultReranker
@@ -42,6 +43,70 @@ logger = logging.getLogger(__name__)
 def _tokenize(text: str, tokenizer_re: re.Pattern) -> List[str]:
     """Простейшее токенизирование для BM25."""
     return tokenizer_re.split(text.lower()) if text else []
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Парсит ISO datetime string в datetime (timezone-aware).
+
+    Поддерживает форматы:
+    - "2026-06-30T14:30:00"
+    - "2026-06-30T14:30:00+03:00"
+    - "2026-06-30"
+    """
+    if not value:
+        return None
+    try:
+        # Python 3.11+ поддерживает большинство ISO форматов
+        dt = datetime.fromisoformat(value)
+        # Если нет timezone — считаем UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        logger.warning(f"Не удалось распарсить datetime: {value!r}")
+        return None
+
+
+def _filter_by_time(
+    results: List[dict],
+    since: Optional[str] = None,
+    before: Optional[str] = None,
+) -> List[dict]:
+    """Фильтрует результаты по indexed_at.
+
+    Args:
+        results: Список результатов поиска (каждый содержит metadata.indexed_at)
+        since: ISO datetime — только чанки проиндексированные после этого времени
+        before: ISO datetime — только чанки проиндексированные до этого времени
+
+    Returns:
+        Отфильтрованный список результатов
+    """
+    if not since and not before:
+        return results
+
+    since_dt = _parse_iso_datetime(since)
+    before_dt = _parse_iso_datetime(before)
+
+    filtered = []
+    for r in results:
+        indexed_at_str = r.get("metadata", {}).get("indexed_at", "")
+        if not indexed_at_str:
+            # Чанки без indexed_at пропускаем при любой фильтрации
+            continue
+
+        indexed_dt = _parse_iso_datetime(indexed_at_str)
+        if indexed_dt is None:
+            continue
+
+        if since_dt and indexed_dt < since_dt:
+            continue
+        if before_dt and indexed_dt > before_dt:
+            continue
+
+        filtered.append(r)
+
+    return filtered
 
 
 class Searcher:
@@ -242,6 +307,7 @@ class Searcher:
                             "metadata": {
                                 "file": row["file_path"],
                                 "chunk_index": row["chunk_index"],
+                                "indexed_at": row.get("indexed_at", ""),
                             },
                         }
                     )
@@ -270,6 +336,7 @@ class Searcher:
                         "metadata": {
                             "file": row["file_path"],
                             "chunk_index": row["chunk_index"],
+                            "indexed_at": row.get("indexed_at", ""),
                         },
                     }
                 )
@@ -333,11 +400,23 @@ class Searcher:
 
         return results
 
-    def hybrid_search(self, query: str, limit: int = 5, use_rrf: bool = True, expand: bool = True) -> List[dict]:
+    def hybrid_search(
+        self,
+        query: str,
+        limit: int = 5,
+        use_rrf: bool = True,
+        expand: bool = True,
+        since: Optional[str] = None,
+        before: Optional[str] = None,
+    ) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
         Синхронная обёртка для обратной совместимости.
         Используйте hybrid_search_async() для async контекста.
+
+        Args:
+            since: ISO datetime — только чанки проиндексированные после
+            before: ISO datetime — только чанки проиндексированные до
         """
         import asyncio
         try:
@@ -350,14 +429,20 @@ class Searcher:
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
-                    asyncio.run, self.hybrid_search_async(query, limit, use_rrf, expand)
+                    asyncio.run, self.hybrid_search_async(query, limit, use_rrf, expand, since, before)
                 )
                 return future.result(timeout=30)
         else:
-            return asyncio.run(self.hybrid_search_async(query, limit, use_rrf, expand))
+            return asyncio.run(self.hybrid_search_async(query, limit, use_rrf, expand, since, before))
 
     async def hybrid_search_async(
-        self, query: str, limit: int = 5, use_rrf: bool = True, expand: bool = True
+        self,
+        query: str,
+        limit: int = 5,
+        use_rrf: bool = True,
+        expand: bool = True,
+        since: Optional[str] = None,
+        before: Optional[str] = None,
     ) -> List[dict]:
         """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
 
@@ -367,6 +452,7 @@ class Searcher:
         3. Выполняем векторный поиск для семантически релевантных результатов
         4. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
         5. Опциональный мульти-провайдерный реранкинг
+        6. Фильтрация по indexed_at (since/before)
         """
         # Query Expansion: генерируем варианты запроса
         if expand:
@@ -428,12 +514,28 @@ class Searcher:
                 })
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
-        return await self._apply_multi_reranker_async(query, rrf_results, limit)
+        final_results = await self._apply_multi_reranker_async(query, rrf_results, limit)
 
-    def search(self, query: str, limit: int = 5) -> str:
-        """Гибридный поиск для MCP-инструмента search_code."""
+        # Фильтрация по времени (since/before)
+        return _filter_by_time(final_results, since=since, before=before)
+
+    def search(
+        self,
+        query: str,
+        limit: int = 5,
+        since: Optional[str] = None,
+        before: Optional[str] = None,
+    ) -> str:
+        """Гибридный поиск для MCP-инструмента search_code.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимум результатов
+            since: ISO datetime — только чанки проиндексированные после
+            before: ISO datetime — только чанки проиндексированные до
+        """
         try:
-            results = self.hybrid_search(query, limit=limit)
+            results = self.hybrid_search(query, limit=limit, since=since, before=before)
             if not results:
                 return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
 
