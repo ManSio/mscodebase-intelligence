@@ -30,6 +30,23 @@ class HealthReport:
         self.warnings: List[Dict[str, str]] = []
         self.metrics: Dict[str, Any] = {}
 
+    def _run_with_timeout(self, func, timeout=30):
+        """Выполняет функцию с таймаутом."""
+        import concurrent.futures
+
+        def wrapper():
+            try:
+                return func()
+            except Exception as e:
+                return e
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(wrapper)
+            try:
+                return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                return TimeoutError(f'Функция превысила таймаут {timeout} секунд')
+
     def run_full_diagnostic(self) -> Dict[str, Any]:
         """Полная диагностика системы."""
         self.report_timestamp = datetime.now().isoformat()
@@ -239,6 +256,7 @@ class HealthReport:
     def _check_execution_contract(self):
         """Верификация Execution Contract: git state, tests, pushes."""
         import subprocess
+        import threading
 
         # 1. Git state
         try:

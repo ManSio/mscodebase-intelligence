@@ -26,7 +26,14 @@ class CommitMemory:
     """Семантическая память коммитов."""
 
     def __init__(self, project_path: Path, cache_dir: Optional[Path] = None):
-        self.project_path = project_path.resolve()
+        # Fix Windows path issue with /d/ style paths
+        resolved = project_path.resolve()
+        resolved_str = str(resolved)
+        # Check for D:\d\ pattern (wrong from /d/ path)
+        if len(resolved_str) > 4 and resolved_str[2] == "\\" and resolved_str[3] == "d" and resolved_str[4] == "\\":
+            # D:\d\... -> D:\...
+            resolved = Path(resolved_str[:2] + resolved_str[4:])
+        self.project_path = resolved
         self.cache_dir = cache_dir or (self.project_path / ".codebase_indices" / "commit_memory")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_dir / "commits.json"
