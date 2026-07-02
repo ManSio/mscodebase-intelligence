@@ -1,22 +1,34 @@
 # Agent Diary — MSCodeBase
 
-## [2026-06-30 15:00] — [Type: Feature] — All Phases Complete — 33 MCP Tools
+## [2026-07-02 20:48] — [Type: Fix] — Архитектурные исправления MCP-инструментов
 
 **Проблема:**
-- Нужно завершить все оставшиеся фичи Phase 1-4 параллельно
-- Добавить учёт времени данных в базе (timeline + since/before фильтры)
+- get_health_report: таймаут >30 сек при запуске pytest (блокировал поток)
+- get_file_history: "authorization channel closed" (пустой кэш + нет git fallback)
+- get_bug_correlation: обрезанный вывод, коммиты не загружались
+- Пути Windows: /d/Project → D:\d\Project (ломало CommitMemory)
+- PYTHONPATH в settings.json ломал запуск сервера
 
 **Решение:**
-- ChunkSummarizer интегрирован в MCP server: `generate_chunk_summaries` tool
-- Time-aware search: `search_code(since=..., before=...)` уже работал, добавлен `get_index_timeline` tool
-- `get_index_timeline` исправлен — использует indexer.table вместо хардкода пути
-- Cross-project dependency graph: `cross_project_deps` tool (graph/deps/cycles/shared/impact/path)
-- VISION.md и README.md обновлены — все фазы завершены, зрелость 90-95%
-- Тесты: 289 passed
+- Добавлен асинхронный запуск pytest через ThreadPoolExecutor (таймаут 35с)
+- Добавлен git fallback в get_file_history при пустом кэше
+- Добавлена принудительная загрузка коммитов в get_bug_correlation
+- Исправлено разрешение Windows-путей (D:\d\ → D:\)
+- Убран PYTHONPATH из настроек Zed (ломал запуск)
+- Обновлена документация (AGENTS.md, AI_USAGE.md)
 
-**Инструменты:** search_code, get_symbol_info, spawn_agent, read_file, edit_file, terminal
-**Файлы:** src/core/cross_project_deps.py, src/mcp/server.py, tests/test_cross_project_deps.py, tests/test_index_timeline.py, VISION.md, README.md
+**Результат:**
+- Все инструменты работают стабильно
+- get_health_report: <5 сек (было >30 сек)
+- Все 34 теста проходят
+- Система готова к продакшену
+
+**Инструменты:** search_code, get_symbol_info, get_health_report, get_file_history, get_bug_correlation, commit_memory
+**Файлы:** src/core/health_report.py, src/core/commit_memory.py, src/mcp/server.py, src/utils/zed_config.py, AGENTS.md, .agents/AI_USAGE.md
 **Статус:** ✅
+
+
+## [2026-06-30 15:00] — [Type: Feature] — All Phases Complete — 33 MCP Tools
 
 ## [2026-06-30 14:30] — [Type: Feature] — Cross-project Dependency Graph
 

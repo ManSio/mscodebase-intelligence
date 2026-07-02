@@ -186,10 +186,8 @@ def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool
         "args": args,
     }
 
-    # PYTHONPATH + проксируем путь проекта
-    ext_dir = get_extension_install_dir()
+    # Путь проекта для AI-ассистента (без PYTHONPATH!)
     entry["env"] = {
-        "PYTHONPATH": str(ext_dir),
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
     }
 
