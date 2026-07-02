@@ -85,7 +85,8 @@ class SharedIndexer:
         self.project_path = project_path
 
         db_path = _generate_unique_db_path(project_path)
-        self.embedder = RemoteEmbedder(port=1234)
+        # RemoteEmbedder теперь использует конфигурацию по умолчанию
+        self.embedder = RemoteEmbedder()
         file_guard = FileGuard(project_path)
         self.parser = CodeParser()
 
@@ -360,8 +361,14 @@ def start_mcp_server():
         # Получаем ASGI приложение для SSE
         sse_app = mcp.sse_app()
 
-        logger.info("🌐 Starting MCP server on http://127.0.0.1:8765/sse")
-        uvicorn.run(sse_app, host="127.0.0.1", port=8765, log_level="info")
+        # Используем конфигурацию для MCP сервера
+        from src.core.config import get_config
+        config = get_config()
+        mcp_host = config.server.mcp_host
+        mcp_port = config.server.mcp_port
+
+        logger.info(f"🌐 Starting MCP server on http://{mcp_host}:{mcp_port}/sse")
+        uvicorn.run(sse_app, host=mcp_host, port=mcp_port, log_level="info")
         logger.info("MCP server stopped")
 
     except ImportError as e:
@@ -379,9 +386,13 @@ if __name__ == "__main__":
     mcp_thread = threading.Thread(target=start_mcp_server, daemon=False)
     mcp_thread.start()
 
-    # Даём MCP время запуститься
+    # Даём MCP время запуститься (конфигурируемая задержка)
+    from src.core.config import get_config
+    config = get_config()
+
     import time
-    time.sleep(1)
+    startup_delay = config.performance.mcp_startup_delay
+    time.sleep(startup_delay)
 
     # Запускаем LSP в основном потоке (stdio)
     logger.info("🚀 Starting LSP server (stdio)...")

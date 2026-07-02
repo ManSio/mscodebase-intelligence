@@ -303,11 +303,74 @@ class IndexGuard:
     def get_stale_files(self) -> list:
         """Находит файлы которые изменились с последней индексации.
 
+        Сравнивает текущие хеши файлов с хранимыми в базе данных.
+
         Returns:
             Список файлов требующих переиндексации
         """
-        # TODO: реализовать через сравнение file_hash
-        return []
+        try:
+            # Подключаемся к базе данных
+            raw_path = str(self.db_path.resolve())
+            if raw_path.startswith("\\\\?\\"):
+                lancedb_path = raw_path[4:]
+            else:
+                lancedb_path = raw_path
+
+            db = lancedb.connect(lancedb_path)
+
+            # Получаем текущие хеши файлов из базы
+            table = db.open_table(self._get_table_name())
+
+            # Получаем уникальные пути файлов из базы
+            try:
+                file_data = table.search().limit(10000).to_pandas()
+                if file_data.empty:
+                    return []
+
+                # Группируем по file_path и получаем последний file_hash
+                last_hashes = {}
+                for _, row in file_data.iterrows():
+                    file_path = row.get("file_path")
+                    file_hash = row.get("file_hash", "")
+                    if file_path and file_hash:
+                        last_hashes[file_path] = file_hash
+            except Exception as e:
+                logger.debug(f"Ошибка при получении данных из таблицы: {e}")
+                return []
+
+            # Сравниваем с текущими хешами файлов на диске
+            stale_files = []
+            for file_path_str, stored_hash in last_hashes.items():
+                try:
+                    file_path = Path(file_path_str)
+                    if not file_path.exists():
+                        stale_files.append(file_path_str)
+                        continue
+
+                    # Вычисляем текущий хеш файла
+                    current_hash = self._compute_file_hash(file_path)
+
+                    # Если хеши не совпадают или отсутствуют - файл изменился
+                    if current_hash != stored_hash:
+                        stale_files.append(file_path_str)
+                except Exception as e:
+                    logger.debug(f"Ошибка при проверке файла {file_path_str}: {e}")
+                    stale_files.append(file_path_str)
+
+            return stale_files
+
+        except Exception as e:
+            logger.debug(f"Ошибка при проверке устаревших файлов: {e}")
+            return []
+
+    def _compute_file_hash(self, file_path: Path) -> str:
+        """Вычисляет хеш файла для сравнения."""
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+                return hashlib.md5(content).hexdigest()
+        except Exception:
+            return ""
 
     def should_reindex(self) -> bool:
         """Определяет нужна ли полная переиндексация.

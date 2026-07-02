@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Set
 
+from src.core.config import get_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,8 +146,9 @@ class FileGuard:
                 pass
 
         # 2. МЕДЛЕННЫЕ ПРОВЕРКИ (I/O Файловой системы) с Retry-логикой под Windows
-        max_retries = 3
-        retry_delay = 0.05  # 50 миллисекунд задержки между попытками
+        config = get_config()
+        max_retries = config.performance.file_retry_max_attempts
+        retry_delay = config.performance.file_retry_delay  # задержка между попытками
         st_size = 0
 
         for attempt in range(max_retries):

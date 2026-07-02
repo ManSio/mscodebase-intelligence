@@ -103,7 +103,7 @@ def init_components(project_root: Path):
     from src.core.parser import CodeParser
 
     db_path = _generate_unique_db_path(project_root)
-    _embedder = RemoteEmbedder(port=1234)
+    _embedder = RemoteEmbedder()  # Использует конфигурацию по умолчанию
     _file_guard = FileGuard(project_root)
     _code_parser = CodeParser()
     _indexer = Indexer(db_path, _embedder, _file_guard, project_path=project_root, parser=_code_parser)

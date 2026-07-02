@@ -283,8 +283,8 @@ def create_mcp_server() -> "FastMCP":
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
 
-    # Инициализация ядра
-    embedder = RemoteEmbedder(port=1234)
+    # Инициализация ядра (RemoteEmbedder использует конфигурацию по умолчанию)
+    embedder = RemoteEmbedder()
     default_file_guard = FileGuard(ext_root)
 
     from src.core.indexer import _generate_unique_db_path
@@ -1964,7 +1964,7 @@ def create_mcp_server() -> "FastMCP":
                 from src.core.remote_embedder import RemoteEmbedder
                 from src.core.file_guard import FileGuard
 
-                embedder = RemoteEmbedder(port=1234)
+                embedder = RemoteEmbedder()
                 file_guard = FileGuard(ext_root)
                 db_path = _generate_unique_db_path(ext_root)
                 indexer = Indexer(db_path, embedder, file_guard, project_path=ext_root)
@@ -2153,8 +2153,10 @@ def create_mcp_server() -> "FastMCP":
         if embedder_mode in ("lm_studio", "ollama"):
             try:
                 import httpx
-                host = getattr(embedder, "host", "127.0.0.1")
-                port = getattr(embedder, "port", 1234)
+                from src.core.config import get_config
+                config = get_config()
+                host = getattr(embedder, "host", config.embedding.lm_studio_host)
+                port = getattr(embedder, "port", config.embedding.lm_studio_port)
 
                 # Запрашиваем список моделей с их состоянием
                 with httpx.Client(timeout=3.0) as client:

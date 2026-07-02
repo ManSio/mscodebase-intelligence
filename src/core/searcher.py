@@ -616,7 +616,10 @@ class Searcher:
             results = self.hybrid_search(query, limit=limit)
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
-            # TODO: Add graph context expansion
+            # Graph context expansion: добавляем связанные символы из графа вызовов
+            t1 = time.perf_counter()
+            results = self._expand_graph_context(results, query)
+            timing["graph_expansion_ms"] = (time.perf_counter() - t1) * 1000
 
         else:
             # QUALITY (default): hybrid with rerank
@@ -898,7 +901,7 @@ class Searcher:
         При недоступности LLM — fallback на правило-базированные эвристики.
 
         Стратегии (в порядке приоритета):
-        1. LLM-декомпозиция через LM Studio API (http://localhost:1234)
+        1. LLM-декомпозиция через LM Studio API (конфигурируемый URL)
         2. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
         3. Разделение по вопросам: "как", "где", "когда", "что"
         4. Извлечение ключевых существительных и глаголов
@@ -968,7 +971,7 @@ class Searcher:
     def _try_llm_decompose(self, query: str) -> Optional[List[str]]:
         """Пытается декомпозировать запрос через LM Studio API.
 
-        Использует локальный LM Studio (http://localhost:1234) для разбиения
+        Использует локальный LM Studio (конфигурируемый URL) для разбиения
         сложного запроса на семантически независимые подзапросы.
 
         Args:
@@ -981,7 +984,9 @@ class Searcher:
             import httpx
 
             # Проверяем доступность LM Studio
-            lm_url = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
+            from src.core.config import get_config
+            config = get_config()
+            lm_url = os.getenv("LM_STUDIO_URL", config.embedding.get_lm_studio_base_url() + "/v1")
             api_key = os.getenv("API_KEY", "sk-local")
 
             # Быстрая проверка живости (1 секунда)
@@ -1177,6 +1182,104 @@ class Searcher:
                     logger.debug(f"Fallback анализ тоже недоступен: {e2}")
 
         return analysis
+
+    def _expand_graph_context(self, results: List[dict], original_query: str) -> List[dict]:
+        """Расширяет результаты поиска контекстом из графа вызовов.
+
+        Для каждого найденного символа добавляет связанные символы (callers, callees)
+        из SymbolIndex, если он доступен.
+
+        Args:
+            results: Исходные результаты поиска
+            original_query: Оригинальный запрос
+
+        Returns:
+            Результаты с добавленным графическим контекстом
+        """
+        try:
+            # Проверяем, есть ли доступ к symbol_index через indexer
+            if hasattr(self.indexer, 'symbol_index') and self.indexer.symbol_index:
+                symbol_index = self.indexer.symbol_index
+
+                expanded_results = []
+                seen_ids = set()  # Для избежания дубликатов
+
+                for result in results:
+                    # Добавляем оригинальный результат
+                    result_id = result.get('id', result.get('file_path', str(len(expanded_results))))
+                    if result_id not in seen_ids:
+                        expanded_results.append(result)
+                        seen_ids.add(result_id)
+
+                    # Извлекаем символ из результата
+                    file_path = result.get('file_path', '')
+                    chunk_text = result.get('text', '')
+
+                    # Пытаемся извлечь имя символа из текста
+                    symbol_name = self._extract_symbol_name(chunk_text)
+                    if not symbol_name and file_path:
+                        # Пытаемся получить символ из file_path
+                        symbol_name = Path(file_path).stem
+
+                    if symbol_name:
+                        # Получаем информацию о символе из графа
+                        symbol_info = symbol_index.get_symbol_info(symbol_name)
+                        if symbol_info:
+                            # Добавляем callers
+                            for caller in symbol_info.get('callers', []):
+                                caller_id = f"caller_{caller}_{len(expanded_results)}"
+                                if caller_id not in seen_ids:
+                                    expanded_results.append({
+                                        'id': caller_id,
+                                        'text': f'[CALLER] {caller}',
+                                        'file_path': caller,
+                                        'source': 'graph_context',
+                                        'score': result.get('score', 0.0) * 0.8,  # Снижаем вес
+                                        'context_type': 'caller'
+                                    })
+                                    seen_ids.add(caller_id)
+
+                            # Добавляем callees
+                            for callee in symbol_info.get('callees', []):
+                                callee_id = f"callee_{callee}_{len(expanded_results)}"
+                                if callee_id not in seen_ids:
+                                    expanded_results.append({
+                                        'id': callee_id,
+                                        'text': f'[CALLEE] {callee}',
+                                        'file_path': callee,
+                                        'source': 'graph_context',
+                                        'score': result.get('score', 0.0) * 0.8,  # Снижаем вес
+                                        'context_type': 'callee'
+                                    })
+                                    seen_ids.add(callee_id)
+
+                return expanded_results
+        except Exception as e:
+            logger.debug(f"Ошибка при расширении контекста графа: {e}")
+
+        return results
+
+    def _extract_symbol_name(self, text: str) -> Optional[str]:
+        """Извлекает имя символа из текста чанка."""
+        import re
+
+        # Patтерны для извлечения имен символов
+        patterns = [
+            r'def\s+(\w+)',  # def function_name
+            r'class\s+(\w+)',  # class ClassName
+            r'(\w+)\s*=\s*function',  # variable = function
+            r'function\s+(\w+)',  # function name
+            r'const\s+(\w+)\s*=',  # const variable =
+            r'let\s+(\w+)\s*=',  # let variable =
+            r'var\s+(\w+)\s*=',  # var variable =
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                return match.group(1)
+
+        return None
 
     def _ensure_multi_reranker(self) -> Optional[MultiProviderReranker]:
         """Ленивая синхронная инициализация мульти-провайдерного реранкера."""

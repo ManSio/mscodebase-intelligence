@@ -24,22 +24,27 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from src.core.config import get_config
+
 logger = logging.getLogger(__name__)
 
-# Эндпоинты провайдеров
-_LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models"
-_LM_STUDIO_CHAT_URL = "http://127.0.0.1:1234/v1/chat/completions"
-_LM_STUDIO_EMBEDDINGS_URL = "http://127.0.0.1:1234/v1/embeddings"
-_OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
-_OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
-_OLLAMA_EMBEDDINGS_URL = "http://127.0.0.1:11434/api/embeddings"
+# Загружаем конфигурацию при импорте
+_config = get_config()
 
-# Таймауты (сек)
-_PROVIDER_PING_TIMEOUT = 0.5
-_INFERENCE_TIMEOUT = 30.0
+# Эндпоинты провайдеров (из конфигурации)
+_LM_STUDIO_MODELS_URL = _config.embedding.lm_studio_models_url
+_LM_STUDIO_CHAT_URL = _config.embedding.lm_studio_chat_url
+_LM_STUDIO_EMBEDDINGS_URL = _config.embedding.lm_studio_embeddings_url
+_OLLAMA_TAGS_URL = _config.embedding.ollama_tags_url
+_OLLAMA_CHAT_URL = _config.embedding.ollama_chat_url
+_OLLAMA_EMBEDDINGS_URL = _config.embedding.ollama_embeddings_url
+
+# Таймауты (сек) - из конфигурации
+_PROVIDER_PING_TIMEOUT = _config.performance.provider_ping_timeout
+_INFERENCE_TIMEOUT = _config.performance.reranker_timeout
 
 # Максимальная длина текста чанка для промпта (символы)
-_MAX_CHUNK_PREVIEW_LEN = 800
+_MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
 
 # Регулярка для извлечения JSON-массива scores из ответа
 _SCORES_JSON_RE = re.compile(
@@ -67,13 +72,13 @@ class MultiProviderReranker:
     ):
         """
         Args:
-            lm_studio_url: Базовый URL LM Studio (по умолчанию http://127.0.0.1:1234/v1)
-            ollama_url: Базовый URL Ollama (по умолчанию http://127.0.0.1:11434)
+            lm_studio_url: Базовый URL LM Studio (по умолчанию из конфигурации)
+            ollama_url: Базовый URL Ollama (по умолчанию из конфигурации)
             ping_timeout: Таймаут проверки доступности провайдера (сек)
             inference_timeout: Таймаут инференса (сек)
         """
-        self.lm_studio_url = (lm_studio_url or "http://127.0.0.1:1234/v1").rstrip("/")
-        self.ollama_url = (ollama_url or "http://127.0.0.1:11434").rstrip("/")
+        self.lm_studio_url = (lm_studio_url or _config.embedding.get_lm_studio_base_url() + "/v1").rstrip("/")
+        self.ollama_url = (ollama_url or _config.embedding.get_ollama_base_url()).rstrip("/")
         self.ping_timeout = ping_timeout
         self.inference_timeout = inference_timeout
 

@@ -8,9 +8,11 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import httpx
+
+from src.core.config import get_config
 
 logger = logging.getLogger("mscodebase_server.embedder")
 
@@ -20,18 +22,26 @@ _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
 
 class RemoteEmbedder:
     def __init__(
-        self, port: int = 1234, host: str = "127.0.0.1", timeout: float = 30.0
+        self, port: Optional[int] = None, host: Optional[str] = None, timeout: Optional[float] = None
     ):
         """Универсальный клиент эмбеддингов с каскадным переключением (LM Studio -> ONNX -> Fallback).
 
         Автоматически сканирует доступность LM Studio / Ollama в фоновом потоке.
         Если внешний сервер появился — переключается на него без перезапуска Zed.
+
+        Args:
+            port: Порт LM Studio (по умолчанию из конфигурации)
+            host: Хост LM Studio (по умолчанию из конфигурации)
+            timeout: Таймаут запросов (по умолчанию из конфигурации)
         """
-        self.host = host
-        self.port = port
-        self.timeout = timeout
-        self.lm_studio_url = f"http://{host}:{port}/v1/embeddings"
-        self.model_name = os.getenv("MODEL_NAME", "text-embedding-bge-m3")
+        config = get_config()
+
+        # Используем конфигурацию по умолчанию, если не передано
+        self.host = host or config.embedding.lm_studio_host
+        self.port = port or config.embedding.lm_studio_port
+        self.timeout = timeout or config.performance.embedding_timeout
+        self.lm_studio_url = f"http://{self.host}:{self.port}/v1/embeddings"
+        self.model_name = config.embedding.model_name
 
         # Переменные для локального ONNX (ленивая инициализация, чтобы не жрать ОЗУ зря)
         self._onnx_session = None
@@ -89,9 +99,10 @@ class RemoteEmbedder:
 
     def _check_ollama(self) -> bool:
         """Быстрая проверка доступности Ollama."""
+        config = get_config()
         try:
             with httpx.Client(timeout=2.0) as client:
-                r = client.get("http://localhost:11434/api/tags")
+                r = client.get(config.embedding.ollama_tags_url)
                 return r.status_code == 200
         except Exception:
             return False
