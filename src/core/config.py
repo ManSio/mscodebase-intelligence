@@ -72,6 +72,9 @@ class SearchConfig:
 @dataclass
 class IndexConfig:
     """Конфигурация для индексации"""
+    # Base directory
+    base_index_dir: str = os.getenv("BASE_INDEX_DIR", ".codebase_indices")
+
     # LanceDB
     lancedb_version: str = os.getenv("LANCEDB_VERSION", "v2")
 
@@ -133,6 +136,9 @@ class Config:
 
 # Глобальный экземпляр конфигурации
 config = Config()
+
+# Alias для совместимости с Intelligence Layer и внешними модулями
+settings = config
 
 
 def reload_config() -> Config:

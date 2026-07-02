@@ -699,8 +699,19 @@ def main():
         fail("Не удалось настроить MCP-сервер в Zed")
         return
 
-    # LSP-сервер и language servers настраиваются отдельно (patch_zed_settings не покрывает)
+    # —— БЭКАП СУЩЕСТВУЮЩИХ НАСТРОЕК ——
     settings_json_path = zed_config_dir / "settings.json"
+
+    # Создаём бэкап ПЕРЕД любыми изменениями
+    backup_path = settings_json_path.with_suffix(".json.pre_install")
+    if settings_json_path.exists() and not backup_path.exists():
+        try:
+            shutil.copy2(settings_json_path, backup_path)
+            ok(f"Бэкап настроек создан: {Color.DIM}{backup_path}{Color.RESET}")
+        except Exception as e:
+            warn(f"Не удалось создать бэкап: {e}")
+
+    # —— ЧИТАЕМ СУЩЕСТВУЮЩИЕ НАСТРОЙКИ ——
     settings_data = {}
     if settings_json_path.exists():
         try:
@@ -708,22 +719,31 @@ def main():
             import re
             content_clean = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
             settings_data = json.loads(content_clean)
-        except Exception:
-            settings_data = {}
+            ok(f"Загружены существующие настройки из {Color.DIM}{settings_json_path}{Color.RESET}")
+        except Exception as e:
+            warn(f"Не удалось прочитать настройки Zed: {e}")
+            if backup_path.exists():
+                warn(f"Попробуйте восстановить из бэкапа: {backup_path}")
+            return
 
-    # LSP-сервер
+    # —— ДОБАВЛЯЕМ LSP (БЕЗ ПЕРЕЗАПИСИ СУЩЕСТВУЮЩИХ!) ——
+    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
+
     if "lsp" not in settings_data:
         settings_data["lsp"] = {}
-    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
-    settings_data["lsp"]["mscodebase-lsp"] = {
-        "command": str(PYTHON_EXE),
-        "arguments": ["-u", str(lsp_script_path)],
-    }
-    detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
 
-    # Language servers
+    # Сохраняем существующие LSP серверы, добавляем только свой
+    if "mscodebase-lsp" not in settings_data["lsp"]:
+        settings_data["lsp"]["mscodebase-lsp"] = {
+            "command": str(PYTHON_EXE),
+            "arguments": ["-u", str(lsp_script_path)],
+        }
+        detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
+
+    # —— ДОБАВЛЯЕМ LANGUAGE SERVERS (БЕЗ ПЕРЕЗАПИСИ!) ——
     if "languages" not in settings_data:
         settings_data["languages"] = {}
+
     for lang in ["Python", "TypeScript", "Rust", "Go", "JavaScript"]:
         if lang not in settings_data["languages"]:
             settings_data["languages"][lang] = {}
@@ -733,19 +753,39 @@ def main():
         if "mscodebase-lsp" not in lang_config["language_servers"]:
             lang_config["language_servers"].append("mscodebase-lsp")
 
-    # Семафор и fallback mode
+    # —— ДОБАВЛЯЕМ MSCODEBASE КОНФИГ (БЕЗ ПЕРЕЗАПИСИ!) ——
     sem_config = generate_semaphore_config()
+
     if "mscodebase" not in settings_data:
         settings_data["mscodebase"] = {}
-    settings_data["mscodebase"]["semaphore"] = sem_config
-    settings_data["mscodebase"]["fallback_mode"] = fallback_mode
 
-    # Сохраняем настройки
-    settings_json_path.write_text(
-        json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    ok(f"Настройки записаны: {Color.DIM}{settings_json_path}{Color.RESET}")
-    detail(f"Семафор LLM: max_concurrent={MAX_CONCURRENT_LLM_REQUESTS}")
+    # Сохраняем существующие настройки mscodebase
+    if "semaphore" not in settings_data["mscodebase"]:
+        settings_data["mscodebase"]["semaphore"] = sem_config
+
+    if "fallback_mode" not in settings_data["mscodebase"]:
+        settings_data["mscodebase"]["fallback_mode"] = fallback_mode
+
+    # —— ДОБАВЛЯЕМ context_servers_to_query ——
+    if "context_servers_to_query" not in settings_data:
+        settings_data["context_servers_to_query"] = []
+
+    if SERVER_NAME not in settings_data["context_servers_to_query"]:
+        settings_data["context_servers_to_query"].append(SERVER_NAME)
+
+    # —— СОХРАНЯЕМ НАСТРОЙКИ (все существующие настройки сохранены!) ——
+    try:
+        settings_json_path.write_text(
+            json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        ok(f"Настройки обновлены: {Color.DIM}{settings_json_path}{Color.RESET}")
+        detail(f"Семафор LLM: max_concurrent={MAX_CONCURRENT_LLM_REQUESTS}")
+    except Exception as e:
+        fail(f"Не удалось сохранить настройки: {e}")
+        if backup_path.exists():
+            warn(f"Восстановите из бэкапа: {backup_path}")
+        return
+
     if fallback_mode:
         detail("Режим: Fallback (Tree-sitter + текстовые индексы)")
     else:

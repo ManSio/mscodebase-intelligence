@@ -640,6 +640,30 @@ class SymbolIndex:
         with self._lock:
             return len(self._definitions)
 
+    # --- Методы для совместимости с Intelligence Layer ---
+
+    def get_callers(self, symbol: str) -> List["SymbolRef"]:
+        """Кто вызывает этот символ (обратные связи).
+
+        Возвращает список SymbolRef для всех символов, которые вызывают данный символ.
+        """
+        return [r for r in self.find_references(symbol) if not r.is_definition]
+
+    def get_callees(self, symbol: str) -> List[Dict]:
+        """Кого вызывает этот символ (прямые связи).
+
+        Возвращает список символов, которые вызываются данным символом.
+        """
+        graph = self.build_call_graph(symbol, depth=1)
+        return graph.get("callees", [])
+
+    def get_references(self, symbol: str) -> List["SymbolRef"]:
+        """Все упоминания символа (определения + использования).
+
+        Возвращает полный список всех ссылок на символ.
+        """
+        return self.find_references(symbol)
+
     def index_project(self, project_path: str, parser) -> None:
         """
         Индексирует проект с помощью парсера (Tree-sitter).

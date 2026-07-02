@@ -326,6 +326,29 @@ def create_mcp_server() -> "FastMCP":
     logger.info("🚀 MCP-сервер запущен")
 
     # ==========================================
+    # INTELLIGENCE LAYER - Интеллектуальный слой проекта
+    # ==========================================
+    # Инициализируем слой интеллекта (Блоки 1-6 из ТЗ)
+    try:
+        from src.core.intelligence_layer import ProjectIntelligenceLayer, register_intelligence_tools
+
+        intel_layer = ProjectIntelligenceLayer(
+            project_path=ext_root,
+            indexer=indexer,
+            searcher=searcher,
+            symbol_index=symbol_index
+        )
+        logger.info("🧠 Intelligence Layer инициализирован")
+
+        # Регистрируем инструменты Intelligence Layer
+        register_intelligence_tools(mcp, intel_layer)
+        logger.info("🧠 Инструменты Intelligence Layer зарегистрированы (12 инструментов)")
+
+    except Exception as e:
+        logger.warning(f"⚠️  Не удалось инициализировать Intelligence Layer: {e}")
+        logger.info("   Продолжаем без Intelligence Layer (базовый функционал доступен)")
+
+    # ==========================================
     # ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ ЧЕРЕЗ LSP
     # ==========================================
     # LSP-сервер (src/lsp_main.py) получает события didSave от Zed
