@@ -590,8 +590,15 @@ def main():
     for item in items_to_copy:
         target = ZED_EXT_DIR / item.name
         try:
+            # Удаляем старую директорию/файл, чтобы гарантировать обновление
+            if target.exists():
+                if target.is_dir():
+                    shutil.rmtree(str(target))
+                else:
+                    target.unlink()
+
             if item.is_dir():
-                shutil.copytree(str(item), str(target), dirs_exist_ok=True)
+                shutil.copytree(str(item), str(target))
             else:
                 shutil.copy2(str(item), str(target))
         except Exception as e:
