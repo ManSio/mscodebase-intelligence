@@ -1,5 +1,26 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-03 23:45] — [Type: Fix|Audit] — ETA, баги путей, verify_action, аудит 4 багов
+
+**Problem:**
+- `get_index_progress` не показывал ETA (Estimated Time) — отсутствовал расчёт
+- `notify_change` читал PROJECT_PATH напрямую без фильтра `$ZED` → краш при нерезолвленной переменной
+- `_resolve_project_path` при CWD==ext_root сразу возвращал ext_root без попытки восстановления
+- `verify_action` использовал `**kwargs` → ломал JSON Schema для FastMCP
+- Docstring: `get_repo_rank` обещал `top_k=20`, код использовал `10`
+- Docstring: `index_project_dir` упоминал Watcher, но он отключён (LSP вместо него)
+
+**Solution:**
+1. ETA: Добавлен расчёт `elapsed = now - started_at`, `eta_remaining = elapsed / percent * (100 - percent)` с форматированием "~X мин Y сек"
+2. notify_change: Переведён на `_resolve_project_path()` вместо `os.environ.get("PROJECT_PATH")` — фильтрация `$ZED`
+3. _resolve_project_path: Добавлен .git heuristic, ZED_WORKTREE_ROOT env check, адекватный fallback на CWD с warning
+4. verify_action: `**kwargs` → `kwargs: Optional[Dict[str, Any]] = None` для корректной Pydantic-схемы
+5. Docstring: `get_repo_rank` исправлен на top_k=10, комментарий о ext_root актуализирован
+6. `mscodebase_rules` prompt: обновлён — post-modification sync через notify_change вместо index_project_dir
+
+**Tools Used:** read_file, edit_file, intel_get_runtime_status, get_index_status, search_code, get_symbol_info, spawn_agent (аудит), diagnostics
+**Status:** ✅
+
 ## [2026-07-03 23:11] — [Type: Fix|Refactor] — Консолидация архитектуры: фикс путей проекта и download_model.py
 
 **Problem:**

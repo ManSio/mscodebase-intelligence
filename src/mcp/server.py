@@ -169,9 +169,18 @@ def _create_progress_callback(project_name: str):
     Потокобезопасен через _progress_lock.
     """
 
+    # Запоминаем время старта при первом вызове
     def progress_callback(file_name: str, done: int, total: int, phase: str):
         try:
-            # Обновляем внутренний счётчик (потокобезопасно)
+            now = time.time()
+            # При первом вызове фиксируем started_at
+            with _progress_lock:
+                existing = _last_progress.get(project_name, {})
+                if "started_at" not in existing or existing.get("phase") == "complete":
+                    started_at = now
+                else:
+                    started_at = existing["started_at"]
+
             progress_info = {
                 "project": project_name,
                 "phase": phase,
@@ -179,7 +188,8 @@ def _create_progress_callback(project_name: str):
                 "files_total": total,
                 "current_file": file_name,
                 "percent": (done / total * 100) if total > 0 else 0,
-                "timestamp": time.time(),
+                "timestamp": now,
+                "started_at": started_at,
             }
             with _progress_lock:
                 _last_progress[project_name] = progress_info
@@ -325,10 +335,10 @@ def create_mcp_server() -> "FastMCP":
           1. Явно переданный provided
           2. PROJECT_PATH из окружения (только если резолвится в реальную директорию)
           3. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT резолвится здесь корректно)
+          4. Родительская директория с .git (хеуристика для неправильного current_dir)
 
         ВАЖНО: ext_root (директория расширения) НИКОГДА не используется как проект.
-        Если CWD совпадает с ext_root — значит current_dir не настроен,
-        выводится warning, ext_root используется как крайний fallback.
+        Если CWD совпадает с ext_root — пытаемся восстановиться.
         """
         if provided and provided.strip():
             return Path(provided).resolve()
@@ -339,18 +349,39 @@ def create_mcp_server() -> "FastMCP":
         if cwd != ext_root:
             logger.debug(f"_resolve_project_path: CWD={cwd}")
             return cwd
-        # Если CWD == ext_root — что-то пошло не так
+
+        # CWD == ext_root — current_dir не настроен. Пытаемся восстановиться.
         logger.warning(
             "⚠️ PROJECT_PATH не установлен и CWD совпадает с ext_root! "
             "Убедитесь что в settings.json указан current_dir=$ZED_WORKTREE_ROOT. "
-            "Использую ext_root как временный fallback."
+            "Ищу проект через родительские директории..."
         )
-        return ext_root
+
+        # Хеуристика: ищем родительскую директорию с .git
+        for parent in ext_root.parents:
+            if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
+                logger.info(f"✅ Найден проект через .git: {parent}")
+                return parent
+
+        # Если есть ZED_WORKTREE_ROOT как переменная окружения
+        zed_root = os.environ.get("ZED_WORKTREE_ROOT")
+        if zed_root:
+            zed_path = Path(zed_root).resolve()
+            if zed_path.exists() and zed_path != ext_root:
+                logger.info(f"✅ Найден проект через ZED_WORKTREE_ROOT: {zed_path}")
+                return zed_path
+
+        # Абсолютный fallback — CWD с предупреждением
+        logger.warning(
+            "⚠️ Не удалось определить проект! Использую CWD как временный fallback. "
+            "Настройте current_dir=$ZED_WORKTREE_ROOT в settings.json."
+        )
+        return cwd
 
     # Инициализация ядра (RemoteEmbedder использует конфигурацию по умолчанию)
     embedder = RemoteEmbedder()
 
-    # Определяем базовый проект: приоритет PROJECT_PATH из env, fallback — ext_root
+    # Определяем базовый проект через _resolve_project_path()
     # Это нужно чтобы Indexer/SymbolIndex работали с проектом пользователя, а не с расширением
     _base_project = _resolve_project_path()
     default_file_guard = FileGuard(_base_project)
@@ -481,14 +512,11 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("notify_change", file_path)
         try:
-            # Определяем корень ПРОЕКТА (не расширения!)
-            # PROJECT_PATH = $ZED_WORKTREE_ROOT, устанавливается Zed при запуске сервера
-            project_root = os.environ.get("PROJECT_PATH")
-            if project_root:
-                project_root = Path(project_root).resolve()
-            else:
-                # Fallback: _resolve_project_path (PROJECT_PATH или CWD)
-                project_root = _resolve_project_path()
+            # Определяем корень ПРОЕКТА через _resolve_project_path()
+            # ВАЖНО: PROJECT_PATH может содержать $ZED (нерезолвленная переменная Zed),
+            # поэтому НЕ используем os.environ.get("PROJECT_PATH") напрямую.
+            # _resolve_project_path() фильтрует такие случаи.
+            project_root = _resolve_project_path()
 
             # Если путь относительный — резолвим относительно корня ПРОЕКТА, а не CWD
             raw_path = Path(file_path)
@@ -730,6 +758,20 @@ def create_mcp_server() -> "FastMCP":
                 remaining = info["files_total"] - info["files_done"]
                 lines.append(f"     ⏳ Осталось ~{remaining} файлов")
 
+                # ETA на основе started_at
+                started_at = info.get("started_at") or info.get("timestamp", 0)
+                now = time.time()
+                elapsed = now - started_at
+                if elapsed > 10 and info["percent"] > 5:
+                    estimated_total = elapsed / (info["percent"] / 100)
+                    eta_remaining = estimated_total - elapsed
+                    if eta_remaining > 0:
+                        if eta_remaining > 60:
+                            eta_str = f"~{int(eta_remaining // 60)} мин {int(eta_remaining % 60)} сек"
+                        else:
+                            eta_str = f"~{int(eta_remaining)} сек"
+                        lines.append(f"     ⏱ ETA: {eta_str} осталось")
+
         return "\n".join(lines)
 
     @mcp.tool()
@@ -828,7 +870,7 @@ def create_mcp_server() -> "FastMCP":
         1. Use native Windows paths (backslashes) — do NOT normalize to POSIX.
         2. After calling this, ALWAYS call get_index_status() to verify cache state.
         3. Используй get_index_progress() для отслеживания прогресса.
-        4. Watcher автоматически обнаружит изменения через 2-3 секунды.
+        4. После завершения индексации изменения отслеживаются через LSP (didSave).
         """
         _debug_log("index_project_dir", path)
         global _last_index_error
@@ -1309,7 +1351,7 @@ def create_mcp_server() -> "FastMCP":
 
         Args:
             project_root: Путь к проекту
-            top_k: Количество топ-символов (по умолчанию 20)
+            top_k: Количество топ-символов (по умолчанию 10)
 
         Returns:
             Список символов с RepoRank score (0-1)
@@ -2758,13 +2800,16 @@ You operate under a strict deterministic execution matrix. Every action must be 
 
 ## 6. PATH PROTOCOL
 - Use native Windows paths (backslashes) when passing to MCP tools.
-- Do NOT normalize to POSIX lowercase — our tools handle Windows paths natively.
-- Example: `D:\\Project\\MSCodeBase\\src\\core\\indexer.py`
+- For notify_change: paths are relative to project root (e.g., `src\core\indexer.py`).
+- For project_root params: absolute Windows path (e.g., `D:\Project\MSCodeBase`).
+- Do NOT use POSIX forward slashes for MCP tools — Windows format only.
 
 ## 7. POST-MODIFICATION SYNC
-- After writing any file, immediately call `index_project_dir(path)` to force re-indexing.
+- After editing any file, call `notify_change(file_path)` to incrementally refresh the index.
+  - Paths are relative to project root (e.g., `src\core\indexer.py`).
+  - notify_change reads from LSP VFS (memory) for open files, falls back to disk.
 - Call `get_index_status()` to verify that the cache matches the updated state.
-- Use `get_index_progress()` to check indexing progress before searching.
+- If full re-index needed (e.g., new dependencies), use `index_project_dir(path)`.
 
 ## 8. INDEXING PROGRESS AWARENESS
 - After `index_project_dir()`, indexing runs asynchronously in background.
@@ -2783,7 +2828,10 @@ You operate under a strict deterministic execution matrix. Every action must be 
     """
 
     @mcp.tool()
-    def verify_action(action_type: str, **kwargs) -> str:
+    def verify_action(
+        action_type: str,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Верификация выполненного действия (Execution Contract).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -2802,15 +2850,16 @@ You operate under a strict deterministic execution matrix. Every action must be 
         try:
             contract = ExecutionContract()
             results = []
+            params = kwargs or {}
 
             if action_type == "file_write":
-                file_path = kwargs.get("file_path", "")
-                expected = kwargs.get("expected_content")
+                file_path = params.get("file_path", "")
+                expected = params.get("expected_content")
                 result = contract.verify_file_write(file_path, expected)
                 results.append(result)
 
             elif action_type == "git_commit":
-                expected_msg = kwargs.get("expected_message")
+                expected_msg = params.get("expected_message")
                 result = contract.verify_git_commit(expected_msg)
                 results.append(result)
 
@@ -2819,12 +2868,12 @@ You operate under a strict deterministic execution matrix. Every action must be 
                 results.append(result)
 
             elif action_type == "index_sync":
-                project_root = kwargs.get("project_root", "")
+                project_root = params.get("project_root", "")
                 result = contract.verify_index_sync(project_root)
                 results.append(result)
 
             elif action_type == "all":
-                file_path = kwargs.get("file_path")
+                file_path = params.get("file_path")
                 if file_path:
                     results.append(contract.verify_file_write(file_path))
                 results.append(contract.verify_git_commit())
