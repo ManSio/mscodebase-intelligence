@@ -1,41 +1,36 @@
 {
-  // LSP Server (проактивный индексатор)
-  "lsp": {
-    "mscodebase-lsp": {
-      "command": "python",
-      "args": ["-m", "src.lsp_main"],
-      "env": {
-        "PYTHONPATH": "."
-      }
-    }
-  },
-
-  // Подключаем LSP к языкам
-  "languages": {
-    "Python": {
-      "language_servers": ["pyright", "mscodebase-lsp"]
-    },
-    "TypeScript": {
-      "language_servers": ["typescript-language-server", "mscodebase-lsp"]
-    },
-    "Rust": {
-      "language_servers": ["rust-analyzer", "mscodebase-lsp"]
-    },
-    "Go": {
-      "language_servers": ["gopls", "mscodebase-lsp"]
-    }
-  },
-
-  // MCP Server (реактивный для AI-ассистента)
+  // MCP Server для AI-ассистента
+  // Устанавливается автоматически через install.py или sync_to_installed.bat
   "context_servers": {
     "mscodebase-intelligence": {
-      "command": "python",
-      "args": ["-m", "src.main"],
+      "command": "<python.exe>",
+      "args": ["-u", "-m", "src.main"],
+      // current_dir и PYTHONPATH = корень расширения (не проекта!)
+      // PROJECT_PATH = $ZED_WORKTREE_ROOT (устанавливается Zed)
+      "current_dir": "<ext_install_dir>",
       "env": {
-        "PYTHONPATH": "."
+        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+        "PYTHONPATH": "<ext_install_dir>"
       }
     }
   },
 
-  "context_servers_to_query": ["mscodebase-intelligence"]
+  // Авто-запрос к серверу (как @codebase в Cursor)
+  "context_servers_to_query": ["mscodebase-intelligence"],
+
+  // LSP Server для фоновой индексации
+  // "lsp": {
+  //   "mscodebase-lsp": {
+  //     "command": "<python.exe>",
+  //     "arguments": ["-u", "<ext_install_dir>/src/lsp_main.py"]
+  //   }
+  // },
+
+  // Привязка LSP к языкам (раскомментируйте если используете LSP)
+  // "languages": {
+  //   "Python": { "language_servers": ["pyright", "mscodebase-lsp"] },
+  //   "TypeScript": { "language_servers": ["typescript-language-server", "mscodebase-lsp"] },
+  //   "Rust": { "language_servers": ["rust-analyzer", "mscodebase-lsp"] },
+  //   "Go": { "language_servers": ["gopls", "mscodebase-lsp"] }
+  // }
 }

@@ -11,6 +11,7 @@ MSCodeBase Intelligence — Hybrid LSP + MCP Server (Единый процесс
 2. Отложенная запись на диск (читаем из памяти LSP)
 3. Закрытые файлы (MCP может читать через LSP VFS)
 """
+
 import asyncio
 import logging
 import os
@@ -37,31 +38,47 @@ logging.basicConfig(
 logger = logging.getLogger("MSCodeBase-Hybrid")
 
 # Импортируем mcp-библиотеку (теперь из site-packages, не из src/mcp/)
-from mcp.server.fastmcp import FastMCP  # noqa: E402
 import uvicorn  # noqa: E402
+from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 # Добавляем проект в PYTHONPATH (теперь безопасно — mcp уже в sys.modules)
 _ext_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ext_root))
 
-from src.core.indexer import Indexer, _generate_unique_db_path
-from src.core.remote_embedder import RemoteEmbedder
 from src.core.file_guard import FileGuard
-from src.core.parser import CodeParser
-from src.core.searcher import Searcher
-from src.core.log_manager import setup_project_logging, get_log_summary
-from src.core.symbol_index import SymbolIndex
-from src.core.structural_search import StructuralSearcher
+from src.core.indexer import Indexer, _generate_unique_db_path
+from src.core.log_manager import get_log_summary, setup_project_logging
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
+from src.core.parser import CodeParser
+from src.core.remote_embedder import RemoteEmbedder
+from src.core.searcher import Searcher
+from src.core.structural_search import StructuralSearcher
+from src.core.symbol_index import SymbolIndex
 
 # Настройка файлового логирования
 setup_project_logging(_ext_root)
 
 # Поддерживаемые расширения
 SUPPORTED_EXTENSIONS = {
-    ".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go",
-    ".java", ".cpp", ".c", ".h", ".hpp", ".php", ".rb",
-    ".md", ".json", ".yaml", ".yml", ".toml",
+    ".py",
+    ".rs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".go",
+    ".java",
+    ".cpp",
+    ".c",
+    ".h",
+    ".hpp",
+    ".php",
+    ".rb",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
 }
 
 
@@ -91,8 +108,11 @@ class SharedIndexer:
         self.parser = CodeParser()
 
         self.indexer = Indexer(
-            db_path, self.embedder, file_guard,
-            project_path=project_path, parser=self.parser
+            db_path,
+            self.embedder,
+            file_guard,
+            project_path=project_path,
+            parser=self.parser,
         )
         self.searcher = Searcher(self.indexer, self.embedder)
         self.indexer.searcher = self.searcher
@@ -103,14 +123,16 @@ class SharedIndexer:
         # Cross-repo поиск
         self.project_registry = ProjectRegistry()
         self.project_registry.register(project_path)
-        self.multi_project_searcher = MultiProjectSearcher(self.embedder, self.project_registry)
+        self.multi_project_searcher = MultiProjectSearcher(
+            self.embedder, self.project_registry
+        )
 
         self._initialized = True
         logger.info(f"✅ SharedIndexer initialized for {project_path}")
 
     async def index_file(self, file_path: Path, content: Optional[str] = None) -> bool:
         """Индексировать один файл (thread-safe через asyncio.Lock)."""
-        if not self._initialized or self.indexer is None:
+        if not self._initialized or self.indexer is None or self.project_path is None:
             return False
 
         async with self._lock:  # Защита от гонок
@@ -146,7 +168,7 @@ def uri_to_path(uri: str) -> Path:
     parsed = urlparse(uri)
     path = parsed.path
     # Windows: /C:/path -> C:/path
-    if path.startswith('/') and len(path) > 2 and path[2] == ':':
+    if path.startswith("/") and len(path) > 2 and path[2] == ":":
         path = path[1:]
     return Path(path).resolve()
 
@@ -156,13 +178,13 @@ def uri_to_path(uri: str) -> Path:
 # ============================================================================
 
 from lsprotocol.types import (
-    TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_CHANGE,
     TEXT_DOCUMENT_DID_CLOSE,
+    TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
-    DidOpenTextDocumentParams,
     DidChangeTextDocumentParams,
     DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
     InitializeParams,
 )
@@ -191,6 +213,7 @@ async def on_initialized(ls: LanguageServer, params):
                 DidChangeWatchedFilesRegistrationOptions,
                 FileSystemWatcher,
             )
+
             await ls.register_capability_async(
                 "workspace/didChangeWatchedFiles",
                 DidChangeWatchedFilesRegistrationOptions(
@@ -202,7 +225,7 @@ async def on_initialized(ls: LanguageServer, params):
                         FileSystemWatcher(glob_pattern="**/*.go"),
                         FileSystemWatcher(glob_pattern="**/*.md"),
                     ]
-                )
+                ),
             )
             logger.info("👁️ File watcher registered for external changes")
         except Exception as watch_err:
@@ -253,7 +276,9 @@ async def did_change(ls: LanguageServer, params: DidChangeTextDocumentParams):
     except Exception:
         pass
 
-    logger.info(f"✏️ DID_CHANGE: {file_path.name} ({len(content) if content else 0} chars)")
+    logger.info(
+        f"✏️ DID_CHANGE: {file_path.name} ({len(content) if content else 0} chars)"
+    )
     await shared_indexer.index_file(file_path, content)
 
 
@@ -299,10 +324,14 @@ async def did_change_watched_files(ls: LanguageServer, params):
 
             if change_type == 3:  # Deleted
                 logger.info(f"🗑️ WATCHER DELETE: {file_path.name}")
-                if shared_indexer.indexer:
+                if shared_indexer.indexer and shared_indexer.project_path is not None:
                     try:
-                        rel_path = str(file_path.relative_to(shared_indexer.project_path))
-                        escaped = shared_indexer.indexer._escape_file_path_for_lance(rel_path)
+                        rel_path = str(
+                            file_path.relative_to(shared_indexer.project_path)
+                        )
+                        escaped = shared_indexer.indexer._escape_file_path_for_lance(
+                            rel_path
+                        )
                         shared_indexer.indexer.table.delete(f"file_path = '{escaped}'")
                     except Exception as e:
                         logger.debug(f"Delete error: {e}")
@@ -318,6 +347,7 @@ async def did_change_watched_files(ls: LanguageServer, params):
 # ============================================================================
 # MCP SERVER (HTTP/SSE)
 # ============================================================================
+
 
 def start_mcp_server():
     """Запуск MCP-сервера через SSE в отдельном потоке."""
@@ -363,6 +393,7 @@ def start_mcp_server():
 
         # Используем конфигурацию для MCP сервера
         from src.core.config import get_config
+
         config = get_config()
         mcp_host = config.server.mcp_host
         mcp_port = config.server.mcp_port
@@ -388,9 +419,11 @@ if __name__ == "__main__":
 
     # Даём MCP время запуститься (конфигурируемая задержка)
     from src.core.config import get_config
+
     config = get_config()
 
     import time
+
     startup_delay = config.performance.mcp_startup_delay
     time.sleep(startup_delay)
 

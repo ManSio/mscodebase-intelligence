@@ -1,14 +1,14 @@
-# Global Agent Rules — MSCodeBase Hybrid Architecture (42 Registered Tools)
+# Global Agent Rules — MSCodeBase Hybrid Architecture (36 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 32 Low-Level Core MCP Tools.
+> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 26 Low-Level Core MCP Tools.
 
 ---
-MSCodeBase Core Rules: 
+MSCodeBase Core Rules:
 
 [STATE-AWARENESS]
-IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, switch to grep/regex. 
-IF chunks > 0, use search_code for semantic, get_symbol_info for exact names. 
+IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, switch to grep/regex.
+IF chunks > 0, use search_code for semantic, get_symbol_info for exact names.
 
 [MEMORY_PROTOCOL]
 1. INITIALIZATION: При получении задачи первым делом вызови `intel_get_project_memory`. Изучи ADRs, известные проблемы и прошлые попытки.
@@ -23,20 +23,21 @@ IF chunks > 0, use search_code for semantic, get_symbol_info for exact names.
 4. ВЕРДИКТ: Если всё верно, только тогда завершай вывод фразой "TASK VERIFIED".
 
 [RECONNAISSANCE & EXECUTION]
-NEVER guess line numbers. Use get_symbol_info or grep before read_file. 
-CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files. 
-SAFE WRITING: Read target lines again before edit. Preserve indentation and style. 
+NEVER guess line numbers. Use get_symbol_info or grep before read_file.
+CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files.
+SAFE WRITING: Read target lines again before edit. Preserve indentation and style.
 
 [ERROR HANDLING]
-Do not retry same tool with same params. Pivot to alternative. 
-WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). 
-POST-MODIFICATION: After writing, call index_project_dir + get_index_status. 
+Do not retry same tool with same params. Pivot to alternative.
+WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower().
+POST-MODIFICATION: After writing, call notify_change() + get_index_status.
 
 [CONSTRAINTS]
-NO Docker, NO pytz, NO stubs, NO mocks. 
-STOP immediately after code block. 
-DO NOT REPEAT code or logic. 
+NO Docker, NO pytz, NO stubs, NO mocks.
+STOP immediately after code block.
+DO NOT REPEAT code or logic.
 IF task is done, finish output.
+
 ## 0. FIRST STEP IN ANY SESSION
 
 1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root). This is your mandatory source of historical context regarding past sessions, implemented solutions, and recurring blockers.
@@ -61,7 +62,20 @@ You must strictly separate the analytical (high-level) phase from the surgical (
 * **Dependencies & Structural Inspection:** For a high-level architectural overview, invoke **`intel_code_topology`**. For tracking the exact call graph or definitions of a specific function/method, fall back to the low-level `get_symbol_info`.
 * **Incident Post-Mortems:** When debugging runtime crashes or exceptions, instead of parsing raw logs with `get_logs`, prioritize executing **`intel_predict_root_cause`** or **`intel_analyze_incident`**.
 
-### 1.2 Priority Matrix
+### 1.2 Search Code Mode Matrix
+
+`search_code(query, mode="auto")` — **единственный** инструмент для всех видов поиска.
+`smart_search`, `deep_search`, `context_search` — **DEPRECATED** (будут удалены, не используй!).
+
+| Режим | Когда использовать | Время |
+|-------|------------------|-------|
+| `"fast"` | Быстро найти упоминание файла/переменной/функции. Простой точный запрос. | ~300ms |
+| `"quality"` (или `"smart"`) | Поиск логики, архитектуры, связей. Нужен reranker для точности. **Режим по умолчанию.** | ~1200ms |
+| `"deep"` | Сложное архитектурное расследование. Многосвязный запрос. | ~2-5s |
+| `"context"` | Найти похожий код по фрагменту. Передай в `query` **код**, а не текст. | ~500ms |
+| `"auto"` | (По умолчанию) Автоопределение: простой запрос → fast, сложный → agentic multi-pass. | ~300ms-2s |
+
+### 1.3 Priority Matrix
 
 ```
 [ANALYSIS / BRAIN]                       [SURGICAL ACTION / HANDS]                 [BUILT-IN IDE]
@@ -77,25 +91,35 @@ intel_get_project_memory        ──>      get_commit_history / file_history  
 
 ---
 
-## 2. COMPREHENSIVE SUBSTRATE OF AVAILABLE TOOLS (42)
+## 2. COMPREHENSIVE SUBSTRATE OF AVAILABLE TOOLS (36)
 
 ### A. High-Level Intelligence Layer (10 Tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`, `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`, `intel_add_memory_node`, `intel_get_project_memory`, `intel_get_hotspots`, `intel_predict_root_cause`.
 
-### B. Low-Level Core MCP & Search Engine (32 Tools)
+### B. Low-Level Core MCP & Search Engine (26 Tools)
 
-`context_search`, `cross_project_deps`, `cross_repo_search`, `deep_search`, `find_similar_bugs`, `generate_chunk_summaries`, `get_branch_info`, `get_bug_correlation`, `get_commit_history`, `get_file_history`, `get_health_report`, `get_index_progress`, `get_index_status`, `get_index_timeline`, `get_logs`, `get_related_files`, `get_repo_map`, `get_repo_rank`, `get_symbol_info`, `get_task_status`, `graph_query`, `impact_analysis`, `index_health`, `index_project_dir`, `notify_change`, `predict_eta`, `run_health_check`, `scan_changes`, `search_code`, `smart_search`, `structural_search`, `submit_background_task`.
+`search_code(mode)`, `structural_search`, `cross_repo_search`, `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`, `get_related_files`, `graph_query`, `get_index_status`, `get_index_progress`, `get_index_timeline`, `index_health`, `index_project_dir`, `notify_change`, `get_health_report`, `watcher_status`, `get_logs`, `get_commit_history`, `get_file_history`, `get_branch_info`, `generate_chunk_summaries`, `submit_background_task`.
+
+> 🔄 **Deprecated** (← call `search_code` internally): `smart_search`, `deep_search`, `context_search`.
 
 ---
 
 ## 3. STRICT EXECUTION CONTRACT
 
-* **STATE-AWARENESS:** If `intel_get_runtime_status` or `get_index_status` returns `total_chunks == 0`, semantic search pipelines (`search_code`, `smart_search`) are **strictly forbidden**. Immediately fall back to local regex `grep` and prompt the user to fire up a background `intel_trigger_reindex`.
+* **STATE-AWARENESS:** If `intel_get_runtime_status` or `get_index_status` returns `total_chunks == 0`, semantic search pipelines (`search_code`) are **strictly forbidden**. Immediately fall back to local regex `grep` and prompt the user to fire up a background `intel_trigger_reindex`.
 * **RECONNAISSANCE:** Never guess code layout, file contents, or line numbers. Always execute `intel_code_topology` or `get_symbol_info` first to localize the target, then perform precise reads.
 * **CONTEXT BUDGET:** Maximum of **50 lines of code** per single built-in `read_file` call. Ingesting entire large files into the LLM context is heavily penalized. Navigate surgically.
-* **WINDOWS PATHS:** You must pass file paths to all 42 tools strictly in native Windows format with escaped double backslashes (e.g., `src\\core\\config.py`).
+* **WINDOWS PATHS:** You must pass file paths to all MCP tools strictly in native Windows format with escaped double backslashes (e.g., `src\\core\\config.py`).
 * **POST-MODIFICATION SYNC (Commitment Chain):** Immediately after modifying any file via `edit_file` or `write_file`, you are required to invoke **`notify_change(file_path=...)`** to incrementally refresh the file's index inside the LSP VFS. If the modification fixed a bug, document its signature using `intel_log_incident`.
+
+### notify_change() — контракт путей
+- `notify_change()` принимает **относительный путь от корня проекта** или абсолютный.
+- Относительные пути резолвятся через `$PROJECT_PATH` (= `$ZED_WORKTREE_ROOT`), а не от CWD.
+- Примеры:
+  ✅ `notify_change(file_path="src\\core\\indexer.py")`
+  ✅ `notify_change(file_path="D:\\Project\\MSCodeBase\\src\\core\\indexer.py")`
+  ❌ НЕ используй `$ZED_WORKTREE_ROOT` в пути — это переменная окружения, не путь.
 
 ---
 
@@ -115,7 +139,7 @@ intel_get_project_memory        ──>      get_commit_history / file_history  
 **Solution:**
 - High-level breakdown of the architectural edits made.
 
-**Tools Used:** list which of the 42 tools were active during the task.
+**Tools Used:** list which of the 36 tools were active during the task.
 **Status:** ✅ (Completed and synchronized via `notify_change`) / ❌ (Failed/Blocked)
 
 ```
@@ -124,6 +148,7 @@ intel_get_project_memory        ──>      get_commit_history / file_history  
 
 ## 5. ABSOLUTE CRITICAL FORBIDDENS
 
+* **FORBIDDEN** to call `smart_search`, `deep_search`, or `context_search` directly — they are DEPRECATED. Always use `search_code(query, mode=...)`.
 * **FORBIDDEN** to output stubs, incomplete blocks, or code placeholders like `TODO` or `...`. Every code modification must be a fully functional, production-ready implementation.
 * **FORBIDDEN** to retry the exact same tool call with identical arguments if it previously returned an error. Pivot to a fallback mechanism instead.
 * **FORBIDDEN** to suggest Docker, WSL, or containerized environments. The project environment is strictly native Windows.

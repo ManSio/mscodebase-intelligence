@@ -89,30 +89,59 @@ pytest tests/test_searcher.py::TestSearcher::test_basic_search -v
 
 Все тесты должны проходить перед созданием PR.
 
+### Структура тестов
+
+| Файл | Тестов | Тип | Что покрывает |
+|------|--------|-----|--------------|
+| `test_agentic_search.py` | 20 | unit, async | Агентный поиск: маршрутизация, уточнение запросов |
+| `test_reranker.py` | 27 | unit, async | Рерайкнер: ранжирование, веса, edge cases |
+| `test_symbol_index_call_graph.py` | 22 | unit | Граф вызовов: построение, обход, циклические зависимости |
+| `test_cross_repo_search.py` | 21 | unit | Кросс-репозиторийный поиск: слияние результатов |
+| `test_deep_search.py` | 15 | unit | Глубокий поиск: итерации, уточнение, стоп-условия |
+| `test_index_progress.py` | 11 | unit | Прогресс индексации: статусы, переходы состояний |
+| `test_indexer_project_path.py` | 6 | unit | Пути индексатора: нормализация, валидация |
+| `test_parser.py` | 4 | unit | Парсер: AST-извлечение, синтаксические ошибки |
+| `test_integration.py` | 3 | integration | Интеграция с реальной LanceDB |
+| `benchmark_agentic_search.py` | 6 | benchmark | Производительность агентного поиска |
+
+### Категории тестов
+
+- **Unit (129 тестов)** — не требуют внешних сервисов, время < 5 сек
+- **Integration (3 теста)** — требуют LanceDB, маркированы `@pytest.mark.integration`
+- **Benchmark (6 тестов)** — замеры latency/throughput, не в обычном прогоне
+- **Async** — `test_agentic_search.py` и `test_reranker.py` используют `pytest-asyncio`
+
+### CI-пайплайн
+
+```bash
+# Минимальный (каждый коммит)
+pytest tests/ -m "not integration and not benchmark" --tb=short -q
+
+# Полный (ночной прогон)
+pytest tests/ --tb=long -v
+```
+
+Требования к CI: Python 3.10+, `pytest`, `pytest-asyncio`, `pytest-cov`.
+
 ---
 
 ## 5. Adding New MCP Tools
 
-Все 14 MCP-инструментов определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
+Все 26 MCP-инструментов определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
-### Текущие инструменты:
+### Основные инструменты:
 
-| # | Инструмент | Назначение |
-|---|---|---|
-| 1 | `notify_change` | Принудительное обновление индекса файла |
-| 2 | `get_index_status` | Статистика LanceDB и индекса символов |
-| 3 | `get_index_progress` | Прогресс текущей индексации |
-| 4 | `index_project_dir` | Запуск первичной индексации проекта |
-| 5 | `search_code` | Семантический поиск (с agentic-режимом) |
-| 6 | `get_symbol_info` | Call Graph для символа |
-| 7 | `get_repo_map` | Карта репозитория |
-| 8 | `scan_changes` | Архитектурный дифф изменений |
-| 9 | `watcher_status` | Статус компонентов системы |
-| 10 | `context_search` | Поиск похожего кода по фрагменту |
-| 11 | `structural_search` | Поиск по AST-паттернам (Tree-sitter) |
-| 12 | `deep_search` | Итеративный глубокий поиск |
-| 13 | `cross_repo_search` | Поиск по нескольким проектам |
-| 14 | `get_logs` | Последние ошибки из логов |
+| Категория | Инструменты |
+|-----------|-------------|
+| **Поиск** | `search_code(query, mode)`, `structural_search`, `cross_repo_search`, `cross_project_deps` |
+| **Индекс** | `get_index_status`, `get_index_progress`, `get_index_timeline`, `index_project_dir`, `notify_change`, `index_health` |
+| **Символы** | `get_symbol_info`, `impact_analysis`, `get_repo_map`, `get_repo_rank` |
+| **Система** | `get_health_report`, `watcher_status`, `get_logs`, `generate_chunk_summaries` |
+| **Аналитика** | `get_hotspots`, `get_bug_correlation`, `get_related_files`, `graph_query` |
+| **Git** | `get_commit_history`, `get_file_history`, `get_branch_info` |
+| **Фон** | `submit_background_task`, `get_task_status` |
+
+> 🔄 `smart_search`, `deep_search`, `context_search` — deprecated, используйте `search_code(query, mode=...)`
 
 ### Шаги для добавления нового инструмента:
 
@@ -156,8 +185,8 @@ def test_my_new_tool():
 ```
 
 5. **Обновите документацию**:
-   - `README.md` — секция "Tools (14 total)" → обновите число
-   - `ARCHITECTURE.md` — добавьте описание инструмента
+   - `README.md` — секция "Tools" → обновите категорию и описание
+   - `docs/architecture.md` — добавьте описание инструмента
    - `CHANGELOG.md` — добавьте запись
 
 6. **Проверьте форматирование**:

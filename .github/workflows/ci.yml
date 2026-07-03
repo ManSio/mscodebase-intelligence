@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
       fail-fast: false
 
     steps:
@@ -58,10 +58,12 @@ jobs:
         run: pip install ruff mypy
 
       - name: Run ruff
-        run: ruff check src/ tests/ --output-format=github || true
+        run: ruff check src/ tests/ --output-format=github
+        continue-on-error: true
 
       - name: Run mypy
-        run: mypy src/ --ignore-missing-imports || true
+        run: mypy src/ --ignore-missing-imports
+        continue-on-error: true
 
   release:
     needs: [test, lint]

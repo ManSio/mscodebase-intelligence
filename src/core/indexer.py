@@ -1,19 +1,19 @@
 """
 MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
-import asyncio
+
 import hashlib
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set
 
 import lancedb
-import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 
-from src.core.chunk_summarizer import ChunkSummarizer, format_chunk_for_embedding
+from src.core.chunk_summarizer import ChunkSummarizer
 from src.core.index_guard import IndexGuard
 from src.utils.paths import SafePathManager, to_win_long_path
 
@@ -28,7 +28,7 @@ def _generate_unique_db_path(project_path: Path) -> Path:
     """
     # Используем хэш пути проекта для создания уникального имени файла
     # Нормализуем путь: lower() + replace('\', '/') для защиты от разного регистра в Windows
-    normalized_path = str(project_path.resolve()).lower().replace('\\', '/')
+    normalized_path = str(project_path.resolve()).lower().replace("\\", "/")
     project_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
     project_name = os.path.basename(project_path).lower()
 
@@ -43,8 +43,16 @@ def _generate_unique_db_path(project_path: Path) -> Path:
 
 
 class Indexer:
-    def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None, parser=None,
-                 enable_summaries: bool = True, symbol_index=None):
+    def __init__(
+        self,
+        db_path: Path,
+        embedder,
+        file_guard,
+        project_path: Optional[Path] = None,
+        parser=None,
+        enable_summaries: bool = True,
+        symbol_index=None,
+    ):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
@@ -59,6 +67,7 @@ class Indexer:
             self._symbol_index = symbol_index
         else:
             from src.core.symbol_index import SymbolIndex
+
             self._symbol_index = SymbolIndex()
 
         # Chunk Summarizer для LLM-описаний
@@ -116,7 +125,7 @@ class Indexer:
             # Проверяем, что схема содержит text_full (миграция)
             existing_fields = [f.name for f in self.table.schema]
             if "text_full" not in existing_fields:
-                logger.warning(f"⚠️ Миграция: добавляем text_full в существующую таблицу")
+                logger.warning("⚠️ Миграция: добавляем text_full в существующую таблицу")
 
                 try:
                     old_df = self.table.to_pandas()
@@ -132,42 +141,59 @@ class Indexer:
                             # Безопасное извлечение chunk_index (защита от NaN/Float в Pandas)
                             try:
                                 import pandas as pd
-                                c_idx = int(row["chunk_index"]) if pd.notna(row["chunk_index"]) else 0
+
+                                c_idx = (
+                                    int(row["chunk_index"])
+                                    if pd.notna(row["chunk_index"])
+                                    else 0
+                                )
                             except Exception:
                                 c_idx = 0
 
-                            records.append({
-                                "id": str(row["id"]),
-                                "vector": row["vector"],
-                                "text": str(row["text"]),
-                                "text_full": str(row["text_full"]),
-                                "file_path": str(row["file_path"]),
-                                "file_hash": str(row["file_hash"]),
-                                "chunk_index": c_idx,
-                                "source": str(row.get("source", "filesystem")),
-                                "indexed_at": str(row.get("indexed_at", "")),
-                                "summary": str(row.get("summary", "")),
-                            })
+                            records.append(
+                                {
+                                    "id": str(row["id"]),
+                                    "vector": row["vector"],
+                                    "text": str(row["text"]),
+                                    "text_full": str(row["text_full"]),
+                                    "file_path": str(row["file_path"]),
+                                    "file_hash": str(row["file_hash"]),
+                                    "chunk_index": c_idx,
+                                    "source": str(row.get("source", "filesystem")),
+                                    "indexed_at": str(row.get("indexed_at", "")),
+                                    "summary": str(row.get("summary", "")),
+                                }
+                            )
 
                     # 2. АТОМАРНАЯ СМЕНА ТАБЛИЦЫ (только если сбор данных выше не упал)
                     self.db.drop_table(self.table_name)
-                    self.table = self.db.create_table(self.table_name, schema=self.schema)
+                    self.table = self.db.create_table(
+                        self.table_name, schema=self.schema
+                    )
 
                     if len(records) > 0:
                         self.table.add(records)
-                        logger.info(f"📦 Миграция успешно завершена: {len(records)} записей восстановлено")
+                        logger.info(
+                            f"📦 Миграция успешно завершена: {len(records)} записей восстановлено"
+                        )
                     else:
-                        logger.info(f"📦 Миграция завершена: исходная таблица была пустой")
+                        logger.info(
+                            "📦 Миграция завершена: исходная таблица была пустой"
+                        )
 
                 except Exception as mig_err:
                     # 3. АБСОЛЮТНАЯ ЗАЩИТА: никакого деструктивного drop_table при ошибках!
-                    logger.critical(f"❌ Критическая ошибка миграции данных: {mig_err}. Данные СОХРАНЕНЫ в старой таблице.")
+                    logger.critical(
+                        f"❌ Критическая ошибка миграции данных: {mig_err}. Данные СОХРАНЕНЫ в старой таблице."
+                    )
                     # Восстанавливаем стабильное подключение к исходной таблице
                     try:
                         self.table = self.db.open_table(self.table_name)
                     except Exception:
                         # Фолбек на создание чистой таблицы только если старая физически стёрта
-                        self.table = self.db.create_table(self.table_name, schema=self.schema)
+                        self.table = self.db.create_table(
+                            self.table_name, schema=self.schema
+                        )
             else:
                 logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
         except Exception as open_err:
@@ -224,7 +250,9 @@ class Indexer:
             count = self.table.count_rows()
             self._cached_total_chunks = count
             if count > 0:
-                logger.info(f"🔥 Прогрев статуса: в базе {count} чанков (cold start предотвращён)")
+                logger.info(
+                    f"🔥 Прогрев статуса: в базе {count} чанков (cold start предотвращён)"
+                )
             else:
                 logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
         except Exception as e:
@@ -312,8 +340,24 @@ class Indexer:
                         "status": "empty",
                     }
 
-            df = self.table.to_pandas()
-            unique_files = df["file_path"].nunique()
+            try:
+                df = self.table.to_pandas()
+                unique_files = df["file_path"].nunique()
+            except ImportError:
+                # Fallback: pandas не загрузился — используем PyArrow напрямую
+                arrow_table = self.table.to_arrow()
+                unique_files = pc.count_distinct(
+                    arrow_table.column("file_path")
+                ).as_py()
+            except Exception:
+                # Любая другая ошибка конвертации — возвращаем хотя бы общее число чанков
+                return {
+                    "total_chunks": total_chunks,
+                    "unique_files": 0,
+                    "total_files": 0,
+                    "status": "active",
+                }
+
             return {
                 "total_chunks": total_chunks,
                 "unique_files": int(unique_files),
@@ -332,7 +376,13 @@ class Indexer:
         escaped = file_path.replace("'", "''")
         return escaped
 
-    def _index_single_file(self, full_path: Path, rel_path_str: str, content: Optional[str] = None, source: str = "filesystem") -> bool:
+    def _index_single_file(
+        self,
+        full_path: Path,
+        rel_path_str: str,
+        content: Optional[str] = None,
+        source: str = "filesystem",
+    ) -> bool:
         """Индицирует один файл, если его хэш изменился.
 
         Args:
@@ -378,7 +428,9 @@ class Indexer:
                     try:
                         df_check = self.table.to_pandas()
                         if not df_check.empty:
-                            old_chunks = int((df_check["file_path"] == rel_path_str).sum())
+                            old_chunks = int(
+                                (df_check["file_path"] == rel_path_str).sum()
+                            )
                     except Exception:
                         pass
 
@@ -386,7 +438,9 @@ class Indexer:
 
                     # Декремент кэша на количество удалённых старых чанков
                     if old_chunks > 0:
-                        self._cached_total_chunks = max(0, self._cached_total_chunks - old_chunks)
+                        self._cached_total_chunks = max(
+                            0, self._cached_total_chunks - old_chunks
+                        )
                 except Exception as del_err:
                     logger.debug(
                         f"delete() не нашёл запись (первичная индексация): {del_err}"
@@ -401,7 +455,7 @@ class Indexer:
             # Стратегия экономии токенов:
             # - text_compact (сигнатура + 3 строки тела) → для эмбеддинга и поиска
             # - text_full (полный код функции) → для детального анализа по запросу
-            chunk_texts = []       # компактные тексты для эмбеддинга
+            chunk_texts = []  # компактные тексты для эмбеддинга
             chunk_texts_full = []  # полные тексты для хранения
             if self.parser is not None:
                 try:
@@ -431,8 +485,12 @@ class Indexer:
 
             if not chunk_texts:
                 # Fallback: символьное деление с перекрытием
-                chunk_texts = [content[i : i + 1000] for i in range(0, len(content), 800)]
-                chunk_texts_full = chunk_texts  # fallback: текст и полный текст одинаковы
+                chunk_texts = [
+                    content[i : i + 1000] for i in range(0, len(content), 800)
+                ]
+                chunk_texts_full = (
+                    chunk_texts  # fallback: текст и полный текст одинаковы
+                )
 
             if not chunk_texts:
                 return False
@@ -455,14 +513,16 @@ class Indexer:
                     chunk_vec = chunk_vec[:1024] + [0.0] * (1024 - len(chunk_vec))
 
                 # Полный текст для детального анализа (если есть)
-                full_text = chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
+                full_text = (
+                    chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
+                )
 
                 # Генерируем LLM-описание если включено
                 summary = ""
                 if self.summarizer and self.enable_summaries:
                     symbol_name = ""
-                    if self.parser and hasattr(self.parser, '_current_symbol'):
-                        symbol_name = getattr(self.parser, '_current_symbol', '')
+                    if self.parser and hasattr(self.parser, "_current_symbol"):
+                        symbol_name = getattr(self.parser, "_current_symbol", "")
                     summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
 
                 data_records.append(
@@ -512,7 +572,9 @@ class Indexer:
         if self._cached_total_chunks == 0:
             return 0
         if not active_files_on_disk:
-            logger.warning("⚠️ prune_deleted_files вызван с пустым набором файлов. Пропуск.")
+            logger.warning(
+                "⚠️ prune_deleted_files вызван с пустым набором файлов. Пропуск."
+            )
             return 0
 
         try:
@@ -522,7 +584,7 @@ class Indexer:
 
             if deleted_files:
                 logger.info(
-                    f"🧹 Обнаружены удаленные файлы. Начинается чистка базы от мёртвого груза..."
+                    "🧹 Обнаружены удаленные файлы. Начинается чистка базы от мёртвого груза..."
                 )
                 total_deleted_chunks = 0
                 for file_path in deleted_files:
@@ -537,7 +599,9 @@ class Indexer:
 
                 # Синхронизация кэша: декремент на количество удалённых чанков
                 if total_deleted_chunks > 0:
-                    self._cached_total_chunks = max(0, self._cached_total_chunks - total_deleted_chunks)
+                    self._cached_total_chunks = max(
+                        0, self._cached_total_chunks - total_deleted_chunks
+                    )
 
                 logger.info("✅ База данных полностью синхронизирована с диском.")
                 return len(deleted_files)
@@ -564,7 +628,9 @@ class Indexer:
 
             # Синхронизация кэша: декремент на количество удалённых чанков
             if deleted_count > 0:
-                self._cached_total_chunks = max(0, self._cached_total_chunks - deleted_count)
+                self._cached_total_chunks = max(
+                    0, self._cached_total_chunks - deleted_count
+                )
 
             logger.info(f"🗑️ Удалён файл: {rel_path_str}")
             return True
@@ -573,7 +639,7 @@ class Indexer:
             return False
 
     def index_project(
-        self, project_path: Path, progress_callback: Optional[callable] = None
+        self, project_path: Path, progress_callback: Optional[Callable] = None
     ) -> int:
         """Полное сканирование проекта.
 
@@ -664,7 +730,7 @@ class Indexer:
             self.summarizer.save_cache()
 
         # Сохраняем SymbolIndex на диск (persistence между перезапусками)
-        if hasattr(self, '_symbol_index') and self._symbol_index:
+        if hasattr(self, "_symbol_index") and self._symbol_index:
             self._index_guard.save_symbol_index(self._symbol_index)
 
         logger.info(
@@ -674,7 +740,9 @@ class Indexer:
 
         return indexed_count
 
-    def index_file(self, full_path: Path, project_path: Path, content: Optional[str] = None) -> bool:
+    def index_file(
+        self, full_path: Path, project_path: Path, content: Optional[str] = None
+    ) -> bool:
         """Публичный метод для индексации одного файла (вызывается из LSP-сервера).
 
         Args:

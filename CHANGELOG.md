@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.1.0] - 2026-07-03
+
+### 🚀 Major
+- **Консолидация поиска:** `search_code(query, mode)` — единый инструмент с 5 режимами (`auto/fast/quality/deep/context`)
+- **Intelligence Layer:** 10 высокоуровневых `intel_*` инструментов (самодиагностика, топология, память проекта)
+- **Отказ от double-write:** `patch_zed_settings()` теперь single-pass (MCP + LSP + Languages за один вызов)
+- **Проектная память:** ADR, known_issues, tech_debt, failed_attempts — автоматически сохраняются между сессиями
+
+### 🔧 Improvements
+- `get_health_report`/`index_health` — `project_root` опционален (fallback на `$PROJECT_PATH`)
+- `notify_change` — правильный резолв путей от корня проекта (не CWD)
+- `_resolve_project_path()` — централизованный helper для резолва корня проекта
+- Централизованная обработка путей через `PROJECT_PATH` env var (устанавливается Zed)
+- `install.py` — clean-up: удалён дублирующий код LSP (теперь в `patch_zed_settings`)
+
+### 📚 Documentation
+- README полностью переписан: 26 инструментов, search_code с mode, Intel Layer
+- `docs/architecture.md` — обновлён список инструментов (14→26 + 10 intel_*)
+- `docs/windows-setup.md` — обновлён под новый формат
+- `CONTRIBUTING.md` — убраны упоминания deprecated инструментов
+- Создан `sync_to_installed.bat` для быстрой синхронизации source→installed
+
+### 🧹 Housekeeping
+- Удалены `run_tests.py`, `run_tests.bat` (дубликаты `pytest`)
+- Обновлён `.gitignore` (добавлены dev-артефакты)
+- Корень проекта очищен от тестового мусора
+
+### ⚠️ Deprecations
+- `smart_search`, `deep_search`, `context_search` → используйте `search_code(query, mode=...)`
+- Старые функции пока работают как обёртки (backward compatibility)
+
 ## [v2.0.0] - 2026-06-28
 
 ### 🚀 Major

@@ -3,6 +3,7 @@ Symbol Index — отслеживание определений и исполь
 """
 
 import logging
+import os
 import re
 import threading
 from typing import Dict, List, Set, Tuple
@@ -73,6 +74,7 @@ class SymbolIndex:
         symbols: список {name, line, kind} от парсера.
         """
         from pathlib import Path
+
         # Нормализуем путь для единообразия (Windows -> POSIX)
         file_path = Path(file_path).resolve().as_posix()
 
@@ -119,6 +121,7 @@ class SymbolIndex:
             calls: Список вызовов функций
         """
         from pathlib import Path
+
         # Нормализуем путь для единообразия
         file_path = Path(file_path).resolve().as_posix()
 
@@ -171,6 +174,7 @@ class SymbolIndex:
     def remove_file(self, file_path: str) -> None:
         """Удаляет все записи о файле (при удалении/переиндексации)."""
         from pathlib import Path
+
         # Нормализуем путь для единообразия
         file_path = Path(file_path).resolve().as_posix()
 
@@ -217,6 +221,7 @@ class SymbolIndex:
             Список имён символов (уникальные)
         """
         from pathlib import Path
+
         file_path = Path(file_path).resolve().as_posix()
 
         with self._lock:
@@ -241,11 +246,13 @@ class SymbolIndex:
             for callee_sym, callee_refs in self._references.items():
                 for ref in callee_refs:
                     if ref.symbol == symbol and not ref.is_definition:
-                        callees.append({
-                            "symbol": callee_sym,
-                            "file": ref.file_path,
-                            "line": ref.line,
-                        })
+                        callees.append(
+                            {
+                                "symbol": callee_sym,
+                                "file": ref.file_path,
+                                "line": ref.line,
+                            }
+                        )
 
             return {
                 "symbol": symbol,
@@ -258,7 +265,9 @@ class SymbolIndex:
                 "calls": callees[:10],  # топ-10 вызовов
             }
 
-    def get_call_chain(self, symbol: str, direction: str = "both", max_depth: int = 3) -> Dict:
+    def get_call_chain(
+        self, symbol: str, direction: str = "both", max_depth: int = 3
+    ) -> Dict:
         """Возвращает цепочку вызовов для символа.
 
         Args:
@@ -296,12 +305,14 @@ class SymbolIndex:
                         refs = self._references.get(sym, [])
                         for r in refs:
                             if not r.is_definition and r.symbol != symbol:
-                                result["callers_chain"].append({
-                                    "symbol": r.symbol,
-                                    "file": r.file_path,
-                                    "line": r.line,
-                                    "depth": d + 1,
-                                })
+                                result["callers_chain"].append(
+                                    {
+                                        "symbol": r.symbol,
+                                        "file": r.file_path,
+                                        "line": r.line,
+                                        "depth": d + 1,
+                                    }
+                                )
                                 next_level.add(r.symbol)
                     current_level = next_level
                     if not current_level:
@@ -323,18 +334,22 @@ class SymbolIndex:
                                 continue
                             for ref in callee_refs:
                                 if ref.symbol == sym and not ref.is_definition:
-                                    result["callees_chain"].append({
-                                        "symbol": callee_sym,
-                                        "file": ref.file_path,
-                                        "line": ref.line,
-                                        "depth": d + 1,
-                                    })
+                                    result["callees_chain"].append(
+                                        {
+                                            "symbol": callee_sym,
+                                            "file": ref.file_path,
+                                            "line": ref.line,
+                                            "depth": d + 1,
+                                        }
+                                    )
                                     next_level.add(callee_sym)
                     current_level = next_level
                     if not current_level:
                         break
 
-            result["total_connected"] = len(result["callers_chain"]) + len(result["callees_chain"])
+            result["total_connected"] = len(result["callers_chain"]) + len(
+                result["callees_chain"]
+            )
             return result
 
     def search_symbols(self, query: str, top_k: int = 10) -> List[SymbolRef]:
@@ -442,7 +457,8 @@ class SymbolIndex:
                         }
                         # Дедупликация
                         if not any(
-                            c.get("symbol") == caller_sym and c.get("file") == r.file_path
+                            c.get("symbol") == caller_sym
+                            and c.get("file") == r.file_path
                             for c in result["callers"]
                         ):
                             result["callers"].append(caller_entry)
@@ -751,7 +767,9 @@ class SymbolIndex:
         }
         return dir_name in skip_dirs
 
-    def compute_repo_rank(self, damping: float = 0.85, iterations: int = 20) -> Dict[str, float]:
+    def compute_repo_rank(
+        self, damping: float = 0.85, iterations: int = 20
+    ) -> Dict[str, float]:
         """Вычисляет PageRank для символов на графе вызовов.
 
         Алгоритм PageRank адаптирован для графа вызовов:
@@ -832,15 +850,55 @@ class SymbolIndex:
             symbols_by_file = {}
             all_symbols = []
 
-            # Собираем все файлы, которые мы отслеживаем
-            all_files = set(self._file_to_symbols.keys())
+            # Нормализуем project_root (POSIX, lowercase) для сравнения
+            try:
+                norm_project = (
+                    Path(project_root).resolve().as_posix().lower().rstrip("/") + "/"
+                )
+            except Exception:
+                norm_project = project_root.replace("\\", "/").lower().rstrip("/") + "/"
+
+            # Фильтруем файлы — только те, что относятся к этому проекту
+            # SymbolIndex может содержать файлы из extension + из разных проектов
+            def _belongs_to_project(fp: str) -> bool:
+                """Проверяет, принадлежит ли файл проекту.
+
+                На Windows пути могут храниться как с backslash (D:\...\file.py),
+                так и с forward slash (D:/.../file.py). Используем os.path.isabs()
+                для корректного определения абсолютности на любой платформе.
+                """
+                import os
+                from pathlib import Path
+
+                # Относительный путь (без диска) — всегда включаем
+                if not os.path.isabs(fp):
+                    return True
+                # Абсолютный путь — проверяем что внутри project_root
+                norm_fp = Path(fp).resolve().as_posix().lower()
+                return norm_fp.startswith(norm_project)
+
+            all_files = {
+                fp for fp in self._file_to_symbols.keys() if _belongs_to_project(fp)
+            }
+
+            def _to_rel_path(fp: str) -> str:
+                """Преобразует абсолютный путь в относительный от project_root."""
+                if _belongs_to_project(fp) and (
+                    len(fp) > 2 and (fp[0] == "/" or fp[1] == ":")
+                ):
+                    try:
+                        return str(
+                            Path(fp).resolve().relative_to(Path(project_root).resolve())
+                        )
+                    except (ValueError, Exception):
+                        pass
+                return fp.replace("\\", "/").lstrip("/")
 
             # Строим иерархическую структуру
             dir_structure = {}
-            for file_path in all_files:
-                # Относительный путь от project_root
-                rel_path = file_path.replace(project_root, "").lstrip("/\\")
-                parts = rel_path.split("/") if "/" in rel_path else rel_path.split("\\")
+            for file_path in sorted(all_files):
+                rel_path = _to_rel_path(file_path)
+                parts = rel_path.replace("\\", "/").split("/")
 
                 current = dir_structure
                 for part in parts[:-1]:
