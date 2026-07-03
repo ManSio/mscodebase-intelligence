@@ -73,9 +73,9 @@ class SymbolIndex:
         symbols: список {name, line, kind} от парсера.
         """
         from pathlib import Path
-        # Нормализуем путь для единообразия
+        # Нормализуем путь для единообразия (Windows -> POSIX)
         file_path = Path(file_path).resolve().as_posix()
-        
+
         with self._lock:
             if file_path not in self._file_to_symbols:
                 self._file_to_symbols[file_path] = set()
@@ -121,7 +121,7 @@ class SymbolIndex:
         from pathlib import Path
         # Нормализуем путь для единообразия
         file_path = Path(file_path).resolve().as_posix()
-        
+
         with self._lock:
             if file_path not in self._file_to_symbols:
                 self._file_to_symbols[file_path] = set()
@@ -173,7 +173,7 @@ class SymbolIndex:
         from pathlib import Path
         # Нормализуем путь для единообразия
         file_path = Path(file_path).resolve().as_posix()
-        
+
         with self._lock:
             symbols = self._file_to_symbols.pop(file_path, set())
             self._file_to_defs.pop(file_path, None)

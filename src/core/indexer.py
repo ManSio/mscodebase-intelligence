@@ -44,7 +44,7 @@ def _generate_unique_db_path(project_path: Path) -> Path:
 
 class Indexer:
     def __init__(self, db_path: Path, embedder, file_guard, project_path: Path = None, parser=None,
-                 enable_summaries: bool = True):
+                 enable_summaries: bool = True, symbol_index=None):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
@@ -52,6 +52,14 @@ class Indexer:
         self.searcher = None
         self.project_path = project_path or db_path.parent.parent.parent
         self.parser = parser  # CodeParser для AST-aware чанкинга
+
+        # SymbolIndex для отслеживания определений и вызовов
+        # Если передан внешний индекс — используем его, иначе создаём новый
+        if symbol_index is not None:
+            self._symbol_index = symbol_index
+        else:
+            from src.core.symbol_index import SymbolIndex
+            self._symbol_index = SymbolIndex()
 
         # Chunk Summarizer для LLM-описаний
         self.enable_summaries = enable_summaries
@@ -397,7 +405,7 @@ class Indexer:
             chunk_texts_full = []  # полные тексты для хранения
             if self.parser is not None:
                 try:
-                    ast_chunks, _symbols = self.parser.parse_file(full_path)
+                    ast_chunks, symbols = self.parser.parse_file(full_path)
                     if ast_chunks:
                         for c in ast_chunks:
                             compact = c.get("text_compact", "") or c.get("text", "")
@@ -408,6 +416,13 @@ class Indexer:
                         logger.debug(
                             f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
                         )
+                    # Добавляем определения символов в SymbolIndex
+                    if symbols:
+                        self._symbol_index.add_definitions(str(full_path), symbols)
+                        # Извлекаем связи вызовов
+                        calls = self.parser.extract_calls(full_path)
+                        if calls:
+                            self._symbol_index.add_references(str(full_path), calls)
                 except Exception as ast_err:
                     logger.warning(
                         f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"

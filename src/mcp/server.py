@@ -290,7 +290,11 @@ def create_mcp_server() -> "FastMCP":
 
     initial_db_path = _generate_unique_db_path(ext_root)
     code_parser = CodeParser()
-    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root, parser=code_parser)
+
+    # Создаём SymbolIndex до Indexer, чтобы передать его в конструктор
+    symbol_index = SymbolIndex()
+
+    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root, parser=code_parser, symbol_index=symbol_index)
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
 
@@ -303,8 +307,6 @@ def create_mcp_server() -> "FastMCP":
             return original_embed_batch(texts, is_query)
 
     embedder.embed_batch = embed_batch_with_semaphore
-
-    symbol_index = SymbolIndex()
 
     # Загружаем SymbolIndex из кэша если есть (persistence между перезапусками)
     try:
