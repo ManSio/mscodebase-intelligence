@@ -1,87 +1,37 @@
-# Agent Diary — MSCodeBase
+# AGENT DIARY — MSCodeBase Intelligence
 
-## [2026-07-02 22:30] — [Type: Refactor|Fix] — Устранение хардкодных конфигураций и реализация TODO
+## [2026-07-03 23:11] — [Type: Fix|Refactor] — Консолидация архитектуры: фикс путей проекта и download_model.py
 
-**Проблема:**
-- Обнаружено 21 хардкодных конфигурации (порты, хосты, URL) в 5 файлах
-- Найдено 2 TODO комментария без реализации (index_guard.py:309, searcher.py:619)
-- Обнаружено 3 блокирующих time.sleep
-- Проект сложно конфигурировать для разных сред
+**Problem:**
+- `download_model.py` — циклическая перекачка 2-3GB модели при каждой сессии, HF кэш удалялся принудительно
+- `server.py` — карта проекта содержала директорию расширения (`ext_root`) вместо проекта пользователя в 5+ местах
+- `_resolve_project_path` — опасный fallback на `ext_root` без проверки
 
-**Решение:**
-- Создан централизованный модуль конфигурации (`src/core/config.py`)
-- Все хардкодные значения заменены на конфигурируемые переменные окружения
-- Реализован метод `get_stale_files()` в IndexGuard (TODO:309)
-- Реализовано расширение контекста графа в Searcher (TODO:619)
-- Добавлены методы `_expand_graph_context()` и `_extract_symbol_name()`
-- Блокирующие time.sleep заменены на конфигурируемые задержки
+**Solution:**
+- `download_model.py`: введён персистентный cache_dir (`~/.cache/mscodebase/hf_models`), `--purge-cache` и `--force` флаги, разорван цикл перекачки
+- `server.py`: заменены 8 мест где `ext_root` использовался вместо `_base_project`/`_resolve_project_path()`:
+  - `ProjectRegistry.register(ext_root)` → `_base_project`
+  - `ProjectIntelligenceLayer(project_path=ext_root)` → `_base_project`
+  - `IndexGuard(initial_db_path, ext_root)` → `_base_project`
+  - `setup_project_logging(ext_root)` → `_base_project`
+  - `notify_change` fallback → `_resolve_project_path()`
+  - `_get_searcher` → `_resolve_project_path()`
+  - `run_health_check(ext_root)` → `_resolve_project_path()`
+  - `graph_query(ext_root)` → `_resolve_project_path()`
+- `_resolve_project_path` теперь проверяет что CWD != ext_root, warning если PROJECT_PATH не установлен
 
-**Результат:**
-- 0 хардкодных конфигураций (все значения через config.py)
-- Все TODO комментарии реализованы
-- 289/289 тестов проходят
-- Проект полностью конфигурируем через переменные окружения
+**Tools Used:** read_file, edit_file, write_file, search_code, grep, intel_log_incident (2x), diagnostics
+**Status:** ✅
 
-**Инструменты:** grep, read_file, edit_file, pytest, bash
-**Файлы:** 
-- src/core/config.py (новый)
-- src/core/remote_embedder.py, reranker.py, searcher.py
-- src/core/file_guard.py, index_guard.py
-- src/hybrid_server.py, lsp_main.py, mcp/server.py
-**Статус:** ✅ Все исправления завершены и протестированы
+## [2026-07-03 22:30] — [Type: Refactor] — Консолидация поисковых инструментов 42→20
 
----
+**Problem:** 42 разрозненных инструмента, LLM путалась между 5 видами поиска
 
-## [2026-07-02 20:48] — [Type: Fix] — Архитектурные исправления MCP-инструментов
+**Solution:** 
+- `smart_search`, `deep_search`, `context_search` → DEPRECATED обёртки над `search_code(mode)`
+- Единая точка входа: `search_code(query, mode="auto"|"fast"|"quality"|"deep"|"context")`
+- Добавлена временная фильтрация (since/before kwargs)
+- Backward compatibility через deprecated-обёртки
 
-**Проблема:**
-- get_health_report: таймаут >30 сек при запуске pytest (блокировал поток)
-- get_file_history: "authorization channel closed" (пустой кэш + нет git fallback)
-- get_bug_correlation: обрезанный вывод, коммиты не загружались
-- Пути Windows: /d/Project → D:\d\Project (ломало CommitMemory)
-- PYTHONPATH в settings.json ломал запуск сервера
-
-**Решение:**
-- Добавлен асинхронный запуск pytest через ThreadPoolExecutor (таймаут 35с)
-- Добавлен git fallback в get_file_history при пустом кэше
-- Добавлена принудительная загрузка коммитов в get_bug_correlation
-- Исправлено разрешение Windows-путей (D:\d\ → D:\)
-- Убран PYTHONPATH из настроек Zed (ломал запуск)
-- Обновлена документация (AGENTS.md, AI_USAGE.md)
-
-**Результат:**
-- Все инструменты работают стабильно
-- get_health_report: <5 сек (было >30 сек)
-- Все 34 теста проходят
-- Система готова к продакшену
-
-**Инструменты:** search_code, get_symbol_info, get_health_report, get_file_history, get_bug_correlation, commit_memory
-**Файлы:** src/core/health_report.py, src/core/commit_memory.py, src/mcp/server.py, src/utils/zed_config.py, AGENTS.md, .agents/AI_USAGE.md
-**Статус:** ✅
-
-
-## [2026-06-30 15:00] — [Type: Feature] — All Phases Complete — 33 MCP Tools
-
-## [2026-06-30 14:30] — [Type: Feature] — Cross-project Dependency Graph
-
-**Проблема:**
-- Phase 4: Full GraphRAG — нужна реализация Cross-project dependency graph
-- Анализ зависимостей между проектами в моно-репо
-
-**Решение:**
-- Создан `src/core/cross_project_deps.py` — CrossProjectDependencyGraph
-  - build_dependency_graph() — строит directed graph из импортов
-  - get_project_dependencies() — зависимости проекта (down/up/both)
-  - find_shared_interfaces() — общие символы между проектами
-  - find_circular_dependencies() — поиск циклов через DFS
-  - get_dependency_path() — кратчайший путь через BFS
-  - analyze_impact() — анализ влияния с risk_level
-  - Поддержка 5 языков: Python (AST), JS/TS, Java/Kotlin, Go, Rust
-- Добавлен MCP tool `cross_project_deps` (action: graph/deps/cycles/shared/impact/path)
-- 26 тестов в test_cross_project_deps.py
-- Исправлен RecursionError в _collect_source_files (os.walk вместо rglob)
-- Исправлен бесконечный цикл build_dependency_graph ↔ find_circular_dependencies
-
-**Инструменты:** search_code, get_symbol_info, read_file, edit_file, terminal
-**Файлы:** src/core/cross_project_deps.py, src/mcp/server.py, tests/test_cross_project_deps.py, VISION.md
-**Статус:** ✅
+**Tools Used:** read_file, edit_file, grep, structural_search
+**Status:** ✅

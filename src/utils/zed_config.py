@@ -84,16 +84,27 @@ def get_python_path() -> str:
     return sys.executable
 
 
-def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool:
+def patch_zed_settings(
+    command: str | None = None,
+    mode: str = "global",
+    lsp_config: dict | None = None,
+    languages_config: dict | None = None,
+) -> bool:
     """
-    Добавляет/обновляет MCP-сервер в настройках Zed.
+    Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
+
+    Единая точка записи настроек — без double-write.
 
     Args:
         command: Полная команда для запуска MCP-сервера.
                  Если None — формируется автоматически по пути установки.
-                 Если команда уже существует в настройках, она сохраняется.
         mode: 'global' — в глобальные настройки Zed (для всех проектов).
               'project' — в .zed/settings.json текущего проекта.
+        lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
+                    Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
+        languages_config: Опциональная конфигурация language servers для языков.
+                          Если передана — добавляется settings["languages"].
+                          Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
 
     Returns:
         True, если настройки успешно обновлены
@@ -182,17 +193,19 @@ def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool
         args = parts[1].split()
 
     # Сохраняем с нашим именем сервера
+    ext_dir = get_extension_install_dir()
     entry = {
         "command": executable,
         "args": args,
-        # Требуется Zed для корректного запуска MCP-сервера с контекстом проекта
-        "current_dir": "$ZED_WORKTREE_ROOT",
+        # Стартуем из директории расширения, чтобы -m src.main нашёл src/main.py
+        "current_dir": str(ext_dir),
     }
 
-    # Путь проекта для AI-ассистента + PYTHONPATH для импорта src
+    # PYTHONPATH указывает на корень расширения, чтобы импорт src.core.* работал
+    # PROJECT_PATH передаётся серверу для работы с проектом пользователя
     entry["env"] = {
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
-        "PYTHONPATH": "$ZED_WORKTREE_ROOT",
+        "PYTHONPATH": str(ext_dir),
     }
 
     settings["context_servers"][SERVER_NAME] = entry
@@ -205,19 +218,43 @@ def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool
         settings["context_servers_to_query"].append(SERVER_NAME)
 
     # ──────────────────────────────────────────────────
+    # LSP + Languages (опционально, single-pass)
+    # ──────────────────────────────────────────────────
+    if lsp_config is not None:
+        if "lsp" not in settings:
+            settings["lsp"] = {}
+        if "mscodebase-lsp" not in settings["lsp"]:
+            settings["lsp"]["mscodebase-lsp"] = lsp_config
+            logger.info(f"✅ LSP-сервер 'mscodebase-lsp' добавлен")
+
+    if languages_config is not None:
+        if "languages" not in settings:
+            settings["languages"] = {}
+        for lang, servers in languages_config.items():
+            if lang not in settings["languages"]:
+                settings["languages"][lang] = {}
+            if "language_servers" not in settings["languages"][lang]:
+                settings["languages"][lang]["language_servers"] = []
+            for srv in servers:
+                if srv not in settings["languages"][lang]["language_servers"]:
+                    settings["languages"][lang]["language_servers"].append(srv)
+        logger.info(f"✅ LSP-привязки к языкам добавлены")
+
+    # ──────────────────────────────────────────────────
     # Инжект системных правил для AI-ассистента Zed
     # ──────────────────────────────────────────────────
     custom_instructions = (
         "MSCodeBase Core Rules: "
-        "STATE-AWARENESS: IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, "
-        "switch to grep/regex. IF chunks > 0, use search_code for semantic, get_symbol_info for exact names. "
-        "RECONNAISSANCE: NEVER guess line numbers. Use get_symbol_info or grep before read_file. "
-        "CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files. "
-        "SAFE WRITING: Read target lines again before edit. Preserve indentation and style. "
-        "ERROR HANDLING: Do not retry same tool with same params. Pivot to alternative. "
-        "WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). "
-        "POST-MODIFICATION: After writing, call index_project_dir + get_index_status. "
-        "CONSTRAINTS: NO Docker, NO pytz, NO stubs, NO mocks."
+        "[MEMORY] 1. Start: intel_get_project_memory. 2. After task: intel_log_incident. "
+        "[SEARCH] search_code(mode=auto|fast|quality|deep|context). Deprecated: smart/deep/context_search. "
+        "[STATE] IF chunks==0 → grep, ELSE → search_code/get_symbol_info. "
+        "[READ] Max 50 lines per read_file. NEVER ingest entire files. "
+        "[WRITE] Read target lines before edit. Preserve indentation. "
+        "[SYNC] Edit → notify_change(src\\path). Paths relative to PROJECT_ROOT. "
+        "[PATHS] src\\core\\file.py for MCP, src/core/file.py for Terminal. "
+        "[ERROR] No retry same tool. Pivot. "
+        "[FORBID] Docker, WSL, pytz, stubs, TODOs, mocks. "
+        "[SELF] Before output: verify index sync, correct paths, no stubs."
     )
 
     if "agent" not in settings:

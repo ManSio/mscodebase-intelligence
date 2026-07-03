@@ -10,16 +10,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.core.file_guard import FileGuard
-from src.core.structural_search import StructuralSearcher
-from src.core.indexer import Indexer
 from src.core.eta_predictor import ETAPredictor
-from src.core.execution_contract import ExecutionContract
+from src.core.execution_contract import ExecutionContract, format_verification_report
+from src.core.file_guard import FileGuard
 from src.core.health_report import HealthReport, format_health_report
-from src.core.log_manager import setup_project_logging, get_log_summary, get_recent_errors
+from src.core.indexer import Indexer
+from src.core.log_manager import (
+    get_log_summary,
+    get_recent_errors,
+    setup_project_logging,
+)
+from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
-from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
+from src.core.structural_search import StructuralSearcher
 
 try:
     from src.core.parser import CodeParser
@@ -38,14 +42,16 @@ _task_events: list = []
 
 # Task Queue для фоновых задач (Bug Correlation, Relations, etc.)
 from src.core.task_queue import get_task_queue as _get_task_queue
+
 _background_task_queue = _get_task_queue()
 
 # ETA Predictor — предсказание времени выполнения
-from src.core.eta_predictor import get_predictor as _get_predictor
 from src.core.autonomous_fix import AutonomousFixLoop
-from src.core.graph_rag import GraphRAGQueryEngine
-from src.core.cross_project_deps import CrossProjectDependencyGraph
 from src.core.chunk_summarizer import ChunkSummarizer
+from src.core.cross_project_deps import CrossProjectDependencyGraph
+from src.core.eta_predictor import get_predictor as _get_predictor
+from src.core.graph_rag import GraphRAGQueryEngine
+
 _eta_predictor = _get_predictor()
 
 
@@ -73,6 +79,7 @@ def _signal_all_events():
 # Фоновые задачи для Task Queue
 # ══════════════════════════════════════════════════════════
 
+
 def _run_bug_correlation(memory) -> str:
     """Выполняет анализ баго-корреляции в фоне."""
     from src.core.bug_correlation import BugCorrelation
@@ -92,7 +99,9 @@ def _run_bug_correlation(memory) -> str:
     ]
 
     for i, hotspot in enumerate(hotspots, 1):
-        risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(hotspot['risk'], "⚪")
+        risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(
+            hotspot["risk"], "⚪"
+        )
         lines.append(
             f"    {i}. {risk_emoji} {hotspot['file']} "
             f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
@@ -115,16 +124,18 @@ def _run_build_graph(memory) -> str:
         f"  Всего связей: {summary['total_relations']}",
     ]
 
-    if 'by_type' in summary:
-        for rel_type, count in summary['by_type'].items():
+    if "by_type" in summary:
+        for rel_type, count in summary["by_type"].items():
             lines.append(f"   - {rel_type}: {count}")
 
     # Топ-10 cochange связей
-    cochange = relations.get('cochange', [])
+    cochange = relations.get("cochange", [])
     if cochange:
         lines.append(f"\n  📊 Топ cochange связи:")
         for rel in cochange[:10]:
-            lines.append(f"     {rel['source']} ↔ {rel['target']} (weight: {rel['weight']})")
+            lines.append(
+                f"     {rel['source']} ↔ {rel['target']} (weight: {rel['weight']})"
+            )
 
     return "\n".join(lines)
 
@@ -144,8 +155,7 @@ def _cleanup_old_progress():
     """Удаляет записи прогресса старше 1 часа (защита от memory leak)."""
     now = time.time()
     expired = [
-        k for k, v in _last_progress.items()
-        if now - v.get("timestamp", 0) > 3600
+        k for k, v in _last_progress.items() if now - v.get("timestamp", 0) > 3600
     ]
     for k in expired:
         del _last_progress[k]
@@ -158,6 +168,7 @@ def _create_progress_callback(project_name: str):
     и логирует каждые 10 файлов.
     Потокобезопасен через _progress_lock.
     """
+
     def progress_callback(file_name: str, done: int, total: int, phase: str):
         try:
             # Обновляем внутренний счётчик (потокобезопасно)
@@ -174,7 +185,11 @@ def _create_progress_callback(project_name: str):
                 _last_progress[project_name] = progress_info
 
             # Логируем прогресс каждые 10 файлов или на ключевых этапах
-            if done % 10 == 0 or phase in ("complete", "rebuilding_bm25", "error_security"):
+            if done % 10 == 0 or phase in (
+                "complete",
+                "rebuilding_bm25",
+                "error_security",
+            ):
                 logger.info(
                     f"📊 Прогресс индексации [{project_name}]: "
                     f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
@@ -240,6 +255,7 @@ async def background_queue_worker(
                     # Сохраняем SymbolIndex на диск (persistence)
                     try:
                         from src.core.index_guard import IndexGuard
+
                         guard = IndexGuard(indexer.db_path, project_path)
                         guard.save_symbol_index(symbol_index)
                         logger.info("💾 SymbolIndex сохранён на диск.")
@@ -282,19 +298,66 @@ def create_mcp_server() -> "FastMCP":
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
 
+    # project_root из env (= $ZED_WORKTREE_ROOT, устанавливается Zed при старте сервера)
+    # Все инструменты MCP должны использовать этот путь как корень проекта
+    _env_project_root = os.environ.get("PROJECT_PATH", "")
+    if _env_project_root:
+        _env_project_root = str(Path(_env_project_root).resolve())
+
+    def _resolve_project_path(provided: str = "") -> Path:
+        """
+        Возвращает корень проекта для инструментов MCP.
+        Приоритет:
+          1. Явно переданный provided
+          2. PROJECT_PATH из окружения ($ZED_WORKTREE_ROOT, устанавливается Zed)
+          3. CWD (current_dir из настроек Zed, должен быть корнем проекта)
+
+        ВАЖНО: ext_root (директория расширения) НИКОГДА не используется как проект.
+        Если CWD совпадает с ext_root — PROJECT_PATH не установлен,
+        выводится warning, но ext_root используется как крайний fallback
+        (чтобы не ломать рантайм при недоступном PROJECT_PATH).
+        """
+        if provided and provided.strip():
+            return Path(provided).resolve()
+        if _env_project_root:
+            return Path(_env_project_root)
+        # Fallback: CWD должен быть корнем проекта (если current_dir настроен правильно)
+        cwd = Path.cwd().resolve()
+        if cwd != ext_root:
+            logger.debug(f"⚠️ _resolve_project_path: fallback на CWD={cwd}")
+            return cwd
+        # Если CWD == ext_root — что-то пошло не так, PROJECT_PATH не установлен
+        logger.warning(
+            "⚠️ PROJECT_PATH не установлен! "
+            "Убедитесь что в settings.json указан PROJECT_PATH=$ZED_WORKTREE_ROOT. "
+            "Использую ext_root как временный fallback."
+        )
+        return ext_root
+
     # Инициализация ядра (RemoteEmbedder использует конфигурацию по умолчанию)
     embedder = RemoteEmbedder()
-    default_file_guard = FileGuard(ext_root)
+
+    # Определяем базовый проект: приоритет PROJECT_PATH из env, fallback — ext_root
+    # Это нужно чтобы Indexer/SymbolIndex работали с проектом пользователя, а не с расширением
+    _base_project = _resolve_project_path()
+    default_file_guard = FileGuard(_base_project)
 
     from src.core.indexer import _generate_unique_db_path
 
-    initial_db_path = _generate_unique_db_path(ext_root)
+    initial_db_path = _generate_unique_db_path(_base_project)
     code_parser = CodeParser()
 
     # Создаём SymbolIndex до Indexer, чтобы передать его в конструктор
     symbol_index = SymbolIndex()
 
-    indexer = Indexer(initial_db_path, embedder, default_file_guard, project_path=ext_root, parser=code_parser, symbol_index=symbol_index)
+    indexer = Indexer(
+        initial_db_path,
+        embedder,
+        default_file_guard,
+        project_path=_base_project,
+        parser=code_parser,
+        symbol_index=symbol_index,
+    )
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
 
@@ -311,19 +374,22 @@ def create_mcp_server() -> "FastMCP":
     # Загружаем SymbolIndex из кэша если есть (persistence между перезапусками)
     try:
         from src.core.index_guard import IndexGuard
-        guard = IndexGuard(initial_db_path, ext_root)
+
+        guard = IndexGuard(initial_db_path, _base_project)
         if guard.load_symbol_index(symbol_index):
-            logger.info(f"📦 SymbolIndex загружен из кэша: {len(symbol_index._definitions)} символов")
+            logger.info(
+                f"📦 SymbolIndex загружен из кэша: {len(symbol_index._definitions)} символов"
+            )
     except Exception as e:
         logger.debug(f"SymbolIndex cache не загружен: {e}")
 
     # Cross-repo поиск: реестр проектов и мультипроектный поисковик
     project_registry = ProjectRegistry()
-    project_registry.register(ext_root)
+    project_registry.register(_base_project)
     multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
 
     # Инициализация файлового логирования для проекта
-    setup_project_logging(ext_root)
+    setup_project_logging(_base_project)
     logger.info("🚀 MCP-сервер запущен")
 
     # ==========================================
@@ -331,23 +397,30 @@ def create_mcp_server() -> "FastMCP":
     # ==========================================
     # Инициализируем слой интеллекта (Блоки 1-6 из ТЗ)
     try:
-        from src.core.intelligence_layer import ProjectIntelligenceLayer, register_intelligence_tools
+        from src.core.intelligence_layer import (
+            ProjectIntelligenceLayer,
+            register_intelligence_tools,
+        )
 
         intel_layer = ProjectIntelligenceLayer(
-            project_path=ext_root,
+            project_path=_base_project,
             indexer=indexer,
             searcher=searcher,
-            symbol_index=symbol_index
+            symbol_index=symbol_index,
         )
         logger.info("🧠 Intelligence Layer инициализирован")
 
         # Регистрируем инструменты Intelligence Layer
         register_intelligence_tools(mcp, intel_layer)
-        logger.info("🧠 Инструменты Intelligence Layer зарегистрированы (12 инструментов)")
+        logger.info(
+            "🧠 Инструменты Intelligence Layer зарегистрированы (12 инструментов)"
+        )
 
     except Exception as e:
         logger.warning(f"⚠️  Не удалось инициализировать Intelligence Layer: {e}")
-        logger.info("   Продолжаем без Intelligence Layer (базовый функционал доступен)")
+        logger.info(
+            "   Продолжаем без Intelligence Layer (базовый функционал доступен)"
+        )
 
     # ==========================================
     # ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ ЧЕРЕЗ LSP
@@ -395,12 +468,28 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("notify_change", file_path)
         try:
-            path = Path(file_path).resolve()
+            # Определяем корень ПРОЕКТА (не расширения!)
+            # PROJECT_PATH = $ZED_WORKTREE_ROOT, устанавливается Zed при запуске сервера
+            project_root = os.environ.get("PROJECT_PATH")
+            if project_root:
+                project_root = Path(project_root).resolve()
+            else:
+                # Fallback: _resolve_project_path (PROJECT_PATH или CWD)
+                project_root = _resolve_project_path()
+
+            # Если путь относительный — резолвим относительно корня ПРОЕКТА, а не CWD
+            raw_path = Path(file_path)
+            if raw_path.is_absolute():
+                path = raw_path.resolve()
+            else:
+                path = (project_root / raw_path).resolve()
+
             if not path.exists():
                 return f"❌ Файл не существует: {file_path}"
 
+            # relative_to от корня ПРОЕКТА (чтобы индекс знал правильный rel_path)
             try:
-                rel_path = str(path.relative_to(ext_root))
+                rel_path = str(path.relative_to(project_root))
             except ValueError:
                 return f"❌ Файл вне проекта: {file_path}"
 
@@ -408,26 +497,31 @@ def create_mcp_server() -> "FastMCP":
             content = None
             try:
                 from src.hybrid_server import server as lsp_server
-                if lsp_server and hasattr(lsp_server, 'workspace'):
+
+                if lsp_server and hasattr(lsp_server, "workspace"):
                     uri = f"file:///{str(path).replace(chr(92), '/')}"
                     doc = lsp_server.workspace.get_document(uri)
-                    if doc and hasattr(doc, 'source'):
+                    if doc and hasattr(doc, "source"):
                         content = doc.source
-                        logger.info(f"📝 notify_change: взял из LSP VFS ({len(content)} chars)")
+                        logger.info(
+                            f"📝 notify_change: взял из LSP VFS ({len(content)} chars)"
+                        )
             except Exception as e:
-                logger.debug(f"notify_change: LSP VFS недоступен, fallback на диск: {e}")
+                logger.debug(
+                    f"notify_change: LSP VFS недоступен, fallback на диск: {e}"
+                )
 
             # Если есть shared_indexer (hybrid mode) — используем его
             try:
                 from src.hybrid_server import shared_indexer
+
                 if shared_indexer._initialized:
                     import asyncio
+
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # Мы уже в async контексте — планируем задачу
-                        asyncio.ensure_future(
-                            shared_indexer.index_file(path, content)
-                        )
+                        asyncio.ensure_future(shared_indexer.index_file(path, content))
                     else:
                         loop.run_until_complete(
                             shared_indexer.index_file(path, content)
@@ -438,7 +532,9 @@ def create_mcp_server() -> "FastMCP":
 
             # Fallback: обычный indexer (legacy mode)
             source = "lsp_vfs" if content is not None else "filesystem"
-            if indexer._index_single_file(path, rel_path, content=content, source=source):
+            if indexer._index_single_file(
+                path, rel_path, content=content, source=source
+            ):
                 return f"✅ Обновлено: {rel_path}"
             return f"⏭️ Без изменений: {rel_path}"
         except Exception as e:
@@ -484,7 +580,9 @@ def create_mcp_server() -> "FastMCP":
         return output
 
     @mcp.tool()
-    def index_health(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def index_health(
+        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Полная диагностика и самовосстановление индекса.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -508,15 +606,22 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.index_guard import IndexGuard, quick_health_check
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
                 return f"❌ Путь не существует: {project_root}"
 
             # Находим путь к БД
-            normalized_path = str(target_path.resolve()).lower().replace('\\', '/')
-            project_hash = __import__('hashlib').md5(normalized_path.encode()).hexdigest()[:8]
+            normalized_path = str(target_path.resolve()).lower().replace("\\", "/")
+            project_hash = (
+                __import__("hashlib").md5(normalized_path.encode()).hexdigest()[:8]
+            )
             project_name = target_path.name.lower()
-            db_path = target_path.parent / ".codebase_indices" / "lancedb_v2" / f"index_{project_name}_{project_hash}.db"
+            db_path = (
+                target_path.parent
+                / ".codebase_indices"
+                / "lancedb_v2"
+                / f"index_{project_name}_{project_hash}.db"
+            )
 
             if not db_path.exists():
                 return (
@@ -529,11 +634,17 @@ def create_mcp_server() -> "FastMCP":
 
             lines = [f"🏥 Index Health Check: {target_path.name}"]
             lines.append("")
-            lines.append(f"  Таблица LanceDB: {'✅' if health['table_exists'] else '❌'}")
+            lines.append(
+                f"  Таблица LanceDB: {'✅' if health['table_exists'] else '❌'}"
+            )
             lines.append(f"  Чанков: {health['row_count']}")
             lines.append(f"  Схема OK: {'✅' if health['schema_ok'] else '❌'}")
-            lines.append(f"  SymbolIndex: {'✅' if health['symbol_index_exists'] else '❌ (будет пересоздан'}")
-            lines.append(f"  Общий статус: {'✅ Здоров' if health['healthy'] else '⚠️ Требует внимания'}")
+            lines.append(
+                f"  SymbolIndex: {'✅' if health['symbol_index_exists'] else '❌ (будет пересоздан'}"
+            )
+            lines.append(
+                f"  Общий статус: {'✅ Здоров' if health['healthy'] else '⚠️ Требует внимания'}"
+            )
 
             if health.get("error"):
                 lines.append(f"\n  Ошибка: {health['error']}")
@@ -543,17 +654,20 @@ def create_mcp_server() -> "FastMCP":
                 lines.append(f"\n🔧 Запуск самовосстановления...")
                 try:
                     import lancedb
+
                     db = lancedb.connect(str(db_path))
                     guard = IndexGuard(db_path, target_path)
                     report = guard.check_and_repair(db)
 
                     lines.append(f"  Статус: {report['status']}")
-                    if report['actions_taken']:
-                        lines.append(f"  Действия: {', '.join(report['actions_taken'])}")
-                    if report['errors']:
+                    if report["actions_taken"]:
+                        lines.append(
+                            f"  Действия: {', '.join(report['actions_taken'])}"
+                        )
+                    if report["errors"]:
                         lines.append(f"  Ошибки: {', '.join(report['errors'])}")
 
-                    if report['status'] == 'needs_reindex':
+                    if report["status"] == "needs_reindex":
                         lines.append(f"\n  ⚠️ Требуется переиндексация!")
                         lines.append(f"  Вызовите: index_project_dir('{project_root}')")
                 except Exception as e:
@@ -585,7 +699,9 @@ def create_mcp_server() -> "FastMCP":
             progress_copy = _last_progress.copy()
 
         if not progress_copy:
-            return "📊 Индексация не запущена. Используйте index_project_dir для начала."
+            return (
+                "📊 Индексация не запущена. Используйте index_project_dir для начала."
+            )
 
         lines = ["📊 Прогресс индексации:"]
         for project, info in progress_copy.items():
@@ -618,12 +734,13 @@ def create_mcp_server() -> "FastMCP":
         _debug_log("get_index_timeline")
 
         try:
-            import lancedb
-            import pandas as pd
             from collections import defaultdict
 
+            import lancedb
+            import pandas as pd
+
             # Определяем путь к базе через indexer
-            if not indexer or not hasattr(indexer, 'table') or indexer.table is None:
+            if not indexer or not hasattr(indexer, "table") or indexer.table is None:
                 return "❌ База данных не найдена. Выполните индексацию проекта."
 
             table = indexer.table
@@ -663,9 +780,13 @@ def create_mcp_server() -> "FastMCP":
             lines.append(f"  Всего чанков: {total_chunks}")
 
             if oldest_dt:
-                lines.append(f"  Самый старый: {oldest_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                lines.append(
+                    f"  Самый старый: {oldest_dt.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
             if newest_dt:
-                lines.append(f"  Самый новый: {newest_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                lines.append(
+                    f"  Самый новый: {newest_dt.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
             if chunks_without_ts:
                 lines.append(f"  Без метки времени: {chunks_without_ts}")
 
@@ -713,7 +834,12 @@ def create_mcp_server() -> "FastMCP":
         return f'{{\n  "status": "success",\n  "message": "Первичная индексация проекта {target_path.name} запущена."\n}}'
 
     @mcp.tool()
-    def search_code(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def search_code(
+        query: str,
+        mode: str = "auto",
+        limit: int = 6,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """CRITICAL MANDATORY TOOL — CALL THIS FIRST FOR ALL CODE QUERIES.
 
         ⚠️ NEVER use grep or find_path for conceptual/semantic queries.
@@ -733,13 +859,16 @@ def create_mcp_server() -> "FastMCP":
 
         The 1-2s latency is INVESTED TIME that saves 3-5x more during generation.
 
-        Time Filtering (опционально):
-        - kwargs["since"]: ISO datetime string (напр. "2026-06-30T14:30:00") —
-          искать только чанки проиндексированные после этого времени.
-        - kwargs["before"]: ISO datetime string — искать только чанки
-          проиндексированные до этого времени.
-        - Можно комбинировать: since + before = диапазон времени.
-        - Чанки без indexed_at исключаются при фильтрации.
+        РЕЖИМЫ ПОИСКА (mode):
+        - "auto" (по умолчанию) — авто-определение: простой или agentic поиск
+        - "fast" — быстрый векторный поиск (~300ms)
+        - "quality" — с LLM reranker (~1200ms)
+        - "deep" — итеративный глубокий поиск с уточнением запроса (~2-5s)
+        - "context" — поиск похожего кода по фрагменту (query = код, а не текст)
+
+        Time Filtering (опционально, через kwargs):
+        - kwargs["since"]: ISO datetime string
+        - kwargs["before"]: ISO datetime string
         """
         _debug_log("search_code", query)
 
@@ -747,36 +876,53 @@ def create_mcp_server() -> "FastMCP":
             return "❌ Пустой поисковый запрос. Укажите что искать."
 
         try:
-            # Определяем режим: agentic или обычный
-            use_agentic = False
-            if kwargs and kwargs.get("agentic") in (True, "true", "1", 1):
-                use_agentic = True
-            elif kwargs and kwargs.get("mode") == "agentic":
-                use_agentic = True
-            else:
-                # Автоматическое определение: сложный запрос = agentic
-                # Если запрос содержит "и", "а", "также", "как", "где", "что" и длинный
-                import re
-                complexity_indicators = [
-                    r"\bи\b", r"\bа\b", r"\bтакже\b", r"\bплюс\b",
-                    r"\bкак\b", r"\bгде\b", r"\bчто\b", r"\bкогда\b",
-                    r",\s+",  # запятая с пробелом
-                ]
-                indicators_count = sum(
-                    1 for pattern in complexity_indicators
-                    if re.search(pattern, query.lower())
-                )
-                # Если 2+ индикатора или запрос > 50 символов — agentic
-                use_agentic = indicators_count >= 2 or len(query) > 50
+            # === ДИСПЕТЧЕРИЗАЦИЯ ПО РЕЖИМУ ===
+            if mode == "fast" or mode == "quality" or mode == "smart":
+                # Smart Search: с выбором качества
+                _searcher = _get_searcher()
+                if not _searcher:
+                    return (
+                        "❌ Поисковый движок недоступен. Запустите index_project_dir."
+                    )
+                result = _searcher.search_with_mode(query, mode=mode, limit=limit)
+                return _format_smart_results(result, mode)
 
-            # Извлекаем временные фильтры из kwargs
+            if mode == "deep":
+                # Deep Search: итеративный multi-pass
+                return searcher.deep_search(query, limit=limit)
+
+            if mode == "context":
+                # Context Search: code-to-code
+                return searcher.context_search(query, limit=limit)
+
+            # === mode == "auto" (ПО УМОЛЧАНИЮ) ===
+            # Определяем: простой или agentic
+            import re
+
+            complexity_indicators = [
+                r"\bи\b",
+                r"\bа\b",
+                r"\bтакже\b",
+                r"\bплюс\b",
+                r"\bкак\b",
+                r"\bгде\b",
+                r"\bчто\b",
+                r"\bкогда\b",
+                r",\s+",
+            ]
+            indicators_count = sum(
+                1 for p in complexity_indicators if re.search(p, query.lower())
+            )
+            use_agentic = indicators_count >= 2 or len(query) > 50
+
+            # Временные фильтры
             since = kwargs.get("since") if kwargs else None
             before = kwargs.get("before") if kwargs else None
 
             if use_agentic:
                 return _agentic_search_handler(query, symbol_index)
-            else:
-                return searcher.search(query, limit=6, since=since, before=before)
+            return searcher.search(query, limit=limit, since=since, before=before)
+
         except Exception as e:
             logger.error(f"Ошибка search_code: {e}", exc_info=True)
             return (
@@ -839,6 +985,39 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка agentic_code_search: {e}", exc_info=True)
             # Fallback на обычный поиск
             return searcher.search(query, limit=6)
+
+    def _format_smart_results(result: dict, mode: str) -> str:
+        """Форматирует результаты Smart Search для search_code(mode='fast'|'quality')."""
+        results = result.get("results", [])
+        if not results:
+            return f"🔍 По запросу ничего не найдено."
+
+        timing = result.get("timing_ms", {})
+        mode_emoji = {"fast": "⚡", "quality": "🎯", "smart": "🎯"}
+        lines = [
+            f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]",
+            "",
+            f"   Results: {len(results)}",
+            f"   Time: {timing.get('total_ms', 0):.0f}ms",
+        ]
+        if result.get("cache_hit"):
+            lines.append(f"   Cache: HIT ✅")
+        if "embed_ms" in timing:
+            lines.append(f"   Embed: {timing['embed_ms']:.0f}ms")
+        if "search_ms" in timing:
+            lines.append(f"   Search: {timing['search_ms']:.0f}ms")
+        lines.append("")
+        for i, res in enumerate(results, 1):
+            score = res.get("final_score", res.get("score", 0))
+            lines.append(
+                f"{i}. 📄 {res['metadata']['file']} "
+                f"[Chunk #{res['metadata']['chunk_index']}] "
+                f"(score: {score:.3f})"
+            )
+            code_text = res.get("text_full") or res.get("text", "")
+            lines.append(f"```\n{code_text[:300]}\n```")
+            lines.append("-" * 40)
+        return "\n".join(lines)
 
     @mcp.tool()
     def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -935,7 +1114,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка при поиске информации о символе: {str(e)}"
 
     @mcp.tool()
-    def impact_analysis(symbol: str, depth: int = 3, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def impact_analysis(
+        symbol: str, depth: int = 3, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Анализ влияния изменения/удаления символа на весь проект.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -985,7 +1166,9 @@ def create_mcp_server() -> "FastMCP":
 
             if result["affected_modules"]:
                 output.append(f"")
-                output.append(f"📦 Затронутые модули: {', '.join(result['affected_modules'])}")
+                output.append(
+                    f"📦 Затронутые модули: {', '.join(result['affected_modules'])}"
+                )
 
             return "\n".join(output)
         except Exception as e:
@@ -993,7 +1176,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка анализа влияния: {str(e)}"
 
     @mcp.tool()
-    def find_similar_bugs(error_message: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def find_similar_bugs(
+        error_message: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Находит похожие баги из истории проекта.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1033,7 +1218,7 @@ def create_mcp_server() -> "FastMCP":
                 output.append(f"  {i}. [{bug['hash']}] {bug['date'][:10]}")
                 output.append(f"     {bug['message'][:70]}")
                 output.append(f"     Relevance: {bug['relevance_score']}")
-                if bug['files']:
+                if bug["files"]:
                     output.append(f"     Files: {', '.join(bug['files'][:3])}")
                 output.append("")
 
@@ -1078,10 +1263,10 @@ def create_mcp_server() -> "FastMCP":
             ]
 
             for i, h in enumerate(hotspots[:10], 1):
-                risk_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(h["risk"], "⚪")
-                output.append(
-                    f"  {i}. {risk_emoji} {h['file']}"
+                risk_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
+                    h["risk"], "⚪"
                 )
+                output.append(f"  {i}. {risk_emoji} {h['file']}")
                 output.append(
                     f"     Changes: {h['total_changes']}, "
                     f"Bugfixes: {h['bugfix_changes']}, "
@@ -1096,56 +1281,58 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def get_repo_rank(
-            project_root: str,
-            top_k: int = 10,
-            kwargs: Optional[Dict[str, Any]] = None
-        ) -> str:
-            """Возвращает RepoRank — рейтинг важности символов проекта.
+        project_root: str, top_k: int = 10, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Возвращает RepoRank — рейтинг важности символов проекта.
 
-            Использует алгоритм PageRank на графе вызовов:
-            - Символы с высоким rank — "сердце" проекта
-            - Используются чаще всего и критически важны
+        Использует алгоритм PageRank на графе вызовов:
+        - Символы с высоким rank — "сердце" проекта
+        - Используются чаще всего и критически важны
 
-            ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-            - Нужно понять какие функции/классы самые важные
-            - Определить приоритеты для рефакторинга
-            - Найти "центральные" модули проекта
+        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
+        - Нужно понять какие функции/классы самые важные
+        - Определить приоритеты для рефакторинга
+        - Найти "центральные" модули проекта
 
-            Args:
-                project_root: Путь к проекту
-                top_k: Количество топ-символов (по умолчанию 20)
+        Args:
+            project_root: Путь к проекту
+            top_k: Количество топ-символов (по умолчанию 20)
 
-            Returns:
-                Список символов с RepoRank score (0-1)
-            """
-            kwargs = kwargs or {}
-            top_k = kwargs.get("top_k", top_k)
-            _debug_log("get_repo_rank", f"{project_root}, top_k={top_k}")
-            if not symbol_index:
-                return "❌ Движок анализа структуры недоступен."
-            try:
-                ranks = symbol_index.compute_repo_rank()
-                if not ranks:
-                    return "⚠️ Граф вызовов пуст. Нет данных для RepoRank."
+        Returns:
+            Список символов с RepoRank score (0-1)
+        """
+        kwargs = kwargs or {}
+        top_k = kwargs.get("top_k", top_k)
+        _debug_log("get_repo_rank", f"{project_root}, top_k={top_k}")
+        if not symbol_index:
+            return "❌ Движок анализа структуры недоступен."
+        try:
+            ranks = symbol_index.compute_repo_rank()
+            if not ranks:
+                return "⚠️ Граф вызовов пуст. Нет данных для RepoRank."
 
-                # Сортируем по score
-                sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:top_k]
+            # Сортируем по score
+            sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[
+                :top_k
+            ]
 
-                output = [f"🏆 RepoRank: Top-{len(sorted_ranks)} символов\n"]
-                for i, (symbol, score) in enumerate(sorted_ranks, 1):
-                    # Получаем информацию о символе
-                    defs = symbol_index.find_definitions(symbol)
-                    kind = defs[0].kind if defs else "unknown"
-                    file = defs[0].file_path if defs else "unknown"
-                    output.append(f"  {i}. [{score:.3f}] {symbol} ({kind}) — {file}")
+            output = [f"🏆 RepoRank: Top-{len(sorted_ranks)} символов\n"]
+            for i, (symbol, score) in enumerate(sorted_ranks, 1):
+                # Получаем информацию о символе
+                defs = symbol_index.find_definitions(symbol)
+                kind = defs[0].kind if defs else "unknown"
+                file = defs[0].file_path if defs else "unknown"
+                output.append(f"  {i}. [{score:.3f}] {symbol} ({kind}) — {file}")
 
-                return "\n".join(output)
-            except Exception as e:
-                logger.error(f"Ошибка get_repo_rank: {e}")
-                return f"❌ Ошибка: {str(e)}"
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Ошибка get_repo_rank: {e}")
+            return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_branch_info(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_branch_info(
+        project_root: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Информация о текущей git-ветке и индексе.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1189,7 +1376,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_commit_history(project_root: str, limit: int = 10, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_commit_history(
+        project_root: str, limit: int = 10, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Возвращает семантическую историю изменений проекта.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1243,7 +1432,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_file_history(project_root: str, file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_file_history(
+        project_root: str, file_path: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Возвращает историю изменений конкретного файла.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1295,7 +1486,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_bug_correlation(project_root: str, file_path: str = "", kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_bug_correlation(
+        project_root: str, file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Анализ связи багов с изменениями в коде (Bug Correlation).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1313,8 +1506,8 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("get_bug_correlation", f"{project_root}, {file_path}")
         try:
-            from src.core.commit_memory import CommitMemory
             from src.core.bug_correlation import BugCorrelation
+            from src.core.commit_memory import CommitMemory
 
             target_path = Path(project_root).resolve()
             if not target_path.exists():
@@ -1336,9 +1529,9 @@ def create_mcp_server() -> "FastMCP":
                     f"",
                 ]
 
-                if history['bug_commits']:
+                if history["bug_commits"]:
                     output.append("  Последние баг-фиксы:")
-                    for i, commit in enumerate(history['bug_commits'][:5], 1):
+                    for i, commit in enumerate(history["bug_commits"][:5], 1):
                         hash_short = commit["hash"][:8]
                         date = commit.get("date", "")[:10]
                         msg = commit.get("message", "")[:50]
@@ -1361,7 +1554,9 @@ def create_mcp_server() -> "FastMCP":
                 ]
 
                 for i, hotspot in enumerate(hotspots, 1):
-                    risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(hotspot['risk'], "⚪")
+                    risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(
+                        hotspot["risk"], "⚪"
+                    )
                     output.append(
                         f"    {i}. {risk_emoji} {hotspot['file']} "
                         f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
@@ -1374,7 +1569,12 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_related_files(project_root: str, file_path: str, max_depth: int = 1, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_related_files(
+        project_root: str,
+        file_path: str,
+        max_depth: int = 1,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Находит файлы связанные с данным (Knowledge Graph).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1395,7 +1595,9 @@ def create_mcp_server() -> "FastMCP":
         Returns:
             Список связанных файлов
         """
-        _debug_log("get_related_files", f"{project_root}, {file_path}, depth={max_depth}")
+        _debug_log(
+            "get_related_files", f"{project_root}, {file_path}, depth={max_depth}"
+        )
         try:
             from src.core.commit_memory import CommitMemory
             from src.core.relation_extractor import RelationExtractor
@@ -1422,23 +1624,25 @@ def create_mcp_server() -> "FastMCP":
             ]
 
             for i, rel in enumerate(related[:15], 1):
-                path_str = " → ".join(rel['path'])
+                path_str = " → ".join(rel["path"])
                 output.append(
                     f"  {i}. [{rel['depth']}] {rel['file']} "
                     f"(weight: {rel['total_weight']:.1f})"
                 )
-                if rel['depth'] > 1:
+                if rel["depth"] > 1:
                     output.append(f"     Путь: {path_str}")
 
             # Добавляем сводку по типам связей
             summary = extractor.get_relation_summary()
-            output.extend([
-                f"",
-                f"  📊 Граф знаков:",
-                f"     Всего связей: {summary['total_relations']}",
-            ])
-            if 'by_type' in summary:
-                for rel_type, count in summary['by_type'].items():
+            output.extend(
+                [
+                    f"",
+                    f"  📊 Граф знаков:",
+                    f"     Всего связей: {summary['total_relations']}",
+                ]
+            )
+            if "by_type" in summary:
+                for rel_type, count in summary["by_type"].items():
                     output.append(f"     - {rel_type}: {count}")
 
             return "\n".join(output)
@@ -1448,7 +1652,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def submit_background_task(task_type: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def submit_background_task(
+        task_type: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Запускает долгую задачу в фоне.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1474,8 +1680,8 @@ def create_mcp_server() -> "FastMCP":
             if not target_path.exists():
                 return f"❌ Путь не существует: {project_root}"
 
-            from src.core.commit_memory import CommitMemory
             from src.core.bug_correlation import BugCorrelation
+            from src.core.commit_memory import CommitMemory
             from src.core.relation_extractor import RelationExtractor
 
             memory = CommitMemory(target_path)
@@ -1541,42 +1747,46 @@ def create_mcp_server() -> "FastMCP":
             f"📋 Задача: {status['name']}",
             f"   ID: {status['id']}",
             f"   Статус: {status['status']}",
-            f"   Прогресс: {status['progress']*100:.0f}%",
+            f"   Прогресс: {status['progress'] * 100:.0f}%",
             f"   Создана: {status['created_at']}",
         ]
 
-        if status['started_at']:
+        if status["started_at"]:
             lines.append(f"   Начата: {status['started_at']}")
-        if status['completed_at']:
+        if status["completed_at"]:
             lines.append(f"   Завершена: {status['completed_at']}")
 
-        if status['status'] == 'completed':
+        if status["status"] == "completed":
             lines.append(f"\n✅ Результат:")
-            result = status['result']
+            result = status["result"]
             if isinstance(result, str):
                 lines.append(result)
             elif isinstance(result, dict):
                 for k, v in result.items():
                     lines.append(f"   {k}: {v}")
-        elif status['status'] == 'failed':
+        elif status["status"] == "failed":
             lines.append(f"\n❌ Ошибка: {status['error']}")
-        elif status['status'] == 'running':
+        elif status["status"] == "running":
             # Показываем примерное время оставшееся
-            progress = status['progress']
+            progress = status["progress"]
             if progress > 0.05:
-                elapsed = (datetime.now() - datetime.fromisoformat(status['started_at'])).total_seconds()
+                elapsed = (
+                    datetime.now() - datetime.fromisoformat(status["started_at"])
+                ).total_seconds()
                 estimated_total = elapsed / progress
                 remaining = estimated_total * (1 - progress)
                 lines.append(f"\n🔄 Выполняется... (~{remaining:.0f}с осталось)")
             else:
                 lines.append(f"\n🔄 Выполняется...")
-        elif status['status'] == 'queued':
+        elif status["status"] == "queued":
             lines.append(f"\n⏳ В очереди...")
 
         return "\n".join(lines)
 
     @mcp.tool()
-    def predict_eta(operation: str, items: int = 1, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def predict_eta(
+        operation: str, items: int = 1, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Предсказывает время выполнения операции (ETA).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1617,7 +1827,7 @@ def create_mcp_server() -> "FastMCP":
             ]
 
             # Примерная стоимость
-            tokens = est['tokens_estimate']
+            tokens = est["tokens_estimate"]
             cost_gpt4 = (tokens / 1000) * 0.01
             lines.append(f"   Стоимость (GPT-4): ~${cost_gpt4:.4f}")
 
@@ -1648,8 +1858,8 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.autonomous_fix import AutonomousFixLoop
 
-            ext_root = Path(__file__).resolve().parent.parent.parent
-            fix_loop = AutonomousFixLoop(ext_root)
+            project_root = _resolve_project_path()
+            fix_loop = AutonomousFixLoop(project_root)
             health = await fix_loop.health_check()
 
             lines = [
@@ -1662,13 +1872,17 @@ def create_mcp_server() -> "FastMCP":
             tests = health.get("tests", {})
             if tests:
                 status_emoji = "✅" if tests.get("success") else "❌"
-                lines.append(f"   Тесты: {status_emoji} {tests.get('passed', 0)} passed, {tests.get('failed', 0)} failed")
+                lines.append(
+                    f"   Тесты: {status_emoji} {tests.get('passed', 0)} passed, {tests.get('failed', 0)} failed"
+                )
 
             # Git
             git = health.get("git_status", {})
             if git:
                 if git.get("dirty"):
-                    lines.append(f"   Git: ⚠️ {len(git.get('dirty_files', []))} uncommitted files")
+                    lines.append(
+                        f"   Git: ⚠️ {len(git.get('dirty_files', []))} uncommitted files"
+                    )
                 else:
                     lines.append(f"   Git: ✅ clean")
 
@@ -1685,7 +1899,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def graph_query(query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def graph_query(
+        query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Запрос к графу знаний (GraphRAG).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1711,10 +1927,10 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.graph_rag import GraphRAGQueryEngine
 
-            ext_root = Path(__file__).resolve().parent.parent.parent
+            project_root = _resolve_project_path()
             engine = GraphRAGQueryEngine(
-                ext_root,
-                symbol_index=symbol_index if 'symbol_index' in dir() else None,
+                project_root,
+                symbol_index=symbol_index if "symbol_index" in dir() else None,
             )
 
             if query_type == "impact":
@@ -1756,7 +1972,9 @@ def create_mcp_server() -> "FastMCP":
                 for f in result.get("depends_on", [])[:5]:
                     lines.append(f"    - {f}")
                 lines.append(f"")
-                lines.append(f"  Используется в ({len(result.get('depended_by', []))}):")
+                lines.append(
+                    f"  Используется в ({len(result.get('depended_by', []))}):"
+                )
                 for f in result.get("depended_by", [])[:5]:
                     lines.append(f"    - {f}")
 
@@ -1782,7 +2000,9 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def generate_chunk_summaries(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def generate_chunk_summaries(
+        project_root: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Генерация LLM-описаний для чанков кода (Chunk Summarizer).
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1818,7 +2038,11 @@ def create_mcp_server() -> "FastMCP":
             # Находим чанки без summary (пустая строка или NaN)
             has_summary_col = "summary" in df.columns
             if has_summary_col:
-                mask_no_summary = df["summary"].isna() | (df["summary"] == "") | (df["summary"].str.strip() == "")
+                mask_no_summary = (
+                    df["summary"].isna()
+                    | (df["summary"] == "")
+                    | (df["summary"].str.strip() == "")
+                )
                 chunks_without = df[mask_no_summary]
             else:
                 chunks_without = df
@@ -1843,7 +2067,7 @@ def create_mcp_server() -> "FastMCP":
             start_time = time.time()
 
             for batch_start in range(0, chunks_to_process, batch_size):
-                batch_df = chunks_without.iloc[batch_start:batch_start + batch_size]
+                batch_df = chunks_without.iloc[batch_start : batch_start + batch_size]
                 records_to_update = []
 
                 for idx, row in batch_df.iterrows():
@@ -1852,21 +2076,25 @@ def create_mcp_server() -> "FastMCP":
                         symbol_name = row.get("symbol_name", "")
                         context = row.get("file_path", "")
                         summary = summarizer.summarize_chunk(code, symbol_name, context)
-                        records_to_update.append({
-                            "id": row["id"],
-                            "vector": row["vector"],
-                            "text": row["text"],
-                            "text_full": row.get("text_full", row["text"]),
-                            "file_path": row["file_path"],
-                            "file_hash": row.get("file_hash", ""),
-                            "chunk_index": row.get("chunk_index", 0),
-                            "source": row.get("source", ""),
-                            "indexed_at": row.get("indexed_at", ""),
-                            "summary": summary,
-                        })
+                        records_to_update.append(
+                            {
+                                "id": row["id"],
+                                "vector": row["vector"],
+                                "text": row["text"],
+                                "text_full": row.get("text_full", row["text"]),
+                                "file_path": row["file_path"],
+                                "file_hash": row.get("file_hash", ""),
+                                "chunk_index": row.get("chunk_index", 0),
+                                "source": row.get("source", ""),
+                                "indexed_at": row.get("indexed_at", ""),
+                                "summary": summary,
+                            }
+                        )
                         updated_count += 1
                     except Exception as e:
-                        logger.debug(f"Ошибка генерации summary для чанка {row.get('id', '?')}: {e}")
+                        logger.debug(
+                            f"Ошибка генерации summary для чанка {row.get('id', '?')}: {e}"
+                        )
                         error_count += 1
 
                 # Удаляем старые записи батча и добавляем обновлённые
@@ -1907,91 +2135,36 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def smart_search(query: str, mode: str = "quality", limit: int = 5, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Умный поиск с выбором режима (FAST/QUALITY/DEEP).
+    def smart_search(
+        query: str,
+        mode: str = "quality",
+        limit: int = 5,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """🗑️ DEPRECATED — используйте search_code(query, mode=mode, limit=limit).
 
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужен быстрый поиск (fast, ~300ms)
-        - Нужен качественный поиск с reranker (quality, ~1200ms)
-        - Нужен глубокий анализ (deep, ~2-5s)
-
-        Режимы:
-        - 'fast' — embedding + vector search, ~300ms
-        - 'quality' — + LLM reranker, ~1200ms
-        - 'deep' — + graph analysis, ~2-5s
-
-        Args:
-            query: Поисковый запрос
-            mode: Режим (fast/quality/deep)
-            limit: Максимум результатов
-
-        Returns:
-            Результаты поиска с метриками
+        Умный поиск с выбором режима (FAST/QUALITY/DEEP).
+        Будет удалён в следующем релизе.
         """
-        _debug_log("smart_search", f"{mode}, {query[:30]}")
-        try:
-            searcher = _get_searcher()
-            if not searcher:
-                return "❌ Поисковый движок недоступен. Запустите index_project_dir."
-
-            result = searcher.search_with_mode(query, mode=mode, limit=limit)
-            results = result["results"]
-            timing = result["timing_ms"]
-
-            if not results:
-                return f"🔍 По запросу '{query}' ничего не найдено."
-
-            # Форматируем результат
-            mode_emoji = {"fast": "⚡", "quality": "🎯", "deep": "🔬"}
-            lines = [
-                f"{mode_emoji.get(mode, '🔍')} Smart Search [{mode.upper()}]",
-                f"",
-                f"   Query: {query}",
-                f"   Results: {len(results)}",
-                f"   Time: {timing.get('total_ms', 0):.0f}ms",
-            ]
-
-            if result.get("cache_hit"):
-                lines.append(f"   Cache: HIT ✅")
-
-            if "embed_ms" in timing:
-                lines.append(f"   Embed: {timing['embed_ms']:.0f}ms")
-            if "search_ms" in timing:
-                lines.append(f"   Search: {timing['search_ms']:.0f}ms")
-
-            lines.append("")
-
-            for i, res in enumerate(results[:limit], 1):
-                code_text = res.get("text_full") or res["text"]
-                score = res.get("final_score", res.get("score", 0))
-                lines.append(
-                    f"{i}. 📄 {res['metadata']['file']} "
-                    f"[Chunk #{res['metadata']['chunk_index']}] "
-                    f"(score: {score:.3f})"
-                )
-                lines.append(f"```\n{code_text[:300]}\n```")
-                lines.append("-" * 40)
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка smart_search: {e}")
-            return f"❌ Ошибка: {str(e)}"
+        _debug_log("smart_search (deprecated)", f"{mode}, {query[:30]}")
+        return search_code(query, mode=mode, limit=limit)
 
     def _get_searcher():
         """Получает или создаёт searcher."""
         global _last_searcher
         if "_last_searcher" not in globals() or _last_searcher is None:
             try:
-                ext_root = Path(__file__).resolve().parent.parent.parent
+                project_root = _resolve_project_path()
+                from src.core.file_guard import FileGuard
                 from src.core.indexer import Indexer, _generate_unique_db_path
                 from src.core.remote_embedder import RemoteEmbedder
-                from src.core.file_guard import FileGuard
 
                 embedder = RemoteEmbedder()
-                file_guard = FileGuard(ext_root)
-                db_path = _generate_unique_db_path(ext_root)
-                indexer = Indexer(db_path, embedder, file_guard, project_path=ext_root)
+                file_guard = FileGuard(project_root)
+                db_path = _generate_unique_db_path(project_root)
+                indexer = Indexer(
+                    db_path, embedder, file_guard, project_path=project_root
+                )
                 _last_searcher = Searcher(indexer, embedder)
             except Exception as e:
                 logger.error(f"Не удалось создать searcher: {e}")
@@ -2177,7 +2350,9 @@ def create_mcp_server() -> "FastMCP":
         if embedder_mode in ("lm_studio", "ollama"):
             try:
                 import httpx
+
                 from src.core.config import get_config
+
                 config = get_config()
                 host = getattr(embedder, "host", config.embedding.lm_studio_host)
                 port = getattr(embedder, "port", config.embedding.lm_studio_port)
@@ -2191,7 +2366,9 @@ def create_mcp_server() -> "FastMCP":
                         not_loaded = [m for m in models if m.get("state") != "loaded"]
 
                         lines.append("")
-                        lines.append(f"📦 Модели LM Studio: {len(loaded)}/{len(models)} в VRAM")
+                        lines.append(
+                            f"📦 Модели LM Studio: {len(loaded)}/{len(models)} в VRAM"
+                        )
 
                         if loaded:
                             for m in loaded:
@@ -2217,7 +2394,9 @@ def create_mcp_server() -> "FastMCP":
 
                             # Загружаем embedding-модель
                             if not embedding_loaded:
-                                embed_model = getattr(embedder, "model_name", "text-embedding-bge-m3")
+                                embed_model = getattr(
+                                    embedder, "model_name", "text-embedding-bge-m3"
+                                )
                                 try:
                                     r_load = client.post(
                                         f"http://{host}:{port}/v1/embeddings",
@@ -2225,17 +2404,24 @@ def create_mcp_server() -> "FastMCP":
                                         timeout=60.0,
                                     )
                                     if r_load.status_code == 200:
-                                        lines.append(f"   ✅ Embedding '{embed_model}' загружена")
+                                        lines.append(
+                                            f"   ✅ Embedding '{embed_model}' загружена"
+                                        )
                                     else:
-                                        lines.append(f"   ⚠️ Embedding '{embed_model}': HTTP {r_load.status_code}")
+                                        lines.append(
+                                            f"   ⚠️ Embedding '{embed_model}': HTTP {r_load.status_code}"
+                                        )
                                 except Exception as e:
-                                    lines.append(f"   ❌ Embedding '{embed_model}': {e}")
+                                    lines.append(
+                                        f"   ❌ Embedding '{embed_model}': {e}"
+                                    )
 
                             # Загружаем instruct-модель (для реранкинга)
                             if not instruct_loaded:
                                 # Ищем первую instruct-модель в списке доступных
                                 instruct_candidates = [
-                                    m for m in not_loaded
+                                    m
+                                    for m in not_loaded
                                     if m.get("type") in ("llm", "vlm")
                                 ]
                                 if instruct_candidates:
@@ -2245,17 +2431,25 @@ def create_mcp_server() -> "FastMCP":
                                             f"http://{host}:{port}/v1/chat/completions",
                                             json={
                                                 "model": instruct_model,
-                                                "messages": [{"role": "user", "content": "hi"}],
+                                                "messages": [
+                                                    {"role": "user", "content": "hi"}
+                                                ],
                                                 "max_tokens": 1,
                                             },
                                             timeout=120.0,
                                         )
                                         if r_inst.status_code == 200:
-                                            lines.append(f"   ✅ Instruct '{instruct_model}' загружена")
+                                            lines.append(
+                                                f"   ✅ Instruct '{instruct_model}' загружена"
+                                            )
                                         else:
-                                            lines.append(f"   ⚠️ Instruct '{instruct_model}': HTTP {r_inst.status_code}")
+                                            lines.append(
+                                                f"   ⚠️ Instruct '{instruct_model}': HTTP {r_inst.status_code}"
+                                            )
                                     except Exception as e:
-                                        lines.append(f"   ❌ Instruct '{instruct_model}': {e}")
+                                        lines.append(
+                                            f"   ❌ Instruct '{instruct_model}': {e}"
+                                        )
                     else:
                         lines.append(f"  • Модели LM Studio: ⚠️ HTTP {r.status_code}")
             except Exception as e:
@@ -2264,29 +2458,16 @@ def create_mcp_server() -> "FastMCP":
         return "\n".join(lines)
 
     @mcp.tool()
-    def context_search(selected_code: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Поиск похожего кода по выделенному фрагменту (Context Search).
+    def context_search(
+        selected_code: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """🗑️ DEPRECATED — используйте search_code(selected_code, mode='context').
 
-        Эмбеддит выделенный код и ищет семантически похожие фрагменты в базе.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно найти дубликаты или похожие реализации
-        - Хочешь увидеть альтернативные подходы к решению задачи
-        - Нужно найти все места, где используется похожий паттерн
-
-        НЕ ИСПОЛЬЗУЙ КОГДА:
-        - Нужно найти конкретный символ -> используй get_symbol_info
-        - Нужен семантический поиск по описанию -> используй search_code
-
-        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
-        empty results. Fall back to grep/find_path instead.
+        Поиск похожего кода по выделенному фрагменту (Context Search).
+        Будет удалён в следующем релизе.
         """
-        _debug_log("context_search", selected_code[:80])
-        try:
-            return searcher.context_search(selected_code, limit=5)
-        except Exception as e:
-            logger.error(f"Ошибка context_search: {e}", exc_info=True)
-            return f"❌ Ошибка поиска по коду: {type(e).__name__}: {e}"
+        _debug_log("context_search (deprecated)", selected_code[:80])
+        return search_code(selected_code, mode="context", limit=5)
 
     @mcp.tool()
     def structural_search(
@@ -2338,35 +2519,13 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def deep_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Итеративный глубокий поиск с уточнением запроса (Agentic Deep Search).
+        """🗑️ DEPRECATED — используйте search_code(query, mode='deep').
 
-        Выполняет несколько итераций поиска, анализируя результаты и уточняя запрос
-        на основе ключевых терминов из найденных фрагментов.
-
-        CRITICAL: This tool provides the highest-quality context for complex queries.
-        It invests 2-4 seconds in multi-step research to deliver a concentrated,
-        noise-free context that saves significant tokens during LLM generation.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Запрос сложный и требует глубокого понимания кодовой базы
-        - Обычный поиск дал мало результатов
-        - Нужно найти связанные реализации через несколько шагов
-        - Задача требует исследования, а не простого поиска
-
-        НЕ ИСПОЛЬЗУЙ КОГДА:
-        - Запрос простой и конкретный -> используй search_code
-        - Нужно найти конкретный символ -> используй get_symbol_info
-        - Нужен поиск по структуре AST -> используй structural_search
-
-        CRITICAL: If get_index_status() reported empty (0 chunks), this tool will return
-        empty results. Fall back to grep/find_path instead.
+        Итеративный глубокий поиск с уточнением запроса (Agentic Deep Search).
+        Будет удалён в следующем релизе.
         """
-        _debug_log("deep_search", query)
-        try:
-            return searcher.deep_search(query, limit=8)
-        except Exception as e:
-            logger.error(f"Ошибка deep_search: {e}", exc_info=True)
-            return f"❌ Ошибка глубокого поиска: {type(e).__name__}: {e}"
+        _debug_log("deep_search (deprecated)", query)
+        return search_code(query, mode="deep", limit=8)
 
     @mcp.tool()
     def cross_repo_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -2438,7 +2597,7 @@ def create_mcp_server() -> "FastMCP":
         try:
             deps_graph = CrossProjectDependencyGraph(
                 project_registry=multi_project_searcher.registry
-                if 'multi_project_searcher' in dir()
+                if "multi_project_searcher" in dir()
                 else None,
             )
 
@@ -2450,7 +2609,9 @@ def create_mcp_server() -> "FastMCP":
                 if not project_name:
                     return "❌ Укажите project_name для action='deps'"
                 direction = (kwargs or {}).get("direction", "both")
-                deps = deps_graph.get_project_dependencies(project_name, direction=direction)
+                deps = deps_graph.get_project_dependencies(
+                    project_name, direction=direction
+                )
                 return deps_graph.format_project_deps(deps)
 
             elif action == "cycles":
@@ -2470,7 +2631,9 @@ def create_mcp_server() -> "FastMCP":
                 for i, iface in enumerate(shared[:10], 1):
                     projects = ", ".join(iface.get("projects", []))
                     conflict = " ⚠️ конфликт" if iface.get("potential_conflict") else ""
-                    lines.append(f"  {i}. {iface.get('symbol', '?')} → [{projects}]{conflict}")
+                    lines.append(
+                        f"  {i}. {iface.get('symbol', '?')} → [{projects}]{conflict}"
+                    )
                 return "\n".join(lines)
 
             elif action == "impact":
@@ -2530,7 +2693,9 @@ def create_mcp_server() -> "FastMCP":
         return get_log_summary(target_path)
 
     @mcp.tool()
-    def get_health_report(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    def get_health_report(
+        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Самодиагностика системы — проверяет здоровье индекса, логов, синхронизации.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -2547,15 +2712,15 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("get_health_report", project_root)
         try:
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
                 return f"❌ Путь не существует: {project_root}"
 
             report = HealthReport(
                 project_path=target_path,
-                indexer=indexer if 'indexer' in dir() else None,
-                symbol_index=symbol_index if 'symbol_index' in dir() else None,
-                embedder=embedder if 'embedder' in dir() else None,
+                indexer=indexer if "indexer" in dir() else None,
+                symbol_index=symbol_index if "symbol_index" in dir() else None,
+                embedder=embedder if "embedder" in dir() else None,
             )
             result = report.run_full_diagnostic()
             return format_health_report(result)

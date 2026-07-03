@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 
 # Импорт утилит из zed_config для кроссплатформенности и избежания дублирования
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
-from zed_config import get_zed_config_dir, get_python_path, patch_zed_settings, SERVER_NAME
+from zed_config import (
+    SERVER_NAME,
+    get_python_path,
+    get_zed_config_dir,
+    patch_zed_settings,
+)
 
 # ──────────────────────────────────────────────────────────────
 # Константы
@@ -32,7 +37,10 @@ from zed_config import get_zed_config_dir, get_python_path, patch_zed_settings, 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (
-    Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "Zed" / "extensions" / "mscodebase-intelligence"
+    Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")))
+    / "Zed"
+    / "extensions"
+    / "mscodebase-intelligence"
 )
 VENV_DIR = ZED_EXT_DIR / "venv"
 
@@ -63,18 +71,20 @@ MAX_CONCURRENT_LLM_REQUESTS = 2
 # TUI: Цвета, рамки, прогресс-бар, спиннер
 # ──────────────────────────────────────────────────────────────
 
+
 class Color:
     """ANSI-цвета для терминала Windows (включены через os.system)."""
-    RESET   = "\033[0m"
-    BOLD    = "\033[1m"
-    DIM     = "\033[2m"
-    RED     = "\033[91m"
-    GREEN   = "\033[92m"
-    YELLOW  = "\033[93m"
-    BLUE    = "\033[94m"
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
     MAGENTA = "\033[95m"
-    CYAN    = "\033[96m"
-    WHITE   = "\033[97m"
+    CYAN = "\033[96m"
+    WHITE = "\033[97m"
 
 
 def _enable_ansi():
@@ -111,7 +121,9 @@ def step_header(num: int, total: int, title: str) -> None:
     label = f" [{num}/{total}] {title} "
     padded = label.ljust(inner)
     print(f"\n{Color.BLUE}  ┌{'─' * inner}┐{Color.RESET}")
-    print(f"{Color.BLUE}  │{Color.BOLD}{Color.CYAN}{padded}{Color.RESET}{Color.BLUE}│{Color.RESET}")
+    print(
+        f"{Color.BLUE}  │{Color.BOLD}{Color.CYAN}{padded}{Color.RESET}{Color.BLUE}│{Color.RESET}"
+    )
     print(f"{Color.BLUE}  └{'─' * inner}┘{Color.RESET}")
 
 
@@ -209,13 +221,17 @@ class Spinner:
 # Утилиты
 # ──────────────────────────────────────────────────────────────
 
+
 def run_cmd(cmd: str, cwd: Path = PROJECT_ROOT) -> bool:
-    res = subprocess.run(cmd, cwd=str(cwd), shell=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    res = subprocess.run(
+        cmd, cwd=str(cwd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     return res.returncode == 0
 
 
-def run_cmd_visible(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выполняю") -> bool:
+def run_cmd_visible(
+    cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выполняю"
+) -> bool:
     """Запускает команду с видимым выводом в реальном времени.
 
     Показывает stdout/stderr процесса построчно,
@@ -225,9 +241,13 @@ def run_cmd_visible(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выпол
     print(f"  {Color.CYAN}▶{Color.RESET}  {Color.BOLD}{label}{Color.RESET}")
 
     proc = subprocess.Popen(
-        cmd, cwd=str(cwd), shell=True,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        encoding="utf-8", errors="replace",
+        cmd,
+        cwd=str(cwd),
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
     )
 
@@ -235,6 +255,7 @@ def run_cmd_visible(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выпол
     max_lines = 200  # Защита от спама
 
     try:
+        assert proc.stdout is not None
         for line in proc.stdout:
             line = line.rstrip()
             if not line:
@@ -249,7 +270,9 @@ def run_cmd_visible(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выпол
                 pkg = line.replace("Collecting ", "")
                 print(f"    {Color.YELLOW}↓{Color.RESET} {pkg}")
             elif line.startswith("Downloading"):
-                print(f"    {Color.BLUE}⬇{Color.RESET} {line.replace('Downloading ', '')}")
+                print(
+                    f"    {Color.BLUE}⬇{Color.RESET} {line.replace('Downloading ', '')}"
+                )
             elif "Building wheel" in line:
                 print(f"    {Color.MAGENTA}⚙{Color.RESET} {line.strip()}")
             elif "Successfully" in line:
@@ -269,18 +292,25 @@ def run_cmd_visible(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выпол
     elapsed = time.time() - start
 
     if proc.returncode == 0:
-        print(f"  {Color.GREEN}✔{Color.RESET}  {label} — {Color.GREEN}OK{Color.RESET} ({elapsed:.0f}s)")
+        print(
+            f"  {Color.GREEN}✔{Color.RESET}  {label} — {Color.GREEN}OK{Color.RESET} ({elapsed:.0f}s)"
+        )
     else:
-        print(f"  {Color.RED}✖{Color.RESET}  {label} — {Color.RED}FAIL{Color.RESET} ({elapsed:.0f}s)")
+        print(
+            f"  {Color.RED}✖{Color.RESET}  {label} — {Color.RED}FAIL{Color.RESET} ({elapsed:.0f}s)"
+        )
 
     return proc.returncode == 0
 
 
-def run_cmd_with_progress(cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выполняю") -> bool:
+def run_cmd_with_progress(
+    cmd: str, cwd: Path = PROJECT_ROOT, label: str = "Выполняю"
+) -> bool:
     """Запускает команду со спиннером (для коротких операций)."""
     spinner = Spinner(label)
-    proc = subprocess.Popen(cmd, cwd=str(cwd), shell=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(
+        cmd, cwd=str(cwd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     while proc.poll() is None:
         spinner.tick()
         time.sleep(0.1)
@@ -294,8 +324,11 @@ def _stop_extension_processes() -> None:
     killed = 0
     try:
         result = subprocess.run(
-            'wmic process where "CommandLine like \'%mscodebase%\' and Name=\'python.exe\'" get ProcessId /format:list',
-            capture_output=True, text=True, shell=True, timeout=10
+            "wmic process where \"CommandLine like '%mscodebase%' and Name='python.exe'\" get ProcessId /format:list",
+            capture_output=True,
+            text=True,
+            shell=True,
+            timeout=10,
         )
         pids = []
         for line in result.stdout.strip().splitlines():
@@ -307,8 +340,12 @@ def _stop_extension_processes() -> None:
 
         for pid in pids:
             try:
-                subprocess.run(f"taskkill /PID {pid} /F",
-                               capture_output=True, shell=True, timeout=5)
+                subprocess.run(
+                    f"taskkill /PID {pid} /F",
+                    capture_output=True,
+                    shell=True,
+                    timeout=5,
+                )
                 killed += 1
             except Exception:
                 pass
@@ -419,7 +456,9 @@ def validate_lancedb_schema(db_path: Path) -> str:
         for field in existing_schema:
             existing_fields[field.name] = str(field.type)
 
-        missing_fields = set(EXPECTED_SCHEMA_FIELDS.keys()) - set(existing_fields.keys())
+        missing_fields = set(EXPECTED_SCHEMA_FIELDS.keys()) - set(
+            existing_fields.keys()
+        )
         if missing_fields:
             return "mismatch"
 
@@ -533,7 +572,9 @@ def main():
         try:
             zed_config_dir.mkdir(parents=True, exist_ok=True)
             info(f"Создана директория настроек Zed: {zed_config_dir}")
-            warn("Zed IDE ещё не был запущен. Запустите Zed хотя бы раз для корректной работы.")
+            warn(
+                "Zed IDE ещё не был запущен. Запустите Zed хотя бы раз для корректной работы."
+            )
         except Exception as e:
             fail(f"Не удалось создать директорию настроек Zed: {e}")
             info("Убедитесь что Zed IDE установлен и у вас есть права на запись.")
@@ -549,7 +590,9 @@ def main():
     fallback_mode = not lm_available
 
     if lm_available:
-        ok(f"LM Studio/Ollama доступен на {Color.GREEN}{LM_STUDIO_HOST}:{LM_STUDIO_PORT}{Color.RESET}")
+        ok(
+            f"LM Studio/Ollama доступен на {Color.GREEN}{LM_STUDIO_HOST}:{LM_STUDIO_PORT}{Color.RESET}"
+        )
     else:
         warn(f"LM Studio/Ollama НЕ доступен на {LM_STUDIO_HOST}:{LM_STUDIO_PORT}")
         info("Fallback-режим: Tree-sitter + текстовые индексы")
@@ -575,15 +618,22 @@ def main():
 
     # Копирование файлов с прогресс-баром
     skip_items = {
-        ".git", "__pycache__", "venv", ".venv",
-        ".codebase_indices", ".codebase_models",
-        ".pytest_cache", ".ruff_cache", ".mypy_cache",
-        ".zed", ".idea", ".vscode",
+        ".git",
+        "__pycache__",
+        "venv",
+        ".venv",
+        ".codebase_indices",
+        ".codebase_models",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".zed",
+        ".idea",
+        ".vscode",
     }
 
     items_to_copy = [
-        item for item in PROJECT_ROOT.iterdir()
-        if item.name not in skip_items
+        item for item in PROJECT_ROOT.iterdir() if item.name not in skip_items
     ]
 
     pbar = ProgressBar(len(items_to_copy), "Копирование файлов")
@@ -613,8 +663,7 @@ def main():
 
     if not VENV_DIR.exists():
         if run_cmd_with_progress(
-            f'"{sys.executable}" -m venv "{VENV_DIR}"',
-            label="Создание venv"
+            f'"{sys.executable}" -m venv "{VENV_DIR}"', label="Создание venv"
         ):
             ok(f"Venv создан: {Color.DIM}{VENV_DIR}{Color.RESET}")
         else:
@@ -626,13 +675,14 @@ def main():
     # ══════════════════════════════════════════════════════════
     # Шаг 3: Установка зависимостей
     # ══════════════════════════════════════════════════════════
-    step_header(3, TOTAL_STEPS, "Установка зависимостей (LanceDB, PyArrow, Tree-sitter)")
+    step_header(
+        3, TOTAL_STEPS, "Установка зависимостей (LanceDB, PyArrow, Tree-sitter)"
+    )
 
     # Обновление pip с обработкой ошибок
     try:
         pip_update_ok = run_cmd_visible(
-            f'"{PYTHON_EXE}" -m pip install --upgrade pip',
-            label="Обновление pip"
+            f'"{PYTHON_EXE}" -m pip install --upgrade pip', label="Обновление pip"
         )
         if not pip_update_ok:
             warn("Не удалось обновить pip — продолжаем с текущей версией")
@@ -644,7 +694,7 @@ def main():
         pip_install_ok = run_cmd_visible(
             f'"{PYTHON_EXE}" -m pip install -r requirements.txt',
             cwd=ZED_EXT_DIR,
-            label="Установка пакетов"
+            label="Установка пакетов",
         )
         if not pip_install_ok:
             fail("Критическая ошибка установки Python-пакетов")
@@ -669,12 +719,17 @@ def main():
     schema_status = validate_lancedb_schema(existing_db_path)
 
     status_map = {
-        "ok":       (ok,   "База LanceDB v2 валидна. Схема совпадает."),
-        "mismatch": (warn, "Схема базы отличается! Миграция будет выполнена при запуске."),
-        "empty":    (info, "База существует, но пуста. Заполнится при индексации."),
-        "not_found":(info, "База не найдена. Будет создана при первом запуске."),
+        "ok": (ok, "База LanceDB v2 валидна. Схема совпадает."),
+        "mismatch": (
+            warn,
+            "Схема базы отличается! Миграция будет выполнена при запуске.",
+        ),
+        "empty": (info, "База существует, но пуста. Заполнится при индексации."),
+        "not_found": (info, "База не найдена. Будет создана при первом запуске."),
     }
-    handler, msg = status_map.get(schema_status, (warn, f"Неизвестный статус: {schema_status}"))
+    handler, msg = status_map.get(
+        schema_status, (warn, f"Неизвестный статус: {schema_status}")
+    )
     handler(msg)
 
     # ══════════════════════════════════════════════════════════
@@ -692,111 +747,71 @@ def main():
             info("Убедитесь что Zed IDE установлен и запущен хотя бы раз.")
             return
 
-    # Используем patch_zed_settings из zed_config.py (без дублирования логики)
     # Формируем команду для MCP-сервера
-    main_script_path = ZED_EXT_DIR / "src" / "main.py"
     python_exe_path = get_python_path()
     mcp_command = f"{python_exe_path} -u -m src.main"
 
-    # Вызываем патчер настроек (единая логика из zed_config.py)
-    if patch_zed_settings(command=mcp_command, mode="global"):
+    # Формируем LSP-конфиг (single-pass, без double-write)
+    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
+    lsp_config = {
+        "command": str(PYTHON_EXE),
+        "arguments": ["-u", str(lsp_script_path)],
+    }
+    languages_config = {
+        lang: ["mscodebase-lsp"]
+        for lang in ["Python", "TypeScript", "Rust", "Go", "JavaScript"]
+    }
+
+    # Единый вызов patch_zed_settings с MCP + LSP + Languages
+    if patch_zed_settings(
+        command=mcp_command,
+        mode="global",
+        lsp_config=lsp_config,
+        languages_config=languages_config,
+    ):
         ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
-        detail(f"Команда: {Color.DIM}{mcp_command}{Color.RESET}")
+        detail(f"MCP: {Color.DIM}{mcp_command}{Color.RESET}")
+        detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
+        detail(f"Языки: Python, TypeScript, Rust, Go, JavaScript")
     else:
-        fail("Не удалось настроить MCP-сервер в Zed")
+        fail("Не удалось настроить Zed (MCP + LSP)")
         return
 
-    # —— БЭКАП СУЩЕСТВУЮЩИХ НАСТРОЕК ——
+    # —— ДОБАВЛЯЕМ MSCODEBASE КОНФИГ (отдельно, т.к. не входит в patch_zed_settings) ——
     settings_json_path = zed_config_dir / "settings.json"
-
-    # Создаём бэкап ПЕРЕД любыми изменениями
-    backup_path = settings_json_path.with_suffix(".json.pre_install")
-    if settings_json_path.exists() and not backup_path.exists():
-        try:
-            shutil.copy2(settings_json_path, backup_path)
-            ok(f"Бэкап настроек создан: {Color.DIM}{backup_path}{Color.RESET}")
-        except Exception as e:
-            warn(f"Не удалось создать бэкап: {e}")
-
-    # —— ЧИТАЕМ СУЩЕСТВУЮЩИЕ НАСТРОЙКИ ——
-    settings_data = {}
     if settings_json_path.exists():
         try:
             content = settings_json_path.read_text(encoding="utf-8")
             import re
+
             content_clean = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
             settings_data = json.loads(content_clean)
-            ok(f"Загружены существующие настройки из {Color.DIM}{settings_json_path}{Color.RESET}")
+        except Exception:
+            settings_data = {}
+
+        sem_config = generate_semaphore_config()
+        if "mscodebase" not in settings_data:
+            settings_data["mscodebase"] = {}
+        if "semaphore" not in settings_data["mscodebase"]:
+            settings_data["mscodebase"]["semaphore"] = sem_config
+        if "fallback_mode" not in settings_data["mscodebase"]:
+            settings_data["mscodebase"]["fallback_mode"] = fallback_mode
+
+        try:
+            settings_json_path.write_text(
+                json.dumps(settings_data, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            detail(f"Семафор LLM: max_concurrent={MAX_CONCURRENT_LLM_REQUESTS}")
         except Exception as e:
-            warn(f"Не удалось прочитать настройки Zed: {e}")
-            if backup_path.exists():
-                warn(f"Попробуйте восстановить из бэкапа: {backup_path}")
-            return
-
-    # —— ДОБАВЛЯЕМ LSP (БЕЗ ПЕРЕЗАПИСИ СУЩЕСТВУЮЩИХ!) ——
-    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
-
-    if "lsp" not in settings_data:
-        settings_data["lsp"] = {}
-
-    # Сохраняем существующие LSP серверы, добавляем только свой
-    if "mscodebase-lsp" not in settings_data["lsp"]:
-        settings_data["lsp"]["mscodebase-lsp"] = {
-            "command": str(PYTHON_EXE),
-            "arguments": ["-u", str(lsp_script_path)],
-        }
-        detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
-
-    # —— ДОБАВЛЯЕМ LANGUAGE SERVERS (БЕЗ ПЕРЕЗАПИСИ!) ——
-    if "languages" not in settings_data:
-        settings_data["languages"] = {}
-
-    for lang in ["Python", "TypeScript", "Rust", "Go", "JavaScript"]:
-        if lang not in settings_data["languages"]:
-            settings_data["languages"][lang] = {}
-        lang_config = settings_data["languages"][lang]
-        if "language_servers" not in lang_config:
-            lang_config["language_servers"] = []
-        if "mscodebase-lsp" not in lang_config["language_servers"]:
-            lang_config["language_servers"].append("mscodebase-lsp")
-
-    # —— ДОБАВЛЯЕМ MSCODEBASE КОНФИГ (БЕЗ ПЕРЕЗАПИСИ!) ——
-    sem_config = generate_semaphore_config()
-
-    if "mscodebase" not in settings_data:
-        settings_data["mscodebase"] = {}
-
-    # Сохраняем существующие настройки mscodebase
-    if "semaphore" not in settings_data["mscodebase"]:
-        settings_data["mscodebase"]["semaphore"] = sem_config
-
-    if "fallback_mode" not in settings_data["mscodebase"]:
-        settings_data["mscodebase"]["fallback_mode"] = fallback_mode
-
-    # —— ДОБАВЛЯЕМ context_servers_to_query ——
-    if "context_servers_to_query" not in settings_data:
-        settings_data["context_servers_to_query"] = []
-
-    if SERVER_NAME not in settings_data["context_servers_to_query"]:
-        settings_data["context_servers_to_query"].append(SERVER_NAME)
-
-    # —— СОХРАНЯЕМ НАСТРОЙКИ (все существующие настройки сохранены!) ——
-    try:
-        settings_json_path.write_text(
-            json.dumps(settings_data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        ok(f"Настройки обновлены: {Color.DIM}{settings_json_path}{Color.RESET}")
-        detail(f"Семафор LLM: max_concurrent={MAX_CONCURRENT_LLM_REQUESTS}")
-    except Exception as e:
-        fail(f"Не удалось сохранить настройки: {e}")
-        if backup_path.exists():
-            warn(f"Восстановите из бэкапа: {backup_path}")
-        return
+            warn(f"Не удалось сохранить mscodebase-конфиг: {e}")
 
     if fallback_mode:
         detail("Режим: Fallback (Tree-sitter + текстовые индексы)")
     else:
-        detail(f"Режим: {Color.GREEN}Полный{Color.RESET} (векторный + структурный + текстовый)")
+        detail(
+            f"Режим: {Color.GREEN}Полный{Color.RESET} (векторный + структурный + текстовый)"
+        )
 
     # ══════════════════════════════════════════════════════════
     # Шаг 6: Установка скиллов и AGENTS.md
@@ -810,7 +825,8 @@ def main():
         spinner = Spinner("Копирование скиллов (.agents/skills)")
         try:
             shutil.copytree(
-                str(src_agents), str(dst_agents),
+                str(src_agents),
+                str(dst_agents),
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
@@ -822,7 +838,9 @@ def main():
         info("Локальные скиллы не найдены (.agents/) — используются глобальные")
 
     # Копируем AGENTS.md если его нет в глобальной локации
-    global_agents = Path(os.environ.get("USERPROFILE", Path.home())) / ".agents" / "AGENTS.md"
+    global_agents = (
+        Path(os.environ.get("USERPROFILE", Path.home())) / ".agents" / "AGENTS.md"
+    )
     project_agents = PROJECT_ROOT / "AGENTS.md"
     if project_agents.exists() and not global_agents.exists():
         try:
@@ -836,12 +854,17 @@ def main():
     if global_agents.exists():
         try:
             current_content = global_agents.read_text(encoding="utf-8")
-            if "deep_search" not in current_content and "cross_repo_search" not in current_content:
-                warn("Глобальный AGENTS.md не содержит новых инструментов (deep_search, cross_repo_search)")
+            if (
+                "deep_search" not in current_content
+                and "cross_repo_search" not in current_content
+            ):
+                warn(
+                    "Глобальный AGENTS.md не содержит новых инструментов (deep_search, cross_repo_search)"
+                )
                 info("Обновите AGENTS.md вручную или запустите: python install.py")
                 if project_agents.exists():
                     shutil.copy2(str(project_agents), str(global_agents))
-                    ok(f"AGENTS.md обновлён из проекта")
+                    ok("AGENTS.md обновлён из проекта")
         except Exception as e:
             warn(f"Ошибка проверки AGENTS.md: {e}")
 
@@ -863,13 +886,12 @@ def main():
             "⚠ УСТАНОВЛЕНО В FALLBACK-РЕЖИМЕ\n"
             "Доступны: Tree-sitter + текстовые индексы\n"
             "Запустите LM Studio для полного функционала",
-            Color.YELLOW
+            Color.YELLOW,
         )
     else:
         banner(
-            "✔ СИСТЕМА УСТАНОВЛЕНА\n"
-            "Векторный + Структурный + Текстовый поиск",
-            Color.GREEN
+            "✔ СИСТЕМА УСТАНОВЛЕНА\nВекторный + Структурный + Текстовый поиск",
+            Color.GREEN,
         )
 
     print(f"""

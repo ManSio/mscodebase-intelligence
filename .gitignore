@@ -6,6 +6,10 @@ __pycache__/
 .Python
 venv/
 .venv/
+.venv/Scripts/
+.venv/Lib/
+.venv/share/
+.venv/pyvenv.cfg
 ENV/
 build/
 dist/
@@ -15,6 +19,9 @@ dist/
 # IDE
 .idea/
 .vscode/
+.zed/
+*.sublime-*
+*.code-workspace
 *.swp
 *.swo
 *~
@@ -40,6 +47,9 @@ Agent Panel
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
+*.url
+*.tmp
 
 # Testing
 .pytest_cache/
@@ -50,6 +60,9 @@ htmlcov/
 # Logs
 *.log
 logs/
+crash_debug.log
+mcp_debug.log
+*.trace
 
 # Windows reserved names
 nul
@@ -57,8 +70,22 @@ nul
 # Agent diary — internal tracking
 AGENT_DIARY.md
 
-# Scripts — development utilities
-scripts/
+# Temporary session files — not for publishing
+FIX_SUMMARY.md
+ANALYSIS_REPORT.md
+TESTING.md
 
-# LSP setup doc — internal reference
-LSP_SETUP.md
+# Static analysis cache
+.ruff_cache/
+.mypy_cache/
+.mypy/
+.typeshed/
+
+# Dev-specific scripts (hardcoded paths)
+run_tests.py
+run_tests.bat
+
+# Debug artifacts
+test_output.txt
+*.sock
+*.pid
