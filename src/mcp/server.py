@@ -31,7 +31,6 @@ except ImportError as e:
     raise
 
 logger = logging.getLogger("mscodebase_server")
-
 _task_queue: Optional[asyncio.Queue] = None
 _worker_task: Optional[asyncio.Task] = None
 _last_index_error: Optional[str] = None
@@ -1230,7 +1229,7 @@ def create_mcp_server() -> "FastMCP":
             # Статистика
             stats = memory.get_stats()
             output.append(f"")
-            output.append(f"� Статистика:")
+            output.append(f"  Статистика:")
             output.append(f"  • Всего коммитов: {stats['total']}")
             if stats.get("authors"):
                 for author, count in stats["authors"].items():
@@ -1275,9 +1274,9 @@ def create_mcp_server() -> "FastMCP":
                 return f"⚠️ Нет коммитов для файла: {file_path}"
 
             output = [
-                f"� File History: {file_path}",
-                f"� Стабильность: {stability['stability']}",
-                f"� Количество изменений: {stability['change_count']}",
+                f"  File History: {file_path}",
+                f"  Стабильность: {stability['stability']}",
+                f"  Количество изменений: {stability['change_count']}",
                 f"",
                 f"Последние коммиты:\n",
             ]
