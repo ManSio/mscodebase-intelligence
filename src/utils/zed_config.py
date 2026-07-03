@@ -90,6 +90,7 @@ def patch_zed_settings(
     lsp_config: dict | None = None,
     languages_config: dict | None = None,
     install_path: str | None = None,
+    project_path: str | None = None,
 ) -> bool:
     """
     Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
@@ -226,11 +227,15 @@ def patch_zed_settings(
     }
 
     # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
-    # $ZED_WORKTREE_ROOT НЕ резолвится в env (только в current_dir/args),
-    # поэтому PROJECT_PATH не используем — сервер берёт корень из CWD.
-    entry["env"] = {
+    # PROJECT_PATH НЕ устанавливаем — на Windows $ZED_WORKTREE_ROOT не резолвится в env.
+    # Вместо этого сервер использует:
+    #   1. ZED_WORKTREE_ROOT env (если Zed устанавливает для MCP-процессов)
+    #   2. CWD (current_dir = $ZED_WORKTREE_ROOT, если Zed резолвит)
+    #   3. Fallback на ext_root с предупреждением
+    env = {
         "PYTHONPATH": str(ext_dir),
     }
+    entry["env"] = env
 
     settings["context_servers"][SERVER_NAME] = entry
 

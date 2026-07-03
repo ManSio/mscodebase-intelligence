@@ -308,72 +308,68 @@ def create_mcp_server() -> "FastMCP":
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
 
-    # ВАЖНО: $ZED_WORKTREE_ROOT НЕ резолвится в полях env у MCP-сервера в Zed.
+    # ВАЖНО: $ZED_WORKTREE_ROOT НЕ резолвится в полях env у MCP-сервера в Zed на Windows.
     # Он работает только в current_dir и args. Поэтому PROJECT_PATH может содержать
-    # буквальную строку "$ZED_WORKTREE_ROOT" — такой путь нужно проигнорировать.
-    # Основной источник — CWD (current_dir), который Zed резолвит правильно.
+    # буквальную строку "$ZED_WORKTREE_ROOT" — такой путь нужно разрезолвить.
+    # Основной источник — CWD (current_dir) и ZED_WORKTREE_ROOT env.
     #
     # Подробнее: https://zed.dev/docs/extensions/developing-extensions#mcp-server
     _env_project_root_raw = os.environ.get("PROJECT_PATH", "")
     _env_project_root: Optional[Path] = None
     if _env_project_root_raw:
-        _resolved = Path(_env_project_root_raw).resolve()
-        # Проверяем что путь — реальная директория и не содержит $ZED (нерезолвленная переменная)
-        if _resolved.exists() and _resolved.is_dir() and "$ZED" not in _env_project_root_raw:
-            _env_project_root = _resolved
-            logger.debug(f"PROJECT_PATH resolved: {_resolved}")
+        if "$ZED" in _env_project_root_raw:
+            # PROJECT_PATH содержит $ZED_WORKTREE_ROOT — пробуем разрезолвить через env
+            zed_root = os.environ.get("ZED_WORKTREE_ROOT")
+            if zed_root:
+                zed_path = Path(zed_root).resolve()
+                if zed_path.exists() and zed_path != ext_root:
+                    _env_project_root = zed_path
+                    logger.debug(f"PROJECT_PATH resolved via ZED_WORKTREE_ROOT: {zed_path}")
+            else:
+                logger.debug(
+                    f"PROJECT_PATH содержит $ZED ({_env_project_root_raw}), "
+                    f"но ZED_WORKTREE_ROOT не установлен. Использую CWD."
+                )
         else:
-            logger.debug(
-                f"PROJECT_PATH содержит нерезолвленную переменную или несуществующий путь: "
-                f"{_env_project_root_raw} → {_resolved}. Использую CWD."
-            )
+            _resolved = Path(_env_project_root_raw).resolve()
+            if _resolved.exists() and _resolved.is_dir():
+                _env_project_root = _resolved
+                logger.debug(f"PROJECT_PATH resolved: {_resolved}")
 
     def _resolve_project_path(provided: str = "") -> Path:
         """
         Возвращает корень проекта для инструментов MCP.
         Приоритет:
-          1. Явно переданный provided
-          2. PROJECT_PATH из окружения (только если резолвится в реальную директорию)
-          3. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT резолвится здесь корректно)
-          4. Родительская директория с .git (хеуристика для неправильного current_dir)
+          1. Явно переданный provided (опциональный аргумент инструмента)
+          2. PROJECT_PATH из окружения (если резолвится в реальную директорию)
+          3. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
+          4. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
+          5. CWD даже если ext_root (с предупреждением)
 
-        ВАЖНО: ext_root (директория расширения) НИКОГДА не используется как проект.
-        Если CWD совпадает с ext_root — пытаемся восстановиться.
+        ВАЖНО: ext_root НЕЛЬЗЯ возвращать как проект. Если CWD = ext_root -
+        сначала пытаемся восстановиться через ZED_WORKTREE_ROOT.
         """
         if provided and provided.strip():
             return Path(provided).resolve()
         if _env_project_root is not None:
             return _env_project_root
-        # CWD — основной источник (current_dir = $ZED_WORKTREE_ROOT резолвится Zed корректно)
-        cwd = Path.cwd().resolve()
-        if cwd != ext_root:
-            logger.debug(f"_resolve_project_path: CWD={cwd}")
-            return cwd
-
-        # CWD == ext_root — current_dir не настроен. Пытаемся восстановиться.
-        logger.warning(
-            "⚠️ PROJECT_PATH не установлен и CWD совпадает с ext_root! "
-            "Убедитесь что в settings.json указан current_dir=$ZED_WORKTREE_ROOT. "
-            "Ищу проект через родительские директории..."
-        )
-
-        # Хеуристика: ищем родительскую директорию с .git
-        for parent in ext_root.parents:
-            if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
-                logger.info(f"✅ Найден проект через .git: {parent}")
-                return parent
-
-        # Если есть ZED_WORKTREE_ROOT как переменная окружения
+        # ZED_WORKTREE_ROOT env — устанавливается Zed для MCP процессов
         zed_root = os.environ.get("ZED_WORKTREE_ROOT")
         if zed_root:
             zed_path = Path(zed_root).resolve()
             if zed_path.exists() and zed_path != ext_root:
-                logger.info(f"✅ Найден проект через ZED_WORKTREE_ROOT: {zed_path}")
+                logger.debug(f"_resolve_project_path: ZED_WORKTREE_ROOT={zed_path}")
                 return zed_path
-
-        # Абсолютный fallback — CWD с предупреждением
+        # CWD — должен быть $ZED_WORKTREE_ROOT (если Zed резолвит current_dir)
+        cwd = Path.cwd().resolve()
+        if cwd != ext_root:
+            logger.debug(f"_resolve_project_path: CWD={cwd}")
+            return cwd
+        # CWD == ext_root — проект не определён
         logger.warning(
-            "⚠️ Не удалось определить проект! Использую CWD как временный fallback. "
+            "⚠️ PROJECT_PATH не установлен, ZED_WORKTREE_ROOT нет, "
+            "и CWD совпадает с ext_root. "
+            "Возвращаю CWD как fallback, но инструменты могут работать некорректно. "
             "Настройте current_dir=$ZED_WORKTREE_ROOT в settings.json."
         )
         return cwd
@@ -404,6 +400,8 @@ def create_mcp_server() -> "FastMCP":
     )
     searcher = Searcher(indexer, embedder)
     indexer.searcher = searcher
+    global _last_searcher
+    _last_searcher = searcher
 
     # Защита LM Studio от конкурентного спама пачками эмбеддингов
     embedder._lm_studio_semaphore = threading.Semaphore(2)
@@ -1994,7 +1992,7 @@ def create_mcp_server() -> "FastMCP":
             project_root = _resolve_project_path()
             engine = GraphRAGQueryEngine(
                 project_root,
-                symbol_index=symbol_index if "symbol_index" in dir() else None,
+                symbol_index=locals().get("symbol_index"),
             )
 
             if query_type == "impact":
@@ -2199,21 +2197,17 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     def _get_searcher():
-        """Получает или создаёт searcher."""
+        """
+        Возвращает глобальный searcher.
+
+        ВАЖНО: Используем searcher из create_mcp_server(), который уже переключён
+        на правильный проект фоновым воркером. НЕ создаём новый Indexer —
+        иначе search_code будет искать в неверной БД (D:\AI\.codebase_indices).
+        """
         global _last_searcher
         if "_last_searcher" not in globals() or _last_searcher is None:
             try:
-                project_root = _resolve_project_path()
-                from src.core.file_guard import FileGuard
-                from src.core.indexer import Indexer, _generate_unique_db_path
-                from src.core.remote_embedder import RemoteEmbedder
-
-                embedder = RemoteEmbedder()
-                file_guard = FileGuard(project_root)
-                db_path = _generate_unique_db_path(project_root)
-                indexer = Indexer(
-                    db_path, embedder, file_guard, project_path=project_root
-                )
+                from src.core.searcher import Searcher
                 _last_searcher = Searcher(indexer, embedder)
             except Exception as e:
                 logger.error(f"Не удалось создать searcher: {e}")
@@ -2623,8 +2617,8 @@ def create_mcp_server() -> "FastMCP":
         _debug_log("cross_project_deps", f"{action}, {project_name}")
         try:
             deps_graph = CrossProjectDependencyGraph(
-                project_registry=multi_project_searcher.registry
-                if "multi_project_searcher" in dir()
+                project_registry=locals().get("multi_project_searcher").registry
+                if locals().get("multi_project_searcher")
                 else None,
             )
 
@@ -2752,11 +2746,22 @@ def create_mcp_server() -> "FastMCP":
 
             report = HealthReport(
                 project_path=target_path,
-                indexer=indexer if "indexer" in dir() else None,
-                symbol_index=symbol_index if "symbol_index" in dir() else None,
-                embedder=embedder if "embedder" in dir() else None,
+                indexer=locals().get("indexer"),
+                symbol_index=locals().get("symbol_index"),
+                embedder=locals().get("embedder"),
             )
-            result = report.run_full_diagnostic()
+            # Таймаут 45 сек на полную диагностику
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(report.run_full_diagnostic)
+                try:
+                    result = fut.result(timeout=45)
+                except concurrent.futures.TimeoutError:
+                    return (
+                        "❌ Таймаут диагностики (>45 сек). "
+                        "Проверьте доступность LM Studio и состояние индекса. "
+                        f"Используйте get_index_status для базовой проверки."
+                    )
             return format_health_report(result)
         except Exception as e:
             logger.error(f"Ошибка get_health_report: {e}")
