@@ -358,38 +358,52 @@ def create_mcp_server() -> "FastMCP":
         Возвращает корень проекта для инструментов MCP.
         Приоритет:
           1. Явно переданный provided (опциональный аргумент инструмента)
-          2. PROJECT_PATH из окружения (если резолвится в реальную директорию)
-          3. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
-          4. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
-          5. CWD даже если ext_root (с предупреждением)
+          2. PROJECT_PATH из окружения (если реальный путь, не $ZED)
+          3. ext_root если он Git-репозиторий (запуск из исходников через PYTHONPATH)
+          4. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
+          5. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
+          6. ext_root как fallback (с предупреждением)
 
-        ВАЖНО: ext_root НЕЛЬЗЯ возвращать как проект. Если CWD = ext_root -
-        сначала пытаемся восстановиться через ZED_WORKTREE_ROOT.
+        ВАЖНО: ext_root с .git имеет приоритет над CWD, потому что на Windows
+        $ZED_WORKTREE_ROOT может не резолвиться, и CWD может указывать на
+        legacy проект (другое окно Zed).
         """
         if provided and provided.strip():
             return Path(provided).resolve()
         if _env_project_root is not None:
             return _env_project_root
-        # ZED_WORKTREE_ROOT env — устанавливается Zed для MCP процессов
+        # Если ext_root — Git-репозиторий, значит Python запущен из исходников
+        # (через PYTHONPATH или pip install -e). Это и есть проект.
+        # ВАЖНО: эта проверка ДО ZED_WORKTREE_ROOT и CWD, потому что
+        # на Windows $ZED_WORKTREE_ROOT может не резолвиться, а CWD может
+        # указывать на другой (legacy) проект.
+        if (ext_root / ".git").exists():
+            logger.debug(
+                f"_resolve_project_path: ext_root это Git-репозиторий: {ext_root}"
+            )
+            return ext_root
+        # ZED_WORKTREE_ROOT env — устанавливается Zed для MCP процессов.
+        # На Windows может отсутствовать! Используем если есть.
         zed_root = os.environ.get("ZED_WORKTREE_ROOT")
         if zed_root:
             zed_path = Path(zed_root).resolve()
-            if zed_path.exists() and zed_path != ext_root:
+            if zed_path.exists():
                 logger.debug(f"_resolve_project_path: ZED_WORKTREE_ROOT={zed_path}")
                 return zed_path
-        # CWD — должен быть $ZED_WORKTREE_ROOT (если Zed резолвит current_dir)
+        # CWD — из current_dir в settings.json ($ZED_WORKTREE_ROOT если резолвится)
         cwd = Path.cwd().resolve()
         if cwd != ext_root:
             logger.debug(f"_resolve_project_path: CWD={cwd}")
             return cwd
-        # CWD == ext_root — проект не определён
+        # CWD == ext_root — проект не определён через env/CWD
         logger.warning(
             "⚠️ PROJECT_PATH не установлен, ZED_WORKTREE_ROOT нет, "
             "и CWD совпадает с ext_root. "
-            "Возвращаю CWD как fallback, но инструменты могут работать некорректно. "
-            "Настройте current_dir=$ZED_WORKTREE_ROOT в settings.json."
+            "Возвращаю ext_root как fallback, инструменты могут работать некорректно. "
+            "Настройте current_dir=$ZED_WORKTREE_ROOT в settings.json. "
+            f"ext_root={ext_root}"
         )
-        return cwd
+        return ext_root
 
     # Инициализация ядра (RemoteEmbedder использует конфигурацию по умолчанию)
     embedder = RemoteEmbedder()
@@ -397,6 +411,12 @@ def create_mcp_server() -> "FastMCP":
     # Определяем базовый проект через _resolve_project_path()
     # Это нужно чтобы Indexer/SymbolIndex работали с проектом пользователя, а не с расширением
     _base_project = _resolve_project_path()
+    logger.info(
+        f"🏠 Базовый проект: {_base_project} "
+        f"(ext_root={ext_root}, CWD={Path.cwd().resolve()}, "
+        f"ZED_WORKTREE_ROOT={os.environ.get('ZED_WORKTREE_ROOT', 'не установлен')}, "
+        f"PROJECT_PATH={os.environ.get('PROJECT_PATH', 'не установлен')})"
+    )
     default_file_guard = FileGuard(_base_project)
 
     from src.core.indexer import _generate_unique_db_path

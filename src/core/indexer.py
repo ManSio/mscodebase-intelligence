@@ -33,7 +33,9 @@ def _generate_unique_db_path(project_path: Path) -> Path:
     project_name = os.path.basename(project_path).lower()
 
     # Создаем директорию .codebase_indices в корне проекта, если её нет
-    project_root = project_path.parent
+    # ВАЖНО: используем сам project_path, а не его parent — иначе БД создаётся
+    # в родительской директории (D:\Project\.codebase_indices вместо D:\Project\MSCodeBase\.codebase_indices)
+    project_root = project_path
     db_dir = project_root / ".codebase_indices" / "lancedb_v2"
     db_dir.mkdir(parents=True, exist_ok=True)
 

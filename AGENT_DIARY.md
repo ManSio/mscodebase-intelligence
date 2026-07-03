@@ -1,5 +1,19 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-04 01:10] — [Type: Fix] — project_path.parent баг + _resolve_project_path приоритет ext_root с .git
+
+**Problem:**
+- `_generate_unique_db_path` создавал `.codebase_indices` в родителе проекта (`D:\Project\.codebase_indices` вместо `D:\Project\MSCodeBase\.codebase_indices`) → нарушена изоляция БД между проектами
+- `_resolve_project_path` отдавал приоритет CWD, который мог указывать на legacy проект (`D:\AI\Zed`) когда Zed запущен с несколькими окнами
+- На Windows `$ZED_WORKTREE_ROOT` не резолвится в env — сервер не может определить активный проект
+
+**Solution:**
+1. `_generate_unique_db_path()`: `project_root = project_path` (вместо `project_path.parent`) — БД теперь в корне проекта
+2. `_resolve_project_path()`: новый приоритет: provided → PROJECT_PATH → **ext_root с .git** → ZED_WORKTREE_ROOT → CWD → ext_root fallback. Проверка `.git` в ext_root ДО CWD — если Python запущен из исходников (PYTHONPATH), ext_root = проект
+3. Добавлено стартовое логирование: CWD, ZED_WORKTREE_ROOT, PROJECT_PATH, ext_root
+
+**Status:** ✅ (ожидает commit+push)
+
 ## [2026-07-04 00:55] — [Type: Fix|Refactor] — Фикс Windows-путей, health_report timeout, удаление static PROJECT_PATH
 
 **Problem:**
