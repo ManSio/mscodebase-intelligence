@@ -1,6 +1,7 @@
 """MSCodebase Intelligence MCP Server - Чистый набор инструментов без поллинга файловой системы"""
 
 import asyncio
+import concurrent.futures
 import logging
 import os
 import sys
@@ -159,6 +160,22 @@ def _cleanup_old_progress():
     ]
     for k in expired:
         del _last_progress[k]
+
+
+def _run_with_timeout(func, timeout: int = 15, description: str = "операция") -> Any:
+    """Выполняет функцию в ThreadPool с таймаутом.
+    Возвращает результат или строку ошибки при таймауте/исключении.
+    """
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(func)
+        try:
+            return fut.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            logger.warning(f"⏱ Таймаут {description} (> {timeout} сек)")
+            return f"❌ Таймаут {description} (> {timeout} сек). Попробуйте позже."
+        except Exception as e:
+            logger.error(f"Ошибка {description}: {e}")
+            return f"❌ Ошибка {description}: {str(e)}"
 
 
 def _create_progress_callback(project_name: str):
@@ -1194,7 +1211,13 @@ def create_mcp_server() -> "FastMCP":
         if not symbol_index:
             return "❌ Движок анализа структуры недоступен."
         try:
-            result = symbol_index.get_impact_analysis(symbol, depth=depth)
+            result = _run_with_timeout(
+                lambda: symbol_index.get_impact_analysis(symbol, depth=depth),
+                timeout=20,
+                description="impact_analysis"
+            )
+            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+                return result
 
             if not result.get("call_graph", {}).get("definition"):
                 return f"⚠️ Символ '{symbol}' не найден в индексе."
@@ -1230,7 +1253,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def find_similar_bugs(
-        error_message: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None
+        error_message: str, project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Находит похожие баги из истории проекта.
 
@@ -1241,7 +1264,7 @@ def create_mcp_server() -> "FastMCP":
 
         Args:
             error_message: Описание ошибки или исключения
-            project_root: Путь к проекту
+            project_root: Путь к проекту (опционально, авто-определение если пусто)
 
         Returns:
             Список похожих баг-фиксов из истории
@@ -1250,12 +1273,21 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.commit_memory import CommitMemory
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
+                return f"❌ Путь не существует: {target_path}"
 
-            memory = CommitMemory(target_path)
-            similar = memory.find_similar_bugs(error_message, max_results=5)
+            def _fetch_similar_bugs():
+                memory = CommitMemory(target_path)
+                return memory.find_similar_bugs(error_message, max_results=5)
+
+            similar = _run_with_timeout(
+                _fetch_similar_bugs,
+                timeout=20,
+                description="find_similar_bugs"
+            )
+            if isinstance(similar, str) and (similar.startswith("❌") or similar.startswith("⏱")):
+                return similar
 
             if not similar:
                 return f"⚠️ Похожие баги не найдены для: {error_message[:50]}"
@@ -1413,33 +1445,36 @@ def create_mcp_server() -> "FastMCP":
                     f"   и перезапустите Zed для применения."
                 )
 
-            branch_index = BranchAwareIndex(target_path)
-            info = branch_index.get_branch_info()
+            def _fetch_branch_info():
+                bi = BranchAwareIndex(target_path)
+                info = bi.get_branch_info()
+                lines = [
+                    f"🌿 Branch Info:",
+                    f"  • Текущая ветка: {info['branch']}",
+                    f"  • Путь к БД: {info['db_path']}",
+                    f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
+                    f"  • Чанков в индексе: {info['total_chunks']}",
+                ]
+                all_indices = bi.list_branch_indices()
+                if all_indices:
+                    lines.append(f"")
+                    lines.append(f"📁 Все индексы веток:")
+                    for branch, chunks in all_indices.items():
+                        lines.append(f"  • {branch}: {chunks} чанков")
+                return "\n".join(lines)
 
-            output = [
-                f"🌿 Branch Info:",
-                f"  • Текущая ветка: {info['branch']}",
-                f"  • Путь к БД: {info['db_path']}",
-                f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
-                f"  • Чанков в индексе: {info['total_chunks']}",
-            ]
-
-            # Список всех индексов
-            all_indices = branch_index.list_branch_indices()
-            if all_indices:
-                output.append(f"")
-                output.append(f"📁 Все индексы веток:")
-                for branch, chunks in all_indices.items():
-                    output.append(f"  • {branch}: {chunks} чанков")
-
-            return "\n".join(output)
+            return _run_with_timeout(
+                _fetch_branch_info,
+                timeout=15,
+                description="get_branch_info"
+            )
         except Exception as e:
             logger.error(f"Ошибка get_branch_info: {e}")
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
     def get_commit_history(
-        project_root: str, limit: int = 10, kwargs: Optional[Dict[str, Any]] = None
+        project_root: str = "", limit: int = 10, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Возвращает семантическую историю изменений проекта.
 
@@ -1449,7 +1484,7 @@ def create_mcp_server() -> "FastMCP":
         - Определить стабильность модуля
 
         Args:
-            project_root: Путь к проекту
+            project_root: Путь к проекту (опционально, авто-определение если пусто)
             limit: Количество последних коммитов
 
         Returns:
@@ -1459,12 +1494,21 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.commit_memory import CommitMemory
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
+                return f"❌ Путь не существует: {target_path}"
 
-            memory = CommitMemory(target_path)
-            commits = memory.fetch_commits(limit=limit)
+            def _fetch_commits():
+                memory = CommitMemory(target_path)
+                return memory.fetch_commits(limit=limit)
+
+            commits = _run_with_timeout(
+                _fetch_commits,
+                timeout=15,
+                description="get_commit_history"
+            )
+            if isinstance(commits, str) and (commits.startswith("❌") or commits.startswith("⏱")):
+                return commits
 
             if not commits:
                 return "⚠️ Нет коммитов или git недоступен."
@@ -1495,7 +1539,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def get_file_history(
-        project_root: str, file_path: str, kwargs: Optional[Dict[str, Any]] = None
+        project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Возвращает историю изменений конкретного файла.
 
@@ -1505,7 +1549,7 @@ def create_mcp_server() -> "FastMCP":
         - Определить стабильность модуля
 
         Args:
-            project_root: Путь к проекту
+            project_root: Путь к проекту (опционально, авто-определение если пусто)
             file_path: Относительный путь к файлу
 
         Returns:
@@ -1515,16 +1559,25 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.commit_memory import CommitMemory
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
+                return f"❌ Путь не существует: {target_path}"
 
-            memory = CommitMemory(target_path)
+            def _fetch_file_history():
+                memory = CommitMemory(target_path)
+                commits = memory.get_commits_for_file(file_path)
+                stability = memory.get_file_stability(file_path)
+                return commits, stability
 
-            # Получаем коммиты для файла
-            commits = memory.get_commits_for_file(file_path)
-            stability = memory.get_file_stability(file_path)
+            result = _run_with_timeout(
+                _fetch_file_history,
+                timeout=15,
+                description="get_file_history"
+            )
+            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+                return result
 
+            commits, stability = result
             if not commits:
                 return f"⚠️ Нет коммитов для файла: {file_path}"
 
@@ -1549,7 +1602,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     def get_bug_correlation(
-        project_root: str, file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
+        project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Анализ связи багов с изменениями в коде (Bug Correlation).
 
@@ -1560,7 +1613,7 @@ def create_mcp_server() -> "FastMCP":
         - Оценить риск изменения файла
 
         Args:
-            project_root: Путь к проекту
+            project_root: Путь к проекту (опционально, авто-определение если пусто)
             file_path: Путь к файлу (опционально — если нужен анализ конкретного файла)
 
         Returns:
@@ -1571,17 +1624,28 @@ def create_mcp_server() -> "FastMCP":
             from src.core.bug_correlation import BugCorrelation
             from src.core.commit_memory import CommitMemory
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
+                return f"❌ Путь не существует: {target_path}"
 
-            memory = CommitMemory(target_path)
-            bug_corr = BugCorrelation(memory)
+            def _fetch_bug_data():
+                memory = CommitMemory(target_path)
+                bug_corr = BugCorrelation(memory)
+                if file_path:
+                    return ("file", bug_corr.get_bug_history_for_file(file_path))
+                else:
+                    return ("project", bug_corr.analyze(), bug_corr.get_hotspots(10))
 
-            if file_path:
-                # Детальный анализ конкретного файла
-                history = bug_corr.get_bug_history_for_file(file_path)
+            result = _run_with_timeout(
+                _fetch_bug_data,
+                timeout=20,
+                description="get_bug_correlation"
+            )
+            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+                return result
 
+            if result[0] == "file":
+                history = result[1]
                 output = [
                     f"🐛 Bug History: {file_path}",
                     f"",
@@ -1590,7 +1654,6 @@ def create_mcp_server() -> "FastMCP":
                     f"  Баго-доля: {history['bug_ratio']:.1%}",
                     f"",
                 ]
-
                 if history["bug_commits"]:
                     output.append("  Последние баг-фиксы:")
                     for i, commit in enumerate(history["bug_commits"][:5], 1):
@@ -1598,23 +1661,18 @@ def create_mcp_server() -> "FastMCP":
                         date = commit.get("date", "")[:10]
                         msg = commit.get("message", "")[:50]
                         output.append(f"    {i}. [{hash_short}] {date} — {msg}")
-
                 return "\n".join(output)
             else:
-                # Общий анализ по проекту
-                stats = bug_corr.analyze()
-                hotspots = bug_corr.get_hotspots(10)
-
+                stats, hotspots = result[1], result[2]
                 output = [
                     f"🐛 Bug Correlation Analysis",
                     f"",
                     f"  Всего коммитов: {stats['total_commits']}",
                     f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
-                    f"  Уникальных проблемных файлов: {len(bug_corr._file_bug_count)}",
+                    f"  Уникальных проблемных файлов: {len(hotspots)}",
                     f"",
                     f"  🔥 Топ-10 горячих точек:",
                 ]
-
                 for i, hotspot in enumerate(hotspots, 1):
                     risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(
                         hotspot["risk"], "⚪"
@@ -2231,41 +2289,43 @@ def create_mcp_server() -> "FastMCP":
                 return f"❌ Путь к проекту не найден: {project_root}"
 
             if hasattr(symbol_index, "get_repo_map"):
-                raw_map = symbol_index.get_repo_map(str(target_path))
-                output = [
-                    f"🗺️ Карта репозитория проекта: {target_path.name}\n",
-                    f"Всего отслеживаемых файлов: {raw_map.get('total_files', 0)}",
-                    f"Всего уникальных символов: {raw_map.get('total_symbols', 0)}\n",
-                    "📁 Структура и ключевые компоненты:",
-                ]
-
-                for item in raw_map.get("structure", []):
-                    prefix = "  📄" if item["type"] == "file" else "  📁"
-                    output.append(f"{prefix} {item['name']} ({item['path']})")
-                    file_path = item["path"]
-                    symbols_entry = raw_map.get("symbols_by_file", {}).get(file_path)
-
-                    if symbols_entry is None:
-                        file_path_alt = file_path.replace("/", "\\")
-                        symbols_entry = raw_map.get("symbols_by_file", {}).get(
-                            file_path_alt
-                        )
-
-                    if symbols_entry:
-                        for sym in symbols_entry:
-                            s_name = (
-                                sym.get("name")
-                                if isinstance(sym, dict)
-                                else getattr(sym, "symbol", "unknown")
+                def _fetch_repo_map():
+                    raw = symbol_index.get_repo_map(str(target_path))
+                    out = [
+                        f"🗺️ Карта репозитория проекта: {target_path.name}\n",
+                        f"Всего отслеживаемых файлов: {raw.get('total_files', 0)}",
+                        f"Всего уникальных символов: {raw.get('total_symbols', 0)}\n",
+                        "📁 Структура и ключевые компоненты:",
+                    ]
+                    for item in raw.get("structure", []):
+                        prefix = "  📄" if item["type"] == "file" else "  📁"
+                        out.append(f"{prefix} {item['name']} ({item['path']})")
+                        fp = item["path"]
+                        sym_entry = raw.get("symbols_by_file", {}).get(fp)
+                        if sym_entry is None:
+                            sym_entry = raw.get("symbols_by_file", {}).get(
+                                fp.replace("/", "\\")
                             )
-                            s_kind = (
-                                sym.get("kind")
-                                if isinstance(sym, dict)
-                                else getattr(sym, "kind", "unknown")
-                            )
-                            output.append(f"      └─ [{s_kind.upper()}] {s_name}")
+                        if sym_entry:
+                            for sym in sym_entry[:10]:
+                                s_name = (
+                                    sym.get("name")
+                                    if isinstance(sym, dict)
+                                    else getattr(sym, "symbol", "unknown")
+                                )
+                                s_kind = (
+                                    sym.get("kind")
+                                    if isinstance(sym, dict)
+                                    else getattr(sym, "kind", "unknown")
+                                )
+                                out.append(f"      └─ [{s_kind.upper()}] {s_name}")
+                    return "\n".join(out)
 
-                return "\n".join(output)
+                return _run_with_timeout(
+                    _fetch_repo_map,
+                    timeout=15,
+                    description="get_repo_map"
+                )
             return f"🗺️ Карта проекта '{target_path.name}' не поддерживается."
         except Exception as e:
             logger.error(f"Ошибка при работе инструмента get_repo_map: {e}")

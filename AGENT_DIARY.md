@@ -1,5 +1,23 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-04 00:55] — [Type: Fix|Refactor] — Фикс Windows-путей, health_report timeout, удаление static PROJECT_PATH
+
+**Problem:**
+- На Windows `$ZED_WORKTREE_ROOT` не резолвится в env → PROJECT_PATH содержал буквальный `$ZED_WORKTREE_ROOT`
+- `_resolve_project_path()` искал .git в родителях ext_root (установленной директории расширения) — бесполезно
+- `get_health_report` таймаутил (>30 сек) из-за `to_pandas()` на всю LanceDB
+- `dir()` не возвращал замыкания — `indexer if "indexer" in dir()` всегда давал None
+- `install.py` передавал статический `project_path=str(PROJECT_ROOT)` → PROJECT_PATH env закреплял один проект
+
+**Solution:**
+1. `_resolve_project_path()`: новый приоритет (1) provided (2) PROJECT_PATH с разрезолвкой `$ZED` через ZED_WORKTREE_ROOT env (3) ZED_WORKTREE_ROOT env (4) CWD (5) CWD даже если ext_root. Убран .git поиск в родителях.
+2. `get_health_report`: timeout 45s через ThreadPoolExecutor; исправлен `dir()` → `locals().get()`
+3. `graph_query` и `cross_project_deps`: исправлен `dir()` → `locals().get()`
+4. `patch_zed_settings()`: убран PROJECT_PATH из env — сервер сам определяет проект
+5. `install.py`: убран `project_path` из вызова
+
+**Status:** ✅ (commit 03dc525 pushed to origin/main)
+
 ## [2026-07-03 23:45] — [Type: Fix|Audit] — ETA, баги путей, verify_action, аудит 4 багов
 
 **Problem:**
