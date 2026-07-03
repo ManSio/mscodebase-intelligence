@@ -23,3 +23,6 @@ tree-sitter-go>=0.21.0
 pathspec>=0.14.0
 httpx>=0.24.0
 python-dotenv>=1.0.0
+
+# Data Processing
+pandas>=2.0.0
