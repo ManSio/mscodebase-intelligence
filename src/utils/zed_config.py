@@ -89,44 +89,38 @@ def patch_zed_settings(
     mode: str = "global",
     lsp_config: dict | None = None,
     languages_config: dict | None = None,
+    install_path: str | None = None,
 ) -> bool:
-    def patch_zed_settings(
-        command: str | None = None,
-        mode: str = "global",
-        lsp_config: dict | None = None,
-        languages_config: dict | None = None,
-        install_path: str | None = None,
-    ) -> bool:
-        """
-        Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
+    """
+    Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
 
-        Единая точка записи настроек — без double-write.
+    Единая точка записи настроек — без double-write.
 
-        Args:
-            command: Полная команда для запуска MCP-сервера.
-                     Если None — формируется автоматически по пути установки.
-                     Если передан — PYTHONPATH и ext_dir определяются по команде.
-                     Формат команды: "{ext_dir}/venv/Scripts/python.exe -u -m src.main"
-            mode: 'global' — в глобальные настройки Zed (для всех проектов).
-                  'project' — в .zed/settings.json текущего проекта.
-            lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
-                        Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
-            languages_config: Опциональная конфигурация language servers для языков.
-                              Если передана — добавляется settings["languages"].
-                              Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
-            install_path: Абсолютный путь к установленному расширению.
-                          Если передан — используется для PYTHONPATH вместо автоопределения.
-                          Нужен когда patch_zed_settings() вызывается из install.py,
-                          где раширение копируется в %LOCALAPPDATA%/Zed/extensions/
+    Args:
+        command: Полная команда для запуска MCP-сервера.
+                 Если None — формируется автоматически по пути установки.
+                 Если передан — PYTHONPATH и ext_dir определяются по команде.
+                 Формат команды: "{ext_dir}/venv/Scripts/python.exe -u -m src.main"
+        mode: 'global' — в глобальные настройки Zed (для всех проектов).
+              'project' — в .zed/settings.json текущего проекта.
+        lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
+                    Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
+        languages_config: Опциональная конфигурация language servers для языков.
+                          Если передана — добавляется settings["languages"].
+                          Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
+        install_path: Абсолютный путь к установленному расширению.
+                      Если передан — используется для PYTHONPATH вместо автоопределения.
+                      Нужен когда patch_zed_settings() вызывается из install.py,
+                      где раширение копируется в %LOCALAPPDATA%/Zed/extensions/
 
-        Returns:
-            True, если настройки успешно обновлены
-        """
-        # Если команда не указана — формируем автоматически
-        if command is None:
-            python_exe = get_python_path()
-            ext_dir = get_extension_install_dir()
-            command = f"{python_exe} -u -m src.main"
+    Returns:
+        True, если настройки успешно обновлены
+    """
+    # Если команда не указана — формируем автоматически
+    if command is None:
+        python_exe = get_python_path()
+        ext_dir = get_extension_install_dir()
+        command = f"{python_exe} -u -m src.main"
 
     if mode == "project":
         zed_dir = Path.cwd() / ".zed"
