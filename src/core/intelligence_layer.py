@@ -27,6 +27,7 @@ from src.core.config import settings
 from src.core.indexer import Indexer
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
+from src.core.parser import CodeParser
 
 logger = logging.getLogger("MSCodeBase.Intelligence")
 
@@ -406,6 +407,18 @@ class ProjectIntelligenceLayer:
                         # Обновляем прогресс
                         job.progress = 0.5
                         await future
+                        
+                        # Also index symbols via Tree-sitter
+                        if hasattr(self.symbol_index, "index_project"):
+                            loop = asyncio.get_event_loop()
+                            future_symbols = loop.run_in_executor(
+                                None,
+                                self.symbol_index.index_project,
+                                self.project_path,
+                                CodeParser()
+                            )
+                            await future_symbols
+                            job.progress = 0.8
 
                 job.progress = 1.0
                 job.status = "completed"
