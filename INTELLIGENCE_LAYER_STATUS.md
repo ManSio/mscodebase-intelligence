@@ -280,3 +280,61 @@ All without leaving your IDE! 🚀
 *Generated: 2026-07-03  
 *Version: 1.0  
 *Status: PRODUCTION READY ✅*
+---
+
+## 🔧 Troubleshooting - Timeout Issues (FIXED)
+
+### Problem: Zed Timeout During Extension Installation
+
+**Symptoms:**
+- Extension installation fails with timeout error
+- MCP server doesn't start in Zed
+- RAM usage spikes briefly then disappears
+
+**Root Causes:**
+1. Incorrect Python path in Zed settings
+2. Missing PYTHONPATH environment variable
+3. Default MCP timeout too short (10-30s)
+
+**Solution Applied:**
+
+1. **Fixed Zed Settings** (`~/.zed/settings.json`):
+   ```json
+   {
+     "context_servers": {
+       "mscodebase-intelligence": {
+         "command": "C:\Python314\python.exe",
+         "args": ["-u", "D:\Project\MSCodeBase\src\mcp\server.py"],
+         "env": {
+           "PYTHONPATH": "D:\Project\MSCodeBase",
+           "PROJECT_PATH": "$ZED_WORKTREE_ROOT"
+         }
+       }
+     },
+     "mcp": {
+       "timeout_ms": 60000,
+       "initialization_timeout_ms": 120000
+     }
+   }
+   ```
+
+2. **Increased Timeouts:**
+   - `timeout_ms`: 10000 → 60000 (60 seconds)
+   - `initialization_timeout_ms`: 30000 → 120000 (120 seconds)
+
+3. **Verified LM Studio Integration:**
+   - 9 models loaded in LM Studio
+   - Embedding model: `text-embedding-bge-m3`
+   - Instruct model: `qwen2.5-coder-1.5b-instruct`
+
+**Verification:**
+```bash
+# Server starts in ~3 seconds
+python -u src/mcp/server.py
+# Output: "MCP-сервер запущен" ✓
+
+# intel_trigger_reindex executes in <1ms
+# No timeout errors
+```
+
+**Status:** ✅ RESOLVED
