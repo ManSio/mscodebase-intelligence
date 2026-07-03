@@ -36,16 +36,9 @@ echo [1/2] ✅ Python найден: !PY_VER!
 echo [2/2] Запуск встроенного установщика...
 echo.
 
-:: Проверяем, запускаем ли из исходного репозитория
-if exist "!SCRIPT_DIR!\src\core\intelligence_layer.py" (
-    echo Запускаем из исходного репозитория...
-    cd /d "!SCRIPT_DIR!"
-    python -u install.py
-) else (
-    echo Запускаем из директории установки...
-    cd /d "!SCRIPT_DIR!"
-    python -u install.py
-)
+:: Запускаем установщик
+cd /d "!SCRIPT_DIR!"
+python -u install.py
 
 if errorlevel 1 (
     echo.
