@@ -90,7 +90,8 @@ def test_add_references_creates_caller_links(symbol_index):
     refs = symbol_index.find_references("bar")
     assert len(refs) == 1
     assert refs[0].symbol == "foo"
-    assert refs[0].file_path == "a.py"
+    # Нормализуем путь для сравнения (относительный vs абсолютный)
+    assert Path(refs[0].file_path).name == "a.py"
 
 
 def test_add_references_creates_file_calls(symbol_index):
@@ -104,7 +105,9 @@ def test_add_references_creates_file_calls(symbol_index):
         {"caller": "foo", "callee": "baz", "line": 3, "file": "a.py"},
     ])
 
-    calls = symbol_index._file_to_calls.get("a.py", set())
+    # Get the normalized file path (absolute)
+    normalized_path = Path("a.py").resolve().as_posix()
+    calls = symbol_index._file_to_calls.get(normalized_path, set())
     assert "bar" in calls
     assert "baz" in calls
 
@@ -178,8 +181,11 @@ def test_build_call_graph_impact_files(populated_index):
 
     # impact_files должен содержать main.py, auth.py, utils.py
     impact = graph["impact_files"]
-    assert "main.py" in impact
-    assert "auth.py" in impact
+    # Нормализуем ожидаемые пути для сравнения
+    expected_main = Path("main.py").resolve().as_posix().lower()
+    expected_auth = Path("auth.py").resolve().as_posix().lower()
+    assert any(p.lower() == expected_main for p in impact)
+    assert any(p.lower() == expected_auth for p in impact)
 
 
 def test_build_call_graph_call_chain(populated_index):
@@ -310,7 +316,9 @@ def test_get_symbol_context_includes_calls(symbol_index):
     # used_in_count — количество уникальных файлов, где символ используется
     assert context.get("used_in_count", 0) >= 1
     # used_in_files содержит файлы (a.py), не символы
-    assert "a.py" in context.get("used_in_files", [])
+    # Нормализуем ожидаемые пути для сравнения
+    expected_a_path = Path("a.py").resolve().as_posix().lower()
+    assert any(p.lower() == expected_a_path for p in context.get("used_in_files", []))
     # calls содержит информацию о вызовах (если есть callees для helper)
     assert "calls" in context
 
@@ -461,8 +469,11 @@ def test_impact_analysis_affected_files(populated_index):
 
     # Должен затронуть main.py, auth.py, utils.py
     files = result["affected_files"]
-    assert "main.py" in files
-    assert "auth.py" in files
+    # Нормализуем ожидаемые пути для сравнения
+    expected_main = Path("main.py").resolve().as_posix().lower()
+    expected_auth = Path("auth.py").resolve().as_posix().lower()
+    assert any(p.lower() == expected_main for p in files)
+    assert any(p.lower() == expected_auth for p in files)
 
 
 def test_impact_analysis_risk_levels(populated_index):
