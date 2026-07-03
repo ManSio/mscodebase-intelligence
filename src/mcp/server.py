@@ -1402,9 +1402,18 @@ def create_mcp_server() -> "FastMCP":
         try:
             from src.core.branch_aware_index import BranchAwareIndex
 
-            target_path = Path(project_root).resolve()
+            target_path = _resolve_project_path(project_root)
             if not target_path.exists():
                 return f"❌ Путь не существует: {project_root}"
+
+            # Быстрая проверка — это вообще git-репозиторий?
+            git_dir = target_path / ".git"
+            if not git_dir.exists():
+                return (
+                    f"❌ {target_path.name} — не git-репозиторий (.git не найден).\n"
+                    f"   Убедитесь что current_dir=$ZED_WORKTREE_ROOT в settings.json\n"
+                    f"   и перезапустите Zed для применения."
+                )
 
             branch_index = BranchAwareIndex(target_path)
             info = branch_index.get_branch_info()
@@ -2733,6 +2742,13 @@ def create_mcp_server() -> "FastMCP":
             target_path = _resolve_project_path(project_root)
             if not target_path.exists():
                 return f"❌ Путь не существует: {project_root}"
+
+            # Fail fast если это не проект а расширение
+            if not (target_path / ".git").exists():
+                return (
+                    f"❌ {target_path.name} — не похож на проект (.git не найден).\n"
+                    f"   Перезапустите Zed чтобы current_dir=$ZED_WORKTREE_ROOT применился."
+                )
 
             report = HealthReport(
                 project_path=target_path,
