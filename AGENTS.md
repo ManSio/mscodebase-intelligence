@@ -1,248 +1,118 @@
-# Global Agent Rules — MSCodeBase-aware
-
-> Глобальный AGENTS.md / system prompt для Zed. Применяется во всех проектах.
-> Поведение зависит от того, подключён ли MCP-сервер `mscodebase-intelligence`.
 
 ---
 
-## 0. ПЕРВЫЙ ШАГ В ЛЮБОЙ СЕССИИ
+# Global Agent Rules — MSCodeBase Hybrid Architecture (42 Registered Tools)
 
-1. **Прочитай дневник** — первые 5 записей из `AGENT_DIARY.md` (если файл существует в проекте).
-   Это контекст предыдущих сессий: что делалось, какие проблемы были, какие решения применялись.
-2. **Определи контекст MCP:**
-   - Проверь, есть ли в списке доступных тулов хотя бы один с префиксом
-     `mcp:mscodebase-intelligence:*` (например `search_code`, `get_index_status`).
-   - **Если есть** → переходи к разделу 1, работай по MCP-протоколу.
-   - **Если нет** → MCP не подключён. Работай стандартными инструментами
-     (`grep`, `read_file`, `find_path`, `terminal`). НЕ упоминай MCP-тулы.
-3. Если вызов любого MCP-тула возвращает ошибку соединения — считай MCP
-   недоступным до конца сессии, сообщи и переключись на стандартные инструменты.
+> Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
+> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 32 Low-Level Core MCP Tools.
 
 ---
 
-## 1. MCP PRIORITY RULE (строго, если MCP подключён)
+## 0. FIRST STEP IN ANY SESSION
 
-### 1.1 Иерархия инструментов
+1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root). This is your mandatory source of historical context regarding past sessions, implemented solutions, and recurring blockers.
+2. **Determine MCP Context:**
+* Scan the list of available tools for the `intel_*` prefix or core MCP tools (e.g., `search_code`).
+* **If present** → You are running in Full Hybrid Context Mode. Proceed strictly to Section 1.
+* **If absent** → The MCP server is offline/unavailable. Work *exclusively* using standard Zed IDE tools (`grep`, `read_file`, `terminal`). DO NOT mention, reference, or attempt to invoke MCP tools in the dialogue.
 
-**Стратегия: MCP для сложного анализа, встроенные — для простых операций**
+
+3. **Runtime Self-Check:** At the very beginning of an MCP-enabled session, invoke `intel_get_runtime_status`. If any MCP tool call fails due to pipe/transport errors, immediately treat MCP as unavailable for the remainder of the session and switch to the standard textual fallback.
+
+---
+
+## 1. TOOL SUBORDINATION & HYBRID SELECTION LOGIC
+
+You must strictly separate the analytical (high-level) phase from the surgical (low-level) phase of operation using the following substitution mapping:
+
+### 1.1 Architectural Substitution Rules
+
+* **System & Index Health:** Instead of making separate fragmented calls to `get_index_status` or `watcher_status` for initial diagnosis, use the comprehensive **`intel_get_runtime_status`** (response time < 200ms).
+* **Timeout-Safe Indexing:** You are FORBIDDEN from calling the old blocking `index_project_dir`. Always trigger **`intel_trigger_reindex`** (Fire-and-Forget). Upon receiving the `job_id`, immediately yield control back to the UI/user and poll the background progress asynchronously via **`intel_get_job_status`**.
+* **Dependencies & Structural Inspection:** For a high-level architectural overview, invoke **`intel_code_topology`**. For tracking the exact call graph or definitions of a specific function/method, fall back to the low-level `get_symbol_info`.
+* **Incident Post-Mortems:** When debugging runtime crashes or exceptions, instead of parsing raw logs with `get_logs`, prioritize executing **`intel_predict_root_cause`** or **`intel_analyze_incident`**.
+
+### 1.2 Priority Matrix
 
 ```
-MCP-тулы (для семантики и графа)     Встроенные Zed (для простоты)
-───────────────────────────────────   ──────────────────────────
-search_code         →→→→→       grep (только если индекс пуст)
-deep_search          →→→→       grep итеративный
-get_symbol_info      →→→→       grep (точное совпадение)
-impact_analysis      →→→→→      (нет аналога — только MCP!)
-get_repo_map         →→→→       list_directory
-context_search       →→→→       (нет аналога)
-structural_search    →→→→       grep -r (простые паттерны)
-cross_repo_search    →→→→→      (нет аналога)
-get_index_status     →→→→       (нет аналога)
-get_logs             →→→→       terminal cat (простые логи)
-search_code         →→→       grep
-deep_search          →→→       grep (итеративный)
-get_symbol_info      →→→       grep (точный символ)
-impact_analysis      →→→       нет аналога
-get_repo_map         →→→       list_directory
-context_search       →→→       нет аналога
-structural_search    →→→       grep -r (по паттерну)
-cross_repo_search    →→→       нет аналога
-get_index_status     →→→       нет аналога
-get_index_progress   →→→       нет аналога
-index_project_dir    →→→       нет аналога
-scan_changes         →→→       git diff
-watcher_status       →→→       нет аналога
-get_logs             →→→       terminal cat логов
-notify_change        →→→       нет аналога
+[ANALYSIS / BRAIN]                       [SURGICAL ACTION / HANDS]                 [BUILT-IN IDE]
+High-Level Intel Tools                    Low-Level Core MCP                       Standard Zed Tools
+──────────────────────                   ──────────────────────────                ────────────────
+intel_get_runtime_status        ──>      get_index_status / watcher_status   ──>   (no analog)
+intel_trigger_reindex           ──>      notify_change / index_project_dir   ──>   (no analog)
+intel_code_topology             ──>      get_symbol_info / structural_search ──>   grep (exact match)
+intel_predict_root_cause        ──>      get_logs / get_health_report        ──>   terminal cat logs
+intel_get_project_memory        ──>      get_commit_history / file_history   ──>   (no analog)
+
 ```
 
-### 1.2 Правила вызова
+---
 
-**ДЛЯ ЛЮБОГО вопроса о коде, архитектуре, функциях, зависимостях, структуре:**
+## 2. COMPREHENSIVE SUBSTRATE OF AVAILABLE TOOLS (42)
 
-**Шаг 1: Проверяем доступность MCP**
-- Если `get_index_status` показывает `total_chunks > 0` → ИНДЕКС ГОТОВ → используем MCP
-- Если индекс пуст → используем встроенные инструменты + предлагаем `index_project_dir`
+### A. High-Level Intelligence Layer (10 Tools)
 
-**Шаг 2: Выбор инструмента**
-1. **Семантика/граф/история** → всегда MCP:
-   - `search_code` — семантический поиск
-   - `get_symbol_info` — определение + вызовы
-   - `impact_analysis` — влияние изменения
-   - `get_file_history` — история файла
-   - `get_bug_correlation` — горячие точки
-2. **Простой текстовый поиск** → встроенные (быстрее):
-   - `grep` — если знаем точный текст
-   - `find_path` — поиск по именам файлов
-3. **Дебаг/Логи** → комбинируем:
-   - `get_logs` — структурированные логи проекта
-   - `terminal` — ad-hoc команды
+`intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`, `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`, `intel_add_memory_node`, `intel_get_project_memory`, `intel_get_hotspots`, `intel_predict_root_cause`.
 
-**Главное правило:** Если MCP доступен и задача НЕ «прочитать файл» — начинаем с MCP.
+### B. Low-Level Core MCP & Search Engine (32 Tools)
 
-**STATE-AWARENESS (обязательно перед первым поиском за сессию):**
-- Вызови `get_index_status`.
-- Если `total_chunks == 0` или `status == "empty"` → `search_code` ЗАПРЕЩЁН.
-  Используй `grep`/regex, пока индекс пуст. Предложи `index_project_dir`.
-- Если `chunks > 0` → `search_code` для семантики, `get_symbol_info` для точных имён.
-
-**RECONNAISSANCE:** Никогда не угадывай номера строк. Сначала `get_symbol_info` или
-`search_code`, потом `read_file` с точным диапазоном.
-
-**CONTEXT BUDGET:** Максимум 50 строк за один `read_file`. Не читай файл целиком,
-если он больше 50 строк.
-
-**SAFE WRITING:** Перед правкой — перечитай целевые строки ещё раз (файл мог измениться).
-Сохраняй отступы и стиль окружающего кода.
-
-**ERROR HANDLING:** Если MCP-тул вернул ошибку — это РЕАЛЬНЫЙ баг, не "ограничение
-контекста". Не повторяй вызов с теми же параметрами. Переключись на fallback.
-
-**WINDOWS PATHS:** Передавай пути в MCP-тулы в нативном Windows-формате (обратные
-слеши). НЕ нормализуй в POSIX/lowercase.
-
-**POST-MODIFICATION SYNC:** После записи любого файла — вызови `index_project_dir`,
-затем `get_index_status`, чтобы убедиться, что индекс не разошёлся с диском.
+`context_search`, `cross_project_deps`, `cross_repo_search`, `deep_search`, `find_similar_bugs`, `generate_chunk_summaries`, `get_branch_info`, `get_bug_correlation`, `get_commit_history`, `get_file_history`, `get_health_report`, `get_index_progress`, `get_index_status`, `get_index_timeline`, `get_logs`, `get_related_files`, `get_repo_map`, `get_repo_rank`, `get_symbol_info`, `get_task_status`, `graph_query`, `impact_analysis`, `index_health`, `index_project_dir`, `notify_change`, `predict_eta`, `run_health_check`, `scan_changes`, `search_code`, `smart_search`, `structural_search`, `submit_background_task`.
 
 ---
 
-## 2. ПОЛНЫЙ СПИСОК ИНСТРУМЕНТОВ MSCodeBase (21, через MCP)
+## 3. STRICT EXECUTION CONTRACT
 
-| # | Тул | Когда использовать |
-|---|---|---|
-| 1 | `get_index_status` | Проверить состояние базы перед любым поиском |
-| 2 | `get_index_progress` | Узнать прогресс текущей индексации |
-| 3 | `index_project_dir` | Запустить/перезапустить полную индексацию |
-| 4 | `search_code` | Семантический поиск; `agentic=True` для сложных запросов |
-| 5 | `deep_search` | Итеративный поиск с уточнением — исследовательские задачи |
-| 6 | `cross_repo_search` | Поиск по нескольким проектам (`query @project`) |
-| 7 | `get_symbol_info` | Определение + Call Graph — **обязателен перед правкой символа** |
-| 8 | `impact_analysis` | Анализ влияния изменения: risk score, affected files, risk level |
-| 9 | `get_repo_map` | Обзор структуры проекта (не для чтения кода целиком) |
-| 10 | `scan_changes` | Внешние изменения + архитектурный diff |
-| 11 | `context_search` | Похожий код по фрагменту (дубликаты, альтернативы) |
-| 12 | `structural_search` | AST-паттерны (наследование, декораторы, async и т.д.) |
-| 13 | `watcher_status` | Здоровье системы (эмбеддер, LSP) |
-| 14 | `get_logs` | Последние ошибки/warning — **первым при дебаге** |
-| 16 | `verify_action` | Верификация выполненного действия (file_write, git_commit, push) |
-| 17 | `get_health_report` | Самодиагностика: целостность индекса, ошибки, синхронизация |
-| 18 | `get_repo_rank` | Рейтинг важности символов (PageRank на графе вызовов) |
-| 19 | `get_branch_info` | Информация о git-ветке и индексе (branch-aware) |
-| 20 | `get_commit_history` | Семантическая история изменений проекта |
-| 21 | `get_file_history` | История изменений конкретного файла |
-| 16 | `notify_change` | Принудительное обновление индекса одного файла |
-
-Эти 15 — отдельная категория от встроенных тулов Zed (`grep`, `find_path`,
-`read_file`, `edit_file`, `diagnostics`, `terminal`). Не путай их между собой.
+* **STATE-AWARENESS:** If `intel_get_runtime_status` or `get_index_status` returns `total_chunks == 0`, semantic search pipelines (`search_code`, `smart_search`) are **strictly forbidden**. Immediately fall back to local regex `grep` and prompt the user to fire up a background `intel_trigger_reindex`.
+* **RECONNAISSANCE:** Never guess code layout, file contents, or line numbers. Always execute `intel_code_topology` or `get_symbol_info` first to localize the target, then perform precise reads.
+* **CONTEXT BUDGET:** Maximum of **50 lines of code** per single built-in `read_file` call. Ingesting entire large files into the LLM context is heavily penalized. Navigate surgically.
+* **WINDOWS PATHS:** You must pass file paths to all 42 tools strictly in native Windows format with escaped double backslashes (e.g., `src\\core\\config.py`).
+* **POST-MODIFICATION SYNC (Commitment Chain):** Immediately after modifying any file via `edit_file` or `write_file`, you are required to invoke **`notify_change(file_path=...)`** to incrementally refresh the file's index inside the LSP VFS. If the modification fixed a bug, document its signature using `intel_log_incident`.
 
 ---
 
-## 3. IMPACT ANALYSIS (обязательно перед правкой символа)
+## 4. AGENT DIARY CONTRACT
 
-1. `impact_analysis(ИмяСимвола)` — получить risk score, affected files, risk level.
-2. `get_symbol_info(ИмяСимвола)` — найти все места использования.
-3. Оценить, что сломается при изменении сигнатуры/поведения.
-4. Только после этого — правка.
-5. После правки — `scan_changes` + `get_index_status` + `watcher_status`.
-
----
-
-## 3.1 EXECUTION CONTRACT (обязательно после записи)
-
-**State-Locking:** Агент не может заявить о выполнении задачи без верификации.
-
-**Цепочка верификации после каждого edit_file/write_file:**
-1. `edit_file` / `write_file` → запись
-2. `notify_change(file_path=...)` → обновление индекса (читает из LSP VFS, не с диска!)
-3. `get_index_status()` → подтверждение синхронизации
-4. `verify_action(action_type='file_write', file_path=...)` → подтверждение записи (опционально)
-
-**После git commit+push:**
-1. `git commit` + `git push` → выполнение
-2. `verify_action(action_type='all', file_path=...)` → полная верификация
-3. Только если `verified: True` → задача закрыта
-
-**Правило:** Никогда не говори "закоммитил и запушил" пока `verify_action` не вернёт `✅`.
-
----
-
----
-
-## 4. AGENT DIARY (дневник сессий)
-
-**Правила:**
-- Файл: `AGENT_DIARY.md` в корне проекта.
-- **Чтение:** в начале каждой сессии — прочитать первые 5 записей.
-- **Запись:** в конце каждой сессии (или после значимого действия) — добавить запись в НАЧАЛО файла.
-- **Формат записи:**
+* **Location:** The file `AGENT_DIARY.md` must reside strictly in the workspace root directory.
+* **Ingestion:** At session startup, read the top 5 entries to catch up on the project's state.
+* **Emission:** Before concluding the session, prepend a new markdown entry to the **TOP** of the file (maintaining reverse-chronological order).
+* **Format Structure:**
 
 ```markdown
-## [YYYY-MM-DD HH:MM] — [Type: Fix|Feature|Refactor|Docs|Audit|Meta] — Краткое название
+## [YYYY-MM-DD HH:MM] — [Type: Fix|Feature|Refactor|Meta] — Title
 
-**Проблема:**
-- Описание проблемы
+**Problem:**
+- Concise description of the issue or feature request.
 
-**Решение:**
-- Что сделано
+**Solution:**
+- High-level breakdown of the architectural edits made.
 
-**Инструменты:** какие MCP-тулы использовались
-**Файлы:** какие файлы изменены
-**Статус:** ✅ / ⚠️ / ❌
+**Tools Used:** list which of the 42 tools were active during the task.
+**Status:** ✅ (Completed and synchronized via `notify_change`) / ❌ (Failed/Blocked)
+
 ```
 
-- Записи упорядочены от новых к старым (новые в начало).
-- Не удалять старые записи — они контекст для будущих сессий.
+---
+
+## 5. ABSOLUTE CRITICAL FORBIDDENS
+
+* **FORBIDDEN** to output stubs, incomplete blocks, or code placeholders like `TODO` or `...`. Every code modification must be a fully functional, production-ready implementation.
+* **FORBIDDEN** to retry the exact same tool call with identical arguments if it previously returned an error. Pivot to a fallback mechanism instead.
+* **FORBIDDEN** to suggest Docker, WSL, or containerized environments. The project environment is strictly native Windows.
+* **FORBIDDEN** to import the external `pytz` package for timezone calculations. Rely exclusively on the native `zoneinfo` standard library.
+* **FORBIDDEN** to print debug messages or arbitrary strings to `stdout`. Any data pushed to `stdout` that does not conform to the strict JSON-RPC MCP specification will break the Zed editor parser and crash the server pipe.
 
 ---
 
-## 5. LOG-FIRST DEBUGGING
+## 6. TERMINAL TOOL WITHIN ZED (Windows Git Bash Emulation)
 
-При расследовании любой ошибки — сначала `get_logs`, потом анализ кода.
+The built-in `terminal` execution tool inside Zed on Windows runs inside a Bash emulation layer. You must use POSIX syntax exclusively:
 
----
-
-## 6. ИССЛЕДОВАНИЕ ПЕРЕД РЕШЕНИЕМ
-
-Перед реализацией нетривиального решения:
-1. Сравни минимум 2 варианта (effort vs benefit).
-2. Предпочитай простое решение, дающее 80% выгоды за 20% усилий.
-3. Если без причины добавляешь сложность — обоснуй ROI или откажись.
+* ✅ `ls`, `pwd`, `cat`, `git status`, `python script.py`, `pytest`
+* ❌ `dir`, `Get-ChildItem`, `type`, `copy`, `move`, `del`
 
 ---
 
-## 7. АБСОЛЮТНЫЕ ЗАПРЕТЫ
+## 7. INTERACTION STYLE
 
-- НЕ выводить заглушки, `TODO`, `...`, недописанный код — только рабочие реализации.
-- НЕ угадывать поведение функции — если индекс пуст, сообщи и остановись.
-- НЕ интерпретировать ошибку MCP-тула как "ограничение контекста" — это баг.
-- НЕ читать файл целиком за один `read_file`, если он больше 50 строк.
-- НЕ повторять тот же вызов тула с теми же параметрами после ошибки.
-- НЕ предполагать наличие MCP-тулов в проекте, где они не подключены.
-- НЕ путать встроенные тулы Zed с MCP-тулами MSCodeBase.
-- НЕ использовать `grep`/`read_file`/`find_path` когда есть MCP-аналог.
-- НЕ предлагать Docker/WSL — Windows native, без контейнеров.
-- Для времени — только `zoneinfo`, без `pytz`.
-
----
-
-## 8. TERMINAL В ZED (Windows, bash-эмуляция через Git Bash)
-
-Используй bash-синтаксис, не cmd/PowerShell:
-
-✅ `ls`, `pwd`, `cat`, `head`, `tail`, `find . -name "*.py"`, `grep -rn`, `git status`,
-`python script.py`, `pytest tests/ -v`
-
-❌ `dir`, `Get-ChildItem`, `type`, `copy`, `move`, `del`, `mkdir` без `-p`
-
-Предпочитай MCP-тулы над терминалом для: поиска кода, чтения файлов, листинга.
-Терминал — только для git, pytest, запуска python-скриптов.
-
----
-
-## 9. СТИЛЬ ВЗАИМОДЕЙСТВИЯ
-
-- Язык: русский.
-- Минимум вступительных фраз — сразу к делу.
-- Если видишь анти-паттерн — сообщи сразу, даже если не просили ревью.
-- При ошибке — объясни причину и предложи фикс.
-- Если решение добавляет сложность без выгоды — скажи прямо.
+* Language: Russian (`ru-RU`). Keep interactions highly dense, technically precise, and entirely free of introductory filler or conversational fluff.
+* If you spot an architectural anti-pattern or accumulating technical debt anywhere in the codebase during navigation, flag it immediately (even if unrelated to the current task) and suggest adding it to the project memory using `intel_add_memory_node` under the `tech_debt` section.

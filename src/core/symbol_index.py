@@ -72,6 +72,10 @@ class SymbolIndex:
         Добавляет определения символов из распаршенного файла.
         symbols: список {name, line, kind} от парсера.
         """
+        from pathlib import Path
+        # Нормализуем путь для единообразия
+        file_path = Path(file_path).resolve().as_posix()
+        
         with self._lock:
             if file_path not in self._file_to_symbols:
                 self._file_to_symbols[file_path] = set()
@@ -114,6 +118,10 @@ class SymbolIndex:
             file_path: Путь к файлу (относительный)
             calls: Список вызовов функций
         """
+        from pathlib import Path
+        # Нормализуем путь для единообразия
+        file_path = Path(file_path).resolve().as_posix()
+        
         with self._lock:
             if file_path not in self._file_to_symbols:
                 self._file_to_symbols[file_path] = set()
@@ -156,13 +164,16 @@ class SymbolIndex:
                 self._file_to_symbols[file_path].add(caller)
                 self._file_to_symbols[file_path].add(callee)
 
-                # Также добавляем caller в _definitions если его там нет
-                # (он может быть определён в другом файле)
-                if caller not in self._definitions:
-                    self._definitions[caller] = []
+                # ВНИМАНИЕ: caller НЕ добавляется в _definitions здесь,
+                # так как это создаёт фантомные пустые записи.
+                # Дефинишены добавляются ТОЛЬКО через add_definitions.
 
     def remove_file(self, file_path: str) -> None:
         """Удаляет все записи о файле (при удалении/переиндексации)."""
+        from pathlib import Path
+        # Нормализуем путь для единообразия
+        file_path = Path(file_path).resolve().as_posix()
+        
         with self._lock:
             symbols = self._file_to_symbols.pop(file_path, set())
             self._file_to_defs.pop(file_path, None)
@@ -205,6 +216,9 @@ class SymbolIndex:
         Returns:
             Список имён символов (уникальные)
         """
+        from pathlib import Path
+        file_path = Path(file_path).resolve().as_posix()
+
         with self._lock:
             return list(self._file_to_defs.get(file_path, set()))
 
@@ -679,21 +693,21 @@ class SymbolIndex:
         import os
         from pathlib import Path
 
-        project_root = Path(project_path)
+        project_root = Path(project_path).resolve()
 
         # Обходим все файлы в проекте
-        for root, dirs, files in os.walk(project_path):
+        for root, dirs, files in os.walk(str(project_root)):
             # Фильтрация директорий
             dirs[:] = [d for d in dirs if not self._should_skip_dir(d)]
 
             for file in files:
-                file_path = Path(root) / file
+                abs_file_path = Path(root) / file
 
                 # Парсим файл (parser.parse_file возвращает кортеж (chunks, symbols))
-                chunks, symbols = parser.parse_file(file_path)
+                chunks, symbols = parser.parse_file(abs_file_path)
 
-                # Относительный путь для индекса
-                rel_path = str(file_path.relative_to(project_root))
+                # Относительный путь для индекса - строго нормализуем через resolve()
+                rel_path = abs_file_path.relative_to(project_root).as_posix()
 
                 # Удаляем старые данные об этом файле перед добавлением новых
                 self.remove_file(rel_path)
@@ -704,7 +718,7 @@ class SymbolIndex:
 
                 # Извлекаем и добавляем вызовы функций для графа вызовов
                 if hasattr(parser, "extract_calls"):
-                    calls = parser.extract_calls(file_path)
+                    calls = parser.extract_calls(abs_file_path)
                     if calls:
                         # Нормализуем пути в calls
                         for call in calls:
