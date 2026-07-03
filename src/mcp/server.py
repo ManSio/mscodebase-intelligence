@@ -2147,21 +2147,6 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка generate_chunk_summaries: {e}")
             return f"❌ Ошибка: {str(e)}"
 
-    @mcp.tool()
-    def smart_search(
-        query: str,
-        mode: str = "quality",
-        limit: int = 5,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """🗑️ DEPRECATED — используйте search_code(query, mode=mode, limit=limit).
-
-        Умный поиск с выбором режима (FAST/QUALITY/DEEP).
-        Будет удалён в следующем релизе.
-        """
-        _debug_log("smart_search (deprecated)", f"{mode}, {query[:30]}")
-        return search_code(query, mode=mode, limit=limit)
-
     def _get_searcher():
         """Получает или создаёт searcher."""
         global _last_searcher
@@ -2471,18 +2456,6 @@ def create_mcp_server() -> "FastMCP":
         return "\n".join(lines)
 
     @mcp.tool()
-    def context_search(
-        selected_code: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """🗑️ DEPRECATED — используйте search_code(selected_code, mode='context').
-
-        Поиск похожего кода по выделенному фрагменту (Context Search).
-        Будет удалён в следующем релизе.
-        """
-        _debug_log("context_search (deprecated)", selected_code[:80])
-        return search_code(selected_code, mode="context", limit=5)
-
-    @mcp.tool()
     def structural_search(
         project_root: str,
         pattern: str = "class_inheritance",
@@ -2529,16 +2502,6 @@ def create_mcp_server() -> "FastMCP":
         except Exception as e:
             logger.error(f"Ошибка structural_search: {e}")
             return f"Ошибка структурного поиска: {str(e)}"
-
-    @mcp.tool()
-    def deep_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """🗑️ DEPRECATED — используйте search_code(query, mode='deep').
-
-        Итеративный глубокий поиск с уточнением запроса (Agentic Deep Search).
-        Будет удалён в следующем релизе.
-        """
-        _debug_log("deep_search (deprecated)", query)
-        return search_code(query, mode="deep", limit=8)
 
     @mcp.tool()
     def cross_repo_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
@@ -2772,10 +2735,10 @@ You operate under a strict deterministic execution matrix. Every action must be 
 - NEVER guess line numbers. Calling `read_file` with speculative ranges (e.g., 1-100 on a random file) is a Critical Failure.
 - BEFORE reading or modifying any file, you MUST discover the exact location using `get_symbol_info` or text search.
 - Once the line numbers are known from tool output, you may proceed to read.
-- To find similar code patterns or duplicates, use `context_search(selected_code)` — it embeds the selected code and finds semantically similar chunks.
-- For complex research queries, use `deep_search(query)` — it performs iterative search with query refinement across multiple passes.
-- For cross-project search in mono-repos, use `cross_repo_search(query @project1 @project2)` — searches across multiple indexed projects.
-- **Agentic Code Search (search_code agentic=True):** For complex questions like "how does X work and where is Y?", `search_code` auto-decomposes the query into sub-queries, searches each independently, analyzes relations (common files, symbols), and aggregates via RRF. This is the DEFAULT mode for complex queries.
+- To find similar code patterns or duplicates, use `search_code(selected_code, mode="context")`.
+- For complex research queries, use `search_code(query, mode="deep")`.
+- For cross-project search in mono-repos, use `cross_repo_search(query @project1 @project2)`.
+- **Agentic Code Search (search_code agentic=True):** For complex questions, `search_code` auto-decomposes queries, searches independently, and aggregates via RRF.
 
 ## 3. CONTEXT BUDGET AND CHUNKING (Anti-Bloat Rules)
 - Your maximum allowed reading window is 50 lines per `read_file` call.
