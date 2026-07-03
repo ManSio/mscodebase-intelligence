@@ -9,8 +9,8 @@ Autonomous Fix Loop — автоматическое исправление ош
 5. Откатывает если сломалось
 """
 
+import asyncio
 import logging
-import subprocess
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -50,7 +50,7 @@ class AutonomousFixLoop:
         self.max_attempts = max_attempts
         self._history: List[FixAttempt] = []
 
-    def run_tests(self, test_path: Optional[str] = None) -> Dict:
+    async def run_tests(self, test_path: Optional[str] = None) -> Dict:
         """Запускает тесты и возвращает результат."""
         cmd = ["python", "-m", "pytest", "--tb=short", "-q"]
         if test_path:
@@ -59,37 +59,44 @@ class AutonomousFixLoop:
             cmd.append("tests/")
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.project_path),
-                encoding="utf-8",
-                errors="replace",
             )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=120,
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                stdout, stderr = await process.communicate()
+                return {
+                    "success": False,
+                    "passed": 0,
+                    "failed": 0,
+                    "errors": 1,
+                    "output": "Tests timed out",
+                    "returncode": -1,
+                }
+
+            stdout_text = stdout.decode("utf-8", errors="replace")
+            stderr_text = stderr.decode("utf-8", errors="replace")
 
             # Parse output
-            passed = result.stdout.count(" passed")
-            failed = result.stdout.count(" failed")
-            errors = result.stdout.count(" error")
+            passed = stdout_text.count(" passed")
+            failed = stdout_text.count(" failed")
+            errors = stdout_text.count(" error")
 
             return {
-                "success": result.returncode == 0,
+                "success": process.returncode == 0,
                 "passed": passed,
                 "failed": failed,
                 "errors": errors,
-                "output": result.stdout[-1000:] if len(result.stdout) > 1000 else result.stdout,
-                "returncode": result.returncode,
-            }
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "passed": 0,
-                "failed": 0,
-                "errors": 1,
-                "output": "Tests timed out",
-                "returncode": -1,
+                "output": (stdout_text[-1000:] if len(stdout_text) > 1000 else stdout_text) + (f"\n{stderr_text}" if stderr_text else ""),
+                "returncode": process.returncode,
             }
         except Exception as e:
             return {
@@ -101,9 +108,9 @@ class AutonomousFixLoop:
                 "returncode": -1,
             }
 
-    def find_failing_tests(self) -> List[Dict]:
+    async def find_failing_tests(self) -> List[Dict]:
         """Находит падающие тесты."""
-        result = self.run_tests()
+        result = await self.run_tests()
         failures = []
 
         if not result["success"]:
@@ -150,7 +157,7 @@ class AutonomousFixLoop:
             logger.error(f"Failed to revert fix in {file_path}: {e}")
             return False
 
-    def auto_fix(self, file_path: str, issue_description: str) -> FixResult:
+    async def auto_fix(self, file_path: str, issue_description: str) -> FixResult:
         """Пытается автоматически исправить проблему."""
         t_start = time.perf_counter()
         result = FixResult(success=False)
@@ -172,7 +179,7 @@ class AutonomousFixLoop:
             )
 
             # Run tests to see current state
-            test_result = self.run_tests()
+            test_result = await self.run_tests()
             attempt.test_result = test_result
 
             if test_result["success"]:
@@ -194,7 +201,7 @@ class AutonomousFixLoop:
         result.total_time_ms = (time.perf_counter() - t_start) * 1000
         return result
 
-    def health_check(self) -> Dict:
+    async def health_check(self) -> Dict:
         """Полная проверка здоровья проекта."""
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -204,18 +211,22 @@ class AutonomousFixLoop:
         }
 
         # Run tests
-        result["tests"] = self.run_tests()
+        result["tests"] = await self.run_tests()
 
         # Git status
         try:
-            git_result = subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+            process = await asyncio.create_subprocess_exec(
+                "git", "status", "--porcelain",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.project_path),
             )
-            dirty_files = [f for f in git_result.stdout.strip().split("\n") if f]
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=10,
+            )
+            stdout_text = stdout.decode("utf-8", errors="replace")
+            dirty_files = [f for f in stdout_text.strip().split("\n") if f]
             result["git_status"] = {
                 "dirty": len(dirty_files) > 0,
                 "dirty_files": dirty_files,

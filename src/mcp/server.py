@@ -1628,7 +1628,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def run_health_check(kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def run_health_check(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Полная проверка здоровья проекта.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -1650,7 +1650,7 @@ def create_mcp_server() -> "FastMCP":
 
             ext_root = Path(__file__).resolve().parent.parent.parent
             fix_loop = AutonomousFixLoop(ext_root)
-            health = fix_loop.health_check()
+            health = await fix_loop.health_check()
 
             lines = [
                 f"🏥 Project Health Check",
