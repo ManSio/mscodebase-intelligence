@@ -2782,8 +2782,6 @@ You operate under a strict deterministic execution matrix. Every action must be 
 - NEVER mock or stub functions.
     """
 
-    return mcp
-
     @mcp.tool()
     def verify_action(action_type: str, **kwargs) -> str:
         """Верификация выполненного действия (Execution Contract).
@@ -2826,7 +2824,6 @@ You operate under a strict deterministic execution matrix. Every action must be 
                 results.append(result)
 
             elif action_type == "all":
-                # Полная верификация после commit+push
                 file_path = kwargs.get("file_path")
                 if file_path:
                     results.append(contract.verify_file_write(file_path))
@@ -2841,6 +2838,8 @@ You operate under a strict deterministic execution matrix. Every action must be 
         except Exception as e:
             logger.error(f"Ошибка verify_action: {e}")
             return f"❌ Ошибка верификации: {str(e)}"
+
+    return mcp
 
 
 def run_server(original_stdout=None):
