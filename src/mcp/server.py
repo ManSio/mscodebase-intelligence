@@ -298,38 +298,51 @@ def create_mcp_server() -> "FastMCP":
     mcp = FastMCP("MSCodebase Intelligence Server")
     ext_root = Path(__file__).resolve().parent.parent.parent
 
-    # project_root из env (= $ZED_WORKTREE_ROOT, устанавливается Zed при старте сервера)
-    # Все инструменты MCP должны использовать этот путь как корень проекта
-    _env_project_root = os.environ.get("PROJECT_PATH", "")
-    if _env_project_root:
-        _env_project_root = str(Path(_env_project_root).resolve())
+    # ВАЖНО: $ZED_WORKTREE_ROOT НЕ резолвится в полях env у MCP-сервера в Zed.
+    # Он работает только в current_dir и args. Поэтому PROJECT_PATH может содержать
+    # буквальную строку "$ZED_WORKTREE_ROOT" — такой путь нужно проигнорировать.
+    # Основной источник — CWD (current_dir), который Zed резолвит правильно.
+    #
+    # Подробнее: https://zed.dev/docs/extensions/developing-extensions#mcp-server
+    _env_project_root_raw = os.environ.get("PROJECT_PATH", "")
+    _env_project_root: Optional[Path] = None
+    if _env_project_root_raw:
+        _resolved = Path(_env_project_root_raw).resolve()
+        # Проверяем что путь — реальная директория и не содержит $ZED (нерезолвленная переменная)
+        if _resolved.exists() and _resolved.is_dir() and "$ZED" not in _env_project_root_raw:
+            _env_project_root = _resolved
+            logger.debug(f"PROJECT_PATH resolved: {_resolved}")
+        else:
+            logger.debug(
+                f"PROJECT_PATH содержит нерезолвленную переменную или несуществующий путь: "
+                f"{_env_project_root_raw} → {_resolved}. Использую CWD."
+            )
 
     def _resolve_project_path(provided: str = "") -> Path:
         """
         Возвращает корень проекта для инструментов MCP.
         Приоритет:
           1. Явно переданный provided
-          2. PROJECT_PATH из окружения ($ZED_WORKTREE_ROOT, устанавливается Zed)
-          3. CWD (current_dir из настроек Zed, должен быть корнем проекта)
+          2. PROJECT_PATH из окружения (только если резолвится в реальную директорию)
+          3. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT резолвится здесь корректно)
 
         ВАЖНО: ext_root (директория расширения) НИКОГДА не используется как проект.
-        Если CWD совпадает с ext_root — PROJECT_PATH не установлен,
-        выводится warning, но ext_root используется как крайний fallback
-        (чтобы не ломать рантайм при недоступном PROJECT_PATH).
+        Если CWD совпадает с ext_root — значит current_dir не настроен,
+        выводится warning, ext_root используется как крайний fallback.
         """
         if provided and provided.strip():
             return Path(provided).resolve()
-        if _env_project_root:
-            return Path(_env_project_root)
-        # Fallback: CWD должен быть корнем проекта (если current_dir настроен правильно)
+        if _env_project_root is not None:
+            return _env_project_root
+        # CWD — основной источник (current_dir = $ZED_WORKTREE_ROOT резолвится Zed корректно)
         cwd = Path.cwd().resolve()
         if cwd != ext_root:
-            logger.debug(f"⚠️ _resolve_project_path: fallback на CWD={cwd}")
+            logger.debug(f"_resolve_project_path: CWD={cwd}")
             return cwd
-        # Если CWD == ext_root — что-то пошло не так, PROJECT_PATH не установлен
+        # Если CWD == ext_root — что-то пошло не так
         logger.warning(
-            "⚠️ PROJECT_PATH не установлен! "
-            "Убедитесь что в settings.json указан PROJECT_PATH=$ZED_WORKTREE_ROOT. "
+            "⚠️ PROJECT_PATH не установлен и CWD совпадает с ext_root! "
+            "Убедитесь что в settings.json указан current_dir=$ZED_WORKTREE_ROOT. "
             "Использую ext_root как временный fallback."
         )
         return ext_root

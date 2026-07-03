@@ -197,14 +197,16 @@ def patch_zed_settings(
     entry = {
         "command": executable,
         "args": args,
-        # Стартуем из директории расширения, чтобы -m src.main нашёл src/main.py
-        "current_dir": str(ext_dir),
+        # ВАЖНО: current_dir = $ZED_WORKTREE_ROOT (резолвится Zed).
+        # Сервер использует CWD как корень проекта.
+        # PYTHONPATH при этом указывает на расширение для импорта src.main.
+        "current_dir": "$ZED_WORKTREE_ROOT",
     }
 
-    # PYTHONPATH указывает на корень расширения, чтобы импорт src.core.* работал
-    # PROJECT_PATH передаётся серверу для работы с проектом пользователя
+    # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
+    # $ZED_WORKTREE_ROOT НЕ резолвится в env (только в current_dir/args),
+    # поэтому PROJECT_PATH не используем — сервер берёт корень из CWD.
     entry["env"] = {
-        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
         "PYTHONPATH": str(ext_dir),
     }
 
