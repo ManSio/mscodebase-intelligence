@@ -1,13 +1,42 @@
-
----
-
 # Global Agent Rules — MSCodeBase Hybrid Architecture (42 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
 > Optimized for the hybrid model: 10 High-Level Intelligence Tools + 32 Low-Level Core MCP Tools.
 
 ---
+MSCodeBase Core Rules: 
 
+[STATE-AWARENESS]
+IF get_index_status returns 0 chunks, FORBIDDEN to use search_code, switch to grep/regex. 
+IF chunks > 0, use search_code for semantic, get_symbol_info for exact names. 
+
+[MEMORY_PROTOCOL]
+1. INITIALIZATION: При получении задачи первым делом вызови `intel_get_project_memory`. Изучи ADRs, известные проблемы и прошлые попытки.
+2. CONTINUOUS LEARNING: После завершения каждой задачи вызови `intel_log_incident` с резюме: что сделано, какой подход сработал, какие ошибки возникли.
+3. CONTEXT INTEGRATION: Используй данные из памяти, чтобы не повторять старые ошибки.
+
+[SELF-CRITICISM PROTOCOL]
+Перед тем как выдать финальный ответ или завершить действие:
+1. ПРОВЕРКА: Проверь, нарушил ли ты правила CONTEXT BUDGET (макс. 50 строк) или SAFE WRITING (чтение перед записью).
+2. АНАЛИЗ: Если результат кажется сомнительным, вызови `intel_get_runtime_status` или `get_index_status` для верификации.
+3. КОРРЕКЦИЯ: Если есть ошибка — исправь её САМ, используя инструменты, не дожидаясь моей подсказки.
+4. ВЕРДИКТ: Если всё верно, только тогда завершай вывод фразой "TASK VERIFIED".
+
+[RECONNAISSANCE & EXECUTION]
+NEVER guess line numbers. Use get_symbol_info or grep before read_file. 
+CONTEXT BUDGET: Max 50 lines per read_file call. NEVER ingest entire files. 
+SAFE WRITING: Read target lines again before edit. Preserve indentation and style. 
+
+[ERROR HANDLING]
+Do not retry same tool with same params. Pivot to alternative. 
+WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower(). 
+POST-MODIFICATION: After writing, call index_project_dir + get_index_status. 
+
+[CONSTRAINTS]
+NO Docker, NO pytz, NO stubs, NO mocks. 
+STOP immediately after code block. 
+DO NOT REPEAT code or logic. 
+IF task is done, finish output.
 ## 0. FIRST STEP IN ANY SESSION
 
 1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root). This is your mandatory source of historical context regarding past sessions, implemented solutions, and recurring blockers.

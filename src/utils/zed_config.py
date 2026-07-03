@@ -91,6 +91,7 @@ def patch_zed_settings(command: str | None = None, mode: str = "global") -> bool
     Args:
         command: Полная команда для запуска MCP-сервера.
                  Если None — формируется автоматически по пути установки.
+                 Если команда уже существует в настройках, она сохраняется.
         mode: 'global' — в глобальные настройки Zed (для всех проектов).
               'project' — в .zed/settings.json текущего проекта.
 

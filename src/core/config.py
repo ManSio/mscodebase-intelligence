@@ -91,8 +91,8 @@ class IndexConfig:
 class PerformanceConfig:
     """Конфигурация производительности"""
     # Timeouts
-    embedding_timeout: float = float(os.getenv("EMBEDDING_TIMEOUT", "30.0"))
-    reranker_timeout: float = float(os.getenv("RERANKER_TIMEOUT", "30.0"))
+    embedding_timeout: float = float(os.getenv("EMBEDDING_TIMEOUT", "240.0"))
+    reranker_timeout: float = float(os.getenv("RERANKER_TIMEOUT", "180.0"))
     provider_ping_timeout: float = float(os.getenv("PROVIDER_PING_TIMEOUT", "0.5"))
 
     # Async settings

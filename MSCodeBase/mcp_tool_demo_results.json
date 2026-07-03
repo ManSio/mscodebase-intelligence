@@ -1,0 +1,52 @@
+{
+  "timestamp": 1783077045.8790538,
+  "summary": {
+    "total_tools": 6,
+    "successful": 0,
+    "failed": 0,
+    "timeout": 0,
+    "error": 6,
+    "import_error": 0,
+    "skipped": 0,
+    "problematic_tools": [
+      "intel_get_runtime_status",
+      "get_index_status",
+      "intel_trigger_reindex",
+      "search_code",
+      "get_symbol_info",
+      "intel_get_job_status"
+    ]
+  },
+  "detailed_results": {
+    "intel_get_runtime_status": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    },
+    "get_index_status": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    },
+    "intel_trigger_reindex": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    },
+    "search_code": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    },
+    "get_symbol_info": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    },
+    "intel_get_job_status": {
+      "status": "error",
+      "result": "No module named 'tools'",
+      "time": 0
+    }
+  }
+}
