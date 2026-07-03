@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
 from zed_config import (
     SERVER_NAME,
-    get_python_path,
     get_zed_config_dir,
     patch_zed_settings,
 )
@@ -748,8 +747,10 @@ def main():
             return
 
     # Формируем команду для MCP-сервера
-    python_exe_path = get_python_path()
-    mcp_command = f"{python_exe_path} -u -m src.main"
+    # ВАЖНО: используем PYTHON_EXE (из ZED_EXT_DIR/venv/), а не get_python_path()
+    # get_python_path() ищет venv в SOURCE-директории (D:\Project\MSCodeBase),
+    # а venv создаётся в TARGET (ZED_EXT_DIR = %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence)
+    mcp_command = f"{PYTHON_EXE} -u -m src.main"
 
     # Формируем LSP-конфиг (single-pass, без double-write)
     lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
@@ -763,11 +764,14 @@ def main():
     }
 
     # Единый вызов patch_zed_settings с MCP + LSP + Languages
+    # install_path=ZED_EXT_DIR гарантирует что PYTHONPATH укажет на
+    # %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence, а не на D:\Project\MSCodeBase
     if patch_zed_settings(
         command=mcp_command,
         mode="global",
         lsp_config=lsp_config,
         languages_config=languages_config,
+        install_path=str(ZED_EXT_DIR),
     ):
         ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
         detail(f"MCP: {Color.DIM}{mcp_command}{Color.RESET}")

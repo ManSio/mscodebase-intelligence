@@ -90,32 +90,43 @@ def patch_zed_settings(
     lsp_config: dict | None = None,
     languages_config: dict | None = None,
 ) -> bool:
-    """
-    Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
+    def patch_zed_settings(
+        command: str | None = None,
+        mode: str = "global",
+        lsp_config: dict | None = None,
+        languages_config: dict | None = None,
+        install_path: str | None = None,
+    ) -> bool:
+        """
+        Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
 
-    Единая точка записи настроек — без double-write.
+        Единая точка записи настроек — без double-write.
 
-    Args:
-        command: Полная команда для запуска MCP-сервера.
-                 Если None — формируется автоматически по пути установки.
-        mode: 'global' — в глобальные настройки Zed (для всех проектов).
-              'project' — в .zed/settings.json текущего проекта.
-        lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
-                    Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
-        languages_config: Опциональная конфигурация language servers для языков.
-                          Если передана — добавляется settings["languages"].
-                          Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
+        Args:
+            command: Полная команда для запуска MCP-сервера.
+                     Если None — формируется автоматически по пути установки.
+                     Если передан — PYTHONPATH и ext_dir определяются по команде.
+                     Формат команды: "{ext_dir}/venv/Scripts/python.exe -u -m src.main"
+            mode: 'global' — в глобальные настройки Zed (для всех проектов).
+                  'project' — в .zed/settings.json текущего проекта.
+            lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
+                        Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
+            languages_config: Опциональная конфигурация language servers для языков.
+                              Если передана — добавляется settings["languages"].
+                              Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
+            install_path: Абсолютный путь к установленному расширению.
+                          Если передан — используется для PYTHONPATH вместо автоопределения.
+                          Нужен когда patch_zed_settings() вызывается из install.py,
+                          где раширение копируется в %LOCALAPPDATA%/Zed/extensions/
 
-    Returns:
-        True, если настройки успешно обновлены
-    """
-    # Если команда не указана — формируем автоматически
-    if command is None:
-        python_exe = get_python_path()
-        ext_dir = get_extension_install_dir()
-        # Используем -m src.main с PYTHONPATH, чтобы Python всегда находил src/
-        # независимо от того, из какой папки Zed запускает процесс
-        command = f"{python_exe} -u -m src.main"
+        Returns:
+            True, если настройки успешно обновлены
+        """
+        # Если команда не указана — формируем автоматически
+        if command is None:
+            python_exe = get_python_path()
+            ext_dir = get_extension_install_dir()
+            command = f"{python_exe} -u -m src.main"
 
     if mode == "project":
         zed_dir = Path.cwd() / ".zed"
@@ -192,8 +203,25 @@ def patch_zed_settings(
     if len(parts) > 1:
         args = parts[1].split()
 
-    # Сохраняем с нашим именем сервера
-    ext_dir = get_extension_install_dir()
+    # ── Определяем ext_dir для PYTHONPATH ──
+    # Приоритет:
+    #   1. Явно переданный install_path (из install.py)
+    #   2. Извлечение из пути executable (если он внутри .../venv/Scripts/python.exe)
+    #   3. Автоопределение через get_extension_install_dir() (для разработки)
+    ext_dir = None
+    if install_path:
+        ext_dir = Path(install_path).resolve()
+        logger.debug(f"patch_zed_settings: ext_dir из install_path={ext_dir}")
+    else:
+        exe_path = Path(executable).resolve()
+        # Проверяем структуру: {ext_dir}/venv/Scripts/python.exe
+        if exe_path.parent.parent.parent.name == "venv":
+            ext_dir = exe_path.parent.parent.parent.parent
+            logger.debug(f"patch_zed_settings: ext_dir из пути executable={ext_dir}")
+        else:
+            ext_dir = get_extension_install_dir()
+            logger.debug(f"patch_zed_settings: ext_dir авто={ext_dir}")
+
     entry = {
         "command": executable,
         "args": args,
@@ -267,6 +295,15 @@ def patch_zed_settings(
         settings["agent"]["system_prompt"] = (
             f"{custom_instructions}\n{current_prompt}"
         ).strip()
+
+    # Автоматически разрешаем ВСЕ инструменты MCP (чтобы не перечислять 42 штуки вручную)
+    if "tool_permissions" not in settings["agent"]:
+        settings["agent"]["tool_permissions"] = {}
+    settings["agent"]["tool_permissions"]["default"] = "allow"
+    # Если есть старый список tools — удаляем (он избыточен при default=allow)
+    if "tools" in settings["agent"]["tool_permissions"]:
+        logger.info("🧹 Удаляю старый список tool_permissions.tools (избыточен при default=allow)")
+        del settings["agent"]["tool_permissions"]["tools"]
 
     # Записываем обратно (с сохранением всех существующих настроек)
     try:
