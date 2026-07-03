@@ -351,6 +351,13 @@ try:
 
         logger.info(f"[LSP INIT] Запуск на корне воркспейса: {project_root}")
 
+        # Передаём корень проекта MCP-серверу через bridge (temp-файл)
+        try:
+            from src.core.lsp_project_bridge import write_active_project
+            write_active_project(project_root)
+        except Exception as e:
+            logger.warning(f"[LSP INIT] Не удалось записать project_root в bridge: {e}")
+
         init_components(project_root)
         ls._initialized = True
 
@@ -389,6 +396,13 @@ def main():
     if server is None:
         logger.error("LSP: Не удалось запустить сервер (отсутствуют зависимости)")
         sys.exit(1)
+
+    # Чистим старые bridge-файлы при старте
+    try:
+        from src.core.lsp_project_bridge import cleanup_stale
+        cleanup_stale()
+    except Exception:
+        pass
 
     logger.info("=" * 60)
     logger.info("MSCodeBase LSP Server запущен")

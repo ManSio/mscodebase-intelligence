@@ -358,18 +358,34 @@ def create_mcp_server() -> "FastMCP":
         Возвращает корень проекта для инструментов MCP.
         Приоритет:
           1. Явно переданный provided (опциональный аргумент инструмента)
-          2. PROJECT_PATH из окружения (если реальный путь, не $ZED)
-          3. ext_root если он Git-репозиторий (запуск из исходников через PYTHONPATH)
-          4. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
-          5. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
-          6. ext_root как fallback (с предупреждением)
+          2. LSP→MCP bridge (temp-файл от LSP, который знает root_uri)
+          3. PROJECT_PATH из окружения (если реальный путь, не $ZED)
+          4. ext_root если он Git-репозиторий (запуск из исходников через PYTHONPATH)
+          5. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
+          6. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
+          7. ext_root как fallback (с предупреждением)
 
-        ВАЖНО: ext_root с .git имеет приоритет над CWD, потому что на Windows
-        $ZED_WORKTREE_ROOT может не резолвиться, и CWD может указывать на
-        legacy проект (другое окно Zed).
+        Шаг 2 (bridge) решает проблему Windows, где $ZED_WORKTREE_ROOT не резолвится
+        в CWD (баг Zed #36019). LSP получает корень через LSP-протокол (root_uri)
+        и пишет его в temp-файл. MCP читает этот файл при старте.
         """
         if provided and provided.strip():
             return Path(provided).resolve()
+
+        # ════════════════════════════════════════════════
+        # ШАГ 1.5: LSP→MCP bridge (Windows compat)
+        # ════════════════════════════════════════════════
+        # LSP знает корень проекта из LSP-протокола (root_uri).
+        # Он пишет его в temp-файл. MCP читает с polling до 3 сек.
+        try:
+            from src.core.lsp_project_bridge import read_project_from_bridge
+            bridge_path = read_project_from_bridge()
+            if bridge_path is not None:
+                logger.debug(f"_resolve_project_path: bridge={bridge_path}")
+                return bridge_path
+        except Exception as e:
+            logger.debug(f"_resolve_project_path: bridge недоступен: {e}")
+
         if _env_project_root is not None:
             return _env_project_root
         # Если ext_root — Git-репозиторий, значит Python запущен из исходников
@@ -398,9 +414,8 @@ def create_mcp_server() -> "FastMCP":
         # CWD == ext_root — проект не определён через env/CWD
         logger.warning(
             "⚠️ PROJECT_PATH не установлен, ZED_WORKTREE_ROOT нет, "
-            "и CWD совпадает с ext_root. "
+            "CWD совпадает с ext_root, и bridge от LSP не получен. "
             "Возвращаю ext_root как fallback, инструменты могут работать некорректно. "
-            "Настройте current_dir=$ZED_WORKTREE_ROOT в settings.json. "
             f"ext_root={ext_root}"
         )
         return ext_root
