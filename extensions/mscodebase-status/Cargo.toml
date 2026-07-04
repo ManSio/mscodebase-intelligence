@@ -1,0 +1,13 @@
+[package]
+name = "mscodebase-status"
+version = "2.3.0"
+edition = "2021"
+description = "Zed extension for MSCodeBase Intelligence — status bar, dashboard, code lenses"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = { git = "https://github.com/zed-industries/zed", package = "zed_extension_api" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
