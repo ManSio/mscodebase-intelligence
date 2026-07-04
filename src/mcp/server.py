@@ -250,7 +250,7 @@ def _normalize_dashboard_path(path: str) -> str:
     """Нормализует Windows-путь для zed://file/ URI.
 
     Rust-расширение Zed (особенно под GitBash) ожидает URI с прямыми слэшами.
-    Пример: C:\Users\misha\file.py → C:/Users/misha/file.py
+    Пример: C:\\Users\\misha\\file.py → C:/Users/misha/file.py
     """
     return path.replace("\\", "/")
 
