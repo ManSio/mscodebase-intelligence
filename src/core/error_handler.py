@@ -180,6 +180,7 @@ def error_boundary(
                         f"[{tool_name}] Unexpected error: {e}\n"
                         f"{traceback.format_exc()}"
                     )
+                    _notify_error(f"{tool_name}: {e}", severity="Error")
                     return _format_error_response(
                         status="error",
                         message=str(e),
@@ -342,14 +343,42 @@ def _json_default(obj):
         return str(obj)
     except Exception:
         return None
-    if isinstance(data, str):
-        return json.dumps({
-                "status": "ok",
-                "message": data,
-                "latency_ms": latency_ms,
-            }, ensure_ascii=False)
-        return json.dumps({
-            "status": "ok",
-            "data": data,
-            "latency_ms": latency_ms,
-        }, ensure_ascii=False)
+
+
+# ══════════════════════════════════════════════════════════
+# NotificationBroker для error_boundary
+# ══════════════════════════════════════════════════════════
+
+_error_broker = None
+
+
+def set_notification_broker(broker) -> None:
+    """Устанавливает брокер для отправки диагностик в Zed."""
+    global _error_broker
+    _error_broker = broker
+
+
+def _notify_error(error_msg: str, severity: str = "Error"):
+    """Отправляет диагностику через брокер (если установлен)."""
+    global _error_broker
+    if _error_broker is not None:
+        try:
+            _error_broker.publish_sync(
+                "mscodebase/diagnostics_update",
+                {
+                    "file_path": "",
+                    "diagnostics": [
+                        {
+                            "range": {
+                                "start": {"line": 0, "character": 0},
+                                "end": {"line": 0, "character": 0},
+                            },
+                            "severity": severity,
+                            "message": f"[MSCodeBase] {error_msg}",
+                            "code": "CORE_EXCEPTION",
+                        }
+                    ],
+                },
+            )
+        except Exception:
+            pass

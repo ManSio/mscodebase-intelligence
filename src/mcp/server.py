@@ -213,6 +213,10 @@ def _register_notification_broker(mcp, services):
         broker = services.resolve(NotificationBroker)
         server = mcp._mcp_server
 
+        # Также устанавливаем брокер для error_boundary
+        from src.core.error_handler import set_notification_broker as _set_err_broker
+        _set_err_broker(broker)
+
         async def _on_initialized(notification: InitializedNotification):
             """Хендлер: клиент подтвердил инициализацию — сессия готова."""
             try:

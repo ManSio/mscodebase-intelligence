@@ -174,6 +174,15 @@ def create_service_collection(
         failure_threshold=5,
         recovery_timeout=30.0,
         name="lm_studio",
+        on_state_change=lambda old, new, err: notification_broker.publish_sync(
+            "mscodebase/system_health",
+            {
+                "embedder": "LM Studio (Local)",
+                "circuit_breaker": new.upper(),
+                "fallback_active": new == "open",
+                "error_message": err or "",
+            },
+        ),
     )
     services.add_singleton(type("LmStudioCircuitBreaker", (), {}), lm_studio_breaker)
 
@@ -195,6 +204,7 @@ def create_service_collection(
         project_path=project_root,
         parser=code_parser,
         symbol_index=symbol_index,
+        notification_broker=notification_broker,
     )
     services.add_singleton(Indexer, indexer)
 

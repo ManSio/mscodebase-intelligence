@@ -241,7 +241,13 @@ class CircuitBreaker:
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
         name: str = "default",
+        on_state_change: Optional[Callable[[str, str, Optional[str]], None]] = None,
     ):
+        """
+        Args:
+            on_state_change: Опциональный callback при смене состояния.
+                Сигнатура: (old_state, new_state, error_message)
+        """
         self.name = name
         self.state = self.STATE_CLOSED
         self.failure_count = 0
@@ -251,6 +257,20 @@ class CircuitBreaker:
         self.last_failure_time = 0.0
         self.last_state_change = time.monotonic()
         self._lock = asyncio.Lock()
+        self._on_state_change = on_state_change
+        self._last_error: Optional[str] = None
+
+    async def _notify_state_change(self, old_state: str, new_state: str):
+        """Уведомляет о смене состояния через callback."""
+        if self._on_state_change:
+            try:
+                self._on_state_change(
+                    old_state,
+                    new_state,
+                    self._last_error,
+                )
+            except Exception:
+                pass
 
     async def call(self, coro_factory: Callable, fallback: Any = None) -> Any:
         """Выполняет корутину через circuit breaker.
@@ -260,6 +280,7 @@ class CircuitBreaker:
             fallback: Значение, возвращаемое при OPEN состоянии
         """
         # Проверка: можно ли пробовать?
+        old_state = self.state
         async with self._lock:
             if self.state == self.STATE_OPEN:
                 if time.monotonic() - self.last_failure_time > self.recovery_timeout:
@@ -279,7 +300,11 @@ class CircuitBreaker:
                     )
                     return fallback
 
+        if self.state != old_state:
+            await self._notify_state_change(old_state, self.state)
+
         # Выполняем вызов
+        old_state = self.state
         try:
             result = await coro_factory()
 
@@ -294,21 +319,29 @@ class CircuitBreaker:
                 self.failure_count = 0
                 self.success_count += 1
 
+            if self.state != old_state:
+                await self._notify_state_change(old_state, self.state)
+
             return result
 
         except Exception as e:
+            self._last_error = str(e)
             async with self._lock:
                 self.failure_count += 1
                 self.success_count = 0
                 self.last_failure_time = time.monotonic()
 
                 if self.failure_count >= self.failure_threshold:
+                    old = self.state
                     logger.error(
                         f"Circuit breaker [{self.name}]: → OPEN "
                         f"({self.failure_count} consecutive failures): {e}"
                     )
                     self.state = self.STATE_OPEN
                     self.last_state_change = time.monotonic()
+
+                    if self.state != old:
+                        await self._notify_state_change(old, self.state)
 
             if fallback is not None:
                 return fallback

@@ -54,6 +54,7 @@ class Indexer:
         parser=None,
         enable_summaries: bool = True,
         symbol_index=None,
+        notification_broker=None,
     ):
         self.db_path = db_path
         self.embedder = embedder
@@ -62,6 +63,8 @@ class Indexer:
         self.searcher = None
         self.project_path = project_path or db_path.parent.parent.parent
         self.parser = parser  # CodeParser для AST-aware чанкинга
+        self._notification_broker = notification_broker  # опциональный брокер событий
+        self._last_reported_progress = -1  # для троттлинга уведомлений
 
         # SymbolIndex для отслеживания определений и вызовов
         # Если передан внешний индекс — используем его, иначе создаём новый
@@ -696,6 +699,26 @@ class Indexer:
         if progress_callback:
             progress_callback("", 0, total_files, "scanning")
 
+        # Уведомление через NotificationBroker (синхронный вызов из thread)
+        def _notify_progress(done: int, total: int, phase: str, current: str):
+            if not self._notification_broker:
+                return
+            pct = int((done / total) * 100) if total > 0 else 0
+            # Троттлинг: шлём только на 0%, 5%, 10%, ..., 100%
+            if pct == 0 or pct == 100 or (pct % 5 == 0 and pct != self._last_reported_progress):
+                self._last_reported_progress = pct
+                self._notification_broker.publish_sync(
+                    "mscodebase/indexing_status",
+                    {
+                        "status": "indexing" if pct < 100 else "idle",
+                        "progress": pct,
+                        "total_chunks": total,
+                        "current_file": current or "",
+                    },
+                )
+
+        _notify_progress(0, total_files, "scanning", "")
+
         # Шаг 1: Сканирование диска и обновление базы
         for idx, (root, file_name, full_path) in enumerate(all_files):
             rel_path_str = str(full_path.relative_to(project_path))
@@ -703,6 +726,7 @@ class Indexer:
 
             if progress_callback:
                 progress_callback(file_name, idx + 1, total_files, "scanning")
+            _notify_progress(idx + 1, total_files, "scanning", file_name)
 
             try:
                 if self._index_single_file(full_path, rel_path_str):
@@ -726,6 +750,9 @@ class Indexer:
 
         if progress_callback:
             progress_callback("", total_files, total_files, "complete")
+
+        # Финальное Push-уведомление
+        _notify_progress(total_files, total_files, "complete", "")
 
         # Сохраняем кэш суммари
         if self.summarizer:
