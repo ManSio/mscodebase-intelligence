@@ -2,7 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.1.0] - 2026-07-03
+## [v2.2.0] — 2026-07-04 — Architecture Modernization
+
+### 🏗 Architecture Rewrite
+- **DI Container:** `ServiceCollection` with Constructor Injection (15 services)
+- **server.py:** 3,100 → **220 lines** (-93%). God Object eliminated.
+- **37 tools** decoupled into 10 domain-specific files in `src/mcp/tools/`
+- **error_boundary** decorator: unified JSON responses, real `asyncio.wait_for` timeout
+- **DebounceBatch:** BM25 реиндексация через 500ms debounce (не на каждый файл)
+- **SlidingWindowRateLimiter:** защита от VFS-петель (10 req/sec max)
+- **CircuitBreaker:** CLOSED/OPEN/HALF_OPEN для LM Studio (5 failures → 30s recovery)
+- **hybrid_server.py:** DEPRECATED (вся логика в DI Container + lsp_main.py)
+
+### 🔧 Improvements
+- `lsp_main.py` — 4 глобальные переменные → DI container (_services)
+- `notify_change` — Rate Limiter + DebounceBatch вместо немедленной BM25
+- `get_index_progress` — progress tracking как module-level exports
+- `read_live_file` — новый инструмент (чтение из LSP VFS с disk fallback)
+- `_resolve_project_path` → standalone `resolve_project_root()`
+- `GIT_ASKPASS=echo` + `CREATE_NO_WINDOW` — защита от Git Hang на Windows
+- `_is_complex_query` — исправлена: русская грамматика → token-based + English W-words
+
+### 🧪 Testing
+- 52 new unit tests for:
+  - `error_handler.py` — ToolError, error_boundary (async + sync), timeout, retries
+  - `rate_limiter.py` — SlidingWindow, DebounceBatch, CircuitBreaker (all states)
+  - `di_container.py` — ServiceCollection, 15 DI services, Searcher↔Indexer cycle
+- Total: **325 tests**
+
+### 📚 Documentation
+- README полностью переписан: 37 инструментов, Clean Architecture с DI
+- `docs/ARCHITECTURE.md` — новая схема с DI Container + tool files
+- CONTRIBUTING.md — обновлён под новый архитектурный стиль
+- AGENT_DIARY.md — 5 записей (все фазы рефакторинга)
+- pyproject.toml: bumped to v2.2.0
+
+---
+
+## [v2.1.0] — 2026-07-03
 
 ### 🚀 Major
 - **Консолидация поиска:** `search_code(query, mode)` — единый инструмент с 5 режимами (`auto/fast/quality/deep/context`)

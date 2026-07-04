@@ -7,10 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
+[![Tests](https://img.shields.io/badge/tests-325%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools) • [Installation](docs/INSTALL.md) • [Architecture](docs/architecture.md) • [Development](#-development)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-37-total) • [Installation](docs/INSTALL.md) • [Architecture](docs/ARCHITECTURE.md) • [Development](CONTRIBUTING.md)
 
-*Last updated: 2026-07-03*
+*Last updated: 2026-07-04*
 
 </div>
 
@@ -20,17 +21,17 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Unified Search** | `search_code(query, mode)` — один инструмент для всех типов поиска (fast/quality/deep/context) |
+| 🔍 **Unified Search** | `search_code(query, mode)` — один инструмент для всех типов поиска (fast/quality/deep/context/auto) |
 | 🧠 **Intelligence Layer** | 10 высокоуровневых `intel_*` инструментов: самодиагностика, топология, предсказание ошибок |
 | 🗃️ **Project Memory** | ADR, known issues, tech debt — автоматически сохраняется между сессиями |
 | 🌐 **Cross-repo Search** | Поиск по нескольким проектам с `@mention` синтаксисом |
 | 🌳 **Call Graph** | Полный граф вызовов: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST-паттернов (class_inheritance, async_function, decorator, etc.) |
 | 🔎 **Context Search** | Найди похожий код — вставь фрагмент, получи семантические дубликаты |
-| 🔌 **LSP + MCP Hybrid** | Единый процесс: LSP для индексации, MCP для AI-инструментов |
-| 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам |
-| 🧠 **In-Memory Indexing** | Чтение из LSP VFS — без задержек диска на Windows |
+| 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальная BM25 реиндексация) |
+| 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — полная проверка и восстановление |
+| 🧪 **Clean Architecture** | DI Container (15 services), 37 class-based tools, 325 unit tests |
 
 ---
 
@@ -52,7 +53,7 @@ python install.py
 
 ---
 
-## 🔧 MCP Tools (36 total)
+## 🔧 MCP Tools (37 total)
 
 ### Core Search
 
@@ -74,7 +75,7 @@ python install.py
 | `index_project_dir(path)` | Запуск полной индексации проекта |
 | `get_index_timeline()` | История индексации по датам |
 | `index_health(project_root)` | Диагностика и самовосстановление индекса |
-| `notify_change(file_path)` | Принудительное обновление индекса файла |
+| `notify_change(file_path)` | Принудительное обновление индекса файла (через DebounceBatch) |
 | `generate_chunk_summaries(root)` | LLM-описания для чанков кода |
 
 ### System & Diagnostics
@@ -85,6 +86,7 @@ python install.py
 | `watcher_status()` | Статус компонентов: embedder mode (LM Studio / Ollama / ONNX) |
 | `get_logs(project_root)` | Последние ошибки и предупреждения из логов проекта |
 | `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
+| `read_live_file(path)` | Чтение файла из памяти LSP (включая несохранённые изменения) |
 
 ### Analytics
 
@@ -95,6 +97,7 @@ python install.py
 | `get_bug_correlation(project_root)` | Анализ связи багов с изменениями в коде |
 | `get_related_files(project_root, path)` | Файлы, связанные через co-change / bug correlation |
 | `graph_query(query_type, target)` | Запросы к графу знаний: `impact` / `feature` / `deps` / `tests` |
+| `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
 
 ### Git & History
 
@@ -104,23 +107,17 @@ python install.py
 | `get_file_history(root, path)` | История изменений конкретного файла |
 | `get_branch_info(project_root)` | Информация о ветке + статус индекса |
 
-### Background Tasks
+### Lifecycle & Verification
 
 | Tool | When to Use |
 |------|-------------|
 | `submit_background_task(type, root)` | Запуск долгих задач: `bug_correlation` / `build_knowledge_graph` / `full_analysis` |
 | `get_task_status(task_id)` | Статус фоновой задачи |
+| `verify_action(action_type)` | Верификация: `file_write` / `git_commit` / `git_push` / `index_sync` |
+| `predict_eta(operation)` | Предсказание времени выполнения операции |
+| `run_health_check()` | Полная проверка здоровья проекта (тесты + git) |
 
-### 🔄 Deprecated (← call `search_code` internally)
-
-`smart_search`, `deep_search`, `context_search` — оставлены для обратной совместимости.
-Используйте `search_code(query, mode="quality"|"deep"|"context")` вместо них.
-
----
-
-### Intelligence Layer (intel_* tools) — 10 High-Level Tools
-
-Эти инструменты — **"мозг" над MCP**. Они агрегируют данные из нескольких низкоуровневых вызовов.
+### Intelligence Layer (intel_*) — 10 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -139,63 +136,42 @@ python install.py
 
 ## 🏗️ Architecture
 
-### Dual-Server Architecture (MCP-only, no LSP in this server)
+### Clean Architecture with DI Container
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│               MCP Server (src/mcp/server.py)                 │
-│                                                             │
-│  Provides 26 MCP tools for AI assistants via                │
-│  @mscodebase-intelligence in Zed Chat                       │
-│                                                             │
-│  ┌──────────────────┐  ┌────────────────────────────────┐   │
-│  │  Core Engine      │  │  Intelligence Layer (intel_*)  │   │
-│  │  ─────────────    │  │  ──────────────────────────    │   │
-│  │  • Indexer        │  │  • Runtime Status             │   │
-│  │  • Searcher       │  │  • Project Memory             │   │
-│  │  • SymbolIndex    │  │  • Root Cause Prediction      │   │
-│  │  • RemoteEmbedder │  │  • Topology Analysis          │   │
-│  │  • Reranker       │  │  • Incident Logging           │   │
-│  └──────────────────┘  └────────────────────────────────┘   │
-│                            │                                  │
-│                      ┌─────▼──────┐                          │
-│                      │  LanceDB   │                          │
-│                      │  (Vector)  │                          │
-│                      └────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                   MCP Server (~220 lines)                        │
+│            src/mcp/server.py — только регистрация                 │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              DI Container (15 services)                   │   │
+│  │  src/core/di_container.py — ServiceCollection              │   │
+│  │                                                           │   │
+│  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
+│  │  │ Indexer  │  │  Searcher  │  │  DebounceBatch       │  │   │
+│  │  │ Embedder │  │  SymbolIdx │  │  CircuitBreaker      │  │   │
+│  │  │ Parser   │  │  FileGuard │  │  RateLimiter         │  │   │
+│  │  └──────────┘  └────────────┘  └──────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                           │                                       │
+│              ┌────────────┴────────────┐                         │
+│              ▼                          ▼                         │
+│  ┌────────────────────┐  ┌────────────────────────────────────┐  │
+│  │  37 Tool Classes   │  │  10 intel_* tools                  │  │
+│  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
+│  │  Каждый инструмент  │  │  error_boundary decorator          │  │
+│  │  — отдельный класс │  │  JSON status/message/detail        │  │
+│  │  Constructor Inj.   │  │  asyncio.wait_for(timeout)        │  │
+│  └────────────────────┘  └────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
          │
          ▼
-┌─────────────────┐
-│  RemoteEmbedder │
-│  (LM Studio)    │
-└─────────────────┘
+┌─────────────────┐     ┌───────────────────┐
+│  RemoteEmbedder  │     │  LanceDB v2       │
+│  (LM Studio /    │     │  (Векторная БД)    │
+│   Ollama / ONNX) │     │  BM25 + Vector    │
+└─────────────────┘     └───────────────────┘
 ```
-
-### Storage
-
-Vector indexes are isolated per project:
-```
-<PROJECT_ROOT>/.codebase_indices/lancedb_v2/index_<project>_<hash>.db
-```
-
-### Multi-Provider Reranking
-
-After RRF fusion, results can be reranked by an external LLM:
-
-```
-[Recall (BM25 + Dense)] → [Top-20 RRF] → [MultiProviderReranker]
-                                                │
-                    ┌───────────────────────────┴───────────────────────────┐
-              (Ollama available?)                                 (LM Studio available?)
-                    │                                                     │
-          [Ollama /api/chat batch]                            [LM Studio /v1/chat batch]
-                    │                                                     │
-                    └───────────────────────────┬───────────────────────────┘
-                                                ▼
-                                      [Sort by LLM scores] → [ZED Chat]
-```
-
-> For full architecture details, see [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -258,29 +234,41 @@ curl http://localhost:1234/v1/embeddings -d '{"input":"test","model":"text-embed
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # MCP server entry point
+│   ├── main.py                   # MCP server entry point (~220 lines)
+│   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
 │   ├── mcp/
-│   │   └── server.py             # All 26 MCP tools (create_mcp_server)
+│   │   ├── server.py             # DI routing — only imports + registration
+│   │   └── tools/                 # 10 files, 37 class-based tools
+│   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
+│   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
+│   │       ├── git_tools.py      # get_branch_info, get_commit_history
+│   │       ├── system_tools.py   # get_index_status, watcher_status, read_live_file
+│   │       ├── analysis_tools.py # structural_search, get_repo_map, scan_changes
+│   │       ├── graph_tools.py    # cross_repo_search, graph_query, get_related_files
+│   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
+│   │       └── lifecycle_tools.py      # submit_background_task, verify_action
 │   ├── core/
+│   │   ├── di_container.py       # ★ DI Container (15 services, ServiceCollection)
+│   │   ├── error_handler.py      # ★ error_boundary + ToolError
+│   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
 │   │   ├── indexer.py            # LanceDB vector storage
 │   │   ├── searcher.py           # Hybrid search (BM25 + Dense + RRF)
 │   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
-│   │   ├── intelligence_layer.py # intel_* tools
+│   │   ├── intelligence_layer.py # intel_* tools (10 high-level)
 │   │   ├── remote_embedder.py    # LM Studio / Ollama client
 │   │   ├── reranker.py           # Multi-Provider Reranker
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Self-diagnosis engine
-│   │   ├── index_guard.py        # Index repair & migration
 │   │   └── ...
 │   └── utils/
+│       ├── paths.py              # SafePathManager, to_win_long_path
 │       └── zed_config.py         # Auto-configure Zed settings
 ├── docs/
-│   ├── architecture.md
-│   └── windows-setup.md
-├── tests/                        # 312 tests
+│   ├── ARCHITECTURE.md
+│   └── INSTALL.md
+├── tests/                        # 325 tests (52 new — DI/RateLimiter/ErrorHandler)
 ├── .agents/skills/               # Skills for AI agent
 ├── install.py                    # Installer
-├── sync_to_installed.bat         # Sync source → installed extension
 └── README.md
 ```
 

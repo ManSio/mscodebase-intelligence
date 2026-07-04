@@ -1,6 +1,6 @@
 # Contributing — MSCodeBase Intelligence
 
-Гайд для контрибьюторов. Версия проекта: 2.0.0+ (hybrid LSP + MCP).
+Гайд для контрибьюторов. Версия проекта: **2.2.0** (Clean Architecture с DI).
 
 ---
 
@@ -12,22 +12,46 @@ cd MSCodeBase
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e ".[dev]"
+pip install -e "."
 ```
 
-Требования: Python 3.11+, LM Studio (опционально, для эмбеддингов).
+Требования: Python 3.10+, LM Studio (опционально, для эмбеддингов).
 
 ---
 
-## 2. Архитектура (кратко)
+## 2. Архитектура (Clean Architecture)
 
-| Компонент | Файл | Назначение |
-|---|---|---|
-| **Hybrid Server** | `src/hybrid_server.py` | Точка входа v2.0.0+: LSP + MCP в одном процессе |
-| **Legacy MCP** | `src/mcp/server.py` | Чистый MCP-сервер (14 инструментов) |
-| **Legacy LSP** | `src/lsp_main.py` | Отдельный LSP-сервер (для старых клиентов) |
-| **Legacy Main** | `src/main.py` | Отдельный MCP-сервер (для старых клиентов) |
-| **Core** | `src/core/` | Ядро: indexer, searcher, parser, reranker, symbol_index и др. |
+```
+src/
+├── main.py              # Точка входа (минимальная)
+├── lsp_main.py          # LSP handler (DI через ServiceCollection)
+├── mcp/
+│   ├── server.py        # ~220 строк — только регистрация инструментов
+│   └── tools/           # 10 файлов, 37 инструментов
+│       ├── base.py          # MCPTool ABC
+│       ├── search_tools.py  # 3 search tools
+│       ├── indexing_tools.py# 3 indexing tools
+│       ├── git_tools.py     # 3 git tools
+│       ├── system_tools.py  # 9 system tools
+│       ├── analysis_tools.py# 5 analysis tools
+│       └── ...
+├── core/                # Бизнес-логика (без MCP-зависимостей)
+│   ├── di_container.py  # ServiceCollection (15 services)
+│   ├── error_handler.py # error_boundary + ToolError
+│   ├── rate_limiter.py  # DebounceBatch + CircuitBreaker
+│   ├── indexer.py
+│   ├── searcher.py
+│   └── ...
+└── utils/
+    ├── paths.py         # SafePathManager
+    └── zed_config.py    # ZedSettings
+```
+
+**Ключевые принципы:**
+1. Все инструменты — отдельные классы с Constructor Injection (через `MCPTool`)
+2. Каждый инструмент задекорирован `@error_boundary` (JSON + таймаут)
+3. Единственное место создания зависимостей — `create_service_collection()`
+4. LSP и MCP используют один DI контейнер (нет дублирования)
 
 **Важно:** при разработке MCP-инструментов основной файл — `src/mcp/server.py` (функция `create_mcp_server()`). `src/hybrid_server.py` — точка входа, которая запускает LSP и MCP вместе.
 
