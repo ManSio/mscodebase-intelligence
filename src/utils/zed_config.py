@@ -249,6 +249,8 @@ def patch_zed_settings(
             "Передайте project_path при вызове patch_zed_settings()"
         )
 
+    entry["env"] = env
+
     settings["context_servers"][SERVER_NAME] = entry
 
     # Добавляем наш сервер в auto-query список, чтобы Zed сам вызывал инструменты
