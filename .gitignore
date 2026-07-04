@@ -98,3 +98,4 @@ test_output.txt
 __manifest/
 codebase_chunks.lance/
 .index_guard.json
+target/

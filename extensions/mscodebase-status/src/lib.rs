@@ -1,4 +1,4 @@
-use zed_extension_api::{self as zed, Result};
+use zed_extension_api::{self as zed, LanguageServerId, Worktree, Result};
 
 struct MscodebaseExtension;
 
@@ -9,9 +9,10 @@ impl zed::Extension for MscodebaseExtension {
 
     fn language_server_command(
         &mut self,
-        _workspace: &zed::Workspace,
-    ) -> Result<zed::Command> {
-        Ok(zed::Command {
+        _language_server_id: &LanguageServerId,
+        _worktree: &Worktree,
+    ) -> Result<zed_extension_api::process::Command> {
+        Ok(zed_extension_api::process::Command {
             command: std::env::var("MSC_PYTHON").unwrap_or_else(|_| "python".to_string()),
             args: vec!["-u".to_string(), "-m".to_string(), "src.main".to_string()],
             env: vec![("PROJECT_PATH".to_string(), ".".to_string())],
