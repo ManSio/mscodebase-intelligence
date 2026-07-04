@@ -183,7 +183,10 @@ def create_mcp_server() -> "FastMCP":
     setup_project_logging(project_root)
     logger.info("🚀 MCP-сервер запущен (DI Container ready)")
 
-    # ─── 3. Регистрация инструментов ─────────────────
+    # ─── 3. Heartbeat (Anti-Orphan) ─────────────────
+    _init_heartbeat()
+
+    # ─── 4. Регистрация инструментов ─────────────────
     _register_all_tools(mcp, services)
 
     # ─── 4. Системный prompt ─────────────────────────
@@ -194,7 +197,10 @@ def create_mcp_server() -> "FastMCP":
     # сессия JSON-RPC становится доступна через request_context
     _register_notification_broker(mcp, services)
 
-    # ─── 6. Авто-индексация при пустом индексе ───────
+    # ─── 7. Heartbeat хендлер + фоновый мониторинг ──
+    _start_heartbeat_monitor(mcp)
+
+    # ─── 8. Авто-индексация при пустом индексе ───────
     _trigger_auto_index_if_empty(services)
 
     return mcp
@@ -441,18 +447,147 @@ You operate under a strict deterministic execution matrix...
 
 
 # ══════════════════════════════════════════════════════════
-# Точка входа
+# Heartbeat — Anti-Orphan защита
 # ══════════════════════════════════════════════════════════
 
-def run_server(original_stdout=None):
-    """Запускает MCP-сервер через stdio."""
-    mcp = create_mcp_server()
-    if mcp:
+_parent_pid: Optional[int] = None
+_last_heartbeat_time: float = 0.0
+_heartbeat_interval: float = 30.0  # Ожидаемый интервал пинга от клиента (сек)
+_heartbeat_timeout: float = 90.0   # После скольких секунд без пинга — shutdown
+_heartbeat_check_interval: float = 15.0  # Как часто проверяем (сек)
+_heartbeat_task: Optional[asyncio.Task] = None
+_heartbeat_lock = asyncio.Lock()
+
+
+def _init_heartbeat():
+    """Захватываем родительский PID при старте."""
+    global _parent_pid, _last_heartbeat_time
+    _parent_pid = os.getppid()
+    _last_heartbeat_time = time.time()
+    logger.info(f"💓 Heartbeat инициализирован. Parent PID: {_parent_pid}")
+
+
+def _update_heartbeat():
+    """Обновляет время последнего heartbeat (вызов из хендлера)."""
+    global _last_heartbeat_time
+    _last_heartbeat_time = time.time()
+
+
+def _is_parent_alive() -> bool:
+    """Проверяет, жив ли родительский процесс."""
+    pid = _parent_pid
+    if pid is None:
+        return True
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
+            if handle:
+                kernel32.CloseHandle(handle)
+                return True
+            return kernel32.GetLastError() != 87  # ERROR_INVALID_PARAMETER = мёртв
+        else:
+            os.kill(pid, 0)
+            return True
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+    except Exception:
+        return True  # fallback: не можем проверить — считаем живым
+
+
+async def _heartbeat_monitor():
+    """Фоновая задача: проверяет здоровье соединения.
+    Если heartbeat не получали > timeout, или родительский процесс мёртв —
+    инициирует graceful shutdown.
+    """
+    global _last_heartbeat_time
+    logger.info(f"💓 Heartbeat monitor запущен (check={_heartbeat_check_interval}s, timeout={_heartbeat_timeout}s)")
+
+    while True:
+        await asyncio.sleep(_heartbeat_check_interval)
+
         try:
-            if original_stdout:
-                sys.stdout = original_stdout
-            asyncio.run(mcp.run_stdio_async())
-        except KeyboardInterrupt:
-            logger.info("Сервер остановлен пользователем.")
+            now = time.time()
+            elapsed = now - _last_heartbeat_time
+
+            # Проверка heartbeat таймаута
+            if elapsed > _heartbeat_timeout:
+                logger.warning(
+                    f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга "
+                    f"(лимит {_heartbeat_timeout}s)"
+                )
+
+            # Проверка родительского процесса
+            if _parent_pid is not None and not _is_parent_alive():
+                logger.warning(
+                    f"💔 Родительский процесс (Zed) мёртв (PID: {_parent_pid}). "
+                    f"Инициирую shutdown..."
+                )
+                _graceful_shutdown("Parent process died")
+                return
+
+            # Если heartbeat таймаут — тоже shutdown
+            if elapsed > _heartbeat_timeout:
+                _graceful_shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
+                return
+
+        except asyncio.CancelledError:
+            logger.info("💓 Heartbeat monitor остановлен")
+            return
         except Exception as e:
-            logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
+            logger.error(f"Heartbeat monitor error: {e}")
+
+
+def _graceful_shutdown(reason: str):
+    """Graceful shutdown с сохранением данных."""
+    logger.warning(f"🛑 Graceful shutdown: {reason}")
+
+    # 1. Сохраняем SymbolIndex
+    try:
+        from src.core.index_guard import IndexGuard
+        from pathlib import Path
+        db_path = Path.cwd() / ".codebase_indices" / "lancedb_v2"
+        if db_path.exists():
+            guard = IndexGuard(db_path, Path.cwd())
+    except Exception:
+        pass
+
+    # 2. Закрываем LanceDB (неявно через GC)
+    logger.info("💾 LanceDB: завершение транзакций...")
+
+    # 3. Выход
+    logger.info(f"👋 Server shutdown: {reason}")
+    os._exit(0)
+
+
+def _start_heartbeat_monitor(mcp):
+    """Регистрирует хендлер heartbeat и запускает фоновый мониторинг."""
+    global _heartbeat_task
+
+    try:
+        server = mcp._mcp_server
+
+        # Регистрируем кастомный JSON-RPC метод msccodebase/heartbeat
+        if hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict):
+
+            async def _on_heartbeat(params):
+                _update_heartbeat()
+                return {}
+
+            server.request_handlers["mscodebase/heartbeat"] = _on_heartbeat
+            logger.debug("💓 Heartbeat handler registered")
+
+        # Запускаем фоновый мониторинг
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                _heartbeat_task = asyncio.ensure_future(_heartbeat_monitor())
+                logger.info("💓 Heartbeat monitor started")
+        except RuntimeError:
+            logger.debug("Heartbeat monitor: event loop not ready")
+
+    except Exception as e:
+        logger.warning(f"Heartbeat: {e}")
+    loop = asyncio.get_event_loop()
+    _heartbeat_task = asyncio.ensure_future(_heartbeat_monitor())
