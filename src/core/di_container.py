@@ -133,18 +133,6 @@ def create_service_collection(
     services.add_singleton(type("ProjectRoot", (), {}), project_root)
 
     # ══════════════════════════════════════════════════════
-    # Cross-project компоненты (для cross_repo_search и cross_project_deps)
-    # ══════════════════════════════════════════════════════
-    from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-
-    project_registry = ProjectRegistry()
-    project_registry.register(project_root)
-    services.add_singleton(ProjectRegistry, project_registry)
-
-    multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
-    services.add_singleton(MultiProjectSearcher, multi_project_searcher)
-
-    # ══════════════════════════════════════════════════════
     # Базовые компоненты (без зависимостей от других)
     # ══════════════════════════════════════════════════════
     db_path = _generate_unique_db_path(project_root)
@@ -159,6 +147,18 @@ def create_service_collection(
     if embedder is None:
         embedder = RemoteEmbedder()
     services.add_singleton(RemoteEmbedder, embedder)
+
+    # ══════════════════════════════════════════════════════
+    # Cross-project компоненты (ПОСЛЕ embedder!)
+    # ══════════════════════════════════════════════════════
+    from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
+
+    project_registry = ProjectRegistry()
+    project_registry.register(project_root)
+    services.add_singleton(ProjectRegistry, project_registry)
+
+    multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
+    services.add_singleton(MultiProjectSearcher, multi_project_searcher)
 
     symbol_index = SymbolIndex()
     services.add_singleton(SymbolIndex, symbol_index)

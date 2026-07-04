@@ -101,39 +101,46 @@ class SubmitBackgroundTaskTool(MCPTool):
 class GetTaskStatusTool(MCPTool):
     """get_task_status — статус фоновой задачи."""
 
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="get_task_status")
+
     @error_boundary("get_task_status", timeout_ms=3000)
     async def execute(
         self, task_id: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> dict:
+    ) -> str:
         from src.core.task_queue import get_task_queue
 
         task_queue = get_task_queue()
         status = task_queue.get_status(task_id)
 
         if not status:
-            return {"status": "error", "message": f"Task not found: {task_id}"}
+            return f"❌ Task not found: {task_id}"
 
-        return {
-            "status": "ok",
-            "task_id": task_id,
-            "name": status["name"],
-            "task_status": status["status"],
-            "progress": status.get("progress", 0),
-            "created_at": status.get("created_at", ""),
-            "started_at": status.get("started_at", ""),
-            "completed_at": status.get("completed_at", ""),
-            "error": status.get("error"),
-            "result": status.get("result"),
-        }
+        lines = [f"📋 Task: {status['name']}"]
+        lines.append(f"  ID: {status['id']}")
+        lines.append(f"  Status: {status['status']}")
+        lines.append(f"  Progress: {status.get('progress', 0) * 100:.0f}%")
+
+        if status.get("error"):
+            lines.append(f"  Error: {status['error']}")
+        if status.get("result"):
+            result = status['result']
+            if isinstance(result, str):
+                lines.append(f"  Result: {result[:200]}")
+
+        return "\n".join(lines)
 
 
 class VerifyActionTool(MCPTool):
     """verify_action — верификация выполненного действия (Execution Contract)."""
 
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="verify_action")
+
     @error_boundary("verify_action", timeout_ms=10000)
     async def execute(
         self, action_type: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> dict:
+    ) -> str:
         from src.core.execution_contract import ExecutionContract, format_verification_report
 
         contract = ExecutionContract()
@@ -164,15 +171,10 @@ class VerifyActionTool(MCPTool):
             results.append(contract.verify_git_push())
 
         else:
-            return {"status": "error", "message": f"Unknown action type: {action_type}"}
+            return f"❌ Unknown action type: {action_type}"
 
         report = format_verification_report(results)
-        return {
-            "status": "ok",
-            "action_type": action_type,
-            "results": results,
-            "report": report,
-        }
+        return f"✅ Verification: {action_type}\n" + report
 
 
 __all__ = [

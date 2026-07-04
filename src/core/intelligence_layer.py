@@ -566,6 +566,7 @@ class ProjectIntelligenceLayer:
         from src.core.remote_embedder import RemoteEmbedder
         from src.core.health_report import HealthReport
 
+        _start = time.perf_counter()
         candidates = []
         embedder = RemoteEmbedder()
         health = HealthReport(self.project_path)
@@ -629,7 +630,7 @@ class ProjectIntelligenceLayer:
             "error_message": error_message,
             "component_context": component_context,
             "probable_causes": candidates[:3],
-            "analysis_time_ms": int(time.perf_counter() * 1000)
+            "analysis_time_ms": int((time.perf_counter() - _start) * 1000)
         }
 
 
