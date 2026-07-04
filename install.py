@@ -766,14 +766,12 @@ def main():
     # Единый вызов patch_zed_settings с MCP + LSP + Languages
     # install_path=ZED_EXT_DIR гарантирует что PYTHONPATH укажет на
     # %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
-    # project_path=PROJECT_ROOT — для Windows, где $ZED_WORKTREE_ROOT не работает
     if patch_zed_settings(
         command=mcp_command,
         mode="global",
         lsp_config=lsp_config,
         languages_config=languages_config,
         install_path=str(ZED_EXT_DIR),
-        project_path=str(PROJECT_ROOT),
     ):
         ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
         detail(f"MCP: {Color.DIM}{mcp_command}{Color.RESET}")

@@ -227,28 +227,13 @@ def patch_zed_settings(
     }
 
     # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
-    # PROJECT_PATH: если передан явно — используем его на Windows.
-    # Без PROJECT_PATH сервер не может определить корень проекта на Windows,
-    # так как $ZED_WORKTREE_ROOT не резолвится в env и current_dir (баг Zed #36019).
+    # PROJECT_PATH = $ZED_WORKTREE_ROOT — Zed сам подставляет текущий проект.
+    # На Windows $ZED_WORKTREE_ROOT может не резолвиться в current_dir,
+    # но в env он работает (проверено в production).
     env = {
         "PYTHONPATH": str(ext_dir),
+        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
     }
-
-    # Если project_path явно передан — устанавливаем PROJECT_PATH
-    # Это единственный надёжный способ указать корень проекта на Windows
-    if project_path:
-        env["PROJECT_PATH"] = str(Path(project_path).resolve())
-        logger.info(f"PROJECT_PATH установлен: {project_path}")
-    elif mode == "project":
-        # Режим проекта: CWD = корень проекта
-        env["PROJECT_PATH"] = str(Path.cwd().resolve())
-        logger.info(f"PROJECT_PATH (project mode): {Path.cwd()}")
-    else:
-        logger.warning(
-            "PROJECT_PATH не установлен. На Windows сервер может не определить корень проекта. "
-            "Передайте project_path при вызове patch_zed_settings()"
-        )
-
     entry["env"] = env
 
     settings["context_servers"][SERVER_NAME] = entry
@@ -267,6 +252,8 @@ def patch_zed_settings(
         if "lsp" not in settings:
             settings["lsp"] = {}
         if "mscodebase-lsp" not in settings["lsp"]:
+            # Добавляем env в LSP конфиг (PYTHONPATH + PROJECT_PATH)
+            lsp_config["env"] = env.copy()
             settings["lsp"]["mscodebase-lsp"] = lsp_config
             logger.info(f"✅ LSP-сервер 'mscodebase-lsp' добавлен")
 
