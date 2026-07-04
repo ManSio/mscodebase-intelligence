@@ -689,5 +689,21 @@ def _start_heartbeat_monitor(mcp):
 
     except Exception as e:
         logger.warning(f"Heartbeat: {e}")
-    loop = asyncio.get_event_loop()
-    _heartbeat_task = asyncio.ensure_future(_heartbeat_monitor())
+
+
+# ══════════════════════════════════════════════════════════
+# Точка входа
+# ══════════════════════════════════════════════════════════
+
+def run_server(original_stdout=None):
+    """Запускает MCP-сервер через stdio."""
+    mcp = create_mcp_server()
+    if mcp:
+        try:
+            if original_stdout:
+                sys.stdout = original_stdout
+            asyncio.run(mcp.run_stdio_async())
+        except KeyboardInterrupt:
+            logger.info("Сервер остановлен пользователем.")
+        except Exception as e:
+            logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
