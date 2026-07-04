@@ -261,41 +261,29 @@ class HealthReport:
         """Проверка компонентов системы."""
         if self.embedder:
             try:
-                embedder_status = self.embedder.get_status()
-                self.metrics["embedder_status"] = embedder_status
-                if not embedder_status:
-                    self.issues.append(
-                        {
-                            "component": "embedder",
-                            "message": "Embedder недоступен",
-                        }
-                    )
+                embedder_mode = getattr(self.embedder, "mode", "unknown")
+                self.metrics["embedder_status"] = embedder_mode
+                self.metrics["embedder_available"] = embedder_mode not in ("unknown", "fallback")
             except Exception as e:
-                self.issues.append(
-                    {
-                        "component": "embedder",
-                        "message": f"Ошибка проверки embedder: {e}",
-                    }
-                )
+                self.issues.append({
+                    "component": "embedder",
+                    "message": f"Ошибка проверки embedder: {e}",
+                })
 
         if self.symbol_index:
             try:
-                symbol_status = self.symbol_index.get_status()
-                self.metrics["symbol_index_status"] = symbol_status
-                if not symbol_status:
-                    self.issues.append(
-                        {
-                            "component": "symbol_index",
-                            "message": "Symbol index недоступен",
-                        }
-                    )
+                if hasattr(self.symbol_index, "get_symbol_count"):
+                    symbol_count = self.symbol_index.get_symbol_count()
+                elif hasattr(self.symbol_index, "_definitions"):
+                    symbol_count = len(self.symbol_index._definitions)
+                else:
+                    symbol_count = "unknown"
+                self.metrics["symbol_index_count"] = symbol_count
             except Exception as e:
-                self.issues.append(
-                    {
-                        "component": "symbol_index",
-                        "message": f"Ошибка проверки symbol_index: {e}",
-                    }
-                )
+                self.issues.append({
+                    "component": "symbol_index",
+                    "message": f"Ошибка проверки symbol_index: {e}",
+                })
 
     def _check_execution_contract(self):
         """Проверка Execution Contract (git operations)."""

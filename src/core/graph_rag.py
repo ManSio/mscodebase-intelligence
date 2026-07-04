@@ -26,6 +26,13 @@ class GraphRAGQueryEngine:
         self._graph: Dict[str, Dict[str, float]] = {}
         self._file_symbols: Dict[str, Set[str]] = {}
         self._symbol_files: Dict[str, str] = {}
+        self._graph_built = False
+
+    def _ensure_graph(self):
+        """Ленивое построение графа при первом запросе."""
+        if not self._graph_built:
+            self.build_graph()
+            self._graph_built = True
 
     def build_graph(self) -> Dict:
         """Строит граф знаний из всех источников."""
@@ -62,6 +69,7 @@ class GraphRAGQueryEngine:
 
     def query_impact(self, symbol_name: str, depth: int = 2) -> Dict:
         """Находит что затронет изменение символа."""
+        self._ensure_graph()
         result = {
             "symbol": symbol_name,
             "direct_impact": [],
@@ -89,6 +97,7 @@ class GraphRAGQueryEngine:
 
     def query_feature(self, feature_name: str) -> Dict:
         """Находит весь код связанный с фичей."""
+        self._ensure_graph()
         result = {
             "feature": feature_name,
             "files": [],
@@ -125,6 +134,7 @@ class GraphRAGQueryEngine:
 
     def query_dependencies(self, file_path: str, direction: str = "both") -> Dict:
         """Находит зависимости файла."""
+        self._ensure_graph()
         result = {
             "file": file_path,
             "depends_on": [],
