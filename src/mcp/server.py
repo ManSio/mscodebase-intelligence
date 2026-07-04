@@ -197,10 +197,13 @@ def create_mcp_server() -> "FastMCP":
     # сессия JSON-RPC становится доступна через request_context
     _register_notification_broker(mcp, services)
 
-    # ─── 7. Heartbeat хендлер + фоновый мониторинг ──
+    # ─── 7. Регистрация JSON-RPC методов для Rust-расширения ─
+    _register_extension_handlers(mcp, services)
+
+    # ─── 8. Heartbeat хендлер + фоновый мониторинг ──
     _start_heartbeat_monitor(mcp)
 
-    # ─── 8. Авто-индексация при пустом индексе ───────
+    # ─── 9. Авто-индексация при пустом индексе ───────
     _trigger_auto_index_if_empty(services)
 
     return mcp
@@ -241,6 +244,103 @@ def _register_notification_broker(mcp, services):
 
     except Exception as e:
         logger.warning(f"NotificationBroker: не удалось зарегистрировать: {e}")
+
+
+def _normalize_dashboard_path(path: str) -> str:
+    """Нормализует Windows-путь для zed://file/ URI.
+
+    Rust-расширение Zed (особенно под GitBash) ожидает URI с прямыми слэшами.
+    Пример: C:\Users\misha\file.py → C:/Users/misha/file.py
+    """
+    return path.replace("\\", "/")
+
+
+def _register_extension_handlers(mcp, services):
+    """Регистрирует JSON-RPC методы для Rust/WASM расширения.
+
+    Методы:
+    - msccodebase/get_dashboard — генерация Markdown дашборда с zed://file/ ссылками
+    - msccodebase/force_reindex — принудительная переиндексация
+    - msccodebase/clear_memory — очистка кэша памяти
+    """
+    try:
+        server = mcp._mcp_server
+        from src.core.indexer import Indexer
+
+        indexer = services.resolve(Indexer)
+        project_root = indexer.project_path
+
+        if not (hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict)):
+            return
+
+        # ─── msccodebase/get_dashboard ─────────────────────
+        async def _handle_get_dashboard(params) -> str:
+            """Генерирует Markdown дашборд с НОРМАЛИЗОВАННЫМИ путями.
+
+            Все пути в zed://file/ URI принудительно конвертируются
+            из backslashes в forward slashes для совместимости с Zed/GitBash.
+            """
+            try:
+                stats = indexer.get_status()
+                chunks = stats.get("total_chunks", 0)
+                files = stats.get("unique_files", 0)
+
+                # Нормализуем пути для zed://file/ URI
+                db_path = _normalize_dashboard_path(str(indexer.db_path))
+                root = _normalize_dashboard_path(str(project_root))
+
+                md = f"""# 🏗 MSCodeBase Architecture Dashboard
+
+## 📊 Index Status
+- **Chunks:** {chunks}
+- **Files:** {files}
+- **DB:** `{db_path}`
+
+## 📁 Project: {project_root.name}
+- [**src/core/**](zed://file/{root}/src/core/)
+- [**tests/**](zed://file/{root}/tests/)
+
+## 🛠 Commands
+- [Trigger Full Reindex](command:mscodebase:trigger-full-reindex)
+- [Clear Memory Cache](command:mscodebase:clear-project-memory)
+"""
+                return md
+            except Exception as e:
+                return f"# ❌ Dashboard Error\n\n{str(e)}"
+
+        server.request_handlers["mscodebase/get_dashboard"] = _handle_get_dashboard
+
+        # ─── msccodebase/force_reindex ────────────────────
+        async def _handle_force_reindex(params) -> str:
+            """Принудительная переиндексация."""
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                indexed = await asyncio.to_thread(
+                    indexer.index_project, project_root
+                )
+                return f"{{\"status\": \"ok\", \"files\": {indexed}}}"
+            except Exception as e:
+                return f"{{\"status\": \"error\", \"message\": \"{e}\"}}"
+
+        server.request_handlers["mscodebase/force_reindex"] = _handle_force_reindex
+
+        # ─── msccodebase/clear_memory ─────────────────────
+        async def _handle_clear_memory(params) -> str:
+            """Очистка кэша памяти проекта."""
+            try:
+                if hasattr(indexer, "_symbol_index") and indexer._symbol_index:
+                    indexer._symbol_index._definitions.clear()
+                return '{"status": "ok"}'
+            except Exception as e:
+                return f'{{"status": "error", "message": "{e}"}}'
+
+        server.request_handlers["mscodebase/clear_memory"] = _handle_clear_memory
+
+        logger.info("🌉 Extension JSON-RPC handlers registered (3 methods)")
+
+    except Exception as e:
+        logger.warning(f"Extension handlers: {e}")
 
 
 def _trigger_auto_index_if_empty(services):

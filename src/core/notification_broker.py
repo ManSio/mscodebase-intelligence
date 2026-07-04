@@ -15,10 +15,15 @@ class NotificationBroker:
     def attach_session(self, session: Any) -> None:
         """Динамически связывает активную сессию stdio-транспорта с брокером.
 
-        Вызывается в mcp/server.py в момент инициализации JSON-RPC соединения.
+        Вызывается в mcp/server.py в момент получения нотификации initialized.
+        Перед сохранением новой сессии принудительно detachит старую —
+        это защита от hot-reload Rust-расширения, когда старая сессия
+        уже закрыта, но объект ещё висит в памяти.
         """
+        # Принудительный detach старой сессии (защита от hot-reload)
+        self.detach_session()
         self._session = session
-        logger.info("JSON-RPC session successfully attached to NotificationBroker.")
+        logger.info("🔗 JSON-RPC session attached to NotificationBroker.")
 
     def detach_session(self) -> None:
         """Сбрасывает сессию при закрытии соединения во избежание утечек памяти."""

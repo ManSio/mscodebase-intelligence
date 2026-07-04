@@ -199,6 +199,8 @@ impl zed::Extension for MscodebaseExtension {
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_default()),
             ],
+            // Проброс stderr Python-процесса в логи Zed для отладки крэшей
+            stderr: Some(zed::StderrBehavior::Log),
         })
     }
 
