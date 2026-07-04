@@ -140,7 +140,7 @@ class IndexProjectDirTool(MCPTool):
         super().__init__(services, tool_name="index_project_dir")
         self.indexer = services.resolve(Indexer)
 
-    @error_boundary("index_project_dir", timeout_ms=5000)
+    @error_boundary("index_project_dir", timeout_ms=300000)
     async def execute(
         self,
         path: str,
