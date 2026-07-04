@@ -9,6 +9,3 @@ authors = ["ManSio"]
 "mscodebase: trigger-full-reindex" = { description = "Запуск полной переиндексации проекта" }
 "mscodebase: show-dashboard" = { description = "Открыть архитектурный дашборд" }
 "mscodebase: clear-project-memory" = { description = "Очистить кэш проектной памяти" }
-
-[language_servers]
-mscodebase-mcp = { name = "MSCodeBase MCP", language = "Python" }
