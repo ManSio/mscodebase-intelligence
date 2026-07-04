@@ -33,6 +33,12 @@ dist/
 *.db
 *.sqlite3
 
+# ── Исключаем внутренние векторные базы LM‑Studio ─────────────────────
+codebase_chunks.lance
+codebase_chunks/
+*.lance
+*.lance_versions/
+
 # Runtime state
 .model_server.refcount
 .model_server.port

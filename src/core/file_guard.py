@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class FileGuard:
     """Многоуровневая фильтрация файлов перед индексацией."""
 
-    # Жесткий черный список директорий
+    # Жесткий черный список директорий (приведен к нижнему регистру для надежности)
     SKIP_DIRS = {
         ".git",
         "node_modules",
@@ -33,6 +33,7 @@ class FileGuard:
         "htmlcov",
         ".coverage",
         ".codebase_index",
+        ".codebase_indices",  # Добавлено для явной защиты метаданных индексов
         ".codebase_models",
         ".zed",
         ".idea",
@@ -85,11 +86,20 @@ class FileGuard:
     def __init__(self, project_path: Path):
         self.project_path = project_path
         self._gitignore_patterns = set()
+
+        # Оптимизация: Вытаскиваем конфигурацию один раз при инициализации
+        config = get_config()
+        self.max_retries = getattr(config.performance, "file_retry_max_attempts", 3)
+        self.retry_delay = getattr(config.performance, "file_retry_delay", 0.1)
+
+        # Кешируем SKIP_DIRS в нижнем регистре для регистронезависимой проверки
+        self._skip_dirs_lower = {d.lower() for d in self.SKIP_DIRS}
+
         self._load_gitignore()
 
     def should_skip_dir(self, dir_name: str) -> bool:
         """Проверяет, нужно ли пропускать директорию при обходе."""
-        return dir_name in self.SKIP_DIRS
+        return dir_name.lower() in self._skip_dirs_lower
 
     def should_skip_file(self, file_path: Path) -> bool:
         """Проверяет, нужно ли пропускать файл."""
@@ -97,9 +107,22 @@ class FileGuard:
 
     def _load_gitignore(self):
         """Загружает правила из .gitignore."""
-        from src.core.gitignore_parser import load_gitignore_patterns
+        try:
+            from src.core.gitignore_parser import load_gitignore_patterns
+            self._gitignore_patterns = load_gitignore_patterns(self.project_path)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить .gitignore парсер: {e}. Будет использован базовый Fallback.")
+            self._gitignore_patterns = set()
 
-        self._gitignore_patterns = load_gitignore_patterns(self.project_path)
+        # Fallback: всегда жестко исключаем внутренние файлы LanceDB, даже если .gitignore поврежден
+        self._gitignore_patterns.update({
+            "codebase_chunks.lance",
+            "codebase_chunks/**",
+            "*.lance",
+            "*.lance_versions/**",
+            "lancedb_v2",
+            "lancedb_v2/**",
+        })
         logger.info(
             f"✅ Загружено {len(self._gitignore_patterns)} паттернов .gitignore: {self.project_path / '.gitignore'}"
         )
@@ -121,9 +144,9 @@ class FileGuard:
             logger.debug(f"[FILEGUARD SKIP] Minified file: {file_path.name}")
             return False
 
-        # Проверка директорий (если хоть одна часть пути в черном списке - игнорим)
-        if any(part in self.SKIP_DIRS for part in file_path.parts):
-            logger.debug(f"[FILEGUARD SKIP] Skipped directory: {file_path}")
+        # Проверка директорий (Регистронезависимая: если хоть одна часть пути в черном списке - игнорим)
+        if any(part.lower() in self._skip_dirs_lower for part in file_path.parts):
+            logger.debug(f"[FILEGUARD SKIP] Skipped directory by path parts: {file_path}")
             return False
 
         # Проверка .gitignore (Требует POSIX путей)
@@ -143,47 +166,41 @@ class FileGuard:
             except ValueError:
                 # Если файл не является частью проекта
                 logger.debug(f"[FILEGUARD SKIP] File not in project: {file_path}")
-                pass
+                return False
 
         # 2. МЕДЛЕННЫЕ ПРОВЕРКИ (I/O Файловой системы) с Retry-логикой под Windows
-        config = get_config()
-        max_retries = config.performance.file_retry_max_attempts
-        retry_delay = config.performance.file_retry_delay  # задержка между попытками
         st_size = 0
-
-        for attempt in range(max_retries):
+        for attempt in range(self.max_retries):
             try:
                 # Пытаемся получить информацию о файле
                 st_size = file_path.stat().st_size
 
                 # Дополнительная проверка: если размер 0, возможно, файл еще пишется.
                 # Даем ему шанс заполниться, если это не пустой файл изначально.
-                if st_size == 0 and attempt < max_retries - 1:
-                    time.sleep(retry_delay)
+                if st_size == 0 and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay)
                     continue
 
                 break  # Если всё успешно прочиталось, выходим из цикла ретраев
 
             except (FileNotFoundError, OSError) as e:
-                if attempt == max_retries - 1:
+                if attempt == self.max_retries - 1:
                     # Если это была последняя попытка — логируем жесткий пропуск
                     logger.debug(
-                        f"[FILEGUARD SKIP] File stat permanent error after {max_retries} attempts: {e}"
+                        f"[FILEGUARD SKIP] File stat permanent error after {self.max_retries} attempts: {e}"
                     )
                     return False
 
                 # Если поймали PermissionError (WinError 32) — спим и пробуем снова
-                # PermissionError — это подкласс OSError, специфичный для Windows
-                # Мы обрабатываем его отдельно для лучшего логирования
                 if isinstance(e, PermissionError):
                     logger.debug(
-                        f"[FILEGUARD RETRY] File locked by OS (PermissionError) (attempt {attempt + 1}/{max_retries}). Retrying..."
+                        f"[FILEGUARD RETRY] File locked by OS (PermissionError) (attempt {attempt + 1}/{self.max_retries}). Retrying..."
                     )
                 else:
                     logger.debug(
-                        f"[FILEGUARD RETRY] File locked by OS (attempt {attempt + 1}/{max_retries}). Retrying..."
+                        f"[FILEGUARD RETRY] File locked by OS (attempt {attempt + 1}/{self.max_retries}). Retrying..."
                     )
-                time.sleep(retry_delay)
+                time.sleep(self.retry_delay)
 
         # Проверка размера файла после успешного получения статов
         if st_size > self.MAX_FILE_SIZE_BYTES:
