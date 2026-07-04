@@ -79,8 +79,6 @@ class SearchCodeTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="search_code")
-        self.searcher = services.resolve(Searcher)
-        self.symbol_index = services.resolve(SymbolIndex)
 
     @error_boundary("search_code", timeout_ms=15000, max_retries=1)
     async def execute(
@@ -98,15 +96,15 @@ class SearchCodeTool(MCPTool):
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
             return self._format_results(
-                self.searcher.search_with_mode(query, mode=mode, limit=limit),
+                self.resolve_searcher().search_with_mode(query, mode=mode, limit=limit),
                 mode,
             )
 
         if mode == "deep":
-            return self.searcher.deep_search(query, limit=limit)
+            return self.resolve_searcher().deep_search(query, limit=limit)
 
         if mode == "context":
-            return self.searcher.context_search(query, limit=limit)
+            return self.resolve_searcher().context_search(query, limit=limit)
 
         # === mode == "auto": авто-определение simple vs agentic ===
         since = kwargs.get("since") if kwargs else None
@@ -114,22 +112,29 @@ class SearchCodeTool(MCPTool):
 
         if _is_complex_query(query):
             return await self._agentic_search(query)
-        return self.searcher.search(query, limit=limit, since=since, before=before)
+        return self.resolve_searcher().search(query, limit=limit, since=since, before=before)
 
     async def _agentic_search(self, query: str) -> str:
-        """Agentic Code Search с декомпозицией и связями."""
+        """Agentic Code Search с декомпозицией и связями.
+
+        Multi-window (INC-6BCB-v2): self.searcher / self.symbol_index
+        НЕ существуют в базовом MCPTool (Indexer per-project → Searcher
+        per-project). Резолвим через resolve_searcher() / resolve_symbol_index().
+        """
+        searcher = self.resolve_searcher()
+        symbol_index = self.resolve_symbol_index()
         try:
-            results, metadata = self.searcher.agentic_code_search(
+            results, metadata = searcher.agentic_code_search(
                 query,
-                symbol_index=self.symbol_index,
+                symbol_index=symbol_index,
                 max_subqueries=4,
                 limit_per_subquery=5,
                 max_total_results=10,
             )
-            return self.searcher._format_agentic_results(results, metadata)
+            return searcher._format_agentic_results(results, metadata)
         except Exception as e:
             logger.error(f"Agentic search failed, fallback to simple: {e}")
-            return self.searcher.search(query, limit=6)
+            return searcher.search(query, limit=6)
 
     @staticmethod
     def _format_results(result: dict, mode: str) -> str:
@@ -171,7 +176,6 @@ class GetSymbolInfoTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_symbol_info")
-        self.symbol_index = services.resolve(SymbolIndex)
 
     @error_boundary("get_symbol_info", timeout_ms=5000)
     async def execute(
@@ -179,7 +183,7 @@ class GetSymbolInfoTool(MCPTool):
         query: str,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        call_graph = self.symbol_index.build_call_graph(query, depth=2)
+        call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             return {
@@ -192,7 +196,7 @@ class GetSymbolInfoTool(MCPTool):
             }
 
         # Fallback: поиск по имени
-        results = self.symbol_index.search_symbols(query)
+        results = self.resolve_symbol_index().search_symbols(query)
         if not results:
             return {
                 "status": "warning",
@@ -221,7 +225,6 @@ class ImpactAnalysisTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="impact_analysis")
-        self.symbol_index = services.resolve(SymbolIndex)
 
     @error_boundary("impact_analysis", timeout_ms=20000)
     async def execute(
@@ -230,7 +233,7 @@ class ImpactAnalysisTool(MCPTool):
         depth: int = 3,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        result = self.symbol_index.get_impact_analysis(symbol, depth=depth)
+        result = self.resolve_symbol_index().get_impact_analysis(symbol, depth=depth)
 
         if not result.get("call_graph", {}).get("definition"):
             return {

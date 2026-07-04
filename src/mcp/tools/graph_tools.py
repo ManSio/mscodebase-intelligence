@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.graph_tools")
@@ -122,20 +121,15 @@ class CrossProjectDepsTool(MCPTool):
 
 
 class GraphQueryTool(MCPTool):
-    """graph_query — запрос к графу знаний (GraphRAG)."""
+    """graph_query — запрос к графу знаний (GraphRAG).
+
+    Multi-window (INC-6BCB-v2): НЕ кэшируем symbol_index в __init__ —
+    Indexer (и его _symbol_index) теперь per-project через registry.
+    Резолвим per-call через resolve_symbol_index() / resolve_indexer().
+    """
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="graph_query")
-        self.symbol_index = services.resolve(SymbolIndex)
-        self._project_root = self._resolve_project_root()
-
-    def _resolve_project_root(self) -> Path:
-        try:
-            from src.core.indexer import Indexer
-            indexer = self._services.resolve(Indexer)
-            return indexer.project_path
-        except Exception:
-            return Path.cwd()
 
     @error_boundary("graph_query", timeout_ms=15000)
     async def execute(
@@ -143,9 +137,11 @@ class GraphQueryTool(MCPTool):
     ) -> dict:
         from src.core.graph_rag import GraphRAGQueryEngine
 
+        # Multi-window: per-project indexer → per-project symbol_index.
+        indexer = self.resolve_indexer()
         engine = GraphRAGQueryEngine(
-            self._project_root,
-            symbol_index=self.symbol_index,
+            indexer.project_path,
+            symbol_index=self.resolve_symbol_index(),
         )
 
         if query_type == "impact":

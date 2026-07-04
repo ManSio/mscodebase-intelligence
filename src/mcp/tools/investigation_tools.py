@@ -22,7 +22,6 @@ class GetBugCorrelationTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_bug_correlation")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_bug_correlation", timeout_ms=20000)
     async def execute(
@@ -37,7 +36,7 @@ class GetBugCorrelationTool(MCPTool):
         target_path = (
             Path(project_root).resolve()
             if project_root
-            else self.indexer.project_path
+            else self.resolve_indexer().project_path
         )
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {target_path}"}
@@ -91,7 +90,6 @@ class GetHotspotsTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_hotspots")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_hotspots", timeout_ms=15000)
     async def execute(
@@ -130,7 +128,6 @@ class FindSimilarBugsTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="find_similar_bugs")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("find_similar_bugs", timeout_ms=15000)
     async def execute(
@@ -144,7 +141,7 @@ class FindSimilarBugsTool(MCPTool):
         target_path = (
             Path(project_root).resolve()
             if project_root
-            else self.indexer.project_path
+            else self.resolve_indexer().project_path
         )
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {target_path}"}

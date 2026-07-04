@@ -28,7 +28,6 @@ class StructuralSearchTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="structural_search")
-        self.parser = services.resolve(CodeParser)
 
     @error_boundary("structural_search", timeout_ms=15000)
     async def execute(
@@ -43,7 +42,7 @@ class StructuralSearchTool(MCPTool):
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 
-        searcher = StructuralSearcher(self.parser)
+        searcher = StructuralSearcher(self.resolve_parser())
         result = searcher.search(
             target_path,
             pattern_name=pattern,
@@ -61,21 +60,20 @@ class GetRepoMapTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_repo_map")
-        self.symbol_index = services.resolve(SymbolIndex)
 
     @error_boundary("get_repo_map", timeout_ms=15000)
     async def execute(
         self, project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
-        if not self.symbol_index:
+        if not self.resolve_symbol_index():
             return {"status": "error", "message": "Symbol index is not available"}
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 
-        if hasattr(self.symbol_index, "get_repo_map"):
-            raw = self.symbol_index.get_repo_map(str(target_path))
+        if hasattr(self.resolve_symbol_index(), "get_repo_map"):
+            raw = self.resolve_symbol_index().get_repo_map(str(target_path))
             # Форматируем структуру
             structure = []
             for item in raw.get("structure", []):
@@ -128,7 +126,6 @@ class GetRepoRankTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_repo_rank")
-        self.symbol_index = services.resolve(SymbolIndex)
 
     @error_boundary("get_repo_rank", timeout_ms=10000)
     async def execute(
@@ -137,10 +134,10 @@ class GetRepoRankTool(MCPTool):
         top_k: int = 10,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        if not self.symbol_index:
+        if not self.resolve_symbol_index():
             return {"status": "error", "message": "Symbol index not available"}
 
-        ranks = self.symbol_index.compute_repo_rank()
+        ranks = self.resolve_symbol_index().compute_repo_rank()
         if not ranks:
             return {"status": "warning", "message": "Call graph is empty"}
 
@@ -148,7 +145,7 @@ class GetRepoRankTool(MCPTool):
 
         items = []
         for symbol, score in sorted_ranks:
-            defs = self.symbol_index.find_definitions(symbol)
+            defs = self.resolve_symbol_index().find_definitions(symbol)
             kind = defs[0].kind if defs else "unknown"
             file = defs[0].file_path if defs else "unknown"
             items.append({
@@ -170,10 +167,6 @@ class ScanChangesTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="scan_changes")
-        self.indexer = services.resolve(Indexer)
-        self.symbol_index = services.resolve(SymbolIndex)
-        self.parser = services.resolve(CodeParser)
-        self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("scan_changes", timeout_ms=120000)
     async def execute(
@@ -184,32 +177,32 @@ class ScanChangesTool(MCPTool):
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 
         # Переключаем индекс на проект
-        self.indexer.switch_project(target_path)
+        self.resolve_indexer().switch_project(target_path)
         project_file_guard = FileGuard(target_path)
-        self.indexer.file_guard = project_file_guard
+        self.resolve_indexer().file_guard = project_file_guard
 
         logger.info(f"Scanning changes for {target_path.name}...")
 
         # Полная переиндексация
         indexed_count = await asyncio.to_thread(
-            self.indexer.index_project, target_path
+            self.resolve_indexer().index_project, target_path
         )
 
         # Обновляем SymbolIndex
-        if hasattr(self.symbol_index, "index_project"):
+        if hasattr(self.resolve_symbol_index(), "index_project"):
             await asyncio.to_thread(
-                self.symbol_index.index_project, target_path, self.parser
+                self.resolve_symbol_index().index_project, target_path, self.resolve_parser()
             )
 
         # Архитектурный дифф
         arch_diff = {}
-        if hasattr(self.symbol_index, "get_architectural_diff") and indexed_count > 0:
+        if hasattr(self.resolve_symbol_index(), "get_architectural_diff") and indexed_count > 0:
             try:
                 import pandas as pd
 
-                df = self.indexer.table.to_pandas()
+                df = self.resolve_indexer().table.to_pandas()
                 changed_files = list(df["file_path"].unique())[:20]
-                diff_result = self.symbol_index.get_architectural_diff(changed_files)
+                diff_result = self.resolve_symbol_index().get_architectural_diff(changed_files)
                 if diff_result:
                     arch_diff = {
                         "impact_summary": diff_result.get("impact_summary", ""),
@@ -218,7 +211,7 @@ class ScanChangesTool(MCPTool):
             except Exception as diff_err:
                 logger.debug(f"Architectural diff error: {diff_err}")
 
-        embedder_mode = getattr(self.embedder, "mode", "unknown")
+        embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
         return {
             "status": "ok",
             "project": target_path.name,
@@ -233,8 +226,6 @@ class GenerateChunkSummariesTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="generate_chunk_summaries")
-        self.indexer = services.resolve(Indexer)
-        self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("generate_chunk_summaries", timeout_ms=300000)
     async def execute(
@@ -246,7 +237,7 @@ class GenerateChunkSummariesTool(MCPTool):
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 
-        table = self.indexer.table
+        table = self.resolve_indexer().table
         if table is None:
             return {"status": "error", "message": "LanceDB table not initialized"}
 
@@ -279,8 +270,8 @@ class GenerateChunkSummariesTool(MCPTool):
                 "message": "All chunks already have summaries",
             }
 
-        cache_dir = self.indexer.db_path.parent / "summaries_cache"
-        summarizer = ChunkSummarizer(embedder=self.embedder, cache_dir=cache_dir)
+        cache_dir = self.resolve_indexer().db_path.parent / "summaries_cache"
+        summarizer = ChunkSummarizer(embedder=self.resolve_embedder(), cache_dir=cache_dir)
 
         # Генерируем батчами по 50
         batch_size = 50

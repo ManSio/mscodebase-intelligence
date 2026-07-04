@@ -19,7 +19,6 @@ from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.core.rate_limiter import (
     SlidingWindowRateLimiter,
-    DebounceBatch,
     CircuitBreaker,
 )
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
@@ -120,8 +119,9 @@ class TestCreateServiceCollection:
     def test_creates_all_services(self, project_root):
         """create_service_collection создаёт 14+ сервисов.
 
-        Multi-window (INC-6BCB): Indexer/Searcher больше не singleton —
-        они per-project в ProjectIndexerRegistry. Но registry и factory
+        Multi-window (INC-6BCB-v2): Indexer/Searcher/DebounceBatch больше
+        не singleton — они per-project в ProjectIndexerRegistry (batch живёт
+        на Indexer-е как indexer.bm25_batch). Но registry и factory
         зарегистрированы в DI.
         """
         project_root.mkdir()
@@ -129,10 +129,10 @@ class TestCreateServiceCollection:
 
         registered = services.list_registered()
         type_names = [t.__name__ for t in registered]
-        # Indexer/Searcher теперь НЕ singleton — проверяем registry вместо.
+        # Indexer/Searcher/DebounceBatch теперь НЕ singleton — проверяем registry вместо.
         for expected in ["CodeParser", "FileGuard",
                           "RemoteEmbedder", "SymbolIndex",
-                          "SlidingWindowRateLimiter", "DebounceBatch",
+                          "SlidingWindowRateLimiter",
                           "ProjectRegistry", "MultiProjectSearcher",
                           "ProjectIndexerRegistry", "IndexerFactoryKey",
                           "NotificationBroker", "CircuitBreaker"]:
@@ -164,7 +164,12 @@ class TestCreateServiceCollection:
         assert indexer.searcher is searcher  # обратная связь
 
     def test_debounce_batch_uses_searcher(self, project_root):
-        """DebounceBatch вызывает searcher.reindex при сбросе (per-project)."""
+        """DebounceBatch вызывает searcher.reindex при сбросе (per-project).
+
+        Multi-window (INC-6BCB-v2): batch создаётся per-project внутри
+        _create_indexer_for_path() и живёт как indexer.bm25_batch, а не
+        как singleton в DI.
+        """
         project_root.mkdir()
         services = create_service_collection(project_root)
 
@@ -173,7 +178,9 @@ class TestCreateServiceCollection:
         searcher = indexer.searcher
         searcher.reindex = MagicMock()
 
-        batch = services.resolve(DebounceBatch)
+        # Multi-window: batch живёт на Indexer-е.
+        batch = getattr(indexer, "bm25_batch", None)
+        assert batch is not None, "per-project bm25_batch must be set on Indexer"
         import asyncio
         asyncio.run(batch.add("test.py"))
         asyncio.run(batch.flush_now())

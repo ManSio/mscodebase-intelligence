@@ -29,19 +29,6 @@ from src.core.project_indexer_registry import (
 )
 
 
-def _indexer_factory_from_services(services: ServiceCollection):
-    """Извлекает сохранённую factory для Indexer из services."""
-    for key in services.list_registered():
-        if key.__name__ == "_IndexerFactory":
-            return services.resolve(key)
-    raise RuntimeError("IndexerFactory не зарегистрирована в DI")
-
-
-class _IndexerFactoryKey:
-    """Sentinel-ключ для IndexerFactory в DI."""
-    pass
-
-
 def resolve_indexer_for_request(
     services: ServiceCollection,
     explicit_project_root: Optional[str] = None,
@@ -89,6 +76,12 @@ class MCPTool(ABC):
     def __init__(self, services: ServiceCollection, *, tool_name: Optional[str] = None):
         self._services = services
         self._tool_name = tool_name or self.__class__.__name__
+        # Multi-window: lazy cached Indexer. Первый resolve_indexer() создаёт,
+        # последующие вызовы того же tool-а возвращают тот же instance.
+        # При вызове resolve_indexer(explicit_project_root=other) — сбрасывается
+        # (для cross-project tools типа IndexProjectDir).
+        self._cached_indexer: Optional[Any] = None
+        self._cached_indexer_path: Optional[Path] = None
 
     @property
     def name(self) -> str:
@@ -104,15 +97,74 @@ class MCPTool(ABC):
         """
         ...
 
-    def resolve_indexer(self, explicit_project_root: Optional[str] = None) -> Any:
+    def resolve_indexer(
+        self,
+        explicit_project_root: Optional[str] = None,
+        bypass_cache: bool = False,
+    ) -> Any:
         """Получает per-project Indexer для текущего запроса.
 
-        Заменяет старое services.resolve(Indexer) для multi-window.
+        С кэшированием: если project_path совпадает с предыдущим вызовом,
+        возвращается тот же instance (singleton per project per tool).
+        При смене project_path (cross-project tool) кэш сбрасывается.
+
+        bypass_cache=True: всегда создаёт новый resolve (для случая когда
+        registry мог вытеснить Indexer из LRU).
         """
-        return resolve_indexer_for_request(
+        target = self._resolve_target_path(explicit_project_root)
+
+        if (
+            not bypass_cache
+            and self._cached_indexer is not None
+            and self._cached_indexer_path is not None
+            and self._cached_indexer_path == target
+        ):
+            return self._cached_indexer
+
+        idx = resolve_indexer_for_request(
             self._services,
-            explicit_project_root=explicit_project_root,
+            explicit_project_root=str(target) if target else None,
         )
+        self._cached_indexer = idx
+        self._cached_indexer_path = target
+        return idx
+
+    def resolve_searcher(self, explicit_project_root: Optional[str] = None) -> Any:
+        """Возвращает searcher, привязанный к текущему indexer.
+
+        Per-project: searcher живёт в indexer (см. DI factory).
+        """
+        return self.resolve_indexer(explicit_project_root).searcher
+
+    def resolve_symbol_index(self, explicit_project_root: Optional[str] = None) -> Any:
+        """Возвращает per-project symbol_index (через indexer)."""
+        return self.resolve_indexer(explicit_project_root)._symbol_index
+
+    def resolve_embedder(self) -> Any:
+        """Embedder шарится между всеми проектами (singleton в DI)."""
+        from src.core.remote_embedder import RemoteEmbedder
+        return self._services.resolve(RemoteEmbedder)
+
+    def resolve_parser(self) -> Any:
+        """CodeParser — stateless, шарится."""
+        from src.core.parser import CodeParser
+        return self._services.resolve(CodeParser)
+
+    def _resolve_target_path(self, explicit_project_root: Optional[str]) -> Optional[Path]:
+        """Резолвит Path для Indexer-lookup (multi-window)."""
+        if explicit_project_root and explicit_project_root.strip():
+            return Path(explicit_project_root).resolve()
+        # Default: сначала пробуем resolve_project_root, потом DI.
+        try:
+            from src.mcp.server import resolve_project_root as _rpr
+            return _rpr()
+        except Exception:
+            pass
+        try:
+            from src.core.di_container import ProjectRootKey
+            return self._services.resolve(ProjectRootKey)
+        except Exception:
+            return None
 
     def require_index(self, explicit_project_root: Optional[str] = None):
         """Проверяет, что индекс готов. Бросает IndexNotReadyError если пуст."""

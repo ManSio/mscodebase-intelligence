@@ -218,32 +218,7 @@ def create_service_collection(
         resource_monitor=resource_monitor,
     )
 
-    def _create_indexer_for_path(p: Path) -> Indexer:
-        """Фабрика для создания per-project Indexer.
-
-        Каждый Indexer получает свой db_path, file_guard, symbol_index —
-        изолировано от других окон.
-        """
-        p_db_path = _generate_unique_db_path(p)
-        p_file_guard = FileGuard(p)
-        # Per-project FileGuard и symbol_index изолируют state.
-        p_symbol_index = SymbolIndex()
-        p_indexer = Indexer(
-            db_path=p_db_path,
-            embedder=embedder,
-            file_guard=p_file_guard,
-            project_path=p,
-            parser=code_parser,
-            symbol_index=p_symbol_index,
-            notification_broker=notification_broker,
-        )
-        # Searcher создаём сразу и связываем через set_searcher.
-        p_searcher = Searcher(p_indexer, embedder)
-        p_indexer.set_searcher(p_searcher)
-        return p_indexer
-
     services.add_singleton(ProjectIndexerRegistry, registry)
-    services.add_singleton(IndexerFactoryKey, _create_indexer_for_path)
 
     # ══════════════════════════════════════════════════════
     # Event Broker (Push-уведомления в Zed)
@@ -255,6 +230,66 @@ def create_service_collection(
 
     notification_broker = NotificationBroker()
     services.add_singleton(NotificationBroker, notification_broker)
+
+    # ══════════════════════════════════════════════════════
+    # Per-project Indexer factory (multi-window, INC-6BCB-v2).
+    # Объявляется ПОСЛЕ notification_broker, чтобы избежать late-binding
+    # NameError при будущих рефакторингах. Python closures — late binding,
+    # здесь работает потому что фабрика вызывается ПОСЛЕ return services,
+    # но это хрупко. Явный захват переменных в аргументы default делает
+    # код устойчивым.
+    # ══════════════════════════════════════════════════════
+    def _create_indexer_for_path(
+        p: Path,
+        _embedder=embedder,
+        _code_parser=code_parser,
+        _registry=registry,
+        _notification_broker=notification_broker,
+    ) -> Indexer:
+        """Фабрика для создания per-project Indexer.
+
+        Каждый Indexer получает свой db_path, file_guard, symbol_index,
+        bm25_batch — полностью изолировано от других окон.
+
+        Multi-window (INC-6BCB-v2): bm25_batch живёт НА Indexer-е
+        (не в DI singleton) — иначе per-project файлы реиндексировались
+        бы общим батчем, привязанным к default project_root.
+        """
+        p_db_path = _generate_unique_db_path(p)
+        p_file_guard = FileGuard(p)
+        # Per-project FileGuard и symbol_index изолируют state.
+        p_symbol_index = SymbolIndex()
+        p_indexer = Indexer(
+            db_path=p_db_path,
+            embedder=_embedder,
+            file_guard=p_file_guard,
+            project_path=p,
+            parser=_code_parser,
+            symbol_index=p_symbol_index,
+            notification_broker=_notification_broker,
+        )
+        # Searcher создаём сразу и связываем через set_searcher.
+        p_searcher = Searcher(p_indexer, _embedder)
+        p_indexer.set_searcher(p_searcher)
+
+        # Per-project BM25 debounce batch. Захватываем p_indexer в closure —
+        # bm25_batch будет реиндексировать Searcher именно этого Indexer-а.
+        captured_indexer = p_indexer
+
+        def _bm25_reindex_callback(_changed_files: set):
+            try:
+                if captured_indexer.searcher:
+                    captured_indexer.searcher.reindex()
+            except Exception as cb_err:
+                logger.debug(f"per-project bm25 batch callback: {cb_err}")
+
+        p_indexer.bm25_batch = DebounceBatch(
+            callback=_bm25_reindex_callback,
+            config=DebounceConfig(debounce_ms=500, max_batch_size=100, max_wait_ms=5000),
+        )
+        return p_indexer
+
+    services.add_singleton(IndexerFactoryKey, _create_indexer_for_path)
 
     # ══════════════════════════════════════════════════════
     # Rate Limiting компоненты (защита от перегрузки)
@@ -282,29 +317,12 @@ def create_service_collection(
 
     # ══════════════════════════════════════════════════════
     # DebounceBatch — пакетная реиндексация BM25.
-    # Debounce per-project (через registry), чтобы reindex разных
-    # проектов не дрался за один общий queue.
-    # см. INC-6BCB / multi-window.
+    # Multi-window (INC-6BCB-v2): больше НЕ регистрируется в DI как
+    # singleton. Вместо этого создаётся per-project ВНУТРИ
+    # _create_indexer_for_path() и прикрепляется к Indexer-у как
+    # indexer.bm25_batch. Это устраняет баг, когда для не-default
+    # проектов batch работал с default project_root.
     # ══════════════════════════════════════════════════════
-    def _batch_reindex_bm25_factory(p: Path):
-        """Создаёт DebounceBatch привязанный к конкретному project_path."""
-        captured_path = p
-        captured_registry = registry
-
-        def _callback(changed_files: set):
-            idx = captured_registry.get_indexer(captured_path)
-            if idx and idx.searcher:
-                idx.searcher.reindex()
-
-        return DebounceBatch(
-            callback=_callback,
-            config=DebounceConfig(debounce_ms=500, max_batch_size=100, max_wait_ms=5000),
-        )
-
-    # Регистрируем DebounceBatch как factory per-project (lazy).
-    services._factories[DebounceBatch] = lambda sc: _batch_reindex_bm25_factory(
-        sc.resolve(ProjectRootKey)
-    )
 
     logger.info(
         f"DI Container initialized for {project_root.name}: "

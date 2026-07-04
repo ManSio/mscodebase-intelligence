@@ -52,37 +52,33 @@ class RemoteEmbedder:
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()
 
-        # Первичный тест доступности инфраструктуры
-        self.mode = "lm_studio"
+        # КРИТИЧНО (INC-6BCB): НЕ БЛОКИРОВАТЬ __init__ HTTP-запросами.
+        # На старте MCP-сервера блокирующий httpx.get может занять 2-5
+        # секунд и привести к таймауту создания сервера в Zed.
+        # Решение: mode = "unknown", фоновый сканер определит режим асинхронно.
+        self.mode = "unknown"
         self._preferred_mode = "lm_studio"  # режим, к которому стремимся вернуться
-        _lm_available = self._check_lm_studio()
-        if not _lm_available:
-            if os.getenv("EMBEDDING_PROVIDER") == "ollama":
-                self.mode = "ollama"
-                self._preferred_mode = "ollama"
-                logger.info("⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA.")
-            else:
-                self.mode = "onnx"
-                self._preferred_mode = "lm_studio"
-                logger.info(
-                    "⚠️ Внешние API не обнаружены. Будет задействован ЛОКАЛЬНЫЙ движок ONNX Runtime."
-                )
+        _lm_available = None  # async, см. _init_provider_async
 
-        # Запуск фонового сканера доступности провайдера (LM Studio/Ollama)
+        # Старт фонового инициализатора (НЕ блокирует __init__).
+        self._init_thread = threading.Thread(
+            target=self._init_provider_async,
+            name="RemoteEmbedder-init",
+            daemon=True,
+        )
+        self._init_thread.start()
+
+        # Запуск фонового сканера доступности провайдера (LM Studio/Ollama).
+        # Сканер работает ВСЕГДА: он либо подтверждает LM Studio
+        # (если _init_provider_async его нашёл), либо ищет его, если
+        # текущий режим != "lm_studio".
         self._scanner_stop = threading.Event()
-        if not _lm_available or self.mode in ("onnx", "fallback"):
-            logger.info(
-                f"🔄 Фоновый сканер будет проверять LM Studio каждые {_PROVIDER_SCAN_INTERVAL}с."
-            )
-            self._scanner_thread = threading.Thread(
-                target=self._provider_scanner_loop,
-                name="mscodebase-provider-scanner",
-                daemon=True,
-            )
-            self._scanner_thread.start()
-        else:
-            logger.info("✅ LM Studio доступен при старте. Фоновый сканер не запускается.")
-            self._scanner_thread = None
+        self._scanner_thread = threading.Thread(
+            target=self._provider_scanner_loop,
+            name="mscodebase-provider-scanner",
+            daemon=True,
+        )
+        self._scanner_thread.start()
 
     def _check_lm_studio(self) -> bool:
         """Быстрая проверка доступности порта LM Studio."""
@@ -96,6 +92,44 @@ class RemoteEmbedder:
             return False
         except Exception:
             return False
+
+    def _init_provider_async(self):
+        """Фоновая инициализация режима провайдера (НЕ блокирует __init__).
+
+        Выполняет _check_lm_studio / _check_ollama в отдельном потоке.
+        Если ни один не доступен — переходит в ONNX.
+
+        (См. INC-6BCB: __init__ должен возвращать мгновенно, иначе
+        create_mcp_server() зависает на старте, и Zed убивает процесс
+        по таймауту.)
+        """
+        try:
+            _lm_available = self._check_lm_studio()
+            if _lm_available:
+                with self._mode_lock:
+                    self.mode = "lm_studio"
+                    self._preferred_mode = "lm_studio"
+                logger.info(
+                    "✅ LM Studio доступен при старте. Фоновый сканер не запускается."
+                )
+                return
+            if os.getenv("EMBEDDING_PROVIDER") == "ollama":
+                if self._check_ollama():
+                    with self._mode_lock:
+                        self.mode = "ollama"
+                        self._preferred_mode = "ollama"
+                    logger.info("⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA.")
+                    return
+            with self._mode_lock:
+                self.mode = "onnx"
+                self._preferred_mode = "lm_studio"
+            logger.info(
+                "⚠️ Внешние API не обнаружены. Будет задействован ЛОКАЛЬНЫЙ движок ONNX Runtime."
+            )
+        except Exception as e:
+            logger.debug(f"_init_provider_async: {e}")
+            with self._mode_lock:
+                self.mode = "onnx"  # safe default
 
     def _check_ollama(self) -> bool:
         """Быстрая проверка доступности Ollama."""

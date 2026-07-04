@@ -29,22 +29,19 @@ class GetIndexStatusTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_index_status")
-        self.indexer = services.resolve(Indexer)
-        self.symbol_index = services.resolve(SymbolIndex)
-        self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("get_index_status", timeout_ms=3000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        stats = self.indexer.get_status()
+        stats = self.resolve_indexer().get_status()
         if "error" in stats:
             return f"❌ Error: {stats['error']}"
 
         total_symbols = (
-            self.symbol_index.get_symbol_count()
-            if hasattr(self.symbol_index, "get_symbol_count")
+            self.resolve_symbol_index().get_symbol_count()
+            if hasattr(self.resolve_symbol_index(), "get_symbol_count")
             else "N/A"
         )
-        embedder_mode = getattr(self.embedder, "mode", "unknown")
+        embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
         mode_label = {
             "lm_studio": "🌐 LM Studio",
             "ollama": "🦙 Ollama",
@@ -71,7 +68,6 @@ class GetIndexProgressTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_index_progress")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_index_progress", timeout_ms=5000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
@@ -81,7 +77,7 @@ class GetIndexProgressTool(MCPTool):
             return {"status": "ok", "progress": []}
 
         # Получаем базовую статистику
-        stats = self.indexer.get_status()
+        stats = self.resolve_indexer().get_status()
         return {
             "status": "ok",
             "total_chunks": stats.get("total_chunks", 0),
@@ -95,17 +91,16 @@ class GetIndexTimelineTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_index_timeline")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_index_timeline", timeout_ms=15000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
         from collections import defaultdict
         import pandas as pd
 
-        if not self.indexer.table or len(self.indexer.table) == 0:
+        if not self.resolve_indexer().table or len(self.resolve_indexer().table) == 0:
             return {"status": "warning", "message": "Database is empty"}
 
-        df = self.indexer.table.to_pandas()
+        df = self.resolve_indexer().table.to_pandas()
         if df.empty:
             return {"status": "warning", "message": "No data"}
 
@@ -145,12 +140,11 @@ class WatcherStatusTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="watcher_status")
-        self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("watcher_status", timeout_ms=15000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
-        embedder_mode = getattr(self.embedder, "mode", "unknown")
-        scanner_thread = getattr(self.embedder, "_scanner_thread", None)
+        embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
+        scanner_thread = getattr(self.resolve_embedder(), "_scanner_thread", None)
         scanner_alive = scanner_thread is not None and scanner_thread.is_alive()
 
         result = {
@@ -232,9 +226,6 @@ class GetHealthReportTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_health_report")
-        self.indexer = services.resolve(Indexer)
-        self.symbol_index = services.resolve(SymbolIndex)
-        self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("get_health_report", timeout_ms=45000)
     async def execute(
@@ -242,7 +233,7 @@ class GetHealthReportTool(MCPTool):
     ) -> dict:
         from src.core.health_report import HealthReport, format_health_report
 
-        target_path = self.indexer.project_path
+        target_path = self.resolve_indexer().project_path
         if project_root:
             target_path = Path(project_root).resolve()
             if not target_path.exists():
@@ -250,9 +241,9 @@ class GetHealthReportTool(MCPTool):
 
         report = HealthReport(
             project_path=target_path,
-            indexer=self.indexer,
-            symbol_index=self.symbol_index,
-            embedder=self.embedder,
+            indexer=self.resolve_indexer(),
+            symbol_index=self.resolve_symbol_index(),
+            embedder=self.resolve_embedder(),
         )
         result = report.run_full_diagnostic()
         return result
@@ -287,13 +278,12 @@ class RunHealthCheckTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="run_health_check")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("run_health_check", timeout_ms=30000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
         from src.core.autonomous_fix import AutonomousFixLoop
 
-        fix_loop = AutonomousFixLoop(self.indexer.project_path)
+        fix_loop = AutonomousFixLoop(self.resolve_indexer().project_path)
         health = await fix_loop.health_check()
 
         return {
@@ -315,7 +305,6 @@ class ReadLiveFileTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="read_live_file")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("read_live_file", timeout_ms=3000)
     async def execute(self, absolute_path: str = "", file_path: str = "") -> dict:
@@ -328,7 +317,7 @@ class ReadLiveFileTool(MCPTool):
         if absolute_path:
             target = Path(absolute_path).resolve()
         elif file_path:
-            target = (self.indexer.project_path / file_path).resolve()
+            target = (self.resolve_indexer().project_path / file_path).resolve()
         else:
             return {"status": "error", "message": "Provide absolute_path or file_path"}
 

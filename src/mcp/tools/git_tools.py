@@ -113,7 +113,6 @@ class GetBranchInfoTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_branch_info")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_branch_info", timeout_ms=10000)
     async def execute(
@@ -123,7 +122,7 @@ class GetBranchInfoTool(MCPTool):
     ) -> dict:
         from src.core.branch_aware_index import BranchAwareIndex
 
-        target_path = Path(project_root).resolve() if project_root else self.indexer.project_path
+        target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 
@@ -155,7 +154,6 @@ class GetCommitHistoryTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_commit_history")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_commit_history", timeout_ms=15000)
     async def execute(
@@ -166,7 +164,7 @@ class GetCommitHistoryTool(MCPTool):
     ) -> dict:
         from src.core.commit_memory import CommitMemory
 
-        target_path = Path(project_root).resolve() if project_root else self.indexer.project_path
+        target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {target_path}"}
 
@@ -203,7 +201,6 @@ class GetFileHistoryTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_file_history")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("get_file_history", timeout_ms=15000)
     async def execute(
@@ -214,7 +211,7 @@ class GetFileHistoryTool(MCPTool):
     ) -> dict:
         from src.core.commit_memory import CommitMemory
 
-        target_path = Path(project_root).resolve() if project_root else self.indexer.project_path
+        target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {target_path}"}
 

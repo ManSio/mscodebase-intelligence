@@ -126,9 +126,18 @@ def init_components(project_root: Path, workspace_uri: str = ""):
         _services_per_workspace[key] = services
 
     # Инициализируем DebounceBatch для BM25 реиндексации
-    from src.core.rate_limiter import DebounceBatch
-    _batch = services.resolve(DebounceBatch)
-    logger.info(f"LSP: DI Container инициализирован для {project_root.name} (workspace: {key}, BM25 debounce active)")
+    # Multi-window (INC-6BCB-v2): batch теперь создаётся per-project внутри
+    # _create_indexer_for_path() и доступен как indexer.bm25_batch.
+    from src.core.project_indexer_registry import ProjectIndexerRegistry
+    from src.core.di_container import ProjectRootKey
+    registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+    factory = _get_factory(services)
+    # Прогреваем per-project Indexer (lazy) — чтобы bm25_batch был создан.
+    _initial_indexer = registry.get_indexer(services.resolve(ProjectRootKey), factory=factory)
+    logger.info(
+        f"LSP: DI Container инициализирован для {project_root.name} "
+        f"(workspace: {key}, BM25 debounce active per-project)"
+    )
     return services
 
 
@@ -165,16 +174,19 @@ def _execute_file_indexing(
         )
         return
 
-    from src.core.indexer import Indexer
+    from src.core.di_container import ProjectRootKey
     from src.core.project_indexer_registry import ProjectIndexerRegistry
 
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
-    factory = services.resolve(type("_IndexerFactory", (), {})) if False else _get_factory(services)
+    factory = _get_factory(services)
     # Per-workspace indexer (multi-window, INC-6BCB).
-    if project_root:
-        target_indexer = registry.get_indexer(project_root, factory=factory)
+    # Если project_root не передан явно — берём default из DI (один проект
+    # на workspace, как задумано в multi-window архитектуре).
+    if project_root is not None:
+        target_path = project_root
     else:
-        target_indexer = registry.get_indexer(services.resolve(type("ProjectRootKey", (), {})), factory=factory)
+        target_path = services.resolve(ProjectRootKey)
+    target_indexer = registry.get_indexer(target_path, factory=factory)
     indexer = target_indexer
 
     # Проверки безопасности
@@ -194,19 +206,23 @@ def _execute_file_indexing(
     # ★ ИСПРАВЛЕНО: BM25 реиндексация через DebounceBatch, а не на каждый файл ★
     if success:
         try:
-            from src.core.rate_limiter import DebounceBatch
-            # Per-project batch (lazy создаётся в фабрике).
-            batch = services.resolve(DebounceBatch)
-            # Добавляем файл в debounce батч (асинхронно в фоне, fire-and-forget)
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.ensure_future(batch.add(rel_path_str))
-                else:
-                    loop.run_until_complete(batch.add(rel_path_str))
-            except RuntimeError:
-                pass
+            # Multi-window (INC-6BCB-v2): per-project batch живёт на Indexer-е.
+            batch = getattr(indexer, "bm25_batch", None)
+            if batch is not None:
+                # Добавляем файл в debounce батч (асинхронно в фоне, fire-and-forget)
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.ensure_future(batch.add(rel_path_str))
+                    else:
+                        loop.run_until_complete(batch.add(rel_path_str))
+                except RuntimeError:
+                    pass
+            else:
+                # Fallback: нет per-project batch — синхронная реиндексация.
+                if indexer.searcher:
+                    indexer.searcher.reindex()
         except Exception:
             # Fallback: немедленная реиндексация
             if indexer.searcher:
@@ -225,8 +241,6 @@ def _process_watched_changes(changes, services=None):
     if services is None:
         return
 
-    from src.core.indexer import Indexer
-    from src.core.rate_limiter import DebounceBatch
     from src.core.project_indexer_registry import ProjectIndexerRegistry
 
     # Per-workspace indexer (multi-window). Берём default project_root
@@ -236,7 +250,8 @@ def _process_watched_changes(changes, services=None):
     factory = _get_factory(services)
     project_root = services.resolve(ProjectRootKey)
     indexer = registry.get_indexer(project_root, factory=factory)
-    batch = services.resolve(DebounceBatch)
+    # Multi-window (INC-6BCB-v2): per-project batch живёт на Indexer-е.
+    batch = getattr(indexer, "bm25_batch", None)
 
     changed_files = []
     logger.info(f"[LSP WATCHER] Received {len(changes)} file change(s)")
@@ -278,7 +293,7 @@ def _process_watched_changes(changes, services=None):
                 logger.error(f"  └─ Indexing failed: {rel_path_str}: {e}")
 
     # ★ Вместо немедленного searcher.reindex() — через DebounceBatch ★
-    if changed_files:
+    if changed_files and batch is not None:
         logger.info(f"[LSP WATCHER] {len(changed_files)} files changed, queuing BM25 debounce")
         try:
             import asyncio
@@ -294,6 +309,11 @@ def _process_watched_changes(changes, services=None):
             if indexer.searcher:
                 logger.info("[LSP WATCHER] Debounce failed, fallback to direct BM25 rebuild")
                 indexer.searcher.reindex()
+    elif changed_files and batch is None:
+        # Нет per-project batch (legacy путь) — синхронный reindex.
+        logger.info(f"[LSP WATCHER] {len(changed_files)} files changed, no per-project batch — direct reindex")
+        if indexer.searcher:
+            indexer.searcher.reindex()
     else:
         logger.info("[LSP WATCHER] No indexing needed")
 
@@ -363,6 +383,11 @@ try:
         Если в течение _DID_CHANGE_DEBOUNCE_MS приходит новое изменение —
         предыдущий таск отменяется, таймер сбрасывается. did_save остаётся
         надёжным source of truth для долговременной индексации.
+
+        Multi-window (INC-6BCB-v2): workspace_uri и project_root пробрасываются
+        в _execute_file_indexing, чтобы per-workspace registry попал в нужный
+        DI-контейнер (раньше _execute_file_indexing падал на default
+        ProjectRootKey для не-default окон).
         """
         try:
             file_path = _uri_to_path(params.text_document.uri)
@@ -377,9 +402,12 @@ try:
             except Exception:
                 content = None
 
+            workspace_uri = getattr(ls, "_workspace_uri", "")
+            project_root = getattr(ls, "_project_root", None)
             logger.info(
                 f"[LSP DID_CHANGE] {file_path.name} "
-                f"({len(content) if content else 0} chars) — debounced"
+                f"({len(content) if content else 0} chars, "
+                f"ws={workspace_uri[:40] if workspace_uri else 'default'}) — debounced"
             )
 
             async def _delayed_index():
@@ -392,7 +420,12 @@ try:
                 async with _indexing_serial_lock:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(
-                        None, _execute_file_indexing, file_path, content
+                        None,
+                        _execute_file_indexing,
+                        file_path,
+                        content,
+                        workspace_uri,
+                        project_root,
                     )
 
             async with _did_change_lock:
@@ -409,10 +442,18 @@ try:
 
         В этот момент Zed уже зафлашил все изменения на диск,
         поэтому можно безопасно прочитать файл с диска.
+
+        Multi-window (INC-6BCB-v2): пробрасываем workspace_uri/project_root
+        чтобы попасть в правильный per-workspace DI.
         """
         try:
             file_path = _uri_to_path(params.text_document.uri)
-            logger.info(f"[LSP DID_CLOSE] {file_path.name}")
+            workspace_uri = getattr(ls, "_workspace_uri", "")
+            project_root = getattr(ls, "_project_root", None)
+            logger.info(
+                f"[LSP DID_CLOSE] {file_path.name} "
+                f"(ws={workspace_uri[:40] if workspace_uri else 'default'})"
+            )
 
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
@@ -426,7 +467,12 @@ try:
             async with _indexing_serial_lock:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(
-                    None, _execute_file_indexing, file_path, None
+                    None,
+                    _execute_file_indexing,
+                    file_path,
+                    None,
+                    workspace_uri,
+                    project_root,
                 )
         except Exception as e:
             logger.error(f"[LSP DID_CLOSE] Error: {e}")
@@ -461,10 +507,17 @@ try:
 
             logger.info(f"[LSP DID_SAVE] Starting indexing: {file_path.name}")
 
+            workspace_uri = getattr(ls, "_workspace_uri", "")
+            project_root = getattr(ls, "_project_root", None)
             async with _indexing_serial_lock:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(
-                    None, _execute_file_indexing, file_path, content
+                    None,
+                    _execute_file_indexing,
+                    file_path,
+                    content,
+                    workspace_uri,
+                    project_root,
                 )
 
             logger.info(f"[LSP DID_SAVE] Indexing complete: {file_path.name}")
@@ -480,10 +533,26 @@ try:
         """
         Вызывается, когда встроенный в Zed (Rust) файловый watcher
         заметил физические изменения на диске.
+
+        Multi-window (INC-6BCB-v2): берём services для текущего workspace_uri
+        из _services_per_workspace (раньше была ссылка на несуществующую
+        глобальную _services → NameError при первом же watcher-событии).
         """
         try:
-            if _services is None:
-                logger.warning("[LSP WATCHER] Services not initialized, skip")
+            workspace_uri = getattr(ls, "_workspace_uri", "")
+            workspace_services = _services_per_workspace.get(workspace_uri)
+            if workspace_services is None:
+                # Fallback: первый доступный (multi-window: не идеально,
+                # но лучше чем NameError).
+                with _workspace_lock:
+                    if _services_per_workspace:
+                        workspace_services = next(
+                            iter(_services_per_workspace.values())
+                        )
+            if workspace_services is None:
+                logger.warning(
+                    "[LSP WATCHER] Services not initialized for any workspace, skip"
+                )
                 return
 
             logger.info(f"[LSP WATCHER] Zed sent {len(params.changes)} change(s)")
@@ -496,7 +565,7 @@ try:
                     None,
                     _process_watched_changes,
                     params.changes,
-                    _services_per_workspace.get(getattr(ls, "_workspace_uri", "")),
+                    workspace_services,
                 )
         except Exception as e:
             logger.error(

@@ -256,6 +256,39 @@ def create_mcp_server() -> "FastMCP":
     # ─── 9. Авто-индексация при пустом индексе ───────
     _trigger_auto_index_if_empty(services)
 
+    # ─── 10. Фоновая «дозвонка» до LSP bridge ───────
+    # Если resolve_project_root упал в fallback на ext_root (race с LSP),
+    # через 1.5s попробуем ещё раз прочитать bridge. Если нашли — обновим
+    # кэш env и залогируем. Полная переиндексация НЕ запускается автоматически
+    # — пользователь должен вызвать index_project_dir().
+    # см. INC-6BCB / multi-window race.
+    try:
+        from src.core.lsp_project_bridge import read_project_from_bridge
+        import threading
+
+        def _delayed_bridge_recheck():
+            try:
+                time.sleep(1.5)
+                bridged = read_project_from_bridge(max_wait=2.0)
+                if bridged is not None and bridged.resolve() != _ext_root.resolve():
+                    # Сбрасываем кэш resolve_project_root — следующий вызов
+                    # выберет bridge как приоритет.
+                    reset_project_root_cache()
+                    logger.info(
+                        f"🌉 Delayed bridge recheck: project_root = {bridged} "
+                        f"(LSP дозвонился)"
+                    )
+            except Exception as br_err:
+                logger.debug(f"Delayed bridge recheck: {br_err}")
+
+        threading.Thread(
+            target=_delayed_bridge_recheck,
+            name="mscodebase-bridge-recheck",
+            daemon=True,
+        ).start()
+    except Exception:
+        pass
+
     return mcp
 
 
@@ -415,6 +448,11 @@ def _trigger_auto_index_if_empty(services):
 
     Multi-window: индексирует только default project_root (если пустой).
     Остальные проекты индексируются по запросу через index_project_dir.
+
+    Self-indexing guard (INC-6BCB-v2): если project_path == _ext_root
+    (т.е. resolve_project_root упал в fallback), НЕ индексируем —
+    иначе проиндексируем само расширение (~500MB исходников).
+    Ждём реального project_root через bridge / PROJECT_PATH.
     """
     import asyncio
 
@@ -427,9 +465,20 @@ def _trigger_auto_index_if_empty(services):
         except Exception:
             return
 
+        # Self-indexing guard: ext_root означает fallback (project не определён).
+        try:
+            if indexer.project_path.resolve() == _ext_root.resolve():
+                logger.info(
+                    "⏸ Auto-index: project_root == ext_root (fallback). "
+                    "Пропускаем до появления реального project_root."
+                )
+                return
+        except Exception:
+            pass
+
         status = indexer.get_status()
         if status.get("total_chunks", 0) == 0:
-            logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
+            logger.info("🔄 Индекс пуст — запускаю фоновую индексацию (lazy)...")
 
             async def _auto_index():
                 try:
@@ -443,12 +492,22 @@ def _trigger_auto_index_if_empty(services):
                     logger.warning(f"Авто-индексация не удалась: {e}")
                     logger.info("Выполните index_project_dir(path) вручную")
 
+            # КРИТИЧНО (INC-6BCB): НЕ ВЫЗЫВАЕМ loop.run_until_complete() —
+            # он блокирует создание сервера и не даёт Zed ответить по stdio.
+            # Если loop ещё не запущен (create_mcp_server вызывается до
+            # mcp.run_stdio_async()), индексация будет запущена позже
+            # через тот же ensure_future.
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.ensure_future(_auto_index())
                 else:
-                    loop.run_until_complete(_auto_index())
+                    # Loop ещё не запущен. НЕ блокируем — просто пропускаем.
+                    # Индексация может быть запущена позже через явный вызов.
+                    logger.debug(
+                        "Event loop не запущен — auto-index будет пропущен. "
+                        "Запустите index_project_dir() вручную."
+                    )
             except RuntimeError:
                 pass
         else:
@@ -558,34 +617,56 @@ def _register_all_tools(mcp, services):
         VerifyActionTool,
     ]
 
-    # Регистрируем каждый инструмент
+    # Регистрируем каждый инструмент.
+    # ВАЖНО (INC-6BCB-fallback): try/except вокруг каждого tool,
+    # чтобы один сломанный __init__ не убивал все 36.
+    registered = 0
+    failed = []
     for tool_cls in tool_classes:
-        instance = tool_cls(services)
-        mcp.tool(name=instance.name)(instance.execute)
-        logger.debug(f"  🔧 Tool registered: {instance.name}")
+        try:
+            instance = tool_cls(services)
+            mcp.tool(name=instance.name)(instance.execute)
+            registered += 1
+            logger.debug(f"  🔧 Tool registered: {instance.name}")
+        except Exception as e:
+            failed.append((tool_cls.__name__, str(e)))
+            logger.error(
+                f"  ❌ Tool {tool_cls.__name__} failed to register: {e}",
+                exc_info=True,
+            )
+    if failed:
+        logger.warning(
+            f"⚠️ {len(failed)}/{len(tool_classes)} tools failed to register: "
+            f"{[n for n, _ in failed]}"
+        )
+    else:
+        logger.info(f"✅ Все {registered} инструментов зарегистрированы")
 
     # ─── Intelligence Layer (10 инструментов) ──────
+    # Multi-window (INC-6BCB-v2): Indexer/Searcher/SymbolIndex больше НЕ
+    # зарегистрированы как singleton (см. di_container.py — Indexer-ы
+    # per-project через ProjectIndexerRegistry). Используем
+    # resolve_indexer_for_request() для получения per-project инстанса.
     try:
         from src.core.intelligence_layer import (
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
-        from src.core.indexer import Indexer
-        from src.core.searcher import Searcher
-        from src.core.symbol_index import SymbolIndex
+        from src.mcp.tools.base import resolve_indexer_for_request
 
+        idx = resolve_indexer_for_request(services)
         intel_layer = ProjectIntelligenceLayer(
-            project_path=resolve_project_root(),
-            indexer=services.resolve(Indexer),
-            searcher=services.resolve(Searcher),
-            symbol_index=services.resolve(SymbolIndex),
+            project_path=idx.project_path,
+            indexer=idx,
+            searcher=idx.searcher,
+            symbol_index=idx._symbol_index,
         )
         register_intelligence_tools(mcp, intel_layer)
         logger.info("  🧠 Intel tools registered (10 tools)")
     except Exception as e:
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 
-    logger.info(f"✅ Все инструменты зарегистрированы ({len(tool_classes)}+13)")
+    logger.info(f"✅ Все инструменты зарегистрированы ({len(tool_classes)}+10)")
 
 
 def _register_system_prompt(mcp):

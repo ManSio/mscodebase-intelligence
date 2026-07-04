@@ -18,7 +18,7 @@ from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary, ToolError, RateLimitError
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
-from src.core.rate_limiter import DebounceBatch, SlidingWindowRateLimiter
+from src.core.rate_limiter import SlidingWindowRateLimiter
 from src.core.searcher import Searcher
 from src.mcp.tools.base import MCPTool
 
@@ -34,10 +34,10 @@ class NotifyChangeTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="notify_change")
-        self.indexer = services.resolve(Indexer)
-        self.searcher = services.resolve(Searcher)
+        # Multi-window (INC-6BCB-v2): DebounceBatch больше НЕ singleton в DI.
+        # Per-project batch создаётся внутри Indexer-фабрики и доступен
+        # как indexer.bm25_batch. Берём per-call через resolve_indexer().
         self.rate_limiter = services.resolve(SlidingWindowRateLimiter)
-        self.bm25_batch = services.resolve(DebounceBatch)
 
     @error_boundary("notify_change", timeout_ms=5000)
     async def execute(
@@ -52,12 +52,14 @@ class NotifyChangeTool(MCPTool):
 
         project_root = self._get_project_root()
         rel_path = self._resolve_and_validate_path(file_path, project_root)
+        # Multi-window (INC-6BCB): per-project Indexer.
+        indexer = self.resolve_indexer(explicit_project_root=str(project_root))
 
         # Получаем контент из LSP VFS или с диска
         content, source = await self._get_content(rel_path)
 
         # Индексируем один файл
-        success = self.indexer._index_single_file(
+        success = indexer._index_single_file(
             rel_path,
             str(rel_path.relative_to(project_root)),
             content=content,
@@ -66,14 +68,22 @@ class NotifyChangeTool(MCPTool):
 
         if success:
             rel_path_str = str(rel_path.relative_to(project_root))
-            await self.bm25_batch.add(rel_path_str)
+            # Multi-window (INC-6BCB-v2): per-project batch.
+            batch = getattr(indexer, "bm25_batch", None)
+            if batch is not None:
+                await batch.add(rel_path_str)
+            elif indexer.searcher:
+                # Fallback: per-project batch не создан (например, Indexer
+                # был создан до фикса) — синхронный reindex.
+                indexer.searcher.reindex()
             return f"✅ Index updated: {rel_path_str} (source: {source})"
 
         return f"⏭️ No changes: {str(rel_path.relative_to(project_root))}"
 
     def _get_project_root(self) -> Path:
-        """Определяет корень проекта."""
-        return self.indexer.project_path
+        """Определяет корень проекта (multi-window: из DI default)."""
+        from src.core.di_container import ProjectRootKey
+        return self._services.resolve(ProjectRootKey)
 
     def _resolve_and_validate_path(self, file_path: str, project_root: Path) -> Path:
         """Проверяет и резолвит путь."""
@@ -139,7 +149,7 @@ class IndexProjectDirTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="index_project_dir")
-        self.indexer = services.resolve(Indexer)
+        # Multi-window: Indexer per-call.
 
     @error_boundary("index_project_dir", timeout_ms=300000)
     async def execute(
@@ -154,15 +164,14 @@ class IndexProjectDirTool(MCPTool):
         # Запускаем полную индексацию в фоновом потоке
         logger.info(f"🔄 Starting full indexing for {target_path.name}...")
 
-        # Переключаем проект
-        self.indexer.switch_project(target_path)
-        from src.core.file_guard import FileGuard
-        self.indexer.file_guard = FileGuard(target_path)
+        # Multi-window: получаем per-project Indexer (lazy создаётся
+        # в registry, не singleton).
+        indexer = self.resolve_indexer(explicit_project_root=str(target_path))
 
         try:
             import asyncio
             indexed = await asyncio.to_thread(
-                self.indexer.index_project, target_path
+                indexer.index_project, target_path
             )
             return (
                 f"✅ Индексация завершена: {target_path.name}\n"
@@ -179,7 +188,7 @@ class IndexHealthTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="index_health")
-        self.indexer = services.resolve(Indexer)
+        # Multi-window: Indexer per-call.
 
     @error_boundary("index_health", timeout_ms=10000)
     async def execute(
@@ -189,7 +198,12 @@ class IndexHealthTool(MCPTool):
     ) -> dict:
         from src.core.index_guard import IndexGuard, quick_health_check
 
-        target_path = Path(project_root).resolve() if project_root else self.indexer.project_path
+        if project_root:
+            target_path = Path(project_root).resolve()
+        else:
+            # Default: берём из DI project_root (single-window).
+            from src.core.di_container import ProjectRootKey
+            target_path = self._services.resolve(ProjectRootKey)
         if not target_path.exists():
             return {"status": "error", "message": f"Path does not exist: {project_root}"}
 

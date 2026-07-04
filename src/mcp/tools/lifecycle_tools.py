@@ -21,7 +21,6 @@ class SubmitBackgroundTaskTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="submit_background_task")
-        self.indexer = services.resolve(Indexer)
 
     @error_boundary("submit_background_task", timeout_ms=5000)
     async def execute(

@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.1] — 2026-07-05 — Startup Hang Fix + DebounceBatch Per-Project
+
+### 🐛 Critical Bug Fixes
+- **`lsp_main.py:did_change_watched_files`** — `if _services is None` бросал `NameError` (глобальная `_services` не существует в per-workspace архитектуре). Заменено на lookup в `_services_per_workspace[uri]` с fallback на первый доступный. Без этого watcher-events падали с NameError при первом же срабатывании.
+- **`lsp_main.py:did_change`/`did_close`/`did_save`** — workspace_uri и project_root НЕ передавались в `_execute_file_indexing` (только `did_open` передавал). В multi-window это значит, что все индексируемые файлы попадали в default Indexer. **Исправлено** — все четыре хука теперь пробрасывают `getattr(ls, "_workspace_uri", "")` и `getattr(ls, "_project_root", None)`.
+- **`lsp_main.py:_execute_file_indexing`** — `services.resolve(type("_IndexerFactory", (), {})) if False else ...` (мёртвый код с анонимным type) заменён на прямой `_get_factory(services)`. Аналогично `services.resolve(type("ProjectRootKey", (), {}))` → `services.resolve(ProjectRootKey)`.
+- **`search_tools.py:_agentic_search`** — `self.searcher` и `self.symbol_index` НЕ существуют в базовом `MCPTool` (Indexer/Searcher per-project через registry). Заменено на `self.resolve_searcher()` / `self.resolve_symbol_index()`. Без этого agentic_search падал с AttributeError.
+- **`graph_tools.py:GraphQueryTool`** — `services.resolve(SymbolIndex)` + `services.resolve(Indexer)` в `__init__` (Indexer больше не singleton) заменены на `self.resolve_symbol_index()` / `self.resolve_indexer()` per-call. Fallback `Path.cwd()` для project_root убран.
+- **`mcp/server.py:IntelligenceLayer`** — `services.resolve(Indexer/Searcher/SymbolIndex)` (все три не зарегистрированы) заменены на `resolve_indexer_for_request(services)`. Без фикса 10 intel_* tools не регистрировались (warning "Intel layer not registered").
+- **`mcp/server.py:33+13` → `33+10`** — корректный счёт (10 intel tools, а не 13).
+
+### 🔧 Per-Project DebounceBatch (multi-window)
+- **Раньше:** `DebounceBatch` регистрировался в DI как singleton с захватом default `ProjectRootKey` — для не-default проектов BM25 reindex работал с **неправильным** project_root (все per-project файлы реиндексировались default Searcher-ом).
+- **Теперь:** `bm25_batch` создаётся per-project внутри `_create_indexer_for_path()` (захватывает конкретный `Indexer` в closure) и хранится как `indexer.bm25_batch`. Все потребители (`lsp_main.py:_execute_file_indexing`, `lsp_main.py:_process_watched_changes`, `mcp/tools/indexing_tools.py:NotifyChangeTool`) берут batch из `indexer.bm25_batch` через `getattr(indexer, "bm25_batch", None)` с fallback на синхронный `searcher.reindex()`.
+- **`di_container.py`** — `_batch_reindex_bm25_factory` и `services._factories[DebounceBatch]` удалены. `_create_indexer_for_path` теперь явно создаёт `p_indexer.bm25_batch = DebounceBatch(callback=..., config=...)`.
+- **Late-binding fix:** `_create_indexer_for_path` объявлен ПОСЛЕ `notification_broker` (раньше использовал late-binding через globals — хрупко). Захват переменных через default args (`_embedder=embedder, _notification_broker=notification_broker`) делает поведение детерминированным.
+
+### 🚀 Self-Indexing Guard + Bridge Recheck
+- **`_trigger_auto_index_if_empty`** — добавлена проверка `indexer.project_path == _ext_root`. Если resolve_project_root упал в fallback (race с LSP), auto-index **не запускается** (раньше индексировал ~500MB исходников самого расширения).
+- **Delayed bridge recheck** — фоновая задача через 1.5s после старта MCP повторно читает `read_project_from_bridge(max_wait=2.0)`. Если LSP успел записать project_root — `reset_project_root_cache()` сбрасывает кэш, и последующие вызовы `resolve_project_root` выберут bridge. **Решает race LSP↔MCP** при cold start.
+
+### 🧹 Housekeeping
+- **`mcp/tools/base.py`** — удалён мёртвый код `_indexer_factory_from_services` и `_IndexerFactoryKey` (не используется с v2.3.0).
+- **`mcp/tools/indexing_tools.py`** — удалён неиспользуемый импорт `DebounceBatch`.
+- **`mcp/tools/graph_tools.py`** — удалён неиспользуемый импорт `SymbolIndex`.
+
+### 🧪 Testing: 307 passed
+- `tests/test_di_container.py::test_creates_all_services` — убран `DebounceBatch` из списка (больше не singleton).
+- `tests/test_di_container.py::test_debounce_batch_uses_searcher` — переписан: batch берётся из `indexer.bm25_batch`, а не через `services.resolve(DebounceBatch)`.
+- Все остальные 305 тестов прошли без изменений.
+
+### 📚 Migration Notes
+- После обновления: `sync_to_installed.bat --full` + перезапуск Zed.
+- Никаких ручных правок `settings.json` не требуется (всё через `patch_zed_settings`).
+
+---
+
 ## [v2.3.0] — 2026-07-05 — Multi-Window Support & Hardening
 
 ### 🏗️ Architecture: Multi-Window

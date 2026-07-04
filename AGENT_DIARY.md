@@ -1,5 +1,63 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 00:50] — [Type: Fix] — v2.3.1: Startup hang + per-project DebounceBatch
+
+**Problem:**
+- После v2.3.0 (multi-window) MCP не стартовал: 15s+ и падал.
+- Per-window race: LSP не успевал записать bridge до того как MCP
+  опрашивал 0.5s.
+- Watcher-event (git checkout) падал с NameError (`_services is None`).
+- did_change/did_close/did_save НЕ передавали workspace_uri в
+  _execute_file_indexing (только did_open) — multi-window сломан.
+- search_tools._agentic_search использовал self.searcher/self.symbol_index,
+  которые НЕ существуют в MCPTool — AttributeError.
+- graph_query кэшировал SymbolIndex в __init__ — для не-default
+  проектов symbol_index был общим (semantic bug).
+- IntelligenceLayer в server.py искал Indexer/Searcher/SymbolIndex
+  как singleton — их нет в DI, регистрация 10 intel_* tools падала.
+- DebounceBatch был singleton в DI с захватом default ProjectRootKey —
+  per-project файлы реиндексировались default Searcher-ом.
+- _trigger_auto_index_if_empty стартовал индексацию ext_root при
+  fallback (self-indexing ~500MB исходников расширения).
+- _create_indexer_for_path использовал late-binding для
+  notification_broker (хрупко).
+
+**Solution:**
+- ✅ lsp_main.py:did_change_watched_files: убран NameError, lookup
+  через _services_per_workspace[uri] с fallback.
+- ✅ lsp_main.py:did_change/did_close/did_save: проброс workspace_uri
+  + project_root в _execute_file_indexing.
+- ✅ lsp_main.py:_execute_file_indexing: убран мёртвый `if False else`,
+  type('_IndexerFactory') заменён на IndexerFactoryKey, type('ProjectRootKey')
+  заменён на ProjectRootKey.
+- ✅ search_tools._agentic_search: self.searcher/self.symbol_index →
+  self.resolve_searcher() / self.resolve_symbol_index().
+- ✅ graph_tools.GraphQueryTool: SymbolIndex/Indexer из __init__ →
+  per-call resolve через resolve_symbol_index() / resolve_indexer().
+  Fallback Path.cwd() убран.
+- ✅ server.py IntelligenceLayer: services.resolve(Indexer/Searcher/SymbolIndex)
+  → resolve_indexer_for_request(services).
+- ✅ server.py: 33+13 → 33+10 (корректный счёт intel tools).
+- ✅ di_container.py: DebounceBatch per-project (p_indexer.bm25_batch),
+  создан внутри _create_indexer_for_path. Удалён _batch_reindex_bm25_factory.
+- ✅ di_container.py: _create_indexer_for_path перенесён ПОСЛЕ
+  notification_broker + захват переменных через default args
+  (устраняет late-binding хрупкость).
+- ✅ server.py _trigger_auto_index_if_empty: self-indexing guard —
+  skip если project_path == _ext_root.
+- ✅ server.py create_mcp_server: delayed bridge recheck (1.5s +
+  read_project_from_bridge(max_wait=2.0)) — решает race LSP↔MCP.
+- ✅ base.py: удалён мёртвый код _indexer_factory_from_services
+  и _IndexerFactoryKey.
+- ✅ Тесты: test_creates_all_services убран DebounceBatch;
+  test_debounce_batch_uses_searcher — batch из indexer.bm25_batch.
+- ✅ Smoke test: create_mcp_server() = 9.03s, 43 tools, 13 handlers.
+
+**Tools Used:** `read_file`, `edit_file`, `terminal`, `grep`, `pytest`
+**Status:** ✅ (307/307 tests pass; MCP стартует за 9.03s; 43 tools)
+
+---
+
 ## [2026-07-05 00:25] — [Type: Refactor] — ResourceMonitor + LRU 5 + throttle
 
 **Problem:**
