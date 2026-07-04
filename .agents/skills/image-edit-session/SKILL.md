@@ -168,7 +168,7 @@ When investigating image session issues:
 
 1. `get_logs(project_root)` → check for session-related errors
 2. `search_code(query="bind_image_output")` → find all usages
-3. `deep_search(query="image session lifecycle")` → understand full flow
+2. `search_code(query="image session lifecycle", mode="deep")` → understand full flow
 4. `grep "IMAGE_EDIT_SESSION"` → find configuration
 5. `get_symbol_info(query="bind_image_output")` → analyze callers
 

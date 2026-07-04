@@ -46,7 +46,8 @@ class NotifyChangeTool(MCPTool):
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         # ★ RATE LIMIT: максимум 10 notify_change в секунду ★
-        if not await self.rate_limiter.acquire("notify_change", max_per_sec=10.0):
+        # acquire() теперь sync (threading.Lock) — см. INC-53EC / REFC-03.
+        if not self.rate_limiter.acquire("notify_change", max_per_sec=10.0):
             return "⚠️ Rate limit exceeded: too many notify_change calls. Wait and retry."
 
         project_root = self._get_project_root()

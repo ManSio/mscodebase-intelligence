@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -23,25 +24,30 @@ logger = logging.getLogger("mscodebase_server.rate_limiter")
 
 
 # ══════════════════════════════════════════════════════════
-# Sliding Window Rate Limiter (исправлен: asyncio.Lock)
+# Sliding Window Rate Limiter
 # ══════════════════════════════════════════════════════════
 
 class SlidingWindowRateLimiter:
-    """Sliding Window Rate Limiter с asyncio.Lock для потокобезопасности.
+    """Sliding Window Rate Limiter с threading.Lock для потокобезопасности.
 
     Позволяет: 10 вызовов/сек для notify_change, 30/сек для поиска, 1/сек для git.
+
+    Защита от race conditions: threading.Lock (НЕ asyncio.Lock) —
+    см. INC-53EC / REFC-03. Lock шарится между event-loop-ами LSP и MCP,
+    asyncio.Lock привязывается к loop-у первого await и дедлочит.
     """
 
     def __init__(self):
         self._windows: Dict[str, list[float]] = defaultdict(list)
-        self._lock = asyncio.Lock()  # ★ КРИТИЧНО: защита от race conditions
+        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
 
-    async def acquire(self, key: str, max_per_sec: float = 10.0) -> bool:
+    def acquire(self, key: str, max_per_sec: float = 10.0) -> bool:
         """Пытается захватить слот. Возвращает False если превышен лимит.
 
-        Потокобезопасен: использует asyncio.Lock.
+        Потокобезопасен: использует threading.Lock. Совместим с sync- и
+        async-вызывающими (async просто делает `await asyncio.to_thread`).
         """
-        async with self._lock:
+        with self._lock:
             now = time.monotonic()
             window = self._windows[key]
 
@@ -59,6 +65,10 @@ class SlidingWindowRateLimiter:
             self._windows[key].append(now)
             return True
 
+    async def acquire_async(self, key: str, max_per_sec: float = 10.0) -> bool:
+        """Async-обёртка над acquire() — не блокирует event loop."""
+        return await asyncio.to_thread(self.acquire, key, max_per_sec)
+
     async def wait_or_skip(
         self, key: str, max_per_sec: float = 10.0, max_wait_ms: int = 100
     ) -> bool:
@@ -69,7 +79,7 @@ class SlidingWindowRateLimiter:
         """
         wait_step = max_wait_ms / 10  # 10 попыток
         for _ in range(10):
-            if await self.acquire(key, max_per_sec):
+            if await self.acquire_async(key, max_per_sec):
                 return True
             await asyncio.sleep(wait_step / 1000)
 
@@ -112,6 +122,12 @@ class DebounceBatch:
             config=DebounceConfig(debounce_ms=500)
         )
         await batch.add(path)
+
+    Lock: threading.Lock (не asyncio.Lock) — см. INC-53EC / REFC-03.
+    async API сохраняется; внутренний lock защищает set/files только от
+    конкурентных add() из разных thread-ов. Таймер остаётся asyncio.Task —
+    он работает в loop-е, в котором был создан; callback выполняется через
+    asyncio.to_thread() чтобы не блокировать loop.
     """
 
     def __init__(
@@ -124,32 +140,31 @@ class DebounceBatch:
         self._files: Set[str] = set()
         self._timer: Optional[asyncio.Task] = None
         self._last_added_at = 0.0
-        self._lock = asyncio.Lock()  # ★ Потокобезопасность
+        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
 
     async def add(self, file_path: str) -> bool:
         """Добавляет файл в батч. Возвращает True если файл новый."""
-        async with self._lock:
+        with self._lock:
             is_new = file_path not in self._files
             self._files.add(file_path)
             self._last_added_at = time.monotonic()
+            batch_full = len(self._files) >= self._config.max_batch_size
+            timer_missing = self._timer is None or self._timer.done()
 
-            # Если батч переполнен — сбрасываем немедленно
-            if len(self._files) >= self._config.max_batch_size:
-                logger.info(
-                    f"Batch full ({len(self._files)} files), flushing immediately"
-                )
-                await self._flush()
-                return is_new
-
-            # Если таймер не запущен или отменён — запускаем
-            if self._timer is None or self._timer.done():
-                self._timer = asyncio.create_task(self._debounce_wait())
-                logger.debug(
-                    f"Debounce timer started ({self._config.debounce_ms}ms) "
-                    f"for {len(self._files)} files"
-                )
-
+        if batch_full:
+            logger.info(
+                f"Batch full, flushing immediately"
+            )
+            await self._flush()
             return is_new
+
+        if timer_missing:
+            self._timer = asyncio.create_task(self._debounce_wait())
+            logger.debug(
+                f"Debounce timer started ({self._config.debounce_ms}ms)"
+            )
+
+        return is_new
 
     async def _debounce_wait(self):
         """Ждет debounce_ms после последнего события, затем сбрасывает батч.
@@ -161,58 +176,60 @@ class DebounceBatch:
             while True:
                 await asyncio.sleep(self._config.debounce_ms / 1000)
 
-                async with self._lock:
+                with self._lock:
                     elapsed = time.monotonic() - self._last_added_at
                     elapsed_ms = elapsed * 1000
-
+                    has_files = bool(self._files)
                     # Если ничего не добавлялось > debounce_ms — сбрасываем
                     if elapsed_ms >= self._config.debounce_ms:
-                        if self._files:
+                        if has_files:
                             await self._flush()
                         return
 
                     # Защита от бесконечного debounce (если постоянно добавляют)
                     if elapsed >= self._config.max_wait_ms / 1000:
                         logger.warning(
-                            f"Forced flush after {elapsed:.0f}s "
-                            f"({len(self._files)} files waiting)"
+                            f"Forced flush after {elapsed:.0f}s"
                         )
-                        if self._files:
+                        if has_files:
                             await self._flush()
                         return
 
         except asyncio.CancelledError:
-            # Таймер отменён — батч будет обработан новым таймером
             logger.debug("Debounce timer cancelled, new timer will handle batch")
         except Exception as e:
             logger.error(f"Debounce timer error: {e}")
 
     async def _flush(self):
         """Сбрасывает накопленные файлы в callback."""
-        if not self._files:
-            return
-
-        files = self._files.copy()
-        self._files.clear()
-        self._timer = None
+        with self._lock:
+            if not self._files:
+                return
+            files = self._files.copy()
+            self._files.clear()
+            self._timer = None
 
         logger.info(f"Debounce flushing {len(files)} files to callback")
         try:
-            await asyncio.to_thread(self._callback, files)
+            # callback может быть sync или async — поддерживаем оба.
+            result = self._callback(files)
+            if asyncio.iscoroutine(result):
+                await result
         except Exception as e:
             logger.error(f"Debounce callback error: {e}")
 
     async def flush_now(self):
         """Принудительный сброс (для graceful shutdown)."""
-        async with self._lock:
-            if self._timer and not self._timer.done():
-                self._timer.cancel()
-            await self._flush()
+        with self._lock:
+            timer = self._timer
+        if timer and not timer.done():
+            timer.cancel()
+        await self._flush()
 
     @property
     def pending_count(self) -> int:
-        """Количество файлов в ожидании."""
-        return len(self._files)
+        with self._lock:
+            return len(self._files)
 
 
 # ══════════════════════════════════════════════════════════
@@ -256,7 +273,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.last_failure_time = 0.0
         self.last_state_change = time.monotonic()
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
         self._on_state_change = on_state_change
         self._last_error: Optional[str] = None
 
@@ -281,7 +298,7 @@ class CircuitBreaker:
         """
         # Проверка: можно ли пробовать?
         old_state = self.state
-        async with self._lock:
+        with self._lock:
             if self.state == self.STATE_OPEN:
                 if time.monotonic() - self.last_failure_time > self.recovery_timeout:
                     logger.info(
@@ -308,7 +325,7 @@ class CircuitBreaker:
         try:
             result = await coro_factory()
 
-            async with self._lock:
+            with self._lock:
                 if self.state == self.STATE_HALF_OPEN:
                     logger.info(
                         f"Circuit breaker [{self.name}]: HALF_OPEN → CLOSED "
@@ -326,7 +343,7 @@ class CircuitBreaker:
 
         except Exception as e:
             self._last_error = str(e)
-            async with self._lock:
+            with self._lock:
                 self.failure_count += 1
                 self.success_count = 0
                 self.last_failure_time = time.monotonic()

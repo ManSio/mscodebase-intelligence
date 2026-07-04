@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-325%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-307%20passing-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-37-total) • [Installation](docs/INSTALL.md) • [Architecture](docs/ARCHITECTURE.md) • [Development](CONTRIBUTING.md)
 
-*Last updated: 2026-07-04*
+*Last updated: 2026-07-05*
 
 </div>
 
@@ -31,7 +31,8 @@
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальная BM25 реиндексация) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Clean Architecture** | DI Container (15 services), 37 class-based tools, 325 unit tests |
+| 🧪 **Clean Architecture** | DI Container (15 services), 37 class-based tools, 307 unit tests |
+| 🪟 **Multi-Window** | `ProjectIndexerRegistry` — изолированный Indexer per project, LRU 5, ResourceMonitor throttle |
 
 ---
 
@@ -45,11 +46,23 @@ cd mscodebase-intelligence
 python install.py
 ```
 
+**При обновлении с v2.2.x → v2.3.0:** удалите `current_dir` из Zed settings:
+```bash
+./fix_zed_settings.bat   # Windows
+# или руками: в %APPDATA%\Zed\settings.json удалить "current_dir" из
+# context_servers["mscodebase-intelligence"] и lsp["mscodebase-lsp"]
+```
+
 Перезапусти Zed → открой Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) →
 задай вопрос вроде `"найди все файлы отвечающие за индексацию"`.
 
 > **LM Studio (опционально):** Установи LM Studio для более быстрых эмбеддингов.
 > Без LM Studio расширение использует встроенный ONNX-эмбеддер (работает офлайн).
+
+> **Multi-Window:** v2.3+ поддерживает несколько открытых проектов в Zed
+> одновременно. Каждое окно получает изолированный Indexer через
+> `ProjectIndexerRegistry` (LRU 5 + ResourceMonitor throttle). См.
+> [docs/ARCHITECTURE.md](docs/architecture.md).
 
 ---
 

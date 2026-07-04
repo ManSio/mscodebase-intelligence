@@ -217,19 +217,23 @@ def patch_zed_settings(
             ext_dir = get_extension_install_dir()
             logger.debug(f"patch_zed_settings: ext_dir авто={ext_dir}")
 
+    # ══════════════════════════════════════════════════════════════
+    # ВАЖНО: current_dir НЕ устанавливаем.
+    # Zed НЕ подставляет $ZED_WORKTREE_ROOT в current_dir (баг Zed #36019).
+    # Вместо этого MCP-сервер определяет project_root самостоятельно
+    # по приоритету: PROJECT_PATH env → LSP→MCP bridge → CWD → ext_root.
+    # см. src/mcp/server.py:resolve_project_root()
+    # ══════════════════════════════════════════════════════════════
     entry = {
         "command": executable,
         "args": args,
-        # ВАЖНО: current_dir = $ZED_WORKTREE_ROOT (резолвится Zed).
-        # Сервер использует CWD как корень проекта.
-        # PYTHONPATH при этом указывает на расширение для импорта src.main.
-        "current_dir": "$ZED_WORKTREE_ROOT",
     }
 
     # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
-    # PROJECT_PATH = $ZED_WORKTREE_ROOT — Zed сам подставляет текущий проект.
-    # На Windows $ZED_WORKTREE_ROOT может не резолвиться в current_dir,
-    # но в env он работает (проверено в production).
+    # PROJECT_PATH = $ZED_WORKTREE_ROOT — Zed подставляет в env
+    # (current_dir не подставляется, см. выше).
+    # Многоуровневое определение project_root в resolve_project_root()
+    # гарантирует работу даже при нештатной подстановке.
     env = {
         "PYTHONPATH": str(ext_dir),
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",

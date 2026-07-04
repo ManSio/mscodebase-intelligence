@@ -118,51 +118,62 @@ class TestCreateServiceCollection:
         return tmp_path / "test_project"
 
     def test_creates_all_services(self, project_root):
-        """create_service_collection создаёт 14+ сервисов."""
+        """create_service_collection создаёт 14+ сервисов.
+
+        Multi-window (INC-6BCB): Indexer/Searcher больше не singleton —
+        они per-project в ProjectIndexerRegistry. Но registry и factory
+        зарегистрированы в DI.
+        """
         project_root.mkdir()
         services = create_service_collection(project_root)
 
         registered = services.list_registered()
-        # Проверяем, что все ключевые сервисы зарегистрированы
         type_names = [t.__name__ for t in registered]
-        for expected in ["Indexer", "CodeParser", "FileGuard",
-                          "RemoteEmbedder", "SymbolIndex", "Searcher",
+        # Indexer/Searcher теперь НЕ singleton — проверяем registry вместо.
+        for expected in ["CodeParser", "FileGuard",
+                          "RemoteEmbedder", "SymbolIndex",
                           "SlidingWindowRateLimiter", "DebounceBatch",
-                          "ProjectRegistry", "MultiProjectSearcher"]:
+                          "ProjectRegistry", "MultiProjectSearcher",
+                          "ProjectIndexerRegistry", "IndexerFactoryKey",
+                          "NotificationBroker", "CircuitBreaker"]:
             assert expected in type_names, f"Missing: {expected}"
 
     def test_indexer_has_correct_deps(self, project_root):
-        """Indexer создаётся с правильными зависимостями."""
+        """Indexer создаётся с правильными зависимостями (per-project через registry)."""
         project_root.mkdir()
         services = create_service_collection(project_root)
 
-        indexer = services.resolve(Indexer)
-        assert indexer.project_path == project_root
+        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.mcp.tools.base import resolve_indexer_for_request
+        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+        assert indexer.project_path.resolve() == project_root.resolve()
         assert isinstance(indexer.parser, CodeParser)
         assert isinstance(indexer.file_guard, FileGuard)
 
     def test_searcher_sees_same_indexer(self, project_root):
-        """Searcher использует тот же Indexer (циклическая связь)."""
+        """Searcher использует тот же Indexer (per-project)."""
         project_root.mkdir()
         services = create_service_collection(project_root)
 
-        indexer = services.resolve(Indexer)
-        searcher = services.resolve(Searcher)
+        from src.mcp.tools.base import resolve_indexer_for_request
+        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+        searcher = indexer.searcher
 
+        assert searcher is not None
         assert searcher.indexer is indexer
         assert indexer.searcher is searcher  # обратная связь
 
     def test_debounce_batch_uses_searcher(self, project_root):
-        """DebounceBatch вызывает searcher.reindex при сбросе."""
+        """DebounceBatch вызывает searcher.reindex при сбросе (per-project)."""
         project_root.mkdir()
         services = create_service_collection(project_root)
 
-        searcher = services.resolve(Searcher)
-        original_reindex = searcher.reindex
+        from src.mcp.tools.base import resolve_indexer_for_request
+        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+        searcher = indexer.searcher
         searcher.reindex = MagicMock()
 
         batch = services.resolve(DebounceBatch)
-        # Добавляем файл и принудительно сбрасываем
         import asyncio
         asyncio.run(batch.add("test.py"))
         asyncio.run(batch.flush_now())
@@ -201,15 +212,13 @@ class TestCreateServiceCollection:
         assert embedder is mock_embedder
 
     def test_circuit_breaker_registered(self, project_root):
-        """CircuitBreaker для LM Studio зарегистрирован."""
+        """CircuitBreaker для LM Studio зарегистрирован (см. INC-53EC / REFC-04)."""
         project_root.mkdir()
         services = create_service_collection(project_root)
 
-        # Находим CircuitBreaker по типу
-        for t in services.list_registered():
-            if t.__name__ == "LmStudioCircuitBreaker":
-                cb = services.resolve(t)
-                assert isinstance(cb, CircuitBreaker)
-                assert cb.name == "lm_studio"
-                return
-        pytest.fail("LmStudioCircuitBreaker not registered")
+        # Sentinel-ключ CircuitBreaker зарегистрирован нормальным классом,
+        # а не анонимным type('LmStudioCircuitBreaker', ...) — иначе нельзя
+        # было импортировать обратно.
+        cb = services.resolve(CircuitBreaker)
+        assert isinstance(cb, CircuitBreaker)
+        assert cb.name == "lm_studio"

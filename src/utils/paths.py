@@ -2,12 +2,14 @@
 MSCodebase Intelligence — Безопасное управление путями файловой системы
 """
 
+import atexit
 import hashlib
 import logging
 import os
 import shutil
 import tempfile
 import threading
+import weakref
 from pathlib import Path
 from typing import Optional
 
@@ -26,12 +28,25 @@ def to_win_long_path(path: Path) -> str:
 
 
 class SafePathManager:
-    """Менеджер безопасных путей для изоляции не-ASCII символов и длинных путей."""
+    """Менеджер безопасных путей для изоляции не-ASCII символов и длинных путей.
+
+    Изменения (INC-53EC / REFC-06): tempdir, создаваемый в get_safe_path,
+    теперь чистится через atexit + weakref.finalize. Без этого файлы
+    копились в %TEMP%/mscodebase_* между рестартами MCP/LSP.
+    """
 
     def __init__(self, base_path: Path):
         self.base_path = base_path
         self._temp_dir: Optional[Path] = None
         self._lock = threading.Lock()
+        # weakref.finalize срабатывает при GC объекта. ateatxit —
+        # при завершении процесса. Двойная страховка.
+        self._finalizer = weakref.finalize(
+            self, self._finalize_tempdir, None
+        )
+        # Финальный обработчик для случая, если процесс убивают
+        # через os._exit без atexit (используется в heartbeat shutdown).
+        atexit.register(self.cleanup)
 
     def requires_safe_path(self, path_str: str) -> bool:
         if not path_str.isascii() or " " in path_str or len(path_str) > 200:
@@ -72,15 +87,25 @@ class SafePathManager:
 
         return safe_path
 
-    def cleanup(self):
+    @staticmethod
+    def _finalize_tempdir(path: Optional[Path]) -> None:
+        """Static finalizer для weakref.finalize (не держит self)."""
+        if path and path.exists():
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+            except Exception:  # noqa: BLE001 - best-effort cleanup
+                pass
+
+    def cleanup(self) -> None:
+        """Удаляет временную папку. Идемпотентен."""
         with self._lock:
-            if self._temp_dir and self._temp_dir.exists():
-                try:
-                    shutil.rmtree(self._temp_dir, ignore_errors=True)
-                    logger.debug(f"🧹 Временная папка удалена: {self._temp_dir}")
-                except Exception as e:
-                    logger.warning(
-                        f"Ошибка удаления временной папки {self._temp_dir}: {e}"
-                    )
-                finally:
-                    self._temp_dir = None
+            td = self._temp_dir
+            self._temp_dir = None
+        if td and td.exists():
+            try:
+                shutil.rmtree(td, ignore_errors=True)
+                logger.debug(f"🧹 Временная папка удалена: {td}")
+            except Exception as e:
+                logger.warning(
+                    f"Ошибка удаления временной папки {td}: {e}"
+                )

@@ -24,40 +24,51 @@ class TestSlidingWindowRateLimiter:
 
     @pytest.mark.asyncio
     async def test_acquire_within_limit(self):
-        """acquire возвращает True если лимит не превышен."""
+        """acquire_async возвращает True если лимит не превышен.
+
+        (См. INC-53EC / REFC-03: acquire() теперь sync + threading.Lock;
+        acquire_async() обёртка для async-контекста).
+        """
         limiter = SlidingWindowRateLimiter()
         for _ in range(5):
-            assert await limiter.acquire("test", max_per_sec=5) is True
+            assert await limiter.acquire_async("test", max_per_sec=5) is True
 
     @pytest.mark.asyncio
     async def test_acquire_exceeds_limit(self):
-        """acquire возвращает False если лимит превышен."""
+        """acquire_async возвращает False если лимит превышен."""
         limiter = SlidingWindowRateLimiter()
         for _ in range(5):
-            await limiter.acquire("test", max_per_sec=5)
+            await limiter.acquire_async("test", max_per_sec=5)
         # 6-й запрос должен быть отклонён
-        assert await limiter.acquire("test", max_per_sec=5) is False
+        assert await limiter.acquire_async("test", max_per_sec=5) is False
 
     @pytest.mark.asyncio
     async def test_different_keys_independent(self):
         """Разные ключи имеют независимые счётчики."""
         limiter = SlidingWindowRateLimiter()
         for _ in range(10):
-            await limiter.acquire("key_a", max_per_sec=10)
+            await limiter.acquire_async("key_a", max_per_sec=10)
         # key_a исчерпан, key_b — свежий
-        assert await limiter.acquire("key_a", max_per_sec=10) is False
-        assert await limiter.acquire("key_b", max_per_sec=10) is True
+        assert await limiter.acquire_async("key_a", max_per_sec=10) is False
+        assert await limiter.acquire_async("key_b", max_per_sec=10) is True
 
     @pytest.mark.asyncio
     async def test_window_slides_after_1_second(self):
         """Окно скользит: через 1с старые записи очищаются."""
         limiter = SlidingWindowRateLimiter()
         for _ in range(5):
-            await limiter.acquire("test", max_per_sec=5)
+            await limiter.acquire_async("test", max_per_sec=5)
 
         # Ждём когда окно очистится
         await asyncio.sleep(1.1)
-        assert await limiter.acquire("test", max_per_sec=5) is True
+        assert await limiter.acquire_async("test", max_per_sec=5) is True
+
+    def test_sync_acquire_works(self):
+        """acquire() доступен как sync для использования в sync-контексте (NotifyChangeTool)."""
+        limiter = SlidingWindowRateLimiter()
+        for _ in range(5):
+            assert limiter.acquire("test", max_per_sec=5) is True
+        assert limiter.acquire("test", max_per_sec=5) is False
 
     @pytest.mark.asyncio
     async def test_wait_or_skip_returns_true_within_limit(self):
@@ -70,7 +81,7 @@ class TestSlidingWindowRateLimiter:
         """wait_or_skip возвращает False если лимит превышен и ожидание не помогло."""
         limiter = SlidingWindowRateLimiter()
         for _ in range(5):
-            await limiter.acquire("test", max_per_sec=5)
+            await limiter.acquire_async("test", max_per_sec=5)
         # 6-й: лимит превышен, ожидание 100ms не поможет
         result = await limiter.wait_or_skip("test", max_per_sec=5, max_wait_ms=100)
         assert result is False
@@ -80,7 +91,7 @@ class TestSlidingWindowRateLimiter:
         """get_stats возвращает корректную статистику."""
         limiter = SlidingWindowRateLimiter()
         for _ in range(3):
-            await limiter.acquire("test", max_per_sec=10)
+            await limiter.acquire_async("test", max_per_sec=10)
 
         stats = limiter.get_stats("test")
         assert stats["key"] == "test"

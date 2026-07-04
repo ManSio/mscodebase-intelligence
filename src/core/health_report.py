@@ -83,6 +83,11 @@ class HealthReport:
         self._check_components()
         logger.warning("[diag] _check_components OK")
 
+        # 4b. Проверка ресурсов (multi-window, INC-6BCB)
+        logger.warning("[diag] _check_resources...")
+        self._check_resources()
+        logger.warning("[diag] _check_resources OK")
+
         # 5. Execution Contract верификация
         logger.warning("[diag] _check_execution_contract...")
         self._check_execution_contract()
@@ -124,6 +129,11 @@ class HealthReport:
             total_chunks = status.get("total_chunks", 0)
             unique_files = status.get("unique_files", 0)
             indexer_status = status.get("status", "unknown")
+
+            # Метрики для отчёта (см. INC-6BCB: ранее не попадали в metrics).
+            self.metrics["total_chunks"] = total_chunks
+            self.metrics["unique_files"] = unique_files
+            self.metrics["indexer_status"] = indexer_status
 
             if total_chunks == 0:
                 self.issues.append(
@@ -241,6 +251,10 @@ class HealthReport:
             total_chunks = status.get("total_chunks", 0)
             unique_files = status.get("unique_files", 0)
 
+            # Метрики для отчёта (см. INC-6BCB).
+            self.metrics["total_chunks"] = total_chunks
+            self.metrics["unique_files"] = unique_files
+
             if total_chunks == 0 and unique_files == 0:
                 self.warnings.append(
                     {
@@ -248,6 +262,50 @@ class HealthReport:
                         "message": "Индекс пуст",
                     }
                 )
+                return
+
+            # Детекция осиротевших файлов: в индексе есть, на диске нет.
+            # (См. INC-6BCB: фича была в docstring, но не реализована.)
+            try:
+                files_in_index = set()
+                if hasattr(self.indexer, "table") and self.indexer.table is not None:
+                    try:
+                        files_in_index = set(
+                            self.indexer.table.to_pandas()["file_path"].unique()
+                        )
+                    except Exception:
+                        # LanceDB фильтр (быстрее, не грузит всю таблицу в память)
+                        try:
+                            df = self.indexer.table.search().limit(100000).to_pandas()
+                            files_in_index = set(df["file_path"].unique())
+                        except Exception:
+                            pass
+
+                if files_in_index:
+                    files_on_disk = set()
+                    for p in self.project_path.rglob("*"):
+                        if p.is_file():
+                            try:
+                                rel = str(p.relative_to(self.project_path))
+                                rel = rel.replace(os.sep, "/")
+                                files_on_disk.add(rel)
+                            except ValueError:
+                                pass
+                    orphans = files_in_index - files_on_disk
+                    if orphans:
+                        self.warnings.append(
+                            {
+                                "component": "filesystem_sync",
+                                "message": (
+                                    f"Осиротевшие файлы в индексе "
+                                    f"({len(orphans)}): удалены с диска"
+                                ),
+                                "count": len(orphans),
+                            }
+                        )
+                        self.metrics["orphan_files_count"] = len(orphans)
+            except Exception as orph_err:
+                logger.debug(f"Orphan detection skipped: {orph_err}")
 
         except Exception as e:
             self.issues.append(
@@ -263,7 +321,14 @@ class HealthReport:
             try:
                 embedder_mode = getattr(self.embedder, "mode", "unknown")
                 self.metrics["embedder_status"] = embedder_mode
+                self.metrics["embedder_mode"] = embedder_mode  # алиас (INC-6BCB)
                 self.metrics["embedder_available"] = embedder_mode not in ("unknown", "fallback")
+                # Fallback = degraded (warning), не critical — восстанавливается запуском LM Studio.
+                if embedder_mode == "fallback":
+                    self.warnings.append({
+                        "component": "embedder",
+                        "message": "Embedder в fallback-режиме: векторный поиск недоступен",
+                    })
             except Exception as e:
                 self.issues.append({
                     "component": "embedder",
@@ -279,11 +344,78 @@ class HealthReport:
                 else:
                     symbol_count = "unknown"
                 self.metrics["symbol_index_count"] = symbol_count
+                # Алиас для обратной совместимости с тестами (см. INC-6BCB).
+                self.metrics["total_symbols"] = symbol_count
+                # Символов 0 при непустом индексе = аномалия (см. INC-6BCB).
+                if symbol_count == 0 and self.metrics.get("total_chunks", 0) > 0:
+                    self.warnings.append({
+                        "component": "symbol_index",
+                        "message": "Символов 0 при непустом индексе — требуется переиндексация",
+                    })
             except Exception as e:
                 self.issues.append({
                     "component": "symbol_index",
                     "message": f"Ошибка проверки symbol_index: {e}",
                 })
+
+    def _check_resources(self):
+        """Проверка ресурсов процесса (RAM/CPU) и registry (multi-window).
+
+        (См. INC-6BCB / multi-window: добавлено для отслеживания adaptive
+        throttling и LRU eviction.)
+        """
+        try:
+            from src.core.resource_monitor import get_global_resource_monitor
+            from src.core.project_indexer_registry import get_global_registry
+
+            monitor = get_global_resource_monitor()
+            summary = monitor.get_summary()
+            self.metrics["process_rss_mb"] = summary["rss_mb"]
+            self.metrics["process_cpu_percent"] = summary["cpu_percent"]
+            self.metrics["process_threads"] = summary["num_threads"]
+
+            if summary["under_hard_pressure"]:
+                self.issues.append({
+                    "component": "resources",
+                    "message": (
+                        f"Жёсткое давление: RAM={summary['rss_mb']:.0f}MB / "
+                        f"CPU={summary['cpu_percent']:.0f}%. "
+                        f"LRU eviction активен."
+                    ),
+                })
+            elif summary["under_soft_pressure"]:
+                self.warnings.append({
+                    "component": "resources",
+                    "message": (
+                        f"Мягкое давление: RAM={summary['rss_mb']:.0f}MB / "
+                        f"CPU={summary['cpu_percent']:.0f}%. "
+                        f"Throttling индексации активен."
+                    ),
+                })
+
+            registry = get_global_registry()
+            reg_stats = registry.get_stats()
+            self.metrics["registry_cached_projects"] = reg_stats["cached_projects"]
+            self.metrics["registry_max_cached"] = reg_stats["max_cached"]
+            self.metrics["registry_cache_hits"] = reg_stats["cache_hits"]
+            self.metrics["registry_cache_misses"] = reg_stats["cache_misses"]
+            self.metrics["registry_evictions"] = reg_stats["evictions"]
+            self.metrics["registry_pressure_evicts"] = reg_stats["evictions_for_pressure"]
+
+            if reg_stats["cached_projects"] >= reg_stats["max_cached"]:
+                self.warnings.append({
+                    "component": "registry",
+                    "message": (
+                        f"Кэш ProjectIndexerRegistry заполнен "
+                        f"({reg_stats['cached_projects']}/{reg_stats['max_cached']}). "
+                        f"Следующее окно вытеснит LRU."
+                    ),
+                })
+        except Exception as e:
+            self.warnings.append({
+                "component": "resources",
+                "message": f"Ошибка проверки ресурсов: {e}",
+            })
 
     def _check_execution_contract(self):
         """Проверка Execution Contract (git operations)."""
@@ -292,6 +424,7 @@ class HealthReport:
             try:
                 out = subprocess.check_output(
                     ["git", "log", "--oneline", "-1"],
+                    cwd=str(self.project_path),
                     stderr=subprocess.DEVNULL,
                     timeout=5,
                 )
@@ -314,10 +447,13 @@ class HealthReport:
                     }
                 )
             elif last_commit == -2:
-                self.issues.append(
+                # Git не инициализирован в проекте — это нормально для
+                # не-git-проектов и тестовых окружений (см. INC-6BCB).
+                # Понижаем severity с issue до warning.
+                self.warnings.append(
                     {
                         "component": "execution_contract",
-                        "message": "Git ошибка при выполнении команды",
+                        "message": "Git не инициализирован или ошибка команды",
                     }
                 )
             elif last_commit == -3:
@@ -432,13 +568,35 @@ class HealthReport:
 
 
 def format_health_report(report: Dict[str, Any]) -> str:
-    """Форматирование отчёта для читаемого вывода."""
+    """Форматирование отчёта для читаемого вывода.
+
+    Поддерживаемые статусы: healthy / degraded / warning / critical.
+    (См. INC-6BCB: добавлен 'degraded' для отличия обратимых warnings
+    от жёстких 'critical' issues.)
+    """
+    # Эмодзи-индикатор статуса
+    health_emoji = {
+        "healthy": "🟢",
+        "degraded": "🟡",
+        "warning": "🟡",
+        "critical": "🔴",
+    }.get(report.get("overall_health", ""), "⚪")
+
+    health_msg = {
+        "healthy": "Всё в порядке",
+        "degraded": "Работает, но есть предупреждения",
+        "warning": "Есть предупреждения",
+        "critical": "Обнаружены критические проблемы",
+    }.get(report.get("overall_health", ""), "")
+
     lines = []
     lines.append("=" * 60)
     lines.append("Self-Diagnostic Report")
     lines.append("=" * 60)
     lines.append(f"Timestamp: {report['timestamp']}")
-    lines.append(f"Overall Health: {report['overall_health'].upper()}")
+    lines.append(f"Overall Health: {health_emoji} {report['overall_health'].upper()}")
+    if health_msg:
+        lines.append(f"Message: {health_msg}")
     lines.append("")
 
     if report["issues"]:

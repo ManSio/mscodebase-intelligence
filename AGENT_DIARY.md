@@ -1,5 +1,142 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 00:25] — [Type: Refactor] — ResourceMonitor + LRU 5 + throttle
+
+**Problem:**
+- ProjectIndexerRegistry max_cached=8 — слишком много для 16GB RAM.
+- LanceDB connection не закрывался реально (нет close() API) —
+  файлы .lance висели locked на Windows до GC.
+- Никакого adaptive throttling — при печати текста в Zed индексация
+  лагала IDE.
+
+**Solution:**
+- ✅ ResourceMonitor: stdlib-only (resource.getrusage + ctypes/psapi
+  на Windows), без psutil. Проба throttled до 1 Hz. Soft (768MB/75%)
+  и Hard (1024MB/85%) пороги.
+- ✅ ProjectIndexerRegistry: max_cached=8 → 5. Добавлен
+  _maybe_evict_for_pressure() — evict под RAM/CPU давлением.
+- ✅ _safe_close() обнуляет LanceDB connection + кэши + gc.collect()
+  (для Windows mmap).
+- ✅ Indexer.index_project() делает sleep на suggest_throttle_delay_sec
+  при давлении (каждые 10 файлов семплинг).
+- ✅ HealthReport._check_resources(): rss_mb, cpu_percent, threads,
+  registry stats (cached/evictions/hits/misses). Warnings при
+  soft pressure, issues при hard.
+
+**Tools Used:** `read_file`, `edit_file`, `terminal`, `pytest`
+**Status:** ✅ (307/307 tests pass; 11 новых тестов для resource_monitor)
+
+## [2026-07-04 23:55] — [Type: Refactor] — Multi-window support
+
+**Problem:**
+- При переключении между окнами Zed MCP-сервер использовал один общий
+  Indexer (singleton в DI) — переключение окон ломало state.
+- LSP-сервер обслуживает несколько workspace URI одним процессом, но
+  init_components() был с глобальным if-not-None ранним return —
+  второе окно игнорировалось.
+- IndexProjectDirTool мутировал общий indexer (file_guard, project_path).
+- MultiProjectSearcher кэшировал LanceDB connections без invalidation
+  → file locks на Windows.
+
+**Solution:**
+- ✅ ProjectIndexerRegistry: Dict[Path, Indexer] + LRU eviction (8 слотов).
+  Per-project factory через DI (IndexerFactoryKey).
+- ✅ LSP: per-workspace DI-контейнеры (_services_per_workspace,
+  workspace_uri как ключ). init_components теперь возвращает
+  контейнер вместо None. Handlers передают workspace_uri/project_root.
+- ✅ MCP: resolve_indexer_for_request() в tools/base.py.
+  Приоритет: explicit kwarg → resolve_project_root() → DI default.
+- ✅ MultiProjectSearcher: per-project indexer из registry.
+- ✅ DebounceBatch per-project (lazy factory в DI).
+- ✅ Auto-index и _register_extension_handlers используют registry.
+- ✅ _register_extension_handlers принимает project_root в params.
+- ✅ LRU eviction закрывает Indexer.safe_close() (notify_broker.detach).
+
+**Tools Used:** `read_file`, `edit_file`, `terminal`, `grep`, `pytest`
+**Status:** ✅ (296/296 tests pass; multi-window изолирован)
+
+## [2026-07-04 23:35] — [Type: Fix] — Health/Integration тесты + Zed current_dir fix
+
+**Problem:**
+- 19 unit-тестов падали: test_health_report (16) + test_integration (3).
+- Zed не видел проект: `current_dir: "$ZED_WORKTREE_ROOT"` — Zed НЕ подставляет эту переменную (баг #36019).
+
+**Solution:**
+- ✅ test_health_report: добавил 'degraded' в asserts, форматтер с эмодзи,
+  метрики total_chunks/unique_files/embedder_mode/total_symbols,
+  orphan-files detection (была в docstring, не было в коде),
+  fallback embedder → warning, git log с cwd=project_path.
+- ✅ test_integration: fix фикстуры `isolated_indexer` — `project_path=temp_project`
+  (а не tmp_path), иначе FileGuard отвергал файлы как "not in project".
+- ✅ Zed settings: убран `current_dir` из patch_zed_settings (MCP и LSP).
+  resolve_project_root() корректно работает без него:
+  PROJECT_PATH env → LSP→MCP bridge → CWD → ext_root.
+- ✅ Создан `fix_zed_settings.bat` — удаляет current_dir из существующего
+  settings.json пользователя (с бэкапом).
+- ✅ Self-indexing guard: PROJECT_PATH указывает на MSCodeBase → ignored
+  + warning в логах.
+
+**Tools Used:** `read_file`, `edit_file`, `terminal`, `grep`, `pytest`, `python -c`
+**Status:** ✅ (296/296 tests pass; Zed ready из коробки)
+
+## [2026-07-04 23:10] — [Type: Refactor] — All audit findings fixed
+
+**Problem:**
+- 19 issues из аудита (2 critical, 8 high, 7 medium, 1 low + 7 архитектурных).
+- BUG-01: DI callback NameError (notification_broker до CircuitBreaker).
+- BUG-02: LSP watcher `_indexer` undefined global.
+- Race: did_change на каждый keystroke, asyncio.Lock cross-loop, O(N) to_pandas().
+
+**Solution:**
+- ✅ BUG-01: notification_broker создаётся ПЕРЕД CircuitBreaker в di_container.py.
+- ✅ BUG-02: `_indexer` → `_services` в did_change_watched_files.
+- ✅ REFC-01: did_change debounced 350ms + сериализация через _indexing_serial_lock.
+- ✅ REFC-02: resolve_project_root ленивый + self-indexing guard (_SELF_INDEX_MARKER).
+- ✅ REFC-03: asyncio.Lock → threading.Lock в SlidingWindowRateLimiter, DebounceBatch, CircuitBreaker, NotificationBroker.
+- ✅ REFC-04: `str` / `type("…")` → sentinel-классы ProjectRootKey, DbPathKey.
+- ✅ REFC-05: `indexer.searcher = searcher` → `indexer.set_searcher(searcher)`.
+- ✅ REFC-06: SafePathManager.cleanup() через atexit + weakref.finalize.
+- ✅ REFC-07: LanceDB миграция через add_columns, drop+create удалён из indexer.py.
+- ✅ REFC-08: watcher glob = `**/*.{ext1,ext2,…}` (фильтр по расширениям).
+- ✅ REFC-09: O(N) to_pandas() заменён на table.search().where(...).limit(1).
+- ✅ REFC-10: Heartbeat вынесен в HeartbeatService class (DI-friendly).
+- ✅ REFC-11: index_guard reconciliation (prior 'needs_reindex' помечается).
+- ✅ Файл `nul` удалён.
+- ✅ .zed.settings.json.example обновлён (LSP включён по умолчанию).
+- ✅ Тесты: 55/55 в test_di_container, test_rate_limiter, test_error_handler.
+
+**Tools Used:** `read_file`, `edit_file`, `terminal`, `grep`, `intel_get_project_memory`, `intel_log_incident`, `notify_change`
+**Status:** ✅ (Completed; notify_change синхронизирован для 12 файлов)
+
+## [2026-07-04 22:55] — [Type: Refactor] — Architectural Audit: 19 issues найдено
+
+**Problem:**
+- Запрошен комплексный аудит. Проверка LSP↔MCP, DI, race conditions, PROJECT_PATH, memory leaks.
+
+**Solution:**
+- Прочитан: lsp_main.py, di_container.py, rate_limiter.py, notification_broker.py, paths.py, indexer.py, mcp/server.py, utils/zed_config.py
+- Найдено 2 CRITICAL, 8 HIGH, 7 MEDIUM, 1 LOW
+- Ключевые: undefined `_indexer` global в LSP; undefined `notification_broker` в DI callback; PROJECT_PATH резолвится at-import (stale); asyncio.Lock cross-loop race; safe_path tempdir без atexit; drop+create race в миграции LanceDB
+- Все findings записаны в `intel_add_memory_node(section='tech_debt')`
+
+**Tools Used:** `read_file`, `grep`, `intel_get_project_memory`, `intel_add_memory_node`
+**Status:** ✅ (Audit completed, findings stored)
+
+## [2026-07-04 20:10] — [Type: Meta] — Аудит и чистка проекта
+
+**Problem:**
+- Накопление мусора после рефакторинга: deprecated hybrid_server.py, backup-файлы, пустые директории.
+- Skills устарели — ссылаются на deprecated deep_search/context_search/get_context/index_project_dir.
+
+**Solution:**
+- Удалено 6 позиций: hybrid_server.py, zed_config.py.backup, __manifest/, Agent Panel, stale .codebase_indices/, codebase_chunks.lance/
+- Обновлён `.agents/skills/mscodebase-rules/SKILL.md` — замена deprecatred инструментов на search_code(mode=...)
+- Обновлён `.agents/skills/image-edit-session/SKILL.md` — deep_search → search_code(mode="deep")
+- Обновлён `.agents/AI_USAGE.md` — добавлен mode параметр в search_code
+
+**Tools Used:** `delete_path`, `edit_file`, `intel_log_incident`
+**Status:** ✅ (Completed)
+
 ## [2026-07-04 20:00] — [Type: Test] — Phase 5: 52 unit-tests for DI/RateLimiter/ErrorBoundary
 
 **Problem:**

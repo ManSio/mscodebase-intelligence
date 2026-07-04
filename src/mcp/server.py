@@ -83,34 +83,74 @@ def _cleanup_old_progress():
 # ══════════════════════════════════════════════════════════
 
 _ext_root = Path(__file__).resolve().parent.parent.parent
-_env_project_root_raw = os.environ.get("PROJECT_PATH", "")
-_env_project_root: Optional[Path] = None
+# Маркер «само-индексация»: project_root указывает на директорию
+# самого расширения. Детектим по наличию src/lsp_main.py.
+_SELF_INDEX_MARKER = "src" + os.sep + "lsp_main.py"
+# Lazy-кэш для env-резолва. ВАЖНО: PROJECT_PATH резолвится на каждый
+# вызов resolve_project_root() (см. INC-53EC / REFC-02) — иначе при
+# переключении workspace в Zed без рестарта MCP используется stale-путь.
+_env_project_root_cache: Optional[Path] = None
+_env_cache_lock = threading.Lock()
 
-# Разрешаем PROJECT_PATH при импорте (один раз)
-if _env_project_root_raw:
-    if "$ZED" in _env_project_root_raw:
-        zed_root = os.environ.get("ZED_WORKTREE_ROOT")
-        if zed_root:
-            zed_path = Path(zed_root).resolve()
-            if zed_path.exists() and zed_path != _ext_root:
-                _env_project_root = zed_path
-    else:
-        _resolved = Path(_env_project_root_raw).resolve()
-        if _resolved.exists() and _resolved.is_dir():
-            _env_project_root = _resolved
+
+def _resolve_env_project_root() -> Optional[Path]:
+    """Резолвит PROJECT_PATH из окружения лениво + один раз кэширует результат.
+
+    Возвращает None, если PROJECT_PATH не задан / невалиден / указывает
+    на сам ext (тогда bridge/ZED_WORKTREE_ROOT/CWD получают шанс).
+    """
+    global _env_project_root_cache
+    with _env_cache_lock:
+        if _env_project_root_cache is not None:
+            return _env_project_root_cache
+        raw = os.environ.get("PROJECT_PATH", "").strip()
+        if not raw:
+            return None
+        # Случай 1: Zed literal "$ZED_WORKTREE_ROOT" без подстановки.
+        if raw.startswith("$"):
+            zed_root = os.environ.get("ZED_WORKTREE_ROOT")
+            if zed_root:
+                p = Path(zed_root).resolve()
+                if p.exists() and p != _ext_root and (p / _SELF_INDEX_MARKER).exists() is False:
+                    _env_project_root_cache = p
+                    return _env_project_root_cache
+            return None
+        # Случай 2: прямой путь.
+        try:
+            resolved = Path(raw).resolve()
+        except (OSError, ValueError):
+            return None
+        if not resolved.exists() or not resolved.is_dir():
+            return None
+        # Self-indexing guard (см. INC-53EC / REFC-02): если PROJECT_PATH
+        # указывает на ext_root, это почти всегда ошибка пользователя.
+        if resolved == _ext_root or (resolved / _SELF_INDEX_MARKER).exists():
+            logger.warning(
+                f"PROJECT_PATH указывает на само расширение ({resolved}). "
+                f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT."
+            )
+            return None
+        _env_project_root_cache = resolved
+        return _env_project_root_cache
+
+
+def reset_project_root_cache() -> None:
+    """Сбрасывает кэш resolve_project_root (для тестов и hot-reload)."""
+    global _env_project_root_cache
+    with _env_cache_lock:
+        _env_project_root_cache = None
 
 
 def resolve_project_root(provided: str = "") -> Path:
     """Возвращает корень проекта для MCP-инструментов.
 
-    Приоритет:
+    Приоритет (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
     1. Явно переданный provided
     2. LSP→MCP bridge (temp-файл от LSP)
-    3. PROJECT_PATH из окружения
-    4. ext_root если Git-репозиторий
-    5. ZED_WORKTREE_ROOT env
-    6. CWD
-    7. ext_root как fallback
+    3. PROJECT_PATH из окружения (lazy, с self-indexing guard)
+    4. ZED_WORKTREE_ROOT env
+    5. CWD, если != ext_root
+    6. ext_root как fallback
     """
     if provided and provided.strip():
         return Path(provided).resolve()
@@ -125,26 +165,27 @@ def resolve_project_root(provided: str = "") -> Path:
     except Exception:
         pass
 
-    if _env_project_root is not None:
-        return _env_project_root
-
-    if (_ext_root / ".git").exists():
-        logger.debug(f"resolve_project_root: ext_root is git repo: {_ext_root}")
-        return _ext_root
+    env_root = _resolve_env_project_root()
+    if env_root is not None:
+        logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")
+        return env_root
 
     zed_root = os.environ.get("ZED_WORKTREE_ROOT")
     if zed_root:
         zed_path = Path(zed_root).resolve()
-        if zed_path.exists():
+        if zed_path.exists() and zed_path != _ext_root:
             logger.debug(f"resolve_project_root: ZED_WORKTREE_ROOT={zed_path}")
             return zed_path
 
     cwd = Path.cwd().resolve()
-    if cwd != _ext_root:
+    if cwd != _ext_root and (cwd / _SELF_INDEX_MARKER).exists() is False:
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd
 
-    logger.warning(f"resolve_project_root: fallback to ext_root={_ext_root}")
+    logger.warning(
+        f"resolve_project_root: fallback to ext_root={_ext_root} "
+        f"(возможна self-indexing; установите PROJECT_PATH=$ZED_WORKTREE_ROOT)"
+    )
     return _ext_root
 
 
@@ -166,22 +207,31 @@ def create_mcp_server() -> "FastMCP":
 
     mcp = FastMCP("MSCodebase Intelligence Server")
 
-    # ─── 1. Project root ────────────────────────────
+    # ─── 1. Project root (default) ────────────────────
+    # Используется как fallback если инструмент не передал project_root.
+    # Multi-window (INC-6BCB): per-project indexer резолвится в самом
+    # инструменте через resolve_indexer_for_request().
     project_root = resolve_project_root()
     logger.info(
-        f"🏠 Project root: {project_root} "
+        f"🏠 Default project root: {project_root} "
         f"(CWD={Path.cwd().resolve()}, "
-        f"PROJECT_PATH={os.environ.get('PROJECT_PATH', 'не установлен')})"
+        f"PROJECT_PATH={os.environ.get('PROJECT_PATH', 'не установлен')}). "
+        f"Per-project indexers via ProjectIndexerRegistry."
     )
 
-    # ─── 2. DI Container ────────────────────────────
+    # ─── 2. DI Container (multi-project) ─────────────
     from src.core.di_container import create_service_collection
     services = create_service_collection(project_root)
 
-    # Настройка файлового логирования
+    # Настройка файлового логирования — в _ext_root с явным label "mcp_global".
+    # Per-project логи живут в <project>/.codebase_indices/logs/ через
+    # Indexer.notification_broker.
     from src.core.log_manager import setup_project_logging
-    setup_project_logging(project_root)
-    logger.info("🚀 MCP-сервер запущен (DI Container ready)")
+    try:
+        setup_project_logging(_ext_root, project_label="mcp_global")
+    except Exception as e:
+        logger.debug(f"setup_project_logging fallback: {e}")
+    logger.info("🚀 MCP-сервер запущен (DI Container ready, multi-window)")
 
     # ─── 3. Heartbeat (Anti-Orphan) ─────────────────
     _init_heartbeat()
@@ -265,10 +315,12 @@ def _register_extension_handlers(mcp, services):
     """
     try:
         server = mcp._mcp_server
-        from src.core.indexer import Indexer
+        from src.mcp.tools.base import resolve_indexer_for_request
+        from src.mcp.server import resolve_project_root as _rpr
 
-        indexer = services.resolve(Indexer)
-        project_root = indexer.project_path
+        # Multi-window: default project_root для дашборда (per-call tools
+        # резолвят свой).
+        default_project_root = _rpr()
 
         if not (hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict)):
             return
@@ -281,13 +333,19 @@ def _register_extension_handlers(mcp, services):
             из backslashes в forward slashes для совместимости с Zed/GitBash.
             """
             try:
-                stats = indexer.get_status()
+                # Multi-window: резолвим per-project indexer (если передан
+                # params.project_root) или default.
+                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                idx = resolve_indexer_for_request(
+                    services, explicit_project_root=requested_root or None,
+                )
+                stats = idx.get_status()
                 chunks = stats.get("total_chunks", 0)
                 files = stats.get("unique_files", 0)
 
                 # Нормализуем пути для zed://file/ URI
-                db_path = _normalize_dashboard_path(str(indexer.db_path))
-                root = _normalize_dashboard_path(str(project_root))
+                db_path = _normalize_dashboard_path(str(idx.db_path))
+                root = _normalize_dashboard_path(str(idx.project_path))
 
                 md = f"""# 🏗 MSCodeBase Architecture Dashboard
 
@@ -312,26 +370,35 @@ def _register_extension_handlers(mcp, services):
 
         # ─── msccodebase/force_reindex ────────────────────
         async def _handle_force_reindex(params) -> str:
-            """Принудительная переиндексация."""
+            """Принудительная переиндексация.
+
+            Multi-window: params.project_root задаёт какой проект переиндексировать.
+            """
             import asyncio
             try:
-                loop = asyncio.get_event_loop()
-                indexed = await asyncio.to_thread(
-                    indexer.index_project, project_root
+                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                idx = resolve_indexer_for_request(
+                    services, explicit_project_root=requested_root or None,
                 )
-                return f"{{\"status\": \"ok\", \"files\": {indexed}}}"
+                target = idx.project_path
+                indexed = await asyncio.to_thread(idx.index_project, target)
+                return f'{{"status": "ok", "files": {indexed}, "project": "{target.name}"}}'
             except Exception as e:
-                return f"{{\"status\": \"error\", \"message\": \"{e}\"}}"
+                return f'{{"status": "error", "message": "{e}"}}'
 
         server.request_handlers["mscodebase/force_reindex"] = _handle_force_reindex
 
         # ─── msccodebase/clear_memory ─────────────────────
         async def _handle_clear_memory(params) -> str:
-            """Очистка кэша памяти проекта."""
+            """Очистка кэша памяти проекта (multi-window)."""
             try:
-                if hasattr(indexer, "_symbol_index") and indexer._symbol_index:
-                    indexer._symbol_index._definitions.clear()
-                return '{"status": "ok"}'
+                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                idx = resolve_indexer_for_request(
+                    services, explicit_project_root=requested_root or None,
+                )
+                if hasattr(idx, "_symbol_index") and idx._symbol_index:
+                    idx._symbol_index._definitions.clear()
+                return f'{{"status": "ok", "project": "{idx.project_path.name}"}}'
             except Exception as e:
                 return f'{{"status": "error", "message": "{e}"}}'
 
@@ -344,13 +411,22 @@ def _register_extension_handlers(mcp, services):
 
 
 def _trigger_auto_index_if_empty(services):
-    """Запускает фоновую индексацию, если индекс пуст."""
+    """Запускает фоновую индексацию, если индекс пуст.
+
+    Multi-window: индексирует только default project_root (если пустой).
+    Остальные проекты индексируются по запросу через index_project_dir.
+    """
     import asyncio
 
     try:
-        from src.core.indexer import Indexer
+        from src.mcp.tools.base import resolve_indexer_for_request
+        from src.mcp.server import resolve_project_root as _rpr
 
-        indexer = services.resolve(Indexer)
+        try:
+            indexer = resolve_indexer_for_request(services)
+        except Exception:
+            return
+
         status = indexer.get_status()
         if status.get("total_chunks", 0) == 0:
             logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
@@ -548,127 +624,162 @@ You operate under a strict deterministic execution matrix...
 
 # ══════════════════════════════════════════════════════════
 # Heartbeat — Anti-Orphan защита
+# Вынесено в DI-класс (см. INC-53EC / REFC-11): глобальные переменные
+# на module-level ломались при двух инстансах MCP (global+project).
 # ══════════════════════════════════════════════════════════
 
-_parent_pid: Optional[int] = None
-_last_heartbeat_time: float = 0.0
-_heartbeat_interval: float = 30.0  # Ожидаемый интервал пинга от клиента (сек)
-_heartbeat_timeout: float = 90.0   # После скольких секунд без пинга — shutdown
-_heartbeat_check_interval: float = 15.0  # Как часто проверяем (сек)
-_heartbeat_task: Optional[asyncio.Task] = None
-_heartbeat_lock = asyncio.Lock()
+
+class HeartbeatService:
+    """Heartbeat-сервис для Anti-Orphan защиты.
+
+    Идемпотентен: можно создавать несколько экземпляров (например, для
+    отдельных MCP-инстансов). Все состояние инкапсулировано.
+    """
+
+    def __init__(
+        self,
+        interval: float = 30.0,
+        timeout: float = 90.0,
+        check_interval: float = 15.0,
+    ):
+        self.interval = interval
+        self.timeout = timeout
+        self.check_interval = check_interval
+        self._parent_pid: Optional[int] = None
+        self._last_heartbeat_time: float = 0.0
+        self._task: Optional[asyncio.Task] = None
+        self._lock = threading.Lock()
+        self._running = False
+
+    def init(self) -> None:
+        """Захватываем родительский PID при старте."""
+        with self._lock:
+            self._parent_pid = os.getppid()
+            self._last_heartbeat_time = time.time()
+        logger.info(f"💓 Heartbeat инициализирован. Parent PID: {self._parent_pid}")
+
+    def beat(self) -> None:
+        """Обновляет время последнего heartbeat (вызов из хендлера)."""
+        with self._lock:
+            self._last_heartbeat_time = time.time()
+
+    def is_parent_alive(self) -> bool:
+        """Проверяет, жив ли родительский процесс."""
+        with self._lock:
+            pid = self._parent_pid
+        if pid is None:
+            return True
+        try:
+            if sys.platform == "win32":
+                import ctypes
+                kernel32 = ctypes.windll.kernel32
+                handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
+                if handle:
+                    kernel32.CloseHandle(handle)
+                    return True
+                return kernel32.GetLastError() != 87  # ERROR_INVALID_PARAMETER = мёртв
+            else:
+                os.kill(pid, 0)
+                return True
+        except (ProcessLookupError, PermissionError, OSError):
+            return False
+        except Exception:
+            return True  # fallback: не можем проверить — считаем живым
+
+    async def _monitor(self) -> None:
+        """Фоновая задача: проверяет здоровье соединения."""
+        logger.info(
+            f"💓 Heartbeat monitor запущен "
+            f"(check={self.check_interval}s, timeout={self.timeout}s)"
+        )
+        while self._running:
+            await asyncio.sleep(self.check_interval)
+            try:
+                with self._lock:
+                    elapsed = time.time() - self._last_heartbeat_time
+                if elapsed > self.timeout:
+                    logger.warning(
+                        f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга"
+                    )
+                    self._shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
+                    return
+                if not self.is_parent_alive():
+                    logger.warning(
+                        f"💔 Родительский процесс (Zed) мёртв (PID: {self._parent_pid})"
+                    )
+                    self._shutdown("Parent process died")
+                    return
+            except asyncio.CancelledError:
+                logger.info("💓 Heartbeat monitor остановлен")
+                return
+            except Exception as e:
+                logger.error(f"Heartbeat monitor error: {e}")
+
+    def _shutdown(self, reason: str) -> None:
+        """Graceful shutdown: сначала atexit-обработчики, потом _exit."""
+        logger.warning(f"🛑 Graceful shutdown: {reason}")
+        try:
+            from src.core.index_guard import IndexGuard
+            db_path = Path.cwd() / ".codebase_indices" / "lancedb_v2"
+            if db_path.exists():
+                IndexGuard(db_path, Path.cwd())
+        except Exception:
+            pass
+        # atexit-обработчики (SafePathManager.cleanup и т.д.) сработают
+        # только при sys.exit. os._exit их обходит, теряя данные.
+        # Мы всё равно вызываем os._exit потому что FastMCP застрял
+        # в stdio-блокирующем режиме и не реагирует на sys.exit.
+        # Но в начале пытаемся дать шанс atexit.
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+        os._exit(0)
+
+    def start_monitor(self) -> None:
+        """Запускает фоновый мониторинг (если ещё не запущен)."""
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                self._task = asyncio.ensure_future(self._monitor())
+                logger.info("💓 Heartbeat monitor started")
+        except RuntimeError:
+            logger.debug("Heartbeat monitor: event loop not ready")
 
 
-def _init_heartbeat():
-    """Захватываем родительский PID при старте."""
-    global _parent_pid, _last_heartbeat_time
-    _parent_pid = os.getppid()
-    _last_heartbeat_time = time.time()
-    logger.info(f"💓 Heartbeat инициализирован. Parent PID: {_parent_pid}")
+# Глобальный экземпляр для обратной совместимости с существующими вызовами.
+_heartbeat_service = HeartbeatService()
 
 
-def _update_heartbeat():
-    """Обновляет время последнего heartbeat (вызов из хендлера)."""
-    global _last_heartbeat_time
-    _last_heartbeat_time = time.time()
+def _init_heartbeat() -> None:
+    _heartbeat_service.init()
+
+
+def _update_heartbeat() -> None:
+    _heartbeat_service.beat()
 
 
 def _is_parent_alive() -> bool:
-    """Проверяет, жив ли родительский процесс."""
-    pid = _parent_pid
-    if pid is None:
-        return True
-    try:
-        if sys.platform == "win32":
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
-            if handle:
-                kernel32.CloseHandle(handle)
-                return True
-            return kernel32.GetLastError() != 87  # ERROR_INVALID_PARAMETER = мёртв
-        else:
-            os.kill(pid, 0)
-            return True
-    except (ProcessLookupError, PermissionError, OSError):
-        return False
-    except Exception:
-        return True  # fallback: не можем проверить — считаем живым
+    return _heartbeat_service.is_parent_alive()
 
 
-async def _heartbeat_monitor():
-    """Фоновая задача: проверяет здоровье соединения.
-    Если heartbeat не получали > timeout, или родительский процесс мёртв —
-    инициирует graceful shutdown.
-    """
-    global _last_heartbeat_time
-    logger.info(f"💓 Heartbeat monitor запущен (check={_heartbeat_check_interval}s, timeout={_heartbeat_timeout}s)")
-
-    while True:
-        await asyncio.sleep(_heartbeat_check_interval)
-
-        try:
-            now = time.time()
-            elapsed = now - _last_heartbeat_time
-
-            # Проверка heartbeat таймаута
-            if elapsed > _heartbeat_timeout:
-                logger.warning(
-                    f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга "
-                    f"(лимит {_heartbeat_timeout}s)"
-                )
-
-            # Проверка родительского процесса
-            if _parent_pid is not None and not _is_parent_alive():
-                logger.warning(
-                    f"💔 Родительский процесс (Zed) мёртв (PID: {_parent_pid}). "
-                    f"Инициирую shutdown..."
-                )
-                _graceful_shutdown("Parent process died")
-                return
-
-            # Если heartbeat таймаут — тоже shutdown
-            if elapsed > _heartbeat_timeout:
-                _graceful_shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
-                return
-
-        except asyncio.CancelledError:
-            logger.info("💓 Heartbeat monitor остановлен")
-            return
-        except Exception as e:
-            logger.error(f"Heartbeat monitor error: {e}")
+async def _heartbeat_monitor() -> None:
+    await _heartbeat_service._monitor()
 
 
-def _graceful_shutdown(reason: str):
-    """Graceful shutdown с сохранением данных."""
-    logger.warning(f"🛑 Graceful shutdown: {reason}")
-
-    # 1. Сохраняем SymbolIndex
-    try:
-        from src.core.index_guard import IndexGuard
-        from pathlib import Path
-        db_path = Path.cwd() / ".codebase_indices" / "lancedb_v2"
-        if db_path.exists():
-            guard = IndexGuard(db_path, Path.cwd())
-    except Exception:
-        pass
-
-    # 2. Закрываем LanceDB (неявно через GC)
-    logger.info("💾 LanceDB: завершение транзакций...")
-
-    # 3. Выход
-    logger.info(f"👋 Server shutdown: {reason}")
-    os._exit(0)
+def _graceful_shutdown(reason: str) -> None:
+    _heartbeat_service._shutdown(reason)
 
 
-def _start_heartbeat_monitor(mcp):
+def _start_heartbeat_monitor(mcp) -> None:
     """Регистрирует хендлер heartbeat и запускает фоновый мониторинг."""
-    global _heartbeat_task
-
     try:
         server = mcp._mcp_server
-
-        # Регистрируем кастомный JSON-RPC метод msccodebase/heartbeat
         if hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict):
 
             async def _on_heartbeat(params):
@@ -678,15 +789,7 @@ def _start_heartbeat_monitor(mcp):
             server.request_handlers["mscodebase/heartbeat"] = _on_heartbeat
             logger.debug("💓 Heartbeat handler registered")
 
-        # Запускаем фоновый мониторинг
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                _heartbeat_task = asyncio.ensure_future(_heartbeat_monitor())
-                logger.info("💓 Heartbeat monitor started")
-        except RuntimeError:
-            logger.debug("Heartbeat monitor: event loop not ready")
-
+        _heartbeat_service.start_monitor()
     except Exception as e:
         logger.warning(f"Heartbeat: {e}")
 

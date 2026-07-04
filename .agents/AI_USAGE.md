@@ -41,7 +41,7 @@ get_index_status()
 
 | Инструмент | Назначение | Приоритет |
 |------------|------------|----------|
-| `search_code(query)` | Семантический поиск | 🔥 Высокий |
+| `search_code(query, mode=...)` | Семантический поиск (mode: fast/quality/deep/context/auto) | 🔥 Высокий |
 | `get_symbol_info(name)` | Определение + вызовы | 🔥 Высокий |
 | `impact_analysis(name)` | Анализ зависимостей | 🔥 Высокий |
 | `get_file_history(path)` | История файла | 🔥 Высокий |
@@ -90,3 +90,8 @@ get_index_status()
 - Размер файлов: < 1 MB для индексации
 - Исключения: `.git`, `node_modules`, `venv`, `__pycache__`, `.zed`
 - Эмбеддинги: LM Studio / Ollama (fallback)
+- **Multi-Window (v2.3+):** Несколько открытых проектов в Zed получают
+  изолированные Indexer-ы через `ProjectIndexerRegistry` (LRU 5).
+  ResourceMonitor адаптивно снижает скорость индексации при высокой
+  RAM/CPU нагрузке. `get_health_report` показывает registry stats
+  (cached/evictions/hits/misses) и process_rss_mb/cpu_percent.

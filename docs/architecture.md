@@ -1,8 +1,8 @@
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 2.2.0  
-> **Last updated:** 2026-07-04  
-> **Architecture:** Clean Architecture with DI Container
+> **Version:** 2.3.0  
+> **Last updated:** 2026-07-05  
+> **Architecture:** Clean Architecture with DI Container + Multi-Window Registry
 
 ---
 
@@ -16,7 +16,8 @@
 6. [Rate Limiting & Resilience](#6-rate-limiting--resilience)
 7. [Data Flow: Request → Response](#7-data-flow)
 8. [Windows Specifics](#8-windows-specifics)
-9. [Testing Strategy](#9-testing-strategy)
+9. [Multi-Window Registry (v2.3+)](#9-multi-window-registry-v23)
+10. [Testing Strategy](#10-testing-strategy)
 
 ---
 
@@ -327,13 +328,131 @@ SafePathManager uses `to_win_long_path()` (prepending `\\?\`) for paths > 260 ch
 
 ---
 
-## 9. Testing Strategy
+## 9. Multi-Window Registry (v2.3+)
+
+v2.3+ поддерживает **несколько открытых проектов в Zed одновременно**.
+Раньше DI хранил singleton `Indexer` — при переключении окон state ломался
+(один `file_guard`, один `db_path`, общий `SymbolIndex`).
+
+### 9.1 `ProjectIndexerRegistry`
+
+`src/core/project_indexer_registry.py` — потокобезопасный реестр `Indexer`-ов:
+
+```python
+registry = ProjectIndexerRegistry(
+    max_cached=5,                      # LRU лимит (5 проектов = 1-2.5GB RAM)
+    resource_monitor=get_global_resource_monitor(),  # adaptive throttling
+)
+
+# Per-project lazy создание через factory:
+def _create_indexer(p: Path) -> Indexer:
+    return Indexer(
+        db_path=_generate_unique_db_path(p),
+        file_guard=FileGuard(p),
+        symbol_index=SymbolIndex(),  # изолирован
+        project_path=p, ...
+    )
+
+services.add_singleton(IndexerFactoryKey, _create_indexer)
+indexer = registry.get_indexer(project_path, factory=_create_indexer)
+```
+
+**Гарантии:**
+- **Изоляция:** каждое окно получает свой `FileGuard`/`SymbolIndex`/`db_path`.
+- **LRU:** при открытии 6-го проекта самый старый `Indexer` вытесняется.
+- **Pressure-evict:** при RAM > 1GB или CPU > 85% — принудительный evict
+  **перед** созданием нового `Indexer` (предотвращает OOM).
+- **Cleanup:** `_safe_close()` обнуляет LanceDB connection + `gc.collect()`
+  (для Windows mmap handles).
+
+### 9.2 `ResourceMonitor`
+
+`src/core/resource_monitor.py` — stdlib-only мониторинг (без `psutil`):
+
+| Платформа | Метод |
+|-----------|-------|
+| POSIX | `resource.getrusage(RUSAGE_SELF).ru_maxrss` |
+| Windows | `psapi.GetProcessMemoryInfo` через `ctypes` |
+| CPU | `resource.getrusage` utime+stime delta / wall-clock |
+
+**Пороги:**
+- Soft: 768MB / 75% CPU → throttle индексации (0.1s задержка между файлами)
+- Hard: 1024MB / 85% CPU → pressure-evict + 0.5-2s задержка
+
+```python
+monitor = get_global_resource_monitor()
+snap = monitor.sample()  # ResourceSnapshot (rss_mb, cpu_percent, threads)
+
+if monitor.is_under_pressure():
+    delay = monitor.suggest_throttle_delay_sec()
+    time.sleep(delay)  # в Indexer.index_project между файлами
+```
+
+### 9.3 LSP per-workspace DI
+
+`src/lsp_main.py` хранит **per-workspace** DI-контейнеры:
+
+```python
+_services_per_workspace: dict[str, ServiceCollection] = {}
+
+@server.feature("initialize")
+async def on_initialize(ls, params):
+    project_root = Path(urlparse(params.root_uri).path)
+    ls._workspace_uri = params.root_uri
+    ls._project_root = project_root
+    init_components(project_root, workspace_uri=params.root_uri)
+    # → создаёт изолированный DI-контейнер для ОКНА
+```
+
+LSP handlers (`did_open`/`did_change`/`did_save`/`did_close`/
+`didChangeWatchedFiles`) получают `ls._workspace_uri` и резолвят
+правильный `Indexer` через registry.
+
+### 9.4 MCP `resolve_indexer_for_request`
+
+`src/mcp/tools/base.py` — единая точка получения per-project Indexer:
+
+```python
+def resolve_indexer_for_request(services, explicit_project_root=None):
+    target = explicit_project_root or resolve_project_root() or DI_default
+    registry = services.resolve(ProjectIndexerRegistry)
+    factory = services.resolve(IndexerFactoryKey)
+    return registry.get_indexer(target, factory=factory)
+
+class MCPTool:
+    def resolve_indexer(self, project_root=None):
+        return resolve_indexer_for_request(self._services, project_root)
+```
+
+**Все MCP-инструменты** должны использовать `self.resolve_indexer(...)`
+вместо `self._services.resolve(Indexer)` — последний больше не работает
+(Indexer не singleton).
+
+### 9.5 HealthReport `_check_resources`
+
+`src/core/health_report.py` — добавлен метод:
+
+```python
+def _check_resources(self):
+    summary = get_global_resource_monitor().get_summary()
+    self.metrics["process_rss_mb"] = summary["rss_mb"]
+    self.metrics["process_cpu_percent"] = summary["cpu_percent"]
+    self.metrics["registry_cached_projects"] = ...
+    self.metrics["registry_evictions"] = ...
+    if summary["under_hard_pressure"]:
+        self.issues.append({...})
+```
+
+---
+
+## 10. Testing Strategy
 
 ```
 tests/
 ├── test_error_handler.py     # 18 tests — ToolError, error_boundary
 ├── test_rate_limiter.py      # 21 tests — SlidingWindow, DebounceBatch, CircuitBreaker
 ├── test_di_container.py      # 13 tests — ServiceCollection, 15 services
+├── test_resource_monitor.py  # 11 tests — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
 ├── test_parser.py            # 4 tests — Tree-sitter parsing
 ├── test_execution_contract.py# 10 tests — verify_action
 ├── test_task_queue.py        # 6 tests — background task queue
@@ -342,7 +461,7 @@ tests/
 ├── ... (20 more test files)
 ```
 
-**Total: 325 tests.**
+**Total: 307 tests.**
 
 Run:
 ```bash

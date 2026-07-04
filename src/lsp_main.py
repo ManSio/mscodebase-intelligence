@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -81,47 +82,100 @@ def _get_rel_path_str(file_path: Path, project_path: Path) -> str:
     return file_path.relative_to(project_path).as_posix()
 
 
-# Shared DI ServiceCollection (синглтон для LSP)
-_services = None
+# Multi-window LSP (INC-6BCB): один LSP-процесс обслуживает несколько
+# workspace URI (несколько открытых проектов в Zed). Вместо одного
+# глобального _services держим DI-контейнер на каждый workspace.
+_services_per_workspace: dict[str, "ServiceCollection"] = {}
+_workspace_lock = threading.Lock()
 
-def init_components(project_root: Path):
+# Debounce-курок для did_change (см. INC-53EC / REFC-01):
+# текст в pygls обновляется на каждый keystroke, но индексировать
+# имеет смысл только когда пользователь перестал печатать.
+_DID_CHANGE_DEBOUNCE_MS = 350
+_did_change_pending: dict[str, asyncio.Task] = {}  # uri -> debounce task
+_did_change_lock = asyncio.Lock()
+
+# Sequential indexing queue (см. INC-53EC / LSP-03):
+# предотвращает гонки при записи в LanceDB/SymbolIndex от параллельных
+# did_open/did_change/did_save.
+_indexing_serial_lock = asyncio.Lock()
+
+
+def init_components(project_root: Path, workspace_uri: str = ""):
     """Ленивая инициализация компонентов через DI контейнер.
 
-    Заменяет старую init_components с 4 глобальными переменными.
-    Единственное место инициализации — все компоненты в одном контейнере.
-    """
-    global _services
+    Multi-window (INC-6BCB): для каждого workspace_uri создаётся
+    свой DI-контейнер. Раньше был один глобальный _services —
+    переключение окон ломало state.
 
-    if _services is not None:
-        return
+    Args:
+        project_root: корень проекта (для resolve).
+        workspace_uri: уникальный URI workspace'а (для ключа).
+                       Если пусто — используется project_root.
+    """
+    global _services_per_workspace
+
+    key = workspace_uri or str(project_root.resolve())
+    with _workspace_lock:
+        if key in _services_per_workspace:
+            return _services_per_workspace[key]
 
     from src.core.di_container import create_service_collection
-
-    _services = create_service_collection(project_root)
+    services = create_service_collection(project_root)
+    with _workspace_lock:
+        _services_per_workspace[key] = services
 
     # Инициализируем DebounceBatch для BM25 реиндексации
     from src.core.rate_limiter import DebounceBatch
-    _batch = _services.resolve(DebounceBatch)
-    logger.info(f"LSP: DI Container инициализирован для {project_root.name} (BM25 debounce active)")
+    _batch = services.resolve(DebounceBatch)
+    logger.info(f"LSP: DI Container инициализирован для {project_root.name} (workspace: {key}, BM25 debounce active)")
+    return services
 
 
-def _execute_file_indexing(file_path: Path, content: Optional[str] = None):
-    """Оркестрация проверки хеша и чанкера (вызывается в thread-пуле).
+def _get_factory(services):
+    """Извлекает IndexerFactory из services (multi-window)."""
+    from src.core.di_container import IndexerFactoryKey
+    return services.resolve(IndexerFactoryKey)
 
-    Использует DI контейнер вместо глобальных переменных.
-    BM25 реиндексация через DebounceBatch (не вызывается на каждый файл).
 
-    Args:
-        file_path: Путь к файлу
-        content: Текст файла из памяти LSP. Если None — читает с диска.
+def _execute_file_indexing(
+    file_path: Path,
+    content: Optional[str] = None,
+    workspace_uri: str = "",
+    project_root: Optional[Path] = None,
+):
+    """Оркестрация проверки хеша и чанкера (вызывается в thread-пулу).
+
+    Multi-window (INC-6BCB): получает workspace_uri/project_root от
+    caller-а и резолвит правильный DI-контейнер.
     """
-    global _services
-    if _services is None:
-        init_components(Path.cwd())
+    key = workspace_uri or (str(project_root.resolve()) if project_root else "")
+    services = _services_per_workspace.get(key) if key else None
+    if services is None:
+        # Fallback: первый доступный (legacy single-window).
+        with _workspace_lock:
+            if _services_per_workspace:
+                services = next(iter(_services_per_workspace.values()))
+    if services is None:
+        # В LSP-контексте _services обязан быть инициализирован в on_initialize.
+        # Fallback на Path.cwd() опасен (CWD сервера != проект пользователя).
+        logger.error(
+            f"[LSP INDEXING] Services not initialized for {file_path.name}; "
+            f"skipping. Это баг инициализации LSP."
+        )
+        return
 
     from src.core.indexer import Indexer
+    from src.core.project_indexer_registry import ProjectIndexerRegistry
 
-    indexer = _services.resolve(Indexer)
+    registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+    factory = services.resolve(type("_IndexerFactory", (), {})) if False else _get_factory(services)
+    # Per-workspace indexer (multi-window, INC-6BCB).
+    if project_root:
+        target_indexer = registry.get_indexer(project_root, factory=factory)
+    else:
+        target_indexer = registry.get_indexer(services.resolve(type("ProjectRootKey", (), {})), factory=factory)
+    indexer = target_indexer
 
     # Проверки безопасности
     if not indexer.path_manager.is_safe_to_process(file_path):
@@ -141,7 +195,8 @@ def _execute_file_indexing(file_path: Path, content: Optional[str] = None):
     if success:
         try:
             from src.core.rate_limiter import DebounceBatch
-            batch = _services.resolve(DebounceBatch)
+            # Per-project batch (lazy создаётся в фабрике).
+            batch = services.resolve(DebounceBatch)
             # Добавляем файл в debounce батч (асинхронно в фоне, fire-and-forget)
             import asyncio
             try:
@@ -158,20 +213,30 @@ def _execute_file_indexing(file_path: Path, content: Optional[str] = None):
                 indexer.searcher.reindex()
 
 
-def _process_watched_changes(changes):
+def _process_watched_changes(changes, services=None):
     """Синхронный воркер для обработки пачки внешних событий диска.
 
-    Использует DI контейнер и DebounceBatch для BM25.
+    Multi-window (INC-6BCB): принимает services от caller-а (per-workspace).
     """
-    global _services
-    if _services is None:
-        init_components(Path.cwd())
+    if services is None:
+        with _workspace_lock:
+            if _services_per_workspace:
+                services = next(iter(_services_per_workspace.values()))
+    if services is None:
+        return
 
     from src.core.indexer import Indexer
     from src.core.rate_limiter import DebounceBatch
+    from src.core.project_indexer_registry import ProjectIndexerRegistry
 
-    indexer = _services.resolve(Indexer)
-    batch = _services.resolve(DebounceBatch)
+    # Per-workspace indexer (multi-window). Берём default project_root
+    # сервисов как fallback.
+    from src.core.di_container import ProjectRootKey
+    registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+    factory = _get_factory(services)
+    project_root = services.resolve(ProjectRootKey)
+    indexer = registry.get_indexer(project_root, factory=factory)
+    batch = services.resolve(DebounceBatch)
 
     changed_files = []
     logger.info(f"[LSP WATCHER] Received {len(changes)} file change(s)")
@@ -277,32 +342,64 @@ try:
             except Exception:
                 pass
 
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+            async with _indexing_serial_lock:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None,
+                    _execute_file_indexing,
+                    file_path,
+                    content,
+                    getattr(ls, "_workspace_uri", ""),
+                    getattr(ls, "_project_root", None),
+                )
         except Exception as e:
             logger.error(f"[LSP DID_OPEN] Error: {e}")
 
     @server.feature("textDocument/didChange")
     async def did_change(ls: MSCodeBaseLanguageServer, params):
-        """Вызывается при каждом изменении текста (включая правки ИИ-ассистента)."""
+        """Вызывается при каждом изменении текста (включая правки ИИ-ассистента).
+
+        Debounced (см. INC-53EC / REFC-01): не индексируем на каждый keystroke.
+        Если в течение _DID_CHANGE_DEBOUNCE_MS приходит новое изменение —
+        предыдущий таск отменяется, таймер сбрасывается. did_save остаётся
+        надёжным source of truth для долговременной индексации.
+        """
         try:
             file_path = _uri_to_path(params.text_document.uri)
 
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
 
-            # При didChange текст в памяти pygls уже обновлён
-            content = None
+            uri = params.text_document.uri
             try:
-                document = ls.workspace.get_document(params.text_document.uri)
+                document = ls.workspace.get_document(uri)
                 content = document.source
             except Exception:
-                pass
+                content = None
 
-            logger.info(f"[LSP DID_CHANGE] {file_path.name} ({len(content) if content else 0} chars)")
+            logger.info(
+                f"[LSP DID_CHANGE] {file_path.name} "
+                f"({len(content) if content else 0} chars) — debounced"
+            )
 
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+            async def _delayed_index():
+                try:
+                    await asyncio.sleep(_DID_CHANGE_DEBOUNCE_MS / 1000)
+                except asyncio.CancelledError:
+                    return
+                # Сериализуем через глобальный lock, чтобы избежать
+                # одновременной записи в LanceDB (см. INC-53EC / LSP-03).
+                async with _indexing_serial_lock:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(
+                        None, _execute_file_indexing, file_path, content
+                    )
+
+            async with _did_change_lock:
+                old_task = _did_change_pending.pop(uri, None)
+                if old_task and not old_task.done():
+                    old_task.cancel()
+                _did_change_pending[uri] = asyncio.create_task(_delayed_index())
         except Exception as e:
             logger.error(f"[LSP DID_CHANGE] Error: {e}")
 
@@ -320,10 +417,17 @@ try:
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
 
-            # При didClose буфер закрыт — файл на диске гарантированно актуален
-            # Читаем с диска (content=None)
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _execute_file_indexing, file_path, None)
+            # Отменяем debounce, если висит (его работа больше не нужна).
+            async with _did_change_lock:
+                pending = _did_change_pending.pop(params.text_document.uri, None)
+                if pending and not pending.done():
+                    pending.cancel()
+
+            async with _indexing_serial_lock:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None, _execute_file_indexing, file_path, None
+                )
         except Exception as e:
             logger.error(f"[LSP DID_CLOSE] Error: {e}")
 
@@ -339,6 +443,12 @@ try:
                 logger.info(f"[LSP DID_SAVE] Skip unsupported: {file_path.suffix}")
                 return
 
+            # Отменяем debounce — Ctrl+S форсирует немедленную индексацию.
+            async with _did_change_lock:
+                pending = _did_change_pending.pop(params.text_document.uri, None)
+                if pending and not pending.done():
+                    pending.cancel()
+
             # Берём текст из памяти LSP (pygls хранит актуальное содержимое)
             # Это решает проблему отложенной записи на диск в Windows!
             content = None
@@ -351,8 +461,11 @@ try:
 
             logger.info(f"[LSP DID_SAVE] Starting indexing: {file_path.name}")
 
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _execute_file_indexing, file_path, content)
+            async with _indexing_serial_lock:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None, _execute_file_indexing, file_path, content
+                )
 
             logger.info(f"[LSP DID_SAVE] Indexing complete: {file_path.name}")
 
@@ -369,16 +482,22 @@ try:
         заметил физические изменения на диске.
         """
         try:
-            if _indexer is None:
-                logger.warning("[LSP WATCHER] Indexer not initialized, skip")
+            if _services is None:
+                logger.warning("[LSP WATCHER] Services not initialized, skip")
                 return
 
             logger.info(f"[LSP WATCHER] Zed sent {len(params.changes)} change(s)")
             for change in params.changes:
                 logger.info(f"  - URI: {change.uri}, Type: {change.type}")
 
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _process_watched_changes, params.changes)
+            async with _indexing_serial_lock:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None,
+                    _process_watched_changes,
+                    params.changes,
+                    _services_per_workspace.get(getattr(ls, "_workspace_uri", "")),
+                )
         except Exception as e:
             logger.error(
                 f"[LSP RECOVERY] Ошибка обработки изменений воркспейса: {e}",
@@ -402,8 +521,12 @@ try:
         except Exception as e:
             logger.warning(f"[LSP INIT] Не удалось записать project_root в bridge: {e}")
 
-        # ★ Используем DI контейнер вместо init_components ★
-        init_components(project_root)
+        # ★ Используем DI контейнер с per-workspace ключом ★
+        # Multi-window (INC-6BCB): передаём root_uri как workspace key,
+        # чтобы разные окна Zed получили разные DI-контейнеры.
+        ls._workspace_uri = params.root_uri or ""
+        ls._project_root = project_root
+        init_components(project_root, workspace_uri=ls._workspace_uri)
         ls._initialized = True
 
         return InitializeResult(
@@ -421,13 +544,24 @@ try:
                 FileSystemWatcher,
             )
 
-            options = DidChangeWatchedFilesRegistrationOptions(
-                watchers=[FileSystemWatcher(glob_pattern="**/*")]
+            # Фильтруем на стороне LSP-протокола, чтобы не получать
+            # события для .codebase_indices/, .git/, бинарников и т.п.
+            # (см. INC-53EC / REFC-08). Поддерживаемые расширения → один glob.
+            ext_pattern = ",".join(
+                sorted(e.lstrip(".") for e in SUPPORTED_EXTENSIONS)
             )
+            main_pattern = f"**/*.{{{ext_pattern}}}"
+            watchers = [
+                FileSystemWatcher(glob_pattern=main_pattern),
+            ]
+            options = DidChangeWatchedFilesRegistrationOptions(watchers=watchers)
             await ls.register_capability_async(
                 "workspace/didChangeWatchedFiles", options
             )
-            logger.info("[LSP INIT] Подписка на системные события файлов Zed оформлена")
+            logger.info(
+                f"[LSP INIT] Подписка на watcher оформлена "
+                f"({len(SUPPORTED_EXTENSIONS)} extensions, pattern='**/*.{{...}}')"
+            )
         except Exception as e:
             logger.warning(f"[LSP INIT] Не удалось подписаться на watcher: {e}")
 

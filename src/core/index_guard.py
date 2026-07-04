@@ -77,6 +77,7 @@ class IndexGuard:
             if "codebase_chunks" not in tables:
                 report["actions_taken"].append("table_missing_will_create")
                 report["status"] = "needs_reindex"
+                self._save_guard_state(report)
                 return report
 
             # 2. Проверка схемы
@@ -98,6 +99,7 @@ class IndexGuard:
                     # Пересоздаём таблицу
                     db.drop_table("codebase_chunks")
                     report["status"] = "needs_reindex"
+                    self._save_guard_state(report)
                     return report
             elif not self._is_schema_complete(existing_fields):
                 # Схема минимально рабочая, но неполная — мигрируем без ошибки
@@ -106,12 +108,29 @@ class IndexGuard:
                 report["actions_taken"].append("schema_migrated")
 
             # 3. Проверка целостности данных
-            row_count = len(table)
+            try:
+                row_count = table.count_rows()
+            except Exception:
+                row_count = len(table)
             if row_count == 0:
                 report["status"] = "needs_reindex"
                 report["actions_taken"].append("empty_table")
             else:
                 report["row_count"] = row_count
+                # RECONCILE (INC-53EC / REFC-12): если guard ранее зафиксировал
+                # needs_reindex, но таблица сейчас не пуста — считаем
+                # состояние примирённым и оставляем только "healthy".
+                prior = self._load_guard_state()
+                if (
+                    prior
+                    and prior.get("last_check", {}).get("status") == "needs_reindex"
+                    and prior.get("last_check", {}).get("actions_taken")
+                ):
+                    # Не подавляем текущее состояние, но в отчёт добавим
+                    # отметку о reconciliation для прозрачности.
+                    report["actions_taken"].append(
+                        f"reconciled_from_{len(prior['last_check'].get('actions_taken', []))}_prior_actions"
+                    )
 
             # 4. Проверка SymbolIndex persistence
             symbol_index_ok = self._ensure_symbol_index()
@@ -127,6 +146,16 @@ class IndexGuard:
             logger.error(f"Index guard check failed: {e}")
 
         return report
+
+    def _load_guard_state(self) -> Optional[Dict]:
+        """Читает предыдущее состояние guard (для reconciliation)."""
+        try:
+            if self._guard_file.exists():
+                with open(self._guard_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return None
 
     def _is_schema_complete(self, existing_fields: Dict[str, pa.DataType]) -> bool:
         """Проверяет полноту схемы (все ожидаемые поля)."""

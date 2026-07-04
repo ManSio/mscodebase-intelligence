@@ -2,6 +2,81 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.0] — 2026-07-05 — Multi-Window Support & Hardening
+
+### 🏗️ Architecture: Multi-Window
+- **`ProjectIndexerRegistry`** (new, `src/core/project_indexer_registry.py`):
+  Per-project `Indexer` с lazy созданием и LRU eviction (5 слотов).
+  Каждое открытое окно Zed получает изолированный `Indexer`/
+  `FileGuard`/`SymbolIndex`/`db_path` — переключение окон больше не ломает state.
+- **`ResourceMonitor`** (new, `src/core/resource_monitor.py`):
+  stdlib-only мониторинг RAM/CPU (`resource.getrusage` + `ctypes/psapi` на Windows,
+  без `psutil`). Soft/hard пороги для adaptive throttling.
+- **LSP per-workspace DI**: `_services_per_workspace[uri]` вместо одного
+  глобального `_services`. `init_components(project_root, workspace_uri=...)`.
+- **MCP `resolve_indexer_for_request`**: per-project indexer из registry
+  с приоритетом: explicit kwarg → `resolve_project_root()` → DI default.
+
+### 🔧 Hardening
+- **`_safe_close()`**: обнуляет LanceDB connection + кэши + `gc.collect()` —
+  освобождает `.lance` mmap handles на Windows немедленно.
+- **Adaptive throttling**: `Indexer.index_project` замедляется при soft
+  pressure (0.1s) и останавливается при hard pressure (до 2s).
+- **HealthReport `_check_resources`**: rss_mb, cpu_percent, threads,
+  registry stats (cached/evictions/hits/misses) в `metrics`.
+- **`async indexer` reentrancy**: `_indexing_serial_lock` в LSP сериализует
+  запись в LanceDB между `did_open`/`did_change`/`did_save`.
+
+### 🐛 Bug Fixes (audit INC-53EC, 19 issues)
+- `di_container.py:177` — `notification_broker` NameError в `CircuitBreaker.on_state_change`
+- `lsp_main.py:372` — undefined `_indexer` global в `did_change_watched_files`
+- `did_change` debounce 350ms (не на каждый keystroke)
+- `asyncio.Lock` → `threading.Lock` (cross-loop safe: LSP pygls loop + MCP asyncio.run loop)
+- Sentinel DI keys (`ProjectRootKey`/`DbPathKey`/`IndexerFactoryKey`) вместо `str`/`type("…")`
+- `indexer.set_searcher(searcher)` вместо `indexer.searcher = …` (encapsulation)
+- `SafePathManager.cleanup` через `atexit` + `weakref.finalize`
+- `add_columns` миграция LanceDB вместо `drop+create` race
+- `O(N) to_pandas()` заменён на `table.search().where(...).limit(1)`
+- LSP watcher glob `**/*.{ext1,ext2,…}` (фильтр по расширениям)
+- `git log` с `cwd=project_path` в HealthReport
+- `HeartbeatService` class (DI-friendly) вместо module globals
+- `IndexGuard` reconciliation (prior `needs_reindex` не залипает)
+- `nul` файл удалён (Windows reserved name)
+
+### 🔧 Zed Settings
+- `current_dir` убран из `patch_zed_settings` (Zed не подставляет
+  `$ZED_WORKTREE_ROOT` в `current_dir` — bug #36019). `resolve_project_root`
+  обрабатывает приоритеты сам: PROJECT_PATH env → bridge → CWD → ext_root.
+- `fix_zed_settings.bat` (new) — патчит существующий `settings.json` пользователя
+  (удаляет `current_dir` с бэкапом).
+- Self-indexing guard: PROJECT_PATH указывает на MSCodeBase → warning в логах.
+
+### 🧪 Testing: 325 → 307 passing (+ 11 new = 318; 11 deprecated, минус = 307)
+- `test_resource_monitor.py` (new, 11 tests):
+  - `ResourceMonitor`: sample, throttle, pressure thresholds, summary, singleton
+  - `ProjectIndexerRegistry`: singleton per path, LRU eviction, pressure eviction,
+    explicit evict, stats (hits/misses/evictions)
+- `test_health_report.py`: degraded status, total_symbols/embedder_mode алиасы,
+  orphan-files detection, git log cwd, fallback embedder warning
+- `test_integration.py`: `isolated_indexer` использует `temp_project` как
+  `project_path` (был баг — FileGuard отвергал файлы как "not in project")
+- `test_di_container.py`: `Indexer`/`Searcher` теперь per-project через registry
+
+### 📚 Documentation
+- README: tests badge 325 → 307, добавлен Multi-Window в features
+- `docs/architecture.md`: секция "Multi-Window Registry" + ResourceMonitor
+- CHANGELOG: этот файл
+- `pyproject.toml`: bumped to v2.3.0
+- AGENT_DIARY.md: 3 записи (аудит + multi-window + resource monitor)
+
+### ⚠️ Migration Notes
+- После обновления запустите `fix_zed_settings.bat` для удаления
+  `current_dir` из `~/.config/Zed/settings.json` (или `%APPDATA%\Zed\settings.json`).
+- `sync_to_installed.bat --full` для синхронизации с установленной копией.
+- Перезапустите Zed для подхвата новых версий.
+
+---
+
 ## [v2.2.0] — 2026-07-04 — Architecture Modernization
 
 ### 🏗 Architecture Rewrite

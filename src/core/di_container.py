@@ -27,12 +27,48 @@ from src.core.rate_limiter import (
     SlidingWindowRateLimiter,
 )
 from src.core.remote_embedder import RemoteEmbedder
+from src.core.resource_monitor import (
+    ResourceMonitor,
+    get_global_resource_monitor,
+)
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
+from src.core.project_indexer_registry import ProjectIndexerRegistry, get_global_registry
 
 logger = logging.getLogger("mscodebase_server.di")
 
 T = TypeVar("T")
+
+
+class ProjectRootKey:
+    """Sentinel-ключ для project_root в DI. Импортируется потребителями."""
+    pass
+
+
+class DbPathKey:
+    """Sentinel-ключ для db_path в DI. Импортируется потребителями."""
+    pass
+
+
+class IndexerFactoryKey:
+    """Sentinel-ключ для Indexer factory в DI (см. INC-6BCB / multi-window)."""
+    pass
+
+
+class ResourceMonitorKey:
+    """Sentinel-ключ для ResourceMonitor в DI (см. INC-6BCB / multi-window)."""
+    pass
+
+
+# Экспортируем для потребителей.
+__all__ = [
+    "ServiceCollection",
+    "ProjectRootKey",
+    "DbPathKey",
+    "IndexerFactoryKey",
+    "ResourceMonitorKey",
+    "create_service_collection",
+]
 
 
 class ServiceCollection:
@@ -125,18 +161,19 @@ def create_service_collection(
     services = ServiceCollection()
 
     # ══════════════════════════════════════════════════════
-    # Утилитные типы (keys)
-    # ══════════════════════════════════════════════════════
-    # Используем строку как ключ (не Path, т.к. может конфликтовать)
-    services.add_singleton(str, project_root)  # "project_root"
-    # Но также регистрируем как контекстный маркер
-    services.add_singleton(type("ProjectRoot", (), {}), project_root)
+    # Базовые компоненты (без зависимостей от других)
+    # db_path нужен ДО регистрации sentinel-ключа.
+    db_path = _generate_unique_db_path(project_root)
 
     # ══════════════════════════════════════════════════════
-    # Базовые компоненты (без зависимостей от других)
+    # Утилитные типы (keys)
     # ══════════════════════════════════════════════════════
-    db_path = _generate_unique_db_path(project_root)
-    services.add_singleton(Path, db_path)  # db_path
+    # Sentinel-классы вместо str / type("…", (), {}) —
+    # иначе ключи невозможно импортировать обратно (анонимный тип
+    # создаётся заново при каждом импорте), а str конфликтует
+    # с любым будущим string-сервисом. См. INC-53EC / REFC-04.
+    services.add_singleton(ProjectRootKey, project_root)
+    services.add_singleton(DbPathKey, db_path)
 
     code_parser = CodeParser()
     services.add_singleton(CodeParser, code_parser)
@@ -164,12 +201,69 @@ def create_service_collection(
     services.add_singleton(SymbolIndex, symbol_index)
 
     # ══════════════════════════════════════════════════════
+    # Project Indexer Registry (multi-window support).
+    # Раньше Indexer был singleton в DI — переключение окон Zed
+    # ломало state. Теперь Indexer-ы per-project_path, ленивое
+    # создание через ProjectIndexerRegistry.
+    # см. INC-6BCB / multi-window.
+    # ══════════════════════════════════════════════════════
+    # ResourceMonitor: подключаем к registry для adaptive throttling
+    # (LRU evict под давлением RAM/CPU).
+    resource_monitor = get_global_resource_monitor()
+    services.add_singleton(ResourceMonitorKey, resource_monitor)
+    services.add_singleton(ResourceMonitor, resource_monitor)
+
+    registry = ProjectIndexerRegistry(
+        max_cached=5,
+        resource_monitor=resource_monitor,
+    )
+
+    def _create_indexer_for_path(p: Path) -> Indexer:
+        """Фабрика для создания per-project Indexer.
+
+        Каждый Indexer получает свой db_path, file_guard, symbol_index —
+        изолировано от других окон.
+        """
+        p_db_path = _generate_unique_db_path(p)
+        p_file_guard = FileGuard(p)
+        # Per-project FileGuard и symbol_index изолируют state.
+        p_symbol_index = SymbolIndex()
+        p_indexer = Indexer(
+            db_path=p_db_path,
+            embedder=embedder,
+            file_guard=p_file_guard,
+            project_path=p,
+            parser=code_parser,
+            symbol_index=p_symbol_index,
+            notification_broker=notification_broker,
+        )
+        # Searcher создаём сразу и связываем через set_searcher.
+        p_searcher = Searcher(p_indexer, embedder)
+        p_indexer.set_searcher(p_searcher)
+        return p_indexer
+
+    services.add_singleton(ProjectIndexerRegistry, registry)
+    services.add_singleton(IndexerFactoryKey, _create_indexer_for_path)
+
+    # ══════════════════════════════════════════════════════
+    # Event Broker (Push-уведомления в Zed)
+    # ОБЪЯВЛЯЕМ ПЕРВЫМ — иначе CircuitBreaker.on_state_change
+    # не сможет захватить его в closure (был NameError на первом
+    # срабатывании LM Studio, см. INC-53EC / BUG-01).
+    # ══════════════════════════════════════════════════════
+    from src.core.notification_broker import NotificationBroker
+
+    notification_broker = NotificationBroker()
+    services.add_singleton(NotificationBroker, notification_broker)
+
+    # ══════════════════════════════════════════════════════
     # Rate Limiting компоненты (защита от перегрузки)
     # ══════════════════════════════════════════════════════
     rate_limiter = SlidingWindowRateLimiter()
     services.add_singleton(SlidingWindowRateLimiter, rate_limiter)
 
-    # CircuitBreaker для LM Studio
+    # CircuitBreaker для LM Studio.
+    # Callback захватывает уже объявленный notification_broker.
     lm_studio_breaker = CircuitBreaker(
         failure_threshold=5,
         recovery_timeout=30.0,
@@ -184,52 +278,33 @@ def create_service_collection(
             },
         ),
     )
-    services.add_singleton(type("LmStudioCircuitBreaker", (), {}), lm_studio_breaker)
+    services.add_singleton(CircuitBreaker, lm_studio_breaker)
 
     # ══════════════════════════════════════════════════════
-    # Event Broker (Push-уведомления в Zed)
+    # DebounceBatch — пакетная реиндексация BM25.
+    # Debounce per-project (через registry), чтобы reindex разных
+    # проектов не дрался за один общий queue.
+    # см. INC-6BCB / multi-window.
     # ══════════════════════════════════════════════════════
-    from src.core.notification_broker import NotificationBroker
+    def _batch_reindex_bm25_factory(p: Path):
+        """Создаёт DebounceBatch привязанный к конкретному project_path."""
+        captured_path = p
+        captured_registry = registry
 
-    notification_broker = NotificationBroker()
-    services.add_singleton(NotificationBroker, notification_broker)
+        def _callback(changed_files: set):
+            idx = captured_registry.get_indexer(captured_path)
+            if idx and idx.searcher:
+                idx.searcher.reindex()
 
-    # ══════════════════════════════════════════════════════
-    # Indexer (зависит от embedder, file_guard, parser)
-    # ══════════════════════════════════════════════════════
-    indexer = Indexer(
-        db_path=db_path,
-        embedder=embedder,
-        file_guard=file_guard,
-        project_path=project_root,
-        parser=code_parser,
-        symbol_index=symbol_index,
-        notification_broker=notification_broker,
+        return DebounceBatch(
+            callback=_callback,
+            config=DebounceConfig(debounce_ms=500, max_batch_size=100, max_wait_ms=5000),
+        )
+
+    # Регистрируем DebounceBatch как factory per-project (lazy).
+    services._factories[DebounceBatch] = lambda sc: _batch_reindex_bm25_factory(
+        sc.resolve(ProjectRootKey)
     )
-    services.add_singleton(Indexer, indexer)
-
-    # ══════════════════════════════════════════════════════
-    # Searcher (зависит от indexer, embedder)
-    # ══════════════════════════════════════════════════════
-    searcher = Searcher(indexer, embedder)
-    indexer.searcher = searcher  # обратная связь
-    services.add_singleton(Searcher, searcher)
-
-    # ══════════════════════════════════════════════════════
-    # DebounceBatch — пакетная реиндексация BM25
-    # ══════════════════════════════════════════════════════
-    # Вместо searcher.reindex() на каждый файл — накапливаем батч
-    # и реиндексируем BM25 раз в 500ms (или при 100 файлах)
-    def _batch_reindex_bm25(changed_files: set):
-        """Callback для DebounceBatch — реиндексация BM25."""
-        logger.info(f"BM25 reindex triggered for {len(changed_files)} changed files")
-        searcher.reindex()
-
-    bm25_batch = DebounceBatch(
-        callback=_batch_reindex_bm25,
-        config=DebounceConfig(debounce_ms=500, max_batch_size=100, max_wait_ms=5000),
-    )
-    services.add_singleton(DebounceBatch, bm25_batch)
 
     logger.info(
         f"DI Container initialized for {project_root.name}: "

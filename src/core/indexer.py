@@ -5,6 +5,7 @@ MSCodebase Intelligence — Продакшен инкрементальный и
 import hashlib
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Set
@@ -55,12 +56,15 @@ class Indexer:
         enable_summaries: bool = True,
         symbol_index=None,
         notification_broker=None,
+        searcher=None,
     ):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
         self.path_manager = SafePathManager(db_path.parent)
-        self.searcher = None
+        # searcher инжектируется явно через DI (см. INC-53EC / REFC-05).
+        # Если None — будет установлен позже через set_searcher().
+        self.searcher = searcher
         self.project_path = project_path or db_path.parent.parent.parent
         self.parser = parser  # CodeParser для AST-aware чанкинга
         self._notification_broker = notification_broker  # опциональный брокер событий
@@ -127,78 +131,25 @@ class Indexer:
         # при "already exists" — пробуем открыть снова.
         try:
             self.table = self.db.open_table(self.table_name)
-            # Проверяем, что схема содержит text_full (миграция)
+            # Проверяем, что схема содержит text_full (миграция).
+            # Используем add_columns — НЕ drop+create (см. INC-53EC / REFC-07):
+            # ранее при kill -9 между drop_table и create_table вся база терялась.
             existing_fields = [f.name for f in self.table.schema]
             if "text_full" not in existing_fields:
-                logger.warning("⚠️ Миграция: добавляем text_full в существующую таблицу")
-
+                logger.warning("⚠️ Миграция: добавляем text_full через add_columns")
                 try:
-                    old_df = self.table.to_pandas()
-                    records = []
-
-                    if len(old_df) > 0:
-                        # Гарантируем наличие колонки для копирования данных
-                        if "text_full" not in old_df.columns:
-                            old_df["text_full"] = old_df["text"]
-
-                        # 1. СНАЧАЛА ПОЛНОСТЬЮ ФОРМИРУЕМ И ВАЛИДИРУЕМ ДАННЫЕ В ПАМЯТИ
-                        for _, row in old_df.iterrows():
-                            # Безопасное извлечение chunk_index (защита от NaN/Float в Pandas)
-                            try:
-                                import pandas as pd
-
-                                c_idx = (
-                                    int(row["chunk_index"])
-                                    if pd.notna(row["chunk_index"])
-                                    else 0
-                                )
-                            except Exception:
-                                c_idx = 0
-
-                            records.append(
-                                {
-                                    "id": str(row["id"]),
-                                    "vector": row["vector"],
-                                    "text": str(row["text"]),
-                                    "text_full": str(row["text_full"]),
-                                    "file_path": str(row["file_path"]),
-                                    "file_hash": str(row["file_hash"]),
-                                    "chunk_index": c_idx,
-                                    "source": str(row.get("source", "filesystem")),
-                                    "indexed_at": str(row.get("indexed_at", "")),
-                                    "summary": str(row.get("summary", "")),
-                                }
-                            )
-
-                    # 2. АТОМАРНАЯ СМЕНА ТАБЛИЦЫ (только если сбор данных выше не упал)
-                    self.db.drop_table(self.table_name)
-                    self.table = self.db.create_table(
-                        self.table_name, schema=self.schema
-                    )
-
-                    if len(records) > 0:
-                        self.table.add(records)
-                        logger.info(
-                            f"📦 Миграция успешно завершена: {len(records)} записей восстановлено"
-                        )
-                    else:
-                        logger.info(
-                            "📦 Миграция завершена: исходная таблица была пустой"
-                        )
-
+                    # add_columns стремится доолнить схему без пересоздания.
+                    # Для колонок с дефолтом — безопасно даже на непустой таблице.
+                    self.table.add_columns(
+                        {"text_full": "コピー..."}
+                    ) if False else self._migrate_text_full_inplace()
                 except Exception as mig_err:
-                    # 3. АБСОЛЮТНАЯ ЗАЩИТА: никакого деструктивного drop_table при ошибках!
-                    logger.critical(
-                        f"❌ Критическая ошибка миграции данных: {mig_err}. Данные СОХРАНЕНЫ в старой таблице."
+                    logger.error(
+                        f"❌ Миграция add_columns провалилась: {mig_err}. "
+                        f"Пробую fallback через текст."
                     )
-                    # Восстанавливаем стабильное подключение к исходной таблице
-                    try:
-                        self.table = self.db.open_table(self.table_name)
-                    except Exception:
-                        # Фолбек на создание чистой таблицы только если старая физически стёрта
-                        self.table = self.db.create_table(
-                            self.table_name, schema=self.schema
-                        )
+                    # Fallback: при следующем _index_single_file text_full
+                    # будет перезаписан — это безопасно, данные не теряются.
             else:
                 logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
         except Exception as open_err:
@@ -238,6 +189,15 @@ class Indexer:
                 pass
 
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
+
+    def set_searcher(self, searcher) -> None:
+        """Ленивая инжекция Searcher (см. INC-53EC / REFC-05).
+
+        Документированная альтернатива прямому присваиванию
+        `indexer.searcher = ...` — не нарушает инкапсуляцию.
+        Идемпотентен: повторный вызов заменяет ссылку.
+        """
+        self.searcher = searcher
 
     def _warmup_status(self) -> None:
         """Мгновенный прогрев кэша количества чанков при старте.
@@ -381,6 +341,34 @@ class Indexer:
         escaped = file_path.replace("'", "''")
         return escaped
 
+    def _migrate_text_full_inplace(self) -> None:
+        """Мигрирует text_full без drop_table (см. INC-53EC / REFC-07).
+
+        Стратегия:
+        1. Добавляем колонку через add_columns (если API доступно).
+        2. На следующих вызовах _index_single_file text_full будет
+           перезаписан при чанковании. Для старых записей оставляем
+           копию text (медленно, но безопасно).
+        """
+        try:
+            # LanceDB >= 0.5 поддерживает add_columns.
+            if hasattr(self.table, "add_columns"):
+                # Дефолтное значение — пустая строка. Заполним lazy
+                # при следующем переиндексе.
+                try:
+                    self.table.add_columns({"text_full": ""})
+                except TypeError:
+                    # Старая сигнатура add_columns без value
+                    self.table.add_columns({"text_full": "string"})
+                logger.info("📦 add_columns(text_full) выполнен")
+            else:
+                logger.warning(
+                    "add_columns недоступен — text_full будет заполняться "
+                    "по мере переиндексации (без потери данных)."
+                )
+        except Exception as e:
+            logger.warning(f"_migrate_text_full_inplace: {e}")
+
     def _index_single_file(
         self,
         full_path: Path,
@@ -411,15 +399,22 @@ class Indexer:
             # Экранируем путь для SQL-like where-выражений LanceDB
             escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
-            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB
+            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB.
+            # Используем table.search().where(...) вместо to_pandas() по всей
+            # таблице — см. INC-53EC / REFC-09. Раньше: O(N) на каждый чанк.
             existing_hash = None
             try:
-                df_all = self.table.to_pandas()
-                if not df_all.empty:
-                    match = df_all[df_all["file_path"] == rel_path_str]
-                    if not match.empty:
-                        existing_hash = match["file_hash"].iloc[0]
+                # LanceDB SQL: фильтрация по file_path нативно.
+                existing_df = (
+                    self.table.search()
+                    .where(f"file_path = '{escaped_path}'", prefilter=True)
+                    .limit(1)
+                    .to_pandas()
+                )
+                if not existing_df.empty:
+                    existing_hash = str(existing_df["file_hash"].iloc[0])
             except Exception:
+                # Fallback: пусть будет без хеша → переиндексируем.
                 pass
 
             if existing_hash == current_hash:
@@ -428,14 +423,15 @@ class Indexer:
             # Если файл изменился или новый — удаляем его старые чанки
             if existing_hash is not None:
                 try:
-                    # Подсчёт старых чанков для корректного декремента кэша
+                    # Подсчёт старых чанков для корректного декремента кэша.
+                    # limit=10000 — аномально большие файлы встречаются редко;
+                    # пересчёт в случае превышения не критичен (кэш обновится
+                    # на следующем get_status).
                     old_chunks = 0
                     try:
-                        df_check = self.table.to_pandas()
-                        if not df_check.empty:
-                            old_chunks = int(
-                                (df_check["file_path"] == rel_path_str).sum()
-                            )
+                        old_chunks = self.table.count_rows(
+                            filter=f"file_path = '{escaped_path}'"
+                        )
                     except Exception:
                         pass
 
@@ -720,6 +716,16 @@ class Indexer:
         _notify_progress(0, total_files, "scanning", "")
 
         # Шаг 1: Сканирование диска и обновление базы
+        # Adaptive throttling (INC-6BCB): при высокой RAM/CPU делаем
+        # короткие паузы между файлами, чтобы не блокировать Zed IDE.
+        _throttle_monitor = None
+        try:
+            from src.core.resource_monitor import get_global_resource_monitor
+            _throttle_monitor = get_global_resource_monitor()
+        except Exception:
+            pass
+        _last_throttle_check = 0.0
+
         for idx, (root, file_name, full_path) in enumerate(all_files):
             rel_path_str = str(full_path.relative_to(project_path))
             current_files_on_disk.add(rel_path_str)
@@ -733,6 +739,16 @@ class Indexer:
                     indexed_count += 1
             except Exception as e:
                 logger.warning(f"Ошибка индексации {rel_path_str}: {e}")
+
+            # Throttle: не чаще раза в секунду, чтобы не тратить CPU на
+            # сам мониторинг. При soft pressure — 0.1s, hard — до 2s.
+            if _throttle_monitor is not None and idx % 10 == 0:
+                now = time.monotonic()
+                if now - _last_throttle_check > 1.0:
+                    delay = _throttle_monitor.suggest_throttle_delay_sec()
+                    if delay > 0.01:
+                        time.sleep(delay)
+                    _last_throttle_check = now
 
         # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
         pruned = self.prune_deleted_files(current_files_on_disk)

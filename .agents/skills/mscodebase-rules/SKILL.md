@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code, deep_search, cross_repo_search, get_symbol_info, impact_analysis, get_context, get_repo_map, scan_changes, context_search, structural_search, get_logs, get_index_progress. Use search_code(agentic=True) for complex multi-part questions."
+description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code (fast/quality/deep/context/auto modes), cross_repo_search, get_symbol_info, impact_analysis, get_repo_map, scan_changes, structural_search, get_logs, get_index_progress. Use search_code(mode=...) for all semantic search needs."
 ---
 
 # MSCodeBase Tool Selection Rules
@@ -11,15 +11,15 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 |---|---|---|
 | Find a specific file by path or exact class/function name | `grep` / `find_path` | Instant, 100% exact match accuracy |
 | Understand architecture, search by concept/intent, find relationships | MCP `search_code` | Semantic vector search connects abstract concepts |
-| Complex research queries, multi-step investigation | MCP `deep_search` | Iterative search with query refinement across multiple passes |
+| Complex research queries, multi-step investigation | MCP `search_code(mode="deep")` | Iterative multi-pass search with query refinement |
 | Cross-project search in mono-repos | MCP `cross_repo_search` | Search across multiple indexed projects with @-mention syntax |
 | Rewrite a function and analyze what will break | MCP `impact_analysis` | Risk score, affected files, callers count |
 | Find callers/callees of a symbol | MCP `get_symbol_info` (Call Graph) | Shows definition + direct dependencies |
 | Files created/deleted outside of Zed | MCP `scan_changes` | Architectural diff + impact analysis |
-| Quick onboarding into unfamiliar code | MCP `get_context` | Compressed context tailored for token efficiency |
+| Quick onboarding into unfamiliar code | MCP `search_code(mode="context")` / `grep` | Semantic code search by fragment |
 | Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
 | Check system health | MCP `watcher_status` | Embedder mode, LSP status |
-| Find similar code / duplicates / alternative implementations | MCP `context_search` | Semantic search by selected code fragment |
+| Find similar code / duplicates / alternative implementations | MCP `search_code(mode="context")` | Semantic search by selected code fragment |
 | Search by code structure (not text) | MCP `structural_search` | 13 AST patterns (class_inheritance, decorator, async, etc.) |
 | Complex multi-part questions | MCP `search_code(agentic=True)` | Auto-decomposes into sub-queries, searches, analyzes relations |
 | Diagnose errors / check logs | MCP `get_logs` | Last errors and warnings from project logs |
@@ -30,16 +30,16 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 | # | Tool | Purpose |
 |---|---|---|
 | 1 | `get_index_status` | Database state + chunk count |
-| 2 | `index_project_dir` | Trigger full re-indexing |
+| 2 | `intel_trigger_reindex` | Async fire-and-forget re-indexing (non-blocking) |
 | 3 | `search_code` | Semantic search by concept |
-| 4 | `deep_search` | Iterative multi-pass search with query refinement |
+| 4 | `search_code(mode="deep")` | Multi-pass search via mode parameter |
 | 5 | `cross_repo_search` | Multi-project search with @-mentions |
-| 6 | `get_context` | Compressed multi-chunk context |
+| 6 | `search_code(mode="context")` | Context-aware semantic search |
 | 7 | `get_symbol_info` | Call graph: definition + callers + callees |
 | 8 | `impact_analysis` | Risk assessment: score, affected files, risk level |
 | 9 | `get_repo_map` | Project structure + symbols |
 | 10 | `scan_changes` | Architectural diff |
-| 11 | `context_search` | Similar code by fragment |
+| 11 | `search_code(mode="context")` | Similar code by fragment (replaces context_search) |
 | 12 | `structural_search` | AST pattern matching (13 patterns) |
 | 13 | `watcher_status` | System health |
 | 14 | `get_logs` | Recent errors from logs |
@@ -75,24 +75,22 @@ description: "Tool selection rules for the Zed AI agent. Determines which tool t
 
 **5. Context Optimization:** Read code in targeted, small chunks (max 50 lines). Do not attempt to ingest entire files unless absolutely necessary.
 
-**6. State Awareness:** The index now uses warmup on startup — 0 chunks means truly empty (first run). If empty, trigger `index_project_dir` and wait for completion before using `search_code`.
+**6. State Awareness:** The index now uses warmup on startup — 0 chunks means truly empty (first run). If empty, trigger `intel_trigger_reindex` (async) and poll via `intel_get_job_status` before using `search_code`.
 
 **7. Path Protocol:** Use native Windows paths (backslashes) when passing to MCP tools. Do NOT normalize to POSIX lowercase — our tools handle Windows paths natively.
 
-**8. Post-Modification Sync:** After writing any file, call `index_project_dir(path)` + `get_index_status()` to verify cache state. Use `get_index_progress()` to monitor async indexing progress.
+**8. Post-Modification Sync:** After writing any file, call `notify_change(file_path=...)` + `get_index_status()` to verify cache state. For re-indexing use `intel_trigger_reindex` (non-blocking).
 
-**9. Indexing Progress Awareness:** After `index_project_dir()`, indexing runs async. Use `get_index_progress()` to check status:
-- phase="complete" → safe to use `search_code`
-- phase="scanning" → wait or use `grep` as fallback
-- percent < 50% → warn user indexing still in progress
-- percent >= 80% → indexing almost done, results may be partial
+**9. Indexing Progress Awareness:** After `intel_trigger_reindex()`, indexing runs async. Use `intel_get_job_status(job_id)` to check status:
+- status="completed" → safe to use `search_code`
+- else → use `grep` as fallback until reindex completes
 
-**10. Complex Research:** Use `deep_search` for multi-step investigations. Use `cross_repo_search` with @-mentions for cross-project queries.
+**10. Complex Research:** Use `search_code(mode="deep")` for multi-step investigations. Use `cross_repo_search` with @-mentions for cross-project queries.
 
 **11. Structural Analysis:** Use `structural_search` when you need code by structure (not text). 13 AST patterns available.
 
 **12. Agentic Code Search:** Use `search_code(agentic=True)` or simply `search_code` for complex multi-part questions. Auto-decomposes query → parallel sub-searches → relation analysis → RRF aggregation. Based on arxiv.org/abs/2505.14321.
 
-**13. MCP Quality over grep:** ALWAYS prefer MCP semantic tools (`search_code`, `deep_search`, `get_context`) over `grep`/`find_path` for code research. MCP tools find by concept/intent, not exact text — they catch relationships and context that grep misses. Use `grep` only for exact symbol names or when MCP index is empty.
+**13. MCP Quality over grep:** ALWAYS prefer MCP semantic tools (`search_code` with appropriate mode) over `grep`/`find_path` for code research. MCP tools find by concept/intent, not exact text — they catch relationships and context that grep misses. Use `grep` only for exact symbol names or when MCP index is empty.
 
 **14. LanceDB Migration Safety:** NEVER call `drop_table` before data is fully validated in memory. Migration pattern: read → validate in memory → drop old → create new → insert. If validation fails, preserve original table. Always guard `chunk_index` against NaN/Float from Pandas with `pd.notna()` check.

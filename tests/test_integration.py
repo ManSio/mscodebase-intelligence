@@ -36,10 +36,15 @@ def helper():
 
 
 @pytest.fixture
-def isolated_indexer(tmp_path):
+def isolated_indexer(tmp_path, temp_project):
     """
-    Каждый тест получает абсолютно чистую, изолированную папку в /tmp/pytest-of-user/...
+    Каждый тест получает абсолютно чистую, изолированную папку.
     Конфликты блокировок таблиц и старых данных LanceDB исключены на 100%.
+
+    ВАЖНО: project_path = temp_project (где лежат файлы main.py/utils.py),
+    а не tmp_path. FileGuard проверяет, что файлы находятся ВНУТРИ
+    project_path через file_path.relative_to(self.project_path) — иначе
+    "File not in project" и 0 чанков (см. INC-6BCB / test_integration).
     """
     from src.core.file_guard import FileGuard
     from src.core.indexer import Indexer
@@ -51,14 +56,16 @@ def isolated_indexer(tmp_path):
     embedder_mock.embed.return_value = [0.1] * 1024
     embedder_mock.embed_batch.return_value = [[0.1] * 1024] * 5
 
-    file_guard = FileGuard(tmp_path)
-    indexer = Indexer(db_dir, embedder_mock, file_guard, project_path=tmp_path, enable_summaries=False)
+    file_guard = FileGuard(temp_project)
+    indexer = Indexer(
+        db_dir, embedder_mock, file_guard,
+        project_path=temp_project, enable_summaries=False,
+    )
 
     yield indexer
 
     # LanceDB не имеет close() метода - просто удалим временную папку
     import shutil
-
     shutil.rmtree(tmp_path, ignore_errors=True)
 
 
