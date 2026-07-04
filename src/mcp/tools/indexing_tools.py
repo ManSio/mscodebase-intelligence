@@ -44,12 +44,10 @@ class NotifyChangeTool(MCPTool):
         self,
         file_path: str,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
+    ) -> str:
         # ★ RATE LIMIT: максимум 10 notify_change в секунду ★
         if not await self.rate_limiter.acquire("notify_change", max_per_sec=10.0):
-            raise RateLimitError(
-                detail="Too many notify_change calls. Wait and retry."
-            )
+            return "⚠️ Rate limit exceeded: too many notify_change calls. Wait and retry."
 
         project_root = self._get_project_root()
         rel_path = self._resolve_and_validate_path(file_path, project_root)
@@ -66,23 +64,11 @@ class NotifyChangeTool(MCPTool):
         )
 
         if success:
-            # ★ Вместо немедленного searcher.reindex() —
-            # добавляем файл в DebounceBatch ★
             rel_path_str = str(rel_path.relative_to(project_root))
             await self.bm25_batch.add(rel_path_str)
+            return f"✅ Index updated: {rel_path_str} (source: {source})"
 
-            return {
-                "status": "ok",
-                "file": str(rel_path.relative_to(project_root)),
-                "action": "indexed",
-                "source": source,
-            }
-
-        return {
-            "status": "ok",
-            "file": str(rel_path.relative_to(project_root)),
-            "action": "unchanged",
-        }
+        return f"⏭️ No changes: {str(rel_path.relative_to(project_root))}"
 
     def _get_project_root(self) -> Path:
         """Определяет корень проекта."""
@@ -159,17 +145,32 @@ class IndexProjectDirTool(MCPTool):
         self,
         path: str,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
+    ) -> str:
         target_path = Path(path).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {path}"}
+            return f"❌ Path does not exist: {path}"
 
-        # Запускаем фоновую индексацию (Fire-and-Forget)
-        # ... (интеграция с существующей task_queue)
-        return {
-            "status": "ok",
-            "message": f"Indexing started for {target_path.name}",
-        }
+        # Запускаем полную индексацию в фоновом потоке
+        logger.info(f"🔄 Starting full indexing for {target_path.name}...")
+
+        # Переключаем проект
+        self.indexer.switch_project(target_path)
+        from src.core.file_guard import FileGuard
+        self.indexer.file_guard = FileGuard(target_path)
+
+        try:
+            import asyncio
+            indexed = await asyncio.to_thread(
+                self.indexer.index_project, target_path
+            )
+            return (
+                f"✅ Индексация завершена: {target_path.name}\n"
+                f"  • Обработано файлов: {indexed}\n"
+                f"  • Используйте get_index_status() для проверки состояния"
+            )
+        except Exception as e:
+            logger.error(f"Indexing error: {e}")
+            return f"❌ Ошибка индексации: {e}"
 
 
 class IndexHealthTool(MCPTool):

@@ -34,10 +34,10 @@ class GetIndexStatusTool(MCPTool):
         self.embedder = services.resolve(RemoteEmbedder)
 
     @error_boundary("get_index_status", timeout_ms=3000)
-    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
+    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> str:
         stats = self.indexer.get_status()
         if "error" in stats:
-            return {"status": "error", "message": stats["error"]}
+            return f"❌ Error: {stats['error']}"
 
         total_symbols = (
             self.symbol_index.get_symbol_count()
@@ -45,15 +45,25 @@ class GetIndexStatusTool(MCPTool):
             else "N/A"
         )
         embedder_mode = getattr(self.embedder, "mode", "unknown")
+        mode_label = {
+            "lm_studio": "🌐 LM Studio",
+            "ollama": "🦙 Ollama",
+            "onnx": "⚙️ ONNX (локальный)",
+            "fallback": "⚠️ Заглушка",
+        }.get(embedder_mode, embedder_mode)
 
-        return {
-            "status": "ok",
-            "total_chunks": stats.get("total_chunks", 0),
-            "unique_files": stats.get("unique_files", 0),
-            "total_symbols": total_symbols,
-            "status_db": stats.get("status", "unknown"),
-            "embedder_mode": embedder_mode,
-        }
+        chunks = stats.get("total_chunks", 0)
+        files = stats.get("unique_files", 0)
+        db_status = stats.get("status", "unknown")
+
+        return (
+            f"📊 Статус базы данных MSCodebase:\n"
+            f"  • Всего фрагментов кода в базе (LanceDB): {chunks}\n"
+            f"  • Проиндексировано уникальных файлов: {files}\n"
+            f"  • Найдено структурных символов (Tree-sitter): {total_symbols}\n"
+            f"  • Состояние движка: {db_status}\n"
+            f"  • Режим эмбеддера: {mode_label}"
+        )
 
 
 class GetIndexProgressTool(MCPTool):

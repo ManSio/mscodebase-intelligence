@@ -89,16 +89,18 @@ class SearchCodeTool(MCPTool):
         mode: str = "auto",
         limit: int = 6,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
+    ) -> str:
         self.require_index()
 
         if not query or not query.strip():
-            return {"status": "error", "message": "Query is empty"}
+            return "❌ Query is empty"
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
-            result = self.searcher.search_with_mode(query, mode=mode, limit=limit)
-            return self._format_results(result, mode)
+            return self._format_results(
+                self.searcher.search_with_mode(query, mode=mode, limit=limit),
+                mode,
+            )
 
         if mode == "deep":
             return self.searcher.deep_search(query, limit=limit)
@@ -130,28 +132,38 @@ class SearchCodeTool(MCPTool):
             return self.searcher.search(query, limit=6)
 
     @staticmethod
-    def _format_results(result: dict, mode: str) -> dict:
-        """Форматирует результаты smart search."""
+    def _format_results(result: dict, mode: str) -> str:
+        """Форматирует результаты smart search в читаемый текст."""
         results = result.get("results", [])
         timing = result.get("timing_ms", {})
 
-        formatted = []
-        for res in results:
-            score = res.get("final_score", res.get("score", 0))
-            formatted.append({
-                "file": res["metadata"]["file"],
-                "chunk_index": res["metadata"]["chunk_index"],
-                "score": round(score, 4),
-                "text": res.get("text_full", res.get("text", ""))[:300],
-            })
+        mode_emoji = {"fast": "⚡", "quality": "🎯", "smart": "🎯"}
+        lines = [
+            f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]"
+        ]
 
-        return {
-            "status": "ok",
-            "mode": mode,
-            "results_count": len(formatted),
-            "total_ms": timing.get("total_ms", 0),
-            "results": formatted,
-        }
+        if not results:
+            lines.append("  🔍 По запросу ничего не найдено.")
+            return "\n".join(lines)
+
+        lines.append(f"  Results: {len(results)}")
+        lines.append(f"  Time: {timing.get('total_ms', 0):.0f}ms")
+        if result.get("cache_hit"):
+            lines.append("  Cache: HIT ✅")
+        lines.append("")
+
+        for i, res in enumerate(results, 1):
+            score = res.get("final_score", res.get("score", 0))
+            file_path = res["metadata"]["file"]
+            chunk_idx = res["metadata"]["chunk_index"]
+            code = res.get("text_full", res.get("text", ""))[:200]
+
+            lines.append(f"{i}. 📄 {file_path} [Chunk #{chunk_idx}] (score: {score:.3f})")
+            if code:
+                lines.append(f"```\n{code}\n```")
+            lines.append("-" * 40)
+
+        return "\n".join(lines)
 
 
 class GetSymbolInfoTool(MCPTool):
