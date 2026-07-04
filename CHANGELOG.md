@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.2] — 2026-07-05 — Multi-Root Awareness + Self-Indexing Guard
+
+### 🐛 Critical Bug: Self-Indexing Zed Install Dir
+- **Симптом:** MCP индексирует `D:\AI\Zed\` (саму установку Zed) вместо
+  пользовательского проекта. Видно как `db_isolated_path:
+  D:\AI\Zed\.codebase_indices\...` в `intel_get_runtime_status`.
+- **Корень:** LSP получает от Zed `params.root_uri` (или `workspaceFolders`).
+  Если Zed открыт с `D:\AI\Zed` как worktree root (последний открытый
+  workspace, или Zed IDE запущен без явного проекта), LSP пишет в bridge
+  именно этот путь, и MCP индексирует всю директорию Zed (exe, dll, конфиги).
+- **Решение:**
+  1. `lsp_project_bridge.is_zed_install_dir(path)` — детектит Zed install dir
+     по маркерам в пути (Zed.exe, %LOCALAPPDATA%\Zed, и т.п.) и по
+     наличию Zed.exe рядом с директорией.
+  2. `lsp_main.on_initialize` — читает `params.workspaceFolders` (LSP 3.6+),
+     фильтрует Zed install dir, инициализирует DI для каждого оставшегося.
+  3. `lsp_project_bridge.write_active_project` — принимает `all_workspaces`
+     список URI всех воркспейсов.
+  4. `lsp_project_bridge.read_active_project` — выбирает первый non-Zed-install
+     workspace из `all_workspaces`, fallback на `project_root`.
+  5. LSP-сервер теперь объявляет `workspace.workspaceFolders` capability
+     (supported: True, changeNotifications: True) — Zed будет присылать
+     `workspace/didChangeWorkspaceFolders` при открытии/закрытии проектов.
+
+### 🔧 Multi-Root LSP
+- `ls._all_workspaces` — список URI всех открытых воркспейсов (для watcher'ов).
+- Per-workspace DI: для каждого folder из `workspaceFolders` создаётся
+  свой `_services_per_workspace[uri]`. Если Zed откроет 3 проекта —
+  будет 3 DI-контейнера, 3 ProjectIndexerRegistry, 3 .codebase_indices/.
+
+### 🧪 Testing: 306 passed + 1 pre-existing failure
+- Все предыдущие тесты прошли без изменений.
+- `test_expected_message_mismatch` — pre-existing, не связан с v2.3.2.
+
+### 📚 Migration
+- После обновления: `sync_to_installed.bat --full` + перезапуск Zed.
+- Если `D:\AI\Zed\.codebase_indices/` содержит мусор от self-indexing —
+  можно удалить вручную: `rm -rf /d/AI/Zed/.codebase_indices`.
+- Чтобы Zed точно открыл проект: `cmd+shift+p` → "Open Project" →
+  выбрать `D:\Project\MSCodeBase` (создаст `.zed/` workspace marker).
+
+---
+
 ## [v2.3.1] — 2026-07-05 — Startup Hang Fix + DebounceBatch Per-Project
 
 ### 🐛 Critical Bug Fixes

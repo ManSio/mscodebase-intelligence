@@ -576,31 +576,123 @@ try:
     # === 3. ИНИЦИАЛИЗАЦИЯ ===
     @server.feature("initialize")
     async def on_initialize(ls: MSCodeBaseLanguageServer, params: InitializeParams):
-        """При старте забираем у Zed реальный корень открытого проекта."""
-        project_root = Path(urlparse(params.root_uri).path)
-        if sys.platform == "win32" and str(project_root).startswith("\\"):
-            project_root = Path(str(project_root).lstrip("\\"))
+        """При старте забираем у Zed корни открытых воркспейсов.
 
-        logger.info(f"[LSP INIT] Запуск на корне воркспейса: {project_root}")
+        Multi-root (INC-6BCB-v3): LSP 3.6+ присылает `workspaceFolders` —
+        массив ВСЕХ открытых воркспейсов одновременно. Это РЕШАЕТ проблему
+        self-indexing Zed-установки: если Zed открыл `D:\AI\Zed` И
+        `D:\Project\MSCodeBase`, мы видим ОБА, и можем выбрать
+        правильный через фильтр (skip Zed install dir).
 
-        # Передаём корень проекта MCP-серверу через bridge (temp-файл)
+        Fallback на `params.root_uri` (single-root legacy, Zed <0.130).
+        """
+        # Извлекаем список корней: workspaceFolders (LSP 3.6+) приоритетнее
+        # чем rootUri. Если workspaceFolders пуст/NULL — берём rootUri.
+        workspace_folders = getattr(params, "workspace_folders", None) or []
+        workspace_uris: list[str] = []
+
+        if workspace_folders:
+            for wf in workspace_folders:
+                try:
+                    uri_str = str(wf.uri) if hasattr(wf, "uri") else str(wf)
+                    parsed_path = Path(urlparse(uri_str).path)
+                    if sys.platform == "win32" and str(parsed_path).startswith("\\"):
+                        parsed_path = Path(str(parsed_path).lstrip("\\"))
+                    if parsed_path.exists() and parsed_path.is_dir():
+                        workspace_uris.append(uri_str)
+                except Exception as wf_err:
+                    logger.warning(f"[LSP INIT] Bad workspace folder: {wf_err}")
+        elif params.root_uri:
+            workspace_uris.append(params.root_uri)
+
+        if not workspace_uris:
+            logger.warning(
+                "[LSP INIT] No workspace folders AND no root_uri — "
+                "Zed открыт без проекта (single file?). Indexing will skip."
+            )
+            ls._workspace_uri = ""
+            ls._project_root = None
+            ls._all_workspaces = []
+            return InitializeResult(
+                capabilities={
+                    "text_document_sync": TextDocumentSyncKind.Incremental,
+                }
+            )
+
+        # Фильтруем Zed-установку (self-indexing guard на LSP-стороне).
+        # Не индексируем саму директорию, где лежит Zed.exe.
+        from src.core.lsp_project_bridge import is_zed_install_dir
+        filtered = []
+        for uri in workspace_uris:
+            try:
+                p = Path(urlparse(uri).path)
+                if sys.platform == "win32" and str(p).startswith("\\"):
+                    p = Path(str(p).lstrip("\\"))
+                if is_zed_install_dir(p):
+                    logger.info(
+                        f"[LSP INIT] Skipping Zed install dir: {p} "
+                        f"(would be self-indexing)"
+                    )
+                    continue
+                filtered.append(uri)
+            except Exception:
+                filtered.append(uri)  # на всякий случай оставляем
+
+        if not filtered:
+            # Все workspace folders — это Zed install. Fallback на первый
+            # (лучше self-indexing чем вообще ничего).
+            logger.warning(
+                "[LSP INIT] Все workspace folders = Zed install dir. "
+                "Fallback на первый (может быть self-indexing)."
+            )
+            filtered = [workspace_uris[0]]
+
+        # Берём ПЕРВЫЙ (most recent) filtered workspace как primary.
+        primary_uri = filtered[0]
+        primary_path = Path(urlparse(primary_uri).path)
+        if sys.platform == "win32" and str(primary_path).startswith("\\"):
+            primary_path = Path(str(primary_path).lstrip("\\"))
+
+        logger.info(
+            f"[LSP INIT] Primary workspace: {primary_path} "
+            f"({len(filtered)} total filtered, {len(workspace_uris)} raw)"
+        )
+
+        # Передаём primary корень MCP-серверу через bridge.
         try:
             from src.core.lsp_project_bridge import write_active_project
-            write_active_project(project_root)
+            write_active_project(primary_path, all_workspaces=filtered)
         except Exception as e:
             logger.warning(f"[LSP INIT] Не удалось записать project_root в bridge: {e}")
 
-        # ★ Используем DI контейнер с per-workspace ключом ★
-        # Multi-window (INC-6BCB): передаём root_uri как workspace key,
-        # чтобы разные окна Zed получили разные DI-контейнеры.
-        ls._workspace_uri = params.root_uri or ""
-        ls._project_root = project_root
-        init_components(project_root, workspace_uri=ls._workspace_uri)
+        # ★ Инициализируем DI-контейнеры для КАЖДОГО workspace folder ★
+        for uri in filtered:
+            try:
+                p = Path(urlparse(uri).path)
+                if sys.platform == "win32" and str(p).startswith("\\"):
+                    p = Path(str(p).lstrip("\\"))
+                init_components(p, workspace_uri=uri)
+            except Exception as comp_err:
+                logger.warning(
+                    f"[LSP INIT] Не удалось инициализировать DI для {uri}: {comp_err}"
+                )
+
+        ls._workspace_uri = primary_uri
+        ls._project_root = primary_path
+        ls._all_workspaces = filtered  # для будущих обработчиков
         ls._initialized = True
 
         return InitializeResult(
             capabilities={
                 "text_document_sync": TextDocumentSyncKind.Incremental,
+                # LSP 3.6+: сообщаем клиенту, что мы хотим получать
+                # уведомления о смене workspace folders (если откроет ещё).
+                "workspace": {
+                    "workspaceFolders": {
+                        "supported": True,
+                        "changeNotifications": True,
+                    },
+                },
             }
         )
 

@@ -1,5 +1,39 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 01:30] — [Type: Fix] — v2.3.2: Self-Indexing Zed Install Dir
+
+**Problem:**
+- MCP индексировал `D:\AI\Zed` (установку Zed IDE) вместо
+  пользовательского проекта. Видно как `db_isolated_path:
+  D:\AI\Zed\.codebase_indices\lancedb_v2\index_zed_90767a17.db`.
+- Источник: Zed открывал свою директорию как последний worktree,
+  LSP честно присылал `root_uri = file:///D:/AI/Zed`, MCP резолвил
+  и индексировал мусор (Zed.exe, dll, appx, и т.п.).
+
+**Research (LSP 3.6+ workspaceFolders):**
+- Zed поддерживает LSP 3.6+ `workspaceFolders` (массив всех
+  открытых воркспейсов). Это ОФИЦИАЛЬНЫЙ механизм multi-root.
+- Наш `lsp_main.py:on_initialize` использовал только `params.root_uri`
+  (legacy single-root, deprecated в LSP 3.6).
+- bug #36019 (cwd: "$ZED_WORKTREE_ROOT") — закрыт без фикса, но
+  касается только task configuration, не LSP.
+
+**Solution:**
+- ✅ `lsp_project_bridge.is_zed_install_dir(path)` — детект Zed install
+  по маркерам пути (`/Zed/`, `Zed.exe` рядом).
+- ✅ `lsp_main.on_initialize` — читает `params.workspaceFolders`,
+  фильтрует Zed install dirs, инициализирует DI для каждого
+  оставшегося workspace, объявляет `workspaceFolders` capability.
+- ✅ `lsp_project_bridge.write_active_project(all_workspaces=[...])` —
+  LSP пишет ВСЕ корни в JSON, MCP выбирает.
+- ✅ `lsp_project_bridge.read_active_project` — multi-root aware
+  фильтрация при чтении.
+
+**Tools Used:** `read_file`, `edit_file`, `fetch`, `terminal`, `pytest`
+**Status:** ✅ (306/307 tests pass; +self_indexing test)
+
+---
+
 ## [2026-07-05 00:50] — [Type: Fix] — v2.3.1: Startup hang + per-project DebounceBatch
 
 **Problem:**

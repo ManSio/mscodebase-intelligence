@@ -2,13 +2,17 @@
 MSCodeBase LSP→MCP Project Bridge — временный файл для передачи корня проекта.
 
 Архитектура:
-  LSP получает project_root от Zed через LSP-протокол (root_uri).
+  LSP получает project_root от Zed через LSP-протокол (root_uri / workspaceFolders).
   MCP не имеет доступа к root_uri, а current_dir не работает на Windows (баг #36019).
   Решение: LSP пишет project_root в temp-файл, MCP читает при старте.
+
+Multi-root (INC-6BCB-v3): LSP 3.6+ присылает массив workspaceFolders.
+  LSP пишет ВСЕ корни в JSON, MCP выбирает первый non-self-indexing.
 
 Исправления:
   - Удалена изоляция по UUID процесса (так как у LSP и MCP разные UUID).
   - Привязка сессий жестко зафиксирована на общем Parent PID (Zed Workspace).
+  - Self-indexing guard: is_zed_install_dir() пропускает Zed-установку.
 """
 
 import json
@@ -18,7 +22,7 @@ import sys
 import time
 import hashlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Iterable
 
 logger = logging.getLogger("MSCodeBase.Bridge")
 
@@ -35,6 +39,45 @@ def _ensure_bridge_dir() -> Path:
     """Создаёт директорию для bridge-файлов."""
     _BRIDGE_DIR.mkdir(parents=True, exist_ok=True)
     return _BRIDGE_DIR
+
+
+# ──────────────────────────────────────────────
+# Self-indexing detection (Zed install dir)
+# ──────────────────────────────────────────────
+
+# Маркеры директории установки Zed. Если в Path встречается любой из них —
+# это self-indexing (индексируем саму установку), и нужно пропустить.
+_ZED_INSTALL_MARKERS = (
+    os.sep + "Zed" + os.sep,                # .../Zed/...
+    os.sep + "Zed.exe",                      # .../Zed.exe
+    os.sep + "zed" + os.sep,                 # lowercase вариант
+    os.sep + "Local" + os.sep + "Zed" + os.sep,  # %LOCALAPPDATA%/Zed/...
+    os.sep + "Local" + os.sep + "Programs" + os.sep + "Zed" + os.sep,
+)
+
+
+def is_zed_install_dir(path: Path) -> bool:
+    """Возвращает True если path выглядит как директория установки Zed.
+
+    Используется для self-indexing guard: не индексируем саму установку
+    (там .exe, .dll, конфиги, обновления — мусор для семантического поиска).
+    """
+    if path is None:
+        return False
+    s = str(path.resolve()) if path.exists() else str(path)
+    s_lower = s.lower()
+    for marker in _ZED_INSTALL_MARKERS:
+        if marker.lower() in s_lower:
+            return True
+    # Дополнительная эвристика: если в path есть Zed.exe рядом — это install.
+    if path.is_dir():
+        try:
+            for candidate in ("Zed.exe", "zed.exe", "Zed", "zed"):
+                if (path / candidate).exists():
+                    return True
+        except (OSError, PermissionError):
+            pass
+    return False
 
 
 def _get_parent_pid() -> Optional[int]:
@@ -99,12 +142,19 @@ def _stale_path() -> Path:
 # ──────────────────────────────────────────────
 
 
-def write_active_project(project_root: Path) -> None:
+def write_active_project(
+    project_root: Path,
+    all_workspaces: Optional[Iterable[str]] = None,
+) -> None:
     """
     Пишет корень проекта в temp-файл сессии.
 
     Атомарность: пишем во временный файл → os.replace() (операция ОС).
     Это исключает race condition: MCP либо видит целый файл, либо не видит.
+
+    Multi-root (INC-6BCB-v3): all_workspaces содержит URI всех открытых
+    воркспейсов (LSP 3.6+ workspaceFolders). MCP использует их для выбора
+    правильного project_root (исключая self-indexing Zed install dir).
 
     Вызывается LSP в on_initialize().
     """
@@ -113,6 +163,9 @@ def write_active_project(project_root: Path) -> None:
         data = {
             "parent_pid": pid,
             "project_root": str(project_root.resolve()),
+            "all_workspaces": (
+                list(all_workspaces) if all_workspaces else [str(project_root.resolve())]
+            ),
             "created_at": time.time(),
             "fallback_key": _get_fallback_key(),
         }
@@ -127,8 +180,9 @@ def write_active_project(project_root: Path) -> None:
         os.replace(stale, target)
 
         logger.info(
-            f"[BRIDGE] project_root успешно сохранен: {data['project_root']} "
-            f"(session_key={_session_key()}, pid={pid})"
+            f"[BRIDGE] project_root сохранен: {data['project_root']} "
+            f"({len(data['all_workspaces'])} workspace(s), "
+            f"session_key={_session_key()}, pid={pid})"
         )
     except Exception as e:
         logger.warning(f"[BRIDGE] Ошибка записи project_root: {e}")
@@ -137,6 +191,10 @@ def write_active_project(project_root: Path) -> None:
 def read_active_project(max_wait: float = _MAX_WAIT_SEC) -> Optional[Path]:
     """
     Читает корень проекта из temp-файла сессии с использованием Polling.
+
+    Multi-root (INC-6BCB-v3): если в JSON есть `all_workspaces`, выбираем
+    первый workspace, который НЕ является Zed-установкой (self-indexing guard).
+    Fallback на `project_root` если фильтрация не дала результата.
 
     Защита:
       - Файл должен быть не старше _STALE_AGE_SEC.
@@ -181,17 +239,51 @@ def read_active_project(max_wait: float = _MAX_WAIT_SEC) -> Optional[Path]:
                 time.sleep(_POLL_INTERVAL)
                 continue
 
-            project_root = Path(project_root_str).resolve()
-            if not project_root.exists():
-                logger.debug(f"[BRIDGE] Указанный project_root не существует на диске: {project_root}")
+            # Multi-root: фильтруем self-indexing (Zed install dir)
+            all_workspaces: List[str] = data.get("all_workspaces", [])
+            if not all_workspaces:
+                all_workspaces = [project_root_str]
+
+            chosen = None
+            for uri_or_path in all_workspaces:
+                # URI могут быть "file:///D:/path" или просто "D:\path"
+                p_str = uri_or_path
+                if p_str.startswith("file://"):
+                    from urllib.parse import urlparse
+                    p_str = urlparse(p_str).path
+                    if sys.platform == "win32" and p_str.startswith("/"):
+                        p_str = p_str.lstrip("/")
+                try:
+                    p = Path(p_str)
+                    if p.exists() and p.is_dir() and not is_zed_install_dir(p):
+                        chosen = p
+                        break
+                except Exception:
+                    continue
+
+            if chosen is None:
+                # Все workspaces = Zed install. Fallback на primary project_root.
+                logger.warning(
+                    f"[BRIDGE] Все {len(all_workspaces)} workspace(s) — Zed install. "
+                    f"Использую primary project_root (возможно self-indexing)."
+                )
+                chosen = Path(project_root_str)
+            else:
+                logger.info(
+                    f"[BRIDGE] Выбран workspace (multi-root, отфильтрован self-indexing): "
+                    f"{chosen} (из {len(all_workspaces)} вариантов)"
+                )
+
+            if not chosen.exists():
+                logger.debug(f"[BRIDGE] project_root не существует на диске: {chosen}")
                 time.sleep(_POLL_INTERVAL)
                 continue
 
             logger.info(
-                f"[BRIDGE] project_root успешно прочитан: {project_root} "
+                f"[BRIDGE] project_root успешно прочитан: {chosen} "
                 f"(задержка старта = {time.time() - (deadline - max_wait):.2f}s)"
             )
-            return project_root
+            return chosen
 
         except (json.JSONDecodeError, KeyError, OSError) as e:
             # Предотвращает падение, если файл считывается во время модификации
