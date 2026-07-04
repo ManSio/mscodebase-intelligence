@@ -1,4 +1,4 @@
-use zed_extension_api::{self as zed, LanguageServerId, Result};
+use zed_extension_api::{self as zed, Result};
 
 struct MscodebaseExtension;
 
@@ -9,7 +9,6 @@ impl zed::Extension for MscodebaseExtension {
 
     fn language_server_command(
         &mut self,
-        _language_server_id: &LanguageServerId,
         _workspace: &zed::Workspace,
     ) -> Result<zed::Command> {
         Ok(zed::Command {
