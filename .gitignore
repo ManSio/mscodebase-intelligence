@@ -89,3 +89,6 @@ run_tests.bat
 test_output.txt
 *.sock
 *.pid
+__manifest/
+codebase_chunks.lance/
+.index_guard.json

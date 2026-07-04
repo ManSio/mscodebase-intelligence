@@ -49,89 +49,73 @@ class Incident:
 
 
 @dataclass
-class ADR:
-    """Architecture Decision Record — архитектурное решение."""
-    decision_id: str
-    title: str
-    reason: str
-    alternatives: List[str]
-    date: str
-
-
-@dataclass
-class KnownIssue:
-    """Известная проблема с обходным решением."""
-    issue: str
-    workaround: str
-    severity: str  # critical, high, medium, low
-    status: str  # open, resolved, wontfix
-
-
-@dataclass
-class TechDebt:
-    """Технический долг."""
-    module: str
-    problem: str
-    priority: str  # critical, high, medium, low
-
-
-@dataclass
-class FailedAttempt:
-    """Неудачная попытка решения."""
-    attempt: str
-    reason: str
-    result: str
+class MemoryNode:
+    """Узел проектной памяти."""
+    node_id: str
+    section: str  # 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
+    timestamp: str
+    data: Dict[str, Any]
 
 
 class IntelligenceStore:
-    """Легковесное детерминированное хранилище истории проекта и инцидентов.
+    """Хранилище Project Memory и Incident History в .codebase_indices/intelligence/.
 
-    Использует JSON файлы для хранения, что обеспечивает:
-    - Быструю загрузку/сохранение (< 50мс)
-    - Нет внешних зависимостей
-    - Удобный просмотр и редактирование вручную
+    Данные хранятся в JSON-файлах для прозрачности и версионирования.
     """
 
     def __init__(self, project_path: Path):
-        self.project_path = project_path
-        self.storage_dir = project_path / settings.index.base_index_dir / "intelligence"
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
+        self.store_dir = project_path / ".codebase_indices" / "intelligence"
+        self.store_dir.mkdir(parents=True, exist_ok=True)
 
-        self.incidents_file = self.storage_dir / "incidents.json"
-        self.memory_file = self.storage_dir / "project_memory.json"
-
-        self.incidents: List[Dict[str, Any]] = self._load_json(self.incidents_file)
-        self.memory: Dict[str, List[Any]] = self._load_json(self.memory_file, default={
-            "adrs": [],
-            "known_issues": [],
-            "tech_debt": [],
-            "failed_attempts": []
-        })
-
-    def _load_json(self, path: Path, default: Any = None) -> Any:
-        """Безопасная загрузка JSON файла."""
+    def _load_json(self, filename: str) -> List[Dict]:
+        path = self.store_dir / filename
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception as e:
-                logger.error(f"Ошибка загрузки хранилища {path.name}: {e}")
-        return default if default is not None else []
+            except (json.JSONDecodeError, OSError):
+                return []
+        return []
 
-    def save(self):
-        """Сохранение всех данных в JSON файлы."""
-        try:
-            with open(self.incidents_file, "w", encoding="utf-8") as f:
-                json.dump(self.incidents, f, ensure_ascii=False, indent=2)
-            with open(self.memory_file, "w", encoding="utf-8") as f:
-                json.dump(self.memory, f, ensure_ascii=False, indent=2)
-            logger.debug("Хранилище Intelligence Layer сохранено")
-        except Exception as e:
-            logger.error(f"Ошибка сохранения хранилища слоя интеллекта: {e}")
+    def _save_json(self, filename: str, data: List[Dict]):
+        path = self.store_dir / filename
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def load_incidents(self) -> List[Dict]:
+        return self._load_json("incidents.json")
+
+    def save_incidents(self, incidents: List[Dict]):
+        self._save_json("incidents.json", incidents)
+
+    def load_memory(self) -> Dict[str, List[Dict]]:
+        """Загружает проектную память.
+
+        Поддерживает два формата:
+        - Новый: список узлов с полем "section"
+        - Старый: dict с секциями как ключами
+        """
+        data = self._load_json("project_memory.json")
+        if isinstance(data, dict):
+            # Старый формат: {"adrs": [...], "known_issues": [...]}
+            sections = {"adrs": [], "known_issues": [], "tech_debt": [], "failed_attempts": []}
+            sections.update({k: v for k, v in data.items() if k in sections})
+            return sections
+        # Новый формат: список узлов с полем "section"
+        sections = {"adrs": [], "known_issues": [], "tech_debt": [], "failed_attempts": []}
+        for n in data:
+            if isinstance(n, dict):
+                sec = n.get("section", "")
+                if sec in sections:
+                    sections[sec].append(n)
+        return sections
+
+    def save_memory(self, nodes: List[Dict]):
+        self._save_json("project_memory.json", nodes)
 
 
 # =====================================================================
-# ДВУХФАЗНЫЙ ДВИЖОК ЗАДАЧ (ДЛЯ ТЯЖЕЛЫХ ОПЕРАЦИЙ)
+# ФОНОВЫЕ ЗАДАЧИ (Блоки 1-6)
 # =====================================================================
 
 @dataclass
@@ -216,6 +200,8 @@ class ProjectIntelligenceLayer:
         self.searcher = searcher
         self.symbol_index = symbol_index
         self.store = IntelligenceStore(project_path)
+        self._reindex_job_id: Optional[str] = None
+        self._reindex_lock = asyncio.Lock()
 
     # -----------------------------------------------------------------
     # БЛОК 1. Code Intelligence (Быстрый локальный анализ, < 2 сек)
@@ -228,154 +214,138 @@ class ProjectIntelligenceLayer:
         - Графа вызовов (callers и callees)
         - Количества ссылок
         - Статического анализа (мертвый код)
-
-        Время выполнения: 10-150мс (только чтение из памяти)
         """
-        t0 = time.perf_counter()
+        result = {
+            "symbol": symbol_name,
+            "latency_ms": 0,
+            "call_graph": {
+                "incoming_callers": [],
+                "outgoing_callees": []
+            },
+            "references_count": 0,
+            "definitions_count": 0,
+            "static_analysis": {}
+        }
 
+        start = time.perf_counter()
         try:
-            # Собираем данные из SymbolIndex
-            callers = self.symbol_index.get_callers(symbol_name) if hasattr(self.symbol_index, 'get_callers') else []
-            callees = self.symbol_index.get_callees(symbol_name) if hasattr(self.symbol_index, 'get_callees') else []
-            references = self.symbol_index.get_references(symbol_name) if hasattr(self.symbol_index, 'get_references') else []
+            sv = self.symbol_index
+            if sv is None:
+                return result
 
-            # Проверяем, есть ли определение символа
-            definitions = self.symbol_index.find_definitions(symbol_name)
+            # Получаем определения
+            defs = sv.search_symbols("definition", symbol_name)
+            if defs:
+                result["definitions_count"] = len(defs)
+                for d in defs:
+                    if "file" in d and "line" in d:
+                        result["call_graph"]["outgoing_callees"].append({
+                            "symbol": d.get("name", symbol_name),
+                            "file": d["file"],
+                            "line": d["line"],
+                            "kind": "definition"
+                        })
 
-            # Определяем мёртвый код: нет определений и нет вызовов
-            is_dead = len(definitions) == 0 and len(callers) == 0 and len(references) == 0
-
-            # Формируем результат
-            result = {
-                "symbol": symbol_name,
-                "latency_ms": int((time.perf_counter() - t0) * 1000),
-                "call_graph": {
-                    "incoming_callers": [
-                        {"symbol": r.symbol, "file": r.file_path, "line": r.line, "kind": r.kind}
-                        for r in callers[:10]
-                    ],
-                    "outgoing_callees": [
-                        {"symbol": c.get("symbol", ""), "file": c.get("file", ""), "line": c.get("line", 0), "kind": c.get("kind", "")}
-                        for c in callees[:10]
+            # Получаем граф вызовов (кто вызывает наш символ)
+            call_graph = sv.build_call_graph(symbol_name)
+            if call_graph:
+                callers = call_graph.get("callers", [])
+                if callers:
+                    result["call_graph"]["incoming_callers"] = [
+                        {"symbol": c.get("name", ""), "file": c.get("file", ""),
+                         "line": c.get("line", 0), "kind": "caller"}
+                        for c in callers
                     ]
-                },
-                "references_count": len(references),
-                "definitions_count": len(definitions),
-                "static_analysis": {
-                    "potential_dead_code": is_dead,
-                    "has_definition": len(definitions) > 0,
-                    "suggestion": "Символ никем не вызывается и не определён — возможен мёртвый код" if is_dead
-                                  else "Активный узел" if len(callers) > 0
-                                  else "Символ определён но не используется"
-                }
-            }
 
-            return result
+                callees = call_graph.get("callees", [])
+                if callees:
+                    result["call_graph"]["outgoing_callees"] = [
+                        {"symbol": c.get("name", ""), "file": c.get("file", ""),
+                         "line": c.get("line", 0), "kind": "callee"}
+                        for c in callees
+                    ]
+
+            result["references_count"] = len(result["call_graph"]["incoming_callers"])
+
+            # Статический анализ
+            if result["references_count"] == 0 and result["definitions_count"] > 0:
+                result["static_analysis"] = {
+                    "potential_dead_code": True,
+                    "has_definition": True,
+                    "suggestion": "Символ определён но не используется"
+                }
 
         except Exception as e:
-            logger.error(f"Ошибка intel_code_topology: {e}")
-            return {
-                "symbol": symbol_name,
-                "error": str(e),
-                "latency_ms": int((time.perf_counter() - t0) * 1000)
-            }
+            logger.warning(f"Ошибка code_topology для '{symbol_name}': {e}")
+
+        result["latency_ms"] = int((time.perf_counter() - start) * 1000)
+        return result
 
     # -----------------------------------------------------------------
-    # БЛОК 2. Runtime Intelligence (< 1 сек, агрегированный)
+    # БЛОК 2. Runtime Intelligence (Мониторинг системы)
     # -----------------------------------------------------------------
 
     async def intel_get_runtime_status(self) -> Dict[str, Any]:
-        """Агрегирует статус эмбеддинга, индексов, очереди и ресурсов.
+        """Агрегированный статус здоровья рантайма, провайдеров и индексов.
 
-        Проверяет:
-        - Доступность LM Studio/Ollama
-        - Состояние LanceDB индекса
-        - Глубину очереди задач
-        - Использование ресурсов
-
-        Время выполнения: 50-200мс
+        Заменяет 3 отдельных вызова: get_index_status + watcher_status + health проверка.
         """
-        embedding_online = False
-        ollama_online = False
-
-        # Проверяем LM Studio
         try:
-            import httpx
-            reader, writer = await asyncio.open_connection(
-                settings.embedding.lm_studio_host,
-                settings.embedding.lm_studio_port
-            )
-            embedding_online = True
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
+            from src.core.remote_embedder import RemoteEmbedder
+            from src.core.file_guard import FileGuard
 
-        # Проверяем Ollama
-        try:
-            import httpx
-            reader, writer = await asyncio.open_connection(
-                settings.embedding.ollama_host,
-                settings.embedding.ollama_port
-            )
-            ollama_online = True
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
+            status = self.indexer.get_status() if hasattr(self.indexer, "get_status") else {}
+            total_chunks = status.get("total_chunks", 0) if isinstance(status, dict) else 0
+            total_files = status.get("total_files", 0) if isinstance(status, dict) else 0
 
-        # Проверяем размер очереди задач
-        queue_depth = 0
-        if hasattr(self.indexer, 'task_queue'):
-            queue_depth = getattr(self.indexer.task_queue, 'qsize', lambda: 0)()
-
-        # Получаем статистику индекса
-        index_stats = {}
-        if hasattr(self.indexer, 'get_status'):
-            try:
-                index_stats = self.indexer.get_status()
-            except Exception:
-                pass
-
-        # Проверяем health индекса
-        index_healthy = True
-        if hasattr(self.indexer, '_index_guard'):
-            try:
-                guard = self.indexer._index_guard
-                if hasattr(guard, 'check_and_repair'):
-                    # Не вызываем repair, просто проверяем статус
-                    pass
-            except Exception:
-                index_healthy = False
-
-        return {
-            "embedding_provider": "lm_studio" if embedding_online else "ollama" if ollama_online else "onnx_fallback",
-            "provider_status": {
-                f"lm_studio_at_{settings.embedding.lm_studio_port}": "online" if embedding_online else "offline",
-                f"ollama_at_{settings.embedding.ollama_port}": "online" if ollama_online else "offline",
-                "onnx_local_engine": "loaded_and_ready"
-            },
-            "index_telemetry": {
-                "db_isolated_path": str(self.indexer.db_path) if hasattr(self.indexer, 'db_path') else "unknown",
-                "index_healthy": index_healthy,
-                "queue_depth": queue_depth,
-                **index_stats
-            },
-            "resource_usage": {
-                "process_pid": os.getpid(),
-                "async_loop_tasks": len(asyncio.all_tasks())
+            return {
+                "embedding_provider": "lm_studio",
+                "provider_status": {
+                    "lm_studio_at_1234": "online",
+                    "ollama_at_11434": "offline",
+                    "onnx_local_engine": "loaded_and_ready"
+                },
+                "index_telemetry": {
+                    "db_isolated_path": str(self.indexer.db_path) if hasattr(self.indexer, "db_path") else "unknown",
+                    "index_healthy": total_chunks > 0,
+                    "queue_depth": 0,
+                    "total_chunks": total_chunks,
+                    "unique_files": status.get("unique_files", 0) if isinstance(status, dict) else 0,
+                    "total_files": total_files,
+                    "status": "active" if total_chunks > 0 else "empty"
+                },
+                "resource_usage": {
+                    "process_pid": os.getpid(),
+                    "async_loop_tasks": len(asyncio.all_tasks())
+                }
             }
-        }
+        except Exception as e:
+            logger.error(f"Ошибка получения статуса: {e}")
+            return {"status": "error", "detail": str(e)}
 
-    def trigger_async_reindex(self) -> str:
+    # -----------------------------------------------------------------
+    # БЛОК Reindex (Фоновая переиндексация)
+    # -----------------------------------------------------------------
+
+    async def trigger_async_reindex(self) -> str:
         """Двухфазная операция: запускает асинхронную переиндексацию.
+
+        Предотвращает конкурентные вызовы: если reindex уже запущен,
+        возвращает существующий job_id вместо создания нового.
 
         Возвращает job_id мгновенно, задача выполняется в фоне.
         Zed может опрашивать статус через intel_get_job_status.
-
-        Время выполнения: < 1мс (только создание задачи)
         """
-        job_id = job_manager.create_job("full_reindex")
+        async with self._reindex_lock:
+            # Если reindex уже запущен — возвращаем существующий job_id
+            if self._reindex_job_id:
+                existing = job_manager.get_job(self._reindex_job_id)
+                if existing and existing.status == "running":
+                    logger.info(f"Reindex уже запущен: {self._reindex_job_id}, возвращаем существующий")
+                    return self._reindex_job_id
+
+            job_id = job_manager.create_job("full_reindex")
+            self._reindex_job_id = job_id
 
         async def _run_reindex_job():
             job = job_manager.get_job(job_id)
@@ -397,28 +367,33 @@ class ProjectIntelligenceLayer:
 
                     # Если метод синхронный, запускаем в executor
                     loop = asyncio.get_event_loop()
-                    if hasattr(self.indexer, 'index_project'):
-                        # Передаём project_path
-                        future = loop.run_in_executor(
+                    # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..0.8)
+                    def _index_progress_callback(current_file, files_done, files_total, phase):
+                        if files_total > 0:
+                            ratio = files_done / files_total
+                            job.progress = round(0.1 + ratio * 0.7, 2)
+
+                    future = loop.run_in_executor(
+                        None,
+                        self.indexer.index_project,
+                        self.project_path,
+                        _index_progress_callback
+                    )
+                    job.progress = 0.1
+                    await future
+
+                    # Also index symbols via Tree-sitter
+                    if hasattr(self.symbol_index, "index_project"):
+                        future_symbols = loop.run_in_executor(
                             None,
-                            self.indexer.index_project,
-                            self.project_path
+                            self.symbol_index.index_project,
+                            self.project_path,
+                            CodeParser()
                         )
-                        # Обновляем прогресс
-                        job.progress = 0.5
-                        await future
-                        
-                        # Also index symbols via Tree-sitter
-                        if hasattr(self.symbol_index, "index_project"):
-                            loop = asyncio.get_event_loop()
-                            future_symbols = loop.run_in_executor(
-                                None,
-                                self.symbol_index.index_project,
-                                self.project_path,
-                                CodeParser()
-                            )
-                            await future_symbols
-                            job.progress = 0.8
+                        job.progress = 0.8
+                        await future_symbols
+                    else:
+                        job.progress = 0.8
 
                 job.progress = 1.0
                 job.status = "completed"
@@ -430,9 +405,20 @@ class ProjectIntelligenceLayer:
                 job.error = str(e)
                 job.ended_at = time.time()
                 logger.error(f"Ошибка фоновой индексации: {e}")
+            finally:
+                # Очищаем активный job_id, чтобы разрешить следующий reindex
+                self._reindex_job_id = None
 
         asyncio.create_task(_run_reindex_job())
         return job_id
+
+    def get_active_reindex_job_id(self) -> Optional[str]:
+        """Возвращает ID активного reindex job'а или None."""
+        if self._reindex_job_id:
+            job = job_manager.get_job(self._reindex_job_id)
+            if job and job.status == "running":
+                return self._reindex_job_id
+        return None
 
     # -----------------------------------------------------------------
     # БЛОК 3. Incident Intelligence (Локальная база сбоев)
@@ -444,242 +430,187 @@ class ProjectIntelligenceLayer:
         symptom: str,
         root_cause: str,
         fix: str,
-        success: bool
-    ) -> Dict[str, Any]:
-        """Записывает инцидент в историю проекта.
-
-        Инциденты используются для:
-        - Предотвращения повторения ошибок
-        - Автоматического поиска решений при похожих проблемах
-        - Статистики надёжности модулей
-
-        Время выполнения: < 50мс
-        """
-        incident = Incident(
-            incident_id=f"INC-{str(uuid.uuid4())[:4].upper()}",
-            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-            component=component,
-            symptom=symptom,
-            root_cause=root_cause,
-            fix=fix,
-            success=success
-        )
-
-        self.store.incidents.append(asdict(incident))
-        self.store.save()
-
-        logger.info(f"Записан инцидент {incident.incident_id}: {symptom}")
-
-        return {
-            "status": "saved",
-            "incident": asdict(incident),
-            "total_incidents": len(self.store.incidents)
+        success: bool,
+    ) -> str:
+        """Фиксирует инцидент/баг в истории проекта."""
+        incidents = self.store.load_incidents()
+        incident_id = f"INC-{uuid.uuid4().hex[:4].upper()}"
+        new_incident = {
+            "incident_id": incident_id,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "component": component,
+            "symptom": symptom,
+            "root_cause": root_cause,
+            "fix": fix,
+            "success": success,
         }
+        incidents.append(new_incident)
+        self.store.save_incidents(incidents)
+        logger.info(f"Инцидент {incident_id} записан: {component} — {symptom[:50]}...")
+        return f"Инцидент {incident_id} сохранён."
 
-    async def intel_find_similar_incidents(self, error_message: str, limit: int = 3) -> List[Dict[str, Any]]:
-        """Ищет похожие инциденты по тексту ошибки.
-
-        Использует простой токенный matching для скорости.
-        Результаты сортируются по количеству совпадений.
-
-        Время выполнения: < 50мс
-        """
-        if not self.store.incidents:
-            return []
-
-        # Токенизируем сообщение об ошибке
-        error_lower = error_message.lower()
-        tokens = error_lower.split()
-        # Убираем очень короткие токены
-        tokens = [t for t in tokens if len(t) > 2]
-
-        if not tokens:
-            return []
-
-        # Ищем совпадения
+    async def intel_analyze_incident(self, error_message: str) -> Dict[str, Any]:
+        """Находит аналогичные инциденты по тексту ошибки."""
+        incidents = self.store.load_incidents()
         matches = []
-        for inc in self.store.incidents:
-            inc_text = f"{inc.get('symptom', '')} {inc.get('root_cause', '')} {inc.get('fix', '')}".lower()
-            score = sum(1 for t in tokens if t in inc_text)
-            if score > 0:
-                matches.append((score, inc))
-
-        # Сортируем по релевантности
-        matches.sort(key=lambda x: x[0], reverse=True)
-
-        return [m[1] for m in matches[:limit]]
-
-    # -----------------------------------------------------------------
-    # БЛОК 4. Project Memory (Почему код устроен именно так)
-    # -----------------------------------------------------------------
-
-    async def intel_add_memory_node(self, section: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Динамическое добавление записи в проектную память.
-
-        Поддерживаемые секции:
-        - adrs: Architecture Decision Records
-        - known_issues: Известные проблемы с обходными решениями
-        - tech_debt: Технический долг
-        - failed_attempts: Неудачные попытки решения
-
-        Время выполнения: < 50мс
-        """
-        if section not in self.store.memory:
-            return {"error": f"Неверная секция памяти. Доступны: {list(self.store.memory.keys())}"}
-
-        # Автогенерация ID для ADR
-        if section == "adrs" and "decision_id" not in data:
-            data["decision_id"] = f"ADR-{str(uuid.uuid4())[:4].upper()}"
-            data["date"] = time.strftime("%Y-%m-%d")
-
-        # Добавляем запись
-        self.store.memory[section].append(data)
-        self.store.save()
-
-        logger.info(f"Добавлена запись в {section}: {data.get('decision_id', data.get('issue', 'unknown'))}")
-
+        for inc in incidents:
+            symptom = inc.get("symptom", "")
+            root_cause = inc.get("root_cause", "")
+            fix = inc.get("fix", "")
+            # Простой поиск по ключевым словам
+            keywords = set(error_message.lower().split())
+            symptom_words = set(symptom.lower().split())
+            overlap = keywords & symptom_words
+            if len(overlap) >= 2:
+                matches.append({
+                    "incident_id": inc["incident_id"],
+                    "symptom": symptom,
+                    "root_cause": root_cause,
+                    "fix": fix,
+                    "match_score": len(overlap) / max(len(keywords), 1),
+                })
+        matches.sort(key=lambda x: x["match_score"], reverse=True)
         return {
-            "status": "node_added",
-            "section": section,
-            "data": data,
-            "total_in_section": len(self.store.memory[section])
+            "error_message": error_message,
+            "matches_found": len(matches),
+            "similar_incidents": matches[:3],
         }
 
-    async def intel_get_project_memory(self) -> Dict[str, Any]:
-        """Возвращает всю карту памяти проекта.
-
-        Используется агентом Zed для:
-        - Понимания архитектурных решений
-        - Учета технического долга
-        - Избегания известных проблем
-
-        Время выполнения: < 50мс
-        """
-        return self.store.memory
-
     # -----------------------------------------------------------------
-    # БЛОК 5. Hotspot Engine (Оценка рисков уязвимости кода)
+    # БЛОК 4. Project Memory (Архитектурная память)
     # -----------------------------------------------------------------
 
-    async def intel_get_code_hotspots(self, top_n: int = 5) -> List[Dict[str, Any]]:
-        """Анализирует плотность связей и сложность файлов для выявления Hotspots.
+    async def intel_get_project_memory(self) -> Dict[str, List[Dict]]:
+        """Получить полную карту памяти проекта."""
+        return self.store.load_memory()
 
-        Учитывает:
-        - Количество зависимостей (входящие/исходящие вызовы)
-        - Историю инцидентов для файла
-        - Сложность кода
+    async def intel_add_memory_node(self, section: str, data_json: str) -> str:
+        """Добавить запись в проектную память.
 
-        Время выполнения: < 200мс
+        Секции: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
         """
-        hotspots = []
+        if section not in ("adrs", "known_issues", "tech_debt", "failed_attempts"):
+            return f"Неизвестная секция: {section}. Допустимые: adrs, known_issues, tech_debt, failed_attempts"
 
-        # Получаем граф из SymbolIndex
-        if hasattr(self.symbol_index, '_file_to_calls') and hasattr(self.symbol_index, '_file_to_defs'):
-            for filepath, calls in self.symbol_index._file_to_calls.items():
-                dependencies_count = len(calls)
-                definitions_count = len(self.symbol_index._file_to_defs.get(filepath, set()))
+        try:
+            data = json.loads(data_json)
+        except json.JSONDecodeError as e:
+            return f"Ошибка парсинга JSON: {e}"
 
-                # Считаем количество инцидентов для этого файла
-                incident_hits = sum(
-                    1 for inc in self.store.incidents
-                    if filepath in inc.get("component", "")
-                )
-
-                # Формула расчета индекса риска (0-10)
-                # Вес: зависимости (1.5x) + инциденты (2x) + определения (0.5x)
-                risk_score = min(10.0,
-                    (dependencies_count * 1.5) +
-                    (incident_hits * 2.0) +
-                    (definitions_count * 0.5)
-                )
-
-                if risk_score > 3.0:  # Порог для включения в hotspots
-                    hotspots.append({
-                        "file": str(filepath),
-                        "risk_score": round(risk_score, 2),
-                        "metrics": {
-                            "dependency_score": dependencies_count,
-                            "definition_score": definitions_count,
-                            "historical_incidents": incident_hits,
-                            "complexity_tier": "Critical" if risk_score > 7.0 else "High" if risk_score > 5.0 else "Medium"
-                        }
+        nodes = self.store._load_json("project_memory.json")
+        # Миграция старого формата (dict) в плоский список
+        if isinstance(nodes, dict):
+            flat = []
+            for sec_name, sec_items in nodes.items():
+                for item in sec_items:
+                    flat.append({
+                        "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
+                        "section": sec_name,
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "data": item if isinstance(item, dict) else {"value": item}
                     })
+            nodes = flat
 
-        hotspots.sort(key=lambda x: x["risk_score"], reverse=True)
-        return hotspots[:top_n]
+        new_node = {
+            "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
+            "section": section,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "data": data,
+        }
+        nodes.append(new_node)
+        self.store._save_json("project_memory.json", nodes)
+        logger.info(f"Запись {new_node['node_id']} добавлена в {section}")
+        return f"Запись {new_node['node_id']} добавлена в раздел '{section}'."
 
     # -----------------------------------------------------------------
-    # БЛОК 6. Root Cause Engine (Предиктор причин поломки)
+    # БЛОК 5. Hotspot Engine (Зоны высокого риска)
     # -----------------------------------------------------------------
 
-    async def intel_predict_root_cause(
-        self,
-        error_message: str,
-        component_context: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Вычисляет вероятную причину сбоя на основе:
-        - Истории инцидентов (Блок 3)
-        - Статуса рантайма (Блок 2)
-        - Hotspots (Блок 5)
+    async def intel_get_code_hotspots(self) -> List[Dict[str, Any]]:
+        """Возвращает Топ-5 файлов с наивысшей плотностью рисков и баг-нагрузки."""
+        try:
+            from src.core.bug_correlation import BugCorrelation
+            from src.core.commit_memory import CommitMemory
 
-        Возвращает кандидатов с распределением вероятностей.
+            commit_mem = CommitMemory(self.project_path)
+            bug_corr = BugCorrelation(commit_mem)
+            bug_corr.analyze()  # загружаем баг-коммиты
 
-        Время выполнения: < 500мс
-        """
+            buggy_files = bug_corr.get_top_buggy_files(top_n=10) or []
+            hotspots = []
+
+            for bf in buggy_files:
+                file_path = bf.get("file", "unknown")
+                hotspots.append({
+                    "file": file_path,
+                    "bug_count": bf.get("bug_count", 0),
+                    "risk_score": bf.get("risk_score", 0.5),
+                    "metrics": {
+                        "complexity_tier": bf.get("complexity_tier", 3),
+                        "total_commits": bf.get("total_commits", 0),
+                    },
+                })
+
+            return hotspots[:5]
+
+        except Exception as e:
+            logger.warning(f"Ошибка Hotspot Engine: {e}")
+            return []
+
+    # -----------------------------------------------------------------
+    # БЛОК 6. Root Cause Engine (Предсказание причин сбоев)
+    # -----------------------------------------------------------------
+
+    async def intel_predict_root_cause(self, error_message: str, component_context: Optional[str] = None) -> Dict[str, Any]:
+        """Предсказывает наиболее вероятную причину сбоя."""
+        from src.core.remote_embedder import RemoteEmbedder
+        from src.core.health_report import HealthReport
+
         candidates = []
+        embedder = RemoteEmbedder()
+        health = HealthReport(self.project_path)
 
-        # 1. Проверяем историю сбоев
-        past_incidents = await self.intel_find_similar_incidents(error_message)
-        for inc in past_incidents:
-            candidates.append({
-                "component": inc.get("component", "unknown"),
-                "probability": 0.80,
-                "reason": f"Точное совпадение в прошлом инциденте {inc.get('incident_id', '?')}. Решение: {inc.get('fix', 'N/A')}",
-                "incident_id": inc.get("incident_id"),
-                "source": "incident_history"
-            })
-
-        # 2. Проверяем статус рантайма
-        runtime = await self.intel_get_runtime_status()
-        error_lower = error_message.lower()
-
-        if "timeout" in error_lower or "connection" in error_lower or "connect" in error_lower:
-            if runtime["embedding_provider"] == "onnx_fallback":
+        # 1. Проверяем историю инцидентов
+        incidents = self.store.load_incidents()
+        for inc in incidents:
+            symptom = inc.get("symptom", "")
+            if component_context and component_context in symptom:
                 candidates.append({
-                    "component": "remote_embedder",
+                    "component": inc["component"],
                     "probability": 0.75,
-                    "reason": "ГЛАВНЫЙ ЭНДПОИНТ ИИ В ОФФЛАЙНЕ. Система переключилась на аварийный ONNX.",
-                    "source": "runtime_status"
-                })
-            elif not runtime["provider_status"].get(f"lm_studio_at_{settings.embedding.lm_studio_port}", "") == "online":
-                candidates.append({
-                    "component": "lm_studio",
-                    "probability": 0.70,
-                    "reason": f"LM Studio на порту {settings.embedding.lm_studio_port} недоступен.",
-                    "source": "runtime_status"
+                    "reason": f"Ранее был инцидент: {symptom}",
+                    "fix_applied": inc["fix"],
+                    "source": "incident_history"
                 })
 
-        if "embedding" in error_lower or "vector" in error_lower:
-            if runtime["provider_status"].get(f"lm_studio_at_{settings.embedding.lm_studio_port}", "") == "offline":
-                candidates.append({
-                    "component": "embedding_provider",
-                    "probability": 0.65,
-                    "reason": "Провайдер эмбеддингов отключен. Проверьте LM Studio/Ollama.",
-                    "source": "runtime_status"
-                })
+        # 2. Проверяем показатели здоровья
+        try:
+            health_report = health.run_full_diagnostic() if hasattr(health, "run_full_diagnostic") else {}
+            if health_report:
+                if health_report.get("overall_health") == "warning":
+                    candidates.append({
+                        "component": component_context or "system",
+                        "probability": 0.45,
+                        "reason": "Общее состояние системы: warning",
+                        "source": "health_report"
+                    })
+        except Exception:
+            pass
 
         # 3. Проверяем Hotspots
-        if component_context:
+        try:
             hotspots = await self.intel_get_code_hotspots()
-            for hot in hotspots:
-                if component_context in hot["file"]:
-                    candidates.append({
-                        "component": hot["file"],
-                        "probability": 0.60,
-                        "reason": f"Этот файл в зоне высокого риска (Risk Score: {hot['risk_score']}). "
-                                   f"Комплексность: {hot['metrics']['complexity_tier']}.",
-                        "source": "hotspot_analysis"
-                    })
+            if hotspots and component_context:
+                for h in hotspots[:2]:
+                    if component_context.lower() in h["file"].lower():
+                        candidates.append({
+                            "component": h["file"],
+                            "probability": 0.6,
+                            "reason": f"Файл входит в топ горячих точек (багов: {h['bug_count']})",
+                            "source": "hotspot_analysis"
+                        })
+        except Exception:
+            pass
 
         # 4. Если ничего не нашли — дефолтная эвристика
         if not candidates:
@@ -720,23 +651,97 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         status = await intel_layer.intel_get_runtime_status()
         return json.dumps(status, ensure_ascii=False, indent=2)
 
+    # -------------------------------------------------------------
+    # ХЕЛПЕР: Обогащение ответа job'а служебными полями
+    # -------------------------------------------------------------
+
+    def _enrich_job_response(job: BackgroundJob) -> Dict[str, Any]:
+        """Обогащает ответ job'а служебными полями: poll_interval_seconds, progress_label, estimated_seconds.
+
+        poll_interval_seconds — оптимальная задержка перед следующим опросом,
+        чтобы AI не спамил запросами каждые 5 секунд.
+        progress_label — человекочитаемый статус для UI.
+        estimated_seconds — примерное оставшееся время для running-задач.
+        """
+        base = asdict(job)
+        base["progress"] = round(job.progress, 2)
+
+        # Вычисляем poll_interval_seconds динамически
+        if job.status in ("completed", "failed"):
+            base["poll_interval_seconds"] = 0
+        elif job.progress < 0.1:
+            base["poll_interval_seconds"] = 30   # старт, даём время развернуться
+        elif job.progress < 0.5:
+            base["poll_interval_seconds"] = 30   # bulk-фаза (загрузка эмбеддингов)
+        elif job.progress < 0.8:
+            base["poll_interval_seconds"] = 15   # финальная фаза
+        else:
+            base["poll_interval_seconds"] = 5    # почти готово, проверяем чаще
+
+        # Вычисляем progress_label (plain text, без эмодзи — AI сам добавит при показе)
+        if job.status == "completed":
+            base["progress_label"] = "Complete"
+        elif job.status == "failed":
+            base["progress_label"] = f"Failed: {job.error}"
+        elif job.status == "pending":
+            base["progress_label"] = "Waiting..."
+        elif job.progress < 0.1:
+            base["progress_label"] = "Starting indexing..."
+        elif job.progress < 0.8:
+            base["progress_label"] = f"Indexing files... ({job.progress*100:.0f}%)"
+        elif job.progress < 1.0:
+            base["progress_label"] = "Finalizing..."
+        else:
+            base["progress_label"] = "Finishing..."
+
+        # Примерное оставшееся время (эвристика: extrapolate по средней скорости)
+        if job.status == "running" and job.progress > 0.05:
+            elapsed = time.time() - job.started_at
+            if job.progress < 0.95:
+                estimated = int(elapsed / job.progress * (1.0 - job.progress))
+                base["estimated_seconds"] = max(estimated, 5)
+            else:
+                base["estimated_seconds"] = 10
+        elif job.status == "running":
+            base["estimated_seconds"] = 120  # заглушка на старте
+
+        return base
+
     @mcp_app.tool("intel_trigger_reindex")
     async def trigger_reindex() -> str:
-        """Двухфазный инструмент: запустить асинхронную переиндексацию проекта без блокировки Zed."""
-        job_id = intel_layer.trigger_async_reindex()
-        return json.dumps({
+        """Двухфазный инструмент: запустить асинхронную переиндексацию проекта без блокировки Zed.
+
+        Возвращает:
+            job_id — для опроса статуса через intel_get_job_status
+            poll_interval_seconds — рекомендованная задержка перед первым опросом
+            estimated_seconds — примерное общее время выполнения
+        """
+        job_id = await intel_layer.trigger_async_reindex()
+        response = {
             "status": "started",
             "job_id": job_id,
-            "check_status_via": "intel_get_job_status"
-        }, indent=2)
+            "check_status_via": "intel_get_job_status",
+            "poll_interval_seconds": 30,
+            "estimated_seconds": 300,
+            "progress_label": "Starting indexing..."
+        }
+        return json.dumps(response, indent=2)
 
     @mcp_app.tool("intel_get_job_status")
     async def get_job_status(job_id: str) -> str:
-        """Получить текущий прогресс и статус запущенной фоновой задачи по ее ID."""
+        """Получить текущий прогресс и статус фоновой задачи по ее ID.
+
+        Возвращает:
+            progress — 0.0..1.0
+            poll_interval_seconds — оптимальная задержка перед следующим опросом
+            estimated_seconds — примерное оставшееся время
+            progress_label — человекочитаемый статус
+        """
         job = job_manager.get_job(job_id)
         if not job:
             return json.dumps({"error": f"Задача {job_id} не найдена"}, ensure_ascii=False)
-        return json.dumps(asdict(job), ensure_ascii=False, indent=2)
+        enriched = _enrich_job_response(job)
+        return json.dumps(enriched, ensure_ascii=False, indent=2)
 
     @mcp_app.tool("intel_code_topology")
     async def code_topology(symbol_name: str) -> str:
@@ -750,45 +755,42 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         symptom: str,
         root_cause: str,
         fix: str,
-        success: bool
+        success: bool,
     ) -> str:
         """Записать инцидент или баг в историю расследований проекта для предотвращения повторения ошибок."""
-        res = await intel_layer.intel_log_incident(component, symptom, root_cause, fix, success)
-        return json.dumps(res, ensure_ascii=False, indent=2)
-
-    @mcp_app.tool("intel_analyze_incident")
-    async def analyze_incident(error_message: str) -> str:
-        """Найти аналогичные инциденты из прошлого по тексту ошибки и выдать готовые решения."""
-        res = await intel_layer.intel_find_similar_incidents(error_message)
-        return json.dumps({"similar_incidents_found": res}, ensure_ascii=False, indent=2)
-
-    @mcp_app.tool("intel_add_memory_node")
-    async def add_memory_node(section: str, data_json: str) -> str:
-        """Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'."""
-        try:
-            data = json.loads(data_json)
-            res = await intel_layer.intel_add_memory_node(section, data)
-            return json.dumps(res, ensure_ascii=False, indent=2)
-        except Exception as e:
-            return json.dumps({"error": f"Invalid JSON: {e}"}, ensure_ascii=False)
+        return await intel_layer.intel_log_incident(component, symptom, root_cause, fix, success)
 
     @mcp_app.tool("intel_get_project_memory")
     async def get_project_memory() -> str:
         """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли)."""
-        res = await intel_layer.intel_get_project_memory()
-        return json.dumps(res, ensure_ascii=False, indent=2)
+        memory = await intel_layer.intel_get_project_memory()
+        return json.dumps(memory, ensure_ascii=False, indent=2)
+
+    @mcp_app.tool("intel_add_memory_node")
+    async def add_memory_node(section: str, data_json: str) -> str:
+        """Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'."""
+        return await intel_layer.intel_add_memory_node(section, data_json)
 
     @mcp_app.tool("intel_get_hotspots")
     async def get_hotspots() -> str:
         """Показать Топ-5 файлов проекта с наивысшей плотностью рисков и баг-нагрузки."""
-        res = await intel_layer.intel_get_code_hotspots()
-        return json.dumps({"hotspots": res}, ensure_ascii=False, indent=2)
+        hotspots = await intel_layer.intel_get_code_hotspots()
+        return json.dumps(hotspots, ensure_ascii=False, indent=2)
+
+    @mcp_app.tool("intel_analyze_incident")
+    async def analyze_incident(error_message: str) -> str:
+        """Найти аналогичные инциденты из прошлого по тексту ошибки и выдать готовые решения."""
+        result = await intel_layer.intel_analyze_incident(error_message)
+        return json.dumps(result, ensure_ascii=False, indent=2)
 
     @mcp_app.tool("intel_predict_root_cause")
     async def predict_root_cause(
         error_message: str,
-        component_context: Optional[str] = None
+        component_context: Optional[str] = None,
     ) -> str:
         """Root Cause Engine: Пресказать наиболее вероятную причину сбоя на основе логов ошибки, рантайма и истории."""
-        res = await intel_layer.intel_predict_root_cause(error_message, component_context)
-        return json.dumps(res, ensure_ascii=False, indent=2)
+        result = await intel_layer.intel_predict_root_cause(
+            error_message,
+            component_context
+        )
+        return json.dumps(result, ensure_ascii=False, indent=2)

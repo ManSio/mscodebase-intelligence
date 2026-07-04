@@ -162,20 +162,45 @@ def _cleanup_old_progress():
         del _last_progress[k]
 
 
-def _run_with_timeout(func, timeout: int = 15, description: str = "операция") -> Any:
-    """Выполняет функцию в ThreadPool с таймаутом.
-    Возвращает результат или строку ошибки при таймауте/исключении.
+# ─── Глобальный семафор — ограничивает параллельные MCP-вызовы от AI ─────────
+# Без лимитированных пулов: asyncio.to_thread() использует встроенный пул asyncio.
+# Это решает проблему Zombie Threads при отмене инструмента (Cancel):
+#   - Старый подход: лимитированный ThreadPoolExecutor (4 fast / 2 slow потока).
+#     При Cancel asyncio-задача отменяется, но поток в executor продолжает работу.
+#     После нескольких Cancelled все слоты заняты zombie — сервер перестаёт отвечать.
+#   - Новый подход: asyncio.to_thread() создаёт потоки по требованию (до cpu_count+4).
+#     Zombie не блокируют новые вызовы.
+_concurrency_semaphore = asyncio.Semaphore(6)
+
+# Кэш CommitMemory (синглтон) — переиспользуется между вызовами, git log вызывается 1 раз
+_commit_memory_cache = {}
+
+async def _run_with_timeout(func, timeout: int = 30, description: str = "операция",
+                             priority: str = "fast", queue_timeout: int = 10) -> Any:
+    """Выполняет функцию в фоновом потоке через asyncio.to_thread().
+
+    Больше НЕТ лимитированных ThreadPoolExecutor'ов — используем встроенный пул asyncio.
+    Это предотвращает Zombie Thread Exhaustion при отмене инструментов.
+
+    priority и queue_timeout сохранены для обратной совместимости (но не используются).
     """
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        fut = pool.submit(func)
+    async with _concurrency_semaphore:
+        import time as _time
+
+        def _run_guarded():
+            try:
+                return func()
+            except BaseException as e:
+                raise
+
         try:
-            return fut.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            logger.warning(f"⏱ Таймаут {description} (> {timeout} сек)")
-            return f"❌ Таймаут {description} (> {timeout} сек). Попробуйте позже."
-        except Exception as e:
-            logger.error(f"Ошибка {description}: {e}")
-            return f"❌ Ошибка {description}: {str(e)}"
+            return await asyncio.wait_for(
+                asyncio.to_thread(_run_guarded),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"⏱ [{priority}] {description}: выполнение >{timeout}s")
+            return f"❌ Таймаут {description} (> {timeout} сек выполнения)"
 
 
 def _create_progress_callback(project_name: str):
@@ -771,7 +796,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_index_progress(kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def get_index_progress(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текущий прогресс индексации для всех проектов.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -782,7 +807,16 @@ def create_mcp_server() -> "FastMCP":
         Возвращает форматированный статус по каждому проекту.
         """
         _debug_log("get_index_progress")
+        result = await _run_with_timeout(
+            lambda: _get_index_progress_impl(),
+            timeout=10, description="get_index_progress", priority="fast"
+        )
+        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+            return result
+        return result
 
+    def _get_index_progress_impl() -> str:
+        """Синхронная реализация get_index_progress."""
         # Очистка старых записей (потокобезопасно)
         _cleanup_old_progress()
 
@@ -825,7 +859,7 @@ def create_mcp_server() -> "FastMCP":
         return "\n".join(lines)
 
     @mcp.tool()
-    def get_index_timeline(kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def get_index_timeline(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Временная шкала индексации — когда данные были добавлены в базу.
 
         ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
@@ -837,7 +871,16 @@ def create_mcp_server() -> "FastMCP":
             Временная шкала с группировкой по дате
         """
         _debug_log("get_index_timeline")
+        result = await _run_with_timeout(
+            lambda: _get_index_timeline_impl(),
+            timeout=15, description="get_index_timeline", priority="slow"
+        )
+        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+            return result
+        return result
 
+    def _get_index_timeline_impl() -> str:
+        """Синхронная реализация get_index_timeline."""
         try:
             from collections import defaultdict
 
@@ -1219,7 +1262,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка при поиске информации о символе: {str(e)}"
 
     @mcp.tool()
-    def impact_analysis(
+    async def impact_analysis(
         symbol: str, depth: int = 3, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Анализ влияния изменения/удаления символа на весь проект.
@@ -1246,10 +1289,11 @@ def create_mcp_server() -> "FastMCP":
         if not symbol_index:
             return "❌ Движок анализа структуры недоступен."
         try:
-            result = _run_with_timeout(
+            result = await _run_with_timeout(
                 lambda: symbol_index.get_impact_analysis(symbol, depth=depth),
                 timeout=20,
-                description="impact_analysis"
+                description="impact_analysis",
+                priority="slow"
             )
             if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
                 return result
@@ -1287,7 +1331,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка анализа влияния: {str(e)}"
 
     @mcp.tool()
-    def find_similar_bugs(
+    async def find_similar_bugs(
         error_message: str, project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Находит похожие баги из истории проекта.
@@ -1316,10 +1360,11 @@ def create_mcp_server() -> "FastMCP":
                 memory = CommitMemory(target_path)
                 return memory.find_similar_bugs(error_message, max_results=5)
 
-            similar = _run_with_timeout(
+            similar = await _run_with_timeout(
                 _fetch_similar_bugs,
-                timeout=20,
-                description="find_similar_bugs"
+                timeout=15,
+                description="find_similar_bugs",
+                priority="fast"
             )
             if isinstance(similar, str) and (similar.startswith("❌") or similar.startswith("⏱")):
                 return similar
@@ -1450,7 +1495,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_branch_info(
+    async def get_branch_info(
         project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Информация о текущей git-ветке и индексе.
@@ -1480,35 +1525,29 @@ def create_mcp_server() -> "FastMCP":
                     f"   и перезапустите Zed для применения."
                 )
 
-            def _fetch_branch_info():
-                bi = BranchAwareIndex(target_path)
-                info = bi.get_branch_info()
-                lines = [
-                    f"🌿 Branch Info:",
-                    f"  • Текущая ветка: {info['branch']}",
-                    f"  • Путь к БД: {info['db_path']}",
-                    f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
-                    f"  • Чанков в индексе: {info['total_chunks']}",
-                ]
-                all_indices = bi.list_branch_indices()
-                if all_indices:
-                    lines.append(f"")
-                    lines.append(f"📁 Все индексы веток:")
-                    for branch, chunks in all_indices.items():
-                        lines.append(f"  • {branch}: {chunks} чанков")
-                return "\n".join(lines)
-
-            return _run_with_timeout(
-                _fetch_branch_info,
-                timeout=15,
-                description="get_branch_info"
-            )
+            # Прямой вызов — 0.02с, нечего executor гонять
+            bi = BranchAwareIndex(target_path)
+            info = bi.get_branch_info()
+            lines = [
+                f"🌿 Branch Info:",
+                f"  • Текущая ветка: {info['branch']}",
+                f"  • Путь к БД: {info['db_path']}",
+                f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
+                f"  • Чанков в индексе: {info['total_chunks']}",
+            ]
+            all_indices = bi.list_branch_indices()
+            if all_indices:
+                lines.append(f"")
+                lines.append(f"📁 Все индексы веток:")
+                for branch, chunks in all_indices.items():
+                    lines.append(f"  • {branch}: {chunks} чанков")
+            return "\n".join(lines)
         except Exception as e:
             logger.error(f"Ошибка get_branch_info: {e}")
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_commit_history(
+    async def get_commit_history(
         project_root: str = "", limit: int = 10, kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Возвращает семантическую историю изменений проекта.
@@ -1527,24 +1566,36 @@ def create_mcp_server() -> "FastMCP":
         """
         _debug_log("get_commit_history", f"{project_root}, limit={limit}")
         try:
-            from src.core.commit_memory import CommitMemory
-
             target_path = _resolve_project_path(project_root)
             if not target_path.exists():
                 return f"❌ Путь не существует: {target_path}"
 
-            def _fetch_commits():
-                memory = CommitMemory(target_path)
-                return memory.fetch_commits(limit=limit)
+            target_key = str(target_path.resolve())
 
-            commits = _run_with_timeout(
-                _fetch_commits,
+            # CommitMemory синглтон — git log вызывается 1 раз, дальше кэш на диске
+            def _get_or_create_memory():
+                global _commit_memory_cache
+                if target_key not in _commit_memory_cache:
+                    from src.core.commit_memory import CommitMemory
+                    memory = CommitMemory(target_path)
+                    if not memory._commits:
+                        memory.fetch_commits(limit=limit)
+                    _commit_memory_cache[target_key] = memory
+                return _commit_memory_cache[target_key]
+
+            memory = await _run_with_timeout(
+                _get_or_create_memory,
                 timeout=15,
-                description="get_commit_history"
+                description="CommitMemory инициализация"
             )
-            if isinstance(commits, str) and (commits.startswith("❌") or commits.startswith("⏱")):
-                return commits
+            if isinstance(memory, str) and (memory.startswith("❌") or memory.startswith("⏱")):
+                return memory
 
+            commits = memory._commits[:limit] if memory._commits else []
+            if not commits:
+                return "⚠️ Нет коммитов или git недоступен."
+            stats = memory.get_stats()
+            result = (commits, stats)
             if not commits:
                 return "⚠️ Нет коммитов или git недоступен."
 
@@ -1558,8 +1609,6 @@ def create_mcp_server() -> "FastMCP":
                 output.append(f"  {i}. [{hash_short}] {date} — {msg}")
                 output.append(f"     Файлов изменено: {files}")
 
-            # Статистика
-            stats = memory.get_stats()
             output.append(f"")
             output.append(f"  Статистика:")
             output.append(f"  • Всего коммитов: {stats['total']}")
@@ -1573,7 +1622,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_file_history(
+    async def get_file_history(
         project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Возвращает историю изменений конкретного файла.
@@ -1604,10 +1653,11 @@ def create_mcp_server() -> "FastMCP":
                 stability = memory.get_file_stability(file_path)
                 return commits, stability
 
-            result = _run_with_timeout(
+            result = await _run_with_timeout(
                 _fetch_file_history,
                 timeout=15,
-                description="get_file_history"
+                description="get_file_history",
+                priority="fast"
             )
             if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
                 return result
@@ -1636,7 +1686,7 @@ def create_mcp_server() -> "FastMCP":
             return f"❌ Ошибка: {str(e)}"
 
     @mcp.tool()
-    def get_bug_correlation(
+    async def get_bug_correlation(
         project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
         """Анализ связи багов с изменениями в коде (Bug Correlation).
@@ -1671,10 +1721,11 @@ def create_mcp_server() -> "FastMCP":
                 else:
                     return ("project", bug_corr.analyze(), bug_corr.get_hotspots(10))
 
-            result = _run_with_timeout(
+            result = await _run_with_timeout(
                 _fetch_bug_data,
                 timeout=20,
-                description="get_bug_correlation"
+                description="get_bug_correlation",
+                priority="slow"
             )
             if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
                 return result
@@ -2308,7 +2359,7 @@ def create_mcp_server() -> "FastMCP":
         return _last_searcher
 
     @mcp.tool()
-    def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
 
         CRITICAL USAGE RULE:
@@ -2356,10 +2407,11 @@ def create_mcp_server() -> "FastMCP":
                                 out.append(f"      └─ [{s_kind.upper()}] {s_name}")
                     return "\n".join(out)
 
-                return _run_with_timeout(
+                return await _run_with_timeout(
                     _fetch_repo_map,
                     timeout=15,
-                    description="get_repo_map"
+                    description="get_repo_map",
+                    priority="slow"
                 )
             return f"🗺️ Карта проекта '{target_path.name}' не поддерживается."
         except Exception as e:
@@ -2433,9 +2485,8 @@ def create_mcp_server() -> "FastMCP":
             logger.error(f"Ошибка scan_changes: {e}", exc_info=True)
             return f"❌ Ошибка сканирования: {str(e)}"
 
-    # 8. Инструмент MCP: Статус компонентов архитектуры
     @mcp.tool()
-    def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
         """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга.
 
         CRITICAL USAGE RULE:
@@ -2448,6 +2499,16 @@ def create_mcp_server() -> "FastMCP":
         тестовый запрос для загрузки «по требованию».
         """
         _debug_log("watcher_status")
+        result = await _run_with_timeout(
+            lambda: _watcher_status_impl(),
+            timeout=15, description="watcher_status", priority="fast"
+        )
+        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+            return result
+        return result
+
+    def _watcher_status_impl() -> str:
+        """Синхронная реализация watcher_status."""
         lines = ["👁️ Статус компонентов архитектуры:"]
 
         # Проверка доступности кода LSP в контексте текущего окружения
@@ -2809,24 +2870,21 @@ def create_mcp_server() -> "FastMCP":
         return get_log_summary(target_path)
 
     @mcp.tool()
-    def get_health_report(
+    async def get_health_report(
         project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Самодиагностика системы — проверяет здоровье индекса, логов, синхронизации.
+        """Самодиагностика системы."""
+        result = await _run_with_timeout(
+            lambda: _get_health_report_impl(project_root),
+            timeout=45, description="get_health_report", priority="slow",
+            queue_timeout=15
+        )
+        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
+            return result
+        return result
 
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно проверить общее состояние системы
-        - Поиск возвращает странные результаты
-        - Подозреваешь что индекс рассинхронизирован с диском
-        - Хочешь увидеть все ошибки и предупреждения в одном отчёте
-
-        Возвращает:
-            - overall_health: healthy / warning / critical
-            - metrics: количество чанков, файлов, символов, ошибок
-            - issues: критические проблемы
-            - warnings: предупреждения
-        """
-        _debug_log("get_health_report", project_root)
+    def _get_health_report_impl(project_root: str) -> str:
+        """Синхронная реализация get_health_report."""
         try:
             target_path = _resolve_project_path(project_root)
             if not target_path.exists():
@@ -2841,22 +2899,12 @@ def create_mcp_server() -> "FastMCP":
 
             report = HealthReport(
                 project_path=target_path,
-                indexer=locals().get("indexer"),
-                symbol_index=locals().get("symbol_index"),
-                embedder=locals().get("embedder"),
+                indexer=indexer,
+                symbol_index=symbol_index,
+                embedder=embedder,
             )
-            # Таймаут 45 сек на полную диагностику
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                fut = pool.submit(report.run_full_diagnostic)
-                try:
-                    result = fut.result(timeout=45)
-                except concurrent.futures.TimeoutError:
-                    return (
-                        "❌ Таймаут диагностики (>45 сек). "
-                        "Проверьте доступность LM Studio и состояние индекса. "
-                        f"Используйте get_index_status для базовой проверки."
-                    )
+            # Запускаем напрямую — уже внутри _run_with_timeout (slow executor)
+            result = report.run_full_diagnostic()
             return format_health_report(result)
         except Exception as e:
             logger.error(f"Ошибка get_health_report: {e}")

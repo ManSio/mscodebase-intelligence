@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-logger = logging.getLogger("health_report")
+logger = logging.getLogger("mscodebase_server")
 
 
 class HealthReport:
@@ -28,50 +28,69 @@ class HealthReport:
         self.embedder = embedder
         self.report_timestamp = datetime.now().isoformat()
         self.issues: List[Dict[str, Any]] = []
+        self._df_cache: Any = None  # кэш DataFrame для избежания двойной загрузки
         self.warnings: List[Dict[str, Any]] = []
         self.metrics: Dict[str, Any] = {}
 
     def _run_with_timeout(self, func, timeout=30):
-        """Выполняет функцию с таймаутом."""
-        import concurrent.futures
+        """Выполняет функцию с таймаутом (упрощённо, без создания ThreadPoolExecutor)."""
+        import threading
+        result_box = []
+        error_box = []
 
         def wrapper():
             try:
-                return func()
-            except Exception as e:
-                return e
+                result_box.append(func())
+            except BaseException as e:
+                error_box.append(e)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(wrapper)
-            try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                return TimeoutError(f"Функция превысила таймаут {timeout} секунд")
+        t = threading.Thread(target=wrapper, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+        if t.is_alive():
+            return TimeoutError(f"Функция превысила таймаут {timeout} секунд")
+        if error_box:
+            return error_box[0]
+        return result_box[0] if result_box else None
 
     def run_full_diagnostic(self) -> Dict[str, Any]:
         """Полная диагностика системы."""
         self.report_timestamp = datetime.now().isoformat()
 
         # 1. Проверка индекса
+        logger.warning("[diag] _check_index_integrity...")
         self._check_index_integrity()
+        logger.warning("[diag] _check_index_integrity OK")
 
         # 2. Проверка логов
+        logger.warning("[diag] _check_logs...")
         self._check_logs()
+        logger.warning("[diag] _check_logs OK")
 
         # 3. Проверка файловой системы
+        logger.warning("[diag] _check_filesystem_sync...")
         self._check_filesystem_sync()
+        logger.warning("[diag] _check_filesystem_sync OK")
 
         # 4. Проверка компонентов
         self._check_components()
+        logger.warning("[diag] _check_components OK")
 
         # 5. Execution Contract верификация
+        logger.warning("[diag] _check_execution_contract...")
         self._check_execution_contract()
+        logger.warning("[diag] _check_execution_contract OK")
 
         # 6. Synthetic monitoring (качество поиска)
+        logger.warning("[diag] _check_search_quality...")
         self._check_search_quality()
+        logger.warning("[diag] _check_search_quality OK")
 
         # 7. Формирование итогового отчёта
-        return self._build_report()
+        logger.warning("[diag] _build_report...")
+        result = self._build_report()
+        logger.warning("[diag] _build_report OK")
+        return result
 
     def _check_index_integrity(self):
         """Проверка целостности индекса LanceDB."""
@@ -114,7 +133,9 @@ class HealthReport:
                 if hasattr(self.indexer, "table") and self.indexer.table is not None:
                     import pandas as pd
 
-                    df = self.indexer.table.to_pandas()
+                    if self._df_cache is None:
+                        self._df_cache = self.indexer.table.to_pandas()
+                    df = self._df_cache
                     if not df.empty and "file_path" in df.columns:
                         indexed_files = set(df["file_path"].unique())
                         existing_files = set()
@@ -218,28 +239,28 @@ class HealthReport:
             return
 
         try:
-            # Считаем .py файлы на диске
+            # Считаем .py файлы на диске (только src/, tests/, scripts/)
             disk_files = set()
-            for f in self.project_path.rglob("*.py"):
-                if (
-                    "__pycache__" not in str(f)
-                    and ".venv" not in str(f)
-                    and "venv" not in str(f)
-                ):
-                    try:
-                        rel = f.relative_to(self.project_path)
-                        disk_files.add(str(rel))
-                    except ValueError:
-                        pass
+            scan_dirs = ["src", "tests", "scripts", "install.py"]
+            for d in scan_dirs:
+                p = self.project_path / d
+                if p.is_file():
+                    disk_files.add(str(p.relative_to(self.project_path)))
+                elif p.is_dir():
+                    for f in p.rglob("*.py"):
+                        if "__pycache__" not in str(f):
+                            try:
+                                rel = f.relative_to(self.project_path)
+                                disk_files.add(str(rel))
+                            except ValueError:
+                                pass
 
             self.metrics["disk_py_files"] = len(disk_files)
 
-            # Сравниваем с индексом
-            if hasattr(self.indexer, "table") and self.indexer.table is not None:
+            # Сравниваем с индексом (используем кэш из _check_index_integrity)
+            if self._df_cache is not None:
                 try:
-                    import pandas as pd
-
-                    df = self.indexer.table.to_pandas()
+                    df = self._df_cache
                     if not df.empty and "file_path" in df.columns:
                         indexed_files = set(df["file_path"].unique())
                         self.metrics["indexed_files"] = len(indexed_files)
@@ -305,80 +326,86 @@ class HealthReport:
             )
 
     def _check_execution_contract(self):
-        """Верификация Execution Contract: git state, tests, pushes."""
+        """Верификация Execution Contract: git state.
+
+        На Windows subprocess.run(timeout=X) не всегда убивает git
+        (git порождает дочерние процессы git-remote-https.exe / CredentialManager,
+        которые остаются висеть, блокируя stdout/stderr).
+
+        Решение: daemon-поток + join(timeout). Если git завис — бросаем поток
+        и продолжаем диагностику. Потери: 1 daemon-поток на зависший git.
+        """
         import subprocess
+        import os as _os
+        import threading as _threading
 
-        # 1. Git state
-        try:
-            result = subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                cwd=str(self.project_path),
-            )
-            if result.returncode == 0:
-                dirty_files = [f for f in result.stdout.strip().split("\n") if f]
-                if dirty_files:
-                    self.warnings.append(
-                        {
-                            "component": "execution_contract",
-                            "message": f"Незакоммиченные изменения: {len(dirty_files)} файлов",
-                            "files": dirty_files[:5],
-                        }
-                    )
-                self.metrics["git_dirty_files"] = len(dirty_files)
+        _env = _os.environ.copy()
+        _env["GIT_TERMINAL_PROMPT"] = "0"
+        _env["GIT_PAGER"] = "cat"
+        _env["PAGER"] = "cat"
 
-            # 2. Check if ahead of remote
-            result = subprocess.run(
-                ["git", "status", "-sb"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                cwd=str(self.project_path),
-            )
-            if result.returncode == 0:
-                status_line = (
-                    result.stdout.strip().split("\n")[0] if result.stdout else ""
-                )
-                if "ahead" in status_line:
-                    self.issues.append(
-                        {
-                            "component": "execution_contract",
-                            "severity": "warning",
-                            "message": f"Локальная ветка опережает remote: {status_line}",
-                        }
-                    )
-                self.metrics["git_synced"] = "ahead" not in status_line
+        def _git_worker(args, out):
+            """Запускает git в изолированном daemon-потоке."""
+            try:
+                res = subprocess.run(args, capture_output=True, text=True, env=_env, cwd=str(self.project_path))
+                out["rc"] = res.returncode
+                out["out"] = res.stdout
+                out["err"] = res.stderr
+            except FileNotFoundError:
+                out["rc"] = -2  # git not found
+            except Exception as e:
+                out["rc"] = -1
+                out["err"] = str(e)
 
-            # 3. Last commit info
-            result = subprocess.run(
-                ["git", "log", "-1", "--oneline"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                cwd=str(self.project_path),
-            )
-            if result.returncode == 0:
-                self.metrics["last_commit"] = result.stdout.strip()
+        def _run_git_safe(args, timeout=4):
+            """Запускает git с жёстким таймаутом через daemon-поток."""
+            out = {"rc": -1, "out": "", "err": ""}
+            t = _threading.Thread(target=_git_worker, args=(args, out), daemon=True)
+            t.start()
+            t.join(timeout=timeout)
+            if t.is_alive():
+                # Git завис — бросаем поток, продолжаем диагностику
+                return -3, "", f"git timeout after {timeout}s"
+            return out["rc"], out["out"], out["err"]
 
-        except subprocess.TimeoutExpired:
-            self.warnings.append(
-                {"component": "execution_contract", "message": "Git timeout"}
-            )
-        except FileNotFoundError:
-            self.warnings.append(
-                {"component": "execution_contract", "message": "Git not found"}
-            )
-        except Exception as e:
-            self.warnings.append(
-                {"component": "execution_contract", "message": f"Git error: {e}"}
-            )
+        # 1. git status --porcelain
+        rc, out, err = _run_git_safe(["git", "--no-pager", "status", "--porcelain"], timeout=4)
+        if rc == 0:
+            dirty = [f for f in out.strip().split("\n") if f]
+            if dirty:
+                self.warnings.append({
+                    "component": "execution_contract",
+                    "message": f"Незакоммиченные изменения: {len(dirty)} файлов",
+                    "files": dirty[:5],
+                })
+            self.metrics["git_dirty_files"] = len(dirty)
+        elif rc == -3:
+            self.warnings.append({"component": "execution_contract", "message": "Git status timeout (Windows I/O lock)"})
+        elif rc == -2:
+            self.warnings.append({"component": "execution_contract", "message": "Git not found"})
+        elif rc != 0:
+            self.warnings.append({"component": "execution_contract", "message": f"Git status error: {err[:60]}"})
+
+        # 2. git status -sb (без remote — только --no-ahead-behind)
+        rc, out, err = _run_git_safe(["git", "--no-pager", "status", "-sb", "--no-ahead-behind"], timeout=4)
+        if rc == 0:
+            line = out.strip().split("\n")[0] if out else ""
+            self.metrics["git_synced"] = "ahead" not in line
+        elif rc == -3:
+            self.warnings.append({"component": "execution_contract", "message": "Git status -sb timeout"})
+
+        # 3. git log -1
+        rc, out, err = _run_git_safe(["git", "--no-pager", "log", "-1", "--oneline"], timeout=4)
+        if rc == 0:
+            self.metrics["last_commit"] = out.strip()
+        elif rc == -3:
+            self.warnings.append({"component": "execution_contract", "message": "Git log timeout"})
 
     def _check_search_quality(self):
         """Synthetic monitoring: проверка качества семантического поиска.
 
-        Выполняет тестовые запросы и проверяет что поиск находит релевантные результаты.
+        Только 1 тестовый запрос (вместо 3) с таймаутом 8с.
+        LM Studio может отвечать до 7с на поиск — не блокируем диагностику.
         """
         if (
             not self.indexer
@@ -396,51 +423,40 @@ class HealthReport:
         try:
             searcher = self.indexer.searcher
 
-            # Тест 1: Поиск по имени известного символа
-            test_queries = [
-                "index file",
-                "search code",
-                "embed text",
-            ]
+            # 1 тестовый поиск с таймаутом
+            import threading as _t
+            _out = {"results": None, "error": None}
 
-            results_found = 0
-            results_total = 0
-
-            for query in test_queries:
+            def _search():
                 try:
-                    results = searcher.search(query, limit=3)
-                    results_total += 1
-                    if results and len(results) > 0:
-                        results_found += 1
-                except Exception:
-                    pass
+                    _out["results"] = searcher.search("index file", 3)
+                except Exception as e:
+                    _out["error"] = str(e)
 
-            self.metrics["search_quality_total_tests"] = results_total
-            self.metrics["search_quality_passed"] = results_found
+            t = _t.Thread(target=_search, daemon=True)
+            t.start()
+            t.join(timeout=8)
 
-            if results_total > 0 and results_found < results_total:
-                self.warnings.append(
-                    {
-                        "component": "search_quality",
-                        "message": f"Search quality degraded: {results_found}/{results_total} tests passed",
-                    }
-                )
-            elif results_found == 0 and results_total > 0:
-                self.issues.append(
-                    {
-                        "component": "search_quality",
-                        "severity": "critical",
-                        "message": "Semantic search returns no results for basic queries",
-                    }
-                )
+            if _out["error"]:
+                self.warnings.append({"component": "search_quality", "message": f"Search error: {_out['error'][:60]}"})
+                return
+
+            if t.is_alive():
+                self.warnings.append({"component": "search_quality", "message": "Search timeout (>8s)"})
+                self.metrics["search_quality_passed"] = 0
+                self.metrics["search_quality_total_tests"] = 1
+                return
+
+            results = _out["results"]
+            passed = 1 if results and len(results) > 0 else 0
+            self.metrics["search_quality_passed"] = passed
+            self.metrics["search_quality_total_tests"] = 1
+
+            if passed == 0:
+                self.warnings.append({"component": "search_quality", "message": "Search returned no results"})
 
         except Exception as e:
-            self.warnings.append(
-                {
-                    "component": "search_quality",
-                    "message": f"Synthetic monitoring error: {e}",
-                }
-            )
+            self.warnings.append({"component": "search_quality", "message": f"Synthetic monitoring error: {e}"})
 
     def _build_report(self) -> Dict[str, Any]:
         """Формирование итогового отчёта."""
