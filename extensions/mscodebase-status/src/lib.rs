@@ -15,7 +15,10 @@ impl zed::Extension for MscodebaseExtension {
         Ok(zed_extension_api::process::Command {
             command: std::env::var("MSC_PYTHON").unwrap_or_else(|_| "python".to_string()),
             args: vec!["-u".to_string(), "-m".to_string(), "src.main".to_string()],
-            env: vec![("PROJECT_PATH".to_string(), ".".to_string())],
+            env: vec![
+                ("PROJECT_PATH".to_string(), "D:\\Project\\MSCodeBase".to_string()),
+                ("PYTHONPATH".to_string(), "D:\\Project\\MSCodeBase".to_string()),
+            ],
         })
     }
 }
