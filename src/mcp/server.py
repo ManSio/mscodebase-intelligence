@@ -189,7 +189,48 @@ def create_mcp_server() -> "FastMCP":
     # ─── 4. Системный prompt ─────────────────────────
     _register_system_prompt(mcp)
 
+    # ─── 5. Авто-индексация при пустом индексе ───────
+    _trigger_auto_index_if_empty(services)
+
     return mcp
+
+
+def _trigger_auto_index_if_empty(services):
+    """Запускает фоновую индексацию, если индекс пуст."""
+    import asyncio
+
+    try:
+        from src.core.indexer import Indexer
+
+        indexer = services.resolve(Indexer)
+        status = indexer.get_status()
+        if status.get("total_chunks", 0) == 0:
+            logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
+
+            async def _auto_index():
+                try:
+                    target = indexer.project_path
+                    logger.info(f"🔄 Индексация: {target.name}")
+                    indexed = await asyncio.to_thread(
+                        indexer.index_project, target
+                    )
+                    logger.info(f"✅ Авто-индексация: {indexed} файлов")
+                except Exception as e:
+                    logger.warning(f"Авто-индексация не удалась: {e}")
+                    logger.info("Выполните index_project_dir(path) вручную")
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(_auto_index())
+                else:
+                    loop.run_until_complete(_auto_index())
+            except RuntimeError:
+                pass
+        else:
+            logger.info(f"Индекс не пуст ({status.get('total_chunks', 0)} чанков)")
+    except Exception as e:
+        logger.debug(f"Авто-индексация: {e}")
 
 
 def _register_all_tools(mcp, services):

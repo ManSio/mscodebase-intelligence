@@ -1,7 +1,7 @@
 # Установка MSCodebase Intelligence для Zed IDE
 
 > **MSCodebase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
-> Работает полностью локально (ONNX embedding на CPU), без внешних API.
+> Работает полностью локально, без интернета после установки.
 
 ---
 
@@ -9,31 +9,50 @@
 
 | Компонент | Минимум | Рекомендуется |
 |-----------|---------|---------------|
-| **OS** | Windows 10+ / macOS 12+ / Linux | Windows 11 / macOS 14+ |
+| **OS** | Windows 10+, macOS 12+, Linux | Windows 11 |
 | **Python** | 3.10+ | 3.11+ |
 | **RAM** | 4 GB | 8+ GB |
-| **Диск** | 500 MB свободно | 2 GB (с моделью) |
-| **Zed IDE** | v0.150+ | latest |
-
-> **Windows:** Git Bash рекомендован для терминала (идёт с Git for Windows).
-> **macOS/Linux:** Стандартный терминал.
+| **Диск** | 500 MB | 2 GB (с моделью) |
+| **Zed IDE** | v0.150+ | последняя версия |
+| **Терминал** | Git Bash (Windows) / любой (macOS/Linux) | — |
 
 ---
 
 ## 📥 Быстрая установка (Windows)
 
+### Шаг 1: Установка
+
 ```cmd
-:: 1. Клонировать или распаковать расширение
-:: 2. Запустить установщик
+:: Откройте Git Bash или cmd в папке расширения
 install.bat
 ```
 
-Установщик автоматически:
-1. ✅ Проверит Python 3.10+
-2. ✅ Создаст виртуальное окружение (venv)
-3. ✅ Установит зависимости
+Установщик сделает всё сам:
+1. ✅ Проверит Python
+2. ✅ Создаст виртуальное окружение
+3. ✅ Установит все зависимости
 4. ✅ Настроит MCP-сервер в `settings.json` Zed
-5. ✅ Предложит скачать ONNX-модель для офлайн-режима
+5. ✅ Пропишет `PROJECT_PATH` — чтобы сервер знал, где ваш проект
+
+### Шаг 2: Перезапуск Zed
+
+Закройте и откройте Zed заново (`Ctrl+Shift+P` → `window: reload`).
+
+### Шаг 3: Проверка
+
+Откройте **Agent Panel** (`Ctrl+Shift+P` → `Agent Panel: Toggle`) и напишите:
+```
+get_index_status()
+```
+
+Должны увидеть:
+```
+📊 Статус базы данных MSCodebase:
+  • Всего фрагментов кода в базе: ...
+  • Режим эмбеддера: 🌐 LM Studio
+```
+
+> Если сервер не найден — см. раздел «Устранение проблем» ниже.
 
 ---
 
@@ -42,30 +61,33 @@ install.bat
 ### Шаг 1: Создание venv
 
 ```bash
-# Windows
+# Windows (Git Bash)
 python -m venv venv
-venv\Scripts\python -m pip install -r requirements.txt
+venv/Scripts/python -m pip install -r requirements.txt
 
 # macOS/Linux
 python3 -m venv venv
 ./venv/bin/python3 -m pip install -r requirements.txt
 ```
 
-### Шаг 2: Настройка MCP-сервера в Zed
+### Шаг 2: Настройка Zed
 
-Добавь в `settings.json` Zed (`%APPDATA%\Zed\settings.json` на Windows,
-`~/.config/zed/settings.json` на Linux, `~/Library/Application Support/Zed/settings.json` на macOS):
+Добавьте в `settings.json`:
+
+**Windows:** `%APPDATA%\Zed\settings.json`
+**macOS:** `~/Library/Application Support/Zed/settings.json`
+**Linux:** `~/.config/zed/settings.json`
 
 ```json
 {
   "context_servers": {
     "mscodebase-intelligence": {
-      "command": "C:\\Users\\<USER>\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe",
+      "command": "C:\путь\к\расширению\venv\Scripts\python.exe",
       "args": ["-u", "-m", "src.main"],
       "current_dir": "$ZED_WORKTREE_ROOT",
       "env": {
-        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
-        "PYTHONPATH": "$ZED_WORKTREE_ROOT"
+        "PYTHONPATH": "C:\путь\к\расширению",
+        "PROJECT_PATH": "C:\путь\к\вашему\проекту"
       }
     }
   },
@@ -73,88 +95,116 @@ python3 -m venv venv
 }
 ```
 
-> **Важно:** `current_dir` должен указывать на **проект**, а не на директорию расширения.
-> Используй `$ZED_WORKTREE_ROOT` — Zed сам подставит путь к открытому проекту.
+> **💡 Важно для Windows:** В поле `env` пропишите `PROJECT_PATH` — абсолютный путь к вашему проекту.
+> Иначе сервер не сможет определить корень проекта, и индексация будет пустой.
+> 
+> **Пример:** `"PROJECT_PATH": "D:\\Project\\MyProject"`
 
-### Шаг 3: Запуск
-
-Перезапусти Zed → открой `Agent Panel` (`Ctrl+Shift+P` → `Agent Panel: Toggle`) →
-выбери модель и задай вопрос.
-
----
-
-## 🧠 ONNX-модель (офлайн-режим)
-
-Для работы без LM Studio/Ollama нужна embedding-модель в ONNX формате:
+### Шаг 3: Первый запуск
 
 ```bash
-# Рекомендуемая (баланс качества/скорости)
-python scripts/download_model.py
-
-# Лёгкая (200 MB RAM)
-python scripts/download_model.py --model intfloat/multilingual-e5-small
-
-# Мощная (3 GB RAM, требует GPU)
-python scripts/download_model.py --model Alibaba-NLP/gte-Qwen2-1.5B-instruct
+# Запустите сервер вручную для проверки
+python -u -m src.main
 ```
 
-Модель сохраняется в `.codebase_models/onnx/` и автоматически подхватывается
-при старте сервера.
+Должны увидеть:
+```
+MSCodebase Intelligence MCP Server запускается...
+Запуск MCP сервера...
+```
 
-> **Фишка:** Кэш модели сохраняется в `~/.cache/mscodebase/hf_models/`.
-> При повторном запуске модель не перекачивается. Для принудительного ре-экспорта: `--force`.
+### Шаг 4: Первая индексация
+
+В Agent Panel выполните:
+```
+index_project_dir(path="D:\Project\MSCodeBase")
+```
+(укажите путь к вашему проекту)
+
+Индексация займёт **1-2 минуты**. После неё можно искать код.
 
 ---
 
-## 🔄 Обновление после изменений кода
+## 🧠 ONNX-модель (офлайн-режим без LM Studio)
 
-```cmd
-:: Быстрая синхронизация (только исходники, venv не трогается)
-sync_to_installed.bat
+Для работы без LM Studio нужна embedding-модель:
 
-:: Если добавились новые зависимости
-sync_to_installed.bat
-python -m pip install -r requirements.txt
-
-:: Полная переустановка
-install.bat
+```bash
+python scripts/download_model.py
 ```
+
+Модель загрузится в `.codebase_models/onnx/`. После этого сервер будет работать полностью офлайн.
 
 ---
 
 ## 🚀 Опционально: LM Studio (рекомендуется)
 
-MSCodebase Intelligence может использовать **LM Studio** для более мощных эмбеддингов:
+LM Studio даёт более качественный поиск:
 
-1. Установи [LM Studio](https://lmstudio.ai/)
-2. Загрузи модель: `nomic-ai/nomic-embed-text-v1.5` или `BAAI/bge-m3`
-3. Запусти локальный сервер на порту `1234`
+1. Установите [LM Studio](https://lmstudio.ai/)
+2. Загрузите модель: `BAAI/bge-m3` (эмбеддинги) и `phi-4-mini-instruct` (реранкинг)
+3. Запустите локальный сервер на порту `1234`
 4. MCP-сервер подключится автоматически
-
-Без LM Studio используется **встроенный ONNX-эмбеддер** — медленнее,
-но работает полностью офлайн.
-
----
-
-## 🐳 Не нужен Docker
-
-Расширение работает **нативно** — никаких контейнеров, WSL или лишних слоёв абстракции.
-Всё что нужно: Python + Pip.
 
 ---
 
 ## ❗ Устранение проблем
 
-| Проблема | Решение |
-|----------|---------|
-| `MCP server not found` | Проверь `settings.json`, перезапусти Zed |
-| `PROJECT_PATH not set` | Укажи `"current_dir": "$ZED_WORKTREE_ROOT"` |
-| `0 chunks in index` | Вызови `index_project_dir(path)` |
-| `ONNX model not found` | Запусти `python scripts/download_model.py` |
-| `LM Studio connection refused` | Проверь что LM Studio запущен на порту 1234 |
+### 🔴 «MCP server not found» в Agent Panel
+
+**Причина:** Сервер не запустился, или `settings.json` настроен неверно.
+
+**Решение:**
+1. Проверьте `settings.json` — корректный ли путь к `python.exe`?
+2. Есть ли `PROJECT_PATH` в `env`? (на Windows — обязательно!)
+3. Запустите вручную: `python -u -m src.main` — видны ли ошибки?
+4. `Ctrl+Shift+P` → `window: reload`
+
+### 🔴 «PROJECT_PATH не установлен» в логах
+
+**Причина:** На Windows `$ZED_WORKTREE_ROOT` не резолвится.
+
+**Решение:** Добавьте в `settings.json`:
+```json
+"env": {
+  "PROJECT_PATH": "D:\\Ваш\\Проект"
+}
+```
+
+### 🔴 «0 chunks» в get_index_status()
+
+**Причина:** Индекс ещё не построен.
+
+**Решение:** Выполните `index_project_dir(path="D:\путь\к\проекту")` и подождите 1-2 минуты.
+
+### 🔴 «int32 is not JSON serializable»
+
+**Причина:** Старая версия сервера. Обновитесь до v2.2.0+.
+
+**Решение:** Запустите `install.bat` заново.
+
+### 🔴 LM Studio «Connection refused»
+
+**Причина:** LM Studio не запущен или занят другой порт.
+
+**Решение:** Запустите LM Studio, проверьте что сервер активен на порту 1234.
+
+---
+
+## 📄 Удаление
+
+```cmd
+:: Запустите деинсталлятор в папке расширения
+uninstall.bat
+```
+
+Или вручную:
+1. Удалите секцию `mscodebase-intelligence` из `settings.json` Zed
+2. Удалите папку расширения: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`
+3. Удалите `.codebase_indices` из корня вашего проекта
 
 ---
 
 ## 📄 Лицензия
 
-MIT — делай что хочешь, но без гарантий.
+MIT — делайте что хотите, но без гарантий.

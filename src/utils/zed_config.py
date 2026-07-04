@@ -227,15 +227,27 @@ def patch_zed_settings(
     }
 
     # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
-    # PROJECT_PATH НЕ устанавливаем — на Windows $ZED_WORKTREE_ROOT не резолвится в env.
-    # Вместо этого сервер использует:
-    #   1. ZED_WORKTREE_ROOT env (если Zed устанавливает для MCP-процессов)
-    #   2. CWD (current_dir = $ZED_WORKTREE_ROOT, если Zed резолвит)
-    #   3. Fallback на ext_root с предупреждением
+    # PROJECT_PATH: если передан явно — используем его на Windows.
+    # Без PROJECT_PATH сервер не может определить корень проекта на Windows,
+    # так как $ZED_WORKTREE_ROOT не резолвится в env и current_dir (баг Zed #36019).
     env = {
         "PYTHONPATH": str(ext_dir),
     }
-    entry["env"] = env
+
+    # Если project_path явно передан — устанавливаем PROJECT_PATH
+    # Это единственный надёжный способ указать корень проекта на Windows
+    if project_path:
+        env["PROJECT_PATH"] = str(Path(project_path).resolve())
+        logger.info(f"PROJECT_PATH установлен: {project_path}")
+    elif mode == "project":
+        # Режим проекта: CWD = корень проекта
+        env["PROJECT_PATH"] = str(Path.cwd().resolve())
+        logger.info(f"PROJECT_PATH (project mode): {Path.cwd()}")
+    else:
+        logger.warning(
+            "PROJECT_PATH не установлен. На Windows сервер может не определить корень проекта. "
+            "Передайте project_path при вызове patch_zed_settings()"
+        )
 
     settings["context_servers"][SERVER_NAME] = entry
 
