@@ -1,7 +1,15 @@
-"""MSCodebase Intelligence MCP Server - Чистый набор инструментов без поллинга файловой системы"""
+"""MSCodebase Intelligence MCP Server — рефакторинг v3
+
+Чистый IoC-ориентированный сервер с DI-контейнером.
+
+Архитектура:
+- create_mcp_server() — только регистрация инструментов
+- DI Container (ServiceCollection) — единственное место создания зависимостей
+- tool/*.py — каждый инструмент в отдельном классе с constructor injection
+- core/* — чистая бизнес-логика без MCP-зависимостей
+"""
 
 import asyncio
-import concurrent.futures
 import logging
 import os
 import sys
@@ -11,211 +19,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.core.eta_predictor import ETAPredictor
-from src.core.execution_contract import ExecutionContract, format_verification_report
-from src.core.file_guard import FileGuard
-from src.core.health_report import HealthReport, format_health_report
-from src.core.indexer import Indexer
-from src.core.log_manager import (
-    get_log_summary,
-    get_recent_errors,
-    setup_project_logging,
-)
-from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.searcher import Searcher
-from src.core.structural_search import StructuralSearcher
-
-try:
-    from src.core.parser import CodeParser
-    from src.core.symbol_index import SymbolIndex
-except ImportError as e:
-    logging.getLogger("mscodebase_server").error(
-        f"Ошибка импорта локальных модулей: {e}"
-    )
-    raise
-
 logger = logging.getLogger("mscodebase_server")
-_task_queue: Optional[asyncio.Queue] = None
-_worker_task: Optional[asyncio.Task] = None
-_last_index_error: Optional[str] = None
-_task_events: list = []
-
-# Task Queue для фоновых задач (Bug Correlation, Relations, etc.)
-from src.core.task_queue import get_task_queue as _get_task_queue
-
-_background_task_queue = _get_task_queue()
-
-# ETA Predictor — предсказание времени выполнения
-from src.core.autonomous_fix import AutonomousFixLoop
-from src.core.chunk_summarizer import ChunkSummarizer
-from src.core.cross_project_deps import CrossProjectDependencyGraph
-from src.core.eta_predictor import get_predictor as _get_predictor
-from src.core.graph_rag import GraphRAGQueryEngine
-
-_eta_predictor = _get_predictor()
-
-
-def _debug_log(tool_name: str, detail: str = ""):
-    """Маркерная запись для проверки живости MCP-сервера."""
-    import datetime
-
-    try:
-        log_path = Path(__file__).resolve().parent.parent.parent / "mcp_debug.log"
-        with open(log_path, "a", encoding="utf-8") as f:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{ts}] MCP tool called: {tool_name} | {detail[:80]}\n")
-    except Exception:
-        pass
-
-
-def _signal_all_events():
-    """Сигналит всем ожидающим событиям о завершении задачи."""
-    events = _task_events[:]
-    for ev in events:
-        ev.set()
-
 
 # ══════════════════════════════════════════════════════════
-# Фоновые задачи для Task Queue
+# Progress Tracking — для визуализации хода индексации
 # ══════════════════════════════════════════════════════════
-
-
-def _run_bug_correlation(memory) -> str:
-    """Выполняет анализ баго-корреляции в фоне."""
-    from src.core.bug_correlation import BugCorrelation
-
-    bug_corr = BugCorrelation(memory)
-    stats = bug_corr.analyze()
-    hotspots = bug_corr.get_hotspots(10)
-
-    lines = [
-        f"🐛 Bug Correlation Analysis",
-        f"",
-        f"  Всего коммитов: {stats['total_commits']}",
-        f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
-        f"  Уникальных проблемных файлов: {len(bug_corr._file_bug_count)}",
-        f"",
-        f"  🔥 Топ-10 горячих точек:",
-    ]
-
-    for i, hotspot in enumerate(hotspots, 1):
-        risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(
-            hotspot["risk"], "⚪"
-        )
-        lines.append(
-            f"    {i}. {risk_emoji} {hotspot['file']} "
-            f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
-        )
-
-    return "\n".join(lines)
-
-
-def _run_build_graph(memory) -> str:
-    """Строит граф знаний в фоне."""
-    from src.core.relation_extractor import RelationExtractor
-
-    extractor = RelationExtractor(memory)
-    relations = extractor.extract_all_relations()
-    summary = extractor.get_relation_summary()
-
-    lines = [
-        f"🔗 Knowledge Graph Built",
-        f"",
-        f"  Всего связей: {summary['total_relations']}",
-    ]
-
-    if "by_type" in summary:
-        for rel_type, count in summary["by_type"].items():
-            lines.append(f"   - {rel_type}: {count}")
-
-    # Топ-10 cochange связей
-    cochange = relations.get("cochange", [])
-    if cochange:
-        lines.append(f"\n  📊 Топ cochange связи:")
-        for rel in cochange[:10]:
-            lines.append(
-                f"     {rel['source']} ↔ {rel['target']} (weight: {rel['weight']})"
-            )
-
-    return "\n".join(lines)
-
-
-def _run_full_analysis(memory) -> str:
-    """Полный анализ: баги + граф знаний."""
-    bug_result = _run_bug_correlation(memory)
-    graph_result = _run_build_graph(memory)
-    return f"{bug_result}\n\n{graph_result}"
-
 
 _last_progress: Dict[str, Any] = {}
 _progress_lock = threading.Lock()
-
-
-def _cleanup_old_progress():
-    """Удаляет записи прогресса старше 1 часа (защита от memory leak)."""
-    now = time.time()
-    expired = [
-        k for k, v in _last_progress.items() if now - v.get("timestamp", 0) > 3600
-    ]
-    for k in expired:
-        del _last_progress[k]
-
-
-# ─── Глобальный семафор — ограничивает параллельные MCP-вызовы от AI ─────────
-# Без лимитированных пулов: asyncio.to_thread() использует встроенный пул asyncio.
-# Это решает проблему Zombie Threads при отмене инструмента (Cancel):
-#   - Старый подход: лимитированный ThreadPoolExecutor (4 fast / 2 slow потока).
-#     При Cancel asyncio-задача отменяется, но поток в executor продолжает работу.
-#     После нескольких Cancelled все слоты заняты zombie — сервер перестаёт отвечать.
-#   - Новый подход: asyncio.to_thread() создаёт потоки по требованию (до cpu_count+4).
-#     Zombie не блокируют новые вызовы.
-_concurrency_semaphore = asyncio.Semaphore(6)
-
-# Кэш CommitMemory (синглтон) — переиспользуется между вызовами, git log вызывается 1 раз
-_commit_memory_cache = {}
-
-async def _run_with_timeout(func, timeout: int = 30, description: str = "операция",
-                             priority: str = "fast", queue_timeout: int = 10) -> Any:
-    """Выполняет функцию в фоновом потоке через asyncio.to_thread().
-
-    Больше НЕТ лимитированных ThreadPoolExecutor'ов — используем встроенный пул asyncio.
-    Это предотвращает Zombie Thread Exhaustion при отмене инструментов.
-
-    priority и queue_timeout сохранены для обратной совместимости (но не используются).
-    """
-    async with _concurrency_semaphore:
-        import time as _time
-
-        def _run_guarded():
-            try:
-                return func()
-            except BaseException as e:
-                raise
-
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(_run_guarded),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            logger.warning(f"⏱ [{priority}] {description}: выполнение >{timeout}s")
-            return f"❌ Таймаут {description} (> {timeout} сек выполнения)"
 
 
 def _create_progress_callback(project_name: str):
     """Создаёт callback для отслеживания прогресса индексации.
 
     Возвращает callable который обновляет внутренний счётчик прогресса
-    и логирует каждые 10 файлов.
-    Потокобезопасен через _progress_lock.
+    и логирует каждые 10 файлов. Потокобезопасен через _progress_lock.
     """
-
-    # Запоминаем время старта при первом вызове
     def progress_callback(file_name: str, done: int, total: int, phase: str):
         try:
             now = time.time()
-            # При первом вызове фиксируем started_at
             with _progress_lock:
                 existing = _last_progress.get(project_name, {})
                 if "started_at" not in existing or existing.get("phase") == "complete":
@@ -236,2826 +58,311 @@ def _create_progress_callback(project_name: str):
             with _progress_lock:
                 _last_progress[project_name] = progress_info
 
-            # Логируем прогресс каждые 10 файлов или на ключевых этапах
-            if done % 10 == 0 or phase in (
-                "complete",
-                "rebuilding_bm25",
-                "error_security",
-            ):
+            if done % 10 == 0 or phase in ("complete", "rebuilding_bm25", "error_security"):
                 logger.info(
-                    f"📊 Прогресс индексации [{project_name}]: "
+                    f"📊 Progress [{project_name}]: "
                     f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
                 )
-        except Exception as e:
-            # Ошибка callback не должна прерывать индексацию
-            logger.debug(f"Progress callback error (non-critical): {e}")
+        except Exception:
+            pass
 
     return progress_callback
 
 
-async def background_queue_worker(
-    indexer: Indexer, symbol_index: SymbolIndex, parser: "CodeParser"
-):
-    """
-    Потребитель задач ПЕРВИЧНОЙ полной индексации.
-    Последовательно обновляет векторный LanceDB индекс и структурный SymbolIndex.
-    Больше не запускает никаких Watcher-потоков - LSP следит за файлами.
-    """
-    global _last_index_error
-    logger.info("⚙️ Асинхронный Queue-воркер готов к тяжелой первичной индексации.")
-    while True:
-        project_path = await _task_queue.get()
-        try:
-            logger.info(
-                f"🔄 Фоновый воркер: Старт полной индексации проекта: {project_path.name}"
-            )
-            _last_index_error = None
+def _cleanup_old_progress():
+    """Удаляет записи прогресса старше 1 часа (защита от memory leak)."""
+    now = time.time()
+    expired = [
+        k for k, v in _last_progress.items() if now - v.get("timestamp", 0) > 3600
+    ]
+    for k in expired:
+        del _last_progress[k]
 
-            # МУЛЬТИПРОЕКТНОСТЬ: Динамическое переключение БД под конкретную папку
-            indexer.switch_project(project_path)
+# ══════════════════════════════════════════════════════════
+# Резолвер корня проекта (стабильная логика, не в DI)
+# ══════════════════════════════════════════════════════════
 
-            # Переключаем логирование на новый проект
-            setup_project_logging(project_path)
-            logger.info(f"🔄 Переключение на проект: {project_path.name}")
+_ext_root = Path(__file__).resolve().parent.parent.parent
+_env_project_root_raw = os.environ.get("PROJECT_PATH", "")
+_env_project_root: Optional[Path] = None
 
-            project_file_guard = FileGuard(project_path)
-            indexer.file_guard = project_file_guard
-
-            # 1. ВЕКТОРНАЯ ИНДЕКСАЦИЯ (LanceDB + LM Studio с учетом семафора)
-            indexed_count = 0
-            try:
-                logger.info("📡 Старт векторного сканирования всего проекта...")
-                # Создаём progress callback для отслеживания
-                progress_cb = _create_progress_callback(project_path.name)
-                indexed_count = await asyncio.to_thread(
-                    indexer.index_project, project_path, progress_callback=progress_cb
-                )
-                logger.info(f"🔹 Шаг 1 (Векторы) завершен. Фрагментов: {indexed_count}")
-            except Exception as emb_err:
-                _last_index_error = f"Ошибка векторного индекса (LM Studio?): {emb_err}"
-                logger.error(f"⚠️ Сбой на шаге 1: {emb_err}", exc_info=True)
-
-            # 2. СТРУКТУРНЫЙ ПАРСИНГ СИМВОЛОВ (Tree-sitter)
-            try:
-                if hasattr(symbol_index, "index_project"):
-                    logger.info("🌳 Старт структурного парсинга Tree-sitter...")
-                    await asyncio.to_thread(
-                        symbol_index.index_project, project_path, parser
-                    )
-                    logger.info("🔹 Шаг 2 (Символы) завершен успешно.")
-
-                    # Сохраняем SymbolIndex на диск (persistence)
-                    try:
-                        from src.core.index_guard import IndexGuard
-
-                        guard = IndexGuard(indexer.db_path, project_path)
-                        guard.save_symbol_index(symbol_index)
-                        logger.info("💾 SymbolIndex сохранён на диск.")
-                    except Exception as save_err:
-                        logger.warning(f"Не удалось сохранить SymbolIndex: {save_err}")
-
-                    # Обновляем счётчик символов для get_index_status
-                    global _total_symbols_count
-                    _total_symbols_count = len(symbol_index._definitions)
-
-            except Exception as sym_err:
-                logger.error(
-                    f"⚠️ Сбой на шаге 2 (Tree-sitter): {sym_err}", exc_info=True
-                )
-                if not _last_index_error:
-                    _last_index_error = f"Ошибка парсера символов: {sym_err}"
-
-            if not _last_index_error:
-                logger.info(
-                    f"✅ Фоновый воркер: Проект {project_path.name} полностью готов."
-                )
-            else:
-                logger.warning(
-                    f"⚠️ Индексация завершена с ошибками: {_last_index_error}"
-                )
-
-        except Exception as critical_err:
-            _last_index_error = f"Критический сбой цикла воркера: {critical_err}"
-            logger.error(
-                f"❌ Критическая ошибка внутри воркера: {critical_err}", exc_info=True
-            )
-        finally:
-            _signal_all_events()
-            _task_queue.task_done()
-
-
-def create_mcp_server() -> "FastMCP":
-    from mcp.server.fastmcp import FastMCP
-
-    mcp = FastMCP("MSCodebase Intelligence Server")
-    ext_root = Path(__file__).resolve().parent.parent.parent
-
-    # ВАЖНО: $ZED_WORKTREE_ROOT НЕ резолвится в полях env у MCP-сервера в Zed на Windows.
-    # Он работает только в current_dir и args. Поэтому PROJECT_PATH может содержать
-    # буквальную строку "$ZED_WORKTREE_ROOT" — такой путь нужно разрезолвить.
-    # Основной источник — CWD (current_dir) и ZED_WORKTREE_ROOT env.
-    #
-    # Подробнее: https://zed.dev/docs/extensions/developing-extensions#mcp-server
-    _env_project_root_raw = os.environ.get("PROJECT_PATH", "")
-    _env_project_root: Optional[Path] = None
-    if _env_project_root_raw:
-        if "$ZED" in _env_project_root_raw:
-            # PROJECT_PATH содержит $ZED_WORKTREE_ROOT — пробуем разрезолвить через env
-            zed_root = os.environ.get("ZED_WORKTREE_ROOT")
-            if zed_root:
-                zed_path = Path(zed_root).resolve()
-                if zed_path.exists() and zed_path != ext_root:
-                    _env_project_root = zed_path
-                    logger.debug(f"PROJECT_PATH resolved via ZED_WORKTREE_ROOT: {zed_path}")
-            else:
-                logger.debug(
-                    f"PROJECT_PATH содержит $ZED ({_env_project_root_raw}), "
-                    f"но ZED_WORKTREE_ROOT не установлен. Использую CWD."
-                )
-        else:
-            _resolved = Path(_env_project_root_raw).resolve()
-            if _resolved.exists() and _resolved.is_dir():
-                _env_project_root = _resolved
-                logger.debug(f"PROJECT_PATH resolved: {_resolved}")
-
-    def _resolve_project_path(provided: str = "") -> Path:
-        """
-        Возвращает корень проекта для инструментов MCP.
-        Приоритет:
-          1. Явно переданный provided (опциональный аргумент инструмента)
-          2. LSP→MCP bridge (temp-файл от LSP, который знает root_uri)
-          3. PROJECT_PATH из окружения (если реальный путь, не $ZED)
-          4. ext_root если он Git-репозиторий (запуск из исходников через PYTHONPATH)
-          5. ZED_WORKTREE_ROOT env (устанавливается Zed для MCP-процессов)
-          6. CWD (current_dir из настроек Zed — $ZED_WORKTREE_ROOT если резолвится)
-          7. ext_root как fallback (с предупреждением)
-
-        Шаг 2 (bridge) решает проблему Windows, где $ZED_WORKTREE_ROOT не резолвится
-        в CWD (баг Zed #36019). LSP получает корень через LSP-протокол (root_uri)
-        и пишет его в temp-файл. MCP читает этот файл при старте.
-        """
-        if provided and provided.strip():
-            return Path(provided).resolve()
-
-        # ════════════════════════════════════════════════
-        # ШАГ 1.5: LSP→MCP bridge (Windows compat)
-        # ════════════════════════════════════════════════
-        # LSP знает корень проекта из LSP-протокола (root_uri).
-        # Он пишет его в temp-файл. MCP читает с polling до 3 сек.
-        try:
-            from src.core.lsp_project_bridge import read_project_from_bridge
-            bridge_path = read_project_from_bridge()
-            if bridge_path is not None:
-                logger.debug(f"_resolve_project_path: bridge={bridge_path}")
-                return bridge_path
-        except Exception as e:
-            logger.debug(f"_resolve_project_path: bridge недоступен: {e}")
-
-        if _env_project_root is not None:
-            return _env_project_root
-        # Если ext_root — Git-репозиторий, значит Python запущен из исходников
-        # (через PYTHONPATH или pip install -e). Это и есть проект.
-        # ВАЖНО: эта проверка ДО ZED_WORKTREE_ROOT и CWD, потому что
-        # на Windows $ZED_WORKTREE_ROOT может не резолвиться, а CWD может
-        # указывать на другой (legacy) проект.
-        if (ext_root / ".git").exists():
-            logger.debug(
-                f"_resolve_project_path: ext_root это Git-репозиторий: {ext_root}"
-            )
-            return ext_root
-        # ZED_WORKTREE_ROOT env — устанавливается Zed для MCP процессов.
-        # На Windows может отсутствовать! Используем если есть.
+# Разрешаем PROJECT_PATH при импорте (один раз)
+if _env_project_root_raw:
+    if "$ZED" in _env_project_root_raw:
         zed_root = os.environ.get("ZED_WORKTREE_ROOT")
         if zed_root:
             zed_path = Path(zed_root).resolve()
-            if zed_path.exists():
-                logger.debug(f"_resolve_project_path: ZED_WORKTREE_ROOT={zed_path}")
-                return zed_path
-        # CWD — из current_dir в settings.json ($ZED_WORKTREE_ROOT если резолвится)
-        cwd = Path.cwd().resolve()
-        if cwd != ext_root:
-            logger.debug(f"_resolve_project_path: CWD={cwd}")
-            return cwd
-        # CWD == ext_root — проект не определён через env/CWD
-        logger.warning(
-            "⚠️ PROJECT_PATH не установлен, ZED_WORKTREE_ROOT нет, "
-            "CWD совпадает с ext_root, и bridge от LSP не получен. "
-            "Возвращаю ext_root как fallback, инструменты могут работать некорректно. "
-            f"ext_root={ext_root}"
-        )
-        return ext_root
+            if zed_path.exists() and zed_path != _ext_root:
+                _env_project_root = zed_path
+    else:
+        _resolved = Path(_env_project_root_raw).resolve()
+        if _resolved.exists() and _resolved.is_dir():
+            _env_project_root = _resolved
 
-    # Инициализация ядра (RemoteEmbedder использует конфигурацию по умолчанию)
-    embedder = RemoteEmbedder()
 
-    # Определяем базовый проект через _resolve_project_path()
-    # Это нужно чтобы Indexer/SymbolIndex работали с проектом пользователя, а не с расширением
-    _base_project = _resolve_project_path()
+def resolve_project_root(provided: str = "") -> Path:
+    """Возвращает корень проекта для MCP-инструментов.
+
+    Приоритет:
+    1. Явно переданный provided
+    2. LSP→MCP bridge (temp-файл от LSP)
+    3. PROJECT_PATH из окружения
+    4. ext_root если Git-репозиторий
+    5. ZED_WORKTREE_ROOT env
+    6. CWD
+    7. ext_root как fallback
+    """
+    if provided and provided.strip():
+        return Path(provided).resolve()
+
+    # LSP→MCP bridge (Windows compat)
+    try:
+        from src.core.lsp_project_bridge import read_project_from_bridge
+        bridge_path = read_project_from_bridge()
+        if bridge_path is not None:
+            logger.debug(f"resolve_project_root: bridge={bridge_path}")
+            return bridge_path
+    except Exception:
+        pass
+
+    if _env_project_root is not None:
+        return _env_project_root
+
+    if (_ext_root / ".git").exists():
+        logger.debug(f"resolve_project_root: ext_root is git repo: {_ext_root}")
+        return _ext_root
+
+    zed_root = os.environ.get("ZED_WORKTREE_ROOT")
+    if zed_root:
+        zed_path = Path(zed_root).resolve()
+        if zed_path.exists():
+            logger.debug(f"resolve_project_root: ZED_WORKTREE_ROOT={zed_path}")
+            return zed_path
+
+    cwd = Path.cwd().resolve()
+    if cwd != _ext_root:
+        logger.debug(f"resolve_project_root: CWD={cwd}")
+        return cwd
+
+    logger.warning(f"resolve_project_root: fallback to ext_root={_ext_root}")
+    return _ext_root
+
+
+# ══════════════════════════════════════════════════════════
+# Создание MCP-сервера
+# ══════════════════════════════════════════════════════════
+
+def create_mcp_server() -> "FastMCP":
+    """Создаёт и настраивает MCP-сервер с DI-контейнером.
+
+    Шаги:
+    1. Создаём FastMCP
+    2. Определяем project_root
+    3. Создаём DI-контейнер (все зависимости в одном месте)
+    4. Регистрируем инструменты (36 шт)
+    5. Регистрируем системный prompt
+    """
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP("MSCodebase Intelligence Server")
+
+    # ─── 1. Project root ────────────────────────────
+    project_root = resolve_project_root()
     logger.info(
-        f"🏠 Базовый проект: {_base_project} "
-        f"(ext_root={ext_root}, CWD={Path.cwd().resolve()}, "
-        f"ZED_WORKTREE_ROOT={os.environ.get('ZED_WORKTREE_ROOT', 'не установлен')}, "
+        f"🏠 Project root: {project_root} "
+        f"(CWD={Path.cwd().resolve()}, "
         f"PROJECT_PATH={os.environ.get('PROJECT_PATH', 'не установлен')})"
     )
-    default_file_guard = FileGuard(_base_project)
 
-    from src.core.indexer import _generate_unique_db_path
+    # ─── 2. DI Container ────────────────────────────
+    from src.core.di_container import create_service_collection
+    services = create_service_collection(project_root)
 
-    initial_db_path = _generate_unique_db_path(_base_project)
-    code_parser = CodeParser()
+    # Настройка файлового логирования
+    from src.core.log_manager import setup_project_logging
+    setup_project_logging(project_root)
+    logger.info("🚀 MCP-сервер запущен (DI Container ready)")
 
-    # Создаём SymbolIndex до Indexer, чтобы передать его в конструктор
-    symbol_index = SymbolIndex()
+    # ─── 3. Регистрация инструментов ─────────────────
+    _register_all_tools(mcp, services)
 
-    indexer = Indexer(
-        initial_db_path,
-        embedder,
-        default_file_guard,
-        project_path=_base_project,
-        parser=code_parser,
-        symbol_index=symbol_index,
+    # ─── 4. Системный prompt ─────────────────────────
+    _register_system_prompt(mcp)
+
+    return mcp
+
+
+def _register_all_tools(mcp, services):
+    """Регистрирует все 36 MCP-инструментов через DI контейнер.
+
+    Каждый инструмент — отдельный class с constructor injection,
+    задекорированный @error_boundary.
+    """
+    from src.mcp.tools.search_tools import (
+        SearchCodeTool,
+        GetSymbolInfoTool,
+        ImpactAnalysisTool,
     )
-    searcher = Searcher(indexer, embedder)
-    indexer.searcher = searcher
-    global _last_searcher
-    _last_searcher = searcher
+    from src.mcp.tools.indexing_tools import (
+        NotifyChangeTool,
+        IndexProjectDirTool,
+        IndexHealthTool,
+    )
+    from src.mcp.tools.git_tools import (
+        GetBranchInfoTool,
+        GetCommitHistoryTool,
+        GetFileHistoryTool,
+    )
+    from src.mcp.tools.system_tools import (
+        GetIndexStatusTool,
+        GetIndexProgressTool,
+        GetIndexTimelineTool,
+        WatcherStatusTool,
+        GetLogsTool,
+        GetHealthReportTool,
+        PredictEtaTool,
+        RunHealthCheckTool,
+        ReadLiveFileTool,
+    )
+    from src.mcp.tools.analysis_tools import (
+        StructuralSearchTool,
+        GetRepoMapTool,
+        GetRepoRankTool,
+        ScanChangesTool,
+        GenerateChunkSummariesTool,
+    )
+    from src.mcp.tools.graph_tools import (
+        CrossRepoSearchTool,
+        CrossProjectDepsTool,
+        GraphQueryTool,
+        GetRelatedFilesTool,
+    )
+    from src.mcp.tools.investigation_tools import (
+        GetBugCorrelationTool,
+        GetHotspotsTool,
+        FindSimilarBugsTool,
+    )
+    from src.mcp.tools.lifecycle_tools import (
+        SubmitBackgroundTaskTool,
+        GetTaskStatusTool,
+        VerifyActionTool,
+    )
 
-    # Защита LM Studio от конкурентного спама пачками эмбеддингов
-    embedder._lm_studio_semaphore = threading.Semaphore(2)
-    original_embed_batch = embedder.embed_batch
+    # Список всех инструментов для регистрации
+    tool_classes = [
+        # Search (3)
+        SearchCodeTool,
+        GetSymbolInfoTool,
+        ImpactAnalysisTool,
+        # Indexing (3)
+        NotifyChangeTool,
+        IndexProjectDirTool,
+        IndexHealthTool,
+        # Git (3)
+        GetBranchInfoTool,
+        GetCommitHistoryTool,
+        GetFileHistoryTool,
+        # System (9)
+        GetIndexStatusTool,
+        GetIndexProgressTool,
+        GetIndexTimelineTool,
+        WatcherStatusTool,
+        GetLogsTool,
+        GetHealthReportTool,
+        PredictEtaTool,
+        RunHealthCheckTool,
+        ReadLiveFileTool,
+        # Analysis (5)
+        StructuralSearchTool,
+        GetRepoMapTool,
+        GetRepoRankTool,
+        ScanChangesTool,
+        GenerateChunkSummariesTool,
+        # Graph (4)
+        CrossRepoSearchTool,
+        CrossProjectDepsTool,
+        GraphQueryTool,
+        GetRelatedFilesTool,
+        # Investigation (3)
+        GetBugCorrelationTool,
+        GetHotspotsTool,
+        FindSimilarBugsTool,
+        # Lifecycle (3)
+        SubmitBackgroundTaskTool,
+        GetTaskStatusTool,
+        VerifyActionTool,
+    ]
 
-    def embed_batch_with_semaphore(texts, is_query=False):
-        with embedder._lm_studio_semaphore:
-            return original_embed_batch(texts, is_query)
+    # Регистрируем каждый инструмент
+    for tool_cls in tool_classes:
+        instance = tool_cls(services)
+        mcp.tool(name=instance.name)(instance.execute)
+        logger.debug(f"  🔧 Tool registered: {instance.name}")
 
-    embedder.embed_batch = embed_batch_with_semaphore
-
-    # Загружаем SymbolIndex из кэша если есть (persistence между перезапусками)
-    try:
-        from src.core.index_guard import IndexGuard
-
-        guard = IndexGuard(initial_db_path, _base_project)
-        if guard.load_symbol_index(symbol_index):
-            logger.info(
-                f"📦 SymbolIndex загружен из кэша: {len(symbol_index._definitions)} символов"
-            )
-    except Exception as e:
-        logger.debug(f"SymbolIndex cache не загружен: {e}")
-
-    # Cross-repo поиск: реестр проектов и мультипроектный поисковик
-    project_registry = ProjectRegistry()
-    project_registry.register(_base_project)
-    multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
-
-    # Инициализация файлового логирования для проекта
-    setup_project_logging(_base_project)
-    logger.info("🚀 MCP-сервер запущен")
-
-    # ==========================================
-    # INTELLIGENCE LAYER - Интеллектуальный слой проекта
-    # ==========================================
-    # Инициализируем слой интеллекта (Блоки 1-6 из ТЗ)
+    # ─── Intelligence Layer (10 инструментов) ──────
     try:
         from src.core.intelligence_layer import (
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
+        from src.core.indexer import Indexer
+        from src.core.searcher import Searcher
+        from src.core.symbol_index import SymbolIndex
 
         intel_layer = ProjectIntelligenceLayer(
-            project_path=_base_project,
-            indexer=indexer,
-            searcher=searcher,
-            symbol_index=symbol_index,
+            project_path=resolve_project_root(),
+            indexer=services.resolve(Indexer),
+            searcher=services.resolve(Searcher),
+            symbol_index=services.resolve(SymbolIndex),
         )
-        logger.info("🧠 Intelligence Layer инициализирован")
-
-        # Регистрируем инструменты Intelligence Layer
         register_intelligence_tools(mcp, intel_layer)
-        logger.info(
-            "🧠 Инструменты Intelligence Layer зарегистрированы (12 инструментов)"
-        )
-
+        logger.info("  🧠 Intel tools registered (10 tools)")
     except Exception as e:
-        logger.warning(f"⚠️  Не удалось инициализировать Intelligence Layer: {e}")
-        logger.info(
-            "   Продолжаем без Intelligence Layer (базовый функционал доступен)"
-        )
+        logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 
-    # ==========================================
-    # ИНКРЕМЕНТАЛЬНАЯ ИНДЕКСАЦИЯ ЧЕРЕЗ LSP
-    # ==========================================
-    # LSP-сервер (src/lsp_main.py) получает события didSave от Zed
-    # и индексирует файлы напрямую из памяти (без чтения с диска).
-    # MCP-сервер только читает базу для поиска.
-    # Watdog больше не нужен — LSP делает всю работу!
-    logger.info("📦 MCP-сервер работает в режиме read-only (индексация через LSP)")
+    logger.info(f"✅ Все инструменты зарегистрированы ({len(tool_classes)}+13)")
 
-    def ensure_worker_started():
-        global _task_queue, _worker_task
-        if _task_queue is None:
-            _task_queue = asyncio.Queue()
-            _worker_task = asyncio.create_task(
-                background_queue_worker(indexer, symbol_index, code_parser)
-            )
-            logger.info("⚡ Очередь задач для первичной сборки инициализирована.")
 
-        # Запускаем TaskQueue для фоновых задач
-        if not _background_task_queue._worker_task:
-            asyncio.create_task(_background_task_queue.start())
-            logger.info("⚡ TaskQueue для фоновых задач запущена.")
+def _register_system_prompt(mcp):
+    """Регистрирует mscodebase-rules prompt для AI-агента."""
+    from src.core.config import get_config
 
-    # ==========================================
-    # ИНСТРУМЕНТЫ MCP ДЛЯ AI-АГЕНТА (ZED PROMPT)
-    # ==========================================
-
-    @mcp.tool()
-    def notify_change(file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Уведомляет об изменении файла (для внешних вызовов, например из LSP).
-
-        Используйте этот инструмент когда хотите принудительно обновить индекс
-        конкретного файла без ожидания автоматического watcher.
-
-        ПРИОРИТЕТ ИСТОЧНИКА:
-        1. LSP VFS (память) — если файл открыт в Zed, берём актуальный текст из буфера
-        2. Диск — fallback если файл не открыт в Zed
-
-        Args:
-            file_path: Абсолютный или относительный путь к файлу
-
-        Returns:
-            Статус обновления индекса
-        """
-        _debug_log("notify_change", file_path)
-        try:
-            # Определяем корень ПРОЕКТА через _resolve_project_path()
-            # ВАЖНО: PROJECT_PATH может содержать $ZED (нерезолвленная переменная Zed),
-            # поэтому НЕ используем os.environ.get("PROJECT_PATH") напрямую.
-            # _resolve_project_path() фильтрует такие случаи.
-            project_root = _resolve_project_path()
-
-            # Если путь относительный — резолвим относительно корня ПРОЕКТА, а не CWD
-            raw_path = Path(file_path)
-            if raw_path.is_absolute():
-                path = raw_path.resolve()
-            else:
-                path = (project_root / raw_path).resolve()
-
-            if not path.exists():
-                return f"❌ Файл не существует: {file_path}"
-
-            # relative_to от корня ПРОЕКТА (чтобы индекс знал правильный rel_path)
-            try:
-                rel_path = str(path.relative_to(project_root))
-            except ValueError:
-                return f"❌ Файл вне проекта: {file_path}"
-
-            # Пытаемся получить текст из LSP VFS (актуальная версия из памяти Zed)
-            content = None
-            try:
-                from src.hybrid_server import server as lsp_server
-
-                if lsp_server and hasattr(lsp_server, "workspace"):
-                    uri = f"file:///{str(path).replace(chr(92), '/')}"
-                    doc = lsp_server.workspace.get_document(uri)
-                    if doc and hasattr(doc, "source"):
-                        content = doc.source
-                        logger.info(
-                            f"📝 notify_change: взял из LSP VFS ({len(content)} chars)"
-                        )
-            except Exception as e:
-                logger.debug(
-                    f"notify_change: LSP VFS недоступен, fallback на диск: {e}"
-                )
-
-            # Если есть shared_indexer (hybrid mode) — используем его
-            try:
-                from src.hybrid_server import shared_indexer
-
-                if shared_indexer._initialized:
-                    import asyncio
-
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Мы уже в async контексте — планируем задачу
-                        asyncio.ensure_future(shared_indexer.index_file(path, content))
-                    else:
-                        loop.run_until_complete(
-                            shared_indexer.index_file(path, content)
-                        )
-                    return f"✅ Обновлено (hybrid): {rel_path}"
-            except ImportError:
-                pass
-
-            # Fallback: обычный indexer (legacy mode)
-            source = "lsp_vfs" if content is not None else "filesystem"
-            if indexer._index_single_file(
-                path, rel_path, content=content, source=source
-            ):
-                return f"✅ Обновлено: {rel_path}"
-            return f"⏭️ Без изменений: {rel_path}"
-        except Exception as e:
-            logger.error(f"Ошибка notify_change: {e}")
-            return f"❌ Ошибка: {e}"
-
-    @mcp.tool()
-    def get_index_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает текущую статистику заполнения векторной базы данных LanceDB и индекса символов.
-
-        CRITICAL USAGE RULE:
-        If this tool returns status 'empty' (0 chunks), you MUST immediately fall back to
-        grep/find_path tools. Do NOT attempt semantic vector searches on empty index.
-        """
-        _debug_log("get_index_status")
-        stats = indexer.get_status()
-        if "error" in stats:
-            return f"❌ Ошибка получения статуса: {stats['error']}"
-
-        total_symbols = (
-            symbol_index.get_symbol_count()
-            if hasattr(symbol_index, "get_symbol_count")
-            else "N/A"
-        )
-        embedder_mode = getattr(embedder, "mode", "unknown")
-        mode_label = {
-            "lm_studio": "🌐 LM Studio",
-            "ollama": "🦙 Ollama",
-            "onnx": "⚙️ ONNX (локальный)",
-            "fallback": "⚠️ Заглушка",
-        }.get(embedder_mode, embedder_mode)
-
-        output = (
-            f"📊 Статус базы данных MSCodebase:\n"
-            f"  • Всего фрагментов кода в базе (LanceDB): {stats.get('total_chunks', 0)}\n"
-            f"  • Проиндексировано уникальных файлов: {stats.get('unique_files', 0)}\n"
-            f"  • Найдено структурных символов (Tree-sitter): {total_symbols}\n"
-            f"  • Состояние движка: {stats.get('status', 'unknown')}\n"
-            f"  • Режим эмбеддера: {mode_label}"
-        )
-        if _last_index_error:
-            output += f"\n  ⚠️ Последняя ошибка индексации: {_last_index_error}"
-        return output
-
-    @mcp.tool()
-    def index_health(
-        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Полная диагностика и самовосстановление индекса.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - get_index_status показывает 0 чанков или 0 символов
-        - Поиск возвращает пустые результаты
-        - Подозреваешь что индекс повреждён
-        - Хочешь проверить здоровье базы данных
-
-        Проверяет:
-        - Схему LanceDB (совместимость)
-        - Целостность данных
-        - SymbolIndex (Tree-sitter)
-        - Нужна ли переиндексация
-
-        Автоматически восстанавливает:
-        - Несовместимую схему (миграция)
-        - Потерянный SymbolIndex (пересоздание из кэша)
-        - Пустую таблицу (запуск reindex)
-        """
-        _debug_log("index_health", project_root)
-        try:
-            from src.core.index_guard import IndexGuard, quick_health_check
-
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            # Находим путь к БД
-            normalized_path = str(target_path.resolve()).lower().replace("\\", "/")
-            project_hash = (
-                __import__("hashlib").md5(normalized_path.encode()).hexdigest()[:8]
-            )
-            project_name = target_path.name.lower()
-            db_path = (
-                target_path.parent
-                / ".codebase_indices"
-                / "lancedb_v2"
-                / f"index_{project_name}_{project_hash}.db"
-            )
-
-            if not db_path.exists():
-                return (
-                    f"⚠️ База данных не найдена: {db_path.name}\n"
-                    f"   Запустите index_project_dir для создания."
-                )
-
-            # Быстрая проверка
-            health = quick_health_check(db_path)
-
-            lines = [f"🏥 Index Health Check: {target_path.name}"]
-            lines.append("")
-            lines.append(
-                f"  Таблица LanceDB: {'✅' if health['table_exists'] else '❌'}"
-            )
-            lines.append(f"  Чанков: {health['row_count']}")
-            lines.append(f"  Схема OK: {'✅' if health['schema_ok'] else '❌'}")
-            lines.append(
-                f"  SymbolIndex: {'✅' if health['symbol_index_exists'] else '❌ (будет пересоздан'}"
-            )
-            lines.append(
-                f"  Общий статус: {'✅ Здоров' if health['healthy'] else '⚠️ Требует внимания'}"
-            )
-
-            if health.get("error"):
-                lines.append(f"\n  Ошибка: {health['error']}")
-
-            # Если есть проблемы — запускаем полную проверку
-            if not health["healthy"]:
-                lines.append(f"\n🔧 Запуск самовосстановления...")
-                try:
-                    import lancedb
-
-                    db = lancedb.connect(str(db_path))
-                    guard = IndexGuard(db_path, target_path)
-                    report = guard.check_and_repair(db)
-
-                    lines.append(f"  Статус: {report['status']}")
-                    if report["actions_taken"]:
-                        lines.append(
-                            f"  Действия: {', '.join(report['actions_taken'])}"
-                        )
-                    if report["errors"]:
-                        lines.append(f"  Ошибки: {', '.join(report['errors'])}")
-
-                    if report["status"] == "needs_reindex":
-                        lines.append(f"\n  ⚠️ Требуется переиндексация!")
-                        lines.append(f"  Вызовите: index_project_dir('{project_root}')")
-                except Exception as e:
-                    lines.append(f"  ❌ Ошибка восстановления: {e}")
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка index_health: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def get_index_progress(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает текущий прогресс индексации для всех проектов.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Хочешь понять сколько осталось до завершения индексации
-        - Нужно решить подождать или уже можно искать
-        - Индексация запущена но статус неизвестен
-
-        Возвращает форматированный статус по каждому проекту.
-        """
-        _debug_log("get_index_progress")
-        result = await _run_with_timeout(
-            lambda: _get_index_progress_impl(),
-            timeout=10, description="get_index_progress", priority="fast"
-        )
-        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-            return result
-        return result
-
-    def _get_index_progress_impl() -> str:
-        """Синхронная реализация get_index_progress."""
-        # Очистка старых записей (потокобезопасно)
-        _cleanup_old_progress()
-
-        with _progress_lock:
-            progress_copy = _last_progress.copy()
-
-        if not progress_copy:
-            return (
-                "📊 Индексация не запущена. Используйте index_project_dir для начала."
-            )
-
-        lines = ["📊 Прогресс индексации:"]
-        for project, info in progress_copy.items():
-            status_emoji = "✅" if info["phase"] == "complete" else "🔄"
-            lines.append(
-                f"  {status_emoji} {project}: "
-                f"{info['files_done']}/{info['files_total']} "
-                f"({info['percent']:.0f}%) — {info['phase']}"
-            )
-            if info["phase"] == "complete":
-                lines.append(f"     ✅ Индексация завершена, можно искать!")
-            elif info["percent"] > 0:
-                remaining = info["files_total"] - info["files_done"]
-                lines.append(f"     ⏳ Осталось ~{remaining} файлов")
-
-                # ETA на основе started_at
-                started_at = info.get("started_at") or info.get("timestamp", 0)
-                now = time.time()
-                elapsed = now - started_at
-                if elapsed > 10 and info["percent"] > 5:
-                    estimated_total = elapsed / (info["percent"] / 100)
-                    eta_remaining = estimated_total - elapsed
-                    if eta_remaining > 0:
-                        if eta_remaining > 60:
-                            eta_str = f"~{int(eta_remaining // 60)} мин {int(eta_remaining % 60)} сек"
-                        else:
-                            eta_str = f"~{int(eta_remaining)} сек"
-                        lines.append(f"     ⏱ ETA: {eta_str} осталось")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
-    async def get_index_timeline(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Временная шкала индексации — когда данные были добавлены в базу.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять когда данные были проиндексированы
-        - Хочешь увидеть свежесть данных
-        - Нужно найти устаревшие чанки для переиндексации
-
-        Returns:
-            Временная шкала с группировкой по дате
-        """
-        _debug_log("get_index_timeline")
-        result = await _run_with_timeout(
-            lambda: _get_index_timeline_impl(),
-            timeout=15, description="get_index_timeline", priority="slow"
-        )
-        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-            return result
-        return result
-
-    def _get_index_timeline_impl() -> str:
-        """Синхронная реализация get_index_timeline."""
-        try:
-            from collections import defaultdict
-
-            import lancedb
-            import pandas as pd
-
-            # Определяем путь к базе через indexer
-            if not indexer or not hasattr(indexer, "table") or indexer.table is None:
-                return "❌ База данных не найдена. Выполните индексацию проекта."
-
-            table = indexer.table
-            df = table.to_pandas()
-
-            if df.empty:
-                return "📊 База данных пуста. Нет данных для анализа."
-
-            total_chunks = len(df)
-
-            # Группируем по дате (YYYY-MM-DD)
-            date_counts: Dict[str, int] = defaultdict(int)
-            oldest_dt: Optional[datetime] = None
-            newest_dt: Optional[datetime] = None
-            chunks_without_ts = 0
-
-            for _, row in df.iterrows():
-                indexed_at = row.get("indexed_at", "")
-                if not indexed_at:
-                    chunks_without_ts += 1
-                    continue
-
-                try:
-                    dt = datetime.fromisoformat(str(indexed_at))
-                    date_key = dt.strftime("%Y-%m-%d")
-                    date_counts[date_key] += 1
-
-                    if oldest_dt is None or dt < oldest_dt:
-                        oldest_dt = dt
-                    if newest_dt is None or dt > newest_dt:
-                        newest_dt = dt
-                except (ValueError, TypeError):
-                    chunks_without_ts += 1
-
-            # Формируем вывод
-            lines = ["📅 Временная шкала индексации:\n"]
-            lines.append(f"  Всего чанков: {total_chunks}")
-
-            if oldest_dt:
-                lines.append(
-                    f"  Самый старый: {oldest_dt.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-            if newest_dt:
-                lines.append(
-                    f"  Самый новый: {newest_dt.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-            if chunks_without_ts:
-                lines.append(f"  Без метки времени: {chunks_without_ts}")
-
-            if date_counts:
-                lines.append("\n  Гистограмма (дата → чанков):")
-                # Сортируем по дате
-                for date_str in sorted(date_counts.keys()):
-                    count = date_counts[date_str]
-                    # Простая текстовая гистограмма
-                    bar = "█" * min(count // 5, 40)  # масштаб: 1 символ = 5 чанков
-                    lines.append(f"    {date_str} │ {count:4d} {bar}")
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка get_index_timeline: {e}", exc_info=True)
-            return f"❌ Ошибка при анализе временной шкалы: {type(e).__name__}: {e}"
-
-    @mcp.tool()
-    async def index_project_dir(
-        path: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Добавляет директорию проекта в фоновую очередь на первичную синхронизацию.
-
-        CRITICAL USAGE RULES:
-        1. Use native Windows paths (backslashes) — do NOT normalize to POSIX.
-        2. After calling this, ALWAYS call get_index_status() to verify cache state.
-        3. Используй get_index_progress() для отслеживания прогресса.
-        4. После завершения индексации изменения отслеживаются через LSP (didSave).
-        """
-        _debug_log("index_project_dir", path)
-        global _last_index_error
-        _last_index_error = None
-
-        ensure_worker_started()
-        target_path = Path(path).resolve()
-        if not target_path.exists():
-            return f"❌ Указанный путь не существует: {path}"
-
-        await _task_queue.put(target_path)
-
-        # Регистрируем проект в реестре для cross-repo поиска
-        project_registry.register(target_path)
-
-        return f'{{\n  "status": "success",\n  "message": "Первичная индексация проекта {target_path.name} запущена."\n}}'
-
-    @mcp.tool()
-    def search_code(
-        query: str,
-        mode: str = "auto",
-        limit: int = 6,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """CRITICAL MANDATORY TOOL — CALL THIS FIRST FOR ALL CODE QUERIES.
-
-        ⚠️ NEVER use grep or find_path for conceptual/semantic queries.
-        This tool uses AST-based semantic search with 81% token compression.
-        It is mathematically impossible for native grep to provide this level
-        of context quality. Using this tool reduces LLM thinking time by 4x.
-
-        ✅ USE THIS FIRST FOR:
-        - Any question about code, architecture, logic, or bugs
-        - Finding implementations by meaning (not exact text)
-        - Understanding dependencies between modules
-        - Before writing/editing any code that integrates with existing code
-
-        ❌ DO NOT USE FOR:
-        - Reading a SPECIFIC known file → use read_file
-        - Exact text match in known location → use grep as fallback only
-
-        The 1-2s latency is INVESTED TIME that saves 3-5x more during generation.
-
-        РЕЖИМЫ ПОИСКА (mode):
-        - "auto" (по умолчанию) — авто-определение: простой или agentic поиск
-        - "fast" — быстрый векторный поиск (~300ms)
-        - "quality" — с LLM reranker (~1200ms)
-        - "deep" — итеративный глубокий поиск с уточнением запроса (~2-5s)
-        - "context" — поиск похожего кода по фрагменту (query = код, а не текст)
-
-        Time Filtering (опционально, через kwargs):
-        - kwargs["since"]: ISO datetime string
-        - kwargs["before"]: ISO datetime string
-        """
-        _debug_log("search_code", query)
-
-        if not query or not query.strip():
-            return "❌ Пустой поисковый запрос. Укажите что искать."
-
-        try:
-            # === ДИСПЕТЧЕРИЗАЦИЯ ПО РЕЖИМУ ===
-            if mode == "fast" or mode == "quality" or mode == "smart":
-                # Smart Search: с выбором качества
-                _searcher = _get_searcher()
-                if not _searcher:
-                    return (
-                        "❌ Поисковый движок недоступен. Запустите index_project_dir."
-                    )
-                result = _searcher.search_with_mode(query, mode=mode, limit=limit)
-                return _format_smart_results(result, mode)
-
-            if mode == "deep":
-                # Deep Search: итеративный multi-pass
-                return searcher.deep_search(query, limit=limit)
-
-            if mode == "context":
-                # Context Search: code-to-code
-                return searcher.context_search(query, limit=limit)
-
-            # === mode == "auto" (ПО УМОЛЧАНИЮ) ===
-            # Определяем: простой или agentic
-            import re
-
-            complexity_indicators = [
-                r"\bи\b",
-                r"\bа\b",
-                r"\bтакже\b",
-                r"\bплюс\b",
-                r"\bкак\b",
-                r"\bгде\b",
-                r"\bчто\b",
-                r"\bкогда\b",
-                r",\s+",
-            ]
-            indicators_count = sum(
-                1 for p in complexity_indicators if re.search(p, query.lower())
-            )
-            use_agentic = indicators_count >= 2 or len(query) > 50
-
-            # Временные фильтры
-            since = kwargs.get("since") if kwargs else None
-            before = kwargs.get("before") if kwargs else None
-
-            if use_agentic:
-                return _agentic_search_handler(query, symbol_index)
-            return searcher.search(query, limit=limit, since=since, before=before)
-
-        except Exception as e:
-            logger.error(f"Ошибка search_code: {e}", exc_info=True)
-            return (
-                f"❌ Ошибка при выполнении поиска: {type(e).__name__}: {e}\n"
-                f"Попробуйте переформулировать запрос или проверьте логи через get_logs()."
-            )
-
-    def _agentic_search_handler(query: str, symbol_index) -> str:
-        """Обработчик Agentic Code Search для search_code."""
-        try:
-            results, metadata = searcher.agentic_code_search(
-                query,
-                symbol_index=symbol_index,
-                max_subqueries=4,
-                limit_per_subquery=5,
-                max_total_results=10,
-            )
-
-            if not results:
-                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
-
-            output_lines = [
-                f"🧠 Agentic Code Search: найдено {len(results)} результатов\n"
-            ]
-
-            # Показываем декомпозицию
-            if metadata.get("subqueries") and len(metadata["subqueries"]) > 1:
-                output_lines.append("📝 Декомпозиция запроса:")
-                for i, sq in enumerate(metadata["subqueries"], 1):
-                    count = metadata["subquery_results_count"].get(sq[:40], 0)
-                    output_lines.append(f"   {i}. {sq} ({count} результатов)")
-                output_lines.append("")
-
-            # Показываем связи между результатами
-            relations = metadata.get("relations")
-            if relations:
-                if relations.get("common_files"):
-                    output_lines.append(
-                        f"🔗 Пересекающиеся файлы: {', '.join(relations['common_files'][:5])}"
-                    )
-                if relations.get("flow_description"):
-                    output_lines.append(f"📊 {relations['flow_description']}")
-                if relations.get("coverage_score", 0) > 0:
-                    pct = int(relations["coverage_score"] * 100)
-                    output_lines.append(f"📈 Покрытие: {pct}%")
-                output_lines.append("")
-
-            # Результаты
-            for i, res in enumerate(results, 1):
-                score = res.get("final_score", 0.0)
-                output_lines.append(
-                    f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}] "
-                    f"(score={score:.4f})\n"
-                    f"```\n{res['text']}\n```\n"
-                    f"{'-' * 60}\n"
-                )
-
-            return "".join(output_lines)
-        except Exception as e:
-            logger.error(f"Ошибка agentic_code_search: {e}", exc_info=True)
-            # Fallback на обычный поиск
-            return searcher.search(query, limit=6)
-
-    def _format_smart_results(result: dict, mode: str) -> str:
-        """Форматирует результаты Smart Search для search_code(mode='fast'|'quality')."""
-        results = result.get("results", [])
-        if not results:
-            return f"🔍 По запросу ничего не найдено."
-
-        timing = result.get("timing_ms", {})
-        mode_emoji = {"fast": "⚡", "quality": "🎯", "smart": "🎯"}
-        lines = [
-            f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]",
-            "",
-            f"   Results: {len(results)}",
-            f"   Time: {timing.get('total_ms', 0):.0f}ms",
-        ]
-        if result.get("cache_hit"):
-            lines.append(f"   Cache: HIT ✅")
-        if "embed_ms" in timing:
-            lines.append(f"   Embed: {timing['embed_ms']:.0f}ms")
-        if "search_ms" in timing:
-            lines.append(f"   Search: {timing['search_ms']:.0f}ms")
-        lines.append("")
-        for i, res in enumerate(results, 1):
-            score = res.get("final_score", res.get("score", 0))
-            lines.append(
-                f"{i}. 📄 {res['metadata']['file']} "
-                f"[Chunk #{res['metadata']['chunk_index']}] "
-                f"(score: {score:.3f})"
-            )
-            code_text = res.get("text_full") or res.get("text", "")
-            lines.append(f"```\n{code_text[:300]}\n```")
-            lines.append("-" * 40)
-        return "\n".join(lines)
-
-    @mcp.tool()
-    def get_symbol_info(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Граф вызовов (Call Graph) для символа: определение + кто вызывает + что вызывает сам символ.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно переписать функцию и понять, что из-за этого сломается
-        - Нужно найти все места, где вызывается данный метод/класс
-        - Нужно понять зависимости между модулями проекта
-
-        Возвращает:
-        - definition: где определён символ (файл, строка, тип)
-        - callers: кто вызывает этот символ (прямые и косвенные зависимости)
-        - callees: какие символы вызывает сам этот символ
-        - impact_files: список файлов, которые затронет изменение символа
-
-        CRITICAL USAGE RULE (MANDATORY):
-        You MUST call this tool BEFORE using read_file to inspect implementation details.
-        This prevents blind reading and ensures you understand the impact scope first.
-        """
-        _debug_log("get_symbol_info", query)
-        if not symbol_index:
-            return "❌ Индекс символов не инициализирован."
-        try:
-            # Сначала пробуем Call Graph (новая логика)
-            call_graph = symbol_index.build_call_graph(query, depth=2)
-
-            if (
-                call_graph["definition"]
-                or call_graph["callers"]
-                or call_graph["callees"]
-            ):
-                output = [f"🗂️ Call Graph для символа '{query}':\n"]
-
-                if call_graph["definition"]:
-                    output.append("📍 Определение:")
-                    for d in call_graph["definition"]:
-                        output.append(
-                            f"  • [{d['kind'].upper()}] {d['file']}:{d['line']}"
-                        )
-
-                if call_graph["callers"]:
-                    output.append("\n📞 Кто вызывает (прямые и косвенные зависимости):")
-                    for c in call_graph["callers"][:15]:
-                        kind_label = (
-                            "(косвенный)" if c.get("kind") == "indirect_caller" else ""
-                        )
-                        sym_name = c.get("symbol", query)
-                        output.append(
-                            f"  • {sym_name} в {c['file']}:{c['line']} {kind_label}"
-                        )
-
-                if call_graph["callees"]:
-                    output.append("\n📤 Что вызывает этот символ:")
-                    for c in call_graph["callees"][:10]:
-                        output.append(
-                            f"  • {c['symbol']} [{c['kind'].upper()}] в {c['file']}:{c['line']}"
-                        )
-
-                if call_graph["impact_files"]:
-                    output.append(
-                        f"\n⚠️ Файлы, затронутые изменением '{query}': {', '.join(call_graph['impact_files'][:10])}"
-                    )
-
-                return "\n".join(output)
-
-            # Fallback: старый поиск по имени
-            results = symbol_index.search_symbols(query)
-            if not results:
-                return f"🔍 Символ '{query}' не найден в структуре определений проекта."
-
-            definitions = []
-            usages = []
-            for res in results:
-                if getattr(res, "is_definition", False):
-                    definitions.append(res)
-                else:
-                    usages.append(res)
-
-            output = [f"🗂️ Результаты анализа для символа '{query}':\n"]
-            if definitions:
-                output.append("📍 Определения:")
-                for d in definitions:
-                    output.append(
-                        f"  • [{d.kind.upper()}] Файл: {d.file_path}:{d.line}"
-                    )
-            if usages:
-                output.append("\n🔗 Использование в коде (Вызовы):")
-                for u in usages:
-                    output.append(f"  • Файл: {u.file_path}:{u.line}")
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Ошибка при работе инструмента get_symbol_info: {e}")
-            return f"❌ Ошибка при поиске информации о символе: {str(e)}"
-
-    @mcp.tool()
-    async def impact_analysis(
-        symbol: str, depth: int = 3, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Анализ влияния изменения/удаления символа на весь проект.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять, что сломается при изменении функции/класса
-        - Оценить риск рефакторинга перед внесением изменений
-        - Найти все зависимости символа (прямые и косвенные)
-        - Определить scope изменений для code review
-
-        Args:
-            symbol: Имя символа (функция, класс, метод)
-            depth: Глубина анализа графа (1-5, по умолчанию 3)
-
-        Returns:
-            Структурированный отчёт с метриками риска:
-            - direct_callers: сколько напрямую вызывает этот символ
-            - transitive_callers: косвенные зависимости
-            - affected_files: файлы, которые нужно проверить
-            - risk_level: low | medium | high | critical
-            - risk_score: 0-100
-        """
-        _debug_log("impact_analysis", f"{symbol}, depth={depth}")
-        if not symbol_index:
-            return "❌ Движок анализа структуры недоступен."
-        try:
-            result = await _run_with_timeout(
-                lambda: symbol_index.get_impact_analysis(symbol, depth=depth),
-                timeout=20,
-                description="impact_analysis",
-                priority="slow"
-            )
-            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-                return result
-
-            if not result.get("call_graph", {}).get("definition"):
-                return f"⚠️ Символ '{symbol}' не найден в индексе."
-
-            output = [
-                f"🎯 Impact Analysis: {symbol}",
-                f"",
-                f"📊 Метрики влияния:",
-                f"  • Прямые вызывающие: {result['direct_callers']}",
-                f"  • Косвенные вызывающие: {result['transitive_callers']}",
-                f"  • Прямые зависимости: {result['direct_callees']}",
-                f"  • Косвенные зависимости: {result['transitive_callees']}",
-                f"",
-                f"⚠️ Риск: {result['risk_level'].upper()} (score: {result['risk_score']}/100)",
-                f"",
-                f"📁 Затронутые файлы ({len(result['affected_files'])}):",
-            ]
-            for f in result["affected_files"][:15]:
-                output.append(f"  • {f}")
-            if len(result["affected_files"]) > 15:
-                output.append(f"  ... и ещё {len(result['affected_files']) - 15}")
-
-            if result["affected_modules"]:
-                output.append(f"")
-                output.append(
-                    f"📦 Затронутые модули: {', '.join(result['affected_modules'])}"
-                )
-
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Ошибка при работе инструмента impact_analysis: {e}")
-            return f"❌ Ошибка анализа влияния: {str(e)}"
-
-    @mcp.tool()
-    async def find_similar_bugs(
-        error_message: str, project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Находит похожие баги из истории проекта.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Получил ошибку и хочешь знать как решали раньше
-        - Ищешь похожие проблемы в истории коммитов
-        - Хочешь понять паттерны багов в проекте
-
-        Args:
-            error_message: Описание ошибки или исключения
-            project_root: Путь к проекту (опционально, авто-определение если пусто)
-
-        Returns:
-            Список похожих баг-фиксов из истории
-        """
-        _debug_log("find_similar_bugs", f"{error_message[:50]}, {project_root}")
-        try:
-            from src.core.commit_memory import CommitMemory
-
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {target_path}"
-
-            def _fetch_similar_bugs():
-                memory = CommitMemory(target_path)
-                return memory.find_similar_bugs(error_message, max_results=5)
-
-            similar = await _run_with_timeout(
-                _fetch_similar_bugs,
-                timeout=15,
-                description="find_similar_bugs",
-                priority="fast"
-            )
-            if isinstance(similar, str) and (similar.startswith("❌") or similar.startswith("⏱")):
-                return similar
-
-            if not similar:
-                return f"⚠️ Похожие баги не найдены для: {error_message[:50]}"
-
-            output = [
-                f"🔍 Similar Bugs Found: {len(similar)}",
-                f"",
-                f"  Query: {error_message[:60]}",
-                f"",
-            ]
-
-            for i, bug in enumerate(similar, 1):
-                output.append(f"  {i}. [{bug['hash']}] {bug['date'][:10]}")
-                output.append(f"     {bug['message'][:70]}")
-                output.append(f"     Relevance: {bug['relevance_score']}")
-                if bug["files"]:
-                    output.append(f"     Files: {', '.join(bug['files'][:3])}")
-                output.append("")
-
-            return "\n".join(output)
-
-        except Exception as e:
-            logger.error(f"Ошибка find_similar_bugs: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def get_hotspots(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Находит 'горячие точки' — файлы с высоким баго-рейтом.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Хочешь знать какие файлы чаще всего ломаются
-        - Планируешь рефакторинг
-        - Оцениваешь риски изменения
-
-        Args:
-            project_root: Путь к проекту
-
-        Returns:
-            Список файлов с метриками риска
-        """
-        _debug_log("get_hotspots", project_root)
-        try:
-            from src.core.commit_memory import CommitMemory
-
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            memory = CommitMemory(target_path)
-            hotspots = memory.get_hotspots(min_changes=3)
-
-            if not hotspots:
-                return "⚠️ Горячие точки не найдены"
-
-            output = [
-                f"🔥 Hotspots (files with high bug rate):",
-                f"",
-            ]
-
-            for i, h in enumerate(hotspots[:10], 1):
-                risk_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
-                    h["risk"], "⚪"
-                )
-                output.append(f"  {i}. {risk_emoji} {h['file']}")
-                output.append(
-                    f"     Changes: {h['total_changes']}, "
-                    f"Bugfixes: {h['bugfix_changes']}, "
-                    f"Bug ratio: {h['bug_ratio']:.0%}"
-                )
-
-            return "\n".join(output)
-
-        except Exception as e:
-            logger.error(f"Ошибка get_hotspots: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def get_repo_rank(
-        project_root: str, top_k: int = 10, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Возвращает RepoRank — рейтинг важности символов проекта.
-
-        Использует алгоритм PageRank на графе вызовов:
-        - Символы с высоким rank — "сердце" проекта
-        - Используются чаще всего и критически важны
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять какие функции/классы самые важные
-        - Определить приоритеты для рефакторинга
-        - Найти "центральные" модули проекта
-
-        Args:
-            project_root: Путь к проекту
-            top_k: Количество топ-символов (по умолчанию 10)
-
-        Returns:
-            Список символов с RepoRank score (0-1)
-        """
-        kwargs = kwargs or {}
-        top_k = kwargs.get("top_k", top_k)
-        _debug_log("get_repo_rank", f"{project_root}, top_k={top_k}")
-        if not symbol_index:
-            return "❌ Движок анализа структуры недоступен."
-        try:
-            ranks = symbol_index.compute_repo_rank()
-            if not ranks:
-                return "⚠️ Граф вызовов пуст. Нет данных для RepoRank."
-
-            # Сортируем по score
-            sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[
-                :top_k
-            ]
-
-            output = [f"🏆 RepoRank: Top-{len(sorted_ranks)} символов\n"]
-            for i, (symbol, score) in enumerate(sorted_ranks, 1):
-                # Получаем информацию о символе
-                defs = symbol_index.find_definitions(symbol)
-                kind = defs[0].kind if defs else "unknown"
-                file = defs[0].file_path if defs else "unknown"
-                output.append(f"  {i}. [{score:.3f}] {symbol} ({kind}) — {file}")
-
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Ошибка get_repo_rank: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def get_branch_info(
-        project_root: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Информация о текущей git-ветке и индексе.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно узнать текущую ветку и состояние индекса
-        - Проверить что индекс соответствует ветке
-        - Список всех индексов для веток
-
-        Returns:
-            Информация о ветке, пути к БД, количестве чанков
-        """
-        _debug_log("get_branch_info", project_root)
-        try:
-            from src.core.branch_aware_index import BranchAwareIndex
-
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            # Быстрая проверка — это вообще git-репозиторий?
-            git_dir = target_path / ".git"
-            if not git_dir.exists():
-                return (
-                    f"❌ {target_path.name} — не git-репозиторий (.git не найден).\n"
-                    f"   Убедитесь что current_dir=$ZED_WORKTREE_ROOT в settings.json\n"
-                    f"   и перезапустите Zed для применения."
-                )
-
-            # Прямой вызов — 0.02с, нечего executor гонять
-            bi = BranchAwareIndex(target_path)
-            info = bi.get_branch_info()
-            lines = [
-                f"🌿 Branch Info:",
-                f"  • Текущая ветка: {info['branch']}",
-                f"  • Путь к БД: {info['db_path']}",
-                f"  • Индекс существует: {'✅' if info['index_exists'] else '❌'}",
-                f"  • Чанков в индексе: {info['total_chunks']}",
-            ]
-            all_indices = bi.list_branch_indices()
-            if all_indices:
-                lines.append(f"")
-                lines.append(f"📁 Все индексы веток:")
-                for branch, chunks in all_indices.items():
-                    lines.append(f"  • {branch}: {chunks} чанков")
-            return "\n".join(lines)
-        except Exception as e:
-            logger.error(f"Ошибка get_branch_info: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def get_commit_history(
-        project_root: str = "", limit: int = 10, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Возвращает семантическую историю изменений проекта.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять историю изменений файла или символа
-        - Найти какие файлы обычно меняются вместе
-        - Определить стабильность модуля
-
-        Args:
-            project_root: Путь к проекту (опционально, авто-определение если пусто)
-            limit: Количество последних коммитов
-
-        Returns:
-            История коммитов с метаданными
-        """
-        _debug_log("get_commit_history", f"{project_root}, limit={limit}")
-        try:
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {target_path}"
-
-            target_key = str(target_path.resolve())
-
-            # CommitMemory синглтон — git log вызывается 1 раз, дальше кэш на диске
-            def _get_or_create_memory():
-                global _commit_memory_cache
-                if target_key not in _commit_memory_cache:
-                    from src.core.commit_memory import CommitMemory
-                    memory = CommitMemory(target_path)
-                    if not memory._commits:
-                        memory.fetch_commits(limit=limit)
-                    _commit_memory_cache[target_key] = memory
-                return _commit_memory_cache[target_key]
-
-            memory = await _run_with_timeout(
-                _get_or_create_memory,
-                timeout=15,
-                description="CommitMemory инициализация"
-            )
-            if isinstance(memory, str) and (memory.startswith("❌") or memory.startswith("⏱")):
-                return memory
-
-            commits = memory._commits[:limit] if memory._commits else []
-            if not commits:
-                return "⚠️ Нет коммитов или git недоступен."
-            stats = memory.get_stats()
-            result = (commits, stats)
-            if not commits:
-                return "⚠️ Нет коммитов или git недоступен."
-
-            output = [f"📜 Commit History (последние {len(commits)}):\n"]
-
-            for i, commit in enumerate(commits[:limit], 1):
-                hash_short = commit["hash"][:8]
-                date = commit.get("date", "")[:10]
-                msg = commit.get("message", "")[:60]
-                files = len(commit.get("files", []))
-                output.append(f"  {i}. [{hash_short}] {date} — {msg}")
-                output.append(f"     Файлов изменено: {files}")
-
-            output.append(f"")
-            output.append(f"  Статистика:")
-            output.append(f"  • Всего коммитов: {stats['total']}")
-            if stats.get("authors"):
-                for author, count in stats["authors"].items():
-                    output.append(f"  • {author}: {count} коммитов")
-
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Ошибка get_commit_history: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def get_file_history(
-        project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Возвращает историю изменений конкретного файла.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять эволюцию файла
-        - Найти кто и когда менял файл
-        - Определить стабильность модуля
-
-        Args:
-            project_root: Путь к проекту (опционально, авто-определение если пусто)
-            file_path: Относительный путь к файлу
-
-        Returns:
-            История изменений файла
-        """
-        _debug_log("get_file_history", f"{project_root}, {file_path}")
-        try:
-            from src.core.commit_memory import CommitMemory
-
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {target_path}"
-
-            def _fetch_file_history():
-                memory = CommitMemory(target_path)
-                commits = memory.get_commits_for_file(file_path)
-                stability = memory.get_file_stability(file_path)
-                return commits, stability
-
-            result = await _run_with_timeout(
-                _fetch_file_history,
-                timeout=15,
-                description="get_file_history",
-                priority="fast"
-            )
-            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-                return result
-
-            commits, stability = result
-            if not commits:
-                return f"⚠️ Нет коммитов для файла: {file_path}"
-
-            output = [
-                f"  File History: {file_path}",
-                f"  Стабильность: {stability['stability']}",
-                f"  Количество изменений: {stability['change_count']}",
-                f"",
-                f"Последние коммиты:\n",
-            ]
-
-            for i, commit in enumerate(commits[:10], 1):
-                hash_short = commit["hash"][:8]
-                date = commit.get("date", "")[:10]
-                msg = commit.get("message", "")[:60]
-                output.append(f"  {i}. [{hash_short}] {date} — {msg}")
-
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Ошибка get_file_history: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def get_bug_correlation(
-        project_root: str = "", file_path: str = "", kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Анализ связи багов с изменениями в коде (Bug Correlation).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять какие модули чаще всего ломаются
-        - Определить "горячие точки" проекта
-        - Найти файлы с высокой баго-нагрузкой
-        - Оценить риск изменения файла
-
-        Args:
-            project_root: Путь к проекту (опционально, авто-определение если пусто)
-            file_path: Путь к файлу (опционально — если нужен анализ конкретного файла)
-
-        Returns:
-            Отчёт по баго-корреляции
-        """
-        _debug_log("get_bug_correlation", f"{project_root}, {file_path}")
-        try:
-            from src.core.bug_correlation import BugCorrelation
-            from src.core.commit_memory import CommitMemory
-
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {target_path}"
-
-            def _fetch_bug_data():
-                memory = CommitMemory(target_path)
-                bug_corr = BugCorrelation(memory)
-                if file_path:
-                    return ("file", bug_corr.get_bug_history_for_file(file_path))
-                else:
-                    return ("project", bug_corr.analyze(), bug_corr.get_hotspots(10))
-
-            result = await _run_with_timeout(
-                _fetch_bug_data,
-                timeout=20,
-                description="get_bug_correlation",
-                priority="slow"
-            )
-            if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-                return result
-
-            if result[0] == "file":
-                history = result[1]
-                output = [
-                    f"🐛 Bug History: {file_path}",
-                    f"",
-                    f"  Риски: {history['bug_risk'].upper()}",
-                    f"  Баг-коммитов: {history['bug_count']}/{history['total_commits']}",
-                    f"  Баго-доля: {history['bug_ratio']:.1%}",
-                    f"",
-                ]
-                if history["bug_commits"]:
-                    output.append("  Последние баг-фиксы:")
-                    for i, commit in enumerate(history["bug_commits"][:5], 1):
-                        hash_short = commit["hash"][:8]
-                        date = commit.get("date", "")[:10]
-                        msg = commit.get("message", "")[:50]
-                        output.append(f"    {i}. [{hash_short}] {date} — {msg}")
-                return "\n".join(output)
-            else:
-                stats, hotspots = result[1], result[2]
-                output = [
-                    f"🐛 Bug Correlation Analysis",
-                    f"",
-                    f"  Всего коммитов: {stats['total_commits']}",
-                    f"  Баг-фиксов: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
-                    f"  Уникальных проблемных файлов: {len(hotspots)}",
-                    f"",
-                    f"  🔥 Топ-10 горячих точек:",
-                ]
-                for i, hotspot in enumerate(hotspots, 1):
-                    risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡"}.get(
-                        hotspot["risk"], "⚪"
-                    )
-                    output.append(
-                        f"    {i}. {risk_emoji} {hotspot['file']} "
-                        f"(багов: {hotspot['bug_count']}, score: {hotspot['bug_score']})"
-                    )
-
-                return "\n".join(output)
-
-        except Exception as e:
-            logger.error(f"Ошибка get_bug_correlation: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def get_related_files(
-        project_root: str,
-        file_path: str,
-        max_depth: int = 1,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """Находит файлы связанные с данным (Knowledge Graph).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять какие файлы затронет изменение
-        - Ищете ""родственные"" модули
-        - Хотите оценить каскадный эффект рефакторинга
-
-        Типы связей:
-        - cochange: файлы меняющиеся вместе
-        - bug_correlation: связанные через баг-фиксы
-        - call: вызовы между символами
-
-        Args:
-            project_root: Путь к проекту
-            file_path: Целевой файл
-            max_depth: Глубина поиска (1 или 2)
-
-        Returns:
-            Список связанных файлов
-        """
-        _debug_log(
-            "get_related_files", f"{project_root}, {file_path}, depth={max_depth}"
-        )
-        try:
-            from src.core.commit_memory import CommitMemory
-            from src.core.relation_extractor import RelationExtractor
-
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            memory = CommitMemory(target_path)
-            extractor = RelationExtractor(memory)
-
-            # Строим граф знаний
-            extractor.extract_all_relations()
-            related = extractor.get_related_files(file_path, max_depth=max_depth)
-
-            if not related:
-                return f"⚠️ Связанные файлы не найдены для: {file_path}"
-
-            output = [
-                f"🔗 Related Files: {file_path}",
-                f"  Глубина поиска: {max_depth}",
-                f"  Найдено связей: {len(related)}",
-                f"",
-            ]
-
-            for i, rel in enumerate(related[:15], 1):
-                path_str = " → ".join(rel["path"])
-                output.append(
-                    f"  {i}. [{rel['depth']}] {rel['file']} "
-                    f"(weight: {rel['total_weight']:.1f})"
-                )
-                if rel["depth"] > 1:
-                    output.append(f"     Путь: {path_str}")
-
-            # Добавляем сводку по типам связей
-            summary = extractor.get_relation_summary()
-            output.extend(
-                [
-                    f"",
-                    f"  📊 Граф знаков:",
-                    f"     Всего связей: {summary['total_relations']}",
-                ]
-            )
-            if "by_type" in summary:
-                for rel_type, count in summary["by_type"].items():
-                    output.append(f"     - {rel_type}: {count}")
-
-            return "\n".join(output)
-
-        except Exception as e:
-            logger.error(f"Ошибка get_related_files: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def submit_background_task(
-        task_type: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Запускает долгую задачу в фоне.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно проанализировать баги по всему проекту
-        - Построить граф знаний
-        - Выполнить тяжёлые вычисления без таймаута
-
-        Доступные типы задач:
-        - 'bug_correlation' — анализ баго-нагрузки
-        - 'build_knowledge_graph' — построение графа знаний
-        - 'full_analysis' — полный анализ (баги + связи)
-
-        Args:
-            task_type: Тип задачи
-            project_root: Путь к проекту
-
-        Returns:
-            task_id для отслеживания прогресса
-        """
-        _debug_log("submit_background_task", f"{task_type}, {project_root}")
-        try:
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            from src.core.bug_correlation import BugCorrelation
-            from src.core.commit_memory import CommitMemory
-            from src.core.relation_extractor import RelationExtractor
-
-            memory = CommitMemory(target_path)
-
-            if task_type == "bug_correlation":
-                task_id = _background_task_queue.submit_sync(
-                    "Bug Correlation Analysis",
-                    _run_bug_correlation,
-                    memory,
-                )
-            elif task_type == "build_knowledge_graph":
-                task_id = _background_task_queue.submit_sync(
-                    "Build Knowledge Graph",
-                    _run_build_graph,
-                    memory,
-                )
-            elif task_type == "full_analysis":
-                task_id = _background_task_queue.submit_sync(
-                    "Full Analysis",
-                    _run_full_analysis,
-                    memory,
-                )
-            else:
-                return f"❌ Неизвестный тип задачи: {task_type}"
-
-            # Предсказываем ETA
-            eta = _eta_predictor.estimate(task_type)
-            eta_str = _eta_predictor.format_eta(eta)
-
-            return (
-                f"✅ Задача поставлена в очередь\n"
-                f"   ID: {task_id}\n"
-                f"   Тип: {task_type}\n"
-                f"   ETA: {eta_str}\n"
-                f"   Проверьте: get_task_status('{task_id}')"
-            )
-
-        except Exception as e:
-            logger.error(f"Ошибка submit_background_task: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def get_task_status(task_id: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает статус фоновой задачи.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно проверить завершилась ли фоновая задача
-        - Получить результат долгого анализа
-        - Отследить прогресс
-
-        Args:
-            task_id: ID задачи (из submit_background_task)
-
-        Returns:
-            Статус задачи и результат если завершена
-        """
-        _debug_log("get_task_status", task_id)
-        status = _background_task_queue.get_status(task_id)
-        if not status:
-            return f"❌ Задача не найдена: {task_id}"
-
-        lines = [
-            f"📋 Задача: {status['name']}",
-            f"   ID: {status['id']}",
-            f"   Статус: {status['status']}",
-            f"   Прогресс: {status['progress'] * 100:.0f}%",
-            f"   Создана: {status['created_at']}",
-        ]
-
-        if status["started_at"]:
-            lines.append(f"   Начата: {status['started_at']}")
-        if status["completed_at"]:
-            lines.append(f"   Завершена: {status['completed_at']}")
-
-        if status["status"] == "completed":
-            lines.append(f"\n✅ Результат:")
-            result = status["result"]
-            if isinstance(result, str):
-                lines.append(result)
-            elif isinstance(result, dict):
-                for k, v in result.items():
-                    lines.append(f"   {k}: {v}")
-        elif status["status"] == "failed":
-            lines.append(f"\n❌ Ошибка: {status['error']}")
-        elif status["status"] == "running":
-            # Показываем примерное время оставшееся
-            progress = status["progress"]
-            if progress > 0.05:
-                elapsed = (
-                    datetime.now() - datetime.fromisoformat(status["started_at"])
-                ).total_seconds()
-                estimated_total = elapsed / progress
-                remaining = estimated_total * (1 - progress)
-                lines.append(f"\n🔄 Выполняется... (~{remaining:.0f}с осталось)")
-            else:
-                lines.append(f"\n🔄 Выполняется...")
-        elif status["status"] == "queued":
-            lines.append(f"\n⏳ В очереди...")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
-    def predict_eta(
-        operation: str, items: int = 1, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Предсказывает время выполнения операции (ETA).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять сколько займёт операция
-        - Планируешь массовый анализ
-        - Хочешь оценить стоимость в токенах
-
-        Доступные операции:
-        - 'search' — гибридный поиск
-        - 'index_file' — индексация одного файла
-        - 'index_project' — индексация всего проекта
-        - 'bug_correlation' — анализ баго-нагрузки
-        - 'knowledge_graph' — построение графа знаний
-        - 'impact_analysis' — анализ влияния изменения
-        - 'file_history' — история файла
-        - 'commit_analysis' — анализ коммитов
-
-        Args:
-            operation: Тип операции
-            items: Количество элементов (файлов, запросов)
-
-        Returns:
-            Предсказание времени и стоимости
-        """
-        _debug_log("predict_eta", f"{operation}, items={items}")
-        try:
-            est = _eta_predictor.estimate(operation, items)
-            eta_str = _eta_predictor.format_eta(est)
-
-            lines = [
-                f"⏱️ ETA Prediction: {est['operation']}",
-                f"",
-                f"   Операция: {operation}",
-                f"   Количество: {items}",
-                f"   Время: {eta_str}",
-                f"   Токенов: ~{est['tokens_estimate']}",
-                f"   Уверенность: {est['confidence']}",
-            ]
-
-            # Примерная стоимость
-            tokens = est["tokens_estimate"]
-            cost_gpt4 = (tokens / 1000) * 0.01
-            lines.append(f"   Стоимость (GPT-4): ~${cost_gpt4:.4f}")
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка predict_eta: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    async def run_health_check(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Полная проверка здоровья проекта.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно проверить что проект в порядке
-        - После изменений кода
-        - Для диагностики проблем
-
-        Проверяет:
-        - Тесты (pytest)
-        - Git status
-        - Общее состояние
-
-        Returns:
-            Отчет о здоровье проекта
-        """
-        _debug_log("run_health_check")
-        try:
-            from src.core.autonomous_fix import AutonomousFixLoop
-
-            project_root = _resolve_project_path()
-            fix_loop = AutonomousFixLoop(project_root)
-            health = await fix_loop.health_check()
-
-            lines = [
-                f"🏥 Project Health Check",
-                f"",
-                f"   Время: {health['timestamp'][:19]}",
-            ]
-
-            # Tests
-            tests = health.get("tests", {})
-            if tests:
-                status_emoji = "✅" if tests.get("success") else "❌"
-                lines.append(
-                    f"   Тесты: {status_emoji} {tests.get('passed', 0)} passed, {tests.get('failed', 0)} failed"
-                )
-
-            # Git
-            git = health.get("git_status", {})
-            if git:
-                if git.get("dirty"):
-                    lines.append(
-                        f"   Git: ⚠️ {len(git.get('dirty_files', []))} uncommitted files"
-                    )
-                else:
-                    lines.append(f"   Git: ✅ clean")
-
-            # Overall
-            overall = health.get("overall", "unknown")
-            overall_emoji = "✅" if overall == "healthy" else "❌"
-            lines.append(f"")
-            lines.append(f"   Итого: {overall_emoji} {overall}")
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка health_check: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def graph_query(
-        query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Запрос к графу знаний (GraphRAG).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно узнать что затронет изменение
-        - Ищешь код связанный с фичей
-        - Нужны зависимости файла/символа
-        - Ищешь связанные тесты
-
-        Типы запросов:
-        - 'impact' — что сломается если изменить target
-        - 'feature' — весь код связанный с фичей
-        - 'deps' — зависимости файла
-        - 'tests' — какие тесты запустить
-
-        Args:
-            query_type: Тип запроса (impact/feature/deps/tests)
-            target: Имя символа, файла или фичи
-
-        Returns:
-            Результат запроса к графу знаний
-        """
-        _debug_log("graph_query", f"{query_type}, {target}")
-        try:
-            from src.core.graph_rag import GraphRAGQueryEngine
-
-            project_root = _resolve_project_path()
-            engine = GraphRAGQueryEngine(
-                project_root,
-                symbol_index=locals().get("symbol_index"),
-            )
-
-            if query_type == "impact":
-                result = engine.query_impact(target)
-                lines = [
-                    f"🎯 Impact Analysis: {target}",
-                    f"",
-                    f"  Риск: {result.get('risk_score', 0)}/100",
-                    f"",
-                    f"  Прямое влияние ({len(result.get('direct_impact', []))}):",
-                ]
-                for f in result.get("direct_impact", [])[:5]:
-                    lines.append(f"    - {f}")
-                if result.get("tests_to_run"):
-                    lines.append(f"")
-                    lines.append(f"  Тесты: {', '.join(result['tests_to_run'][:3])}")
-
-            elif query_type == "feature":
-                result = engine.query_feature(target)
-                lines = [
-                    f"🔍 Feature: {target}",
-                    f"",
-                    f"  Файлов: {len(result.get('files', []))}",
-                    f"  Символов: {len(result.get('symbols', []))}",
-                ]
-                if result.get("files"):
-                    lines.append(f"")
-                    lines.append(f"  Файлы:")
-                    for f in result["files"][:5]:
-                        lines.append(f"    - {f}")
-
-            elif query_type == "deps":
-                result = engine.query_dependencies(target)
-                lines = [
-                    f"🔗 Dependencies: {target}",
-                    f"",
-                    f"  Зависит от ({len(result.get('depends_on', []))}):",
-                ]
-                for f in result.get("depends_on", [])[:5]:
-                    lines.append(f"    - {f}")
-                lines.append(f"")
-                lines.append(
-                    f"  Используется в ({len(result.get('depended_by', []))}):"
-                )
-                for f in result.get("depended_by", [])[:5]:
-                    lines.append(f"    - {f}")
-
-            elif query_type == "tests":
-                tests = engine.query_tests(target)
-                lines = [
-                    f"🧪 Tests for: {target}",
-                    f"",
-                ]
-                if tests:
-                    for t in tests:
-                        lines.append(f"  - {t}")
-                else:
-                    lines.append(f"  Тесты не найдены")
-
-            else:
-                return f"❌ Неизвестный тип запроса: {query_type}"
-
-            return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Ошибка graph_query: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    @mcp.tool()
-    def generate_chunk_summaries(
-        project_root: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Генерация LLM-описаний для чанков кода (Chunk Summarizer).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно улучшить качество поиска добавив контекстные описания
-        - После индексации нового проекта
-        - Для обновления описаний после значительных изменений кода
-
-        Описания сохраняются в поле 'summary' каждого чанка и используются
-        при гибридном поиске для улучшения релевантности.
-
-        Args:
-            project_root: Путь к проекту
-
-        Returns:
-            Отчёт о генерации описаний
-        """
-        _debug_log("generate_chunk_summaries")
-        try:
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            # Получаем таблицу LanceDB
-            table = indexer.table
-            if table is None:
-                return "❌ Таблица LanceDB не инициализирована"
-
-            # Читаем все записи
-            df = table.to_pandas()
-            if df.empty:
-                return "❌ База пуста — сначала выполните индексацию"
-
-            # Находим чанки без summary (пустая строка или NaN)
-            has_summary_col = "summary" in df.columns
-            if has_summary_col:
-                mask_no_summary = (
-                    df["summary"].isna()
-                    | (df["summary"] == "")
-                    | (df["summary"].str.strip() == "")
-                )
-                chunks_without = df[mask_no_summary]
-            else:
-                chunks_without = df
-
-            total_chunks = len(df)
-            chunks_to_process = len(chunks_without)
-
-            if chunks_to_process == 0:
-                return (
-                    f"✅ Все {total_chunks} чанков уже имеют описания.\n"
-                    f"   Генерация не требуется."
-                )
-
-            # Создаём ChunkSummarizer с текущим embedder
-            cache_dir = indexer.db_path.parent / "summaries_cache"
-            summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
-
-            # Генерируем описания батчами (по 50 чанков)
-            batch_size = 50
-            updated_count = 0
-            error_count = 0
-            start_time = time.time()
-
-            for batch_start in range(0, chunks_to_process, batch_size):
-                batch_df = chunks_without.iloc[batch_start : batch_start + batch_size]
-                records_to_update = []
-
-                for idx, row in batch_df.iterrows():
-                    try:
-                        code = row.get("text", "")
-                        symbol_name = row.get("symbol_name", "")
-                        context = row.get("file_path", "")
-                        summary = summarizer.summarize_chunk(code, symbol_name, context)
-                        records_to_update.append(
-                            {
-                                "id": row["id"],
-                                "vector": row["vector"],
-                                "text": row["text"],
-                                "text_full": row.get("text_full", row["text"]),
-                                "file_path": row["file_path"],
-                                "file_hash": row.get("file_hash", ""),
-                                "chunk_index": row.get("chunk_index", 0),
-                                "source": row.get("source", ""),
-                                "indexed_at": row.get("indexed_at", ""),
-                                "summary": summary,
-                            }
-                        )
-                        updated_count += 1
-                    except Exception as e:
-                        logger.debug(
-                            f"Ошибка генерации summary для чанка {row.get('id', '?')}: {e}"
-                        )
-                        error_count += 1
-
-                # Удаляем старые записи батча и добавляем обновлённые
-                if records_to_update:
-                    try:
-                        batch_ids = [r["id"] for r in records_to_update]
-                        # Удаляем по одной записи (LanceDB filter)
-                        for rid in batch_ids:
-                            try:
-                                table.delete(f"id = '{rid}'")
-                            except Exception:
-                                pass
-                        table.add(records_to_update)
-                    except Exception as e:
-                        logger.warning(f"Ошибка обновления батча в LanceDB: {e}")
-                        error_count += len(records_to_update)
-                        updated_count -= len(records_to_update)
-
-            # Сохраняем кэш суммари
-            summarizer.save_cache()
-
-            elapsed = time.time() - start_time
-            stats = summarizer.get_stats()
-
-            return (
-                f"📝 Генерация описаний завершена\n"
-                f"   Всего чанков: {total_chunks}\n"
-                f"   Без описаний было: {chunks_to_process}\n"
-                f"   Обновлено: {updated_count}\n"
-                f"   Ошибок: {error_count}\n"
-                f"   LLM-генераций: {stats.get('generated', 0)}\n"
-                f"   Попаданий в кэш: {stats.get('cache_hits', 0)}\n"
-                f"   Время: {elapsed:.1f}s"
-            )
-
-        except Exception as e:
-            logger.error(f"Ошибка generate_chunk_summaries: {e}")
-            return f"❌ Ошибка: {str(e)}"
-
-    def _get_searcher():
-        """
-        Возвращает глобальный searcher.
-
-        ВАЖНО: Используем searcher из create_mcp_server(), который уже переключён
-        на правильный проект фоновым воркером. НЕ создаём новый Indexer —
-        иначе search_code будет искать в неверной БД (D:\AI\.codebase_indices).
-        """
-        global _last_searcher
-        if "_last_searcher" not in globals() or _last_searcher is None:
-            try:
-                from src.core.searcher import Searcher
-                _last_searcher = Searcher(indexer, embedder)
-            except Exception as e:
-                logger.error(f"Не удалось создать searcher: {e}")
-                return None
-        return _last_searcher
-
-    @mcp.tool()
-    async def get_repo_map(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает текстовую карту репозитория: дерево файлов и ключевые символы.
-
-        CRITICAL USAGE RULE:
-        Use this tool for project overview ONLY. To read actual code, use grep + targeted
-        read_file (max 50 lines per chunk). Never attempt to parse the full map as code.
-        """
-        _debug_log("get_repo_map", project_root)
-        if not symbol_index:
-            return "❌ Движок анализа структуры недоступен."
-        try:
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return f"❌ Путь к проекту не найден: {project_root}"
-
-            if hasattr(symbol_index, "get_repo_map"):
-                def _fetch_repo_map():
-                    raw = symbol_index.get_repo_map(str(target_path))
-                    out = [
-                        f"🗺️ Карта репозитория проекта: {target_path.name}\n",
-                        f"Всего отслеживаемых файлов: {raw.get('total_files', 0)}",
-                        f"Всего уникальных символов: {raw.get('total_symbols', 0)}\n",
-                        "📁 Структура и ключевые компоненты:",
-                    ]
-                    for item in raw.get("structure", []):
-                        prefix = "  📄" if item["type"] == "file" else "  📁"
-                        out.append(f"{prefix} {item['name']} ({item['path']})")
-                        fp = item["path"]
-                        sym_entry = raw.get("symbols_by_file", {}).get(fp)
-                        if sym_entry is None:
-                            sym_entry = raw.get("symbols_by_file", {}).get(
-                                fp.replace("/", "\\")
-                            )
-                        if sym_entry:
-                            for sym in sym_entry[:10]:
-                                s_name = (
-                                    sym.get("name")
-                                    if isinstance(sym, dict)
-                                    else getattr(sym, "symbol", "unknown")
-                                )
-                                s_kind = (
-                                    sym.get("kind")
-                                    if isinstance(sym, dict)
-                                    else getattr(sym, "kind", "unknown")
-                                )
-                                out.append(f"      └─ [{s_kind.upper()}] {s_name}")
-                    return "\n".join(out)
-
-                return await _run_with_timeout(
-                    _fetch_repo_map,
-                    timeout=15,
-                    description="get_repo_map",
-                    priority="slow"
-                )
-            return f"🗺️ Карта проекта '{target_path.name}' не поддерживается."
-        except Exception as e:
-            logger.error(f"Ошибка при работе инструмента get_repo_map: {e}")
-            return f"❌ Ошибка генерации Repo Map: {str(e)}"
-
-    # 7. Инструмент MCP: Архитектурный дифф при сканировании изменений
-    @mcp.tool()
-    async def scan_changes(
-        project_root: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Сканирует проект на изменения и возвращает архитектурный дифф.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Создали/удалили файлы вне Zed (git pull, git checkout)
-        - Подозреваешь рассинхронизацию базы с диском
-        - Нужно понять влияние изменений на архитектуру проекта
-
-        В отличие от простого 'список изменённых файлов', показывает:
-        - Какие символы добавлены/изменены
-        - Кто зависит от этих символов (impact analysis)
-        - Текстовое резюме архитектурного влияния
-
-        CRITICAL: Normalize Windows paths: path.as_posix().lower() before calling.
-        """
-        _debug_log("scan_changes", project_root)
-        target_path = Path(project_root).resolve()
-        if not target_path.exists():
-            return f"❌ Указанный путь не существует: {project_root}"
-
-        try:
-            indexer.switch_project(target_path)
-            project_file_guard = FileGuard(target_path)
-            indexer.file_guard = project_file_guard
-
-            # Тяжёлая дисковая операция - в пуле потоков
-            logger.info(
-                f"🔄 Ручной запуск сканирования изменений для {target_path.name}..."
-            )
-            indexed_count = await asyncio.to_thread(indexer.index_project, target_path)
-
-            # Обновляем SymbolIndex
-            if hasattr(symbol_index, "index_project"):
-                await asyncio.to_thread(
-                    symbol_index.index_project, target_path, code_parser
-                )
-
-            # Архитектурный дифф: какие символы затронуты
-            arch_diff = ""
-            if hasattr(symbol_index, "get_architectural_diff") and indexed_count > 0:
-                # Получаем список файлов, которые были обновлены
-                try:
-                    df = indexer.table.to_pandas()
-                    changed_files = list(df["file_path"].unique())[:20]
-                    diff_result = symbol_index.get_architectural_diff(changed_files)
-                    if diff_result.get("impact_summary"):
-                        arch_diff = f"\n\n🏗️ Архитектурный анализ изменений:\n{diff_result['impact_summary']}"
-                    if diff_result.get("impact_files"):
-                        arch_diff += f"\n\n⚠️ Файлы под ударом: {', '.join(diff_result['impact_files'][:8])}"
-                except Exception as diff_err:
-                    logger.debug(f"Не удалось построить архитектурный дифф: {diff_err}")
-
-            embedder_mode = getattr(embedder, "mode", "unknown")
-            return (
-                f"🔍 Инкрементальное сканирование: {target_path.name}\n"
-                f"  • Обновлено/добавлено файлов: {indexed_count}\n"
-                f"  • Режим эмбеддера: {embedder_mode}"
-                f"{arch_diff}"
-            )
-        except Exception as e:
-            logger.error(f"Ошибка scan_changes: {e}", exc_info=True)
-            return f"❌ Ошибка сканирования: {str(e)}"
-
-    @mcp.tool()
-    async def watcher_status(kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает статус доступности компонентов подсистем индексации и эмбеддинга.
-
-        CRITICAL USAGE RULE:
-        Call this tool to check system health. If embedder mode is 'fallback' or 'onnx',
-        notify the user that LM Studio is not connected for full functionality.
-
-        АВТОЗАГРУЗКА МОДЕЛЕЙ:
-        При вызове автоматически проверяет какие модели загружены в VRAM.
-        Если критические модели (embedding/instruct) не загружены — отправляет
-        тестовый запрос для загрузки «по требованию».
-        """
-        _debug_log("watcher_status")
-        result = await _run_with_timeout(
-            lambda: _watcher_status_impl(),
-            timeout=15, description="watcher_status", priority="fast"
-        )
-        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-            return result
-        return result
-
-    def _watcher_status_impl() -> str:
-        """Синхронная реализация watcher_status."""
-        lines = ["👁️ Статус компонентов архитектуры:"]
-
-        # Проверка доступности кода LSP в контексте текущего окружения
-        try:
-            from src.lsp_main import server as lsp_server
-
-            if lsp_server is not None:
-                lines.append(
-                    "  • Архитектура LSP: ✅ Модули успешно загружены в ядро расширения"
-                )
-            else:
-                lines.append(
-                    "  • Архитектура LSP: ⏹️ Ошибка инициализации объекта сервера"
-                )
-        except Exception as lsp_err:
-            lines.append(f"  • Архитектура LSP: ⏹️ Ошибка импорта: {lsp_err}")
-
-        # Режим работы эмбеддера
-        embedder_mode = getattr(embedder, "mode", "unknown")
-        mode_label = {
-            "lm_studio": "🌐 LM Studio (Внешний порт 1234)",
-            "ollama": "🦙 Ollama API",
-            "onnx": "⚙️ ONNX (Локальный CPU/GPU)",
-            "fallback": "⚠️ Fallback-заглушка (Тестовый режим)",
-        }.get(embedder_mode, embedder_mode)
-        lines.append(f"  • Режим эмбеддера: {mode_label}")
-
-        # Активность фонового потока проверки доступности провайдера
-        scanner_thread = getattr(embedder, "_scanner_thread", None)
-        scanner_alive = scanner_thread is not None and scanner_thread.is_alive()
-        lines.append(
-            f"  • Пинг-сканер доступности ИИ-хоста: {'✅ Активен' if scanner_alive else '⏹️ Отключен'}"
-        )
-
-        # ══════════════════════════════════════════════════════════
-        # Проверка загруженных моделей в LM Studio + автозагрузка
-        # ══════════════════════════════════════════════════════════
-        if embedder_mode in ("lm_studio", "ollama"):
-            try:
-                import httpx
-
-                from src.core.config import get_config
-
-                config = get_config()
-                host = getattr(embedder, "host", config.embedding.lm_studio_host)
-                port = getattr(embedder, "port", config.embedding.lm_studio_port)
-
-                # Запрашиваем список моделей с их состоянием
-                with httpx.Client(timeout=3.0) as client:
-                    r = client.get(f"http://{host}:{port}/api/v0/models")
-                    if r.status_code == 200:
-                        models = r.json().get("data", [])
-                        loaded = [m for m in models if m.get("state") == "loaded"]
-                        not_loaded = [m for m in models if m.get("state") != "loaded"]
-
-                        lines.append("")
-                        lines.append(
-                            f"📦 Модели LM Studio: {len(loaded)}/{len(models)} в VRAM"
-                        )
-
-                        if loaded:
-                            for m in loaded:
-                                mtype = m.get("type", "?")
-                                lines.append(f"   ✅ [{mtype}] {m.get('id', '')}")
-
-                        if not_loaded:
-                            for m in not_loaded:
-                                mtype = m.get("type", "?")
-                                lines.append(f"   ⚪ [{mtype}] {m.get('id', '')}")
-
-                        # Автозагрузка: если ни одна embedding-модель не в VRAM
-                        embedding_loaded = any(
-                            m.get("type") == "embeddings" for m in loaded
-                        )
-                        instruct_loaded = any(
-                            m.get("type") in ("llm", "vlm") for m in loaded
-                        )
-
-                        if not embedding_loaded or not instruct_loaded:
-                            lines.append("")
-                            lines.append("🔄 Автозагрузка моделей...")
-
-                            # Загружаем embedding-модель
-                            if not embedding_loaded:
-                                embed_model = getattr(
-                                    embedder, "model_name", "text-embedding-bge-m3"
-                                )
-                                try:
-                                    r_load = client.post(
-                                        f"http://{host}:{port}/v1/embeddings",
-                                        json={"model": embed_model, "input": "warmup"},
-                                        timeout=60.0,
-                                    )
-                                    if r_load.status_code == 200:
-                                        lines.append(
-                                            f"   ✅ Embedding '{embed_model}' загружена"
-                                        )
-                                    else:
-                                        lines.append(
-                                            f"   ⚠️ Embedding '{embed_model}': HTTP {r_load.status_code}"
-                                        )
-                                except Exception as e:
-                                    lines.append(
-                                        f"   ❌ Embedding '{embed_model}': {e}"
-                                    )
-
-                            # Загружаем instruct-модель (для реранкинга)
-                            if not instruct_loaded:
-                                # Ищем первую instruct-модель в списке доступных
-                                instruct_candidates = [
-                                    m
-                                    for m in not_loaded
-                                    if m.get("type") in ("llm", "vlm")
-                                ]
-                                if instruct_candidates:
-                                    instruct_model = instruct_candidates[0].get("id")
-                                    try:
-                                        r_inst = client.post(
-                                            f"http://{host}:{port}/v1/chat/completions",
-                                            json={
-                                                "model": instruct_model,
-                                                "messages": [
-                                                    {"role": "user", "content": "hi"}
-                                                ],
-                                                "max_tokens": 1,
-                                            },
-                                            timeout=120.0,
-                                        )
-                                        if r_inst.status_code == 200:
-                                            lines.append(
-                                                f"   ✅ Instruct '{instruct_model}' загружена"
-                                            )
-                                        else:
-                                            lines.append(
-                                                f"   ⚠️ Instruct '{instruct_model}': HTTP {r_inst.status_code}"
-                                            )
-                                    except Exception as e:
-                                        lines.append(
-                                            f"   ❌ Instruct '{instruct_model}': {e}"
-                                        )
-                    else:
-                        lines.append(f"  • Модели LM Studio: ⚠️ HTTP {r.status_code}")
-            except Exception as e:
-                lines.append(f"  • Модели LM Studio: ❌ Ошибка: {e}")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
-    def structural_search(
-        project_root: str,
-        pattern: str = "class_inheritance",
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """Поиск по AST-паттернам (Structural Search).
-
-        Ищет код не по тексту, а по структуре через Tree-sitter queries.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно найти все классы наследующие от Base
-        - Нужно найти все функции с декоратором @app.get
-        - Нужно найти все async def, with statement, comprehensions
-        - Нужна структура кода, а не текстовый поиск
-
-        ДОСТУПНЫЕ ПАТТЕРНЫ:
-        - class_inheritance — классы с наследованием
-        - class_with_decorator — классы с декораторами
-        - function_with_decorator — функции с декораторами
-        - async_function — async функции
-        - method_with_type_hints — методы с аннотациями типов
-        - class_with_init — классы с __init__
-        - import_from — импорты from X import Y
-        - try_except — try/except блоки
-        - list_comprehension — list comprehensions
-        - dict_comprehension — dict comprehensions
-        - lambda — лямбда-функции
-        - with_statement — with statements
-        - comprehension — любые comprehensions
-        """
-        _debug_log("structural_search", f"{project_root} | {pattern}")
-        target_path = Path(project_root).resolve()
-        if not target_path.exists():
-            return f"Указанный путь не существует: {project_root}"
-
-        try:
-            searcher = StructuralSearcher(code_parser)
-            result = searcher.search(
-                target_path,
-                pattern_name=pattern,
-                max_results=30,
-            )
-            return searcher.format_results(result)
-        except Exception as e:
-            logger.error(f"Ошибка structural_search: {e}")
-            return f"Ошибка структурного поиска: {str(e)}"
-
-    @mcp.tool()
-    def cross_repo_search(query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Поиск по нескольким проектам с @-mention синтаксисом (Cross-repo Search).
-
-        Ищет по всем проиндексированным проектам или только по указанным через @-mentions.
-        Результаты из разных проектов объединяются через RRF (Reciprocal Rank Fusion).
-
-        СИНТАКСИС:
-        - "query" — поиск по всем проектам
-        - "query @backend" — поиск только в проекте backend
-        - "query @backend @frontend" — поиск в backend и frontend
-        - "query @shared" — поиск по префиксу (найдёт shared-utils, shared-types и т.д.)
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно найти код в другом проекте моно-репо
-        - Нужно понять как интерфейс используется в разных сервисах
-        - Нужно найти общие типы/утилиты в shared-библиотеках
-        - Обычный search_code ищет только в текущем проекте
-
-        НЕ ИСПОЛЬЗУЙ КОГДА:
-        - Нужен поиск в одном проекте -> используй search_code
-        - Нужен поиск по структуре AST -> используй structural_search
-
-        CRITICAL: All projects must be indexed first via index_project_dir.
-        """
-        _debug_log("cross_repo_search", query)
-        try:
-            return multi_project_searcher.search(query, limit=8)
-        except Exception as e:
-            logger.error(f"Ошибка cross_repo_search: {e}", exc_info=True)
-            return f"❌ Ошибка кросс-проектного поиска: {type(e).__name__}:{e}"
-
-    @mcp.tool()
-    def cross_project_deps(
-        action: str = "graph",
-        project_name: str = "",
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """Анализ зависимостей между проектами в моно-репо (Cross-project Dependency Graph).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Нужно понять зависимости между проектами моно-репо
-        - Ищешь циклические зависимости
-        - Нужно оценить влияние изменений в одном проекте на другие
-        - Ищешь общие интерфейсы между проектами
-
-        Типы запросов (action):
-        - 'graph' — полный граф зависимостей между проектами
-        - 'deps' — зависимости конкретного проекта (укажи project_name)
-        - 'cycles' — найти циклические зависимости
-        - 'shared' — общие интерфейсы между проектами
-        - 'impact' — влияние изменений в проекте (укажи project_name)
-        - 'path' — кратчайший путь зависимости (укажи from/to в kwargs)
-
-        НЕ ИСПОЛЬЗУЙ КОГДА:
-        - Нужен поиск в одном проекте -> используй get_related_files
-        - Нужен поиск кода -> используй cross_repo_search
-
-        Args:
-            action: Тип запроса (graph/deps/cycles/shared/impact/path)
-            project_name: Имя проекта (для deps/impact)
-            kwargs: Дополнительные параметры (direction, from_project, to_project)
-
-        Returns:
-            Результат анализа зависимостей между проектами
-        """
-        _debug_log("cross_project_deps", f"{action}, {project_name}")
-        try:
-            deps_graph = CrossProjectDependencyGraph(
-                project_registry=locals().get("multi_project_searcher").registry
-                if locals().get("multi_project_searcher")
-                else None,
-            )
-
-            if action == "graph":
-                graph = deps_graph.build_dependency_graph()
-                return deps_graph.format_dependency_graph(graph)
-
-            elif action == "deps":
-                if not project_name:
-                    return "❌ Укажите project_name для action='deps'"
-                direction = (kwargs or {}).get("direction", "both")
-                deps = deps_graph.get_project_dependencies(
-                    project_name, direction=direction
-                )
-                return deps_graph.format_project_deps(deps)
-
-            elif action == "cycles":
-                cycles = deps_graph.find_circular_dependencies()
-                if not cycles:
-                    return "✅ Циклических зависимостей не обнаружено."
-                lines = ["🔄 Циклические зависимости:\n"]
-                for i, cycle in enumerate(cycles, 1):
-                    lines.append(f"  {i}. {' → '.join(cycle)} → {cycle[0]}")
-                return "\n".join(lines)
-
-            elif action == "shared":
-                shared = deps_graph.find_shared_interfaces()
-                if not shared:
-                    return "✅ Общих интерфейсов между проектами не найдено."
-                lines = [f"🔗 Общие интерфейсы ({len(shared)}):\n"]
-                for i, iface in enumerate(shared[:10], 1):
-                    projects = ", ".join(iface.get("projects", []))
-                    conflict = " ⚠️ конфликт" if iface.get("potential_conflict") else ""
-                    lines.append(
-                        f"  {i}. {iface.get('symbol', '?')} → [{projects}]{conflict}"
-                    )
-                return "\n".join(lines)
-
-            elif action == "impact":
-                if not project_name:
-                    return "❌ Укажите project_name для action='impact'"
-                impact = deps_graph.analyze_impact(project_name)
-                lines = [
-                    f"🎯 Влияние изменений в {project_name}:\n",
-                    f"  Риск: {impact.get('risk_level', 'unknown')}",
-                    f"  Прямо затронуты ({len(impact.get('directly_affected', []))}):",
-                ]
-                for p in impact.get("directly_affected", [])[:5]:
-                    lines.append(f"    - {p}")
-                transitive = impact.get("transitively_affected", [])
-                if transitive:
-                    lines.append(f"  Косвенно затронуты ({len(transitive)}):")
-                    for p in transitive[:5]:
-                        lines.append(f"    - {p}")
-                return "\n".join(lines)
-
-            elif action == "path":
-                extra = kwargs or {}
-                from_proj = extra.get("from_project", "")
-                to_proj = extra.get("to_project", "")
-                if not from_proj or not to_proj:
-                    return "❌ Укажите from_project и to_project в kwargs для action='path'"
-                path = deps_graph.get_dependency_path(from_proj, to_proj)
-                if not path:
-                    return f"❌ Путь зависимости от {from_proj} до {to_proj} не найден."
-                return f"🔗 Путь: {' → '.join(path)}"
-
-            else:
-                return f"❌ Неизвестный action: {action}. Доступные: graph, deps, cycles, shared, impact, path"
-
-        except Exception as e:
-            logger.error(f"Ошибка cross_project_deps: {e}", exc_info=True)
-            return f"❌ Ошибка: {type(e).__name__}: {e}"
-
-    @mcp.tool()
-    def get_logs(project_root: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        """Возвращает последние ошибки и предупреждения из логов проекта.
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - Что-то работает неправильно и нужно понять причину
-        - Индексация зависла или вернула 0 чанков
-        - Поиск не даёт результатов — возможно эмбеддер упал
-        - Нужно быстро диагностировать проблему без чтения файлов вручную
-
-        Логи хранятся в .codebase_indices/logs/<project>.log с ротацией по 2MB.
-        Автоочистка логов старше 7 дней.
-        Читает только хвост файла (64KB) — не грузит систему.
-        """
-        _debug_log("get_logs", project_root)
-        target_path = Path(project_root).resolve()
-        if not target_path.exists():
-            return f"❌ Указанный путь не существует: {project_root}"
-        return get_log_summary(target_path)
-
-    @mcp.tool()
-    async def get_health_report(
-        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Самодиагностика системы."""
-        result = await _run_with_timeout(
-            lambda: _get_health_report_impl(project_root),
-            timeout=45, description="get_health_report", priority="slow",
-            queue_timeout=15
-        )
-        if isinstance(result, str) and (result.startswith("❌") or result.startswith("⏱")):
-            return result
-        return result
-
-    def _get_health_report_impl(project_root: str) -> str:
-        """Синхронная реализация get_health_report."""
-        try:
-            target_path = _resolve_project_path(project_root)
-            if not target_path.exists():
-                return f"❌ Путь не существует: {project_root}"
-
-            # Fail fast если это не проект а расширение
-            if not (target_path / ".git").exists():
-                return (
-                    f"❌ {target_path.name} — не похож на проект (.git не найден).\n"
-                    f"   Перезапустите Zed чтобы current_dir=$ZED_WORKTREE_ROOT применился."
-                )
-
-            report = HealthReport(
-                project_path=target_path,
-                indexer=indexer,
-                symbol_index=symbol_index,
-                embedder=embedder,
-            )
-            # Запускаем напрямую — уже внутри _run_with_timeout (slow executor)
-            result = report.run_full_diagnostic()
-            return format_health_report(result)
-        except Exception as e:
-            logger.error(f"Ошибка get_health_report: {e}")
-            return f"❌ Ошибка диагностики: {str(e)}"
-
-    # ==========================================
-    # MCP PROMPTS — СИСТЕМНЫЕ ПРАВИЛА ДЛЯ AI-АГЕНТА
-    # ==========================================
-
-    @mcp.prompt(
-        name="mscodebase-rules",
-        description="Системные правила для идеальной работы с кодовой базой MSCodeBase",
-    )
-    def mscodebase_rules() -> str:
-        """Системные правила для идеальной работы с кодовой базой MSCodeBase."""
-        return """
+    mcp_prompt_text = """
 # MSCODEBASE INTELLIGENCE CORE SYSTEM RULES
 
-You operate under a strict deterministic execution matrix. Every action must be verified before execution. No assumptions allowed.
+You operate under a strict deterministic execution matrix...
 
-## 1. MCP PRIORITY RULES (Mandatory Tool Hierarchy)
-- **CRITICAL:** For ANY question about code, architecture, logic, or bugs — call `search_code` FIRST.
-  Only if it returns no results or fails, fall back to `grep`/`find_path`.
-  The 1-2s latency is invested time that saves 3-5x more during LLM generation.
-- IF `get_index_status` returns chunks = 0 or status = "empty":
-  - Call `index_project_dir(path)` to trigger re-indexing, then wait for completion.
-  - Use `grep` as fallback ONLY while indexing is in progress.
-- IF chunks > 0:
-  - For semantic/conceptual questions → `search_code` (ALWAYS FIRST).
-  - For exact symbol names → `get_symbol_info`.
-  - For exact text in known location → `grep` (fallback only).
+## 1. MCP PRIORITY RULES
+- For ANY question about code → `search_code` FIRST
+- If `get_index_status` returns chunks=0 → index_project_dir first
+- If chunks > 0 → search_code for semantic, get_symbol_info for exact
 
-## 2. RECONNAISSANCE BEFORE ACTION (No Blind Reads/Writes)
-- NEVER guess line numbers. Calling `read_file` with speculative ranges (e.g., 1-100 on a random file) is a Critical Failure.
-- BEFORE reading or modifying any file, you MUST discover the exact location using `get_symbol_info` or text search.
-- Once the line numbers are known from tool output, you may proceed to read.
-- To find similar code patterns or duplicates, use `search_code(selected_code, mode="context")`.
-- For complex research queries, use `search_code(query, mode="deep")`.
-- For cross-project search in mono-repos, use `cross_repo_search(query @project1 @project2)`.
-- **Agentic Code Search (search_code agentic=True):** For complex questions, `search_code` auto-decomposes queries, searches independently, and aggregates via RRF.
+## 2. RECONNAISSANCE BEFORE ACTION
+- NEVER guess line numbers. Use get_symbol_info or grep before read_file.
+- CONTEXT BUDGET: maximum 50 lines per read_file call.
+- NEVER ingest entire files.
 
-## 3. CONTEXT BUDGET AND CHUNKING (Anti-Bloat Rules)
-- Your maximum allowed reading window is 50 lines per `read_file` call.
-- If a function spans more than 50 lines, read the first 50 lines, analyze them, and then make a subsequent targeted call for the next chunk if strictly necessary.
-- NEVER ingest entire files into the conversation context unless the file is under 50 lines total.
+## 3. ERROR HANDLING
+- If MCP tool returns error → pivot, don't retry same params
+- Use get_logs for diagnostics
+- Report exact error signatures
 
-## 4. SAFE WRITING AND CODE MODIFICATION
-- BEFORE generating a search-and-replace block or modifying code, you MUST read the target lines again to ensure your local memory matches the absolute truth of the file.
-- When writing code, preserve the exact indentation, style, and architectural patterns of the surrounding file.
+## 4. PATH PROTOCOL
+- Native Windows paths (backslashes) for MCP tools
+- Relative paths for notify_change (from project root)
+- Absolute paths for project_root params
+"""
+    mcp.prompt(name="mscodebase-rules", description="Системные правила для работы с кодовой базой MSCodeBase")(
+        lambda: mcp_prompt_text
+    )
 
-## 5. ERROR HANDLING AND FAIL-SAFES
-- IF an MCP tool returns an error or empty result:
-  - Do not retry the exact same tool with the exact same parameters.
-  - Pivot to an alternative tool (e.g., if symbol search failed, try raw text grep).
-  - If all technical tools fail, report the exact error signature to the user and ask for clarification.
-  - Use `get_logs` to check project logs for embedder failures, indexing errors, or dimension mismatches.
 
-## 6. PATH PROTOCOL
-- Use native Windows paths (backslashes) when passing to MCP tools.
-- For notify_change: paths are relative to project root (e.g., `src\core\indexer.py`).
-- For project_root params: absolute Windows path (e.g., `D:\Project\MSCodeBase`).
-- Do NOT use POSIX forward slashes for MCP tools — Windows format only.
-
-## 7. POST-MODIFICATION SYNC
-- After editing any file, call `notify_change(file_path)` to incrementally refresh the index.
-  - Paths are relative to project root (e.g., `src\core\indexer.py`).
-  - notify_change reads from LSP VFS (memory) for open files, falls back to disk.
-- Call `get_index_status()` to verify that the cache matches the updated state.
-- If full re-index needed (e.g., new dependencies), use `index_project_dir(path)`.
-
-## 8. INDEXING PROGRESS AWARENESS
-- After `index_project_dir()`, indexing runs asynchronously in background.
-- Use `get_index_progress()` to check current status (files done/total, phase).
-- IF phase = "complete" → safe to use `search_code` and other search tools.
-- IF phase = "scanning" or "rebuilding_bm25" → wait or use grep as fallback.
-- IF percent < 50% → warn user that indexing is still in progress.
-- IF percent >= 80% → indexing almost done, results may be partial but usable.
-
-## 8. STACK & CONSTRAINTS
-- Backend: Python 3.11+, LanceDB (vector search), Tree-sitter (AST parsing).
-- Embeddings: LM Studio (external) or fallback to local ONNX.
-- Time: IANA timezone via `zoneinfo` (NO pytz).
-- Windows native deployment only. NO Docker.
-- NEVER mock or stub functions.
-    """
-
-    @mcp.tool()
-    def verify_action(
-        action_type: str,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """Верификация выполненного действия (Execution Contract).
-
-        ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-        - После git commit/push — подтвердить что изменения реально записаны
-        - После записи файла — подтвердить что файл существует и содержит ожидаемое
-        - После индексации — подтвердить статус через get_index_status
-
-        Args:
-            action_type: 'file_write' | 'git_commit' | 'git_push' | 'index_sync'
-            **kwargs: параметры для верификации (file_path, expected_content, commit_message)
-
-        Returns:
-            Отчёт о верификации с статусом ✅ или ❌.
-        """
-        _debug_log("verify_action", action_type)
-        try:
-            contract = ExecutionContract()
-            results = []
-            params = kwargs or {}
-
-            if action_type == "file_write":
-                file_path = params.get("file_path", "")
-                expected = params.get("expected_content")
-                result = contract.verify_file_write(file_path, expected)
-                results.append(result)
-
-            elif action_type == "git_commit":
-                expected_msg = params.get("expected_message")
-                result = contract.verify_git_commit(expected_msg)
-                results.append(result)
-
-            elif action_type == "git_push":
-                result = contract.verify_git_push()
-                results.append(result)
-
-            elif action_type == "index_sync":
-                project_root = params.get("project_root", "")
-                result = contract.verify_index_sync(project_root)
-                results.append(result)
-
-            elif action_type == "all":
-                file_path = params.get("file_path")
-                if file_path:
-                    results.append(contract.verify_file_write(file_path))
-                results.append(contract.verify_git_commit())
-                results.append(contract.verify_git_push())
-
-            else:
-                return f"❌ Неизвестный тип действия: {action_type}"
-
-            return format_verification_report(results)
-
-        except Exception as e:
-            logger.error(f"Ошибка verify_action: {e}")
-            return f"❌ Ошибка верификации: {str(e)}"
-
-    return mcp
-
+# ══════════════════════════════════════════════════════════
+# Точка входа
+# ══════════════════════════════════════════════════════════
 
 def run_server(original_stdout=None):
+    """Запускает MCP-сервер через stdio."""
     mcp = create_mcp_server()
     if mcp:
         try:

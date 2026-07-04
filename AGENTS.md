@@ -29,7 +29,7 @@ SAFE WRITING: Read target lines again before edit. Preserve indentation and styl
 
 [ERROR HANDLING]
 Do not retry same tool with same params. Pivot to alternative.
-WINDOWS PATHS: Normalize to POSIX lowercase via path.as_posix().lower().
+WINDOWS PATHS: Normalize to Windows escaped format (`\\\\`) for MCP tools.
 POST-MODIFICATION: After writing, call notify_change() + get_index_status.
 
 [CONSTRAINTS]
@@ -45,7 +45,6 @@ IF task is done, finish output.
 * Scan the list of available tools for the `intel_*` prefix or core MCP tools (e.g., `search_code`).
 * **If present** → You are running in Full Hybrid Context Mode. Proceed strictly to Section 1.
 * **If absent** → The MCP server is offline/unavailable. Work *exclusively* using standard Zed IDE tools (`grep`, `read_file`, `terminal`). DO NOT mention, reference, or attempt to invoke MCP tools in the dialogue.
-
 
 3. **Runtime Self-Check:** At the very beginning of an MCP-enabled session, invoke `intel_get_runtime_status`. If any MCP tool call fails due to pipe/transport errors, immediately treat MCP as unavailable for the remainder of the session and switch to the standard textual fallback.
 
@@ -70,14 +69,16 @@ You must strictly separate the analytical (high-level) phase from the surgical (
 | Режим | Когда использовать | Время |
 |-------|------------------|-------|
 | `"fast"` | Быстро найти упоминание файла/переменной/функции. Простой точный запрос. | ~300ms |
-| `"quality"` (или `"smart"`) | Поиск логики, архитектуры, связей. Нужен reranker для точности. **Режим по умолчанию.** | ~1200ms |
+| `"quality"` | Поиск логики, архитектуры, связей. Нужен reranker для точности. **Режим по умолчанию.** | ~1200ms |
 | `"deep"` | Сложное архитектурное расследование. Многосвязный запрос. | ~2-5s |
 | `"context"` | Найти похожий код по фрагменту. Передай в `query` **код**, а не текст. | ~500ms |
 | `"auto"` | (По умолчанию) Автоопределение: простой запрос → fast, сложный → agentic multi-pass. | ~300ms-2s |
 
 ### 1.3 Priority Matrix
 
+
 ```
+
 [ANALYSIS / BRAIN]                       [SURGICAL ACTION / HANDS]                 [BUILT-IN IDE]
 High-Level Intel Tools                    Low-Level Core MCP                       Standard Zed Tools
 ──────────────────────                   ──────────────────────────                ────────────────

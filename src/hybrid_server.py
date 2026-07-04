@@ -1,5 +1,19 @@
+"""(DEPRECATED) Устаревший способ запуска LSP+MCP в одном процессе.
+
+Вся функциональность перенесена:
+- lsp_main.py — LSP обработчики
+- mcp/server.py — MCP сервер
+- core/di_container.py — общее состояние (DI контейнер)
+- mcp/tools/system_tools.py — read_live_file (замена hybrid режиму)
+
+Причина удаления: DI Container решает проблему общего состояния
+между LSP и MCP без единого процесса. Оба сервера используют
+один и тот же create_service_collection(), подключены к одной
+LanceDB базе.
 """
-MSCodeBase Intelligence — Hybrid LSP + MCP Server (Единый процесс)
+
+"""
+MSCodebase Intelligence — Hybrid LSP + MCP Server (Единый процесс)
 
 Архитектура:
 - LSP-сервер (stdio): получает события от Zed (didOpen, didChange, didSave)

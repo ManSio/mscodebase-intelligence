@@ -81,68 +81,99 @@ def _get_rel_path_str(file_path: Path, project_path: Path) -> str:
     return file_path.relative_to(project_path).as_posix()
 
 
-# Глобальные переменные для lazy init
-_indexer = None
-_embedder = None
-_file_guard = None
-_project_path = None
-
+# Shared DI ServiceCollection (синглтон для LSP)
+_services = None
 
 def init_components(project_root: Path):
-    """Ленивая инициализация компонентов ядра."""
-    global _indexer, _embedder, _file_guard, _project_path
+    """Ленивая инициализация компонентов через DI контейнер.
 
-    if _indexer is not None:
+    Заменяет старую init_components с 4 глобальными переменными.
+    Единственное место инициализации — все компоненты в одном контейнере.
+    """
+    global _services
+
+    if _services is not None:
         return
 
-    _project_path = project_root
+    from src.core.di_container import create_service_collection
 
-    from src.core.file_guard import FileGuard
-    from src.core.indexer import Indexer, _generate_unique_db_path
-    from src.core.remote_embedder import RemoteEmbedder
-    from src.core.parser import CodeParser
+    _services = create_service_collection(project_root)
 
-    db_path = _generate_unique_db_path(project_root)
-    _embedder = RemoteEmbedder()  # Использует конфигурацию по умолчанию
-    _file_guard = FileGuard(project_root)
-    _code_parser = CodeParser()
-    _indexer = Indexer(db_path, _embedder, _file_guard, project_path=project_root, parser=_code_parser)
-
-    logger.info(f"LSP: Инициализирован Indexer для {project_root.name}")
+    # Инициализируем DebounceBatch для BM25 реиндексации
+    from src.core.rate_limiter import DebounceBatch
+    _batch = _services.resolve(DebounceBatch)
+    logger.info(f"LSP: DI Container инициализирован для {project_root.name} (BM25 debounce active)")
 
 
 def _execute_file_indexing(file_path: Path, content: Optional[str] = None):
     """Оркестрация проверки хеша и чанкера (вызывается в thread-пуле).
 
+    Использует DI контейнер вместо глобальных переменных.
+    BM25 реиндексация через DebounceBatch (не вызывается на каждый файл).
+
     Args:
         file_path: Путь к файлу
         content: Текст файла из памяти LSP. Если None — читает с диска.
     """
-    if _indexer is None:
-        init_components(_project_path or Path.cwd())
+    global _services
+    if _services is None:
+        init_components(Path.cwd())
+
+    from src.core.indexer import Indexer
+
+    indexer = _services.resolve(Indexer)
 
     # Проверки безопасности
-    if not _indexer.path_manager.is_safe_to_process(file_path):
+    if not indexer.path_manager.is_safe_to_process(file_path):
         return
-    if _indexer.file_guard.should_skip_file(file_path):
+    if indexer.file_guard.should_skip_file(file_path):
         return
 
     try:
-        rel_path_str = _get_rel_path_str(file_path, _indexer.project_path)
+        rel_path_str = _get_rel_path_str(file_path, indexer.project_path)
     except ValueError:
         return
 
     logger.info(f"[LSP INDEXING] Анализ файла: {rel_path_str} (from_memory={content is not None})")
-    success = _indexer._index_single_file(file_path, rel_path_str, content=content)
+    success = indexer._index_single_file(file_path, rel_path_str, content=content)
 
-    if success and _indexer.searcher:
-        _indexer.searcher.reindex()
+    # ★ ИСПРАВЛЕНО: BM25 реиндексация через DebounceBatch, а не на каждый файл ★
+    if success:
+        try:
+            from src.core.rate_limiter import DebounceBatch
+            batch = _services.resolve(DebounceBatch)
+            # Добавляем файл в debounce батч (асинхронно в фоне, fire-and-forget)
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(batch.add(rel_path_str))
+                else:
+                    loop.run_until_complete(batch.add(rel_path_str))
+            except RuntimeError:
+                pass
+        except Exception:
+            # Fallback: немедленная реиндексация
+            if indexer.searcher:
+                indexer.searcher.reindex()
 
 
 def _process_watched_changes(changes):
-    """Синхронный воркер для обработки пачки внешних событий диска."""
-    need_search_reindex = False
+    """Синхронный воркер для обработки пачки внешних событий диска.
 
+    Использует DI контейнер и DebounceBatch для BM25.
+    """
+    global _services
+    if _services is None:
+        init_components(Path.cwd())
+
+    from src.core.indexer import Indexer
+    from src.core.rate_limiter import DebounceBatch
+
+    indexer = _services.resolve(Indexer)
+    batch = _services.resolve(DebounceBatch)
+
+    changed_files = []
     logger.info(f"[LSP WATCHER] Received {len(changes)} file change(s)")
 
     for change in changes:
@@ -152,7 +183,7 @@ def _process_watched_changes(changes):
             continue
 
         try:
-            rel_path_str = _get_rel_path_str(file_path, _indexer.project_path)
+            rel_path_str = _get_rel_path_str(file_path, indexer.project_path)
         except ValueError:
             logger.debug(f"[LSP WATCHER] Skip (not in project): {file_path.name}")
             continue
@@ -161,31 +192,44 @@ def _process_watched_changes(changes):
         if change.type == 3:
             logger.info(f"[LSP DELETE] {rel_path_str}")
             try:
-                escaped = _indexer._escape_file_path_for_lance(rel_path_str)
-                _indexer.table.delete(f"file_path = '{escaped}'")
+                escaped = indexer._escape_file_path_for_lance(rel_path_str)
+                indexer.table.delete(f"file_path = '{escaped}'")
                 logger.info(f"  └─ Deleted from index: {rel_path_str}")
             except Exception as del_err:
-                logger.debug(f"delete() не нашёл запись: {del_err}")
-            need_search_reindex = True
+                logger.debug(f"delete() error: {del_err}")
+            changed_files.append(rel_path_str)
 
         # FileChangeType.Created == 1 или Changed == 2
         elif change.type in (1, 2):
             change_type = 'CREATE' if change.type == 1 else 'CHANGE'
             logger.info(f"[LSP {change_type}] {rel_path_str}")
             try:
-                if _indexer._index_single_file(file_path, rel_path_str):
+                if indexer._index_single_file(file_path, rel_path_str):
                     logger.info(f"  └─ Reindexed: {rel_path_str}")
-                    need_search_reindex = True
+                    changed_files.append(rel_path_str)
                 else:
                     logger.info(f"  └─ No changes (hash match): {rel_path_str}")
             except Exception as e:
                 logger.error(f"  └─ Indexing failed: {rel_path_str}: {e}")
 
-    if need_search_reindex and _indexer.searcher:
-        logger.info("[LSP WATCHER] Rebuilding BM25 index...")
-        _indexer.searcher.reindex()
-        logger.info("[LSP WATCHER] BM25 rebuild complete")
-    elif not need_search_reindex:
+    # ★ Вместо немедленного searcher.reindex() — через DebounceBatch ★
+    if changed_files:
+        logger.info(f"[LSP WATCHER] {len(changed_files)} files changed, queuing BM25 debounce")
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                for f in changed_files:
+                    asyncio.ensure_future(batch.add(f))
+            else:
+                for f in changed_files:
+                    loop.run_until_complete(batch.add(f))
+        except Exception:
+            # Fallback если asyncio недоступен
+            if indexer.searcher:
+                logger.info("[LSP WATCHER] Debounce failed, fallback to direct BM25 rebuild")
+                indexer.searcher.reindex()
+    else:
         logger.info("[LSP WATCHER] No indexing needed")
 
 
@@ -358,6 +402,7 @@ try:
         except Exception as e:
             logger.warning(f"[LSP INIT] Не удалось записать project_root в bridge: {e}")
 
+        # ★ Используем DI контейнер вместо init_components ★
         init_components(project_root)
         ls._initialized = True
 
