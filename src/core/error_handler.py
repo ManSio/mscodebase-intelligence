@@ -289,8 +289,9 @@ def _sanitize(obj: Any) -> Any:
 def _format_success_response(data: Any, latency_ms: int) -> str:
     """Форматирует успешный ответ.
 
+    Стратегия:
     - str: пропускаем как есть (уже готовый читаемый ответ с эмодзи)
-    - dict: конвертируем в красивый текст с эмодзи (не JSON!)
+    - dict: красивое форматирование + сырые данные в json-блоке внизу
     - остальное: JSON
     """
     data = _sanitize(data)
@@ -299,20 +300,26 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
     if isinstance(data, dict):
         data.pop("status", None)
         data.pop("latency_ms", None)
-        if not data:
-            return f"✅ Done ({latency_ms}ms)"
+
+        # Красивое форматирование (для человека)
         lines = []
         for k, v in data.items():
+            if k in ("results", "data"):
+                continue  # сырые данные — покажем в json-блоке
             key = str(k).replace("_", " ")
             if isinstance(v, list) and len(v) > 5:
                 lines.append(f"  • {key}: {len(v)} items")
             elif isinstance(v, dict):
                 lines.append(f"  • {key}:")
-                for sk, sv in list(v.items())[:5]:
+                for sk, sv in list(v.items())[:3]:
                     lines.append(f"      - {sk}: {sv}")
             else:
                 lines.append(f"  • {key}: {v}")
-        return f"✅ Completed ({latency_ms}ms)\n" + "\n".join(lines)
+
+        # Сырые JSON данные (для AI)
+        raw_json = json.dumps(data, ensure_ascii=False, default=_json_default, indent=2)
+
+        return f"✅ Completed ({latency_ms}ms)\n" + "\n".join(lines) + f"\n\n```json\n{raw_json}\n```"
     return json.dumps({
         "status": "ok",
         "data": data,
