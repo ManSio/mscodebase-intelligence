@@ -1,4 +1,7 @@
-"""Unit-тесты для error_handler.py: ToolError, error_boundary, IndexNotReadyError."""
+"""Unit-тесты для error_handler.py: ToolError, error_boundary, IndexNotReadyError.
+
+Обновлено: тест на _sanitize (конвертация numpy/pandas типов в Python).
+"""
 
 from __future__ import annotations
 
@@ -195,6 +198,53 @@ class TestErrorBoundaryAsync:
         parsed = json.loads(result)
         assert parsed["status"] == "warning"
         assert "too fast" in parsed["detail"]
+
+    @pytest.mark.asyncio
+    async def test_sanitize_numpy_types(self):
+        """int32/float64 конвертируются в нативные Python типы."""
+
+        @error_boundary("sanitize_tool")
+        async def numpy_tool() -> dict:
+            # Имитация PyArrow возвращаемых типов
+            class Int32:
+                def __int__(self):
+                    return 42
+                def __float__(self):
+                    return 42.0
+                def __repr__(self):
+                    return "int32(42)"
+            return {
+                "chunk_index": Int32(),
+                "score": 0.85,
+                "file": "test.py",
+            }
+
+        result = await numpy_tool()
+        parsed = json.loads(result)
+        assert parsed["status"] == "ok"
+        assert parsed["chunk_index"] == 42
+        assert parsed["score"] == 0.85
+
+    @pytest.mark.asyncio
+    async def test_sanitize_nested_int32(self):
+        """int32 вложенный в список конвертируется."""
+
+        @error_boundary("sanitize_nested")
+        async def nested_tool() -> dict:
+            class Int32:
+                def __int__(self):
+                    return 7
+            return {
+                "results": [
+                    {"chunk_index": Int32(), "file": "a.py"},
+                    {"chunk_index": Int32(), "file": "b.py"},
+                ]
+            }
+
+        result = await nested_tool()
+        parsed = json.loads(result)
+        assert parsed["status"] == "ok"
+        assert parsed["results"][0]["chunk_index"] == 7
 
 
 class TestErrorBoundarySync:

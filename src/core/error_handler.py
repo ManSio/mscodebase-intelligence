@@ -90,7 +90,7 @@ def _format_error_response(
         result["recovery_hint"] = recovery_hint
     if latency_ms is not None:
         result["latency_ms"] = latency_ms
-    return json.dumps(result, ensure_ascii=False)
+    return json.dumps(result, ensure_ascii=False, default=_json_default)
 
 
 def error_boundary(
@@ -249,20 +249,86 @@ def error_boundary(
 # Вспомогательные внутренние функции
 # ══════════════════════════════════════════════════════════
 
+def _sanitize(obj: Any) -> Any:
+    """Рекурсивно преобразует numpy/pandas типы в нативные Python.
+
+    Проблема: PyArrow хранит int32, float64 (не сериализуются в JSON).
+    Решение: рекурсивный обход с конвертацией в int/float/str.
+    """
+    import math
+
+    if hasattr(obj, "dtype"):  # numpy scalar или pandas series
+        # Проверяем тип numpy/scalar
+        if hasattr(obj, "item"):
+            return obj.item()
+        return float(obj) if hasattr(obj, "__float__") else int(obj)
+
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, (int, float, str, bool, type(None))):
+        return obj
+    # Всё остальное (numpy.ndarray, etc.) — пробуем привести
+    try:
+        return int(obj)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return float(obj)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return str(obj)[:1000]
+    except Exception:
+        return None
+
+
 def _format_success_response(data: Any, latency_ms: int) -> str:
     """Форматирует успешный JSON-ответ."""
+    data = _sanitize(data)
     if isinstance(data, dict):
         data["latency_ms"] = latency_ms
         data["status"] = data.get("status", "ok")
-        return json.dumps(data, ensure_ascii=False)
+        return json.dumps(data, ensure_ascii=False, default=_json_default)
     if isinstance(data, str):
         return json.dumps({
             "status": "ok",
             "message": data,
             "latency_ms": latency_ms,
-        }, ensure_ascii=False)
+        }, ensure_ascii=False, default=_json_default)
     return json.dumps({
         "status": "ok",
         "data": data,
         "latency_ms": latency_ms,
-    }, ensure_ascii=False)
+    }, ensure_ascii=False, default=_json_default)
+
+
+def _json_default(obj):
+    """Fallback для json.dumps — конвертирует неподдерживаемые типы."""
+    import math
+    # numpy/pyarrow: int32, float64, etc.
+    if hasattr(obj, "item"):
+        return obj.item()
+    if hasattr(obj, "__float__"):
+        val = float(obj)
+        return None if math.isnan(val) or math.isinf(val) else val
+    if hasattr(obj, "__int__"):
+        return int(obj)
+    try:
+        return str(obj)
+    except Exception:
+        return None
+    if isinstance(data, str):
+        return json.dumps({
+                "status": "ok",
+                "message": data,
+                "latency_ms": latency_ms,
+            }, ensure_ascii=False)
+        return json.dumps({
+            "status": "ok",
+            "data": data,
+            "latency_ms": latency_ms,
+        }, ensure_ascii=False)
