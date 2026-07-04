@@ -76,9 +76,16 @@ class NotifyChangeTool(MCPTool):
                 # Fallback: per-project batch не создан (например, Indexer
                 # был создан до фикса) — синхронный reindex.
                 indexer.searcher.reindex()
-            return f"✅ Index updated: {rel_path_str} (source: {source})"
+            # INC-6BCB-v3: project header — пользователь видит ГДЕ индексирует.
+            return (
+                f"✅ Index updated: {rel_path_str} (source: {source})\n"
+                f"{self._project_header()}"
+            )
 
-        return f"⏭️ No changes: {str(rel_path.relative_to(project_root))}"
+        return (
+            f"⏭️ No changes: {str(rel_path.relative_to(project_root))}\n"
+            f"{self._project_header()}"
+        )
 
     def _get_project_root(self) -> Path:
         """Определяет корень проекта (multi-window: из DI default)."""
@@ -161,6 +168,24 @@ class IndexProjectDirTool(MCPTool):
         if not target_path.exists():
             return f"❌ Path does not exist: {path}"
 
+        # INC-6BCB-v3: self-indexing guard в resolve_indexer уже заблокировал бы
+        # эту операцию, но даём более понятное сообщение ДО создания Indexer.
+        from src.core.lsp_project_bridge import is_zed_install_dir
+        from src.mcp.server import _ext_root
+        if is_zed_install_dir(target_path):
+            return (
+                f"❌ Refusing to index Zed install dir: {target_path}\n"
+                f"  Это self-indexing (Zed.exe, .dll). Открой проект явно."
+            )
+        try:
+            if target_path.resolve() == _ext_root.resolve():
+                return (
+                    f"❌ Refusing to index extension's own directory: {target_path}\n"
+                    f"  Это исходники самого MCP/LSP. Открой проект явно."
+                )
+        except Exception:
+            pass
+
         # Запускаем полную индексацию в фоновом потоке
         logger.info(f"🔄 Starting full indexing for {target_path.name}...")
 
@@ -176,7 +201,8 @@ class IndexProjectDirTool(MCPTool):
             return (
                 f"✅ Индексация завершена: {target_path.name}\n"
                 f"  • Обработано файлов: {indexed}\n"
-                f"  • Используйте get_index_status() для проверки состояния"
+                f"  • Используйте get_index_status() для проверки состояния\n"
+                f"{self._project_header(explicit_project_root=str(target_path))}"
             )
         except Exception as e:
             logger.error(f"Indexing error: {e}")
@@ -224,6 +250,7 @@ class IndexHealthTool(MCPTool):
                 "status": "warning",
                 "message": f"Database not found: {db_path.name}",
                 "recovery_hint": "Run index_project_dir() to create",
+                **self._project_metadata(),  # INC-6BCB-v3
             }
 
         health = quick_health_check(db_path)
@@ -236,6 +263,7 @@ class IndexHealthTool(MCPTool):
             "symbol_index_exists": health["symbol_index_exists"],
             "healthy": health["healthy"],
             "error": health.get("error"),
+            **self._project_metadata(),  # INC-6BCB-v3
         }
 
 

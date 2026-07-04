@@ -32,9 +32,18 @@ class GetIndexStatusTool(MCPTool):
 
     @error_boundary("get_index_status", timeout_ms=3000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        stats = self.resolve_indexer().get_status()
+        # INC-6BCB-v3: определяем project path ПЕРВЫМ (до resolve_indexer,
+        # чтобы увидеть ГДЕ мы ищем, даже если indexer пуст).
+        try:
+            indexer = self.resolve_indexer()
+            project_path = indexer.project_path
+            project_label = f"📂 Project: {project_path}"
+        except Exception as e:
+            return f"❌ Cannot resolve project_root: {e}"
+
+        stats = indexer.get_status()
         if "error" in stats:
-            return f"❌ Error: {stats['error']}"
+            return f"{project_label}\n❌ Error: {stats['error']}"
 
         total_symbols = (
             self.resolve_symbol_index().get_symbol_count()
@@ -54,6 +63,7 @@ class GetIndexStatusTool(MCPTool):
         db_status = stats.get("status", "unknown")
 
         return (
+            f"{project_label}\n"
             f"📊 Статус базы данных MSCodebase:\n"
             f"  • Всего фрагментов кода в базе (LanceDB): {chunks}\n"
             f"  • Проиндексировано уникальных файлов: {files}\n"

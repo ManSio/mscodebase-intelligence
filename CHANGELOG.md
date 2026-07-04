@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.3] — 2026-07-05 — Visible Project Path + Self-Indexing Guard
+
+### 🎯 Project Path Visibility (INC-6BCB-v3)
+Пользователь больше не должен гадать "где MCP ищет?". Теперь:
+
+- **`search_code`** output начинается с `📂 Project: <path>`.
+- **`index_project_dir`** output содержит `📂 Project: <path>` в финале.
+- **`notify_change`** output содержит `📂 Project: <path>` после обновления.
+- **`get_index_status`** output начинается с `📂 Project: <path>`.
+- **`index_health`** output содержит `project_path`, `db_path`,
+  `total_chunks` в JSON-ответе.
+
+### 🛡 Hard Self-Indexing Guard (ToolError, not silent)
+- **`resolve_indexer_for_request()`** (в `src/mcp/tools/base.py`) бросает
+  `ToolError` если resolved project_path это:
+  - `_ext_root` (исходники самого расширения)
+  - Zed install dir (`is_zed_install_dir()`)
+  - `None` (неопределённый project_root)
+- **`IndexProjectDirTool`** делает **дополнительную** проверку ДО создания
+  Indexer с понятным сообщением: "Refusing to index Zed install dir: ...".
+- **Error detail** содержит инструкцию как починить (открыть проект явно,
+  передать explicit project_root, или установить PROJECT_PATH env).
+
+### 🐛 Bug Fix
+- **`is_zed_install_dir()`** не находил `D:\AI\Zed` (корень установки)
+  потому что маркеры требовали trailing path separator. Добавлены
+  маркеры для root-of-install + нормализация backslashes/forward slashes
+  для кросс-платформенного сравнения.
+
+### 🧪 Tests
+- **`tests/test_project_header.py` (new, 16 tests)**:
+  - `_is_self_index_path()`: 7 кейсов (None, Zed install, ext_root, user project).
+  - `resolve_indexer_for_request()`: 4 кейса (user OK, Zed install blocked,
+    None blocked, ext_root blocked).
+  - `_project_header()` / `_project_metadata()`: 5 кейсов (success, error,
+    dict contents).
+- **All tests pass: 323 / 323** (307 предыдущих + 16 новых).
+
+### 📊 Smoke Test
+- `create_mcp_server()` стартует за 8.61s, 33 tools + 4 handlers.
+- `indexer.bm25_batch` per-project (v2.3.1) + project header (v2.3.3)
+  работают вместе.
+
+---
+
 ## [v2.3.2] — 2026-07-05 — Multi-Root Awareness + Self-Indexing Guard
 
 ### 🐛 Critical Bug: Self-Indexing Zed Install Dir

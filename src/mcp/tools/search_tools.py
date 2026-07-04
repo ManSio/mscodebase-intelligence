@@ -93,26 +93,34 @@ class SearchCodeTool(MCPTool):
         if not query or not query.strip():
             return "❌ Query is empty"
 
+        # === Project header (INC-6BCB-v3) ===
+        # Показываем где ищем — чтобы пользователь видел ГДЕ идёт поиск.
+        # Особенно важно при multi-window: может искать в чужом проекте.
+        project_header = self._project_header()
+
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
             return self._format_results(
                 self.resolve_searcher().search_with_mode(query, mode=mode, limit=limit),
                 mode,
+                project_header=project_header,
             )
 
         if mode == "deep":
-            return self.resolve_searcher().deep_search(query, limit=limit)
+            return project_header + "\n" + self.resolve_searcher().deep_search(query, limit=limit)
 
         if mode == "context":
-            return self.resolve_searcher().context_search(query, limit=limit)
+            return project_header + "\n" + self.resolve_searcher().context_search(query, limit=limit)
 
         # === mode == "auto": авто-определение simple vs agentic ===
         since = kwargs.get("since") if kwargs else None
         before = kwargs.get("before") if kwargs else None
 
         if _is_complex_query(query):
-            return await self._agentic_search(query)
-        return self.resolve_searcher().search(query, limit=limit, since=since, before=before)
+            return project_header + "\n" + await self._agentic_search(query)
+        return project_header + "\n" + self.resolve_searcher().search(
+            query, limit=limit, since=since, before=before,
+        )
 
     async def _agentic_search(self, query: str) -> str:
         """Agentic Code Search с декомпозицией и связями.
@@ -137,15 +145,20 @@ class SearchCodeTool(MCPTool):
             return searcher.search(query, limit=6)
 
     @staticmethod
-    def _format_results(result: dict, mode: str) -> str:
-        """Форматирует результаты smart search в читаемый текст."""
+    def _format_results(result: dict, mode: str, project_header: str = "") -> str:
+        """Форматирует результаты smart search в читаемый текст.
+
+        INC-6BCB-v3: project_header добавляется в начало output,
+        чтобы пользователь видел ГДЕ именно идёт поиск.
+        """
         results = result.get("results", [])
         timing = result.get("timing_ms", {})
 
         mode_emoji = {"fast": "⚡", "quality": "🎯", "smart": "🎯"}
-        lines = [
-            f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]"
-        ]
+        lines = []
+        if project_header:
+            lines.append(project_header)
+        lines.append(f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]")
 
         if not results:
             lines.append("  🔍 По запросу ничего не найдено.")

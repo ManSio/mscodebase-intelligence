@@ -1,5 +1,29 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 02:00] — [Type: Feature] — v2.3.3: Visible Project Path + Self-Indexing Guard
+
+**Problem:**
+- Пользователь не видит, ГДЕ именно MCP ищет. В multi-window можно
+  случайно вызвать tool в чужом проекте и получить "0 results" без
+  понимания почему.
+- resolve_indexer_for_request() неявно возвращал Indexer даже для
+  self-indexing paths (Zed install, ext_root), индексируя мусор.
+
+**Solution:**
+- ✅ MCPTool._project_header() / _project_metadata() — добавляют
+  📂 Project: <path> в output search_code / index_project_dir /
+  notify_change / get_index_status / index_health.
+- ✅ resolve_indexer_for_request() — жёсткий self-indexing guard,
+  бросает ToolError с инструкцией если target = _ext_root / Zed install.
+- ✅ IndexProjectDirTool — дополнительная защита с понятным сообщением.
+- ✅ is_zed_install_dir() — bug fix: маркеры теперь покрывают root-of-install
+  (D:\AI\Zed) + нормализация слэшей.
+
+**Tests:** 323 passed (307 + 16 new in test_project_header.py).
+**Smoke:** create_mcp_server = 8.61s, 33 tools.
+
+---
+
 ## [2026-07-05 01:30] — [Type: Fix] — v2.3.2: Self-Indexing Zed Install Dir
 
 **Problem:**

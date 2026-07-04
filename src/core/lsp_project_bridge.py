@@ -47,12 +47,18 @@ def _ensure_bridge_dir() -> Path:
 
 # Маркеры директории установки Zed. Если в Path встречается любой из них —
 # это self-indexing (индексируем саму установку), и нужно пропустить.
+# ВАЖНО: маркеры НЕ должны требовать trailing path separator, иначе
+# path типа `D:\AI\Zed` (корень Zed-установки) не будет опознан.
 _ZED_INSTALL_MARKERS = (
-    os.sep + "Zed" + os.sep,                # .../Zed/...
+    os.sep + "Zed" + os.sep,                # .../Zed/... (nested)
     os.sep + "Zed.exe",                      # .../Zed.exe
-    os.sep + "zed" + os.sep,                 # lowercase вариант
+    os.sep + "Zed",                          # .../Zed (корень установки!)
+    os.sep + "zed" + os.sep,                 # lowercase вариант (nested)
+    os.sep + "zed",                          # lowercase корень
     os.sep + "Local" + os.sep + "Zed" + os.sep,  # %LOCALAPPDATA%/Zed/...
+    os.sep + "Local" + os.sep + "Zed",            # %LOCALAPPDATA%/Zed (root)
     os.sep + "Local" + os.sep + "Programs" + os.sep + "Zed" + os.sep,
+    os.sep + "Local" + os.sep + "Programs" + os.sep + "Zed",
 )
 
 
@@ -61,13 +67,19 @@ def is_zed_install_dir(path: Path) -> bool:
 
     Используется для self-indexing guard: не индексируем саму установку
     (там .exe, .dll, конфиги, обновления — мусор для семантического поиска).
+
+    Нормализует оба слэша ('/' и '\\') перед сравнением, так как в зависимости
+    от ОС Python Path может вернуть mixed slashes.
     """
     if path is None:
         return False
     s = str(path.resolve()) if path.exists() else str(path)
-    s_lower = s.lower()
+    # Нормализуем все backslashes → forward slashes для кросс-платформенного
+    # сравнения (на Windows Path может вернуть mixed slashes в .resolve()).
+    s_normalized = s.replace("\\", "/").lower()
     for marker in _ZED_INSTALL_MARKERS:
-        if marker.lower() in s_lower:
+        marker_normalized = marker.replace("\\", "/").lower()
+        if marker_normalized in s_normalized:
             return True
     # Дополнительная эвристика: если в path есть Zed.exe рядом — это install.
     if path.is_dir():
