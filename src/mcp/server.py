@@ -189,10 +189,48 @@ def create_mcp_server() -> "FastMCP":
     # ─── 4. Системный prompt ─────────────────────────
     _register_system_prompt(mcp)
 
-    # ─── 5. Авто-индексация при пустом индексе ───────
+    # ─── 5. Привязка NotificationBroker к сессии ─────
+    # Ждём нотификацию initialized от клиента (Zed), после чего
+    # сессия JSON-RPC становится доступна через request_context
+    _register_notification_broker(mcp, services)
+
+    # ─── 6. Авто-индексация при пустом индексе ───────
     _trigger_auto_index_if_empty(services)
 
     return mcp
+
+
+def _register_notification_broker(mcp, services):
+    """Привязывает NotificationBroker к JSON-RPC сессии через initialized handler.
+
+    Когда Zed присылает notifications/initialized, session уже создана.
+    Захватываем её через request_context и сохраняем в брокере.
+    """
+    try:
+        from mcp.types import InitializedNotification
+        from src.core.notification_broker import NotificationBroker
+
+        broker = services.resolve(NotificationBroker)
+        server = mcp._mcp_server
+
+        async def _on_initialized(notification: InitializedNotification):
+            """Хендлер: клиент подтвердил инициализацию — сессия готова."""
+            try:
+                # request_context.session доступен только внутри MCP-хендлера
+                ctx = server.request_context
+                session = ctx.session
+                broker.attach_session(session)
+            except LookupError:
+                logger.warning("Broker: request_context не доступен (вне запроса)")
+            except Exception as e:
+                logger.error(f"Broker: ошибка захвата сессии: {e}")
+
+        # Регистрируем хендлер на нотификацию initialized
+        server.notification_handlers[InitializedNotification] = _on_initialized
+        logger.debug("NotificationBroker: хендлер initialized зарегистрирован")
+
+    except Exception as e:
+        logger.warning(f"NotificationBroker: не удалось зарегистрировать: {e}")
 
 
 def _trigger_auto_index_if_empty(services):

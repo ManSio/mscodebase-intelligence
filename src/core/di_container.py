@@ -178,6 +178,14 @@ def create_service_collection(
     services.add_singleton(type("LmStudioCircuitBreaker", (), {}), lm_studio_breaker)
 
     # ══════════════════════════════════════════════════════
+    # Event Broker (Push-уведомления в Zed)
+    # ══════════════════════════════════════════════════════
+    from src.core.notification_broker import NotificationBroker
+
+    notification_broker = NotificationBroker()
+    services.add_singleton(NotificationBroker, notification_broker)
+
+    # ══════════════════════════════════════════════════════
     # Indexer (зависит от embedder, file_guard, parser)
     # ══════════════════════════════════════════════════════
     indexer = Indexer(
