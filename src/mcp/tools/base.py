@@ -350,13 +350,18 @@ class MCPTool(ABC):
         explicit_project_root: Optional[str] = None,
         timeout: float = 5.0,
     ):
-        """Ожидает, пока проект не станет READY (создан Indexer + индекс не пуст).
+        """Ожидает, пока проект не станет READY.
+
+        Двухстадийное ожидание:
+        1. Быстрая проверка bridge (1с) — если LSP ещё не синхронизировался,
+           сразу сообщаем "инициализация в процессе" вместо ожидания 5с.
+        2. Полное ожидание READY (оставшиеся timeout секунд).
 
         Защита от race condition (INC-6BCB-v4): когда пользователь
         переключается между окнами Zed, LSP нового проекта может ещё
         не успеть записать bridge. Вместо того чтобы брать
         "последний активный проект" или падать с "project not found",
-        этот метод ждёт готовности до timeout секунд.
+        этот метод ждёт готовности.
 
         Args:
             explicit_project_root: явный project_path (если None — default).
@@ -372,6 +377,21 @@ class MCPTool(ABC):
         registry = self._services.resolve(PIRKey)
         target = self._resolve_target_path(explicit_project_root)
 
+        # Stage 1: быстрая проверка bridge (1с). Если LSP ещё не записал
+        # project_root — сообщаем сразу, без ожидания 5с.
+        try:
+            from src.core.lsp_project_bridge import read_project_from_bridge
+            _bridge = read_project_from_bridge(max_wait=1.0)
+            if _bridge is None:
+                logger.info(
+                    f"⏳ require_ready_project({target.name}): "
+                    f"Bridge ещё пуст (LSP не синхронизирован). "
+                    f"Жду READY..."
+                )
+        except Exception:
+            pass
+
+        # Stage 2: полное ожидание READY
         await registry.wait_until_ready(target, timeout=timeout)
         state = registry.get_state(target)
 

@@ -32,19 +32,55 @@ _RUN_STARTED_AT = time.time()
 _RUN_PID = os.getpid()
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
 
+# BUILD_ID — git commit hash для мгновенной верификации версии кода.
+_BUILD_ID: str = ""
+try:
+    _git_dir = Path(__file__).resolve().parent.parent.parent / ".git"
+    if _git_dir.is_dir():
+        _head = _git_dir / "HEAD"
+        if _head.exists():
+            _ref = _head.read_text("utf-8").strip()
+            if _ref.startswith("ref: "):
+                _ref_path = _git_dir / _ref[5:]
+                if _ref_path.exists():
+                    _BUILD_ID = _ref_path.read_text("utf-8").strip()[:12]
+            else:
+                _BUILD_ID = _ref[:12]
+except Exception:
+    pass
+
 
 def _log_run_passport() -> None:
-    """Печатает 'паспорт' процесса при старте — уникальный RUN_ID + env summary.
+    """Печатает 'паспорт' процесса при старте — уникальный RUN_ID + BUILD_ID + env summary.
 
     Это позволяет мгновенно отличить старый процесс от нового при отладке,
     и подтвердить, что Zed подхватил обновлённый код.
     """
     import getpass
+    _bridge_state = "<unavailable>"
+    _registry_state = "<unavailable>"
+    try:
+        from src.core.lsp_project_bridge import read_project_from_bridge
+        _bp = read_project_from_bridge(max_wait=0.1)
+        _bridge_state = str(_bp) if _bp else "<empty — LSP not synced>"
+    except Exception:
+        pass
+    try:
+        from src.core.di_container import ProjectIndexerRegistry as PIRKey
+        from src.mcp.server import _services_cache
+        if _services_cache is not None:
+            _reg = _services_cache.resolve(PIRKey)
+            _paths = _reg.get_all_paths()
+            _registry_state = "; ".join(str(p) for p in _paths) if _paths else "<empty>"
+    except Exception:
+        pass
+
     lines = [
         "",
         "=" * 60,
         "MSCodeBase Intelligence — Process Passport",
         f"  RUN_ID      : {_RUN_ID}",
+        f"  BUILD_ID    : {_BUILD_ID or '<no git>'}",
         f"  PID         : {_RUN_PID}",
         f"  Started at  : {datetime.fromtimestamp(_RUN_STARTED_AT).isoformat()}",
         f"  Source file : {_RUN_SOURCE_FILE}",
@@ -55,6 +91,8 @@ def _log_run_passport() -> None:
         f"  ZED_WORKTREE_ROOT env: {os.environ.get('ZED_WORKTREE_ROOT', '<unset>')!r}",
         f"  MSCODEBASE_ALLOW_SELF_INDEX env: {os.environ.get('MSCODEBASE_ALLOW_SELF_INDEX', '<unset>')!r}",
         f"  PYTHONPATH env[0] : {(os.environ.get('PYTHONPATH') or '').split(os.pathsep)[0]!r}",
+        f"  Bridge      : {_bridge_state}",
+        f"  Registry    : {_registry_state}",
         "=" * 60,
         "",
     ]
@@ -272,6 +310,7 @@ def resolve_project_root(provided: str = "") -> Path:
 # ══════════════════════════════════════════════════════════
 
 _default_project_root: Optional[Path] = None
+_services_cache: Optional[Any] = None  # для debug_runtime_passport
 
 
 # ══════════════════════════════════════════════════════════
@@ -315,6 +354,8 @@ def create_mcp_server() -> "FastMCP":
     # ─── 2. DI Container (multi-project) ─────────────
     from src.core.di_container import create_service_collection
     services = create_service_collection(project_root)
+    global _services_cache
+    _services_cache = services
 
     # Настройка файлового логирования — в _ext_root с явным label "mcp_global".
     # Per-project логи живут в <project>/.codebase_indices/logs/ через
@@ -775,13 +816,41 @@ def _register_all_tools(mcp, services):
         не перезапустился после обновления кода (Zed держит старый).
         """
         from src.mcp.server import (
-            _RUN_ID, _RUN_STARTED_AT, _RUN_PID, _RUN_SOURCE_FILE,
-            _ext_root, _default_project_root,
+            _RUN_ID, _BUILD_ID, _RUN_STARTED_AT, _RUN_PID, _RUN_SOURCE_FILE,
+            _ext_root, _default_project_root, _services_cache,
         )
         import getpass
         pr = _default_project_root or resolve_project_root()
+
+        # Bridge state
+        _bridge = None
+        _bridge_err = None
+        try:
+            from src.core.lsp_project_bridge import read_project_from_bridge
+            _bridge = str(read_project_from_bridge(max_wait=0.1))
+        except Exception as e:
+            _bridge_err = str(e)
+
+        # Registry state
+        _registry_paths: list[str] = []
+        _registry_state_info: dict[str, Any] = {}
+        _project_state: str = "UNKNOWN"
+        try:
+            from src.core.di_container import ProjectIndexerRegistry as PIRKey
+            from src.core.project_indexer_registry import ProjectState
+            if _services_cache is not None:
+                _reg = _services_cache.resolve(PIRKey)
+                _registry_paths = [str(p) for p in _reg.get_all_paths()]
+                _registry_state_info = _reg.get_stats()
+                # State for default project
+                _st = _reg.get_state(pr)
+                _project_state = _st.name
+        except Exception as e:
+            _project_state = f"ERROR: {e}"
+
         passport = {
             "run_id": _RUN_ID,
+            "build_id": _BUILD_ID or "<no git>",
             "pid": _RUN_PID,
             "started_at": datetime.fromtimestamp(_RUN_STARTED_AT).isoformat(),
             "uptime_sec": round(time.time() - _RUN_STARTED_AT, 1),
@@ -790,6 +859,15 @@ def _register_all_tools(mcp, services):
             "cwd": str(Path.cwd().resolve()),
             "ext_root": str(_ext_root),
             "default_project_root": str(pr),
+            "project_state": _project_state,
+            "bridge": _bridge,
+            "bridge_error": _bridge_err,
+            "registry": {
+                "paths": _registry_paths,
+                "cached_projects": _registry_state_info.get("cached_projects", 0),
+                "cache_hits": _registry_state_info.get("cache_hits", 0),
+                "cache_misses": _registry_state_info.get("cache_misses", 0),
+            },
             "env": {
                 "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
                 "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
