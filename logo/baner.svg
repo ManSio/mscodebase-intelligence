@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500">
   <rect width="1200" height="500" fill="#0D1117"/>
   <path d="M0 0 L1200 0 L1200 495 L0 495 Z" fill="#0D1117" stroke="#2EA043" stroke-width="5" opacity="0.4"/>
-  
+
   <defs>
     <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#FFFFFF"/>
@@ -43,9 +43,9 @@
   </g>
 
   <text x="540" y="200" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="76" fill="url(#text-grad)" letter-spacing="2">MSCodeBase</text>
-  
+
   <text x="545" y="250" font-family="ui-monospace, SFMono-Regular, monospace" font-weight="500" font-size="22" fill="#56d364" letter-spacing="4">LOCAL MCP INTELLIGENCE LAYER</text>
-  
+
   <g transform="translate(545, 300)">
     <rect width="165" height="36" rx="8" fill="#1f241f" stroke="#238636" stroke-width="1"/>
     <circle cx="16" cy="18" r="5" fill="#56d364"/>
