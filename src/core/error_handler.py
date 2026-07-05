@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import functools
 import json
 import logging
@@ -239,7 +240,7 @@ def error_boundary(
                     detail=traceback.format_exc(limit=3),
                 )
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
 

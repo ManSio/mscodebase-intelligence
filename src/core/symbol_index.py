@@ -864,7 +864,7 @@ class SymbolIndex:
             def _belongs_to_project(fp: str) -> bool:
                 """Проверяет, принадлежит ли файл проекту.
 
-                На Windows пути могут храниться как с backslash (D:\...\file.py),
+                На Windows пути могут храниться как с backslash (D:/.../file.py),
                 так и с forward slash (D:/.../file.py). Используем os.path.isabs()
                 для корректного определения абсолютности на любой платформе.
                 """
