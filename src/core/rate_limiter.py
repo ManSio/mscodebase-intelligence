@@ -17,8 +17,8 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional, Set
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Set
 
 logger = logging.getLogger("mscodebase_server.rate_limiter")
 
@@ -26,6 +26,7 @@ logger = logging.getLogger("mscodebase_server.rate_limiter")
 # ══════════════════════════════════════════════════════════
 # Sliding Window Rate Limiter
 # ══════════════════════════════════════════════════════════
+
 
 class SlidingWindowRateLimiter:
     """Sliding Window Rate Limiter с threading.Lock для потокобезопасности.
@@ -102,12 +103,14 @@ class SlidingWindowRateLimiter:
 # Debounce Batch Queue — для пакетной реиндексации BM25
 # ══════════════════════════════════════════════════════════
 
+
 @dataclass
 class DebounceConfig:
     """Конфигурация Debounce механизма."""
-    debounce_ms: int = 500          # Ждем 500ms после последнего события
-    max_batch_size: int = 100       # Максимальный размер батча
-    max_wait_ms: int = 5000         # Максимальное время ожидания (защита от зависания)
+
+    debounce_ms: int = 500  # Ждем 500ms после последнего события
+    max_batch_size: int = 100  # Максимальный размер батча
+    max_wait_ms: int = 5000  # Максимальное время ожидания (защита от зависания)
 
 
 class DebounceBatch:
@@ -152,17 +155,13 @@ class DebounceBatch:
             timer_missing = self._timer is None or self._timer.done()
 
         if batch_full:
-            logger.info(
-                f"Batch full, flushing immediately"
-            )
+            logger.info("Batch full, flushing immediately")
             await self._flush()
             return is_new
 
         if timer_missing:
             self._timer = asyncio.create_task(self._debounce_wait())
-            logger.debug(
-                f"Debounce timer started ({self._config.debounce_ms}ms)"
-            )
+            logger.debug(f"Debounce timer started ({self._config.debounce_ms}ms)")
 
         return is_new
 
@@ -171,29 +170,37 @@ class DebounceBatch:
 
         Защита от зависания: если файлы добавляются непрерывно > max_wait_ms,
         сбрасываем принудительно.
+
+        ВАЖНО: НЕ вызывать await внутри with self._lock — threading.Lock
+        блокирует поток event loop, await под lock вызывает 100% дедлок
+        при попытке _flush() захватить тот же Lock (threading.Lock не reentrant).
         """
         try:
             while True:
                 await asyncio.sleep(self._config.debounce_ms / 1000)
 
+                # Решение о flush принимаем под lock, но сам flush — вне lock
+                should_flush = False
+                should_exit = False
+
                 with self._lock:
                     elapsed = time.monotonic() - self._last_added_at
                     elapsed_ms = elapsed * 1000
                     has_files = bool(self._files)
-                    # Если ничего не добавлялось > debounce_ms — сбрасываем
-                    if elapsed_ms >= self._config.debounce_ms:
-                        if has_files:
-                            await self._flush()
-                        return
 
-                    # Защита от бесконечного debounce (если постоянно добавляют)
-                    if elapsed >= self._config.max_wait_ms / 1000:
-                        logger.warning(
-                            f"Forced flush after {elapsed:.0f}s"
-                        )
-                        if has_files:
-                            await self._flush()
-                        return
+                    if elapsed_ms >= self._config.debounce_ms:
+                        should_flush = has_files
+                        should_exit = True
+                    elif elapsed >= self._config.max_wait_ms / 1000:
+                        logger.warning(f"Forced flush after {elapsed:.0f}s")
+                        should_flush = has_files
+                        should_exit = True
+
+                # Lock отпущен — безопасно делать await
+                if should_flush:
+                    await self._flush()
+                if should_exit:
+                    return
 
         except asyncio.CancelledError:
             logger.debug("Debounce timer cancelled, new timer will handle batch")
@@ -235,6 +242,7 @@ class DebounceBatch:
 # ══════════════════════════════════════════════════════════
 # Circuit Breaker — защита от каскадных сбоев
 # ══════════════════════════════════════════════════════════
+
 
 class CircuitBreaker:
     """Circuit Breaker для предотвращения каскадных сбоев.

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary, ToolError
+from src.core.error_handler import ToolError, error_boundary
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
 from src.core.parser import CodeParser
@@ -19,6 +19,7 @@ from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
+from src.utils.ui_formatter import format_repo_rank
 
 logger = logging.getLogger("mscodebase_server.analysis_tools")
 
@@ -40,7 +41,10 @@ class StructuralSearchTool(MCPTool):
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         searcher = StructuralSearcher(self.resolve_parser())
         result = searcher.search(
@@ -70,7 +74,10 @@ class GetRepoMapTool(MCPTool):
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         if hasattr(self.resolve_symbol_index(), "get_repo_map"):
             raw = self.resolve_symbol_index().get_repo_map(str(target_path))
@@ -100,12 +107,14 @@ class GetRepoMapTool(MCPTool):
                         )
                         symbols.append({"name": s_name, "kind": s_kind})
 
-                structure.append({
-                    "type": item_type,
-                    "name": item.get("name"),
-                    "path": item.get("path"),
-                    "symbols": symbols,
-                })
+                structure.append(
+                    {
+                        "type": item_type,
+                        "name": item.get("name"),
+                        "path": item.get("path"),
+                        "symbols": symbols,
+                    }
+                )
 
             return {
                 "status": "ok",
@@ -142,23 +151,27 @@ class GetRepoRankTool(MCPTool):
             return {"status": "warning", "message": "Call graph is empty"}
 
         sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:top_k]
+        _start = time.monotonic()
 
         items = []
         for symbol, score in sorted_ranks:
             defs = self.resolve_symbol_index().find_definitions(symbol)
             kind = defs[0].kind if defs else "unknown"
             file = defs[0].file_path if defs else "unknown"
-            items.append({
-                "symbol": symbol,
-                "score": round(score, 4),
-                "kind": kind,
-                "file": file,
-            })
+            items.append(
+                {
+                    "symbol": symbol,
+                    "score": round(score, 4),
+                    "kind": kind,
+                    "file": file,
+                }
+            )
 
+        exec_ms = int((time.monotonic() - _start) * 1000)
+        raw = {"top_k": len(items), "items": items}
         return {
             "status": "ok",
-            "top_k": len(items),
-            "items": items,
+            "content": format_repo_rank(items, exec_ms, raw),
         }
 
 
@@ -174,7 +187,10 @@ class ScanChangesTool(MCPTool):
     ) -> dict:
         target_path = Path(project_root).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         # Переключаем индекс на проект
         self.resolve_indexer().switch_project(target_path)
@@ -191,18 +207,25 @@ class ScanChangesTool(MCPTool):
         # Обновляем SymbolIndex
         if hasattr(self.resolve_symbol_index(), "index_project"):
             await asyncio.to_thread(
-                self.resolve_symbol_index().index_project, target_path, self.resolve_parser()
+                self.resolve_symbol_index().index_project,
+                target_path,
+                self.resolve_parser(),
             )
 
         # Архитектурный дифф
         arch_diff = {}
-        if hasattr(self.resolve_symbol_index(), "get_architectural_diff") and indexed_count > 0:
+        if (
+            hasattr(self.resolve_symbol_index(), "get_architectural_diff")
+            and indexed_count > 0
+        ):
             try:
                 import pandas as pd
 
                 df = self.resolve_indexer().table.to_pandas()
                 changed_files = list(df["file_path"].unique())[:20]
-                diff_result = self.resolve_symbol_index().get_architectural_diff(changed_files)
+                diff_result = self.resolve_symbol_index().get_architectural_diff(
+                    changed_files
+                )
                 if diff_result:
                     arch_diff = {
                         "impact_summary": diff_result.get("impact_summary", ""),
@@ -235,7 +258,10 @@ class GenerateChunkSummariesTool(MCPTool):
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         table = self.resolve_indexer().table
         if table is None:
@@ -271,7 +297,9 @@ class GenerateChunkSummariesTool(MCPTool):
             }
 
         cache_dir = self.resolve_indexer().db_path.parent / "summaries_cache"
-        summarizer = ChunkSummarizer(embedder=self.resolve_embedder(), cache_dir=cache_dir)
+        summarizer = ChunkSummarizer(
+            embedder=self.resolve_embedder(), cache_dir=cache_dir
+        )
 
         # Генерируем батчами по 50
         batch_size = 50
@@ -280,7 +308,7 @@ class GenerateChunkSummariesTool(MCPTool):
         start_time = time.time()
 
         for batch_start in range(0, chunks_to_process, batch_size):
-            batch_df = chunks_without.iloc[batch_start: batch_start + batch_size]
+            batch_df = chunks_without.iloc[batch_start : batch_start + batch_size]
             records_to_update = []
 
             for idx, row in batch_df.iterrows():
@@ -289,18 +317,20 @@ class GenerateChunkSummariesTool(MCPTool):
                     symbol_name = row.get("symbol_name", "")
                     context = row.get("file_path", "")
                     summary = summarizer.summarize_chunk(code, symbol_name, context)
-                    records_to_update.append({
-                        "id": row["id"],
-                        "vector": row["vector"],
-                        "text": row["text"],
-                        "text_full": row.get("text_full", row["text"]),
-                        "file_path": row["file_path"],
-                        "file_hash": row.get("file_hash", ""),
-                        "chunk_index": row.get("chunk_index", 0),
-                        "source": row.get("source", ""),
-                        "indexed_at": row.get("indexed_at", ""),
-                        "summary": summary,
-                    })
+                    records_to_update.append(
+                        {
+                            "id": row["id"],
+                            "vector": row["vector"],
+                            "text": row["text"],
+                            "text_full": row.get("text_full", row["text"]),
+                            "file_path": row["file_path"],
+                            "file_hash": row.get("file_hash", ""),
+                            "chunk_index": row.get("chunk_index", 0),
+                            "source": row.get("source", ""),
+                            "indexed_at": row.get("indexed_at", ""),
+                            "summary": summary,
+                        }
+                    )
                     updated_count += 1
                 except Exception as e:
                     logger.debug(f"Summary generation error: {e}")

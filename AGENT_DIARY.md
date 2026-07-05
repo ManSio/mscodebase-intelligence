@@ -1,42 +1,136 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
-## [2026-07-05 15:30] — [Type: Investigation] — LSP не стартует на Windows с Zed 1.9.0
+## [2026-07-05 17:30] — [Type: Feature] — UI Formatter + Централизация логов
+
+**Problem:**
+1. Логи писались в .codebase_indices/logs/ внутри каждого проекта — засоряли проект
+2. Вывод инструментов был сырым JSON, без единого стиля
+
+**Solution:**
+
+### 🔄 Логи — централизованы
+- `src/core/log_manager.py`: `get_log_dir()` теперь всегда ведёт в ext_root
+- Добавлена `_cleanup_stale_project_logs()` — удаляет старые per-project логи
+- Удалён мусор из импортов (datetime, дублирующийся import os)
+
+### 🎨 UI Formatter — новый модуль
+- `src/utils/ui_formatter.py`: единый стиль для вывода всех 43 инструментов
+- 8 базовых функций: header, table, key_value, code_block, empty/error/ok_result
+- 5 специализированных: format_repo_rank, format_search_code, format_health_report,
+  format_telemetry, format_eta
+- Все данные под <details>-спойлер, Markdown-таблицы вместо JSON
+
+### 🐛 DebounceBatch deadlock — исправлен
+- `src/core/rate_limiter.py`: await вынесен из-под threading.Lock
+  (был 100% дедлок при пачке notify_change)
+- Исправлены: неиспользуемый field, f-string без placeholder, отсутствующий Any
+
+**Files Changed:** src/core/rate_limiter.py, src/core/log_manager.py, src/utils/ui_formatter.py (new)
+
+**Status:** ✅ Готово к интеграции в инструменты
+
+---
+
+## [2026-07-05 17:00] — [Type: Fix] — DebounceBatch: убран `await` под `threading.Lock` (дедлок)
+
+**Problem:** MCP-сервер зависал через ~5 секунд после пачки notify_change.
+Клиент переставал отвечать на любые запросы до kill'а процесса.
+
+**Root Cause:** `_debounce_wait()` вызывал `await self._flush()` внутри
+`with self._lock:`, а `_flush()` захватывал тот же `threading.Lock`.
+`threading.Lock` не reentrant — второй захват на том же треде event loop'a
+блокирует поток навсегда. Цепочка:
+  1. notify_change → DebounceBatch.add() → запуск таймера _debounce_wait
+  2. Через 500ms тишины или 5000ms max_wait → _debounce_wait захватывает Lock
+  3. await self._flush() внутри lock
+  4. _flush() пытается захватить тот же Lock → DEADLOCK (event loop заморожен)
+
+**Fix:** Разделил логику — решение о flush принимается под lock,
+но сам `await self._flush()` вызывается ПОСЛЕ освобождения lock.
+
+**Files Changed:** src/core/rate_limiter.py (исправление + комментарий)
+
+**Status:** ✅ Дедлок устранён
+
+---
+
+## [2026-07-05 16:15] — [Type: Refactor] — Удалён мёртвый LSP-код из install.py и zed_config.py
+
+**Problem:** `install.py` генерировал `lsp_config` и передавал его в
+`patch_zed_settings`, который писал `settings["lsp"]["mscodebase-lsp"]`
+в settings.json. Этот LSP никогда не стартовал (WONTFIX на Zed 1.9.0),
+но код создавал ложное ощущение работоспособности у пользователя.
+
+**Solution:**
+1. `install.py`: убрано формирование `lsp_config`, вызов `patch_zed_settings`
+   теперь с `lsp_config=None`.
+2. `src/utils/zed_config.py`: удалён блок регистрации LSP (бывшие строки 268-276).
+   Обновлён docstring — LSP теперь отмечен как WONTFIX со ссылкой на отчёт.
+3. `scripts/check_lsp_health.py`: новый диагностический скрипт. Проверяет
+   4 аспекта: settings.json, процессы lsp_main, bridge-файлы, базу SQLite.
+   Выдаёт понятный вердикт на русском для пользователя.
+
+**Tools Used:** read_file, edit_file, write_file, notify_change, intel_add_memory_node
+
+**Status:** ✅ Закрыто. LSP-тема документирована и не будет тратить время сессий.
+
+---
+
+## [2026-07-05 15:55] — [Type: Investigation] — LSP не стартует: первопричина из исходников Zed
+
+**Problem:** LSP-сервер `mscodebase-lsp` (lsp_main.py) не стартует в Zed 1.9.0 на
+Windows. Прошлая запись (15:30) указала причиной ошибку Serde на `tab_size` —
+это было частично верно (визуальный шум), но НЕ реальная причина блокировки LSP.
+
+**Solution:** Прочитал исходники `zed-industries/zed@main` через спайс-агента.
+Реальная причина: **`mscodebase-lsp` отсутствует в `LanguageRegistry` Zed**.
+`lsp_store.rs:start_language_server` вызывает `lsp_adapters(name).find(...).expect()`,
+и падает в панику, потому что имя не в реестре. В реестр адаптеры попадают
+только из встроенных языков (`crates/languages/src/*.rs`) или из скомпилированных
+WASM-расширений (`extension.toml` + `extension.wasm` с `impl zed::Extension`).
+**`settings.json` НЕ может зарегистрировать новый LSP** — он может только
+override'ить путь для уже существующего.
+
+Ошибка Serde `expected a nonzero u32` — это **про `tab_size: NonZeroU32` в той
+же struct**, не про `language_servers`. Парсер с `with_fallible_options`
+сбрасывает это поле в default и пишет плашку в UI, но **не блокирует LSP**.
+
+**Tools Used:** spawn_agent (research), fetch GitHub raw, intel_get_runtime_status,
+search_code, get_symbol_info, find_path, read_file, write_file, edit_file,
+intel_add_memory_node.
+
+**Status:** ✅ (WONTFIX на Zed 1.9.0 Windows)
+
+**Files Changed:**
+- `docs/investigations/2026-07-05-lsp-zed-1.9.0.md` (новый) — полный отчёт
+  с цитатами исходников Zed и 8 провальными подходами
+- `ZED_WINDOWS_QUIRKS.md` — обновлена секция «LSP не стартует в Zed 1.9.0»,
+  версия 1.0 → 1.1
+- `AGENT_DIARY.md` — эта запись (заменяет неточную 15:30)
+
+**Рекомендации (для следующих сессий):**
+1. НЕ тратить время на 9-ю попытку редактирования `settings.json` —
+   исходники Zed доказывают, что это by design.
+2. Для in-editor LSP-фич нужен Rust+WASM-обёртка (путь A) — это неделя работы.
+3. Для v2.4.4+ релиза: оставить MCP-функционал, документировать WONTFIX.
+
+**Прошлая запись (15:30) — неточная.** Удалена в пользу этой. Подробности
+см. в `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
+
+---
+
+## [2026-07-05 15:30] — [Type: Investigation] — LSP не стартует на Windows с Zed 1.9.0 (УСТАРЕЛО — см. запись 15:55)
 
 **Problem:** LSP-сервер `mscodebase-lsp` (lsp_main.py) не запускается Zed даже
 при корректной конфигурации в settings.json. LSP bridge остаётся пустым.
 
-**Root Cause:** Zed 1.9.0 на Windows не принимает кастомные имена LSP в массиве
-`language_servers` блока `languages`. Ошибка: `invalid type: string "mscodebase-lsp",
-expected a nonzero u32`. Rust-десериализатор Serde ожидает либо NonZeroU32
-(индексы built-in серверов), либо известные системные имена ("ruff", "pyright").
-Кастомное имя вызывает падение парсинга и игнорирование конфига.
+**Root Cause (неточный — см. 15:55):** Zed 1.9.0 на Windows не принимает
+кастомные имена LSP в массиве `language_servers` блока `languages`.
+Ошибка: `invalid type: string "mscodebase-lsp", expected a nonzero u32`.
 
-**Проверено:**
-- Код LSP работает (запуск напрямую через python lsp_main.py)
-- Python бинарник venv существует
-- Проект в trusted_worktrees (Restricted Mode выключен)
-- Форматы language_servers: ["mscodebase-lsp"], ["name"], [0], [1], {"name": {}}
-- Все форматы вызывают ошибки Serde кроме ["ruff"] (built-in имя)
-
-**Решение:**
-- `mscodebase-lsp` НЕ добавляется в `language_servers` (вызывает ошибку)
-- LSP остаётся зарегистрированным в блоке `lsp` для использования через extension.toml
-- MCP-сервер (context_servers) работает идеально и не зависит от LSP
-- Проект резолвится через SQLite fallback
-
-**Files Changed:** src/utils/zed_config.py, install.py, src/lsp_main.py
-
-**Status:** ✅ (WONTFIX — limitation of Zed 1.9.0 on Windows)
-
-**Проверено и не сработало (8 подходов):**
-1. Кастомное имя `["mscodebase-lsp"]` → `expected a nonzero u32`
-2. Объект `[{"name": "..."}]` → ошибка
-3. Число `[0]` → ноль не nonzero
-4. Число `[1]` → `expected a string`
-5. Объект `{"mscodebase-lsp": {}}` → `expected a sequence`
-6. Переопределение `ruff` → авто-обнаружение перетирает
-7. Переопределение `pyright` → LSP не стартует
-8. `.zed/settings.json` (локальный) + пустой глобальный → не стартует
+**Status:** ⚠️ DEPRECATED — реальная причина в отсутствии адаптера в
+`LanguageRegistry`, а не в формате `language_servers`. См. запись 15:55
+и `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
 
 **Финальный вердикт:** LSP на Windows с Zed 1.9.0 не запускается.
 MCP-сервер (43 инструмента) работает полноценно. SQLite fallback

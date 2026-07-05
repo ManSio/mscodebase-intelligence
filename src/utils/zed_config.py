@@ -104,14 +104,12 @@ def patch_zed_settings(
                  Формат команды: "{ext_dir}/venv/Scripts/python.exe -u -m src.main"
         mode: 'global' — в глобальные настройки Zed (для всех проектов).
               'project' — в .zed/settings.json текущего проекта.
-        lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
-                    Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
-                    Привязка к языкам (language_servers) НЕ добавляется —
-                    на Windows Zed 1.9.0 кастомные имена вызывают ошибку
-                    "invalid type: string, expected a nonzero u32".
-        languages_config: DEPRECATED на Windows. Не используется —
-                          Zed 1.9.0 не принимает кастомные имена LSP
-                          в массиве language_servers.
+        lsp_config: WONTFIX на Zed 1.9.0 Windows. Не передаётся из install.py.
+                    Если передан — добавляется в settings["lsp"]["mscodebase-lsp"],
+                    но LSP НЕ СТАРТУЕТ — имени нет в LanguageRegistry Zed.
+                    Подробности: docs/investigations/2026-07-05-lsp-zed-1.9.0.md
+        languages_config: Игнорируется на Windows. Zed 1.9.0 не принимает
+                          кастомные имена LSP в массиве language_servers.
         install_path: Абсолютный путь к установленному расширению.
                       Если передан — используется для PYTHONPATH вместо автоопределения.
                       Нужен когда patch_zed_settings() вызывается из install.py,
@@ -256,24 +254,7 @@ def patch_zed_settings(
     if SERVER_NAME not in settings["context_servers_to_query"]:
         settings["context_servers_to_query"].append(SERVER_NAME)
 
-    # ──────────────────────────────────────────────────
-    # LSP (опционально) — регистрируем сервер в блоке lsp,
-    # НО НЕ добавляем в language_servers.
-    #
-    # На Windows Zed 1.9.0 не принимает кастомные имена LSP в массиве
-    # language_servers (ожидает NonZeroU32 или известные built-in имена).
-    # Ошибка: "invalid type: string, expected a nonzero u32".
-    # LSP остаётся зарегистрированным в lsp секции для использования
-    # через extension.toml или ручной настройки.
-    # ──────────────────────────────────────────────────
-    if lsp_config is not None:
-        if "lsp" not in settings:
-            settings["lsp"] = {}
-        if "mscodebase-lsp" not in settings["lsp"]:
-            lsp_config["env"] = env.copy()
-            lsp_config["current_dir"] = str(ext_dir)
-            settings["lsp"]["mscodebase-lsp"] = lsp_config
-            logger.info(f"✅ LSP-сервер 'mscodebase-lsp' зарегистрирован (lsp секция)")
+
 
     # ──────────────────────────────────────────────────
     # Инжект системных правил для AI-ассистента Zed

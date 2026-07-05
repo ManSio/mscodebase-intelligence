@@ -2,6 +2,77 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.6] — 2026-07-05 — UI Formatter + Deadlock Fix + Log Centralization
+
+### 🐛 Deadlock Fix
+- **`src/core/rate_limiter.py`**: `DebounceBatch._debounce_wait()` больше не
+  вызывает `await` внутри `threading.Lock` — вынесено в отдельную переменную
+  `should_flush`. `threading.Lock` не reentrant — дедлок 100% при пачке
+  `notify_change`. Исправлены code quality: удалён `field`, добавлен `Any`.
+
+### 🎨 UI Formatter (новый модуль)
+- **`src/utils/ui_formatter.py`**: 8 базовых функций форматирования:
+  `header()`, `table()`, `key_value()`, `code_block()`, `empty_result()`,
+  `error_result()`, `ok_result()`, `format_search_code()`, `format_repo_rank()`,
+  `format_health_report()`, `format_telemetry()`, `format_eta()`.
+- Все данные под `<details>`-спойлер, Markdown-таблицы вместо JSON.
+
+### 🔄 Log Centralization
+- **`src/core/log_manager.py`**: `get_log_dir()` теперь ВСЕГДА ведёт в
+  `ext_root/.codebase_indices/logs/`, а НЕ per-project. Добавлена
+  `_cleanup_stale_project_logs()` — чистит старые логи из проектов.
+- Очищены импорты: удалены `datetime`, `timedelta`, `timezone`, дубль `import os`.
+
+### 🧩 UI Formatter Integration
+- **`src/mcp/tools/search_tools.py`**: `_format_results()` переведён на
+  `format_search_code()`. Вывод — таблица с колонками #, Файл, Строка, Фрагмент, Слой.
+- **`src/mcp/tools/system_tools.py`**: `GetIndexStatusTool.execute()` — вывод
+  через `header() + key_value() + code_block()`.
+- **`src/mcp/tools/analysis_tools.py`**: `GetRepoRankTool.execute()` — вывод
+  через `format_repo_rank()` с таблицей и сырыми JSON под спойлером.
+
+### 🧠 Project Memory
+- `known_issues`: LSP WONTFIX на Zed 1.9.0 Windows (NODE-567a10)
+- `incidents`: INC-2CE4, INC-8817
+
+---
+
+### 📄 Документация
+- **Новый отчёт-расследование**: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
+  Полный аудит исходников Zed 1.9.0 (`crates/project/src/lsp_store.rs`,
+  `crates/extension/src/extension_manifest.rs`, `crates/settings_content/src/language.rs`)
+  с цитатами кода и ссылками на raw GitHub. Вердикт: **WONTFIX на Zed 1.9.0** —
+  кастомный LSP нельзя зарегистрировать только через `settings.json`,
+  нужен Rust+WASM-обёртка.
+
+### 🧹 Очистка мёртвого кода
+- **`install.py`**: удалена генерация LSP-конфига (`lsp_config`). LSP-секция
+  в `settings.json` больше не создаётся — она не работает (WONTFIX).
+- **`src/utils/zed_config.py`**: удалён блок регистрации `lsp.mscodebase-lsp`
+  из `patch_zed_settings()`. Функция больше не принимает LSP-конфиг.
+- **`scripts/check_lsp_health.py`**: новый диагностический скрипт. Проверяет
+  settings.json, процессы, bridge-файлы, SQLite DB. Выдаёт понятный вердикт
+  с рекомендациями.
+
+### 📚 Документация
+- **`ZED_WINDOWS_QUIRKS.md`** (1.0 → 1.1): новая секция «LSP не стартует в
+  Zed 1.9.0 (WONTFIX)» с реальной первопричиной.
+- **Обновлён** `AGENT_DIARY.md`: новая запись 15:55 с правильным root cause
+  и ссылкой на отчёт-расследование. Старая запись 15:30 помечена DEPRECATED.
+
+### 🧠 Project Memory
+- В `known_issues` добавлен узел про LSP-WONTFIX с ссылкой на отчёт
+  и тремя workaround'ами (MCP, SQLite fallback, подмена pyright).
+
+### ℹ️ Что это меняет
+- **MCP остаётся основным транспортом** для всех сценариев код-ассистента.
+- **LSP-фичи в редакторе (inlay-hints, code-actions, автокомплит)** на Zed 1.9.0
+  Windows невозможны без Rust-обёртки — by design, не наш баг.
+- **Для v3.0** запланирован путь A (Rust+WASM-обёртка через
+  `impl zed::Extension::language_server_command`).
+
+---
+
 ## [v2.4.4] — 2026-07-05 — Metadata Enrichment: Semantic Compass + Flat Tree
 
 ### 🧭 Semantic Compass (MCompassRAG-style, src/core/parser.py + src/core/indexer.py)

@@ -13,11 +13,12 @@ import re
 from typing import Any, Dict, List, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary, IndexNotReadyError
+from src.core.error_handler import IndexNotReadyError, error_boundary
 from src.core.indexer import Indexer
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
+from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
 
@@ -25,6 +26,7 @@ logger = logging.getLogger("mscodebase_server.search_tools")
 # ══════════════════════════════════════════════════════════
 # Эвристика сложности запроса (исправлена)
 # ══════════════════════════════════════════════════════════
+
 
 def _is_complex_query(query: str) -> bool:
     """Определяет, нужен ли Agentic Search (vs простой векторный).
@@ -47,11 +49,23 @@ def _is_complex_query(query: str) -> bool:
 
     # 3. Multi-question words: "how and why", "find and compare", etc.
     complex_words = {
-        "и", "а", "также", "плюс",        # Russian
-        "and", "also", "plus", "both",     # English conjunctives
-        "how", "why", "compare",           # Question/analysis words
-        "difference", "between", "explain", # Deep analysis indicators
-        "related", "depends", "impact",    # Graph-needed words
+        "и",
+        "а",
+        "также",
+        "плюс",  # Russian
+        "and",
+        "also",
+        "plus",
+        "both",  # English conjunctives
+        "how",
+        "why",
+        "compare",  # Question/analysis words
+        "difference",
+        "between",
+        "explain",  # Deep analysis indicators
+        "related",
+        "depends",
+        "impact",  # Graph-needed words
     }
     word_count = sum(1 for w in complex_words if w in query_lower)
 
@@ -61,9 +75,14 @@ def _is_complex_query(query: str) -> bool:
 
     # 5. Фразы-инструкции (анализ связей)
     phrase_indicators = [
-        "как работает", "почему падает", "проанализируй связь",
-        "how does", "why does", "analyze the relationship",
-        "find all", "what is the difference",
+        "как работает",
+        "почему падает",
+        "проанализируй связь",
+        "how does",
+        "why does",
+        "analyze the relationship",
+        "find all",
+        "what is the difference",
     ]
     has_phrase = any(p in query_lower for p in phrase_indicators)
 
@@ -73,6 +92,7 @@ def _is_complex_query(query: str) -> bool:
 # ══════════════════════════════════════════════════════════
 # Search Tools
 # ══════════════════════════════════════════════════════════
+
 
 class SearchCodeTool(MCPTool):
     """search_code — семантический поиск по коду (vector + BM25 + agentic)."""
@@ -113,10 +133,18 @@ class SearchCodeTool(MCPTool):
             )
 
         if mode == "deep":
-            return project_header + "\n" + self.resolve_searcher().deep_search(query, limit=limit)
+            return (
+                project_header
+                + "\n"
+                + self.resolve_searcher().deep_search(query, limit=limit)
+            )
 
         if mode == "context":
-            return project_header + "\n" + self.resolve_searcher().context_search(query, limit=limit)
+            return (
+                project_header
+                + "\n"
+                + self.resolve_searcher().context_search(query, limit=limit)
+            )
 
         # === mode == "auto": авто-определение simple vs agentic ===
         since = kwargs.get("since") if kwargs else None
@@ -124,8 +152,16 @@ class SearchCodeTool(MCPTool):
 
         if _is_complex_query(query):
             return project_header + "\n" + await self._agentic_search(query)
-        return project_header + "\n" + self.resolve_searcher().search(
-            query, limit=limit, since=since, before=before, layer=filter_layer,
+        return (
+            project_header
+            + "\n"
+            + self.resolve_searcher().search(
+                query,
+                limit=limit,
+                since=since,
+                before=before,
+                layer=filter_layer,
+            )
         )
 
     async def _agentic_search(self, query: str) -> str:
@@ -152,42 +188,38 @@ class SearchCodeTool(MCPTool):
 
     @staticmethod
     def _format_results(result: dict, mode: str, project_header: str = "") -> str:
-        """Форматирует результаты smart search в читаемый текст.
+        def _format_results(
+            self,
+            result: Dict[str, Any],
+            mode: str,
+            project_header: str = "",
+        ) -> str:
+            """Форматирует результаты поиска через единый UI-форматтер."""
+            results = result.get("results", [])
+            timing = result.get("timing_ms", {})
+            exec_ms = timing.get("total_ms", 0)
 
-        INC-6BCB-v3: project_header добавляется в начало output,
-        чтобы пользователь видел ГДЕ именно идёт поиск.
-        """
-        results = result.get("results", [])
-        timing = result.get("timing_ms", {})
+            query = result.get("query", f"mode={mode}")
 
-        mode_emoji = {"fast": "⚡", "quality": "🎯", "smart": "🎯"}
-        lines = []
-        if project_header:
-            lines.append(project_header)
-        lines.append(f"{mode_emoji.get(mode, '🔍')} Search [{mode.upper()}]")
+            # Конвертируем внутрений формат результатов в формат ui_formatter
+            ui_items = []
+            for r in results:
+                meta = r.get("metadata", {})
+                ui_items.append(
+                    {
+                        "file_path": meta.get("file", r.get("file_path", "")),
+                        "start_line": meta.get(
+                            "start_line", meta.get("chunk_index", "")
+                        ),
+                        "text": r.get("text_full", r.get("text", "")),
+                        "layer": meta.get("layer", ""),
+                        "score": r.get("final_score", r.get("score", 0)),
+                    }
+                )
 
-        if not results:
-            lines.append("  🔍 По запросу ничего не найдено.")
-            return "\n".join(lines)
-
-        lines.append(f"  Results: {len(results)}")
-        lines.append(f"  Time: {timing.get('total_ms', 0):.0f}ms")
-        if result.get("cache_hit"):
-            lines.append("  Cache: HIT ✅")
-        lines.append("")
-
-        for i, res in enumerate(results, 1):
-            score = res.get("final_score", res.get("score", 0))
-            file_path = res["metadata"]["file"]
-            chunk_idx = res["metadata"]["chunk_index"]
-            code = res.get("text_full", res.get("text", ""))[:200]
-
-            lines.append(f"{i}. 📄 {file_path} [Chunk #{chunk_idx}] (score: {score:.3f})")
-            if code:
-                lines.append(f"```\n{code}\n```")
-            lines.append("-" * 40)
-
-        return "\n".join(lines)
+            output = project_header + "\n" if project_header else ""
+            output += format_search_code(query, ui_items, exec_ms, mode)
+            return output
 
 
 class GetSymbolInfoTool(MCPTool):
@@ -233,10 +265,7 @@ class GetSymbolInfoTool(MCPTool):
                 {"file": d.file_path, "line": d.line, "kind": d.kind}
                 for d in definitions
             ],
-            "usages": [
-                {"file": u.file_path, "line": u.line}
-                for u in usages[:10]
-            ],
+            "usages": [{"file": u.file_path, "line": u.line} for u in usages[:10]],
         }
 
 

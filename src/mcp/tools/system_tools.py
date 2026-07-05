@@ -16,10 +16,11 @@ from typing import Any, Dict, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.core.indexer import Indexer
+from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
-from src.core.remote_embedder import RemoteEmbedder
 from src.mcp.tools.base import MCPTool
+from src.utils.ui_formatter import code_block, header, key_value
 
 logger = logging.getLogger("mscodebase_server.system_tools")
 
@@ -62,15 +63,20 @@ class GetIndexStatusTool(MCPTool):
         files = stats.get("unique_files", 0)
         db_status = stats.get("status", "unknown")
 
-        return (
-            f"{project_label}\n"
-            f"📊 Статус базы данных MSCodebase:\n"
-            f"  • Всего фрагментов кода в базе (LanceDB): {chunks}\n"
-            f"  • Проиндексировано уникальных файлов: {files}\n"
-            f"  • Найдено структурных символов (Tree-sitter): {total_symbols}\n"
-            f"  • Состояние движка: {db_status}\n"
-            f"  • Режим эмбеддера: {mode_label}"
+        # Используем UI-форматтер
+        output = f"{project_label}\n"
+        output += header("get_index_status", "ok")
+        output += key_value(
+            [
+                ("Всего чанков", chunks),
+                ("Уникальных файлов", files),
+                ("Структурных символов", total_symbols),
+                ("Состояние движка", db_status),
+                ("Режим эмбеддера", mode_label),
+            ]
         )
+        output += code_block(stats)
+        return output
 
 
 class GetIndexProgressTool(MCPTool):
@@ -105,6 +111,7 @@ class GetIndexTimelineTool(MCPTool):
     @error_boundary("get_index_timeline", timeout_ms=15000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
         from collections import defaultdict
+
         import pandas as pd
 
         if not self.resolve_indexer().table or len(self.resolve_indexer().table) == 0:
@@ -189,12 +196,14 @@ class WatcherStatusTool(MCPTool):
     def _check_lsp_import(self) -> bool:
         try:
             from src.lsp_main import server as lsp_server
+
             return lsp_server is not None
         except Exception:
             return False
 
     def _check_lm_studio_models(self) -> dict:
         import httpx
+
         from src.core.config import get_config
 
         config = get_config()
@@ -209,8 +218,11 @@ class WatcherStatusTool(MCPTool):
                 return {"available": False, "http_status": r.status_code}
 
             models = r.json().get("data", [])
-            loaded = [{"id": m.get("id"), "type": m.get("type")}
-                      for m in models if m.get("state") == "loaded"]
+            loaded = [
+                {"id": m.get("id"), "type": m.get("type")}
+                for m in models
+                if m.get("state") == "loaded"
+            ]
             return {
                 "available": True,
                 "total_models": len(models),
@@ -232,13 +244,20 @@ class GetLogsTool(MCPTool):
 
         target_path = Path(project_root).resolve() if project_root else Path.cwd()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         log_summary = get_log_summary(target_path)
         if isinstance(log_summary, str):
             return {"status": "ok", "summary": log_summary}
 
-        errors = get_recent_errors(target_path) if hasattr(get_recent_errors, "__call__") else []
+        errors = (
+            get_recent_errors(target_path)
+            if hasattr(get_recent_errors, "__call__")
+            else []
+        )
         return {
             "status": "ok",
             "summary": log_summary,
@@ -262,7 +281,10 @@ class GetHealthReportTool(MCPTool):
         if project_root:
             target_path = Path(project_root).resolve()
             if not target_path.exists():
-                return {"status": "error", "message": f"Path does not exist: {project_root}"}
+                return {
+                    "status": "error",
+                    "message": f"Path does not exist: {project_root}",
+                }
 
         report = HealthReport(
             project_path=target_path,
@@ -351,6 +373,7 @@ class ReadLiveFileTool(MCPTool):
         source = "disk"
         try:
             from src.lsp_main import server as lsp_server
+
             if lsp_server and hasattr(lsp_server, "workspace"):
                 uri = f"file:///{str(target).replace(chr(92), '/')}"
                 doc = lsp_server.workspace.get_document(uri)

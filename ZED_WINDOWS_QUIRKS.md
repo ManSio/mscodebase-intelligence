@@ -1,7 +1,8 @@
 # Zed на Windows: Подводные камни и архитектурные решения
 
-> Версия: 1.0 (2026-07-05)
+> Версия: 1.1 (2026-07-05) — обновлена секция «LSP не стартует»
 > Актуально для: MSCodeBase Intelligence v2.4.4+
+> Подробный отчёт: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`
 
 ## ⚠️ Критически важно: Restricted Mode (Безопасный режим)
 
@@ -189,7 +190,91 @@ Zed блокирует открытые файлы эксклюзивным ло
 | Симптом | Смотреть | Команда |
 |---------|----------|---------|
 | MCP не знает проект | Логи: `resolve_project_root: fallback to ext_root` | `intel_get_runtime_status` |
-| LSP не запускается | Логи: `BRIDGE: НЕТ JSON-ФАЙЛОВ` | Проверить Restricted Mode |
+| LSP не запускается | Логи: `BRIDGE: НЕТ JSON-ФАЙЛОВ` | См. секцию «LSP не стартует в Zed 1.9.0» ниже |
 | Индекс пуст | Статус: 0 чанков | `get_index_status` |
 | Инструменты не готовы | Статус: UNINITIALIZED | Открыть файл в проекте |
 | База заблокирована | Логи: `database is locked` | Закрыть другие окна с проектом |
+
+---
+
+## 🚫 LSP не стартует в Zed 1.9.0 (WONTFIX)
+
+**Статус:** ⚠️ Известное ограничение Zed 1.9.0 на Windows. Подробный отчёт
+с цитатами исходного кода: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
+
+### Что не работает
+
+LSP-сервер `mscodebase-lsp` (Python, `src/lsp_main.py`, pygls-based) **не
+может быть зарегистрирован** через `settings.json`. Независимо от того,
+что мы пишем в `lsp.<id>.binary.path` или `languages.<lang>.language_servers`,
+Zed не находит адаптер с именем `mscodebase-lsp` в своём `LanguageRegistry`
+и падает в `lsp_store.rs:start_language_server` с панико
+`expect("To find LSP adapter")`.
+
+### Реальная причина (из исходников Zed)
+
+Из `crates/project/src/lsp_store.rs`:
+
+```rust
+let adapter = self.languages
+    .lsp_adapters(language_name)
+    .into_iter()
+    .find(|adapter| adapter.name() == disposition.server_name)
+    .expect("To find LSP adapter");
+```
+
+`lsp_adapters(name)` возвращает адаптеры только из:
+1. **Встроенных языков** — `crates/languages/src/*.rs` (Python, Rust, Go)
+   с зашитыми LSP-адаптерами.
+2. **Загруженных WASM-расширений** — `extension.toml` + скомпилированный
+   `extension.wasm` с `impl zed::Extension::language_server_command`.
+
+`lsp.<id>.binary.path` в `settings.json` — это **override пути** для уже
+зарегистрированного адаптера, а не регистрация нового. **Это by design, не баг.**
+
+### Что это значит для MSCodeBase
+
+- **LSP-фичи в редакторе (inlay-hints, code-actions, автокомплит через
+  mscodebase-lsp) на Zed 1.9.0 Windows невозможны.**
+- **Вся семантика и поиск продолжают работать через MCP** — 43 инструмента,
+  фильтрация по `layer`, multi-granularity retrieval через
+  `get_chunks_by_parent_id()`, telemetry, ETAPredictor. Этого достаточно
+  для 95% сценариев код-ассистента.
+- **LSP-мост (project_root из LSP)** остаётся пустым, но `resolve_project_root()`
+  это компенсирует через SQLite fallback.
+
+### Почему в settings.json появляется ошибка Serde
+
+Из `crates/settings_content/src/language.rs`:
+
+```rust
+#[schemars(range(min = 1, max = 128))]
+pub tab_size: Option<NonZeroU32>,
+```
+
+Ошибка `expected a nonzero u32` — это **не про `language_servers`**, а про
+`tab_size` (или другое поле с `NonZeroU32`) в той же struct. Парсер с
+`with_fallible_options` сбрасывает это поле в `None` и показывает плашку
+`Invalid user settings file` в UI. **LSP из-за этого не падает — он
+вообще не пытается стартовать, потому что имени адаптера нет в реестре.**
+
+### Что делать
+
+#### Сейчас (релиз v2.4.4+)
+
+1. **Не регистрировать `mscodebase-lsp` в `settings.json`** — это создаёт
+   ложные ошибки в UI и не даёт ничего полезного.
+2. **Использовать MCP** для всех операций — он не зависит от LSP.
+3. **Проверять состояние LSP** через `scripts/check_lsp_health.py` —
+   скрипт напишет понятный отчёт «LSP не зарегистрирован / не стартует»
+   вместо неинформативных ошибок Serde.
+
+#### В перспективе (v3.0+)
+
+- **Написать Rust-обёртку** (WASM через `wasm32-wasip2`) с
+  `impl zed::Extension::language_server_command`, которая вызывает
+  `python -m src.lsp_main`. Установить через `zed: install dev extension`.
+  Это единственный путь завести LSP в Zed.
+- **Или подменить `pyright`** через `lsp.pyright.binary.path` — минимум
+  усилий, но наш LSP будет маскироваться под чужой. Работает для
+  сценариев, где важна in-editor подсветка, а не уникальность адаптера.

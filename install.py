@@ -759,31 +759,20 @@ def main():
     # а venv создаётся в TARGET (ZED_EXT_DIR = %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence)
     mcp_command = f"{PYTHON_EXE} -u -m src.main"
 
-    # Формируем LSP-конфиг (single-pass, без double-write)
-    lsp_script_path = ZED_EXT_DIR / "src" / "lsp_main.py"
-    lsp_config = {
-        "command": str(PYTHON_EXE),
-        "arguments": ["-u", str(lsp_script_path)],
-    }
-    # Единый вызов patch_zed_settings с MCP + LSP
-    # install_path=ZED_EXT_DIR гарантирует что PYTHONPATH укажет на
-    # %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
-    #
-    # ВАЖНО: languages_config НЕ передаётся — на Windows Zed 1.9.0
-    # не принимает кастомные имена LSP в language_servers
-    # (ошибка: "expected a nonzero u32"). LSP регистрируется
-    # только в lsp секции, без привязки к языкам через settings.json.
-    # Для привязки к языкам используйте extension.toml.
+    # LSP-конфиг НЕ передаётся — WONTFIX на Zed 1.9.0 Windows.
+    # Подробности: docs/investigations/2026-07-05-lsp-zed-1.9.0.md
+    # LSP-сервер mscodebase-lsp не может быть зарегистрирован через
+    # settings.json — требуется Rust+WASM-обёртка (v3.0+).
+    # MCP-сервер покрывает 100% функционала код-ассистента.
     if patch_zed_settings(
         command=mcp_command,
         mode="global",
-        lsp_config=lsp_config,
+        lsp_config=None,
         languages_config=None,
         install_path=str(ZED_EXT_DIR),
     ):
         ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
         detail(f"MCP: {Color.DIM}{mcp_command}{Color.RESET}")
-        detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
     else:
         fail("Не удалось настроить Zed (MCP + LSP)")
         return
@@ -926,6 +915,7 @@ def main():
   {Color.CYAN}1.{Color.RESET} Убедитесь что LM Studio запущен (порт {LM_STUDIO_PORT})
   {Color.CYAN}2.{Color.RESET} Перезапустите {Color.BOLD}Zed IDE{Color.RESET}
   {Color.CYAN}3.{Color.RESET} Откройте проект и дождитесь индексации
+  {Color.CYAN}4.{Color.RESET} Проверьте здоровье LSP: {Color.DIM}python scripts/check_lsp_health.py{Color.RESET}
 
   {Color.DIM}Расширение: {ZED_EXT_DIR}
   Python: {PYTHON_EXE}
