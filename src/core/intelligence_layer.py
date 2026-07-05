@@ -689,6 +689,21 @@ class ProjectIntelligenceLayer:
             "analysis_time_ms": int((time.perf_counter() - _start) * 1000)
         }
 
+    # -----------------------------------------------------------------
+    # Telemetry — сбор и отображение метрик
+    # -----------------------------------------------------------------
+
+    async def intel_get_telemetry(self, days: int = 7) -> dict:
+        """Возвращает телеметрию: runtime счётчики + per-tool метрики."""
+        from src.core.runtime_coordinator import get_counters as _get_rt
+        from src.core.error_handler import get_tool_metrics_summary as _get_tools
+
+        return {
+            "runtime": _get_rt(),
+            "tools": _get_tools(),
+            "timestamp": time.time(),
+        }
+
 
 # =====================================================================
 # РЕГИСТРАЦИЯ ИНСТРУМЕНТОВ В MCP СЕРВЕРЕ
@@ -851,3 +866,48 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             component_context
         )
         return json.dumps(result, ensure_ascii=False, indent=2)
+
+    @mcp_app.tool("intel_get_telemetry")
+    async def get_telemetry(days: int = 7) -> str:
+        """Показать телеметрию: runtime счётчики + per-tool метрики.
+
+        Args:
+            days: кол-во дней истории (пока не используется, always 0)
+
+        Returns:
+            Markdown-таблица для человека + JSON в detail для LLM.
+        """
+        data = await intel_layer.intel_get_telemetry(days)
+        runtime = data.get("runtime", {})
+        tools = data.get("tools", [])
+
+        parts = ["## 📊 Telemetry\n"]
+
+        # Runtime counters
+        parts.append("### Runtime Counters")
+        parts.append("| Metric | Value |")
+        parts.append("|--------|-------|")
+        for k, v in runtime.items():
+            parts.append(f"| {k} | {v} |")
+        parts.append("")
+
+        # Per-tool metrics
+        if tools:
+            parts.append("### Per-Tool Calls")
+            parts.append("| Tool | Calls | Errors | Avg ms | Last call |")
+            parts.append("|------|-------|--------|--------|-----------|")
+            for t in tools:
+                parts.append(
+                    f"| {t['tool']} | {t['calls']} | {t['errors']} | "
+                    f"{t['avg_ms']} | {t['last']} |"
+                )
+        else:
+            parts.append("*No tools called yet in this session.*")
+
+        # JSON для LLM в detail
+        detail = json.dumps(data, ensure_ascii=False, indent=2)
+        return json.dumps({
+            "status": "ok",
+            "message": "\n".join(parts),
+            "detail": detail,
+        }, ensure_ascii=False)
