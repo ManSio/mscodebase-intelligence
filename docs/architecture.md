@@ -85,14 +85,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 37 tools + 10 intel_* tools
+3. Register 33 tools + 10 intel_* tools
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **10 files, 37 tools.**
+`src/mcp/tools/*.py` — **10 files, 33 tools.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -193,7 +193,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 37 total
+        # ... 33 total
     ]
 
     for tool_cls in tool_classes:
@@ -201,7 +201,7 @@ def _register_all_tools(mcp, services):
         mcp.tool(name=instance.name)(instance.execute)
 ```
 
-### 4.2 All 37 Tools by Group
+### 4.2 All Tools by Group
 
 | Group | File | Tools |
 |-------|------|-------|

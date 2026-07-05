@@ -46,23 +46,19 @@ cd mscodebase-intelligence
 python install.py
 ```
 
-**При обновлении с v2.2.x → v2.3.0:** удалите `current_dir` из Zed settings:
-```bash
-./fix_zed_settings.bat   # Windows
-# или руками: в %APPDATA%\Zed\settings.json удалить "current_dir" из
-# context_servers["mscodebase-intelligence"] и lsp["mscodebase-lsp"]
+**После установки:** File → Quit → открой проект → дождись индексации.
+
+**Проверка:** в Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) выполни:
+```
+get_index_status()
 ```
 
-Перезапусти Zed → открой Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) →
-задай вопрос вроде `"найди все файлы отвечающие за индексацию"`.
-
-> **LM Studio (опционально):** Установи LM Studio для более быстрых эмбеддингов.
-> Без LM Studio расширение использует встроенный ONNX-эмбеддер (работает офлайн).
-
-> **Multi-Window:** v2.3+ поддерживает несколько открытых проектов в Zed
-> одновременно. Каждое окно получает изолированный Indexer через
-> `ProjectIndexerRegistry` (LRU 5 + ResourceMonitor throttle). См.
-> [docs/architecture.md](docs/architecture.md).
+> **Windows:** На Windows есть особенности (Restricted Mode, проект резолвится
+> через SQLite). Обязательно прочти **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)**
+> перед установкой.
+>
+> **LM Studio:** Рекомендуется для векторного поиска. Установи, запусти
+> на порту 1234 — MCP подключится автоматически.
 
 ---
 

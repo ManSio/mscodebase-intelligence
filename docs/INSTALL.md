@@ -1,277 +1,179 @@
 # Установка MSCodebase Intelligence для Zed IDE
 
 > **MSCodebase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
-> Работает полностью локально, без интернета после установки.
+> Разработка: `D:\Project\MSCodeBase`
+> После установки работает полностью локально.
 
 ---
 
 ## 🔧 Системные требования
 
-| Компонент | Минимум | Рекомендуется |
-|-----------|---------|---------------|
-| **OS** | Windows 10+, macOS 12+, Linux | Windows 11 |
-| **Python** | 3.10+ | 3.11+ |
-| **RAM** | 4 GB | 8+ GB |
-| **Диск** | 500 MB | 2 GB (с моделью) |
-| **Zed IDE** | v0.150+ | последняя версия |
-| **Терминал** | Git Bash (Windows) / любой (macOS/Linux) | — |
+| Компонент | Требование |
+|-----------|-----------|
+| **OS** | Windows 10+ (основная поддержка), macOS 12+, Linux |
+| **Python** | 3.10+ (рекомендуется 3.11+) |
+| **RAM** | 4 GB (рекомендуется 8+ GB) |
+| **Диск** | 500 MB (с моделью — до 2 GB) |
+| **Zed IDE** | актуальная версия |
+| **LM Studio** (опционально) | для векторного поиска через эмбеддинги |
 
 ---
 
-## 📥 Быстрая установка (Windows)
+## 📥 Быстрая установка
 
-### Шаг 1: Установка
+### Шаг 1: Установка расширения
+
+Откройте терминал в **директории проекта** (`D:\Project\MSCodeBase`) и выполните:
 
 ```bash
-# Откройте терминал в папке проекта
 python install.py
 ```
 
-Установщик сделает всё сам:
+Установщик:
 1. ✅ Проверит Python и совместимость
 2. ✅ Создаст виртуальное окружение и установит зависимости
 3. ✅ Настроит MCP-сервер в `settings.json` Zed
 4. ✅ Скопирует исходники в установленное расширение
-5. ✅ Создаст деинсталлятор
+5. ✅ Создаст `uninstall.bat`
+
+> **Важно:** Установщик копирует файлы из текущей директории в расширение.
+> Все изменения в исходниках применяются только после `python install.py`.
 
 ### Шаг 2: Перезапуск Zed
 
-Закройте и откройте Zed заново (`Ctrl+Shift+P` → `window: reload`).
+**File → Quit**, затем откройте проект заново.
+Простой `window: reload` **недостаточен** — MCP-сервер должен перезапуститься полностью.
 
 ### Шаг 3: Проверка
 
-Откройте **Agent Panel** (`Ctrl+Shift+P` → `Agent Panel: Toggle`) и напишите:
+Откройте **Agent Panel** (`Ctrl+Shift+P` → `Agent Panel: Toggle`) и выполните:
+
 ```
 get_index_status()
 ```
 
 Должны увидеть:
+
 ```
-📂 Project: D:\Project\YourProject
+📂 Project: D:\Project\MSCodeBase
 ### ✅ `get_index_status`
 
-- **Всего чанков:** 0
-- **Уникальных файлов:** 0
+- **Всего чанков:** 1556
+- **Уникальных файлов:** 110
 - **Режим эмбеддера:** 🌐 LM Studio
 ```
 
-> Формат вывода может отличаться в зависимости от версии.
-
-> Если сервер не найден — см. раздел «Устранение проблем» ниже.
-
----
-
-## 📦 Установка вручную (все платформы)
-
-### Шаг 1: Создание venv
-
-```bash
-# Windows (Git Bash)
-python -m venv venv
-venv/Scripts/python -m pip install -r requirements.txt
-
-# macOS/Linux
-python3 -m venv venv
-./venv/bin/python3 -m pip install -r requirements.txt
-```
-
-### Шаг 2: Настройка Zed
-
-Добавьте в `settings.json`:
-
-**Windows:** `%APPDATA%\Zed\settings.json`
-**macOS:** `~/Library/Application Support/Zed/settings.json`
-**Linux:** `~/.config/zed/settings.json`
-
-```json
-{
-  "context_servers": {
-    "mscodebase-intelligence": {
-      "command": "C:\путь\к\расширению\venv\Scripts\python.exe",
-      "args": ["-u", "-m", "src.main"],
-      "current_dir": "$ZED_WORKTREE_ROOT",
-      "env": {
-        "PYTHONPATH": "C:\путь\к\расширению",
-        "PROJECT_PATH": "C:\путь\к\вашему\проекту"
-      }
-    }
-  },
-  "context_servers_to_query": ["mscodebase-intelligence"]
-}
-```
-
-> **💡 Важно для Windows:** В поле `env` пропишите `PROJECT_PATH` — абсолютный путь к вашему проекту.
-> Иначе сервер не сможет определить корень проекта, и индексация будет пустой.
-> 
-> **Пример:** `"PROJECT_PATH": "D:\\Project\\MyProject"`
-
-### Шаг 3: Первый запуск
-
-```bash
-# Запустите сервер вручную для проверки
-python -u -m src.main
-```
-
-Должны увидеть:
-```
-MSCodebase Intelligence MCP Server запускается...
-Запуск MCP сервера...
-```
-
-### Шаг 4: Первая индексация
-
-В Agent Panel выполните:
-```
-index_project_dir(path="D:\Project\MSCodeBase")
-```
-(укажите путь к вашему проекту)
-
-Индексация займёт **1-2 минуты**. После неё можно искать код.
+Если проект определён неверно (показывает `gemma_agent` или другой) — закройте
+все окна Zed и откройте только нужный проект.
 
 ---
 
-## 🧠 ONNX-модель (офлайн-режим без LM Studio)
+## 🧠 Особенности Windows
 
-Для работы без LM Studio нужна embedding-модель:
+На Windows есть **критические особенности**, которые нужно знать:
 
-```bash
-python scripts/download_model.py
-```
+| Проблема | Симптом | Решение |
+|----------|---------|---------|
+| **Restricted Mode** | LSP не стартует, MCP не видит проект | Нажмите «Trust and Continue» при открытии проекта |
+| **`ZED_WORKTREE_ROOT` = null** | Проект определяется неверно | Исправлено через SQLite fallback (см. ниже) |
+| **MCP не перезапускается** | После kill'а процесса инструменты не работают | Только полный рестарт Zed (File → Quit) |
+| **Проект резолвится неверно** | Вместо MSCodeBase показывает gemma_agent | Закройте все окна Zed, откройте только нужный проект |
 
-Модель загрузится в `.codebase_models/onnx/`. После этого сервер будет работать полностью офлайн.
+Подробнее: **[ZED_WINDOWS_QUIRKS.md](../ZED_WINDOWS_QUIRKS.md)**
+
+### Как определяется проект (без LSP)
+
+MCP-сервер определяет текущий проект в таком порядке:
+
+1. **Явный `project_root`** из аргументов инструмента
+2. **LSP Bridge** (JSON-файл от LSP — не работает на Windows)
+3. **SQLite DB Zed** — читает таблицу `workspaces`, выбирает самый свежий
+4. **`PROJECT_PATH`** из окружения
+5. **CWD** (если не директория Zed)
+6. **ext_root** (директория расширения) — fallback
+
+> На Windows шаги 1-2 обычно недоступны, поэтому проект определяется
+> через SQLite (шаг 3). Если у вас открыто несколько проектов —
+> может выбрать не тот. Решение: закройте лишние окна Zed.
 
 ---
 
-## 🚀 Опционально: LM Studio (рекомендуется)
+## 🚀 Опционально: LM Studio
 
-LM Studio даёт более качественный поиск:
+LM Studio даёт более качественный поиск за счёт векторных эмбеддингов.
 
 1. Установите [LM Studio](https://lmstudio.ai/)
-2. Загрузите модель: `BAAI/bge-m3` (эмбеддинги) и `phi-4-mini-instruct` (реранкинг)
+2. Загрузите модель для эмбеддингов (например, `BAAI/bge-m3`)
 3. Запустите локальный сервер на порту `1234`
 4. MCP-сервер подключится автоматически
 
----
-
-## ❗ Устранение проблем
-
-### 🔴 «MCP server not found» в Agent Panel
-
-**Причина:** Сервер не запустился, или `settings.json` настроен неверно.
-
-**Решение:**
-1. Проверьте `settings.json` — корректный ли путь к `python.exe`?
-2. Есть ли `PROJECT_PATH` в `env`? (на Windows — обязательно!)
-3. Запустите вручную: `python -u -m src.main` — видны ли ошибки?
-4. `Ctrl+Shift+P` → `window: reload`
-
-### 🔴 «PROJECT_PATH не установлен» в логах
-
-**Причина:** На Windows `$ZED_WORKTREE_ROOT` не резолвится.
-
-**Решение:** Добавьте в `settings.json`:
-```json
-"env": {
-  "PROJECT_PATH": "D:\\Ваш\\Проект"
-}
+Проверка:
 ```
-
-### 🔴 «0 chunks» в get_index_status()
-
-**Причина:** Индекс ещё не построен.
-
-**Решение:** Выполните `index_project_dir(path="D:\путь\к\проекту")` и подождите 1-2 минуты.
-
-### 🔴 «int32 is not JSON serializable»
-
-**Причина:** Старая версия сервера. Обновитесь до v2.2.0+.
-
-**Решение:** Запустите `install.bat` заново.
-
-### 🔴 LM Studio «Connection refused»
-
-**Причина:** LM Studio не запущен или занят другой порт.
-
-**Решение:** Запустите LM Studio, проверьте что сервер активен на порту 1234.
+intel_get_runtime_status()
+```
+В ответе должно быть `"embedding_provider": "lm_studio"` и `"lm_studio_at_1234": "online"`.
 
 ---
 
 ## 📄 Удаление
 
 ```cmd
-:: Запустите деинсталлятор в папке расширения
+:: Запустите деинсталлятор
 uninstall.bat
 ```
 
 Или вручную:
-1. Удалите секцию `mscodebase-intelligence` из `settings.json` Zed
-2. Удалите папку расширения: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`
-3. Удалите `.codebase_indices` из корня вашего проекта
+1. Удалите секцию `mscodebase-intelligence` из `%APPDATA%\Zed\settings.json`
+2. Удалите папку расширения:
+   ```
+   %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+   ```
+3. Удалите `.codebase_indices` из корня вашего проекта (если есть)
 
 ---
 
-## 📄 Лицензия
+## ❗ Устранение проблем
 
-MIT — делайте что хотите, но без гарантий.
+| Проблема | Причина | Решение |
+|----------|---------|---------|
+| **Инструменты не отвечают** | MCP-сервер не запущен | File → Quit → открыть проект заново |
+| **Неверный проект** | SQLite выбрал другой workspace | Закрыть все окна Zed, открыть только нужный проект |
+| **0 чанков** | Индекс пуст | `intel_trigger_reindex()` — подождать 1-5 минут |
+| **LM Studio offline** | Сервер не запущен | Запустить LM Studio, проверить порт 1234 |
+| **settings.json варнинг** | Устаревшие ключи (`lsp`, `mscodebase`) | Запустить `python install.py` — он почистит |
+| **ModuleNotFoundError** | PYTHONPATH не指向ет на расширение | `python install.py` — исправит автоматически |
 
 ---
 
-## Частые проблемы (FAQ)
+## 👨‍💻 Разработка (contributors)
 
-### MCP server not responding / Context server request timeout
-**Cause:** MCP process failed to start or hung.
-**Fix:**
-1. Check python.exe exists: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligenceenv\Scripts\python.exe`
-2. Kill python.exe processes - Zed will restart MCP automatically
-3. Check logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+```bash
+# Склонировать
+git clone https://github.com/ManSio/mscodebase-intelligence.git
+cd mscodebase-intelligence
 
-### Self-indexing blocked: target path is not a user project
-**Cause:** MCP resolved project root to extension dir or Zed install dir.
-**Fix:**
-1. Open your project explicitly: Cmd+Shift+P -> Open Project -> select folder
-2. Or set PROJECT_PATH in settings.json: `"PROJECT_PATH": "$ZED_WORKTREE_ROOT"`
-3. Running install.py fixes this automatically
+# Установить в режиме разработки
+pip install -e ".[dev]"
 
-### Index is empty (0 chunks)
-**Cause:** Index has not been built yet.
-**Fix:**
-1. Call `intel_trigger_reindex()` in chat - indexing starts in background
-2. Check status: `intel_get_job_status(job_id=...)`
-3. Full indexing takes 3-10 minutes depending on project size
+# Запустить тесты
+pytest
 
-### LM Studio not detected
-**Cause:** Extension is running in fallback mode (local ONNX embedder).
-**Fix:** This is normal. Vector search works slower but fully offline.
-For speed: install LM Studio, run on port 1234.
-
-### notify_change does not update index
-**Cause:** Index needs to be built first.
-**Fix:**
-1. notify_change is incremental - works after initial index exists
-2. If index is empty, call `intel_trigger_reindex()` first
-3. Check: `get_index_status()` - total_chunks should grow
-
-### Console encoding issues (Windows)
-**Cause:** Windows console uses CP866, Python uses UTF-8.
-**Fix:**
-```
-set PYTHONIOENCODING=utf-8
-set PYTHONUTF8=1
+# Установить в Zed (после изменений)
 python install.py
 ```
 
-### ModuleNotFoundError: No module named src.*
-**Cause:** PYTHONPATH does not point to extension root.
-**Fix:** Run install.py again — it sets PYTHONPATH automatically.
+Подробнее: **[CONTRIBUTING.md](../CONTRIBUTING.md)**
 
 ---
 
-### 🔗 Связанные документы
+## 🔗 Связанные документы
 
 | Документ | Описание |
 |----------|----------|
-| [README.md](../README.md) | Главная документация, карта всех доков |
+| [README.md](../README.md) | Главная документация, карта всех доков, список инструментов |
+| [ZED_WINDOWS_QUIRKS.md](../ZED_WINDOWS_QUIRKS.md) | **Windows-специфика:** Restricted Mode, CWD, MCP-рестарт |
 | [docs/architecture.md](architecture.md) | Архитектура проекта, DI, слои |
-| [ZED_WINDOWS_QUIRKS.md](../ZED_WINDOWS_QUIRKS.md) | Windows-специфика, Restricted Mode |
-| [docs/investigations/2026-07-05-lsp-zed-1.9.0.md](investigations/2026-07-05-lsp-zed-1.9.0.md) | Результаты расследования LSP |
-| [CHANGELOG.md](../CHANGELOG.md) | История версий и changelog |
+| [docs/telemetry.md](telemetry.md) | Метрики, ETA, сбор данных |
+| [docs/investigations/2026-07-05-lsp-zed-1.9.0.md](investigations/2026-07-05-lsp-zed-1.9.0.md) | Почему LSP не работает на Windows |
+| [CHANGELOG.md](../CHANGELOG.md) | История версий |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Разработка, тесты, PR |
