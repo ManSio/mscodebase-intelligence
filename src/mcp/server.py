@@ -545,10 +545,21 @@ def create_mcp_server() -> "FastMCP":
 
     services = create_service_collection(project_root)
 
-    # ─── i18n — язык сообщений ───────────────────────
+    # ─── i18n — язык сообщений (из .env или MSCODEBASE_LOCALE) ─
+    _env_locale = os.environ.get("MSCODEBASE_LOCALE", "")
+    if not _env_locale:
+        try:
+            _env_file = _ext_root / ".env"
+            if _env_file.exists():
+                for _line in _env_file.read_text().splitlines():
+                    if _line.startswith("MSCODEBASE_LOCALE="):
+                        _env_locale = _line.split("=", 1)[1].strip()
+                        break
+        except Exception:
+            pass
     from src.utils.i18n import set_locale
 
-    set_locale(os.environ.get("MSCODEBASE_LOCALE", "en"))
+    set_locale(_env_locale or "en")
     global _services_cache
     _services_cache = services
 

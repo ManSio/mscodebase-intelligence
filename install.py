@@ -850,6 +850,43 @@ def main():
                 logger.info(f"Удалён мёртвый скрипт: {sf.name}")
             except Exception:
                 pass
+    # Шаг 8: Выбор языка интерфейса
+    # ═══════════════════════════════════════════
+    step_header(8, TOTAL_STEPS, "Выбор языка сообщений")
+
+    print(f"  {Color.CYAN}1.{Color.RESET} English")
+    print(f"  {Color.CYAN}2.{Color.RESET} Русский")
+    print(f"  {Color.CYAN}3.{Color.RESET} 中文")
+    print(f"  {Color.CYAN}4.{Color.RESET} Пропустить (English по умолчанию)\n")
+
+    lang_choice = input(f"  Выберите язык [1-4]: ").strip()
+
+    lang_map = {"1": "en", "2": "ru", "3": "zh"}
+    selected_lang = lang_map.get(lang_choice, "en")
+
+    # Записываем .env файл
+    env_path = ZED_EXT_DIR / ".env"
+    env_vars = {}
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                env_vars[k.strip()] = v.strip()
+    env_vars["MSCODEBASE_LOCALE"] = selected_lang
+    # Сохраняем также LM_STUDIO_HOST/PORT если они были
+    if "LM_STUDIO_HOST" not in env_vars:
+        env_vars["LM_STUDIO_HOST"] = LM_STUDIO_HOST
+    if "LM_STUDIO_PORT" not in env_vars:
+        env_vars["LM_STUDIO_PORT"] = str(LM_STUDIO_PORT)
+
+    env_content = "\n".join(f"{k}={v}" for k, v in sorted(env_vars.items()))
+    env_path.write_text(env_content, encoding="utf-8")
+
+    lang_name = {"en": "English", "ru": "Русский", "zh": "中文"}.get(
+        selected_lang, "English"
+    )
+    ok(f"Язык: {lang_name} (MSCODEBASE_LOCALE={selected_lang})")
+
     # Шаг 7: Деинсталлятор
     # ══════════════════════════════════════════════════════════
     step_header(7, TOTAL_STEPS, "Генерация деинсталлятора")
