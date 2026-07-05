@@ -5,6 +5,20 @@
 
 ---
 
+## [2026-07-06 19:00] — Fix: Translate Russian _() templates to English in search_tools.py and analysis_tools.py
+
+**Problem:** `_(f"...")` pattern (f-string inside i18n) and Russian text in `_()` template strings — defeats i18n purpose.
+
+**Solution:** 
+- `search_tools.py`: 8 calls fixed — translated templates to English (e.g. `"определений"` → `"definitions"`, `"Определение:"` → `"Definition:"`, etc.)
+- `analysis_tools.py`: 4 calls fixed — translated scan/generation status messages and cooldown hints to English
+- All `_("template {var}", var=val)` pattern preserved; purely dynamic f-strings left bare
+
+**Tools Used:** read_file, edit_file, notify_change, diagnostics, intel_log_incident
+**Status:** ✅
+
+---
+
 ## [2026-07-06] — Fix: i18n — обёртка user-facing строк в _() в ui_formatter.py и error_handler.py
 
 **Problem:** User-facing return-строки с эмодзи (📦🔍✅❌📊📋🌐🟢🔴⏱ и т.д.)
