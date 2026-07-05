@@ -713,7 +713,7 @@ class ProjectIntelligenceLayer:
         except Exception as _re:
             result["resources"] = {"error": str(_re)}
 
-        # LLM ping + model info
+        # LLM ping + model info + throughput
         try:
             from src.core.remote_embedder import RemoteEmbedder
             _emb = RemoteEmbedder()
@@ -721,8 +721,15 @@ class ProjectIntelligenceLayer:
             _vec = _emb.embed("ping")
             _ping = round((time.perf_counter() - _t0) * 1000, 1)
             _info = _emb.get_model_info()
+            # Embed throughput: пингуем батчем из 10 чтобы измерить tokens/sec
+            _t_batch = time.perf_counter()
+            _emb.embed_batch(["ping"] * 10)
+            _batch_ms = round((time.perf_counter() - _t_batch) * 1000, 1)
+            _tokens_per_sec = round(10 * 50 / (_batch_ms / 1000), 0) if _batch_ms > 0 else 0  # ~50 токенов на "ping"
             result["llm"] = {
                 "ping_ms": _ping,
+                "batch_10_ms": _batch_ms,
+                "tokens_per_sec": int(_tokens_per_sec),
                 "provider": _info["provider"],
                 "model": _info["model"],
                 "configured_model": _info["configured_model"],
@@ -730,10 +737,14 @@ class ProjectIntelligenceLayer:
         except Exception as _le:
             result["llm"] = {"error": str(_le)}
 
-        # ETA predictor
+        # ETA predictor — кормим реальными данными
         try:
             from src.core.eta_predictor import get_predictor
             _pred = get_predictor()
+            # Записываем измерения из per-tool метрик, чтобы ETA учился
+            for t in result.get("tools", []):
+                if t["calls"] > 0:
+                    _pred.record_measurement(t["tool"], t["avg_ms"])
             ds = _pred.get_stats() if hasattr(_pred, 'get_stats') else {}
             result["eta_stats"] = ds
         except Exception as _ee:
@@ -949,20 +960,24 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             parts.append(f"| RAM: {res.get('rss_mb', '?'):>5} MB | CPU: {res.get('cpu_percent', '?'):>4}% | Threads: {res.get('num_threads', '?')} |")
             parts.append("")
 
-        # LLM ping + model
+        # LLM ping + model + throughput
         llm = data.get("llm", {})
         if llm and "error" not in llm:
             parts.append("### ⚡ LLM Provider")
-            parts.append(f"| Ping: {llm.get('ping_ms', '?'):>6} ms | Model: {llm.get('model', '?')} |")
-            parts.append(f"| Provider: {llm.get('provider', '?')} | Configured: {llm.get('configured_model', '?')} |")
+            parts.append(f"| Model: {llm.get('model', '?')} | Ping: {llm.get('ping_ms', '?'):>6}ms | Batch10: {llm.get('batch_10_ms', '?'):>6}ms |")
+            parts.append(f"| Throughput: {llm.get('tokens_per_sec', '?'):>5} tok/s | Provider: {llm.get('provider', '?')} |")
             parts.append("")
 
         # ETA stats
         eta = data.get("eta_stats", {})
         if eta and "error" not in eta:
             parts.append("### ⏱ ETA Predictor")
-            for k, v in eta.items():
-                parts.append(f"| {k} | {v} |")
+            opers = eta.get("operations", [])
+            learned = eta.get("learned_operations", [])
+            total = eta.get("total_measurements", 0)
+            parts.append(f"| Total measurements: {total} | Learned: {len(learned)}/{len(opers)} ops |")
+            if learned:
+                parts.append(f"| Operations with data: {', '.join(learned[:5])} |")
             parts.append("")
 
         # JSON для LLM в detail

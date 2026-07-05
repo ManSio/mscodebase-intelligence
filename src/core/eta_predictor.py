@@ -129,6 +129,31 @@ class ETAPredictor:
             "total_tokens": total_tokens,
         }
 
+    def get_stats(self) -> dict:
+        """Возвращает статистику предсказателя (для телеметрии)."""
+        return {
+            "operations": list(self.profiles.keys()),
+            "learned_operations": list(self._measurements.keys()),
+            "total_measurements": sum(len(v) for v in self._measurements.values()),
+        }
+
+    def record_measurement(self, operation: str, actual_ms: float):
+        """Записывает реальное время выполнения для улучшения предсказаний."""
+        if operation not in self._measurements:
+            self._measurements[operation] = []
+        self._measurements[operation].append(actual_ms)
+        # Ограничиваем историю 100 замерами на операцию
+        if len(self._measurements[operation]) > 100:
+            self._measurements[operation] = self._measurements[operation][-50:]
+
+        # Динамическое обновление профиля на основе реальных данных
+        if operation in self.profiles and len(self._measurements[operation]) >= 5:
+            history = self._measurements[operation]
+            avg = sum(history) / len(history)
+            profile = self.profiles[operation]
+            # Плавная адаптация: 70% реальные данные, 30% старый профиль
+            profile.base_ms = round(0.3 * profile.base_ms + 0.7 * avg)
+
     def format_eta(self, estimate: Dict) -> str:
         """Форматирует ETA в читаемый вид."""
         sec = estimate.get("estimated_sec", 0)
