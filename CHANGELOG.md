@@ -1,5 +1,7 @@
 # Changelog
 
+![MSCodeBase Logo](logo/logo.svg)
+
 All notable changes to this project will be documented in this file.
 
 ## [v2.4.6] — 2026-07-05 — UI Formatter + Deadlock Fix + Log Centralization

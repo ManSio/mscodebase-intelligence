@@ -1,5 +1,7 @@
 # MSCodeBase Intelligence — Architecture Guide
 
+![MSCodeBase Logo](../logo/logo.svg)
+
 > **Version:** 2.4.4  
 > **Last updated:** 2026-07-05  
 > **Architecture:** Clean Architecture with DI Container + Multi-Window Registry

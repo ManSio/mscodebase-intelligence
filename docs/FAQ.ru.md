@@ -1,5 +1,7 @@
 # FAQ — MSCodeBase Intelligence
 
+![MSCodeBase Logo](../logo/logo.svg)
+
 > Часто задаваемые вопросы. Основано на реальном опыте разработки и эксплуатации.
 
 ---

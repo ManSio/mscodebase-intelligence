@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Tech Dark Background -->
+  <rect width="512" height="512" rx="110" fill="#0D1117" stroke="#30363D" stroke-width="4"/>
+  
+  <defs>
+    <!-- Cyan to Emerald Gradient for high-speed AI connection -->
+    <linearGradient id="ai-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#58A6FF"/>
+      <stop offset="60%" stop-color="#2EA043"/>
+      <stop offset="100%" stop-color="#238636"/>
+    </linearGradient>
+    <radialGradient id="center-light" cx="50%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#2EA043" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#0D1117" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background Radial Glow -->
+  <circle cx="256" cy="256" r="180" fill="url(#center-light)"/>
+
+  <!-- Graph Node Connections (Subtle Network) -->
+  <path d="M 160 160 L 352 160 L 256 270 L 160 160 Z" fill="none" stroke="#21262D" stroke-width="3"/>
+  <path d="M 160 352 L 352 352 L 256 270 L 160 352 Z" fill="none" stroke="#21262D" stroke-width="3"/>
+
+  <!-- Core "M" & "C" Semantic Nodes Shape -->
+  <g fill="none" stroke="url(#ai-glow)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- The Graph Architecture Lines -->
+    <path d="M 160 352 L 160 160 L 256 270 L 352 160 L 352 352" />
+  </g>
+
+  <!-- Glowing Graph Intersections -->
+  <g fill="#58A6FF">
+    <circle cx="160" cy="160" r="14"/>
+    <circle cx="352" cy="160" r="14"/>
+    <circle cx="256" cy="270" r="18" fill="#56d364"/> <!-- Core Focus Context Node -->
+  </g>
+  <g fill="#238636">
+    <circle cx="160" cy="352" r="14"/>
+    <circle cx="352" cy="352" r="14"/>
+  </g>
+</svg>

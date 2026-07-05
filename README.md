@@ -1,5 +1,7 @@
 <div align="center">
 
+![MSCodeBase Intelligence](logo/logo.svg)
+
 # MSCodebase Intelligence
 
 **AI-powered semantic code search for Zed IDE**

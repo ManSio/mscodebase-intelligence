@@ -1,5 +1,7 @@
 # Contributing — MSCodeBase Intelligence
 
+![MSCodeBase Logo](logo/logo.svg)
+
 Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
 
 ---
