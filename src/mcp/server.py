@@ -268,10 +268,11 @@ def resolve_project_root(provided: str = "") -> Path:
     Приоритет (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
     1. Явно переданный provided
     2. LSP→MCP bridge (temp-файл от LSP)
-    3. PROJECT_PATH из окружения (lazy, с self-indexing guard)
-    4. ZED_WORKTREE_ROOT env
-    5. CWD, если != ext_root
-    6. ext_root как fallback
+    3. Zed SQLite DB (workspaces table — НЕ зависит от LSP!)
+    4. PROJECT_PATH из окружения (lazy, с self-indexing guard)
+    5. ZED_WORKTREE_ROOT env
+    6. CWD, если != ext_root
+    7. ext_root как fallback
     """
     if provided and provided.strip():
         return Path(provided).resolve()
@@ -285,6 +286,24 @@ def resolve_project_root(provided: str = "") -> Path:
             return bridge_path
     except Exception:
         pass
+
+    # Fallback: Zed SQLite DB (не зависит от LSP!)
+    try:
+        _zed_db_path = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "db" / "0-stable" / "db.sqlite"
+        if _zed_db_path.exists():
+            import sqlite3
+            _conn = sqlite3.connect(str(_zed_db_path))
+            _cur = _conn.cursor()
+            _cur.execute("SELECT paths FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC LIMIT 1")
+            _row = _cur.fetchone()
+            _conn.close()
+            if _row and _row[0]:
+                _project = _row[0].split(",")[0].strip()
+                if _project and not _reject_self_index_target(Path(_project), source="ZED_DB"):
+                    logger.debug(f"resolve_project_root: Zed DB={_project}")
+                    return Path(_project).resolve()
+    except Exception as _zed_err:
+        logger.debug(f"resolve_project_root: Zed DB fallback error: {_zed_err}")
 
     env_root = _resolve_env_project_root()
     if env_root is not None:
