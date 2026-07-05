@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo/baner.svg" width="800" alt="MSCodeBase Intelligence">
+<img src="https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/logo/baner.svg" width="800" alt="MSCodeBase Intelligence">
 
 [🇬🇧 English](README.md) • [🇷🇺 Русский](docs/ru/README.md) • [🇨🇳 中文](docs/zh/README.md)
 

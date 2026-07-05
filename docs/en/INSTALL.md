@@ -2,7 +2,7 @@
 
 [🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
-<img src="../../logo/baner.svg" width="800" alt="MSCodeBase Banner">
+<img src="https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/logo/baner.svg" width="800" alt="MSCodeBase Banner">
 
 > **MSCodebase Intelligence** — MCP server for semantic code search in Zed IDE.
 > Development hosted at [github.com/ManSio/mscodebase-intelligence](https://github.com/ManSio/mscodebase-intelligence)
@@ -32,6 +32,9 @@ Open a terminal in the **root of your project** (where `install.py` is located) 
 ```bash
 python install.py
 ```
+
+> **Linux/macOS:** You can also use `./install.sh` for a guided install.
+> **Windows:** You can also use `install.bat` (double-click or run in cmd).
 
 The installer will:
 1. ✅ Check Python and compatibility

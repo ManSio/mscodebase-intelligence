@@ -1,6 +1,6 @@
 # Установка MSCodebase Intelligence для Zed IDE
 
-<img src="../../logo/baner.svg" width="800" alt="MSCodeBase Banner">
+<img src="https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/logo/baner.svg" width="800" alt="MSCodeBase Banner">
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
@@ -32,6 +32,9 @@
 ```bash
 python install.py
 ```
+
+> **Linux/macOS:** Также можно использовать `./install.sh`.
+> **Windows:** Также можно использовать `install.bat` (двойной клик или cmd).
 
 Установщик:
 1. ✅ Проверит Python и совместимость

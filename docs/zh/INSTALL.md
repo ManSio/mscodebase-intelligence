@@ -1,6 +1,6 @@
 # 为 Zed IDE 安装 MSCodebase Intelligence
 
-<img src="../../logo/baner.svg" width="800" alt="MSCodeBase 横幅">
+<img src="https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/logo/baner.svg" width="800" alt="MSCodeBase Banner">
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](INSTALL.md)
 
@@ -27,11 +27,14 @@
 
 ### 步骤 1：安装扩展
 
-在**项目根目录**（`install.py` 所在位置）打开终端并执行：
+在**项目根目录**（`install.py`所在位置）打开终端并运行：
 
 ```bash
 python install.py
 ```
+
+> **Linux/macOS：** 也可以使用 `./install.sh`。
+> **Windows：** 也可以使用 `install.bat`（双击或在cmd中运行）。
 
 安装程序：
 1. ✅ 检查 Python 和兼容性
