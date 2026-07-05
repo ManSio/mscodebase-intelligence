@@ -1,5 +1,7 @@
 # Политика безопасности — MSCodeBase Intelligence
 
+[🇬🇧 English](SECURITY.en.md) • [🇷🇺 Русский](SECURITY.md) • [🇨🇳 中文](SECURITY.zh.md)
+
 ## Ответственное раскрытие уязвимостей
 
 Если вы обнаружили уязвимость безопасности в MSCodeBase Intelligence, пожалуйста, сообщите о ней ответственно.

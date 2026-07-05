@@ -1,6 +1,8 @@
 # Установка MSCodebase Intelligence для Zed IDE
 
-<img src="../logo/baner.svg" style="max-width: 800px; width: 100%;" alt="MSCodeBase Banner">
+<img src="../logo/baner.svg" width="800" alt="MSCodeBase Banner">
+
+[🇬🇧 English](INSTALL.en.md) • [🇷🇺 Русский](INSTALL.md) • [🇨🇳 中文](INSTALL.zh.md)
 
 > **MSCodebase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
 > Разработка ведётся в [github.com/ManSio/mscodebase-intelligence](https://github.com/ManSio/mscodebase-intelligence)

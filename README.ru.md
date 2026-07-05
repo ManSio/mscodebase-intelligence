@@ -6,43 +6,43 @@
 
 # MSCodebase Intelligence
 
-**AI-powered semantic code search for Zed IDE**
+**AI-семантический поиск кода для Zed IDE**
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/INSTALL.en.md) • [Architecture](docs/architecture.md) • [Development](CONTRIBUTING.md)
+[Возможности](#-features) • [Быстрый старт](#-quick-start) • [Инструменты](#-mcp-tools-43-total) • [Документация](#-documentation-map) • [Установка](docs/INSTALL.md) • [Архитектура](docs/architecture.md) • [Разработка](CONTRIBUTING.md)
 
-*Last updated: 2026-07-05*
+*Последнее обновление: 2026-07-05*
 
 </div>
 
 ---
 
-## ✨ Features
+## ✨ Возможности
 
-| Feature | Description |
+| Возможность | Описание |
 |---------|-------------|
-| 🔍 **Unified Search** | `search_code(query, mode)` — один инструмент для всех типов поиска (fast/quality/deep/context/auto) |
-| 🧠 **Intelligence Layer** | 10 высокоуровневых `intel_*` инструментов: самодиагностика, топология, предсказание ошибок |
-| 🗃️ **Project Memory** | ADR, known issues, tech debt — автоматически сохраняется между сессиями |
-| 🌐 **Cross-repo Search** | Поиск по нескольким проектам с `@mention` синтаксисом |
-| 🌳 **Call Graph** | Полный граф вызовов: definition + callers + callees + impact analysis |
-| 🏗 **Structural Search** | 13 AST-паттернов (class_inheritance, async_function, decorator, etc.) |
-| 🔎 **Context Search** | Найди похожий код — вставь фрагмент, получи семантические дубликаты |
+| 🔍 **Унифицированный поиск** | `search_code(query, mode)` — один инструмент для всех типов поиска (fast/quality/deep/context/auto) |
+| 🧠 **Интеллектуальный слой** | 10 высокоуровневых `intel_*` инструментов: самодиагностика, топология, предсказание ошибок |
+| 🗃️ **Память проекта** | ADR, известные проблемы, технический долг — автоматически сохраняется между сессиями |
+| 🌐 **Кросс-репозиторный поиск** | Поиск по нескольким проектам с `@mention` синтаксисом |
+| 🌳 **Граф вызовов** | Полный граф вызовов: определение + вызывающие + вызываемые + анализ влияния |
+| 🏗 **Структурный поиск** | 13 AST-паттернов (class_inheritance, async_function, decorator и др.) |
+| 🔎 **Контекстный поиск** | Найди похожий код — вставь фрагмент, получи семантические дубликаты |
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальная BM25 реиндексация) |
-| 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
-| 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Clean Architecture** | DI Container (15 services), 43 tools (33 class-based + 10 intel), 391+ tests |
-| 🪟 **Multi-Window** | `ProjectIndexerRegistry` — изолированный Indexer per project, LRU 5, ResourceMonitor throttle |
+| 🛡 **Ограничение скорости** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
+| 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
+| 🧪 **Чистая архитектура** | DI Контейнер (15 сервисов), 43 инструмента (33 class-based + 10 intel), 391+ тестов |
+| 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Быстрый старт
 
-> Полная инструкция по установке: **[docs/INSTALL.en.md](docs/INSTALL.en.md)**
+> Полная инструкция по установке: **[docs/INSTALL.md](docs/INSTALL.md)**
 
 ```bash
 git clone https://github.com/ManSio/mscodebase-intelligence.git
@@ -58,7 +58,7 @@ get_index_status()
 ```
 
 > **Windows:** На Windows есть особенности (Restricted Mode, проект резолвится
-> через SQLite). Обязательно прочти **[ZED_WINDOWS_QUIRKS.en.md](ZED_WINDOWS_QUIRKS.en.md)**
+> через SQLite). Обязательно прочти **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)**
 > перед установкой.
 >
 > **LM Studio:** Рекомендуется для векторного поиска. Установи, запусти
@@ -66,42 +66,41 @@ get_index_status()
 
 ---
 
-## 📚 Documentation Map
+## 📚 Карта документации
 
-| Документ | О чём | Для кого | Языки |
-|----------|-------|----------|-------|
-| **[docs/INSTALL.en.md](docs/INSTALL.en.md)** | Installation, setup, uninstall | Users | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/architecture.md](docs/architecture.md)** | Clean Architecture, Layers, DI | Developers | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/architecture-layers.md](docs/architecture-layers.md)** | 10 runtime layers | Architects | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/FAQ.en.md](docs/FAQ.en.md)** | Frequently Asked Questions | All | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/telemetry.en.md](docs/telemetry.en.md)** | Metrics, ETA, data collection | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/investigations/2026-07-05-lsp-zed-1.9.0.md](docs/investigations/2026-07-05-lsp-zed-1.9.0.md)** | LSP on Windows investigation (WONTFIX) | Support | 🇬🇧 🇨🇳 |
-| **[ZED_WINDOWS_QUIRKS.en.md](ZED_WINDOWS_QUIRKS.en.md)** | Windows specifics, Restricted Mode | Windows users | 🇬🇧 🇷🇺 🇨🇳 |
-| **[CHANGELOG.md](CHANGELOG.md)** | Version history | All | 🇬🇧 🇷🇺 🇨🇳 |
-| **[CONTRIBUTING.md](CONTRIBUTING.md)** | How to contribute, PRs | Contributors | 🇬🇧 🇷🇺 🇨🇳 |
-| **[SECURITY.en.md](SECURITY.en.md)** | Security policy, vulnerabilities | Security | 🇬🇧 🇷🇺 🇨🇳 |
-| **[AGENTS.md](AGENTS.md)** | AI Agent system rules | AI Agent | 🇬🇧 |
+| Документ | О чём | Для кого |
+|----------|-------|----------|
+| **[docs/INSTALL.md](docs/INSTALL.md)** | Установка, настройка, удаление | Пользователи |
+| **[docs/architecture.md](docs/architecture.md)** | Clean Architecture, слои, DI Container | Разработчики |
+| **[docs/architecture-layers.md](docs/architecture-layers.md)** | 10 слоёв архитектуры (Filesystem → AI Agent) | Архитекторы |
+| **[docs/telemetry.md](docs/telemetry.md)** | Метрики, ETA, сбор данных | DevOps |
+| **[docs/investigations/2026-07-05-lsp-zed-1.9.0.md](docs/investigations/2026-07-05-lsp-zed-1.9.0.md)** | Расследование: LSP на Windows (WONTFIX) | Поддержка |
+| **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)** | Windows-специфика, Restricted Mode, CWD | Все на Windows |
+| **[CHANGELOG.md](CHANGELOG.md)** | История версий | Все |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Как разрабатывать, тестировать, PR | Контрибьюторы |
+| **[AGENTS.md](AGENTS.md)** | Системные правила для AI-агента (контекст) | AI Agent |
+| **[SECURITY.md](SECURITY.md)** | Политика безопасности, уязвимости | Безопасность |
 
-Все документы связаны между собой перекрёстными ссылками.
+Все документы связаны между собой перекрёстными ссылками. Если заметили расхождение — создайте issue.
 
 ---
 
-## 🔧 MCP Tools (43 total)
+## 🔧 MCP Инструменты (43 всего)
 
-### Core Search
+### Основной поиск
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
 | `search_code(query, mode, filter_layer)` | **Главный инструмент поиска.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"`. `filter_layer="core"` — поиск только в указанном архитектурном слое |
 | `structural_search(pattern)` | Поиск по AST: `class_inheritance`, `async_function`, `function_with_decorator` и др. |
 | `cross_repo_search(query @repo)` | Поиск по нескольким проектам (моно-репо) |
 | `cross_project_deps(action)` | Граф зависимостей между проектами: `graph` / `deps` / `cycles` / `impact` |
-| `get_symbol_info(query)` | Call Graph: кто вызывает, что вызывает, impact-файлы |
+| `get_symbol_info(query)` | Граф вызовов: кто вызывает, что вызывает, impact-файлы |
 | `impact_analysis(symbol)` | Анализ влияния изменения символа (risk score, depth) |
 
-### Index Management
+### Управление индексом
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
 | `get_index_status()` | Статус индекса: chunks, files, symbols |
 | `get_index_progress()` | Прогресс индексации (phase, percent) |
@@ -112,38 +111,38 @@ get_index_status()
 | `generate_chunk_summaries(root)` | LLM-описания для чанков кода |
 | `scan_changes(project_root)` | Архитектурный дифф — анализ изменений относительно последнего baseline |
 
-### System & Diagnostics
+### Система и диагностика
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
-| `get_health_report()` | **Полная самодиагностика:** индекс, embedder, логи, synchronisation |
-| `watcher_status()` | Статус компонентов: embedder mode (LM Studio / Ollama / ONNX) |
+| `get_health_report()` | **Полная самодиагностика:** индекс, embedder, логи, синхронизация |
+| `watcher_status()` | Статус компонентов: режим embedder (LM Studio / Ollama / ONNX) |
 | `get_logs(project_root)` | Последние ошибки и предупреждения из логов проекта |
 | `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
 | `read_live_file(path)` | Чтение файла из памяти LSP (включая несохранённые изменения) |
 
-### Analytics
+### Аналитика
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
-| `get_hotspots(project_root)` | "Горячие точки" — файлы с высоким баго-рейтом |
+| `get_hotspots(project_root)` | «Горячие точки» — файлы с высоким баго-рейтом |
 | `get_repo_rank(project_root, top_k)` | Рейтинг важности символов (PageRank на графе вызовов) |
 | `get_bug_correlation(project_root)` | Анализ связи багов с изменениями в коде |
 | `get_related_files(project_root, path)` | Файлы, связанные через co-change / bug correlation |
 | `graph_query(query_type, target)` | Запросы к графу знаний: `impact` / `feature` / `deps` / `tests` |
 | `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
 
-### Git & History
+### Git и история
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
 | `get_commit_history(root, limit)` | Семантическая история коммитов |
 | `get_file_history(root, path)` | История изменений конкретного файла |
 | `get_branch_info(project_root)` | Информация о ветке + статус индекса |
 
-### Lifecycle & Verification
+### Жизненный цикл и верификация
 
-| Tool | When to Use |
+| Инструмент | Когда использовать |
 |------|-------------|
 | `submit_background_task(type, root)` | Запуск долгих задач: `bug_correlation` / `build_knowledge_graph` / `full_analysis` |
 | `get_task_status(task_id)` | Статус фоновой задачи |
@@ -151,11 +150,11 @@ get_index_status()
 | `predict_eta(operation)` | Предсказание времени выполнения операции |
 | `run_health_check()` | Полная проверка здоровья проекта (тесты + git) |
 
-### Intelligence Layer (intel_*) — 10 High-Level Tools
+### Интеллектуальный слой (intel_*) — 10 высокоуровневых инструментов
 
-| Tool | What it does |
+| Инструмент | Что делает |
 |------|-------------|
-| `intel_get_runtime_status()` | Агрегированный статус здоровья: embedder, index, resource usage |
+| `intel_get_runtime_status()` | Агрегированный статус здоровья: embedder, index, использование ресурсов |
 | `intel_trigger_reindex()` | Fire-and-forget переиндексация (не блокирует Zed) |
 | `intel_get_job_status(job_id)` | Прогресс фоновой задачи |
 | `intel_code_topology(symbol)` | Граф вызовов + топология модуля (< 2 сек) |
@@ -168,17 +167,17 @@ get_index_status()
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Архитектура
 
-### Clean Architecture with DI Container
+### Clean Architecture с DI контейнером
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~220 lines)                        │
+│                   MCP Server (~220 строк)                        │
 │            src/mcp/server.py — только регистрация                 │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              DI Container (15 services)                   │   │
+│  │              DI Контейнер (15 сервисов)                    │   │
 │  │  src/core/di_container.py — ServiceCollection              │   │
 │  │                                                           │   │
 │  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
@@ -191,9 +190,9 @@ get_index_status()
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  33 Tool Classes   │  │  10 intel_* tools                  │  │
+│  │  33 Класса         │  │  10 intel_* инструментов            │  │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
-│  │  Каждый инструмент  │  │  error_boundary decorator          │  │
+│  │  Каждый инструмент  │  │  error_boundary декоратор           │  │
 │  │  — отдельный класс │  │  JSON status/message/detail        │  │
 │  │  Constructor Inj.   │  │  asyncio.wait_for(timeout)        │  │
 │  └────────────────────┘  └────────────────────────────────────┘  │
@@ -209,40 +208,40 @@ get_index_status()
 
 ---
 
-## ⚡ Performance
+## ⚡ Производительность
 
-| Mode | Latency | Best For |
+| Режим | Задержка | Лучше всего для |
 |:-----|:--------|:---------|
-| `search_code(query, mode="fast")` | ~300ms | Simple keyword / exact name |
-| `search_code(query, mode="quality")` | ~1200ms | Semantic search with reranker |
-| `search_code(query, mode="deep")` | ~2-5s | Complex research across modules |
-| `search_code(query, mode="context")` | ~500ms | Find similar code by fragment |
-| `cross_repo_search(query @repo)` | ~500ms-2s | Cross-project search |
+| `search_code(query, mode="fast")` | ~300ms | Простой ключевой запрос / точное имя |
+| `search_code(query, mode="quality")` | ~1200ms | Семантический поиск с реранкером |
+| `search_code(query, mode="deep")` | ~2-5s | Комплексное исследование по модулям |
+| `search_code(query, mode="context")` | ~500ms | Поиск похожего кода по фрагменту |
+| `cross_repo_search(query @repo)` | ~500ms-2s | Кросс-проектный поиск |
 
-### Environment Variables
+### Переменные окружения
 
-| Variable | Default | Description |
+| Переменная | По умолчанию | Описание |
 |----------|---------|-------------|
-| `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API endpoint |
-| `LM_STUDIO_PORT` | `1234` | LM Studio port |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
+| `LM_STUDIO_URL` | `http://localhost:1234/v1` | API endpoint LM Studio |
+| `LM_STUDIO_PORT` | `1234` | Порт LM Studio |
+| `OLLAMA_URL` | `http://localhost:11434` | API endpoint Ollama |
 | `LOG_LEVEL` | `INFO` | Уровень логирования |
 | `ZED_WINDOWS_QUIRKS.md` | *(см. файл)* | Инструкции для Windows |
 
 ---
 
-## 🔧 Troubleshooting
+## 🔧 Устранение неполадок
 
-### MCP Server Not Responding
+### MCP Сервер не отвечает
 
-**Symptoms:** инструменты не отвечают, таймаут.
+**Симптомы:** инструменты не отвечают, таймаут.
 
-**Checklist:**
+**Чеклист:**
 1. **File → Quit** → открой проект заново
 2. Запустите `python install.py` для перенастройки
 3. Проверьте логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
 
-### Index Empty (0 chunks)
+### Индекс пуст (0 чанков)
 
 В Agent Panel выполните:
 ```
@@ -251,7 +250,7 @@ intel_trigger_reindex()
 
 После проверьте: `get_index_status()`
 
-### LM Studio Connection Issues
+### Проблемы с подключением LM Studio
 
 ```bash
 # Проверьте, что сервер отвечает:
@@ -262,16 +261,16 @@ python -c "import urllib.request; print(urllib.request.urlopen('http://localhost
 
 ---
 
-## 📁 Project Structure
+## 📁 Структура проекта
 
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # MCP server entry point (~220 lines)
-│   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
+│   ├── main.py                   # Точка входа MCP сервера (~220 строк)
+│   ├── lsp_main.py               # LSP сервер (DI-based, для didSave индексации)
 │   ├── mcp/
-│   │   ├── server.py             # DI routing — only imports + registration
-│   │   └── tools/                 # 10 files, 33 class-based + 10 intel = 43 total
+│   │   ├── server.py             # DI маршрутизация — только импорты + регистрация
+│   │   └── tools/                 # 10 файлов, 33 class-based + 10 intel = 43 всего
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history
@@ -281,65 +280,65 @@ mscodebase-intelligence/
 │   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
 │   │       └── lifecycle_tools.py      # submit_background_task, verify_action
 │   ├── core/
-│   │   ├── di_container.py       # ★ DI Container (15 services, ServiceCollection)
+│   │   ├── di_container.py       # ★ DI Контейнер (15 сервисов, ServiceCollection)
 │   │   ├── error_handler.py      # ★ error_boundary + ToolError
 │   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
-│   │   ├── indexer.py            # LanceDB vector storage
-│   │   ├── searcher.py           # Hybrid search (BM25 + Dense + RRF)
-│   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
-│   │   ├── intelligence_layer.py # intel_* tools (10 high-level)
-│   │   ├── remote_embedder.py    # LM Studio / Ollama client
-│   │   ├── reranker.py           # Multi-Provider Reranker
+│   │   ├── indexer.py            # LanceDB векторное хранилище
+│   │   ├── searcher.py           # Гибридный поиск (BM25 + Dense + RRF)
+│   │   ├── symbol_index.py       # Граф вызовов (BFS, анализ влияния)
+│   │   ├── intelligence_layer.py # intel_* инструменты (10 высокоуровневых)
+│   │   ├── remote_embedder.py    # Клиент LM Studio / Ollama
+│   │   ├── reranker.py           # Мульти-провайдерный реранкер
 │   │   ├── parser.py             # Tree-sitter AST
-│   │   ├── health_report.py      # Self-diagnosis engine
+│   │   ├── health_report.py      # Движок самодиагностики
 │   │   └── ...
 │   └── utils/
 │       ├── paths.py              # SafePathManager, to_win_long_path
-│       └── zed_config.py         # Auto-configure Zed settings
+│       └── zed_config.py         # Авто-настройка Zed
 ├── docs/
 │   ├── architecture.md
 │   └── INSTALL.md
-├── tests/                        # 391 tests (pytest)
-├── .agents/skills/               # Skills for AI agent
-├── install.py                    # Installer
+├── tests/                        # 391 тест (pytest)
+├── .agents/skills/               # Навыки для AI-агента
+├── install.py                    # Установщик
 └── README.md
 ```
 
 ---
 
-## 🛠️ Development
+## 🛠️ Разработка
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- How to add new MCP tools
-- Test structure and CI pipeline
-- Commit message conventions
+См. [CONTRIBUTING.md](CONTRIBUTING.md) по следующим темам:
+- Как добавлять новые MCP инструменты
+- Структура тестов и CI-пайплайн
+- Соглашения по сообщениям коммитов
 
-### Quick Start for Devs
+### Быстрый старт для разработчиков
 
 ```bash
-# Setup
+# Настройка
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Run MCP server directly (test)
+# Запуск MCP сервера напрямую (тест)
 python -m src.main
 
-# Run tests
+# Запуск тестов
 pytest tests/ -m "not integration and not benchmark"
 ```
 
 ---
 
-## 📄 License
+## 📄 Лицензия
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License — см. [LICENSE](LICENSE) для подробностей.
 
 ---
 
-## 🙏 Acknowledgments
+## 🙏 Благодарности
 
-- [Zed IDE](https://zed.dev/) — code editor
-- [LM Studio](https://lmstudio.ai/) — local LLM inference
-- [LanceDB](https://lancedb.github.io/) — vector database
-- [Model Context Protocol](https://modelcontextprotocol.io/) — MCP standard
+- [Zed IDE](https://zed.dev/) — редактор кода
+- [LM Studio](https://lmstudio.ai/) — локальный LLM инференс
+- [LanceDB](https://lancedb.github.io/) — векторная база данных
+- [Model Context Protocol](https://modelcontextprotocol.io/) — стандарт MCP

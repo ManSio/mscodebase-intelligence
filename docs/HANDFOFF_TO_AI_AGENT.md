@@ -1,5 +1,7 @@
 <img src="../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
+[🇬🇧 English](HANDFOFF_TO_AI_AGENT.en.md) • [🇷🇺 Русский](HANDFOFF_TO_AI_AGENT.md) • [🇨🇳 中文](HANDFOFF_TO_AI_AGENT.zh.md)
+
 # MSCodeBase Intelligence — Архитектура и опыт разработки
 
 > Документ для разработчиков, которые подключаются к проекту.

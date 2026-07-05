@@ -1,5 +1,7 @@
 <img src="../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
+[🇬🇧 English](FAQ.en.md) • [🇷🇺 Русский](FAQ.ru.md) • [🇨🇳 中文](FAQ.zh.md)
+
 # FAQ — MSCodeBase Intelligence
 
 > Frequently Asked Questions. Based on real development and operations experience.

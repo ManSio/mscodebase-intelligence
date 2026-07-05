@@ -1,14 +1,14 @@
 <img src="logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-[🇬🇧 English](CONTRIBUTING.md) • [🇷🇺 Русский](CONTRIBUTING.ru.md) • [🇨🇳 中文](CONTRIBUTING.zh.md)
-
 # Contributing — MSCodeBase Intelligence
+
+[🇬🇧 English](CONTRIBUTING.md) • [🇷🇺 Русский](CONTRIBUTING.ru.md) • [🇨🇳 中文](CONTRIBUTING.zh.md)
 
 Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
 
 ---
 
-## 1. Setup
+## 1. Настройка
 
 ```powershell
 git clone https://github.com/ManSio/mscodebase-intelligence.git
@@ -61,12 +61,12 @@ src/
 
 ---
 
-## 3. Code Style
+## 3. Стиль кода
 
 - **Formatter**: Black (line length 88)
-- **Import order**: isort
-- **Type hints**: обязательны для публичных API
-- **Logging**: `logging.getLogger(__name__)` — никогда `print()` в production-коде
+- **Порядок импортов**: isort
+- **Типизация**: обязательны для публичных API
+- **Логирование**: `logging.getLogger(__name__)` — никогда `print()` в production-коде
 - **Async**: используйте `async/await` для I/O-операций; тяжёлые дисковые операции — через `asyncio.to_thread()`
 
 ```powershell
@@ -81,7 +81,7 @@ isort src/
 
 ---
 
-## 4. Running Tests
+## 4. Запуск тестов
 
 В проекте **391+ тестов** в директории `tests/`. Запуск через `pytest` с маркерами.
 
@@ -153,7 +153,7 @@ pytest tests/ --tb=long -v
 
 ---
 
-## 5. Adding New MCP Tools
+## 5. Добавление новых MCP инструментов
 
 Все 33 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
@@ -213,7 +213,7 @@ def test_my_new_tool():
 ```
 
 5. **Обновите документацию**:
-   - `README.md` — секция "Tools" → обновите категорию и описание
+   - `README.md` — секция «Tools» → обновите категорию и описание
    - `docs/architecture.md` — добавьте описание инструмента
    - `CHANGELOG.md` — добавьте запись
 
@@ -227,7 +227,7 @@ pytest tests/ -v
 
 ---
 
-## 6. Adding New Core Modules
+## 6. Добавление новых модулей ядра
 
 Ядро находится в `src/core/`. Существующие модули:
 
@@ -292,7 +292,7 @@ class TestMyModule:
 
 ---
 
-## 7. Commit Messages
+## 7. Сообщения коммитов
 
 Формат Conventional Commits: `type(scope): description`
 
@@ -319,7 +319,7 @@ perf(symbol_index): cache call graph results
 
 ---
 
-## 8. PR Process
+## 8. Процесс PR
 
 ### Чек-лист перед созданием PR:
 
@@ -345,12 +345,12 @@ perf(symbol_index): cache call graph results
 
 1. Создайте PR в GitHub
 2. Дождитесь review
-3. Иправьте замечания
+3. Исправьте замечания
 4. Merge в `development` (не в `main` напрямую)
 
 ---
 
-## 9. Versioning
+## 9. Версионирование
 
 SemVer: MAJOR.MINOR.PATCH
 
@@ -362,7 +362,7 @@ SemVer: MAJOR.MINOR.PATCH
 
 ---
 
-## 10. Troubleshooting для контрибьюторов
+## 10. Устранение неполадок для контрибьюторов
 
 | Проблема | Решение |
 |---|---|
@@ -373,4 +373,4 @@ SemVer: MAJOR.MINOR.PATCH
 
 ---
 
-*Last updated: 2026-07-05*
+*Последнее обновление: 2026-07-05*

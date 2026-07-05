@@ -1,5 +1,8 @@
 # Zed на Windows: Подводные камни и архитектурные решения
 
+[🇬🇧 English](ZED_WINDOWS_QUIRKS.en.md) • [🇷🇺 Русский](ZED_WINDOWS_QUIRKS.md) • [🇨🇳 中文](ZED_WINDOWS_QUIRKS.zh.md)
+
+
 > Версия: 1.1 (2026-07-05) — обновлена секция «LSP не стартует»
 > Актуально для: MSCodeBase Intelligence v2.4.4+
 > Подробный отчёт: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`

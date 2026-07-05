@@ -1,5 +1,7 @@
 # Investigation: Определение активного проекта на Windows
 
+[🇬🇧 English](2026-07-05-active-workspace-resolution.md) • [🇨🇳 中文](2026-07-05-active-workspace-resolution.zh.md)
+
 **Дата:** 2026-07-05
 **Цель:** Найти надёжный способ узнать, какой проект/workspace сейчас под фокусом
 в Zed IDE на Windows, без использования `ZED_WORKTREE_ROOT` (не работает)
