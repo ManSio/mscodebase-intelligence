@@ -1,6 +1,6 @@
 <div align="center">
 
-![MSCodeBase Intelligence](logo/baner.svg)
+<img src="logo/baner.svg" style="max-width: 800px; width: 100%;" alt="MSCodeBase Intelligence">
 
 # MSCodebase Intelligence
 
