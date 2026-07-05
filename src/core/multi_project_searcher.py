@@ -16,6 +16,7 @@ from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer, _generate_unique_db_path
 
 logger = logging.getLogger(__name__)
+from src.utils.i18n import _
 
 # Паттерн для извлечения @-mentions
 _AT_MENTION_RE = re.compile(r"@([\w\-\.]+)")
@@ -121,7 +122,9 @@ class MultiProjectSearcher:
                 db = lancedb.connect(raw_path)
                 self._db_cache[path_key] = db
             except Exception as e:
-                logger.warning(f"Не удалось подключиться к БД проекта {project_path.name}: {e}")
+                logger.warning(
+                    f"Не удалось подключиться к БД проекта {project_path.name}: {e}"
+                )
                 return None
 
         db = self._db_cache[path_key]
@@ -150,15 +153,17 @@ class MultiProjectSearcher:
             results = []
             project_name = project_path.name
             for _, row in df.iterrows():
-                results.append({
-                    "text": row["text"],
-                    "metadata": {
-                        "file": row["file_path"],
-                        "chunk_index": row["chunk_index"],
-                        "project": project_name,
-                    },
-                    "score": float(row.get("_distance", 0.0)),
-                })
+                results.append(
+                    {
+                        "text": row["text"],
+                        "metadata": {
+                            "file": row["file_path"],
+                            "chunk_index": row["chunk_index"],
+                            "project": project_name,
+                        },
+                        "score": float(row.get("_distance", 0.0)),
+                    }
+                )
             return results
         except Exception as e:
             logger.warning(f"Ошибка поиска в проекте {project_path.name}: {e}")
@@ -199,7 +204,9 @@ class MultiProjectSearcher:
                     results_map[key]["rrf_score"] += rrf_score
                     results_map[key]["source_projects"].append(project_name)
 
-        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[
+            :limit
+        ]
 
         return [results_map[k] for k in sorted_keys]
 
@@ -289,7 +296,7 @@ class MultiProjectSearcher:
         clean_query, project_names = parse_cross_repo_query(query)
 
         if not clean_query:
-            return "❌ Пустой поисковый запрос."
+            return _("❌ Пустой поисковый запрос.")
 
         if self.registry.count == 0:
             return (
@@ -306,9 +313,12 @@ class MultiProjectSearcher:
         if "error" in metadata:
             error = metadata["error"]
             if error == "no_projects":
-                return f"❌ Указанные проекты не найдены: {', '.join(project_names)}"
+                return _(
+                    "❌ Указанные проекты не найдены: {project_names}",
+                    project_names=", ".join(project_names),
+                )
             elif error == "embedder_unavailable":
-                return "❌ Эмбеддер недоступен. Невозможно векторизовать запрос."
+                return _("❌ Эмбеддер недоступен. Невозможно векторизовать запрос.")
             else:
                 return f"❌ Ошибка: {error}"
 

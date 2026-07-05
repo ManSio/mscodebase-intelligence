@@ -20,6 +20,7 @@ from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
+from src.utils.i18n import _
 from src.utils.ui_formatter import format_repo_rank
 
 logger = logging.getLogger("mscodebase_server.analysis_tools")
@@ -48,7 +49,7 @@ class StructuralSearchTool(MCPTool):
             )
             return {
                 "status": "error",
-                "message": f"Path does not exist: {project_root}",
+                "message": _("Path does not exist: {path}", path=project_root),
             }
 
         searcher = StructuralSearcher(self.resolve_parser())
@@ -82,13 +83,16 @@ class GetRepoMapTool(MCPTool):
         self, project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
         if not self.resolve_symbol_index():
-            return {"status": "error", "message": "Symbol index is not available"}
+            return {
+                "status": "error",
+                "message": _("Symbol index is not available"),
+            }
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
             return {
                 "status": "error",
-                "message": f"Path does not exist: {project_root}",
+                "message": _("Path does not exist: {path}", path=project_root),
             }
 
         if hasattr(self.resolve_symbol_index(), "get_repo_map"):
@@ -138,7 +142,10 @@ class GetRepoMapTool(MCPTool):
 
         return {
             "status": "warning",
-            "message": f"Repo map not supported for {target_path.name}",
+            "message": _(
+                "Repo map not supported for {name}",
+                name=target_path.name,
+            ),
         }
 
 
@@ -156,11 +163,17 @@ class GetRepoRankTool(MCPTool):
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
         if not self.resolve_symbol_index():
-            return {"status": "error", "message": "Symbol index not available"}
+            return {
+                "status": "error",
+                "message": _("Symbol index not available"),
+            }
 
         ranks = self.resolve_symbol_index().compute_repo_rank()
         if not ranks:
-            return {"status": "warning", "message": "Call graph is empty"}
+            return {
+                "status": "warning",
+                "message": _("Call graph is empty"),
+            }
 
         sorted_ranks = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:top_k]
         _start = time.monotonic()
@@ -205,7 +218,7 @@ class ScanChangesTool(MCPTool):
         if not target_path.exists():
             return {
                 "status": "error",
-                "message": f"Path does not exist: {project_root}",
+                "message": _("Path does not exist: {path}", path=project_root),
             }
 
         # Резолвим зависимости ДО фоновой задачи (ThreadPool не имеет доступа к async DI)
@@ -232,7 +245,10 @@ class ScanChangesTool(MCPTool):
             "status": "ok",
             "task_id": task_id,
             "project": target_path.name,
-            "message": f"✅ Сканирование запущено в фоне. Task ID: {task_id}",
+            "message": _(
+                "✅ Сканирование запущено в фоне. Task ID: {task_id}",
+                task_id=task_id,
+            ),
             "check_status_via": "get_task_status",
             "poll_interval_seconds": 30,
         }
@@ -285,20 +301,24 @@ class ScanChangesTool(MCPTool):
             embedder_mode = getattr(embedder, "mode", "unknown")
 
             lines = [
-                f"✅ Scan complete: {target_path.name}",
-                f"  • Files updated: {indexed_count}",
-                f"  • Embedder: {embedder_mode}",
-                f"  • Elapsed: {elapsed}s",
+                _("✅ Scan complete: {name}", name=target_path.name),
+                _("  • Files updated: {count}", count=indexed_count),
+                _("  • Embedder: {mode}", mode=embedder_mode),
+                _("  • Elapsed: {time}s", time=elapsed),
             ]
             if diff_lines:
-                lines.append(f"  • Architectural diff:")
+                lines.append(_("  • Architectural diff:"))
                 lines.extend(diff_lines)
-            lines.append(f"💡 *Следующее сканирование: не ранее чем через 2 минуты.*")
+            lines.append(_("💡 *Следующее сканирование: не ранее чем через 2 минуты.*"))
             return "\n".join(lines)
 
         except Exception as e:
             logger.error(f"[bg] scan_chages failed: {e}")
-            return f"❌ Scan failed: {target_path.name}: {e}"
+            return _(
+                "❌ Scan failed: {name}: {error}",
+                name=target_path.name,
+                error=e,
+            )
 
 
 class GenerateChunkSummariesTool(MCPTool):
@@ -315,18 +335,24 @@ class GenerateChunkSummariesTool(MCPTool):
         if not target_path.exists():
             return {
                 "status": "error",
-                "message": f"Path does not exist: {project_root}",
+                "message": _("Path does not exist: {path}", path=project_root),
             }
 
         table = self.resolve_indexer().table
         if table is None:
-            return {"status": "error", "message": "LanceDB table not initialized"}
+            return {
+                "status": "error",
+                "message": _("LanceDB table not initialized"),
+            }
 
         import pandas as pd
 
         df = table.to_pandas()
         if df.empty:
-            return {"status": "error", "message": "Database is empty"}
+            return {
+                "status": "error",
+                "message": _("Database is empty"),
+            }
 
         # Определяем объём работы ДО отправки в фон
         has_summary_col = "summary" in df.columns
@@ -348,7 +374,7 @@ class GenerateChunkSummariesTool(MCPTool):
                 "status": "ok",
                 "total_chunks": total_chunks,
                 "chunks_processed": 0,
-                "message": "All chunks already have summaries",
+                "message": _("All chunks already have summaries"),
             }
 
         # Резолвим зависимости ДО фона
@@ -378,7 +404,10 @@ class GenerateChunkSummariesTool(MCPTool):
             "task_id": task_id,
             "total_chunks": total_chunks,
             "chunks_to_process": chunks_to_process,
-            "message": f"✅ Генерация запущена в фоне. Task ID: {task_id}",
+            "message": _(
+                "✅ Генерация запущена в фоне. Task ID: {task_id}",
+                task_id=task_id,
+            ),
             "check_status_via": "get_task_status",
             "poll_interval_seconds": 30,
         }
@@ -450,21 +479,20 @@ class GenerateChunkSummariesTool(MCPTool):
         elapsed = round(time.time() - _t, 1)
 
         lines = [
-            f"✅ Summaries generated: {updated_count} chunks",
-            f"  • Total: {total_chunks} | Processed: {chunks_to_process}",
-            f"  • Updated: {updated_count} | Errors: {error_count}",
-            f"  • LLM calls: {stats.get('generated', 0)}",
-            f"  • Cache hits: {stats.get('cache_hits', 0)}",
-            f"  • Elapsed: {elapsed}s",
-            f"💡 *Не запускай повторно следующие 5 минут.*",
+            _("✅ Summaries generated: {count} chunks", count=updated_count),
+            _(
+                "  • Total: {total} | Processed: {processed}",
+                total=total_chunks,
+                processed=chunks_to_process,
+            ),
+            _(
+                "  • Updated: {updated} | Errors: {errors}",
+                updated=updated_count,
+                errors=error_count,
+            ),
+            _("  • LLM calls: {calls}", calls=stats.get("generated", 0)),
+            _("  • Cache hits: {hits}", hits=stats.get("cache_hits", 0)),
+            _("  • Elapsed: {time}s", time=elapsed),
+            _("💡 *Не запускай повторно следующие 5 минут.*"),
         ]
         return "\n".join(lines)
-
-
-__all__ = [
-    "StructuralSearchTool",
-    "GetRepoMapTool",
-    "GetRepoRankTool",
-    "ScanChangesTool",
-    "GenerateChunkSummariesTool",
-]

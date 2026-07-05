@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from src.core.reranker import MultiProviderReranker, SearchResultReranker
+from src.utils.i18n import _
 
 # Простая функция расширения запроса синонимами (встроена после удаления query_expansion.py)
 _QUERY_SYNONYMS = {
@@ -29,13 +30,14 @@ def _expand_query(query: str, max_expansions: int = 3) -> List[str]:
     words = query.lower().split()
     for word in words:
         synonyms = _QUERY_SYNONYMS.get(word, [])
-        for syn in synonyms[:max_expansions - 1]:
+        for syn in synonyms[: max_expansions - 1]:
             variant = query.replace(word, syn, 1)
             if variant not in variants:
                 variants.append(variant)
                 if len(variants) >= max_expansions:
                     return variants
     return variants
+
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +115,9 @@ class Searcher:
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
     # Режимы поиска
-    MODE_FAST = "fast"       # ~300ms: embed + vector only
-    MODE_QUALITY = "quality" # ~1200ms: embed + vector + rerank
-    MODE_DEEP = "deep"       # ~2-5s: full analysis + graph
+    MODE_FAST = "fast"  # ~300ms: embed + vector only
+    MODE_QUALITY = "quality"  # ~1200ms: embed + vector + rerank
+    MODE_DEEP = "deep"  # ~2-5s: full analysis + graph
 
     def __init__(self, indexer, embedder):
         self.indexer = indexer
@@ -360,9 +362,7 @@ class Searcher:
             logger.error(f"Ошибка векторного поиска LanceDB: {e}")
             return [{"error": str(e)}]
 
-    def get_chunks_by_parent_id(
-        self, parent_id: str, limit: int = 10
-    ) -> List[dict]:
+    def get_chunks_by_parent_id(self, parent_id: str, limit: int = 10) -> List[dict]:
         """Multi-granularity retrieval: находит дочерние чанки по parent_id.
 
         Позволяет подняться по иерархии (модуль → класс → функция):
@@ -431,7 +431,11 @@ class Searcher:
             key = f"{result['metadata']['file']}:{result['metadata']['chunk_index']}"
             scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
             if key not in results_map:
-                results_map[key] = {**result, "bm25_score": 1.0 / (rrf_k + rank), "dense_score": 0.0}
+                results_map[key] = {
+                    **result,
+                    "bm25_score": 1.0 / (rrf_k + rank),
+                    "dense_score": 0.0,
+                }
             else:
                 results_map[key]["bm25_score"] = 1.0 / (rrf_k + rank)
 
@@ -440,23 +444,31 @@ class Searcher:
             key = f"{result['metadata']['file']}:{result['metadata']['chunk_index']}"
             scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
             if key not in results_map:
-                results_map[key] = {**result, "bm25_score": 0.0, "dense_score": 1.0 / (rrf_k + rank)}
+                results_map[key] = {
+                    **result,
+                    "bm25_score": 0.0,
+                    "dense_score": 1.0 / (rrf_k + rank),
+                }
             else:
                 results_map[key]["dense_score"] = 1.0 / (rrf_k + rank)
 
         # Сортировка по RRF скору
-        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[
+            :limit
+        ]
 
         results = []
         for key in sorted_keys:
             result = results_map[key]
-            results.append({
-                "text": result["text"],
-                "metadata": result["metadata"],
-                "bm25_score": result["bm25_score"],
-                "dense_score": result["dense_score"],
-                "final_score": scores[key],
-            })
+            results.append(
+                {
+                    "text": result["text"],
+                    "metadata": result["metadata"],
+                    "bm25_score": result["bm25_score"],
+                    "dense_score": result["dense_score"],
+                    "final_score": scores[key],
+                }
+            )
 
         return results
 
@@ -481,6 +493,7 @@ class Searcher:
             layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
         """
         import asyncio
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -489,17 +502,21 @@ class Searcher:
         if loop and loop.is_running():
             # Уже внутри event loop — запускаем в отдельном потоке
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
-                    asyncio.run, self.hybrid_search_async(
+                    asyncio.run,
+                    self.hybrid_search_async(
                         query, limit, use_rrf, expand, since, before, layer
-                    )
+                    ),
                 )
                 return future.result(timeout=30)
         else:
-            return asyncio.run(self.hybrid_search_async(
-                query, limit, use_rrf, expand, since, before, layer
-            ))
+            return asyncio.run(
+                self.hybrid_search_async(
+                    query, limit, use_rrf, expand, since, before, layer
+                )
+            )
 
     async def hybrid_search_async(
         self,
@@ -543,7 +560,8 @@ class Searcher:
             bm25_results = self._bm25_search(variant, limit=limit * 2)
             if layer:
                 bm25_results = [
-                    r for r in bm25_results
+                    r
+                    for r in bm25_results
                     if r.get("metadata", {}).get("layer") == layer
                 ]
             all_bm25_results.extend(bm25_results)
@@ -553,8 +571,10 @@ class Searcher:
             if variant == query and not all_dense_results:
                 try:
                     # Используем async embedder если доступен (и это реальная корутина, а не MagicMock)
-                    embed_async = getattr(self.embedder, 'embed_batch_async', None)
-                    if embed_async is not None and inspect.iscoroutinefunction(embed_async):
+                    embed_async = getattr(self.embedder, "embed_batch_async", None)
+                    if embed_async is not None and inspect.iscoroutinefunction(
+                        embed_async
+                    ):
                         query_vectors = await embed_async([variant], is_query=True)
                         query_vector = query_vectors[0] if query_vectors else None
                     else:
@@ -563,7 +583,9 @@ class Searcher:
                         dense_results = self.vector_search(
                             query_vector, limit=limit * 2, filter_expr=filter_expr
                         )
-                        all_dense_results = [r for r in dense_results if "error" not in r]
+                        all_dense_results = [
+                            r for r in dense_results if "error" not in r
+                        ]
                 except Exception as e:
                     logger.warning(f"Не удалось выполнить dense поиск: {e}")
 
@@ -578,7 +600,9 @@ class Searcher:
 
         if use_rrf:
             # RRF Fusion — устойчив к разным масштабам скоров
-            rrf_results = self._reciprocal_rank_fusion(unique_bm25, all_dense_results, limit=limit)
+            rrf_results = self._reciprocal_rank_fusion(
+                unique_bm25, all_dense_results, limit=limit
+            )
         else:
             # Fallback: реранкер с relevance factor
             reranked = self._reranker.rerank_results(
@@ -586,16 +610,20 @@ class Searcher:
             )
             rrf_results = []
             for res in reranked:
-                rrf_results.append({
-                    "text": res["text"],
-                    "metadata": res["metadata"],
-                    "bm25_score": res.get("bm25_score", 0.0),
-                    "dense_score": res.get("dense_score", 0.0),
-                    "final_score": res.get("final_score", 0.0),
-                })
+                rrf_results.append(
+                    {
+                        "text": res["text"],
+                        "metadata": res["metadata"],
+                        "bm25_score": res.get("bm25_score", 0.0),
+                        "dense_score": res.get("dense_score", 0.0),
+                        "final_score": res.get("final_score", 0.0),
+                    }
+                )
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
-        final_results = await self._apply_multi_reranker_async(query, rrf_results, limit)
+        final_results = await self._apply_multi_reranker_async(
+            query, rrf_results, limit
+        )
 
         # Фильтрация по времени (since/before)
         return _filter_by_time(final_results, since=since, before=before)
@@ -622,7 +650,9 @@ class Searcher:
                 query, limit=limit, since=since, before=before, layer=layer
             )
             if not results:
-                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                return _(
+                    "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                )
 
             output = [
                 f"📊 Найдено {len(results)} релевантных фрагментов кода (гибридный поиск):\n"
@@ -637,7 +667,7 @@ class Searcher:
                 )
             return "".join(output)
         except Exception as e:
-            return f"❌ Ошибка поискового движка: {str(e)}"
+            return _("❌ Ошибка поискового движка: {error}", error=str(e))
 
     def search_with_mode(
         self,
@@ -745,34 +775,37 @@ class Searcher:
             limit: Максимальное число результатов
         """
         if not selected_code.strip():
-            return "❌ Пустой фрагмент кода для поиска."
+            return _("❌ Пустой фрагмент кода для поиска.")
 
         try:
             query_vector = self.embedder.embed(selected_code)
             if not query_vector:
-                return "❌ Эмбеддер недоступен. Невозможно векторизовать код."
+                return _("❌ Эмбеддер недоступен. Невозможно векторизовать код.")
 
             results = self.vector_search(query_vector, limit=limit)
             results = [r for r in results if "error" not in r]
 
             if not results:
-                return "🔍 Похожий код не найден."
+                return _("🔍 Похожий код не найден.")
 
             # Фильтруем точные совпадения (тот же текст = дубликат)
             unique_results = []
             seen_texts = set()
             for r in results:
                 text_key = r["text"].strip()[:200]
-                if text_key not in seen_texts and r["text"].strip() != selected_code.strip():
+                if (
+                    text_key not in seen_texts
+                    and r["text"].strip() != selected_code.strip()
+                ):
                     seen_texts.add(text_key)
                     unique_results.append(r)
 
             if not unique_results:
-                return "🔍 Точные совпадения найдены, но уникальных похожих фрагментов нет."
+                return _(
+                    "🔍 Точные совпадения найдены, но уникальных похожих фрагментов нет."
+                )
 
-            output = [
-                f"🔍 Найдено {len(unique_results)} похожих фрагментов кода:\n"
-            ]
+            output = [f"🔍 Найдено {len(unique_results)} похожих фрагментов кода:\n"]
             for i, res in enumerate(unique_results, 1):
                 # Используем text_full если есть (полный код функции), иначе text
                 code_text = res.get("text_full") or res["text"]
@@ -784,7 +817,7 @@ class Searcher:
             return "".join(output)
         except Exception as e:
             logger.error(f"Ошибка context_search: {e}")
-            return f"❌ Ошибка поиска по коду: {str(e)}"
+            return _("❌ Ошибка поиска по коду: {error}", error=str(e))
 
     def _extract_key_terms(self, results: List[dict], max_terms: int = 5) -> List[str]:
         """Извлекает ключевые термины из результатов поиска для уточнения запроса.
@@ -805,18 +838,111 @@ class Searcher:
         # Собираем частотность терминов в результатах
         term_freq: Dict[str, int] = {}
         stop_words = {
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could",
-            "should", "may", "might", "shall", "can", "need", "dare", "ought",
-            "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-            "as", "into", "through", "during", "before", "after", "above", "below",
-            "between", "out", "off", "over", "under", "again", "further", "then",
-            "once", "here", "there", "when", "where", "why", "how", "all", "each",
-            "every", "both", "few", "more", "most", "other", "some", "such", "no",
-            "nor", "not", "only", "own", "same", "so", "than", "too", "very",
-            "just", "because", "but", "and", "or", "if", "while", "return", "def",
-            "class", "import", "from", "self", "none", "true", "false", "pass",
-            "that", "this", "it", "its", "what", "which", "who", "whom",
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "out",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "because",
+            "but",
+            "and",
+            "or",
+            "if",
+            "while",
+            "return",
+            "def",
+            "class",
+            "import",
+            "from",
+            "self",
+            "none",
+            "true",
+            "false",
+            "pass",
+            "that",
+            "this",
+            "it",
+            "its",
+            "what",
+            "which",
+            "who",
+            "whom",
         }
 
         for r in results[:5]:
@@ -1015,7 +1141,7 @@ class Searcher:
         logger.debug("⚠️ LLM недоступен, используем правила декомпозиции")
 
         # Стратегия 1: разделение по ключевым союзам и знакам
-        separators = r'(?:\s+(?:и|а|также|плюс|а также|и также)\s+|\s*[,;]\s+(?:и |а |также |плюс )?)'
+        separators = r"(?:\s+(?:и|а|также|плюс|а также|и также)\s+|\s*[,;]\s+(?:и |а |также |плюс )?)"
         parts = re.split(separators, query, flags=re.IGNORECASE)
         parts = [p.strip() for p in parts if p and len(p.strip()) > 3]
 
@@ -1025,10 +1151,22 @@ class Searcher:
         # Стратегия 2: анализ структуры запроса
         # "Как работает X и где проверяется Y" -> ["как работает X", "где проверяется Y"]
         question_patterns = [
-            (r'как\s+(?:работает|обрабатывается|вызывается|используется)\s+(.+?)(?:\s+(?:и|а|также|где)\s+|$)', 'как работает'),
-            (r'где\s+(?:проверяется|находится|вызывается|используется|обрабатывается)\s+(.+?)(?:\s+(?:и|а|также|как)\s+|$)', 'где находится'),
-            (r'что\s+(?:делает|происходит|содержит)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)', 'что делает'),
-            (r'когда\s+(?:вызывается|происходит|срабатывает)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)', 'когда вызывается'),
+            (
+                r"как\s+(?:работает|обрабатывается|вызывается|используется)\s+(.+?)(?:\s+(?:и|а|также|где)\s+|$)",
+                "как работает",
+            ),
+            (
+                r"где\s+(?:проверяется|находится|вызывается|используется|обрабатывается)\s+(.+?)(?:\s+(?:и|а|также|как)\s+|$)",
+                "где находится",
+            ),
+            (
+                r"что\s+(?:делает|происходит|содержит)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)",
+                "что делает",
+            ),
+            (
+                r"когда\s+(?:вызывается|происходит|срабатывает)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)",
+                "когда вызывается",
+            ),
         ]
 
         subqueries = []
@@ -1041,7 +1179,7 @@ class Searcher:
                 if len(subquery) > 5:
                     subqueries.append(subquery)
                     # Удаляем найденную часть из оставшегося
-                    remaining = remaining[:match.start()] + remaining[match.end():]
+                    remaining = remaining[: match.start()] + remaining[match.end() :]
                     remaining = remaining.strip()
 
         if subqueries:
@@ -1052,7 +1190,9 @@ class Searcher:
 
         # Стратегия 3: извлечение ключевых терминов и построение подзапросов
         # Извлекаем существительные (слово после "как", "где", "что")
-        key_terms = re.findall(r'(?:как|где|что|когда|почему)\s+(\w+(?:\s+\w+){0,2})', query.lower())
+        key_terms = re.findall(
+            r"(?:как|где|что|когда|почему)\s+(\w+(?:\s+\w+){0,2})", query.lower()
+        )
         if key_terms:
             return [f"{term} {query.split()[0]}" for term in key_terms[:3]]
 
@@ -1076,8 +1216,11 @@ class Searcher:
 
             # Проверяем доступность LM Studio
             from src.core.config import get_config
+
             config = get_config()
-            lm_url = os.getenv("LM_STUDIO_URL", config.embedding.get_lm_studio_base_url() + "/v1")
+            lm_url = os.getenv(
+                "LM_STUDIO_URL", config.embedding.get_lm_studio_base_url() + "/v1"
+            )
             api_key = os.getenv("API_KEY", "sk-local")
 
             # Быстрая проверка живости (1 секунда)
@@ -1117,17 +1260,21 @@ class Searcher:
 
             # Парсим ответ
             result = response.json()
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = (
+                result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
 
             # Извлекаем JSON массив из ответа
             # LLM может вернуть ```json [...] ``` или просто [...]
             import json as json_module
-            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+
+            json_match = re.search(r"\[.*\]", content, re.DOTALL)
             if json_match:
                 subqueries = json_module.loads(json_match.group())
                 # Валидация: каждый подзапрос должен быть строкой 5-100 символов
                 valid = [
-                    sq.strip() for sq in subqueries
+                    sq.strip()
+                    for sq in subqueries
                     if isinstance(sq, str) and 5 <= len(sq.strip()) <= 100
                 ]
                 if len(valid) >= 2:
@@ -1193,7 +1340,9 @@ class Searcher:
         unique_files = len(all_files)
         if total_results > 0:
             # Чем больше уникальных файлов покрыто, тем выше score
-            analysis["coverage_score"] = min(1.0, unique_files / max(len(subqueries), 1))
+            analysis["coverage_score"] = min(
+                1.0, unique_files / max(len(subqueries), 1)
+            )
 
         # Формируем описание потока
         if len(subqueries) > 1:
@@ -1223,12 +1372,14 @@ class Searcher:
                         # Собираем информацию об определении
                         if call_graph.get("definition"):
                             for defn in call_graph["definition"]:
-                                analysis["related_symbols"].append({
-                                    "name": call_graph["symbol"],
-                                    "file": defn.get("file", file_path),
-                                    "line": defn.get("line", 0),
-                                    "kind": defn.get("kind", "unknown"),
-                                })
+                                analysis["related_symbols"].append(
+                                    {
+                                        "name": call_graph["symbol"],
+                                        "file": defn.get("file", file_path),
+                                        "line": defn.get("line", 0),
+                                        "kind": defn.get("kind", "unknown"),
+                                    }
+                                )
 
                         # Собираем информацию о вызовах (callers + callees)
                         callers = call_graph.get("callers", [])
@@ -1236,20 +1387,32 @@ class Searcher:
                         impact_files = call_graph.get("impact_files", [])
 
                         if callers or callees:
-                            analysis["call_graph_hints"].append({
-                                "symbol": call_graph["symbol"],
-                                "callers_count": len(callers),
-                                "callees_count": len(callees),
-                                "impact_files_count": len(impact_files),
-                                "called_from": [c.get("file", "") for c in callers[:3]],
-                                "calls_to": [c.get("symbol", "") for c in callees[:3]],
-                            })
+                            analysis["call_graph_hints"].append(
+                                {
+                                    "symbol": call_graph["symbol"],
+                                    "callers_count": len(callers),
+                                    "callees_count": len(callees),
+                                    "impact_files_count": len(impact_files),
+                                    "called_from": [
+                                        c.get("file", "") for c in callers[:3]
+                                    ],
+                                    "calls_to": [
+                                        c.get("symbol", "") for c in callees[:3]
+                                    ],
+                                }
+                            )
 
                         # Подсчёт узлов графа
-                        graph_nodes = len(call_graph.get("definition", [])) + len(callers) + len(callees)
+                        graph_nodes = (
+                            len(call_graph.get("definition", []))
+                            + len(callers)
+                            + len(callees)
+                        )
                         nodes_count += graph_nodes
                         # Определяем глубину: если есть indirect_caller — depth=2
-                        has_indirect = any(c.get("kind") == "indirect_caller" for c in callers)
+                        has_indirect = any(
+                            c.get("kind") == "indirect_caller" for c in callers
+                        )
                         depth = 2 if has_indirect else 1
                         max_depth = max(max_depth, depth)
 
@@ -1264,17 +1427,23 @@ class Searcher:
                         for sym_name in sym_names[:2]:
                             refs = symbol_index.find_references(sym_name)
                             if refs:
-                                analysis["call_graph_hints"].append({
-                                    "symbol": sym_name,
-                                    "reference_count": len(refs),
-                                    "referenced_in": [r.file_path for r in refs[:3]],
-                                })
+                                analysis["call_graph_hints"].append(
+                                    {
+                                        "symbol": sym_name,
+                                        "reference_count": len(refs),
+                                        "referenced_in": [
+                                            r.file_path for r in refs[:3]
+                                        ],
+                                    }
+                                )
                 except Exception as e2:
                     logger.debug(f"Fallback анализ тоже недоступен: {e2}")
 
         return analysis
 
-    def _expand_graph_context(self, results: List[dict], original_query: str) -> List[dict]:
+    def _expand_graph_context(
+        self, results: List[dict], original_query: str
+    ) -> List[dict]:
         """Расширяет результаты поиска контекстом из графа вызовов.
 
         Для каждого найденного символа добавляет связанные символы (callers, callees)
@@ -1289,7 +1458,7 @@ class Searcher:
         """
         try:
             # Проверяем, есть ли доступ к symbol_index через indexer
-            if hasattr(self.indexer, 'symbol_index') and self.indexer.symbol_index:
+            if hasattr(self.indexer, "symbol_index") and self.indexer.symbol_index:
                 symbol_index = self.indexer.symbol_index
 
                 expanded_results = []
@@ -1297,14 +1466,16 @@ class Searcher:
 
                 for result in results:
                     # Добавляем оригинальный результат
-                    result_id = result.get('id', result.get('file_path', str(len(expanded_results))))
+                    result_id = result.get(
+                        "id", result.get("file_path", str(len(expanded_results)))
+                    )
                     if result_id not in seen_ids:
                         expanded_results.append(result)
                         seen_ids.add(result_id)
 
                     # Извлекаем символ из результата
-                    file_path = result.get('file_path', '')
-                    chunk_text = result.get('text', '')
+                    file_path = result.get("file_path", "")
+                    chunk_text = result.get("text", "")
 
                     # Пытаемся извлечь имя символа из текста
                     symbol_name = self._extract_symbol_name(chunk_text)
@@ -1317,31 +1488,37 @@ class Searcher:
                         symbol_info = symbol_index.get_symbol_info(symbol_name)
                         if symbol_info:
                             # Добавляем callers
-                            for caller in symbol_info.get('callers', []):
+                            for caller in symbol_info.get("callers", []):
                                 caller_id = f"caller_{caller}_{len(expanded_results)}"
                                 if caller_id not in seen_ids:
-                                    expanded_results.append({
-                                        'id': caller_id,
-                                        'text': f'[CALLER] {caller}',
-                                        'file_path': caller,
-                                        'source': 'graph_context',
-                                        'score': result.get('score', 0.0) * 0.8,  # Снижаем вес
-                                        'context_type': 'caller'
-                                    })
+                                    expanded_results.append(
+                                        {
+                                            "id": caller_id,
+                                            "text": f"[CALLER] {caller}",
+                                            "file_path": caller,
+                                            "source": "graph_context",
+                                            "score": result.get("score", 0.0)
+                                            * 0.8,  # Снижаем вес
+                                            "context_type": "caller",
+                                        }
+                                    )
                                     seen_ids.add(caller_id)
 
                             # Добавляем callees
-                            for callee in symbol_info.get('callees', []):
+                            for callee in symbol_info.get("callees", []):
                                 callee_id = f"callee_{callee}_{len(expanded_results)}"
                                 if callee_id not in seen_ids:
-                                    expanded_results.append({
-                                        'id': callee_id,
-                                        'text': f'[CALLEE] {callee}',
-                                        'file_path': callee,
-                                        'source': 'graph_context',
-                                        'score': result.get('score', 0.0) * 0.8,  # Снижаем вес
-                                        'context_type': 'callee'
-                                    })
+                                    expanded_results.append(
+                                        {
+                                            "id": callee_id,
+                                            "text": f"[CALLEE] {callee}",
+                                            "file_path": callee,
+                                            "source": "graph_context",
+                                            "score": result.get("score", 0.0)
+                                            * 0.8,  # Снижаем вес
+                                            "context_type": "callee",
+                                        }
+                                    )
                                     seen_ids.add(callee_id)
 
                 return expanded_results
@@ -1356,13 +1533,13 @@ class Searcher:
 
         # Patтерны для извлечения имен символов
         patterns = [
-            r'def\s+(\w+)',  # def function_name
-            r'class\s+(\w+)',  # class ClassName
-            r'(\w+)\s*=\s*function',  # variable = function
-            r'function\s+(\w+)',  # function name
-            r'const\s+(\w+)\s*=',  # const variable =
-            r'let\s+(\w+)\s*=',  # let variable =
-            r'var\s+(\w+)\s*=',  # var variable =
+            r"def\s+(\w+)",  # def function_name
+            r"class\s+(\w+)",  # class ClassName
+            r"(\w+)\s*=\s*function",  # variable = function
+            r"function\s+(\w+)",  # function name
+            r"const\s+(\w+)\s*=",  # const variable =
+            r"let\s+(\w+)\s*=",  # let variable =
+            r"var\s+(\w+)\s*=",  # var variable =
         ]
 
         for pattern in patterns:
@@ -1412,6 +1589,7 @@ class Searcher:
     ) -> List[dict]:
         """Синхронная обёртка для мульти-провайдерного реранкинга."""
         import asyncio
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -1419,13 +1597,17 @@ class Searcher:
 
         if loop and loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
-                    asyncio.run, self._apply_multi_reranker_async(query, rrf_results, top_n)
+                    asyncio.run,
+                    self._apply_multi_reranker_async(query, rrf_results, top_n),
                 )
                 return future.result(timeout=35)
         else:
-            return asyncio.run(self._apply_multi_reranker_async(query, rrf_results, top_n))
+            return asyncio.run(
+                self._apply_multi_reranker_async(query, rrf_results, top_n)
+            )
 
     async def _apply_multi_reranker_async(
         self,
@@ -1461,6 +1643,7 @@ class Searcher:
         Используйте agentic_code_search_async() для async контекста.
         """
         import asyncio
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -1468,18 +1651,27 @@ class Searcher:
 
         if loop and loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
                     asyncio.run,
                     self.agentic_code_search_async(
-                        query, symbol_index, max_subqueries, limit_per_subquery, max_total_results
-                    )
+                        query,
+                        symbol_index,
+                        max_subqueries,
+                        limit_per_subquery,
+                        max_total_results,
+                    ),
                 )
                 return future.result(timeout=60)
         else:
             return asyncio.run(
                 self.agentic_code_search_async(
-                    query, symbol_index, max_subqueries, limit_per_subquery, max_total_results
+                    query,
+                    symbol_index,
+                    max_subqueries,
+                    limit_per_subquery,
+                    max_total_results,
                 )
             )
 
@@ -1516,7 +1708,9 @@ class Searcher:
         search_metadata = {
             "original_query": query,
             "subqueries": subqueries,
-            "decomposition_method": "llm" if len(subqueries) >= 2 and subqueries != [query] else "rules",
+            "decomposition_method": "llm"
+            if len(subqueries) >= 2 and subqueries != [query]
+            else "rules",
             "subquery_results_count": {},
             "relations": None,
             "total_unique": 0,
@@ -1536,7 +1730,9 @@ class Searcher:
         try:
             # Создаём задачи для параллельного выполнения
             tasks = [
-                self.hybrid_search_async(sq, limit=limit_per_subquery, use_rrf=True, expand=True)
+                self.hybrid_search_async(
+                    sq, limit=limit_per_subquery, use_rrf=True, expand=True
+                )
                 for sq in subqueries
             ]
 
@@ -1546,7 +1742,9 @@ class Searcher:
             # Обрабатываем результаты
             for sq, sq_results in zip(subqueries, results_list):
                 if isinstance(sq_results, Exception):
-                    logger.warning(f"Поиск подзапроса '{sq[:30]}' дал ошибку: {sq_results}")
+                    logger.warning(
+                        f"Поиск подзапроса '{sq[:30]}' дал ошибку: {sq_results}"
+                    )
                     subquery_results[sq] = []
                     search_metadata["subquery_results_count"][sq[:40]] = 0
                 else:
@@ -1555,7 +1753,9 @@ class Searcher:
 
         except Exception as e:
             # Fallback: последовательный поиск при ошибке
-            logger.warning(f"asyncio.gather ошибка ({e}), fallback на последовательный поиск")
+            logger.warning(
+                f"asyncio.gather ошибка ({e}), fallback на последовательный поиск"
+            )
             for sq in subqueries:
                 sq_results = await self.hybrid_search_async(
                     sq, limit=limit_per_subquery, use_rrf=True, expand=True
@@ -1570,7 +1770,9 @@ class Searcher:
             logger.info("⚠️ Декомпозиция не дала результатов, fallback на обычный поиск")
             search_metadata["fallback_used"] = True
             results = await self.hybrid_search_async(query, limit=max_total_results)
-            search_metadata["subquery_results_count"][f"[fallback] {query[:40]}"] = len(results)
+            search_metadata["subquery_results_count"][f"[fallback] {query[:40]}"] = len(
+                results
+            )
             return results, search_metadata
 
         # Шаг 3: Дедупликация и сборка результатов
@@ -1630,7 +1832,9 @@ class Searcher:
             )
 
             if not results:
-                return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                return _(
+                    "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                )
 
             output_lines = [
                 f"🧠 Agentic Deep Search: найдено {len(results)} результатов "
@@ -1658,4 +1862,4 @@ class Searcher:
             return "".join(output_lines)
         except Exception as e:
             logger.error(f"Ошибка agentic_deep_search: {e}", exc_info=True)
-            return f"❌ Ошибка глубокого поиска: {str(e)}"
+            return _("❌ Ошибка глубокого поиска: {error}", error=str(e))

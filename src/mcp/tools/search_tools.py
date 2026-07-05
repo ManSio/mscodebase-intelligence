@@ -19,6 +19,7 @@ from src.core.indexer import Indexer
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
+from src.utils.i18n import _
 from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
@@ -115,12 +116,12 @@ class SearchCodeTool(MCPTool):
         await self.require_ready_project()
 
         if not query or not query.strip():
-            return "❌ Query is empty"
+            return _("❌ Query is empty")
 
         # === Project header ===
         project_header = self._project_header()
         if filter_layer:
-            project_header += f"\n🔬 Layer filter: {filter_layer}"
+            project_header += _("\n🔬 Layer filter: {layer}", layer=filter_layer)
 
         result_str: str
         results_count: int = 0
@@ -263,16 +264,26 @@ class GetSymbolInfoTool(MCPTool):
             defs = call_graph["definition"]
             callers = call_graph["callers"][:15]
             callees = call_graph["callees"][:10]
-            result = f"🔍 **{query}** — {len(defs)} определение, {len(callers)} caller'ов, {len(callees)} callee\n\n"
+            result = _(
+                "🔍 **{query}** — {defs} определение, {callers} caller'ов, {callees} callee\n\n",
+                query=query,
+                defs=len(defs),
+                callers=len(callers),
+                callees=len(callees),
+            )
             if defs:
                 d = defs[0]
-                result += f"📄 Определение: `{d.get('file', '?')}` строка {d.get('line', '?')}\n"
+                result += _(
+                    "📄 Определение: `{file}` строка {line}\n",
+                    file=d.get("file", "?"),
+                    line=d.get("line", "?"),
+                )
             if callers:
-                result += f"\n⬆️ **Вызывается из:**\n"
+                result += _("\n⬆️ **Вызывается из:**\n")
                 for c in callers[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
             if callees:
-                result += f"\n⬇️ **Вызывает:**\n"
+                result += _("\n⬇️ **Вызывает:**\n")
                 for c in callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
             return result
@@ -280,19 +291,22 @@ class GetSymbolInfoTool(MCPTool):
         # Fallback: поиск по имени
         results = self.resolve_symbol_index().search_symbols(query)
         if not results:
-            return f"ℹ️ **{query}** — не найден\n"
+            return _("ℹ️ **{query}** — не найден\n", query=query)
 
         defs = [r for r in results if getattr(r, "is_definition", False)]
         usages = [r for r in results if not getattr(r, "is_definition", False)]
-        result = (
-            f"🔍 **{query}** — {len(defs)} определений, {len(usages)} использований\n\n"
+        result = _(
+            "🔍 **{query}** — {defs} определений, {usages} использований\n\n",
+            query=query,
+            defs=len(defs),
+            usages=len(usages),
         )
         if defs:
-            result += "📄 **Определения:**\n"
+            result += _("📄 **Определения:**\n")
             for d in defs[:5]:
                 result += f"   • `{d.file_path}` строка {d.line} ({d.kind})\n"
         if usages:
-            result += f"\n📎 **Использования:**\n"
+            result += _("\n📎 **Использования:**\n")
             for u in usages[:5]:
                 result += f"   • `{u.file_path}` строка {u.line}\n"
         return result
@@ -329,7 +343,7 @@ class ImpactAnalysisTool(MCPTool):
             )
             return {
                 "status": "warning",
-                "message": f"Symbol '{symbol}' not found in index",
+                "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
             }
 
         callers = len(result.get("direct_callers", []))

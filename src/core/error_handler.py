@@ -24,6 +24,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from src.utils.i18n import _
+
 logger = logging.getLogger("mscodebase_server.error_handler")
 
 # ══════════════════════════════════════════════════════════
@@ -426,13 +428,13 @@ def _format_error_response(
 ) -> str:
     """Форматирует Markdown-ответ с ошибкой."""
     icon = "🔴" if status in ("error", "critical") else "🟡"
-    lines = [f"{icon} **{status.title()}:** {message}"]
+    lines = [_(f"{icon} **{status.title()}:** {message}")]
     if detail:
-        lines.append(f"  • **Detail:** {detail}")
+        lines.append(_(f"  • **Detail:** {detail}"))
     if recovery_hint:
-        lines.append(f"  💡 **Hint:** {recovery_hint}")
+        lines.append(_(f"  💡 **Hint:** {recovery_hint}"))
     if latency_ms is not None:
-        lines.append(f"  ⏱ `{latency_ms}ms`")
+        lines.append(_(f"  ⏱ `{latency_ms}ms`"))
     return "\n".join(lines)
 
 
@@ -655,7 +657,7 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
         return data
     if isinstance(data, list):
         items = "\n".join(f"  • {item}" for item in data)
-        return f"✅ **Completed** ({latency_ms}ms)\n{items}\n"
+        return _(f"✅ **Completed** ({latency_ms}ms)\n{items}\n")
     if isinstance(data, dict):
         data.pop("status", None)
         data.pop("latency_ms", None)
@@ -690,9 +692,9 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
         lines = []
         for k, v in data.items():
             key = str(k).replace("_", " ")
-            lines.append(f"  • {key}: {_format_value(v)}")
+            lines.append(_(f"  • {key}: {_format_value(v)}"))
 
-        return f"✅ **Completed** ({latency_ms}ms)\n" + "\n".join(lines) + "\n"
+        return _(f"✅ **Completed** ({latency_ms}ms)\n" + "\n".join(lines) + "\n")
     return json.dumps(
         {
             "status": "ok",

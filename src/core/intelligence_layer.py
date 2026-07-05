@@ -31,7 +31,7 @@ from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 
 logger = logging.getLogger("MSCodeBase.Intelligence")
-
+from src.utils.i18n import _
 
 # =====================================================================
 # ХРАНИЛИЩА ДАННЫХ ДЛЯ PROJECT MEMORY И INCIDENTS (Блоки 3, 4)
@@ -558,7 +558,7 @@ class ProjectIntelligenceLayer:
         incidents.append(new_incident)
         self.store.save_incidents(incidents)
         logger.info(f"Инцидент {incident_id} записан: {component} — {symptom[:50]}...")
-        return f"Инцидент {incident_id} сохранён."
+        return _("Инцидент {incident_id} сохранён.", incident_id=incident_id)
 
     async def intel_analyze_incident(self, error_message: str) -> Dict[str, Any]:
         """Находит аналогичные инциденты по тексту ошибки."""
@@ -603,12 +603,15 @@ class ProjectIntelligenceLayer:
         Секции: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
         """
         if section not in ("adrs", "known_issues", "tech_debt", "failed_attempts"):
-            return f"Неизвестная секция: {section}. Допустимые: adrs, known_issues, tech_debt, failed_attempts"
+            return _(
+                "Неизвестная секция: {section}. Допустимые: adrs, known_issues, tech_debt, failed_attempts",
+                section=section,
+            )
 
         try:
             data = json.loads(data_json)
         except json.JSONDecodeError as e:
-            return f"Ошибка парсинга JSON: {e}"
+            return _("Ошибка парсинга JSON: {e}", e=e)
 
         async with self._write_lock:
             nodes = self.store._load_json("project_memory.json")
@@ -636,7 +639,11 @@ class ProjectIntelligenceLayer:
         nodes.append(new_node)
         self.store._save_json("project_memory.json", nodes)
         logger.info(f"Запись {new_node['node_id']} добавлена в {section}")
-        return f"Запись {new_node['node_id']} добавлена в раздел '{section}'."
+        return _(
+            "Запись {node_id} добавлена в раздел '{section}'.",
+            node_id=new_node["node_id"],
+            section=section,
+        )
 
     # -----------------------------------------------------------------
     # БЛОК 5. Hotspot Engine (Зоны высокого риска)
@@ -1025,7 +1032,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         """
         job = job_manager.get_job(job_id)
         if not job:
-            return f"ℹ️ **Job {job_id}** — не найдена\n"
+            return _("ℹ️ **Job {job_id}** — не найдена\n", job_id=job_id)
         enriched = _enrich_job_response(job)
         status_icon = (
             "✅"
