@@ -151,20 +151,8 @@ class Indexer:
             # ранее при kill -9 между drop_table и create_table вся база терялась.
             existing_fields = [f.name for f in self.table.schema]
             if "text_full" not in existing_fields:
-                logger.warning("⚠️ Миграция: добавляем text_full через add_columns")
-                try:
-                    # add_columns стремится доолнить схему без пересоздания.
-                    # Для колонок с дефолтом — безопасно даже на непустой таблице.
-                    self.table.add_columns(
-                        {"text_full": "コピー..."}
-                    ) if False else self._migrate_text_full_inplace()
-                except Exception as mig_err:
-                    logger.error(
-                        f"❌ Миграция add_columns провалилась: {mig_err}. "
-                        f"Пробую fallback через текст."
-                    )
-                    # Fallback: при следующем _index_single_file text_full
-                    # будет перезаписан — это безопасно, данные не теряются.
+                logger.warning("⚠️ Миграция: добавляем text_full через _migrate_text_full_inplace")
+                self._migrate_text_full_inplace()
 
             # Миграция: Metadata Enrichment (v2.4.3+)
             self._migrate_add_metadata_columns(existing_fields)
@@ -390,58 +378,91 @@ class Indexer:
     def _migrate_add_metadata_columns(self, existing_fields: list) -> None:
         """Мигрирует Metadata Enrichment колонки (v2.4.3+).
 
-        Добавляет поля layer, module_name, hierarchy_level, is_public,
-        symbol_type, parent_id в существующую таблицу без drop_table.
-        Старые чанки получают пустые значения — заполнятся при
-        следующей переиндексации.
+        Пытается добавить поля layer, module_name, hierarchy_level, is_public,
+        symbol_type, parent_id в существующую таблицу.
+        Использует две стратегии:
+        1. add_columns — быстрая миграция без чтения данных.
+           Работает в LanceDB < 0.30. На 0.33+ падает с SQL parser error
+           из-за неэкранирования строковых значений по умолчанию.
+        2. read-drop-recreate — если add_columns не сработал,
+           пересоздаёт таблицу с полной схемой.
         """
-        # Колонки для добавления с их значениями по умолчанию
-        metadata_columns = {
-            "layer": "",
-            "module_name": "",
-            "hierarchy_level": "other",
-            "symbol_type": "",
-            "parent_id": "",
-        }
-        # is_public — bool, добавляем отдельно
-        bool_columns = {"is_public": False}
+        # Проверяем, каких колонок не хватает
+        string_columns = ["layer", "module_name", "hierarchy_level", "symbol_type", "parent_id"]
+        bool_columns = ["is_public"]
+        missing = [c for c in string_columns + bool_columns if c not in existing_fields]
+        if not missing:
+            return  # Все колонки уже есть
 
-        if not hasattr(self.table, "add_columns"):
-            logger.warning(
-                "add_columns недоступен — метаданные появятся только "
-                "после пересоздания таблицы"
-            )
-            return
+        logger.info(f"📦 Миграция metadata: не хватает {len(missing)} колонок: {missing}")
 
-        # Добавляем строковые колонки
-        for col_name, default_val in metadata_columns.items():
-            if col_name not in existing_fields:
-                try:
-                    self.table.add_columns({col_name: default_val})
-                    logger.info(f"📦 Миграция: добавлена колонка {col_name}")
-                except TypeError:
-                    # Старая сигнатура без значения
+        # Стратегия 1: add_columns (для LanceDB < 0.33)
+        if hasattr(self.table, "add_columns"):
+            all_ok = True
+            for col in string_columns:
+                if col not in existing_fields:
                     try:
-                        self.table.add_columns({col_name: "string"})
-                        logger.info(f"📦 Миграция: добавлена колонка {col_name} (type)")
-                    except Exception as e2:
-                        logger.warning(f"Миграция {col_name}: {e2}")
-                except Exception as e:
-                    logger.warning(f"Миграция {col_name}: {e}")
-
-        # Добавляем bool-колонку
-        if "is_public" not in existing_fields:
-            try:
-                self.table.add_columns(bool_columns)
-                logger.info("📦 Миграция: добавлена колонка is_public (bool)")
-            except TypeError:
+                        self.table.add_columns({col: "string"})
+                        logger.info(f"📦 Миграция: добавлена колонка {col}")
+                    except Exception as e:
+                        logger.debug(f"add_columns({col}) не сработал: {e}")
+                        all_ok = False
+                        break
+            if all_ok and "is_public" not in existing_fields:
                 try:
                     self.table.add_columns({"is_public": "bool"})
-                    logger.info("📦 Миграция: добавлена колонка is_public (type)")
-                except Exception as e2:
-                    logger.warning(f"Миграция is_public: {e2}")
-            except Exception as e:
-                logger.warning(f"Миграция is_public: {e}")
+                    logger.info("📦 Миграция: добавлена колонка is_public")
+                except Exception as e:
+                    logger.debug(f"add_columns(is_public) не сработал: {e}")
+                    all_ok = False
+            if all_ok:
+                logger.info("📦 Миграция metadata через add_columns завершена")
+                return
+
+        # Стратегия 2: read-drop-recreate (надёжно для всех версий LanceDB)
+        logger.info("📦 Миграция metadata: читаем существующие данные...")
+        try:
+            old_df = self.table.to_pandas()
+            logger.info(f"📦 Миграция: прочитано {len(old_df)} чанков")
+
+            # Восстанавливаем отсутствующие поля с пустыми значениями
+            for col in string_columns:
+                if col not in old_df.columns:
+                    old_df[col] = ""
+            if "is_public" not in old_df.columns:
+                old_df["is_public"] = False
+
+            # Пересоздаём таблицу с полной схемой
+            self.db.drop_table(self.table_name)
+            self.table = self.db.create_table(self.table_name, schema=self.schema)
+
+            # Конвертируем DataFrame в список словарей
+            records = []
+            for _, row in old_df.iterrows():
+                records.append({
+                    "id": str(row["id"]),
+                    "vector": row["vector"],
+                    "text": str(row["text"]),
+                    "text_full": str(row.get("text_full", row["text"])),
+                    "file_path": str(row["file_path"]),
+                    "file_hash": str(row.get("file_hash", "")),
+                    "chunk_index": int(row.get("chunk_index", 0)),
+                    "source": str(row.get("source", "filesystem")),
+                    "indexed_at": str(row.get("indexed_at", "")),
+                    "summary": str(row.get("summary", "")),
+                    "layer": str(row.get("layer", "")),
+                    "module_name": str(row.get("module_name", "")),
+                    "hierarchy_level": str(row.get("hierarchy_level", "")),
+                    "is_public": bool(row.get("is_public", False)),
+                    "symbol_type": str(row.get("symbol_type", "")),
+                    "parent_id": str(row.get("parent_id", "")),
+                })
+
+            self.table.add(records)
+            logger.info(f"📦 Миграция metadata завершена: {len(records)} чанков пересозданы с полной схемой")
+        except Exception as e:
+            logger.error(f"❌ Миграция metadata провалилась: {e}. "
+                         f"Метаданные появятся после полной переиндексации.")
 
     def _index_single_file(
         self,

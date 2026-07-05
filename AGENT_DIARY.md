@@ -1,5 +1,75 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 22:30] — [Type: Bugfix] — LanceDB metadata migration fix + Zed Windows quirks docs
+
+**Problem:**
+1. `_migrate_add_metadata_columns()` в indexer.py падал с LanceDB 0.33 SQL parser error —
+   `add_columns` не экранирует строковые литералы. Metadata-колонки (layer,
+   module_name, hierarchy_level, is_public, symbol_type, parent_id) не добавлялись
+   в существующую таблицу.
+2. `_migrate_table()` в index_guard.py создавал таблицу со СТАРОЙ схемой — без
+   metadata-полей. При read-drop-recreate терялись metadata-колонки.
+3. `.env` содержал мёртвые переменные (AUTO_INDEX, WATCH_ENABLED, POLL_INTERVAL,
+   HEARTBEAT_INTERVAL, TOP_K_RESULTS, SEARCH_LIMIT, CHROMA_BATCH_SIZE, и др.),
+   которые код не читает. Реальные ключи другие (DEFAULT_SEARCH_LIMIT,
+   INDEX_BATCH_SIZE и т.д.)
+4. Restricted Mode в Zed блокирует LSP/MCP для новых проектов — причина пустого
+   bridge и fallback на ext_root.
+
+**Solution:**
+1. `_migrate_add_metadata_columns` — двухфазная стратегия: add_columns →
+   если не сработало, read-drop-recreate с полной схемой (16 колонок)
+2. `_migrate_table()` в index_guard.py — schema обновлена до 16 полей,
+   records.append включает metadata с `.get()` default-ами
+3. Убран dead code (`if False` в text_full миграции)
+4. `.env.example` — полный список реальных env-ключей из config.py
+5. `.env` — только реально используемые переменные
+6. `ZED_WINDOWS_QUIRKS.md` — документ о Restricted Mode, SQLite fallback,
+   CWD=ZedDir, LSP init timeout, UNC paths
+
+**Files Changed:** src/core/indexer.py, src/core/index_guard.py, .env, .env.example
+**Files Created:** ZED_WINDOWS_QUIRKS.md
+
+**Status:** ✅
+
+---
+
+## [2026-07-05 21:00] — [Type: Feature] — Per-tool telemetry counters
+
+**Problem:** Нет per-tool метрик — сколько раз вызван каждый инструмент,
+средняя задержка, количество ошибок. Telemetry собирается только внешним
+скриптом, без интеграции в процесс.
+
+**Solution:** Добавлен _TOOL_METRICS в error_handler.py:
+- record_tool_call() вызывается из ВСЕХ 6 точек выхода error_boundary
+- get_tool_metrics() / get_tool_metrics_summary() для чтения
+- Thread-safe через threading.Lock
+
+**Files Changed:** src/core/error_handler.py (+64 строк)
+**Commit:** 2a13e2e
+
+**Status:** ✅
+
+---
+
+## [2026-07-05 20:00] — [Type: Bugfix] — Missing import threading — LSP crash → bridge fail → self-indexing
+
+**Problem:** LSP падал при старте с `NameError: name 'threading' is not defined`.
+Без LSP bridge-файл не писался. MCP resolve_project_root() падал в fallback
+на ext_root. Расширение индексировало само себя вместо проекта пользователя.
+
+**Root Cause:** `_workspace_lock = threading.Lock()` (строка 89) без `import threading`.
+Баг был внесён при рефакторинге multi-window LSP (INC-6BCB).
+
+**Fix:** Добавлен `import threading`. Исправлен SyntaxWarning `\D` в docstring.
+
+**Files Changed:** src/lsp_main.py (+3/-2)
+**Commit:** 2eb8c83
+
+**Status:** ✅ (нужен рестарт Zed)
+
+---
+
 ## [2026-07-05 19:00] — [Type: Feature] — Layer Filtering + Multi-granularity Retrieval — v2.4.4
 
 **Problem:** search_code не мог фильтровать по архитектурному слою. Поиск

@@ -227,6 +227,13 @@ class IndexGuard:
                     "source": str(row.get("source", "filesystem")),
                     "indexed_at": str(row.get("indexed_at", "")),
                     "summary": str(row.get("summary", "")),
+                    # Metadata Enrichment (v2.4.3+) — пустые для старых чанков
+                    "layer": str(row.get("layer", "")),
+                    "module_name": str(row.get("module_name", "")),
+                    "hierarchy_level": str(row.get("hierarchy_level", "")),
+                    "is_public": bool(row.get("is_public", False)),
+                    "symbol_type": str(row.get("symbol_type", "")),
+                    "parent_id": str(row.get("parent_id", "")),
                 })
 
             new_table = db.create_table(
@@ -242,10 +249,17 @@ class IndexGuard:
                     pa.field("source", pa.string()),
                     pa.field("indexed_at", pa.string()),
                     pa.field("summary", pa.string()),
+                    # Metadata Enrichment (v2.4.3+)
+                    pa.field("layer", pa.string()),
+                    pa.field("module_name", pa.string()),
+                    pa.field("hierarchy_level", pa.string()),
+                    pa.field("is_public", pa.bool_()),
+                    pa.field("symbol_type", pa.string()),
+                    pa.field("parent_id", pa.string()),
                 ]),
             )
             new_table.add(records)
-            logger.info(f"Migrated {len(records)} records to new schema")
+            logger.info(f"Migrated {len(records)} records to new schema with metadata columns")
             return True
 
         except Exception as e:
