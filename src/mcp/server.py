@@ -519,15 +519,45 @@ def create_mcp_server() -> "FastMCP":
                 return
             files = list(bridge_dir.glob("*.json"))
             if not files:
-                logger.critical(
-                    "🌉 BRIDGE: НЕТ JSON-ФАЙЛОВ — LSP НЕ ЗАПИСАЛ project_root!\n"
-                    "  Причины:\n"
-                    "  1. LSP-сервер 'mscodebase-lsp' не настроен в settings.json\n"
-                    "  2. LSP падает при старте (проверь: intel_get_runtime_status)\n"
-                    "  3. Файлы Python не открыты — LSP стартует только при\n"
-                    "     открытии .py/.rs/... файла в редакторе\n"
-                    "  До исправления: проект определён как ext_root (self-indexing)"
-                )
+                # Проверка: может Restricted Mode?
+                _restricted = False
+                try:
+                    _db_p = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "db" / "0-stable" / "db.sqlite"
+                    if _db_p.exists():
+                        import sqlite3
+                        _c = sqlite3.connect(str(_db_p))
+                        _c.row_factory = sqlite3.Row
+                        _cur = _c.cursor()
+                        _cur.execute("SELECT paths FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC LIMIT 1")
+                        _w = _cur.fetchone()
+                        if _w and _w[0]:
+                            _proj = _w[0].split(",")[0].strip()
+                            _cur.execute("SELECT COUNT(*) as cnt FROM trusted_worktrees WHERE ? LIKE absolute_path || '%'", (_proj,))
+                            if _cur.fetchone()["cnt"] == 0:
+                                _restricted = True
+                        _c.close()
+                except Exception:
+                    pass
+
+                if _restricted:
+                    logger.critical(
+                        "🌉 BRIDGE: НЕТ JSON-ФАЙЛОВ — LSP НЕ ЗАПУЩЕН!\n"
+                        "  Причина: Zed Restricted Mode (Ограниченный режим).\n"
+                        "  Проект не добавлен в доверенные.\n"
+                        "  Решение:\n"
+                        "    Открой проект → нажми 'Trust and Continue'\n"
+                        "  Или выполни это в терминале:\n"
+                    )
+                else:
+                    logger.critical(
+                        "🌉 BRIDGE: НЕТ JSON-ФАЙЛОВ — LSP НЕ ЗАПИСАЛ project_root!\n"
+                        "  Причины:\n"
+                        "  1. LSP-сервер 'mscodebase-lsp' не настроен в settings.json\n"
+                        "  2. LSP падает при старте (проверь: intel_get_runtime_status)\n"
+                        "  3. Файлы Python не открыты — LSP стартует только при\n"
+                        "     открытии .py/.rs/... файла в редакторе\n"
+                        "  До исправления: проект определён как ext_root (self-indexing)"
+                    )
             else:
                 logger.warning(
                     f"🌉 BRIDGE: {len(files)} файл(ов) есть, но ни один не "
