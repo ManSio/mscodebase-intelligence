@@ -99,3 +99,4 @@ __manifest/
 codebase_chunks.lance/
 .index_guard.json
 target/
+.mscodebase/telemetry/
