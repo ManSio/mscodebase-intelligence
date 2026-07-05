@@ -41,5 +41,7 @@
   "📄 **Определения:**\\n": "📄 **Definitions:**\\n",
   "🔍 Похожий код не найден.": "🔍 Similar code not found.",
   "🔥 **Топ рисков**\\n\\n": "🔥 **Top risks**\\n\\n",
-  "🧠 **Project Memory**\\n\\n": "🧠 **Project Memory**\\n\\n"
+  "🧠 **Project Memory**\\n\\n": "🧠 **Project Memory**\\n\\n",
+  "📋 Логи чисты — ошибок и предупреждений не обнаружено.": "📋 Logs clean — no errors or warnings found.",
+  "📋 Последние {count} ошибок/предупреждений:\n": "📋 Last {count} errors/warnings:\n"
 }

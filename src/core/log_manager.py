@@ -246,10 +246,12 @@ def get_log_summary(project_path: Path) -> str:
     """
     errors = get_recent_errors(project_path, limit=10)
 
-    if not errors:
-        return "📋 Логи чисты — ошибок и предупреждений не обнаружено."
+    from src.utils.i18n import _
 
-    lines = [f"📋 Последние {len(errors)} ошибок/предупреждений:\n"]
+    if not errors:
+        return _("📋 Логи чисты — ошибок и предупреждений не обнаружено.")
+
+    lines = [_("📋 Последние {count} ошибок/предупреждений:\n", count=len(errors))]
 
     for err in errors:
         level_icon = "🔴" if err.get("level") == "ERROR" else "🟡"
