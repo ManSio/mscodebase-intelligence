@@ -187,39 +187,39 @@ class SearchCodeTool(MCPTool):
             return searcher.search(query, limit=6)
 
     @staticmethod
-    def _format_results(result: dict, mode: str, project_header: str = "") -> str:
-        def _format_results(
-            self,
-            result: Dict[str, Any],
-            mode: str,
-            project_header: str = "",
-        ) -> str:
-            """Форматирует результаты поиска через единый UI-форматтер."""
-            results = result.get("results", [])
-            timing = result.get("timing_ms", {})
-            exec_ms = timing.get("total_ms", 0)
+    def _format_results(result: Any, mode: str, project_header: str = "") -> str:
+        """Форматирует результаты поиска через единый UI-форматтер."""
+        # Если search вернул ошибку (строка) — возвращаем как есть
+        if isinstance(result, str):
+            return (project_header + "\n" + result) if project_header else result
 
-            query = result.get("query", f"mode={mode}")
+        # Если не dict — ничего не делаем
+        if not isinstance(result, dict):
+            return project_header
 
-            # Конвертируем внутрений формат результатов в формат ui_formatter
-            ui_items = []
-            for r in results:
-                meta = r.get("metadata", {})
-                ui_items.append(
-                    {
-                        "file_path": meta.get("file", r.get("file_path", "")),
-                        "start_line": meta.get(
-                            "start_line", meta.get("chunk_index", "")
-                        ),
-                        "text": r.get("text_full", r.get("text", "")),
-                        "layer": meta.get("layer", ""),
-                        "score": r.get("final_score", r.get("score", 0)),
-                    }
-                )
+        results = result.get("results", [])
+        timing = result.get("timing_ms", {})
+        exec_ms = timing.get("total_ms", 0)
 
-            output = project_header + "\n" if project_header else ""
-            output += format_search_code(query, ui_items, exec_ms, mode)
-            return output
+        query = result.get("query", f"mode={mode}")
+
+        # Конвертируем внутрений формат результатов в формат ui_formatter
+        ui_items = []
+        for r in results:
+            meta = r.get("metadata", {})
+            ui_items.append(
+                {
+                    "file_path": meta.get("file", r.get("file_path", "")),
+                    "start_line": meta.get("start_line", meta.get("chunk_index", "")),
+                    "text": r.get("text_full", r.get("text", "")),
+                    "layer": meta.get("layer", ""),
+                    "score": r.get("final_score", r.get("score", 0)),
+                }
+            )
+
+        output = project_header + "\n" if project_header else ""
+        output += format_search_code(query, ui_items, exec_ms, mode)
+        return output
 
 
 class GetSymbolInfoTool(MCPTool):

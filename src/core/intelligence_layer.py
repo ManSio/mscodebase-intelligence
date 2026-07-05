@@ -14,20 +14,20 @@ MSCodeBase Intelligence Layer — Интеллектуальный слой дл
 
 import asyncio
 import json
+import logging
 import os
 import time
 import uuid
-import logging
-from typing import Dict, Any, List, Optional
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, asdict, field
+from typing import Any, Dict, List, Optional
 
 # Импортируем модули ядра и глобальные настройки
 from src.core.config import settings
 from src.core.indexer import Indexer
+from src.core.parser import CodeParser
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
-from src.core.parser import CodeParser
 
 logger = logging.getLogger("MSCodeBase.Intelligence")
 
@@ -36,9 +36,11 @@ logger = logging.getLogger("MSCodeBase.Intelligence")
 # ХРАНИЛИЩА ДАННЫХ ДЛЯ PROJECT MEMORY И INCIDENTS (Блоки 3, 4)
 # =====================================================================
 
+
 @dataclass
 class Incident:
     """Инцидент или баг в проекте."""
+
     incident_id: str
     timestamp: str
     component: str
@@ -51,6 +53,7 @@ class Incident:
 @dataclass
 class MemoryNode:
     """Узел проектной памяти."""
+
     node_id: str
     section: str  # 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
     timestamp: str
@@ -98,11 +101,21 @@ class IntelligenceStore:
         data = self._load_json("project_memory.json")
         if isinstance(data, dict):
             # Старый формат: {"adrs": [...], "known_issues": [...]}
-            sections = {"adrs": [], "known_issues": [], "tech_debt": [], "failed_attempts": []}
+            sections = {
+                "adrs": [],
+                "known_issues": [],
+                "tech_debt": [],
+                "failed_attempts": [],
+            }
             sections.update({k: v for k, v in data.items() if k in sections})
             return sections
         # Новый формат: список узлов с полем "section"
-        sections = {"adrs": [], "known_issues": [], "tech_debt": [], "failed_attempts": []}
+        sections = {
+            "adrs": [],
+            "known_issues": [],
+            "tech_debt": [],
+            "failed_attempts": [],
+        }
         for n in data:
             if isinstance(n, dict):
                 sec = n.get("section", "")
@@ -118,9 +131,11 @@ class IntelligenceStore:
 # ФОНОВЫЕ ЗАДАЧИ (Блоки 1-6)
 # =====================================================================
 
+
 @dataclass
 class BackgroundJob:
     """Фоновая задача с отслеживанием прогресса."""
+
     job_id: str
     type: str
     status: str  # "pending", "running", "completed", "failed"
@@ -150,7 +165,7 @@ class JobManager:
             type=job_type,
             status="pending",
             progress=0.0,
-            started_at=time.time()
+            started_at=time.time(),
         )
         logger.debug(f"Создана фоновая задача {job_id}: {job_type}")
         return job_id
@@ -163,7 +178,8 @@ class JobManager:
         """Удаляет старые завершённые задачи (защита от memory leak)."""
         now = time.time()
         to_remove = [
-            jid for jid, job in self.jobs.items()
+            jid
+            for jid, job in self.jobs.items()
             if job.status in ("completed", "failed")
             and now - job.started_at > max_age_seconds
         ]
@@ -181,6 +197,7 @@ job_manager = JobManager()
 # =====================================================================
 # ОСНОВНОЙ СЛОЙ ПРОЕКТНОГО ИНТЕЛЛЕКТА
 # =====================================================================
+
 
 class ProjectIntelligenceLayer:
     """Интеллектуальный слой проекта.
@@ -231,12 +248,14 @@ class ProjectIntelligenceLayer:
         """
         try:
             from src.mcp.tools.base import _is_self_index_path
+
             if not _is_self_index_path(self.indexer.project_path):
                 return self.indexer
             # Self-indexing — ищем non-self-indexing в реестре.
             if self._services is None:
                 return self.indexer
             from src.core.di_container import ProjectIndexerRegistry
+
             registry = self._services.resolve(ProjectIndexerRegistry)
             with registry._meta_lock:
                 for p, idx in registry._indexers.items():
@@ -261,13 +280,10 @@ class ProjectIntelligenceLayer:
         result = {
             "symbol": symbol_name,
             "latency_ms": 0,
-            "call_graph": {
-                "incoming_callers": [],
-                "outgoing_callees": []
-            },
+            "call_graph": {"incoming_callers": [], "outgoing_callees": []},
             "references_count": 0,
             "definitions_count": 0,
-            "static_analysis": {}
+            "static_analysis": {},
         }
 
         start = time.perf_counter()
@@ -282,12 +298,14 @@ class ProjectIntelligenceLayer:
                 result["definitions_count"] = len(defs)
                 for d in defs:
                     if "file" in d and "line" in d:
-                        result["call_graph"]["outgoing_callees"].append({
-                            "symbol": d.get("name", symbol_name),
-                            "file": d["file"],
-                            "line": d["line"],
-                            "kind": "definition"
-                        })
+                        result["call_graph"]["outgoing_callees"].append(
+                            {
+                                "symbol": d.get("name", symbol_name),
+                                "file": d["file"],
+                                "line": d["line"],
+                                "kind": "definition",
+                            }
+                        )
 
             # Получаем граф вызовов (кто вызывает наш символ)
             call_graph = sv.build_call_graph(symbol_name)
@@ -295,16 +313,24 @@ class ProjectIntelligenceLayer:
                 callers = call_graph.get("callers", [])
                 if callers:
                     result["call_graph"]["incoming_callers"] = [
-                        {"symbol": c.get("name", ""), "file": c.get("file", ""),
-                         "line": c.get("line", 0), "kind": "caller"}
+                        {
+                            "symbol": c.get("name", ""),
+                            "file": c.get("file", ""),
+                            "line": c.get("line", 0),
+                            "kind": "caller",
+                        }
                         for c in callers
                     ]
 
                 callees = call_graph.get("callees", [])
                 if callees:
                     result["call_graph"]["outgoing_callees"] = [
-                        {"symbol": c.get("name", ""), "file": c.get("file", ""),
-                         "line": c.get("line", 0), "kind": "callee"}
+                        {
+                            "symbol": c.get("name", ""),
+                            "file": c.get("file", ""),
+                            "line": c.get("line", 0),
+                            "kind": "callee",
+                        }
                         for c in callees
                     ]
 
@@ -315,7 +341,7 @@ class ProjectIntelligenceLayer:
                 result["static_analysis"] = {
                     "potential_dead_code": True,
                     "has_definition": True,
-                    "suggestion": "Символ определён но не используется"
+                    "suggestion": "Символ определён но не используется",
                 }
 
         except Exception as e:
@@ -337,43 +363,61 @@ class ProjectIntelligenceLayer:
         (LSP не успел записать bridge), ищет non-self-indexing в реестре.
         """
         try:
-            from src.core.remote_embedder import RemoteEmbedder
             from src.core.file_guard import FileGuard
+            from src.core.remote_embedder import RemoteEmbedder
 
             # INC-6BCB-v3.1: late-resolve.
             active_indexer = self._resolve_active_indexer()
-            status = active_indexer.get_status() if hasattr(active_indexer, "get_status") else {}
-            total_chunks = status.get("total_chunks", 0) if isinstance(status, dict) else 0
-            total_files = status.get("total_files", 0) if isinstance(status, dict) else 0
+            status = (
+                active_indexer.get_status()
+                if hasattr(active_indexer, "get_status")
+                else {}
+            )
+            total_chunks = (
+                status.get("total_chunks", 0) if isinstance(status, dict) else 0
+            )
+            total_files = (
+                status.get("total_files", 0) if isinstance(status, dict) else 0
+            )
 
             # Project path (может быть != self.project_path если был fallback).
-            active_path = str(active_indexer.project_path) if hasattr(active_indexer, "project_path") else "unknown"
+            active_path = (
+                str(active_indexer.project_path)
+                if hasattr(active_indexer, "project_path")
+                else "unknown"
+            )
 
             return {
                 "embedding_provider": "lm_studio",
                 "provider_status": {
                     "lm_studio_at_1234": "online",
                     "ollama_at_11434": "offline",
-                    "onnx_local_engine": "loaded_and_ready"
+                    "onnx_local_engine": "loaded_and_ready",
                 },
                 "project_path": active_path,  # INC-6BCB-v3.1: показываем active
                 "project_path_warning": (
-                    "Active indexer != default project_path (late-resolve)" +
-                    "; LSP bridge was empty at MCP startup"
-                ) if active_path != str(self.project_path) else None,
+                    "Active indexer != default project_path (late-resolve)"
+                    + "; LSP bridge was empty at MCP startup"
+                )
+                if active_path != str(self.project_path)
+                else None,
                 "index_telemetry": {
-                    "db_isolated_path": str(active_indexer.db_path) if hasattr(active_indexer, "db_path") else "unknown",
+                    "db_isolated_path": str(active_indexer.db_path)
+                    if hasattr(active_indexer, "db_path")
+                    else "unknown",
                     "index_healthy": total_chunks > 0,
                     "queue_depth": 0,
                     "total_chunks": total_chunks,
-                    "unique_files": status.get("unique_files", 0) if isinstance(status, dict) else 0,
+                    "unique_files": status.get("unique_files", 0)
+                    if isinstance(status, dict)
+                    else 0,
                     "total_files": total_files,
-                    "status": "active" if total_chunks > 0 else "empty"
+                    "status": "active" if total_chunks > 0 else "empty",
                 },
                 "resource_usage": {
                     "process_pid": os.getpid(),
-                    "async_loop_tasks": len(asyncio.all_tasks())
-                }
+                    "async_loop_tasks": len(asyncio.all_tasks()),
+                },
             }
         except Exception as e:
             logger.error(f"Ошибка получения статуса: {e}")
@@ -397,7 +441,9 @@ class ProjectIntelligenceLayer:
             if self._reindex_job_id:
                 existing = job_manager.get_job(self._reindex_job_id)
                 if existing and existing.status == "running":
-                    logger.info(f"Reindex уже запущен: {self._reindex_job_id}, возвращаем существующий")
+                    logger.info(
+                        f"Reindex уже запущен: {self._reindex_job_id}, возвращаем существующий"
+                    )
                     return self._reindex_job_id
 
             job_id = job_manager.create_job("full_reindex")
@@ -416,15 +462,19 @@ class ProjectIntelligenceLayer:
                 job.progress = 0.1
 
                 # Вызываем индексацию проекта
-                if hasattr(self.indexer, 'index_project'):
+                if hasattr(self.indexer, "index_project"):
                     from src.core.file_guard import FileGuard
+
                     project_file_guard = FileGuard(self.project_path)
                     self.indexer.file_guard = project_file_guard
 
                     # Если метод синхронный, запускаем в executor
                     loop = asyncio.get_event_loop()
+
                     # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..0.8)
-                    def _index_progress_callback(current_file, files_done, files_total, phase):
+                    def _index_progress_callback(
+                        current_file, files_done, files_total, phase
+                    ):
                         if files_total > 0:
                             ratio = files_done / files_total
                             job.progress = round(0.1 + ratio * 0.7, 2)
@@ -433,7 +483,7 @@ class ProjectIntelligenceLayer:
                         None,
                         self.indexer.index_project,
                         self.project_path,
-                        _index_progress_callback
+                        _index_progress_callback,
                     )
                     job.progress = 0.1
                     await future
@@ -444,7 +494,7 @@ class ProjectIntelligenceLayer:
                             None,
                             self.symbol_index.index_project,
                             self.project_path,
-                            CodeParser()
+                            CodeParser(),
                         )
                         job.progress = 0.8
                         await future_symbols
@@ -518,13 +568,15 @@ class ProjectIntelligenceLayer:
             symptom_words = set(symptom.lower().split())
             overlap = keywords & symptom_words
             if len(overlap) >= 2:
-                matches.append({
-                    "incident_id": inc["incident_id"],
-                    "symptom": symptom,
-                    "root_cause": root_cause,
-                    "fix": fix,
-                    "match_score": len(overlap) / max(len(keywords), 1),
-                })
+                matches.append(
+                    {
+                        "incident_id": inc["incident_id"],
+                        "symptom": symptom,
+                        "root_cause": root_cause,
+                        "fix": fix,
+                        "match_score": len(overlap) / max(len(keywords), 1),
+                    }
+                )
         matches.sort(key=lambda x: x["match_score"], reverse=True)
         return {
             "error_message": error_message,
@@ -559,12 +611,14 @@ class ProjectIntelligenceLayer:
             flat = []
             for sec_name, sec_items in nodes.items():
                 for item in sec_items:
-                    flat.append({
-                        "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
-                        "section": sec_name,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "data": item if isinstance(item, dict) else {"value": item}
-                    })
+                    flat.append(
+                        {
+                            "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
+                            "section": sec_name,
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "data": item if isinstance(item, dict) else {"value": item},
+                        }
+                    )
             nodes = flat
 
         new_node = {
@@ -597,15 +651,17 @@ class ProjectIntelligenceLayer:
 
             for bf in buggy_files:
                 file_path = bf.get("file", "unknown")
-                hotspots.append({
-                    "file": file_path,
-                    "bug_count": bf.get("bug_count", 0),
-                    "risk_score": bf.get("risk_score", 0.5),
-                    "metrics": {
-                        "complexity_tier": bf.get("complexity_tier", 3),
-                        "total_commits": bf.get("total_commits", 0),
-                    },
-                })
+                hotspots.append(
+                    {
+                        "file": file_path,
+                        "bug_count": bf.get("bug_count", 0),
+                        "risk_score": bf.get("risk_score", 0.5),
+                        "metrics": {
+                            "complexity_tier": bf.get("complexity_tier", 3),
+                            "total_commits": bf.get("total_commits", 0),
+                        },
+                    }
+                )
 
             return hotspots[:5]
 
@@ -617,10 +673,12 @@ class ProjectIntelligenceLayer:
     # БЛОК 6. Root Cause Engine (Предсказание причин сбоев)
     # -----------------------------------------------------------------
 
-    async def intel_predict_root_cause(self, error_message: str, component_context: Optional[str] = None) -> Dict[str, Any]:
+    async def intel_predict_root_cause(
+        self, error_message: str, component_context: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Предсказывает наиболее вероятную причину сбоя."""
-        from src.core.remote_embedder import RemoteEmbedder
         from src.core.health_report import HealthReport
+        from src.core.remote_embedder import RemoteEmbedder
 
         _start = time.perf_counter()
         candidates = []
@@ -632,25 +690,33 @@ class ProjectIntelligenceLayer:
         for inc in incidents:
             symptom = inc.get("symptom", "")
             if component_context and component_context in symptom:
-                candidates.append({
-                    "component": inc["component"],
-                    "probability": 0.75,
-                    "reason": f"Ранее был инцидент: {symptom}",
-                    "fix_applied": inc["fix"],
-                    "source": "incident_history"
-                })
+                candidates.append(
+                    {
+                        "component": inc["component"],
+                        "probability": 0.75,
+                        "reason": f"Ранее был инцидент: {symptom}",
+                        "fix_applied": inc["fix"],
+                        "source": "incident_history",
+                    }
+                )
 
         # 2. Проверяем показатели здоровья
         try:
-            health_report = health.run_full_diagnostic() if hasattr(health, "run_full_diagnostic") else {}
+            health_report = (
+                health.run_full_diagnostic()
+                if hasattr(health, "run_full_diagnostic")
+                else {}
+            )
             if health_report:
                 if health_report.get("overall_health") == "warning":
-                    candidates.append({
-                        "component": component_context or "system",
-                        "probability": 0.45,
-                        "reason": "Общее состояние системы: warning",
-                        "source": "health_report"
-                    })
+                    candidates.append(
+                        {
+                            "component": component_context or "system",
+                            "probability": 0.45,
+                            "reason": "Общее состояние системы: warning",
+                            "source": "health_report",
+                        }
+                    )
         except Exception:
             pass
 
@@ -660,24 +726,28 @@ class ProjectIntelligenceLayer:
             if hotspots and component_context:
                 for h in hotspots[:2]:
                     if component_context.lower() in h["file"].lower():
-                        candidates.append({
-                            "component": h["file"],
-                            "probability": 0.6,
-                            "reason": f"Файл входит в топ горячих точек (багов: {h['bug_count']})",
-                            "source": "hotspot_analysis"
-                        })
+                        candidates.append(
+                            {
+                                "component": h["file"],
+                                "probability": 0.6,
+                                "reason": f"Файл входит в топ горячих точек (багов: {h['bug_count']})",
+                                "source": "hotspot_analysis",
+                            }
+                        )
         except Exception:
             pass
 
         # 4. Если ничего не нашли — дефолтная эвристика
         if not candidates:
-            candidates.append({
-                "component": component_context or "unknown",
-                "probability": 0.30,
-                "reason": "Локальных совпадений в истории, рантайме и телеметрии не обнаружено. "
-                           "Рекомендуется проверить логи и контекст ошибки.",
-                "source": "default"
-            })
+            candidates.append(
+                {
+                    "component": component_context or "unknown",
+                    "probability": 0.30,
+                    "reason": "Локальных совпадений в истории, рантайме и телеметрии не обнаружено. "
+                    "Рекомендуется проверить логи и контекст ошибки.",
+                    "source": "default",
+                }
+            )
 
         # Сортируем кандидатов по вероятности
         candidates.sort(key=lambda x: x["probability"], reverse=True)
@@ -686,7 +756,7 @@ class ProjectIntelligenceLayer:
             "error_message": error_message,
             "component_context": component_context,
             "probable_causes": candidates[:3],
-            "analysis_time_ms": int((time.perf_counter() - _start) * 1000)
+            "analysis_time_ms": int((time.perf_counter() - _start) * 1000),
         }
 
     # -----------------------------------------------------------------
@@ -695,8 +765,9 @@ class ProjectIntelligenceLayer:
 
     async def intel_get_telemetry(self, days: int = 7) -> dict:
         """Возвращает телеметрию: runtime счётчики + per-tool метрики + ресурсы + LLM ping."""
-        from src.core.runtime_coordinator import get_counters as _get_rt
         from src.core.error_handler import get_tool_metrics_summary as _get_tools
+        from src.core.runtime_coordinator import get_counters as _get_rt
+
         _start = time.perf_counter()
 
         result = {
@@ -708,6 +779,7 @@ class ProjectIntelligenceLayer:
         # RAM / CPU
         try:
             from src.core.resource_monitor import get_global_resource_monitor
+
             _mon = get_global_resource_monitor()
             result["resources"] = _mon.get_summary()
         except Exception as _re:
@@ -716,6 +788,7 @@ class ProjectIntelligenceLayer:
         # LLM ping + model info + throughput
         try:
             from src.core.remote_embedder import RemoteEmbedder
+
             _emb = RemoteEmbedder()
             _t0 = time.perf_counter()
             _vec = _emb.embed("ping")
@@ -725,7 +798,9 @@ class ProjectIntelligenceLayer:
             _t_batch = time.perf_counter()
             _emb.embed_batch(["ping"] * 10)
             _batch_ms = round((time.perf_counter() - _t_batch) * 1000, 1)
-            _tokens_per_sec = round(10 * 50 / (_batch_ms / 1000), 0) if _batch_ms > 0 else 0  # ~50 токенов на "ping"
+            _tokens_per_sec = (
+                round(10 * 50 / (_batch_ms / 1000), 0) if _batch_ms > 0 else 0
+            )  # ~50 токенов на "ping"
             result["llm"] = {
                 "ping_ms": _ping,
                 "batch_10_ms": _batch_ms,
@@ -740,15 +815,24 @@ class ProjectIntelligenceLayer:
         # ETA predictor — кормим реальными данными
         try:
             from src.core.eta_predictor import get_predictor
+
             _pred = get_predictor()
             # Записываем измерения из per-tool метрик, чтобы ETA учился
             for t in result.get("tools", []):
                 if t["calls"] > 0:
                     _pred.record_measurement(t["tool"], t["avg_ms"])
-            ds = _pred.get_stats() if hasattr(_pred, 'get_stats') else {}
+            ds = _pred.get_stats() if hasattr(_pred, "get_stats") else {}
             result["eta_stats"] = ds
         except Exception as _ee:
             result["eta_stats"] = {"error": str(_ee)}
+
+        # История телеметрии за N дней (из .mscodebase/telemetry/)
+        try:
+            from scripts.collect_telemetry import get_history
+
+            result["history"] = get_history(days)
+        except Exception:
+            result["history"] = []
 
         result["collect_ms"] = round((time.perf_counter() - _start) * 1000, 1)
         return result
@@ -757,6 +841,7 @@ class ProjectIntelligenceLayer:
 # =====================================================================
 # РЕГИСТРАЦИЯ ИНСТРУМЕНТОВ В MCP СЕРВЕРЕ
 # =====================================================================
+
 
 def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     """
@@ -791,13 +876,13 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         if job.status in ("completed", "failed"):
             base["poll_interval_seconds"] = 0
         elif job.progress < 0.1:
-            base["poll_interval_seconds"] = 30   # старт, даём время развернуться
+            base["poll_interval_seconds"] = 30  # старт, даём время развернуться
         elif job.progress < 0.5:
-            base["poll_interval_seconds"] = 30   # bulk-фаза (загрузка эмбеддингов)
+            base["poll_interval_seconds"] = 30  # bulk-фаза (загрузка эмбеддингов)
         elif job.progress < 0.8:
-            base["poll_interval_seconds"] = 15   # финальная фаза
+            base["poll_interval_seconds"] = 15  # финальная фаза
         else:
-            base["poll_interval_seconds"] = 5    # почти готово, проверяем чаще
+            base["poll_interval_seconds"] = 5  # почти готово, проверяем чаще
 
         # Вычисляем progress_label (plain text, без эмодзи — AI сам добавит при показе)
         if job.status == "completed":
@@ -809,7 +894,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         elif job.progress < 0.1:
             base["progress_label"] = "Starting indexing..."
         elif job.progress < 0.8:
-            base["progress_label"] = f"Indexing files... ({job.progress*100:.0f}%)"
+            base["progress_label"] = f"Indexing files... ({job.progress * 100:.0f}%)"
         elif job.progress < 1.0:
             base["progress_label"] = "Finalizing..."
         else:
@@ -844,7 +929,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             "check_status_via": "intel_get_job_status",
             "poll_interval_seconds": 30,
             "estimated_seconds": 300,
-            "progress_label": "Starting indexing..."
+            "progress_label": "Starting indexing...",
         }
         return json.dumps(response, indent=2)
 
@@ -860,7 +945,9 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         """
         job = job_manager.get_job(job_id)
         if not job:
-            return json.dumps({"error": f"Задача {job_id} не найдена"}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"Задача {job_id} не найдена"}, ensure_ascii=False
+            )
         enriched = _enrich_job_response(job)
         return json.dumps(enriched, ensure_ascii=False, indent=2)
 
@@ -879,7 +966,9 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         success: bool,
     ) -> str:
         """Записать инцидент или баг в историю расследований проекта для предотвращения повторения ошибок."""
-        return await intel_layer.intel_log_incident(component, symptom, root_cause, fix, success)
+        return await intel_layer.intel_log_incident(
+            component, symptom, root_cause, fix, success
+        )
 
     @mcp_app.tool("intel_get_project_memory")
     async def get_project_memory() -> str:
@@ -911,8 +1000,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     ) -> str:
         """Root Cause Engine: Пресказать наиболее вероятную причину сбоя на основе логов ошибки, рантайма и истории."""
         result = await intel_layer.intel_predict_root_cause(
-            error_message,
-            component_context
+            error_message, component_context
         )
         return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -943,12 +1031,16 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         # Per-tool metrics with min/avg/max
         if tools:
             parts.append("### Per-Tool Calls")
-            parts.append("| Tool | Calls | Errors | Min ms | Avg ms | Max ms | Last call |")
-            parts.append("|------|-------|--------|--------|--------|--------|-----------|")
+            parts.append(
+                "| Tool | Calls | Errors | Min ms | Avg ms | Max ms | Last call |"
+            )
+            parts.append(
+                "|------|-------|--------|--------|--------|--------|-----------|"
+            )
             for t in tools:
                 parts.append(
                     f"| {t['tool']} | {t['calls']} | {t['errors']} | "
-                    f"{t.get('min_ms',0)} | {t['avg_ms']} | {t.get('max_ms',0)} | {t['last']} |"
+                    f"{t.get('min_ms', 0)} | {t['avg_ms']} | {t.get('max_ms', 0)} | {t['last']} |"
                 )
         else:
             parts.append("*No tools called yet in this session.*")
@@ -957,15 +1049,21 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         res = data.get("resources", {})
         if res and "error" not in res:
             parts.append("### 💻 Resources")
-            parts.append(f"| RAM: {res.get('rss_mb', '?'):>5} MB | CPU: {res.get('cpu_percent', '?'):>4}% | Threads: {res.get('num_threads', '?')} |")
+            parts.append(
+                f"| RAM: {res.get('rss_mb', '?'):>5} MB | CPU: {res.get('cpu_percent', '?'):>4}% | Threads: {res.get('num_threads', '?')} |"
+            )
             parts.append("")
 
         # LLM ping + model + throughput
         llm = data.get("llm", {})
         if llm and "error" not in llm:
             parts.append("### ⚡ LLM Provider")
-            parts.append(f"| Model: {llm.get('model', '?')} | Ping: {llm.get('ping_ms', '?'):>6}ms | Batch10: {llm.get('batch_10_ms', '?'):>6}ms |")
-            parts.append(f"| Throughput: {llm.get('tokens_per_sec', '?'):>5} tok/s | Provider: {llm.get('provider', '?')} |")
+            parts.append(
+                f"| Model: {llm.get('model', '?')} | Ping: {llm.get('ping_ms', '?'):>6}ms | Batch10: {llm.get('batch_10_ms', '?'):>6}ms |"
+            )
+            parts.append(
+                f"| Throughput: {llm.get('tokens_per_sec', '?'):>5} tok/s | Provider: {llm.get('provider', '?')} |"
+            )
             parts.append("")
 
         # ETA stats
@@ -975,15 +1073,38 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             opers = eta.get("operations", [])
             learned = eta.get("learned_operations", [])
             total = eta.get("total_measurements", 0)
-            parts.append(f"| Total measurements: {total} | Learned: {len(learned)}/{len(opers)} ops |")
+            parts.append(
+                f"| Total measurements: {total} | Learned: {len(learned)}/{len(opers)} ops |"
+            )
             if learned:
                 parts.append(f"| Operations with data: {', '.join(learned[:5])} |")
             parts.append("")
 
-        # JSON для LLM в detail
+        # History (дни/недели)
+        history = data.get("history", [])
+        if history:
+            parts.append("### 📅 History (last {} snapshots)".format(len(history)))
+            parts.append("| Date | Uptime | Chunks | Files | State | LLM ping |")
+            parts.append("|------|--------|--------|-------|-------|----------|")
+            for e in history[-14:]:
+                d = e.get("date", "?")
+                up = e.get("uptime_sec", 0)
+                if isinstance(up, (int, float)):
+                    up = f"{int(up // 3600)}h{int((up % 3600) // 60)}m"
+                proj = e.get("project", {})
+                ch = proj.get("index_chunks", "?")
+                fi = proj.get("index_files", "?")
+                st = proj.get("state", "?")
+                llm = e.get("llm", {}).get("ping_ms", "?")
+                parts.append(f"| {d} | {up} | {ch} | {fi} | {st} | {llm}ms |")
+            parts.append("")
+
         detail = json.dumps(data, ensure_ascii=False, indent=2)
-        return json.dumps({
-            "status": "ok",
-            "message": "\n".join(parts),
-            "detail": detail,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "status": "ok",
+                "message": "\n".join(parts),
+                "detail": detail,
+            },
+            ensure_ascii=False,
+        )
