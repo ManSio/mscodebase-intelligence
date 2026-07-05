@@ -182,12 +182,16 @@ class GetRepoRankTool(MCPTool):
 
 
 class ScanChangesTool(MCPTool):
-    """scan_changes — архитектурный дифф при сканировании изменений."""
+    """scan_changes — архитектурный дифф (фоновый режим).
+
+    Запускает полную переиндексацию + анализ изменений в фоне.
+    Возвращает job_id для отслеживания через get_task_status().
+    """
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="scan_changes")
 
-    @error_boundary("scan_changes", timeout_ms=120000)
+    @error_boundary("scan_changes", timeout_ms=5000)
     async def execute(
         self, project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
@@ -198,58 +202,97 @@ class ScanChangesTool(MCPTool):
                 "message": f"Path does not exist: {project_root}",
             }
 
-        # Переключаем индекс на проект
-        self.resolve_indexer().switch_project(target_path)
-        project_file_guard = FileGuard(target_path)
-        self.resolve_indexer().file_guard = project_file_guard
+        # Резолвим зависимости ДО фоновой задачи (ThreadPool не имеет доступа к async DI)
+        indexer = self.resolve_indexer()
+        symbol_index = self.resolve_symbol_index()
+        parser = self.resolve_parser()
+        embedder = self.resolve_embedder()
 
-        logger.info(f"Scanning changes for {target_path.name}...")
+        from src.core.task_queue import get_task_queue
 
-        # Полная переиндексация
-        indexed_count = await asyncio.to_thread(
-            self.resolve_indexer().index_project, target_path
+        task_queue = get_task_queue()
+
+        task_id = task_queue.submit_sync(
+            "scan_changes",
+            self._run_scan_sync,
+            target_path,
+            indexer,
+            symbol_index,
+            parser,
+            embedder,
         )
 
-        # Обновляем SymbolIndex
-        if hasattr(self.resolve_symbol_index(), "index_project"):
-            await asyncio.to_thread(
-                self.resolve_symbol_index().index_project,
-                target_path,
-                self.resolve_parser(),
-            )
-
-        # Архитектурный дифф
-        arch_diff = {}
-        if (
-            hasattr(self.resolve_symbol_index(), "get_architectural_diff")
-            and indexed_count > 0
-        ):
-            try:
-                import pandas as pd
-
-                df = self.resolve_indexer().table.to_pandas()
-                changed_files = list(df["file_path"].unique())[:20]
-                diff_result = self.resolve_symbol_index().get_architectural_diff(
-                    changed_files
-                )
-                if diff_result:
-                    arch_diff = {
-                        "impact_summary": diff_result.get("impact_summary", ""),
-                        "impact_files": diff_result.get("impact_files", [])[:8],
-                    }
-            except Exception as diff_err:
-                logger.debug(f"Architectural diff error: {diff_err}")
-
-        embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
         return {
             "status": "ok",
+            "task_id": task_id,
             "project": target_path.name,
-            "files_updated": indexed_count,
-            "embedder_mode": embedder_mode,
-            "architectural_diff": arch_diff,
-            "message": f"✅ Сканирование завершено: {target_path.name}. "
-            f"💡 *Не запускай повторно 2 минуты.*",
+            "message": f"✅ Сканирование запущено в фоне. Task ID: {task_id}",
+            "check_status_via": "get_task_status",
+            "poll_interval_seconds": 30,
         }
+
+    @staticmethod
+    def _run_scan_sync(
+        target_path: Path,
+        indexer: Any,
+        symbol_index: Any,
+        parser: Any,
+        embedder: Any,
+    ) -> str:
+        """Синхронное выполнение сканирования в ThreadPool."""
+        import time
+
+        from src.core.file_guard import FileGuard
+
+        _t = time.time()
+        logger.info(f"[bg] scan_changes: {target_path.name}...")
+
+        try:
+            # Переключаем и индексируем
+            indexer.switch_project(target_path)
+            indexer.file_guard = FileGuard(target_path)
+            indexed_count = indexer.index_project(target_path)
+
+            # SymbolIndex
+            if hasattr(symbol_index, "index_project"):
+                symbol_index.index_project(target_path, parser)
+
+            # Архитектурный дифф
+            diff_lines = []
+            if hasattr(symbol_index, "get_architectural_diff") and indexed_count > 0:
+                try:
+                    import pandas as pd
+
+                    df = indexer.table.to_pandas()
+                    changed_files = list(df["file_path"].unique())[:20]
+                    diff_result = symbol_index.get_architectural_diff(changed_files)
+                    if diff_result:
+                        diff_lines.append(diff_result.get("impact_summary", ""))
+                        for f in diff_result.get("impact_files", [])[:8]:
+                            diff_lines.append(
+                                f"  • {f.get('file', '')} ({f.get('impact', '')})"
+                            )
+                except Exception as diff_err:
+                    logger.debug(f"[bg] diff error: {diff_err}")
+
+            elapsed = round(time.time() - _t, 1)
+            embedder_mode = getattr(embedder, "mode", "unknown")
+
+            lines = [
+                f"✅ Scan complete: {target_path.name}",
+                f"  • Files updated: {indexed_count}",
+                f"  • Embedder: {embedder_mode}",
+                f"  • Elapsed: {elapsed}s",
+            ]
+            if diff_lines:
+                lines.append(f"  • Architectural diff:")
+                lines.extend(diff_lines)
+            lines.append(f"💡 *Следующее сканирование: не ранее чем через 2 минуты.*")
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"[bg] scan_chages failed: {e}")
+            return f"❌ Scan failed: {target_path.name}: {e}"
 
 
 class GenerateChunkSummariesTool(MCPTool):
