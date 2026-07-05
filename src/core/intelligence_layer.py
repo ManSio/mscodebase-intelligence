@@ -558,7 +558,7 @@ class ProjectIntelligenceLayer:
         incidents.append(new_incident)
         self.store.save_incidents(incidents)
         logger.info(f"Инцидент {incident_id} записан: {component} — {symptom[:50]}...")
-        return _("Инцидент {incident_id} сохранён.", incident_id=incident_id)
+        return _("Incident {incident_id} stored.", incident_id=incident_id)
 
     async def intel_analyze_incident(self, error_message: str) -> Dict[str, Any]:
         """Находит аналогичные инциденты по тексту ошибки."""
@@ -611,7 +611,7 @@ class ProjectIntelligenceLayer:
         try:
             data = json.loads(data_json)
         except json.JSONDecodeError as e:
-            return _("Ошибка парсинга JSON: {e}", e=e)
+            return _("JSON parse error: {error}", error=e)
 
         async with self._write_lock:
             nodes = self.store._load_json("project_memory.json")
@@ -1032,7 +1032,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         """
         job = job_manager.get_job(job_id)
         if not job:
-            return _("ℹ️ **Job {job_id}** — не найдена\n", job_id=job_id)
+            return _("ℹ️ **Job {job_id}** not found\n", job_id=job_id)
         enriched = _enrich_job_response(job)
         status_icon = (
             "✅"

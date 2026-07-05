@@ -667,7 +667,7 @@ class Searcher:
                 )
             return "".join(output)
         except Exception as e:
-            return _("❌ Ошибка поискового движка: {error}", error=str(e))
+            return _("❌ Search engine error: {error}", error=str(e))
 
     def search_with_mode(
         self,
@@ -775,18 +775,18 @@ class Searcher:
             limit: Максимальное число результатов
         """
         if not selected_code.strip():
-            return _("❌ Пустой фрагмент кода для поиска.")
+            return _("❌ Empty code fragment for search.")
 
         try:
             query_vector = self.embedder.embed(selected_code)
             if not query_vector:
-                return _("❌ Эмбеддер недоступен. Невозможно векторизовать код.")
+                return _("❌ Embedder unavailable. Cannot vectorize code.")
 
             results = self.vector_search(query_vector, limit=limit)
             results = [r for r in results if "error" not in r]
 
             if not results:
-                return _("🔍 Похожий код не найден.")
+                return _("🔍 Similar code not found.")
 
             # Фильтруем точные совпадения (тот же текст = дубликат)
             unique_results = []
@@ -801,9 +801,7 @@ class Searcher:
                     unique_results.append(r)
 
             if not unique_results:
-                return _(
-                    "🔍 Точные совпадения найдены, но уникальных похожих фрагментов нет."
-                )
+                return _("🔍 Exact matches found, but no unique similar fragments.")
 
             output = [f"🔍 Найдено {len(unique_results)} похожих фрагментов кода:\n"]
             for i, res in enumerate(unique_results, 1):
@@ -817,7 +815,7 @@ class Searcher:
             return "".join(output)
         except Exception as e:
             logger.error(f"Ошибка context_search: {e}")
-            return _("❌ Ошибка поиска по коду: {error}", error=str(e))
+            return _("❌ Code search error: {error}", error=str(e))
 
     def _extract_key_terms(self, results: List[dict], max_terms: int = 5) -> List[str]:
         """Извлекает ключевые термины из результатов поиска для уточнения запроса.
@@ -1862,4 +1860,4 @@ class Searcher:
             return "".join(output_lines)
         except Exception as e:
             logger.error(f"Ошибка agentic_deep_search: {e}", exc_info=True)
-            return _("❌ Ошибка глубокого поиска: {error}", error=str(e))
+            return _("❌ Deep search error: {error}", error=str(e))

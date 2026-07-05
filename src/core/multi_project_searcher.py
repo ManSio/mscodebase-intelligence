@@ -296,7 +296,7 @@ class MultiProjectSearcher:
         clean_query, project_names = parse_cross_repo_query(query)
 
         if not clean_query:
-            return _("❌ Пустой поисковый запрос.")
+            return _("❌ Empty search query.")
 
         if self.registry.count == 0:
             return (
@@ -314,11 +314,11 @@ class MultiProjectSearcher:
             error = metadata["error"]
             if error == "no_projects":
                 return _(
-                    "❌ Указанные проекты не найдены: {project_names}",
+                    "❌ Specified projects not found: {project_names}",
                     project_names=", ".join(project_names),
                 )
             elif error == "embedder_unavailable":
-                return _("❌ Эмбеддер недоступен. Невозможно векторизовать запрос.")
+                return _("❌ Embedder unavailable. Cannot vectorize query.")
             else:
                 return f"❌ Ошибка: {error}"
 

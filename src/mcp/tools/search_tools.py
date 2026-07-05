@@ -265,7 +265,7 @@ class GetSymbolInfoTool(MCPTool):
             callers = call_graph["callers"][:15]
             callees = call_graph["callees"][:10]
             result = _(
-                "🔍 **{query}** — {defs} определение, {callers} caller'ов, {callees} callee\n\n",
+                "🔍 **{query}** — {defs} defs, {callers} callers, {callees} callees\n\n",
                 query=query,
                 defs=len(defs),
                 callers=len(callers),
@@ -274,16 +274,16 @@ class GetSymbolInfoTool(MCPTool):
             if defs:
                 d = defs[0]
                 result += _(
-                    "📄 Определение: `{file}` строка {line}\n",
+                    "📄 Definition: `{file}` line {line}\n",
                     file=d.get("file", "?"),
                     line=d.get("line", "?"),
                 )
             if callers:
-                result += _("\n⬆️ **Вызывается из:**\n")
+                result += _("\n⬆️ **Called from:**\n")
                 for c in callers[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
             if callees:
-                result += _("\n⬇️ **Вызывает:**\n")
+                result += _("\n⬇️ **Calls:**\n")
                 for c in callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
             return result
@@ -291,22 +291,22 @@ class GetSymbolInfoTool(MCPTool):
         # Fallback: поиск по имени
         results = self.resolve_symbol_index().search_symbols(query)
         if not results:
-            return _("ℹ️ **{query}** — не найден\n", query=query)
+            return _("ℹ️ **{query}** — not found\n", query=query)
 
         defs = [r for r in results if getattr(r, "is_definition", False)]
         usages = [r for r in results if not getattr(r, "is_definition", False)]
         result = _(
-            "🔍 **{query}** — {defs} определений, {usages} использований\n\n",
+            "🔍 **{query}** — {defs} definitions, {usages} usages\n\n",
             query=query,
             defs=len(defs),
             usages=len(usages),
         )
         if defs:
-            result += _("📄 **Определения:**\n")
+            result += _("📄 **Definitions:**\n")
             for d in defs[:5]:
                 result += f"   • `{d.file_path}` строка {d.line} ({d.kind})\n"
         if usages:
-            result += _("\n📎 **Использования:**\n")
+            result += _("\n📎 **Usages:**\n")
             for u in usages[:5]:
                 result += f"   • `{u.file_path}` строка {u.line}\n"
         return result

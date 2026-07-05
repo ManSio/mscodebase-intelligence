@@ -29,20 +29,24 @@ def _status_icon(status: str) -> str:
 
 def header(tool_name: str, status: str = "ok", extra: Optional[str] = None) -> str:
     icon = _status_icon(status)
-    return _(f"{icon} **{tool_name}**" + (f" — {extra}" if extra else "") + "\n")
+    return f"{icon} **{tool_name}**" + (f" — {extra}" if extra else "") + "\n"
 
 
 def section(title: str) -> str:
     """Разделитель секции."""
-    return _(f"\n{title}\n{'━' * 30}\n")
+    return f"\n{title}\n{'━' * 30}\n"
 
 
 def empty_result(tool_name: str, reason: str = "Нет данных") -> str:
-    return _(f"ℹ️ **{tool_name}** — {reason}\n")
+    return _("ℹ️ **{name}** — {reason}\n", name=tool_name, reason=reason)
 
 
 def error_result(tool_name: str, error: str) -> str:
-    return _(f"🔴 **{tool_name}** — Ошибка\n```\n{error}\n```\n")
+    return _(
+        "🔴 **{name}** — Error\n```\n{error}\n```\n",
+        name=tool_name,
+        error=error,
+    )
 
 
 # ══════════════════════════════════════════════════════════
@@ -59,16 +63,19 @@ def format_index_status(
     other_projects: Optional[List[str]] = None,
 ) -> str:
     icon = "🟢" if chunks > 0 else "🟡"
-    result = _(f"{icon} **MSCodeBase** — {status}\n")
+    result = _("{icon} **MSCodeBase** — {status}\n", icon=icon, status=status)
     result += _(
-        f"📦 **Чанки:** `{chunks}` | **Файлы:** `{files}` | **Символы:** `{symbols}`\n"
+        "📦 **Chunks:** `{chunks}` | **Files:** `{files}` | **Symbols:** `{symbols}`\n",
+        chunks=chunks,
+        files=files,
+        symbols=symbols,
     )
-    result += _(f"🧠 **Эмбеддер:** {embedder}\n")
+    result += _("🧠 **Embedder:** {embedder}\n", embedder=embedder)
 
     if other_projects:
         result += _("\n📁 **Другие проекты:**\n")
         for p in other_projects:
-            result += _(f"   • `{p}`\n")
+            result += f"   • `{p}`\n"
 
     result += "\n"
     return result
@@ -83,11 +90,15 @@ def format_search_code(
     query: str, results: List[Dict[str, Any]], exec_ms: int, mode: str
 ) -> str:
     result = _(
-        f"🔍 **Поиск:** `{query}` — **{len(results)}** находок ({exec_ms}ms, mode={mode})\n\n"
+        "🔍 **Search:** `{query}` — **{count}** results ({time}ms, mode={mode})\n\n",
+        query=query,
+        count=len(results),
+        time=exec_ms,
+        mode=mode,
     )
 
     if not results:
-        result += _("ℹ️ *Ничего не найдено*\n")
+        result += _("ℹ️ *Nothing found*\n")
         return result
 
     for i, r in enumerate(results[:10], 1):
@@ -95,13 +106,13 @@ def format_search_code(
         line = r.get("start_line", r.get("line", "—"))
         layer = _val(r.get("layer"), "—")
         snippet = r.get("text", r.get("snippet", ""))[:300]
-        result += _(f"{i}. 📄 **{file}** (стр. {line}, {layer})\n")
+        result += f"{i}. 📄 **{file}** (line {line}, {layer})\n"
         if snippet:
             result += f"```\n{snippet}\n```\n"
         result += "\n"
 
     if len(results) > 10:
-        result += _(f"*...и ещё {len(results) - 10}*\n")
+        result += _("*...and {more} more*\n", more=len(results) - 10)
 
     return result
 
@@ -112,10 +123,10 @@ def format_search_code(
 
 
 def format_repo_rank(items: List[Dict], exec_ms: int, _raw: Any = None) -> str:
-    result = _(f"🏆 **Рейтинг символов** ({exec_ms}ms)\n\n")
+    result = _("🏆 **Symbol Ranking** ({time}ms)\n\n", time=exec_ms)
 
     if not items:
-        result += _("ℹ️ *Нет данных*\n")
+        result += _("ℹ️ *No data*\n")
         return result
 
     for i, item in enumerate(items[:10], 1):
@@ -124,8 +135,8 @@ def format_repo_rank(items: List[Dict], exec_ms: int, _raw: Any = None) -> str:
         kind = _val(item.get("kind"), "—")
         file = _val(item.get("file"), "—")
         risk = "🔴" if score > 0.8 else ("🟡" if score > 0.5 else "🟢")
-        result += _(f"{risk} **{symbol}** — `{score:.4f}`\n")
-        result += _(f"   📁 {file} | 🏷 {kind}\n")
+        result += f"{risk} **{symbol}** — `{score:.4f}`\n"
+        result += f"   📁 {file} | 🏷 {kind}\n"
 
     result += "\n"
     return result
@@ -147,10 +158,19 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     status = data.get("index_telemetry", {}).get("status", "?")
     status_icon = "🟢" if status == "active" else "🟡"
 
-    result = _(f"{status_icon} **MSCodeBase** — {proj}\n")
-    result += _(f"📦 **Чанки:** {chunks} | **Файлы:** {files}\n")
-    result += _(f"🧠 **Эмбеддер:** {embedder} | {lm_icon} LM Studio: {lm}\n")
-    result += _(f"⚙️ **PID:** {pid}\n")
+    result = _(
+        "{status_icon} **MSCodeBase** — {proj}\n", status_icon=status_icon, proj=proj
+    )
+    result += _(
+        "📦 **Chunks:** {chunks} | **Files:** {files}\n", chunks=chunks, files=files
+    )
+    result += _(
+        "🧠 **Embedder:** {embedder} | {lm_icon} LM Studio: {lm}\n",
+        embedder=embedder,
+        lm_icon=lm_icon,
+        lm=lm,
+    )
+    result += _("⚙️ **PID:** {pid}\n", pid=pid)
     return result
 
 
@@ -168,8 +188,15 @@ def format_telemetry(
     tools: List[Dict],
     history: Optional[List[Dict]] = None,
 ) -> str:
-    result = _(f"🖥 **Ресурсы:** RAM {ram_mb:.0f} MB | CPU {cpu:.0f}%\n")
-    result += _(f"⚡ **LLM:** {llm_model} | ping {llm_ping:.0f}ms | {llm_tps} tok/s\n")
+    result = _(
+        "🖥 **Resources:** RAM {ram:.0f} MB | CPU {cpu:.0f}%\n", ram=ram_mb, cpu=cpu
+    )
+    result += _(
+        "⚡ **LLM:** {model} | ping {ping:.0f}ms | {tps} tok/s\n",
+        model=llm_model,
+        ping=llm_ping,
+        tps=llm_tps,
+    )
 
     if tools:
         result += _("\n📊 **Инструменты:**\n")
@@ -179,7 +206,13 @@ def format_telemetry(
             avg = t.get("avg_ms", 0)
             err = t.get("errors", 0)
             err_icon = "🔴" if err > 0 else "🟢"
-            result += _(f"   • {name}: {calls} вызовов, {avg}ms {err_icon}\n")
+            result += _(
+                "   • {name}: {calls} calls, {avg}ms {icon}\n",
+                name=name,
+                calls=calls,
+                avg=avg,
+                icon=err_icon,
+            )
 
     if history:
         result += _("\n📅 **История (снэпшоты):**\n")
@@ -190,7 +223,13 @@ def format_telemetry(
             res = e.get("resources", {})
             ram = res.get("rss_mb", "—")
             llm_p = e.get("llm", {}).get("ping_ms", "—")
-            result += _(f"   • {d}: {ch} чанков, RAM {ram} MB, LLM {llm_p}\n")
+            result += _(
+                "   • {d}: {ch} chunks, RAM {ram} MB, LLM {llm}\n",
+                d=d,
+                ch=ch,
+                ram=ram,
+                llm=llm_p,
+            )
 
     result += "\n"
     return result
@@ -205,9 +244,14 @@ def format_eta(operation: str, eta_sec: float, confidence: float, history: int) 
     icon = "🟢" if confidence > 0.7 else ("🟡" if confidence > 0.4 else "🔴")
     bar = _bar(min(confidence, 1.0), 1.0)
     return _(
-        f"⏱ **ETA:** `{operation}`\n"
-        f"   {bar} `{confidence:.0%}`\n"
-        f"   **Оценка:** {eta_sec:.0f}с | **История:** {history} зап.\n\n"
+        "⏱ **ETA:** `{op}`\n"
+        "   {bar} `{conf:.0%}`\n"
+        "   **Estimate:** {eta:.0f}s | **History:** {hist} records\n\n",
+        op=operation,
+        bar=bar,
+        conf=confidence,
+        eta=eta_sec,
+        hist=history,
     )
 
 
@@ -218,10 +262,14 @@ def format_eta(operation: str, eta_sec: float, confidence: float, history: int) 
 
 def format_incident(component: str, symptom: str, fix: str, incident_id: str) -> str:
     return _(
-        f"🚨 **{incident_id}**\n"
-        f"⚙️ **Mod:** `{component}`\n"
-        f"❌ **Error:** {symptom}\n"
-        f"🛡️ **Fix:** {fix}\n\n"
+        "🚨 **{id}**\n"
+        "⚙️ **Mod:** `{component}`\n"
+        "❌ **Error:** {symptom}\n"
+        "🛡️ **Fix:** {fix}\n\n",
+        id=incident_id,
+        component=component,
+        symptom=symptom,
+        fix=fix,
     )
 
 
@@ -239,55 +287,64 @@ def format_project_memory(memory: Dict[str, List]) -> str:
         }
         icon = icons.get(section, "📌")
         result += _(
-            f"{icon} **{section.replace('_', ' ').title()}:** {len(items)} записей\n"
+            "{icon} **{section}:** {count} entries\n",
+            icon=icon,
+            section=section.replace("_", " ").title(),
+            count=len(items),
         )
         for item in items[:3]:
             data = item.get("data", {})
             title = data.get("title", data.get("issue", data.get("fix", "?")))[:80]
-            result += _(f"   • {title}\n")
+            result += f"   • {title}\n"
         if len(items) > 3:
-            result += _(f"   • ...и ещё {len(items) - 3}\n")
+            result += _("   • ...and {more} more\n", more=len(items) - 3)
         result += "\n"
     return result
 
 
 def format_hotspots(items: List[Dict]) -> str:
     """Форматирует вывод intel_get_hotspots."""
-    result = _("🔥 **Топ рисков**\n\n")
+    result = _("🔥 **Top Risks**\n\n")
     if not items:
-        result += _("ℹ️ *Нет данных*\n")
+        result += _("ℹ️ *No data*\n")
         return result
     for i, item in enumerate(items[:5], 1):
         color = "🔴" if i == 1 else ("🟡" if i <= 3 else "🟢")
         file = item.get("file", "—")
         bugs = item.get("bug_count", 0)
         score = item.get("risk_score", 0)
-        result += _(f"{color} **{file}** — {bugs} багов (score {score:.2f})\n")
+        result += _(
+            "{color} **{file}** — {bugs} bugs (score {score:.2f})\n",
+            color=color,
+            file=file,
+            bugs=bugs,
+            score=score,
+        )
     result += "\n"
     return result
 
 
 def format_analysis_result(title: str, data: Dict) -> str:
     """Универсальный форматер для analyze_incident / predict_root_cause."""
-    result = _(f"🔍 **{title}**\n\n")
+    result = _("🔍 **{title}**\n\n", title=title)
     for k, v in data.items():
         if isinstance(v, list):
             if not v:
                 continue
-            result += _(f"**{k.replace('_', ' ').title()}:**\n")
+            result += _("**{key}:**\n", key=k.replace("_", " ").title())
             for item in v[:5]:
                 if isinstance(item, dict):
                     for ik, iv in item.items():
-                        result += _(f"   • {ik}: {str(iv)[:60]}\n")
+                        result += f"   • {ik}: {str(iv)[:60]}\n"
                 else:
-                    result += _(f"   • {item}\n")
+                    result += f"   • {item}\n"
             if len(v) > 5:
-                result += _(f"   • ...и ещё {len(v) - 5}\n")
+                result += _("   • ...and {more} more\n", more=len(v) - 5)
         elif isinstance(v, dict):
-            result += _(f"**{k.replace('_', ' ').title()}:**\n")
+            result += _("**{key}:**\n", key=k.replace("_", " ").title())
             for ik, iv in v.items():
-                result += _(f"   • {ik}: {str(iv)[:60]}\n")
+                result += f"   • {ik}: {str(iv)[:60]}\n"
         else:
-            result += _(f"• {k}: {str(v)[:80]}\n")
+            result += f"• {k}: {str(v)[:80]}\n"
         result += "\n"
     return result

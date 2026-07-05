@@ -246,7 +246,7 @@ class ScanChangesTool(MCPTool):
             "task_id": task_id,
             "project": target_path.name,
             "message": _(
-                "✅ Сканирование запущено в фоне. Task ID: {task_id}",
+                "✅ Background scan started. Task ID: {task_id}",
                 task_id=task_id,
             ),
             "check_status_via": "get_task_status",
@@ -309,7 +309,7 @@ class ScanChangesTool(MCPTool):
             if diff_lines:
                 lines.append(_("  • Architectural diff:"))
                 lines.extend(diff_lines)
-            lines.append(_("💡 *Следующее сканирование: не ранее чем через 2 минуты.*"))
+            lines.append(_("💡 *Next scan: no earlier than 2 minutes.*"))
             return "\n".join(lines)
 
         except Exception as e:
@@ -405,7 +405,7 @@ class GenerateChunkSummariesTool(MCPTool):
             "total_chunks": total_chunks,
             "chunks_to_process": chunks_to_process,
             "message": _(
-                "✅ Генерация запущена в фоне. Task ID: {task_id}",
+                "✅ Background generation started. Task ID: {task_id}",
                 task_id=task_id,
             ),
             "check_status_via": "get_task_status",
@@ -493,6 +493,6 @@ class GenerateChunkSummariesTool(MCPTool):
             _("  • LLM calls: {calls}", calls=stats.get("generated", 0)),
             _("  • Cache hits: {hits}", hits=stats.get("cache_hits", 0)),
             _("  • Elapsed: {time}s", time=elapsed),
-            _("💡 *Не запускай повторно следующие 5 минут.*"),
+            _("💡 *Do not rerun for the next 5 minutes.*"),
         ]
         return "\n".join(lines)
