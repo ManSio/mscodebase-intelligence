@@ -23,6 +23,35 @@ from typing import Any, Optional
 
 logger = logging.getLogger("mscodebase_server.coordinator")
 
+# ══════════════════════════════════════════════════════════════
+# Счётчики для измерения эффективности (telemetry)
+# ══════════════════════════════════════════════════════════════
+
+_COUNTERS: dict = {
+    "can_execute_calls": 0,
+    "verdict_ready": 0,
+    "verdict_blocked_system_path": 0,
+    "verdict_blocked_not_ready": 0,
+    "verdict_blocked_failed": 0,
+    "verdict_blocked_resolution": 0,
+    "verdict_blocked_registry_error": 0,
+    "warnings_bridge_not_synced": 0,
+    "warnings_indexing_in_progress": 0,
+    "warnings_just_started": 0,
+    "total_wait_time_sec": 0.0,
+}
+
+
+def get_counters() -> dict:
+    """Возвращает копию счётчиков для диагностики."""
+    return dict(_COUNTERS)
+
+
+def reset_counters() -> None:
+    """Сбрасывает все счётчики (для тестов)."""
+    for k in _COUNTERS:
+        _COUNTERS[k] = 0
+
 
 class RuntimeCoordinator:
     """Единая точка для проверки готовности проекта.
@@ -52,6 +81,9 @@ class RuntimeCoordinator:
             ExecutionVerdict с полями ok, reason, state, detail,
             retry_after, requires_reindex, requires_bridge_sync, warnings.
         """
+        import time as _time
+        _t0 = _time.time()
+        _COUNTERS["can_execute_calls"] += 1
         warnings: list[str] = []
         try:
             from src.mcp.server import resolve_project_root
@@ -129,11 +161,14 @@ class RuntimeCoordinator:
                 )
 
         except Exception as e:
-            return ExecutionVerdict(
+            _COUNTERS["verdict_blocked_registry_error"] += 1
+        return ExecutionVerdict(
                 ok=False,
                 reason="registry_error",
                 detail=str(e),
             )
+
+        _COUNTERS["total_wait_time_sec"] += _time.time() - _t0
 
         # Layer 4: проверка runtime (passport)
         try:
@@ -141,9 +176,11 @@ class RuntimeCoordinator:
             uptime = time.time() - RUN_STARTED_AT
             if uptime < 3.0:
                 warnings.append(f"MCP just started ({uptime:.0f}s ago)")
+                _COUNTERS["warnings_just_started"] += 1
         except Exception:
             pass
 
+        _COUNTERS["verdict_ready"] += 1
         return ExecutionVerdict(
             ok=True,
             reason="ready",

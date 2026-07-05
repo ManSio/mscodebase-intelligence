@@ -999,6 +999,25 @@ def _register_all_tools(mcp, services):
         return chr(10).join(lines)
 
 
+    # --- Runtime Counters (telemetry) ---
+    @mcp.tool("get_runtime_counters")
+    async def get_runtime_counters() -> str:
+        """Возвращает счётчики runtime: сколько запросов выполнено,
+        сколько отклонено и по какой причине.
+
+        Позволяет оценить реальный эффект архитектурных изменений:
+        - can_execute_calls: всего проверок готовности
+        - verdict_ready: сколько разрешено
+        - verdict_blocked_*: сколько отклонено и почему
+        - warnings_*: сколько предупреждений каждого типа
+
+        Если blocked > 5% от calls — архитектура требует внимания.
+        """
+        from src.core.runtime_coordinator import get_counters
+        import json
+        return json.dumps(get_counters(), ensure_ascii=False, indent=2)
+
+
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
     from src.core.config import get_config
