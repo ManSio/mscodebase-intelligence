@@ -288,20 +288,38 @@ def resolve_project_root(provided: str = "") -> Path:
         pass
 
     # Fallback: Zed SQLite DB (не зависит от LSP!)
+    # Multi-window: читаем ВСЕ воркспейсы, фильтруем self-indexing,
+    # выбираем самый свежий с .git (реальный проект).
     try:
         _zed_db_path = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "db" / "0-stable" / "db.sqlite"
         if _zed_db_path.exists():
             import sqlite3
-            _conn = sqlite3.connect(str(_zed_db_path))
+            _conn = sqlite3.connect(str(_zed_db_path), timeout=2.0)
             _cur = _conn.cursor()
-            _cur.execute("SELECT paths FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC LIMIT 1")
-            _row = _cur.fetchone()
+            # Читаем ВСЕ workspace paths, сортируем по свежести
+            _cur.execute("SELECT paths, timestamp FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC")
+            _all_rows = _cur.fetchall()
             _conn.close()
-            if _row and _row[0]:
-                _project = _row[0].split(",")[0].strip()
-                if _project and not _reject_self_index_target(Path(_project), source="ZED_DB"):
-                    logger.debug(f"resolve_project_root: Zed DB={_project}")
-                    return Path(_project).resolve()
+            _candidates = []
+            for _row in _all_rows:
+                if not _row[0]:
+                    continue
+                for _part in _row[0].split(","):
+                    _p = _part.strip()
+                    if not _p:
+                        continue
+                    _path = Path(_p)
+                    if _reject_self_index_target(_path, source="ZED_DB"):
+                        continue
+                    # Предпочитаем проекты с .git (реальные, не临时ные)
+                    _score = 2 if (_path / ".git").exists() else 1
+                    _candidates.append((_score, _row[1] or "", _path))
+            if _candidates:
+                # Сортируем: score(выше) → timestamp(новее)
+                _candidates.sort(key=lambda x: (x[0], x[1] or ""), reverse=True)
+                _best = _candidates[0][2]
+                logger.debug(f"resolve_project_root: Zed DB ({len(_candidates)} candidates) → {_best}")
+                return _best.resolve()
     except Exception as _zed_err:
         logger.debug(f"resolve_project_root: Zed DB fallback error: {_zed_err}")
 
