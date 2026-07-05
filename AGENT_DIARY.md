@@ -5,6 +5,52 @@
 
 ---
 
+## [2026-07-06] — Fix: i18n — обёртка user-facing строк в _() в ui_formatter.py и error_handler.py
+
+**Problem:** User-facing return-строки с эмодзи (📦🔍✅❌📊📋🌐🟢🔴⏱ и т.д.)
+и русским текстом в двух файлах не проходили через i18n-функцию `_()`.
+
+**Solution:**
+- `ui_formatter.py`: обёрнуты ~30 f-строк в 14 функциях-форматтерах
+- `error_handler.py`: обёрнуты строки в `_format_error_response` (4) и `_format_success_response` (3)
+- Добавлен импорт `from src.utils.i18n import _` в оба файла
+- JSON-возвраты, logger.* вызовы и технические строки (код-сниппеты) не затронуты
+- Diagnostics: только pre-existing warnings (unused imports), новых ошибок нет
+
+**Tools Used:** write_file, edit_file, notify_change, diagnostics, intel_log_incident
+**Status:** ✅
+
+## [2026-07-06 10:00] — Fix: i18n — обёртка user-facing строк в _() в search_tools.py и analysis_tools.py
+
+## [2026-07-06 10:30] — Fix: i18n — обёртка user-facing строк в _() в intelligence_layer.py, searcher.py, multi_project_searcher.py
+
+**Problem:** user-facing return-строки с русским текстом в трёх файлах не проходили через i18n-функцию `_()`.
+
+**Solution:**
+- `intelligence_layer.py`: 5 строк (Инцидент сохранён, Неизвестная секция, Ошибка парсинга JSON, Запись добавлена, Job не найдена)
+- `searcher.py`: 9 строк (По запросу ничего не найдено, Ошибка поискового движка, Пустой фрагмент кода, Эмбеддер недоступен, Похожий код не найден, Точные совпадения не найдены, Ошибка поиска по коду, Ошибка глубокого поиска)
+- `multi_project_searcher.py`: 3 строки (Пустой запрос, Проекты не найдены, Эмбеддер недоступен)
+
+**Tools Used:** read_file, edit_file, notify_change, diagnostics
+**Status:** ✅
+
+**Problem:** user-facing строки с эмодзи и сообщения об ошибках
+в search_tools.py и analysis_tools.py были hardcoded без поддержки
+перевода через _().
+
+**Solution:**
+- search_tools.py: обёрнуты return-строки с 🔍✅❌📄⬆️⬇️ℹ️📎🔬
+- analysis_tools.py: обёрнуты message в dict-возвратах и строки
+  в _run_scan_sync / _run_summarize_sync
+- Все f-string интерполяции конвертированы в .format()-стиль
+  для корректного поиска ключа перевода
+- Добавлен импорт `from src.utils.i18n import _` в оба файла
+
+**Tools Used:** write_file, notify_change, diagnostics, intel_log_incident
+**Status:** ✅
+
+---
+
 ## [2026-07-05] — Полная i18n: документация на 3 языках
 
 Вся документация переведена на английский, русский и китайский языки.
