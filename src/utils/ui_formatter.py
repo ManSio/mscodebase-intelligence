@@ -193,28 +193,6 @@ def format_telemetry(
 
 
 # ══════════════════════════════════════════════════════════
-# FORMAT: hotpots
-# ══════════════════════════════════════════════════════════
-
-
-def format_hotspots(items: List[Dict]) -> str:
-    result = "🔥 **Топ рисков**\n\n"
-    if not items:
-        result += "ℹ️ *Нет данных*\n"
-        return result
-
-    risk_colors = ["🔴", "🟡", "🟢"]
-    for i, item in enumerate(items[:5]):
-        color = risk_colors[min(i, 2)]
-        file = _val(item.get("file"), "—")
-        bugs = item.get("bug_count", 0)
-        result += f"{color} **{file}** — {bugs} багов\n"
-
-    result += "\n"
-    return result
-
-
-# ══════════════════════════════════════════════════════════
 # FORMAT: ETA
 # ══════════════════════════════════════════════════════════
 
@@ -241,3 +219,71 @@ def format_incident(component: str, symptom: str, fix: str, incident_id: str) ->
         f"❌ **Error:** {symptom}\n"
         f"🛡️ **Fix:** {fix}\n\n"
     )
+
+
+def format_project_memory(memory: Dict[str, List]) -> str:
+    """Форматирует вывод intel_get_project_memory."""
+    result = "🧠 **Project Memory**\n\n"
+    for section, items in memory.items():
+        if not items:
+            continue
+        icons = {
+            "adrs": "💡",
+            "known_issues": "🐛",
+            "tech_debt": "🧹",
+            "failed_attempts": "❌",
+        }
+        icon = icons.get(section, "📌")
+        result += (
+            f"{icon} **{section.replace('_', ' ').title()}:** {len(items)} записей\n"
+        )
+        for item in items[:3]:
+            data = item.get("data", {})
+            title = data.get("title", data.get("issue", data.get("fix", "?")))[:80]
+            result += f"   • {title}\n"
+        if len(items) > 3:
+            result += f"   • ...и ещё {len(items) - 3}\n"
+        result += "\n"
+    return result
+
+
+def format_hotspots(items: List[Dict]) -> str:
+    """Форматирует вывод intel_get_hotspots."""
+    result = "🔥 **Топ рисков**\n\n"
+    if not items:
+        result += "ℹ️ *Нет данных*\n"
+        return result
+    for i, item in enumerate(items[:5], 1):
+        color = "🔴" if i == 1 else ("🟡" if i <= 3 else "🟢")
+        file = item.get("file", "—")
+        bugs = item.get("bug_count", 0)
+        score = item.get("risk_score", 0)
+        result += f"{color} **{file}** — {bugs} багов (score {score:.2f})\n"
+    result += "\n"
+    return result
+
+
+def format_analysis_result(title: str, data: Dict) -> str:
+    """Универсальный форматер для analyze_incident / predict_root_cause."""
+    result = f"🔍 **{title}**\n\n"
+    for k, v in data.items():
+        if isinstance(v, list):
+            if not v:
+                continue
+            result += f"**{k.replace('_', ' ').title()}:**\n"
+            for item in v[:5]:
+                if isinstance(item, dict):
+                    for ik, iv in item.items():
+                        result += f"   • {ik}: {str(iv)[:60]}\n"
+                else:
+                    result += f"   • {item}\n"
+            if len(v) > 5:
+                result += f"   • ...и ещё {len(v) - 5}\n"
+        elif isinstance(v, dict):
+            result += f"**{k.replace('_', ' ').title()}:**\n"
+            for ik, iv in v.items():
+                result += f"   • {ik}: {str(iv)[:60]}\n"
+        else:
+            result += f"• {k}: {str(v)[:80]}\n"
+        result += "\n"
+    return result

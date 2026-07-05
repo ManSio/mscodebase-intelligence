@@ -1024,17 +1024,41 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         """
         job = job_manager.get_job(job_id)
         if not job:
-            return json.dumps(
-                {"error": f"Задача {job_id} не найдена"}, ensure_ascii=False
-            )
+            return f"ℹ️ **Job {job_id}** — не найдена\n"
         enriched = _enrich_job_response(job)
-        return json.dumps(enriched, ensure_ascii=False, indent=2)
+        status_icon = (
+            "✅"
+            if job.status == "completed"
+            else (
+                "🔄"
+                if job.status == "running"
+                else ("❌" if job.status == "failed" else "⏳")
+            )
+        )
+        bar = (
+            "["
+            + "█" * max(0, min(15, int(job.progress * 15)))
+            + "░" * max(0, 15 - max(0, min(15, int(job.progress * 15))))
+            + "]"
+        )
+        label = enriched.get("progress_label", job.status)
+        result = (
+            f"{status_icon} **Job {job_id}** — {label}\n"
+            f"   {bar} `{job.progress:.0%}`\n"
+            f"   Статус: `{job.status}`\n"
+            f"   Прогресс: {enriched.get('progress_label', 'N/A')}\n"
+        )
+        if job.error:
+            result += f"❌ Ошибка: {job.error}\n"
+        return result
 
     @mcp_app.tool("intel_code_topology")
     async def code_topology(symbol_name: str) -> str:
         """Получить граф вызовов, ссылки и результаты статического анализа для символа кода (< 2 сек)."""
         res = await intel_layer.intel_code_topology(symbol_name)
-        return json.dumps(res, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_analysis_result
+
+        return format_analysis_result(f"Call Graph: {symbol_name}", res)
 
     @mcp_app.tool("intel_log_incident")
     async def log_incident(
@@ -1053,7 +1077,9 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     async def get_project_memory() -> str:
         """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли)."""
         memory = await intel_layer.intel_get_project_memory()
-        return json.dumps(memory, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_project_memory
+
+        return format_project_memory(memory)
 
     @mcp_app.tool("intel_add_memory_node")
     async def add_memory_node(section: str, data_json: str) -> str:
@@ -1064,13 +1090,19 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     async def get_hotspots() -> str:
         """Показать Топ-5 файлов проекта с наивысшей плотностью рисков и баг-нагрузки."""
         hotspots = await intel_layer.intel_get_code_hotspots()
-        return json.dumps(hotspots, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_hotspots
+
+        return format_hotspots(hotspots)
 
     @mcp_app.tool("intel_analyze_incident")
     async def analyze_incident(error_message: str) -> str:
         """Найти аналогичные инциденты из прошлого по тексту ошибки и выдать готовые решения."""
         result = await intel_layer.intel_analyze_incident(error_message)
-        return json.dumps(result, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_analysis_result
+
+        return format_analysis_result(
+            f"Incident Analysis: {error_message[:50]}", result
+        )
 
     @mcp_app.tool("intel_predict_root_cause")
     async def predict_root_cause(
@@ -1081,7 +1113,9 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         result = await intel_layer.intel_predict_root_cause(
             error_message, component_context
         )
-        return json.dumps(result, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_analysis_result
+
+        return format_analysis_result(f"Root Cause: {error_message[:50]}", result)
 
     @mcp_app.tool("intel_get_telemetry")
     async def get_telemetry(days: int = 7) -> str:
@@ -1091,7 +1125,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             days: кол-во дней истории (пока не используется, always 0)
 
         Returns:
-            Markdown-таблица для человека + JSON в detail для LLM.
+            Markdown-таблица для человека.
         """
         data = await intel_layer.intel_get_telemetry(days)
         runtime = data.get("runtime", {})
@@ -1181,11 +1215,4 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
                 parts.append(f"| {d} | {ch} | {fi} | {ram} | {llm} |")
             parts.append("")
 
-        detail = json.dumps(data, ensure_ascii=False, indent=2)
-        return json.dumps(
-            {
-                "status": "ok",
-                "message": "\n".join(parts),
-            },
-            ensure_ascii=False,
-        )
+        return "\n".join(parts)

@@ -1106,6 +1106,7 @@ def _register_all_tools(mcp, services):
             _ext_root,
             _services_cache,
         )
+        from src.utils.ui_formatter import _val, header, section
 
         pr = _default_project_root or resolve_project_root()
 
@@ -1137,40 +1138,53 @@ def _register_all_tools(mcp, services):
         except Exception as e:
             _project_state = f"ERROR: {e}"
 
-        passport = {
-            "run_id": _RUN_ID,
-            "build_id": _BUILD_ID or "<no git>",
-            "pid": _RUN_PID,
-            "started_at": datetime.fromtimestamp(_RUN_STARTED_AT).isoformat(),
-            "uptime_sec": round(time.time() - _RUN_STARTED_AT, 1),
-            "source_file": _RUN_SOURCE_FILE,
-            "user": getpass.getuser(),
-            "cwd": str(Path.cwd().resolve()),
-            "ext_root": str(_ext_root),
-            "default_project_root": str(pr),
-            "project_state": _project_state,
-            "bridge": _bridge,
-            "bridge_error": _bridge_err,
-            "registry": {
-                "paths": _registry_paths,
-                "cached_projects": _registry_state_info.get("cached_projects", 0),
-                "cache_hits": _registry_state_info.get("cache_hits", 0),
-                "cache_misses": _registry_state_info.get("cache_misses", 0),
-            },
-            "env": {
-                "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
-                "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
-                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get(
-                    "MSCODEBASE_ALLOW_SELF_INDEX"
-                ),
-                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[
-                    0
-                ]
-                or None,
-            },
-            "self_index_guard_result": _is_self_index_path(pr),
-        }
-        return json.dumps(passport, ensure_ascii=False, indent=2)
+        uptime_sec = round(time.time() - _RUN_STARTED_AT, 1)
+
+        result = header("debug_runtime_passport", "ok")
+
+        result += section("🧬 Process")
+        result += f"• **RUN_ID:** `{_val(_RUN_ID)}`\n"
+        result += f"• **BUILD_ID:** `{_val(_BUILD_ID, '<no git>')}`\n"
+        result += f"• **PID:** `{_RUN_PID}`\n"
+        result += (
+            f"• **Started:** `{datetime.fromtimestamp(_RUN_STARTED_AT).isoformat()}`\n"
+        )
+        result += f"• **Uptime:** `{uptime_sec}s`\n"
+        result += f"• **Source:** `{_val(_RUN_SOURCE_FILE)}`\n"
+        result += f"• **User:** `{getpass.getuser()}`\n"
+
+        result += section("🗂 Project")
+        result += f"• **CWD:** `{_val(str(Path.cwd().resolve()))}`\n"
+        result += f"• **Ext Root:** `{_val(str(_ext_root))}`\n"
+        result += f"• **Default Project:** `{_val(str(pr))}`\n"
+        result += f"• **Project State:** `{_val(_project_state)}`\n"
+
+        result += section("🔗 Bridge")
+        result += f"• **State:** {_val(_bridge)}\n"
+        if _bridge_err:
+            result += f"• **Error:** `{_val(_bridge_err)}`\n"
+
+        result += section("📦 Registry")
+        result += (
+            f"• **Paths:** {', '.join(_registry_paths) if _registry_paths else '—'}\n"
+        )
+        result += f"• **Cached Projects:** `{_registry_state_info.get('cached_projects', 0)}`\n"
+        result += f"• **Cache Hits:** `{_registry_state_info.get('cache_hits', 0)}`\n"
+        result += (
+            f"• **Cache Misses:** `{_registry_state_info.get('cache_misses', 0)}`\n"
+        )
+
+        result += section("🌱 Env")
+        result += f"• **PROJECT_PATH:** `{_val(os.environ.get('PROJECT_PATH'))}`\n"
+        result += (
+            f"• **ZED_WORKTREE_ROOT:** `{_val(os.environ.get('ZED_WORKTREE_ROOT'))}`\n"
+        )
+        result += f"• **MSCODEBASE_ALLOW_SELF_INDEX:** `{_val(os.environ.get('MSCODEBASE_ALLOW_SELF_INDEX'))}`\n"
+        _pp = (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[0] or None
+        result += f"• **PYTHONPATH[0]:** `{_val(_pp)}`\n"
+        result += f"• **Self-Index Guard:** `{_is_self_index_path(pr)}`\n"
+
+        return result
 
     # ─── Project Context tool (Intel Layer) ──────
     # Единый снэпшот проекта: state + index + bridge + health + memory + jobs
@@ -1304,11 +1318,36 @@ def _register_all_tools(mcp, services):
 
         Если blocked > 5% от calls — архитектура требует внимания.
         """
-        import json
-
         from src.core.runtime_coordinator import get_counters
+        from src.utils.ui_formatter import header, section
 
-        return json.dumps(get_counters(), ensure_ascii=False, indent=2)
+        counters = get_counters()
+        result = header("Runtime Counters", "ok")
+        result += section("📊 Состояние")
+        calls = counters.get("can_execute_calls", 0)
+        ready = counters.get("verdict_ready", 0)
+        blocked_pct = round((1 - ready / max(calls, 1)) * 100, 1)
+        result += f"• **Проверок:** {calls} | **Готов:** {ready} | **Блокировано:** {blocked_pct}%\n"
+
+        result += section("🚫 Блокировки")
+        for k, v in counters.items():
+            if k.startswith("verdict_blocked_") and v:
+                reason = k.replace("verdict_blocked_", "").replace("_", " ")
+                result += f"• {reason}: {v}\n"
+
+        result += section("⚠️ Предупреждения")
+        has_warnings = False
+        for k, v in counters.items():
+            if k.startswith("warnings_") and v:
+                w = k.replace("warnings_", "").replace("_", " ")
+                result += f"• {w}: {v}\n"
+                has_warnings = True
+        if not has_warnings:
+            result += "• Нет предупреждений\n"
+
+        result += section("⏱ Производительность")
+        result += f"• **Ожидание:** {counters.get('total_wait_time_sec', 0):.1f}с\n"
+        return result
 
     # --- Telemetry History ---
     @mcp.tool("intel_get_telemetry")

@@ -11,7 +11,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("execution_contract")
 
@@ -20,7 +20,9 @@ class ExecutionContract:
     """Валидатор действий агента."""
 
     @staticmethod
-    def verify_file_write(file_path: str, expected_content: Optional[str] = None) -> Dict[str, Any]:
+    def verify_file_write(
+        file_path: str, expected_content: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Верификация записи файла."""
         result = {
             "action": "file_write",
@@ -62,11 +64,12 @@ class ExecutionContract:
         try:
             # Получаем хеш последнего коммита
             hash_result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True, text=True, timeout=10
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30
             )
             if hash_result.returncode != 0:
-                result["errors"].append(f"git rev-parse failed: {hash_result.stderr.strip()}")
+                result["errors"].append(
+                    f"git rev-parse failed: {hash_result.stderr.strip()}"
+                )
                 return result
 
             commit_hash = hash_result.stdout.strip()
@@ -75,7 +78,9 @@ class ExecutionContract:
             # Получаем сообщение коммита
             msg_result = subprocess.run(
                 ["git", "log", "-1", "--pretty=%B"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if msg_result.returncode == 0:
                 commit_msg = msg_result.stdout.strip()
@@ -89,8 +94,17 @@ class ExecutionContract:
 
             # Проверяем что коммит не пустой
             diff_result = subprocess.run(
-                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
-                capture_output=True, text=True, timeout=10
+                [
+                    "git",
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "-r",
+                    commit_hash,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if diff_result.returncode == 0:
                 changed_files = [f for f in diff_result.stdout.strip().split("\n") if f]
@@ -123,18 +137,25 @@ class ExecutionContract:
         try:
             # Проверяем статус push
             status_result = subprocess.run(
-                ["git", "status", "-sb"],
-                capture_output=True, text=True, timeout=10
+                ["git", "status", "-sb"], capture_output=True, text=True, timeout=30
             )
             if status_result.returncode != 0:
-                result["errors"].append(f"git status failed: {status_result.stderr.strip()}")
+                result["errors"].append(
+                    f"git status failed: {status_result.stderr.strip()}"
+                )
                 return result
 
-            status_line = status_result.stdout.strip().split("\n")[0] if status_result.stdout else ""
+            status_line = (
+                status_result.stdout.strip().split("\n")[0]
+                if status_result.stdout
+                else ""
+            )
 
             # Если есть "ahead" — push не прошёл
             if "ahead" in status_line:
-                result["errors"].append(f"Локальная ветка опережает remote: {status_line}")
+                result["errors"].append(
+                    f"Локальная ветка опережает remote: {status_line}"
+                )
                 return result
 
             result["verified"] = True
@@ -159,7 +180,9 @@ class ExecutionContract:
 
         # Этот метод вызывается из MCP-контекста, поэтому просто возвращаем статус
         # Реальная верификация происходит через get_index_status после notify_change
-        result["note"] = "Вызовите get_index_status() после notify_change для верификации"
+        result["note"] = (
+            "Вызовите get_index_status() после notify_change для верификации"
+        )
         result["verified"] = True  # Ожидает внешней верификации
 
         return result

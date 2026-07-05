@@ -11,9 +11,9 @@ Self-Diagnostic Report — автоматическая проверка здо�
 import concurrent.futures
 import logging
 import os
-import time
 import subprocess
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -288,10 +288,12 @@ class HealthReport:
                         rglob_count += 1
                         # Защита: не сканируем больше 10000 файлов
                         if rglob_count > 10000:
-                            self.warnings.append({
-                                "component": "filesystem_sync",
-                                "message": f"Проект >10000 файлов — rglob прерван после {rglob_count}",
-                            })
+                            self.warnings.append(
+                                {
+                                    "component": "filesystem_sync",
+                                    "message": f"Проект >10000 файлов — rglob прерван после {rglob_count}",
+                                }
+                            )
                             break
                         if p.is_file():
                             try:
@@ -302,17 +304,28 @@ class HealthReport:
                                 pass
                     orphans = files_in_index - files_on_disk
                     if orphans:
+                        # Удаляем мёртвые записи из индекса
+                        deleted_count = 0
+                        for orphan_path in orphans:
+                            if hasattr(self.indexer, "delete_file"):
+                                try:
+                                    if self.indexer.delete_file(orphan_path):
+                                        deleted_count += 1
+                                except Exception:
+                                    pass
                         self.warnings.append(
                             {
                                 "component": "filesystem_sync",
                                 "message": (
                                     f"Осиротевшие файлы в индексе "
-                                    f"({len(orphans)}): удалены с диска"
+                                    f"({len(orphans)}): удалены с диска, "
+                                    f"очищено {deleted_count} из индекса"
                                 ),
                                 "count": len(orphans),
                             }
                         )
                         self.metrics["orphan_files_count"] = len(orphans)
+                        self.metrics["orphan_files_cleaned"] = deleted_count
             except Exception as orph_err:
                 logger.debug(f"Orphan detection skipped: {orph_err}")
 
@@ -331,18 +344,25 @@ class HealthReport:
                 embedder_mode = getattr(self.embedder, "mode", "unknown")
                 self.metrics["embedder_status"] = embedder_mode
                 self.metrics["embedder_mode"] = embedder_mode  # алиас (INC-6BCB)
-                self.metrics["embedder_available"] = embedder_mode not in ("unknown", "fallback")
+                self.metrics["embedder_available"] = embedder_mode not in (
+                    "unknown",
+                    "fallback",
+                )
                 # Fallback = degraded (warning), не critical — восстанавливается запуском LM Studio.
                 if embedder_mode == "fallback":
-                    self.warnings.append({
-                        "component": "embedder",
-                        "message": "Embedder в fallback-режиме: векторный поиск недоступен",
-                    })
+                    self.warnings.append(
+                        {
+                            "component": "embedder",
+                            "message": "Embedder в fallback-режиме: векторный поиск недоступен",
+                        }
+                    )
             except Exception as e:
-                self.issues.append({
-                    "component": "embedder",
-                    "message": f"Ошибка проверки embedder: {e}",
-                })
+                self.issues.append(
+                    {
+                        "component": "embedder",
+                        "message": f"Ошибка проверки embedder: {e}",
+                    }
+                )
 
         if self.symbol_index:
             try:
@@ -357,15 +377,19 @@ class HealthReport:
                 self.metrics["total_symbols"] = symbol_count
                 # Символов 0 при непустом индексе = аномалия (см. INC-6BCB).
                 if symbol_count == 0 and self.metrics.get("total_chunks", 0) > 0:
-                    self.warnings.append({
-                        "component": "symbol_index",
-                        "message": "Символов 0 при непустом индексе — требуется переиндексация",
-                    })
+                    self.warnings.append(
+                        {
+                            "component": "symbol_index",
+                            "message": "Символов 0 при непустом индексе — требуется переиндексация",
+                        }
+                    )
             except Exception as e:
-                self.issues.append({
-                    "component": "symbol_index",
-                    "message": f"Ошибка проверки symbol_index: {e}",
-                })
+                self.issues.append(
+                    {
+                        "component": "symbol_index",
+                        "message": f"Ошибка проверки symbol_index: {e}",
+                    }
+                )
 
     def _check_resources(self):
         """Проверка ресурсов процесса (RAM/CPU) и registry (multi-window).
@@ -374,8 +398,8 @@ class HealthReport:
         throttling и LRU eviction.)
         """
         try:
-            from src.core.resource_monitor import get_global_resource_monitor
             from src.core.project_indexer_registry import get_global_registry
+            from src.core.resource_monitor import get_global_resource_monitor
 
             monitor = get_global_resource_monitor()
             summary = monitor.get_summary()
@@ -384,23 +408,27 @@ class HealthReport:
             self.metrics["process_threads"] = summary["num_threads"]
 
             if summary["under_hard_pressure"]:
-                self.issues.append({
-                    "component": "resources",
-                    "message": (
-                        f"Жёсткое давление: RAM={summary['rss_mb']:.0f}MB / "
-                        f"CPU={summary['cpu_percent']:.0f}%. "
-                        f"LRU eviction активен."
-                    ),
-                })
+                self.issues.append(
+                    {
+                        "component": "resources",
+                        "message": (
+                            f"Жёсткое давление: RAM={summary['rss_mb']:.0f}MB / "
+                            f"CPU={summary['cpu_percent']:.0f}%. "
+                            f"LRU eviction активен."
+                        ),
+                    }
+                )
             elif summary["under_soft_pressure"]:
-                self.warnings.append({
-                    "component": "resources",
-                    "message": (
-                        f"Мягкое давление: RAM={summary['rss_mb']:.0f}MB / "
-                        f"CPU={summary['cpu_percent']:.0f}%. "
-                        f"Throttling индексации активен."
-                    ),
-                })
+                self.warnings.append(
+                    {
+                        "component": "resources",
+                        "message": (
+                            f"Мягкое давление: RAM={summary['rss_mb']:.0f}MB / "
+                            f"CPU={summary['cpu_percent']:.0f}%. "
+                            f"Throttling индексации активен."
+                        ),
+                    }
+                )
 
             registry = get_global_registry()
             reg_stats = registry.get_stats()
@@ -409,25 +437,31 @@ class HealthReport:
             self.metrics["registry_cache_hits"] = reg_stats["cache_hits"]
             self.metrics["registry_cache_misses"] = reg_stats["cache_misses"]
             self.metrics["registry_evictions"] = reg_stats["evictions"]
-            self.metrics["registry_pressure_evicts"] = reg_stats["evictions_for_pressure"]
+            self.metrics["registry_pressure_evicts"] = reg_stats[
+                "evictions_for_pressure"
+            ]
 
             if reg_stats["cached_projects"] >= reg_stats["max_cached"]:
-                self.warnings.append({
-                    "component": "registry",
-                    "message": (
-                        f"Кэш ProjectIndexerRegistry заполнен "
-                        f"({reg_stats['cached_projects']}/{reg_stats['max_cached']}). "
-                        f"Следующее окно вытеснит LRU."
-                    ),
-                })
+                self.warnings.append(
+                    {
+                        "component": "registry",
+                        "message": (
+                            f"Кэш ProjectIndexerRegistry заполнен "
+                            f"({reg_stats['cached_projects']}/{reg_stats['max_cached']}). "
+                            f"Следующее окно вытеснит LRU."
+                        ),
+                    }
+                )
         except Exception as e:
-            self.warnings.append({
-                "component": "resources",
-                "message": f"Ошибка проверки ресурсов: {e}",
-            })
+            self.warnings.append(
+                {
+                    "component": "resources",
+                    "message": f"Ошибка проверки ресурсов: {e}",
+                }
+            )
 
     def _check_execution_contract(self):
-        """Проверка Execution Contract (git operations)."""
+        """Проверка Execution Contract (git operations, timeout=30s)."""
 
         def _git_worker():
             try:
@@ -440,7 +474,7 @@ class HealthReport:
                     ["git", "log", "--oneline", "-1"],
                     cwd=str(self.project_path),
                     stderr=subprocess.DEVNULL,
-                    timeout=5,
+                    timeout=15,
                     env=_env,
                 )
                 return out.strip().decode("utf-8")
@@ -451,7 +485,7 @@ class HealthReport:
 
         try:
             # Вызов оригинального _run_with_timeout из первой части кода
-            last_commit = self._run_with_timeout(_git_worker, timeout=10)
+            last_commit = self._run_with_timeout(_git_worker, timeout=30)
 
             # Если вернулось исключение или TimeoutError
             if isinstance(last_commit, (Exception, TimeoutError)):
@@ -492,8 +526,8 @@ class HealthReport:
     def _check_search_quality(self):
         """Synthetic monitoring: проверка качества семантического поиска.
 
-        Три тестовых запроса с таймаутом 8с каждый.
-        LM Studio может отвечать до 7с на поиск — не блокируем диагностику.
+        Три тестовых запроса с таймаутом 30с каждый.
+        LM Studio может отвечать до 25с на поиск — не блокируем диагностику.
         """
         if (
             not self.indexer
@@ -525,14 +559,14 @@ class HealthReport:
                     except Exception as e:
                         _out["error"] = str(e)
 
-                # Используем оригинальный враппер через твой _run_with_timeout с лимитом 8 секунд
-                res = self._run_with_timeout(_search, timeout=8.0)
+                # Используем оригинальный враппер через твой _run_with_timeout с лимитом 30 секунд
+                res = self._run_with_timeout(_search, timeout=30.0)
 
                 if isinstance(res, (Exception, TimeoutError)):
                     self.warnings.append(
                         {
                             "component": "search_quality",
-                            "message": f"Тест поиска #{i+1} завершился с ошибкой/таймаутом: {res}",
+                            "message": f"Тест поиска #{i + 1} завершился с ошибкой/таймаутом: {res}",
                         }
                     )
                     continue
@@ -544,7 +578,7 @@ class HealthReport:
                     self.warnings.append(
                         {
                             "component": "search_quality",
-                            "message": f"Search вернул пустой результат на шаге #{i+1}",
+                            "message": f"Search вернул пустой результат на шаге #{i + 1}",
                         }
                     )
 

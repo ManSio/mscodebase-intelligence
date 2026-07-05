@@ -12,8 +12,8 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import functools
+import inspect
 import json
 import logging
 import threading
@@ -36,14 +36,17 @@ _TOOL_METRICS_LOCK = threading.Lock()
 def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
     """Записывает метрику вызова инструмента (потокобезопасно)."""
     with _TOOL_METRICS_LOCK:
-        entry = _TOOL_METRICS.setdefault(tool_name, {
-            "calls": 0,
-            "errors": 0,
-            "total_ms": 0,
-            "min_ms": 999999,
-            "max_ms": 0,
-            "last_call": "",
-        })
+        entry = _TOOL_METRICS.setdefault(
+            tool_name,
+            {
+                "calls": 0,
+                "errors": 0,
+                "total_ms": 0,
+                "min_ms": 999999,
+                "max_ms": 0,
+                "last_call": "",
+            },
+        )
         entry["calls"] += 1
         if not success:
             entry["errors"] += 1
@@ -58,10 +61,7 @@ def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
 def get_tool_metrics() -> dict:
     """Возвращает копию метрик для telemetry."""
     with _TOOL_METRICS_LOCK:
-        return {
-            name: dict(stats)
-            for name, stats in _TOOL_METRICS.items()
-        }
+        return {name: dict(stats) for name, stats in _TOOL_METRICS.items()}
 
 
 def get_tool_metrics_summary() -> list:
@@ -74,25 +74,24 @@ def get_tool_metrics_summary() -> list:
             calls = stats["calls"]
             avg_ms = round(stats["total_ms"] / calls, 1) if calls else 0
             min_ms = stats["min_ms"] if stats["min_ms"] < 999999 else 0
-            rows.append({
-                "tool": name,
-                "calls": calls,
-                "errors": stats["errors"],
-                "avg_ms": avg_ms,
-                "min_ms": min_ms,
-                "max_ms": stats["max_ms"],
-                "last": stats["last_call"],
-            })
+            rows.append(
+                {
+                    "tool": name,
+                    "calls": calls,
+                    "errors": stats["errors"],
+                    "avg_ms": avg_ms,
+                    "min_ms": min_ms,
+                    "max_ms": stats["max_ms"],
+                    "last": stats["last_call"],
+                }
+            )
         return rows
 
 
 def flush_tool_metrics() -> list:
     """Сбрасывает метрики и возвращает их для сохранения в telemetry (потокобезопасно)."""
     with _TOOL_METRICS_LOCK:
-        snapshot = {
-            name: dict(stats)
-            for name, stats in _TOOL_METRICS.items()
-        }
+        snapshot = {name: dict(stats) for name, stats in _TOOL_METRICS.items()}
         # Сбрасываем для следующего периода
         _TOOL_METRICS.clear()
         return list(snapshot.values()) if snapshot else []
@@ -128,6 +127,7 @@ class ToolError(Exception):
 
 class IndexNotReadyError(ToolError):
     """Когда индекс пуст или не инициализирован."""
+
     def __init__(self, detail: str = ""):
         super().__init__(
             message="Index is not ready",
@@ -139,6 +139,7 @@ class IndexNotReadyError(ToolError):
 
 class RateLimitError(ToolError):
     """Rate Limit превышен."""
+
     def __init__(self, detail: str = ""):
         super().__init__(
             message="Rate limit exceeded",
@@ -196,6 +197,7 @@ def error_boundary(
         async def search_code(query: str) -> dict:
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs) -> str:
@@ -257,8 +259,7 @@ def error_boundary(
                 except Exception as e:
                     # Неожиданная ошибка — логируем полный traceback и НЕ повторяем
                     logger.error(
-                        f"[{tool_name}] Unexpected error: {e}\n"
-                        f"{traceback.format_exc()}"
+                        f"[{tool_name}] Unexpected error: {e}\n{traceback.format_exc()}"
                     )
                     elapsed = int((time.perf_counter() - start_time) * 1000)
                     record_tool_call(tool_name, elapsed, success=False)
@@ -315,8 +316,7 @@ def error_boundary(
                 )
             except Exception as e:
                 logger.error(
-                    f"[{tool_name}] Unexpected error: {e}\n"
-                    f"{traceback.format_exc()}"
+                    f"[{tool_name}] Unexpected error: {e}\n{traceback.format_exc()}"
                 )
                 elapsed = int((time.perf_counter() - start_time) * 1000)
                 record_tool_call(tool_name, elapsed, success=False)
@@ -336,6 +336,7 @@ def error_boundary(
 # ══════════════════════════════════════════════════════════
 # Вспомогательные внутренние функции
 # ══════════════════════════════════════════════════════════
+
 
 def _sanitize(obj: Any) -> Any:
     """Рекурсивно преобразует numpy/pandas типы в нативные Python.
@@ -379,45 +380,68 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
 
     Стратегия:
     - str: пропускаем как есть (уже готовый читаемый ответ с эмодзи)
-    - dict: красивое форматирование + сырые данные в json-блоке внизу
+    - dict: красивое key-value форматирование с эмодзи, без json-блока
+    - list: перечисление с bullet points
     - остальное: JSON
     """
     data = _sanitize(data)
     if isinstance(data, str):
         return data
+    if isinstance(data, list):
+        items = "\n".join(f"  • {item}" for item in data)
+        return f"✅ **Completed** ({latency_ms}ms)\n{items}\n"
     if isinstance(data, dict):
         data.pop("status", None)
         data.pop("latency_ms", None)
 
-        # Красивое форматирование (для человека)
+        def _format_value(v, indent=0):
+            """Рекурсивно форматирует значение с отступами."""
+            pad = "  " * indent
+            if isinstance(v, dict):
+                if not v:
+                    return " ∅"
+                items = []
+                for sk, sv in v.items():
+                    val = _format_value(sv, indent + 1)
+                    items.append(f"{pad}  • {sk}: {val}")
+                return "\n" + "\n".join(items)
+            if isinstance(v, list):
+                if not v:
+                    return " []"
+                items = []
+                for i, item in enumerate(v):
+                    if i >= 10:
+                        items.append(f"{pad}  - ... and {len(v) - 10} more")
+                        break
+                    items.append(f"{pad}  - {_format_value(item, indent + 1)}")
+                return "\n" + "\n".join(items)
+            if isinstance(v, bool):
+                return f" {'✓' if v else '✗'}"
+            if v is None:
+                return " ∅"
+            return f" {v}"
+
         lines = []
         for k, v in data.items():
-            if k in ("results", "data"):
-                continue  # сырые данные — покажем в json-блоке
             key = str(k).replace("_", " ")
-            if isinstance(v, list) and len(v) > 5:
-                lines.append(f"  • {key}: {len(v)} items")
-            elif isinstance(v, dict):
-                lines.append(f"  • {key}:")
-                for sk, sv in list(v.items())[:3]:
-                    lines.append(f"      - {sk}: {sv}")
-            else:
-                lines.append(f"  • {key}: {v}")
+            lines.append(f"  • {key}: {_format_value(v)}")
 
-        # Сырые JSON данные (для AI)
-        raw_json = json.dumps(data, ensure_ascii=False, default=_json_default, indent=2)
-
-        return f"✅ Completed ({latency_ms}ms)\n" + "\n".join(lines) + f"\n\n```json\n{raw_json}\n```"
-    return json.dumps({
-        "status": "ok",
-        "data": data,
-        "latency_ms": latency_ms,
-    }, ensure_ascii=False, default=_json_default)
+        return f"✅ **Completed** ({latency_ms}ms)\n" + "\n".join(lines) + "\n"
+    return json.dumps(
+        {
+            "status": "ok",
+            "data": data,
+            "latency_ms": latency_ms,
+        },
+        ensure_ascii=False,
+        default=_json_default,
+    )
 
 
 def _json_default(obj):
     """Fallback для json.dumps — конвертирует неподдерживаемые типы."""
     import math
+
     # numpy/pyarrow: int32, float64, etc.
     if hasattr(obj, "item"):
         return obj.item()
