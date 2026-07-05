@@ -1017,6 +1017,25 @@ def _register_all_tools(mcp, services):
         import json
         return json.dumps(get_counters(), ensure_ascii=False, indent=2)
 
+    # --- Telemetry History ---
+    @mcp.tool("intel_get_telemetry")
+    async def intel_get_telemetry(days: int = 7) -> str:
+        """Возвращает историю метрик за последние N дней.
+
+        Данные собираются скриптом scripts/collect_telemetry.py
+        (разовый запуск или ежедневно через планировщик Windows).
+
+        Args:
+            days: количество дней истории (по умолчанию 7).
+
+        Returns:
+            JSON с историей метрик для построения графиков.
+        """
+        from scripts.collect_telemetry import get_history
+        import json
+        history = get_history(min(max(days, 1), 365))
+        return json.dumps(history, ensure_ascii=False, indent=2)
+
 
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
