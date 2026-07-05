@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -580,8 +581,8 @@ try:
 
         Multi-root (INC-6BCB-v3): LSP 3.6+ присылает `workspaceFolders` —
         массив ВСЕХ открытых воркспейсов одновременно. Это РЕШАЕТ проблему
-        self-indexing Zed-установки: если Zed открыл `D:\AI\Zed` И
-        `D:\Project\MSCodeBase`, мы видим ОБА, и можем выбрать
+        self-indexing Zed-установки: если Zed открыл D:\AI\Zed И
+        D:\Project\MSCodeBase, мы видим ОБА, и можем выбрать
         правильный через фильтр (skip Zed install dir).
 
         Fallback на `params.root_uri` (single-root legacy, Zed <0.130).
