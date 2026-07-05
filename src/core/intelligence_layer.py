@@ -19,6 +19,7 @@ import os
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -234,6 +235,7 @@ class ProjectIntelligenceLayer:
         self.store = IntelligenceStore(project_path)
         self._reindex_job_id: Optional[str] = None
         self._reindex_lock = asyncio.Lock()
+        self._write_lock = asyncio.Lock()  # защита от race при записи JSON
 
     def _resolve_active_indexer(self) -> Any:
         """Возвращает Indexer для активного workspace (с fallback).
@@ -539,17 +541,19 @@ class ProjectIntelligenceLayer:
         success: bool,
     ) -> str:
         """Фиксирует инцидент/баг в истории проекта."""
-        incidents = self.store.load_incidents()
-        incident_id = f"INC-{uuid.uuid4().hex[:4].upper()}"
-        new_incident = {
-            "incident_id": incident_id,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "component": component,
-            "symptom": symptom,
-            "root_cause": root_cause,
-            "fix": fix,
-            "success": success,
-        }
+        async with self._write_lock:
+            incidents = self.store.load_incidents()
+            incident_id = f"INC-{uuid.uuid4().hex[:4].upper()}"
+
+            new_incident = {
+                "incident_id": incident_id,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "component": component,
+                "symptom": symptom,
+                "root_cause": root_cause,
+                "fix": fix,
+                "success": success,
+            }
         incidents.append(new_incident)
         self.store.save_incidents(incidents)
         logger.info(f"Инцидент {incident_id} записан: {component} — {symptom[:50]}...")
@@ -605,7 +609,8 @@ class ProjectIntelligenceLayer:
         except json.JSONDecodeError as e:
             return f"Ошибка парсинга JSON: {e}"
 
-        nodes = self.store._load_json("project_memory.json")
+        async with self._write_lock:
+            nodes = self.store._load_json("project_memory.json")
         # Миграция старого формата (dict) в плоский список
         if isinstance(nodes, dict):
             flat = []
@@ -615,7 +620,7 @@ class ProjectIntelligenceLayer:
                         {
                             "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
                             "section": sec_name,
-                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "data": item if isinstance(item, dict) else {"value": item},
                         }
                     )
@@ -624,7 +629,7 @@ class ProjectIntelligenceLayer:
         new_node = {
             "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
             "section": section,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "data": data,
         }
         nodes.append(new_node)
@@ -817,7 +822,6 @@ class ProjectIntelligenceLayer:
             from src.core.eta_predictor import get_predictor
 
             _pred = get_predictor()
-            # Записываем измерения из per-tool метрик, чтобы ETA учился
             for t in result.get("tools", []):
                 if t["calls"] > 0:
                     _pred.record_measurement(t["tool"], t["avg_ms"])
@@ -825,6 +829,53 @@ class ProjectIntelligenceLayer:
             result["eta_stats"] = ds
         except Exception as _ee:
             result["eta_stats"] = {"error": str(_ee)}
+
+        # Сохраняем снэпшот на диск при каждом вызове
+        try:
+            _telemetry_dir = self.project_path / ".mscodebase" / "telemetry"
+            _telemetry_dir.mkdir(parents=True, exist_ok=True)
+            _date_str = time.strftime("%Y-%m-%d")
+            _filepath = _telemetry_dir / f"{_date_str}.json"
+
+            _entries = []
+            if _filepath.exists():
+                try:
+                    _entries = json.loads(_filepath.read_text(encoding="utf-8"))
+                    if not isinstance(_entries, list):
+                        _entries = []
+                except Exception:
+                    _entries = []
+
+            _snapshot = {
+                "date": _date_str,
+                "captured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "uptime_sec": round(
+                    time.time()
+                    - __import__(
+                        "src.core.passport", fromlist=["RUN_STARTED_AT"]
+                    ).RUN_STARTED_AT,
+                    1,
+                ),
+                "counters": result.get("runtime", {}),
+                "project": {
+                    "project_path": str(self.project_path),
+                    "index_chunks": getattr(self.indexer, "_cached_total_chunks", 0),
+                    "index_files": len(
+                        getattr(self.indexer, "file_guard", {}).get("indexed_files", [])
+                    )
+                    if hasattr(self.indexer, "file_guard")
+                    else 0,
+                },
+                "resources": result.get("resources", {}),
+                "llm": result.get("llm", {}),
+            }
+            _entries.append(_snapshot)
+            _filepath.write_text(
+                json.dumps(_entries, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
         # История телеметрии за N дней (из .mscodebase/telemetry/)
         try:
@@ -923,15 +974,41 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             estimated_seconds — примерное общее время выполнения
         """
         job_id = await intel_layer.trigger_async_reindex()
-        response = {
-            "status": "started",
-            "job_id": job_id,
-            "check_status_via": "intel_get_job_status",
-            "poll_interval_seconds": 30,
-            "estimated_seconds": 300,
-            "progress_label": "Starting indexing...",
-        }
-        return json.dumps(response, indent=2)
+
+        # Ждём 2 секунды, чтобы индексация дала первый прогресс
+        await asyncio.sleep(2)
+
+        # Проверяем статус задачи
+        job = job_manager.get_job(job_id) if hasattr(job_manager, "get_job") else None
+        progress = round(job.progress * 100) if job else 0
+        p_label = job.status if job else "starting"
+
+        from datetime import datetime, timedelta
+
+        _started = (
+            datetime.fromtimestamp(job.started_at)
+            if job and job.started_at
+            else datetime.now()
+        )
+        _eta_time = (_started + timedelta(seconds=300)).strftime(
+            "%H:%M:%S"
+        )  # ~5min default
+
+        _now = datetime.now().strftime("%H:%M:%S")
+        _bar = "[" + "█" * (progress // 7) + "░" * (15 - progress // 7) + "]"
+
+        dashboard = (
+            f"📦 **MSCodeBase: Indexing Started**\n"
+            f"{'━' * 30}\n"
+            f"🏗️ **Progress:** {_bar} `{progress}%`\n"
+            f"⏱️ Старт: `{_now}` | Статус: `{p_label}`\n"
+            f"{_eta_line}"
+            f"📌 Job ID: `{job_id}`\n"
+            f"{'━' * 30}\n"
+            f"💡 *Следующая проверка: не ранее `{_eta_time}`."
+            f" Используй `intel_get_job_status` только после этого времени.*\n"
+        )
+        return dashboard
 
     @mcp_app.tool("intel_get_job_status")
     async def get_job_status(job_id: str) -> str:
@@ -1020,12 +1097,13 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
 
         parts = ["## 📊 Telemetry\n"]
 
-        # Runtime counters
-        parts.append("### Runtime Counters")
-        parts.append("| Metric | Value |")
-        parts.append("|--------|-------|")
-        for k, v in runtime.items():
-            parts.append(f"| {k} | {v} |")
+        # Runtime counters (человеческие названия)
+        _ct = runtime
+        parts.append("### Runtime State")
+        _rstatus = "✅ Ready" if _ct.get("verdict_ready", 0) > 0 else "⏳ Pending"
+        parts.append(
+            f"| State: {_rstatus} | Warnings: {sum(_ct.get(k, 0) for k in ['warnings_bridge_not_synced', 'warnings_indexing_in_progress', 'warnings_just_started'])} | Total wait: {_ct.get('total_wait_time_sec', 0):.1f}s |"
+        )
         parts.append("")
 
         # Per-tool metrics with min/avg/max
@@ -1084,19 +1162,21 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         history = data.get("history", [])
         if history:
             parts.append("### 📅 History (last {} snapshots)".format(len(history)))
-            parts.append("| Date | Uptime | Chunks | Files | State | LLM ping |")
-            parts.append("|------|--------|--------|-------|-------|----------|")
+            parts.append("| Date | Chunks | Files | RAM | LLM ping |")
+            parts.append("|------|--------|-------|-----|----------|")
             for e in history[-14:]:
                 d = e.get("date", "?")
-                up = e.get("uptime_sec", 0)
-                if isinstance(up, (int, float)):
-                    up = f"{int(up // 3600)}h{int((up % 3600) // 60)}m"
                 proj = e.get("project", {})
-                ch = proj.get("index_chunks", "?")
-                fi = proj.get("index_files", "?")
-                st = proj.get("state", "?")
-                llm = e.get("llm", {}).get("ping_ms", "?")
-                parts.append(f"| {d} | {up} | {ch} | {fi} | {st} | {llm}ms |")
+                ch = proj.get("index_chunks", "-")
+                fi = proj.get("index_files", "-")
+                res = e.get("resources", {})
+                ram = res.get("rss_mb", "-")
+                if isinstance(ram, (int, float)):
+                    ram = f"{ram:.0f} MB"
+                llm = e.get("llm", {}).get("ping_ms", "-")
+                if isinstance(llm, (int, float)):
+                    llm = f"{llm:.0f}ms"
+                parts.append(f"| {d} | {ch} | {fi} | {ram} | {llm} |")
             parts.append("")
 
         detail = json.dumps(data, ensure_ascii=False, indent=2)

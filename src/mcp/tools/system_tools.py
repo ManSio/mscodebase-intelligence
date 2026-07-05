@@ -20,7 +20,7 @@ from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
-from src.utils.ui_formatter import header, key_value
+from src.utils.ui_formatter import format_index_status
 
 logger = logging.getLogger("mscodebase_server.system_tools")
 
@@ -94,26 +94,17 @@ class GetIndexStatusTool(MCPTool):
             pass
 
         # Используем UI-форматтер
-        output = f"{project_label}\n"
-        output += header("get_index_status", "ok")
-        output += key_value(
-            [
-                ("Всего чанков", chunks),
-                ("Уникальных файлов", files),
-                ("Структурных символов", total_symbols),
-                ("Состояние движка", db_status),
-                ("Режим эмбеддера", mode_label),
-            ]
+        output = f"📂 {project_path}\n"
+        output += format_index_status(
+            chunks=chunks,
+            files=files,
+            symbols=total_symbols,
+            embedder=mode_label,
+            status=db_status,
+            other_projects=[Path(p).name for p in other_projects]
+            if other_projects
+            else None,
         )
-
-        # Предупреждение о других проектах
-        if other_projects:
-            output += "⚠️ В этом окне открыты другие проекты:\n"
-            for _p in other_projects:
-                _label = Path(_p).name
-                output += f"   • `{_label}` — проверьте, что вы в нужном\n"
-            output += "\n"
-
         return output
 
 
@@ -377,6 +368,8 @@ class RunHealthCheckTool(MCPTool):
             "tests": health.get("tests", {}),
             "git_status": health.get("git_status", {}),
             "overall": health.get("overall", "unknown"),
+            "message": f"✅ Health check: {health.get('overall', 'done')}. "
+            f"💡 *Следующая проверка: не ранее чем через 5 минут.*",
         }
 
 

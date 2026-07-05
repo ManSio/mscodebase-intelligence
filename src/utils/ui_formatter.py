@@ -1,11 +1,7 @@
 """
-MSCodeBase Intelligence — Продуктовый UI-форматтер для вывода MCP-инструментов.
+MSCodeBase Intelligence — Визуальный UI-форматтер для MCP-инструментов.
 
-Все инструменты должны проходить через этот модуль для единого стиля вывода:
-  - Markdown-таблицы вместо сырого JSON
-  - Цветовая кодировка (✅ 🟡 🔴 ℹ️)
-  - Технические данные под спойлером
-  - Единый заголовок с именем инструмента и временем выполнения
+Стиль: приборная панель — прогресс-бары, эмодзи-статусы, узкие карточки.
 """
 
 import json
@@ -13,280 +9,233 @@ import time
 from typing import Any, Dict, List, Optional
 
 
-def _execution_time(start: float) -> str:
-    """Форматирует время выполнения в мс."""
-    return f"{(time.monotonic() - start) * 1000:.0f}ms"
+def _bar(value: float, max_val: float, width: int = 15) -> str:
+    """Прогресс-бар: [████░░░░░░░░░░░] (15 символов)"""
+    filled = max(0, min(width, int((value / max_val) * width)))
+    return "[" + "█" * filled + "░" * (width - filled) + "]"
 
 
-def _status_icon(status: str) -> str:
-    """Иконка статуса."""
-    return {"ok": "✅", "warn": "🟡", "error": "🔴", "info": "ℹ️"}.get(status, "✅")
-
-
-def _val(val: Any, default: str = "*not set*") -> str:
-    """Заменяет None/unknown на читаемый fallback."""
+def _val(val: Any, default: str = "—") -> str:
     if val is None or val == "unknown" or val == "":
         return default
     return str(val)
 
 
-def header(
-    tool_name: str,
-    status: str = "ok",
-    start_time: Optional[float] = None,
-    extra: Optional[str] = None,
-) -> str:
-    """Заголовок инструмента.
+def _status_icon(status: str) -> str:
+    return {"ok": "🟢", "warn": "🟡", "error": "🔴", "info": "ℹ️"}.get(status, "🟢")
 
-    Args:
-        tool_name: Имя инструмента (напр. get_repo_rank)
-        status: ok | warn | error | info
-        start_time: time.monotonic() для расчёта длительности
-        extra: Доп. текст после статуса
 
-    Returns:
-        Markdown-строка заголовка
-    """
+def header(tool_name: str, status: str = "ok", extra: Optional[str] = None) -> str:
     icon = _status_icon(status)
-    parts = [f"### {icon} `{tool_name}`"]
-    if start_time is not None:
-        parts.append(f"— **{_execution_time(start_time)}**")
-    if extra:
-        parts.append(f"— {extra}")
-    return " ".join(parts) + "\n\n"
+    return f"{icon} **{tool_name}**" + (f" — {extra}" if extra else "") + "\n"
 
 
-def table(
-    columns: List[str],
-    rows: List[List[Any]],
-    caption: Optional[str] = None,
-) -> str:
-    """Форматирует Markdown-таблицу.
-
-    Args:
-        columns: Заголовки колонок
-        rows: Строки данных
-        caption: Подпись над таблицей
-
-    Returns:
-        Markdown-таблица
-    """
-    result = ""
-    if caption:
-        result += f"*{caption}*\n\n"
-
-    # Разделители
-    result += "| " + " | ".join(columns) + " |\n"
-    result += "| " + " | ".join(["---"] * len(columns)) + " |\n"
-
-    # Строки
-    for row in rows:
-        result += "| " + " | ".join(str(cell) for cell in row) + " |\n"
-
-    result += "\n"
-    return result
-
-
-def key_value(items: List[tuple], title: Optional[str] = None) -> str:
-    """Список key: value пар.
-
-    Args:
-        items: Список (key, value)
-        title: Заголовок секции
-
-    Returns:
-        Markdown-список
-    """
-    result = ""
-    if title:
-        result += f"**{title}**\n\n"
-
-    for key, val in items:
-        result += f"- **{key}:** {val}\n"
-
-    result += "\n"
-    return result
-
-
-def code_block(data: Any, language: str = "json") -> str:
-    """JSON code block для отладки (устаревшее — сохранено для совместимости)."""
-    if not isinstance(data, str):
-        data = json.dumps(data, indent=2, ensure_ascii=False)
-    return ""  # Больше не добавляем сырые данные в вывод
+def section(title: str) -> str:
+    """Разделитель секции."""
+    return f"\n{title}\n{'━' * 30}\n"
 
 
 def empty_result(tool_name: str, reason: str = "Нет данных") -> str:
-    """Вывод для пустого результата инструмента."""
-    return (
-        f"### ℹ️ `{tool_name}` — **{reason}**\n\n"
-        "*Ничего не найдено. Проверьте проект и индекс.*\n"
-    )
+    return f"ℹ️ **{tool_name}** — {reason}\n"
 
 
-def error_result(tool_name: str, error: str, start_time: Optional[float] = None) -> str:
-    """Вывод для ошибочного результата инструмента."""
-    prefix = (
-        header(tool_name, "error", start_time)
-        if start_time
-        else f"### 🔴 `{tool_name}` — **Ошибка**\n\n"
-    )
-    return prefix + f"```\n{error}\n```\n"
-
-
-def ok_result(tool_name: str, start_time: float) -> str:
-    """Заголовок успешного выполнения."""
-    return header(tool_name, "ok", start_time)
+def error_result(tool_name: str, error: str) -> str:
+    return f"🔴 **{tool_name}** — Ошибка\n```\n{error}\n```\n"
 
 
 # ══════════════════════════════════════════════════════════
-# Специализированные форматеры для конкретных инструментов
+# FORMAT: get_index_status
 # ══════════════════════════════════════════════════════════
 
 
-def format_repo_rank(
-    items: List[Dict[str, Any]], execution_time_ms: int, raw: Any
+def format_index_status(
+    chunks: int,
+    files: int,
+    symbols: int,
+    embedder: str,
+    status: str,
+    other_projects: Optional[List[str]] = None,
 ) -> str:
-    """Форматирует вывод get_repo_rank по продуктовому стандарту UI."""
-    result = (
-        f"### 📊 Результат: `get_repo_rank` — **Успешно** (`{execution_time_ms}ms`)\n\n"
+    icon = "🟢" if chunks > 0 else "🟡"
+    result = f"{icon} **MSCodeBase** — {status}\n"
+    result += (
+        f"📦 **Чанки:** `{chunks}` | **Файлы:** `{files}` | **Символы:** `{symbols}`\n"
     )
+    result += f"🧠 **Эмбеддер:** {embedder}\n"
 
-    if not items:
-        result += "ℹ️ *Ранжирование репозитория не дало результатов.*\n\n"
-        return result
+    if other_projects:
+        result += f"\n📁 **Другие проекты:**\n"
+        for p in other_projects:
+            result += f"   • `{p}`\n"
 
-    result += "| № | Объект | Вес (Score) | Тип | Файл |\n"
-    result += "|---|--------|-------------|-----|------|\n"
-
-    for i, item in enumerate(items, 1):
-        symbol = _val(item.get("symbol"), "—")
-        score = item.get("score", 0.0)
-        kind = _val(item.get("kind"), "—")
-        file = _val(item.get("file"), "—")
-        result += f"| {i} | **{symbol}** | `{score:.4f}` | `{kind}` | `{file}` |\n"
-
-    result += """
-
-"""
+    result += "\n"
     return result
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: search_code
+# ══════════════════════════════════════════════════════════
 
 
 def format_search_code(
-    query: str, results: List[Dict[str, Any]], execution_time_ms: int, mode: str
+    query: str, results: List[Dict[str, Any]], exec_ms: int, mode: str
 ) -> str:
-    """Форматирует вывод search_code."""
-    result = f"### 🔍 Результат поиска: `{query}` — **{len(results)} находок** (`{execution_time_ms}ms`, mode={mode})\n\n"
+    result = f"🔍 **Поиск:** `{query}` — **{len(results)}** находок ({exec_ms}ms, mode={mode})\n\n"
 
     if not results:
-        result += "ℹ️ *Ничего не найдено. Попробуйте другой запрос или mode.*\n"
+        result += "ℹ️ *Ничего не найдено*\n"
         return result
 
-    result += "| # | Файл | Строка | Фрагмент | Слой |\n"
-    result += "|---|------|--------|----------|------|\n"
-
-    for i, r in enumerate(results[:10], 1):  # топ-10
+    for i, r in enumerate(results[:10], 1):
         file = _val(r.get("file_path", r.get("file", "")), "—")
         line = r.get("start_line", r.get("line", "—"))
-        snippet = r.get("text", r.get("snippet", ""))[:80].replace("\n", " ")
         layer = _val(r.get("layer"), "—")
-        result += f"| {i} | `{file}` | {line} | `{snippet}` | `{layer}` |\n"
-
-    if len(results) > 10:
-        result += f"\n*...и ещё {len(results) - 10} результатов*\n"
-
-    return result
-
-
-def format_health_report(health: Dict[str, Any], execution_time_ms: int) -> str:
-    """Форматирует вывод intel_get_runtime_status / get_health_report."""
-    ok = health.get("ok", True)
-    icon = "✅" if ok else "🔴"
-    result = f"### {icon} Health Report (`{execution_time_ms}ms`)\n\n"
-
-    # Ключевые метрики
-    result += key_value(
-        [
-            ("Проект", _val(health.get("project_path"), "не определён")),
-            ("Чанков", health.get("index_telemetry", {}).get("total_chunks", 0)),
-            ("Файлов", health.get("index_telemetry", {}).get("unique_files", 0)),
-            ("Эмбеддер", health.get("embedding_provider", "неизвестно")),
-            ("PID", health.get("resource_usage", {}).get("process_pid", "?")),
-        ]
-    )
-
-    if not ok:
-        errors = health.get("errors", [])
-        if errors:
-            result += "**Ошибки:**\n"
-            for e in errors:
-                result += f"- 🔴 {e}\n"
-            result += "\n"
-
-    warnings = health.get("warnings", [])
-    if warnings:
-        result += "**Предупреждения:**"
-        for w in warnings:
-            result += f"\n- 🟡 {w}"
+        snippet = r.get("text", r.get("snippet", ""))[:300]
+        result += f"{i}. 📄 **{file}** (стр. {line}, {layer})\n"
+        if snippet:
+            result += f"```\n{snippet}\n```\n"
         result += "\n"
 
+    if len(results) > 10:
+        result += f"*...и ещё {len(results) - 10}*\n"
+
     return result
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: get_repo_rank
+# ══════════════════════════════════════════════════════════
+
+
+def format_repo_rank(items: List[Dict], exec_ms: int, _raw: Any = None) -> str:
+    result = f"🏆 **Рейтинг символов** ({exec_ms}ms)\n\n"
+
+    if not items:
+        result += "ℹ️ *Нет данных*\n"
+        return result
+
+    for i, item in enumerate(items[:10], 1):
+        symbol = _val(item.get("symbol"), "—")
+        score = item.get("score", 0)
+        kind = _val(item.get("kind"), "—")
+        file = _val(item.get("file"), "—")
+        risk = "🔴" if score > 0.8 else ("🟡" if score > 0.5 else "🟢")
+        result += f"{risk} **{symbol}** — `{score:.4f}`\n"
+        result += f"   📁 {file} | 🏷 {kind}\n"
+
+    result += "\n"
+    return result
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: intel_get_runtime_status / get_health_report
+# ══════════════════════════════════════════════════════════
+
+
+def format_runtime_status(data: Dict[str, Any]) -> str:
+    proj = data.get("project_path", "?")
+    chunks = data.get("index_telemetry", {}).get("total_chunks", 0)
+    files = data.get("index_telemetry", {}).get("unique_files", 0)
+    pid = data.get("resource_usage", {}).get("process_pid", "?")
+    embedder = data.get("embedding_provider", "?")
+    lm = data.get("provider_status", {}).get("lm_studio_at_1234", "offline")
+    lm_icon = "🟢" if lm == "online" else "🔴"
+
+    result = f"🟢 **MSCodeBase Active**\n"
+    result += f"📦 **Чанки:** {chunks} | **Файлы:** {files}\n"
+    result += f"{lm_icon} **LM Studio:** {lm}\n"
+    result += f"⚙️ **PID:** {pid}\n\n"
+    return result
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: intel_get_telemetry
+# ══════════════════════════════════════════════════════════
 
 
 def format_telemetry(
-    counters: Dict[str, Any],
-    execution_time_ms: int,
-    per_tool: Optional[List[Dict]] = None,
+    ram_mb: float,
+    cpu: float,
+    llm_model: str,
+    llm_ping: float,
+    llm_tps: int,
+    tools: List[Dict],
+    history: Optional[List[Dict]] = None,
 ) -> str:
-    """Форматирует вывод телеметрии."""
-    result = f"### 📊 Телеметрия (`{execution_time_ms}ms`)\n\n"
+    result = f"🖥 **Ресурсы:** RAM {ram_mb:.0f} MB | CPU {cpu:.0f}%\n"
+    result += f"⚡ **LLM:** {llm_model} | ping {llm_ping:.0f}ms | {llm_tps} tok/s\n"
 
-    # Счётчики
-    calls = counters.get("calls", 0)
-    errors = counters.get("errors", 0)
-    avg_ms = counters.get("avg_ms", 0)
+    if tools:
+        result += f"\n📊 **Инструменты:**\n"
+        for t in tools[:8]:
+            name = t.get("tool", "?")
+            calls = t.get("calls", 0)
+            avg = t.get("avg_ms", 0)
+            err = t.get("errors", 0)
+            err_icon = "🔴" if err > 0 else "🟢"
+            result += f"   • {name}: {calls} вызовов, {avg}ms {err_icon}\n"
 
-    result += key_value(
-        [
-            ("Всего вызовов", calls),
-            ("Ошибок", errors),
-            ("Среднее время", f"{avg_ms}ms"),
-            ("RAM (MB)", _val(counters.get("memory_mb"), "N/A")),
-        ]
-    )
+    if history:
+        result += f"\n📅 **История (снэпшоты):**\n"
+        for e in history[-7:]:
+            d = e.get("date", "?")
+            proj = e.get("project", {})
+            ch = proj.get("index_chunks", 0)
+            res = e.get("resources", {})
+            ram = res.get("rss_mb", "—")
+            llm_p = e.get("llm", {}).get("ping_ms", "—")
+            result += f"   • {d}: {ch} чанков, RAM {ram} MB, LLM {llm_p}\n"
 
-    # Per-tool метрики
-    if per_tool:
-        rows = []
-        for t in per_tool[:15]:
-            name = t.get("name", "?")
-            tc = t.get("calls", 0)
-            t_err = t.get("errors", 0)
-            t_avg = t.get("avg_ms", 0)
-            rows.append([f"`{name}`", tc, t_err, f"{t_avg}ms"])
-
-        result += table(
-            ["Инструмент", "Вызовов", "Ошибок", "Avg ms"],
-            rows,
-            caption="Поинструментная статистика",
-        )
-
-    if per_tool and len(per_tool) > 15:
-        result += f"*...и ещё {len(per_tool) - 15} инструментов*\n\n"
-
+    result += "\n"
     return result
 
 
-def format_eta(
-    operation: str,
-    eta_seconds: float,
-    confidence: float,
-    history_size: int,
-) -> str:
-    """Форматирует вывод ETAPredictor."""
+# ══════════════════════════════════════════════════════════
+# FORMAT: hotpots
+# ══════════════════════════════════════════════════════════
+
+
+def format_hotspots(items: List[Dict]) -> str:
+    result = "🔥 **Топ рисков**\n\n"
+    if not items:
+        result += "ℹ️ *Нет данных*\n"
+        return result
+
+    risk_colors = ["🔴", "🟡", "🟢"]
+    for i, item in enumerate(items[:5]):
+        color = risk_colors[min(i, 2)]
+        file = _val(item.get("file"), "—")
+        bugs = item.get("bug_count", 0)
+        result += f"{color} **{file}** — {bugs} багов\n"
+
+    result += "\n"
+    return result
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: ETA
+# ══════════════════════════════════════════════════════════
+
+
+def format_eta(operation: str, eta_sec: float, confidence: float, history: int) -> str:
     icon = "🟢" if confidence > 0.7 else ("🟡" if confidence > 0.4 else "🔴")
+    bar = _bar(min(confidence, 1.0), 1.0)
     return (
-        f"### {icon} ETA: `{operation}`\n\n"
-        f"- **Оценка:** {eta_seconds:.0f} сек\n"
-        f"- **Уверенность:** {confidence:.0%}\n"
-        f"- **История:** {history_size} записей\n"
+        f"⏱ **ETA:** `{operation}`\n"
+        f"   {bar} `{confidence:.0%}`\n"
+        f"   **Оценка:** {eta_sec:.0f}с | **История:** {history} зап.\n\n"
+    )
+
+
+# ══════════════════════════════════════════════════════════
+# FORMAT: incidents / memory
+# ══════════════════════════════════════════════════════════
+
+
+def format_incident(component: str, symptom: str, fix: str, incident_id: str) -> str:
+    return (
+        f"🚨 **{incident_id}**\n"
+        f"⚙️ **Mod:** `{component}`\n"
+        f"❌ **Error:** {symptom}\n"
+        f"🛡️ **Fix:** {fix}\n\n"
     )

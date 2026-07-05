@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary, ToolError, RateLimitError
+from src.core.error_handler import RateLimitError, ToolError, error_boundary
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
 from src.core.rate_limiter import SlidingWindowRateLimiter
@@ -48,7 +48,9 @@ class NotifyChangeTool(MCPTool):
         # ★ RATE LIMIT: максимум 10 notify_change в секунду ★
         # acquire() теперь sync (threading.Lock) — см. INC-53EC / REFC-03.
         if not self.rate_limiter.acquire("notify_change", max_per_sec=10.0):
-            return "⚠️ Rate limit exceeded: too many notify_change calls. Wait and retry."
+            return (
+                "⚠️ Rate limit exceeded: too many notify_change calls. Wait and retry."
+            )
 
         project_root = self._get_project_root()
         rel_path = self._resolve_and_validate_path(file_path, project_root)
@@ -90,6 +92,7 @@ class NotifyChangeTool(MCPTool):
     def _get_project_root(self) -> Path:
         """Определяет корень проекта (multi-window: из DI default)."""
         from src.core.di_container import ProjectRootKey
+
         return self._services.resolve(ProjectRootKey)
 
     def _resolve_and_validate_path(self, file_path: str, project_root: Path) -> Path:
@@ -140,6 +143,7 @@ class NotifyChangeTool(MCPTool):
         if content is not None:
             try:
                 from src.hybrid_server import shared_indexer
+
                 if shared_indexer._initialized:
                     await shared_indexer.index_file(path, content)
                     return content, "lsp_vfs_hybrid"
@@ -173,6 +177,7 @@ class IndexProjectDirTool(MCPTool):
         # Используем SystemArtifacts (Layer 1) — не нужно импортировать
         # lsp_project_bridge или mcp.server напрямую.
         from src.core.system_artifacts import SystemArtifacts
+
         if SystemArtifacts.is_system_path(target_path):
             return (
                 f"❌ Refusing to index system directory: {target_path}\n"
@@ -196,18 +201,21 @@ class IndexProjectDirTool(MCPTool):
 
         try:
             import asyncio
-            indexed = await asyncio.to_thread(
-                indexer.index_project, target_path
-            )
+
+            indexed = await asyncio.to_thread(indexer.index_project, target_path)
+            from datetime import datetime, timedelta
+
+            _eta_time = (datetime.now() + timedelta(seconds=120)).strftime("%H:%M:%S")
             return (
                 f"✅ Индексация завершена: {target_path.name}\n"
                 f"  • Обработано файлов: {indexed}\n"
                 f"  • Используйте get_index_status() для проверки состояния\n"
-                f"{self._project_header(explicit_project_root=str(target_path))}"
+                f"💡 *Следующая индексация: не ранее {_eta_time}. "
+                f"Запрашивай статус не чаще раза в 30с.*"
             )
         except Exception as e:
             logger.error(f"Indexing error: {e}")
-            return f"❌ Ошибка индексации: {e}"
+            return f"❌ Ошибка индексации: {e}\n💡 *Проверь LM Studio и повтори.*"
 
 
 class IndexHealthTool(MCPTool):
@@ -230,12 +238,17 @@ class IndexHealthTool(MCPTool):
         else:
             # Default: берём из DI project_root (single-window).
             from src.core.di_container import ProjectRootKey
+
             target_path = self._services.resolve(ProjectRootKey)
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         # Находим путь к БД
         import hashlib
+
         normalized_path = str(target_path.resolve()).lower().replace("\\", "/")
         project_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
         project_name = target_path.name.lower()

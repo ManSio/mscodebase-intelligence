@@ -241,6 +241,8 @@ class ScanChangesTool(MCPTool):
             "files_updated": indexed_count,
             "embedder_mode": embedder_mode,
             "architectural_diff": arch_diff,
+            "message": f"✅ Сканирование завершено: {target_path.name}. "
+            f"💡 *Не запускай повторно 2 минуты.*",
         }
 
 
@@ -361,6 +363,8 @@ class GenerateChunkSummariesTool(MCPTool):
             "llm_generations": stats.get("generated", 0),
             "cache_hits": stats.get("cache_hits", 0),
             "elapsed_seconds": round(time.time() - start_time, 1),
+            "message": f"✅ {updated_count} чанков обработано. "
+            f"💡 *Не запускай повторно следующие 5 минут.*",
         }
 
 

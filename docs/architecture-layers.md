@@ -135,3 +135,14 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
 **Вопрос:** какой ответ дать пользователю?
 **Код:** система правил (AGENTS.md, SKILL.md)
 **Не знает:** про внутреннюю архитектуру.
+
+---
+
+### 🔗 Связанные документы
+
+| Документ | Описание |
+|----------|----------|
+| [README.md](../README.md) | Главная документация, карта всех доков |
+| [docs/architecture.md](architecture.md) | Архитектура проекта, DI, слои |
+| [docs/telemetry.md](telemetry.md) | Метрики и телеметрия |
+| [CHANGELOG.md](../CHANGELOG.md) | История версий |
