@@ -1,6 +1,6 @@
 # Contributing — MSCodeBase Intelligence
 
-Гайд для контрибьюторов. Версия проекта: **2.2.0** (Clean Architecture с DI).
+Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
 
 ---
 
@@ -27,7 +27,7 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   └── tools/           # 10 файлов, 37 инструментов
+│   └── tools/           # ~12 файлов, 43 инструмента (33 class-based + 10 intel)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 search tools
 │       ├── indexing_tools.py# 3 indexing tools
@@ -79,7 +79,7 @@ isort src/
 
 ## 4. Running Tests
 
-В проекте **133 теста** в директории `tests/`. Запуск через `pytest` с маркерами.
+В проекте **391+ тестов** в директории `tests/`. Запуск через `pytest` с маркерами.
 
 ```powershell
 # Полный набор
@@ -151,7 +151,7 @@ pytest tests/ --tb=long -v
 
 ## 5. Adding New MCP Tools
 
-Все 26 MCP-инструментов определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
+Все 33 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
 ### Основные инструменты:
 
@@ -369,4 +369,4 @@ SemVer: MAJOR.MINOR.PATCH
 
 ---
 
-*Last updated: 2026-06-28*
+*Last updated: 2026-07-05*

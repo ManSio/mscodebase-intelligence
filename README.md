@@ -9,7 +9,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-307%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-37-total) • [Installation](docs/INSTALL.md) • [Architecture](docs/ARCHITECTURE.md) • [Development](CONTRIBUTING.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-37-total) • [Installation](docs/INSTALL.md) • [Architecture](docs/architecture.md) • [Development](CONTRIBUTING.md)
 
 *Last updated: 2026-07-05*
 
@@ -31,7 +31,7 @@
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальная BM25 реиндексация) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Clean Architecture** | DI Container (15 services), 37 class-based tools, 307 unit tests |
+| 🧪 **Clean Architecture** | DI Container (15 services), 43 tools (33 class-based + 10 intel), 391+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — изолированный Indexer per project, LRU 5, ResourceMonitor throttle |
 
 ---
@@ -62,11 +62,11 @@ python install.py
 > **Multi-Window:** v2.3+ поддерживает несколько открытых проектов в Zed
 > одновременно. Каждое окно получает изолированный Indexer через
 > `ProjectIndexerRegistry` (LRU 5 + ResourceMonitor throttle). См.
-> [docs/ARCHITECTURE.md](docs/architecture.md).
+> [docs/architecture.md](docs/architecture.md).
 
 ---
 
-## 🔧 MCP Tools (37 total)
+## 🔧 MCP Tools (43 total)
 
 ### Core Search
 
