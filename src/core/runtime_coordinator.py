@@ -162,7 +162,7 @@ class RuntimeCoordinator:
 
         except Exception as e:
             _COUNTERS["verdict_blocked_registry_error"] += 1
-        return ExecutionVerdict(
+            return ExecutionVerdict(
                 ok=False,
                 reason="registry_error",
                 detail=str(e),

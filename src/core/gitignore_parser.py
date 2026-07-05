@@ -9,9 +9,18 @@ from typing import Set
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache: project_path -> (mtime, patterns)
+# Избегаем пере-парсинга .gitignore на каждый файл.
+# Это устраняет 1740 GitWildMatchPattern deprecation warnings в тестах
+# и ускоряет проверку .gitignore при индексации.
+_gitignore_cache: dict = {}
+
 
 def load_gitignore_patterns(project_path: Path) -> Set[str]:
     """Загружает и парсит .gitignore файл, возвращая набор паттернов для исключения.
+
+    Caches result by project_path + mtime to avoid re-parsing on every file check.
+    Uses 'gitignore' format (not deprecated 'gitwildmatch').
 
     Args:
         project_path: Корневая директория проекта
@@ -20,222 +29,121 @@ def load_gitignore_patterns(project_path: Path) -> Set[str]:
         Набор паттернов .gitignore (POSIX-формат)
     """
     gitignore_path = project_path / ".gitignore"
-    patterns = set()
+    mtime = gitignore_path.stat().st_mtime if gitignore_path.exists() else -1
 
-    if not gitignore_path.exists():
-        return patterns
+    # Cache hit
+    cached = _gitignore_cache.get(str(project_path))
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
 
-    try:
-        import pathspec
+    patterns: Set[str] = set()
 
-        with open(gitignore_path, "r", encoding="utf-8") as f:
-            content = f.read()
+    if gitignore_path.exists():
+        try:
+            import pathspec
 
-        # Парсим .gitignore с использованием gitwildmatch
-        spec = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
+            with open(gitignore_path, "r", encoding="utf-8") as f:
+                content = f.read()
 
-        # Извлекаем паттерны из спецификации
-        for pattern in spec.patterns:
-            # Преобразуем паттерн в читаемый паттерн
-            pattern_str = str(pattern)
-            if pattern_str:
-                patterns.add(pattern_str)
+            # Используем 'gitignore' вместо 'gitwildmatch' (deprecated)
+            spec = pathspec.PathSpec.from_lines("gitignore", content.splitlines())
 
-        logger.info(
-            f"✅ Загружено {len(patterns)} паттернов .gitignore из {gitignore_path}"
-        )
+            for pattern in spec.patterns:
+                pattern_str = str(pattern)
+                if pattern_str:
+                    patterns.add(pattern_str)
 
-    except ImportError:
-        logger.warning("Модуль 'pathspec' не установлен, .gitignore игнорируется.")
-    except Exception as e:
-        logger.warning(f"Не удалось загрузить .gitignore: {e}")
-
-    return patterns
-
-
-def should_exclude_by_gitignore(
-    file_path: Path, project_path: Path, gitignore_patterns: Set[str]
-) -> bool:
-    """Проверяет, должен ли файл быть исключен на основе .gitignore.
-
-    Args:
-        file_path: Абсолютный путь к файлу
-        project_path: Корневая директория проекта
-        gitignore_patterns: Набор паттернов .gitignore
-
-    Returns:
-        True, если файл должен быть исключен, False в противном случае
-    """
-    if not gitignore_patterns:
-        return False
-
-    try:
-        # Получаем относительный путь к проекту
-        rel_path = file_path.relative_to(project_path)
-        rel_path_str = str(rel_path)
-
-        # Преобразуем в POSIX путь (с слешами) - КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ
-        rel_path_posix = rel_path_str.replace(os.sep, "/")
-        logger.debug(f"[GITIGNORE] Checking file: {rel_path_posix}")
-
-        # Проверяем каждый паттерн
-        for pattern in gitignore_patterns:
-            try:
-                import fnmatch
-
-                if fnmatch.fnmatch(rel_path_posix, pattern):
-                    logger.debug(
-                        f"[GITIGNORE] File {rel_path_posix} excluded by .gitignore pattern: {pattern}"
-                    )
-                    return True
-            except Exception as e:
-                logger.debug(f"[GITIGNORE] Pattern matching error for {pattern}: {e}")
-                continue
-
-    except ValueError:
-        # Файл не является частью проекта
-        logger.debug(f"[GITIGNORE] File not in project: {file_path}")
-        return False
-    except Exception as e:
-        logger.error(
-            f"[GITIGNORE ERROR] Failed to check .gitignore for {file_path}: {e}"
-        )
-
-    return False
-
-
-def get_gitignore_exclusions(project_path: Path) -> Set[str]:
-    """Получает набор путей, исключаемых на основе .gitignore.
-
-    Args:
-        project_path: Корневая директория проекта
-
-    Returns:
-        Набор путей для исключения (POSIX-формат)
-    """
-    patterns = load_gitignore_patterns(project_path)
-
-    # Преобразуем паттерны в конкретные пути для более эффективной проверки
-    exclusions = set()
-
-    for pattern in patterns:
-        # Простая обработка распространенных паттернов .gitignore
-        if pattern == "*":
-            # Исключает все файлы
-            exclusions.add("*")
-        elif pattern.endswith("/"):
-            # Исключает директорию и всё в ней
-            dir_pattern = pattern.rstrip("/") + "/*"
-            exclusions.add(dir_pattern)
-        elif pattern.startswith("!"):
-            # Исключение инверсии - добавляем как исключение из исключений
-            pass
-        elif "/" in pattern:
-            # Паттерн с директорией
-            exclusions.add(pattern)
-        else:
-            # Простой паттерн файла
-            exclusions.add(
-                "*/" + pattern if pattern and not pattern.startswith("*") else pattern
+            logger.debug(
+                f"✅ Загружено {len(patterns)} паттернов .gitignore из {gitignore_path}"
             )
 
-    return exclusions
+        except ImportError:
+            logger.warning("Модуль 'pathspec' не установлен, .gitignore игнорируется.")
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить .gitignore: {e}")
+
+    _gitignore_cache[str(project_path)] = (mtime, patterns)
+    return patterns
 
 
 def is_file_excluded_by_gitignore(
     file_path: Path, project_path: Path, gitignore_patterns: Set[str]
 ) -> bool:
-    """Проверяет, исключен ли файл на основе .gitignore паттернов.
+    """Проверяет, исключён ли файл по правилам .gitignore.
 
     Args:
-        file_path: Абсолютный путь к файлу
-        project_path: Корневая директория проекта
-        gitignore_patterns: Набор паттернов .gitignore
+        file_path: Полный путь к файлу
+        project_path: Корень проекта
+        gitignore_patterns: Набор паттернов из load_gitignore_patterns()
 
     Returns:
-        True, если файл исключен, False в противном случае
+        True если файл должен быть исключён
     """
     if not gitignore_patterns:
         return False
 
     try:
-        rel_path = file_path.relative_to(project_path)
-        rel_path_str = str(rel_path)
-        rel_path_posix = rel_path_str.replace(os.sep, "/")
-        logger.debug(f"[GITIGNORE] Checking file: {rel_path_posix}")
+        rel_path = str(file_path.relative_to(project_path))
+        rel_path_posix = rel_path.replace(os.sep, "/")
 
-        for pattern in gitignore_patterns:
-            try:
-                import fnmatch
-
-                if fnmatch.fnmatch(rel_path_posix, pattern):
-                    logger.debug(
-                        f"[GITIGNORE] File {rel_path_posix} excluded by .gitignore pattern: {pattern}"
-                    )
-                    return True
-            except Exception as e:
-                logger.debug(f"[GITIGNORE] Pattern matching error for {pattern}: {e}")
-                continue
-
+        for pattern_str in gitignore_patterns:
+            if _match_gitignore_pattern(rel_path_posix, pattern_str):
+                return True
     except ValueError:
-        logger.debug(f"[GITIGNORE] File not in project: {file_path}")
         return False
-    except Exception as e:
-        logger.error(
-            f"[GITIGNORE ERROR] Failed to check .gitignore for {file_path}: {e}"
-        )
 
     return False
 
 
-def get_gitignore_summary(project_path: Path) -> dict:
-    """Возвращает сводку .gitignore для логирования и отладки.
+def _match_gitignore_pattern(path: str, pattern: str) -> bool:
+    """Простая проверка паттерна .gitignore.
 
     Args:
-        project_path: Корневая директория проекта
+        path: Относительный путь в POSIX-формате
+        pattern: Паттерн .gitignore
 
     Returns:
-        Словарь с информацией о .gitignore
+        True если путь соответствует паттерну
     """
-    gitignore_path = project_path / ".gitignore"
+    # Убираем начальный слеш
+    if pattern.startswith("/"):
+        pattern = pattern[1:]
 
-    if not gitignore_path.exists():
-        return {
-            "exists": False,
-            "patterns_count": 0,
-            "patterns": [],
-            "exclusions_count": 0,
-        }
+    # Убираем концевой слеш (директория)
+    is_dir_pattern = pattern.endswith("/")
+    if is_dir_pattern:
+        pattern = pattern.rstrip("/")
 
-    try:
-        import pathspec
+    # Прямое совпадение
+    if path == pattern:
+        return True
 
-        with open(gitignore_path, "r", encoding="utf-8") as f:
-            content = f.read()
+    # Совпадение с /**/ (любая вложенность)
+    if "/**/" in pattern:
+        parts = pattern.split("/**/")
+        left, right = parts[0], parts[1]
+        if left and not path.startswith(left):
+            return False
+        if right and not path.endswith(right):
+            return False
+        return True
 
-        spec = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
+    # Wildcard: * (любая последовательность кроме /)
+    if "*" in pattern:
+        import fnmatch
 
-        patterns = list(spec.patterns)
-        pattern_strings = []
+        # Если паттерн содержит /, сравниваем полный путь
+        if "/" in pattern:
+            return fnmatch.fnmatch(path, pattern)
+        # Иначе — имя файла
+        return fnmatch.fnmatch(path.split("/")[-1], pattern)
 
-        for pattern in patterns:
-            pattern_strings.append(str(pattern))
+    # Паттерн для имени файла (без /) — проверяем конец пути
+    if "/" not in pattern:
+        return path.endswith(f"/{pattern}") or path == pattern
 
-        return {
-            "exists": True,
-            "patterns_count": len(pattern_strings),
-            "patterns": pattern_strings,
-            "exclusions_count": len(
-                [p for p in pattern_strings if not p.startswith("!")]
-            ),
-        }
+    # Префикс пути
+    if pattern.endswith("/"):
+        return path.startswith(pattern) or path.startswith(f"{pattern}/")
 
-    except Exception as e:
-        logger.warning(f"Ошибка чтения .gitignore для сводки: {e}")
-        return {
-            "exists": True,
-            "patterns_count": 0,
-            "patterns": [],
-            "exclusions_count": 0,
-            "error": str(e),
-        }
+    return False
