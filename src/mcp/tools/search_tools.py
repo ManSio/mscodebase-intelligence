@@ -89,7 +89,7 @@ class SearchCodeTool(MCPTool):
         filter_layer: Optional[str] = None,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        self.require_index()
+        await self.require_ready_project()
 
         if not query or not query.strip():
             return "❌ Query is empty"
@@ -202,6 +202,7 @@ class GetSymbolInfoTool(MCPTool):
         query: str,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
+        await self.require_ready_project()
         call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
@@ -252,6 +253,7 @@ class ImpactAnalysisTool(MCPTool):
         depth: int = 3,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
+        await self.require_ready_project()
         result = self.resolve_symbol_index().get_impact_analysis(symbol, depth=depth)
 
         if not result.get("call_graph", {}).get("definition"):
