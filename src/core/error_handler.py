@@ -31,14 +31,18 @@ logger = logging.getLogger("mscodebase_server.error_handler")
 # ══════════════════════════════════════════════════════════
 
 _TOOL_METRICS: dict = {}
-"""Счётчики вызовов инструментов: {tool_name: {calls, errors, min_ms, max_ms, total_ms, last_call}}"""
+"""Счётчики вызовов инструментов. Ключ — имя инструмента, значение — dict с calls, errors, min_ms, max_ms, total_ms, last_call, route, avg_confidence, avg_results."""
 
 _TOOL_METRICS_LOCK = threading.Lock()
+
+# Execution Timeline: кольцевой буфер последних N вызовов (имплиситный success signal)
+_TIMELINE: list = []
+_TIMELINE_MAX: int = 50
 
 # Persistent metrics: сохраняются между рестартами MCP-сервера
 _METRICS_PATH: Optional[Path] = None
 _METRICS_SAVE_COUNTER: int = 0
-_METRICS_SAVE_EVERY: int = 10  # Сохранять каждые N вызовов
+_METRICS_SAVE_EVERY: int = 10
 
 
 def set_metrics_path(path: Optional[str | Path]) -> None:
@@ -92,9 +96,28 @@ def save_metrics() -> None:
         logger.warning(f"Не удалось сохранить метрики: {e}")
 
 
-def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
-    """Записывает метрику вызова инструмента (потокобезопасно)."""
+def record_tool_call(
+    tool_name: str,
+    latency_ms: int,
+    success: bool,
+    route: Optional[str] = None,
+    confidence: Optional[float] = None,
+    results_count: Optional[int] = None,
+    detail: Optional[str] = None,
+) -> None:
+    """Записывает метрику вызова инструмента (потокобезопасно).
+
+    Args:
+        tool_name: Имя инструмента (search_code, impact_analysis, ...)
+        latency_ms: Время выполнения в мс
+        success: Успешен ли вызов
+        route: Маршрут поиска (fast/quality/deep/graph/ast/git)
+        confidence: Уверенность в результате (0.0-1.0)
+        results_count: Количество найденных результатов
+        detail: Доп. информация ("6 chunks, layer=core")
+    """
     global _METRICS_SAVE_COUNTER
+
     with _TOOL_METRICS_LOCK:
         entry = _TOOL_METRICS.setdefault(
             tool_name,
@@ -105,6 +128,10 @@ def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
                 "min_ms": 999999,
                 "max_ms": 0,
                 "last_call": "",
+                "route": {},
+                "avg_confidence": 0.0,
+                "avg_results": 0.0,
+                "last_detail": "",
             },
         )
         entry["calls"] += 1
@@ -116,11 +143,86 @@ def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
         if latency_ms > entry["max_ms"]:
             entry["max_ms"] = latency_ms
         entry["last_call"] = time.strftime("%H:%M:%S")
+        if detail:
+            entry["last_detail"] = detail
+
+        # Route tracking (dictionary: "fast" -> count)
+        if route:
+            entry["route"][route] = entry["route"].get(route, 0) + 1
+
+        # Rolling averages
+        calls = entry["calls"]
+        if confidence is not None:
+            prev = entry.get("avg_confidence", 0.0)
+            entry["avg_confidence"] = prev + (confidence - prev) / calls
+        if results_count is not None:
+            prev = entry.get("avg_results", 0.0)
+            entry["avg_results"] = prev + (results_count - prev) / calls
+
+        # Execution timeline (кольцевой буфер)
+        _TIMELINE.append(
+            {
+                "time": time.strftime("%H:%M:%S"),
+                "tool": tool_name,
+                "ms": latency_ms,
+                "ok": success,
+                "route": route or "",
+                "confidence": round(confidence, 2) if confidence is not None else None,
+                "results": results_count,
+            }
+        )
+        if len(_TIMELINE) > _TIMELINE_MAX:
+            _TIMELINE.pop(0)
 
     # Periodic save (каждые N вызовов)
     _METRICS_SAVE_COUNTER += 1
     if _METRICS_SAVE_COUNTER % _METRICS_SAVE_EVERY == 0:
         save_metrics()
+
+
+def record_tool_result(
+    tool_name: str,
+    route: Optional[str] = None,
+    confidence: Optional[float] = None,
+    results_count: Optional[int] = None,
+    detail: Optional[str] = None,
+) -> None:
+    """Обогащает последнюю запись метрик дополнительной информацией.
+
+    Вызывается ИЗ САМОГО ИНСТРУМЕНТА после record_tool_call.
+    Пример: search_code() вызывает record_tool_result(
+        "search_code", route="quality", confidence=0.84, results_count=6
+    )
+    """
+    with _TOOL_METRICS_LOCK:
+        entry = _TOOL_METRICS.get(tool_name)
+        if not entry:
+            return
+        if route:
+            entry["route"][route] = entry["route"].get(route, 0) + 1
+        calls = entry.get("calls", 1)
+        if confidence is not None:
+            prev = entry.get("avg_confidence", 0.0)
+            entry["avg_confidence"] = prev + (confidence - prev) / calls
+        if results_count is not None:
+            prev = entry.get("avg_results", 0.0)
+            entry["avg_results"] = prev + (results_count - prev) / calls
+        if detail:
+            entry["last_detail"] = detail
+
+        # Update last timeline entry
+        if _TIMELINE and _TIMELINE[-1]["tool"] == tool_name:
+            _TIMELINE[-1]["route"] = route or ""
+            _TIMELINE[-1]["confidence"] = (
+                round(confidence, 2) if confidence is not None else None
+            )
+            _TIMELINE[-1]["results"] = results_count
+
+
+def get_execution_timeline() -> list:
+    """Возвращает копию Execution Timeline (последние N вызовов)."""
+    with _TOOL_METRICS_LOCK:
+        return list(_TIMELINE)
 
 
 def get_tool_metrics() -> dict:
@@ -148,6 +250,10 @@ def get_tool_metrics_summary() -> list:
                     "min_ms": min_ms,
                     "max_ms": stats["max_ms"],
                     "last": stats["last_call"],
+                    "avg_confidence": stats.get("avg_confidence", 0.0),
+                    "avg_results": stats.get("avg_results", 0.0),
+                    "route": stats.get("route", {}),
+                    "last_detail": stats.get("last_detail", ""),
                 }
             )
         return rows

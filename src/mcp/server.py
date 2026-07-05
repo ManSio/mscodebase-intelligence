@@ -1377,6 +1377,89 @@ def _register_all_tools(mcp, services):
         history = get_history(min(max(days, 1), 365))
         return json.dumps(history, ensure_ascii=False, indent=2)
 
+    # ─── Tool Health Dashboard ────────────────────
+    @mcp.tool("intel_tool_health")
+    async def intel_tool_health() -> str:
+        """Панель здоровья инструментов:成功率, latency, confidence, routes.
+
+        Агрегированные показатели по каждому инструменту.
+        """
+        from src.core.error_handler import get_tool_metrics_summary
+
+        metrics = get_tool_metrics_summary()
+        if not metrics:
+            return "📊 Нет данных по инструментам."
+
+        lines = ["📊 **Tool Health**\n"]
+        lines.append("| Tool | Health | Calls | Avg ms | Confidence | Routes |")
+        lines.append("|------|--------|-------|--------|------------|--------|")
+
+        for m in metrics:
+            name = m["tool"]
+            calls = m["calls"]
+            errors = m["errors"]
+            avg_ms = m["avg_ms"]
+
+            # Health bar
+            ok_rate = ((calls - errors) / max(calls, 1)) * 100
+            bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
+
+            # Confidence
+            conf = m.get("avg_confidence", 0)
+            conf_str = f"{conf:.2f}" if conf else "—"
+
+            # Routes
+            routes = m.get("route", {})
+            route_str = (
+                ", ".join(f"{k}={v}" for k, v in sorted(routes.items()))
+                if routes
+                else "—"
+            )
+
+            lines.append(
+                f"| {name} | {bars} {ok_rate:.0f}% | {calls} | {avg_ms}ms | {conf_str} | {route_str} |"
+            )
+
+        return "\n".join(lines)
+
+    # ─── Execution Timeline ───────────────────────
+    @mcp.tool("intel_execution_timeline")
+    async def intel_execution_timeline(limit: int = 15) -> str:
+        """Лента последних действий системы (имплиситный success signal).
+
+        Показывает что происходило: какие инструменты вызывались,
+        сколько времени заняли, какой был маршрут и уверенность.
+
+        Args:
+            limit: сколько последних записей показать (по умолчанию 15, макс 50).
+
+        Returns:
+            Таблица с хронологией вызовов.
+        """
+        from src.core.error_handler import get_execution_timeline
+
+        timeline = get_execution_timeline()
+        if not timeline:
+            return "📋 Timeline пуст — инструменты ещё не вызывались."
+
+        limit = min(max(limit, 1), 50)
+        recent = timeline[-limit:]
+
+        lines = ["📋 **Execution Timeline**\n"]
+        lines.append("| Time | Tool | ms | Status | Route | Confidence | Results |")
+        lines.append("|------|------|----|--------|-------|------------|---------|")
+
+        for e in recent:
+            status = "✅" if e["ok"] else "❌"
+            route = e["route"] or "—"
+            conf = f"{e['confidence']:.2f}" if e["confidence"] is not None else "—"
+            res = str(e["results"]) if e["results"] is not None else "—"
+            lines.append(
+                f"| {e['time']} | {e['tool']} | {e['ms']}ms | {status} | {route} | {conf} | {res} |"
+            )
+
+        return "\n".join(lines)
+
 
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
