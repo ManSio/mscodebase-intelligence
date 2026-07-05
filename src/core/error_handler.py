@@ -163,6 +163,15 @@ def record_tool_call(
         if detail:
             entry["last_detail"] = detail
 
+        # Safe setdefault for fields that may be missing from loaded old saves
+        entry.setdefault("latencies", [])
+        entry.setdefault("idle_ms", 0)
+        entry.setdefault("idle_calls", 0)
+        entry.setdefault("repeat_count", 0)
+        entry.setdefault("route", {})
+        entry.setdefault("avg_confidence", 0.0)
+        entry.setdefault("avg_results", 0.0)
+
         # Track all latencies for percentiles (rolling 1000)
         entry["latencies"].append(latency_ms)
         if len(entry["latencies"]) > 1000:
@@ -657,7 +666,7 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
         return data
     if isinstance(data, list):
         items = "\n".join(f"  • {item}" for item in data)
-        return _(f"✅ **Completed** ({latency_ms}ms)\n{items}\n")
+        return f"✅ **Completed** ({latency_ms}ms)\n{items}\n"
     if isinstance(data, dict):
         data.pop("status", None)
         data.pop("latency_ms", None)
