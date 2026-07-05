@@ -548,7 +548,7 @@ tests/
 ├── ... (20 more test files)
 ```
 
-**Total: 307 tests.**
+**Total: 391 tests.**
 
 Run:
 ```bash

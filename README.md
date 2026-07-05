@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-307%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/INSTALL.md) • [Architecture](docs/architecture.md) • [Development](CONTRIBUTING.md)
 
@@ -294,7 +294,7 @@ mscodebase-intelligence/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   └── INSTALL.md
-├── tests/                        # 325 tests (52 new — DI/RateLimiter/ErrorHandler)
+├── tests/                        # 391 tests
 ├── .agents/skills/               # Skills for AI agent
 ├── install.py                    # Installer
 └── README.md
