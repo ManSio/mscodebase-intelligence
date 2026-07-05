@@ -1,5 +1,35 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 15:30] — [Type: Investigation] — LSP не стартует на Windows с Zed 1.9.0
+
+**Problem:** LSP-сервер `mscodebase-lsp` (lsp_main.py) не запускается Zed даже
+при корректной конфигурации в settings.json. LSP bridge остаётся пустым.
+
+**Root Cause:** Zed 1.9.0 на Windows не принимает кастомные имена LSP в массиве
+`language_servers` блока `languages`. Ошибка: `invalid type: string "mscodebase-lsp",
+expected a nonzero u32`. Rust-десериализатор Serde ожидает либо NonZeroU32
+(индексы built-in серверов), либо известные системные имена ("ruff", "pyright").
+Кастомное имя вызывает падение парсинга и игнорирование конфига.
+
+**Проверено:**
+- Код LSP работает (запуск напрямую через python lsp_main.py)
+- Python бинарник venv существует
+- Проект в trusted_worktrees (Restricted Mode выключен)
+- Форматы language_servers: ["mscodebase-lsp"], ["name"], [0], [1], {"name": {}}
+- Все форматы вызывают ошибки Serde кроме ["ruff"] (built-in имя)
+
+**Решение:**
+- `mscodebase-lsp` НЕ добавляется в `language_servers` (вызывает ошибку)
+- LSP остаётся зарегистрированным в блоке `lsp` для использования через extension.toml
+- MCP-сервер (context_servers) работает идеально и не зависит от LSP
+- Проект резолвится через SQLite fallback
+
+**Files Changed:** src/utils/zed_config.py, install.py, src/lsp_main.py
+
+**Status:** ✅ (WONTFIX — limitation of Zed 1.9.0 on Windows)
+
+---
+
 ## [2026-07-05 22:30] — [Type: Bugfix] — LanceDB metadata migration fix + Zed Windows quirks docs
 
 **Problem:**

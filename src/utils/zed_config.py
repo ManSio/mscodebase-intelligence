@@ -106,9 +106,12 @@ def patch_zed_settings(
               'project' — в .zed/settings.json текущего проекта.
         lsp_config: Опциональная конфигурация LSP-сервера ({"command": ..., "arguments": ...}).
                     Если передана — добавляется в settings["lsp"]["mscodebase-lsp"].
-        languages_config: Опциональная конфигурация language servers для языков.
-                          Если передана — добавляется settings["languages"].
-                          Формат: {"Python": ["mscodebase-lsp"], "TypeScript": ["mscodebase-lsp"]}
+                    Привязка к языкам (language_servers) НЕ добавляется —
+                    на Windows Zed 1.9.0 кастомные имена вызывают ошибку
+                    "invalid type: string, expected a nonzero u32".
+        languages_config: DEPRECATED на Windows. Не используется —
+                          Zed 1.9.0 не принимает кастомные имена LSP
+                          в массиве language_servers.
         install_path: Абсолютный путь к установленному расширению.
                       Если передан — используется для PYTHONPATH вместо автоопределения.
                       Нужен когда patch_zed_settings() вызывается из install.py,
@@ -254,29 +257,23 @@ def patch_zed_settings(
         settings["context_servers_to_query"].append(SERVER_NAME)
 
     # ──────────────────────────────────────────────────
-    # LSP + Languages (опционально, single-pass)
+    # LSP (опционально) — регистрируем сервер в блоке lsp,
+    # НО НЕ добавляем в language_servers.
+    #
+    # На Windows Zed 1.9.0 не принимает кастомные имена LSP в массиве
+    # language_servers (ожидает NonZeroU32 или известные built-in имена).
+    # Ошибка: "invalid type: string, expected a nonzero u32".
+    # LSP остаётся зарегистрированным в lsp секции для использования
+    # через extension.toml или ручной настройки.
     # ──────────────────────────────────────────────────
     if lsp_config is not None:
         if "lsp" not in settings:
             settings["lsp"] = {}
         if "mscodebase-lsp" not in settings["lsp"]:
-            # Добавляем env в LSP конфиг (PYTHONPATH + PROJECT_PATH)
             lsp_config["env"] = env.copy()
+            lsp_config["current_dir"] = str(ext_dir)
             settings["lsp"]["mscodebase-lsp"] = lsp_config
-            logger.info(f"✅ LSP-сервер 'mscodebase-lsp' добавлен")
-
-    if languages_config is not None:
-        if "languages" not in settings:
-            settings["languages"] = {}
-        for lang, servers in languages_config.items():
-            if lang not in settings["languages"]:
-                settings["languages"][lang] = {}
-            if "language_servers" not in settings["languages"][lang]:
-                settings["languages"][lang]["language_servers"] = []
-            for srv in servers:
-                if srv not in settings["languages"][lang]["language_servers"]:
-                    settings["languages"][lang]["language_servers"].append(srv)
-        logger.info(f"✅ LSP-привязки к языкам добавлены")
+            logger.info(f"✅ LSP-сервер 'mscodebase-lsp' зарегистрирован (lsp секция)")
 
     # ──────────────────────────────────────────────────
     # Инжект системных правил для AI-ассистента Zed

@@ -765,25 +765,25 @@ def main():
         "command": str(PYTHON_EXE),
         "arguments": ["-u", str(lsp_script_path)],
     }
-    languages_config = {
-        lang: ["mscodebase-lsp"]
-        for lang in ["Python", "TypeScript", "Rust", "Go", "JavaScript"]
-    }
-
-    # Единый вызов patch_zed_settings с MCP + LSP + Languages
+    # Единый вызов patch_zed_settings с MCP + LSP
     # install_path=ZED_EXT_DIR гарантирует что PYTHONPATH укажет на
     # %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+    #
+    # ВАЖНО: languages_config НЕ передаётся — на Windows Zed 1.9.0
+    # не принимает кастомные имена LSP в language_servers
+    # (ошибка: "expected a nonzero u32"). LSP регистрируется
+    # только в lsp секции, без привязки к языкам через settings.json.
+    # Для привязки к языкам используйте extension.toml.
     if patch_zed_settings(
         command=mcp_command,
         mode="global",
         lsp_config=lsp_config,
-        languages_config=languages_config,
+        languages_config=None,
         install_path=str(ZED_EXT_DIR),
     ):
         ok(f"MCP-сервер '{SERVER_NAME}' настроен в Zed")
         detail(f"MCP: {Color.DIM}{mcp_command}{Color.RESET}")
         detail(f"LSP: {Color.DIM}{lsp_script_path}{Color.RESET}")
-        detail(f"Языки: Python, TypeScript, Rust, Go, JavaScript")
     else:
         fail("Не удалось настроить Zed (MCP + LSP)")
         return

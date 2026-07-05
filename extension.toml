@@ -1,0 +1,26 @@
+id = "mscodebase-intelligence"
+name = "MSCodeBase Intelligence"
+version = "2.4.4"
+schema_version = 1
+description = "Semantic codebase intelligence with hybrid search, layer filtering, and multi-granularity retrieval"
+repository = "https://github.com/ManSio/mscodebase-intelligence"
+authors = ["Misha <misha@example.com>"]
+themes = []
+icon_themes = []
+languages = ["languages/python"]
+capabilities = ["context_servers"]
+
+[lib]
+
+[grammars]
+
+[language_servers.mscodebase-lsp]
+language = "Python"
+languages = ["languages/python"]
+
+[language_servers.mscodebase-lsp.language_ids]
+Python = "python"
+
+[context_servers.mscodebase-intelligence]
+
+[slash_commands]
