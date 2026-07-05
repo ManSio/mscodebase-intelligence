@@ -28,7 +28,7 @@ logger = logging.getLogger("mscodebase_server.error_handler")
 # ══════════════════════════════════════════════════════════
 
 _TOOL_METRICS: dict = {}
-"""Счётчики вызовов инструментов: {tool_name: {calls, errors, total_ms, last_call}}"""
+"""Счётчики вызовов инструментов: {tool_name: {calls, errors, min_ms, max_ms, total_ms, last_call}}"""
 
 _TOOL_METRICS_LOCK = threading.Lock()
 
@@ -40,12 +40,18 @@ def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
             "calls": 0,
             "errors": 0,
             "total_ms": 0,
+            "min_ms": 999999,
+            "max_ms": 0,
             "last_call": "",
         })
         entry["calls"] += 1
         if not success:
             entry["errors"] += 1
         entry["total_ms"] += latency_ms
+        if latency_ms < entry["min_ms"]:
+            entry["min_ms"] = latency_ms
+        if latency_ms > entry["max_ms"]:
+            entry["max_ms"] = latency_ms
         entry["last_call"] = time.strftime("%H:%M:%S")
 
 
@@ -65,15 +71,31 @@ def get_tool_metrics_summary() -> list:
         for name, stats in sorted(
             _TOOL_METRICS.items(), key=lambda x: x[1]["calls"], reverse=True
         ):
-            avg_ms = round(stats["total_ms"] / stats["calls"], 1) if stats["calls"] else 0
+            calls = stats["calls"]
+            avg_ms = round(stats["total_ms"] / calls, 1) if calls else 0
+            min_ms = stats["min_ms"] if stats["min_ms"] < 999999 else 0
             rows.append({
                 "tool": name,
-                "calls": stats["calls"],
+                "calls": calls,
                 "errors": stats["errors"],
                 "avg_ms": avg_ms,
+                "min_ms": min_ms,
+                "max_ms": stats["max_ms"],
                 "last": stats["last_call"],
             })
         return rows
+
+
+def flush_tool_metrics() -> list:
+    """Сбрасывает метрики и возвращает их для сохранения в telemetry (потокобезопасно)."""
+    with _TOOL_METRICS_LOCK:
+        snapshot = {
+            name: dict(stats)
+            for name, stats in _TOOL_METRICS.items()
+        }
+        # Сбрасываем для следующего периода
+        _TOOL_METRICS.clear()
+        return list(snapshot.values()) if snapshot else []
 
 
 class ToolError(Exception):

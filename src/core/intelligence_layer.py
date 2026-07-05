@@ -926,15 +926,15 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             parts.append(f"| {k} | {v} |")
         parts.append("")
 
-        # Per-tool metrics
+        # Per-tool metrics with min/avg/max
         if tools:
             parts.append("### Per-Tool Calls")
-            parts.append("| Tool | Calls | Errors | Avg ms | Last call |")
-            parts.append("|------|-------|--------|--------|-----------|")
+            parts.append("| Tool | Calls | Errors | Min ms | Avg ms | Max ms | Last call |")
+            parts.append("|------|-------|--------|--------|--------|--------|-----------|")
             for t in tools:
                 parts.append(
                     f"| {t['tool']} | {t['calls']} | {t['errors']} | "
-                    f"{t['avg_ms']} | {t['last']} |"
+                    f"{t.get('min_ms',0)} | {t['avg_ms']} | {t.get('max_ms',0)} | {t['last']} |"
                 )
         else:
             parts.append("*No tools called yet in this session.*")
