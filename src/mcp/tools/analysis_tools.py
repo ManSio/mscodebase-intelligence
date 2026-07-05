@@ -296,17 +296,15 @@ class ScanChangesTool(MCPTool):
 
 
 class GenerateChunkSummariesTool(MCPTool):
-    """generate_chunk_summaries — генерация LLM-описаний для чанков."""
+    """generate_chunk_summaries — генерация LLM-описаний для чанков (фоновый режим)."""
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="generate_chunk_summaries")
 
-    @error_boundary("generate_chunk_summaries", timeout_ms=300000)
+    @error_boundary("generate_chunk_summaries", timeout_ms=5000)
     async def execute(
         self, project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
-        from src.core.chunk_summarizer import ChunkSummarizer
-
         target_path = Path(project_root).resolve()
         if not target_path.exists():
             return {
@@ -324,7 +322,7 @@ class GenerateChunkSummariesTool(MCPTool):
         if df.empty:
             return {"status": "error", "message": "Database is empty"}
 
-        # Находим чанки без summary
+        # Определяем объём работы ДО отправки в фон
         has_summary_col = "summary" in df.columns
         if has_summary_col:
             mask_no_summary = (
@@ -347,28 +345,69 @@ class GenerateChunkSummariesTool(MCPTool):
                 "message": "All chunks already have summaries",
             }
 
+        # Резолвим зависимости ДО фона
+        embedder = self.resolve_embedder()
         cache_dir = self.resolve_indexer().db_path.parent / "summaries_cache"
-        summarizer = ChunkSummarizer(
-            embedder=self.resolve_embedder(), cache_dir=cache_dir
+
+        from src.core.chunk_summarizer import ChunkSummarizer
+
+        summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
+
+        from src.core.task_queue import get_task_queue
+
+        task_queue = get_task_queue()
+        task_id = task_queue.submit_sync(
+            "generate_chunk_summaries",
+            self._run_summarize_sync,
+            chunks_without.to_dict(orient="records"),
+            summarizer,
+            cache_dir,
+            table,
+            total_chunks,
+            chunks_to_process,
         )
 
-        # Генерируем батчами по 50
+        return {
+            "status": "ok",
+            "task_id": task_id,
+            "total_chunks": total_chunks,
+            "chunks_to_process": chunks_to_process,
+            "message": f"✅ Генерация запущена в фоне. Task ID: {task_id}",
+            "check_status_via": "get_task_status",
+            "poll_interval_seconds": 30,
+        }
+
+    @staticmethod
+    def _run_summarize_sync(
+        records: list,
+        summarizer: Any,
+        cache_dir: Path,
+        table: Any,
+        total_chunks: int,
+        chunks_to_process: int,
+    ) -> str:
+        """Синхронная генерация summary в ThreadPool."""
+        import time
+
+        _t = time.time()
+        logger.info(f"[bg] generate_chunk_summaries: {chunks_to_process} chunks...")
+
         batch_size = 50
         updated_count = 0
         error_count = 0
-        start_time = time.time()
 
         for batch_start in range(0, chunks_to_process, batch_size):
-            batch_df = chunks_without.iloc[batch_start : batch_start + batch_size]
-            records_to_update = []
+            batch = records[batch_start : batch_start + batch_size]
+            to_update = []
 
-            for idx, row in batch_df.iterrows():
+            for row in batch:
                 try:
-                    code = row.get("text", "")
-                    symbol_name = row.get("symbol_name", "")
-                    context = row.get("file_path", "")
-                    summary = summarizer.summarize_chunk(code, symbol_name, context)
-                    records_to_update.append(
+                    summary = summarizer.summarize_chunk(
+                        row.get("text", ""),
+                        row.get("symbol_name", ""),
+                        row.get("file_path", ""),
+                    )
+                    to_update.append(
                         {
                             "id": row["id"],
                             "vector": row["vector"],
@@ -384,41 +423,37 @@ class GenerateChunkSummariesTool(MCPTool):
                     )
                     updated_count += 1
                 except Exception as e:
-                    logger.debug(f"Summary generation error: {e}")
+                    logger.debug(f"[bg] summary error: {e}")
                     error_count += 1
 
-            if records_to_update:
+            if to_update:
                 try:
-                    for rid in [r["id"] for r in records_to_update]:
+                    for r in to_update:
                         try:
-                            table.delete(f"id = '{rid}'")
+                            table.delete(f"id = '{r['id']}'")
                         except Exception:
                             pass
-                    table.add(records_to_update)
+                    table.add(to_update)
                 except Exception as e:
-                    logger.warning(f"Batch update error: {e}")
-                    error_count += len(records_to_update)
-                    updated_count -= len(records_to_update)
+                    logger.warning(f"[bg] batch update error: {e}")
+                    error_count += len(to_update)
+                    updated_count -= len(to_update)
 
         summarizer.save_cache()
         stats = summarizer.get_stats()
+        elapsed = round(time.time() - _t, 1)
 
-        return {
-            "status": "ok",
-            "total_chunks": total_chunks,
-            "chunks_without_summary": chunks_to_process,
-            "updated": updated_count,
-            "errors": error_count,
-            "llm_generations": stats.get("generated", 0),
-            "cache_hits": stats.get("cache_hits", 0),
-            "elapsed_seconds": round(time.time() - start_time, 1),
-            "message": f"✅ {updated_count} чанков обработано. "
+        lines = [
+            f"✅ Summaries generated: {updated_count} chunks",
+            f"  • Total: {total_chunks} | Processed: {chunks_to_process}",
+            f"  • Updated: {updated_count} | Errors: {error_count}",
+            f"  • LLM calls: {stats.get('generated', 0)}",
+            f"  • Cache hits: {stats.get('cache_hits', 0)}",
+            f"  • Elapsed: {elapsed}s",
             f"💡 *Не запускай повторно следующие 5 минут.*",
-        }
+        ]
+        return "\n".join(lines)
 
-
-# Need asyncio for ScanChangesTool
-import asyncio  # noqa: E402
 
 __all__ = [
     "StructuralSearchTool",
