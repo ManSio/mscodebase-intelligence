@@ -176,17 +176,15 @@ def resolve_indexer_for_request(
                 f"Resolved: {target}"
             ),
             detail=(
-                "MCP detected that the resolved project_root is either the "
-                "MSCodeBase extension itself (_ext_root) or a Zed IDE install "
-                "directory. This would cause indexing of .exe/.dll files "
-                "instead of your code.\n\n"
-                "To fix:\n"
-                "  1. Open the project explicitly in Zed: Cmd+Shift+P → "
-                "'Open Project' → select the project folder.\n"
-                "  2. Or pass explicit project_root parameter to this tool.\n"
-                "  3. Or set PROJECT_PATH env var to the desired project.\n\n"
-                "If this is unexpected, run intel_get_runtime_status to "
-                "see the currently resolved project path."
+                "🚨 ПРОЕКТ НЕ ОПРЕДЕЛЁН. Текущий project_root = ext_root (само расширение).\n\n"
+                "Причина: LSP bridge пуст — ZED_WORKTREE_ROOT не установлен на Windows,\n"
+                "и LSP-сервер ещё не записал project_root в bridge-файл.\n\n"
+                "Что делать:\n"
+                "  1. Открой ЛЮБОЙ .py файл в твоём проекте (вкладка редактора).\n"
+                "     LSP стартанёт → запишет project_root в bridge → MCP прочитает.\n"
+                "  2. Или передай project_root явно в каждый инструмент.\n"
+                "  3. Или установи PROJECT_PATH в .zed/settings.json проекта.\n\n"
+                "Проверка: intel_get_runtime_status → bridge: None = LSP ещё не запущен."
             ),
         )
 
