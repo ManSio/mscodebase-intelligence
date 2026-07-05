@@ -2,7 +2,7 @@
 
 <img src="logo/baner.svg" width="800" alt="MSCodeBase Intelligence">
 
-[🇬🇧 English](../en/README.md) • [🇷🇺 Русский](../ru/README.md) • [🇨🇳 中文](README.md)
+[🇬🇧 English](../../README.md) • [🇷🇺 Русский](../ru/README.md) • [🇨🇳 中文](README.md)
 
 # MSCodebase Intelligence
 

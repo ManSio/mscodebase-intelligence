@@ -21,7 +21,7 @@ and saves it to a JSON file with the date. Files accumulate in the directory:
 
 | Document | Description |
 |----------|-------------|
-| [README.md](README.md) | Main documentation, map of all docs |
+| [README.md](../README.md) | Main documentation, map of all docs |
 | [TELEMETRY.md](TELEMETRY.md) | This file |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 ```

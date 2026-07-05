@@ -185,7 +185,7 @@ Details: **[CONTRIBUTING.md](CONTRIBUTING.md)**
 
 | Document | Description |
 |----------|-------------|
-| [README.md](README.md) | Main documentation, map of all docs, tool list |
+| [README.md](../README.md) | Main documentation, map of all docs, tool list |
 | [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) | **Windows specifics:** Restricted Mode, CWD, MCP restart |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Project architecture, DI, layers |
 | [TELEMETRY.md](TELEMETRY.md) | Metrics, ETA, data collection |

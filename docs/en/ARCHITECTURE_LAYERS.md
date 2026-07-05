@@ -144,7 +144,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
 
 | Документ | Описание |
 |----------|----------|
-| [README.md](README.md) | Main documentation, map of all docs |
+| [README.md](../README.md) | Main documentation, map of all docs |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Project architecture, DI, layers |
 | [TELEMETRY.md](TELEMETRY.md) | Metrics and telemetry |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |

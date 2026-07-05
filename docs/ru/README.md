@@ -2,7 +2,7 @@
 
 <img src="../../logo/baner.svg" width="800" alt="MSCodeBase Intelligence">
 
-[🇬🇧 English](../en/README.md) • [🇷🇺 Русский](README.md) • [🇨🇳 中文](../zh/README.md)
+[🇬🇧 English](../../README.md) • [🇷🇺 Русский](README.md) • [🇨🇳 中文](../zh/README.md)
 
 # MSCodebase Intelligence
 
@@ -13,7 +13,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
 
-[Возможности](#-features) • [Быстрый старт](#-quick-start) • [Инструменты](#-mcp-tools-43-total) • [Документация](#-documentation-map) • [Установка](docs/INSTALL.md) • [Архитектура](docs/architecture.md) • [Разработка](CONTRIBUTING.md)
+[Возможности](#-features) • [Быстрый старт](#-quick-start) • [Инструменты](#-mcp-tools-43-total) • [Документация](#-documentation-map) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Разработка](CONTRIBUTING.md)
 
 *Последнее обновление: 2026-07-05*
 
@@ -42,7 +42,7 @@
 
 ## 🚀 Быстрый старт
 
-> Полная инструкция по установке: **[docs/INSTALL.md](docs/INSTALL.md)**
+> Полная инструкция по установке: **[INSTALL.md](INSTALL.md)**
 
 ```bash
 git clone https://github.com/ManSio/mscodebase-intelligence.git
