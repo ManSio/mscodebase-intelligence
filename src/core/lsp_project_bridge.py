@@ -32,6 +32,11 @@ logger = logging.getLogger("MSCodeBase.Bridge")
 _BRIDGE_DIR = Path.home() / ".mscodebase" / "bridge"
 _MAX_WAIT_SEC = 10.0
 _POLL_INTERVAL = 0.05  # 50ms базовый интервал
+
+
+def get_bridge_dir() -> Path:
+    """Публичный геттер для директории bridge-файлов."""
+    return _BRIDGE_DIR
 _STALE_AGE_SEC = 300   # 5 минут
 
 

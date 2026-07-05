@@ -303,11 +303,34 @@ def resolve_project_root(provided: str = "") -> Path:
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd
 
+    # Диагностика: почему все шаги провалились
+    _log_project_resolution_failure()
     logger.warning(
         f"resolve_project_root: fallback to ext_root={_ext_root} "
         f"(возможна self-indexing; установите PROJECT_PATH=$ZED_WORKTREE_ROOT)"
     )
     return _ext_root
+
+
+def _log_project_resolution_failure() -> None:
+    """Логирует детальную причину падения resolve_project_root в ext_root."""
+    try:
+        from src.core.lsp_project_bridge import get_bridge_dir
+        bridge_dir = get_bridge_dir()
+        if not bridge_dir.exists():
+            logger.warning("🌉 BRIDGE: директория не существует")
+            return
+        json_files = list(bridge_dir.glob("*.json"))
+        if not json_files:
+            logger.warning(
+                "🌉 BRIDGE: директория существует, но JSON-файлов нет — "
+                "LSP не запущен или упал при старте"
+            )
+        else:
+            for f in json_files:
+                logger.debug(f"🌉 BRIDGE найден: {f.name}")
+    except Exception as _rpf_err:
+        logger.debug(f"_log_project_resolution_failure: {_rpf_err}")
 
 
 # ══════════════════════════════════════════════════════════
@@ -341,6 +364,30 @@ def create_mcp_server() -> "FastMCP":
     # Если в логах MCP RUN_ID отличается от ожидаемого — значит
     # процесс не перезапустился после обновления кода.
     _log_run_passport()
+
+    # ─── 0.5 Health Check LSP (чтобы не было silent crash) ───
+    # Проверяем, что LSP-модуль компилируется — если нет,
+    # bridge никогда не сработает и проект уйдёт в self-indexing.
+    try:
+        import py_compile
+        _lsp_path = Path(__file__).resolve().parent.parent / "lsp_main.py"
+        if _lsp_path.exists():
+            py_compile.compile(str(_lsp_path), doraise=True)
+            logger.info(f"✅ LSP health check: {_lsp_path.name} compiles OK")
+        else:
+            logger.warning(f"⚠️ LSP health check: {_lsp_path} not found")
+    except py_compile.PyCompileError as _lsp_err:
+        logger.critical(
+            f"❌ LSP MODULE HAS COMPILE ERROR — bridge will NEVER work!\n"
+            f"   File: lsp_main.py\n"
+            f"   Error: {_lsp_err}"
+        )
+        logger.critical(
+            f"   Fix: reinstall extension (install.py) or restart Zed.\n"
+            f"   Until fixed: extension will self-index instead of your project."
+        )
+    except Exception:
+        pass
 
     # ─── 1. Project root (default) ────────────────────
     # Используется как fallback если инструмент не передал project_root.
@@ -402,7 +449,9 @@ def create_mcp_server() -> "FastMCP":
     # — пользователь должен вызвать index_project_dir().
     # см. INC-6BCB / multi-window race.
     try:
-        from src.core.lsp_project_bridge import read_project_from_bridge
+        from src.core.lsp_project_bridge import (
+            read_project_from_bridge, get_bridge_dir
+        )
         import threading
 
         def _delayed_bridge_recheck():
@@ -417,8 +466,36 @@ def create_mcp_server() -> "FastMCP":
                         f"🌉 Delayed bridge recheck: project_root = {bridged} "
                         f"(LSP дозвонился)"
                     )
+                else:
+                    # Bridge не ответил — диагностируем причину
+                    _bridge_log_failure()
             except Exception as br_err:
                 logger.debug(f"Delayed bridge recheck: {br_err}")
+
+        def _bridge_log_failure():
+            """Диагностика: почему bridge не работает."""
+            bridge_dir = get_bridge_dir()
+            if not bridge_dir.exists():
+                logger.warning(
+                    "🌉 BRIDGE: директория ~/.mscodebase/bridge/ не создана"
+                )
+                return
+            files = list(bridge_dir.glob("*.json"))
+            if not files:
+                logger.critical(
+                    "🌉 BRIDGE: НЕТ JSON-ФАЙЛОВ — LSP НЕ ЗАПИСАЛ project_root!\n"
+                    "  Причины:\n"
+                    "  1. LSP-сервер 'mscodebase-lsp' не настроен в settings.json\n"
+                    "  2. LSP падает при старте (проверь: intel_get_runtime_status)\n"
+                    "  3. Файлы Python не открыты — LSP стартует только при\n"
+                    "     открытии .py/.rs/... файла в редакторе\n"
+                    "  До исправления: проект определён как ext_root (self-indexing)"
+                )
+            else:
+                logger.warning(
+                    f"🌉 BRIDGE: {len(files)} файл(ов) есть, но ни один не "
+                    f"содержит project_root. Возможно race condition."
+                )
 
         threading.Thread(
             target=_delayed_bridge_recheck,
