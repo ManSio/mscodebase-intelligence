@@ -859,11 +859,12 @@ def main():
         try:
             current_content = global_agents.read_text(encoding="utf-8")
             if (
-                "deep_search" not in current_content
-                and "cross_repo_search" not in current_content
+                "intel_get_project_context" not in current_content
+                and "SystemArtifacts" not in current_content
             ):
                 warn(
-                    "Глобальный AGENTS.md не содержит новых инструментов (deep_search, cross_repo_search)"
+                    "Глобальный AGENTS.md устарел (не содержит intel_get_project_context / SystemArtifacts). "
+                    "Рекомендуется обновление."
                 )
                 info("Обновите AGENTS.md вручную или запустите: python install.py")
                 if project_agents.exists():
@@ -872,7 +873,22 @@ def main():
         except Exception as e:
             warn(f"Ошибка проверки AGENTS.md: {e}")
 
+
     # ══════════════════════════════════════════════════════════
+    # Шаг ?: Удаление мёртвого кода (stale debug скрипты)
+    # ══════════════════════════════════════════════════════════
+    stale_scripts = [
+        ZED_EXT_DIR / "scripts" / "dump_pid_env.py",
+        ZED_EXT_DIR / "scripts" / "dump_running_mcp.py",
+        ZED_EXT_DIR / "scripts" / "full_index.py",
+    ]
+    for sf in stale_scripts:
+        if sf.exists():
+            try:
+                sf.unlink()
+                logger.info(f"Удалён мёртвый скрипт: {sf.name}")
+            except Exception:
+                pass
     # Шаг 7: Деинсталлятор
     # ══════════════════════════════════════════════════════════
     step_header(7, TOTAL_STEPS, "Генерация деинсталлятора")

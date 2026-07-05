@@ -85,5 +85,5 @@ markers = [
     "asyncio: marks tests as asyncio tests",
     "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
 ]
-norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index"]
+norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index", ".codebase_indices"]
 addopts = "-v --tb=short"

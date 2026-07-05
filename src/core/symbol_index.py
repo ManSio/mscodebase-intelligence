@@ -759,6 +759,7 @@ class SymbolIndex:
             "htmlcov",
             ".coverage",
             ".codebase_index",
+            ".codebase_indices",
             ".codebase_models",
             ".zed",
             ".idea",

@@ -1,96 +1,142 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. Determines which tool to use depending on the task: grep, find_path, MCP search_code (fast/quality/deep/context/auto modes), cross_repo_search, get_symbol_info, impact_analysis, get_repo_map, scan_changes, structural_search, get_logs, get_index_progress. Use search_code(mode=...) for all semantic search needs."
+description: "Tool selection rules for the Zed AI agent. 43 registered tools: 10 High-Level Intel layer + 33 Low-Level Core MCP. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
 ---
 
-# MSCodeBase Tool Selection Rules
+# MSCodeBase Tool Selection Rules (43 tools)
 
-## Tool Selection Matrix
+## Architecture Overview
 
-| Scenario | Tool to Use | Rationale |
-|---|---|---|
-| Find a specific file by path or exact class/function name | `grep` / `find_path` | Instant, 100% exact match accuracy |
-| Understand architecture, search by concept/intent, find relationships | MCP `search_code` | Semantic vector search connects abstract concepts |
-| Complex research queries, multi-step investigation | MCP `search_code(mode="deep")` | Iterative multi-pass search with query refinement |
-| Cross-project search in mono-repos | MCP `cross_repo_search` | Search across multiple indexed projects with @-mention syntax |
-| Rewrite a function and analyze what will break | MCP `impact_analysis` | Risk score, affected files, callers count |
-| Find callers/callees of a symbol | MCP `get_symbol_info` (Call Graph) | Shows definition + direct dependencies |
-| Files created/deleted outside of Zed | MCP `scan_changes` | Architectural diff + impact analysis |
-| Quick onboarding into unfamiliar code | MCP `search_code(mode="context")` / `grep` | Semantic code search by fragment |
-| Overview of the project structure | MCP `get_repo_map` | File tree + structural symbols |
-| Check system health | MCP `watcher_status` | Embedder mode, LSP status |
-| Find similar code / duplicates / alternative implementations | MCP `search_code(mode="context")` | Semantic search by selected code fragment |
-| Search by code structure (not text) | MCP `structural_search` | 13 AST patterns (class_inheritance, decorator, async, etc.) |
-| Complex multi-part questions | MCP `search_code(agentic=True)` | Auto-decomposes into sub-queries, searches, analyzes relations |
-| Diagnose errors / check logs | MCP `get_logs` | Last errors and warnings from project logs |
-| Check indexing progress | MCP `get_index_progress` | Progress of async indexing (phase, percent, files done/total) |
+```
+RuntimeCoordinator.can_execute()           ← можно ли выполнять запрос?
+    ↓
+ProjectContext.capture()                   ← полный снэпшот проекта
+    ↓
+StateMachine (UNINITIALIZED→READY→FAILED)  ← жизненный цикл проекта
+    ↓
+SystemArtifacts.is_system_path()           ← защита от feedback loop
+    ↓
+MCP Tool Execution
+```
 
-## Available MCP Tools (15 total)
+## High-Level Intel Layer (10 tools)
 
-| # | Tool | Purpose |
-|---|---|---|
-| 1 | `get_index_status` | Database state + chunk count |
-| 2 | `intel_trigger_reindex` | Async fire-and-forget re-indexing (non-blocking) |
-| 3 | `search_code` | Semantic search by concept |
-| 4 | `search_code(mode="deep")` | Multi-pass search via mode parameter |
-| 5 | `cross_repo_search` | Multi-project search with @-mentions |
-| 6 | `search_code(mode="context")` | Context-aware semantic search |
-| 7 | `get_symbol_info` | Call graph: definition + callers + callees |
-| 8 | `impact_analysis` | Risk assessment: score, affected files, risk level |
-| 9 | `get_repo_map` | Project structure + symbols |
-| 10 | `scan_changes` | Architectural diff |
-| 11 | `search_code(mode="context")` | Similar code by fragment (replaces context_search) |
-| 12 | `structural_search` | AST pattern matching (13 patterns) |
-| 13 | `watcher_status` | System health |
-| 14 | `get_logs` | Recent errors from logs |
-| 15 | `get_index_progress` | Indexing progress (phase, percent, files done/total) |
+Аналитические, агрегирующие инструменты. Заменяют несколько low-level вызовов одним.
 
-## AST Patterns (structural_search)
-
-| Pattern | Use Case |
+| Tool | Что даёт |
 |---|---|
-| `class_inheritance` | Find classes inheriting from Base |
-| `class_with_decorator` | Find decorated classes |
-| `function_with_decorator` | Find decorated functions (@app.get, etc.) |
-| `async_function` | Find all async functions |
-| `method_with_type_hints` | Methods with type annotations |
-| `class_with_init` | Classes with __init__ |
-| `import_from` | from X import Y statements |
-| `try_except` | Error handling blocks |
-| `list_comprehension` | List comprehensions |
-| `dict_comprehension` | Dict comprehensions |
-| `lambda` | Lambda functions |
-| `with_statement` | Context managers |
-| `comprehension` | Any comprehension |
+| `intel_get_runtime_status` | Статус рантайма, ИИ-провайдеров и индексов за 1 вызов |
+| `intel_trigger_reindex` | Async fire-and-forget переиндексация |
+| `intel_get_job_status` | Статус фоновой задачи по job_id |
+| `intel_code_topology` | Граф вызовов + статический анализ символа (<2 сек) |
+| `intel_predict_root_cause` | Root Cause Engine по логам ошибки |
+| `intel_analyze_incident` | Поиск аналогичных инцидентов из прошлого |
+| `intel_get_project_memory` | Карта памяти проекта (ADRs, Known Issues, Tech Debt) |
+| `intel_log_incident` | Запись инцидента в историю проекта |
+| `intel_add_memory_node` | Добавление записи в проектную память |
+| `intel_get_project_context` | **Единый снэпшот проекта** — state + index + bridge + health + memory + jobs |
+
+## Low-Level Core MCP (33 tools)
+
+### Search & Index
+| Tool | Purpose |
+|---|---|
+| `search_code(query, mode=fast/quality/deep/context/auto)` | Semantic search by concept |
+| `cross_repo_search(query)` | Multi-project search with @-mentions |
+| `get_symbol_info(query)` | Call graph: definition + callers + callees |
+| `impact_analysis(symbol)` | Risk: score, affected files, depth |
+| `get_repo_map(project_root)` | File tree + structural symbols |
+| `structural_search(project_root, pattern=...)` | AST pattern matching (13 patterns) |
+| `get_related_files(file_path)` | Related files by co-change history |
+| `graph_query(query_type, target)` | GraphRAG queries over code graph |
+
+### Project & Indexing
+| Tool | Purpose |
+|---|---|
+| `get_index_status(project_root)` | Database state + chunk count |
+| `get_index_progress()` | Async indexing progress |
+| `get_index_timeline()` | Index build history |
+| `index_health(project_root)` | Detailed index health |
+| `index_project_dir(path)` | Sync reindex (blocking) |
+| `notify_change(file_path)` | Incremental index update (after edit) |
+| `watcher_status()` | File watcher health |
+| `submit_background_task(task_type)` | Submit async task |
+
+### Git & History
+| Tool | Purpose |
+|---|---|
+| `get_commit_history(project_root, limit)` | Recent commits |
+| `get_file_history(file_path)` | File change history |
+| `get_branch_info(project_root)` | Branch info |
+| `scan_changes(project_root)` | Files changed outside Zed |
+
+### Code Intelligence
+| Tool | Purpose |
+|---|---|
+| `get_bug_correlation(file_path)` | Bug correlation analysis |
+| `get_hotspots(project_root)` | Top-5 high-risk files |
+| `get_repo_rank(project_root, top_k)` | PageRank for symbols |
+| `cross_project_deps(project_root)` | Cross-project dependency graph |
+| `find_similar_bugs(error_message)` | Similar bugs by error message |
+| `predict_eta(operation)` | ETA prediction |
+| `verify_action(action_type)` | Action verification |
+| `generate_chunk_summaries(project_root)` | LLM summaries for chunks |
+
+### Diagnostics
+| Tool | Purpose |
+|---|---|
+| `get_health_report(project_root)` | Full system health |
+| `get_logs(project_root)` | Recent errors from logs |
+| `run_health_check()` | Health check |
+| `debug_runtime_passport()` | **Process passport** — RUN_ID, PID, build, env, guard result |
+
+## Project State Machine
+
+```
+UNINITIALIZED → STARTING → INDEXING → READY → FAILED
+```
+
+| Состояние | Что значит |
+|---|---|
+| UNINITIALIZED | Проект ещё не создан — первый вызов get_indexer не сделан |
+| STARTING | Создаётся Indexer (открывается LanceDB) |
+| INDEXING | Фоновая индексация запущена (chunks ещё не полные) |
+| READY | Проект полностью готов |
+| FAILED | Ошибка при создании/индексации |
+
+`require_ready_project()` (через RuntimeCoordinator) ждёт READY до timeout секунд.
+
+## SystemArtifacts — защита от feedback loop
+
+4 уровня защиты:
+
+1. **Directory Guard** — `.mscodebase/`, `.codebase_indices/`, `.git/`, `node_modules/`, ...
+2. **Artifact Guard** — `chunk_summaries.json`, `incidents.json`, `project_memory.json`
+3. **Feedback Guard** — файлы, созданные самим индексатором
+4. **Embedding Guard** — финальная проверка перед эмбеддингом
+
+Любой путь внутри `.mscodebase/` или `.codebase_indices/` = НЕ индексируется, НЕ ищется, НЕ эмбеддится.
 
 ## Mandatory Rules
 
-**1. BEFORE editing any function or class — ALWAYS call `get_symbol_info`** to fully understand the impact of your changes on dependent modules and caller code.
+**1. Intel First:** Для любых аналитических вопросов вызывай `intel_get_project_context` или `intel_get_runtime_status` — один вызов вместо 5 низкоуровневых.
 
-**2. If `grep` yields no results — try `search_code`** (semantic search via the vector database).
+**2. Project Check:** Перед search_code вызови `get_index_status`. Если `total_chunks == 0` → `intel_trigger_reindex()` (async) + `intel_get_job_status()`.
 
-**3. After `git pull` / `git checkout` — call `scan_changes`** to track file modifications made outside of Zed.
+**3. Symbol Research:** Перед edit — `get_symbol_info()`. Перед рефакторингом — `impact_analysis()`.
 
-**4. No Blind Edits:** If `read_file` returns an Outline instead of the full text — you MUST first read the specific lines (`start_line`/`end_line`) you plan to modify. Never propose edits without seeing the up-to-date contents.
+**4. Diagnostics First:** Если tool вернул ошибку — не retry с теми же параметрами. Вызови `debug_runtime_passport()` (PID, RUN_ID, env, guard result), потом `get_logs()`.
 
-**5. Context Optimization:** Read code in targeted, small chunks (max 50 lines). Do not attempt to ingest entire files unless absolutely necessary.
+**5. Context Budget:** Max 50 строк на `read_file`. Никогда не читай файлы целиком.
 
-**6. State Awareness:** The index now uses warmup on startup — 0 chunks means truly empty (first run). If empty, trigger `intel_trigger_reindex` (async) and poll via `intel_get_job_status` before using `search_code`.
+**6. Post-Modification Sync:** После `edit_file` → `notify_change(file_path=...)` + `get_index_status()`.
 
-**7. Path Protocol:** Use native Windows paths (backslashes) when passing to MCP tools. Do NOT normalize to POSIX lowercase — our tools handle Windows paths natively.
+**7. Path Protocol:** Windows-пути (backslashes) для MCP. POSIX-пути для terminal.
 
-**8. Post-Modification Sync:** After writing any file, call `notify_change(file_path=...)` + `get_index_status()` to verify cache state. For re-indexing use `intel_trigger_reindex` (non-blocking).
+**8. No Dead Tools:** `smart_search`, `deep_search`, `context_search` — DEPRECATED. Используй `search_code(mode=...)`.
 
-**9. Indexing Progress Awareness:** After `intel_trigger_reindex()`, indexing runs async. Use `intel_get_job_status(job_id)` to check status:
-- status="completed" → safe to use `search_code`
-- else → use `grep` as fallback until reindex completes
+**9. Async Indexing:** `intel_trigger_reindex()` → `intel_get_job_status(job_id)`:
+- `completed` → можно search_code
+- иначе → grep fallback
 
-**10. Complex Research:** Use `search_code(mode="deep")` for multi-step investigations. Use `cross_repo_search` with @-mentions for cross-project queries.
-
-**11. Structural Analysis:** Use `structural_search` when you need code by structure (not text). 13 AST patterns available.
-
-**12. Agentic Code Search:** Use `search_code(agentic=True)` or simply `search_code` for complex multi-part questions. Auto-decomposes query → parallel sub-searches → relation analysis → RRF aggregation. Based on arxiv.org/abs/2505.14321.
-
-**13. MCP Quality over grep:** ALWAYS prefer MCP semantic tools (`search_code` with appropriate mode) over `grep`/`find_path` for code research. MCP tools find by concept/intent, not exact text — they catch relationships and context that grep misses. Use `grep` only for exact symbol names or when MCP index is empty.
-
-**14. LanceDB Migration Safety:** NEVER call `drop_table` before data is fully validated in memory. Migration pattern: read → validate in memory → drop old → create new → insert. If validation fails, preserve original table. Always guard `chunk_index` against NaN/Float from Pandas with `pd.notna()` check.
+**10. Stale Code:** Если нашёл ссылку на `_SELF_INDEX_MARKER`, `.codebase_index` (без 'es'), `get_project_context` (без `intel_`) — это старый код. Обнови или удали.
