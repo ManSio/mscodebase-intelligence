@@ -86,8 +86,8 @@ get_index_status()
 MCP-сервер определяет текущий проект в таком порядке:
 
 1. **Явный `project_root`** из аргументов инструмента
-2. **LSP Bridge** (JSON-файл от LSP — не работает на Windows)
-3. **SQLite DB Zed** — читает таблицу `workspaces`, выбирает самый свежий
+2. **LSP Bridge** (JSON-файл от LSP — **не работает на Windows**, LSP не стартует)
+3. **SQLite DB Zed** — читает таблицу `workspaces`, выбирает самый свежий проект
 4. **`PROJECT_PATH`** из окружения
 5. **CWD** (директория, где установлен Zed — чаще всего `C:\Program Files\Zed\` или `%LOCALAPPDATA%\Zed\`) — **всегда отклоняется** self-indexing guard, никогда не используется как проект
 6. **ext_root** (директория расширения) — fallback
@@ -136,12 +136,17 @@ uninstall.bat
 
 | Проблема | Причина | Решение |
 |----------|---------|---------|
-| **Инструменты не отвечают** | MCP-сервер не запущен | File → Quit → открыть проект заново |
+| **Инструменты не отвечают** | MCP-сервер не запущен | File → Quit → открыть проект заново. Логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
 | **Неверный проект** | SQLite выбрал другой workspace | Закрыть все окна Zed, открыть только нужный проект |
 | **0 чанков** | Индекс пуст | `intel_trigger_reindex()` — подождать 1-5 минут |
 | **LM Studio offline** | Сервер не запущен | Запустить LM Studio, проверить порт 1234 |
 | **settings.json варнинг** | Устаревшие ключи (`lsp`, `mscodebase`) | Запустить `python install.py` — он почистит |
 | **ModuleNotFoundError** | PYTHONPATH не指向ет на расширение | `python install.py` — исправит автоматически |
+
+**Где хранятся данные:**
+- **Индекс (LanceDB):** `<проект>/.codebase_indices/lancedb_v2/` — векторная БД с чанками кода
+- **Логи:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+- **Память проекта (ADR, known_issues):** `<проект>/.codebase_indices/intelligence/`
 
 ---
 
