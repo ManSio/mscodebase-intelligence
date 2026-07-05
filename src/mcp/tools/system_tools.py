@@ -63,6 +63,36 @@ class GetIndexStatusTool(MCPTool):
         files = stats.get("unique_files", 0)
         db_status = stats.get("status", "unknown")
 
+        # Проверка: есть ли другие проекты в этом окне (multi-window)
+        other_projects = []
+        try:
+            _db = (
+                Path(os.environ.get("LOCALAPPDATA", ""))
+                / "Zed"
+                / "db"
+                / "0-stable"
+                / "db.sqlite"
+            )
+            if _db.exists():
+                import json as _json
+                import sqlite3
+
+                _conn = sqlite3.connect(str(_db), timeout=1.0)
+                _cur = _conn.cursor()
+                _cur.execute(
+                    "SELECT value FROM scoped_kv_store "
+                    "WHERE namespace = 'multi_workspace_state'"
+                )
+                for _row in _cur.fetchall():
+                    _state = _json.loads(_row[0])
+                    for _g in _state.get("project_groups", []):
+                        _p = _g.get("path_list", {}).get("paths", "")
+                        if _p and Path(_p).resolve() != Path(project_path).resolve():
+                            other_projects.append(_p)
+                _conn.close()
+        except Exception:
+            pass
+
         # Используем UI-форматтер
         output = f"{project_label}\n"
         output += header("get_index_status", "ok")
@@ -75,6 +105,15 @@ class GetIndexStatusTool(MCPTool):
                 ("Режим эмбеддера", mode_label),
             ]
         )
+
+        # Предупреждение о других проектах
+        if other_projects:
+            output += "⚠️ В этом окне открыты другие проекты:\n"
+            for _p in other_projects:
+                _label = Path(_p).name
+                output += f"   • `{_label}` — проверьте, что вы в нужном\n"
+            output += "\n"
+
         return output
 
 

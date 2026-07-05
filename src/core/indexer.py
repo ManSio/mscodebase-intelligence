@@ -151,7 +151,9 @@ class Indexer:
             # ранее при kill -9 между drop_table и create_table вся база терялась.
             existing_fields = [f.name for f in self.table.schema]
             if "text_full" not in existing_fields:
-                logger.warning("⚠️ Миграция: добавляем text_full через _migrate_text_full_inplace")
+                logger.warning(
+                    "⚠️ Миграция: добавляем text_full через _migrate_text_full_inplace"
+                )
                 self._migrate_text_full_inplace()
 
             # Миграция: Metadata Enrichment (v2.4.3+)
@@ -195,6 +197,15 @@ class Indexer:
                 pass
 
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
+
+        # Загружаем сохранённый SymbolIndex с диска (если есть)
+        try:
+            if self._index_guard.load_symbol_index(self._symbol_index):
+                logger.info(
+                    f"SymbolIndex loaded: {self._symbol_index.get_symbol_count()} symbols"
+                )
+        except Exception:
+            pass
 
     def set_searcher(self, searcher) -> None:
         """Ленивая инжекция Searcher (см. INC-53EC / REFC-05).
@@ -388,13 +399,21 @@ class Indexer:
            пересоздаёт таблицу с полной схемой.
         """
         # Проверяем, каких колонок не хватает
-        string_columns = ["layer", "module_name", "hierarchy_level", "symbol_type", "parent_id"]
+        string_columns = [
+            "layer",
+            "module_name",
+            "hierarchy_level",
+            "symbol_type",
+            "parent_id",
+        ]
         bool_columns = ["is_public"]
         missing = [c for c in string_columns + bool_columns if c not in existing_fields]
         if not missing:
             return  # Все колонки уже есть
 
-        logger.info(f"📦 Миграция metadata: не хватает {len(missing)} колонок: {missing}")
+        logger.info(
+            f"📦 Миграция metadata: не хватает {len(missing)} колонок: {missing}"
+        )
 
         # Стратегия 1: add_columns (для LanceDB < 0.33)
         if hasattr(self.table, "add_columns"):
@@ -439,30 +458,36 @@ class Indexer:
             # Конвертируем DataFrame в список словарей
             records = []
             for _, row in old_df.iterrows():
-                records.append({
-                    "id": str(row["id"]),
-                    "vector": row["vector"],
-                    "text": str(row["text"]),
-                    "text_full": str(row.get("text_full", row["text"])),
-                    "file_path": str(row["file_path"]),
-                    "file_hash": str(row.get("file_hash", "")),
-                    "chunk_index": int(row.get("chunk_index", 0)),
-                    "source": str(row.get("source", "filesystem")),
-                    "indexed_at": str(row.get("indexed_at", "")),
-                    "summary": str(row.get("summary", "")),
-                    "layer": str(row.get("layer", "")),
-                    "module_name": str(row.get("module_name", "")),
-                    "hierarchy_level": str(row.get("hierarchy_level", "")),
-                    "is_public": bool(row.get("is_public", False)),
-                    "symbol_type": str(row.get("symbol_type", "")),
-                    "parent_id": str(row.get("parent_id", "")),
-                })
+                records.append(
+                    {
+                        "id": str(row["id"]),
+                        "vector": row["vector"],
+                        "text": str(row["text"]),
+                        "text_full": str(row.get("text_full", row["text"])),
+                        "file_path": str(row["file_path"]),
+                        "file_hash": str(row.get("file_hash", "")),
+                        "chunk_index": int(row.get("chunk_index", 0)),
+                        "source": str(row.get("source", "filesystem")),
+                        "indexed_at": str(row.get("indexed_at", "")),
+                        "summary": str(row.get("summary", "")),
+                        "layer": str(row.get("layer", "")),
+                        "module_name": str(row.get("module_name", "")),
+                        "hierarchy_level": str(row.get("hierarchy_level", "")),
+                        "is_public": bool(row.get("is_public", False)),
+                        "symbol_type": str(row.get("symbol_type", "")),
+                        "parent_id": str(row.get("parent_id", "")),
+                    }
+                )
 
             self.table.add(records)
-            logger.info(f"📦 Миграция metadata завершена: {len(records)} чанков пересозданы с полной схемой")
+            logger.info(
+                f"📦 Миграция metadata завершена: {len(records)} чанков пересозданы с полной схемой"
+            )
         except Exception as e:
-            logger.error(f"❌ Миграция metadata провалилась: {e}. "
-                         f"Метаданные появятся после полной переиндексации.")
+            logger.error(
+                f"❌ Миграция metadata провалилась: {e}. "
+                f"Метаданные появятся после полной переиндексации."
+            )
 
     def _index_single_file(
         self,
@@ -568,14 +593,20 @@ class Indexer:
                                 chunk_texts.append(compact)
                                 chunk_texts_full.append(full)
                                 # Извлекаем метаданные из результата парсера
-                                chunk_metadatas.append({
-                                    "layer": c.get("layer", ""),
-                                    "module_name": c.get("module_name", ""),
-                                    "hierarchy_level": c.get("hierarchy_level", "other"),
-                                    "is_public": c.get("is_public", False),
-                                    "symbol_type": c.get("symbol_type", c.get("type", "")),
-                                    "parent_id": c.get("parent_id", ""),
-                                })
+                                chunk_metadatas.append(
+                                    {
+                                        "layer": c.get("layer", ""),
+                                        "module_name": c.get("module_name", ""),
+                                        "hierarchy_level": c.get(
+                                            "hierarchy_level", "other"
+                                        ),
+                                        "is_public": c.get("is_public", False),
+                                        "symbol_type": c.get(
+                                            "symbol_type", c.get("type", "")
+                                        ),
+                                        "parent_id": c.get("parent_id", ""),
+                                    }
+                                )
                         logger.debug(
                             f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
                         )
@@ -602,8 +633,14 @@ class Indexer:
                     chunk_texts  # fallback: текст и полный текст одинаковы
                 )
                 chunk_metadatas = [
-                    {"layer": "", "module_name": "", "hierarchy_level": "other",
-                     "is_public": False, "symbol_type": "", "parent_id": ""}
+                    {
+                        "layer": "",
+                        "module_name": "",
+                        "hierarchy_level": "other",
+                        "is_public": False,
+                        "symbol_type": "",
+                        "parent_id": "",
+                    }
                     for _ in chunk_texts
                 ]
 
@@ -825,7 +862,11 @@ class Indexer:
                 return
             pct = int((done / total) * 100) if total > 0 else 0
             # Троттлинг: шлём только на 0%, 5%, 10%, ..., 100%
-            if pct == 0 or pct == 100 or (pct % 5 == 0 and pct != self._last_reported_progress):
+            if (
+                pct == 0
+                or pct == 100
+                or (pct % 5 == 0 and pct != self._last_reported_progress)
+            ):
                 self._last_reported_progress = pct
                 self._notification_broker.publish_sync(
                     "mscodebase/indexing_status",
@@ -845,6 +886,7 @@ class Indexer:
         _throttle_monitor = None
         try:
             from src.core.resource_monitor import get_global_resource_monitor
+
             _throttle_monitor = get_global_resource_monitor()
         except Exception:
             pass
