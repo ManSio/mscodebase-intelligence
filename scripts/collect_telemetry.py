@@ -114,6 +114,27 @@ def build_snapshot() -> dict:
     }
     snapshot.update(collect_counters())
     snapshot["project"] = collect_project_stats()
+
+    # Resource monitor (RAM/CPU)
+    try:
+        from src.core.resource_monitor import get_global_resource_monitor
+        snapshot["resources"] = get_global_resource_monitor().get_summary()
+    except Exception:
+        snapshot["resources"] = {"error": "unavailable"}
+
+    # LLM ping (embedder latency)
+    try:
+        from src.core.remote_embedder import RemoteEmbedder
+        _emb = RemoteEmbedder()
+        _t0 = time.time()
+        _emb.embed("ping")
+        _ping = round((time.time() - _t0) * 1000, 1)
+        snapshot["llm"] = {
+            "ping_ms": _ping,
+            "provider": getattr(_emb, "mode", "unknown"),
+        }
+    except Exception:
+        snapshot["llm"] = {"error": "unavailable"}
     return snapshot
 
 
