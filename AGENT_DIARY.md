@@ -28,6 +28,20 @@ expected a nonzero u32`. Rust-десериализатор Serde ожидает 
 
 **Status:** ✅ (WONTFIX — limitation of Zed 1.9.0 on Windows)
 
+**Проверено и не сработало (8 подходов):**
+1. Кастомное имя `["mscodebase-lsp"]` → `expected a nonzero u32`
+2. Объект `[{"name": "..."}]` → ошибка
+3. Число `[0]` → ноль не nonzero
+4. Число `[1]` → `expected a string`
+5. Объект `{"mscodebase-lsp": {}}` → `expected a sequence`
+6. Переопределение `ruff` → авто-обнаружение перетирает
+7. Переопределение `pyright` → LSP не стартует
+8. `.zed/settings.json` (локальный) + пустой глобальный → не стартует
+
+**Финальный вердикт:** LSP на Windows с Zed 1.9.0 не запускается.
+MCP-сервер (43 инструмента) работает полноценно. SQLite fallback
+определяет проект без LSP.
+
 ---
 
 ## [2026-07-05 22:30] — [Type: Bugfix] — LanceDB metadata migration fix + Zed Windows quirks docs

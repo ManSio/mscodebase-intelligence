@@ -7,20 +7,20 @@ repository = "https://github.com/ManSio/mscodebase-intelligence"
 authors = ["Misha <misha@example.com>"]
 themes = []
 icon_themes = []
-languages = ["languages/python"]
-capabilities = ["context_servers"]
+languages = []
+capabilities = []
 
 [lib]
 
 [grammars]
 
-[language_servers.mscodebase-lsp]
-language = "Python"
-languages = ["languages/python"]
+# language_servers НЕ указываем — на Windows Zed 1.9.0 не принимает
+# кастомные имена LSP ("expected a nonzero u32"). LSP регистрируется
+# только в settings.json, без привязки к языкам.
+[language_servers]
 
-[language_servers.mscodebase-lsp.language_ids]
-Python = "python"
-
-[context_servers.mscodebase-intelligence]
+# context_servers не указываем — команда в settings.json.
+# Дубль вызывает 2 процесса MCP.
+[context_servers]
 
 [slash_commands]
