@@ -105,6 +105,7 @@ get_index_status()
 | `index_health(project_root)` | Диагностика и самовосстановление индекса |
 | `notify_change(file_path)` | Принудительное обновление индекса файла (через DebounceBatch) |
 | `generate_chunk_summaries(root)` | LLM-описания для чанков кода |
+| `scan_changes(project_root)` | Архитектурный дифф — анализ изменений относительно последнего baseline |
 
 ### System & Diagnostics
 
@@ -185,7 +186,7 @@ get_index_status()
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  37 Tool Classes   │  │  10 intel_* tools                  │  │
+│  │  33 Tool Classes   │  │  10 intel_* tools                  │  │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  Каждый инструмент  │  │  error_boundary decorator          │  │
 │  │  — отдельный класс │  │  JSON status/message/detail        │  │
@@ -220,8 +221,8 @@ get_index_status()
 | `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API endpoint |
 | `LM_STUDIO_PORT` | `1234` | LM Studio port |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `ZED_CONFIG_DIR` | *(auto)* | Custom Zed config directory |
+| `LOG_LEVEL` | `INFO` | Уровень логирования |
+| `ZED_WINDOWS_QUIRKS.md` | *(см. файл)* | Инструкции для Windows |
 
 ---
 
@@ -229,31 +230,30 @@ get_index_status()
 
 ### MCP Server Not Responding
 
-**Symptoms:** `@mscodebase-intelligence` shows "not available" or times out.
+**Symptoms:** инструменты не отвечают, таймаут.
 
 **Checklist:**
-1. Run `python src/main.py` manually to check for errors
-2. Check Zed logs: `%APPDATA%\Zed\logs\Zed.log`
-3. Verify `settings.json` has correct `context_servers` entry
-4. Run `install.py` again to reconfigure
+1. **File → Quit** → открой проект заново
+2. Запустите `python install.py` для перенастройки
+3. Проверьте логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
 
 ### Index Empty (0 chunks)
 
-```bash
-# Option 1: via MCP tool (in Zed Chat)
-index_project_dir(path="your/project/path")
-
-# Option 2: via command line
-cd your/project
-python -c "from src.core.indexer import Indexer; ..."
+В Agent Panel выполните:
 ```
+intel_trigger_reindex()
+```
+
+После проверьте: `get_index_status()`
 
 ### LM Studio Connection Issues
 
 ```bash
-# Test connection
-curl http://localhost:1234/v1/embeddings -d '{"input":"test","model":"text-embedding-bge-m3"}'
+# Проверьте, что сервер отвечает:
+python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:1234/v1/health').read())"
 ```
+
+Должен быть ответ `{"status":"ok"}`.
 
 ---
 
@@ -266,7 +266,7 @@ mscodebase-intelligence/
 │   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
 │   ├── mcp/
 │   │   ├── server.py             # DI routing — only imports + registration
-│   │   └── tools/                 # 10 files, 37 class-based tools
+│   │   └── tools/                 # 10 files, 33 class-based + 10 intel = 43 total
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history
@@ -292,9 +292,9 @@ mscodebase-intelligence/
 │       ├── paths.py              # SafePathManager, to_win_long_path
 │       └── zed_config.py         # Auto-configure Zed settings
 ├── docs/
-│   ├── ARCHITECTURE.md
+│   ├── architecture.md
 │   └── INSTALL.md
-├── tests/                        # 391 tests
+├── tests/                        # 391 tests (pytest)
 ├── .agents/skills/               # Skills for AI agent
 ├── install.py                    # Installer
 └── README.md

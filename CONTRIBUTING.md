@@ -27,7 +27,7 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   └── tools/           # ~12 файлов, 43 инструмента (33 class-based + 10 intel)
+│   └── tools/           # 10 файлов, 43 инструмента (33 class-based + 10 intel)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 search tools
 │       ├── indexing_tools.py# 3 indexing tools
@@ -284,7 +284,7 @@ class TestMyModule:
         assert result is not None
 ```
 
-4. **Обновите `ARCHITECTURE.md`** — добавьте модуль в диаграмму компонентов.
+4. **Обновите `docs/architecture.md`** — добавьте модуль в диаграмму компонентов.
 
 ---
 
@@ -328,7 +328,7 @@ perf(symbol_index): cache call graph results
 - [ ] Новые инструменты/модули покрыты тестами
 - [ ] `CHANGELOG.md` обновлён
 - [ ] `README.md` обновлён (если изменился публичный API)
-- [ ] `ARCHITECTURE.md` обновлён (если изменилась архитектура)
+- [ ] `docs/architecture.md` обновлён (если изменилась архитектура)
 
 ### Описание PR должно содержать:
 
