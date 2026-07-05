@@ -18,15 +18,40 @@ Project Indexer Registry — мультипроектная индексация
 """
 from __future__ import annotations
 
+import asyncio
 import atexit
 import logging
 import threading
 import time
 from collections import OrderedDict
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("mscodebase_server.registry")
+
+
+class ProjectState(Enum):
+    """Состояние проекта в реестре.
+
+    UNINITIALIZED — проект ещё не создан (первый вызов get_indexer не сделан).
+    STARTING     — создаётся Indexer (открывается LanceDB, загружаются метаданные).
+    INDEXING     — фоновая индексация запущена (chunks ещё не полные).
+    READY        — проект полностью готов к работе (indexer + chunks доступны).
+    FAILED       — ошибка при создании/индексации.
+
+    Переходы:
+        UNINITIALIZED ──get_indexer()──▶ STARTING
+        STARTING ──создан──▶ INDEXING (если auto-index)
+        STARTING ──возврат──▶ READY      (если индекс уже есть)
+        INDEXING ──завершён──▶ READY
+        INDEXING/STARTING ──ошибка──▶ FAILED
+    """
+    UNINITIALIZED = auto()
+    STARTING = auto()
+    INDEXING = auto()
+    READY = auto()
+    FAILED = auto()
 
 
 class ProjectIndexerRegistry:
@@ -62,6 +87,13 @@ class ProjectIndexerRegistry:
         self._on_evict = on_evict
         self._resource_monitor = resource_monitor
         self._create_lock = threading.Lock()
+
+        # ══════════════════════════════════════════════════════════════
+        # Per-project state machine (INC-6BCB-v4: race-free readiness)
+        # ══════════════════════════════════════════════════════════════
+        self._states: Dict[Path, ProjectState] = {}
+        self._ready_events: Dict[Path, asyncio.Event] = {}
+
         self._stats = {
             "cache_hits": 0,
             "cache_misses": 0,
@@ -94,6 +126,9 @@ class ProjectIndexerRegistry:
     ) -> Any:
         """Возвращает Indexer для project_path, lazy-создавая если нужно.
 
+        При первом создании переводит проект в STARTING, а после
+        создания — в READY (если индекс не пустой) или INDEXING.
+
         Args:
             project_path: путь к корню проекта.
             factory: callable(project_path) -> Indexer. Если None — используется
@@ -115,6 +150,7 @@ class ProjectIndexerRegistry:
                 # LRU touch — перемещаем в конец OrderedDict
                 self._indexers.move_to_end(p)
                 self._stats["cache_hits"] += 1
+                # Если проект был создан — он как минимум READY
                 return existing
         self._stats["cache_misses"] += 1
 
@@ -137,35 +173,31 @@ class ProjectIndexerRegistry:
                     "Передайте create_indexer_for_path из di_container."
                 )
 
+            # STARTING → создаётся Indexer
+            self.set_state(p, ProjectState.STARTING)
             logger.info(f"📦 ProjectIndexerRegistry: создаю Indexer для {p.name}")
-            new_indexer = factory(p)
 
-            with self._meta_lock:
-                self._indexers[p] = new_indexer
-                self._maybe_evict_locked()
-            return new_indexer
+            try:
+                new_indexer = factory(p)
+            except Exception as e:
+                self.set_state(p, ProjectState.FAILED)
+                raise RuntimeError(f"Ошибка создания Indexer для {p.name}: {e}") from e
 
-        # Создаём вне meta_lock (может занять время — открытие LanceDB).
-        with self._create_lock:
-            # Double-check: возможно параллельный поток уже создал.
-            with self._meta_lock:
-                existing = self._indexers.get(p)
-                if existing is not None:
-                    self._indexers.move_to_end(p)
-                    return existing
-
-            if factory is None:
-                raise RuntimeError(
-                    "ProjectIndexerRegistry: factory не передан. "
-                    "Передайте create_indexer_for_path из di_container."
+            # После создания проверяем, пустой ли индекс
+            try:
+                status = new_indexer.get_status()
+                total_chunks = status.get("total_chunks", 0)
+                final_state = (
+                    ProjectState.INDEXING if total_chunks == 0 else ProjectState.READY
                 )
-
-            logger.info(f"📦 ProjectIndexerRegistry: создаю Indexer для {p.name}")
-            new_indexer = factory(p)
+            except Exception:
+                final_state = ProjectState.READY  # fallback — считаем готовым
 
             with self._meta_lock:
                 self._indexers[p] = new_indexer
                 self._maybe_evict_locked()
+            self.set_state(p, final_state)
+
             return new_indexer
 
     def get_all_paths(self) -> list[Path]:
@@ -188,6 +220,90 @@ class ProjectIndexerRegistry:
                     pass
             return True
         return False
+
+    # ══════════════════════════════════════════════════════════════
+    # Project State Machine
+    # ══════════════════════════════════════════════════════════════
+
+    def set_state(self, project_path: Path, state: ProjectState) -> None:
+        """Устанавливает состояние проекта + сигналит Event при READY/FAILED.
+
+        Потокобезопасен через _meta_lock. При READY или FAILED
+        fires asyncio.Event — это позволяет MCP-инструментам ждать
+        готовности через wait_until_ready().
+        """
+        p = Path(project_path).resolve()
+        with self._meta_lock:
+            old = self._states.get(p)
+            self._states[p] = state
+        log_level = logging.DEBUG
+        if old != state:
+            if state == ProjectState.READY:
+                log_level = logging.INFO
+                ev = self._ready_events.get(p)
+                if ev is not None:
+                    ev.set()
+            elif state == ProjectState.FAILED:
+                log_level = logging.WARNING
+                ev = self._ready_events.get(p)
+                if ev is not None:
+                    ev.set()  # тоже пробуждаем wait (вызовет проверку)
+        logger.log(log_level, f"📌 State {p.name}: {old} -> {state}")
+
+    def get_state(self, project_path: Path) -> ProjectState:
+        """Возвращает текущее состояние проекта.
+
+        Если проект не зарегистрирован — UNINITIALIZED.
+        """
+        p = Path(project_path).resolve()
+        with self._meta_lock:
+            return self._states.get(p, ProjectState.UNINITIALIZED)
+
+    async def wait_until_ready(
+        self,
+        project_path: Path,
+        timeout: float = 5.0,
+    ) -> ProjectState:
+        """Ожидает, пока проект не перейдёт в READY (или FAILED).
+
+        Args:
+            project_path: корень проекта.
+            timeout: макс. время ожидания в секундах (по умолч. 5с).
+
+        Returns:
+            Финальное состояние: READY, FAILED, или текущее если timeout.
+
+        Используется MCP-инструментами перед выполнением:
+            state = await registry.wait_until_ready(path, timeout=3.0)
+            if state != ProjectState.READY:
+                raise ToolError("Проект ещё не готов. Повторите запрос.")
+
+        Это решает race condition: если пользователь переключился на
+        новый проект, а LSP ещё не успел записать bridge, инструмент
+        не возьмёт старый проект и не упадёт с 'project not found',
+        а дождётся готовности (или timeout → понятная ошибка).
+        """
+        p = Path(project_path).resolve()
+        ev: Optional[asyncio.Event] = None
+        with self._meta_lock:
+            current = self._states.get(p, ProjectState.UNINITIALIZED)
+            if current in (ProjectState.READY, ProjectState.FAILED):
+                return current
+            if p not in self._ready_events:
+                self._ready_events[p] = asyncio.Event()
+            ev = self._ready_events[p]
+
+        if ev is not None:
+            try:
+                await asyncio.wait_for(ev.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"⏳ wait_until_ready({p.name}) timeout after {timeout}s"
+                )
+
+        # Re-check state after event (может измениться за время ожидания)
+        with self._meta_lock:
+            return self._states.get(p, ProjectState.UNINITIALIZED)
 
     def close_all(self) -> None:
         """Закрывает все Indexer-ы. Вызывается atexit."""

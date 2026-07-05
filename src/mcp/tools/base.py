@@ -37,6 +37,63 @@ from src.core.project_indexer_registry import (
 )
 
 
+def resolve_indexer_for_intel(
+    services: ServiceCollection,
+    explicit_project_root: Optional[str] = None,
+) -> Any:
+    """Резолвит Indexer для read-only Intel tools с FALLBACK на любой валидный workspace.
+
+    Отличие от resolve_indexer_for_request():
+    - Если resolved project_path = self-indexing (_ext_root / Zed install / None),
+      и в ProjectIndexerRegistry есть другие активные indexer-ы —
+      выбираем первый non-self-indexing.
+    - Это позволяет intel_* tools (intel_get_runtime_status, intel_get_project_memory,
+      и т.п.) показывать состояние **другого** активного workspace, даже если
+      default = self-indexing fallback.
+
+    Для write-tools (search_code, index_project_dir, notify_change) — НЕ
+    используется, чтобы не было silent redirect на чужой проект.
+
+    Returns:
+        Indexer (singleton per project_path). Если ВСЕ workspaces = self-indexing
+        (крайне редкий случай) — возвращает default и self-indexing guard
+        сработает с понятным сообщением.
+    """
+    from src.core.lsp_project_bridge import is_zed_install_dir
+    from src.mcp.server import resolve_project_root as _rpr, _ext_root
+    from src.core.di_container import ProjectRootKey, IndexerFactoryKey, ProjectIndexerRegistry
+    from src.core.project_indexer_registry import ProjectIndexerRegistry as PIReg
+
+    # 1. explicit project_root (highest priority) — bypass fallback, guard всё ещё
+    #    активен на уровне resolve_indexer_for_request ниже.
+    if explicit_project_root and explicit_project_root.strip():
+        target = Path(explicit_project_root).resolve()
+    else:
+        try:
+            target = _rpr()
+        except Exception:
+            target = services.resolve(ProjectRootKey)
+
+    # 2. Если target — self-indexing, ищем первый non-self-indexing в registry.
+    if _is_self_index_path(target):
+        try:
+            registry: PIReg = services.resolve(ProjectIndexerRegistry)
+            with registry._meta_lock:
+                # Ищем ПЕРВЫЙ non-self-indexing (по порядку создания).
+                for p in registry._indexers.keys():
+                    if not _is_self_index_path(p):
+                        target = p
+                        break
+        except Exception:
+            pass
+
+    # 3. Резолвим через ту же логику, но без self-indexing guard
+    #    (мы уже отфильтровали self-index paths выше).
+    registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+    factory = services.resolve(IndexerFactoryKey)
+    return registry.get_indexer(target, factory=factory)
+
+
 def _is_self_index_path(path: Optional[Path]) -> bool:
     """Возвращает True если path — это self-indexing target (ЗАПРЕЩЕНО).
 
@@ -47,7 +104,14 @@ def _is_self_index_path(path: Optional[Path]) -> bool:
     1. _ext_root (директория самого расширения — содержит src/ самого MCP/LSP)
     2. Любой Zed install dir (см. is_zed_install_dir)
     3. None (неопределённый project_path)
+
+    Override: env var MSCODEBASE_ALLOW_SELF_INDEX=1 разрешает индексировать
+    даже ext_root/Zed install (для разработки самого расширения: `python -m
+    src.main` в Zed, открытом на исходниках расширения).
     """
+    import os as _os
+    if _os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip() in ("1", "true", "yes"):
+        return False
     if path is None:
         return True
     try:
@@ -234,6 +298,118 @@ class MCPTool(ABC):
         except Exception:
             return None
 
+    def _safe_resolve_indexer(self, explicit_project_root: Optional[str] = None) -> Any:
+        """Резолвит Indexer с late-fallback на non-self-indexing workspace.
+
+        INC-6BCB-v3.1: для read-only tools (get_index_status, get_index_progress,
+        watcher_status, intel_*) — если default indexer = self-indexing,
+        и в реестре есть non-self-indexing — возвращаем тот.
+
+        Для write-tools (search_code, index_project_dir, notify_change) —
+        используй resolve_indexer() напрямую, чтобы избежать silent redirect
+        на чужой проект.
+
+        Returns:
+            Indexer (никогда None — fallback на self._cached_indexer или
+            registry._indexers[next(iter)] если вообще ничего нет).
+        """
+        try:
+            idx = self.resolve_indexer(explicit_project_root)
+            from src.mcp.tools.base import _is_self_index_path
+            if not _is_self_index_path(idx.project_path):
+                return idx
+        except Exception:
+            pass
+        # Fallback: первый non-self-indexing из реестра.
+        try:
+            from src.core.di_container import ProjectIndexerRegistry
+            from src.core.project_indexer_registry import ProjectIndexerRegistry as PIReg
+            registry = self._services.resolve(ProjectIndexerRegistry)
+            with registry._meta_lock:
+                for p, idx in registry._indexers.items():
+                    from src.mcp.tools.base import _is_self_index_path
+                    if not _is_self_index_path(p):
+                        return idx
+        except Exception:
+            pass
+        # Last resort: текущий (даже если self-indexing).
+        try:
+            return self.resolve_indexer(explicit_project_root)
+        except Exception:
+            raise ToolError(
+                status="error",
+                message="No active workspace found in registry",
+                detail=(
+                    "LSP didn't write project_root to bridge, AND no other "
+                    "workspace is open in Zed. Open a project in Zed first."
+                ),
+            )
+
+    async def require_ready_project(
+        self,
+        explicit_project_root: Optional[str] = None,
+        timeout: float = 5.0,
+    ):
+        """Ожидает, пока проект не станет READY (создан Indexer + индекс не пуст).
+
+        Защита от race condition (INC-6BCB-v4): когда пользователь
+        переключается между окнами Zed, LSP нового проекта может ещё
+        не успеть записать bridge. Вместо того чтобы брать
+        "последний активный проект" или падать с "project not found",
+        этот метод ждёт готовности до timeout секунд.
+
+        Args:
+            explicit_project_root: явный project_path (если None — default).
+            timeout: макс. время ожидания в секундах (по умолч. 5с).
+
+        Raises:
+            ToolError: если проект не стал READY за timeout.
+            IndexNotReadyError: если проект READY, но индекс пуст.
+        """
+        from src.core.di_container import ProjectIndexerRegistry as PIRKey
+        from src.core.project_indexer_registry import ProjectState
+
+        registry = self._services.resolve(PIRKey)
+        target = self._resolve_target_path(explicit_project_root)
+
+        await registry.wait_until_ready(target, timeout=timeout)
+        state = registry.get_state(target)
+
+        if state == ProjectState.FAILED:
+            raise ToolError(
+                status="error",
+                message=f"Project {target.name} failed to initialize",
+                detail="Indexer creation failed. Check logs for details.",
+            )
+        if state != ProjectState.READY:
+            raise ToolError(
+                status="error",
+                message=(
+                    f"Project {target.name} is not ready yet "
+                    f"(state={state.name}). "
+                    f"Try again in a few seconds."
+                ),
+            )
+
+        # Проверяем, что индекс не пуст
+        try:
+            indexer = self.resolve_indexer(explicit_project_root)
+            status = indexer.get_status()
+            if status.get("total_chunks", 0) == 0:
+                raise IndexNotReadyError(
+                    detail=(
+                        f"Index is empty for project: {indexer.project_path}. "
+                        f"Run index_project_dir() first."
+                    )
+                )
+        except IndexNotReadyError:
+            raise
+        except Exception as e:
+            raise ToolError(
+                status="error",
+                message=f"Failed to check index status: {e}",
+            )
+
     def require_index(self, explicit_project_root: Optional[str] = None):
         """Проверяет, что индекс готов. Бросает IndexNotReadyError если пуст."""
         indexer = self.resolve_indexer(explicit_project_root)
@@ -306,4 +482,4 @@ class MCPTool(ABC):
             }
 
 
-__all__ = ["MCPTool", "resolve_indexer_for_request", "_is_self_index_path"]
+__all__ = ["MCPTool", "resolve_indexer_for_request", "resolve_indexer_for_intel", "_is_self_index_path"]

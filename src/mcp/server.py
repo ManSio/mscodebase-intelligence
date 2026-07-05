@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -20,6 +21,45 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("mscodebase_server")
+
+# ══════════════════════════════════════════════════════════
+# Process Passport — уникальный ID запуска для диагностики
+# ══════════════════════════════════════════════════════════
+
+import uuid as _uuid
+_RUN_ID = _uuid.uuid4().hex[:12]
+_RUN_STARTED_AT = time.time()
+_RUN_PID = os.getpid()
+_RUN_SOURCE_FILE = str(Path(__file__).resolve())
+
+
+def _log_run_passport() -> None:
+    """Печатает 'паспорт' процесса при старте — уникальный RUN_ID + env summary.
+
+    Это позволяет мгновенно отличить старый процесс от нового при отладке,
+    и подтвердить, что Zed подхватил обновлённый код.
+    """
+    import getpass
+    lines = [
+        "",
+        "=" * 60,
+        "MSCodeBase Intelligence — Process Passport",
+        f"  RUN_ID      : {_RUN_ID}",
+        f"  PID         : {_RUN_PID}",
+        f"  Started at  : {datetime.fromtimestamp(_RUN_STARTED_AT).isoformat()}",
+        f"  Source file : {_RUN_SOURCE_FILE}",
+        f"  User        : {getpass.getuser()}",
+        f"  CWD         : {Path.cwd().resolve()}",
+        f"  _ext_root   : {_ext_root}",
+        f"  PROJECT_PATH     env: {os.environ.get('PROJECT_PATH', '<unset>')!r}",
+        f"  ZED_WORKTREE_ROOT env: {os.environ.get('ZED_WORKTREE_ROOT', '<unset>')!r}",
+        f"  MSCODEBASE_ALLOW_SELF_INDEX env: {os.environ.get('MSCODEBASE_ALLOW_SELF_INDEX', '<unset>')!r}",
+        f"  PYTHONPATH env[0] : {(os.environ.get('PYTHONPATH') or '').split(os.pathsep)[0]!r}",
+        "=" * 60,
+        "",
+    ]
+    for ln in lines:
+        logger.info(ln)
 
 # ══════════════════════════════════════════════════════════
 # Progress Tracking — для визуализации хода индексации
@@ -83,14 +123,51 @@ def _cleanup_old_progress():
 # ══════════════════════════════════════════════════════════
 
 _ext_root = Path(__file__).resolve().parent.parent.parent
-# Маркер «само-индексация»: project_root указывает на директорию
-# самого расширения. Детектим по наличию src/lsp_main.py.
-_SELF_INDEX_MARKER = "src" + os.sep + "lsp_main.py"
 # Lazy-кэш для env-резолва. ВАЖНО: PROJECT_PATH резолвится на каждый
 # вызов resolve_project_root() (см. INC-53EC / REFC-02) — иначе при
 # переключении workspace в Zed без рестарта MCP используется stale-путь.
 _env_project_root_cache: Optional[Path] = None
 _env_cache_lock = threading.Lock()
+
+
+def _reject_self_index_target(p: Path, *, source: str) -> bool:
+    """Возвращает True если path — это self-indexing target (отклонить).
+
+    Отклоняем:
+    - _ext_root (исходники самого расширения в dev-режиме — `python -m src.main`
+      из workspace `D:\\Project\\MSCodeBase`). Это может случиться, если
+      пользователь открывает исходники расширения как проект в Zed.
+    - Zed install dir (см. is_zed_install_dir в lsp_project_bridge).
+
+    РАНЬШЕ здесь была проверка `(p / "src/lsp_main.py").exists()` — она
+    была ошибочной, потому что исходники расширения РЕАЛЬНО содержат
+    `src/lsp_main.py`, и guard блокировал легитимный dev-сценарий
+    ("открыть репо расширения как проект в Zed, чтобы индексировать
+    свой же код"). Теперь вместо маркера-файла используется явный
+    ext_root-equality + is_zed_install_dir (Zed install markers
+    специфичны, ложных срабатываний на обычных проектах не дают).
+
+    NOTE: эта функция НЕ блокирует `_ext_root` через тот же guard, что
+    и `base.py._is_self_index_path` — там блокировка строже (нужна
+    для теста `test_explicit_ext_root_raises_tool_error`, где
+    explicit_project_root == _ext_root должен бросать ToolError).
+    Здесь же мы используем это только как «если env var буквально
+    указывает на наш ext_root, отдать приоритет bridge / CWD».
+    """
+    if p == _ext_root:
+        return True
+    try:
+        from src.core.lsp_project_bridge import is_zed_install_dir
+        if is_zed_install_dir(p):
+            logger.warning(
+                f"{source} указывает на директорию установки Zed ({p}). "
+                f"Игнорирую — self-indexing guard."
+            )
+            return True
+    except Exception:
+        # Если lsp_project_bridge недоступен — не блокируем (fail-open)
+        pass
+    return False
 
 
 def _resolve_env_project_root() -> Optional[Path]:
@@ -111,7 +188,7 @@ def _resolve_env_project_root() -> Optional[Path]:
             zed_root = os.environ.get("ZED_WORKTREE_ROOT")
             if zed_root:
                 p = Path(zed_root).resolve()
-                if p.exists() and p != _ext_root and (p / _SELF_INDEX_MARKER).exists() is False:
+                if p.exists() and not _reject_self_index_target(p, source="ZED_WORKTREE_ROOT"):
                     _env_project_root_cache = p
                     return _env_project_root_cache
             return None
@@ -123,10 +200,11 @@ def _resolve_env_project_root() -> Optional[Path]:
         if not resolved.exists() or not resolved.is_dir():
             return None
         # Self-indexing guard (см. INC-53EC / REFC-02): если PROJECT_PATH
-        # указывает на ext_root, это почти всегда ошибка пользователя.
-        if resolved == _ext_root or (resolved / _SELF_INDEX_MARKER).exists():
+        # указывает на ext_root или Zed install — это либо ошибка
+        # пользователя, либо попытка индексировать установку.
+        if _reject_self_index_target(resolved, source="PROJECT_PATH"):
             logger.warning(
-                f"PROJECT_PATH указывает на само расширение ({resolved}). "
+                f"PROJECT_PATH указывает на self-indexing target ({resolved}). "
                 f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT."
             )
             return None
@@ -173,12 +251,12 @@ def resolve_project_root(provided: str = "") -> Path:
     zed_root = os.environ.get("ZED_WORKTREE_ROOT")
     if zed_root:
         zed_path = Path(zed_root).resolve()
-        if zed_path.exists() and zed_path != _ext_root:
+        if zed_path.exists() and not _reject_self_index_target(zed_path, source="ZED_WORKTREE_ROOT"):
             logger.debug(f"resolve_project_root: ZED_WORKTREE_ROOT={zed_path}")
             return zed_path
 
     cwd = Path.cwd().resolve()
-    if cwd != _ext_root and (cwd / _SELF_INDEX_MARKER).exists() is False:
+    if not _reject_self_index_target(cwd, source="CWD"):
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd
 
@@ -187,6 +265,13 @@ def resolve_project_root(provided: str = "") -> Path:
         f"(возможна self-indexing; установите PROJECT_PATH=$ZED_WORKTREE_ROOT)"
     )
     return _ext_root
+
+
+# ══════════════════════════════════════════════════════════
+# Default project root (устанавливается при create_mcp_server)
+# ══════════════════════════════════════════════════════════
+
+_default_project_root: Optional[Path] = None
 
 
 # ══════════════════════════════════════════════════════════
@@ -207,11 +292,19 @@ def create_mcp_server() -> "FastMCP":
 
     mcp = FastMCP("MSCodebase Intelligence Server")
 
+    # ─── 0. Process Passport (для отладки) ───────────
+    # Печатает RUN_ID + PID + env summary при КАЖДОМ старте.
+    # Если в логах MCP RUN_ID отличается от ожидаемого — значит
+    # процесс не перезапустился после обновления кода.
+    _log_run_passport()
+
     # ─── 1. Project root (default) ────────────────────
     # Используется как fallback если инструмент не передал project_root.
     # Multi-window (INC-6BCB): per-project indexer резолвится в самом
     # инструменте через resolve_indexer_for_request().
     project_root = resolve_project_root()
+    global _default_project_root
+    _default_project_root = project_root
     logger.info(
         f"🏠 Default project root: {project_root} "
         f"(CWD={Path.cwd().resolve()}, "
@@ -647,12 +740,14 @@ def _register_all_tools(mcp, services):
     # зарегистрированы как singleton (см. di_container.py — Indexer-ы
     # per-project через ProjectIndexerRegistry). Используем
     # resolve_indexer_for_request() для получения per-project инстанса.
+    # INC-6BCB-v3.1: передаём services для late-resolve (intel_* tools
+    # работают даже если default = self-indexing fallback).
     try:
         from src.core.intelligence_layer import (
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
-        from src.mcp.tools.base import resolve_indexer_for_request
+        from src.mcp.tools.base import resolve_indexer_for_request, _is_self_index_path
 
         idx = resolve_indexer_for_request(services)
         intel_layer = ProjectIntelligenceLayer(
@@ -660,6 +755,7 @@ def _register_all_tools(mcp, services):
             indexer=idx,
             searcher=idx.searcher,
             symbol_index=idx._symbol_index,
+            services=services,  # INC-6BCB-v3.1
         )
         register_intelligence_tools(mcp, intel_layer)
         logger.info("  🧠 Intel tools registered (10 tools)")
@@ -667,6 +763,42 @@ def _register_all_tools(mcp, services):
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 
     logger.info(f"✅ Все инструменты зарегистрированы ({len(tool_classes)}+10)")
+
+    # ─── Debug tool: passport ────────────────────
+    # Возвращает JSON с RUN_ID, PID, env summary. Полезно для отладки
+    # 'кэширован ли MCP' и 'правильный ли ext_root' прямо из чата.
+    @mcp.tool("debug_runtime_passport")
+    async def debug_runtime_passport() -> str:
+        """Диагностика: возвращает 'паспорт' текущего процесса MCP.
+
+        Если RUN_ID в ответе отличается от ожидаемого — значит процесс
+        не перезапустился после обновления кода (Zed держит старый).
+        """
+        from src.mcp.server import (
+            _RUN_ID, _RUN_STARTED_AT, _RUN_PID, _RUN_SOURCE_FILE,
+            _ext_root, _default_project_root,
+        )
+        import getpass
+        pr = _default_project_root or resolve_project_root()
+        passport = {
+            "run_id": _RUN_ID,
+            "pid": _RUN_PID,
+            "started_at": datetime.fromtimestamp(_RUN_STARTED_AT).isoformat(),
+            "uptime_sec": round(time.time() - _RUN_STARTED_AT, 1),
+            "source_file": _RUN_SOURCE_FILE,
+            "user": getpass.getuser(),
+            "cwd": str(Path.cwd().resolve()),
+            "ext_root": str(_ext_root),
+            "default_project_root": str(pr),
+            "env": {
+                "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
+                "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
+                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX"),
+                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[0] or None,
+            },
+            "self_index_guard_result": _is_self_index_path(pr),
+        }
+        return json.dumps(passport, ensure_ascii=False, indent=2)
 
 
 def _register_system_prompt(mcp):

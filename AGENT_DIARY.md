@@ -1,5 +1,77 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 08:45] — [Type: Feature] — Process Passport + Project State Machine (race-free)
+
+**Problem:**
+- `debug_runtime_passport` упал с `name 'project_root' is not defined` —
+  переменная была локальной внутри `create_mcp_server()`.
+- Race condition при переключении окон: MCP мог взять "последний
+  активный проект" пока LSP нового окна ещё не записал bridge.
+
+**Solution:**
+- ✅ `src/mcp/server.py`: `project_root` сохранён в `_default_project_root`
+  на уровне модуля. `debug_runtime_passport` использует его.
+- ✅ `src/core/project_indexer_registry.py`: добавлен `ProjectState` enum
+  (`UNINITIALIZED → STARTING → INDEXING → READY → FAILED`).
+  `get_indexer()` автоматически переводит проект в STARTING при
+  создании и в READY/INDEXING после.
+- ✅ Методы `set_state()`, `get_state()`, `wait_until_ready(timeout)` —
+  per-project `asyncio.Event` для ожидания готовности.
+- ✅ `src/mcp/tools/base.py`: добавлен `async require_ready_project()`
+  в `MCPTool`. Инструменты могут вызвать его перед выполнением.
+
+**Tools Used:** read_file, edit_file, terminal, sync_src
+**Status:** ✅ passport работает, проект переключается без гонок
+
+---
+
+## [2026-07-05 03:00] — [Type: Fix] — Self-Indexing Guard: ext_root Allowed as Dev Project
+
+**Problem:**
+- v2.3.3 self-indexing guard в `src/mcp/server.py` использовал маркер
+  `(path / "src/lsp_main.py").exists()` для детекта self-indexing.
+- Это блокировало ЛЕГИТИМНЫЙ dev-сценарий: пользователь открывает
+  исходники расширения `D:\Project\MSCodeBase` как свой проект в Zed
+  (чтобы индексировать свой же код, искать по нему и т.п.) — и
+  guard ошибочно срабатывал на этом пути.
+- Симптом: `intel_get_runtime_status`, `search_code`, `get_symbol_info`
+  и все остальные MCP-инструменты возвращали `"Self-indexing blocked:
+  target path is not a user project. Resolved: D:\Project\MSCodeBase"`.
+  Агент не мог использовать свои же инструменты для отладки расширения.
+
+**Root Cause:**
+- Маркер `src/lsp_main.py` РЕАЛЬНО существует в исходниках расширения.
+  Поэтому guard был неотличим от «пользователь случайно открыл
+  установку Zed». Нужен был другой дискриминатор.
+
+**Solution:**
+- ✅ `src/mcp/server.py`: заменён `_SELF_INDEX_MARKER` (константа
+  `"src/lsp_main.py"`) на функцию `_reject_self_index_target(p, source=)`,
+  которая проверяет:
+    - `p == _ext_root` (исходники расширения в dev-режиме — отклоняем
+      env-резолвер, чтобы дать шанс bridge/CWD/fallback)
+    - `is_zed_install_dir(p)` (установка Zed: D:\AI\Zed, %LOCALAPPDATA%\Zed\...)
+- ✅ Удалены 3 места с маркер-проверкой в `_resolve_env_project_root`
+  (L114, L127) и `resolve_project_root` (L181). Заменены на
+  `_reject_self_index_target`.
+- ✅ `src/mcp/tools/base.py._is_self_index_path` НЕ тронут (он уже
+  корректен: `is_zed_install_dir` + `path == _ext_root`). Изменения
+  могли бы сломать тест `test_explicit_ext_root_raises_tool_error`.
+
+**Архитектурный урок:**
+> НЕ используй маркер-файлы (например `src/lsp_main.py`) для детекта
+> self-indexing в dev-режиме. Исходники расширения легитимно содержат
+> эти файлы. Используй path-equality с _ext_root + специализированные
+> маркеры (is_zed_install_dir) для внешних систем.
+
+**Tests:** 371 passed (16 in test_project_header.py + 355 other).
+**Manual:** 6 e2e сценариев: user project / ext_root / Zed install / bridge fallback / CWD fallback.
+
+**Tools Used:** read_file, grep, edit_file, terminal, diagnostics.
+**Status:** ✅ Self-indexing guard теперь корректно блокирует Zed install + literal ext_root в env var, но РАЗРЕШАЕТ resolve_project_root возвращать ext_root когда пользователь открыл исходники как свой dev-проект (через fallback в конце цепочки).
+
+---
+
 ## [2026-07-05 02:00] — [Type: Feature] — v2.3.3: Visible Project Path + Self-Indexing Guard
 
 **Problem:**

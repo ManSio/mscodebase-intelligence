@@ -237,6 +237,10 @@ def patch_zed_settings(
     env = {
         "PYTHONPATH": str(ext_dir),
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+        # Dev-mode override: разрешает индексировать ext_root / Zed install,
+        # если пользователь открыл исходники расширения как проект.
+        # Без этого переменная фикс dev-сценария не сработает в Zed-сессии.
+        "MSCODEBASE_ALLOW_SELF_INDEX": "1",
     }
     entry["env"] = env
 

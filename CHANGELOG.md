@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.0] — 2026-07-05 — Self-Indexing Fix + Process Passport + Project State Machine
+
+### 🛡 Self-Indexing Guard: Dev-Repo Fix
+- **`src/mcp/server.py`**: удалён ошибочный `_SELF_INDEX_MARKER`
+  (`(path / "src/lsp_main.py").exists()`), заменён на
+  `_reject_self_index_target(p, source=)`.
+  - Отклоняет: `p == _ext_root` + `is_zed_install_dir(p)`.
+  - Больше НЕ блокирует dev-репозиторий (`D:\Project\MSCodeBase`), если
+    пользователь открыл исходники расширения как проект в Zed.
+- **`src/mcp/tools/base.py`**: добавлен env-override `MSCODEBASE_ALLOW_SELF_INDEX=1`
+  для dev-сценария.
+- **`src/utils/zed_config.py`**: `patch_zed_settings()` пишет
+  `MSCODEBASE_ALLOW_SELF_INDEX=1` в env MCP/LSP.
+
+### 🆔 Process Passport (debug_runtime_passport)
+- **`src/mcp/server.py`**: при старте MCP логируется "паспорт" —
+  `RUN_ID`, `PID`, `_ext_root`, `PROJECT_PATH`, `ZED_WORKTREE_ROOT`,
+  `MSCODEBASE_ALLOW_SELF_INDEX`, `PYTHONPATH`.
+- Зарегистрирован MCP-tool `debug_runtime_passport` — возвращает JSON
+  с RUN_ID, PID, uptime, source_file, ext_root, env, guard result.
+  Позволяет за 1 вызов подтвердить: "тот ли процесс исполняет мой код?".
+
+### 🏗 Project State Machine (race-free multi-window)
+- **`src/core/project_indexer_registry.py`**:
+  - Добавлен `enum ProjectState`: `UNINITIALIZED → STARTING → INDEXING → READY → FAILED`.
+  - Per-project `asyncio.Event` для сигнализации готовности.
+  - `get_indexer()` автоматически переводит проект в STARTING при создании
+    и в READY/INDEXING после.
+  - `wait_until_ready(path, timeout=5.0)` — ожидает READY (решает race
+    condition при переключении окон: LSP нового проекта ещё не записал
+    bridge, но MCP уже получил tool call).
+  - Исправлен дублированный `with self._create_lock` (удалена мёртвая копия).
+- **`src/mcp/tools/base.py`**: добавлен `async require_ready_project()`
+  в `MCPTool`. Инструменты ждут готовности вместо "последний активный проект".
+
+### 🛠 Утилиты
+- **`scripts/sync_src.py`** (new) — быстрая синхронизация `src/` из
+  dev-репозитория в install-директорию расширения.
+- **`scripts/patch_zed_settings.py`** (new) — патч глобального
+  `settings.json` Zed для добавления `MSCODEBASE_ALLOW_SELF_INDEX=1`.
+
+### 🧪 Tests
+- Прямой запуск: `_is_self_index_path(D:\Project\MSCodeBase) = False`.
+- `resolve_project_root()` возвращает `D:\Project\MSCodeBase` без ошибок.
+- MCP-сервер стартует и регистрирует 43 инструмента (33+10).
+- Индекс: 1362 чанка, 106 файлов, 1080 Tree-sitter символов, статус active.
+
+---
+
 ## [v2.3.3] — 2026-07-05 — Visible Project Path + Self-Indexing Guard
 
 ### 🎯 Project Path Visibility (INC-6BCB-v3)
