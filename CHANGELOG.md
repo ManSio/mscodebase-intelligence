@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.3] — 2026-07-05 — RuntimeCoordinator + intel_get_project_context
+
+### 🎯 RuntimeCoordinator (new, src/core/runtime_coordinator.py)
+- Единая точка принятия решения "можно ли выполнять MCP-запрос?".
+- Использует Registry (состояние), SystemArtifacts (системный путь),
+  Runtime Passport (готовность).
+- `can_execute(path) → ExecutionVerdict(ok, reason, state, detail)`.
+- `require_ready_project()` в MCPTool делегирует Coordinator-у.
+- Имя tool: `intel_get_project_context` (единый стиль Intel Layer).
+
+### 🧪 Код
+- ProjectContext, RuntimeCoordinator, server.py, base.py — синтаксис OK.
+- Архитектура: Tool → Coordinator → Snapshot, без копипасты.
+
+---
+
 ## [v2.4.2] — 2026-07-05 — ProjectContext — единая модель состояния проекта
 
 ### 🏗 ProjectContext (new, src/core/project_context.py)

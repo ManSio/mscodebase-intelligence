@@ -1,5 +1,31 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 10:30] — [Type: Architecture] — ProjectContext + RuntimeCoordinator
+
+**Problem:**
+- Каждый tool собирал информацию о проекте самостоятельно
+  (Registry + Bridge + Passport + Health + Memory), создавая копипасту.
+- Не было единой точки "можно выполнять запрос?".
+
+**Solution:**
+- `src/core/project_context.py` — `ProjectContext.capture(path, services)`
+  возвращает Snapshot: state, index, bridge, runtime, health, memory, jobs.
+- `src/core/runtime_coordinator.py` — `RuntimeCoordinator.can_execute(path)`
+  принимает решение: готов проект или нет. Использует Registry
+  (состояние) + SystemArtifacts (системный путь).
+- `src/mcp/tools/base.py` — `require_ready_project()` делегирует
+  Coordinator-у.
+- MCP tool переименован в `intel_get_project_context`.
+
+**Architecture now:**
+  Tool → Coordinator → can_execute() → Snapshot → logic
+  Tool не знает Registry, Bridge, Passport — только Verdict + Snapshot.
+
+**Tools Used:** write_file, edit_file, terminal, py_compile.
+**Status:** ✅
+
+---
+
 ## [2026-07-05 08:45] — [Type: Feature] — Process Passport + Project State Machine (race-free)
 
 **Problem:**

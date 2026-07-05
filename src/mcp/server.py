@@ -878,10 +878,10 @@ def _register_all_tools(mcp, services):
         }
         return json.dumps(passport, ensure_ascii=False, indent=2)
 
-    # ─── Project Context tool ────────────────────
+    # ─── Project Context tool (Intel Layer) ──────
     # Единый снэпшот проекта: state + index + bridge + health + memory + jobs
-    @mcp.tool("get_project_context")
-    async def get_project_context(project_root: str = "") -> str:
+    @mcp.tool("intel_get_project_context")
+    async def intel_get_project_context(project_root: str = "") -> str:
         """Единый снэпшот состояния проекта: state, index, bridge, health,
         memory (incidents/ADRs) и фоновые задачи — одним вызовом.
 

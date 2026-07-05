@@ -352,33 +352,29 @@ class MCPTool(ABC):
     ):
         """Ожидает, пока проект не станет READY.
 
+        Делегирует RuntimeCoordinator — единую точку принятия решения.
+        Если Coordinator говорит "не готов" — поднимает ToolError
+        с human-readable причиной.
+
         Двухстадийное ожидание:
         1. Быстрая проверка bridge (1с) — если LSP ещё не синхронизировался,
            сразу сообщаем "инициализация в процессе" вместо ожидания 5с.
         2. Полное ожидание READY (оставшиеся timeout секунд).
-
-        Защита от race condition (INC-6BCB-v4): когда пользователь
-        переключается между окнами Zed, LSP нового проекта может ещё
-        не успеть записать bridge. Вместо того чтобы брать
-        "последний активный проект" или падать с "project not found",
-        этот метод ждёт готовности.
 
         Args:
             explicit_project_root: явный project_path (если None — default).
             timeout: макс. время ожидания в секундах (по умолч. 5с).
 
         Raises:
-            ToolError: если проект не стал READY за timeout.
+            ToolError: если проект не готов.
             IndexNotReadyError: если проект READY, но индекс пуст.
         """
-        from src.core.di_container import ProjectIndexerRegistry as PIRKey
-        from src.core.project_indexer_registry import ProjectState
+        from src.core.runtime_coordinator import RuntimeCoordinator
 
-        registry = self._services.resolve(PIRKey)
+        coord = RuntimeCoordinator(self._services)
         target = self._resolve_target_path(explicit_project_root)
 
-        # Stage 1: быстрая проверка bridge (1с). Если LSP ещё не записал
-        # project_root — сообщаем сразу, без ожидания 5с.
+        # Stage 1: быстрая проверка bridge (1с)
         try:
             from src.core.lsp_project_bridge import read_project_from_bridge
             _bridge = read_project_from_bridge(max_wait=1.0)
@@ -391,24 +387,19 @@ class MCPTool(ABC):
         except Exception:
             pass
 
-        # Stage 2: полное ожидание READY
-        await registry.wait_until_ready(target, timeout=timeout)
-        state = registry.get_state(target)
-
-        if state == ProjectState.FAILED:
-            raise ToolError(
-                status="error",
-                message=f"Project {target.name} failed to initialize",
-                detail="Indexer creation failed. Check logs for details.",
-            )
-        if state != ProjectState.READY:
+        # Stage 2: полное ожидание через Coordinator
+        verdict = await coord.can_execute(target, timeout=timeout)
+        if not verdict:
+            if verdict.reason in ("system_path", "project_resolution_failed"):
+                raise ToolError(status="error", message=verdict.detail)
             raise ToolError(
                 status="error",
                 message=(
-                    f"Project {target.name} is not ready yet "
-                    f"(state={state.name}). "
+                    f"Project {target.name} is not ready "
+                    f"({verdict.reason}, state={verdict.state}). "
                     f"Try again in a few seconds."
                 ),
+                detail=verdict.detail,
             )
 
         # Проверяем, что индекс не пуст
