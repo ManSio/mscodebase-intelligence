@@ -114,14 +114,33 @@ class FileGuard:
             logger.warning(f"Не удалось загрузить .gitignore парсер: {e}. Будет использован базовый Fallback.")
             self._gitignore_patterns = set()
 
-        # Fallback: всегда жестко исключаем внутренние файлы LanceDB, даже если .gitignore поврежден
+        # Fallback: всегда жестко исключаем внутренние файлы LanceDB и артефакты
+        # индексации, даже если .gitignore поврежден.
+        #
+        # ВАЖНО: без этих исключений возникает feedback loop — служебные файлы
+        # (chunk_summaries.json, incidents.json, project_memory.json) попадают
+        # в индекс, LLM видит не исходный код, а описания исходников, качество
+        # RAG деградирует при каждой переиндексации.
+        #
+        # Защита на уровне SKIP_DIRS + .gitignore — двухслойная.
         self._gitignore_patterns.update({
+            # LanceDB / векторная БД
             "codebase_chunks.lance",
             "codebase_chunks/**",
             "*.lance",
             "*.lance_versions/**",
             "lancedb_v2",
             "lancedb_v2/**",
+            # Метаданные индексации (feedback loop guard)
+            "chunk_summaries.json",
+            "summaries_cache/**",
+            "incidents.json",
+            "project_memory.json",
+            "commits.json",
+            ".index_guard.json",
+            # Индексы symbol_index
+            "symbol_index",
+            "symbol_index/**",
         })
         logger.info(
             f"✅ Загружено {len(self._gitignore_patterns)} паттернов .gitignore: {self.project_path / '.gitignore'}"

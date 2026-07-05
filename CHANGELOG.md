@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.1] — 2026-07-05 — Extended Passport + Feedback-Loop Guard + Two-Stage Ready
+
+### 🆔 Passport Extended (BUILD_ID + Bridge/Registry/ProjectState)
+- **`src/mcp/server.py`**: добавлен `_BUILD_ID` (git commit hash) — мгновенная
+  верификация версии кода.
+- `_log_run_passport()` теперь логирует Bridge state и Registry state при старте.
+- `debug_runtime_passport` возвращает: `build_id`, `project_state` (enum),
+  `bridge`, `bridge_error`, `registry.paths`, `registry.cached_projects`,
+  `registry.cache_hits/misses`.
+
+### 🛡 Feedback-Loop Guard (против загрязнения индекса)
+- **`src/core/file_guard.py`**: в `_load_gitignore()` добавлены явные паттерны
+  исключения служебных файлов индексации:
+  - `chunk_summaries.json`, `summaries_cache/**` — описания чанков
+  - `incidents.json`, `project_memory.json`, `commits.json` — метаданные памяти
+  - `.index_guard.json`, `symbol_index/**` — индексы
+- Защита двухслойная: SKIP_DIRS (директории) + .gitignore (файлы).
+- Без этих исключений возможен feedback loop: описание чанка → summary →
+  индексирование summary → новое summary на основе предыдущего.
+
+### ⏱ Two-Stage wait_until_ready
+- **`src/mcp/tools/base.py`**: `require_ready_project()` теперь делает 2 стадии:
+  1. Быстрая проверка bridge (1с) — если LSP ещё не записал project_root,
+     сразу логирует предупреждение вместо ожидания 5с.
+  2. Полное ожидание READY (оставшиеся секунды).
+
+### 🧪 Tests
+- Все файлы проходят py_compile.
+- Индекс: 1362 чанка, 106 файлов, 1080 Tree-sitter символов, status=active.
+
+---
+
 ## [v2.4.0] — 2026-07-05 — Self-Indexing Fix + Process Passport + Project State Machine
 
 ### 🛡 Self-Indexing Guard: Dev-Repo Fix
