@@ -1,5 +1,10 @@
 """
 Guardrails для файловой системы - защита от бинарников, мусора и .gitignore.
+
+Все системные директории и артефакты определены в `SystemArtifacts`.
+FileGuard использует их как единый источник правды — никаких дублирующихся
+списков. Если нужно добавить новую системную директорию или артефакт —
+меняйте `system_artifacts.py`, а не этот файл.
 """
 
 import logging
@@ -9,37 +14,20 @@ from pathlib import Path
 from typing import Set
 
 from src.core.config import get_config
+from src.core.system_artifacts import SystemArtifacts
 
 logger = logging.getLogger(__name__)
 
 
 class FileGuard:
-    """Многоуровневая фильтрация файлов перед индексацией."""
+    """Многоуровневая фильтрация файлов перед индексацией.
 
-    # Жесткий черный список директорий (приведен к нижнему регистру для надежности)
-    SKIP_DIRS = {
-        ".git",
-        "node_modules",
-        "venv",
-        ".venv",
-        "__pycache__",
-        "dist",
-        "build",
-        "target",
-        ".tox",
-        ".mypy_cache",
-        ".ruff_cache",
-        ".pytest_cache",
-        "htmlcov",
-        ".coverage",
-        ".codebase_index",
-        ".codebase_indices",  # Добавлено для явной защиты метаданных индексов
-        ".codebase_models",
-        ".zed",
-        ".idea",
-        ".vscode",
-        "out",
-    }
+    Использует SystemArtifacts как единый источник правды для Layer 1-3.
+    Добавляет Layer 4 (Embedding Guard) — проверку бинарности, размера, .gitignore.
+    """
+
+    # Системные директории берутся из SystemArtifacts (Layer 1: Directory Guard)
+    SKIP_DIRS = SystemArtifacts.get_system_dirs()
 
     # Белый список расширений (Всеядность языков)
     SUPPORTED_EXTENSIONS = {
@@ -98,11 +86,24 @@ class FileGuard:
         self._load_gitignore()
 
     def should_skip_dir(self, dir_name: str) -> bool:
-        """Проверяет, нужно ли пропускать директорию при обходе."""
-        return dir_name.lower() in self._skip_dirs_lower
+        """Проверяет, нужно ли пропускать директорию при обходе.
+
+        Layer 1: Directory Guard (SystemArtifacts).
+        """
+        return SystemArtifacts.is_system_dir(dir_name)
 
     def should_skip_file(self, file_path: Path) -> bool:
-        """Проверяет, нужно ли пропускать файл."""
+        """Проверяет, нужно ли пропускать файл.
+
+        Layer 2-4: Artifact Guard + Feedback Guard + Embedding Guard.
+        """
+        # Layer 2: если файл в системной директории — сразу skip
+        if SystemArtifacts.is_in_system_dir(file_path):
+            return True
+        # Layer 3: если файл — feedback risk (создан индексатором)
+        if SystemArtifacts.is_feedback_risk(file_path):
+            return True
+        # Layer 4: полная проверка (расширение, бинарность, размер, .gitignore)
         return not self.is_safe_to_index(file_path)
 
     def _load_gitignore(self):
@@ -114,31 +115,27 @@ class FileGuard:
             logger.warning(f"Не удалось загрузить .gitignore парсер: {e}. Будет использован базовый Fallback.")
             self._gitignore_patterns = set()
 
-        # Fallback: всегда жестко исключаем внутренние файлы LanceDB и артефакты
-        # индексации, даже если .gitignore поврежден.
+        # Fallback: паттерны из SystemArtifacts (Layer 2-3: Artifact + Feedback Guard).
+        # Если .gitignore повреждён, эти паттерны гарантируют, что служебные
+        # файлы не создадут feedback loop в RAG.
         #
-        # ВАЖНО: без этих исключений возникает feedback loop — служебные файлы
-        # (chunk_summaries.json, incidents.json, project_memory.json) попадают
-        # в индекс, LLM видит не исходный код, а описания исходников, качество
-        # RAG деградирует при каждой переиндексации.
-        #
-        # Защита на уровне SKIP_DIRS + .gitignore — двухслойная.
+        # ВАЖНО: не дублируйте список здесь — SystemArtifacts единственный
+        # источник правды. Добавляйте новые паттерны в system_artifacts.py.
+        artifact_patterns = SystemArtifacts.get_artifact_patterns()
+        feedback_patterns = SystemArtifacts.get_feedback_patterns()
         self._gitignore_patterns.update({
-            # LanceDB / векторная БД
+            # LanceDB / векторная БД (железобетонно)
             "codebase_chunks.lance",
             "codebase_chunks/**",
             "*.lance",
             "*.lance_versions/**",
             "lancedb_v2",
             "lancedb_v2/**",
-            # Метаданные индексации (feedback loop guard)
-            "chunk_summaries.json",
-            "summaries_cache/**",
-            "incidents.json",
-            "project_memory.json",
-            "commits.json",
-            ".index_guard.json",
-            # Индексы symbol_index
+            # Артефакты индексации (Artifact Guard)
+            *(p for p in artifact_patterns if p != "*.lance"),
+            # Feedback loop риск (Feedback Guard)
+            *(p for p in feedback_patterns),
+            # Symbol index
             "symbol_index",
             "symbol_index/**",
         })
@@ -163,9 +160,11 @@ class FileGuard:
             logger.debug(f"[FILEGUARD SKIP] Minified file: {file_path.name}")
             return False
 
-        # Проверка директорий (Регистронезависимая: если хоть одна часть пути в черном списке - игнорим)
-        if any(part.lower() in self._skip_dirs_lower for part in file_path.parts):
-            logger.debug(f"[FILEGUARD SKIP] Skipped directory by path parts: {file_path}")
+        # Проверка системной директории (Layer 1: Directory Guard)
+        # if is_in_system_dir — этот вызов уже сделан в should_skip_file,
+        # но дублируем здесь для is_safe_to_index при прямом вызове.
+        if SystemArtifacts.is_in_system_dir(file_path):
+            logger.debug(f"[FILEGUARD SKIP] System directory: {file_path}")
             return False
 
         # Проверка .gitignore (Требует POSIX путей)
