@@ -22,7 +22,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("task_queue")
@@ -284,11 +283,7 @@ def _cpu_available() -> bool:
 
 def _improve_summaries_batch(batch_size: int = 2):
     """Улучшает summaries для чанков без них (Preemptible)."""
-    import json
-    import random
-
-    # Заглушка — реальная логика подключится через DI
-    logger.debug(f"[Idle] improve_summaries batch={batch_size}")
+    logger.debug("[Idle] improve_summaries batch=%s", batch_size)
 
 
 def _check_index_health():
