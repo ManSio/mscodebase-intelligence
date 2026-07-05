@@ -1,0 +1,20 @@
+{
+  "en": false,
+  "_comment": "Русская локаль. Ключи — оригинальные сообщения из кода.",
+  "📦 Chunks: {count} | Files: {count}": "📦 Чанков: {count} | Файлов: {count}",
+  "🔍 **Search:** `mode={mode}` — **{total}** results ({time}ms, mode={mode})": "🔍 **Поиск:** `mode={mode}` — **{total}** находок ({time}ms, mode={mode})",
+  "✅ **Completed** ({time}ms)": "✅ **Завершено** ({time}мс)",
+  "🌐 Cross-repo Search": "🌐 Кросс-репозиторный поиск",
+  "📊 **Tool Health**": "📊 **Здоровье инструментов**",
+  "📋 **Execution Timeline**": "📋 **Лента вызовов**",
+  "📂 Project: {path}": "📂 Проект: {path}",
+  "📊 **Telemetry**": "📊 **Телеметрия**",
+  "No data yet": "Нет данных",
+  "❌ Query is empty": "❌ Пустой запрос",
+  "❌ Path does not exist: {path}": "❌ Путь не существует: {path}",
+  "Symbol '{symbol}' not found in index": "Символ '{symbol}' не найден в индексе",
+  "Index is empty. Run `index_project_dir()` to index.": "Индекс пуст. Запустите `index_project_dir()` для индексации.",
+  "🟢 **MSCodeBase** — ready": "🟢 **MSCodeBase** — готов",
+  "🔴 **MSCodeBase** — error": "🔴 **MSCodeBase** — ошибка",
+  "⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}": "⏱ Простой: {idle}% | Активен: {active}% | Вызовов: {calls}"
+}

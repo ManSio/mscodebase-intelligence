@@ -110,60 +110,81 @@ class SearchCodeTool(MCPTool):
         filter_layer: Optional[str] = None,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        from src.core.error_handler import record_tool_result
+
         await self.require_ready_project()
 
         if not query or not query.strip():
             return "❌ Query is empty"
 
-        # === Project header (INC-6BCB-v3) ===
-        # Показываем где ищем — чтобы пользователь видел ГДЕ идёт поиск.
-        # Особенно важно при multi-window: может искать в чужом проекте.
+        # === Project header ===
         project_header = self._project_header()
-        # Добавляем информацию о фильтре слоя
         if filter_layer:
             project_header += f"\n🔬 Layer filter: {filter_layer}"
+
+        result_str: str
+        results_count: int = 0
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
             raw = self.resolve_searcher().search_with_mode(
                 query, mode=mode, limit=limit, layer=filter_layer
             )
-            # search_with_mode может вернуть строку (ошибка embedder)
             if isinstance(raw, str):
-                return project_header + "\n" + raw
-            return self._format_results(raw, mode, project_header=project_header)
+                result_str = project_header + "\n" + raw
+            else:
+                results_count = len(raw.get("results", []))
+                result_str = self._format_results(
+                    raw, mode, project_header=project_header
+                )
 
-        if mode == "deep":
-            return (
+        elif mode == "deep":
+            result_str = (
                 project_header
                 + "\n"
                 + self.resolve_searcher().deep_search(query, limit=limit)
             )
 
-        if mode == "context":
-            return (
+        elif mode == "context":
+            result_str = (
                 project_header
                 + "\n"
                 + self.resolve_searcher().context_search(query, limit=limit)
             )
 
-        # === mode == "auto": авто-определение simple vs agentic ===
-        since = kwargs.get("since") if kwargs else None
-        before = kwargs.get("before") if kwargs else None
+        else:
+            # auto
+            since = kwargs.get("since") if kwargs else None
+            before = kwargs.get("before") if kwargs else None
+            if _is_complex_query(query):
+                result_str = project_header + "\n" + await self._agentic_search(query)
+            else:
+                result_str = (
+                    project_header
+                    + "\n"
+                    + self.resolve_searcher().search(
+                        query,
+                        limit=limit,
+                        since=since,
+                        before=before,
+                        layer=filter_layer,
+                    )
+                )
 
-        if _is_complex_query(query):
-            return project_header + "\n" + await self._agentic_search(query)
-        return (
-            project_header
-            + "\n"
-            + self.resolve_searcher().search(
-                query,
-                limit=limit,
-                since=since,
-                before=before,
-                layer=filter_layer,
-            )
+        # Обогащаем телеметрию
+        confidence = 0.85 if results_count > 0 else 0.3
+        detail = f"{results_count} results, mode={mode}"
+        if filter_layer:
+            detail += f", layer={filter_layer}"
+        record_tool_result(
+            "search_code",
+            route=mode,
+            confidence=confidence,
+            results_count=results_count,
+            detail=detail,
         )
+
+        return result_str
 
     async def _agentic_search(self, query: str) -> str:
         """Agentic Code Search с декомпозицией и связями.
@@ -290,6 +311,8 @@ class ImpactAnalysisTool(MCPTool):
         depth: int = 3,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
+        from src.core.error_handler import record_tool_result
+
         await self.require_ready_project()
         # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
@@ -301,10 +324,25 @@ class ImpactAnalysisTool(MCPTool):
         )
 
         if not result.get("call_graph", {}).get("definition"):
+            record_tool_result(
+                "impact_analysis", route="graph", confidence=0.0, results_count=0
+            )
             return {
                 "status": "warning",
                 "message": f"Symbol '{symbol}' not found in index",
             }
+
+        callers = len(result.get("direct_callers", []))
+        callees = len(result.get("direct_callees", []))
+        total = result.get("direct_callers", 0) + result.get("transitive_callers", 0)
+        total += result.get("direct_callees", 0) + result.get("transitive_callees", 0)
+        record_tool_result(
+            "impact_analysis",
+            route="graph",
+            confidence=0.85 if total > 0 else 0.3,
+            results_count=total,
+            detail=f"{callers} callers, {callees} callees",
+        )
 
         return {
             "status": "ok",

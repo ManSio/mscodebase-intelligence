@@ -1,0 +1,20 @@
+{
+  "en": true,
+  "_comment": "English locale. Keys are the original English/Russian messages from code.",
+  "📦 Chunks: {count} | Files: {count}": "📦 Chunks: {count} | Files: {count}",
+  "🔍 **Поиск:** `mode={mode}` — **{total}** находок ({time}ms, mode={mode})": "🔍 **Search:** `mode={mode}` — **{total}** results ({time}ms, mode={mode})",
+  "✅ **Completed** ({time}ms)": "✅ **Completed** ({time}ms)",
+  "🌐 Cross-repo Search": "🌐 Cross-repo Search",
+  "📊 **Tool Health**": "📊 **Tool Health**",
+  "📋 **Execution Timeline**": "📋 **Execution Timeline**",
+  "📂 Project: {path}": "📂 Project: {path}",
+  "📊 **Telemetry**": "📊 **Telemetry**",
+  "No data yet": "No data yet",
+  "❌ Query is empty": "❌ Query is empty",
+  "❌ Path does not exist: {path}": "❌ Path does not exist: {path}",
+  "Symbol '{symbol}' not found in index": "Symbol '{symbol}' not found in index",
+  "Index is empty. Run `index_project_dir()` to index.": "Index is empty. Run `index_project_dir()` to index.",
+  "🟢 **MSCodeBase** — ready": "🟢 **MSCodeBase** — ready",
+  "🔴 **MSCodeBase** — error": "🔴 **MSCodeBase** — error",
+  "⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}": "⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}"
+}

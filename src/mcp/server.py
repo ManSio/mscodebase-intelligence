@@ -544,6 +544,11 @@ def create_mcp_server() -> "FastMCP":
     from src.core.di_container import create_service_collection
 
     services = create_service_collection(project_root)
+
+    # ─── i18n — язык сообщений ───────────────────────
+    from src.utils.i18n import set_locale
+
+    set_locale(os.environ.get("MSCODEBASE_LOCALE", "en"))
     global _services_cache
     _services_cache = services
 
@@ -1400,18 +1405,23 @@ def _register_all_tools(mcp, services):
             get_global_idle_metrics,
             get_tool_metrics_summary,
         )
+        from src.utils.i18n import _
 
         metrics = get_tool_metrics_summary()
         if not metrics:
-            return "📊 Нет данных по инструментам."
+            return _("📊 **Tool Health**") + "\n" + _("No data yet")
 
         # Idle metrics header
         idle = get_global_idle_metrics()
-        lines = ["📊 **Tool Health**\n"]
+        lines = [_("📊 **Tool Health**") + "\n"]
         lines.append(
-            f"⏱ **Idle:** {idle['idle_pct']}% | "
-            f"**Active:** {idle['active_pct']}% | "
-            f"**Calls:** {idle['total_calls']}\n"
+            _(
+                "⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}",
+                idle=idle["idle_pct"],
+                active=idle["active_pct"],
+                calls=idle["total_calls"],
+            )
+            + "\n"
         )
 
         lines.append("| Tool | Health | Calls | P50 | P95 | Repeat | Routes |")
@@ -1463,15 +1473,16 @@ def _register_all_tools(mcp, services):
             Таблица с хронологией вызовов.
         """
         from src.core.error_handler import get_execution_timeline
+        from src.utils.i18n import _
 
         timeline = get_execution_timeline()
         if not timeline:
-            return "📋 Timeline пуст — инструменты ещё не вызывались."
+            return _("📋 **Execution Timeline**") + "\n" + _("No data yet")
 
         limit = min(max(limit, 1), 50)
         recent = timeline[-limit:]
 
-        lines = ["📋 **Execution Timeline**\n"]
+        lines = [_("📋 **Execution Timeline**") + "\n"]
         lines.append("| Time | Tool | ms | Status | Route | Confidence | Results |")
         lines.append("|------|------|----|--------|-------|------------|---------|")
 

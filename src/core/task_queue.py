@@ -185,8 +185,8 @@ class TaskQueue:
                 await self._execute_task(task)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Ошибка воркера: {e}")
+            except Exception:
+                logger.error("Ошибка воркера", exc_info=True)
 
     async def _execute_task(self, task: Task):
         """Выполняет задачу в пуле потоков."""
@@ -210,7 +210,9 @@ class TaskQueue:
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error = str(e)
-            logger.error(f"Задача упала: {task.name} [{task.id}]: {e}")
+            logger.error(
+                "Задача упала: %s [%s]: %s", task.name, task.id, e, exc_info=True
+            )
 
         finally:
             task.completed_at = datetime.now().isoformat()

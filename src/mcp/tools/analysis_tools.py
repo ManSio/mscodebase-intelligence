@@ -38,31 +38,37 @@ class StructuralSearchTool(MCPTool):
         pattern: str = "class_inheritance",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
+        from src.core.error_handler import record_tool_result
         from src.core.structural_search import StructuralSearcher
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
+            record_tool_result(
+                "structural_search", route="ast", confidence=0.0, results_count=0
+            )
             return {
                 "status": "error",
                 "message": f"Path does not exist: {project_root}",
             }
 
         searcher = StructuralSearcher(self.resolve_parser())
-        # CPU-bound: Tree-sitter AST парсинг — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: searcher.search(
-                target_path,
-                pattern_name=pattern,
-                max_results=30,
-            ),
+            lambda: searcher.search(target_path, pattern_name=pattern, max_results=30),
         )
-        return {
-            "status": "ok",
-            "pattern": pattern,
-            "results": searcher.format_results(result),
-        }
+
+        formatted = searcher.format_results(result)
+        count = len(result.get("results", [])) if isinstance(result, dict) else 0
+        record_tool_result(
+            "structural_search",
+            route="ast",
+            confidence=0.95 if count > 0 else 0.3,
+            results_count=count,
+            detail=f"pattern={pattern}, {count} matches",
+        )
+
+        return {"status": "ok", "pattern": pattern, "results": formatted}
 
 
 class GetRepoMapTool(MCPTool):
