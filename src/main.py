@@ -42,10 +42,23 @@ def log_crash(error: BaseException) -> None:
         traceback.print_exc(file=f)
 
 
+def _load_env():
+    """Загружает .env файл из корня проекта."""
+    try:
+        from dotenv import load_dotenv
+        env_path = PROJECT_ROOT / ".env"
+        if env_path.exists():
+            load_dotenv(env_path)
+    except ImportError:
+        pass  # python-dotenv не установлен — используем системные env
+
+
 def setup_logging():
     """Настраивает логирование и перенаправляет stdout в stderr.
     Возвращает (original_stdout, logger).
     """
+    _load_env()
+
     # 1. Сохраняем оригинальный stdout (он нужен для общения с MCP)
     original_stdout = sys.stdout
 
