@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
 
-[Возможности](#-features) • [Быстрый старт](#-quick-start) • [Инструменты](#-mcp-tools-43-total) • [Документация](#-documentation-map) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Разработка](CONTRIBUTING.md)
+[Возможности](#-features) • [Быстрый старт](#-quick-start) • [Инструменты](#-mcp-tools-43-total) • [Документация](#-documentation-map) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Разработка](CONTRIBUTING.md) • [Безопасность](SECURITY.md) • [Code of Conduct](../../CODE_OF_CONDUCT.md)
 
 *Последнее обновление: 2026-07-05*
 
@@ -81,6 +81,7 @@ get_index_status()
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Как разрабатывать, тестировать, PR | Контрибьюторы |
 | **[AGENTS.md](../../AGENTS.md)** | Системные правила для AI-агента (контекст) | AI Agent |
 | **[SECURITY.md](SECURITY.md)** | Политика безопасности, уязвимости | Безопасность |
+| **[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)** | Стандарты сообщества | Контрибьюторы |
 
 Все документы связаны между собой перекрёстными ссылками. Если заметили расхождение — создайте issue.
 

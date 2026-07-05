@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共-43-个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [开发指南](CONTRIBUTING.md)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共-43-个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [开发指南](CONTRIBUTING.md) • [安全政策](SECURITY.md) • [行为准则](../../CODE_OF_CONDUCT.md)
 
 *最后更新：2026-07-05*
 
@@ -78,6 +78,8 @@ get_index_status()
 | **[CHANGELOG.md](CHANGELOG.md)** | 版本历史 | 所有人 |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | 如何开发、测试、提交 PR | 贡献者 |
 | **[AGENTS.md](../../AGENTS.md)** | AI 代理的系统规则（上下文） | AI 代理 |
+| **[SECURITY.md](SECURITY.md)** | 安全政策，报告漏洞 | 安全 |
+| **[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)** | 社区准则 | 贡献者 |
 | **[SECURITY.md](SECURITY.md)** | 安全策略、漏洞报告 | 安全 |
 
 所有文档之间都有交叉引用。如果发现不一致，请提 issue。
