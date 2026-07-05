@@ -468,6 +468,12 @@ intel_get_project_memory        ──>      get_commit_history / file_history  
 * **FORBIDDEN** to add a new `Services`/`Manager`/`Provider` component without answering: "Which existing layer does it extend?".
 * **FORBIDDEN** to create a component with more than one responsibility. One class = one question.
 * **FORBIDDEN** for Core layer (`src/core/`) to import MCP — no `mcp.` imports in business logic.
+* **FORBIDDEN** to investigate a hypothesis after two consecutive observations confirm the same fact. Pivot to a different hypothesis.
+
+### Debugging Discipline
+
+* **Evidence over speculation:** If a hypothesis is confirmed by bytes, AST, or direct file read — STOP investigating that same hypothesis. Formulate a new one.
+* **3-hypothesis limit:** After 3 failed hypotheses, produce a summary report of what was excluded and what remains, rather than continuing to iterate.
 
 ---
 
