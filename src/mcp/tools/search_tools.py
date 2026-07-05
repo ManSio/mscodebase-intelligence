@@ -346,16 +346,17 @@ class ImpactAnalysisTool(MCPTool):
                 "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
             }
 
-        callers = len(result.get("direct_callers", []))
-        callees = len(result.get("direct_callees", []))
-        total = result.get("direct_callers", 0) + result.get("transitive_callers", 0)
-        total += result.get("direct_callees", 0) + result.get("transitive_callees", 0)
+        dc = result.get("direct_callers", 0)
+        tc = result.get("transitive_callers", 0)
+        dcal = result.get("direct_callees", 0)
+        tcal = result.get("transitive_callees", 0)
+        total = dc + tc + dcal + tcal
         record_tool_result(
             "impact_analysis",
             route="graph",
             confidence=0.85 if total > 0 else 0.3,
             results_count=total,
-            detail=f"{callers} callers, {callees} callees",
+            detail=f"{dc} callers, {dcal} callees",
         )
 
         return {
