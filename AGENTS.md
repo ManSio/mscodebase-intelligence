@@ -452,12 +452,22 @@ intel_get_project_memory        ──>      get_commit_history / file_history  
 
 ## 5. ABSOLUTE CRITICAL FORBIDDENS
 
+### Deprecated / Unsafe
+
 * **FORBIDDEN** to call `smart_search`, `deep_search`, or `context_search` directly — they are DEPRECATED. Always use `search_code(query, mode=...)`.
 * **FORBIDDEN** to output stubs, incomplete blocks, or code placeholders like `TODO` or `...`. Every code modification must be a fully functional, production-ready implementation.
 * **FORBIDDEN** to retry the exact same tool call with identical arguments if it previously returned an error. Pivot to a fallback mechanism instead.
 * **FORBIDDEN** to suggest Docker, WSL, or containerized environments. The project environment is strictly native Windows.
 * **FORBIDDEN** to import the external `pytz` package for timezone calculations. Rely exclusively on the native `zoneinfo` standard library.
 * **FORBIDDEN** to print debug messages or arbitrary strings to `stdout`. Any data pushed to `stdout` that does not conform to the strict JSON-RPC MCP specification will break the Zed editor parser and crash the server pipe.
+
+### Architectural Violations (v2.4+)
+
+* **FORBIDDEN** for tools to call Registry / Bridge / Passport directly — only through `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`.
+* **FORBIDDEN** for `RuntimeCoordinator` to know about Search, Indexer, or Memory — its only job is "can I execute?".
+* **FORBIDDEN** to add a new `Services`/`Manager`/`Provider` component without answering: "Which existing layer does it extend?".
+* **FORBIDDEN** to create a component with more than one responsibility. One class = one question.
+* **FORBIDDEN** for Core layer (`src/core/`) to import MCP — no `mcp.` imports in business logic.
 
 ---
 

@@ -44,6 +44,31 @@
 
 ## 2. Layer Architecture
 
+### 2.0 Ten-Layer Runtime Architecture (v2.4)
+
+```
+ Layer 0: Filesystem                  — какие файлы есть на диске?
+ Layer 1: SystemArtifacts             — это системный путь?
+ Layer 2: Bridge (LSP→MCP)           — какой проект сообщил LSP?
+ Layer 3: Registry (IndexerRegistry)  — какой Indexer принадлежит проекту?
+ Layer 4: StateMachine (ProjectState) — в каком состоянии проект?
+ Layer 5: RuntimeCoordinator          — можно ли выполнять запрос?
+ Layer 6: ProjectContext              — как выглядит проект сейчас?
+ Layer 7: Passport                    — какой процесс сейчас работает?
+ Layer 8: Intel Layer                 — что делать с информацией?
+ Layer 9: MCP Tools / AI Agent        — ответ пользователю
+```
+
+**Data flow:**
+```
+Filesystem → SystemArtifacts → Bridge → Registry → StateMachine
+                                                          ↓
+MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
+```
+
+**Key rule:** Tool НЕ обращается к Registry, Bridge или Passport напрямую.
+Всё — через `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`.
+
 ### 2.1 Entry Points
 
 | File | Protocol | Purpose |
@@ -477,4 +502,30 @@ pytest tests/ -m "not integration and not benchmark"
 | `python -m src.main` | Run MCP server (STDIO) |
 | `pytest tests/` | Run all tests |
 | `pytest tests/test_di_container.py -v` | Run DI container tests only |
-| `python -c \"from src.mcp.server import create_mcp_server; mcp = create_mcp_server()\"` | Verify server loads |
+| `python -c "from src.mcp.server import create_mcp_server; mcp = create_mcp_server()"` | Verify server loads |
+
+---
+
+## 11. Architectural Invariants
+
+Эти правила НЕ должны нарушаться ни одним новым PR.
+
+```
+1. Tool не обращается к Registry напрямую.
+2. Tool не читает Bridge напрямую.
+3. Tool работает только через RuntimeCoordinator.
+4. RuntimeCoordinator не знает про Search / Indexer / Memory.
+5. ProjectContext — immutable snapshot (не запускает операций).
+6. Все системные файлы определяются только через SystemArtifacts.
+7. Индексатор никогда не индексирует системные артефакты.
+8. Любой путь проекта проходит через единый resolver (resolve_project_root).
+9. Все Intel-инструменты используют ProjectContext (не низкоуровневые API).
+10. Любой новый runtime-компонент обязан иметь одну ответственность.
+11. Слой Core не имеет MCP-импортов.
+12. Инструменты не создают зависимости — всё через DI.
+13. server.py регистрирует — не содержит бизнес-логики.
+```
+
+**Проверка при code review:** любой PR должен отвечать на вопрос
+«Какой существующий слой расширяется?». Если ответ «никакой, я сделал
+новый Manager/Services/Provider» — это повод остановиться.
