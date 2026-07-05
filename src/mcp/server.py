@@ -898,6 +898,101 @@ def _register_all_tools(mcp, services):
         snap = await ctx.capture()
         return json.dumps(snap.to_dict(), ensure_ascii=False, indent=2)
 
+    # ─── Explain Project State (human-readable) ──────
+    @mcp.tool("intel_explain_project_state")
+    async def intel_explain_project_state(project_root: str = "") -> str:
+        """Человекочитаемый диагноз состояния проекта.
+
+        В отличие от intel_get_project_context (который возвращает JSON),
+        этот инструмент возвращает текст для пользователя:
+          ✓ Project READY — всё хорошо
+          ✗ Cannot execute — с указанием причины и что делать
+
+        Args:
+            project_root: путь к проекту (по умолчанию — текущий).
+
+        Returns:
+            Текстовый диагноз с состоянием каждого слоя.
+        """
+        from src.core.runtime_coordinator import RuntimeCoordinator
+        from src.core.project_context import ProjectContext
+
+        _default = _default_project_root or resolve_project_root()
+        target = Path(project_root).resolve() if project_root else _default
+
+        coord = RuntimeCoordinator(services)
+        verdict = await coord.can_execute(target)
+
+        ctx = ProjectContext(target, services)
+        snap = await ctx.capture()
+
+        lines = [
+            f"📂 Project: {target}",
+            f"",
+            f"=== State: {verdict.state} ===",
+            f"",
+        ]
+
+        if verdict.ok:
+            lines.append(f"✅ Ready to execute")
+        else:
+            lines.append(f"❌ Cannot execute: {verdict.reason}")
+            lines.append(f"   {verdict.detail}")
+
+        lines.append("")
+        lines.append(f"── Index ──")
+        lines.append(f"  Chunks: {snap.index_chunks or 0}")
+        lines.append(f"  Files:  {snap.index_files or 0}")
+        lines.append(f"  Symbols: {snap.index_symbols or 0}")
+        lines.append(f"  Embedder: {snap.index_embedder or 'N/A'}")
+
+        lines.append(f"")
+        lines.append(f"── Bridge ──")
+        if snap.bridge_synced:
+            lines.append(f"  ✅ LSP synchronized: {snap.bridge_path}")
+        else:
+            lines.append(f"  ❌ LSP not synced")
+
+        lines.append(f"")
+        lines.append(f"── Runtime ──")
+        lines.append(f"  PID: {snap.runtime_pid or 'N/A'}")
+        lines.append(f"  Uptime: {snap.runtime_uptime or 0}s")
+
+        lines.append(f"")
+        lines.append(f"── Health ──")
+        if snap.health_ok:
+            lines.append(f"  ✅ OK")
+        if snap.health_warnings:
+            for w in snap.health_warnings[:5]:
+                lines.append(f"  ⚠️  {w}")
+        if snap.health_errors:
+            for e in snap.health_errors[:5]:
+                lines.append(f"  ❌ {e}")
+
+        lines.append(f"")
+        lines.append(f"── Memory ──")
+        lines.append(f"  Incidents: {snap.memory_incidents}")
+        lines.append(f"  ADRs: {snap.memory_adrs}")
+        lines.append(f"  Known issues: {snap.memory_known_issues}")
+
+        if verdict.warnings:
+            lines.append(f"")
+            lines.append(f"── Warnings ──")
+            for w in verdict.warnings:
+                lines.append(f"  ⚠️  {w}")
+
+        if verdict.requires_reindex:
+            lines.append(f"")
+            lines.append(f"── Action Required ──")
+            lines.append(f"  Run intel_trigger_reindex() then check status via intel_get_job_status()")
+
+        if not verdict.requires_bridge_sync and snap.bridge_path:
+            lines.append(f"")
+            lines.append(f"── Bridge path ──")
+            lines.append(f"  LSP workspace: {snap.bridge_path}")
+
+        return chr(10).join(lines)
+
 
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
