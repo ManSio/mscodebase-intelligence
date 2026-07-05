@@ -1,29 +1,29 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
-## [2026-07-05 21:11] — [Type: Docs] — 中文翻译：全部文档已创建 .zh.md 版本
+## [2026-07-05 23:45] — [Type: Docs] — Cross-reference update: docs переехали в per-language папки
 
-**Problem:** 需要将所有项目文档翻译成中文，为用户提供本地化文档。
+**Problem:** Документация реорганизована из плоской `docs/` + корень в `docs/ru/`, `docs/en/`, `docs/zh/` по языкам. Все кросс-ссылки, переключатели языков и пути к логотипам ссылались на старую структуру.
 
-**Solution:** 创建了 12 个 `.zh.md` 文件，包含完整的中文翻译，保留所有原始格式、代码块、徽章和图片链接。在标题后添加了语言切换行。
+**Solution:** Обновлены все 40+ файлов:
+- Логотипы: `../logo/` → `../../logo/` для файлов в `docs/*/`
+- Языковые переключатели: новый формат с `../en/`, `../ru/`, `../zh/`
+- Кросс-ссылки: `docs/INSTALL.md` → `INSTALL.md`, `../README.md` → `README.md`, `docs/architecture.md` → `ARCHITECTURE.md` и т.д.
+- Файлы расследований: обновлены заголовки и ссылки
+- `README.md` корневой: карта документации, навбар, структура проекта
 
-**Files created:**
-- `README.zh.md` — 主文档
-- `CHANGELOG.zh.md` — 更新日志（所有版本）
-- `CONTRIBUTING.zh.md` — 贡献指南
-- `ZED_WINDOWS_QUIRKS.zh.md` — Windows 特性文档
-- `SECURITY.zh.md` — 安全策略
-- `docs/INSTALL.zh.md` — 安装指南
-- `docs/architecture.zh.md` — 架构指南
-- `docs/architecture-layers.zh.md` — 架构层
-- `docs/HANDFOFF_TO_AI_AGENT.zh.md` — 架构与开发经验
-- `docs/telemetry.zh.md` — 遥测文档
-- `docs/investigations/2026-07-05-active-workspace-resolution.zh.md` — 活动项目调查
-- `docs/investigations/2026-07-05-lsp-zed-1.9.0.zh.md` — LSP 调查
-
-**Tools Used:** read_file, write_file, notify_change
+**Tools Used:** read_file, edit_file, intel_log_incident
 **Status:** ✅
 
----
+## [2026-07-05 21:11] — [Type: Docs] — Полная i18n: все документы в 3 языках
+
+**Problem:** Вся документация была только на русском или английском, без китайской версии.
+
+**Solution:** Созданы .zh.md копии всех документов + .en.md для русскоязычных оригиналов.
+Добавлены переключатели языков в каждый файл.
+
+**Files created:** 21 новый файл (EN, ZH варианты для всех доков)
+
+**Status:** ✅
 
 ## [2026-07-05 20:30] — [Type: Fix] — Full UI sweep: убран сырой JSON из всех 43 инструментов
 
