@@ -1587,11 +1587,36 @@ def _start_heartbeat_monitor(mcp) -> None:
 # ══════════════════════════════════════════════════════════
 
 
+def _warmup_embedder():
+    """Прогрев эмбеддера при старте сервера (убивает cold start LM Studio)."""
+    try:
+        from src.core.di_container import IndexerKey, RemoteEmbedderKey
+
+        if _services_cache is not None:
+            embedder = _services_cache.resolve(RemoteEmbedderKey)
+            if embedder and hasattr(embedder, "mode") and embedder.mode == "lm_studio":
+                logger.info("⏳ Прогрев эмбеддера (bge-m3)...")
+                import asyncio
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(embedder.warmup())
+                loop.close()
+    except Exception as e:
+        logger.warning(f"⚠️ Пропускаю прогрев эмбеддера: {e}")
+
+
 def run_server(original_stdout=None):
     """Запускает MCP-сервер через stdio."""
     mcp = create_mcp_server()
     if mcp:
         try:
+            # Прогрев эмбеддера (убивает cold start LM Studio)
+            try:
+                _warmup_embedder()
+            except Exception:
+                pass
+
             if original_stdout:
                 sys.stdout = original_stdout
             asyncio.run(mcp.run_stdio_async())

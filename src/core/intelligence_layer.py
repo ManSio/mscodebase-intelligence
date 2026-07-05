@@ -295,22 +295,22 @@ class ProjectIntelligenceLayer:
                 return result
 
             # Получаем определения
-            defs = sv.search_symbols("definition", symbol_name)
+            defs = sv.search_symbols(symbol_name)
             if defs:
                 result["definitions_count"] = len(defs)
                 for d in defs:
-                    if "file" in d and "line" in d:
+                    if hasattr(d, "file_path") and hasattr(d, "line"):
                         result["call_graph"]["outgoing_callees"].append(
                             {
-                                "symbol": d.get("name", symbol_name),
-                                "file": d["file"],
-                                "line": d["line"],
+                                "symbol": getattr(d, "symbol", symbol_name),
+                                "file": d.file_path,
+                                "line": d.line,
                                 "kind": "definition",
                             }
                         )
 
             # Получаем граф вызовов (кто вызывает наш символ)
-            call_graph = sv.build_call_graph(symbol_name)
+            call_graph = sv.build_call_graph(symbol_name, depth=2)
             if call_graph:
                 callers = call_graph.get("callers", [])
                 if callers:
@@ -336,6 +336,7 @@ class ProjectIntelligenceLayer:
                         for c in callees
                     ]
 
+            result["references_count"] = len(result["call_graph"]["incoming_callers"])
             result["references_count"] = len(result["call_graph"]["incoming_callers"])
 
             # Статический анализ

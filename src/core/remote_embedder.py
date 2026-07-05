@@ -3,17 +3,20 @@ MSCodeBase Intelligence - Универсальный адаптивный Эмб
 Размещается в src/core/remote_embedder.py
 """
 
+import asyncio
+import json
 import logging
 import os
 import threading
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
 from src.core.config import get_config
 
+logger = logging.getLogger("mscodebase.embedder")
 logger = logging.getLogger("mscodebase_server.embedder")
 
 # Интервал проверки доступности внешних API (секунды)
@@ -22,7 +25,10 @@ _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
 
 class RemoteEmbedder:
     def __init__(
-        self, port: Optional[int] = None, host: Optional[str] = None, timeout: Optional[float] = None
+        self,
+        port: Optional[int] = None,
+        host: Optional[str] = None,
+        timeout: Optional[float] = None,
     ):
         """Универсальный клиент эмбеддингов с каскадным переключением (LM Studio -> ONNX -> Fallback).
 
@@ -60,6 +66,10 @@ class RemoteEmbedder:
         self._preferred_mode = "lm_studio"  # режим, к которому стремимся вернуться
         _lm_available = None  # async, см. _init_provider_async
 
+        # Async HTTP client с connection pool (LM Studio)
+        self._async_client: Optional[httpx.AsyncClient] = None
+        self._async_client_lock = threading.Lock()
+
         # Старт фонового инициализатора (НЕ блокирует __init__).
         self._init_thread = threading.Thread(
             target=self._init_provider_async,
@@ -89,7 +99,9 @@ class RemoteEmbedder:
                     models = r.json().get("data", [])
                     if models:
                         # Сохраняем имя первой модели (обычно она одна)
-                        self._model_name = models[0].get("id", models[0].get("model", str(models[0])))
+                        self._model_name = models[0].get(
+                            "id", models[0].get("model", str(models[0]))
+                        )
                         return True
             return False
         except Exception:
@@ -128,7 +140,9 @@ class RemoteEmbedder:
                     with self._mode_lock:
                         self.mode = "ollama"
                         self._preferred_mode = "ollama"
-                    logger.info("⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA.")
+                    logger.info(
+                        "⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA."
+                    )
                     return
             with self._mode_lock:
                 self.mode = "onnx"
@@ -356,3 +370,81 @@ class RemoteEmbedder:
         """Получить вектор для одного текстового фрагмента."""
         res = self.embed_batch([text], is_query=is_query)
         return res[0] if res else []
+
+    # ════════════════════════════════════════════════════════════
+    # ASYNC HTTP CLIENT (Connection Pool)
+    # ════════════════════════════════════════════════════════════
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """Ленивое создание AsyncClient с connection pool."""
+        if self._async_client is None:
+            with self._async_client_lock:
+                if self._async_client is None:
+                    limits = httpx.Limits(
+                        max_connections=20,
+                        max_keepalive_connections=5,
+                        keepalive_expiry=60.0,
+                    )
+                    self._async_client = httpx.AsyncClient(
+                        limits=limits,
+                        timeout=httpx.Timeout(self.timeout, connect=3.0),
+                    )
+        return self._async_client
+
+    async def embed_batch_async(
+        self, texts: List[str], is_query: bool = False
+    ) -> List[List[float]]:
+        """Асинхронный embed через connection pool (без httpx.Client на каждый вызов)."""
+        if not texts:
+            return []
+
+        if self.mode != "lm_studio":
+            return self.embed_batch(texts, is_query)
+
+        try:
+            client = self._get_async_client()
+            payload = {"model": self.model_name, "input": texts}
+            r = await client.post(self.lm_studio_url, json=payload)
+
+            if r.status_code == 200:
+                data = r.json().get("data", [])
+                if data:
+                    data = sorted(data, key=lambda x: x.get("index", 0))
+                    return [item["embedding"] for item in data]
+
+            logger.warning(
+                f"LM Studio async error (HTTP {r.status_code}), fallback to sync"
+            )
+            return self.embed_batch(texts, is_query)
+
+        except Exception as e:
+            logger.warning(f"LM Studio async failed: {e}, fallback to sync")
+            return self.embed_batch(texts, is_query)
+
+    async def embed_async(self, text: str, is_query: bool = False) -> List[float]:
+        """Асинхронный embed для одного текста."""
+        res = await self.embed_batch_async([text], is_query=is_query)
+        return res[0] if res else []
+
+    async def warmup(self) -> bool:
+        """Прогрев эмбеддера тестовым запросом (убивает cold start)."""
+        if self.mode != "lm_studio":
+            logger.info("⏳ Warmup: LM Studio не в режиме lm_studio, пропускаю")
+            return False
+        try:
+            logger.info("⏳ Warmup: прогрев bge-m3...")
+            t0 = time.perf_counter()
+            await self.embed_async("warmup")
+            elapsed = round((time.perf_counter() - t0) * 1000, 1)
+            logger.info(f"✅ Warmup: модель прогрета за {elapsed}ms")
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ Warmup: не удалось прогреть модель: {e}")
+            return False
+
+    async def close(self):
+        """Корректное закрытие connection pool."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+            logger.info("Connection pool закрыт")
