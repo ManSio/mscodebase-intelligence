@@ -39,6 +39,13 @@ _TOOL_METRICS_LOCK = threading.Lock()
 _TIMELINE: list = []
 _TIMELINE_MAX: int = 50
 
+# Repeat detection: какой инструмент вызывался последним (для repeat_search_ratio)
+_LAST_TOOL: str = ""
+_REPEAT_COUNT: int = 0
+
+# Idle tracking: время последнего вызова (для idle time)
+_LAST_CALL_AT: float = time.time()
+
 # Persistent metrics: сохраняются между рестартами MCP-сервера
 _METRICS_PATH: Optional[Path] = None
 _METRICS_SAVE_COUNTER: int = 0
@@ -89,7 +96,11 @@ def save_metrics() -> None:
     try:
         _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
         with _TOOL_METRICS_LOCK:
-            data = {name: dict(stats) for name, stats in _TOOL_METRICS.items()}
+            # Exclude raw latencies list (too large, recomputed on restart)
+            data = {}
+            for name, stats in _TOOL_METRICS.items():
+                clean = {k: v for k, v in stats.items() if k != "latencies"}
+                data[name] = clean
         with open(_METRICS_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -116,7 +127,7 @@ def record_tool_call(
         results_count: Количество найденных результатов
         detail: Доп. информация ("6 chunks, layer=core")
     """
-    global _METRICS_SAVE_COUNTER
+    global _METRICS_SAVE_COUNTER, _LAST_TOOL, _REPEAT_COUNT, _LAST_CALL_AT
 
     with _TOOL_METRICS_LOCK:
         entry = _TOOL_METRICS.setdefault(
@@ -132,6 +143,10 @@ def record_tool_call(
                 "avg_confidence": 0.0,
                 "avg_results": 0.0,
                 "last_detail": "",
+                "latencies": [],  # все latency для P50/P95/P99
+                "idle_ms": 0,  # суммарный idle перед этим инструментом
+                "idle_calls": 0,  # сколько раз считали idle
+                "repeat_count": 0,  # сколько раз подряд вызывали этот же инструмент
             },
         )
         entry["calls"] += 1
@@ -145,6 +160,27 @@ def record_tool_call(
         entry["last_call"] = time.strftime("%H:%M:%S")
         if detail:
             entry["last_detail"] = detail
+
+        # Track all latencies for percentiles (rolling 1000)
+        entry["latencies"].append(latency_ms)
+        if len(entry["latencies"]) > 1000:
+            entry["latencies"].pop(0)
+
+        # Idle time: сколько прошло с последнего вызова (любого инструмента)
+        now = time.time()
+        if _LAST_CALL_AT > 0:
+            idle = int((now - _LAST_CALL_AT) * 1000)
+            entry["idle_ms"] += idle
+            entry["idle_calls"] += 1
+        _LAST_CALL_AT = now
+
+        # Repeat detection: тот же инструмент подряд?
+        if tool_name == _LAST_TOOL:
+            _REPEAT_COUNT += 1
+        else:
+            _REPEAT_COUNT = 0
+            _LAST_TOOL = tool_name
+        entry["repeat_count"] = _REPEAT_COUNT
 
         # Route tracking (dictionary: "fast" -> count)
         if route:
@@ -219,6 +255,36 @@ def record_tool_result(
             _TIMELINE[-1]["results"] = results_count
 
 
+def _percentile(sorted_latencies: list, p: float) -> float:
+    """Вычисляет p-перцентиль отсортированного списка latency."""
+    if not sorted_latencies:
+        return 0.0
+    k = (len(sorted_latencies) - 1) * p / 100.0
+    f = int(k)
+    c = f + 1
+    if c >= len(sorted_latencies):
+        return float(sorted_latencies[-1])
+    return sorted_latencies[f] * (c - k) + sorted_latencies[c] * (k - f)
+
+
+def get_global_idle_metrics() -> dict:
+    """Глобальные метрики простоя (idle time)."""
+    with _TOOL_METRICS_LOCK:
+        total_idle = sum(e.get("idle_ms", 0) for e in _TOOL_METRICS.values())
+        total_calls = sum(e.get("calls", 0) for e in _TOOL_METRICS.values())
+        uptime = time.time() - _LAST_CALL_AT + (total_idle / 1000)
+        active_ms = sum(e.get("total_ms", 0) for e in _TOOL_METRICS.values())
+        total_ms = total_idle + active_ms
+        return {
+            "idle_ms": total_idle,
+            "active_ms": active_ms,
+            "total_ms": total_ms,
+            "idle_pct": round(total_idle / max(total_ms, 1) * 100, 1),
+            "active_pct": round(active_ms / max(total_ms, 1) * 100, 1),
+            "total_calls": total_calls,
+        }
+
+
 def get_execution_timeline() -> list:
     """Возвращает копию Execution Timeline (последние N вызовов)."""
     with _TOOL_METRICS_LOCK:
@@ -241,6 +307,22 @@ def get_tool_metrics_summary() -> list:
             calls = stats["calls"]
             avg_ms = round(stats["total_ms"] / calls, 1) if calls else 0
             min_ms = stats["min_ms"] if stats["min_ms"] < 999999 else 0
+
+            # Percentiles
+            latencies = sorted(stats.get("latencies", []))
+            p50 = round(_percentile(latencies, 50), 0) if latencies else 0
+            p95 = round(_percentile(latencies, 95), 0) if latencies else 0
+            p99 = round(_percentile(latencies, 99), 0) if latencies else 0
+
+            # Repeat ratio
+            repeat = stats.get("repeat_count", 0)
+            repeat_pct = round(repeat / max(calls, 1) * 100, 1)
+
+            # Idle time
+            idle_ms = stats.get("idle_ms", 0)
+            idle_calls = stats.get("idle_calls", 0)
+            avg_idle = round(idle_ms / max(idle_calls, 1), 0)
+
             rows.append(
                 {
                     "tool": name,
@@ -249,10 +331,15 @@ def get_tool_metrics_summary() -> list:
                     "avg_ms": avg_ms,
                     "min_ms": min_ms,
                     "max_ms": stats["max_ms"],
+                    "p50_ms": p50,
+                    "p95_ms": p95,
+                    "p99_ms": p99,
                     "last": stats["last_call"],
                     "avg_confidence": stats.get("avg_confidence", 0.0),
                     "avg_results": stats.get("avg_results", 0.0),
                     "route": stats.get("route", {}),
+                    "repeat_pct": repeat_pct,
+                    "avg_idle_ms": avg_idle,
                     "last_detail": stats.get("last_detail", ""),
                 }
             )

@@ -1384,29 +1384,43 @@ def _register_all_tools(mcp, services):
 
         Агрегированные показатели по каждому инструменту.
         """
-        from src.core.error_handler import get_tool_metrics_summary
+        from src.core.error_handler import (
+            get_global_idle_metrics,
+            get_tool_metrics_summary,
+        )
 
         metrics = get_tool_metrics_summary()
         if not metrics:
             return "📊 Нет данных по инструментам."
 
+        # Idle metrics header
+        idle = get_global_idle_metrics()
         lines = ["📊 **Tool Health**\n"]
-        lines.append("| Tool | Health | Calls | Avg ms | Confidence | Routes |")
-        lines.append("|------|--------|-------|--------|------------|--------|")
+        lines.append(
+            f"⏱ **Idle:** {idle['idle_pct']}% | "
+            f"**Active:** {idle['active_pct']}% | "
+            f"**Calls:** {idle['total_calls']}\n"
+        )
+
+        lines.append("| Tool | Health | Calls | P50 | P95 | Repeat | Routes |")
+        lines.append("|------|--------|-------|-----|-----|--------|--------|")
 
         for m in metrics:
             name = m["tool"]
             calls = m["calls"]
             errors = m["errors"]
-            avg_ms = m["avg_ms"]
 
             # Health bar
             ok_rate = ((calls - errors) / max(calls, 1)) * 100
             bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
 
-            # Confidence
-            conf = m.get("avg_confidence", 0)
-            conf_str = f"{conf:.2f}" if conf else "—"
+            # Percentiles
+            p50 = f"{m['p50_ms']:.0f}ms" if m.get("p50_ms") else "—"
+            p95 = f"{m['p95_ms']:.0f}ms" if m.get("p95_ms") else "—"
+
+            # Repeat ratio
+            repeat = m.get("repeat_pct", 0)
+            repeat_str = f"{repeat:.0f}%"
 
             # Routes
             routes = m.get("route", {})
@@ -1417,7 +1431,7 @@ def _register_all_tools(mcp, services):
             )
 
             lines.append(
-                f"| {name} | {bars} {ok_rate:.0f}% | {calls} | {avg_ms}ms | {conf_str} | {route_str} |"
+                f"| {name} | {bars} {ok_rate:.0f}% | {calls} | {p50} | {p95} | {repeat_str} | {route_str} |"
             )
 
         return "\n".join(lines)
