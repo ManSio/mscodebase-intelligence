@@ -13,6 +13,7 @@
 архитектура работает как цепочка слоёв.
 """
 
+import ast
 import os
 import sys
 import tempfile
@@ -217,3 +218,134 @@ class TestPassportLayer:
                 f"BUILD_ID слишком короткий: {srv._BUILD_ID}"
             # Должен быть hex
             int(srv._BUILD_ID, 16)
+
+
+# ══════════════════════════════════════════════════════════════
+# Architecture Invariants (Dependency Graph)
+# ══════════════════════════════════════════════════════════════
+
+class TestArchitectureInvariants:
+    """Автоматическая проверка архитектурных инвариантов через AST.
+
+    Эти тесты защищают архитектуру от регрессий: если кто-то случайно
+    добавит импорт src.mcp в core-слой или напрямую вызовет Registry
+    из tool — тест упадёт.
+    """
+
+    _REPO = Path(__file__).resolve().parent.parent  # D:\Project\MSCodeBase
+
+    # Invariant 1: Core не импортирует MCP
+    _FORBIDDEN_CORE_IMPORTS = {
+        "src.mcp", "src.mcp.server", "src.mcp.tools",
+        "mcp.server", "mcp.tools",
+    }
+
+    # Invariant 2: Tools не импортируют Registry/Bridge (кроме base.py)
+    _FORBIDDEN_TOOL_IMPORTS = {
+        "src.core.project_indexer_registry",
+        "src.core.lsp_project_bridge",
+    }
+
+    def _get_imports(self, file_path: Path) -> list[tuple[int, str]]:
+        """Возвращает [(lineno, module_name), ...] из AST."""
+        result = []
+        try:
+            tree = ast.parse(file_path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            return result
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    result.append((node.lineno, alias.name))
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    result.append((node.lineno, node.module))
+        return result
+
+    # ─── Invariant 1: Core не импортирует MCP ────────────
+
+    def test_core_does_not_import_mcp(self):
+        """Invariant 1: src/core/ не импортирует src.mcp.*"""
+        core_dir = self._REPO / "src" / "core"
+        errors = []
+        for py_file in sorted(core_dir.rglob("*.py")):
+            if py_file.name.startswith("__"):
+                continue
+            for lineno, modname in self._get_imports(py_file):
+                for forbidden in self._FORBIDDEN_CORE_IMPORTS:
+                    if modname.startswith(forbidden):
+                        rel = py_file.relative_to(self._REPO)
+                        errors.append(f"{rel}:{lineno} imports {modname!r}")
+        assert not errors, (
+            f"Core слой не должен импортировать MCP:\n" + chr(10).join(errors)
+        )
+
+    # ─── Invariant 2: Tools не импортируют Registry напрямую ────
+
+    def test_tools_do_not_import_registry_directly(self):
+        """Invariant 2: tools (кроме base.py) не импортируют Registry/Bridge."""
+        tools_dir = self._REPO / "src" / "mcp" / "tools"
+        errors = []
+        for py_file in sorted(tools_dir.rglob("*.py")):
+            if py_file.name in ("__init__.py", "base.py"):
+                continue
+            for lineno, modname in self._get_imports(py_file):
+                for forbidden in self._FORBIDDEN_TOOL_IMPORTS:
+                    if modname.startswith(forbidden):
+                        rel = py_file.relative_to(self._REPO)
+                        errors.append(f"{rel}:{lineno} imports {modname!r}")
+        assert not errors, (
+            f"Tools должны импортировать Registry только через Coordinator.\n"
+            + chr(10).join(errors)
+        )
+
+    # ─── Invariant 3: Нет циклических core-зависимостей ────
+
+    def test_no_core_self_import(self):
+        """Invariant 3: core файлы не импортируют сами себя."""
+        core_dir = self._REPO / "src" / "core"
+        for py_file in core_dir.rglob("*.py"):
+            if py_file.name.startswith("__"):
+                continue
+            mod_name = f"src.core.{py_file.stem}"
+            for lineno, imp in self._get_imports(py_file):
+                if imp == mod_name:
+                    rel = py_file.relative_to(self._REPO)
+                    pytest.fail(f"{rel}:{lineno} сам себя импортирует")
+
+
+# ══════════════════════════════════════════════════════════════
+# ExecutionVerdict Enriched Fields
+# ══════════════════════════════════════════════════════════════
+
+class TestExecutionVerdictEnriched:
+    """ExecutionVerdict содержит все поля диагностики."""
+
+    def test_verdict_has_recommended_action(self):
+        from src.core.runtime_coordinator import ExecutionVerdict
+        v = ExecutionVerdict(ok=False, reason="project_not_ready", state="UNINITIALIZED")
+        assert v.recommended_action is not None
+        assert "intel_trigger_reindex" in v.recommended_action
+
+    def test_verdict_ready_has_no_action(self):
+        from src.core.runtime_coordinator import ExecutionVerdict
+        v = ExecutionVerdict(ok=True, reason="ready", state="READY")
+        assert v.recommended_action is None
+
+    def test_verdict_has_confidence(self):
+        from src.core.runtime_coordinator import ExecutionVerdict
+        v = ExecutionVerdict(ok=True, reason="ready", state="READY")
+        assert v.confidence == 1.0
+        v2 = ExecutionVerdict(ok=False, reason="project_resolution_failed")
+        assert v2.confidence == 0.7
+        v3 = ExecutionVerdict(ok=False, reason="registry_error")
+        assert v3.confidence == 0.5
+
+    def test_to_dict_includes_new_fields(self):
+        from src.core.runtime_coordinator import ExecutionVerdict
+        v = ExecutionVerdict(ok=True, reason="ready", state="READY",
+                             warnings=["bridge not synced"])
+        d = v.to_dict()
+        assert d["recommended_action"] is None
+        assert d["confidence"] == 1.0
+        assert "bridge not synced" in d["warnings"]

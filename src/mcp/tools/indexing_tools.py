@@ -170,12 +170,13 @@ class IndexProjectDirTool(MCPTool):
 
         # INC-6BCB-v3: self-indexing guard в resolve_indexer уже заблокировал бы
         # эту операцию, но даём более понятное сообщение ДО создания Indexer.
-        from src.core.lsp_project_bridge import is_zed_install_dir
-        from src.mcp.server import _ext_root
-        if is_zed_install_dir(target_path):
+        # Используем SystemArtifacts (Layer 1) — не нужно импортировать
+        # lsp_project_bridge или mcp.server напрямую.
+        from src.core.system_artifacts import SystemArtifacts
+        if SystemArtifacts.is_system_path(target_path):
             return (
-                f"❌ Refusing to index Zed install dir: {target_path}\n"
-                f"  Это self-indexing (Zed.exe, .dll). Открой проект явно."
+                f"❌ Refusing to index system directory: {target_path}\n"
+                f"  Это self-indexing. Открой проект явно."
             )
         try:
             if target_path.resolve() == _ext_root.resolve():

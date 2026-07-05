@@ -27,9 +27,14 @@ logger = logging.getLogger("mscodebase_server")
 # ══════════════════════════════════════════════════════════
 
 import uuid as _uuid
-_RUN_ID = _uuid.uuid4().hex[:12]
-_RUN_STARTED_AT = time.time()
-_RUN_PID = os.getpid()
+from src.core.passport import (
+    RUN_ID as _RUN_ID,
+    BUILD_ID as _BUILD_ID,
+    RUN_PID as _RUN_PID,
+    RUN_STARTED_AT as _RUN_STARTED_AT,
+    RUN_SOURCE_FILE as _RUN_SOURCE_FILE,
+)
+# (passport vars imported from src.core.passport above)
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
 
 # BUILD_ID — git commit hash для мгновенной верификации версии кода.

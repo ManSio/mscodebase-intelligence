@@ -226,9 +226,10 @@ class ProjectContext:
 
     def _capture_runtime(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.mcp.server import _RUN_PID, _RUN_STARTED_AT, _ext_root, _RUN_ID
-            snap.runtime_pid = _RUN_PID
-            snap.runtime_uptime = round(time.time() - _RUN_STARTED_AT, 1)
+            from src.core.passport import RUN_PID, RUN_STARTED_AT, BUILD_ID, RUN_ID
+            from src.mcp.server import _ext_root
+            snap.runtime_pid = RUN_PID
+            snap.runtime_uptime = round(time.time() - RUN_STARTED_AT, 1)
             snap.runtime_ext_root = str(_ext_root)
             snap.runtime_env = {
                 "PROJECT_PATH": os.environ.get("PROJECT_PATH"),

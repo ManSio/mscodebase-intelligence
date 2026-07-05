@@ -137,8 +137,8 @@ class RuntimeCoordinator:
 
         # Layer 4: проверка runtime (passport)
         try:
-            from src.mcp.server import _RUN_STARTED_AT
-            uptime = time.time() - _RUN_STARTED_AT
+            from src.core.passport import RUN_STARTED_AT
+            uptime = time.time() - RUN_STARTED_AT
             if uptime < 3.0:
                 warnings.append(f"MCP just started ({uptime:.0f}s ago)")
         except Exception:
@@ -166,7 +166,28 @@ class ExecutionVerdict:
         requires_bridge_sync: True если LSP не синхронизирован.
         requires_restart: True если нужен рестарт MCP.
         warnings: список предупреждений.
+        recommended_action: строка с рекомендуемым действием ("run intel_trigger_reindex",
+            "wait for LSP sync", "check logs" или None).
+        confidence: уверенность в вердикте (0.0–1.0). 1.0 = железобетонно.
     """
+
+    _REASON_ACTIONS = {
+        "ready": None,
+        "system_path": "Open a user project instead of a system directory",
+        "project_not_ready": "Run intel_trigger_reindex() then check via intel_get_job_status()",
+        "project_failed": "Check MCP logs via get_logs()",
+        "project_resolution_failed": "Set PROJECT_PATH env var or open a project in Zed",
+        "registry_error": "Restart MCP or check logs",
+    }
+
+    _REASON_CONFIDENCE = {
+        "ready": 1.0,
+        "system_path": 1.0,
+        "project_not_ready": 0.9,
+        "project_failed": 0.95,
+        "project_resolution_failed": 0.7,
+        "registry_error": 0.5,
+    }
 
     def __init__(
         self,
@@ -189,6 +210,8 @@ class ExecutionVerdict:
         self.requires_bridge_sync = requires_bridge_sync
         self.requires_restart = requires_restart
         self.warnings = warnings or []
+        self.recommended_action = self._REASON_ACTIONS.get(reason)
+        self.confidence = self._REASON_CONFIDENCE.get(reason, 0.5)
 
     def __bool__(self) -> bool:
         return self.ok
@@ -196,7 +219,8 @@ class ExecutionVerdict:
     def __repr__(self) -> str:
         return (
             f"ExecutionVerdict(ok={self.ok}, reason={self.reason!r}, "
-            f"state={self.state}, retry_after={self.retry_after})"
+            f"state={self.state}, retry_after={self.retry_after}, "
+            f"confidence={self.confidence})"
         )
 
     def to_dict(self) -> dict:
@@ -211,6 +235,8 @@ class ExecutionVerdict:
             "requires_bridge_sync": self.requires_bridge_sync,
             "requires_restart": self.requires_restart,
             "warnings": self.warnings,
+            "recommended_action": self.recommended_action,
+            "confidence": self.confidence,
         }
 
     def to_human_readable(self) -> str:
@@ -234,4 +260,6 @@ class ExecutionVerdict:
                 lines.append(f"Action required: wait for LSP sync")
             if self.requires_restart:
                 lines.append(f"Action required: restart MCP")
+            if self.recommended_action:
+                lines.append(f"Recommended: {self.recommended_action}")
         return chr(10).join(lines)
