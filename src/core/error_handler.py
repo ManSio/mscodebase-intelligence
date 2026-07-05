@@ -12,13 +12,16 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import functools
 import inspect
 import json
 import logging
+import os
 import threading
 import time
 import traceback
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger("mscodebase_server.error_handler")
@@ -32,9 +35,66 @@ _TOOL_METRICS: dict = {}
 
 _TOOL_METRICS_LOCK = threading.Lock()
 
+# Persistent metrics: сохраняются между рестартами MCP-сервера
+_METRICS_PATH: Optional[Path] = None
+_METRICS_SAVE_COUNTER: int = 0
+_METRICS_SAVE_EVERY: int = 10  # Сохранять каждые N вызовов
+
+
+def set_metrics_path(path: Optional[str | Path]) -> None:
+    """Устанавливает путь для сохранения метрик (вызывается из server.py)."""
+    global _METRICS_PATH
+    if path:
+        _METRICS_PATH = Path(path)
+        _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        load_metrics()
+        atexit.register(save_metrics)
+
+
+def load_metrics() -> None:
+    """Загружает сохранённые метрики из JSON-файла."""
+    global _TOOL_METRICS
+    if not _METRICS_PATH or not _METRICS_PATH.exists():
+        return
+    try:
+        with open(_METRICS_PATH, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        with _TOOL_METRICS_LOCK:
+            for name, stats in saved.items():
+                if name not in _TOOL_METRICS:
+                    _TOOL_METRICS[name] = stats
+                else:
+                    # Суммируем с текущими метриками
+                    cur = _TOOL_METRICS[name]
+                    cur["calls"] += stats.get("calls", 0)
+                    cur["errors"] += stats.get("errors", 0)
+                    cur["total_ms"] += stats.get("total_ms", 0)
+                    cur["min_ms"] = min(cur["min_ms"], stats.get("min_ms", 999999))
+                    cur["max_ms"] = max(cur["max_ms"], stats.get("max_ms", 0))
+        logger.info(
+            f"📊 Загружено метрик из {_METRICS_PATH}: {len(saved)} инструментов"
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить метрики: {e}")
+
+
+def save_metrics() -> None:
+    """Сохраняет метрики в JSON-файл."""
+    if not _METRICS_PATH:
+        return
+    try:
+        _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _TOOL_METRICS_LOCK:
+            data = {name: dict(stats) for name, stats in _TOOL_METRICS.items()}
+        with open(_METRICS_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить метрики: {e}")
+
 
 def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
     """Записывает метрику вызова инструмента (потокобезопасно)."""
+    global _METRICS_SAVE_COUNTER
     with _TOOL_METRICS_LOCK:
         entry = _TOOL_METRICS.setdefault(
             tool_name,
@@ -56,6 +116,11 @@ def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
         if latency_ms > entry["max_ms"]:
             entry["max_ms"] = latency_ms
         entry["last_call"] = time.strftime("%H:%M:%S")
+
+    # Periodic save (каждые N вызовов)
+    _METRICS_SAVE_COUNTER += 1
+    if _METRICS_SAVE_COUNTER % _METRICS_SAVE_EVERY == 0:
+        save_metrics()
 
 
 def get_tool_metrics() -> dict:

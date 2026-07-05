@@ -558,6 +558,13 @@ def create_mcp_server() -> "FastMCP":
         logger.debug(f"setup_project_logging fallback: {e}")
     logger.info("🚀 MCP-сервер запущен (DI Container ready, multi-window)")
 
+    # ─── 2.5 Persistent telemetry ────────────────────
+    from src.core.error_handler import set_metrics_path
+
+    metrics_path = _ext_root / "telemetry" / "tool_metrics.json"
+    set_metrics_path(metrics_path)
+    logger.info(f"📊 Телеметрия будет сохраняться в {metrics_path}")
+
     # ─── 3. Heartbeat (Anti-Orphan) ─────────────────
     _init_heartbeat()
 
