@@ -153,9 +153,22 @@ class WatcherStatusTool(MCPTool):
 
     @error_boundary("watcher_status", timeout_ms=15000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
-        embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
-        scanner_thread = getattr(self.resolve_embedder(), "_scanner_thread", None)
-        scanner_alive = scanner_thread is not None and scanner_thread.is_alive()
+        # INC-6BCB-v3.1: self.embedder НЕ существует в MCPTool —
+        # нужен resolve_embedder(). Также _scanner_thread — атрибут RemoteEmbedder,
+        # проверяем через getattr с default=None (безопасно при отсутствии).
+        try:
+            embedder = self.resolve_embedder()
+            embedder_mode = getattr(embedder, "mode", "unknown")
+            scanner_thread = getattr(embedder, "_scanner_thread", None)
+            scanner_alive = scanner_thread is not None and scanner_thread.is_alive()
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"embedder unavailable: {e}",
+                "embedder_mode": "unknown",
+                "lsp_imported": self._check_lsp_import(),
+                "ping_scanner_alive": False,
+            }
 
         result = {
             "status": "ok",
@@ -185,8 +198,10 @@ class WatcherStatusTool(MCPTool):
         from src.core.config import get_config
 
         config = get_config()
-        host = getattr(self.embedder, "host", config.embedding.lm_studio_host)
-        port = getattr(self.embedder, "port", config.embedding.lm_studio_port)
+        # INC-6BCB-v3.1: self.embedder → self.resolve_embedder()
+        embedder = self.resolve_embedder()
+        host = getattr(embedder, "host", config.embedding.lm_studio_host)
+        port = getattr(embedder, "port", config.embedding.lm_studio_port)
 
         with httpx.Client(timeout=3.0) as client:
             r = client.get(f"http://{host}:{port}/api/v0/models")

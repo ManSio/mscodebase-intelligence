@@ -192,16 +192,59 @@ class ProjectIntelligenceLayer:
     - Project Memory: архитектурная память
     - Hotspot Engine: зоны риска
     - Root Cause Engine: предсказание причин
+
+    Multi-window (INC-6BCB-v3.1): self.indexer / self.searcher / self.symbol_index
+    могут быть self-indexing (если LSP ещё не успел записать bridge). В этом
+    случае intel_* методы делают late-resolve через _resolve_active_indexer()
+    и возвращают state для ПЕРВОГО non-self-indexing workspace из реестра.
     """
 
-    def __init__(self, project_path: Path, indexer: Indexer, searcher: Searcher, symbol_index: SymbolIndex):
+    def __init__(
+        self,
+        project_path: Path,
+        indexer: Indexer,
+        searcher: Searcher,
+        symbol_index: SymbolIndex,
+        services: Optional[Any] = None,
+    ):
         self.project_path = project_path
         self.indexer = indexer
         self.searcher = searcher
         self.symbol_index = symbol_index
+        # INC-6BCB-v3.1: services нужен для late-resolve когда default indexer
+        # оказался self-indexing (например, race LSP↔MCP при cold start).
+        self._services = services
         self.store = IntelligenceStore(project_path)
         self._reindex_job_id: Optional[str] = None
         self._reindex_lock = asyncio.Lock()
+
+    def _resolve_active_indexer(self) -> Any:
+        """Возвращает Indexer для активного workspace (с fallback).
+
+        Если self.indexer — self-indexing (Zed install / ext_root / None)
+        и в реестре есть другие active indexers — выбирает первый
+        non-self-indexing. Это позволяет intel_* tools работать
+        даже когда LSP не успел записать bridge.
+
+        Returns:
+            Indexer (может быть self.indexer если всё в порядке).
+        """
+        try:
+            from src.mcp.tools.base import _is_self_index_path
+            if not _is_self_index_path(self.indexer.project_path):
+                return self.indexer
+            # Self-indexing — ищем non-self-indexing в реестре.
+            if self._services is None:
+                return self.indexer
+            from src.core.di_container import ProjectIndexerRegistry
+            registry = self._services.resolve(ProjectIndexerRegistry)
+            with registry._meta_lock:
+                for p, idx in registry._indexers.items():
+                    if not _is_self_index_path(p):
+                        return idx
+        except Exception:
+            pass
+        return self.indexer
 
     # -----------------------------------------------------------------
     # БЛОК 1. Code Intelligence (Быстрый локальный анализ, < 2 сек)
@@ -289,14 +332,22 @@ class ProjectIntelligenceLayer:
         """Агрегированный статус здоровья рантайма, провайдеров и индексов.
 
         Заменяет 3 отдельных вызова: get_index_status + watcher_status + health проверка.
+
+        INC-6BCB-v3.1: late-resolve active indexer. Если self.indexer = self-indexing
+        (LSP не успел записать bridge), ищет non-self-indexing в реестре.
         """
         try:
             from src.core.remote_embedder import RemoteEmbedder
             from src.core.file_guard import FileGuard
 
-            status = self.indexer.get_status() if hasattr(self.indexer, "get_status") else {}
+            # INC-6BCB-v3.1: late-resolve.
+            active_indexer = self._resolve_active_indexer()
+            status = active_indexer.get_status() if hasattr(active_indexer, "get_status") else {}
             total_chunks = status.get("total_chunks", 0) if isinstance(status, dict) else 0
             total_files = status.get("total_files", 0) if isinstance(status, dict) else 0
+
+            # Project path (может быть != self.project_path если был fallback).
+            active_path = str(active_indexer.project_path) if hasattr(active_indexer, "project_path") else "unknown"
 
             return {
                 "embedding_provider": "lm_studio",
@@ -305,8 +356,13 @@ class ProjectIntelligenceLayer:
                     "ollama_at_11434": "offline",
                     "onnx_local_engine": "loaded_and_ready"
                 },
+                "project_path": active_path,  # INC-6BCB-v3.1: показываем active
+                "project_path_warning": (
+                    "Active indexer != default project_path (late-resolve)" +
+                    "; LSP bridge was empty at MCP startup"
+                ) if active_path != str(self.project_path) else None,
                 "index_telemetry": {
-                    "db_isolated_path": str(self.indexer.db_path) if hasattr(self.indexer, "db_path") else "unknown",
+                    "db_isolated_path": str(active_indexer.db_path) if hasattr(active_indexer, "db_path") else "unknown",
                     "index_healthy": total_chunks > 0,
                     "queue_depth": 0,
                     "total_chunks": total_chunks,

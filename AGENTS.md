@@ -1,8 +1,311 @@
-# Global Agent Rules — MSCodeBase Hybrid Architecture (36 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (36 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
 > Optimized for the hybrid model: 10 High-Level Intelligence Tools + 26 Low-Level Core MCP Tools.
 
+
+0.5 HYBRID ARCHITECTURE CONTRACT 
+## 0.5 HYBRID ARCHITECTURE CONTRACT
+
+MSCodeBase Intelligence is a HYBRID extension consisting of three independent runtime components:
+
+1. LSP Server
+2. MCP Server
+3. Shared Project Bridge / Registry
+
+They are NOT the same process.
+
+──────────────────────────────────────────────────────────────
+
+DEV REPOSITORY
+
+The source code being developed is normally located outside the installed extension.
+
+Example:
+
+D:\Project\MSCodeBase
+
+──────────────────────────────────────────────────────────────
+
+INSTALLED EXTENSION
+
+The extension executed by Zed lives in:
+
+%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+
+All MCP/LSP Python processes are started from this directory.
+
+Never assume the source repository is the runtime directory.
+
+──────────────────────────────────────────────────────────────
+
+SYNC MODEL
+
+Development flow is:
+
+Dev Repository
+        │
+        ▼
+sync_to_installed.bat
+        │
+        ▼
+Installed Extension
+        │
+        ▼
+Zed launches MCP/LSP
+
+Always distinguish between:
+
+• source code
+• installed extension
+• running process
+
+Do not assume they are synchronized.
+
+Runtime Rules
+
+Добавить сразу после этого.
+
+## RUNTIME RULES
+
+Never assume the running MCP process uses the latest code.
+
+A code change is NOT proof that the running server uses it.
+
+Always verify runtime state before concluding that a fix failed.
+
+Possible causes include:
+
+• stale MCP process
+• stale LSP process
+• cached environment
+• bridge state
+• unsynchronized install directory
+
+Process Identity
+
+Очень советую.
+
+## PROCESS IDENTITY
+
+When investigating runtime bugs:
+
+Differentiate between:
+
+• Source code
+• Installed extension
+• Running process
+
+Do not mix evidence from different processes.
+
+Always compare:
+
+RUN_ID
+
+PID
+
+BUILD_ID
+
+__file__
+
+project_root
+
+extension_root
+
+bridge state
+
+before drawing conclusions.
+
+Project Resolution Rules
+
+Это вообще нужно обязательно.
+
+## PROJECT RESOLUTION
+
+The project root MUST NOT be guessed.
+
+Priority:
+
+1.
+Explicit tool argument
+
+2.
+Bridge
+
+3.
+LSP workspace
+
+4.
+Environment
+PROJECT_PATH
+ZED_WORKTREE_ROOT
+
+5.
+User confirmation
+
+Never silently fall back to another project.
+
+If no project can be resolved:
+
+Return:
+
+Project context unavailable.
+
+Do not execute code search.
+
+Multi-window Contract
+
+Вот этого сейчас вообще нет.
+
+## MULTI-WINDOW CONTRACT
+
+The extension supports multiple Zed workspaces.
+
+Never assume:
+
+last opened project
+
+last indexed project
+
+last active registry
+
+Instead:
+
+Resolve project through Bridge.
+
+If Bridge is still initializing:
+
+WAIT for project readiness.
+
+Do not reuse another project.
+
+Startup Contract
+
+После вчерашнего расследования это необходимо.
+
+## STARTUP CONTRACT
+
+The first MCP requests may arrive before:
+
+LSP initialization
+
+Bridge synchronization
+
+Registry initialization
+
+Indexer creation
+
+Tools MUST verify project readiness.
+
+If project state != READY:
+
+Wait for readiness (timeout 3 seconds).
+
+If timeout expires:
+
+Return:
+
+Project is initializing.
+
+Do not guess.
+
+Do not switch projects.
+
+Runtime Investigation Rules
+
+Очень важно.
+
+## RUNTIME INVESTIGATION
+
+Runtime bugs must be investigated using runtime evidence.
+
+Priority:
+
+1.
+Runtime diagnostics
+
+2.
+Logs
+
+3.
+Bridge
+
+4.
+Registry
+
+5.
+Environment
+
+6.
+Source code
+
+Never conclude a runtime failure from source code inspection alone.
+
+Self-Index Guard Contract
+
+После всей истории это тоже стоит закрепить.
+
+## SELF INDEX GUARD
+
+The guard protects ONLY:
+
+• installed extension
+
+• Zed installation
+
+It MUST NOT block:
+
+• developer repository
+
+• user projects
+
+• external workspaces
+
+Never classify a repository as self-index solely because:
+
+its path contains "Zed"
+
+its path contains "extensions"
+
+its path contains AppData
+
+The decision must be based on:
+
+extension root
+
+or
+
+verified Zed installation directory.
+
+Diagnostic Rules
+
+Самое полезное.
+
+## DIAGNOSTICS
+
+When runtime behavior differs from source code:
+
+Do not assume the fix failed.
+
+Verify:
+
+RUN_ID
+
+PID
+
+BUILD_ID
+
+__file__
+
+PROJECT_PATH
+
+ZED_WORKTREE_ROOT
+
+Bridge state
+
+Registry state
+
+Only after runtime verification may a code change be proposed.
 ---
 MSCodeBase Core Rules:
 
