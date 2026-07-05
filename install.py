@@ -104,12 +104,19 @@ def banner(text: str, color: str = Color.CYAN) -> None:
     w = min(_term_width(), 72)
     inner = w - 4
     lines = text.split("\n")
-    top = f"  ╔{'═' * inner}╗"
-    bot = f"  ╚{'═' * inner}╝"
+    try:
+        chr(0x2550).encode(sys.stdout.encoding or "utf-8")
+        hl = chr(0x2550); tl = chr(0x2554); tr = chr(0x2557)
+        bl = chr(0x255A); br = chr(0x255D); side = chr(0x2551)
+    except (UnicodeEncodeError, AttributeError):
+        hl = "="; tl = "+="; tr = "=+"
+        bl = "+="; br = "=+"; side = "|"
+    top = f"  {tl}{hl * inner}{tr}"
+    bot = f"  {bl}{hl * inner}{br}"
     print(f"\n{color}{top}{Color.RESET}")
     for line in lines:
         padded = line.center(inner)
-        print(f"{color}  ║{Color.BOLD}{padded}{Color.RESET}{color}║{Color.RESET}")
+        print(f"{color}  {side}{Color.BOLD}{padded}{Color.RESET}{color}{side}{Color.RESET}")
     print(f"{color}{bot}{Color.RESET}")
 
 
