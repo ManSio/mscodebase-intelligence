@@ -1,6 +1,6 @@
 # 为 Zed IDE 安装 MSCodebase Intelligence
 
-<img src="../../logo/baner.svg" width="800" alt="MSCodeBase Banner">
+![MSCodeBase Banner](../../logo/baner.svg)
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](INSTALL.md)
 

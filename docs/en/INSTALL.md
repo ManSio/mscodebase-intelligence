@@ -2,7 +2,7 @@
 
 [🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
-<img src="../../logo/baner.svg" width="800" alt="MSCodeBase Banner">
+![MSCodeBase Banner](../../logo/baner.svg)
 
 > **MSCodebase Intelligence** — MCP server for semantic code search in Zed IDE.
 > Development hosted at [github.com/ManSio/mscodebase-intelligence](https://github.com/ManSio/mscodebase-intelligence)
