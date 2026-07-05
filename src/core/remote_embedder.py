@@ -88,10 +88,20 @@ class RemoteEmbedder:
                 if r.status_code == 200:
                     models = r.json().get("data", [])
                     if models:
+                        # Сохраняем имя первой модели (обычно она одна)
+                        self._model_name = models[0].get("id", models[0].get("model", str(models[0])))
                         return True
             return False
         except Exception:
             return False
+
+    def get_model_info(self) -> dict:
+        """Возвращает информацию о текущей модели эмбеддера."""
+        return {
+            "provider": self.mode,
+            "model": getattr(self, "_model_name", self.model_name),
+            "configured_model": self.model_name,
+        }
 
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера (НЕ блокирует __init__).

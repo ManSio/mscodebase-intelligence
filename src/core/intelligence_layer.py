@@ -713,16 +713,19 @@ class ProjectIntelligenceLayer:
         except Exception as _re:
             result["resources"] = {"error": str(_re)}
 
-        # LLM ping (LM Studio latency)
+        # LLM ping + model info
         try:
             from src.core.remote_embedder import RemoteEmbedder
             _emb = RemoteEmbedder()
             _t0 = time.perf_counter()
             _vec = _emb.embed("ping")
             _ping = round((time.perf_counter() - _t0) * 1000, 1)
+            _info = _emb.get_model_info()
             result["llm"] = {
                 "ping_ms": _ping,
-                "provider": getattr(_emb, "mode", "unknown"),
+                "provider": _info["provider"],
+                "model": _info["model"],
+                "configured_model": _info["configured_model"],
             }
         except Exception as _le:
             result["llm"] = {"error": str(_le)}
@@ -946,11 +949,12 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             parts.append(f"| RAM: {res.get('rss_mb', '?'):>5} MB | CPU: {res.get('cpu_percent', '?'):>4}% | Threads: {res.get('num_threads', '?')} |")
             parts.append("")
 
-        # LLM ping
+        # LLM ping + model
         llm = data.get("llm", {})
         if llm and "error" not in llm:
             parts.append("### ⚡ LLM Provider")
-            parts.append(f"| Ping: {llm.get('ping_ms', '?'):>6} ms | Provider: {llm.get('provider', '?')} |")
+            parts.append(f"| Ping: {llm.get('ping_ms', '?'):>6} ms | Model: {llm.get('model', '?')} |")
+            parts.append(f"| Provider: {llm.get('provider', '?')} | Configured: {llm.get('configured_model', '?')} |")
             parts.append("")
 
         # ETA stats

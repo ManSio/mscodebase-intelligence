@@ -122,16 +122,19 @@ def build_snapshot() -> dict:
     except Exception:
         snapshot["resources"] = {"error": "unavailable"}
 
-    # LLM ping (embedder latency)
+    # LLM ping + model info
     try:
         from src.core.remote_embedder import RemoteEmbedder
         _emb = RemoteEmbedder()
         _t0 = time.time()
         _emb.embed("ping")
         _ping = round((time.time() - _t0) * 1000, 1)
+        _info = _emb.get_model_info()
         snapshot["llm"] = {
             "ping_ms": _ping,
-            "provider": getattr(_emb, "mode", "unknown"),
+            "provider": _info["provider"],
+            "model": _info["model"],
+            "configured_model": _info["configured_model"],
         }
     except Exception:
         snapshot["llm"] = {"error": "unavailable"}
