@@ -156,18 +156,16 @@ def _format_error_response(
     recovery_hint: Optional[str] = None,
     latency_ms: Optional[int] = None,
 ) -> str:
-    """Форматирует JSON-ответ с ошибкой."""
-    result = {
-        "status": status,
-        "message": message,
-    }
+    """Форматирует Markdown-ответ с ошибкой."""
+    icon = "🔴" if status in ("error", "critical") else "🟡"
+    lines = [f"{icon} **{status.title()}:** {message}"]
     if detail:
-        result["detail"] = detail
+        lines.append(f"  • **Detail:** {detail}")
     if recovery_hint:
-        result["recovery_hint"] = recovery_hint
+        lines.append(f"  💡 **Hint:** {recovery_hint}")
     if latency_ms is not None:
-        result["latency_ms"] = latency_ms
-    return json.dumps(result, ensure_ascii=False, default=_json_default)
+        lines.append(f"  ⏱ `{latency_ms}ms`")
+    return "\n".join(lines)
 
 
 def error_boundary(
