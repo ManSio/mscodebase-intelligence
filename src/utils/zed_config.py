@@ -237,11 +237,14 @@ def patch_zed_settings(
     env = {
         "PYTHONPATH": str(ext_dir),
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
-        # Dev-mode override: разрешает индексировать ext_root / Zed install,
-        # если пользователь открыл исходники расширения как проект.
-        # Без этого переменная фикс dev-сценария не сработает в Zed-сессии.
-        "MSCODEBASE_ALLOW_SELF_INDEX": "1",
     }
+    # Dev-mode override: разрешает индексировать ext_root / Zed install
+    # если пользователь открыл исходники расширения как проект.
+    # В production (установленная копия) НЕ ставим — иначе self-indexing
+    # guard не сработает, и при пустом bridge проект уйдёт в ext_root.
+    # Dev: установи MSCODEBASE_ALLOW_SELF_INDEX=1 вручную в env.
+    if Path(__file__).resolve().parent.parent.parent.joinpath(".git").exists():
+        env["MSCODEBASE_ALLOW_SELF_INDEX"] = "1"
     entry["env"] = env
 
     settings["context_servers"][SERVER_NAME] = entry
