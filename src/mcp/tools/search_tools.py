@@ -199,7 +199,7 @@ class SearchCodeTool(MCPTool):
 
         results = result.get("results", [])
         timing = result.get("timing_ms", {})
-        exec_ms = timing.get("total_ms", 0)
+        exec_ms = int(timing.get("total_ms", 0))
 
         query = result.get("query", f"mode={mode}")
 
@@ -233,40 +233,47 @@ class GetSymbolInfoTool(MCPTool):
         self,
         query: str,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
+    ) -> str:
         await self.require_ready_project()
         call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
-            return {
-                "status": "ok",
-                "symbol": query,
-                "definition": call_graph["definition"],
-                "callers": call_graph["callers"][:15],
-                "callees": call_graph["callees"][:10],
-                "impact_files": call_graph["impact_files"][:10],
-            }
+            defs = call_graph["definition"]
+            callers = call_graph["callers"][:15]
+            callees = call_graph["callees"][:10]
+            result = f"🔍 **{query}** — {len(defs)} определение, {len(callers)} caller'ов, {len(callees)} callee\n\n"
+            if defs:
+                d = defs[0]
+                result += f"📄 Определение: `{d.get('file', '?')}` строка {d.get('line', '?')}\n"
+            if callers:
+                result += f"\n⬆️ **Вызывается из:**\n"
+                for c in callers[:5]:
+                    result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+            if callees:
+                result += f"\n⬇️ **Вызывает:**\n"
+                for c in callees[:5]:
+                    result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+            return result
 
         # Fallback: поиск по имени
         results = self.resolve_symbol_index().search_symbols(query)
         if not results:
-            return {
-                "status": "warning",
-                "message": f"Symbol '{query}' not found",
-            }
+            return f"ℹ️ **{query}** — не найден\n"
 
-        definitions = [r for r in results if getattr(r, "is_definition", False)]
+        defs = [r for r in results if getattr(r, "is_definition", False)]
         usages = [r for r in results if not getattr(r, "is_definition", False)]
-
-        return {
-            "status": "ok",
-            "symbol": query,
-            "definitions": [
-                {"file": d.file_path, "line": d.line, "kind": d.kind}
-                for d in definitions
-            ],
-            "usages": [{"file": u.file_path, "line": u.line} for u in usages[:10]],
-        }
+        result = (
+            f"🔍 **{query}** — {len(defs)} определений, {len(usages)} использований\n\n"
+        )
+        if defs:
+            result += "📄 **Определения:**\n"
+            for d in defs[:5]:
+                result += f"   • `{d.file_path}` строка {d.line} ({d.kind})\n"
+        if usages:
+            result += f"\n📎 **Использования:**\n"
+            for u in usages[:5]:
+                result += f"   • `{u.file_path}` строка {u.line}\n"
+        return result
 
 
 class ImpactAnalysisTool(MCPTool):

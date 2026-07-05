@@ -139,12 +139,14 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     pid = data.get("resource_usage", {}).get("process_pid", "?")
     embedder = data.get("embedding_provider", "?")
     lm = data.get("provider_status", {}).get("lm_studio_at_1234", "offline")
-    lm_icon = "🟢" if lm == "online" else "🔴"
+    lm_icon = "🟢" if lm == "online" else ("🟡" if lm == "offline" else "🔴")
+    status = data.get("index_telemetry", {}).get("status", "?")
+    status_icon = "🟢" if status == "active" else "🟡"
 
-    result = f"🟢 **MSCodeBase Active**\n"
+    result = f"{status_icon} **MSCodeBase** — {proj}\n"
     result += f"📦 **Чанки:** {chunks} | **Файлы:** {files}\n"
-    result += f"{lm_icon} **LM Studio:** {lm}\n"
-    result += f"⚙️ **PID:** {pid}\n\n"
+    result += f"🧠 **Эмбеддер:** {embedder} | {lm_icon} LM Studio: {lm}\n"
+    result += f"⚙️ **PID:** {pid}\n"
     return result
 
 

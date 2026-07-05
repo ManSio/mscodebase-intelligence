@@ -906,7 +906,9 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     async def get_runtime_status() -> str:
         """Получить агрегированный статус здоровья рантайма, ИИ-провайдеров и индексов за 1 вызов."""
         status = await intel_layer.intel_get_runtime_status()
-        return json.dumps(status, ensure_ascii=False, indent=2)
+        from src.utils.ui_formatter import format_runtime_status
+
+        return format_runtime_status(status)
 
     # -------------------------------------------------------------
     # ХЕЛПЕР: Обогащение ответа job'а служебными полями
@@ -1002,7 +1004,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             f"{'━' * 30}\n"
             f"🏗️ **Progress:** {_bar} `{progress}%`\n"
             f"⏱️ Старт: `{_now}` | Статус: `{p_label}`\n"
-            f"{_eta_line}"
+            f"⏱️ **ETA:** ~5м (готовность к `{_eta_time}`)\n"
             f"📌 Job ID: `{job_id}`\n"
             f"{'━' * 30}\n"
             f"💡 *Следующая проверка: не ранее `{_eta_time}`."
@@ -1184,7 +1186,6 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             {
                 "status": "ok",
                 "message": "\n".join(parts),
-                "detail": detail,
             },
             ensure_ascii=False,
         )
