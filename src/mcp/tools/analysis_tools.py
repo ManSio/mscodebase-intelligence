@@ -4,6 +4,7 @@ scan_changes, generate_chunk_summaries.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -47,10 +48,15 @@ class StructuralSearchTool(MCPTool):
             }
 
         searcher = StructuralSearcher(self.resolve_parser())
-        result = searcher.search(
-            target_path,
-            pattern_name=pattern,
-            max_results=30,
+        # CPU-bound: Tree-sitter AST парсинг — выгружаем в ThreadPool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: searcher.search(
+                target_path,
+                pattern_name=pattern,
+                max_results=30,
+            ),
         )
         return {
             "status": "ok",

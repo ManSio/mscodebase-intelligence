@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -290,7 +291,14 @@ class ImpactAnalysisTool(MCPTool):
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
         await self.require_ready_project()
-        result = self.resolve_symbol_index().get_impact_analysis(symbol, depth=depth)
+        # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            self.resolve_symbol_index().get_impact_analysis,
+            symbol,
+            depth,
+        )
 
         if not result.get("call_graph", {}).get("definition"):
             return {
