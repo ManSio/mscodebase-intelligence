@@ -2,9 +2,11 @@
 Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback.
 """
 
+import hashlib
 import logging
+import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -233,12 +235,16 @@ class CodeParser:
                 if len(text) > self.MAX_CHUNK_CHARS:
                     start_offset = node.start_point[0]
                     sub_chunks = self._chunk_giant_text(
-                        lines, str(file_path), start_offset, prefix, current_context
+                        lines, str(file_path), start_offset,
+                        prefix, current_context, symbol_name
                     )
                     for sc in sub_chunks:
                         sc["symbol_name"] = symbol_name
                     chunks.extend(sub_chunks)
                 else:
+                    meta = self._build_chunk_metadata(
+                        str(file_path), symbol_name, node.type, current_context
+                    )
                     chunks.append(
                         {
                             "text": prefix + text,
@@ -249,6 +255,13 @@ class CodeParser:
                             "type": node.type,
                             "context": current_context,
                             "symbol_name": symbol_name,
+                            # Metadata (MCompassRAG + SproutRAG)
+                            "layer": meta["layer"],
+                            "module_name": meta["module_name"],
+                            "hierarchy_level": meta["hierarchy_level"],
+                            "is_public": meta["is_public"],
+                            "symbol_type": meta["symbol_type"],
+                            "parent_id": meta["parent_id"],
                         }
                     )
 
@@ -262,6 +275,105 @@ class CodeParser:
             if child.type == node_type:
                 return child
         return None
+
+    @staticmethod
+    def _build_chunk_metadata(
+        file_path: str,
+        symbol_name: str = "",
+        node_type: str = "",
+        context: str = "",
+    ) -> Dict[str, Any]:
+        """Строит метаданные чанка: архитектурный слой, модуль,
+        уровень иерархии, публичность, parent_id.
+
+        Args:
+            file_path: Абсолютный или относительный путь к файлу.
+            symbol_name: Имя символа (функции/метода).
+            node_type: Тип узла AST (function_definition, method_definition, ...).
+            context: Контекст — имя класса/структуры (если есть).
+
+        Returns:
+            Словарь с полями: layer, module_name, hierarchy_level,
+            is_public, symbol_type, parent_id.
+        """
+        # Нормализация пути для детекции слоя
+        path_lower = str(file_path).lower().replace("\\", "/")
+
+        # --- Layer detection (MCompassRAG-style) ---
+        if "/tests/" in path_lower:
+            layer = "tests"
+        elif "/src/core/" in path_lower:
+            layer = "core"
+        elif "/src/mcp/tools/" in path_lower:
+            layer = "mcp_tools"
+        elif "/src/mcp/" in path_lower:
+            layer = "mcp"
+        elif "/src/utils/" in path_lower:
+            layer = "utils"
+        elif "/docs/" in path_lower:
+            layer = "docs"
+        elif "/.agents/" in path_lower:
+            layer = "agents"
+        elif "/scripts/" in path_lower:
+            layer = "scripts"
+        elif "/.github/" in path_lower:
+            layer = "ci"
+        else:
+            layer = "root"
+
+        # --- Module name: из src/core/parser.py → core.parser ---
+        m = re.search(r"(?:src|tests|scripts|docs)/(.+\.\w+)$", path_lower)
+        if m:
+            # Обрезаем расширение файла
+            module_raw = m.group(1)
+            dot_idx = module_raw.rfind(".")
+            if dot_idx > 0:
+                module_raw = module_raw[:dot_idx]
+            module_name = module_raw.replace("/", ".")
+        else:
+            module_name = path_lower.replace("/", ".").strip(".")
+
+        # --- is_public: символ не начинается с '_' ---
+        is_public = bool(symbol_name) and not symbol_name.startswith("_")
+
+        # --- hierarchy_level (SproutRAG-style) ---
+        hierarchy_map = {
+            "function_definition": "function",
+            "function_item": "function",
+            "function_declaration": "function",
+            "method_definition": "method",
+            "method_declaration": "method",
+            "class_definition": "class",
+            "impl_item": "impl",
+            "fallback_lines": "lines",
+            "giant_function_part": "function_part",
+            "markdown_section": "section",
+        }
+        hierarchy_level = hierarchy_map.get(node_type, "other")
+
+        # --- parent_id: детерминированный хеш родителя ---
+        if context and hierarchy_level in ("method", "function"):
+            # Метод внутри класса → parent = класс
+            parent_key = f"{file_path}::{context}"
+            parent_id = hashlib.md5(parent_key.encode()).hexdigest()
+        elif hierarchy_level == "function_part" and symbol_name:
+            # Часть гигантской функции → parent = функция
+            parent_key = f"{file_path}::{context}::{symbol_name}"
+            parent_id = hashlib.md5(parent_key.encode()).hexdigest()
+        elif hierarchy_level in ("function", "method"):
+            # Функция верхнего уровня → parent = модуль
+            parent_id = hashlib.md5(f"{file_path}".encode()).hexdigest()
+        else:
+            parent_id = ""
+
+        return {
+            "layer": layer,
+            "module_name": module_name,
+            "hierarchy_level": hierarchy_level,
+            "is_public": is_public,
+            "symbol_type": node_type,
+            "parent_id": parent_id,
+        }
 
     def extract_calls(self, file_path: Path) -> List[Dict]:
         """Извлекает все вызовы функций из файла для построения графа вызовов.
@@ -385,6 +497,7 @@ class CodeParser:
         start_line_offset: int,
         prefix: str,
         context: str,
+        symbol_name: str = "",
     ) -> List[Dict]:
         """Разбивает слишком большой кусок кода (например, огромную функцию) на части.
         Каждая часть = токен-эффективное preview."""
@@ -396,6 +509,11 @@ class CodeParser:
             if text:
                 part_num = i // step + 1
                 compact = text[:500] + "\n..." if len(text) > 500 else text
+                # Метаданные для части гигантской функции
+                meta = self._build_chunk_metadata(
+                    str(file_path), symbol_name=symbol_name,
+                    node_type="giant_function_part", context=context
+                )
                 chunks.append(
                     {
                         "text": f"{prefix}// [Part {part_num}]\n{text}",
@@ -406,6 +524,13 @@ class CodeParser:
                         "type": "giant_function_part",
                         "context": context,
                         "symbol_name": "",
+                        # Metadata
+                        "layer": meta["layer"],
+                        "module_name": meta["module_name"],
+                        "hierarchy_level": meta["hierarchy_level"],
+                        "is_public": meta["is_public"],
+                        "symbol_type": meta["symbol_type"],
+                        "parent_id": meta["parent_id"],
                     }
                 )
         return chunks
@@ -424,6 +549,12 @@ class CodeParser:
             return [], []
 
         chunks = []
+        file_path_str = str(file_path)
+        # Единые метаданные для всех строк этого файла
+        fallback_meta = self._build_chunk_metadata(
+            file_path_str, symbol_name="",
+            node_type="fallback_lines", context=""
+        )
         for i in range(
             0, len(lines), self.FALLBACK_CHUNK_LINES - self.FALLBACK_OVERLAP_LINES
         ):
@@ -435,12 +566,19 @@ class CodeParser:
                     {
                         "text": text,
                         "text_compact": compact,
-                        "file": str(file_path),
+                        "file": file_path_str,
                         "start_line": i,
                         "end_line": i + len(chunk_lines) - 1,
                         "type": "fallback_lines",
                         "context": "",
                         "symbol_name": "",
+                        # Metadata
+                        "layer": fallback_meta["layer"],
+                        "module_name": fallback_meta["module_name"],
+                        "hierarchy_level": fallback_meta["hierarchy_level"],
+                        "is_public": fallback_meta["is_public"],
+                        "symbol_type": fallback_meta["symbol_type"],
+                        "parent_id": fallback_meta["parent_id"],
                     }
                 )
         return chunks, []
@@ -462,6 +600,12 @@ class CodeParser:
         current_header = ""
         current_start = 0
         in_code_block = False
+        file_path_str = str(file_path)
+        # Единые метаданные для всех секций md-файла
+        md_meta = self._build_chunk_metadata(
+            file_path_str, symbol_name="",
+            node_type="markdown_section", context=""
+        )
 
         for i, line in enumerate(content.splitlines()):
             stripped = line.strip()
@@ -481,12 +625,19 @@ class CodeParser:
                             {
                                 "text": f"{current_header}\n\n{text}".strip(),
                                 "text_compact": f"{current_header}\n\n{compact}".strip(),
-                                "file": str(file_path),
+                                "file": file_path_str,
                                 "start_line": current_start,
                                 "end_line": i - 1,
                                 "type": "markdown_section",
                                 "context": "",
                                 "symbol_name": "",
+                                # Metadata
+                                "layer": md_meta["layer"],
+                                "module_name": md_meta["module_name"],
+                                "hierarchy_level": md_meta["hierarchy_level"],
+                                "is_public": md_meta["is_public"],
+                                "symbol_type": md_meta["symbol_type"],
+                                "parent_id": md_meta["parent_id"],
                             }
                         )
                 current_header = stripped
@@ -504,12 +655,19 @@ class CodeParser:
                     {
                         "text": f"{current_header}\n\n{text}".strip(),
                         "text_compact": f"{current_header}\n\n{compact}".strip(),
-                        "file": str(file_path),
+                        "file": file_path_str,
                         "start_line": current_start,
                         "end_line": len(content.splitlines()) - 1,
                         "type": "markdown_section",
                         "context": "",
                         "symbol_name": "",
+                        # Metadata
+                        "layer": md_meta["layer"],
+                        "module_name": md_meta["module_name"],
+                        "hierarchy_level": md_meta["hierarchy_level"],
+                        "is_public": md_meta["is_public"],
+                        "symbol_type": md_meta["symbol_type"],
+                        "parent_id": md_meta["parent_id"],
                     }
                 )
 

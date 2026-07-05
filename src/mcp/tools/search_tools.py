@@ -86,6 +86,7 @@ class SearchCodeTool(MCPTool):
         query: str,
         mode: str = "auto",
         limit: int = 6,
+        filter_layer: Optional[str] = None,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         self.require_index()
@@ -97,11 +98,16 @@ class SearchCodeTool(MCPTool):
         # Показываем где ищем — чтобы пользователь видел ГДЕ идёт поиск.
         # Особенно важно при multi-window: может искать в чужом проекте.
         project_header = self._project_header()
+        # Добавляем информацию о фильтре слоя
+        if filter_layer:
+            project_header += f"\n🔬 Layer filter: {filter_layer}"
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
             return self._format_results(
-                self.resolve_searcher().search_with_mode(query, mode=mode, limit=limit),
+                self.resolve_searcher().search_with_mode(
+                    query, mode=mode, limit=limit, layer=filter_layer
+                ),
                 mode,
                 project_header=project_header,
             )
@@ -119,7 +125,7 @@ class SearchCodeTool(MCPTool):
         if _is_complex_query(query):
             return project_header + "\n" + await self._agentic_search(query)
         return project_header + "\n" + self.resolve_searcher().search(
-            query, limit=limit, since=since, before=before,
+            query, limit=limit, since=since, before=before, layer=filter_layer,
         )
 
     async def _agentic_search(self, query: str) -> str:

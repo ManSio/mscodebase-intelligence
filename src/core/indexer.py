@@ -108,6 +108,14 @@ class Indexer:
         # text_full — полный текст функции/метода (для детального анализа по запросу)
         # source — источник индексации: 'lsp_vfs' (память IDE) или 'filesystem' (диск)
         # summary — LLM-описание чанка (для улучшения семантического поиска)
+        #
+        # Metadata Enrichment (MCompassRAG-style + SproutRAG-style):
+        # layer — архитектурный слой (core/mcp/tests/...)
+        # module_name — логическое имя модуля (core.parser)
+        # hierarchy_level — уровень иерархии (function/method/class/...)
+        # is_public — публичный/приватный символ
+        # symbol_type — AST-тип (function_definition/method_definition/...)
+        # parent_id — детерминированный хеш родителя для multi-granularity
         self.schema = pa.schema(
             [
                 pa.field("id", pa.string()),
@@ -122,6 +130,13 @@ class Indexer:
                 pa.field("source", pa.string()),
                 pa.field("indexed_at", pa.string()),
                 pa.field("summary", pa.string()),
+                # Metadata Enrichment (v2.4.3+)
+                pa.field("layer", pa.string()),
+                pa.field("module_name", pa.string()),
+                pa.field("hierarchy_level", pa.string()),
+                pa.field("is_public", pa.bool_()),
+                pa.field("symbol_type", pa.string()),
+                pa.field("parent_id", pa.string()),
             ]
         )
 
@@ -150,8 +165,11 @@ class Indexer:
                     )
                     # Fallback: при следующем _index_single_file text_full
                     # будет перезаписан — это безопасно, данные не теряются.
-            else:
-                logger.info(f"📦 Открыта существующая таблица: {self.table_name}")
+
+            # Миграция: Metadata Enrichment (v2.4.3+)
+            self._migrate_add_metadata_columns(existing_fields)
+
+            logger.info(f"📦 Открыта таблица: {self.table_name}")
         except Exception as open_err:
             logger.debug(f"Не удалось открыть таблицу: {open_err}. Пробуем создать.")
             try:
@@ -369,6 +387,62 @@ class Indexer:
         except Exception as e:
             logger.warning(f"_migrate_text_full_inplace: {e}")
 
+    def _migrate_add_metadata_columns(self, existing_fields: list) -> None:
+        """Мигрирует Metadata Enrichment колонки (v2.4.3+).
+
+        Добавляет поля layer, module_name, hierarchy_level, is_public,
+        symbol_type, parent_id в существующую таблицу без drop_table.
+        Старые чанки получают пустые значения — заполнятся при
+        следующей переиндексации.
+        """
+        # Колонки для добавления с их значениями по умолчанию
+        metadata_columns = {
+            "layer": "",
+            "module_name": "",
+            "hierarchy_level": "other",
+            "symbol_type": "",
+            "parent_id": "",
+        }
+        # is_public — bool, добавляем отдельно
+        bool_columns = {"is_public": False}
+
+        if not hasattr(self.table, "add_columns"):
+            logger.warning(
+                "add_columns недоступен — метаданные появятся только "
+                "после пересоздания таблицы"
+            )
+            return
+
+        # Добавляем строковые колонки
+        for col_name, default_val in metadata_columns.items():
+            if col_name not in existing_fields:
+                try:
+                    self.table.add_columns({col_name: default_val})
+                    logger.info(f"📦 Миграция: добавлена колонка {col_name}")
+                except TypeError:
+                    # Старая сигнатура без значения
+                    try:
+                        self.table.add_columns({col_name: "string"})
+                        logger.info(f"📦 Миграция: добавлена колонка {col_name} (type)")
+                    except Exception as e2:
+                        logger.warning(f"Миграция {col_name}: {e2}")
+                except Exception as e:
+                    logger.warning(f"Миграция {col_name}: {e}")
+
+        # Добавляем bool-колонку
+        if "is_public" not in existing_fields:
+            try:
+                self.table.add_columns(bool_columns)
+                logger.info("📦 Миграция: добавлена колонка is_public (bool)")
+            except TypeError:
+                try:
+                    self.table.add_columns({"is_public": "bool"})
+                    logger.info("📦 Миграция: добавлена колонка is_public (type)")
+                except Exception as e2:
+                    logger.warning(f"Миграция is_public: {e2}")
+            except Exception as e:
+                logger.warning(f"Миграция is_public: {e}")
+
     def _index_single_file(
         self,
         full_path: Path,
@@ -456,8 +530,12 @@ class Indexer:
             # Стратегия экономии токенов:
             # - text_compact (сигнатура + 3 строки тела) → для эмбеддинга и поиска
             # - text_full (полный код функции) → для детального анализа по запросу
+            #
+            # Metadata Enrichment (v2.4.3+):
+            # - layer, module_name, hierarchy_level, is_public, symbol_type, parent_id
             chunk_texts = []  # компактные тексты для эмбеддинга
             chunk_texts_full = []  # полные тексты для хранения
+            chunk_metadatas = []  # метаданные для Metadata Enrichment
             if self.parser is not None:
                 try:
                     ast_chunks, symbols = self.parser.parse_file(full_path)
@@ -468,6 +546,15 @@ class Indexer:
                             if compact.strip():
                                 chunk_texts.append(compact)
                                 chunk_texts_full.append(full)
+                                # Извлекаем метаданные из результата парсера
+                                chunk_metadatas.append({
+                                    "layer": c.get("layer", ""),
+                                    "module_name": c.get("module_name", ""),
+                                    "hierarchy_level": c.get("hierarchy_level", "other"),
+                                    "is_public": c.get("is_public", False),
+                                    "symbol_type": c.get("symbol_type", c.get("type", "")),
+                                    "parent_id": c.get("parent_id", ""),
+                                })
                         logger.debug(
                             f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
                         )
@@ -483,6 +570,7 @@ class Indexer:
                         f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"
                     )
                     chunk_texts = []
+                    chunk_metadatas = []
 
             if not chunk_texts:
                 # Fallback: символьное деление с перекрытием
@@ -492,6 +580,11 @@ class Indexer:
                 chunk_texts_full = (
                     chunk_texts  # fallback: текст и полный текст одинаковы
                 )
+                chunk_metadatas = [
+                    {"layer": "", "module_name": "", "hierarchy_level": "other",
+                     "is_public": False, "symbol_type": "", "parent_id": ""}
+                    for _ in chunk_texts
+                ]
 
             if not chunk_texts:
                 return False
@@ -526,6 +619,9 @@ class Indexer:
                         symbol_name = getattr(self.parser, "_current_symbol", "")
                     summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
 
+                # Метаданные для Metadata Enrichment (v2.4.3+)
+                meta = chunk_metadatas[i] if i < len(chunk_metadatas) else {}
+
                 data_records.append(
                     {
                         "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
@@ -538,6 +634,13 @@ class Indexer:
                         "source": source,
                         "indexed_at": datetime.now().isoformat(),
                         "summary": summary,
+                        # Metadata Enrichment (MCompassRAG + SproutRAG)
+                        "layer": meta.get("layer", ""),
+                        "module_name": meta.get("module_name", ""),
+                        "hierarchy_level": meta.get("hierarchy_level", "other"),
+                        "is_public": meta.get("is_public", False),
+                        "symbol_type": meta.get("symbol_type", ""),
+                        "parent_id": meta.get("parent_id", ""),
                     }
                 )
 

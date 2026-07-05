@@ -1,6 +1,6 @@
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 2.3.0  
+> **Version:** 2.4.4  
 > **Last updated:** 2026-07-05  
 > **Architecture:** Clean Architecture with DI Container + Multi-Window Registry
 
@@ -313,17 +313,79 @@ error_boundary decorator
         │       └── RRF fusion + reranking
         │
         └── return {"status": "ok", "results": [...]}
-            │
-            ▼
-    error_boundary → {"status": "ok", ...latency_ms}
-            │
-            ▼
-    Zed Chat (formatted JSON response)
-```
+                │
+                ▼
+        error_boundary → {"status": "ok", ...latency_ms}
+                │
+                ▼
+        Zed Chat (formatted JSON response)
+    ```
 
----
+    ---
 
-## 8. Windows Specifics
+    ## 8. Metadata Enrichment (v2.4.4+)
+
+    ### 8.1 Semantic Compass (MCompassRAG-style)
+
+    Каждый чанк в LanceDB содержит 6 полей метаданных для детерминированной
+    фильтрации и multi-granularity retrieval:
+
+    | Поле | Тип | Пример | Назначение |
+    |------|-----|--------|------------|
+    | `layer` | string | `"core"` | Архитектурный слой: core/mcp/utils/tests/... |
+    | `module_name` | string | `"core.parser"` | Логическое имя модуля из пути файла |
+    | `hierarchy_level` | string | `"method"` | Уровень: function/method/class/impl/lines |
+    | `is_public` | bool | `true` | Публичный/приватный (`_`-префикс) |
+    | `symbol_type` | string | `"method_definition"` | AST-тип узла |
+    | `parent_id` | string | md5-хеш | Детерминированный хеш родителя |
+
+    Layer detection — автоматическая, по пути файла:
+
+    | Путь | layer |
+    |------|-------|
+    | `src/core/*` | `core` |
+    | `src/mcp/tools/*` | `mcp_tools` |
+    | `src/mcp/*` | `mcp` |
+    | `src/utils/*` | `utils` |
+    | `tests/*` | `tests` |
+    | `docs/*` | `docs` |
+    | `.agents/*` | `agents` |
+    | `scripts/*` | `scripts` |
+    | `.github/*` | `ci` |
+    | прочее | `root` |
+
+    ### 8.2 Flat Tree Hierarchy (SproutRAG-style)
+
+    `parent_id` — детерминированный md5-хеш:
+
+    - **Для метода:** `md5(file_path + "::" + class_name)` — parent = класс
+    - **Для функции:** `md5(file_path)` — parent = модуль
+    - **Для части гигантской функции:** `md5(file_path + "::" + symbol_name)` — parent = функция
+
+    Позволяет делать multi-granularity retrieval без графовых БД:
+    - Найти все функции класса → `get_chunks_by_parent_id("md5_hash")`
+    - Подняться до модуля → aggregation по parent_id
+
+    ### 8.3 Layer Filtering в search_code
+
+    ```python
+    # Только core-слой
+    search_code(query="DI container", filter_layer="core")
+
+    # Только tests
+    search_code(query="test_parser", filter_layer="tests")
+
+    # Без фильтра (все слои, как раньше)
+    search_code(query="parser")
+    ```
+
+    Фильтрация работает на уровне LanceDB `.where(prefilter=True)` — векторный
+    поиск идёт только по чанкам нужного слоя. BM25 пост-фильтруется по layer
+    из metadata.
+
+    ---
+
+    ## 9. Windows Specifics
 
 ### 8.1 Path Resolution
 

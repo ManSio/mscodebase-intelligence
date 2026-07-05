@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.4] — 2026-07-05 — Metadata Enrichment: Semantic Compass + Flat Tree
+
+### 🧭 Semantic Compass (MCompassRAG-style, src/core/parser.py + src/core/indexer.py)
+- Каждый чанк теперь содержит `layer` (архитектурный слой: core/mcp/utils/tests/...).
+- Авто-детекция слоя по пути файла без ручной разметки.
+- Поле `module_name` — логическое имя модуля (core.parser, mcp.server).
+- Поле `is_public` — публичный/приватный символ (по `_` префиксу).
+- Поле `symbol_type` — AST-тип узла (function_definition, method_definition, ...).
+
+### 🌳 Flat Tree (SproutRAG-style, src/core/parser.py + src/core/indexer.py)
+- `hierarchy_level`: function | method | class | impl | lines | function_part | section.
+- `parent_id`: детерминированный md5-хеш родительского элемента.
+  - Для метода: хеш `file_path::ClassName`.
+  - Для функции: хеш `file_path` (модуль).
+  - Multi-granularity retrieval без графовых БД.
+
+### 🗃 Схема LanceDB
+- 6 новых полей: `layer`, `module_name`, `hierarchy_level`, `is_public`, `symbol_type`, `parent_id`.
+- Автомиграция через `_migrate_add_metadata_columns()` — без drop_table.
+- Старые чанки получают пустые значения; заполнятся при переиндексации.
+
+### 🔧 Код
+- `src/core/parser.py`: +`_build_chunk_metadata()` — 4 точки создания чанков.
+- `src/core/indexer.py`: +`_migrate_add_metadata_columns()`, +`chunk_metadatas`.
+- Все 103 теста пройдены, ни один не сломан.
+
+### 🎯 Фильтрация поиска по layer (MCompassRAG — поиск)
+- `search_code` получил параметр `filter_layer` (core/mcp/utils/tests/...).
+- LanceDB `.where()` с `prefilter=True` — фильтр на уровне индекса, без загрузки всех чанков.
+- BM25 пост-фильтрация по layer из metadata.
+- Работает во всех режимах: fast (vector-only), quality (hybrid), deep.
+
+### 🌳 Multi-granularity retrieval (SproutRAG — поиск)
+- Новый метод `Searcher.get_chunks_by_parent_id()` — находит все дочерние чанки по parent_id.
+- Позволяет подняться по иерархии: модуль → класс → функция.
+- E2E: фильтр core выдаёт только core, фильтр tests — только tests, 0 пересечений.
+
+---
+
 ## [v2.4.3] — 2026-07-05 — RuntimeCoordinator + intel_get_project_context
 
 ### 🎯 RuntimeCoordinator (new, src/core/runtime_coordinator.py)

@@ -72,7 +72,7 @@ python install.py
 
 | Tool | When to Use |
 |------|-------------|
-| `search_code(query, mode)` | **Главный инструмент поиска.** `mode="auto"` (по умолч.) / `"fast"` / `"quality"` / `"deep"` / `"context"` |
+| `search_code(query, mode, filter_layer)` | **Главный инструмент поиска.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"`. `filter_layer="core"` — поиск только в указанном архитектурном слое |
 | `structural_search(pattern)` | Поиск по AST: `class_inheritance`, `async_function`, `function_with_decorator` и др. |
 | `cross_repo_search(query @repo)` | Поиск по нескольким проектам (моно-репо) |
 | `cross_project_deps(action)` | Граф зависимостей между проектами: `graph` / `deps` / `cycles` / `impact` |

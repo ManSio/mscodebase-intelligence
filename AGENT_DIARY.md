@@ -1,5 +1,42 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-05 19:00] — [Type: Feature] — Layer Filtering + Multi-granularity Retrieval — v2.4.4
+
+**Problem:** search_code не мог фильтровать по архитектурному слою. Поиск
+смешивал core/mcp/utils/tests, создавая шум. Не было multi-granularity retrieval.
+
+**Solution:**
+- search_code получил параметр filter_layer (core/mcp/utils/tests/...)
+- LanceDB .where() с prefilter=True — на уровне индекса
+- BM25 пост-фильтрация по layer из metadata
+- Метод get_chunks_by_parent_id() для multi-granularity
+
+**Files Changed:** src/core/searcher.py (+~80), src/mcp/tools/search_tools.py (+~10)
+**Tests:** 65/65 (reranker + agentic + deep search)
+
+**Status:** ✅
+
+---
+
+## [2026-07-05 16:00] — [Type: Feature] — Metadata Enrichment — v2.4.4
+
+**Problem:** Чанки не содержали информацию об архитектурном слое и иерархии.
+Поиск не мог фильтровать по layer или подниматься на уровень модуля.
+
+**Solution:** Добавлены 6 полей метаданных (layer, module_name, hierarchy_level,
+is_public, symbol_type, parent_id) в parser.py и indexer.py.
+Схема LanceDB обновлена через add_columns без drop_table.
+MCompassRAG-style layer detection + SproutRAG-style flat tree.
+
+**Files Changed:** src/core/parser.py (+100 строк), src/core/indexer.py (+90 строк)
+**Chunks in DB:** 1488 (без изменений)
+**Tests:** 103/103 passed
+
+**Tools Used:** edit_file, terminal, intel_log_incident, intel_get_runtime_status
+**Status:** ✅
+
+---
+
 ## [2026-07-05 12:00] — [Type: Meta] — Architecture Freeze — v2.4 done
 
 **Session: architectural stabilization (16 commits, ~2500 lines).**

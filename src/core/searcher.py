@@ -308,6 +308,7 @@ class Searcher:
                                 "file": row["file_path"],
                                 "chunk_index": row["chunk_index"],
                                 "indexed_at": row.get("indexed_at", ""),
+                                "layer": row.get("layer", ""),
                             },
                         }
                     )
@@ -316,14 +317,71 @@ class Searcher:
 
         return results
 
-    def vector_search(self, query_vector: List[float], limit: int = 5) -> List[dict]:
-        """Прямой векторный поиск через таблицу LanceDB."""
+    def vector_search(
+        self,
+        query_vector: List[float],
+        limit: int = 5,
+        filter_expr: str = "",
+    ) -> List[dict]:
+        """Прямой векторный поиск через таблицу LanceDB.
+
+        Args:
+            filter_expr: SQL-выражение для фильтрации (например, "layer = 'core'")
+        """
         if self.indexer.table is None or len(self.indexer.table) == 0:
             return []
 
         try:
+            search_obj = self.indexer.table.search(
+                query_vector, vector_column_name="vector"
+            )
+            if filter_expr:
+                search_obj = search_obj.where(filter_expr, prefilter=True)
+            df = search_obj.limit(limit).to_pandas()
+
+            results = []
+            for _, row in df.iterrows():
+                results.append(
+                    {
+                        "text": row["text"],
+                        "text_full": row.get("text_full", row["text"]),
+                        "metadata": {
+                            "file": row["file_path"],
+                            "chunk_index": row["chunk_index"],
+                            "indexed_at": row.get("indexed_at", ""),
+                            "layer": row.get("layer", ""),
+                            "hierarchy_level": row.get("hierarchy_level", ""),
+                            "parent_id": row.get("parent_id", ""),
+                        },
+                    }
+                )
+            return results
+        except Exception as e:
+            logger.error(f"Ошибка векторного поиска LanceDB: {e}")
+            return [{"error": str(e)}]
+
+    def get_chunks_by_parent_id(
+        self, parent_id: str, limit: int = 10
+    ) -> List[dict]:
+        """Multi-granularity retrieval: находит дочерние чанки по parent_id.
+
+        Позволяет подняться по иерархии (модуль → класс → функция):
+        если найден чанк с parent_id, можно запросить все его дочерние
+        элементы и получить полный контекст.
+
+        Args:
+            parent_id: Хеш родительского элемента (md5).
+            limit: Максимум результатов.
+
+        Returns:
+            Список чанков с текстом и метаданными.
+        """
+        if self.indexer.table is None:
+            return []
+        try:
             df = (
-                self.indexer.table.search(query_vector, vector_column_name="vector")
+                self.indexer.table.search()
+                .where(f"parent_id = '{parent_id}'", prefilter=True)
                 .limit(limit)
                 .to_pandas()
             )
@@ -336,14 +394,16 @@ class Searcher:
                         "metadata": {
                             "file": row["file_path"],
                             "chunk_index": row["chunk_index"],
-                            "indexed_at": row.get("indexed_at", ""),
+                            "hierarchy_level": row.get("hierarchy_level", ""),
+                            "layer": row.get("layer", ""),
+                            "symbol_type": row.get("symbol_type", ""),
                         },
                     }
                 )
             return results
         except Exception as e:
-            logger.error(f"Ошибка векторного поиска LanceDB: {e}")
-            return [{"error": str(e)}]
+            logger.error(f"Ошибка get_chunks_by_parent_id: {e}")
+            return []
 
     def _reciprocal_rank_fusion(
         self,
@@ -408,6 +468,7 @@ class Searcher:
         expand: bool = True,
         since: Optional[str] = None,
         before: Optional[str] = None,
+        layer: Optional[str] = None,
     ) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
@@ -417,6 +478,7 @@ class Searcher:
         Args:
             since: ISO datetime — только чанки проиндексированные после
             before: ISO datetime — только чанки проиндексированные до
+            layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
         """
         import asyncio
         try:
@@ -429,11 +491,15 @@ class Searcher:
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
-                    asyncio.run, self.hybrid_search_async(query, limit, use_rrf, expand, since, before)
+                    asyncio.run, self.hybrid_search_async(
+                        query, limit, use_rrf, expand, since, before, layer
+                    )
                 )
                 return future.result(timeout=30)
         else:
-            return asyncio.run(self.hybrid_search_async(query, limit, use_rrf, expand, since, before))
+            return asyncio.run(self.hybrid_search_async(
+                query, limit, use_rrf, expand, since, before, layer
+            ))
 
     async def hybrid_search_async(
         self,
@@ -443,8 +509,13 @@ class Searcher:
         expand: bool = True,
         since: Optional[str] = None,
         before: Optional[str] = None,
+        layer: Optional[str] = None,
     ) -> List[dict]:
         """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
+
+        Args:
+            layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...).
+                   Если указан — поиск идёт ТОЛЬКО в этом слое.
 
         Алгоритм:
         1. (Опционально) Расширяем запрос синонимами через query expansion
@@ -454,6 +525,9 @@ class Searcher:
         5. Опциональный мульти-провайдерный реранкинг
         6. Фильтрация по indexed_at (since/before)
         """
+        # Строим filter_expr для LanceDB (если указан layer)
+        filter_expr = f"layer = '{layer}'" if layer else ""
+
         # Query Expansion: генерируем варианты запроса
         if expand:
             query_variants = _expand_query(query, max_expansions=3)
@@ -465,11 +539,16 @@ class Searcher:
         all_dense_results = []
 
         for variant in query_variants:
-            # BM25 поиск (sparse)
+            # BM25 поиск (sparse) — пост-фильтрация по layer
             bm25_results = self._bm25_search(variant, limit=limit * 2)
+            if layer:
+                bm25_results = [
+                    r for r in bm25_results
+                    if r.get("metadata", {}).get("layer") == layer
+                ]
             all_bm25_results.extend(bm25_results)
 
-            # Векторный поиск (dense) — только для оригинального запроса
+            # Векторный поиск (dense) — с prefilter в LanceDB
             # (варианты синонимов дают те же эмбеддинги)
             if variant == query and not all_dense_results:
                 try:
@@ -481,7 +560,9 @@ class Searcher:
                     else:
                         query_vector = self.embedder.embed(variant)
                     if query_vector:
-                        dense_results = self.vector_search(query_vector, limit=limit * 2)
+                        dense_results = self.vector_search(
+                            query_vector, limit=limit * 2, filter_expr=filter_expr
+                        )
                         all_dense_results = [r for r in dense_results if "error" not in r]
                 except Exception as e:
                     logger.warning(f"Не удалось выполнить dense поиск: {e}")
@@ -525,6 +606,7 @@ class Searcher:
         limit: int = 5,
         since: Optional[str] = None,
         before: Optional[str] = None,
+        layer: Optional[str] = None,
     ) -> str:
         """Гибридный поиск для MCP-инструмента search_code.
 
@@ -533,9 +615,12 @@ class Searcher:
             limit: Максимум результатов
             since: ISO datetime — только чанки проиндексированные после
             before: ISO datetime — только чанки проиндексированные до
+            layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
         """
         try:
-            results = self.hybrid_search(query, limit=limit, since=since, before=before)
+            results = self.hybrid_search(
+                query, limit=limit, since=since, before=before, layer=layer
+            )
             if not results:
                 return "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
 
@@ -559,6 +644,7 @@ class Searcher:
         query: str,
         mode: str = "quality",
         limit: int = 5,
+        layer: Optional[str] = None,
     ) -> Dict:
         """Поиск с выбором режима (fast/quality/deep).
 
@@ -569,6 +655,7 @@ class Searcher:
                 - quality: ~1200ms, + reranker
                 - deep: ~2-5s, + graph analysis
             limit: Максимум результатов
+            layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
 
         Returns:
             {
@@ -599,6 +686,8 @@ class Searcher:
 
         results = []
 
+        filter_expr = f"layer = '{layer}'" if layer else ""
+
         if mode == self.MODE_FAST:
             # FAST: embed + vector only
             t1 = time.perf_counter()
@@ -607,13 +696,15 @@ class Searcher:
 
             if query_vector:
                 t1 = time.perf_counter()
-                results = self.vector_search(query_vector, limit=limit)
+                results = self.vector_search(
+                    query_vector, limit=limit, filter_expr=filter_expr
+                )
                 timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
         elif mode == self.MODE_DEEP:
             # DEEP: quality + graph context
             t1 = time.perf_counter()
-            results = self.hybrid_search(query, limit=limit)
+            results = self.hybrid_search(query, limit=limit, layer=layer)
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
             # Graph context expansion: добавляем связанные символы из графа вызовов
@@ -624,7 +715,7 @@ class Searcher:
         else:
             # QUALITY (default): hybrid with rerank
             t1 = time.perf_counter()
-            results = self.hybrid_search(query, limit=limit)
+            results = self.hybrid_search(query, limit=limit, layer=layer)
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
         timing["total_ms"] = (time.perf_counter() - t0) * 1000
