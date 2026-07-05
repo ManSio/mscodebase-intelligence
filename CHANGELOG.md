@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.2] — 2026-07-05 — ProjectContext — единая модель состояния проекта
+
+### 🏗 ProjectContext (new, src/core/project_context.py)
+- Единый объект-снэпшот проекта: state + index + bridge + health + memory + jobs.
+- Вместо 5 разных вызовов — один `await ctx.capture()`.
+- Все поля опциональны: если компонент недоступен → None, без падения.
+- `get_project_context` MCP tool — JSON со всей картиной проекта сразу.
+- Ничего не ломает — новый слой поверх существующей архитектуры.
+
+### 🔧 SystemArtifacts (src/core/system_artifacts.py)
+- Единый модуль для идентификации системных файлов (4 уровня защиты).
+- file_guard.py переведён на SystemArtifacts — все списки в одном месте.
+
+---
+
 ## [v2.4.1] — 2026-07-05 — Extended Passport + Feedback-Loop Guard + Two-Stage Ready
 
 ### 🆔 Passport Extended (BUILD_ID + Bridge/Registry/ProjectState)

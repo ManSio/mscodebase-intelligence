@@ -878,6 +878,26 @@ def _register_all_tools(mcp, services):
         }
         return json.dumps(passport, ensure_ascii=False, indent=2)
 
+    # ─── Project Context tool ────────────────────
+    # Единый снэпшот проекта: state + index + bridge + health + memory + jobs
+    @mcp.tool("get_project_context")
+    async def get_project_context(project_root: str = "") -> str:
+        """Единый снэпшот состояния проекта: state, index, bridge, health,
+        memory (incidents/ADRs) и фоновые задачи — одним вызовом.
+
+        Args:
+            project_root: путь к проекту (по умолчанию — текущий проект).
+
+        Returns:
+            JSON со всей известной информацией о проекте.
+        """
+        from src.core.project_context import ProjectContext
+        _default = _default_project_root or resolve_project_root()
+        target = Path(project_root).resolve() if project_root else _default
+        ctx = ProjectContext(target, services)
+        snap = await ctx.capture()
+        return json.dumps(snap.to_dict(), ensure_ascii=False, indent=2)
+
 
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
