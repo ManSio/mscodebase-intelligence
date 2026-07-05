@@ -1,6 +1,6 @@
-# FAQ — MSCodeBase Intelligence
+<img src="../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-<img src="../logo/logo.svg" width="64" height="64" alt="MSCodeBase">
+# FAQ — MSCodeBase Intelligence
 
 > 常见问题解答。基于实际开发和运维经验。
 

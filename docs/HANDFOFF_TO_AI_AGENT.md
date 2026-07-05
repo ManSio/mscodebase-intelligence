@@ -1,6 +1,6 @@
-# MSCodeBase Intelligence — Архитектура и опыт разработки
+<img src="../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-<img src="../logo/logo.svg" width="64" height="64" alt="MSCodeBase">
+# MSCodeBase Intelligence — Архитектура и опыт разработки
 
 > Документ для разработчиков, которые подключаются к проекту.
 > Описаны ключевые архитектурные решения, подводные камни Windows

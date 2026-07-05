@@ -1,6 +1,6 @@
-# Changelog
+<img src="logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-<img src="logo/logo.svg" width="64" height="64" alt="MSCodeBase">
+# Changelog
 
 All notable changes to this project will be documented in this file.
 

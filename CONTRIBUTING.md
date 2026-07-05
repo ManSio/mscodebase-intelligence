@@ -1,6 +1,6 @@
-# Contributing — MSCodeBase Intelligence
+<img src="logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-<img src="logo/logo.svg" width="64" height="64" alt="MSCodeBase">
+# Contributing — MSCodeBase Intelligence
 
 Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
 
