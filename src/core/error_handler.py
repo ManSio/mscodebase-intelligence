@@ -216,6 +216,16 @@ def record_tool_call(
         save_metrics()
 
 
+# Idle tick: планирует фоновые задачи если ресурсы простаивают
+# (Вне lock — не блокирует инструменты)
+try:
+    from src.core.task_queue import idle_tick
+
+    idle_tick()
+except Exception:
+    pass
+
+
 def record_tool_result(
     tool_name: str,
     route: Optional[str] = None,

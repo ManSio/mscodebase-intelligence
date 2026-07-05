@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("task_queue")
@@ -38,6 +39,7 @@ class TaskStatus(str, Enum):
 @dataclass
 class Task:
     """Фоновая задача."""
+
     id: str
     name: str
     func: Callable
@@ -246,3 +248,93 @@ _task_queue = TaskQueue(max_workers=2)
 def get_task_queue() -> TaskQueue:
     """Возвращает глобальный TaskQueue."""
     return _task_queue
+
+
+# ══════════════════════════════════════════════════════════
+# IdleScheduler — фоновые задачи в простое
+# ══════════════════════════════════════════════════════════
+
+_IDLE_SCHEDULER_ENABLED: bool = False
+_LAST_IDLE_TASK_AT: float = 0.0
+_IDLE_COOLDOWN_SEC: int = 120  # не чаще раза в 2 минуты
+
+
+def enable_idle_scheduler():
+    """Включает IdleScheduler (вызывается из server.py после инициализации)."""
+    global _IDLE_SCHEDULER_ENABLED
+    _IDLE_SCHEDULER_ENABLED = True
+
+
+def disable_idle_scheduler():
+    """Выключает IdleScheduler."""
+    global _IDLE_SCHEDULER_ENABLED
+    _IDLE_SCHEDULER_ENABLED = False
+
+
+def _cpu_available() -> bool:
+    """Проверяет, можно ли запустить фоновую задачу по ресурсам."""
+    try:
+        from src.core.resource_monitor import get_global_resource_monitor
+
+        mon = get_global_resource_monitor()
+        return not mon.is_under_pressure() if mon else True
+    except Exception:
+        return True
+
+
+def _improve_summaries_batch(batch_size: int = 2):
+    """Улучшает summaries для чанков без них (Preemptible)."""
+    import json
+    import random
+
+    # Заглушка — реальная логика подключится через DI
+    logger.debug(f"[Idle] improve_summaries batch={batch_size}")
+
+
+def _check_index_health():
+    """Проверка целостности индекса (preemptible)."""
+    logger.debug("[Idle] check_index_health")
+
+
+def idle_tick():
+    """Вызывается из record_tool_call() после каждого инструмента.
+
+    Планирует фоновые задачи в зависимости от времени простоя.
+    """
+    global _LAST_IDLE_TASK_AT
+
+    if not _IDLE_SCHEDULER_ENABLED:
+        return
+
+    # Не чаще раза в 2 минуты
+    if time.time() - _LAST_IDLE_TASK_AT < _IDLE_COOLDOWN_SEC:
+        return
+
+    # Проверяем ресурсы
+    if not _cpu_available():
+        return
+
+    queue = get_task_queue()
+    now = time.time()
+
+    # Берём idle_ms из _LAST_CALL_AT в error_handler
+    try:
+        from src.core.error_handler import _LAST_CALL_AT
+
+        idle_sec = now - _LAST_CALL_AT
+    except Exception:
+        idle_sec = 0
+
+    # Уровень 1: >5s простоя — быстрые задачи
+    if idle_sec > 5:
+        queue.submit_sync("check_index_health", _check_index_health)
+        _LAST_IDLE_TASK_AT = now
+
+    # Уровень 2: >30s простоя — улучшение summaries (маленькими батчами)
+    if idle_sec > 30:
+        queue.submit_sync("improve_summaries", _improve_summaries_batch, 2)
+
+    logger.info(
+        f"[Idle] Scheduled background tasks (idle={idle_sec:.0f}s, "
+        f"cpu={'ok' if _cpu_available() else 'busy'})"
+    )

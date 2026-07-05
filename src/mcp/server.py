@@ -558,7 +558,19 @@ def create_mcp_server() -> "FastMCP":
         logger.debug(f"setup_project_logging fallback: {e}")
     logger.info("🚀 MCP-сервер запущен (DI Container ready, multi-window)")
 
-    # ─── 2.5 Persistent telemetry ────────────────────
+    # ─── 2.5 Idle Scheduler (фоновые задачи в простое) ─
+    from src.core.task_queue import enable_idle_scheduler, get_task_queue
+
+    enable_idle_scheduler()
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(get_task_queue().start())
+    except Exception:
+        pass
+    logger.info("⏰ IdleScheduler включён (фоновые задачи в простое)")
+
+    # ─── 2.6 Persistent telemetry ────────────────────
     from src.core.error_handler import set_metrics_path
 
     metrics_path = _ext_root / "telemetry" / "tool_metrics.json"
