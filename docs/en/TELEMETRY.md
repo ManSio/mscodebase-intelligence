@@ -6,6 +6,30 @@ Automatic metrics collection for building graphs and performance analysis.
 
 ## How It Works
 
+Two independent telemetry systems collect metrics:
+
+### 1. Per-Tool Metrics (in-process, auto-persisted)
+
+Every call to any MCP tool is automatically recorded by `error_boundary` decorator.
+Metrics are kept in memory and saved to JSON every 10 calls + on shutdown:
+
+```
+{ext_root}/telemetry/tool_metrics.json
+```
+
+**Example table** (visible via `intel_get_telemetry`):
+
+| Tool | Calls | Errors | Min ms | Avg ms | Max ms | Last call |
+|------|-------|--------|--------|--------|--------|-----------|
+| search_code | 31 | 0 | 1676 | 2525 | 14264 | 23:04:41 |
+| structural_search | 20 | 0 | 35 | 2179 | 4479 | 23:07:44 |
+| impact_analysis | 4 | 0 | 1343 | 1353 | 1370 | 23:03:49 |
+| get_symbol_info | 3 | 0 | 1332 | 1338 | 1348 | 23:00:55 |
+
+Metrics persist across MCP server restarts — `load_metrics()` reads saved JSON on startup.
+
+### 2. External Collector (scheduled snapshots)
+
 The script `scripts/collect_telemetry.py` captures a snapshot of all runtime counters
 and saves it to a JSON file with the date. Files accumulate in the directory:
 
