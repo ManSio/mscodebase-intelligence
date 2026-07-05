@@ -238,13 +238,10 @@ def patch_zed_settings(
         "PYTHONPATH": str(ext_dir),
         "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
     }
-    # Dev-mode override: разрешает индексировать ext_root / Zed install
-    # если пользователь открыл исходники расширения как проект.
-    # В production (установленная копия) НЕ ставим — иначе self-indexing
-    # guard не сработает, и при пустом bridge проект уйдёт в ext_root.
-    # Dev: установи MSCODEBASE_ALLOW_SELF_INDEX=1 вручную в env.
-    if Path(__file__).resolve().parent.parent.parent.joinpath(".git").exists():
-        env["MSCODEBASE_ALLOW_SELF_INDEX"] = "1"
+    # MSCODEBASE_ALLOW_SELF_INDEX НЕ СТАВИМ в production.
+    # Он отключает self-indexing guard и при пустом bridge проект
+    # уходит в ext_root с тихой самоиндексацией.
+    # Dev: установи MSCODEBASE_ALLOW_SELF_INDEX=1 вручную в settings.json.
     entry["env"] = env
 
     settings["context_servers"][SERVER_NAME] = entry
