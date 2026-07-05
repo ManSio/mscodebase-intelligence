@@ -59,5 +59,12 @@
   "🔍 Similar code not found.": "🔍 Similar code not found.",
   "🔥 **Top Risks**\\n\\n": "🔥 **Top Risks**\\n\\n",
   "🧠 **Embedder:** {embedder}\\n": "🧠 **Embedder:** {embedder}\\n",
-  "🧠 **Project Memory**\\n\\n": "🧠 **Project Memory**\\n\\n"
+  "🧠 **Project Memory**\\n\\n": "🧠 **Project Memory**\\n\\n",
+  "📊 Состояние": "📊 State",
+  "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n": "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n",
+  "🚫 Блокировки": "🚫 Blocks",
+  "⚠️ Предупреждения": "⚠️ Warnings",
+  "• No warnings\n": "• No warnings\n",
+  "⏱ Производительность": "⏱ Performance",
+  "• **Wait:** {time:.1f}s\n": "• **Wait:** {time:.1f}s\n"
 }

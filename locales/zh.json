@@ -59,5 +59,12 @@
   "🔍 Similar code not found.": "🔍 未找到相似代码。",
   "🔥 **Top Risks**\\n\\n": "🔥 **主要风险**\\n\\n",
   "🧠 **Embedder:** {embedder}\\n": "🧠 **嵌入器:** {embedder}\\n",
-  "🧠 **Project Memory**\\n\\n": "🧠 **项目记忆**\\n\\n"
+  "🧠 **Project Memory**\\n\\n": "🧠 **项目记忆**\\n\\n",
+  "📊 Состояние": "📊 状态",
+  "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n": "• **检查:** {calls} | **就绪:** {ready} | **阻塞:** {blocked}%\n",
+  "🚫 Блокировки": "🚫 阻塞",
+  "⚠️ Предупреждения": "⚠️ 警告",
+  "• No warnings\n": "• 无警告\n",
+  "⏱ Производительность": "⏱ 性能",
+  "• **Wait:** {time:.1f}s\n": "• **等待:** {time:.1f}秒\n"
 }

@@ -1354,23 +1354,29 @@ def _register_all_tools(mcp, services):
         Если blocked > 5% от calls — архитектура требует внимания.
         """
         from src.core.runtime_coordinator import get_counters
+        from src.utils.i18n import _
         from src.utils.ui_formatter import header, section
 
         counters = get_counters()
         result = header("Runtime Counters", "ok")
-        result += section("📊 Состояние")
+        result += section(_("📊 Состояние"))
         calls = counters.get("can_execute_calls", 0)
         ready = counters.get("verdict_ready", 0)
         blocked_pct = round((1 - ready / max(calls, 1)) * 100, 1)
-        result += f"• **Проверок:** {calls} | **Готов:** {ready} | **Блокировано:** {blocked_pct}%\n"
+        result += _(
+            "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n",
+            calls=calls,
+            ready=ready,
+            blocked=blocked_pct,
+        )
 
-        result += section("🚫 Блокировки")
+        result += section(_("🚫 Блокировки"))
         for k, v in counters.items():
             if k.startswith("verdict_blocked_") and v:
                 reason = k.replace("verdict_blocked_", "").replace("_", " ")
                 result += f"• {reason}: {v}\n"
 
-        result += section("⚠️ Предупреждения")
+        result += section(_("⚠️ Предупреждения"))
         has_warnings = False
         for k, v in counters.items():
             if k.startswith("warnings_") and v:
@@ -1378,10 +1384,12 @@ def _register_all_tools(mcp, services):
                 result += f"• {w}: {v}\n"
                 has_warnings = True
         if not has_warnings:
-            result += "• Нет предупреждений\n"
+            result += _("• No warnings\n")
 
-        result += section("⏱ Производительность")
-        result += f"• **Ожидание:** {counters.get('total_wait_time_sec', 0):.1f}с\n"
+        result += section(_("⏱ Производительность"))
+        result += _(
+            "• **Wait:** {time:.1f}s\n", time=counters.get("total_wait_time_sec", 0)
+        )
         return result
 
     # --- Telemetry History ---
