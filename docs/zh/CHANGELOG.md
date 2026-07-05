@@ -1,8 +1,22 @@
 <img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
+[🇬🇧 English](../en/CHANGELOG.md) • [🇷🇺 Русский](../ru/CHANGELOG.md) • [🇨🇳 中文](CHANGELOG.md)
+
 # 更新日志
 
 本文件中记录了所有重要的项目变更。
+
+## [v2.4.7] — 2026-07-05 — LM Studio 连接池 + 预热
+
+### ⚡ 性能
+- **`src/core/remote_embedder.py`**: 添加 `httpx.AsyncClient` 与 **连接池**
+  （5 个保持活动连接，60 秒过期）— 消除每个嵌入请求的 TCP/TLS 开销。
+- **`src/core/remote_embedder.py`**: 新方法 `embed_batch_async()` — 通过
+  单一 HTTP 客户端进行异步嵌入。`searcher.py` 自动检测并使用它。
+- **`src/mcp/server.py`**: `_warmup_embedder()` 在服务器启动时预热 bge-m3
+  模型，消除首次 search_code 的 ~3s 冷启动延迟。
+
+---
 
 ## [v2.4.6] — 2026-07-05 — UI 格式化器 + 死锁修复 + 日志集中化
 

@@ -6,6 +6,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.7] — 2026-07-05 — LM Studio Connection Pool + Warm-up
+
+### ⚡ Performance
+- **`src/core/remote_embedder.py`**: Добавлен `httpx.AsyncClient` с **connection pool**
+  (5 keepalive-соединений, 60s expiry) — убирает TCP/TLS overhead на каждый embed-запрос.
+- **`src/core/remote_embedder.py`**: Новый метод `embed_batch_async()` — async embed через
+  единый HTTP-клиент. `searcher.py` автоматически подхватывает его.
+- **`src/mcp/server.py`**: `_warmup_embedder()` при старте сервера — прогревает bge-m3
+  тестовым запросом, убивая cold start ~3s у первого search_code.
+
+---
+
 ## [v2.4.6] — 2026-07-05 — UI Formatter + Deadlock Fix + Log Centralization
 
 ### 🐛 Deadlock Fix
