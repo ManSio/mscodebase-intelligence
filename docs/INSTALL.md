@@ -208,3 +208,53 @@ uninstall.bat
 ## 📄 Лицензия
 
 MIT — делайте что хотите, но без гарантий.
+
+---
+
+## Частые проблемы (FAQ)
+
+### MCP server not responding / Context server request timeout
+**Cause:** MCP process failed to start or hung.
+**Fix:**
+1. Check python.exe exists: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligenceenv\Scripts\python.exe`
+2. Kill python.exe processes - Zed will restart MCP automatically
+3. Check logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+
+### Self-indexing blocked: target path is not a user project
+**Cause:** MCP resolved project root to extension dir or Zed install dir.
+**Fix:**
+1. Open your project explicitly: Cmd+Shift+P -> Open Project -> select folder
+2. Or set PROJECT_PATH in settings.json: `"PROJECT_PATH": "$ZED_WORKTREE_ROOT"`
+3. Running install.py fixes this automatically
+
+### Index is empty (0 chunks)
+**Cause:** Index has not been built yet.
+**Fix:**
+1. Call `intel_trigger_reindex()` in chat - indexing starts in background
+2. Check status: `intel_get_job_status(job_id=...)`
+3. Full indexing takes 3-10 minutes depending on project size
+
+### LM Studio not detected
+**Cause:** Extension is running in fallback mode (local ONNX embedder).
+**Fix:** This is normal. Vector search works slower but fully offline.
+For speed: install LM Studio, run on port 1234.
+
+### notify_change does not update index
+**Cause:** Index needs to be built first.
+**Fix:**
+1. notify_change is incremental - works after initial index exists
+2. If index is empty, call `intel_trigger_reindex()` first
+3. Check: `get_index_status()` - total_chunks should grow
+
+### Console encoding issues (Windows)
+**Cause:** Windows console uses CP866, Python uses UTF-8.
+**Fix:**
+```
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
+python install.py
+```
+
+### ModuleNotFoundError: No module named src.*
+**Cause:** PYTHONPATH does not point to extension root.
+**Fix:** Run install.py again - it sets PYTHONPATH automatically.
