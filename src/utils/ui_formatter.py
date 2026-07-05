@@ -4,7 +4,7 @@ MSCodeBase Intelligence — Продуктовый UI-форматтер для 
 Все инструменты должны проходить через этот модуль для единого стиля вывода:
   - Markdown-таблицы вместо сырого JSON
   - Цветовая кодировка (✅ 🟡 🔴 ℹ️)
-  - Технические данные под <details>-спойлер
+  - Технические данные под спойлером
   - Единый заголовок с именем инструмента и временем выполнения
 """
 
@@ -109,23 +109,10 @@ def key_value(items: List[tuple], title: Optional[str] = None) -> str:
 
 
 def code_block(data: Any, language: str = "json") -> str:
-    """Спойлер с техническими данными.
-
-    Args:
-        data: Данные (будут сериализованы в JSON)
-        language: Язык для подсветки синтаксиса
-
-    Returns:
-        Markdown-спойлер + code block
-    """
+    """JSON code block для отладки (устаревшее — сохранено для совместимости)."""
     if not isinstance(data, str):
         data = json.dumps(data, indent=2, ensure_ascii=False)
-    return (
-        "<details>\n"
-        "<summary>🔍 Развернуть сырые данные для отладки</summary>\n\n"
-        f"```{language}\n{data}\n```\n\n"
-        "</details>\n"
-    )
+    return ""  # Больше не добавляем сырые данные в вывод
 
 
 def empty_result(tool_name: str, reason: str = "Нет данных") -> str:
@@ -178,7 +165,9 @@ def format_repo_rank(
         file = _val(item.get("file"), "—")
         result += f"| {i} | **{symbol}** | `{score:.4f}` | `{kind}` | `{file}` |\n"
 
-    result += "\n" + code_block(raw)
+    result += """
+
+"""
     return result
 
 
@@ -205,7 +194,6 @@ def format_search_code(
     if len(results) > 10:
         result += f"\n*...и ещё {len(results) - 10} результатов*\n"
 
-    result += "\n" + code_block(results)
     return result
 
 
@@ -236,12 +224,11 @@ def format_health_report(health: Dict[str, Any], execution_time_ms: int) -> str:
 
     warnings = health.get("warnings", [])
     if warnings:
-        result += "**Предупреждения:**\n"
+        result += "**Предупреждения:**"
         for w in warnings:
-            result += f"- 🟡 {w}\n"
+            result += f"\n- 🟡 {w}"
         result += "\n"
 
-    result += code_block(health)
     return result
 
 
@@ -286,7 +273,6 @@ def format_telemetry(
     if per_tool and len(per_tool) > 15:
         result += f"*...и ещё {len(per_tool) - 15} инструментов*\n\n"
 
-    result += code_block(counters)
     return result
 
 

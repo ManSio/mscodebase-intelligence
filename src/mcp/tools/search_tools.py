@@ -124,13 +124,13 @@ class SearchCodeTool(MCPTool):
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
-            return self._format_results(
-                self.resolve_searcher().search_with_mode(
-                    query, mode=mode, limit=limit, layer=filter_layer
-                ),
-                mode,
-                project_header=project_header,
+            raw = self.resolve_searcher().search_with_mode(
+                query, mode=mode, limit=limit, layer=filter_layer
             )
+            # search_with_mode может вернуть строку (ошибка embedder)
+            if isinstance(raw, str):
+                return project_header + "\n" + raw
+            return self._format_results(raw, mode, project_header=project_header)
 
         if mode == "deep":
             return (

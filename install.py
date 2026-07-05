@@ -106,17 +106,27 @@ def banner(text: str, color: str = Color.CYAN) -> None:
     lines = text.split("\n")
     try:
         chr(0x2550).encode(sys.stdout.encoding or "utf-8")
-        hl = chr(0x2550); tl = chr(0x2554); tr = chr(0x2557)
-        bl = chr(0x255A); br = chr(0x255D); side = chr(0x2551)
+        hl = chr(0x2550)
+        tl = chr(0x2554)
+        tr = chr(0x2557)
+        bl = chr(0x255A)
+        br = chr(0x255D)
+        side = chr(0x2551)
     except (UnicodeEncodeError, AttributeError):
-        hl = "="; tl = "+="; tr = "=+"
-        bl = "+="; br = "=+"; side = "|"
+        hl = "="
+        tl = "+="
+        tr = "=+"
+        bl = "+="
+        br = "=+"
+        side = "|"
     top = f"  {tl}{hl * inner}{tr}"
     bot = f"  {bl}{hl * inner}{br}"
     print(f"\n{color}{top}{Color.RESET}")
     for line in lines:
         padded = line.center(inner)
-        print(f"{color}  {side}{Color.BOLD}{padded}{Color.RESET}{color}{side}{Color.RESET}")
+        print(
+            f"{color}  {side}{Color.BOLD}{padded}{Color.RESET}{color}{side}{Color.RESET}"
+        )
     print(f"{color}{bot}{Color.RESET}")
 
 
@@ -547,14 +557,6 @@ def _build_uninstall_bat(python_exe: str, zed_ext_dir: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def generate_semaphore_config() -> dict:
-    return {
-        "max_concurrent_llm_requests": MAX_CONCURRENT_LLM_REQUESTS,
-        "lm_studio_host": LM_STUDIO_HOST,
-        "lm_studio_port": LM_STUDIO_PORT,
-    }
-
-
 # ──────────────────────────────────────────────────────────────
 # Главная функция
 # ──────────────────────────────────────────────────────────────
@@ -777,42 +779,6 @@ def main():
         fail("Не удалось настроить Zed (MCP + LSP)")
         return
 
-    # —— ДОБАВЛЯЕМ MSCODEBASE КОНФИГ (отдельно, т.к. не входит в patch_zed_settings) ——
-    settings_json_path = zed_config_dir / "settings.json"
-    if settings_json_path.exists():
-        try:
-            content = settings_json_path.read_text(encoding="utf-8")
-            import re
-
-            content_clean = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
-            settings_data = json.loads(content_clean)
-        except Exception:
-            settings_data = {}
-
-        sem_config = generate_semaphore_config()
-        if "mscodebase" not in settings_data:
-            settings_data["mscodebase"] = {}
-        if "semaphore" not in settings_data["mscodebase"]:
-            settings_data["mscodebase"]["semaphore"] = sem_config
-        if "fallback_mode" not in settings_data["mscodebase"]:
-            settings_data["mscodebase"]["fallback_mode"] = fallback_mode
-
-        try:
-            settings_json_path.write_text(
-                json.dumps(settings_data, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-            detail(f"Семафор LLM: max_concurrent={MAX_CONCURRENT_LLM_REQUESTS}")
-        except Exception as e:
-            warn(f"Не удалось сохранить mscodebase-конфиг: {e}")
-
-    if fallback_mode:
-        detail("Режим: Fallback (Tree-sitter + текстовые индексы)")
-    else:
-        detail(
-            f"Режим: {Color.GREEN}Полный{Color.RESET} (векторный + структурный + текстовый)"
-        )
-
     # ══════════════════════════════════════════════════════════
     # Шаг 6: Установка скиллов и AGENTS.md
     # ══════════════════════════════════════════════════════════
@@ -868,7 +834,6 @@ def main():
                     ok("AGENTS.md обновлён из проекта")
         except Exception as e:
             warn(f"Ошибка проверки AGENTS.md: {e}")
-
 
     # ══════════════════════════════════════════════════════════
     # Шаг ?: Удаление мёртвого кода (stale debug скрипты)

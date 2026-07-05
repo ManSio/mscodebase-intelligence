@@ -9,7 +9,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-307%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-37-total) • [Installation](docs/INSTALL.md) • [Architecture](docs/architecture.md) • [Development](CONTRIBUTING.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/INSTALL.md) • [Architecture](docs/architecture.md) • [Development](CONTRIBUTING.md)
 
 *Last updated: 2026-07-05*
 
@@ -63,6 +63,25 @@ python install.py
 > одновременно. Каждое окно получает изолированный Indexer через
 > `ProjectIndexerRegistry` (LRU 5 + ResourceMonitor throttle). См.
 > [docs/architecture.md](docs/architecture.md).
+
+---
+
+## 📚 Documentation Map
+
+| Документ | О чём | Для кого |
+|----------|-------|----------|
+| **[docs/INSTALL.md](docs/INSTALL.md)** | Установка, настройка, удаление | Пользователи |
+| **[docs/architecture.md](docs/architecture.md)** | Clean Architecture, слои, DI Container | Разработчики |
+| **[docs/architecture-layers.md](docs/architecture-layers.md)** | 10 слоёв архитектуры (Filesystem → AI Agent) | Архитекторы |
+| **[docs/telemetry.md](docs/telemetry.md)** | Метрики, ETA, сбор данных | DevOps |
+| **[docs/investigations/2026-07-05-lsp-zed-1.9.0.md](docs/investigations/2026-07-05-lsp-zed-1.9.0.md)** | Расследование: LSP на Windows (WONTFIX) | Поддержка |
+| **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)** | Windows-специфика, Restricted Mode, CWD | Все на Windows |
+| **[CHANGELOG.md](CHANGELOG.md)** | История версий | Все |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Как разрабатывать, тестировать, PR | Контрибьюторы |
+| **[AGENTS.md](AGENTS.md)** | Системные правила для AI-агента (контекст) | AI Agent |
+| **[SECURITY.md](SECURITY.md)** | Политика безопасности, уязвимости | Безопасность |
+
+Все документы связаны между собой перекрёстными ссылками. Если заметили расхождение — создайте issue.
 
 ---
 

@@ -254,8 +254,6 @@ def patch_zed_settings(
     if SERVER_NAME not in settings["context_servers_to_query"]:
         settings["context_servers_to_query"].append(SERVER_NAME)
 
-
-
     # ──────────────────────────────────────────────────
     # Инжект системных правил для AI-ассистента Zed
     # ──────────────────────────────────────────────────
@@ -277,10 +275,22 @@ def patch_zed_settings(
         settings["agent"] = {}
 
     current_prompt = settings["agent"].get("system_prompt", "")
-    if custom_instructions not in current_prompt:
+    # Считаем сколько раз встречается маркер "MSCodeBase Core Rules"
+    # Если >1 — prompt раздуло копиями (из-за mojibake exact match не спасал).
+    # Заменяем целиком. Если 1 — всё чисто, не трогаем.
+    marker_count = current_prompt.count("MSCodeBase Core Rules")
+    if marker_count == 0:
+        # Нет наших правил вообще — добавляем
         settings["agent"]["system_prompt"] = (
-            f"{custom_instructions}\n{current_prompt}"
-        ).strip()
+            f"{custom_instructions}\n{current_prompt}".strip()
+        )
+    elif marker_count > 1:
+        # Дубликаты — заменяем целиком
+        logger.warning(
+            f"🧹 system_prompt: найдено {marker_count} копий правил. Очищаем."
+        )
+        settings["agent"]["system_prompt"] = custom_instructions
+    # else marker_count == 1 — всё ок, не трогаем
 
     # Автоматически разрешаем ВСЕ инструменты MCP (чтобы не перечислять 42 штуки вручную)
     if "tool_permissions" not in settings["agent"]:
@@ -288,7 +298,9 @@ def patch_zed_settings(
     settings["agent"]["tool_permissions"]["default"] = "allow"
     # Если есть старый список tools — удаляем (он избыточен при default=allow)
     if "tools" in settings["agent"]["tool_permissions"]:
-        logger.info("🧹 Удаляю старый список tool_permissions.tools (избыточен при default=allow)")
+        logger.info(
+            "🧹 Удаляю старый список tool_permissions.tools (избыточен при default=allow)"
+        )
         del settings["agent"]["tool_permissions"]["tools"]
 
     # Записываем обратно (с сохранением всех существующих настроек)

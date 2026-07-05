@@ -27,13 +27,23 @@ logger = logging.getLogger("mscodebase_server")
 # ══════════════════════════════════════════════════════════
 
 import uuid as _uuid
+
+from src.core.passport import (
+    BUILD_ID as _BUILD_ID,
+)
 from src.core.passport import (
     RUN_ID as _RUN_ID,
-    BUILD_ID as _BUILD_ID,
+)
+from src.core.passport import (
     RUN_PID as _RUN_PID,
-    RUN_STARTED_AT as _RUN_STARTED_AT,
+)
+from src.core.passport import (
     RUN_SOURCE_FILE as _RUN_SOURCE_FILE,
 )
+from src.core.passport import (
+    RUN_STARTED_AT as _RUN_STARTED_AT,
+)
+
 # (passport vars imported from src.core.passport above)
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
 
@@ -62,10 +72,12 @@ def _log_run_passport() -> None:
     и подтвердить, что Zed подхватил обновлённый код.
     """
     import getpass
+
     _bridge_state = "<unavailable>"
     _registry_state = "<unavailable>"
     try:
         from src.core.lsp_project_bridge import read_project_from_bridge
+
         _bp = read_project_from_bridge(max_wait=0.1)
         _bridge_state = str(_bp) if _bp else "<empty — LSP not synced>"
     except Exception:
@@ -73,6 +85,7 @@ def _log_run_passport() -> None:
     try:
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
         from src.mcp.server import _services_cache
+
         if _services_cache is not None:
             _reg = _services_cache.resolve(PIRKey)
             _paths = _reg.get_all_paths()
@@ -104,6 +117,7 @@ def _log_run_passport() -> None:
     for ln in lines:
         logger.info(ln)
 
+
 # ══════════════════════════════════════════════════════════
 # Progress Tracking — для визуализации хода индексации
 # ══════════════════════════════════════════════════════════
@@ -118,6 +132,7 @@ def _create_progress_callback(project_name: str):
     Возвращает callable который обновляет внутренний счётчик прогресса
     и логирует каждые 10 файлов. Потокобезопасен через _progress_lock.
     """
+
     def progress_callback(file_name: str, done: int, total: int, phase: str):
         try:
             now = time.time()
@@ -141,7 +156,11 @@ def _create_progress_callback(project_name: str):
             with _progress_lock:
                 _last_progress[project_name] = progress_info
 
-            if done % 10 == 0 or phase in ("complete", "rebuilding_bm25", "error_security"):
+            if done % 10 == 0 or phase in (
+                "complete",
+                "rebuilding_bm25",
+                "error_security",
+            ):
                 logger.info(
                     f"📊 Progress [{project_name}]: "
                     f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
@@ -161,11 +180,21 @@ def _cleanup_old_progress():
     for k in expired:
         del _last_progress[k]
 
+
 # ══════════════════════════════════════════════════════════
 # Резолвер корня проекта (стабильная логика, не в DI)
 # ══════════════════════════════════════════════════════════
 
-_ext_root = Path(__file__).resolve().parent.parent.parent
+_ext_root: Path
+# ext_root определяется из PYTHONPATH (надёжнее, чем __file__,
+# т.к. PYTHONPATH всегда указывает на установленное расширение,
+# а __file__ может указывать на исходники при dev-запуске).
+_pythonpath = os.environ.get("PYTHONPATH", "")
+if _pythonpath:
+    _ext_root = Path(_pythonpath.split(";")[0]).resolve()
+else:
+    _ext_root = Path(__file__).resolve().parent.parent.parent
+
 # Lazy-кэш для env-резолва. ВАЖНО: PROJECT_PATH резолвится на каждый
 # вызов resolve_project_root() (см. INC-53EC / REFC-02) — иначе при
 # переключении workspace в Zed без рестарта MCP используется stale-путь.
@@ -201,6 +230,7 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
         return True
     try:
         from src.core.lsp_project_bridge import is_zed_install_dir
+
         if is_zed_install_dir(p):
             logger.warning(
                 f"{source} указывает на директорию установки Zed ({p}). "
@@ -231,7 +261,9 @@ def _resolve_env_project_root() -> Optional[Path]:
             zed_root = os.environ.get("ZED_WORKTREE_ROOT")
             if zed_root:
                 p = Path(zed_root).resolve()
-                if p.exists() and not _reject_self_index_target(p, source="ZED_WORKTREE_ROOT"):
+                if p.exists() and not _reject_self_index_target(
+                    p, source="ZED_WORKTREE_ROOT"
+                ):
                     _env_project_root_cache = p
                     return _env_project_root_cache
             return None
@@ -280,6 +312,7 @@ def resolve_project_root(provided: str = "") -> Path:
     # LSP→MCP bridge (Windows compat)
     try:
         from src.core.lsp_project_bridge import read_project_from_bridge
+
         bridge_path = read_project_from_bridge()
         if bridge_path is not None:
             logger.debug(f"resolve_project_root: bridge={bridge_path}")
@@ -291,13 +324,22 @@ def resolve_project_root(provided: str = "") -> Path:
     # Multi-window: читаем ВСЕ воркспейсы, фильтруем self-indexing,
     # выбираем самый свежий с .git (реальный проект).
     try:
-        _zed_db_path = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "db" / "0-stable" / "db.sqlite"
+        _zed_db_path = (
+            Path(os.environ.get("LOCALAPPDATA", ""))
+            / "Zed"
+            / "db"
+            / "0-stable"
+            / "db.sqlite"
+        )
         if _zed_db_path.exists():
             import sqlite3
+
             _conn = sqlite3.connect(str(_zed_db_path), timeout=2.0)
             _cur = _conn.cursor()
             # Читаем ВСЕ workspace paths, сортируем по свежести
-            _cur.execute("SELECT paths, timestamp FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC")
+            _cur.execute(
+                "SELECT paths, timestamp FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC"
+            )
             _all_rows = _cur.fetchall()
             _conn.close()
             _candidates = []
@@ -318,7 +360,9 @@ def resolve_project_root(provided: str = "") -> Path:
                 # Сортируем: score(выше) → timestamp(новее)
                 _candidates.sort(key=lambda x: (x[0], x[1] or ""), reverse=True)
                 _best = _candidates[0][2]
-                logger.debug(f"resolve_project_root: Zed DB ({len(_candidates)} candidates) → {_best}")
+                logger.debug(
+                    f"resolve_project_root: Zed DB ({len(_candidates)} candidates) → {_best}"
+                )
                 return _best.resolve()
     except Exception as _zed_err:
         logger.debug(f"resolve_project_root: Zed DB fallback error: {_zed_err}")
@@ -331,7 +375,9 @@ def resolve_project_root(provided: str = "") -> Path:
     zed_root = os.environ.get("ZED_WORKTREE_ROOT")
     if zed_root:
         zed_path = Path(zed_root).resolve()
-        if zed_path.exists() and not _reject_self_index_target(zed_path, source="ZED_WORKTREE_ROOT"):
+        if zed_path.exists() and not _reject_self_index_target(
+            zed_path, source="ZED_WORKTREE_ROOT"
+        ):
             logger.debug(f"resolve_project_root: ZED_WORKTREE_ROOT={zed_path}")
             return zed_path
 
@@ -353,6 +399,7 @@ def _log_project_resolution_failure() -> None:
     """Логирует детальную причину падения resolve_project_root в ext_root."""
     try:
         from src.core.lsp_project_bridge import get_bridge_dir
+
         bridge_dir = get_bridge_dir()
         if not bridge_dir.exists():
             logger.warning("🌉 BRIDGE: директория не существует")
@@ -382,6 +429,7 @@ _services_cache: Optional[Any] = None  # для debug_runtime_passport
 # Создание MCP-сервера
 # ══════════════════════════════════════════════════════════
 
+
 def create_mcp_server() -> "FastMCP":
     """Создаёт и настраивает MCP-сервер с DI-контейнером.
 
@@ -407,6 +455,7 @@ def create_mcp_server() -> "FastMCP":
     # bridge никогда не сработает и проект уйдёт в self-indexing.
     try:
         import py_compile
+
         _lsp_path = Path(__file__).resolve().parent.parent / "lsp_main.py"
         if _lsp_path.exists():
             py_compile.compile(str(_lsp_path), doraise=True)
@@ -442,6 +491,7 @@ def create_mcp_server() -> "FastMCP":
 
     # ─── 2. DI Container (multi-project) ─────────────
     from src.core.di_container import create_service_collection
+
     services = create_service_collection(project_root)
     global _services_cache
     _services_cache = services
@@ -450,6 +500,7 @@ def create_mcp_server() -> "FastMCP":
     # Per-project логи живут в <project>/.codebase_indices/logs/ через
     # Indexer.notification_broker.
     from src.core.log_manager import setup_project_logging
+
     try:
         setup_project_logging(_ext_root, project_label="mcp_global")
     except Exception as e:
@@ -486,10 +537,9 @@ def create_mcp_server() -> "FastMCP":
     # — пользователь должен вызвать index_project_dir().
     # см. INC-6BCB / multi-window race.
     try:
-        from src.core.lsp_project_bridge import (
-            read_project_from_bridge, get_bridge_dir
-        )
         import threading
+
+        from src.core.lsp_project_bridge import get_bridge_dir, read_project_from_bridge
 
         def _delayed_bridge_recheck():
             try:
@@ -513,26 +563,36 @@ def create_mcp_server() -> "FastMCP":
             """Диагностика: почему bridge не работает."""
             bridge_dir = get_bridge_dir()
             if not bridge_dir.exists():
-                logger.warning(
-                    "🌉 BRIDGE: директория ~/.mscodebase/bridge/ не создана"
-                )
+                logger.warning("🌉 BRIDGE: директория ~/.mscodebase/bridge/ не создана")
                 return
             files = list(bridge_dir.glob("*.json"))
             if not files:
                 # Проверка: может Restricted Mode?
                 _restricted = False
                 try:
-                    _db_p = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "db" / "0-stable" / "db.sqlite"
+                    _db_p = (
+                        Path(os.environ.get("LOCALAPPDATA", ""))
+                        / "Zed"
+                        / "db"
+                        / "0-stable"
+                        / "db.sqlite"
+                    )
                     if _db_p.exists():
                         import sqlite3
+
                         _c = sqlite3.connect(str(_db_p))
                         _c.row_factory = sqlite3.Row
                         _cur = _c.cursor()
-                        _cur.execute("SELECT paths FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC LIMIT 1")
+                        _cur.execute(
+                            "SELECT paths FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
+                        )
                         _w = _cur.fetchone()
                         if _w and _w[0]:
                             _proj = _w[0].split(",")[0].strip()
-                            _cur.execute("SELECT COUNT(*) as cnt FROM trusted_worktrees WHERE ? LIKE absolute_path || '%'", (_proj,))
+                            _cur.execute(
+                                "SELECT COUNT(*) as cnt FROM trusted_worktrees WHERE ? LIKE absolute_path || '%'",
+                                (_proj,),
+                            )
                             if _cur.fetchone()["cnt"] == 0:
                                 _restricted = True
                         _c.close()
@@ -583,6 +643,7 @@ def _register_notification_broker(mcp, services):
     """
     try:
         from mcp.types import InitializedNotification
+
         from src.core.notification_broker import NotificationBroker
 
         broker = services.resolve(NotificationBroker)
@@ -590,6 +651,7 @@ def _register_notification_broker(mcp, services):
 
         # Также устанавливаем брокер для error_boundary
         from src.core.error_handler import set_notification_broker as _set_err_broker
+
         _set_err_broker(broker)
 
         async def _on_initialized(notification: InitializedNotification):
@@ -631,14 +693,17 @@ def _register_extension_handlers(mcp, services):
     """
     try:
         server = mcp._mcp_server
-        from src.mcp.tools.base import resolve_indexer_for_request
         from src.mcp.server import resolve_project_root as _rpr
+        from src.mcp.tools.base import resolve_indexer_for_request
 
         # Multi-window: default project_root для дашборда (per-call tools
         # резолвят свой).
         default_project_root = _rpr()
 
-        if not (hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict)):
+        if not (
+            hasattr(server, "request_handlers")
+            and isinstance(server.request_handlers, dict)
+        ):
             return
 
         # ─── msccodebase/get_dashboard ─────────────────────
@@ -651,9 +716,14 @@ def _register_extension_handlers(mcp, services):
             try:
                 # Multi-window: резолвим per-project indexer (если передан
                 # params.project_root) или default.
-                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                requested_root = (
+                    (params or {}).get("project_root", "")
+                    if isinstance(params, dict)
+                    else ""
+                )
                 idx = resolve_indexer_for_request(
-                    services, explicit_project_root=requested_root or None,
+                    services,
+                    explicit_project_root=requested_root or None,
                 )
                 stats = idx.get_status()
                 chunks = stats.get("total_chunks", 0)
@@ -691,10 +761,16 @@ def _register_extension_handlers(mcp, services):
             Multi-window: params.project_root задаёт какой проект переиндексировать.
             """
             import asyncio
+
             try:
-                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                requested_root = (
+                    (params or {}).get("project_root", "")
+                    if isinstance(params, dict)
+                    else ""
+                )
                 idx = resolve_indexer_for_request(
-                    services, explicit_project_root=requested_root or None,
+                    services,
+                    explicit_project_root=requested_root or None,
                 )
                 target = idx.project_path
                 indexed = await asyncio.to_thread(idx.index_project, target)
@@ -708,9 +784,14 @@ def _register_extension_handlers(mcp, services):
         async def _handle_clear_memory(params) -> str:
             """Очистка кэша памяти проекта (multi-window)."""
             try:
-                requested_root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
+                requested_root = (
+                    (params or {}).get("project_root", "")
+                    if isinstance(params, dict)
+                    else ""
+                )
                 idx = resolve_indexer_for_request(
-                    services, explicit_project_root=requested_root or None,
+                    services,
+                    explicit_project_root=requested_root or None,
                 )
                 if hasattr(idx, "_symbol_index") and idx._symbol_index:
                     idx._symbol_index._definitions.clear()
@@ -740,8 +821,8 @@ def _trigger_auto_index_if_empty(services):
     import asyncio
 
     try:
-        from src.mcp.tools.base import resolve_indexer_for_request
         from src.mcp.server import resolve_project_root as _rpr
+        from src.mcp.tools.base import resolve_indexer_for_request
 
         try:
             indexer = resolve_indexer_for_request(services)
@@ -767,9 +848,7 @@ def _trigger_auto_index_if_empty(services):
                 try:
                     target = indexer.project_path
                     logger.info(f"🔄 Индексация: {target.name}")
-                    indexed = await asyncio.to_thread(
-                        indexer.index_project, target
-                    )
+                    indexed = await asyncio.to_thread(indexer.index_project, target)
                     logger.info(f"✅ Авто-индексация: {indexed} файлов")
                 except Exception as e:
                     logger.warning(f"Авто-индексация не удалась: {e}")
@@ -805,54 +884,54 @@ def _register_all_tools(mcp, services):
     Каждый инструмент — отдельный class с constructor injection,
     задекорированный @error_boundary.
     """
-    from src.mcp.tools.search_tools import (
-        SearchCodeTool,
-        GetSymbolInfoTool,
-        ImpactAnalysisTool,
-    )
-    from src.mcp.tools.indexing_tools import (
-        NotifyChangeTool,
-        IndexProjectDirTool,
-        IndexHealthTool,
+    from src.mcp.tools.analysis_tools import (
+        GenerateChunkSummariesTool,
+        GetRepoMapTool,
+        GetRepoRankTool,
+        ScanChangesTool,
+        StructuralSearchTool,
     )
     from src.mcp.tools.git_tools import (
         GetBranchInfoTool,
         GetCommitHistoryTool,
         GetFileHistoryTool,
     )
-    from src.mcp.tools.system_tools import (
-        GetIndexStatusTool,
-        GetIndexProgressTool,
-        GetIndexTimelineTool,
-        WatcherStatusTool,
-        GetLogsTool,
-        GetHealthReportTool,
-        PredictEtaTool,
-        RunHealthCheckTool,
-        ReadLiveFileTool,
-    )
-    from src.mcp.tools.analysis_tools import (
-        StructuralSearchTool,
-        GetRepoMapTool,
-        GetRepoRankTool,
-        ScanChangesTool,
-        GenerateChunkSummariesTool,
-    )
     from src.mcp.tools.graph_tools import (
-        CrossRepoSearchTool,
         CrossProjectDepsTool,
-        GraphQueryTool,
+        CrossRepoSearchTool,
         GetRelatedFilesTool,
+        GraphQueryTool,
+    )
+    from src.mcp.tools.indexing_tools import (
+        IndexHealthTool,
+        IndexProjectDirTool,
+        NotifyChangeTool,
     )
     from src.mcp.tools.investigation_tools import (
+        FindSimilarBugsTool,
         GetBugCorrelationTool,
         GetHotspotsTool,
-        FindSimilarBugsTool,
     )
     from src.mcp.tools.lifecycle_tools import (
-        SubmitBackgroundTaskTool,
         GetTaskStatusTool,
+        SubmitBackgroundTaskTool,
         VerifyActionTool,
+    )
+    from src.mcp.tools.search_tools import (
+        GetSymbolInfoTool,
+        ImpactAnalysisTool,
+        SearchCodeTool,
+    )
+    from src.mcp.tools.system_tools import (
+        GetHealthReportTool,
+        GetIndexProgressTool,
+        GetIndexStatusTool,
+        GetIndexTimelineTool,
+        GetLogsTool,
+        PredictEtaTool,
+        ReadLiveFileTool,
+        RunHealthCheckTool,
+        WatcherStatusTool,
     )
 
     # Список всех инструментов для регистрации
@@ -937,7 +1016,7 @@ def _register_all_tools(mcp, services):
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
-        from src.mcp.tools.base import resolve_indexer_for_request, _is_self_index_path
+        from src.mcp.tools.base import _is_self_index_path, resolve_indexer_for_request
 
         idx = resolve_indexer_for_request(services)
         intel_layer = ProjectIntelligenceLayer(
@@ -964,11 +1043,19 @@ def _register_all_tools(mcp, services):
         Если RUN_ID в ответе отличается от ожидаемого — значит процесс
         не перезапустился после обновления кода (Zed держит старый).
         """
-        from src.mcp.server import (
-            _RUN_ID, _BUILD_ID, _RUN_STARTED_AT, _RUN_PID, _RUN_SOURCE_FILE,
-            _ext_root, _default_project_root, _services_cache,
-        )
         import getpass
+
+        from src.mcp.server import (
+            _BUILD_ID,
+            _RUN_ID,
+            _RUN_PID,
+            _RUN_SOURCE_FILE,
+            _RUN_STARTED_AT,
+            _default_project_root,
+            _ext_root,
+            _services_cache,
+        )
+
         pr = _default_project_root or resolve_project_root()
 
         # Bridge state
@@ -976,6 +1063,7 @@ def _register_all_tools(mcp, services):
         _bridge_err = None
         try:
             from src.core.lsp_project_bridge import read_project_from_bridge
+
             _bridge = str(read_project_from_bridge(max_wait=0.1))
         except Exception as e:
             _bridge_err = str(e)
@@ -987,6 +1075,7 @@ def _register_all_tools(mcp, services):
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
             from src.core.project_indexer_registry import ProjectState
+
             if _services_cache is not None:
                 _reg = _services_cache.resolve(PIRKey)
                 _registry_paths = [str(p) for p in _reg.get_all_paths()]
@@ -1020,8 +1109,13 @@ def _register_all_tools(mcp, services):
             "env": {
                 "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
                 "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
-                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX"),
-                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[0] or None,
+                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get(
+                    "MSCODEBASE_ALLOW_SELF_INDEX"
+                ),
+                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[
+                    0
+                ]
+                or None,
             },
             "self_index_guard_result": _is_self_index_path(pr),
         }
@@ -1041,6 +1135,7 @@ def _register_all_tools(mcp, services):
             JSON со всей известной информацией о проекте.
         """
         from src.core.project_context import ProjectContext
+
         _default = _default_project_root or resolve_project_root()
         target = Path(project_root).resolve() if project_root else _default
         ctx = ProjectContext(target, services)
@@ -1063,8 +1158,8 @@ def _register_all_tools(mcp, services):
         Returns:
             Текстовый диагноз с состоянием каждого слоя.
         """
-        from src.core.runtime_coordinator import RuntimeCoordinator
         from src.core.project_context import ProjectContext
+        from src.core.runtime_coordinator import RuntimeCoordinator
 
         _default = _default_project_root or resolve_project_root()
         target = Path(project_root).resolve() if project_root else _default
@@ -1133,7 +1228,9 @@ def _register_all_tools(mcp, services):
         if verdict.requires_reindex:
             lines.append(f"")
             lines.append(f"── Action Required ──")
-            lines.append(f"  Run intel_trigger_reindex() then check status via intel_get_job_status()")
+            lines.append(
+                f"  Run intel_trigger_reindex() then check status via intel_get_job_status()"
+            )
 
         if not verdict.requires_bridge_sync and snap.bridge_path:
             lines.append(f"")
@@ -1141,7 +1238,6 @@ def _register_all_tools(mcp, services):
             lines.append(f"  LSP workspace: {snap.bridge_path}")
 
         return chr(10).join(lines)
-
 
     # --- Runtime Counters (telemetry) ---
     @mcp.tool("get_runtime_counters")
@@ -1157,8 +1253,10 @@ def _register_all_tools(mcp, services):
 
         Если blocked > 5% от calls — архитектура требует внимания.
         """
-        from src.core.runtime_coordinator import get_counters
         import json
+
+        from src.core.runtime_coordinator import get_counters
+
         return json.dumps(get_counters(), ensure_ascii=False, indent=2)
 
     # --- Telemetry History ---
@@ -1175,8 +1273,10 @@ def _register_all_tools(mcp, services):
         Returns:
             JSON с историей метрик для построения графиков.
         """
-        from scripts.collect_telemetry import get_history
         import json
+
+        from scripts.collect_telemetry import get_history
+
         history = get_history(min(max(days, 1), 365))
         return json.dumps(history, ensure_ascii=False, indent=2)
 
@@ -1210,9 +1310,10 @@ You operate under a strict deterministic execution matrix...
 - Relative paths for notify_change (from project root)
 - Absolute paths for project_root params
 """
-    mcp.prompt(name="mscodebase-rules", description="Системные правила для работы с кодовой базой MSCodeBase")(
-        lambda: mcp_prompt_text
-    )
+    mcp.prompt(
+        name="mscodebase-rules",
+        description="Системные правила для работы с кодовой базой MSCodeBase",
+    )(lambda: mcp_prompt_text)
 
 
 # ══════════════════════════════════════════════════════════
@@ -1265,8 +1366,11 @@ class HeartbeatService:
         try:
             if sys.platform == "win32":
                 import ctypes
+
                 kernel32 = ctypes.windll.kernel32
-                handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
+                handle = kernel32.OpenProcess(
+                    0x0400, False, pid
+                )  # PROCESS_QUERY_INFORMATION
                 if handle:
                     kernel32.CloseHandle(handle)
                     return True
@@ -1291,9 +1395,7 @@ class HeartbeatService:
                 with self._lock:
                     elapsed = time.time() - self._last_heartbeat_time
                 if elapsed > self.timeout:
-                    logger.warning(
-                        f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга"
-                    )
+                    logger.warning(f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга")
                     self._shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
                     return
                 if not self.is_parent_alive():
@@ -1313,6 +1415,7 @@ class HeartbeatService:
         logger.warning(f"🛑 Graceful shutdown: {reason}")
         try:
             from src.core.index_guard import IndexGuard
+
             db_path = Path.cwd() / ".codebase_indices" / "lancedb_v2"
             if db_path.exists():
                 IndexGuard(db_path, Path.cwd())
@@ -1373,7 +1476,9 @@ def _start_heartbeat_monitor(mcp) -> None:
     """Регистрирует хендлер heartbeat и запускает фоновый мониторинг."""
     try:
         server = mcp._mcp_server
-        if hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict):
+        if hasattr(server, "request_handlers") and isinstance(
+            server.request_handlers, dict
+        ):
 
             async def _on_heartbeat(params):
                 _update_heartbeat()
@@ -1390,6 +1495,7 @@ def _start_heartbeat_monitor(mcp) -> None:
 # ══════════════════════════════════════════════════════════
 # Точка входа
 # ══════════════════════════════════════════════════════════
+
 
 def run_server(original_stdout=None):
     """Запускает MCP-сервер через stdio."""

@@ -22,17 +22,17 @@
 
 ### Шаг 1: Установка
 
-```cmd
-:: Откройте Git Bash или cmd в папке расширения
-install.bat
+```bash
+# Откройте терминал в папке проекта
+python install.py
 ```
 
 Установщик сделает всё сам:
-1. ✅ Проверит Python
-2. ✅ Создаст виртуальное окружение
-3. ✅ Установит все зависимости
-4. ✅ Настроит MCP-сервер в `settings.json` Zed
-5. ✅ Пропишет `PROJECT_PATH` — чтобы сервер знал, где ваш проект
+1. ✅ Проверит Python и совместимость
+2. ✅ Создаст виртуальное окружение и установит зависимости
+3. ✅ Настроит MCP-сервер в `settings.json` Zed
+4. ✅ Скопирует исходники в установленное расширение
+5. ✅ Создаст деинсталлятор
 
 ### Шаг 2: Перезапуск Zed
 
@@ -47,10 +47,15 @@ get_index_status()
 
 Должны увидеть:
 ```
-📊 Статус базы данных MSCodebase:
-  • Всего фрагментов кода в базе: ...
-  • Режим эмбеддера: 🌐 LM Studio
+📂 Project: D:\Project\YourProject
+### ✅ `get_index_status`
+
+- **Всего чанков:** 0
+- **Уникальных файлов:** 0
+- **Режим эмбеддера:** 🌐 LM Studio
 ```
+
+> Формат вывода может отличаться в зависимости от версии.
 
 > Если сервер не найден — см. раздел «Устранение проблем» ниже.
 
@@ -257,4 +262,16 @@ python install.py
 
 ### ModuleNotFoundError: No module named src.*
 **Cause:** PYTHONPATH does not point to extension root.
-**Fix:** Run install.py again - it sets PYTHONPATH automatically.
+**Fix:** Run install.py again — it sets PYTHONPATH automatically.
+
+---
+
+### 🔗 Связанные документы
+
+| Документ | Описание |
+|----------|----------|
+| [README.md](../README.md) | Главная документация, карта всех доков |
+| [docs/architecture.md](architecture.md) | Архитектура проекта, DI, слои |
+| [ZED_WINDOWS_QUIRKS.md](../ZED_WINDOWS_QUIRKS.md) | Windows-специфика, Restricted Mode |
+| [docs/investigations/2026-07-05-lsp-zed-1.9.0.md](investigations/2026-07-05-lsp-zed-1.9.0.md) | Результаты расследования LSP |
+| [CHANGELOG.md](../CHANGELOG.md) | История версий и changelog |

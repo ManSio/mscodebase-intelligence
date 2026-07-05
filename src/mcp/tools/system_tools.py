@@ -20,7 +20,7 @@ from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
-from src.utils.ui_formatter import code_block, header, key_value
+from src.utils.ui_formatter import header, key_value
 
 logger = logging.getLogger("mscodebase_server.system_tools")
 
@@ -75,7 +75,6 @@ class GetIndexStatusTool(MCPTool):
                 ("Режим эмбеддера", mode_label),
             ]
         )
-        output += code_block(stats)
         return output
 
 
