@@ -21,6 +21,7 @@ class BranchAwareIndex:
         self.project_path = project_path.resolve()
         self._current_branch: Optional[str] = None
         self._branch_cache: Dict[str, Path] = {}  # branch -> db_path
+        self._db_connections: Dict[str, Any] = {}  # branch -> lancedb connection (кэш)
 
     def get_current_branch(self) -> str:
         """Определяет текущую git-ветку."""
@@ -83,12 +84,14 @@ class BranchAwareIndex:
         # Проверяем существует ли индекс
         exists = db_path.exists()
 
-        # Считаем чанки если база существует
+        # Считаем чанки если база существует (с кэшированием соединения)
         chunks = 0
         if exists:
             try:
                 import lancedb
-                db = lancedb.connect(str(db_path))
+                if branch not in self._db_connections:
+                    self._db_connections[branch] = lancedb.connect(str(db_path))
+                db = self._db_connections[branch]
                 try:
                     table = db.open_table("codebase_chunks")
                     chunks = table.count_rows()
@@ -116,16 +119,19 @@ class BranchAwareIndex:
             if branch_dir.is_dir():
                 db_path = branch_dir / "codebase_chunks.db"
                 if db_path.exists():
+                    branch_name = branch_dir.name
                     try:
                         import lancedb
-                        db = lancedb.connect(str(db_path))
+                        if branch_name not in self._db_connections:
+                            self._db_connections[branch_name] = lancedb.connect(str(db_path))
+                        db = self._db_connections[branch_name]
                         try:
                             table = db.open_table("codebase_chunks")
-                            indices[branch_dir.name] = table.count_rows()
+                            indices[branch_name] = table.count_rows()
                         except Exception:
-                            indices[branch_dir.name] = 0
+                            indices[branch_name] = 0
                     except Exception:
-                        indices[branch_dir.name] = 0
+                        indices[branch_name] = 0
 
         return indices
 

@@ -113,6 +113,8 @@ class GetBranchInfoTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="get_branch_info")
+        # Кэш BranchAwareIndex per project_path (избегаем повторных lancedb.connect)
+        self._branch_index_cache: Dict[str, Any] = {}
 
     @error_boundary("get_branch_info", timeout_ms=10000)
     async def execute(
@@ -133,7 +135,14 @@ class GetBranchInfoTool(MCPTool):
                 "message": f"{target_path.name} is not a git repository",
             }
 
-        bi = BranchAwareIndex(target_path)
+        # Используем кэш BranchAwareIndex чтобы не плодить соединения LanceDB
+        target_str = str(target_path)
+        if target_str not in self._branch_index_cache:
+            bi = BranchAwareIndex(target_path)
+            self._branch_index_cache[target_str] = bi
+        else:
+            bi = self._branch_index_cache[target_str]
+
         info = bi.get_branch_info()
 
         # Собираем список всех индексов веток
