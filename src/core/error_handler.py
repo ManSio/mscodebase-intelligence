@@ -16,11 +16,64 @@ import inspect
 import functools
 import json
 import logging
+import threading
 import time
 import traceback
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger("mscodebase_server.error_handler")
+
+# ══════════════════════════════════════════════════════════
+# Per-tool telemetry: автоматический сбор с error_boundary
+# ══════════════════════════════════════════════════════════
+
+_TOOL_METRICS: dict = {}
+"""Счётчики вызовов инструментов: {tool_name: {calls, errors, total_ms, last_call}}"""
+
+_TOOL_METRICS_LOCK = threading.Lock()
+
+
+def record_tool_call(tool_name: str, latency_ms: int, success: bool) -> None:
+    """Записывает метрику вызова инструмента (потокобезопасно)."""
+    with _TOOL_METRICS_LOCK:
+        entry = _TOOL_METRICS.setdefault(tool_name, {
+            "calls": 0,
+            "errors": 0,
+            "total_ms": 0,
+            "last_call": "",
+        })
+        entry["calls"] += 1
+        if not success:
+            entry["errors"] += 1
+        entry["total_ms"] += latency_ms
+        entry["last_call"] = time.strftime("%H:%M:%S")
+
+
+def get_tool_metrics() -> dict:
+    """Возвращает копию метрик для telemetry."""
+    with _TOOL_METRICS_LOCK:
+        return {
+            name: dict(stats)
+            for name, stats in _TOOL_METRICS.items()
+        }
+
+
+def get_tool_metrics_summary() -> list:
+    """Форматирует метрики для вывода (sorted by calls desc)."""
+    with _TOOL_METRICS_LOCK:
+        rows = []
+        for name, stats in sorted(
+            _TOOL_METRICS.items(), key=lambda x: x[1]["calls"], reverse=True
+        ):
+            avg_ms = round(stats["total_ms"] / stats["calls"], 1) if stats["calls"] else 0
+            rows.append({
+                "tool": name,
+                "calls": stats["calls"],
+                "errors": stats["errors"],
+                "avg_ms": avg_ms,
+                "last": stats["last_call"],
+            })
+        return rows
 
 
 class ToolError(Exception):
@@ -142,6 +195,7 @@ def error_boundary(
 
                     # Успех
                     latency_ms = int((time.perf_counter() - start_time) * 1000)
+                    record_tool_call(tool_name, latency_ms, success=True)
                     return _format_success_response(raw_result, latency_ms)
 
                 except asyncio.TimeoutError as e:
@@ -151,6 +205,7 @@ def error_boundary(
                         f"⏱ [{tool_name}] Timeout after {elapsed}ms "
                         f"(attempt {attempt + 1}/{max_retries + 1})"
                     )
+                    record_tool_call(tool_name, elapsed, success=False)
                     if attempt < max_retries:
                         await asyncio.sleep(1)
                     else:
@@ -168,6 +223,8 @@ def error_boundary(
                         f"[{tool_name}] {e.status}: {e.message}"
                         + (f" | {e.detail}" if e.detail else "")
                     )
+                    elapsed = int((time.perf_counter() - start_time) * 1000)
+                    record_tool_call(tool_name, elapsed, success=False)
                     return _format_error_response(
                         status=e.status,
                         message=e.message,
@@ -181,6 +238,8 @@ def error_boundary(
                         f"[{tool_name}] Unexpected error: {e}\n"
                         f"{traceback.format_exc()}"
                     )
+                    elapsed = int((time.perf_counter() - start_time) * 1000)
+                    record_tool_call(tool_name, elapsed, success=False)
                     _notify_error(f"{tool_name}: {e}", severity="Error")
                     return _format_error_response(
                         status="error",
@@ -217,6 +276,7 @@ def error_boundary(
                     result = func(*args, **kwargs)
 
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
+                record_tool_call(tool_name, latency_ms, success=True)
                 return _format_success_response(result, latency_ms)
 
             except ToolError as e:
@@ -224,6 +284,8 @@ def error_boundary(
                     f"[{tool_name}] {e.status}: {e.message}"
                     + (f" | {e.detail}" if e.detail else "")
                 )
+                elapsed = int((time.perf_counter() - start_time) * 1000)
+                record_tool_call(tool_name, elapsed, success=False)
                 return _format_error_response(
                     status=e.status,
                     message=e.message,
@@ -234,6 +296,8 @@ def error_boundary(
                     f"[{tool_name}] Unexpected error: {e}\n"
                     f"{traceback.format_exc()}"
                 )
+                elapsed = int((time.perf_counter() - start_time) * 1000)
+                record_tool_call(tool_name, elapsed, success=False)
                 return _format_error_response(
                     status="error",
                     message=str(e),
