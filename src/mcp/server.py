@@ -298,9 +298,12 @@ def resolve_project_root(provided: str = "") -> Path:
     """Возвращает корень проекта для MCP-инструментов.
 
     Приоритет (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
+    0. SQLite multi_workspace_state.active_workspace_id (НАДЁЖНО!)
+       Zed пишет сюда активный проект при каждом переключении.
+       Единственный механизм, работающий на Windows.
     1. Явно переданный provided
     2. LSP→MCP bridge (temp-файл от LSP)
-    3. Zed SQLite DB (workspaces table — НЕ зависит от LSP!)
+    3. Zed SQLite DB (workspaces table — fallback, если нет active)
     4. PROJECT_PATH из окружения (lazy, с self-indexing guard)
     5. ZED_WORKTREE_ROOT env
     6. CWD, если != ext_root
@@ -308,6 +311,54 @@ def resolve_project_root(provided: str = "") -> Path:
     """
     if provided and provided.strip():
         return Path(provided).resolve()
+
+    # ─── 1. SQLite: multi_workspace_state.active_workspace_id (НАДЁЖНО!) ───
+    # Zed пишет сюда активный workspace при каждом переключении проекта.
+    # Единственный механизм, который работает на Windows (не требует env/LSP).
+    try:
+        _db_path = (
+            Path(os.environ.get("LOCALAPPDATA", ""))
+            / "Zed"
+            / "db"
+            / "0-stable"
+            / "db.sqlite"
+        )
+        if _db_path.exists():
+            import json as _json
+            import sqlite3
+
+            _conn = sqlite3.connect(str(_db_path), timeout=2.0)
+            _cur = _conn.cursor()
+            # Ищем multi_workspace_state для любого window_id
+            _cur.execute(
+                "SELECT key, value FROM scoped_kv_store "
+                "WHERE namespace = 'multi_workspace_state'"
+            )
+            for _row in _cur.fetchall():
+                try:
+                    _state = _json.loads(_row[1])
+                    _active_id = _state.get("active_workspace_id")
+                    if _active_id is not None:
+                        _cur.execute(
+                            "SELECT paths FROM workspaces WHERE workspace_id = ?",
+                            (_active_id,),
+                        )
+                        _match = _cur.fetchone()
+                        if _match and _match[0]:
+                            _path = Path(_match[0].strip())
+                            if _path.exists() and not _reject_self_index_target(
+                                _path, source="ACTIVE_WORKSPACE"
+                            ):
+                                _conn.close()
+                                logger.debug(
+                                    f"resolve_project_root: active_workspace_id={_active_id} → {_path}"
+                                )
+                                return _path.resolve()
+                except Exception:
+                    continue
+            _conn.close()
+    except Exception as _active_err:
+        logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 
     # LSP→MCP bridge (Windows compat)
     try:

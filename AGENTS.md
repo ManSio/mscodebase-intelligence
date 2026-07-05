@@ -11,6 +11,13 @@
    - If absent → MCP server offline. Work exclusively with `grep`, `read_file`, `terminal`.
 3. **Runtime Check:** Call `intel_get_runtime_status`. If it fails with pipe/transport error → switch to grep/cat fallback.
 4. **Load Project Memory:** Call `intel_get_project_memory()` to learn ADRs, known issues, tech debt.
+5. **⚠️ MULTI-WINDOW CHECK:** `intel_get_runtime_status().project_path` — ЭТОТ проект видит MCP.
+   Если пользователь говорит о ДРУГОМ проекте (лежит рядом, открыт в другом окне) —
+   **НЕ ДОВЕРЯЙ** данным `get_index_status()` для этого проекта.
+   Вместо этого:
+   - Проверь, открыт ли проект: `ls <путь>`
+   - Предупреди пользователя: «Сейчас MCP показывает проект X. Хотите, переключусь на Y?»
+   - Используй `intel_explain_project_state` для проверки другого проекта
 
 ## 1. TOOL SELECTION
 
