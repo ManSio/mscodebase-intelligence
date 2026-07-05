@@ -25,24 +25,24 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Unified Search** | `search_code(query, mode)` — один инструмент для всех типов поиска (fast/quality/deep/context/auto) |
-| 🧠 **Intelligence Layer** | 10 высокоуровневых `intel_*` инструментов: самодиагностика, топология, предсказание ошибок |
-| 🗃️ **Project Memory** | ADR, known issues, tech debt — автоматически сохраняется между сессиями |
-| 🌐 **Cross-repo Search** | Поиск по нескольким проектам с `@mention` синтаксисом |
-| 🌳 **Call Graph** | Полный граф вызовов: definition + callers + callees + impact analysis |
-| 🏗 **Structural Search** | 13 AST-паттернов (class_inheritance, async_function, decorator, etc.) |
-| 🔎 **Context Search** | Найди похожий код — вставь фрагмент, получи семантические дубликаты |
-| 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальная BM25 реиндексация) |
-| 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — защита от VFS-петель и перегрузок |
-| 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — полная проверка и восстановление |
+| 🔍 **Unified Search** | `search_code(query, mode)` — single tool for all search types (fast/quality/deep/context/auto) |
+| 🧠 **Intelligence Layer** | 10 high-level `intel_*` tools: self-diagnostics, topology, error prediction |
+| 🗃️ **Project Memory** | ADR, known issues, tech debt — automatically persisted between sessions |
+| 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
+| 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
+| 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
+| 🔎 **Context Search** | Find similar code — paste a fragment, get semantic duplicates |
+| 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
+| 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
+| 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
 | 🧪 **Clean Architecture** | DI Container (15 services), 43 tools (33 class-based + 10 intel), 391+ tests |
-| 🪟 **Multi-Window** | `ProjectIndexerRegistry` — изолированный Indexer per project, LRU 5, ResourceMonitor throttle |
+| 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 
 ---
 
 ## 🚀 Quick Start
 
-> Полная инструкция по установке: **[docs/en/INSTALL.md](docs/en/INSTALL.md)**
+> Full installation guide: **[docs/en/INSTALL.md](docs/en/INSTALL.md)**
 
 ```bash
 git clone https://github.com/ManSio/mscodebase-intelligence.git
@@ -50,26 +50,26 @@ cd mscodebase-intelligence
 python install.py
 ```
 
-**После установки:** File → Quit → открой проект → дождись индексации.
+**After installation:** File → Quit → reopen project → wait for indexing.
 
-**Проверка:** в Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) выполни:
+**Verify:** in Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) run:
 ```
 get_index_status()
 ```
 
-> **Windows:** На Windows есть особенности (Restricted Mode, проект резолвится
-> через SQLite). Обязательно прочти **[docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md)**
-> перед установкой.
+> **Windows:** Windows has specifics (Restricted Mode, project resolves via SQLite).
+> Read **[docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md)**
+> before installation.
 >
-> **LM Studio:** Рекомендуется для векторного поиска. Установи, запусти
-> на порту 1234 — MCP подключится автоматически.
+> **LM Studio:** Recommended for vector search. Install, run on port 1234 —
+> MCP connects automatically.
 
 ---
 
 ## 📚 Documentation Map
 
-| Документ | О чём | Для кого | Языки |
-|----------|-------|----------|-------|
+| Document | Description | Audience | Languages |
+|----------|-------------|----------|-----------|
 | **[docs/en/INSTALL.md](docs/en/INSTALL.md)** | Installation, setup, uninstall | Users | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md)** | Clean Architecture, Layers, DI | Developers | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE_LAYERS.md](docs/en/ARCHITECTURE_LAYERS.md)** | 10 runtime layers | Architects | 🇬🇧 🇷🇺 🇨🇳 |
@@ -82,7 +82,7 @@ get_index_status()
 | **[docs/en/SECURITY.md](docs/en/SECURITY.md)** | Security policy, vulnerabilities | Security | 🇬🇧 🇷🇺 🇨🇳 |
 | **[AGENTS.md](AGENTS.md)** | AI Agent system rules | AI Agent | 🇬🇧 |
 
-Все документы связаны между собой перекрёстными ссылками.
+All documents are cross-referenced.
 
 ---
 
@@ -92,79 +92,79 @@ get_index_status()
 
 | Tool | When to Use |
 |------|-------------|
-| `search_code(query, mode, filter_layer)` | **Главный инструмент поиска.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"`. `filter_layer="core"` — поиск только в указанном архитектурном слое |
-| `structural_search(pattern)` | Поиск по AST: `class_inheritance`, `async_function`, `function_with_decorator` и др. |
-| `cross_repo_search(query @repo)` | Поиск по нескольким проектам (моно-репо) |
-| `cross_project_deps(action)` | Граф зависимостей между проектами: `graph` / `deps` / `cycles` / `impact` |
-| `get_symbol_info(query)` | Call Graph: кто вызывает, что вызывает, impact-файлы |
-| `impact_analysis(symbol)` | Анализ влияния изменения символа (risk score, depth) |
+| `search_code(query, mode, filter_layer)` | **Main search tool.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"`. `filter_layer="core"` — search within specific architecture layer |
+| `structural_search(pattern)` | AST search: `class_inheritance`, `async_function`, `function_with_decorator` and more |
+| `cross_repo_search(query @repo)` | Search across multiple projects (mono-repo) |
+| `cross_project_deps(action)` | Cross-project dependency graph: `graph` / `deps` / `cycles` / `impact` |
+| `get_symbol_info(query)` | Call Graph: callers, callees, impact files |
+| `impact_analysis(symbol)` | Symbol change impact analysis (risk score, depth) |
 
 ### Index Management
 
 | Tool | When to Use |
 |------|-------------|
-| `get_index_status()` | Статус индекса: chunks, files, symbols |
-| `get_index_progress()` | Прогресс индексации (phase, percent) |
-| `index_project_dir(path)` | Запуск полной индексации проекта |
-| `get_index_timeline()` | История индексации по датам |
-| `index_health(project_root)` | Диагностика и самовосстановление индекса |
-| `notify_change(file_path)` | Принудительное обновление индекса файла (через DebounceBatch) |
-| `generate_chunk_summaries(root)` | LLM-описания для чанков кода |
-| `scan_changes(project_root)` | Архитектурный дифф — анализ изменений относительно последнего baseline |
+| `get_index_status()` | Index status: chunks, files, symbols |
+| `get_index_progress()` | Indexing progress (phase, percent) |
+| `index_project_dir(path)` | Start full project indexing |
+| `get_index_timeline()` | Indexing history by date |
+| `index_health(project_root)` | Index diagnostics and self-recovery |
+| `notify_change(file_path)` | Force index update for a file (via DebounceBatch) |
+| `generate_chunk_summaries(root)` | LLM-generated descriptions for code chunks |
+| `scan_changes(project_root)` | Architectural diff — analyze changes since last baseline |
 
 ### System & Diagnostics
 
 | Tool | When to Use |
 |------|-------------|
-| `get_health_report()` | **Полная самодиагностика:** индекс, embedder, логи, synchronisation |
-| `watcher_status()` | Статус компонентов: embedder mode (LM Studio / Ollama / ONNX) |
-| `get_logs(project_root)` | Последние ошибки и предупреждения из логов проекта |
-| `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
-| `read_live_file(path)` | Чтение файла из памяти LSP (включая несохранённые изменения) |
+| `get_health_report()` | **Full self-diagnosis:** index, embedder, logs, synchronization |
+| `watcher_status()` | Component status: embedder mode (LM Studio / Ollama / ONNX) |
+| `get_logs(project_root)` | Latest errors and warnings from project logs |
+| `get_repo_map(project_root)` | Project map: file tree + key symbols |
+| `read_live_file(path)` | Read file from LSP memory (including unsaved changes) |
 
 ### Analytics
 
 | Tool | When to Use |
 |------|-------------|
-| `get_hotspots(project_root)` | "Горячие точки" — файлы с высоким баго-рейтом |
-| `get_repo_rank(project_root, top_k)` | Рейтинг важности символов (PageRank на графе вызовов) |
-| `get_bug_correlation(project_root)` | Анализ связи багов с изменениями в коде |
-| `get_related_files(project_root, path)` | Файлы, связанные через co-change / bug correlation |
-| `graph_query(query_type, target)` | Запросы к графу знаний: `impact` / `feature` / `deps` / `tests` |
-| `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
+| `get_hotspots(project_root)` | Hotspots — files with high bug rate |
+| `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
+| `get_bug_correlation(project_root)` | Bug-change correlation analysis |
+| `get_related_files(project_root, path)` | Files related via co-change / bug correlation |
+| `graph_query(query_type, target)` | Knowledge graph queries: `impact` / `feature` / `deps` / `tests` |
+| `find_similar_bugs(error)` | Find similar bugs from history by error text |
 
 ### Git & History
 
 | Tool | When to Use |
 |------|-------------|
-| `get_commit_history(root, limit)` | Семантическая история коммитов |
-| `get_file_history(root, path)` | История изменений конкретного файла |
-| `get_branch_info(project_root)` | Информация о ветке + статус индекса |
+| `get_commit_history(root, limit)` | Semantic commit history |
+| `get_file_history(root, path)` | Change history for a specific file |
+| `get_branch_info(project_root)` | Branch info + index status |
 
 ### Lifecycle & Verification
 
 | Tool | When to Use |
 |------|-------------|
-| `submit_background_task(type, root)` | Запуск долгих задач: `bug_correlation` / `build_knowledge_graph` / `full_analysis` |
-| `get_task_status(task_id)` | Статус фоновой задачи |
-| `verify_action(action_type)` | Верификация: `file_write` / `git_commit` / `git_push` / `index_sync` |
-| `predict_eta(operation)` | Предсказание времени выполнения операции |
-| `run_health_check()` | Полная проверка здоровья проекта (тесты + git) |
+| `submit_background_task(type, root)` | Run long tasks: `bug_correlation` / `build_knowledge_graph` / `full_analysis` |
+| `get_task_status(task_id)` | Background task status |
+| `verify_action(action_type)` | Verification: `file_write` / `git_commit` / `git_push` / `index_sync` |
+| `predict_eta(operation)` | Operation time prediction |
+| `run_health_check()` | Full project health check (tests + git) |
 
 ### Intelligence Layer (intel_*) — 10 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
-| `intel_get_runtime_status()` | Агрегированный статус здоровья: embedder, index, resource usage |
-| `intel_trigger_reindex()` | Fire-and-forget переиндексация (не блокирует Zed) |
-| `intel_get_job_status(job_id)` | Прогресс фоновой задачи |
-| `intel_code_topology(symbol)` | Граф вызовов + топология модуля (< 2 сек) |
-| `intel_get_project_memory()` | Карта памяти проекта: ADR, known_issues, tech_debt |
-| `intel_log_incident(...)` | Запись инцидента в историю проекта |
-| `intel_analyze_incident(error)` | Поиск аналогичных инцидентов + готовые решения |
-| `intel_add_memory_node(section, data)` | Добавление записи в проектную память |
-| `intel_get_hotspots()` | Топ-5 файлов с максимальной баго-нагрузкой |
-| `intel_predict_root_cause(error)` | Предсказание первопричины сбоя по логам + истории |
+| `intel_get_runtime_status()` | Aggregated health status: embedder, index, resource usage |
+| `intel_trigger_reindex()` | Fire-and-forget reindexing (does not block Zed) |
+| `intel_get_job_status(job_id)` | Background task progress |
+| `intel_code_topology(symbol)` | Call graph + module topology (< 2 sec) |
+| `intel_get_project_memory()` | Project memory map: ADR, known_issues, tech_debt |
+| `intel_log_incident(...)` | Log an incident to project history |
+| `intel_analyze_incident(error)` | Find similar incidents + ready-made solutions |
+| `intel_add_memory_node(section, data)` | Add a record to project memory |
+| `intel_get_hotspots()` | Top-5 files with highest bug load |
+| `intel_predict_root_cause(error)` | Predict root cause from logs + history |
 
 ---
 

@@ -1,75 +1,93 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
-## [2026-07-05 23:45] — [Type: Docs] — Cross-reference update: docs переехали в per-language папки
-
-**Problem:** Документация реорганизована из плоской `docs/` + корень в `docs/ru/`, `docs/en/`, `docs/zh/` по языкам. Все кросс-ссылки, переключатели языков и пути к логотипам ссылались на старую структуру.
-
-**Solution:** Обновлены все 40+ файлов:
-- Логотипы: `../logo/` → `../../logo/` для файлов в `docs/*/`
-- Языковые переключатели: новый формат с `../en/`, `../ru/`, `../zh/`
-- Кросс-ссылки: `docs/INSTALL.md` → `INSTALL.md`, `../README.md` → `README.md`, `docs/architecture.md` → `ARCHITECTURE.md` и т.д.
-- Файлы расследований: обновлены заголовки и ссылки
-- `README.md` корневой: карта документации, навбар, структура проекта
-
-**Tools Used:** read_file, edit_file, intel_log_incident
-**Status:** ✅
-
-## [2026-07-05 21:11] — [Type: Docs] — Полная i18n: все документы в 3 языках
-
-**Problem:** Вся документация была только на русском или английском, без китайской версии.
-
-**Solution:** Созданы .zh.md копии всех документов + .en.md для русскоязычных оригиналов.
-Добавлены переключатели языков в каждый файл.
-
-**Files created:** 21 новый файл (EN, ZH варианты для всех доков)
-
-**Status:** ✅
-
-## [2026-07-05 20:30] — [Type: Fix] — Full UI sweep: убран сырой JSON из всех 43 инструментов
-
-**Problem:**
-- intel_* инструменты возвращали сырой JSON (json.dumps) вместо Markdown
-- _format_success_response добавлял огромный JSON-блок в каждый ответ
-- debug_runtime_passport, get_runtime_counters — чистый JSON
-- health_report: orphan files не чистились, search quality тесты падали по таймауту
-
-**Solution:**
-1. **intel_get_telemetry** — убран json.dumps, чистый Markdown
-2. **debug_runtime_passport** — переписан в дашборд (Process/Project/Bridge/Registry/Env)
-3. **_format_success_response** — убран JSON-блок, рекурсивный вывод с эмодзи (✓/✗/∅), вложенные dict/list до 10 элементов
-4. **get_runtime_counters** — ui_formatter вместо json.dumps
-5. **health_report** — orphan files авто-чистятся (105 очищено), search_quality timeout 8s→30s, git timeout 10s→30s
-6. **install.py** — убивает старые MCP/LSP процессы и чистит stale-файлы
-
-**Tools Used:** spawn_agent (3 parallel), edit_file, notify_change, grep, read_file
-**Status:** ✅ Все 43 инструмента форматированы. Только 1 warning остался (logs dir — косметика)
+> Хроника разработки проекта. Ведётся на русском языке.
 
 ---
 
-## [2026-07-05 20:10] — [Type: Fix] — debug_runtime_passport → Markdown + health_report warnings fix
+## [2026-07-05] — Реорганизация документации по языкам
 
-**Problem:**
-1. `debug_runtime_passport` возвращал сырой JSON вместо Markdown-дашборда
-2. health_report: orphan files (105) только детектились, но не удалялись из индекса
-3. git execution_contract timeout был 10s — недостаточно для Windows
-4. search_quality timeout был 8s — слишком мало для LM Studio
+Вся документация переложена из плоской структуры в `docs/{ru,en,zh}/` по языкам.
+Обновлены все кросс-ссылки, пути к логотипам, переключатели языков.
+English — основной язык README, русский — основной язык документации разработчика.
 
-**Solution:**
-1. `src/mcp/server.py`: debug_runtime_passport переписан на header/section/_val из ui_formatter
-2. `src/core/health_report.py`: в _check_filesystem_sync добавлен вызов indexer.delete_file() для каждого orphan
-3. `src/core/health_report.py`: git timeout 10→30s, search timeout 8→30s
-4. `src/core/execution_contract.py`: все subprocess timeout=10→30
+**Статус:** ✅
 
-**Tools Used:** intel_get_runtime_status, get_health_report, read_file, edit_file, notify_change, diagnostics, terminal
-**Status:** ✅
+---
 
-## [2026-07-05 17:30] — [Type: Feature] — UI Formatter + Централизация логов
+## [2026-07-05] — Полная i18n: 3 языка
 
-**Problem:**
-1. Логи писались в .codebase_indices/logs/ внутри каждого проекта — засоряли проект
-2. Вывод инструментов был сырым JSON, без единого стиля
+Созданы переводы всей документации на английский, русский и китайский.
+Добавлены переключатели языков в каждый файл.
+FAQ доступен на всех трёх языках.
 
-**Solution:**
+**Статус:** ✅
 
-### 🔄 Логи — централизованы
-- `src/core/log_manager.py`: `get_log_dir()` теперь всегда ведёт в ext_root
+---
+
+## [2026-07-05] — UI Formatter: единый стиль вывода
+
+Все 43 MCP-инструмента переведены на единый Markdown-формат через `ui_formatter`.
+- Убран сырой JSON из intel_* инструментов
+- Убран JSON-блок из `_format_success_response`
+- `debug_runtime_passport` переписан в дашборд
+- `get_runtime_counters` — через ui_formatter
+- `_format_error_response` — теперь Markdown вместо JSON (🔴 + описание)
+
+**Статус:** ✅ Все инструменты форматированы
+
+---
+
+## [2026-07-05] — Health report: починены таймауты и orphan files
+
+- orphan files: теперь авто-чистятся из индекса (очищено 105 записей)
+- search quality тесты: таймаут увеличен 8s → 30s (3/3 тестов проходят)
+- git execution contract: таймаут 10s → 30s
+
+**Статус:** ✅
+
+---
+
+## [2026-07-05] — DebounceBatch deadlock (критический баг)
+
+**Проблема:** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.
+**Причина:** `await self._flush()` вызывался внутри `threading.Lock` (не reentrant).
+**Фикс:** разделение: решение `should_flush` под lock, сам `await` — после lock.
+
+**Статус:** ✅ Исправлено, 8 последовательных notify_change — 0 ошибок
+
+---
+
+## [2026-07-05] — LSP расследование (WONTFIX)
+
+Исследованы исходники Zed, найдена первопричина: `mscodebase-lsp` не регистрируется
+в `LanguageRegistry` Zed на Windows. Требуется Rust/WASM-адаптер.
+Документировано как WONTFIX в `docs/en/investigations/LSP_WONTFIX.md`.
+
+**Статус:** ✅ Документировано
+
+---
+
+## [2026-07-05] — Определение проекта на Windows (ключевое открытие)
+
+`ZED_WORKTREE_ROOT` и `current_dir` не работают на Windows.
+Найдено решение: читать `active_workspace_id` из SQLite `scoped_kv_store`.
+Приоритет 0 в `resolve_project_root()`, работает на Windows, macOS и Linux.
+Полное расследование: `docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md`.
+
+**Статус:** ✅ Внедрено
+
+---
+
+## [2026-07-05] — Self-indexing guard
+
+MCP-сервер иногда индексировал собственные исходники (~500MB).
+Добавлена проверка `_is_self_index_path()` — блокирует ext_root и директорию
+установки Zed, бросает `ToolError` с понятным сообщением.
+
+**Статус:** ✅
+
+---
+
+## [2026-06-29] — Начало проекта
+
+Первый коммит. Базовая архитектура: MCP-сервер + LanceDB + LM Studio.
