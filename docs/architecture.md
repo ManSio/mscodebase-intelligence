@@ -1,6 +1,6 @@
 # MSCodeBase Intelligence — Architecture Guide
 
-![MSCodeBase Logo](../logo/logo.svg)
+<img src="../logo/logo.svg" width="64" height="64" alt="MSCodeBase">
 
 > **Version:** 2.4.4  
 > **Last updated:** 2026-07-05  

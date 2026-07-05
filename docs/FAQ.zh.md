@@ -1,6 +1,6 @@
 # FAQ — MSCodeBase Intelligence
 
-![MSCodeBase Logo](../logo/logo.svg)
+<img src="../logo/logo.svg" width="64" height="64" alt="MSCodeBase">
 
 > 常见问题解答。基于实际开发和运维经验。
 
