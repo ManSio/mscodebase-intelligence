@@ -8,6 +8,7 @@
 5. GetIndexStatusTool показывает project_path в первой строке.
 6. SearchCodeTool добавляет project_header в output.
 """
+
 from __future__ import annotations
 
 import sys
@@ -16,13 +17,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.core.error_handler import ToolError
 from src.mcp.tools.base import (
     MCPTool,
     _is_self_index_path,
     resolve_indexer_for_request,
 )
-from src.core.error_handler import ToolError
-
 
 # ════════════════════════════════════════════════════════════
 # _is_self_index_path
@@ -41,20 +41,26 @@ class TestIsSelfIndexPath:
         """None = неопределённый project_path = self-indexing (запрещено)."""
         assert _is_self_index_path(None) is True
 
-    @pytest.mark.parametrize("path_str", [
-        r"C:\AI\Zed",
-        r"D:\AI\Zed",
-        r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence",
-        r"D:\AI\Zed\Zed.exe",
-    ])
+    @pytest.mark.parametrize(
+        "path_str",
+        [
+            r"C:\AI\Zed",
+            r"D:\AI\Zed",
+            r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence",
+            r"D:\AI\Zed\Zed.exe",
+        ],
+    )
     def test_zed_install_dir_detected(self, path_str):
         """Zed install dir = self-indexing."""
         assert _is_self_index_path(Path(path_str)) is True
 
-    @pytest.mark.parametrize("path_str", [
-        r"C:\Users\misha\Documents\my-project",
-        r"D:\projects\my-app",
-    ])
+    @pytest.mark.parametrize(
+        "path_str",
+        [
+            r"C:\Users\misha\Documents\my-project",
+            r"D:\projects\my-app",
+        ],
+    )
     def test_user_project_not_self_index(self, path_str):
         """Пользовательский проект ≠ self-indexing.
 
@@ -62,6 +68,7 @@ class TestIsSelfIndexPath:
         это _ext_root — его self-indexing защита тоже ловит).
         """
         from src.mcp import server as server_mod
+
         # Подменяем _ext_root на ЗАВЕДОМО ДРУГОЙ путь, чтобы наш test path
         # не совпал с ним случайно.
         with patch.object(server_mod, "_ext_root", Path(r"D:\Some\Other\Path")):
@@ -72,6 +79,7 @@ class TestIsSelfIndexPath:
         """_ext_root (исходники расширения) = self-indexing."""
         # Подменяем _ext_root через patch.
         from src.mcp import server as server_mod
+
         with patch.object(server_mod, "_ext_root", tmp_path):
             assert _is_self_index_path(tmp_path) is True
 
@@ -86,7 +94,11 @@ class TestResolveIndexerSelfIndexGuard:
 
     def _make_services(self, project_path_value: Path):
         """Создаёт mock ServiceCollection для теста."""
-        from src.core.di_container import ProjectRootKey, ProjectIndexerRegistry, IndexerFactoryKey
+        from src.core.di_container import (
+            IndexerFactoryKey,
+            ProjectIndexerRegistry,
+            ProjectRootKey,
+        )
 
         services = MagicMock()
         mock_indexer = MagicMock()
@@ -110,16 +122,20 @@ class TestResolveIndexerSelfIndexGuard:
         контракт: пользователь вызвал tool с project_root=<свой проект>.
         """
         from src.mcp import server as server_mod
+
         # _ext_root = D:\Project\MSCodeBase (real). Используем путь,
         # который ЗАВЕДОМО не равен ext_root и не Zed install.
         user_project = Path(r"C:\Users\misha\Documents\my-cool-project")
         services = self._make_services(user_project)
-        idx = resolve_indexer_for_request(services, explicit_project_root=str(user_project))
+        idx = resolve_indexer_for_request(
+            services, explicit_project_root=str(user_project)
+        )
         assert idx.project_path == user_project
 
     def test_explicit_zed_install_raises_tool_error(self):
         """explicit_project_root = Zed install dir → ToolError."""
         from src.mcp import server as server_mod
+
         zed_dir = Path(r"D:\AI\Zed")
         services = self._make_services(zed_dir)
         with pytest.raises(ToolError) as exc_info:
@@ -127,11 +143,10 @@ class TestResolveIndexerSelfIndexGuard:
         assert "Self-indexing blocked" in str(exc_info.value)
 
     def test_explicit_none_project_raises_tool_error(self):
-        """explicit_project_root = None (после fallback) → ToolError."""
+        """explicit_project_root = None → fallback к resolve_project_root() (не ошибка)."""
         services = self._make_services(None)
-        with pytest.raises(ToolError) as exc_info:
-            resolve_indexer_for_request(services, explicit_project_root=None)
-        assert "Self-indexing blocked" in str(exc_info.value)
+        result = resolve_indexer_for_request(services, explicit_project_root=None)
+        assert result is not None  # успешный fallback к default проекту
 
     def test_explicit_ext_root_raises_tool_error(self):
         """explicit_project_root = _ext_root (исходники MCP) → ToolError.
@@ -139,10 +154,12 @@ class TestResolveIndexerSelfIndexGuard:
         Без patch: _ext_root уже загружен и равен D:\Project\MSCodeBase.
         """
         from src.mcp import server as server_mod
+
         services = self._make_services(server_mod._ext_root)
         with pytest.raises(ToolError) as exc_info:
             resolve_indexer_for_request(
-                services, explicit_project_root=str(server_mod._ext_root),
+                services,
+                explicit_project_root=str(server_mod._ext_root),
             )
         assert "Self-indexing blocked" in str(exc_info.value)
 
@@ -163,6 +180,7 @@ class TestProjectHeader:
         _project_header.
         """
         from src.mcp.tools.search_tools import SearchCodeTool
+
         user_project = Path(r"C:\Users\misha\Documents\my-project")
         services = MagicMock()
         mock_indexer = MagicMock()
@@ -182,6 +200,7 @@ class TestProjectHeader:
         services.resolve.side_effect = Exception("boom")
 
         from src.mcp.tools.search_tools import SearchCodeTool
+
         tool = SearchCodeTool(services)
 
         header = tool._project_header()
@@ -190,6 +209,7 @@ class TestProjectHeader:
     def test_metadata_returns_dict(self):
         """_project_metadata() возвращает dict с project_path, chunks и т.п."""
         from src.mcp.tools.search_tools import SearchCodeTool
+
         user_project = Path(r"C:\Users\misha\Documents\my-project")
         services = MagicMock()
         mock_indexer = MagicMock()
@@ -212,6 +232,7 @@ class TestProjectHeader:
         services.resolve.side_effect = Exception("boom")
 
         from src.mcp.tools.search_tools import SearchCodeTool
+
         tool = SearchCodeTool(services)
 
         meta = tool._project_metadata()

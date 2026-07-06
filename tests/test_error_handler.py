@@ -6,22 +6,20 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
 
 import pytest
 
 from src.core.error_handler import (
-    ToolError,
     IndexNotReadyError,
     RateLimitError,
+    ToolError,
     error_boundary,
 )
-
 
 # ══════════════════════════════════════════════════════════
 # ToolError
 # ══════════════════════════════════════════════════════════
+
 
 class TestToolError:
     """ToolError — базовое исключение MCP-инструментов."""
@@ -33,7 +31,9 @@ class TestToolError:
         assert err.recoverable is True
 
     def test_custom_status_and_detail(self):
-        err = ToolError("warning msg", status="warning", detail="something", recoverable=False)
+        err = ToolError(
+            "warning msg", status="warning", detail="something", recoverable=False
+        )
         assert err.status == "warning"
         assert err.detail == "something"
         assert err.recoverable is False
@@ -77,6 +77,7 @@ class TestRateLimitError:
 # error_boundary
 # ══════════════════════════════════════════════════════════
 
+
 class TestErrorBoundaryAsync:
     """error_boundary декоратор — асинхронный режим."""
 
@@ -105,17 +106,18 @@ class TestErrorBoundaryAsync:
 
     @pytest.mark.asyncio
     async def test_tool_error_returns_controlled_json(self):
-        """ToolError возвращает контролируемый JSON без retry."""
+        """ToolError возвращает Markdown, не JSON (изменено с версии 2.5+)."""
 
         @error_boundary("test_tool")
         async def err_tool():
-            raise ToolError("controlled", status="warning", detail="something went wrong")
+            raise ToolError(
+                "controlled", status="warning", detail="something went wrong"
+            )
 
         result = await err_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "warning"
-        assert "controlled" in parsed["message"]
-        assert parsed["detail"] == "something went wrong"
+        assert "Warning" in result or "warning" in result
+        assert "controlled" in result
+        assert "something went wrong" in result
 
     @pytest.mark.asyncio
     async def test_index_not_ready_returns_warning(self):
@@ -126,9 +128,8 @@ class TestErrorBoundaryAsync:
             raise IndexNotReadyError()
 
         result = await empty_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "warning"
-        assert "Index" in parsed["message"]
+        assert "Warning" in result or "warning" in result
+        assert "Index" in result
 
     @pytest.mark.asyncio
     async def test_unexpected_exception_returns_error(self):
@@ -139,9 +140,8 @@ class TestErrorBoundaryAsync:
             raise ValueError("unexpected")
 
         result = await crash_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "error"
-        assert "unexpected" in parsed["message"]
+        assert "Error" in result or "error" in result
+        assert "unexpected" in result
 
     @pytest.mark.asyncio
     async def test_timeout_via_wait_for(self):
@@ -153,9 +153,8 @@ class TestErrorBoundaryAsync:
             return "never"
 
         result = await slow_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "timeout"
-        assert "timed out" in parsed["message"].lower()
+        assert "Timeout" in result or "timeout" in result
+        assert "timed out" in result.lower()
 
     @pytest.mark.asyncio
     async def test_timeout_without_max_retries(self):
@@ -167,8 +166,7 @@ class TestErrorBoundaryAsync:
             return "never"
 
         result = await slow_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "timeout"
+        assert "Timeout" in result or "timeout" in result
 
     @pytest.mark.asyncio
     async def test_no_timeout_does_not_raise(self):
@@ -191,9 +189,8 @@ class TestErrorBoundaryAsync:
             raise RateLimitError(detail="too fast")
 
         result = await rate_tool()
-        parsed = json.loads(result)
-        assert parsed["status"] == "warning"
-        assert "too fast" in parsed["detail"]
+        assert "Warning" in result or "warning" in result
+        assert "too fast" in result
 
     @pytest.mark.asyncio
     async def test_sanitize_numpy_types(self):
@@ -204,10 +201,13 @@ class TestErrorBoundaryAsync:
             class Int32:
                 def __int__(self):
                     return 42
+
                 def __float__(self):
                     return 42.0
+
                 def __repr__(self):
                     return "int32(42)"
+
             return {
                 "chunk_index": Int32(),
                 "score": 0.85,
@@ -227,6 +227,7 @@ class TestErrorBoundaryAsync:
             class Int32:
                 def __int__(self):
                     return 7
+
             return {
                 "results": [
                     {"chunk_index": Int32(), "file": "a.py"},
@@ -261,9 +262,8 @@ class TestErrorBoundarySync:
             raise ToolError("sync error", detail="bad")
 
         result = sync_err()
-        parsed = json.loads(result)
-        assert parsed["status"] == "error"
-        assert "sync error" in parsed["message"]
+        assert "Error" in result or "error" in result
+        assert "sync error" in result
 
     def test_sync_unexpected_error(self):
         """Неожиданная ошибка в синхронной функции."""
@@ -273,6 +273,5 @@ class TestErrorBoundarySync:
             raise RuntimeError("boom")
 
         result = sync_crash()
-        parsed = json.loads(result)
-        assert parsed["status"] == "error"
-        assert "boom" in parsed["message"]
+        assert "Error" in result or "error" in result
+        assert "boom" in result

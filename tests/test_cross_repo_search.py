@@ -124,7 +124,7 @@ class TestMultiProjectSearcher:
         registry.register(Path("/tmp/project"))
         searcher = MultiProjectSearcher(embedder, registry)
         result = searcher.search("@project")
-        assert "Пустой" in result
+        assert "Empty search" in result
 
     def test_cross_repo_search_with_mentions(self):
         """Проверяем что @-mentions правильно парсятся и передаются в cross_repo_search."""
@@ -140,7 +140,11 @@ class TestMultiProjectSearcher:
             mock_search.return_value = [
                 {
                     "text": "def authenticate(): pass",
-                    "metadata": {"file": "auth.py", "chunk_index": 0, "project": "backend"},
+                    "metadata": {
+                        "file": "auth.py",
+                        "chunk_index": 0,
+                        "project": "backend",
+                    },
                     "score": 0.1,
                 }
             ]
@@ -157,11 +161,35 @@ class TestMultiProjectSearcher:
 
         project_results = {
             "backend": [
-                {"text": "code1", "metadata": {"file": "a.py", "chunk_index": 0, "project": "backend"}, "score": 0.1},
-                {"text": "code2", "metadata": {"file": "b.py", "chunk_index": 0, "project": "backend"}, "score": 0.2},
+                {
+                    "text": "code1",
+                    "metadata": {
+                        "file": "a.py",
+                        "chunk_index": 0,
+                        "project": "backend",
+                    },
+                    "score": 0.1,
+                },
+                {
+                    "text": "code2",
+                    "metadata": {
+                        "file": "b.py",
+                        "chunk_index": 0,
+                        "project": "backend",
+                    },
+                    "score": 0.2,
+                },
             ],
             "frontend": [
-                {"text": "code3", "metadata": {"file": "c.py", "chunk_index": 0, "project": "frontend"}, "score": 0.15},
+                {
+                    "text": "code3",
+                    "metadata": {
+                        "file": "c.py",
+                        "chunk_index": 0,
+                        "project": "frontend",
+                    },
+                    "score": 0.15,
+                },
             ],
         }
 
@@ -175,10 +203,26 @@ class TestMultiProjectSearcher:
 
         project_results = {
             "backend": [
-                {"text": "shared code", "metadata": {"file": "utils.py", "chunk_index": 0, "project": "backend"}, "score": 0.1},
+                {
+                    "text": "shared code",
+                    "metadata": {
+                        "file": "utils.py",
+                        "chunk_index": 0,
+                        "project": "backend",
+                    },
+                    "score": 0.1,
+                },
             ],
             "frontend": [
-                {"text": "shared code", "metadata": {"file": "utils.py", "chunk_index": 0, "project": "frontend"}, "score": 0.1},
+                {
+                    "text": "shared code",
+                    "metadata": {
+                        "file": "utils.py",
+                        "chunk_index": 0,
+                        "project": "frontend",
+                    },
+                    "score": 0.1,
+                },
             ],
         }
 
@@ -193,23 +237,31 @@ class TestMultiProjectSearcher:
         registry.register(Path("/tmp/backend"))
         searcher = MultiProjectSearcher(embedder, registry)
 
-        with patch.object(searcher, "cross_repo_search", return_value=(
-            [
+        with patch.object(
+            searcher,
+            "cross_repo_search",
+            return_value=(
+                [
+                    {
+                        "text": "def authenticate(): pass",
+                        "metadata": {
+                            "file": "auth.py",
+                            "chunk_index": 0,
+                            "project": "backend",
+                        },
+                        "rrf_score": 0.0167,
+                        "source_projects": ["backend"],
+                    },
+                ],
                 {
-                    "text": "def authenticate(): pass",
-                    "metadata": {"file": "auth.py", "chunk_index": 0, "project": "backend"},
-                    "rrf_score": 0.0167,
-                    "source_projects": ["backend"],
+                    "projects_searched": 1,
+                    "projects_with_results": 1,
+                    "projects_names": ["backend"],
+                    "total_before_merge": 1,
+                    "total_after_merge": 1,
                 },
-            ],
-            {
-                "projects_searched": 1,
-                "projects_with_results": 1,
-                "projects_names": ["backend"],
-                "total_before_merge": 1,
-                "total_after_merge": 1,
-            },
-        )):
+            ),
+        ):
             result = searcher.search("auth @backend")
 
         assert "Cross-repo" in result

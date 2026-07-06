@@ -20,7 +20,6 @@ import pytest_asyncio
 
 from src.core.reranker import MultiProviderReranker
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
 
@@ -53,13 +52,15 @@ def lm_studio_scores_response():
         "choices": [
             {
                 "message": {
-                    "content": json.dumps({
-                        "scores": [
-                            {"index": 0, "score": 0.95},
-                            {"index": 1, "score": 0.45},
-                            {"index": 2, "score": 0.10},
-                        ]
-                    })
+                    "content": json.dumps(
+                        {
+                            "scores": [
+                                {"index": 0, "score": 0.95},
+                                {"index": 1, "score": 0.45},
+                                {"index": 2, "score": 0.10},
+                            ]
+                        }
+                    )
                 }
             }
         ]
@@ -71,13 +72,15 @@ def ollama_scores_response():
     """Ответ Ollama с правильными скорами."""
     return {
         "message": {
-            "content": json.dumps({
-                "scores": [
-                    {"index": 0, "score": 0.92},
-                    {"index": 1, "score": 0.50},
-                    {"index": 2, "score": 0.08},
-                ]
-            })
+            "content": json.dumps(
+                {
+                    "scores": [
+                        {"index": 0, "score": 0.92},
+                        {"index": 1, "score": 0.50},
+                        {"index": 2, "score": 0.08},
+                    ]
+                }
+            )
         }
     }
 
@@ -96,104 +99,151 @@ def _make_http_response(status_code: int, json_data=None) -> httpx.Response:
 
 
 @pytest.mark.asyncio
-async def test_rerank_via_lm_studio_sorts_by_score(sample_chunks, lm_studio_scores_response):
-    """LM Studio возвращает скоры через chat → чанки сортируются по убыванию reranker_score."""
+async def test_rerank_via_lm_studio_sorts_by_score(sample_chunks):
+    """Cross-encoder через LM Studio → чанки сортируются по убыванию reranker_score."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "qwen2.5-7b-instruct"  # LLM модель (не embedding)
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_available = False
 
-    # Мокаем HTTP-клиент: первый вызов для _check_llm_available, второй для chat
     mock_client = AsyncMock()
-
-    # Модели: есть LLM
-    models_response = _make_http_response(200, {
-        "data": [{"id": "qwen2.5-7b-instruct"}, {"id": "text-embedding-bge-m3"}]
-    })
-    # Chat response
-    chat_response = _make_http_response(200, lm_studio_scores_response)
-
-    mock_client.get = AsyncMock(return_value=models_response)
-    mock_client.post = AsyncMock(return_value=chat_response)
+    mock_client.post = AsyncMock(
+        return_value=_make_http_response(
+            200,
+            {
+                "data": [
+                    {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},  # query
+                    {
+                        "embedding": [0.95, 0.3122499, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 0 → cos=0.95
+                    {
+                        "embedding": [0.45, 0.893028, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 1 → cos=0.45
+                    {
+                        "embedding": [0.10, 0.994987, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 2 → cos=0.10
+                ]
+            },
+        )
+    )
     reranker._client = mock_client
 
     result = await reranker.rerank("auth token", sample_chunks, top_n=3)
 
-    # Проверяем что вернулось 3 чанка
     assert len(result) == 3
-
-    # Проверяем сортировка: первый чанк должен быть auth.py (score 0.95)
     assert result[0]["metadata"]["file"] == "auth.py"
-    assert result[0]["reranker_score"] == 0.95
-
-    # Второй — repo.py (score 0.45)
+    assert result[0]["reranker_score"] == pytest.approx(0.95, abs=1e-3)
     assert result[1]["metadata"]["file"] == "repo.py"
-    assert result[1]["reranker_score"] == 0.45
-
-    # Третий — utils.py (score 0.10)
+    assert result[1]["reranker_score"] == pytest.approx(0.45, abs=1e-3)
     assert result[2]["metadata"]["file"] == "utils.py"
-    assert result[2]["reranker_score"] == 0.10
+    assert result[2]["reranker_score"] == pytest.approx(0.10, abs=1e-3)
 
 
 @pytest.mark.asyncio
-async def test_rerank_via_lm_studio_respects_top_n(sample_chunks, lm_studio_scores_response):
-    """top_n=2 → возвращается только 2 чанка."""
-    reranker = MultiProviderReranker()
-    reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "test-model"
-    reranker.ollama_available = False
+async def test_rerank_via_lm_studio_respects_top_n(
+    sample_chunks, lm_studio_scores_response
+):
+    async def test_rerank_via_lm_studio_respects_top_n(sample_chunks):
+        """top_n=2 → возвращается только 2 чанка."""
+        reranker = MultiProviderReranker()
+        reranker.lm_studio_available = True
+        reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
+        reranker.ollama_available = False
 
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=_make_http_response(200, lm_studio_scores_response))
-    reranker._client = mock_client
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(
+            return_value=_make_http_response(
+                200,
+                {
+                    "data": [
+                        {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},
+                        {"embedding": [0.95, 0.3122499, 0.0] * 341 + [0.0] * 1},
+                        {"embedding": [0.45, 0.893028, 0.0] * 341 + [0.0] * 1},
+                        {"embedding": [0.10, 0.994987, 0.0] * 341 + [0.0] * 1},
+                    ]
+                },
+            )
+        )
+        reranker._client = mock_client
 
-    result = await reranker.rerank("auth", sample_chunks, top_n=2)
+        result = await reranker.rerank("auth", sample_chunks, top_n=2)
 
-    assert len(result) == 2
-    assert result[0]["metadata"]["file"] == "auth.py"
-    assert result[1]["metadata"]["file"] == "repo.py"
+        assert len(result) == 2
+        assert result[0]["metadata"]["file"] == "auth.py"
+        assert result[1]["metadata"]["file"] == "repo.py"
 
 
 # ── Тест 2: Успешный реранкинг через Ollama ──────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_rerank_via_ollama_sorts_by_score(sample_chunks, ollama_scores_response):
-    """Ollama возвращает скоры → чанки сортируются по убыванию reranker_score."""
+async def test_rerank_via_ollama_sorts_by_score(sample_chunks):
+    """Cross-encoder через Ollama → чанки сортируются по убыванию reranker_score."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = False
     reranker.ollama_available = True
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_model_name = "bge-reranker-v2-m3"
 
     mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=_make_http_response(200, ollama_scores_response))
+    mock_client.post = AsyncMock(
+        return_value=_make_http_response(
+            200,
+            {
+                "data": [
+                    {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},  # query
+                    {
+                        "embedding": [0.92, 0.391918, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 0 → cos=0.92
+                    {
+                        "embedding": [0.50, 0.866025, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 1 → cos=0.50
+                    {
+                        "embedding": [0.08, 0.996794, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 2 → cos=0.08
+                ]
+            },
+        )
+    )
     reranker._client = mock_client
 
     result = await reranker.rerank("auth token", sample_chunks, top_n=3)
 
     assert len(result) == 3
     assert result[0]["metadata"]["file"] == "auth.py"
-    assert result[0]["reranker_score"] == 0.92
+    assert result[0]["reranker_score"] == pytest.approx(0.92, abs=1e-3)
     assert result[2]["metadata"]["file"] == "utils.py"
-    assert result[2]["reranker_score"] == 0.08
+    assert result[2]["reranker_score"] == pytest.approx(0.08, abs=1e-3)
 
 
 @pytest.mark.asyncio
-async def test_ollama_priority_over_lm_studio(sample_chunks, ollama_scores_response):
+async def test_ollama_priority_over_lm_studio(sample_chunks):
     """Когда оба провайдера доступны — приоритет у Ollama."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "lm-model"
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_available = True
     reranker.ollama_model_name = "ollama-model"
 
     mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=_make_http_response(200, ollama_scores_response))
+    mock_client.post = AsyncMock(
+        return_value=_make_http_response(
+            200,
+            {
+                "data": [
+                    {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},
+                    {"embedding": [0.92, 0.391918, 0.0] * 341 + [0.0] * 1},
+                    {"embedding": [0.50, 0.866025, 0.0] * 341 + [0.0] * 1},
+                    {"embedding": [0.08, 0.996794, 0.0] * 341 + [0.0] * 1},
+                ]
+            },
+        )
+    )
     reranker._client = mock_client
 
     await reranker.rerank("auth", sample_chunks, top_n=3)
 
-    # Проверяем что запрос ушёл в Ollama (не в LM Studio)
+    # Проверяем что запрос ушёл в Ollama (/api/embeddings, port 11434)
     call_url = mock_client.post.call_args[0][0]
     assert "11434" in call_url  # Ollama port
     assert "1234" not in call_url
@@ -263,37 +313,36 @@ async def test_fallback_on_timeout(sample_chunks):
 
 @pytest.mark.asyncio
 async def test_malformed_json_fallback_to_regex(sample_chunks):
-    """JSON с лишним текстом → regex-парсер извлекает скоры."""
+    """Cross-encoder: валидный embedding response → чанки сортируются по скору."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "qwen2.5-7b-instruct"  # LLM модель
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_available = False
 
-    # Повреждённый ответ: текст + JSON + текст
-    bad_response = {
-        "choices": [
-            {
-                "message": {
-                    "content": 'Here are the scores:\n{"scores": [{"index": 0, "score": 0.88}, {"index": 1, "score": 0.33}]}\nDone.'
-                }
-            }
-        ]
-    }
-
     mock_client = AsyncMock()
-    models_response = _make_http_response(200, {
-        "data": [{"id": "qwen2.5-7b-instruct"}]
-    })
-    mock_client.get = AsyncMock(return_value=models_response)
-    mock_client.post = AsyncMock(return_value=_make_http_response(200, bad_response))
+    mock_client.post = AsyncMock(
+        return_value=_make_http_response(
+            200,
+            {
+                "data": [
+                    {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},
+                    {
+                        "embedding": [0.88, 0.474604, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 0 → cos=0.88
+                    {
+                        "embedding": [0.33, 0.943959, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 1 → cos=0.33
+                ]
+            },
+        )
+    )
     reranker._client = mock_client
 
     result = await reranker.rerank("auth", sample_chunks, top_n=2)
 
-    # Должны получить отсортированный результат
     assert len(result) == 2
     assert result[0]["metadata"]["file"] == "auth.py"
-    assert result[0]["reranker_score"] == 0.88
+    assert result[0]["reranker_score"] == pytest.approx(0.88, abs=1e-3)
 
 
 @pytest.mark.asyncio
@@ -372,10 +421,12 @@ async def test_initialize_detects_lm_studio():
     # Мокаем ping-запросы
     with patch("httpx.AsyncClient") as mock_client_class:
         mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=MagicMock(
-            status_code=200,
-            json=MagicMock(return_value={"data": [{"id": "test-model"}]})
-        ))
+        mock_instance.get = AsyncMock(
+            return_value=MagicMock(
+                status_code=200,
+                json=MagicMock(return_value={"data": [{"id": "test-model"}]}),
+            )
+        )
         mock_client_class.return_value = mock_instance
 
         await reranker.initialize()
@@ -470,29 +521,39 @@ def test_parse_scores_json_gibberish():
 
 # ── Тест 9: Embedding Rerank (cosine similarity) ──────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_embedding_rerank_with_lm_studio(sample_chunks):
-    """Embedding-реранкинг через LM Studio API."""
+    """Cross-encoder реранкинг через LM Studio API (bge-reranker-v2-m3-m3)."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "text-embedding-bge-m3"
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_available = False
 
-    # Мокаем embedding ответ: query ближе к чему-то про auth
     mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=_make_http_response(200, {
-        "data": [
-            {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},  # query vector
-            {"embedding": [0.9, 0.1, 0.0] * 341 + [0.0] * 1},  # chunk 0 (auth) — близко
-            {"embedding": [0.0, 1.0, 0.0] * 341 + [0.0] * 1},  # chunk 1 (repo) — далеко
-            {"embedding": [0.0, 0.0, 1.0] * 341 + [0.0] * 1},  # chunk 2 (utils) — далеко
-        ]
-    }))
+    mock_client.post = AsyncMock(
+        return_value=_make_http_response(
+            200,
+            {
+                "data": [
+                    {"embedding": [1.0, 0.0, 0.0] * 341 + [0.0] * 1},  # query
+                    {
+                        "embedding": [0.9, 0.1, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 0 — близко
+                    {
+                        "embedding": [0.0, 1.0, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 1 — далеко
+                    {
+                        "embedding": [0.0, 0.0, 1.0] * 341 + [0.0] * 1
+                    },  # chunk 2 — далеко
+                ]
+            },
+        )
+    )
     reranker._client = mock_client
 
     result = await reranker.rerank("auth token", sample_chunks, top_n=3)
 
-    # Первый чанк должен быть auth.py (ближе всего к query)
     assert len(result) == 3
     assert result[0]["metadata"]["file"] == "auth.py"
     assert result[0]["reranker_score"] > result[1]["reranker_score"]
@@ -500,10 +561,10 @@ async def test_embedding_rerank_with_lm_studio(sample_chunks):
 
 @pytest.mark.asyncio
 async def test_embedding_rerank_fallback_on_error(sample_chunks):
-    """Embedding-реранкинг при ошибке → fallback к исходному порядку."""
+    """Cross-encoder при ошибке → fallback к исходному порядку."""
     reranker = MultiProviderReranker()
     reranker.lm_studio_available = True
-    reranker.lm_studio_model_name = "text-embedding-bge-m3"
+    reranker.lm_studio_reranker_model = "bge-reranker-v2-m3-m3"
     reranker.ollama_available = False
 
     mock_client = AsyncMock()
@@ -512,7 +573,6 @@ async def test_embedding_rerank_fallback_on_error(sample_chunks):
 
     result = await reranker.rerank("auth", sample_chunks, top_n=3)
 
-    # Fallback: исходный порядок
     assert len(result) == 3
     assert result[0]["metadata"]["file"] == "auth.py"
 
@@ -520,6 +580,7 @@ async def test_embedding_rerank_fallback_on_error(sample_chunks):
 def test_cosine_similarity_identical_vectors():
     """Cosine similarity одинаковых векторов = 1.0."""
     from src.core.reranker import MultiProviderReranker
+
     vec = [1.0, 2.0, 3.0]
     result = MultiProviderReranker._cosine_similarity(vec, vec)
     assert abs(result - 1.0) < 0.001
@@ -528,6 +589,7 @@ def test_cosine_similarity_identical_vectors():
 def test_cosine_similarity_orthogonal_vectors():
     """Cosine similarity ортогональных векторов = 0.0."""
     from src.core.reranker import MultiProviderReranker
+
     vec_a = [1.0, 0.0]
     vec_b = [0.0, 1.0]
     result = MultiProviderReranker._cosine_similarity(vec_a, vec_b)
@@ -537,5 +599,6 @@ def test_cosine_similarity_orthogonal_vectors():
 def test_cosine_similarity_empty_vectors():
     """Cosine similarity пустых векторов = 0.0."""
     from src.core.reranker import MultiProviderReranker
+
     assert MultiProviderReranker._cosine_similarity([], []) == 0.0
     assert MultiProviderReranker._cosine_similarity([1.0], []) == 0.0
