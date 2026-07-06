@@ -184,6 +184,13 @@ class SearchCodeTool(MCPTool):
                 detail += f", models={mi}"
                 if raw.get("cache_hit"):
                     detail += " (cached)"
+            # Per-stage timing
+            rt = raw.get("rerank_timing", {})
+            if rt:
+                s1 = rt.get("stage1_ms", 0)
+                s2 = rt.get("stage2_ms", 0)
+                if s1 or s2:
+                    detail += f", stages: emb={int(s1)}ms llm={int(s2)}ms tot={int(rt.get('total_ms', 0))}ms"
         record_tool_result(
             "search_code",
             route=mode,

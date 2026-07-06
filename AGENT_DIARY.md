@@ -5,7 +5,51 @@
 
 ---
 
-## [2026-07-06 19:53] — Meta: Memory stress test on MCP server
+## [2026-07-06 23:00] — Refactor: Полный pipeline реранкинга + телеметрия + memory safety
+
+**Problem:**
+- Реренкер вызывал LLM или embedding, не в цепочке
+- LM Studio перезагрузка не отслеживалась
+- Нет per-stage замеров времени
+- Телеметрия не видела какая модель использовалась
+
+**Solution:**
+
+### Pipeline: двухстадийный реранкинг
+```
+vector search → bge-reranker-v2-m3 (pruning, ~500ms)
+  → phi-4-mini-instruct (LLM final, ~2s)
+    → результат
+```
+Каждый этап независим — если модель не загружена, этап пропускается.
+
+### Memory safety
+- `_pending_names` dedup в TaskQueue — задачи с одинаковым именем не дублируются
+- `cleanup_old_results` чистит и `_pending_names`
+- TaskQueue auto-cleanup каждые 60с (TTL 10мин)
+- `HeartbeatService._monitor()` гарантированно сбрасывает `_running` в finally
+
+### LM Studio live reload
+- Фоновый сканер каждые 30с перепингует модели
+- `asyncio.Semaphore(1)` — только 1 запрос к LM Studio одновременно
+- `_check_llm_available` с TTL 15с и реальным пингом за 2с
+- `_query_lm_studio` универсальный: /v1/chat/completions → /v1/completions fallback
+
+### Telemetry (per-call)
+```
+detail: "2 results, mode=quality, models=emb=bge-reranker-v2-m3 llm=phi-4-mini-instruct, stages: emb=480ms llm=2100ms tot=2580ms"
+```
+- Какая модель делала embedding-rerank (stage 1)
+- Какая модель делала LLM-rerank (stage 2)
+- Per-stage latency
+- Cache hit indicator
+
+### Model auto-selection
+- `_ping_lm_studio` использует `type`/`state` из LM Studio API
+- `type=embeddings` → `lm_studio_embedding_model`
+- `type=llm` → `lm_studio_model_name`
+- Fallback name-based если API без type
+- Reranker модели (type=rerank) выделены отдельно
 
 **Problem:** Stress test MCP server memory usage — measure Python process memory and detect leaks.
 

@@ -274,30 +274,52 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Двухстадийный реранкинг: bge-reranker → LLM."""
+        """Двухстадийный реранкинг: bge-reranker → LLM.
+
+        Timing доступен после вызова: self.last_timing
+        """
+        import time as _time
+
+        t_start = _time.perf_counter()
+        self.last_timing = {
+            "stage1_ms": 0,
+            "stage2_ms": 0,
+            "total_ms": 0,
+            "stage1": "-",
+            "stage2": "-",
+        }
+
         if not chunks or len(chunks) <= 1:
             return chunks[:top_n]
 
         provider = self._select_provider()
         if provider is None:
+            self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
             return chunks[:top_n]
 
-        logger.debug(f"Rerank {len(chunks)} chunks via {provider}")
+        sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
 
         # ─── Стадия 1: embedding-rerank (bge-reranker-v2-m3) ───
-        sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
         stage1_top = min(top_n * 2, len(chunks))
+        t1 = _time.perf_counter()
         try:
             async with sem:
                 embed_scores = await self._embedding_rerank(query, chunks, provider)
             if embed_scores:
                 chunks = self._apply_scores(chunks, embed_scores, stage1_top)
+                self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
+                self.last_timing["stage1"] = (
+                    self.lm_studio_embedding_model or "bge-reranker"
+                )
         except Exception as e:
-            logger.debug(f"Stage 1 (embed-rerank) failed: {e}")
+            self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
+            self.last_timing["stage1"] = f"failed: {e}"
 
         # ─── Стадия 2: LLM-реранкинг (phi-4-mini-instruct) ───
+        t2 = _time.perf_counter()
         try:
             if not await self._check_llm_available(provider) or len(chunks) <= 1:
+                self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
                 return chunks[:top_n]
 
             truncated = [
@@ -314,10 +336,15 @@ class MultiProviderReranker:
                 )
             if scores:
                 chunks = self._apply_scores(chunks, scores, top_n)
+                self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
+                self.last_timing["stage2"] = self.lm_studio_model_name or "phi-4"
+                self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
                 return chunks
         except Exception as e:
-            logger.debug(f"Stage 2 (LLM-rerank) failed: {e}")
+            self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
+            self.last_timing["stage2"] = f"failed: {e}"
 
+        self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
         return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:

@@ -715,6 +715,7 @@ class Searcher:
                 "model_info": self._multi_reranker.model_info
                 if self._multi_reranker
                 else "cached",
+                "rerank_timing": getattr(self, "_last_rerank_timing", {}),
             }
 
         results = []
@@ -768,6 +769,7 @@ class Searcher:
             "model_info": self._multi_reranker.model_info
             if self._multi_reranker
             else "no-reranker",
+            "rerank_timing": getattr(self, "_last_rerank_timing", {}),
         }
 
     def context_search(self, selected_code: str, limit: int = 5) -> str:
@@ -1620,6 +1622,8 @@ class Searcher:
         top_n: int,
     ) -> List[dict]:
         """Асинхронный мульти-провайдерный реранкинг."""
+        self._last_rerank_timing = {}
+
         if not rrf_results:
             return rrf_results
 
@@ -1628,7 +1632,10 @@ class Searcher:
             return rrf_results
 
         try:
-            return await reranker.rerank(query, rrf_results, top_n=top_n)
+            results = await reranker.rerank(query, rrf_results, top_n=top_n)
+            if hasattr(reranker, "last_timing"):
+                self._last_rerank_timing = reranker.last_timing
+            return results
         except Exception as e:
             logger.warning(f"MultiProviderReranker ошибка: {e}. Fallback к RRF.")
             return rrf_results
