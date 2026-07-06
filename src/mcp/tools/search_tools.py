@@ -125,6 +125,7 @@ class SearchCodeTool(MCPTool):
 
         result_str: str
         results_count: int = 0
+        raw = None  # для телеметрии
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):

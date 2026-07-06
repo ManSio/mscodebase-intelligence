@@ -348,11 +348,7 @@ class MultiProviderReranker:
         return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:
-        """Проверяет доступность LLM-модели с кэшем.
-
-        Использует TTL (_llm_check_ttl), не долбит LM Studio каждую секунду.
-        """
-        # TTL кэш
+        """Проверяет доступность LLM-модели с кэшем."""
         now = time.time()
         if now - self._llm_checked_at < self._llm_check_ttl:
             return self._llm_available
@@ -362,9 +358,7 @@ class MultiProviderReranker:
             self._llm_checked_at = now
             return self._llm_available
 
-        # Реальная проверка: есть ли загруженная llm модель в LM Studio
         try:
-            # Fix 3: быстрый таймаут 2с, не ждём 30с
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.get(f"{self.lm_studio_url}/models")
                 if resp.status_code == 200:
@@ -375,9 +369,9 @@ class MultiProviderReranker:
                             self._llm_available = True
                             self._llm_checked_at = now
                             return True
-                        # Fallback: проверка по ID
+                        # OpenAI-compatible API: без type/state — проверка по имени
                         mid = m.get("id", "").lower()
-                        if m.get("state") == "loaded" and "instruct" in mid:
+                        if "instruct" in mid or "llm" in mid:
                             self._llm_available = True
                             self._llm_checked_at = now
                             return True
