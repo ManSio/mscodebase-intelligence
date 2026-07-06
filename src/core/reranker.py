@@ -87,9 +87,9 @@ class MultiProviderReranker:
         # Статус провайдеров (заполняется при initialize())
         self.lm_studio_available: bool = False
         self.ollama_available: bool = False
-        self.lm_studio_model_name: Optional[str] = None  # instruct model for LLM-rerank
+        self.lm_studio_model_name: Optional[str] = None  # llm for chat/completions
         self.lm_studio_embedding_model: Optional[str] = (
-            None  # embedding model for embed-rerank
+            None  # embedding for /v1/embeddings
         )
         self.ollama_model_name: Optional[str] = None
 
@@ -138,14 +138,7 @@ class MultiProviderReranker:
             self._client = None
 
     async def _ping_lm_studio(self) -> bool:
-        """Быстрый пинг LM Studio. Возвращает True если сервер отвечает.
-
-        Выбирает модели:
-        - lm_studio_model_name: для LLM-реранкинга (chat/completions).
-          Приоритет: instruct > reranker > любая non-embedding
-        - lm_studio_embedding_model: для embedding-реранкинга (/v1/embeddings).
-          Приоритет: reranker > embedding
-        """
+        """Пинг LM Studio. Берёт что дали, без эвристик."""
         try:
             resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
                 f"{self.lm_studio_url}/models"
@@ -154,36 +147,35 @@ class MultiProviderReranker:
                 data = resp.json()
                 models = data.get("data", [])
                 if models:
-                    embed_model = None
-                    reranker_model = None
-                    instruct_model = None
+                    # Если API вернул type — по нему
+                    has_type = any("type" in m for m in models)
+                    if has_type:
+                        for m in models:
+                            if m.get("state") != "loaded":
+                                continue
+                            t = m.get("type", "")
+                            if t == "embeddings" and not self.lm_studio_embedding_model:
+                                self.lm_studio_embedding_model = m["id"]
+                            elif t == "llm" and not self.lm_studio_model_name:
+                                self.lm_studio_model_name = m["id"]
+                    else:
+                        # Без type — первая модель для /v1/embeddings, вторая для chat
+                        for m in models:
+                            if not self.lm_studio_embedding_model:
+                                self.lm_studio_embedding_model = m["id"]
+                            elif not self.lm_studio_model_name:
+                                self.lm_studio_model_name = m["id"]
+                                break
 
-                    for m in models:
-                        mid = m.get("id", "").lower()
-                        # Reranker / embedding для /v1/embeddings — приоритет reranker
-                        if "rerank" in mid:
-                            if reranker_model is None:
-                                reranker_model = m.get("id")
-                        elif "embed" in mid:
-                            if embed_model is None:
-                                embed_model = m.get("id")
-                        # Instruct для /v1/chat/completions
-                        elif "instruct" in mid:
-                            if instruct_model is None:
-                                instruct_model = m.get("id")
-
-                    # LLM-реранкинг: instruct > любая первая
-                    self.lm_studio_model_name = (
-                        instruct_model or reranker_model or models[0].get("id")
-                    )
-                    # Embedding-реранкинг: reranker > embedding > первая
-                    self.lm_studio_embedding_model = (
-                        reranker_model or embed_model or models[0].get("id")
-                    )
+                    # Fallback если чего-то не нашли
+                    if not self.lm_studio_embedding_model:
+                        self.lm_studio_embedding_model = models[0]["id"]
+                    if not self.lm_studio_model_name:
+                        self.lm_studio_model_name = models[0]["id"]
 
                     logger.info(
-                        f"LM Studio: LLM-rerank→{self.lm_studio_model_name}, "
-                        f"embed-rerank→{self.lm_studio_embedding_model}"
+                        f"LM Studio: emb→{self.lm_studio_embedding_model}, "
+                        f"llm→{self.lm_studio_model_name}"
                     )
                 return True
             return False
