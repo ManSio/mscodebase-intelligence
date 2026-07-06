@@ -140,10 +140,11 @@ class MultiProviderReranker:
     async def _ping_lm_studio(self) -> bool:
         """Быстрый пинг LM Studio. Возвращает True если сервер отвечает.
 
-        Выбирает модели для реранкинга:
-        - lm_studio_model_name: для LLM-реранкинга (через /v1/chat/completions или /v1/completions)
-          Приоритет: reranker > instruct > любая non-embedding
-        - lm_studio_embedding_model: для embedding-реранкинга (через /v1/embeddings)
+        Выбирает модели:
+        - lm_studio_model_name: для LLM-реранкинга (chat/completions).
+          Приоритет: instruct > reranker > любая non-embedding
+        - lm_studio_embedding_model: для embedding-реранкинга (/v1/embeddings).
+          Приоритет: reranker > embedding
         """
         try:
             resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
@@ -156,36 +157,29 @@ class MultiProviderReranker:
                     embed_model = None
                     reranker_model = None
                     instruct_model = None
-                    fallback_model = None
 
                     for m in models:
                         mid = m.get("id", "").lower()
-                        # Embedding для /v1/embeddings
-                        if "embed" in mid and "rerank" not in mid:
-                            if embed_model is None:
-                                embed_model = m.get("id")
-                        # Reranker модель — приоритет для LLM-реранкинга
+                        # Reranker / embedding для /v1/embeddings — приоритет reranker
                         if "rerank" in mid:
                             if reranker_model is None:
                                 reranker_model = m.get("id")
-                        # Instruct модель — второй приоритет
+                        elif "embed" in mid:
+                            if embed_model is None:
+                                embed_model = m.get("id")
+                        # Instruct для /v1/chat/completions
                         elif "instruct" in mid:
                             if instruct_model is None:
                                 instruct_model = m.get("id")
-                        # Любая non-embedding — fallback
-                        elif "embed" not in mid:
-                            if fallback_model is None:
-                                fallback_model = m.get("id")
 
-                    # LLM-реранкинг: reranker > instruct > fallback > первая любая
+                    # LLM-реранкинг: instruct > любая первая
                     self.lm_studio_model_name = (
-                        reranker_model
-                        or instruct_model
-                        or fallback_model
-                        or models[0].get("id")
+                        instruct_model or reranker_model or models[0].get("id")
                     )
-                    # Embedding-реранкинг: embed > любая первая
-                    self.lm_studio_embedding_model = embed_model or models[0].get("id")
+                    # Embedding-реранкинг: reranker > embedding > первая
+                    self.lm_studio_embedding_model = (
+                        reranker_model or embed_model or models[0].get("id")
+                    )
 
                     logger.info(
                         f"LM Studio: LLM-rerank→{self.lm_studio_model_name}, "
