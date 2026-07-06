@@ -47,9 +47,7 @@ _INFERENCE_TIMEOUT = _config.performance.reranker_timeout
 _MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
 
 # Регулярка для извлечения JSON-массива scores из ответа
-_SCORES_JSON_RE = re.compile(
-    r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL
-)
+_SCORES_JSON_RE = re.compile(r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
 # Извлечение отдельных объектов {"index": N, "score": F}
 _SCORE_ITEM_RE = re.compile(
     r'\{\s*"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*\}'
@@ -77,15 +75,22 @@ class MultiProviderReranker:
             ping_timeout: Таймаут проверки доступности провайдера (сек)
             inference_timeout: Таймаут инференса (сек)
         """
-        self.lm_studio_url = (lm_studio_url or _config.embedding.get_lm_studio_base_url() + "/v1").rstrip("/")
-        self.ollama_url = (ollama_url or _config.embedding.get_ollama_base_url()).rstrip("/")
+        self.lm_studio_url = (
+            lm_studio_url or _config.embedding.get_lm_studio_base_url() + "/v1"
+        ).rstrip("/")
+        self.ollama_url = (
+            ollama_url or _config.embedding.get_ollama_base_url()
+        ).rstrip("/")
         self.ping_timeout = ping_timeout
         self.inference_timeout = inference_timeout
 
         # Статус провайдеров (заполняется при initialize())
         self.lm_studio_available: bool = False
         self.ollama_available: bool = False
-        self.lm_studio_model_name: Optional[str] = None
+        self.lm_studio_model_name: Optional[str] = None  # instruct model for LLM-rerank
+        self.lm_studio_embedding_model: Optional[str] = (
+            None  # embedding model for embed-rerank
+        )
         self.ollama_model_name: Optional[str] = None
 
         # Кэш HTTP-клиента
@@ -108,13 +113,17 @@ class MultiProviderReranker:
             logger.debug(f"LM Studio недоступен: {results[0]}")
         elif results[0]:
             self.lm_studio_available = True
-            logger.info(f"✅ LM Studio доступен: {self.lm_studio_url} (модель: {self.lm_studio_model_name})")
+            logger.info(
+                f"✅ LM Studio доступен: {self.lm_studio_url} (модель: {self.lm_studio_model_name})"
+            )
 
         if isinstance(results[1], Exception):
             logger.debug(f"Ollama недоступна: {results[1]}")
         elif results[1]:
             self.ollama_available = True
-            logger.info(f"✅ Ollama доступна: {self.ollama_url} (модель: {self.ollama_model_name})")
+            logger.info(
+                f"✅ Ollama доступна: {self.ollama_url} (модель: {self.ollama_model_name})"
+            )
 
         if not self.lm_studio_available and not self.ollama_available:
             logger.info(
@@ -131,8 +140,9 @@ class MultiProviderReranker:
     async def _ping_lm_studio(self) -> bool:
         """Быстрый пинг LM Studio. Возвращает True если сервер отвечает.
 
-        Сохраняет Instruct-модель (без embed/rerank в имени) для LLM-реранкинга.
-        Если Instruct нет — сохраняет первую модель (для embedding-реранкинга).
+        Сохраняет отдельно:
+        - lm_studio_model_name: первая instruct-модель (для LLM-реранкинга)
+        - lm_studio_embedding_model: первая embedding-модель (для embedding-реранкинга)
         """
         try:
             resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
@@ -143,14 +153,27 @@ class MultiProviderReranker:
                 models = data.get("data", [])
                 if models:
                     # Ищем Instruct-модель для LLM-реранкинга
+                    # и Embedding-модель для embedding-реранкинга
                     instruct_model = None
+                    embed_model = None
                     for m in models:
                         mid = m.get("id", "").lower()
-                        if "embed" not in mid and "rerank" not in mid:
-                            instruct_model = m.get("id")
-                            break
-                    # Если нашли Instruct — используем её, иначе первую
+                        if "embed" in mid and "rerank" not in mid:
+                            # Чистая embedding-модель (не reranker) — для /v1/embeddings
+                            if embed_model is None:
+                                embed_model = m.get("id")
+                        elif "embed" not in mid and "rerank" not in mid:
+                            # Instruct/LLM модель — для chat/completions
+                            if instruct_model is None:
+                                instruct_model = m.get("id")
+                    # Устанавливаем обе модели
                     self.lm_studio_model_name = instruct_model or models[0].get("id")
+                    self.lm_studio_embedding_model = (
+                        embed_model or instruct_model or models[0].get("id")
+                    )
+                    self.lm_studio_embedding_model = (
+                        embed_model or instruct_model or models[0].get("id")
+                    )
                 return True
             return False
         except Exception:
@@ -267,7 +290,9 @@ class MultiProviderReranker:
             logger.warning("⏱️ Таймаут реранкера. Fallback к RRF-порядку.")
             return chunks[:top_n]
         except httpx.ConnectError as e:
-            logger.warning(f"🔌 Ошибка подключения к провайдеру реранкинга: {e}. Fallback к RRF-порядку.")
+            logger.warning(
+                f"🔌 Ошибка подключения к провайдеру реранкинга: {e}. Fallback к RRF-порядку."
+            )
             return chunks[:top_n]
         except Exception as e:
             logger.warning(f"⚠️ Ошибка реранкинга: {e}. Fallback к RRF-порядку.")
@@ -305,9 +330,7 @@ class MultiProviderReranker:
         Промпт содержит запрос и список чанков с индексами.
         Требует от модели вернуть JSON со скорами для каждого индекса.
         """
-        chunks_text = "\n".join(
-            f"[{c['index']}] {c['text']}" for c in chunks
-        )
+        chunks_text = "\n".join(f"[{c['index']}] {c['text']}" for c in chunks)
 
         return (
             f"You are a code search relevance scorer.\n"
@@ -420,7 +443,8 @@ class MultiProviderReranker:
         # Выбираем URL и модель
         if provider == "lm_studio":
             url = f"{self.lm_studio_url}/embeddings"
-            model = self.lm_studio_model_name or "text-embedding-bge-m3"
+            # Используем embedding модель, не instruct!
+            model = self.lm_studio_embedding_model or "text-embedding-bge-m3"
         else:
             url = f"{self.ollama_url}/api/embeddings"
             model = self.ollama_model_name or "bge-m3"
@@ -524,12 +548,11 @@ class MultiProviderReranker:
         # Попытка 4: извлечение отдельных объектов score
         items = _SCORE_ITEM_RE.findall(raw)
         if items:
-            return [
-                {"index": int(idx), "score": float(score)}
-                for idx, score in items
-            ]
+            return [{"index": int(idx), "score": float(score)} for idx, score in items]
 
-        logger.warning(f"⚠️ Не удалось извлечь scores из ответа реранкера: {raw[:200]}...")
+        logger.warning(
+            f"⚠️ Не удалось извлечь scores из ответа реранкера: {raw[:200]}..."
+        )
         return []
 
     @staticmethod
@@ -541,10 +564,12 @@ class MultiProviderReranker:
                 idx = item.get("index")
                 score = item.get("score")
                 if isinstance(idx, (int, float)) and isinstance(score, (int, float)):
-                    validated.append({
-                        "index": int(idx),
-                        "score": max(0.0, min(1.0, float(score))),
-                    })
+                    validated.append(
+                        {
+                            "index": int(idx),
+                            "score": max(0.0, min(1.0, float(score))),
+                        }
+                    )
         return validated
 
     @staticmethod
