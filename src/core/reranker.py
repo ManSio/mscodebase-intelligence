@@ -226,81 +226,58 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Выполняет пакетный реранкинг чанков через внешний провайдер.
+        """Двухстадийный реранкинг: bge-reranker → LLM.
 
-        Поддерживает два режима:
-        1. **LLM-реранкинг** (chat/completions) — если есть Instruct-модель
-        2. **Embedding-реранкинг** (cosine similarity) — fallback для embedding-моделей
-
-        Args:
-            query: Исходный поисковый запрос
-            chunks: Список чанков (каждый содержит 'text', 'metadata', 'final_score')
-            top_n: Максимальное число результатов для возврата
-
-        Returns:
-            Отсортированный список чанков (top_n штук).
-            При недоступности провайдеров или ошибке — исходные chunks[:top_n].
+        Стадия 1: embedding-rerank (bge-reranker-v2-m3) — быстро, pruning
+        Стадия 2: LLM-rerank (phi-4-mini-instruct) — медленно, финально
         """
-        # Защита от пустого входа
-        if not chunks:
-            return chunks
-
-        # Если чанков уже меньше top_n — реранкинг не нужен
-        if len(chunks) <= 1:
+        if not chunks or len(chunks) <= 1:
             return chunks[:top_n]
 
-        # Выбор провайдера
         provider = self._select_provider()
         if provider is None:
-            logger.info(
-                "ℹ️ Реранкер отключён. Запустите модель в LM Studio "
-                "или выполните 'ollama run bge-reranker-v2-m3' для включения LLM-реранкинга."
-            )
             return chunks[:top_n]
 
+        logger.debug(f"Rerank {len(chunks)} chunks → top {top_n} via {provider}")
+
+        # ─── Стадия 1: embedding-rerank (bge-reranker-v2-m3) ───
+        # Режет с N до N*2 (отсекает явно нерелевантное)
+        stage1_top = min(top_n * 2, len(chunks))
         try:
-            # Пробуем LLM-реранкинг (chat/completions) если есть Instruct-модель
-            llm_available = await self._check_llm_available(provider)
-
-            if llm_available:
-                # LLM-реранкинг через chat
-                truncated_chunks = []
-                for i, chunk in enumerate(chunks):
-                    text = chunk.get("text", "")
-                    truncated = text[:_MAX_CHUNK_PREVIEW_LEN].strip()
-                    truncated_chunks.append({"index": i, "text": truncated})
-
-                prompt = self._build_batch_prompt(query, truncated_chunks)
-
-                if provider == "ollama":
-                    scores = await self._query_ollama(prompt)
-                else:
-                    scores = await self._query_lm_studio(prompt)
-
-                if scores:
-                    return self._apply_scores(chunks, scores, top_n)
-
-            # Fallback: embedding-реранкинг (cosine similarity)
-            # Работает с BGE-M3 и другими embedding-моделями
-            scores = await self._embedding_rerank(query, chunks, provider)
-            if scores:
-                logger.debug(f"Embedding rerank: {len(scores)} scores computed")
-                return self._apply_scores(chunks, scores, top_n)
-
-            # Если ничего не сработало — возвращаем исходный порядок
-            return chunks[:top_n]
-
-        except httpx.TimeoutException:
-            logger.warning("⏱️ Таймаут реранкера. Fallback к RRF-порядку.")
-            return chunks[:top_n]
-        except httpx.ConnectError as e:
-            logger.warning(
-                f"🔌 Ошибка подключения к провайдеру реранкинга: {e}. Fallback к RRF-порядку."
-            )
-            return chunks[:top_n]
+            embed_scores = await self._embedding_rerank(query, chunks, provider)
+            if embed_scores:
+                chunks = self._apply_scores(chunks, embed_scores, stage1_top)
+                logger.debug(f"Stage 1 (embed): {len(chunks)} chunks")
         except Exception as e:
-            logger.warning(f"⚠️ Ошибка реранкинга: {e}. Fallback к RRF-порядку.")
-            return chunks[:top_n]
+            logger.debug(f"Stage 1 failed: {e}")
+
+        # ─── Стадия 2: LLM-реранкинг (phi-4-mini-instruct) ───
+        # Финальная оценка top_n
+        try:
+            llm_available = await self._check_llm_available(provider)
+            if llm_available and len(chunks) > 1:
+                truncated = [
+                    {
+                        "index": i,
+                        "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip(),
+                    }
+                    for i, c in enumerate(chunks)
+                ]
+                prompt = self._build_batch_prompt(query, truncated)
+
+                scores = (
+                    await self._query_ollama(prompt)
+                    if provider == "ollama"
+                    else await self._query_lm_studio(prompt)
+                )
+                if scores:
+                    chunks = self._apply_scores(chunks, scores, top_n)
+                    logger.debug(f"Stage 2 (LLM): {len(chunks)} chunks")
+                    return chunks
+        except Exception as e:
+            logger.debug(f"Stage 2 failed: {e}")
+
+        return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:
         """Проверяет есть ли Instruct-модель для LLM-реранкинга.
