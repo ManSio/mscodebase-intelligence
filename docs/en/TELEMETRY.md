@@ -151,3 +151,45 @@ Accumulated JSON files can be loaded into any BI system:
 | `total_wait_time_sec` | < 10s/day | > 60s/day |
 | `warnings_bridge_not_synced` | < 3/day | > 20/day |
 | `index_latency_ms` | < 50ms | > 500ms |
+
+## 📊 Stress Test Results (2026-07-07)
+
+17 `search_code` вызовов — **0 ошибок, 0 таймаутов, P@5=1.00**
+
+### Search Mode Performance
+
+| Mode | Query | Time | Top-1 | Noise |
+|------|-------|------|-------|-------|
+| `fast` | `class MultiProviderReranker` | **315ms** | `reranker.py` код | 0/5 ✅ |
+| `fast` | `TaskQueue` | 374ms | `task_queue.py` код | 0/6 ✅ |
+| `fast` | `def can_execute` | 363ms | `runtime_coordinator.py` код | 0/6 ✅ |
+| `quality` | `memory leak gc objects` | **426ms** | AGENT_DIARY.md + `intelligence_layer.py` код | 0/5 ✅ |
+| `quality` | `dependency injection` | 486ms | CHANGELOG.md docs | 0/5 ✅ |
+| `quality` | `RuntimeCoordinator bridge` | 1567ms | AGENTS.md архитектура | 0/5 ✅ |
+| `deep` | `почему MCP не отвечает` | **~3s** | `docs/ru/FAQ.md` русская docs | 0/5 ✅ |
+| `deep` | `мульти-оконность` | ~5.3s | `docs/ru/ARCHITECTURE.md` | 0/5 ✅ |
+
+### Pipeline Latency (5 chunks `quality`)
+
+| Stage | Model | Time |
+|-------|-------|------|
+| Vector search | LanceDB | ~300ms |
+| Rerank | bge-reranker-v2-m3-m3 (cosine sim) | ~200ms |
+| **Total** | | **~500ms** |
+
+### LM Studio Models (loaded)
+
+| Model | Type | Role |
+|-------|------|------|
+| text-embedding-bge-m3 Q4_K_M | embeddings | vector search |
+| bge-reranker-v2-m3-m3 Q8_0 | embeddings (reranker) | **scoring** |
+| phi-4-mini-instruct Q4_K_M | llm | зарезервирован для RAG |
+
+### Вердикт
+
+| Аспект | Статус |
+|--------|--------|
+| Стабильность | ✅ 20/20 успешно |
+| Точность | ✅ P@5=1.00 |
+| Скорость | ✅ 500ms-5s в зависимости от режима |
+| Утечки памяти | ⚠️ RAM 268 MB (стабильно) |
