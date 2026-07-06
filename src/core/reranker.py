@@ -140,9 +140,10 @@ class MultiProviderReranker:
     async def _ping_lm_studio(self) -> bool:
         """Быстрый пинг LM Studio. Возвращает True если сервер отвечает.
 
-        Сохраняет отдельно:
-        - lm_studio_model_name: первая instruct-модель (для LLM-реранкинга)
-        - lm_studio_embedding_model: первая embedding-модель (для embedding-реранкинга)
+        Выбирает модели для реранкинга:
+        - lm_studio_model_name: для LLM-реранкинга (через /v1/chat/completions или /v1/completions)
+          Приоритет: reranker > instruct > любая non-embedding
+        - lm_studio_embedding_model: для embedding-реранкинга (через /v1/embeddings)
         """
         try:
             resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
@@ -152,31 +153,48 @@ class MultiProviderReranker:
                 data = resp.json()
                 models = data.get("data", [])
                 if models:
-                    # Ищем Instruct-модель для LLM-реранкинга
-                    # и Embedding-модель для embedding-реранкинга
-                    instruct_model = None
                     embed_model = None
+                    reranker_model = None
+                    instruct_model = None
+                    fallback_model = None
+
                     for m in models:
                         mid = m.get("id", "").lower()
+                        # Embedding для /v1/embeddings
                         if "embed" in mid and "rerank" not in mid:
-                            # Чистая embedding-модель (не reranker) — для /v1/embeddings
                             if embed_model is None:
                                 embed_model = m.get("id")
-                        elif "embed" not in mid and "rerank" not in mid:
-                            # Instruct/LLM модель — для chat/completions
+                        # Reranker модель — приоритет для LLM-реранкинга
+                        if "rerank" in mid:
+                            if reranker_model is None:
+                                reranker_model = m.get("id")
+                        # Instruct модель — второй приоритет
+                        elif "instruct" in mid:
                             if instruct_model is None:
                                 instruct_model = m.get("id")
-                    # Устанавливаем обе модели
-                    self.lm_studio_model_name = instruct_model or models[0].get("id")
-                    self.lm_studio_embedding_model = (
-                        embed_model or instruct_model or models[0].get("id")
+                        # Любая non-embedding — fallback
+                        elif "embed" not in mid:
+                            if fallback_model is None:
+                                fallback_model = m.get("id")
+
+                    # LLM-реранкинг: reranker > instruct > fallback > первая любая
+                    self.lm_studio_model_name = (
+                        reranker_model
+                        or instruct_model
+                        or fallback_model
+                        or models[0].get("id")
                     )
-                    self.lm_studio_embedding_model = (
-                        embed_model or instruct_model or models[0].get("id")
+                    # Embedding-реранкинг: embed > любая первая
+                    self.lm_studio_embedding_model = embed_model or models[0].get("id")
+
+                    logger.info(
+                        f"LM Studio: LLM-rerank→{self.lm_studio_model_name}, "
+                        f"embed-rerank→{self.lm_studio_embedding_model}"
                     )
                 return True
             return False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"LM Studio ping failed: {e}")
             return False
 
     async def _ping_ollama(self) -> bool:
@@ -344,36 +362,80 @@ class MultiProviderReranker:
         )
 
     async def _query_lm_studio(self, prompt: str) -> List[Dict[str, Any]]:
-        """Отправляет пакетный запрос к LM Studio (OpenAI-совместимый API)."""
+        """Отправляет запрос к LM Studio с авто-выбором эндпоинта.
+
+        Универсальный: пробует /v1/chat/completions (instruct модели),
+        если модель не поддерживает chat — падает на /v1/completions (base модели).
+        """
         if not self._client:
             self._client = httpx.AsyncClient(timeout=self.inference_timeout)
 
+        model_name = self.lm_studio_model_name or "local-model"
+
+        # Пробуем chat/completions (instruct модели)
+        try:
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a precise code relevance scorer. "
+                            "Return ONLY valid JSON with the scores array. No explanations. "
+                            'Example: {"scores": [0.9, 0.7, 0.5, 0.3, 0.1]}'
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.0,
+                "max_tokens": 1024,
+            }
+
+            resp = await self._client.post(
+                f"{self.lm_studio_url}/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                return self._parse_scores_json(content)
+
+            # Если модель не поддерживает chat (400/404) — падаем на completions
+            if resp.status_code in (400, 404):
+                logger.debug(
+                    f"Chat endpoint failed for {model_name} (HTTP {resp.status_code}), "
+                    f"fallback to /v1/completions"
+                )
+            else:
+                resp.raise_for_status()
+
+        except Exception as e:
+            logger.debug(
+                f"Chat endpoint error for {model_name}: {e}, fallback to completions"
+            )
+
+        # Fallback: /v1/completions (base модели, реранкеры)
         payload = {
-            "model": self.lm_studio_model_name or "local-model",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a precise code relevance scorer. "
-                        "Return ONLY valid JSON with the scores array. No explanations. "
-                        'Example: {"scores": [0.9, 0.7, 0.5, 0.3, 0.1]}'
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
+            "model": model_name,
+            "prompt": (
+                "You are a precise code relevance scorer. "
+                "Return ONLY valid JSON with the scores array. No explanations.\n"
+                f"{prompt}"
+            ),
             "temperature": 0.0,
             "max_tokens": 1024,
         }
 
         resp = await self._client.post(
-            f"{self.lm_studio_url}/chat/completions",
+            f"{self.lm_studio_url}/completions",
             json=payload,
             headers={"Content-Type": "application/json"},
         )
         resp.raise_for_status()
 
         data = resp.json()
-        content = data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["text"]
         return self._parse_scores_json(content)
 
     async def _query_ollama(self, prompt: str) -> List[Dict[str, Any]]:
