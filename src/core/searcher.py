@@ -712,6 +712,9 @@ class Searcher:
                 "mode": mode,
                 "timing_ms": timing,
                 "cache_hit": cache_hit,
+                "model_info": self._multi_reranker.model_info
+                if self._multi_reranker
+                else "cached",
             }
 
         results = []
@@ -762,6 +765,9 @@ class Searcher:
             "mode": mode,
             "timing_ms": timing,
             "cache_hit": cache_hit,
+            "model_info": self._multi_reranker.model_info
+            if self._multi_reranker
+            else "no-reranker",
         }
 
     def context_search(self, selected_code: str, limit: int = 5) -> str:

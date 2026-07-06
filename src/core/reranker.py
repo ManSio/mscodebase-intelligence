@@ -240,6 +240,18 @@ class MultiProviderReranker:
         """True если хотя бы один провайдер доступен."""
         return self.lm_studio_available or self.ollama_available
 
+    @property
+    def model_info(self) -> str:
+        """Модели используемые для реранкинга (для телеметрии)."""
+        parts = []
+        if self.lm_studio_embedding_model:
+            parts.append(f"emb={self.lm_studio_embedding_model}")
+        if self.lm_studio_model_name:
+            parts.append(f"llm={self.lm_studio_model_name}")
+        if self.ollama_model_name:
+            parts.append(f"oll={self.ollama_model_name}")
+        return " ".join(parts) if parts else "no-reranker"
+
     def _select_provider(self) -> Optional[str]:
         """Выбирает лучший доступный провайдер.
 

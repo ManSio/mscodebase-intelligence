@@ -177,6 +177,13 @@ class SearchCodeTool(MCPTool):
         detail = f"{results_count} results, mode={mode}"
         if filter_layer:
             detail += f", layer={filter_layer}"
+        # Добавляем модель из результата поиска
+        if isinstance(raw, dict):
+            mi = raw.get("model_info")
+            if mi:
+                detail += f", models={mi}"
+                if raw.get("cache_hit"):
+                    detail += " (cached)"
         record_tool_result(
             "search_code",
             route=mode,
