@@ -5,6 +5,56 @@
 
 ---
 
+## [2026-07-07 01:30] — Ultra-Lean reranker: одностадийный cross-encoder вместо трёхстадийного pipeline
+
+**Problem:**
+Трёхстадийный pipeline (embed → cross-encoder → LLM) оказался избыточным:
+- Stage 1 (text-embedding-bge-m3): дублирует LanceDB, +564ms оверхеда
+- Stage 3 (phi-4): обнуляет код (score=0.00 для .py файлов), +5981ms за 0 пользы
+- Полный pipeline: ~15s при качестве хуже, чем один cross-encoder
+
+**Solution:**
+
+Полный datadump и бенчмарки:
+
+### Performance benchmarks (реальные замеры)
+```
+Модель                     ms/text    throughput
+────────────────────────────────────────────────
+text-embedding-bge-m3       53ms        19 t/s
+bge-reranker-v2-m3-m3       37ms 🏆     27 t/s 🏆
+phi-4-mini-instruct         8.4 tok/s   —
+```
+
+### Сравнение качества scoring
+```
+Канал           Время    Код в топе    Градиент
+────────────────────────────────────────────────
+Stage 1 (embed)  564ms   ❌            0.52-0.72
+Stage 2 (rerank)  892ms   ✅ 0.92       0.66-0.96 🏆
+Stage 3 (phi-4)  5981ms   ❌ 0.00       0.00-0.95 (бинарный)
+```
+
+### Итоговое решение
+Удалены:
+- Stage 1 (text-embedding-bge-m3) — LanceDB уже дал кандидатов
+- Stage 3 (phi-4) — обнуляет код, 12x медленнее cross-encoder
+
+Оставлен:
+- Stage 2 (bge-reranker-v2-m3-m3) — единственный проход, ~500ms
+
+phi-4 зарезервирован для будущего mode=ask (RAG-генерация ответов).
+
+### Итоговая карта режимов
+```
+mode=fast   380ms  LanceDB vector           → поиск файла/класса по имени
+mode=quality 500ms LanceDB → bge-reranker   → relevance scoring 🏆
+mode=deep   3-5s   quality + agentic + graph → исследование
+mode=ask    15s    quality + phi-4 RAG       → генерация ответа (future)
+```
+
+**Код:** `dbf3d56` — reranker.py: -67 строк, -90% времени, +качество
+
 ## [2026-07-07 00:30] — Fix: Трёхстадийный pipeline embed→reranker→LLM + правильная детекция моделей
 
 **Problem:**
