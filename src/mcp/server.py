@@ -1625,26 +1625,33 @@ class HeartbeatService:
             f"💓 Heartbeat monitor запущен "
             f"(check={self.check_interval}s, timeout={self.timeout}s)"
         )
-        while self._running:
-            await asyncio.sleep(self.check_interval)
-            try:
-                with self._lock:
-                    elapsed = time.time() - self._last_heartbeat_time
-                if elapsed > self.timeout:
-                    logger.warning(f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга")
-                    self._shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
+        try:
+            while self._running:
+                await asyncio.sleep(self.check_interval)
+                try:
+                    with self._lock:
+                        elapsed = time.time() - self._last_heartbeat_time
+                    if elapsed > self.timeout:
+                        logger.warning(
+                            f"💔 Heartbeat таймаут: {elapsed:.0f}s без пинга"
+                        )
+                        self._shutdown(f"Heartbeat timeout: {elapsed:.0f}s")
+                        return
+                    if not self.is_parent_alive():
+                        logger.warning(
+                            f"💔 Родительский процесс (Zed) мёртв (PID: {self._parent_pid})"
+                        )
+                        self._shutdown("Parent process died")
+                        return
+                except asyncio.CancelledError:
+                    logger.info("💓 Heartbeat monitor остановлен")
                     return
-                if not self.is_parent_alive():
-                    logger.warning(
-                        f"💔 Родительский процесс (Zed) мёртв (PID: {self._parent_pid})"
-                    )
-                    self._shutdown("Parent process died")
-                    return
-            except asyncio.CancelledError:
-                logger.info("💓 Heartbeat monitor остановлен")
-                return
-            except Exception as e:
-                logger.error(f"Heartbeat monitor error: {e}")
+                except Exception as e:
+                    logger.error(f"Heartbeat monitor error: {e}")
+        finally:
+            # Всегда сбрасываем флаги при выходе — предотвращает утечку Task
+            with self._lock:
+                self._running = False
 
     def _shutdown(self, reason: str) -> None:
         """Graceful shutdown: сначала atexit-обработчики, потом _exit."""
@@ -1679,9 +1686,16 @@ class HeartbeatService:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 self._task = asyncio.ensure_future(self._monitor())
+                self._task.add_done_callback(lambda _: self._on_monitor_done())
                 logger.info("💓 Heartbeat monitor started")
         except RuntimeError:
             logger.debug("Heartbeat monitor: event loop not ready")
+
+    def _on_monitor_done(self) -> None:
+        """Callback при завершении монитора — сбрасываем флаги для GC."""
+        with self._lock:
+            self._running = False
+            self._task = None
 
 
 # Глобальный экземпляр для обратной совместимости с существующими вызовами.

@@ -54,32 +54,67 @@ class Task:
 
 
 class TaskQueue:
-    """Универсальная очередь фоновых задач."""
+    """Универсальная очередь фоновых задач.
 
-    def __init__(self, max_workers: int = 2):
+    Memory-safe:
+    - results очищаются через TTL после завершения
+    - dedup имён задач: повторный submit с тем же name игнорируется,
+      если задача с таким именем уже в очереди/выполняется
+    - результаты хранятся не дольше _result_ttl_sec
+    """
+
+    def __init__(self, max_workers: int = 2, result_ttl_sec: int = 600):
         self._queue: asyncio.Queue = None
         self._results: Dict[str, Task] = {}
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._worker_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        # ─── Memory leak защита ───
+        self._result_ttl_sec = result_ttl_sec  # 10 минут
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._pending_names: set = set()  # для dedup по имени
 
     async def start(self):
-        """Запускает фоновый воркер."""
+        """Запускает фоновый воркер + cleanup cycle."""
         self._queue = asyncio.Queue()
         self._loop = asyncio.get_event_loop()
         self._worker_task = asyncio.create_task(self._worker_loop())
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
         logger.info("TaskQueue запущена")
 
+    async def _cleanup_loop(self):
+        """Фоновый цикл очистки старых результатов."""
+        while True:
+            try:
+                await asyncio.sleep(60)  # раз в минуту
+                self.cleanup_old_results(self._result_ttl_sec // 60)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass
+
     async def stop(self):
-        """Останавливает воркер."""
+        """Останавливает воркер + cleanup."""
         if self._worker_task:
             self._worker_task.cancel()
             try:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+        self._results.clear()
+        self._pending_names.clear()
         self._executor.shutdown(wait=False)
         logger.info("TaskQueue остановлена")
+
+    def has_pending(self, name: str) -> bool:
+        """Проверяет, есть ли задача с таким именем в очереди/выполнении."""
+        return name in self._pending_names
 
     def submit_sync(
         self,
@@ -87,17 +122,25 @@ class TaskQueue:
         func: Callable,
         *args,
         **kwargs,
-    ) -> str:
+    ) -> Optional[str]:
         """Синхронно ставит задачу в очередь (для вызова из sync кода).
 
+        Memory-safe: если задача с таким name уже в очереди/выполнении —
+        не дублирует, возвращает None.
+
         Args:
-            name: Человекочитаемое имя задачи
+            name: Человекочитаемое имя задачи (используется для dedup)
             func: Функция для выполнения
             *args, **kwargs: Аргументы функции
 
         Returns:
-            task_id для отслеживания
+            task_id для отслеживания или None если задача уже есть
         """
+        # ─── Dedup: не сабмитим если уже есть такая задача ───
+        if name in self._pending_names:
+            logger.debug(f"Задача уже в очереди: {name}")
+            return None
+
         task_id = str(uuid.uuid4())[:8]
         task = Task(
             id=task_id,
@@ -107,6 +150,7 @@ class TaskQueue:
             kwargs=kwargs,
         )
         self._results[task_id] = task
+        self._pending_names.add(name)
 
         # Пытаемся положить в очередь (создаём если нет)
         try:
@@ -128,17 +172,25 @@ class TaskQueue:
         func: Callable,
         *args,
         **kwargs,
-    ) -> str:
+    ) -> Optional[str]:
         """Асинхронно ставит задачу в очередь.
 
+        Memory-safe: если задача с таким name уже в очереди/выполнении —
+        не дублирует, возвращает None.
+
         Args:
-            name: Человекочитаемое имя задачи
+            name: Человекочитаемое имя задачи (используется для dedup)
             func: Функция для выполнения
             *args, **kwargs: Аргументы функции
 
         Returns:
-            task_id для отслеживания
+            task_id для отслеживания или None если задача уже есть
         """
+        # ─── Dedup: не сабмитим если уже есть такая задача ───
+        if name in self._pending_names:
+            logger.debug(f"Задача уже в очереди: {name}")
+            return None
+
         task_id = str(uuid.uuid4())[:8]
         task = Task(
             id=task_id,
@@ -148,6 +200,7 @@ class TaskQueue:
             kwargs=kwargs,
         )
         self._results[task_id] = task
+        self._pending_names.add(name)
         await self._queue.put(task)
         logger.info(f"Задача поставлена в очередь: {name} [{task_id}]")
         return task_id
@@ -216,6 +269,14 @@ class TaskQueue:
 
         finally:
             task.completed_at = datetime.now().isoformat()
+            # Чистим имя из dedup-сета (флаг для GC всего результата)
+            self._pending_names.discard(task.name)
+            # Освобождаем ссылки на func/args/kwargs — они больше не нужны
+            # после первого опроса. Результат всё ещё доступен через get_status.
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+                task.func = None  # type: ignore[assignment]
+                task.args = ()
+                task.kwargs = {}
 
     def _run_sync_task(self, task: Task):
         """Обёртка для выполнения синхронной задачи."""
@@ -239,7 +300,9 @@ class TaskQueue:
                     pass
 
         for task_id in to_remove:
-            del self._results[task_id]
+            task = self._results.pop(task_id, None)
+            if task:
+                self._pending_names.discard(task.name)
 
 
 # Глобальный инстанс
