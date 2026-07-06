@@ -51,11 +51,10 @@ _MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
 # Для эмбеддинга (Stages 1-2) — короче, быстрее
 _EMBED_CHUNK_PREVIEW_LEN = 400
 
-# Таймаут Stage 3 (LLM) — если phi-4 медленный, пропускаем
-_LLM_STAGE_TIMEOUT = 4.0
-
-# Общий таймаут pipeline (если превышен, возвращаем что есть)
-_PIPELINE_TOTAL_TIMEOUT = 8.0
+# Таймаут Stage 3 (LLM) — phi-4 на CPU ~7 tok/s, даём время на полную генерацию JSON
+# Первый запрос: промпт ~5s + генерация ~6s = ~11s
+# Повторный (LCP cache): генерация ~6s
+_LLM_STAGE_TIMEOUT = 12.0
 
 # Регулярка для извлечения JSON-массива scores из ответа
 _SCORES_JSON_RE = re.compile(r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
