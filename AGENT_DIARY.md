@@ -5,6 +5,45 @@
 
 ---
 
+## [2026-07-06 19:53] — Meta: Memory stress test on MCP server
+
+**Problem:** Stress test MCP server memory usage — measure Python process memory and detect leaks.
+
+**Solution:** Ran `wmic` process monitoring, Python memory sampling, and grep analysis of `searcher.py`.
+
+**Key Findings:**
+
+### Process Architecture
+| PID | Role | Memory | Stable? |
+|-----|------|--------|--------|
+| 11064 | Supervisor (src.main) | ~3.5 MB | ✅ Stable |
+| 8432 | Worker (src.main) | 276 MB → 732 MB (and growing) | ❌ **LEAKING** |
+| (varies) | Python3.14 temp processes | ~14 MB each | ✅ Stable |
+
+### Memory Leak Details
+- Worker PID 8432 grows **linearly at ~3 MB/second** while idle
+- Grew from 276 MB → 732 MB in ~3 minutes of passive monitoring
+- Growth rate: ~8-9 MB per 3 seconds = ~180 MB/minute
+- Eventually MCP becomes completely unresponsive (all tools timeout)
+- Supervisor (PID 11064) remains stable at 3.5 MB throughout
+
+### Suspected Causes
+1. Unbounded cache in `SearchCache` or result accumulation
+2. Repeated asyncio timer/callback registration without cleanup
+3. Circular references preventing GC
+4. LanceDB connection pool or embedding model references accumulating
+
+### Recommended Investigation
+1. Run `gc.get_objects()` snapshot diff every 30s on the worker
+2. Check for `asyncio.create_task` without cleanup in event handlers
+3. Profile `ServiceCollection` initialization patterns
+4. Check `RuntimeCoordinator` for accumulating subscribers
+
+**Tools Used:** terminal (wmic, python3), grep, debug_runtime_passport
+**Status:** ❌ (memory leak confirmed, needs fix)
+
+---
+
 ## [2026-07-06 19:00] — Fix: Translate Russian _() templates to English in search_tools.py and analysis_tools.py
 
 **Problem:** `_(f"...")` pattern (f-string inside i18n) and Russian text in `_()` template strings — defeats i18n purpose.
