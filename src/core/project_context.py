@@ -38,22 +38,23 @@ class ProjectContextSnapshot:
 
     Все поля опциональны — если компонент недоступен, поле будет None.
     """
+
     # Идентификация
     project_path: str = ""
     project_name: str = ""
 
     # Состояние (из Registry)
-    state: Optional[str] = None          # READY / INDEXING / FAILED / ...
+    state: Optional[str] = None  # READY / INDEXING / FAILED / ...
     state_changed_at: Optional[str] = None
 
     # Индекс (из Indexer)
     index_chunks: Optional[int] = None
     index_files: Optional[int] = None
     index_symbols: Optional[int] = None
-    index_embedder: Optional[str] = None   # LM Studio / local / none
+    index_embedder: Optional[str] = None  # LM Studio / local / none
 
     # Bridge (из LSP)
-    bridge_path: Optional[str] = None     # путь из LSP bridge
+    bridge_path: Optional[str] = None  # путь из LSP bridge
     bridge_synced: Optional[bool] = None  # True если bridge синхронизирован
 
     # Runtime (из Passport)
@@ -191,6 +192,7 @@ class ProjectContext:
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
             from src.core.project_indexer_registry import ProjectState
+
             registry = self._services.resolve(PIRKey)
             snap.state = registry.get_state(self._path).name
             try:
@@ -198,8 +200,21 @@ class ProjectContext:
                 status = indexer.get_status()
                 snap.index_chunks = status.get("total_chunks", 0)
                 snap.index_files = status.get("unique_files", 0)
-                snap.index_symbols = status.get("symbols_count", 0)
-                snap.index_embedder = status.get("embedder_mode", "unknown")
+                # Bugfix: get_status() не возвращает symbols_count и embedder_mode
+                # Берём symbols напрямую из SymbolIndex
+                try:
+                    if hasattr(indexer, "_symbol_index"):
+                        snap.index_symbols = indexer._symbol_index.get_symbol_count()
+                except Exception:
+                    pass
+                # Берём embedder из embedder объекта
+                try:
+                    if hasattr(indexer, "embedder"):
+                        snap.index_embedder = getattr(
+                            indexer.embedder, "mode", "unknown"
+                        )
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception as e:
@@ -211,10 +226,11 @@ class ProjectContext:
     def _capture_bridge(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.core.lsp_project_bridge import read_project_from_bridge
+
             bp = read_project_from_bridge(max_wait=0.2)
             if bp is not None:
                 snap.bridge_path = str(bp)
-                snap.bridge_synced = (bp.resolve() == self._path)
+                snap.bridge_synced = bp.resolve() == self._path
             else:
                 snap.bridge_path = None
                 snap.bridge_synced = False
@@ -226,16 +242,22 @@ class ProjectContext:
 
     def _capture_runtime(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.core.passport import RUN_PID, RUN_STARTED_AT, BUILD_ID, RUN_ID
+            from src.core.passport import BUILD_ID, RUN_ID, RUN_PID, RUN_STARTED_AT
             from src.mcp.server import _ext_root
+
             snap.runtime_pid = RUN_PID
             snap.runtime_uptime = round(time.time() - RUN_STARTED_AT, 1)
             snap.runtime_ext_root = str(_ext_root)
             snap.runtime_env = {
                 "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
                 "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
-                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX"),
-                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[0] or None,
+                "MSCODEBASE_ALLOW_SELF_INDEX": os.environ.get(
+                    "MSCODEBASE_ALLOW_SELF_INDEX"
+                ),
+                "PYTHONPATH_0": (os.environ.get("PYTHONPATH") or "").split(os.pathsep)[
+                    0
+                ]
+                or None,
             }
         except Exception as e:
             logger.debug(f"ProjectContext: runtime error: {e}")
@@ -243,9 +265,12 @@ class ProjectContext:
 
     # ─── Health ────────────────────────────────────────────────
 
-    async def _capture_health(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
+    async def _capture_health(
+        self, snap: ProjectContextSnapshot
+    ) -> ProjectContextSnapshot:
         try:
             from src.core.health_report import HealthReport
+
             hr = HealthReport(self._path, self._services)
             report = await hr.generate()
             if isinstance(report, dict):
@@ -261,10 +286,11 @@ class ProjectContext:
     def _capture_memory(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.core.intelligence_layer import IntelligenceStore
+
             store = IntelligenceStore(self._path)
-            memory = store.get_project_memory()
+            memory = store.load_memory()
             if isinstance(memory, dict):
-                snap.memory_incidents = len(memory.get("known_issues", []))
+                snap.memory_incidents = len(store.load_incidents())
                 snap.memory_adrs = len(memory.get("adrs", []))
                 snap.memory_known_issues = len(memory.get("known_issues", []))
         except Exception as e:
@@ -276,6 +302,7 @@ class ProjectContext:
     def _capture_jobs(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.mcp.server import _last_progress
+
             running = 0
             completed = 0
             with __import__("threading").Lock():
