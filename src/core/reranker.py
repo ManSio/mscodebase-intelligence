@@ -195,13 +195,20 @@ class MultiProviderReranker:
                             elif t == "llm" and not self.lm_studio_model_name:
                                 self.lm_studio_model_name = m["id"]
                     else:
-                        # Без type — первая модель для /v1/embeddings, вторая для chat
+                        # Без type — name-based: rerank/embed для embeddings, instruct/llm для LLM
                         for m in models:
-                            if not self.lm_studio_embedding_model:
-                                self.lm_studio_embedding_model = m["id"]
-                            elif not self.lm_studio_model_name:
-                                self.lm_studio_model_name = m["id"]
-                                break
+                            mid = m.get("id", "").lower()
+                            if "rerank" in mid or "embed" in mid:
+                                if not self.lm_studio_embedding_model:
+                                    self.lm_studio_embedding_model = m["id"]
+                            elif "instruct" in mid or "llm" in mid:
+                                if not self.lm_studio_model_name:
+                                    self.lm_studio_model_name = m["id"]
+                        # Если всё ещё не нашли — первая для embed, вторая для llm
+                        if not self.lm_studio_embedding_model and models:
+                            self.lm_studio_embedding_model = models[0]["id"]
+                        if not self.lm_studio_model_name and len(models) > 1:
+                            self.lm_studio_model_name = models[1]["id"]
 
                     # Fallback если чего-то не нашли
                     if not self.lm_studio_embedding_model:
