@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -45,6 +47,15 @@ _INFERENCE_TIMEOUT = _config.performance.reranker_timeout
 
 # Максимальная длина текста чанка для промпта (символы)
 _MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
+
+# Для эмбеддинга (Stages 1-2) — короче, быстрее
+_EMBED_CHUNK_PREVIEW_LEN = 400
+
+# Таймаут Stage 3 (LLM) — если phi-4 медленный, пропускаем
+_LLM_STAGE_TIMEOUT = 4.0
+
+# Общий таймаут pipeline (если превышен, возвращаем что есть)
+_PIPELINE_TOTAL_TIMEOUT = 8.0
 
 # Регулярка для извлечения JSON-массива scores из ответа
 _SCORES_JSON_RE = re.compile(r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
@@ -89,6 +100,7 @@ class MultiProviderReranker:
         self.ollama_available: bool = False
         self.lm_studio_model_name: Optional[str] = None
         self.lm_studio_embedding_model: Optional[str] = None
+        self.lm_studio_reranker_model: Optional[str] = None
         self.ollama_model_name: Optional[str] = None
 
         # Кэш HTTP-клиента
@@ -100,8 +112,9 @@ class MultiProviderReranker:
         self._lm_sem = asyncio.Semaphore(1)
         self._ollama_sem = asyncio.Semaphore(1)
         # ─── Fix 4: кэш доступности LLM (сбрасывается перепингом) ───
+        # Начинаем с отрицательного checked_at чтоб первый вызов не кэшировал False
         self._llm_available: bool = False
-        self._llm_checked_at: float = 0.0
+        self._llm_checked_at: float = -999.0
         self._llm_check_ttl: float = 15.0
 
     async def initialize(self) -> None:
@@ -137,8 +150,9 @@ class MultiProviderReranker:
             await asyncio.sleep(self._scanner_interval)
             try:
                 old_lm = self.lm_studio_available
-                old_llm_model = self.lm_studio_model_name
-                old_embed_model = self.lm_studio_embedding_model
+                old_llm = self.lm_studio_model_name
+                old_embed = self.lm_studio_embedding_model
+                old_rerank = self.lm_studio_reranker_model
 
                 lm_ok = await self._ping_lm_studio()
                 if lm_ok:
@@ -147,15 +161,19 @@ class MultiProviderReranker:
                     self.lm_studio_available = False
                     logger.warning("LM Studio стал недоступен — реранкинг отключён")
 
-                # Сброс кэша LLM при смене модели
+                # Сброс кэша LLM при смене любой модели
                 if (
-                    self.lm_studio_model_name != old_llm_model
-                    or self.lm_studio_embedding_model != old_embed_model
+                    self.lm_studio_model_name != old_llm
+                    or self.lm_studio_embedding_model != old_embed
+                    or self.lm_studio_reranker_model != old_rerank
                 ):
                     self._llm_available = False
                     self._llm_checked_at = 0.0
                     logger.info(
-                        f"LM Studio модели обновились: LLM→{self.lm_studio_model_name}, emb→{self.lm_studio_embedding_model}"
+                        f"LM Studio модели изменились: "
+                        f"emb→{self.lm_studio_embedding_model or '—'}, "
+                        f"reranker→{self.lm_studio_reranker_model or '—'}, "
+                        f"llm→{self.lm_studio_model_name or '—'}"
                     )
             except Exception as e:
                 logger.debug(f"Scanner error: {e}")
@@ -174,54 +192,111 @@ class MultiProviderReranker:
             self._client = None
 
     async def _ping_lm_studio(self) -> bool:
-        """Пинг LM Studio. Берёт что дали, без эвристик."""
+        """Пинг LM Studio. Детектит три типа моделей: embedding, reranker, LLM.
+
+        1. Пробует расширенное API /api/v0/models (с type/state)
+        2. Если неудача — OpenAI-compatible /v1/models (name-based)
+        """
+        v0_ok = False
         try:
-            resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
-                f"{self.lm_studio_url}/models"
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                models = data.get("data", [])
-                if models:
-                    # Если API вернул type — по нему
-                    has_type = any("type" in m for m in models)
-                    if has_type:
+            async with httpx.AsyncClient(timeout=self.ping_timeout) as client:
+                resp = await client.get(
+                    f"{self.lm_studio_url.replace('/v1', '')}/api/v0/models"
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = data.get("data", [])
+                    if models and any("type" in m for m in models):
+                        loaded_embed = []
+                        loaded_rerank = []
                         for m in models:
                             if m.get("state") != "loaded":
                                 continue
                             t = m.get("type", "")
-                            if t == "embeddings" and not self.lm_studio_embedding_model:
-                                self.lm_studio_embedding_model = m["id"]
-                            elif t == "llm" and not self.lm_studio_model_name:
-                                self.lm_studio_model_name = m["id"]
-                    else:
-                        # Без type — name-based: rerank/embed для embeddings, instruct/llm для LLM
-                        for m in models:
                             mid = m.get("id", "").lower()
-                            if "rerank" in mid or "embed" in mid:
-                                if not self.lm_studio_embedding_model:
-                                    self.lm_studio_embedding_model = m["id"]
-                            elif "instruct" in mid or "llm" in mid:
+                            if t == "embeddings":
+                                if "reranker" in mid:
+                                    loaded_rerank.append(m["id"])
+                                else:
+                                    loaded_embed.append(m["id"])
+                            elif t == "llm":
                                 if not self.lm_studio_model_name:
                                     self.lm_studio_model_name = m["id"]
-                        # Если всё ещё не нашли — первая для embed, вторая для llm
-                        if not self.lm_studio_embedding_model and models:
-                            self.lm_studio_embedding_model = models[0]["id"]
-                        if not self.lm_studio_model_name and len(models) > 1:
-                            self.lm_studio_model_name = models[1]["id"]
 
-                    # Fallback если чего-то не нашли
-                    if not self.lm_studio_embedding_model:
-                        self.lm_studio_embedding_model = models[0]["id"]
-                    if not self.lm_studio_model_name:
+                        if loaded_embed and not self.lm_studio_embedding_model:
+                            self.lm_studio_embedding_model = loaded_embed[0]
+                        if loaded_rerank and not self.lm_studio_reranker_model:
+                            self.lm_studio_reranker_model = loaded_rerank[0]
+
+                        if self.lm_studio_model_name:
+                            self._llm_available = True
+                            self._llm_checked_at = time.time()
+
+                        v0_ok = True
+        except Exception as e:
+            logger.debug(f"LM Studio /api/v0/models ping failed: {e}")
+
+        if v0_ok:
+            logger.info(
+                f"LM Studio (v0): emb→{self.lm_studio_embedding_model or '—'}, "
+                f"reranker→{self.lm_studio_reranker_model or '—'}, "
+                f"llm→{self.lm_studio_model_name or '—'}"
+            )
+            return True
+
+        # Fallback: OpenAI-compatible /v1/models (без type/state)
+        try:
+            async with httpx.AsyncClient(timeout=self.ping_timeout) as client:
+                resp = await client.get(f"{self.lm_studio_url}/models")
+                if resp.status_code != 200:
+                    return False
+
+                data = resp.json()
+                models = data.get("data", [])
+                if not models:
+                    return False
+
+                # Name-based детекция
+                reranker_candidates = []
+                embed_candidates = []
+                llm_candidates = []
+
+                for m in models:
+                    mid = m.get("id", "").lower()
+                    if "reranker" in mid:
+                        reranker_candidates.append(m["id"])
+                    elif "embed" in mid:
+                        embed_candidates.append(m["id"])
+                    elif "instruct" in mid or "llm" in mid:
+                        llm_candidates.append(m["id"])
+
+                if reranker_candidates and not self.lm_studio_reranker_model:
+                    self.lm_studio_reranker_model = reranker_candidates[0]
+                if embed_candidates and not self.lm_studio_embedding_model:
+                    self.lm_studio_embedding_model = embed_candidates[0]
+                if llm_candidates and not self.lm_studio_model_name:
+                    self.lm_studio_model_name = llm_candidates[0]
+
+                if self.lm_studio_model_name:
+                    self._llm_available = True
+                    self._llm_checked_at = time.time()
+
+                # Ultimate fallback: first = embed, last = llm
+                if not self.lm_studio_embedding_model:
+                    self.lm_studio_embedding_model = models[0]["id"]
+                if not self.lm_studio_model_name:
+                    if len(models) > 1:
+                        self.lm_studio_model_name = models[-1]["id"]
+                    else:
                         self.lm_studio_model_name = models[0]["id"]
 
-                    logger.info(
-                        f"LM Studio: emb→{self.lm_studio_embedding_model}, "
-                        f"llm→{self.lm_studio_model_name}"
-                    )
+                logger.info(
+                    f"LM Studio (v1): emb→{self.lm_studio_embedding_model}, "
+                    f"reranker→{self.lm_studio_reranker_model or '—'}, "
+                    f"llm→{self.lm_studio_model_name}"
+                )
                 return True
-            return False
+
         except Exception as e:
             logger.debug(f"LM Studio ping failed: {e}")
             return False
@@ -253,6 +328,8 @@ class MultiProviderReranker:
         parts = []
         if self.lm_studio_embedding_model:
             parts.append(f"emb={self.lm_studio_embedding_model}")
+        if self.lm_studio_reranker_model:
+            parts.append(f"rerank={self.lm_studio_reranker_model}")
         if self.lm_studio_model_name:
             parts.append(f"llm={self.lm_studio_model_name}")
         if self.ollama_model_name:
@@ -281,8 +358,14 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Двухстадийный реранкинг: bge-reranker → LLM.
+        """Трёхстадийный реранкинг: embedding → cross-encoder → LLM.
 
+        Стадии:
+          1. Bi-encoder (text-embedding-bge-m3) — cosine similarity, быстрое прореживание
+          2. Cross-encoder (bge-reranker-v2-m3-m3) — pairwise реранкинг
+          3. LLM (phi-4-mini-instruct) — semantic scoring через chat completions
+
+        Каждая стадия опциональна: если модель недоступна — пропускается.
         Timing доступен после вызова: self.last_timing
         """
         import time as _time
@@ -291,104 +374,129 @@ class MultiProviderReranker:
         self.last_timing = {
             "stage1_ms": 0,
             "stage2_ms": 0,
+            "stage3_ms": 0,
             "total_ms": 0,
             "stage1": "-",
             "stage2": "-",
+            "stage3": "-",
         }
 
-        if not chunks or len(chunks) <= 1:
-            return chunks[:top_n]
+        if not chunks:
+            return chunks
 
         provider = self._select_provider()
         if provider is None:
             self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
-            return chunks[:top_n]
+            return chunks
 
         sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
 
-        # ─── Стадия 1: embedding-rerank (bge-reranker-v2-m3) ───
-        stage1_top = min(top_n * 2, len(chunks))
-        t1 = _time.perf_counter()
-        try:
-            async with sem:
-                embed_scores = await self._embedding_rerank(query, chunks, provider)
-            if embed_scores:
-                chunks = self._apply_scores(chunks, embed_scores, stage1_top)
+        # ═══════════════════════════════════════════════
+        # Стадия 1: Bi-encoder embedding rerank
+        # ═══════════════════════════════════════════════
+        if self.lm_studio_embedding_model:
+            stage1_top = min(top_n * 3, len(chunks))
+            t1 = _time.perf_counter()
+            try:
+                async with sem:
+                    embed_scores = await self._embedding_rerank(
+                        query,
+                        chunks,
+                        provider,
+                        model_override=self.lm_studio_embedding_model,
+                    )
+                if embed_scores:
+                    chunks = self._apply_scores(chunks, embed_scores, stage1_top)
+                    self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
+                    self.last_timing["stage1"] = self.lm_studio_embedding_model
+            except Exception as e:
                 self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
-                self.last_timing["stage1"] = (
-                    self.lm_studio_embedding_model or "bge-reranker"
-                )
-        except Exception as e:
-            self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
-            self.last_timing["stage1"] = f"failed: {e}"
+                self.last_timing["stage1"] = f"failed: {e}"
 
-        # ─── Стадия 2: LLM-реранкинг (phi-4-mini-instruct) ───
-        t2 = _time.perf_counter()
-        try:
-            if not await self._check_llm_available(provider) or len(chunks) <= 1:
-                self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
-                return chunks[:top_n]
+        if not chunks:
+            return chunks
 
-            truncated = [
-                {"index": i, "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()}
-                for i, c in enumerate(chunks)
-            ]
-            prompt = self._build_batch_prompt(query, truncated)
-
-            async with sem:
-                scores = (
-                    await self._query_ollama(prompt)
-                    if provider == "ollama"
-                    else await self._query_lm_studio(prompt)
-                )
-            if scores:
-                chunks = self._apply_scores(chunks, scores, top_n)
+        # ═══════════════════════════════════════════════
+        # Стадия 2: Cross-encoder rerank (bge-reranker)
+        # ═══════════════════════════════════════════════
+        if self.lm_studio_reranker_model:
+            stage2_top = min(top_n * 2, len(chunks))
+            t2 = _time.perf_counter()
+            try:
+                async with sem:
+                    reranker_scores = await self._cross_encoder_rerank(
+                        query,
+                        chunks,
+                        provider,
+                        model_override=self.lm_studio_reranker_model,
+                    )
+                if reranker_scores:
+                    chunks = self._apply_scores(chunks, reranker_scores, stage2_top)
+                    self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
+                    self.last_timing["stage2"] = self.lm_studio_reranker_model
+            except Exception as e:
                 self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
-                self.last_timing["stage2"] = self.lm_studio_model_name or "phi-4"
-                self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
-                return chunks
-        except Exception as e:
-            self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
-            self.last_timing["stage2"] = f"failed: {e}"
+                self.last_timing["stage2"] = f"failed: {e}"
+
+        if not chunks:
+            return chunks
+
+        # ═══════════════════════════════════════════════
+        # Стадия 3: LLM-реранкинг (phi-4-mini-instruct)
+        # ═══════════════════════════════════════════════
+        if self.lm_studio_model_name and await self._check_llm_available(provider):
+            t3 = _time.perf_counter()
+            try:
+                truncated = [
+                    {
+                        "index": i,
+                        "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip(),
+                    }
+                    for i, c in enumerate(chunks)
+                ]
+                prompt = self._build_batch_prompt(query, truncated)
+
+                async with sem:
+                    coro = (
+                        self._query_ollama(prompt)
+                        if provider == "ollama"
+                        else self._query_lm_studio(prompt)
+                    )
+                    scores = await asyncio.wait_for(coro, timeout=_LLM_STAGE_TIMEOUT)
+                if scores:
+                    chunks = self._apply_scores(chunks, scores, top_n)
+                    self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
+                    self.last_timing["stage3"] = self.lm_studio_model_name
+            except asyncio.TimeoutError:
+                self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
+                self.last_timing["stage3"] = "timeout"
+            except Exception as e:
+                self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
+                self.last_timing["stage3"] = f"failed: {e}"
 
         self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
         return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:
-        """Проверяет доступность LLM-модели с кэшем."""
+        """Проверяет доступность LLM-модели с кэшем.
+
+        Для LM Studio: просто проверяет что `lm_studio_model_name` установлен
+        (детектится при `_ping_lm_studio` и обновляется сканером раз в 30с).
+        """
         now = time.time()
         if now - self._llm_checked_at < self._llm_check_ttl:
             return self._llm_available
 
+        self._llm_checked_at = now
+
         if provider == "ollama":
-            self._llm_available = self.ollama_available
-            self._llm_checked_at = now
+            self._llm_available = bool(self.ollama_model_name)
             return self._llm_available
 
-        try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                resp = await client.get(f"{self.lm_studio_url}/models")
-                if resp.status_code == 200:
-                    models = resp.json().get("data", [])
-                    for m in models:
-                        # Расширенное API: state=loaded, type=llm
-                        if m.get("state") == "loaded" and m.get("type") == "llm":
-                            self._llm_available = True
-                            self._llm_checked_at = now
-                            return True
-                        # OpenAI-compatible API: без type/state — проверка по имени
-                        mid = m.get("id", "").lower()
-                        if "instruct" in mid or "llm" in mid:
-                            self._llm_available = True
-                            self._llm_checked_at = now
-                            return True
-                self._llm_available = False
-                self._llm_checked_at = now
-                return False
-        except Exception:
-            self._llm_available = False
-            self._llm_checked_at = now
-            return False
+        # Для LM Studio полагаемся на _ping_lm_studio (выполняется при initialize
+        # и в _scanner_loop раз в 30с). Если имя модели установлено — LLM доступна.
+        self._llm_available = bool(self.lm_studio_model_name)
+        return self._llm_available
 
     def _build_batch_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
         """Формирует пакетный промпт для LLM-реранкинга.
@@ -436,7 +544,7 @@ class MultiProviderReranker:
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.0,
-                "max_tokens": 1024,
+                "max_tokens": 256,
             }
 
             resp = await self._client.post(
@@ -472,7 +580,7 @@ class MultiProviderReranker:
                 f"{prompt}"
             ),
             "temperature": 0.0,
-            "max_tokens": 1024,
+            "max_tokens": 256,
         }
 
         resp = await self._client.post(
@@ -522,21 +630,26 @@ class MultiProviderReranker:
         content = data.get("message", {}).get("content", "")
         return self._parse_scores_json(content)
 
-    async def _embedding_rerank(
+    async def _cross_encoder_rerank(
         self,
         query: str,
         chunks: List[Dict[str, Any]],
         provider: str,
+        model_override: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Реранкинг через embedding API + cosine similarity.
+        """Cross-encoder реранкинг через embedding API + cosine similarity.
 
-        Используется когда в LM Studio/Ollama нет LLM (Instruct) моделей,
-        но есть embedding модели (BGE-M3, Nomic и т.д.).
+        Stage 2: использует bge-reranker-v2-m3-m3.
+        В LM Studio реранкер работает через /v1/embeddings — отправляем
+        query+passages отдельными строками, получаем эмбеддинги и считаем
+        cosine similarity. Cross-encoder с cross-attention даёт лучшее
+        качество эмбеддингов, чем bi-encoder.
 
         Args:
             query: Поисковый запрос
             chunks: Список чанков для реранкинга
             provider: 'lm_studio' или 'ollama'
+            model_override: Конкретная модель (bge-reranker-v2-m3-m3)
 
         Returns:
             Список score'ов [{"index": int, "score": float}, ...]
@@ -544,26 +657,26 @@ class MultiProviderReranker:
         if not self._client:
             self._client = httpx.AsyncClient(timeout=self.inference_timeout)
 
-        # Подготавливаем тексты: query + все чанки
-        texts = [f"query: {query}"]  # [0] = query
-        for chunk in chunks:
-            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
-            texts.append(f"passage: {text}")  # [1..n] = chunks
-
-        # Выбираем URL и модель
         if provider == "lm_studio":
             url = f"{self.lm_studio_url}/embeddings"
-            # Используем embedding модель, не instruct!
-            model = self.lm_studio_embedding_model or "text-embedding-bge-m3"
+            model = model_override or self.lm_studio_reranker_model
         else:
             url = f"{self.ollama_url}/api/embeddings"
-            model = self.ollama_model_name or "bge-m3"
+            model = model_override or self.ollama_model_name
 
-        # Отправляем batch запрос
-        # Важно: input должен быть массивом строк (не объектом!)
+        if not model:
+            logger.debug("Cross-encoder: нет модели для реранкинга")
+            return []
+
+        # Энкодим query и passage отдельно (короткие для скорости)
+        texts = [f"query: {query}"]
+        for chunk in chunks:
+            text = chunk.get("text", "")[:_EMBED_CHUNK_PREVIEW_LEN].strip()
+            texts.append(f"passage: {text}")
+
         payload = {
             "model": model,
-            "input": texts,  # list[str] — строго массив!
+            "input": texts,
         }
 
         try:
@@ -574,7 +687,79 @@ class MultiProviderReranker:
             )
             resp.raise_for_status()
         except Exception as e:
-            logger.warning(f"Embedding rerank failed: {e}")
+            logger.warning(f"Cross-encoder rerank ({model}) failed: {e}")
+            return []
+
+        data = resp.json()
+        embeddings = data.get("data", [])
+        if len(embeddings) < 2:
+            return []
+
+        query_vec = embeddings[0].get("embedding", [])
+        chunk_vecs = [e.get("embedding", []) for e in embeddings[1:]]
+
+        scores = []
+        for i, vec in enumerate(chunk_vecs):
+            score = self._cosine_similarity(query_vec, vec)
+            scores.append({"index": i, "score": score})
+
+        return scores
+
+    async def _embedding_rerank(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        provider: str,
+        model_override: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Bi-encoder реранкинг через embedding API + cosine similarity.
+
+        Stage 1: использует text-embedding-bge-m3 для быстрого прореживания.
+
+        Args:
+            query: Поисковый запрос
+            chunks: Список чанков для реранкинга
+            provider: 'lm_studio' или 'ollama'
+            model_override: Конкретная модель (если не указана — авто-выбор)
+
+        Returns:
+            Список score'ов [{"index": int, "score": float}, ...]
+        """
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+
+        # Подготавливаем тексты: query + все чанки (короткие для скорости)
+        texts = [f"query: {query}"]
+        for chunk in chunks:
+            text = chunk.get("text", "")[:_EMBED_CHUNK_PREVIEW_LEN].strip()
+            texts.append(f"passage: {text}")
+
+        if provider == "lm_studio":
+            url = f"{self.lm_studio_url}/embeddings"
+            model = (
+                model_override
+                or self.lm_studio_embedding_model
+                or "text-embedding-bge-m3"
+            )
+        else:
+            url = f"{self.ollama_url}/api/embeddings"
+            model = model_override or self.ollama_model_name or "bge-m3"
+
+        # Отправляем batch запрос
+        payload = {
+            "model": model,
+            "input": texts,
+        }
+
+        try:
+            resp = await self._client.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        except Exception as e:
+            logger.warning(f"Embedding rerank ({model}) failed: {e}")
             return []
 
         # Парсим ответ

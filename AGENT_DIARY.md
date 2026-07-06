@@ -5,6 +5,55 @@
 
 ---
 
+## [2026-07-07 00:30] — Fix: Трёхстадийный pipeline embed→reranker→LLM + правильная детекция моделей
+
+**Problem:**
+- Реренкер не использовал `bge-reranker-v2-m3-m3` — все запросы шли через `text-embedding-bge-m3`
+- `_ping_lm_studio` не детектил reranker модели отдельно от embedding
+- Guard `len(chunks) <= 1` в `rerank()` скипал весь pipeline при малом числе чанков
+- `_check_llm_available` возвращал False из-за кэша (initial `_llm_checked_at = 0.0`)
+- **LM Studio не имеет `/v1/rerank`** — reranker работает через `/v1/embeddings`
+
+**Solution:**
+
+### Трёхстадийный pipeline
+```
+Stage 1: text-embedding-bge-m3 (bi-encoder, cosine sim) → prune top_n*3
+Stage 2: bge-reranker-v2-m3-m3 (cross-encoder, cosine sim) → prune top_n*2
+Stage 3: phi-4-mini-instruct (LLM, chat completions) → final top_n
+```
+Каждая стадия опциональна: если модель не загружена/таймаут — пропускается.
+
+### Детекция трёх типов моделей
+- `/api/v0/models` (расширенный API) → type-based: embeddings / llm + "reranker" в имени
+- `/v1/models` (OpenAI) → name-based fallback: "reranker" / "embed" / "instruct"
+- Новое поле `lm_studio_reranker_model` для cross-encoder reranker
+
+### Оптимизации
+- `_EMBED_CHUNK_PREVIEW_LEN = 400` (было 800) — ускорило Stage 1+2 в 2x
+- `_LLM_STAGE_TIMEOUT = 4s` — phi-4 на CPU медленный, graceful timeout
+- Guard `len(chunks) <= 1` удалён — pipeline работает даже с 1 чанком
+- Инициализация `_llm_checked_at = -999.0` — первый вызов не кэширует False
+- `_llm_available` устанавливается в True сразу при детекции LLM
+
+### Telemetry
+```
+rerank_timing: {
+  "stage1_ms": 1268, "stage1": "text-embedding-bge-m3",
+  "stage2_ms": 241,  "stage2": "bge-reranker-v2-m3-m3",
+  "stage3_ms": 4005, "stage3": "timeout",
+  "total_ms": 7514
+}
+```
+
+### Protected fallback chain
+1. Все три модели доступны → полный pipeline (~6-7s)
+2. Нет LLM → Stage 1+2 только (~1.5s)
+3. Нет reranker → Stage 1 только (~1.2s)
+4. Нет embedding → без реранкинга (RRF order)
+
+**Status:** ✅ Все три модели детектятся, pipeline работает, Stage 3 graceful timeout.
+
 ## [2026-07-06 23:00] — Refactor: Полный pipeline реранкинга + телеметрия + memory safety
 
 **Problem:**
