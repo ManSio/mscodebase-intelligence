@@ -87,21 +87,26 @@ class MultiProviderReranker:
         # Статус провайдеров (заполняется при initialize())
         self.lm_studio_available: bool = False
         self.ollama_available: bool = False
-        self.lm_studio_model_name: Optional[str] = None  # llm for chat/completions
-        self.lm_studio_embedding_model: Optional[str] = (
-            None  # embedding for /v1/embeddings
-        )
+        self.lm_studio_model_name: Optional[str] = None
+        self.lm_studio_embedding_model: Optional[str] = None
         self.ollama_model_name: Optional[str] = None
 
         # Кэш HTTP-клиента
         self._client: Optional[httpx.AsyncClient] = None
+        # ─── Fix 1: фоновый перепинг каждые 30с ───
+        self._scanner_task: Optional[asyncio.Task] = None
+        self._scanner_interval: float = 30.0
+        # ─── Fix 2: семафор на 1 запрос ───
+        self._lm_sem = asyncio.Semaphore(1)
+        self._ollama_sem = asyncio.Semaphore(1)
+        # ─── Fix 4: кэш доступности LLM (сбрасывается перепингом) ───
+        self._llm_available: bool = False
+        self._llm_checked_at: float = 0.0
+        self._llm_check_ttl: float = 15.0
 
     async def initialize(self) -> None:
-        """Асинхронная инициализация: пинг обоих провайдеров."""
+        """Асинхронная инициализация: пинг обоих провайдеров + фоновый сканер."""
         self._client = httpx.AsyncClient(timeout=self.inference_timeout)
-
-        # Параллельный пинг обоих провайдеров
-        import asyncio
 
         results = await asyncio.gather(
             self._ping_lm_studio(),
@@ -113,26 +118,57 @@ class MultiProviderReranker:
             logger.debug(f"LM Studio недоступен: {results[0]}")
         elif results[0]:
             self.lm_studio_available = True
-            logger.info(
-                f"✅ LM Studio доступен: {self.lm_studio_url} (модель: {self.lm_studio_model_name})"
-            )
 
         if isinstance(results[1], Exception):
             logger.debug(f"Ollama недоступна: {results[1]}")
         elif results[1]:
             self.ollama_available = True
-            logger.info(
-                f"✅ Ollama доступна: {self.ollama_url} (модель: {self.ollama_model_name})"
-            )
 
         if not self.lm_studio_available and not self.ollama_available:
-            logger.info(
-                "ℹ️ Реранкер отключён. Запустите модель в LM Studio "
-                "или выполните 'ollama run bge-reranker-v2-m3' для включения LLM-реранкинга."
-            )
+            logger.info("ℹ️ Реранкер отключён. Запустите модель в LM Studio или Ollama.")
+            return
+
+        # Fix 1: фоновый перепинг каждые 30с
+        self._scanner_task = asyncio.create_task(self._scanner_loop())
+
+    async def _scanner_loop(self):
+        """Фоновый перепинг провайдеров (подхватывает изменения в LM Studio)."""
+        while True:
+            await asyncio.sleep(self._scanner_interval)
+            try:
+                old_lm = self.lm_studio_available
+                old_llm_model = self.lm_studio_model_name
+                old_embed_model = self.lm_studio_embedding_model
+
+                lm_ok = await self._ping_lm_studio()
+                if lm_ok:
+                    self.lm_studio_available = True
+                elif old_lm:
+                    self.lm_studio_available = False
+                    logger.warning("LM Studio стал недоступен — реранкинг отключён")
+
+                # Сброс кэша LLM при смене модели
+                if (
+                    self.lm_studio_model_name != old_llm_model
+                    or self.lm_studio_embedding_model != old_embed_model
+                ):
+                    self._llm_available = False
+                    self._llm_checked_at = 0.0
+                    logger.info(
+                        f"LM Studio модели обновились: LLM→{self.lm_studio_model_name}, emb→{self.lm_studio_embedding_model}"
+                    )
+            except Exception as e:
+                logger.debug(f"Scanner error: {e}")
 
     async def close(self) -> None:
-        """Закрывает HTTP-клиент."""
+        """Закрывает HTTP-клиент и останавливает фоновый сканер."""
+        if self._scanner_task:
+            self._scanner_task.cancel()
+            try:
+                await self._scanner_task
+            except asyncio.CancelledError:
+                pass
+            self._scanner_task = None
         if self._client:
             await self._client.aclose()
             self._client = None
@@ -226,11 +262,7 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Двухстадийный реранкинг: bge-reranker → LLM.
-
-        Стадия 1: embedding-rerank (bge-reranker-v2-m3) — быстро, pruning
-        Стадия 2: LLM-rerank (phi-4-mini-instruct) — медленно, финально
-        """
+        """Двухстадийный реранкинг: bge-reranker → LLM."""
         if not chunks or len(chunks) <= 1:
             return chunks[:top_n]
 
@@ -238,71 +270,84 @@ class MultiProviderReranker:
         if provider is None:
             return chunks[:top_n]
 
-        logger.debug(f"Rerank {len(chunks)} chunks → top {top_n} via {provider}")
+        logger.debug(f"Rerank {len(chunks)} chunks via {provider}")
 
         # ─── Стадия 1: embedding-rerank (bge-reranker-v2-m3) ───
-        # Режет с N до N*2 (отсекает явно нерелевантное)
+        sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
         stage1_top = min(top_n * 2, len(chunks))
         try:
-            embed_scores = await self._embedding_rerank(query, chunks, provider)
+            async with sem:
+                embed_scores = await self._embedding_rerank(query, chunks, provider)
             if embed_scores:
                 chunks = self._apply_scores(chunks, embed_scores, stage1_top)
-                logger.debug(f"Stage 1 (embed): {len(chunks)} chunks")
         except Exception as e:
-            logger.debug(f"Stage 1 failed: {e}")
+            logger.debug(f"Stage 1 (embed-rerank) failed: {e}")
 
         # ─── Стадия 2: LLM-реранкинг (phi-4-mini-instruct) ───
-        # Финальная оценка top_n
         try:
-            llm_available = await self._check_llm_available(provider)
-            if llm_available and len(chunks) > 1:
-                truncated = [
-                    {
-                        "index": i,
-                        "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip(),
-                    }
-                    for i, c in enumerate(chunks)
-                ]
-                prompt = self._build_batch_prompt(query, truncated)
+            if not await self._check_llm_available(provider) or len(chunks) <= 1:
+                return chunks[:top_n]
 
+            truncated = [
+                {"index": i, "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()}
+                for i, c in enumerate(chunks)
+            ]
+            prompt = self._build_batch_prompt(query, truncated)
+
+            async with sem:
                 scores = (
                     await self._query_ollama(prompt)
                     if provider == "ollama"
                     else await self._query_lm_studio(prompt)
                 )
-                if scores:
-                    chunks = self._apply_scores(chunks, scores, top_n)
-                    logger.debug(f"Stage 2 (LLM): {len(chunks)} chunks")
-                    return chunks
+            if scores:
+                chunks = self._apply_scores(chunks, scores, top_n)
+                return chunks
         except Exception as e:
-            logger.debug(f"Stage 2 failed: {e}")
+            logger.debug(f"Stage 2 (LLM-rerank) failed: {e}")
 
         return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:
-        """Проверяет есть ли Instruct-модель для LLM-реранкинга.
+        """Проверяет доступность LLM-модели с кэшем.
 
-        LM Studio: проверяет наличие моделей с type != 'embeddings'.
-        Ollama: всегда True (может загрузить любую модель).
+        Использует TTL (_llm_check_ttl), не долбит LM Studio каждую секунду.
         """
-        if provider == "ollama":
-            return True  # Ollama может загрузить любую модель
+        # TTL кэш
+        now = time.time()
+        if now - self._llm_checked_at < self._llm_check_ttl:
+            return self._llm_available
 
-        # LM Studio: проверяем наличие LLM (не embedding)
+        if provider == "ollama":
+            self._llm_available = self.ollama_available
+            self._llm_checked_at = now
+            return self._llm_available
+
+        # Реальная проверка: есть ли загруженная llm модель в LM Studio
         try:
-            if not self._client:
-                self._client = httpx.AsyncClient(timeout=2)
-            resp = await self._client.get(f"{self.lm_studio_url}/models")
-            if resp.status_code == 200:
-                models = resp.json().get("data", [])
-                # Проверяем есть ли модель с capabilities.chat или type != 'embeddings'
-                for m in models:
-                    # В LM Studio v1 API нет поля type, проверяем по имени
-                    model_id = m.get("id", "").lower()
-                    if "embed" not in model_id and "rerank" not in model_id:
-                        return True
-            return False
+            # Fix 3: быстрый таймаут 2с, не ждём 30с
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{self.lm_studio_url}/models")
+                if resp.status_code == 200:
+                    models = resp.json().get("data", [])
+                    for m in models:
+                        # Расширенное API: state=loaded, type=llm
+                        if m.get("state") == "loaded" and m.get("type") == "llm":
+                            self._llm_available = True
+                            self._llm_checked_at = now
+                            return True
+                        # Fallback: проверка по ID
+                        mid = m.get("id", "").lower()
+                        if m.get("state") == "loaded" and "instruct" in mid:
+                            self._llm_available = True
+                            self._llm_checked_at = now
+                            return True
+                self._llm_available = False
+                self._llm_checked_at = now
+                return False
         except Exception:
+            self._llm_available = False
+            self._llm_checked_at = now
             return False
 
     def _build_batch_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
