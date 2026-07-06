@@ -48,13 +48,6 @@ _INFERENCE_TIMEOUT = _config.performance.reranker_timeout
 # Максимальная длина текста чанка для промпта (символы)
 _MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
 
-# Для эмбеддинга (Stages 1-2) — короче, быстрее
-_EMBED_CHUNK_PREVIEW_LEN = 400
-
-# Таймаут Stage 3 (LLM) — phi-4 на CPU ~7 tok/s, даём время на полную генерацию JSON
-# Первый запрос: промпт ~5s + генерация ~6s = ~11s
-# Повторный (LCP cache): генерация ~6s
-_LLM_STAGE_TIMEOUT = 12.0
 
 # Регулярка для извлечения JSON-массива scores из ответа
 _SCORES_JSON_RE = re.compile(r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
@@ -357,27 +350,23 @@ class MultiProviderReranker:
         chunks: List[Dict[str, Any]],
         top_n: int = 5,
     ) -> List[Dict[str, Any]]:
-        """Трёхстадийный реранкинг: embedding → cross-encoder → LLM.
+        """Одностадийный реранкинг через cross-encoder (bge-reranker-v2-m3-m3).
 
-        Стадии:
-          1. Bi-encoder (text-embedding-bge-m3) — cosine similarity, быстрое прореживание
-          2. Cross-encoder (bge-reranker-v2-m3-m3) — pairwise реранкинг
-          3. LLM (phi-4-mini-instruct) — semantic scoring через chat completions
+        На основе бенчмарков:
+        - Stage 1 (text-embedding-bge-m3): удалён — LanceDB уже дал кандидатов
+        - Stage 2 (bge-reranker-v2-m3-m3): **единственный проход** — 37ms/text, плавный скор
+        - Stage 3 (phi-4): удалён как scorer — обнуляет код, 12x медленнее
 
-        Каждая стадия опциональна: если модель недоступна — пропускается.
+        phi-4 зарезервирован для mode=ask (RAG-генерация ответов).
         Timing доступен после вызова: self.last_timing
         """
         import time as _time
 
         t_start = _time.perf_counter()
         self.last_timing = {
-            "stage1_ms": 0,
-            "stage2_ms": 0,
-            "stage3_ms": 0,
+            "reranker_ms": 0,
             "total_ms": 0,
-            "stage1": "-",
-            "stage2": "-",
-            "stage3": "-",
+            "model": "-",
         }
 
         if not chunks:
@@ -391,87 +380,25 @@ class MultiProviderReranker:
         sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
 
         # ═══════════════════════════════════════════════
-        # Стадия 1: Bi-encoder embedding rerank
+        # Cross-encoder rerank (bge-reranker-v2-m3-m3)
         # ═══════════════════════════════════════════════
-        if self.lm_studio_embedding_model:
-            stage1_top = min(top_n * 3, len(chunks))
+        if self.lm_studio_reranker_model:
             t1 = _time.perf_counter()
             try:
                 async with sem:
-                    embed_scores = await self._embedding_rerank(
-                        query,
-                        chunks,
-                        provider,
-                        model_override=self.lm_studio_embedding_model,
-                    )
-                if embed_scores:
-                    chunks = self._apply_scores(chunks, embed_scores, stage1_top)
-                    self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
-                    self.last_timing["stage1"] = self.lm_studio_embedding_model
-            except Exception as e:
-                self.last_timing["stage1_ms"] = (_time.perf_counter() - t1) * 1000
-                self.last_timing["stage1"] = f"failed: {e}"
-
-        if not chunks:
-            return chunks
-
-        # ═══════════════════════════════════════════════
-        # Стадия 2: Cross-encoder rerank (bge-reranker)
-        # ═══════════════════════════════════════════════
-        if self.lm_studio_reranker_model:
-            stage2_top = min(top_n * 2, len(chunks))
-            t2 = _time.perf_counter()
-            try:
-                async with sem:
-                    reranker_scores = await self._cross_encoder_rerank(
+                    scores = await self._cross_encoder_rerank(
                         query,
                         chunks,
                         provider,
                         model_override=self.lm_studio_reranker_model,
                     )
-                if reranker_scores:
-                    chunks = self._apply_scores(chunks, reranker_scores, stage2_top)
-                    self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
-                    self.last_timing["stage2"] = self.lm_studio_reranker_model
-            except Exception as e:
-                self.last_timing["stage2_ms"] = (_time.perf_counter() - t2) * 1000
-                self.last_timing["stage2"] = f"failed: {e}"
-
-        if not chunks:
-            return chunks
-
-        # ═══════════════════════════════════════════════
-        # Стадия 3: LLM-реранкинг (phi-4-mini-instruct)
-        # ═══════════════════════════════════════════════
-        if self.lm_studio_model_name and await self._check_llm_available(provider):
-            t3 = _time.perf_counter()
-            try:
-                truncated = [
-                    {
-                        "index": i,
-                        "text": c.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip(),
-                    }
-                    for i, c in enumerate(chunks)
-                ]
-                prompt = self._build_batch_prompt(query, truncated)
-
-                async with sem:
-                    coro = (
-                        self._query_ollama(prompt)
-                        if provider == "ollama"
-                        else self._query_lm_studio(prompt)
-                    )
-                    scores = await asyncio.wait_for(coro, timeout=_LLM_STAGE_TIMEOUT)
                 if scores:
                     chunks = self._apply_scores(chunks, scores, top_n)
-                    self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
-                    self.last_timing["stage3"] = self.lm_studio_model_name
-            except asyncio.TimeoutError:
-                self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
-                self.last_timing["stage3"] = "timeout"
+                    self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
+                    self.last_timing["model"] = self.lm_studio_reranker_model
             except Exception as e:
-                self.last_timing["stage3_ms"] = (_time.perf_counter() - t3) * 1000
-                self.last_timing["stage3"] = f"failed: {e}"
+                self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
+                self.last_timing["model"] = f"failed: {e}"
 
         self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
         return chunks[:top_n]
@@ -509,6 +436,10 @@ class MultiProviderReranker:
             f"You are a code search relevance scorer.\n"
             f"Query: {query}\n\n"
             f"Rate the relevance of each code chunk to the query.\n"
+            f"RULES:\n"
+            f"- Actual source code (.py files) is MORE relevant than documentation\n"
+            f"- Class/function definitions that match the query are HIGH priority\n"
+            f"- Documentation is useful but secondary to implementation code.\n\n"
             f"Return ONLY a JSON object with this exact structure:\n"
             f'{{"scores": [{{"index": 0, "score": 0.95}}, {{"index": 1, "score": 0.12}}]}}\n\n'
             f"Score range: 0.0 (completely irrelevant) to 1.0 (perfect match).\n"
@@ -536,6 +467,8 @@ class MultiProviderReranker:
                         "role": "system",
                         "content": (
                             "You are a precise code relevance scorer. "
+                            "Code implementations (.py files) and class/function definitions "
+                            "have HIGHER relevance than documentation or markdown."
                             "Return ONLY valid JSON with the scores array. No explanations. "
                             'Example: {"scores": [0.9, 0.7, 0.5, 0.3, 0.1]}'
                         ),
@@ -670,7 +603,7 @@ class MultiProviderReranker:
         # Энкодим query и passage отдельно (короткие для скорости)
         texts = [f"query: {query}"]
         for chunk in chunks:
-            text = chunk.get("text", "")[:_EMBED_CHUNK_PREVIEW_LEN].strip()
+            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
             texts.append(f"passage: {text}")
 
         payload = {
@@ -730,7 +663,7 @@ class MultiProviderReranker:
         # Подготавливаем тексты: query + все чанки (короткие для скорости)
         texts = [f"query: {query}"]
         for chunk in chunks:
-            text = chunk.get("text", "")[:_EMBED_CHUNK_PREVIEW_LEN].strip()
+            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
             texts.append(f"passage: {text}")
 
         if provider == "lm_studio":
