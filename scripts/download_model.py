@@ -157,11 +157,9 @@ def download_onnx_model(
             )
             hidden_size = out.shape[-1] if hasattr(out, "shape") else 1024
 
-    # ── Шаг 5: Кастим в float16 (половина размера, минимальная потеря точности) ──
-    logger.info(f"🔄 Экспорт в ONNX (размерность {hidden_size}, float16)...")
+    # ── Шаг 5: Экспорт в ONNX (float32) ──
+    logger.info(f"🔄 Экспорт в ONNX (размерность {hidden_size}, float32)...")
     import torch
-
-    model = model.half()  # float32 → float16: 2.2 GB → ~1.1 GB
 
     dummy_input = tokenizer(
         dummy_text,
@@ -170,9 +168,8 @@ def download_onnx_model(
         truncation=True,
         max_length=512,
     )
-    dummy_input = {k: v.half() for k, v in dummy_input.items()}
 
-    # Экport с dynamo=False
+    # Экport с dynamo=False (классический экспортёр, стабильный)
     torch.onnx.export(
         model,
         (dummy_input["input_ids"], dummy_input["attention_mask"]),
@@ -186,7 +183,60 @@ def download_onnx_model(
         },
         opset_version=14,
     )
-    logger.info(f"   ONNX сохранён: {onnx_path}")
+    logger.info(f"   ✅ ONNX float32: {onnx_path}")
+
+    # ── Шаг 5b: Квантизация в int8 (до ~1/4 размера float32) ──
+    logger.info(f"🔄 Квантизация в int8...")
+    try:
+        import onnx
+        from onnxruntime.quantization import QuantType, quantize_dynamic
+
+        # quantize_dynamic не работает с external data (.onnx.data).
+        # Конвертируем внешние данные в inline, квантизуем, удаляем .data
+        onnx_model = onnx.load(str(onnx_path))
+        inline_path = str(onnx_path.with_suffix(".inline.onnx"))
+        onnx.save_model(
+            onnx_model,
+            inline_path,
+            save_as_external_data=False,
+        )
+        del onnx_model
+
+        q_path = str(onnx_path.with_suffix(".quant.onnx"))
+        quantize_dynamic(
+            inline_path,
+            q_path,
+            weight_type=QuantType.QUInt8,
+            op_types_to_quantize=["MatMul", "Add", "Gemm"],
+            per_channel=True,
+        )
+
+        # Размеры
+        import os as _os
+
+        float32_mb = _os.path.getsize(str(onnx_path)) / 1024 / 1024
+        quant_mb = _os.path.getsize(q_path) / 1024 / 1024
+
+        # Удаляем float32 + external data
+        if onnx_path.with_suffix(".onnx.data").exists():
+            _os.remove(str(onnx_path.with_suffix(".onnx.data")))
+        _os.remove(str(onnx_path))
+
+        # Переименовываем quant → финальный
+        _os.rename(q_path, str(onnx_path))
+
+        # Удаляем inline-времянку
+        if _os.path.exists(inline_path):
+            _os.remove(inline_path)
+
+        logger.info(
+            f"   ✅ ONNX int8: {onnx_path}  ({float32_mb:.0f}→{quant_mb:.0f} MB)"
+        )
+    except ImportError as e:
+        logger.warning(
+            f"   ⚠️ onnxruntime.quantization не доступен: {e}. Модель float32."
+        )
+        logger.warning("      Установите: pip install onnxruntime>=1.15")
 
     # ── Шаг 6: Чистка ──
     _cleanup_source_weights(model_dir)
