@@ -77,6 +77,8 @@ get_index_status()
 | **[docs/en/INSTALL.md](docs/en/INSTALL.md)** | Installation, setup, uninstall | Users | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md)** | Clean Architecture, Layers, DI | Developers | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE_DEEP.md](docs/en/ARCHITECTURE_DEEP.md)** | Deep architecture: pipeline, lifecycle, comparison | Architects | 🇬🇧 🇷🇺 🇨🇳 |
+| **[docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md)** | Search pipeline: BM25 → RRF → Reranker | Developers | 🇬🇧 |
+| **[docs/en/GRACEFUL_DEGRADATION.md](docs/en/GRACEFUL_DEGRADATION.md)** | 4 levels of graceful degradation | DevOps | 🇬🇧 |
 | **[docs/en/ARCHITECTURE_LAYERS.md](docs/en/ARCHITECTURE_LAYERS.md)** | 10 runtime layers | Architects | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/FAQ.md](docs/en/FAQ.md)** | Frequently Asked Questions | All | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/TELEMETRY.md](docs/en/TELEMETRY.md)** | Metrics, ETA, data collection | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
