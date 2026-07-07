@@ -13,6 +13,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+from src.core.config import get_config
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import IndexNotReadyError, error_boundary
 from src.core.indexer import Indexer
@@ -109,6 +110,7 @@ class SearchCodeTool(MCPTool):
         mode: str = "auto",
         limit: int = 6,
         filter_layer: Optional[str] = None,
+        intent_hint: str = "auto",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         from src.core.error_handler import record_tool_result
@@ -130,7 +132,11 @@ class SearchCodeTool(MCPTool):
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
             raw = self.resolve_searcher().search_with_mode(
-                query, mode=mode, limit=limit, layer=filter_layer
+                query,
+                mode=mode,
+                limit=limit,
+                layer=filter_layer,
+                intent_hint=intent_hint,
             )
             if isinstance(raw, str):
                 result_str = project_header + "\n" + raw
@@ -153,6 +159,36 @@ class SearchCodeTool(MCPTool):
                 + "\n"
                 + self.resolve_searcher().context_search(query, limit=limit)
             )
+
+        elif mode == "ask":
+            # mode=ask: генерация ответа через phi-4
+            # В light profile — fallback на quality (защита от CPU-фриза)
+            perf_config = get_config().performance
+            if perf_config.is_light_profile:
+                logger.info(
+                    "mode=ask заблокирован в light profile. "
+                    "Переключение на mode=quality."
+                )
+                raw = self.resolve_searcher().search_with_mode(
+                    query,
+                    mode="quality",
+                    limit=limit,
+                    layer=filter_layer,
+                    intent_hint=intent_hint,
+                )
+                if isinstance(raw, str):
+                    result_str = project_header + "\n" + raw
+                else:
+                    results_count = len(raw.get("results", []))
+                    result_str = self._format_results(
+                        raw, mode, project_header=project_header
+                    )
+            else:
+                result_str = (
+                    project_header
+                    + "\n"
+                    + await self.resolve_searcher().ask_async(query, limit=limit)
+                )
 
         else:
             # auto
@@ -178,6 +214,8 @@ class SearchCodeTool(MCPTool):
         detail = f"{results_count} results, mode={mode}"
         if filter_layer:
             detail += f", layer={filter_layer}"
+        if intent_hint and intent_hint != "auto":
+            detail += f", intent={intent_hint}"
         # Добавляем модель из результата поиска
         if isinstance(raw, dict):
             mi = raw.get("model_info")

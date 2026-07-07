@@ -6,6 +6,68 @@
 
 Все значимые изменения в этом проекте будут задокументированы в этом файле.
 
+## [v2.5.3] — 2026-07-07 — mode=ask: RAG-генерация ответа через phi-4
+
+### 🚀 mode=ask
+- **`src/core/searcher.py`**: Новый метод `Searcher.ask_async()` — гибридный поиск →
+  контекст → phi-4 (chat completion) → структурированный ответ с цитатами.
+- **`src/mcp/tools/search_tools.py`**: Добавлен режим `mode="ask"` с защитой:
+  в `light` profile — автоматический fallback на `quality` с предупреждением.
+- **`src/core/config.py`**: `ASK_TIMEOUT` (60s), `ASK_MODEL` (phi-4-mini-instruct).
+
+### 📦 Версии
+- `extension.toml`: 2.5.2 → 2.5.3
+- `src/__init__.py`: 2.5.2 → 2.5.3
+
+---
+
+## [v2.5.2] — 2026-07-07 — phi-4-mini-instruct проверена + live-тест
+
+### 🔬 LM Studio
+- `phi-4-mini-instruct Q4_K_M` протестирована через `/v1/chat/completions`:
+  успешный ответ (75 токенов, `finish_reason=stop`).
+- Модель загружается on-demand (state: not-loaded → auto-load).
+- Подтверждена готовность к `mode=ask` (v2.7.0).
+
+### 📦 Версии
+- `extension.toml`: 2.5.1 → 2.5.2
+- `src/__init__.py`: 2.5.1 → 2.5.2
+
+---
+
+## [v2.5.1] — 2026-07-07 — Multi-Bucket RAG + Contextual Retrieval + Профили
+
+### 🚀 Multi-Bucket RAG (Phase 1)
+- **`src/core/searcher.py`**: Overfetch (`raw_limit = min(limit * factor, MAX)`),
+  распределение по корзинам CODE_EXTENSIONS/DOCS_EXTENSIONS,
+  soft weighting ДО reranker, cut-to-limit.
+- **`src/core/config.py`**: `CODE_EXTENSIONS`, `DOCS_EXTENSIONS`,
+  `MAX_RERANKER_INPUT=30`, `overfetch_factor`, `code_bucket_weight`,
+  `docs_bucket_weight` — всё через `.env`.
+
+### 🧩 Контекстуальный префикс (Phase 2)
+- **`src/core/parser.py`**: Новый формат префикса для кода:
+  `// File: {path} | Context: {class}.{func}`, для .md:
+  `From {path}, section '{heading}':`. Требуется переиндексация.
+
+### ⚖️ Soft Scoring + intent_hint (Phase 3)
+- **`src/mcp/tools/search_tools.py`**: Новый параметр `intent_hint`
+  (`"auto"` / `"code"` / `"docs"`).
+- **`src/core/searcher.py`**: `_apply_bucket_weights()` — динамические
+  веса: code=1.2/docs=0.8 для `"code"`, code=0.8/docs=1.2 для `"docs"`,
+  1.0/1.0 для `"auto"`.
+
+### ⚙️ SYSTEM_PROFILE (Phase 4)
+- **`src/core/config.py`**: `SYSTEM_PROFILE=light|server` с валидацией
+  и свойствами `is_light_profile`/`is_server_profile`.
+  `light` — синхронный режим (по умолч.), `server` — зарезервирован.
+
+### 📦 Версии
+- `extension.toml`: 2.4.4 → 2.5.1
+- `src/__init__.py`: 1.0.0 → 2.5.1
+
+---
+
 ## [v2.4.7] — 2026-07-05 — Connection Pool для LM Studio + прогрев
 
 ### ⚡ Производительность

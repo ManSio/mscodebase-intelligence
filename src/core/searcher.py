@@ -6,8 +6,17 @@ import math
 import re
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import httpx
+
+from src.core.config import (
+    CODE_EXTENSIONS,
+    DOCS_EXTENSIONS,
+    MAX_RERANKER_INPUT,
+    get_config,
+)
 from src.core.reranker import MultiProviderReranker, SearchResultReranker
 from src.utils.i18n import _
 
@@ -481,6 +490,7 @@ class Searcher:
         since: Optional[str] = None,
         before: Optional[str] = None,
         layer: Optional[str] = None,
+        intent_hint: str = "auto",
     ) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
@@ -507,14 +517,14 @@ class Searcher:
                 future = pool.submit(
                     asyncio.run,
                     self.hybrid_search_async(
-                        query, limit, use_rrf, expand, since, before, layer
+                        query, limit, use_rrf, expand, since, before, layer, intent_hint
                     ),
                 )
                 return future.result(timeout=30)
         else:
             return asyncio.run(
                 self.hybrid_search_async(
-                    query, limit, use_rrf, expand, since, before, layer
+                    query, limit, use_rrf, expand, since, before, layer, intent_hint
                 )
             )
 
@@ -527,6 +537,7 @@ class Searcher:
         since: Optional[str] = None,
         before: Optional[str] = None,
         layer: Optional[str] = None,
+        intent_hint: str = "auto",
     ) -> List[dict]:
         """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
 
@@ -551,13 +562,20 @@ class Searcher:
         else:
             query_variants = [query]
 
+        # === Multi-Bucket RAG (v2.6.0): Safety Cap для overfetch ===
+        perf_config = get_config().performance
+        raw_limit = min(
+            max(limit * perf_config.overfetch_factor, 1),
+            MAX_RERANKER_INPUT,
+        )
+
         # Собираем результаты от всех вариантов
         all_bm25_results = []
         all_dense_results = []
 
         for variant in query_variants:
             # BM25 поиск (sparse) — пост-фильтрация по layer
-            bm25_results = self._bm25_search(variant, limit=limit * 2)
+            bm25_results = self._bm25_search(variant, limit=raw_limit)
             if layer:
                 bm25_results = [
                     r
@@ -581,7 +599,7 @@ class Searcher:
                         query_vector = self.embedder.embed(variant)
                     if query_vector:
                         dense_results = self.vector_search(
-                            query_vector, limit=limit * 2, filter_expr=filter_expr
+                            query_vector, limit=raw_limit, filter_expr=filter_expr
                         )
                         all_dense_results = [
                             r for r in dense_results if "error" not in r
@@ -601,12 +619,12 @@ class Searcher:
         if use_rrf:
             # RRF Fusion — устойчив к разным масштабам скоров
             rrf_results = self._reciprocal_rank_fusion(
-                unique_bm25, all_dense_results, limit=limit
+                unique_bm25, all_dense_results, limit=raw_limit
             )
         else:
             # Fallback: реранкер с relevance factor
             reranked = self._reranker.rerank_results(
-                query, unique_bm25, all_dense_results, limit=limit
+                query, unique_bm25, all_dense_results, limit=raw_limit
             )
             rrf_results = []
             for res in reranked:
@@ -620,13 +638,150 @@ class Searcher:
                     }
                 )
 
+        # === Multi-Bucket RAG (v2.6.0): Soft Weighting + Cut to limit ===
+        rrf_results = self._apply_bucket_weights(rrf_results, intent_hint)
+
+        # Сортируем по взвешенному скору и обрезаем до оригинального limit
+        rrf_results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
+        pre_rerank_results = rrf_results[:limit]
+
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
+        # Реранкер перезаписывает final_score своими семантическими весами
         final_results = await self._apply_multi_reranker_async(
-            query, rrf_results, limit
+            query, pre_rerank_results, limit
         )
 
         # Фильтрация по времени (since/before)
         return _filter_by_time(final_results, since=since, before=before)
+
+    @staticmethod
+    def _apply_bucket_weights(
+        chunks: List[dict],
+        intent_hint: str = "auto",
+    ) -> List[dict]:
+        """Применяет soft weighting к чанкам на основе intent_hint и расширения файла.
+
+        Args:
+            chunks: Список чанков-словарей с metadata.file и final_score
+            intent_hint: "auto" (нейтрально), "code" (буст кода), "docs" (буст доков)
+
+        Returns:
+            Тот же список с изменёнными final_score (in-place + return)
+        """
+        # Маппинг intent_hint → веса
+        if intent_hint == "code":
+            code_w, docs_w = 1.2, 0.8
+        elif intent_hint == "docs":
+            code_w, docs_w = 0.8, 1.2
+        else:
+            # "auto" — нейтрально
+            code_w, docs_w = 1.0, 1.0
+
+        for chunk in chunks:
+            file_path_str = chunk.get("metadata", {}).get("file", "")
+            if not file_path_str:
+                continue
+            ext = Path(file_path_str).suffix.lower()
+            if ext in CODE_EXTENSIONS:
+                chunk["final_score"] = chunk.get("final_score", 0.0) * code_w
+            elif ext in DOCS_EXTENSIONS:
+                chunk["final_score"] = chunk.get("final_score", 0.0) * docs_w
+
+        return chunks
+
+    # === mode=ask: генерация ответа через phi-4 ===
+    async def ask_async(self, query: str, limit: int = 5) -> str:
+        """mode=ask: поиск + генерация ответа через phi-4.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимум чанков для контекста
+
+        Returns:
+            Ответ phi-4 с цитатами или fallback на обычный поиск.
+        """
+        try:
+            # Шаг 1: ищем релевантные чанки
+            results = await self.hybrid_search_async(
+                query, limit=limit, intent_hint="auto"
+            )
+            if not results:
+                return _(
+                    "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
+                )
+
+            # Шаг 2: собираем контекст
+            context_parts = []
+            for i, r in enumerate(results, 1):
+                file_path = r.get("metadata", {}).get("file", "unknown")
+                text = r.get("text_full") or r.get("text", "")
+                context_parts.append(f"[Чанк {i}] File: {file_path}\n```\n{text}\n```")
+            context = "\n---\n".join(context_parts)
+
+            # Шаг 3: системный промпт
+            system_prompt = (
+                "Ты — экспертный ассистент по кодовой базе MSCodeBase.\n"
+                "Отвечай на русском языке, лаконично и строго по делу.\n"
+                "Используй ТОЛЬКО предоставленный контекст.\n"
+                "Если в контексте нет ответа — напиши: "
+                "'В предоставленном контексте нет информации для ответа.'\n"
+                "Ссылайся на файлы из контекста (File: ...).\n"
+                "Не выдумывай код и не добавляй отсебятину."
+            )
+            user_prompt = f"Контекст кодовой базы:\n{context}\n\nВопрос: {query}"
+
+            # Шаг 4: зовём phi-4 через LM Studio
+            config = get_config()
+            chat_url = (
+                f"http://{config.embedding.lm_studio_host}:"
+                f"{config.embedding.lm_studio_port}/v1/chat/completions"
+            )
+            payload = {
+                "model": config.performance.ask_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 512,
+                "stream": False,
+            }
+
+            async with httpx.AsyncClient(
+                timeout=config.performance.ask_timeout
+            ) as client:
+                resp = await client.post(chat_url, json=payload)
+                if resp.status_code != 200:
+                    logger.warning(
+                        f"phi-4 вернул {resp.status_code}: {resp.text[:200]}"
+                    )
+                    return _("❌ LLM недоступен. Используйте mode=quality.")
+
+                data = resp.json()
+                answer = (
+                    data.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                    .strip()
+                )
+                if not answer:
+                    return _("❌ LLM вернул пустой ответ.")
+
+                return _(
+                    "🤖 **Ответ (phi-4):**\n\n{answer}\n\n"
+                    "---\n*Ответ сгенерирован на основе {count} чанков кодовой базы.*",
+                    answer=answer,
+                    count=len(results),
+                )
+
+        except httpx.TimeoutException:
+            logger.warning(
+                f"phi-4 timeout ({config.performance.ask_timeout}s) для запроса: {query[:80]}"
+            )
+            return _("❌ LLM не ответил за отведённое время. Попробуйте mode=quality.")
+        except Exception as e:
+            logger.error(f"Ошибка в ask_async: {e}")
+            return _("❌ Ошибка генерации ответа: {error}", error=str(e))
 
     def search(
         self,
@@ -675,6 +830,7 @@ class Searcher:
         mode: str = "quality",
         limit: int = 5,
         layer: Optional[str] = None,
+        intent_hint: str = "auto",
     ) -> Dict:
         """Поиск с выбором режима (fast/quality/deep).
 
@@ -723,22 +879,29 @@ class Searcher:
         filter_expr = f"layer = '{layer}'" if layer else ""
 
         if mode == self.MODE_FAST:
-            # FAST: embed + vector only
+            # FAST: embed + vector only (без реранкера, но с bucketing)
             t1 = time.perf_counter()
             query_vector = self.embedder.embed(query)
             timing["embed_ms"] = (time.perf_counter() - t1) * 1000
 
             if query_vector:
                 t1 = time.perf_counter()
-                results = self.vector_search(
+                raw_results = self.vector_search(
                     query_vector, limit=limit, filter_expr=filter_expr
                 )
                 timing["search_ms"] = (time.perf_counter() - t1) * 1000
+                # v2.6.0: Bucket weighting для fast mode
+                results = self._apply_bucket_weights(raw_results, intent_hint)
+                results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
+            else:
+                results = []
 
         elif mode == self.MODE_DEEP:
             # DEEP: quality + graph context
             t1 = time.perf_counter()
-            results = self.hybrid_search(query, limit=limit, layer=layer)
+            results = self.hybrid_search(
+                query, limit=limit, layer=layer, intent_hint=intent_hint
+            )
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
             # Graph context expansion: добавляем связанные символы из графа вызовов
@@ -749,7 +912,9 @@ class Searcher:
         else:
             # QUALITY (default): hybrid with rerank
             t1 = time.perf_counter()
-            results = self.hybrid_search(query, limit=limit, layer=layer)
+            results = self.hybrid_search(
+                query, limit=limit, layer=layer, intent_hint=intent_hint
+            )
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
         timing["total_ms"] = (time.perf_counter() - t0) * 1000

@@ -43,6 +43,7 @@ from src.core.passport import (
 from src.core.passport import (
     RUN_STARTED_AT as _RUN_STARTED_AT,
 )
+from src.core.platform import get_zed_db_path
 
 # (passport vars imported from src.core.passport above)
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
@@ -316,13 +317,7 @@ def resolve_project_root(provided: str = "") -> Path:
     # Zed пишет сюда активный workspace при каждом переключении проекта.
     # Единственный механизм, который работает на Windows (не требует env/LSP).
     try:
-        _db_path = (
-            Path(os.environ.get("LOCALAPPDATA", ""))
-            / "Zed"
-            / "db"
-            / "0-stable"
-            / "db.sqlite"
-        )
+        _db_path = get_zed_db_path()
         if _db_path.exists():
             import json as _json
             import sqlite3
@@ -375,13 +370,7 @@ def resolve_project_root(provided: str = "") -> Path:
     # Multi-window: читаем ВСЕ воркспейсы, фильтруем self-indexing,
     # выбираем самый свежий с .git (реальный проект).
     try:
-        _zed_db_path = (
-            Path(os.environ.get("LOCALAPPDATA", ""))
-            / "Zed"
-            / "db"
-            / "0-stable"
-            / "db.sqlite"
-        )
+        _zed_db_path = get_zed_db_path()
         if _zed_db_path.exists():
             import sqlite3
 

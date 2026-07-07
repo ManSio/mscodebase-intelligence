@@ -41,11 +41,9 @@ def get_log_dir(project_path: Path) -> Path:
         log_dir = project_path / ".codebase_indices" / "logs"
     else:
         # Централизованный лог в директории расширения
-        if sys.platform == "win32":
-            base = Path(os.environ.get("LOCALAPPDATA", ""))
-        else:
-            base = Path.home() / ".local" / "share"
-        ext_root = base / "Zed" / "extensions" / "mscodebase-intelligence"
+        from src.core.platform import get_extension_dir
+
+        ext_root = get_extension_dir("mscodebase-intelligence")
         log_dir = ext_root / ".codebase_indices" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
@@ -157,11 +155,9 @@ def _cleanup_stale_project_logs() -> int:
     """
     deleted = 0
     try:
-        if sys.platform == "win32":
-            base = Path(os.environ.get("LOCALAPPDATA", ""))
-        else:
-            base = Path.home() / ".local" / "share"
-        ext_root = base / "Zed" / "extensions" / "mscodebase-intelligence"
+        from src.core.platform import get_extension_dir
+
+        ext_root = get_extension_dir("mscodebase-intelligence")
         ext_log_dir = ext_root / ".codebase_indices" / "logs"
 
         # Ищем .codebase_indices/logs в пользовательских проектах

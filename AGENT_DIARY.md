@@ -5,6 +5,109 @@
 
 ---
 
+## [2026-07-07 20:30] — Test: phi-4-mini-instruct live via LM Studio + bump 2.5.2
+
+**Test:** curl /v1/chat/completions с phi-4-mini-instruct Q4_K_M
+- Ответ: 75 токенов, finish_reason=stop, стихи на запрос
+- Модель auto-loaded (state was not-loaded), загрузка прозрачная
+- Первый вызов ~5-8s (включая загрузку), последующие быстрее
+
+**Результат:** phi-4 готова к mode=ask для v2.7.0.
+**Version bump:** extension.toml 2.5.1→2.5.2, __init__.py 2.5.1→2.5.2
+
+**Status:** ✅
+
+---
+
+## [2026-07-07 19:00] — Feature: Multi-Bucket RAG (v2.6.0 Phase 1) — Overfetch + Soft Weighting
+
+**Problem:** Единый слепой векторный поиск без учёта типа файлов.
+Жёсткий layer-filter вырезал целые категории, ухудшая recall.
+
+**Solution:**
+- Overfetch: BM25 и Vector поиск запрашивают `raw_limit` чанков
+  (min(max(limit * overfetch_factor, 1), MAX_RERANKER_INPUT=30))
+- Bucket distribution: чанки классифицируются по расширению файла
+  (CODE_EXTENSIONS: .py/.rs/.js/…  |  DOCS_EXTENSIONS: .md/.txt/.rst/…)
+- Soft Weighting: `final_score *= bucket_weight` (default 1.0, управляется через .env)
+- Cut to limit: после взвешивания — сортировка и обрезка до оригинального `limit`
+- Bucket weight применяется ДО reranker (reranker перезаписывает scores)
+- Все веса и расширения переопределяются через .env
+
+**Files changed:** `src/core/config.py`, `src/core/searcher.py`
+**Tools Used:** edit_file, read_file, terminal(pytest)
+**Status:** ✅ (391 тестов пройдено, 0 регрессий)
+
+---
+
+## [2026-07-07 19:30] — Feature: Contextual Prefix (v2.6.0 Phase 2) + Reindex
+
+**Problem:** Вектора строились по чистому коду без контекста файла.
+Реранкер не мог отличить chunk из `searcher.py` от chunk из `test_searcher.py`.
+
+**Solution:**
+- Для кода: `// File: {path} | Context: {class}.{func}\n`
+- Для .md: `From {path}, section '{heading}':\n`
+- Для fallback: `// File: {path}\n`
+- Префикс добавляется только в `text` (идёт в эмбеддинг), `text_full` без изменений
+- Проведена полная переиндексация (2346 чанков)
+
+**Files changed:** `src/core/parser.py`
+**Tools Used:** edit_file, intel_trigger_reindex, search_code (live test)
+**Status:** ✅ (391 тестов, контекст виден в выдаче)
+
+---
+
+## [2026-07-07 20:00] — Feature: Soft Scoring + intent_hint (v2.6.0 Phase 3)
+
+**Problem:** Bucket weighting был статическим (code=1.0/docs=1.0).
+Агент не мог управлять приоритетом код vs документация.
+
+**Solution:**
+- Добавлен параметр `intent_hint` в `search_code`:
+  - `"auto"` (default) — нейтрально 1.0/1.0
+  - `"code"` — code=1.2, docs=0.8
+  - `"docs"` — code=0.8, docs=1.2
+- Выделен статический метод `_apply_bucket_weights()`
+- Веса применяются ДО reranker (и для fast mode — как финальные)
+
+**Files changed:** `src/mcp/tools/search_tools.py`, `src/core/searcher.py`
+**Tools Used:** edit_file, terminal(pytest)
+**Status:** ✅ (391 тестов)
+
+---
+
+## [2026-07-07 20:15] — Feature: SYSTEM_PROFILE (v2.6.0 Phase 4) + Version bump to 2.5.1
+
+**Problem:** Отсутствовала возможность переключать режим работы системы.
+
+**Solution:**
+- `SYSTEM_PROFILE=light|server` через `.env`
+- Валидация профиля в `__post_init__`
+- Свойства `is_light_profile`/`is_server_profile`
+- `server` профиль зарезервирован для будущего HYDE-агента
+
+**Version bump:** extension.toml 2.4.4→2.5.1, __init__.py 1.0.0→2.5.1
+
+**Files changed:** `src/core/config.py`, `extension.toml`, `src/__init__.py`, `docs/en/CHANGELOG.md`
+**Tools Used:** edit_file
+**Status:** ✅
+
+## [2026-07-07 02:10] — Fix: error_handler тесты переведены на Markdown-формат
+
+**Problem:** Все тесты error_boundary падали, т.к. `_format_error_response` теперь возвращает
+Markdown-строку вместо JSON. 7 тестов использовали `json.loads(result)` + проверку полей.
+
+**Solution:** Заменил `json.loads` + assert'ы по полям на проверку ключевых слов в Markdown:
+- status="warning" → `"Warning" in result or "warning" in result`
+- status="error" → `"Error" in result or "error" in result`
+- status="timeout" → `"Timeout" in result or "timeout" in result`
+- message/detail → `"<text>" in result`
+
+**Files changed:** `tests/test_error_handler.py` (7 тестов)
+**Tools Used:** read_file, edit_file, terminal
+**Status:** ✅
+
 ## [2026-07-07 01:30] — Ultra-Lean reranker: одностадийный cross-encoder вместо трёхстадийного pipeline
 
 **Problem:**

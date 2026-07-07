@@ -6,6 +6,68 @@
 
 本文件中记录了所有重要的项目变更。
 
+## [v2.5.3] — 2026-07-07 — mode=ask：通过 phi-4 的 RAG 回答生成
+
+### 🚀 mode=ask
+- **`src/core/searcher.py`**: 新方法 `Searcher.ask_async()` — 混合搜索 →
+  上下文 → phi-4 (chat completion) → 带引用的结构化回答。
+- **`src/mcp/tools/search_tools.py`**: 新增 `mode="ask"` 模式并带保护：
+  在 `light` 配置下自动回退到 `quality` 并发出警告。
+- **`src/core/config.py`**: `ASK_TIMEOUT` (60秒), `ASK_MODEL` (phi-4-mini-instruct)。
+
+### 📦 版本
+- `extension.toml`: 2.5.2 → 2.5.3
+- `src/__init__.py`: 2.5.2 → 2.5.3
+
+---
+
+## [v2.5.2] — 2026-07-07 — phi-4-mini-instruct 验证 + 实时测试
+
+### 🔬 LM Studio
+- 通过 `/v1/chat/completions` 测试了 `phi-4-mini-instruct Q4_K_M`：
+  成功响应（75 个 token，`finish_reason=stop`）。
+- 模型按需加载（state: not-loaded → auto-load）。
+- 确认已为 `mode=ask` (v2.7.0) 做好准备。
+
+### 📦 版本
+- `extension.toml`: 2.5.1 → 2.5.2
+- `src/__init__.py`: 2.5.1 → 2.5.2
+
+---
+
+## [v2.5.1] — 2026-07-07 — Multi-Bucket RAG + 上下文检索 + 配置文件
+
+### 🚀 Multi-Bucket RAG (第一阶段)
+- **`src/core/searcher.py`**: Overfetch (`raw_limit = min(limit * factor, MAX)`),
+  按 CODE_EXTENSIONS/DOCS_EXTENSIONS 分发存储桶,
+  reranker 之前的 soft weighting, cut-to-limit。
+- **`src/core/config.py`**: `CODE_EXTENSIONS`, `DOCS_EXTENSIONS`,
+  `MAX_RERANKER_INPUT=30`, `overfetch_factor`, `code_bucket_weight`,
+  `docs_bucket_weight` — 全部通过 `.env` 配置。
+
+### 🧩 上下文检索 (第二阶段)
+- **`src/core/parser.py`**: 代码的新前缀格式：
+  `// File: {path} | Context: {class}.{func}`, 对于 .md：
+  `From {path}, section '{heading}':`。需要重新索引。
+
+### ⚖️ 软评分 + intent_hint (第三阶段)
+- **`src/mcp/tools/search_tools.py`**: 新增参数 `intent_hint`
+  (`"auto"` / `"code"` / `"docs"`)。
+- **`src/core/searcher.py`**: `_apply_bucket_weights()` — 动态权重：
+  code=1.2/docs=0.8 用于 `"code"`, code=0.8/docs=1.2 用于 `"docs"`,
+  1.0/1.0 用于 `"auto"`。
+
+### ⚙️ SYSTEM_PROFILE (第四阶段)
+- **`src/core/config.py`**: `SYSTEM_PROFILE=light|server` 带验证
+  和属性 `is_light_profile`/`is_server_profile`。
+  `light` — 同步模式（默认），`server` — 保留。
+
+### 📦 版本
+- `extension.toml`: 2.4.4 → 2.5.1
+- `src/__init__.py`: 1.0.0 → 2.5.1
+
+---
+
 ## [v2.4.7] — 2026-07-05 — LM Studio 连接池 + 预热
 
 ### ⚡ 性能

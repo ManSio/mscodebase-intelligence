@@ -16,7 +16,7 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-05*
+*Last updated: 2026-07-07*
 
 </div>
 
@@ -26,18 +26,21 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Unified Search** | `search_code(query, mode)` — single tool for all search types (fast/quality/deep/context/auto) |
+| 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
 | 🧠 **Intelligence Layer** | 10 high-level `intel_*` tools: self-diagnostics, topology, error prediction |
 | 🗃️ **Project Memory** | ADR, known issues, tech debt — automatically persisted between sessions |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
 | 🔎 **Context Search** | Find similar code — paste a fragment, get semantic duplicates |
+| 🪣 **Multi-Bucket RAG** | Code/docs buckets, soft weighting, intent_hint (code/docs/auto) |
+| 🤖 **mode=ask** | RAG-генерация ответа через phi-4 (server profile) |
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
 | 🧪 **Clean Architecture** | DI Container (15 services), 43 tools (33 class-based + 10 intel), 391+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
+| ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
 
 ---
 
@@ -95,7 +98,7 @@ All documents are cross-referenced.
 
 | Tool | When to Use |
 |------|-------------|
-| `search_code(query, mode, filter_layer)` | **Main search tool.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"`. `filter_layer="core"` — search within specific architecture layer |
+| `search_code(query, mode, filter_layer, intent_hint)` | **Main search tool.** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"` / `"ask"`. `intent_hint="code"` / `"docs"` / `"auto"` — soft bucket weighting. `filter_layer="core"` — search within specific architecture layer |
 | `structural_search(pattern)` | AST search: `class_inheritance`, `async_function`, `function_with_decorator` and more |
 | `cross_repo_search(query @repo)` | Search across multiple projects (mono-repo) |
 | `cross_project_deps(action)` | Cross-project dependency graph: `graph` / `deps` / `cycles` / `impact` |

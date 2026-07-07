@@ -28,19 +28,19 @@ class CodeParser:
 
     # Узлы вызовов функций — для построения графа вызовов
     CALL_NODES = {
-        "call_expression",      # Python, JS, Go, Rust
-        "call",                  # Альтернативные грамматики
-        "function_invocation",   # Java
-        "invocation_expression", # Java (method invocation)
-        "macro_invocation",      # Rust macros!
+        "call_expression",  # Python, JS, Go, Rust
+        "call",  # Альтернативные грамматики
+        "function_invocation",  # Java
+        "invocation_expression",  # Java (method invocation)
+        "macro_invocation",  # Rust macros!
     }
 
     # Типы узлов, которые мы считаем "идентификаторами" при поиске вызовов
     CALL_IDENTIFIER_TYPES = {
         "identifier",
         "type_identifier",
-        "field_expression",     # obj.method()
-        "scoped_identifier",     # module::func()
+        "field_expression",  # obj.method()
+        "scoped_identifier",  # module::func()
     }
 
     # Узлы-контейнеры, чьи имена мы запоминаем для контекста
@@ -197,7 +197,12 @@ class CodeParser:
                 "utf-8", errors="ignore"
             )
             if text.strip():
-                prefix = f"// Context: {current_context}\n" if current_context else ""
+                # v2.6.0: Contextual prefix с путём файла
+                rel_path = str(file_path)
+                if current_context:
+                    prefix = f"// File: {rel_path} | Context: {current_context}\n"
+                else:
+                    prefix = f"// File: {rel_path}\n"
 
                 # Извлекаем имя функции/метода для SymbolIndex
                 name_node = self._find_child_by_type(
@@ -235,8 +240,12 @@ class CodeParser:
                 if len(text) > self.MAX_CHUNK_CHARS:
                     start_offset = node.start_point[0]
                     sub_chunks = self._chunk_giant_text(
-                        lines, str(file_path), start_offset,
-                        prefix, current_context, symbol_name
+                        lines,
+                        str(file_path),
+                        start_offset,
+                        prefix,
+                        current_context,
+                        symbol_name,
                     )
                     for sc in sub_chunks:
                         sc["symbol_name"] = symbol_name
@@ -442,12 +451,14 @@ class CodeParser:
         if node.type in self.CALL_NODES:
             callee_name = self._extract_callee_name(node, code)
             if callee_name and current_function:
-                calls.append({
-                    "caller": current_function,
-                    "callee": callee_name,
-                    "line": node.start_point[0],
-                    "file": str(file_path),
-                })
+                calls.append(
+                    {
+                        "caller": current_function,
+                        "callee": callee_name,
+                        "line": node.start_point[0],
+                        "file": str(file_path),
+                    }
+                )
 
         # Рекурсивно обходим детей
         for child in node.children:
@@ -475,13 +486,13 @@ class CodeParser:
                     # field_expression: obj.field → ищем identifier внутри
                     for subchild in child.children:
                         if subchild.type == "identifier":
-                            return code[
-                                subchild.start_byte : subchild.end_byte
-                            ].decode("utf-8", errors="ignore")
+                            return code[subchild.start_byte : subchild.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
                         elif subchild.type == "property_identifier":
-                            return code[
-                                subchild.start_byte : subchild.end_byte
-                            ].decode("utf-8", errors="ignore")
+                            return code[subchild.start_byte : subchild.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
                 # Для scoped_identifier (module::func) берём последний сегмент
                 elif child.type == "scoped_identifier":
                     parts = name.split("::")
@@ -511,8 +522,10 @@ class CodeParser:
                 compact = text[:500] + "\n..." if len(text) > 500 else text
                 # Метаданные для части гигантской функции
                 meta = self._build_chunk_metadata(
-                    str(file_path), symbol_name=symbol_name,
-                    node_type="giant_function_part", context=context
+                    str(file_path),
+                    symbol_name=symbol_name,
+                    node_type="giant_function_part",
+                    context=context,
                 )
                 chunks.append(
                     {
@@ -550,10 +563,11 @@ class CodeParser:
 
         chunks = []
         file_path_str = str(file_path)
+        # v2.6.0: Contextual prefix для fallback-чанков
+        fb_prefix = f"// File: {file_path_str}\n"
         # Единые метаданные для всех строк этого файла
         fallback_meta = self._build_chunk_metadata(
-            file_path_str, symbol_name="",
-            node_type="fallback_lines", context=""
+            file_path_str, symbol_name="", node_type="fallback_lines", context=""
         )
         for i in range(
             0, len(lines), self.FALLBACK_CHUNK_LINES - self.FALLBACK_OVERLAP_LINES
@@ -564,8 +578,8 @@ class CodeParser:
                 compact = text[:500] + "\n..." if len(text) > 500 else text
                 chunks.append(
                     {
-                        "text": text,
-                        "text_compact": compact,
+                        "text": fb_prefix + text,
+                        "text_compact": fb_prefix + compact,
                         "file": file_path_str,
                         "start_line": i,
                         "end_line": i + len(chunk_lines) - 1,
@@ -603,8 +617,7 @@ class CodeParser:
         file_path_str = str(file_path)
         # Единые метаданные для всех секций md-файла
         md_meta = self._build_chunk_metadata(
-            file_path_str, symbol_name="",
-            node_type="markdown_section", context=""
+            file_path_str, symbol_name="", node_type="markdown_section", context=""
         )
 
         for i, line in enumerate(content.splitlines()):
@@ -621,10 +634,16 @@ class CodeParser:
                     text = "\n".join(current_section).strip()
                     if text:
                         compact = text[:500] + "\n..." if len(text) > 500 else text
+                        # v2.6.0: Contextual prefix для .md
+                        md_prefix = (
+                            f"From {file_path_str}, section '{current_header}':\n"
+                        )
                         chunks.append(
                             {
-                                "text": f"{current_header}\n\n{text}".strip(),
-                                "text_compact": f"{current_header}\n\n{compact}".strip(),
+                                "text": md_prefix
+                                + f"{current_header}\n\n{text}".strip(),
+                                "text_compact": md_prefix
+                                + f"{current_header}\n\n{compact}".strip(),
                                 "file": file_path_str,
                                 "start_line": current_start,
                                 "end_line": i - 1,
@@ -651,10 +670,12 @@ class CodeParser:
             text = "\n".join(current_section).strip()
             if text:
                 compact = text[:500] + "\n..." if len(text) > 500 else text
+                md_prefix = f"From {file_path_str}, section '{current_header}':\n"
                 chunks.append(
                     {
-                        "text": f"{current_header}\n\n{text}".strip(),
-                        "text_compact": f"{current_header}\n\n{compact}".strip(),
+                        "text": md_prefix + f"{current_header}\n\n{text}".strip(),
+                        "text_compact": md_prefix
+                        + f"{current_header}\n\n{compact}".strip(),
                         "file": file_path_str,
                         "start_line": current_start,
                         "end_line": len(content.splitlines()) - 1,
