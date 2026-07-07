@@ -1057,6 +1057,22 @@ class Indexer:
                 for fp in deleted_files:
                     self._cached_unique_files.discard(fp)
 
+                # Compaction: оптимизация хранения после удаления данных
+                # LanceDB накапливает stale версии, compaction освобождает место
+                if total_deleted_chunks > 50:
+                    try:
+                        import gc
+
+                        gc.collect()  # Принудительная сборка перед compaction
+                        logger.info(
+                            f"🗜️ Compaction: {total_deleted_chunks} чанков удалено, "
+                            f"запускаю оптимизацию..."
+                        )
+                        self.table.compact_files()
+                        logger.info("✅ Compaction завершён")
+                    except Exception as compact_err:
+                        logger.debug(f"Compaction не удался: {compact_err}")
+
                 logger.info("✅ База данных полностью синхронизирована с диском.")
                 return len(deleted_files)
             return 0

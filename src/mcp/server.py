@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import atexit
 import json
 import logging
 import os
@@ -1760,6 +1761,15 @@ def run_server(original_stdout=None):
     mcp = create_mcp_server()
     if mcp:
         try:
+            # Регистрируем shutdown при остановке сервера
+            def _di_shutdown():
+                try:
+                    _services_cache.shutdown()
+                except Exception:
+                    pass
+
+            atexit.register(_di_shutdown)
+
             # Прогрев эмбеддера (убивает cold start LM Studio)
             try:
                 _warmup_embedder()
@@ -1773,3 +1783,9 @@ def run_server(original_stdout=None):
             logger.info("Сервер остановлен пользователем.")
         except Exception as e:
             logger.critical(f"Критический сбой MCP-сервера: {e}", exc_info=True)
+        finally:
+            # Всегда закрываем DI при выходе
+            try:
+                _services_cache.shutdown()
+            except Exception:
+                pass

@@ -29,6 +29,7 @@ class RemoteEmbedder:
         port: Optional[int] = None,
         host: Optional[str] = None,
         timeout: Optional[float] = None,
+        breaker: Optional[Any] = None,
     ):
         """Универсальный клиент эмбеддингов с каскадным переключением (LM Studio -> ONNX -> Fallback).
 
@@ -39,6 +40,7 @@ class RemoteEmbedder:
             port: Порт LM Studio (по умолчанию из конфигурации)
             host: Хост LM Studio (по умолчанию из конфигурации)
             timeout: Таймаут запросов (по умолчанию из конфигурации)
+            breaker: CircuitBreaker для защиты от каскадных сбоев LM Studio
         """
         config = get_config()
 
@@ -48,6 +50,13 @@ class RemoteEmbedder:
         self.timeout = timeout or config.performance.embedding_timeout
         self.lm_studio_url = f"http://{self.host}:{self.port}/v1/embeddings"
         self.model_name = config.embedding.model_name
+
+        # CircuitBreaker для LM Studio (предотвращает каскадные сбои)
+        self._breaker = breaker
+        self._breaker_fallback = {
+            "status": "fallback",
+            "message": "LM Studio breaker open",
+        }
 
         # Переменные для локального ONNX (ленивая инициализация, чтобы не жрать ОЗУ зря)
         self._onnx_session = None
@@ -96,7 +105,22 @@ class RemoteEmbedder:
         self._scanner_thread.start()
 
     def _check_lm_studio(self) -> bool:
-        """Быстрая проверка доступности порта LM Studio (переиспользует клиент)."""
+        """Быстрая проверка доступности порта LM Studio (переиспользует клиент).
+
+        Если подключен CircuitBreaker — проверка проходит через breaker.call()
+        для защиты от каскадных сбоев при зависании LM Studio.
+        """
+        if self._breaker is not None:
+            try:
+                return bool(
+                    self._breaker.call(self._check_lm_studio_raw, fallback=True)
+                )
+            except Exception:
+                return False
+        return self._check_lm_studio_raw()
+
+    def _check_lm_studio_raw(self) -> bool:
+        """Прямая проверка LM Studio без CircuitBreaker (используется breaker.call внутри)."""
         if self._sync_client is None:
             self._sync_client = httpx.Client(timeout=2.0)
         try:

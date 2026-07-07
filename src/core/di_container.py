@@ -15,11 +15,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer, _generate_unique_db_path
 from src.core.parser import CodeParser
+from src.core.project_indexer_registry import (
+    ProjectIndexerRegistry,
+    get_global_registry,
+)
 from src.core.rate_limiter import (
     CircuitBreaker,
     DebounceBatch,
@@ -33,7 +37,6 @@ from src.core.resource_monitor import (
 )
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
-from src.core.project_indexer_registry import ProjectIndexerRegistry, get_global_registry
 
 logger = logging.getLogger("mscodebase_server.di")
 
@@ -42,21 +45,25 @@ T = TypeVar("T")
 
 class ProjectRootKey:
     """Sentinel-ключ для project_root в DI. Импортируется потребителями."""
+
     pass
 
 
 class DbPathKey:
     """Sentinel-ключ для db_path в DI. Импортируется потребителями."""
+
     pass
 
 
 class IndexerFactoryKey:
     """Sentinel-ключ для Indexer factory в DI (см. INC-6BCB / multi-window)."""
+
     pass
 
 
 class ResourceMonitorKey:
     """Sentinel-ключ для ResourceMonitor в DI (см. INC-6BCB / multi-window)."""
+
     pass
 
 
@@ -85,7 +92,7 @@ class ServiceCollection:
     """
 
     def __init__(self):
-        self._instances: Dict[type, Any] = {}      # Уже созданные экземпляры
+        self._instances: Dict[type, Any] = {}  # Уже созданные экземпляры
         self._factories: Dict[type, Callable] = {}  # Фабрики для ленивых синглтонов
 
     def add_singleton(self, key: type, instance: Any = None):
@@ -137,7 +144,36 @@ class ServiceCollection:
             f"Available types: {list(self._instances.keys()) + list(self._factories.keys())}"
         )
 
-    def list_registered(self) -> list:
+    def shutdown(self):
+        """Закрывает все зарегистрированные сервисы, реализующие close().
+
+        Вызывается при остановке MCP-сервера для корректного освобождения
+        ресурсов (файловые дескрипторы, HTTP-сессии, tree-sitter runtime).
+        """
+        closed = 0
+        for key, instance in self._instances.items():
+            close_method = getattr(instance, "close", None)
+            if callable(close_method):
+                try:
+                    if hasattr(close_method, "__await__"):
+                        import asyncio
+
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                loop.create_task(close_method())
+                            else:
+                                asyncio.run(close_method())
+                        except RuntimeError:
+                            asyncio.run(close_method())
+                    else:
+                        close_method()
+                    closed += 1
+                except Exception as e:
+                    logger.debug(f"DI shutdown: {key.__name__}.close() error: {e}")
+        logger.info(f"DI shutdown: {closed} services closed")
+
+    def list_registered(self) -> List[type]:
         """Возвращает список всех зарегистрированных типов."""
         return list(self._instances.keys()) + list(self._factories.keys())
 
@@ -285,7 +321,9 @@ def create_service_collection(
 
         p_indexer.bm25_batch = DebounceBatch(
             callback=_bm25_reindex_callback,
-            config=DebounceConfig(debounce_ms=500, max_batch_size=100, max_wait_ms=5000),
+            config=DebounceConfig(
+                debounce_ms=500, max_batch_size=100, max_wait_ms=5000
+            ),
         )
         return p_indexer
 
@@ -314,6 +352,10 @@ def create_service_collection(
         ),
     )
     services.add_singleton(CircuitBreaker, lm_studio_breaker)
+
+    # Подключаем CircuitBreaker к embedder-у (защита от каскадных сбоев LM Studio)
+    if hasattr(embedder, "_breaker"):
+        embedder._breaker = lm_studio_breaker
 
     # ══════════════════════════════════════════════════════
     # DebounceBatch — пакетная реиндексация BM25.
