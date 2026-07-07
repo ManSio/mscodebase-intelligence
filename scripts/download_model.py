@@ -80,122 +80,120 @@ def download_onnx_model(
     output_dir: Path,
     force: bool = False,
     purge_cache: bool = False,
+    model_type: str = "embedding",
 ):
     """
     Скачивает модель и экспортирует в ONNX.
 
-    Аргументы:
+    Args:
         model_name: Имя модели на HuggingFace (напр. "BAAI/bge-m3")
         output_dir: Куда сохранить ONNX
-        force: Принудительный ре-экспорт (даже если ONNX уже есть)
-        purge_cache: Удалить HF кэш после экспорта (экономит ~2GB)
+        force: Принудительный ре-экспорт
+        purge_cache: Удалить HF кэш после экспорта
+        model_type: "embedding" (AutoModel) или "reranker" (AutoModelForSequenceClassification)
     """
-    onnx_path = output_dir / "onnx" / "model.onnx"
+    from transformers import (
+        AutoModel,
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+    )
+
+    onnx_dir = output_dir / "onnx"
+    model_subdir = "bge-m3" if model_type == "embedding" else "bge-reranker"
+    onnx_path = onnx_dir / model_subdir / "model.onnx"
 
     # ── Шаг 1: Проверяем ONNX (быстрый skip) ──
     if onnx_path.exists() and not force:
-        logger.info(f"✅ ONNX-модель уже существует: {onnx_path}")
+        logger.info(f"✅ ONNX уже существует: {onnx_path}")
         logger.info(f"   Размер: {onnx_path.stat().st_size / 1024 / 1024:.1f} MB")
         return
 
     # ── Шаг 2: Убеждаемся что директории существуют ──
-    output_dir.mkdir(parents=True, exist_ok=True)
+    model_dir = onnx_dir / model_subdir
+    model_dir.mkdir(parents=True, exist_ok=True)
     cache_dir = _get_persistent_cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"📥 Загрузка модели {model_name}...")
+    logger.info(f"📥 Загрузка {model_name} (type={model_type})...")
     if force:
         logger.info("   Режим --force: принудительный ре-экспорт")
-    logger.info(f"   HF cache_dir: {cache_dir} (сохраняется между сессиями)")
 
-    from transformers import AutoModel, AutoTokenizer
+    # Выбираем класс модели
+    if model_type == "reranker":
+        model_class = AutoModelForSequenceClassification
+        dummy_text = ["тестовый запрос", "тестовый чанк"]
+    else:
+        model_class = AutoModel
+        dummy_text = ["тестовый запрос"]
 
-    # cache_dir указывает на персистентную папку — если модель уже скачана,
-    # from_pretrained() НЕ качает заново
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         trust_remote_code=True,
         cache_dir=str(cache_dir),
     )
-    model = AutoModel.from_pretrained(
+    model = model_class.from_pretrained(
         model_name,
         trust_remote_code=True,
         cache_dir=str(cache_dir),
     )
     model.eval()
 
-    # ── Шаг 3: Сохраняем токенизатор и конфиг ──
-    tokenizer.save_pretrained(str(output_dir))
+    # ── Шаг 3: Сохраняем токенизатор ──
+    tokenizer.save_pretrained(str(model_dir))
 
-    # ── Шаг 4: Определяем размерность эмбеддингов ──
+    # ── Шаг 4: Определяем размерность ──
     hidden_size = getattr(model.config, "hidden_size", None)
     if not hidden_size:
         import torch
 
         with torch.no_grad():
             dummy = tokenizer(
-                ["test"], return_tensors="pt", padding=True, truncation=True
+                dummy_text, return_tensors="pt", padding=True, truncation=True
             )
-            out = model(**dummy)
-            hidden_size = out.last_hidden_state.shape[-1]
+            out = (
+                model(**dummy)
+                if model_type == "reranker"
+                else model(**dummy).last_hidden_state
+            )
+            hidden_size = out.shape[-1] if hasattr(out, "shape") else 1024
 
     # ── Шаг 5: Экспорт в ONNX ──
-    onnx_dir = output_dir / "onnx"
-    onnx_dir.mkdir(exist_ok=True)
-
     logger.info(f"🔄 Экспорт в ONNX (размерность {hidden_size})...")
     import torch
 
     dummy_input = tokenizer(
-        ["passage: тестовый запрос"],
+        dummy_text,
         return_tensors="pt",
         padding=True,
         truncation=True,
         max_length=512,
     )
 
-    with torch.no_grad():
-        # dynamo=False — классический экспортёр (стабильный), без torch.compile
-        torch.onnx.export(
-            model,
-            (dummy_input["input_ids"], dummy_input["attention_mask"]),
-            str(onnx_path),
-            input_names=["input_ids", "attention_mask"],
-            output_names=["last_hidden_state"],
-            dynamic_axes={
-                "input_ids": {0: "batch", 1: "seq"},
-                "attention_mask": {0: "batch", 1: "seq"},
-                "last_hidden_state": {0: "batch", 1: "seq"},
-            },
-            opset_version=18,
-            dynamo=False,
-        )
+    # Экport с dynamo=False
+    torch.onnx.export(
+        model,
+        (dummy_input["input_ids"], dummy_input["attention_mask"]),
+        str(onnx_path),
+        input_names=["input_ids", "attention_mask"],
+        output_names=["last_hidden_state"],
+        dynamic_axes={
+            "input_ids": {0: "batch", 1: "seq"},
+            "attention_mask": {0: "batch", 1: "seq"},
+            "last_hidden_state": {0: "batch", 1: "seq"},
+        },
+        opset_version=14,
+    )
+    logger.info(f"   ONNX сохранён: {onnx_path}")
 
-    # ── Шаг 6: Сохраняем config.json (нужен для AutoTokenizer) ──
-    config_path = output_dir / "config.json"
-    if not config_path.exists():
-        config = {
-            "_name_or_path": model_name,
-            "architectures": ["BertModel"],
-            "hidden_size": hidden_size,
-            "model_type": "bert",
-        }
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-
-    # ── Шаг 7: Чистка ──
-    # Удаляем исходные safetensors/bin из output_dir (они уже в cache_dir)
-    _cleanup_source_weights(output_dir)
-
-    # HF кэш удаляем ТОЛЬКО по явному флагу
+    # ── Шаг 6: Чистка ──
+    _cleanup_source_weights(model_dir)
     if purge_cache:
         _purge_hf_cache(model_name)
         logger.info("   HF кэш удалён (--purge-cache)")
     else:
         logger.info(f"   HF кэш сохранён: {_get_persistent_cache_dir()}")
-        logger.info("   Для удаления используйте --purge-cache")
 
-    logger.info(f"✅ Модель сохранена в {output_dir}")
+    logger.info(f"✅ Модель сохранена в {model_dir}")
     logger.info(
         f"   ONNX: {onnx_path} ({onnx_path.stat().st_size / 1024 / 1024:.1f} MB)"
     )
@@ -209,35 +207,44 @@ def download_onnx_model(
 
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
-        print("Универсальный загрузчик embedding моделей в ONNX")
+        print("Универсальный загрузчик моделей в ONNX")
         print()
         print("Использование:")
         print("  python download_model.py")
         print("  python download_model.py --model BAAI/bge-m3")
-        print("  python download_model.py --model intfloat/multilingual-e5-small")
+        print(
+            "  python download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker"
+        )
         print("  python download_model.py --force")
         print("  python download_model.py --purge-cache")
         print()
-        print("Рекомендуемые модели:")
+        print("Типы:")
         print(
-            "  BAAI/bge-m3                      — лучшая для русский + код (1024, 800MB RAM)"
+            "  --type embedding  (по умолчанию) AutoModel → .codebase_models/onnx/bge-m3/"
         )
-        print("  intfloat/multilingual-e5-base    — баланс (768, 350MB RAM)")
-        print("  intfloat/multilingual-e5-small   — лёгкая (384, 200MB RAM)")
-        print("  BAAI/bge-small                   — быстрая (384, 150MB RAM)")
-        print("  Alibaba-NLP/gte-Qwen2-1.5B-instruct — мощная (1536, ~3GB RAM)")
+        print(
+            "  --type reranker   AutoModelForSequenceClassification → .codebase_models/onnx/bge-reranker/"
+        )
+        print()
+        print("Рекомендуемые модели:")
+        print("  BAAI/bge-m3                  — embedding (1024, ~438 MB ONNX)")
+        print("  BAAI/bge-reranker-v2-m3       — reranker (~636 MB ONNX)")
+        print("  intfloat/multilingual-e5-base  — баланс (768, ~350 MB)")
         return
 
     model_name = "BAAI/bge-m3"
+    model_type = "embedding"
     force = False
     purge_cache = False
 
-    # Ручной парсинг argv без зависимостей
     args = sys.argv[1:]
     i = 0
     while i < len(args):
         if args[i] == "--model" and i + 1 < len(args):
             model_name = args[i + 1]
+            i += 2
+        elif args[i] == "--type" and i + 1 < len(args):
+            model_type = args[i + 1]
             i += 2
         elif args[i] == "--force":
             force = True
@@ -248,10 +255,15 @@ def main():
         else:
             i += 1
 
-    project_path = Path(__file__).parent.resolve()
-    output_dir = project_path / ".codebase_models"
-
-    download_onnx_model(model_name, output_dir, force=force, purge_cache=purge_cache)
+    project_root = Path(__file__).resolve().parent.parent
+    output_dir = project_root / ".codebase_models"
+    download_onnx_model(
+        model_name,
+        output_dir,
+        force=force,
+        purge_cache=purge_cache,
+        model_type=model_type,
+    )
 
 
 if __name__ == "__main__":

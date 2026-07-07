@@ -510,8 +510,8 @@ def hr():
 
 
 def download_onnx_model(project_root: Path, lang: str, width: int) -> bool:
-    """Download ONNX fallback model (BAAI/bge-m3) to .codebase_models/onnx/."""
-    label = _tr("model_onnx_fallback", lang)
+    """Download BOTH ONNX models: bge-m3 (embedding) + bge-reranker-v2-m3 (reranker)."""
+    label = _tr("download_models", lang)
     print(
         f"  {'┌─'} {Color.BOLD}{label}{Color.RESET} {'─' * (width - 6 - len(label))}┐"
     )
@@ -532,31 +532,62 @@ def download_onnx_model(project_root: Path, lang: str, width: int) -> bool:
         )
         model_path = project_root / ".codebase_models"
         model_path.mkdir(parents=True, exist_ok=True)
-        proc = subprocess.run(
+        scripts_dir = project_root / "scripts"
+        results = []
+
+        # 1. Embedding: BAAI/bge-m3 (438 MB ONNX)
+        info(f"{Color.CYAN}1/2{Color.RESET} BAAI/bge-m3 (embedding, ~438 MB)...")
+        proc1 = subprocess.run(
             [
                 sys.executable,
-                str(project_root / "scripts" / "download_model.py"),
+                str(scripts_dir / "download_model.py"),
                 "--model",
                 "BAAI/bge-m3",
-                "--output",
-                str(model_path),
+                "--type",
+                "embedding",
             ],
             capture_output=True,
             text=True,
             timeout=600,
         )
-        if proc.returncode == 0:
-            ok(
-                f"{_tr('model_done', lang)}: {Color.DIM}{model_path / 'onnx' / 'model.onnx'}{Color.RESET}"
-            )
-            print(f"  {'└' + '─' * (width - 2) + '┘'}")
-            print()
-            return True
+        if proc1.returncode == 0:
+            ok(f"Embedding: {Color.DIM}onnx/bge-m3/model.onnx{Color.RESET}")
+            results.append(True)
         else:
-            warn(f"Download failed: {proc.stderr[-200:]}")
-            print(f"  {'└' + '─' * (width - 2) + '┘'}")
-            print()
-            return False
+            warn(
+                f"Embedding model: {Color.YELLOW}SKIPPED{Color.RESET} ({proc1.stderr[-100:].strip()})"
+            )
+            results.append(False)
+
+        # 2. Reranker: BAAI/bge-reranker-v2-m3 (636 MB ONNX)
+        info(
+            f"{Color.CYAN}2/2{Color.RESET} BAAI/bge-reranker-v2-m3 (reranker, ~636 MB)..."
+        )
+        proc2 = subprocess.run(
+            [
+                sys.executable,
+                str(scripts_dir / "download_model.py"),
+                "--model",
+                "BAAI/bge-reranker-v2-m3",
+                "--type",
+                "reranker",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        if proc2.returncode == 0:
+            ok(f"Reranker:  {Color.DIM}onnx/bge-reranker/model.onnx{Color.RESET}")
+            results.append(True)
+        else:
+            warn(
+                f"Reranker model: {Color.YELLOW}SKIPPED{Color.RESET} ({proc2.stderr[-100:].strip()})"
+            )
+            results.append(False)
+
+        print(f"  {'└' + '─' * (width - 2) + '┘'}")
+        print()
+        return any(results)
     except Exception as e:
         warn(f"Model download error: {e}")
         print(f"  {'└' + '─' * (width - 2) + '┘'}")

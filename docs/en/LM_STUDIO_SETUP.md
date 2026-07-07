@@ -19,19 +19,31 @@ no data egress, no API costs.
 ### Fallback: ONNX Runtime (No GPU Required)
 
 If LM Studio is not available, MSCodeBase automatically falls back to
-**ONNX Runtime** with the `BAAI/bge-m3` model (~800 MB). This provides
-basic vector search without requiring a separate server.
+**ONNX Runtime** with two local ONNX models:
+
+| Model | Size | Path | Purpose |
+|-------|:----:|------|---------|
+| BAAI/bge-m3 | **438 MB** | `.codebase_models/onnx/bge-m3/model.onnx` | Embedding (vector search) |
+| BAAI/bge-reranker-v2-m3 | **636 MB** | `.codebase_models/onnx/bge-reranker/model.onnx` | Reranking (cross-encoder) |
 
 ```bash
-# Install ONNX fallback via the installer:
+# Install both models via the installer (Step 6):
 python install.py
+# When prompted, choose Yes to download ONNX models
+
 # Or manually:
 pip install onnxruntime transformers torch huggingface-hub
-python scripts/download_model.py
+python scripts/download_model.py --model BAAI/bge-m3 --type embedding
+python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker
 ```
 
-> **Note:** ONNX fallback is CPU-only and does **not** support reranking
-> or `mode=ask` LLM generation. For full functionality, use LM Studio.
+**System behaviour:**
+- If **LM Studio is online** → uses LM Studio API for all models (faster, GPU)
+- If **LM Studio is offline** but **ONNX models exist** → uses:
+  - ONNX Runtime for embedding (bge-m3, vector search)
+  - ONNX Runtime for reranking (bge-reranker-v2-m3, cross-encoder scores)
+  - `mode=ask` is unavailable (requires phi-4 in LM Studio)
+- If **neither available** → degraded mode: only BM25 (keyword) search
 
 ---
 
@@ -205,22 +217,28 @@ mode=ask заблокирован в light profile
 
 ## ONNX Fallback Path (No LM Studio)
 
-If you cannot run LM Studio, MSCodeBase can use **ONNX Runtime** as a fallback
-for basic vector search:
+If you cannot run LM Studio, MSCodeBase can use **ONNX Runtime** for
+both embedding AND reranking. The installer downloads both models:
 
 ```bash
-# 1. Install dependencies
+# Full ONNX setup (recommended):
+python install.py
+# → Step 6 will download both models
+
+# Manual setup:
 pip install onnxruntime transformers torch huggingface-hub
 
-# 2. Download and export the ONNX model
-python scripts/download_model.py --model BAAI/bge-m3
+# 1. Embedding model (BAAI/bge-m3, 438 MB)
+python scripts/download_model.py --model BAAI/bge-m3 --type embedding
+# → Saved to .codebase_models/onnx/bge-m3/model.onnx
 
-# 3. Model will be saved to .codebase_models/onnx/model.onnx
-#    (~800 MB, 1024-dimension embeddings)
+# 2. Reranker model (BAAI/bge-reranker-v2-m3, 636 MB)
+python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker
+# → Saved to .codebase_models/onnx/bge-reranker/model.onnx
 ```
 
 **Limitations of ONNX fallback:**
 - CPU-only (no GPU acceleration)
-- No reranking support
-- No `mode=ask` (RAG generation)
-- Slower embedding for large batches
+- Slower than LM Studio for large batches
+- No `mode=ask` (RAG generation requires phi-4 in LM Studio)
+- ~1.1 GB total disk space for both models
