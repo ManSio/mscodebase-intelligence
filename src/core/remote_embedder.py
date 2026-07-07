@@ -416,13 +416,13 @@ class RemoteEmbedder:
                     data = sorted(data, key=lambda x: x.get("index", 0))
                     return [item["embedding"] for item in data]
 
-            logger.warning(
+            logger.debug(
                 f"LM Studio async error (HTTP {r.status_code}), fallback to sync"
             )
             return self.embed_batch(texts, is_query)
 
         except Exception as e:
-            logger.warning(f"LM Studio async failed: {e}, fallback to sync")
+            logger.debug(f"LM Studio async failed: {e}, fallback to sync")
             return self.embed_batch(texts, is_query)
 
     async def embed_async(self, text: str, is_query: bool = False) -> List[float]:
