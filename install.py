@@ -221,7 +221,7 @@ def _stat(msg, color=C.GRN, symbol="✔", newline=True):
 # ─── Language ────────────────────────────────────────────────
 def _detect_lang():
     try:
-        full = locale.getdefaultlocale()[0] or ""
+        full = locale.getlocale(locale.LC_MESSAGES)[0] or ""
         prefix = full[:2].lower()
         m = {"ru": "ru", "uk": "ru", "zh": "zh", "cn": "zh"}
         return m.get(prefix, "en")
@@ -350,18 +350,26 @@ def step_copy(lines, lang):
             if item.name in skip:
                 continue
             if not (PROJECT_ROOT / item.name).exists():
-                (shutil.rmtree if item.is_dir() else item.unlink)(
-                    str(item), ignore_errors=True
-                )
+                try:
+                    if item.is_dir():
+                        shutil.rmtree(str(item), ignore_errors=True)
+                    else:
+                        item.unlink()
+                except:
+                    pass
     # Copy with simple progress
     for idx, item in enumerate(items):
         dst = ZED_EXT_DIR / item.name
         try:
             if dst.exists():
-                (shutil.rmtree if dst.is_dir() else dst.unlink)(
-                    str(dst), ignore_errors=True
-                )
-            (shutil.copytree if item.is_dir() else shutil.copy2)(str(item), str(dst))
+                if dst.is_dir():
+                    shutil.rmtree(str(dst), ignore_errors=True)
+                else:
+                    dst.unlink()
+            if item.is_dir():
+                shutil.copytree(str(item), str(dst))
+            else:
+                shutil.copy2(str(item), str(dst))
         except:
             pass
         pct = int((idx + 1) / len(items) * 100)
