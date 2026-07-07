@@ -1739,10 +1739,10 @@ def _start_heartbeat_monitor(mcp) -> None:
 def _warmup_embedder():
     """Прогрев эмбеддера при старте сервера (убивает cold start LM Studio)."""
     try:
-        from src.core.di_container import RemoteEmbedderKey
+        from src.core.remote_embedder import RemoteEmbedder
 
         if _services_cache is not None:
-            embedder = _services_cache.resolve(RemoteEmbedderKey)
+            embedder = _services_cache.resolve(RemoteEmbedder)
             if embedder and hasattr(embedder, "mode") and embedder.mode == "lm_studio":
                 logger.info("⏳ Прогрев эмбеддера (bge-m3)...")
                 import asyncio

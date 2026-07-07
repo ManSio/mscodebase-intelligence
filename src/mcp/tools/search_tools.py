@@ -147,6 +147,7 @@ class SearchCodeTool(MCPTool):
                 )
 
         elif mode == "deep":
+            raw = None  # deep_search возвращает str
             result_str = (
                 project_header
                 + "\n"
@@ -154,6 +155,7 @@ class SearchCodeTool(MCPTool):
             )
 
         elif mode == "context":
+            raw = None  # context_search возвращает str
             result_str = (
                 project_header
                 + "\n"
@@ -184,6 +186,7 @@ class SearchCodeTool(MCPTool):
                         raw, mode, project_header=project_header
                     )
             else:
+                raw = None  # ask_async возвращает str
                 result_str = (
                     project_header
                     + "\n"
@@ -192,6 +195,7 @@ class SearchCodeTool(MCPTool):
 
         else:
             # auto
+            raw = None  # auto возвращает str
             since = kwargs.get("since") if kwargs else None
             before = kwargs.get("before") if kwargs else None
             if _is_complex_query(query):
@@ -399,10 +403,14 @@ class ImpactAnalysisTool(MCPTool):
                 "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
             }
 
-        dc = result.get("direct_callers", 0)
-        tc = result.get("transitive_callers", 0)
-        dcal = result.get("direct_callees", 0)
-        tcal = result.get("transitive_callees", 0)
+        # Guard: защита от не-списковых значений (B2 — TypeError в логах)
+        _safe_count = lambda v: (
+            len(v) if isinstance(v, (list, str, dict)) else int(v or 0)
+        )
+        dc = _safe_count(result.get("direct_callers", 0))
+        tc = _safe_count(result.get("transitive_callers", 0))
+        dcal = _safe_count(result.get("direct_callees", 0))
+        tcal = _safe_count(result.get("transitive_callees", 0))
         total = dc + tc + dcal + tcal
         record_tool_result(
             "impact_analysis",
