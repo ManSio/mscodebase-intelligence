@@ -76,6 +76,7 @@ get_index_status()
 |----------|-------|----------|
 | **[INSTALL.md](INSTALL.md)** | Установка, настройка, удаление | Пользователи |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | Clean Architecture, слои, DI Container | Разработчики |
+| **[ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md)** | Глубокая архитектура: pipeline, lifecycle, сравнение | Архитекторы |
 | **[ARCHITECTURE_LAYERS.md](ARCHITECTURE_LAYERS.md)** | 10 слоёв архитектуры (Filesystem → AI Agent) | Архитекторы |
 | **[TELEMETRY.md](TELEMETRY.md)** | Метрики, ETA, сбор данных | DevOps |
 | **[LSP_WONTFIX.md](../en/investigations/LSP_WONTFIX.md)** | Расследование: LSP на Windows (WONTFIX) | Поддержка |

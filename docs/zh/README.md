@@ -71,6 +71,7 @@ get_index_status()
 |----------|-------|----------|
 | **[INSTALL.md](INSTALL.md)** | 安装、配置、卸载 | 用户 |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | 整洁架构、分层、DI 容器 | 开发者 |
+| **[ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md)** | 深度架构：管道、生命周期、对比 | 架构师 |
 | **[ARCHITECTURE_LAYERS.md](ARCHITECTURE_LAYERS.md)** | 10 层架构（文件系统 → AI 代理） | 架构师 |
 | **[TELEMETRY.md](TELEMETRY.md)** | 指标、ETA、数据收集 | DevOps |
 | **[LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)** | 调查报告：Windows 上的 LSP（WONTFIX） | 支持 |
