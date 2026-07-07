@@ -187,11 +187,30 @@ def download_onnx_model(
 
     # ── Шаг 6: Чистка ──
     _cleanup_source_weights(model_dir)
-    if purge_cache:
+    if purge_cache or "--auto-clean" in sys.argv:
         _purge_hf_cache(model_name)
-        logger.info("   HF кэш удалён (--purge-cache)")
+        # Дополнительная чистка: transformers cache для этой модели
+        import shutil
+
+        hf_home = Path.home() / ".cache" / "huggingface" / "hub"
+        if hf_home.exists():
+            model_slug = "models--" + model_name.replace("/", "--")
+            for p in hf_home.rglob(model_slug):
+                if p.exists():
+                    shutil.rmtree(str(p), ignore_errors=True)
+                    logger.info(f"   HF hub cache удалён: {p}")
+        # Очищаем torch compilation cache
+        torch_cache = Path.home() / ".cache" / "torch"
+        if torch_cache.exists():
+            import shutil
+
+            for p in torch_cache.iterdir():
+                if p.name.startswith("compilation"):
+                    shutil.rmtree(str(p), ignore_errors=True)
+        logger.info("   Все временные файлы удалены (auto-clean)")
     else:
         logger.info(f"   HF кэш сохранён: {_get_persistent_cache_dir()}")
+        logger.info("   Для удаления используйте --purge-cache или --auto-clean")
 
     logger.info(f"✅ Модель сохранена в {model_dir}")
     logger.info(
@@ -216,7 +235,7 @@ def main():
             "  python download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker"
         )
         print("  python download_model.py --force")
-        print("  python download_model.py --purge-cache")
+        print("  python download_model.py --auto-clean")
         print()
         print("Типы:")
         print(
@@ -224,6 +243,11 @@ def main():
         )
         print(
             "  --type reranker   AutoModelForSequenceClassification → .codebase_models/onnx/bge-reranker/"
+        )
+        print()
+        print("Флаги:")
+        print(
+            "  --auto-clean   Удалить ВСЕ временные файлы после экспорта (HF cache, torch, safetensors)"
         )
         print()
         print("Рекомендуемые модели:")
@@ -249,7 +273,7 @@ def main():
         elif args[i] == "--force":
             force = True
             i += 1
-        elif args[i] == "--purge-cache":
+        elif args[i] == "--auto-clean" or args[i] == "--purge-cache":
             purge_cache = True
             i += 1
         else:
@@ -257,6 +281,13 @@ def main():
 
     project_root = Path(__file__).resolve().parent.parent
     output_dir = project_root / ".codebase_models"
+    download_onnx_model(
+        model_name,
+        output_dir,
+        force=force,
+        purge_cache=purge_cache,
+        model_type=model_type,
+    )
     download_onnx_model(
         model_name,
         output_dir,
