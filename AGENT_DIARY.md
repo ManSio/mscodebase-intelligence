@@ -5,6 +5,41 @@
 
 ---
 
+## [2026-07-07 23:45] — Fix: B1/B2/B3 peripheral bugs from forensic log analysis
+
+**Problem:** Анализ 16k строк логов выявил 3 редких бага:
+- B1: `UnboundLocalError: raw` в SearchCodeTool (raw не assigned в deep/context/ask/auto)
+- B2: `TypeError: object of type 'int' has no len()` в ImpactAnalysisTool (safe_count guard)
+- B3: `ImportError: RemoteEmbedderKey` в server.py (символ удалён при рефакторинге)
+
+**Solution:**
+- B1: явный `raw = None` во всех 4 пропущенных ветках
+- B2: `_safe_count()` лямбда-гард
+- B3: замена `RemoteEmbedderKey` на `RemoteEmbedder`
+
+**Files:** `search_tools.py`, `server.py`
+**Tools Used:** grep, read_file, edit_file, spawn_agent (forensic analysis)
+**Status:** ✅
+
+---
+
+## [2026-07-07 23:30] — Feature: Complete rewrite of install.py (static box-drawing TUI + i18n)
+
+**Problem:** install.py had scrolling output, no localization, no structured box layout.
+
+**Solution:** Full rewrite with:
+- Static box-drawing layout (╔═╗║╚═╝ / ┌─┐│└─┘) — content stays in place
+- STRINGS dict with 3-language support (EN/RU/ZH) + _tr() helper
+- `detect_language()` using `locale.getdefaultlocale()` + interactive fallback
+- `BoxProgress` and `BoxSpinner` for in-place animations
+- `box_step()`/`box_close()`/`box_ok()`/`box_fail()` etc. for structured output
+- Writes `MSCODEBASE_LOCALE` to `.env`
+- Final summary box with next steps
+- Preserved all original features: kill processes, clean stale, copy files, venv, pip install, LanceDB validation, Zed settings patch, skills install, uninstall.bat
+
+**Tools Used:** read_file, write_file, edit_file, terminal, diagnostics, intel_log_incident
+**Status:** ✅
+
 ## [2026-07-07 23:16] — Fix: P0 — Table recreation + Graceful Degradation + Schema migration fix
 
 **Problem:** LanceDB таблица `codebase_chunks` была сброшена извне.

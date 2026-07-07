@@ -6,6 +6,43 @@
 
 Все значимые изменения в этом проекте будут задокументированы в этом файле.
 
+## [v2.7.0] — 2026-07-08 — Асинхронный LanceDB + Call-graph + Code Health + Багфиксы
+
+### 🔬 AI Model Stack (документирован)
+- **Embedder**: BAAI/bge-m3 (LM Studio, 1024-dim)
+- **Reranker**: bge-reranker-v2-m3 (LM Studio, cross-encoder)
+- **LLM**: phi-4-mini-instruct (LM Studio, mode=ask)
+- **Agent**: DeepSeek V4 Flash (Zed AI Chat, user-facing)
+
+### 🚀 Нативный Async LanceDB
+- search_async, to_pandas_async, close_async в Indexer
+- _vector_search_async → прямой вызов Indexer.search_async
+
+### 🧩 Code Health + Call-Graph + Co-change
+- code_health.py: 6 маркеров, score 1-10
+- parser.py: callees в metadata каждого чанка
+- indexer.py: health_score в схеме LanceDB
+- commit_memory.py: co-change matrix
+- searcher.py: graph-expand + co-change boost
+
+### 🐛 P0-P3 Багфиксы
+- Утечка памяти (httpx reuse), health O(1),
+  branch_info async, LLM decompose sync
+
+### 🔧 Усиление
+- asyncio.Lock, UNC guard, cache isolation,
+  phi-4 stop-tokens, _safe_close async, dead env vars
+
+### 🛡️ Production Hardening (7 июля)
+- **P0**: Восстановление таблицы LanceDB при внешнем сбросе
+- **P3**: Graceful degradation — BM25, vector_search, async search
+- **B1-B3**: Исправлены периферийные баги из forensic-анализа
+- `.env.example`: все 46 переменных, билингвальная документация
+- `install.py`: полный редизайн с боксовым UI и автоязыком
+- **396 тестов, 0 регрессий**
+
+---
+
 ## [v2.5.3] — 2026-07-07 — mode=ask: RAG-генерация ответа через phi-4
 
 ### 🚀 mode=ask

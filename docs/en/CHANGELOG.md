@@ -33,6 +33,24 @@ All notable changes to this project will be documented in this file.
 - asyncio.Lock, UNC guard, cache isolation,
   phi-4 stop-tokens, _safe_close async, dead env vars
 
+### 🛡️ Production Hardening (Jul 7)
+- **P0**: LanceDB table recreation on external drop (`_safe_recreate_table()`,
+  `_ensure_table_ready()`)
+- **P3**: Graceful degradation — BM25, vector_search, async search
+  survive corrupt/missing tables
+- **B1**: Fix `UnboundLocalError: raw` in SearchCodeTool — explicit
+  `raw = None` in all mode branches
+- **B2**: Fix `TypeError: object of type 'int' has no len()` in
+  ImpactAnalysisTool — `_safe_count()` guard
+- **B3**: Fix `ImportError: RemoteEmbedderKey` in server.py —
+  import `RemoteEmbedder` directly
+- Suppress noisy `Event loop is closed` log spam in remote_embedder
+- `.env` removed from git tracking
+- `.env.example`: all 46 vars documented bilingually (EN+RU)
+- `install.py`: complete rewrite with box UI, auto language detection,
+  multi-language support
+- Tags: `396 tests, 0 regressions`
+
 ---
 
 ## [v2.5.3] — 2026-07-07 — mode=ask: RAG-генерация ответа через phi-4

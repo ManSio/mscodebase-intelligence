@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-391%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)](tests/)
 
 [功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共-43-个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [开发指南](CONTRIBUTING.md) • [安全政策](SECURITY.md) • [行为准则](../../CODE_OF_CONDUCT.md)
 
@@ -299,7 +299,7 @@ mscodebase-intelligence/
 ├── docs/
 │   ├── architecture.md
 │   └── INSTALL.md
-├── tests/                        # 391 个测试（pytest）
+├── tests/                        # 396 个测试（pytest）
 ├── .agents/skills/               # AI 代理的技能
 ├── install.py                    # 安装程序
 └── README.md
