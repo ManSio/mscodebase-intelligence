@@ -2,6 +2,7 @@
 MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -98,10 +99,15 @@ class Indexer:
         # Создаём директорию через \\?\ если нужно (обходит MAX_PATH)
         Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
 
-        # Подключение к LanceDB (чистый путь, без \\?\)
-        # Для предотвращения блокировок при параллельной индексации
-        # используем WAL режим (если поддерживается)
+        # Подключение к LanceDB (чистый путь, без \\?\\).
+        # Async-соединение для неблокирующих операций (поиск).
         self.db = lancedb.connect(lancedb_path)
+        self._lancedb_connect_path = lancedb_path
+
+        # Async LanceDB (ленивая инициализация при первом поиске).
+        self._async_db: Optional[Any] = None
+        self._async_table: Optional[Any] = None
+        self._async_db_lock = asyncio.Lock()
 
         # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source, summary
         # text — компактный чанк (сигнатура + превью) для эмбеддинга и экономии токенов
@@ -137,6 +143,11 @@ class Indexer:
                 pa.field("is_public", pa.bool_()),
                 pa.field("symbol_type", pa.string()),
                 pa.field("parent_id", pa.string()),
+                # Call-graph edges (v3.0): JSON-массив callee-имён из AST
+                pa.field("callees", pa.string()),
+                # Code Health (v3.0): score 1-10, вычисляется при индексации
+                pa.field("health_score", pa.float64()),
+                pa.field("health_band", pa.string()),
             ]
         )
 
@@ -178,6 +189,7 @@ class Indexer:
         # Решает race condition "холодного старта" — агент Zed видит реальное количество
         # чанков с первой миллисекунды, не дожидаясь завершения lazy-инициализации LanceDB.
         self._cached_total_chunks: int = 0
+        self._cached_unique_files: set = set()
         self._warmup_status()
 
         # ══════════════════════════════════════════════════════════
@@ -216,15 +228,156 @@ class Indexer:
         """
         self.searcher = searcher
 
+    # ══════════════════════════════════════════════════════════
+    # Async LanceDB API (неблокирующие чтения для поиска)
+    # ══════════════════════════════════════════════════════════
+
+    async def _ensure_async_table(self):
+        """Ленивая thread-safe инициализация async-соединения LanceDB.
+
+        Использует отдельный AsyncConnection для неблокирующих
+        read-операций (поиск). Синхронный self.db остаётся для
+        write-операций (индексация).
+
+        Если таблица была сброшена извне — пересоздаёт её
+        через синхронный self.db, затем открывает async-соединение.
+        """
+        if self._async_table is not None:
+            return self._async_table
+        async with self._async_db_lock:
+            if self._async_table is not None:
+                return self._async_table
+            try:
+                self._async_db = await lancedb.connect_async(self._lancedb_connect_path)
+                self._async_table = await self._async_db.open_table(self.table_name)
+                logger.debug(f"Async LanceDB подключён: {self._lancedb_connect_path}")
+            except Exception as e:
+                err_str = str(e).lower()
+                if "not found" in err_str or "does not exist" in err_str:
+                    logger.warning(
+                        f"⚠️ Async таблица не найдена, пересоздаём через sync: {e}"
+                    )
+                    # Сначала закрываем неудачное async-соединение
+                    if self._async_db is not None:
+                        try:
+                            await self._async_db.close()
+                        except Exception:
+                            pass
+                        self._async_db = None
+                    # Пересоздаём таблицу через синхронный API
+                    if self._ensure_table_ready():
+                        # Пробуем снова открыть async-соединение
+                        try:
+                            self._async_db = await lancedb.connect_async(
+                                self._lancedb_connect_path
+                            )
+                            self._async_table = await self._async_db.open_table(
+                                self.table_name
+                            )
+                            logger.debug(
+                                f"Async LanceDB переподключён: {self._lancedb_connect_path}"
+                            )
+                        except Exception as retry_err:
+                            logger.warning(f"Async LanceDB retry failed: {retry_err}")
+                            self._async_db = None
+                            self._async_table = None
+                    else:
+                        logger.error("Не удалось восстановить таблицу для async-поиска")
+                else:
+                    logger.warning(f"Async LanceDB init failed: {e}")
+                    self._async_db = None
+                    self._async_table = None
+            return self._async_table
+
+    async def search_async(
+        self,
+        query_vector: list,
+        limit: int = 5,
+        filter_expr: str = "",
+    ) -> list:
+        """Асинхронный векторный поиск через AsyncTable.
+
+        В LanceDB >= 0.33 AsyncTable.search() возвращает coroutine →
+        await даёт AsyncVectorQuery builder; builder.where() синхронен,
+        builder.limit() синхронен, to_pandas() асинхронен.
+
+        Args:
+            query_vector: Вектор запроса.
+            limit: Максимальное число результатов.
+            filter_expr: SQL-выражение (например, "layer = 'core'").
+
+        Returns:
+            Список dict-ов с полями text, text_full, metadata.
+        """
+        table = await self._ensure_async_table()
+        if table is None:
+            return []
+
+        try:
+            builder = await table.search(query_vector, vector_column_name="vector")
+            if filter_expr:
+                builder = builder.where(filter_expr)
+            df = await builder.limit(limit).to_pandas()
+
+            results = []
+            for _, row in df.iterrows():
+                results.append(
+                    {
+                        "text": row["text"],
+                        "text_full": row.get("text_full", row["text"]),
+                        "metadata": {
+                            "file": row["file_path"],
+                            "chunk_index": row["chunk_index"],
+                            "indexed_at": row.get("indexed_at", ""),
+                            "layer": row.get("layer", ""),
+                            "hierarchy_level": row.get("hierarchy_level", ""),
+                            "parent_id": row.get("parent_id", ""),
+                        },
+                    }
+                )
+            return results
+        except Exception as e:
+            logger.error(f"Ошибка async векторного поиска LanceDB: {e}")
+            return []
+
+    async def to_pandas_async(self):
+        """Асинхронная загрузка всей таблицы в DataFrame."""
+        table = await self._ensure_async_table()
+        if table is None:
+            return None
+        try:
+            return await table.to_pandas()
+        except Exception as e:
+            logger.error(f"Ошибка async to_pandas: {e}")
+            return None
+
+    async def count_rows_async(self) -> int:
+        """Асинхронный подсчёт строк таблицы."""
+        table = await self._ensure_async_table()
+        if table is None:
+            return 0
+        try:
+            return await table.count_rows()
+        except Exception:
+            return 0
+
+    async def close_async(self) -> None:
+        """Закрывает async-соединение LanceDB."""
+        if self._async_db is not None:
+            try:
+                await self._async_db.close()
+            except Exception as e:
+                logger.debug(f"Ошибка закрытия async LanceDB: {e}")
+            finally:
+                self._async_db = None
+                self._async_table = None
+
     def _warmup_status(self) -> None:
-        """Мгновенный прогрев кэша количества чанков при старте.
+        """Мгновенный прогрев кэша количества чанков (O(1)).
 
-        Открывает существующую таблицу LanceDB и считает количество записей
-        без запуска сканирования диска и без обращения к эмбеддеру.
-        Результат сохраняется в self._cached_total_chunks.
-
-        При первом запуске (база ещё не существует) кэш остаётся 0.
-        Любая ошибка прогрева логируется как debug и не ломает инициализацию.
+        Использует только count_rows() — БЕЗ to_pandas(), потому что
+        to_pandas() читает ВСЕ данные и падает на повреждённых файлах.
+        _cached_unique_files заполняется инкрементально из _index_single_file.
         """
         try:
             if self.table is None:
@@ -232,13 +385,22 @@ class Indexer:
             count = self.table.count_rows()
             self._cached_total_chunks = count
             if count > 0:
-                logger.info(
-                    f"🔥 Прогрев статуса: в базе {count} чанков (cold start предотвращён)"
+                logger.info(f"🔥 Прогрев статуса: в базе {count} чанков")
+                # _cached_unique_files заполняется лениво при _index_single_file
+                # Показываем 0 — при первом запросе статуса будет пересчитано
+                logger.debug(
+                    "🔥 unique_files будет заполнен инкрементально при индексации"
                 )
             else:
                 logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
         except Exception as e:
-            logger.debug(f"🔥 Прогрев статуса не удался: {e}. Кэш = 0.")
+            err_str = str(e).lower()
+            if "not found" in err_str or "does not exist" in err_str:
+                logger.warning(
+                    f"🔥 Таблица не найдена при прогреве: {e}. Будет создана при первой индексации."
+                )
+            else:
+                logger.debug(f"🔥 Прогрев статуса не удался: {e}. Кэш = 0.")
             self._cached_total_chunks = 0
 
     def switch_project(self, project_path: Path) -> None:
@@ -272,21 +434,35 @@ class Indexer:
 
         # Переподключаемся к новой базе
         raw_path = str(new_db_path.resolve())
-        if raw_path.startswith("\\?\\"):
+        # \\?\ (4 backslashes в Python-строке = 2 литеральных backslash)
+        if raw_path.startswith("\\\\?\\"):
             lancedb_path = raw_path[4:]
         else:
             lancedb_path = raw_path
 
         Path(to_win_long_path(new_db_path)).mkdir(parents=True, exist_ok=True)
         self.db = lancedb.connect(lancedb_path)
+        self._lancedb_connect_path = lancedb_path
+
+        # Сбрасываем async-соединение (пересоздастся лениво при следующем поиске)
+        self._async_db = None
+        self._async_table = None
 
         # Открываем или создаём таблицу
         try:
             self.table = self.db.open_table(self.table_name)
             logger.info(f"📦 Открыта таблица: {self.table_name}")
+            # Проверяем схему — при необходимости мигрируем
+            existing_fields = [f.name for f in self.table.schema]
+            self._migrate_add_metadata_columns(existing_fields)
         except Exception:
             self.table = self.db.create_table(self.table_name, schema=self.schema)
             logger.info(f"📦 Создана таблица: {self.table_name}")
+
+        # Прогрев кэша
+        self._cached_total_chunks = 0
+        self._cached_unique_files = set()
+        self._warmup_status()
 
     def _calculate_file_hash(self, safe_path: Path) -> str:
         """Вычисляет хэш файла для отслеживания изменений (SHA256)."""
@@ -297,57 +473,35 @@ class Indexer:
         return hasher.hexdigest()
 
     def get_status(self) -> Dict[str, Any]:
-        """Возвращает статистику базы данных.
+        """Возвращает статистику базы данных (O(1), без to_pandas).
 
-        Использует кэш количества чанков (_cached_total_chunks) для мгновенного
-        ответа без сканирования таблицы. При пустой базе или ошибке кэша
-        выполняет полный подсчёт через to_pandas() как fallback.
+        Использует кэш количества чанков (_cached_total_chunks) и
+        уникальных файлов (_cached_unique_files) для мгновенного
+        ответа. Без сканирования таблицы.
+
+        Для полной статистики с to_pandas() — используйте get_full_stats().
         """
         try:
             total_chunks = self._cached_total_chunks
-
-            if total_chunks == 0:
-                # Fallback: полный подсчёт (для случаев, когда кэш не прогрет)
+            if total_chunks == 0 and self.table is not None:
                 try:
                     total_chunks = self.table.count_rows()
                     self._cached_total_chunks = total_chunks
                 except Exception:
                     pass
 
-                if total_chunks == 0:
-                    return {
-                        "total_chunks": 0,
-                        "unique_files": 0,
-                        "total_files": 0,
-                        "status": "empty",
-                    }
-
-            try:
-                df = self.table.to_pandas()
-                unique_files = df["file_path"].nunique()
-            except ImportError:
-                # Fallback: pandas не загрузился — используем PyArrow напрямую
-                arrow_table = self.table.to_arrow()
-                unique_files = pc.count_distinct(
-                    arrow_table.column("file_path")
-                ).as_py()
-            except Exception:
-                # Любая другая ошибка конвертации — возвращаем хотя бы общее число чанков
-                return {
-                    "total_chunks": total_chunks,
-                    "unique_files": 0,
-                    "total_files": 0,
-                    "status": "active",
-                }
+            unique_files = getattr(self, "_cached_unique_files", 0)
+            if isinstance(unique_files, set):
+                unique_files = len(unique_files)
 
             return {
                 "total_chunks": total_chunks,
-                "unique_files": int(unique_files),
-                "total_files": int(unique_files),
-                "status": "active",
+                "unique_files": unique_files,
+                "total_files": unique_files,
+                "status": "active" if total_chunks > 0 else "empty",
             }
         except Exception as e:
-            logger.error(f"Ошибка получения статистики индекса: {e}")
+            logger.error(f"get_status error: {e}")
             return {"error": str(e)}
 
     def _escape_file_path_for_lance(self, file_path: str) -> str:
@@ -390,13 +544,16 @@ class Indexer:
         """Мигрирует Metadata Enrichment колонки (v2.4.3+).
 
         Пытается добавить поля layer, module_name, hierarchy_level, is_public,
-        symbol_type, parent_id в существующую таблицу.
-        Использует две стратегии:
+        symbol_type, parent_id, callees, health_score, health_band
+        в существующую таблицу.
+        Использует три стратегии:
         1. add_columns — быстрая миграция без чтения данных.
            Работает в LanceDB < 0.30. На 0.33+ падает с SQL parser error
            из-за неэкранирования строковых значений по умолчанию.
         2. read-drop-recreate — если add_columns не сработал,
            пересоздаёт таблицу с полной схемой.
+        3. _safe_recreate_table — если to_pandas() тоже упал (таблица
+           повреждена), создаёт пустую таблицу с полной схемой.
         """
         # Проверяем, каких колонок не хватает
         string_columns = [
@@ -405,9 +562,16 @@ class Indexer:
             "hierarchy_level",
             "symbol_type",
             "parent_id",
+            "callees",
+            "health_band",
         ]
         bool_columns = ["is_public"]
-        missing = [c for c in string_columns + bool_columns if c not in existing_fields]
+        float_columns = ["health_score"]
+        missing = [
+            c
+            for c in string_columns + bool_columns + float_columns
+            if c not in existing_fields
+        ]
         if not missing:
             return  # Все колонки уже есть
 
@@ -434,6 +598,15 @@ class Indexer:
                 except Exception as e:
                     logger.debug(f"add_columns(is_public) не сработал: {e}")
                     all_ok = False
+            if all_ok and "health_score" not in existing_fields:
+                try:
+                    # ВАЖНО: health_score — float64, передаём строку типа, а не значение
+                    # В LanceDB 0.33+ add_columns принимает {name: type_str}
+                    self.table.add_columns({"health_score": "float64"})
+                    logger.info("📦 Миграция: добавлена колонка health_score")
+                except Exception as e:
+                    logger.debug(f"add_columns(health_score) не сработал: {e}")
+                    all_ok = False
             if all_ok:
                 logger.info("📦 Миграция metadata через add_columns завершена")
                 return
@@ -441,7 +614,16 @@ class Indexer:
         # Стратегия 2: read-drop-recreate (надёжно для всех версий LanceDB)
         logger.info("📦 Миграция metadata: читаем существующие данные...")
         try:
-            old_df = self.table.to_pandas()
+            try:
+                old_df = self.table.to_pandas()
+            except Exception as pandas_err:
+                # Таблица может быть повреждена (сброшена внешним скриптом)
+                logger.warning(
+                    f"📦 to_pandas() не доступен ({pandas_err}), создаём пустую таблицу"
+                )
+                self._safe_recreate_table()
+                return
+
             logger.info(f"📦 Миграция: прочитано {len(old_df)} чанков")
 
             # Восстанавливаем отсутствующие поля с пустыми значениями
@@ -450,6 +632,8 @@ class Indexer:
                     old_df[col] = ""
             if "is_public" not in old_df.columns:
                 old_df["is_public"] = False
+            if "health_score" not in old_df.columns:
+                old_df["health_score"] = 0.0
 
             # Пересоздаём таблицу с полной схемой
             self.db.drop_table(self.table_name)
@@ -458,26 +642,28 @@ class Indexer:
             # Конвертируем DataFrame в список словарей
             records = []
             for _, row in old_df.iterrows():
-                records.append(
-                    {
-                        "id": str(row["id"]),
-                        "vector": row["vector"],
-                        "text": str(row["text"]),
-                        "text_full": str(row.get("text_full", row["text"])),
-                        "file_path": str(row["file_path"]),
-                        "file_hash": str(row.get("file_hash", "")),
-                        "chunk_index": int(row.get("chunk_index", 0)),
-                        "source": str(row.get("source", "filesystem")),
-                        "indexed_at": str(row.get("indexed_at", "")),
-                        "summary": str(row.get("summary", "")),
-                        "layer": str(row.get("layer", "")),
-                        "module_name": str(row.get("module_name", "")),
-                        "hierarchy_level": str(row.get("hierarchy_level", "")),
-                        "is_public": bool(row.get("is_public", False)),
-                        "symbol_type": str(row.get("symbol_type", "")),
-                        "parent_id": str(row.get("parent_id", "")),
-                    }
-                )
+                record = {
+                    "id": str(row["id"]),
+                    "vector": row["vector"],
+                    "text": str(row["text"]),
+                    "text_full": str(row.get("text_full", row["text"])),
+                    "file_path": str(row["file_path"]),
+                    "file_hash": str(row.get("file_hash", "")),
+                    "chunk_index": int(row.get("chunk_index", 0)),
+                    "source": str(row.get("source", "filesystem")),
+                    "indexed_at": str(row.get("indexed_at", "")),
+                    "summary": str(row.get("summary", "")),
+                    "layer": str(row.get("layer", "")),
+                    "module_name": str(row.get("module_name", "")),
+                    "hierarchy_level": str(row.get("hierarchy_level", "")),
+                    "is_public": bool(row.get("is_public", False)),
+                    "symbol_type": str(row.get("symbol_type", "")),
+                    "parent_id": str(row.get("parent_id", "")),
+                    "callees": str(row.get("callees", "")),
+                    "health_score": float(row.get("health_score", 0.0)),
+                    "health_band": str(row.get("health_band", "")),
+                }
+                records.append(record)
 
             self.table.add(records)
             logger.info(
@@ -488,6 +674,77 @@ class Indexer:
                 f"❌ Миграция metadata провалилась: {e}. "
                 f"Метаданные появятся после полной переиндексации."
             )
+
+    def _safe_recreate_table(self) -> bool:
+        """Безопасно пересоздаёт таблицу с полной схемой.
+
+        Используется когда таблица повреждена, сброшена извне или
+        migration не удался. Сбрасывает кэши и обновляет self.table.
+
+        Returns:
+            True если таблица создана, False при ошибке.
+        """
+        try:
+            # Пытаемся удалить таблицу если существует
+            try:
+                self.db.drop_table(self.table_name)
+            except Exception:
+                pass
+
+            # Создаём новую таблицу с полной схемой
+            self.table = self.db.create_table(self.table_name, schema=self.schema)
+
+            # Сбрасываем кэши (таблица пуста)
+            self._cached_total_chunks = 0
+            self._cached_unique_files = set()
+
+            # Сбрасываем async-кэш (будет пересоздан лениво)
+            self._async_table = None
+
+            # Сбрасываем BM25-индекс Searcher-а (будет перестроен лениво)
+            if hasattr(self, "searcher") and self.searcher is not None:
+                try:
+                    self.searcher.reindex()
+                except Exception:
+                    pass
+
+            logger.info(f"📦 Таблица {self.table_name} пересоздана с полной схемой")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Не удалось пересоздать таблицу: {e}")
+            return False
+
+    def _ensure_table_ready(self) -> bool:
+        """Проверяет, что таблица существует и доступна для записи.
+
+        Если таблица была сброшена извне или повреждена — пересоздаёт её.
+        Безопасно вызывает count_rows() для проверки.
+
+        Returns:
+            True если таблица готова, False если не удалось восстановить.
+        """
+        if self.table is None:
+            return self._safe_recreate_table()
+
+        try:
+            # Быстрая проверка: count_rows не читает данные, только metadata
+            self.table.count_rows()
+            return True
+        except Exception as e:
+            err_str = str(e).lower()
+            if (
+                "not found" in err_str
+                or "does not exist" in err_str
+                or "no such table" in err_str
+            ):
+                logger.warning(f"⚠️ Таблица не найдена ({e}), пересоздаём...")
+                return self._safe_recreate_table()
+            if "corrupt" in err_str or "io error" in err_str:
+                logger.warning(f"⚠️ Таблица повреждена ({e}), пересоздаём...")
+                return self._safe_recreate_table()
+            # Другая ошибка — логируем, но не трогаем таблицу
+            logger.debug(f"_ensure_table_ready: {e}")
+            return True
 
     def _index_single_file(
         self,
@@ -582,6 +839,7 @@ class Indexer:
             chunk_texts = []  # компактные тексты для эмбеддинга
             chunk_texts_full = []  # полные тексты для хранения
             chunk_metadatas = []  # метаданные для Metadata Enrichment
+            health = {"score": 0.0, "band": ""}  # Code Health v3.0
             if self.parser is not None:
                 try:
                     ast_chunks, symbols = self.parser.parse_file(full_path)
@@ -605,6 +863,7 @@ class Indexer:
                                             "symbol_type", c.get("type", "")
                                         ),
                                         "parent_id": c.get("parent_id", ""),
+                                        "callees": c.get("callees", ""),
                                     }
                                 )
                         logger.debug(
@@ -640,12 +899,21 @@ class Indexer:
                         "is_public": False,
                         "symbol_type": "",
                         "parent_id": "",
+                        "callees": "",
                     }
                     for _ in chunk_texts
                 ]
 
             if not chunk_texts:
                 return False
+
+            # v3.0: Code Health — вычисляем один раз на файл
+            try:
+                from src.core.code_health import score_file
+
+                health = score_file(rel_path_str, self.project_path)
+            except Exception:
+                pass
 
             # Получение эмбеддингов через провайдер (LM Studio)
             # Эмбеддинги считаются от компактных танков — быстрее и точнее
@@ -699,15 +967,37 @@ class Indexer:
                         "is_public": meta.get("is_public", False),
                         "symbol_type": meta.get("symbol_type", ""),
                         "parent_id": meta.get("parent_id", ""),
+                        "callees": meta.get("callees", ""),
+                        "health_score": health.get("score", 0.0),
+                        "health_band": health.get("band", ""),
                     }
                 )
 
             # Атомарная запись пачки чанков в таблицу
-            self.table.add(data_records)
+            # Если таблица была сброшена извне — пересоздаём и ретраим
+            try:
+                self.table.add(data_records)
+            except Exception as add_err:
+                err_str = str(add_err).lower()
+                if (
+                    "not found" in err_str
+                    or "does not exist" in err_str
+                    or "no such table" in err_str
+                ):
+                    logger.warning(
+                        f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
+                    )
+                    if self._safe_recreate_table():
+                        self.table.add(data_records)
+                    else:
+                        raise
+                else:
+                    raise
 
             # Синхронизация кэша: инкремент на количество добавленных чанков
             # (старые чанки этого файла уже были удалены выше, поэтому чистый +N)
             self._cached_total_chunks += len(data_records)
+            self._cached_unique_files.add(rel_path_str)
 
             logger.info(
                 f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunk_texts)} чанков)"
@@ -764,6 +1054,8 @@ class Indexer:
                     self._cached_total_chunks = max(
                         0, self._cached_total_chunks - total_deleted_chunks
                     )
+                for fp in deleted_files:
+                    self._cached_unique_files.discard(fp)
 
                 logger.info("✅ База данных полностью синхронизирована с диском.")
                 return len(deleted_files)
@@ -793,6 +1085,7 @@ class Indexer:
                 self._cached_total_chunks = max(
                     0, self._cached_total_chunks - deleted_count
                 )
+            self._cached_unique_files.discard(rel_path_str)
 
             logger.info(f"🗑️ Удалён файл: {rel_path_str}")
             return True

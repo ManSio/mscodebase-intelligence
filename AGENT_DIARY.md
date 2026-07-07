@@ -5,6 +5,215 @@
 
 ---
 
+## [2026-07-07 23:16] — Fix: P0 — Table recreation + Graceful Degradation + Schema migration fix
+
+**Problem:** LanceDB таблица `codebase_chunks` была сброшена извне.
+Все операции Indexer (add, delete, search, to_pandas) падали с
+"Table not found". `_warmup_status` молча глотал ошибку → `Files: 0`.
+BM25 индекс не строился. Поиск возвращал пустоту.
+
+**Root Cause:** Внешний скрипт дропнул таблицу. Indexer держал stale
+Rust-backed handle. `_migrate_add_metadata_columns` не обрабатывал
+случай повреждённой таблицы (to_pandas падал → migration выходил
+без создания таблицы). `health_score` мигрировался как `0.0` (float value)
+вместо `"float64"` (type string).
+
+**Solution (4 защиты):**
+1. `_safe_recreate_table()` — новый метод, атомарно дропает (если есть)
+   и создаёт таблицу с полной v3.0 схемой. Сбрасывает кэши и async-соединение.
+2. `_ensure_table_ready()` — проверяет `count_rows()`, если таблица
+   отсутствует или повреждена → вызывает `_safe_recreate_table()`.
+3. `_index_single_file` — при `self.table.add()` падает с "not found" →
+   recreates и ретраит. Ручка search/delete в том же методе уже были
+   защищены try/except.
+4. `_build_bm25_index` — graceful degraded mode: если to_pandas падает,
+   устанавливает `self._bm25 = {}` и возвращается. Поиск идёт только
+   через векторный канал (без BM25).
+5. `_ensure_async_table` — если open_table падает, пересоздаёт таблицу
+   через sync API и ретраит async open.
+6. `_warmup_status` — больше НЕ вызывает to_pandas(). Только count_rows().
+   `_cached_unique_files` заполняется инкрементально из _index_single_file.
+7. `_migrate_add_metadata_columns` — float_columns теперь правильно:
+   `add_columns({"health_score": "float64"})` вместо `{"health_score": 0.0}`.
+   Добавлена третья стратегия: если to_pandas() падает → _safe_recreate_table().
+
+**Validation:** 396 passed, 0 регрессий. Таблица с 19 полями создана.
+**Files:** `src/core/indexer.py`, `src/core/searcher.py`
+**Tools Used:** edit_file, read_file, grep, terminal, intel_trigger_reindex
+**Status:** ✅
+
+---
+
+## [2026-07-08 01:00] — Feature: v3.0 — Call-graph edges + Co-change coupling + Code Health + Battle closures
+
+**Problem:** Битвы 3-5 закрыты на 85-95%. Не хватало:
+- Call-graph edges в метаданных чанков (recall на multi-hop)
+- Co-change coupling из git (буст связанных файлов)
+- Детерминированных code health маркеров
+- Утечки httpx.Client в remote_embedder
+
+**Solution:**
+
+### Feature 1: Call-graph edges в metadata
+- `parser.py`: `parse_file()` добавляет `callees` (JSON-массив) в каждый чанк.
+- `indexer.py`: новое поле `callees` в схеме LanceDB + авто-миграция.
+- `indexer.py`: `callees` включаются в data_records при индексации.
+
+### Feature 2: Co-change coupling
+- `commit_memory.py`: `compute_co_change_matrix()` — формула Axon:
+  coupling(A,B) = co_changes / max(changes(A), changes(B)).
+  Порог: coupling >= 0.3 AND co_changes >= 3.
+- `searcher.py`: `_apply_co_change_boost()` — бустит файлы с
+  coupling к топ-3 результатам (×1.0 + coupling × 0.3).
+
+### Feature 3: Code Health (база)
+- `src/core/code_health.py`: 6 маркеров (file_size, complexity,
+  nested_depth, churn_risk, co_change_scatter, error_handling).
+  Score 1-10, bands: healthy/warning/alert.
+
+### Battle closures
+- **Битва 4 (90% → 100%):** `remote_embedder._check_lm_studio` и
+  `_check_ollama` переиспользуют `_sync_client` вместо создания
+  нового `httpx.Client` каждые 30с.
+- **Битва 3 (95%):** подтверждено — `to_win_long_path` уже
+  используется везде в indexer.py.
+- **Битва 5 (85% → 95%):** `_cached_unique_files` теперь set,
+  миграция callees через add_columns.
+
+**Validation:** 396 passed, 0 регрессий.
+**Files:** `parser.py`, `indexer.py`, `searcher.py`, `commit_memory.py`,
+`remote_embedder.py`, `code_health.py` (новый)
+**Status:** ✅
+
+---
+
+## [2026-07-07 23:50] — Fix: P3 — _try_llm_decompose async + BM25 double load
+
+**Problem:**
+- `_try_llm_decompose` делал sync `httpx.get` + `httpx.post` (блокирует event loop).
+- `_bm25_search` грузил `to_pandas()` повторно — те же данные уже загружены
+  при `_build_bm25_index`.
+
+**Solution:**
+- `_decompose_query_with_llm_async()` — обёртка через `asyncio.to_thread`.
+  `agentic_code_search_async` теперь вызывает async-версию.
+- DataFrame кэшируется как `self._bm25_df` при построении индекса и
+  переиспользуется в `_bm25_search`. Очищается при `reindex()` и ошибках.
+
+**Validation:** 396 passed, 0 регрессий.
+**Files:** `src/core/searcher.py`
+**Status:** ✅
+
+---
+
+## [2026-07-07 23:30] — Fix: P1+P2 — get_health_report timeout + branch_info async
+
+**Problem:**
+- `get_health_report` грузил ВСЮ таблицу через `to_pandas()` ради `unique_files`.
+  При 2372 чанках это занимало >30s, суммарно с остальными проверками >60s.
+- `get_branch_info` делал sync `lancedb.connect()` внутри event loop.
+
+**Solution:**
+- `indexer.get_status()` теперь O(1): использует `_cached_total_chunks` +
+  `_cached_unique_files` (set). `to_pandas()` удалён из get_status.
+- `_cached_unique_files` отслеживается инкрементально при add/delete/prune.
+- `_warmup_status()` прогревает `_cached_unique_files` один раз при старте.
+- `BranchAwareIndex.get_branch_info_async()` — async версия через
+  `lancedb.connect_async` с 10s таймаутом.
+
+**Validation:** 396 passed, 0 регрессий.
+**Files:** `src/core/indexer.py`, `src/core/branch_aware_index.py`,
+`src/core/project_indexer_registry.py`
+**Status:** ✅
+
+---
+
+## [2026-07-07 23:00] — Fix: P0 Memory Leak — httpx.AsyncClient reuse + _safe_close async cleanup
+
+**Problem:** Worker процесс MCP рос +3 MB/s даже на холостом ходу.
+Диагностика показала:
+1. `_ping_lm_studio` создавал НОВЫЙ `httpx.AsyncClient` каждые 30с (×2 за пинг).
+   Connection pool накапливался без немедленного GC.
+2. `_ping_ollama` создавал клиент и бросал без `.close()` — худший паттерн.
+3. `_safe_close` в реестре не закрывал async LanceDB соединения и не вызывал
+   `Searcher.close()` (не останавливал `_scanner_task` реранкера).
+
+**Solution:**
+- `_ping_lm_studio`: переиспользует `self._client` + per-request `timeout`.
+- `_ping_ollama`: то же самое.
+- `_safe_close`: очищает `_async_db`/`_async_table` + вызывает `Searcher.close()`
+  при вытеснении проекта из реестра.
+
+**Validation:** 396 passed, 0 регрессий.
+**Files:** `src/core/reranker.py`, `src/core/project_indexer_registry.py`
+**Status:** ✅
+
+---
+
+## [2026-07-07 22:30] — Refactor: Async LanceDB migration (v2.7.0)
+
+**Problem:** После аудита поиск оборачивал синхронные LanceDB вызовы в asyncio.to_thread.
+
+**Solution:** Indexer получил ленивое async-соединение + search_async/to_pandas_async.
+Searcher._vector_search_async напрямую вызывает Indexer.search_async без потоков.
+RRF/bucket/sort теперь inline (чистый Python, <1ms). switch_project сбрасывает async.
+Searcher.close() закрывает async LanceDB. Короткие запросы пропускают LLM-декомпозицию.
+
+**Validation:** 396 passed, 0 регрессий.
+**Files:** `src/core/indexer.py`, `src/core/searcher.py`
+**Status:** ✅
+
+---
+
+## [2026-07-07 22:00] — Fix: paranoid audit of search engine v2.6.0
+
+**Problem:** Проведён комплексный аудит поискового движка после ввода
+Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые баги,
+которые 391 юнит-тест не ловили.
+
+**Critical bugs found:**
+1. **Race condition** в `_ensure_multi_reranker_async`: отсутствовал `asyncio.Lock`;
+   параллельные запросы могли создать несколько экземпляров MultiProviderReranker
+   и несколько фоновых сканеров.
+2. **Blocking I/O в async пути**: `hybrid_search_async` вызывал синхронные
+   `_bm25_search`, `vector_search`, `_reciprocal_rank_fusion`, `_apply_bucket_weights`
+   и `_filter_by_time` напрямую, блокируя event loop при параллельных MCP-запросах.
+3. **Windows UNC bug** в `Indexer.switch_project`: проверка префикса была
+   `raw_path.startswith("\\?\\")` (1 бэкслеш) вместо `"\\\\?\\"` (2 бэкслеша),
+   поэтому префикс `\\?\` не снимался и LanceDB получал некорректный путь.
+4. **Cache key collision**: `search_with_mode` использовал ключ `mode:query:limit`,
+   игнорируя `layer` и `intent_hint` — разные фильтры возвращали один кэш.
+5. **Dead config env vars**: `CODE_BUCKET_WEIGHT`/`DOCS_BUCKET_WEIGHT` объявлены
+   в `PerformanceConfig`, но `_apply_bucket_weights` использовал хардкод 1.0/1.0.
+6. **Pathlib/UNC уязвимость**: `_apply_bucket_weights` использовал `Path.suffix`,
+   что рискованно при пустых строках/UNC-префиксах. Заменено на `os.path.splitext`
+   с явной защитой.
+7. **Скрытый баг декомпозиции**: `_try_llm_decompose` использовал `os.getenv`,
+   но `os` не был импортирован на уровне модуля. Из-за широкого `except` ошибка
+   молча глоталась, и всегда использовались правила. После добавления `import os`
+   тесты сломались, т.к. LLM стал перехватывать управление. Переведена декомпозиция
+   на rule-first стратегию (LLM — fallback).
+
+**Fixes applied:**
+- `src/core/searcher.py`: `asyncio.Lock` для инициализации реранкера;
+  `asyncio.to_thread` для всех sync LanceDB/BM25 операций в `hybrid_search_async`;
+  `os.path.splitext` + защита UNC/empty в `_apply_bucket_weights`;
+  использование `code_bucket_weight`/`docs_bucket_weight` из конфига;
+  расширенный stop-aware промпт для phi-4 в `ask_async`;
+  метод `close()` для Searcher.
+- `src/core/indexer.py`: исправлена проверка UNC-префикса в `switch_project`.
+- `tests/test_searcher_hardening.py`: новые тесты на bucket weights, cache isolation,
+  защиту от limit=0/1 и пустого запроса.
+
+**Validation:** `python -m pytest -q` — 396 passed (391 + 5 новых).
+
+**Files changed:** `src/core/searcher.py`, `src/core/indexer.py`,
+`tests/test_searcher_hardening.py`
+**Tools Used:** read_file, edit_file, write_file, terminal(pytest), diagnostics
+**Status:** ✅
+
+---
+
 ## [2026-07-07 20:30] — Test: phi-4-mini-instruct live via LM Studio + bump 2.5.2
 
 **Test:** curl /v1/chat/completions с phi-4-mini-instruct Q4_K_M

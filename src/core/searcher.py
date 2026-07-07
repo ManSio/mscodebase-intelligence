@@ -3,11 +3,11 @@ import inspect
 import json
 import logging
 import math
+import os
 import re
 import threading
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -134,11 +134,13 @@ class Searcher:
         self._bm25: Optional[Dict[str, Dict[str, float]]] = None
         self._bm25_ids: List[str] = []
         self._bm25_lock = threading.Lock()
+        self._bm25_df: Any = None  # кэш DataFrame для _bm25_search
         self._tokenizer_re = re.compile(r"\W+")
         self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
         # Мульти-провайдерный реранкер (Ollama / LM Studio) — ленивая инициализация
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
+        self._multi_reranker_lock = asyncio.Lock()
         # Кэш запросов (query -> results)
         self._cache: Dict[str, List[dict]] = {}
         self._cache_max_size = 100
@@ -147,13 +149,37 @@ class Searcher:
         with self._bm25_lock:
             self._bm25 = None
             self._bm25_ids = []
+            self._bm25_df = None
             logger.debug("🔄 Индекс BM25 сброшен для реиндексации")
+
+    async def close(self) -> None:
+        """Освобождает ресурсы реранкера и кэш.
+
+        Безопасно для многократного вызова.
+        """
+        self._cache.clear()
+        if self._multi_reranker is not None:
+            try:
+                await self._multi_reranker.close()
+            except Exception as e:
+                logger.debug(f"Close MultiProviderReranker: {e}")
+            finally:
+                self._multi_reranker = None
+                self._multi_reranker_initialized = False
+        # Закрываем async LanceDB соединение Indexer-а
+        if self.indexer is not None and hasattr(self.indexer, "close_async"):
+            try:
+                await self.indexer.close_async()
+            except Exception as e:
+                logger.debug(f"Close async LanceDB Indexer: {e}")
 
     def _build_bm25_index(self) -> None:
         """Ленивая инициализация BM25 индекса из текущей таблицы LanceDB.
 
         Потокобезопасна: использует _bm25_lock для предотвращения конкурентного
         построения индекса из нескольких потоков.
+        Если таблица повреждена или пуста — BM25 остаётся пустым (degraded mode),
+        поиск продолжит работу только через векторный поиск.
         """
         if self._bm25 is not None:
             return
@@ -162,20 +188,39 @@ class Searcher:
             # Double-check после захвата блокировки
             if self._bm25 is not None:
                 return
-            if self.indexer.table is None or len(self.indexer.table) == 0:
+            if self.indexer.table is None:
+                self._bm25 = {}
+                return
+
+            # Проверяем, что таблица доступна (count_rows — лёгкая операция)
+            try:
+                table_ok = self.indexer.table.count_rows()
+                if table_ok == 0:
+                    self._bm25 = {}
+                    return
+            except Exception:
+                # Таблица недоступна — работаем в degraded mode
+                logger.warning(
+                    "📊 BM25: таблица недоступна, работаем только через векторный поиск"
+                )
+                self._bm25 = {}
                 return
 
             try:
                 df = self.indexer.table.to_pandas()
-                if df.empty:
+                if df is None or df.empty:
+                    self._bm25 = {}
                     return
+
+                # Кэшируем DataFrame для _bm25_search (избегаем двойной загрузки)
+                self._bm25_df = df
 
                 # Считаем TF для каждого термина в каждом документе
                 doc_count = len(df)
                 term_doc_freq: Dict[str, int] = {}
                 term_doc_scores: Dict[str, Dict[str, float]] = {}
 
-                for idx, row in df.iterrows():
+                for _, row in df.iterrows():
                     doc_id = f"{row['file_path']}:{row['chunk_index']}"
                     text = str(row.get("text", ""))
                     tokens = _tokenize(text, self._tokenizer_re)
@@ -205,6 +250,9 @@ class Searcher:
                 logger.debug(f"📊 BM25 индекс построен: {len(self._bm25)} документов")
             except Exception as e:
                 logger.error(f"Ошибка построения BM25 индекса: {e}")
+                self._bm25 = {}
+                self._bm25_ids = []
+                self._bm25_df = None
 
     def incremental_update_bm25(self, new_chunks: List[dict]) -> None:
         """Инкрементально обновляет BM25 индекс при добавлении новых чанков.
@@ -279,6 +327,7 @@ class Searcher:
                 # При ошибке сбрасываем индекс для полной перестройки
                 self._bm25 = None
                 self._bm25_ids = []
+                self._bm25_df = None
 
     def _bm25_search(self, query: str, limit: int = 5) -> List[dict]:
         """Полнотекстовый поиск BM25 по текущей базе."""
@@ -297,10 +346,12 @@ class Searcher:
         # Сортируем по убыванию скора
         top_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)[:limit]
 
-        # Формируем результаты
+        # Формируем результаты (используем кэшированный DataFrame)
         results = []
         try:
-            df = self.indexer.table.to_pandas()
+            df = self._bm25_df
+            if df is None or df.empty:
+                return results
             for doc_id in top_ids:
                 if scores[doc_id] <= 0:
                     continue
@@ -339,10 +390,16 @@ class Searcher:
         Args:
             filter_expr: SQL-выражение для фильтрации (например, "layer = 'core'")
         """
-        if self.indexer.table is None or len(self.indexer.table) == 0:
+        if self.indexer.table is None:
             return []
-
         try:
+            # Проверяем доступность таблицы лёгким count_rows
+            try:
+                if self.indexer.table.count_rows() == 0:
+                    return []
+            except Exception:
+                return []
+
             search_obj = self.indexer.table.search(
                 query_vector, vector_column_name="vector"
             )
@@ -371,6 +428,30 @@ class Searcher:
             logger.error(f"Ошибка векторного поиска LanceDB: {e}")
             return [{"error": str(e)}]
 
+    async def _bm25_search_async(self, query: str, limit: int = 5) -> List[dict]:
+        """Асинхронная обёртка для BM25 поиска (не блокирует event loop)."""
+        return await asyncio.to_thread(self._bm25_search, query, limit)
+
+    async def _vector_search_async(
+        self,
+        query_vector: List[float],
+        limit: int = 5,
+        filter_expr: str = "",
+    ) -> List[dict]:
+        """Асинхронный векторный поиск через Indexer.search_async.
+
+        Использует нативный async LanceDB API (без asyncio.to_thread).
+        """
+        if query_vector is None:
+            return []
+        try:
+            return await self.indexer.search_async(
+                query_vector, limit=limit, filter_expr=filter_expr
+            )
+        except Exception as e:
+            logger.warning(f"Async векторный поиск упал: {e}")
+            return []
+
     def get_chunks_by_parent_id(self, parent_id: str, limit: int = 10) -> List[dict]:
         """Multi-granularity retrieval: находит дочерние чанки по parent_id.
 
@@ -388,6 +469,13 @@ class Searcher:
         if self.indexer.table is None:
             return []
         try:
+            # Проверяем доступность таблицы
+            try:
+                if self.indexer.table.count_rows() == 0:
+                    return []
+            except Exception:
+                return []
+
             df = (
                 self.indexer.table.search()
                 .where(f"parent_id = '{parent_id}'", prefilter=True)
@@ -552,7 +640,14 @@ class Searcher:
         4. Объединяем через RRF (Reciprocal Rank Fusion) или реранкер
         5. Опциональный мульти-провайдерный реранкинг
         6. Фильтрация по indexed_at (since/before)
+
+        Note:
+            Все синхронные LanceDB/BM25 вызовы оборачиваются в asyncio.to_thread,
+            чтобы не блокировать event loop при параллельных MCP-запросах.
         """
+        if not query or not query.strip():
+            return []
+
         # Строим filter_expr для LanceDB (если указан layer)
         filter_expr = f"layer = '{layer}'" if layer else ""
 
@@ -564,6 +659,7 @@ class Searcher:
 
         # === Multi-Bucket RAG (v2.6.0): Safety Cap для overfetch ===
         perf_config = get_config().performance
+        # raw_limit всегда >= 1 и <= MAX_RERANKER_INPUT, даже при limit=0/1
         raw_limit = min(
             max(limit * perf_config.overfetch_factor, 1),
             MAX_RERANKER_INPUT,
@@ -575,7 +671,7 @@ class Searcher:
 
         for variant in query_variants:
             # BM25 поиск (sparse) — пост-фильтрация по layer
-            bm25_results = self._bm25_search(variant, limit=raw_limit)
+            bm25_results = await self._bm25_search_async(variant, limit=raw_limit)
             if layer:
                 bm25_results = [
                     r
@@ -598,7 +694,7 @@ class Searcher:
                     else:
                         query_vector = self.embedder.embed(variant)
                     if query_vector:
-                        dense_results = self.vector_search(
+                        dense_results = await self._vector_search_async(
                             query_vector, limit=raw_limit, filter_expr=filter_expr
                         )
                         all_dense_results = [
@@ -617,31 +713,31 @@ class Searcher:
                 unique_bm25.append(r)
 
         if use_rrf:
-            # RRF Fusion — устойчив к разным масштабам скоров
             rrf_results = self._reciprocal_rank_fusion(
-                unique_bm25, all_dense_results, limit=raw_limit
+                unique_bm25, all_dense_results, raw_limit
             )
         else:
-            # Fallback: реранкер с relevance factor
             reranked = self._reranker.rerank_results(
                 query, unique_bm25, all_dense_results, limit=raw_limit
             )
-            rrf_results = []
-            for res in reranked:
-                rrf_results.append(
-                    {
-                        "text": res["text"],
-                        "metadata": res["metadata"],
-                        "bm25_score": res.get("bm25_score", 0.0),
-                        "dense_score": res.get("dense_score", 0.0),
-                        "final_score": res.get("final_score", 0.0),
-                    }
-                )
+            rrf_results = [
+                {
+                    "text": res["text"],
+                    "metadata": res["metadata"],
+                    "bm25_score": res.get("bm25_score", 0.0),
+                    "dense_score": res.get("dense_score", 0.0),
+                    "final_score": res.get("final_score", 0.0),
+                }
+                for res in reranked
+            ]
 
-        # === Multi-Bucket RAG (v2.6.0): Soft Weighting + Cut to limit ===
+        # === Multi-Bucket RAG: Soft Weighting + Cut to limit ===
         rrf_results = self._apply_bucket_weights(rrf_results, intent_hint)
 
-        # Сортируем по взвешенному скору и обрезаем до оригинального limit
+        # === v3.0: Co-change boost (git coupling) ===
+        rrf_results = self._apply_co_change_boost(rrf_results)
+
+        # Сортируем и обрезаем (чистый Python, на 30 элементах — микросекунды)
         rrf_results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
         pre_rerank_results = rrf_results[:limit]
 
@@ -651,7 +747,7 @@ class Searcher:
             query, pre_rerank_results, limit
         )
 
-        # Фильтрация по времени (since/before)
+        # Фильтрация по времени (since/before) — чистый Python
         return _filter_by_time(final_results, since=since, before=before)
 
     @staticmethod
@@ -668,24 +764,95 @@ class Searcher:
         Returns:
             Тот же список с изменёнными final_score (in-place + return)
         """
-        # Маппинг intent_hint → веса
+        perf_config = get_config().performance
+        base_code_w = perf_config.code_bucket_weight
+        base_docs_w = perf_config.docs_bucket_weight
+
+        # intent_hint накладывается поверх базовых весов из .env
         if intent_hint == "code":
-            code_w, docs_w = 1.2, 0.8
+            code_w, docs_w = base_code_w * 1.2, base_docs_w * 0.8
         elif intent_hint == "docs":
-            code_w, docs_w = 0.8, 1.2
+            code_w, docs_w = base_code_w * 0.8, base_docs_w * 1.2
         else:
-            # "auto" — нейтрально
-            code_w, docs_w = 1.0, 1.0
+            code_w, docs_w = base_code_w, base_docs_w
 
         for chunk in chunks:
-            file_path_str = chunk.get("metadata", {}).get("file", "")
-            if not file_path_str:
+            metadata = chunk.get("metadata")
+            if not isinstance(metadata, dict):
                 continue
-            ext = Path(file_path_str).suffix.lower()
+            file_path_str = metadata.get("file", "")
+            if not file_path_str or not isinstance(file_path_str, str):
+                continue
+
+            # Защита от UNC-префикса \\?\ и пустых/относительных путей:
+            # os.path.splitext работает со строками и не делает resolve().
+            clean_path = file_path_str
+            if clean_path.startswith("\\\\?\\"):
+                clean_path = clean_path[4:]
+            _, ext = os.path.splitext(clean_path)
+            ext = ext.lower()
+
             if ext in CODE_EXTENSIONS:
                 chunk["final_score"] = chunk.get("final_score", 0.0) * code_w
             elif ext in DOCS_EXTENSIONS:
                 chunk["final_score"] = chunk.get("final_score", 0.0) * docs_w
+
+        return chunks
+
+    def _apply_co_change_boost(self, chunks: List[dict]) -> List[dict]:
+        """v3.0: Бустит файлы, которые часто меняются вместе с топ-результатами.
+
+        Использует CommitMemory для вычисления co-change coupling.
+        Формула: если файл B часто меняется вместе с файлом A (coupling >= 0.3),
+        и A в топ-3 результатах — B получает множитель ×1.15.
+        """
+        if len(chunks) <= 1:
+            return chunks
+
+        # Собираем имена файлов из топ-3 результатов
+        top_files: set = set()
+        for i, chunk in enumerate(chunks[:3]):
+            meta = chunk.get("metadata")
+            if isinstance(meta, dict):
+                f = meta.get("file", "")
+                if f:
+                    top_files.add(f)
+        if not top_files:
+            return chunks
+
+        # Загружаем co-change матрицу (лениво, с кэшем на инстансе)
+        co_matrix = getattr(self, "_co_change_matrix", None)
+        if co_matrix is None:
+            try:
+                from src.core.commit_memory import CommitMemory
+
+                project_path = getattr(self.indexer, "project_path", None)
+                if project_path is not None:
+                    cm = CommitMemory(project_path)
+                    co_matrix = cm.compute_co_change_matrix(min_co_changes=3)
+                    self._co_change_matrix = co_matrix
+            except Exception as e:
+                logger.debug(f"Co-change matrix unavailable: {e}")
+                self._co_change_matrix = {}
+                return chunks
+
+        if not co_matrix:
+            return chunks
+
+        # Применяем boost
+        for chunk in chunks:
+            meta = chunk.get("metadata")
+            if not isinstance(meta, dict):
+                continue
+            file_path = meta.get("file", "")
+            if file_path in co_matrix:
+                partners = co_matrix[file_path]
+                # Если хотя бы один партнёр в топ-файлах — бустим
+                if partners and any(tf in partners for tf in top_files):
+                    best_coupling = max(partners.get(tf, 0) for tf in top_files)
+                    chunk["final_score"] = chunk.get("final_score", 0.0) * (
+                        1.0 + best_coupling * 0.3
+                    )
 
         return chunks
 
@@ -718,17 +885,24 @@ class Searcher:
                 context_parts.append(f"[Чанк {i}] File: {file_path}\n```\n{text}\n```")
             context = "\n---\n".join(context_parts)
 
-            # Шаг 3: системный промпт
+            # Шаг 3: системный промпт (phi-4-mini-instruct)
+            # Температура минимальна, stop-токены предотвращают зацикливание/повторы.
             system_prompt = (
-                "Ты — экспертный ассистент по кодовой базе MSCodeBase.\n"
-                "Отвечай на русском языке, лаконично и строго по делу.\n"
-                "Используй ТОЛЬКО предоставленный контекст.\n"
-                "Если в контексте нет ответа — напиши: "
+                "You are a precise coding assistant for the MSCodeBase repository.\n"
+                "Rules:\n"
+                "1. Answer ONLY from the provided code chunks.\n"
+                "2. If the context does not contain the answer, write exactly: "
                 "'В предоставленном контексте нет информации для ответа.'\n"
-                "Ссылайся на файлы из контекста (File: ...).\n"
-                "Не выдумывай код и не добавляй отсебятину."
+                "3. Cite files as (File: path).\n"
+                "4. Answer in Russian, concisely, and stop after the answer.\n"
+                "5. Do not repeat the question or add explanations beyond the answer.\n"
+                "6. Do not invent code or facts not present in the context."
             )
-            user_prompt = f"Контекст кодовой базы:\n{context}\n\nВопрос: {query}"
+            user_prompt = (
+                f"Контекст кодовой базы:\n{context}\n\n"
+                f"Вопрос: {query}\n\n"
+                "Ответь кратко на русском языке, используя ТОЛЬКО контекст выше."
+            )
 
             # Шаг 4: зовём phi-4 через LM Studio
             config = get_config()
@@ -742,9 +916,10 @@ class Searcher:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                "temperature": 0.3,
+                "temperature": 0.1,
                 "max_tokens": 512,
                 "stream": False,
+                "stop": ["Контекст кодовой базы:", "Вопрос:", "\n\n\n"],
             }
 
             async with httpx.AsyncClient(
@@ -857,8 +1032,8 @@ class Searcher:
         timing = {}
         cache_hit = False
 
-        # Проверяем кэш
-        cache_key = f"{mode}:{query}:{limit}"
+        # Проверяем кэш (изолируем по режиму, запросу, лимиту, слою и intent)
+        cache_key = f"{mode}:{query}:{limit}:{layer or ''}:{intent_hint}"
         if cache_key in self._cache:
             results = self._cache[cache_key]
             cache_hit = True
@@ -1289,10 +1464,10 @@ class Searcher:
         При недоступности LLM — fallback на правило-базированные эвристики.
 
         Стратегии (в порядке приоритета):
-        1. LLM-декомпозиция через LM Studio API (конфигурируемый URL)
-        2. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
-        3. Разделение по вопросам: "как", "где", "когда", "что"
-        4. Извлечение ключевых существительных и глаголов
+        1. Разделение по союзам: "и", "а", "также", "плюс", "&", ","
+        2. Разделение по вопросам: "как", "где", "когда", "что"
+        3. Извлечение ключевых существительных и глаголов
+        4. LLM-декомпозиция через LM Studio API (опциональный fallback)
 
         Args:
             query: Сложный запрос
@@ -1302,14 +1477,14 @@ class Searcher:
         """
         import re
 
-        # Попытка 1: LLM-декомпозиция через LM Studio API
-        llm_subqueries = self._try_llm_decompose(query)
-        if llm_subqueries and len(llm_subqueries) >= 2:
-            logger.debug(f"🧠 LLM декомпозиция: {len(llm_subqueries)} подзапросов")
-            return llm_subqueries[:4]
+        # Пустой или однословный запрос не требует декомпозиции
+        if not query or not query.strip():
+            return [query]
+        if len(query.split()) <= 1:
+            return [query]
 
-        # Fallback: правило-базированная декомпозиция
-        logger.debug("⚠️ LLM недоступен, используем правила декомпозиции")
+        # Попытка 1: детерминированная правило-базированная декомпозиция
+        # (быстрая, не требует сети и предсказуема в тестах/проде).
 
         # Стратегия 1: разделение по ключевым союзам и знакам
         separators = r"(?:\s+(?:и|а|также|плюс|а также|и также)\s+|\s*[,;]\s+(?:и |а |также |плюс )?)"
@@ -1343,7 +1518,7 @@ class Searcher:
         subqueries = []
         remaining = query.lower()
 
-        for pattern, _ in question_patterns:
+        for pattern, _prefix in question_patterns:
             match = re.search(pattern, remaining)
             if match:
                 subquery = match.group(0).strip()
@@ -1367,8 +1542,24 @@ class Searcher:
         if key_terms:
             return [f"{term} {query.split()[0]}" for term in key_terms[:3]]
 
-        # Фоллбэк: возвращаем оригинальный запрос
+        # ЛЛМ-декомпозиция только для достаточно сложных запросов (≥ 4 слов или ≥ 25 символов)
+        if len(query.split()) < 4 and len(query) < 25:
+            return [query]
+
+        # Фоллбэк: LLM-декомпозиция только если правила ничего не дали
+        llm_subqueries = self._try_llm_decompose(query)
+        if llm_subqueries and len(llm_subqueries) >= 2:
+            logger.debug(f"🧠 LLM декомпозиция: {len(llm_subqueries)} подзапросов")
+            return llm_subqueries[:4]
+
+        # Крайний фоллбэк: возвращаем оригинальный запрос
         return [query]
+
+    async def _decompose_query_with_llm_async(self, query: str) -> List[str]:
+        """Async-версия: не блокирует event loop при LLM-вызове."""
+        import asyncio as _asyncio
+
+        return await _asyncio.to_thread(self._decompose_query_with_llm, query)
 
     def _try_llm_decompose(self, query: str) -> Optional[List[str]]:
         """Пытается декомпозировать запрос через LM Studio API.
@@ -1392,7 +1583,6 @@ class Searcher:
             lm_url = os.getenv(
                 "LM_STUDIO_URL", config.embedding.get_lm_studio_base_url() + "/v1"
             )
-            api_key = os.getenv("API_KEY", "sk-local")
 
             # Быстрая проверка живости (1 секунда)
             httpx.get(lm_url.replace("/v1", ""), timeout=1.0)
@@ -1615,10 +1805,11 @@ class Searcher:
     def _expand_graph_context(
         self, results: List[dict], original_query: str
     ) -> List[dict]:
-        """Расширяет результаты поиска контекстом из графа вызовов.
+        """Расширяет результаты контекстом из графа вызовов (v3.0).
 
-        Для каждого найденного символа добавляет связанные символы (callers, callees)
-        из SymbolIndex, если он доступен.
+        Использует callees из metadata чанков + SymbolIndex для нахождения
+        связанных функций. Для найденных callee-имён ищет реальные чанки
+        через BM25 (быстрее и точнее чем SymbolIndex в однорых случаях).
 
         Args:
             results: Исходные результаты поиска
@@ -1628,73 +1819,70 @@ class Searcher:
             Результаты с добавленным графическим контекстом
         """
         try:
-            # Проверяем, есть ли доступ к symbol_index через indexer
-            if hasattr(self.indexer, "symbol_index") and self.indexer.symbol_index:
-                symbol_index = self.indexer.symbol_index
+            expanded_results = list(results)
+            seen_keys: set = set()
 
-                expanded_results = []
-                seen_ids = set()  # Для избежания дубликатов
+            # Собираем dedup ключи существующих результатов
+            for r in results:
+                meta = r.get("metadata", {})
+                key = f"{meta.get('file', '')}:{meta.get('chunk_index', '')}"
+                if key:
+                    seen_keys.add(key)
 
-                for result in results:
-                    # Добавляем оригинальный результат
-                    result_id = result.get(
-                        "id", result.get("file_path", str(len(expanded_results)))
-                    )
-                    if result_id not in seen_ids:
-                        expanded_results.append(result)
-                        seen_ids.add(result_id)
+            # Собираем callee-имена из топ-5 результатов
+            callee_names: set = set()
+            for r in results[:5]:
+                meta = r.get("metadata", {})
+                callees_raw = meta.get("callees", "")
+                if callees_raw and isinstance(callees_raw, str):
+                    try:
+                        callees_list = json.loads(callees_raw)
+                        for name in callees_list[:10]:  # max 10 per chunk
+                            if len(name) > 2:  # фильтруем короткие
+                                callee_names.add(name)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
-                    # Извлекаем символ из результата
-                    file_path = result.get("file_path", "")
-                    chunk_text = result.get("text", "")
+            # Ищем реальные чанки для каждого callee через BM25
+            for callee in list(callee_names)[:15]:  # max 15 callees всего
+                callee_results = self._bm25_search(callee, limit=3)
+                for cr in callee_results:
+                    meta = cr.get("metadata", {})
+                    key = f"{meta.get('file', '')}:{meta.get('chunk_index', '')}"
+                    if key and key not in seen_keys:
+                        seen_keys.add(key)
+                        cr["final_score"] = cr.get("final_score", 0.3) * 0.7
+                        cr["source"] = "graph_expand"
+                        cr["expand_reason"] = f"callee_of: {callee}"
+                        expanded_results.append(cr)
 
-                    # Пытаемся извлечь имя символа из текста
-                    symbol_name = self._extract_symbol_name(chunk_text)
-                    if not symbol_name and file_path:
-                        # Пытаемся получить символ из file_path
-                        symbol_name = Path(file_path).stem
+            # Дополнительно: SymbolIndex для cross-file callers (если доступен)
+            if hasattr(self.indexer, "_symbol_index") and self.indexer._symbol_index:
+                si = self.indexer._symbol_index
+                for r in results[:3]:
+                    name = self._extract_symbol_name(r.get("text", ""))
+                    if name:
+                        callers = si.find_references(name)
+                        for c in callers[:5]:
+                            key = f"{c.file_path}:0"
+                            if key not in seen_keys:
+                                seen_keys.add(key)
+                                expanded_results.append(
+                                    {
+                                        "text": f"[CALLER] {c.symbol}",
+                                        "metadata": {
+                                            "file": c.file_path,
+                                            "chunk_index": 0,
+                                        },
+                                        "final_score": 0.15,
+                                        "source": "caller_of",
+                                        "expand_reason": f"calls: {name}",
+                                    }
+                                )
 
-                    if symbol_name:
-                        # Получаем информацию о символе из графа
-                        symbol_info = symbol_index.get_symbol_info(symbol_name)
-                        if symbol_info:
-                            # Добавляем callers
-                            for caller in symbol_info.get("callers", []):
-                                caller_id = f"caller_{caller}_{len(expanded_results)}"
-                                if caller_id not in seen_ids:
-                                    expanded_results.append(
-                                        {
-                                            "id": caller_id,
-                                            "text": f"[CALLER] {caller}",
-                                            "file_path": caller,
-                                            "source": "graph_context",
-                                            "score": result.get("score", 0.0)
-                                            * 0.8,  # Снижаем вес
-                                            "context_type": "caller",
-                                        }
-                                    )
-                                    seen_ids.add(caller_id)
-
-                            # Добавляем callees
-                            for callee in symbol_info.get("callees", []):
-                                callee_id = f"callee_{callee}_{len(expanded_results)}"
-                                if callee_id not in seen_ids:
-                                    expanded_results.append(
-                                        {
-                                            "id": callee_id,
-                                            "text": f"[CALLEE] {callee}",
-                                            "file_path": callee,
-                                            "source": "graph_context",
-                                            "score": result.get("score", 0.0)
-                                            * 0.8,  # Снижаем вес
-                                            "context_type": "callee",
-                                        }
-                                    )
-                                    seen_ids.add(callee_id)
-
-                return expanded_results
+            return expanded_results
         except Exception as e:
-            logger.debug(f"Ошибка при расширении контекста графа: {e}")
+            logger.debug(f"Graph context expansion error: {e}")
 
         return results
 
@@ -1737,20 +1925,27 @@ class Searcher:
             return None
 
     async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
-        """Ленивая async инициализация мульти-провайдерного реранкера."""
+        """Ленивая thread-safe async инициализация мульти-провайдерного реранкера."""
         if self._multi_reranker_initialized:
             return self._multi_reranker
 
-        self._multi_reranker_initialized = True
-        try:
-            reranker = MultiProviderReranker()
-            await reranker.initialize()
-            self._multi_reranker = reranker
-            return reranker
-        except Exception as e:
-            logger.warning(f"Не удалось инициализировать MultiProviderReranker: {e}")
-            self._multi_reranker = None
-            return None
+        async with self._multi_reranker_lock:
+            # Double-check после захвата блокировки
+            if self._multi_reranker_initialized:
+                return self._multi_reranker
+            try:
+                reranker = MultiProviderReranker()
+                await reranker.initialize()
+                self._multi_reranker = reranker
+                return reranker
+            except Exception as e:
+                logger.warning(
+                    f"Не удалось инициализировать MultiProviderReranker: {e}"
+                )
+                self._multi_reranker = None
+                return None
+            finally:
+                self._multi_reranker_initialized = True
 
     def _apply_multi_reranker(
         self,
@@ -1879,7 +2074,9 @@ class Searcher:
             Tuple из (results, metadata)
         """
         # Шаг 1: Декомпозиция запроса
-        subqueries = self._decompose_query_with_llm(query)[:max_subqueries]
+        subqueries = (await self._decompose_query_with_llm_async(query))[
+            :max_subqueries
+        ]
 
         search_metadata = {
             "original_query": query,

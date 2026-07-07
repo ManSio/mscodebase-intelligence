@@ -70,6 +70,9 @@ class RemoteEmbedder:
         self._async_client: Optional[httpx.AsyncClient] = None
         self._async_client_lock = threading.Lock()
 
+        # Sync HTTP client для фонового сканера (переиспользуется, без утечек)
+        self._sync_client: Optional[httpx.Client] = None
+
         # Старт фонового инициализатора (НЕ блокирует __init__).
         self._init_thread = threading.Thread(
             target=self._init_provider_async,
@@ -91,18 +94,18 @@ class RemoteEmbedder:
         self._scanner_thread.start()
 
     def _check_lm_studio(self) -> bool:
-        """Быстрая проверка доступности порта LM Studio."""
+        """Быстрая проверка доступности порта LM Studio (переиспользует клиент)."""
+        if self._sync_client is None:
+            self._sync_client = httpx.Client(timeout=2.0)
         try:
-            with httpx.Client(timeout=2.0) as client:
-                r = client.get(f"http://{self.host}:{self.port}/v1/models")
-                if r.status_code == 200:
-                    models = r.json().get("data", [])
-                    if models:
-                        # Сохраняем имя первой модели (обычно она одна)
-                        self._model_name = models[0].get(
-                            "id", models[0].get("model", str(models[0]))
-                        )
-                        return True
+            r = self._sync_client.get(f"http://{self.host}:{self.port}/v1/models")
+            if r.status_code == 200:
+                models = r.json().get("data", [])
+                if models:
+                    self._model_name = models[0].get(
+                        "id", models[0].get("model", str(models[0]))
+                    )
+                    return True
             return False
         except Exception:
             return False
@@ -156,12 +159,13 @@ class RemoteEmbedder:
                 self.mode = "onnx"  # safe default
 
     def _check_ollama(self) -> bool:
-        """Быстрая проверка доступности Ollama."""
+        """Проверка доступности Ollama (переиспользует sync клиент)."""
+        if self._sync_client is None:
+            self._sync_client = httpx.Client(timeout=2.0)
         config = get_config()
         try:
-            with httpx.Client(timeout=2.0) as client:
-                r = client.get(config.embedding.ollama_tags_url)
-                return r.status_code == 200
+            r = self._sync_client.get(config.embedding.ollama_tags_url)
+            return r.status_code == 200
         except Exception:
             return False
 

@@ -17,7 +17,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("commit_memory")
 
@@ -30,11 +30,18 @@ class CommitMemory:
         resolved = project_path.resolve()
         resolved_str = str(resolved)
         # Check for D:\d\ pattern (wrong from /d/ path)
-        if len(resolved_str) > 4 and resolved_str[2] == "\\" and resolved_str[3] == "d" and resolved_str[4] == "\\":
+        if (
+            len(resolved_str) > 4
+            and resolved_str[2] == "\\"
+            and resolved_str[3] == "d"
+            and resolved_str[4] == "\\"
+        ):
             # D:\d\... -> D:\...
             resolved = Path(resolved_str[:2] + resolved_str[4:])
         self.project_path = resolved
-        self.cache_dir = cache_dir or (self.project_path / ".codebase_indices" / "commit_memory")
+        self.cache_dir = cache_dir or (
+            self.project_path / ".codebase_indices" / "commit_memory"
+        )
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_dir / "commits.json"
         self._commits: List[Dict] = []
@@ -69,8 +76,17 @@ class CommitMemory:
         """
         try:
             result = subprocess.run(
-                ["git", "log", f"--max-count={limit}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=iso", "--name-only"],
-                capture_output=True, text=True, timeout=30,
+                [
+                    "git",
+                    "log",
+                    f"--max-count={limit}",
+                    "--pretty=format:%H|%an|%ae|%ad|%s",
+                    "--date=iso",
+                    "--name-only",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
                 cwd=str(self.project_path),
                 encoding="utf-8",
                 errors="replace",
@@ -113,6 +129,58 @@ class CommitMemory:
             logger.error(f"Failed to fetch commits: {e}")
             return []
 
+    def compute_co_change_matrix(
+        self, min_co_changes: int = 3
+    ) -> Dict[str, Dict[str, float]]:
+        """Вычисляет матрицу совместных изменений (co-change coupling).
+
+        Формула: coupling(A, B) = co_changes(A, B) / max(changes(A), changes(B))
+
+        Args:
+            min_co_changes: минимальное число совместных изменений для включения
+
+        Returns:
+            {file_a: {file_b: coupling_strength, ...}, ...}
+            Только файлы с coupling >= 0.3 и >= min_co_changes.
+        """
+        if not self._commits:
+            self.fetch_commits()
+        if not self._commits:
+            return {}
+
+        # Считаем частоту изменений каждого файла
+        file_changes: Dict[str, int] = {}
+        # Считаем совместные изменения пар файлов
+        co_changes: Dict[str, Dict[str, int]] = {}
+
+        for commit in self._commits:
+            files = commit.get("files", [])
+            for f in files:
+                file_changes[f] = file_changes.get(f, 0) + 1
+            for i, f1 in enumerate(files):
+                for f2 in files[i + 1 :]:
+                    if f1 not in co_changes:
+                        co_changes[f1] = {}
+                    co_changes[f1][f2] = co_changes[f1].get(f2, 0) + 1
+                    if f2 not in co_changes:
+                        co_changes[f2] = {}
+                    co_changes[f2][f1] = co_changes[f2].get(f1, 0) + 1
+
+        # Вычисляем coupling strength
+        matrix: Dict[str, Dict[str, float]] = {}
+        for f1, partners in co_changes.items():
+            for f2, count in partners.items():
+                if count >= min_co_changes:
+                    coupling = count / max(
+                        file_changes.get(f1, 1), file_changes.get(f2, 1)
+                    )
+                    if coupling >= 0.3:
+                        if f1 not in matrix:
+                            matrix[f1] = {}
+                        matrix[f1][f2] = round(coupling, 3)
+
+        return matrix
+
     def get_commits_for_file(self, file_path: str) -> List[Dict]:
         """Находит все коммиты изменившие конкретный файл.
 
@@ -127,7 +195,9 @@ class CommitMemory:
 
         return [c for c in self._commits if file_path in c.get("files", [])]
 
-    def get_commits_for_symbol(self, symbol_name: str, file_path: str = "") -> List[Dict]:
+    def get_commits_for_symbol(
+        self, symbol_name: str, file_path: str = ""
+    ) -> List[Dict]:
         """Находит коммиты связанные с символом.
 
         Ищет по:
@@ -172,7 +242,7 @@ class CommitMemory:
             files = commit.get("files", [])
             # Для каждой пары файлов в коммите
             for i, f1 in enumerate(files):
-                for f2 in files[i + 1:]:
+                for f2 in files[i + 1 :]:
                     pair = tuple(sorted([f1, f2]))
                     key = f"{pair[0]}|{pair[1]}"
                     cochange[key] = cochange.get(key, 0) + 1
@@ -272,9 +342,10 @@ class CommitMemory:
         keywords = self._extract_keywords(error_message)
 
         # Ищем только в баг-фиксах
-        bug_keywords = ['fix', 'bug', 'hotfix', 'resolve', 'error', 'crash', 'issue']
+        bug_keywords = ["fix", "bug", "hotfix", "resolve", "error", "crash", "issue"]
         bug_commits = [
-            c for c in self._commits
+            c
+            for c in self._commits
             if any(bk in c.get("message", "").lower() for bk in bug_keywords)
         ]
 
@@ -291,13 +362,15 @@ class CommitMemory:
 
         results = []
         for score, commit in scored[:max_results]:
-            results.append({
-                "hash": commit.get("hash", "")[:8],
-                "message": commit.get("message", ""),
-                "date": commit.get("date", ""),
-                "files": commit.get("files", []),
-                "relevance_score": score,
-            })
+            results.append(
+                {
+                    "hash": commit.get("hash", "")[:8],
+                    "message": commit.get("message", ""),
+                    "date": commit.get("date", ""),
+                    "files": commit.get("files", []),
+                    "relevance_score": score,
+                }
+            )
 
         return results
 
@@ -305,21 +378,62 @@ class CommitMemory:
         """Извлекает ключевые слова из текста ошибки."""
         # Убираем общие слова
         stop_words = {
-            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
-            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-            'could', 'should', 'may', 'might', 'can', 'cannot',
-            'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
-            'and', 'or', 'but', 'not', 'no', 'if', 'then', 'else',
-            'this', 'that', 'it', 'its', 'my', 'your', 'our',
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "can",
+            "cannot",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "and",
+            "or",
+            "but",
+            "not",
+            "no",
+            "if",
+            "then",
+            "else",
+            "this",
+            "that",
+            "it",
+            "its",
+            "my",
+            "your",
+            "our",
         }
 
         # Разбиваем на слова, фильтруем
         words = text.lower().split()
         keywords = [
-            w.strip('.,;:()[]{}')
+            w.strip(".,;:()[]{}")
             for w in words
-            if w.strip('.,;:()[]{}') not in stop_words
-            and len(w.strip('.,;:()[]{}')) > 2
+            if w.strip(".,;:()[]{}") not in stop_words
+            and len(w.strip(".,;:()[]{}")) > 2
         ]
 
         return keywords[:10]  # Топ-10 ключевых слов
@@ -341,7 +455,7 @@ class CommitMemory:
 
         for commit in self._commits:
             message = commit.get("message", "").lower()
-            is_bugfix = any(bk in message for bk in ['fix', 'bug', 'hotfix', 'resolve'])
+            is_bugfix = any(bk in message for bk in ["fix", "bug", "hotfix", "resolve"])
 
             for f in commit.get("files", []):
                 if f not in file_changes:
@@ -360,14 +474,20 @@ class CommitMemory:
         for f, metrics in file_changes.items():
             if metrics["total"] >= min_changes:
                 bug_ratio = metrics["bugfixes"] / metrics["total"]
-                hotspots.append({
-                    "file": f,
-                    "total_changes": metrics["total"],
-                    "bugfix_changes": metrics["bugfixes"],
-                    "bug_ratio": round(bug_ratio, 2),
-                    "risk": "high" if bug_ratio > 0.3 else "medium" if bug_ratio > 0.1 else "low",
-                    "last_change": metrics["last_change"],
-                })
+                hotspots.append(
+                    {
+                        "file": f,
+                        "total_changes": metrics["total"],
+                        "bugfix_changes": metrics["bugfixes"],
+                        "bug_ratio": round(bug_ratio, 2),
+                        "risk": "high"
+                        if bug_ratio > 0.3
+                        else "medium"
+                        if bug_ratio > 0.1
+                        else "low",
+                        "last_change": metrics["last_change"],
+                    }
+                )
 
         hotspots.sort(key=lambda x: x["bug_ratio"], reverse=True)
         return hotspots

@@ -193,42 +193,45 @@ class MultiProviderReranker:
         1. Пробует расширенное API /api/v0/models (с type/state)
         2. Если неудача — OpenAI-compatible /v1/models (name-based)
         """
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+        client = self._client
         v0_ok = False
         try:
-            async with httpx.AsyncClient(timeout=self.ping_timeout) as client:
-                resp = await client.get(
-                    f"{self.lm_studio_url.replace('/v1', '')}/api/v0/models"
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = data.get("data", [])
-                    if models and any("type" in m for m in models):
-                        loaded_embed = []
-                        loaded_rerank = []
-                        for m in models:
-                            if m.get("state") != "loaded":
-                                continue
-                            t = m.get("type", "")
-                            mid = m.get("id", "").lower()
-                            if t == "embeddings":
-                                if "reranker" in mid:
-                                    loaded_rerank.append(m["id"])
-                                else:
-                                    loaded_embed.append(m["id"])
-                            elif t == "llm":
-                                if not self.lm_studio_model_name:
-                                    self.lm_studio_model_name = m["id"]
+            resp = await client.get(
+                f"{self.lm_studio_url.replace('/v1', '')}/api/v0/models",
+                timeout=self.ping_timeout,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = data.get("data", [])
+                if models and any("type" in m for m in models):
+                    loaded_embed = []
+                    loaded_rerank = []
+                    for m in models:
+                        if m.get("state") != "loaded":
+                            continue
+                        t = m.get("type", "")
+                        mid = m.get("id", "").lower()
+                        if t == "embeddings":
+                            if "reranker" in mid:
+                                loaded_rerank.append(m["id"])
+                            else:
+                                loaded_embed.append(m["id"])
+                        elif t == "llm":
+                            if not self.lm_studio_model_name:
+                                self.lm_studio_model_name = m["id"]
 
-                        if loaded_embed and not self.lm_studio_embedding_model:
-                            self.lm_studio_embedding_model = loaded_embed[0]
-                        if loaded_rerank and not self.lm_studio_reranker_model:
-                            self.lm_studio_reranker_model = loaded_rerank[0]
+                    if loaded_embed and not self.lm_studio_embedding_model:
+                        self.lm_studio_embedding_model = loaded_embed[0]
+                    if loaded_rerank and not self.lm_studio_reranker_model:
+                        self.lm_studio_reranker_model = loaded_rerank[0]
 
-                        if self.lm_studio_model_name:
-                            self._llm_available = True
-                            self._llm_checked_at = time.time()
+                    if self.lm_studio_model_name:
+                        self._llm_available = True
+                        self._llm_checked_at = time.time()
 
-                        v0_ok = True
+                    v0_ok = True
         except Exception as e:
             logger.debug(f"LM Studio /api/v0/models ping failed: {e}")
 
@@ -242,66 +245,71 @@ class MultiProviderReranker:
 
         # Fallback: OpenAI-compatible /v1/models (без type/state)
         try:
-            async with httpx.AsyncClient(timeout=self.ping_timeout) as client:
-                resp = await client.get(f"{self.lm_studio_url}/models")
-                if resp.status_code != 200:
-                    return False
+            resp = await client.get(
+                f"{self.lm_studio_url}/models",
+                timeout=self.ping_timeout,
+            )
+            if resp.status_code != 200:
+                return False
 
-                data = resp.json()
-                models = data.get("data", [])
-                if not models:
-                    return False
+            data = resp.json()
+            models = data.get("data", [])
+            if not models:
+                return False
 
-                # Name-based детекция
-                reranker_candidates = []
-                embed_candidates = []
-                llm_candidates = []
+            # Name-based детекция
+            reranker_candidates = []
+            embed_candidates = []
+            llm_candidates = []
 
-                for m in models:
-                    mid = m.get("id", "").lower()
-                    if "reranker" in mid:
-                        reranker_candidates.append(m["id"])
-                    elif "embed" in mid:
-                        embed_candidates.append(m["id"])
-                    elif "instruct" in mid or "llm" in mid:
-                        llm_candidates.append(m["id"])
+            for m in models:
+                mid = m.get("id", "").lower()
+                if "reranker" in mid:
+                    reranker_candidates.append(m["id"])
+                elif "embed" in mid:
+                    embed_candidates.append(m["id"])
+                elif "instruct" in mid or "llm" in mid:
+                    llm_candidates.append(m["id"])
 
-                if reranker_candidates and not self.lm_studio_reranker_model:
-                    self.lm_studio_reranker_model = reranker_candidates[0]
-                if embed_candidates and not self.lm_studio_embedding_model:
-                    self.lm_studio_embedding_model = embed_candidates[0]
-                if llm_candidates and not self.lm_studio_model_name:
-                    self.lm_studio_model_name = llm_candidates[0]
+            if reranker_candidates and not self.lm_studio_reranker_model:
+                self.lm_studio_reranker_model = reranker_candidates[0]
+            if embed_candidates and not self.lm_studio_embedding_model:
+                self.lm_studio_embedding_model = embed_candidates[0]
+            if llm_candidates and not self.lm_studio_model_name:
+                self.lm_studio_model_name = llm_candidates[0]
 
-                if self.lm_studio_model_name:
-                    self._llm_available = True
-                    self._llm_checked_at = time.time()
+            if self.lm_studio_model_name:
+                self._llm_available = True
+                self._llm_checked_at = time.time()
 
-                # Ultimate fallback: first = embed, last = llm
-                if not self.lm_studio_embedding_model:
-                    self.lm_studio_embedding_model = models[0]["id"]
-                if not self.lm_studio_model_name:
-                    if len(models) > 1:
-                        self.lm_studio_model_name = models[-1]["id"]
-                    else:
-                        self.lm_studio_model_name = models[0]["id"]
+            # Ultimate fallback: first = embed, last = llm
+            if not self.lm_studio_embedding_model:
+                self.lm_studio_embedding_model = models[0]["id"]
+            if not self.lm_studio_model_name:
+                if len(models) > 1:
+                    self.lm_studio_model_name = models[-1]["id"]
+                else:
+                    self.lm_studio_model_name = models[0]["id"]
 
-                logger.info(
-                    f"LM Studio (v1): emb→{self.lm_studio_embedding_model}, "
-                    f"reranker→{self.lm_studio_reranker_model or '—'}, "
-                    f"llm→{self.lm_studio_model_name}"
-                )
-                return True
+            logger.info(
+                f"LM Studio (v1): emb→{self.lm_studio_embedding_model}, "
+                f"reranker→{self.lm_studio_reranker_model or '—'}, "
+                f"llm→{self.lm_studio_model_name}"
+            )
+            return True
 
         except Exception as e:
             logger.debug(f"LM Studio ping failed: {e}")
             return False
 
     async def _ping_ollama(self) -> bool:
-        """Быстрый пинг Ollama. Возвращает True если сервер отвечает."""
+        """Быстрый пинг Ollama. Переиспользует self._client (memory leak fix)."""
+        if not self._client:
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
         try:
-            resp = await httpx.AsyncClient(timeout=self.ping_timeout).get(
-                f"{self.ollama_url}/api/tags"
+            resp = await self._client.get(
+                f"{self.ollama_url}/api/tags",
+                timeout=self.ping_timeout,
             )
             if resp.status_code == 200:
                 data = resp.json()

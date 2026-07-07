@@ -3,6 +3,7 @@
 """
 
 import hashlib
+import json
 import logging
 import re
 from pathlib import Path
@@ -117,20 +118,32 @@ class CodeParser:
             return [], []
 
         if ext == ".md":
-            return self._parse_markdown(file_path)
-
-        if ext in self.parsers:
+            chunks, symbols = self._parse_markdown(file_path)
+        elif ext in self.parsers:
             try:
                 chunks, symbols = self._parse_with_tree_sitter(file_path, ext)
-                if chunks:
-                    return chunks, symbols
+                if not chunks:
+                    chunks, symbols = self._fallback_line_chunking(file_path)
             except Exception as e:
                 logger.warning(
                     f"Ошибка Tree-sitter для {file_path}, используем fallback: {e}"
                 )
+                chunks, symbols = self._fallback_line_chunking(file_path)
+        else:
+            chunks, symbols = self._fallback_line_chunking(file_path)
 
-        # Надежный Fallback (Line-based)
-        return self._fallback_line_chunking(file_path)
+        # v3.0: добавляем callees в metadata каждого чанка
+        if chunks:
+            try:
+                calls = self.extract_calls(file_path)
+                if calls:
+                    callees_json = json.dumps(list(set(c["callee"] for c in calls)))
+                    for ch in chunks:
+                        ch["callees"] = callees_json
+            except Exception:
+                pass
+
+        return chunks, symbols
 
     def _parse_with_tree_sitter(self, file_path: Path, ext: str) -> tuple:
         """Парсинг через AST с сохранением контекста и извлечением символов.

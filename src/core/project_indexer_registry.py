@@ -16,6 +16,7 @@ Project Indexer Registry — мультипроектная индексация
   - При вытеснении indexer из реестра — явный close на DB connections
     (LanceDB connections держат OS-level file locks на Windows).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -47,6 +48,7 @@ class ProjectState(Enum):
         INDEXING ──завершён──▶ READY
         INDEXING/STARTING ──ошибка──▶ FAILED
     """
+
     UNINITIALIZED = auto()
     STARTING = auto()
     INDEXING = auto()
@@ -386,11 +388,19 @@ class ProjectIndexerRegistry:
 
             # Очищаем in-memory кэши Indexer-а.
             for cache_attr in (
-                "_cached_total_chunks", "_df_cache", "_last_reported_progress",
+                "_cached_total_chunks",
+                "_cached_unique_files",
+                "_df_cache",
+                "_last_reported_progress",
             ):
                 if hasattr(indexer, cache_attr):
                     try:
-                        setattr(indexer, cache_attr, 0 if cache_attr == "_cached_total_chunks" else None)
+                        if cache_attr == "_cached_unique_files":
+                            setattr(indexer, cache_attr, set())
+                        elif isinstance(getattr(indexer, cache_attr, None), int):
+                            setattr(indexer, cache_attr, 0)
+                        else:
+                            setattr(indexer, cache_attr, None)
                     except Exception:
                         pass
 
@@ -407,8 +417,34 @@ class ProjectIndexerRegistry:
                 except Exception:
                     pass
 
+            # Async LanceDB + Searcher cleanup (memory leak fix v2.7.0).
+            if hasattr(indexer, "_async_db"):
+                try:
+                    indexer._async_db = None
+                except Exception:
+                    pass
+            if hasattr(indexer, "_async_table"):
+                try:
+                    indexer._async_table = None
+                except Exception:
+                    pass
+            searcher_ref = getattr(indexer, "searcher", None)
+            if searcher_ref is not None and hasattr(searcher_ref, "close"):
+                try:
+                    loop = None
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        if asyncio is not None:
+                            asyncio.run(searcher_ref.close())
+                    if loop is not None and loop.is_running():
+                        searcher_ref._cache.clear()
+                except Exception:
+                    pass
+
             # Принудительный GC — освобождает mmap handles на Windows.
             import gc
+
             gc.collect()
         except Exception as e:
             logger.debug(f"_safe_close: {e}")
@@ -430,6 +466,7 @@ def get_global_registry() -> ProjectIndexerRegistry:
             # Lazy import — избегаем цикл импорта resource_monitor.
             try:
                 from src.core.resource_monitor import get_global_resource_monitor
+
                 monitor = get_global_resource_monitor()
             except Exception:
                 monitor = None

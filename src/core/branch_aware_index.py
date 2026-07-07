@@ -28,8 +28,10 @@ class BranchAwareIndex:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True, text=True, timeout=10,
-                cwd=str(self.project_path)
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=str(self.project_path),
             )
             if result.returncode == 0:
                 branch = result.stdout.strip()
@@ -61,7 +63,9 @@ class BranchAwareIndex:
     def switch_branch(self, new_branch: str) -> bool:
         """Переключает индекс на другую ветку."""
         # Используем закэшированное значение если есть
-        current = self._current_branch if self._current_branch else self.get_current_branch()
+        current = (
+            self._current_branch if self._current_branch else self.get_current_branch()
+        )
 
         if current == new_branch:
             logger.info(f"Already on branch: {new_branch}")
@@ -77,18 +81,15 @@ class BranchAwareIndex:
         return True
 
     def get_branch_info(self) -> Dict:
-        """Информация о текущей ветке и индексе."""
+        """Информация о текущей ветке и индексе (sync, с кэшированием)."""
         branch = self.get_current_branch()
         db_path = self.get_branch_db_path(branch)
-
-        # Проверяем существует ли индекс
         exists = db_path.exists()
-
-        # Считаем чанки если база существует (с кэшированием соединения)
         chunks = 0
         if exists:
             try:
                 import lancedb
+
                 if branch not in self._db_connections:
                     self._db_connections[branch] = lancedb.connect(str(db_path))
                 db = self._db_connections[branch]
@@ -99,7 +100,36 @@ class BranchAwareIndex:
                     pass
             except Exception:
                 pass
+        return {
+            "branch": branch,
+            "db_path": str(db_path),
+            "index_exists": exists,
+            "total_chunks": chunks,
+        }
 
+    async def get_branch_info_async(self) -> Dict:
+        """Async версия — через connect_async (не блокирует event loop)."""
+        branch = self.get_current_branch()
+        db_path = self.get_branch_db_path(branch)
+        exists = db_path.exists()
+        chunks = 0
+        if exists:
+            try:
+                import asyncio
+
+                import lancedb
+
+                async def _fetch():
+                    db = await lancedb.connect_async(str(db_path))
+                    table = await db.open_table("codebase_chunks")
+                    count = await table.count_rows()
+                    return count
+
+                chunks = await asyncio.wait_for(_fetch(), timeout=10)
+            except asyncio.TimeoutError:
+                logger.warning(f"Branch info async timeout for {branch}")
+            except Exception as e:
+                logger.debug(f"Branch info async error: {e}")
         return {
             "branch": branch,
             "db_path": str(db_path),
@@ -122,8 +152,11 @@ class BranchAwareIndex:
                     branch_name = branch_dir.name
                     try:
                         import lancedb
+
                         if branch_name not in self._db_connections:
-                            self._db_connections[branch_name] = lancedb.connect(str(db_path))
+                            self._db_connections[branch_name] = lancedb.connect(
+                                str(db_path)
+                            )
                         db = self._db_connections[branch_name]
                         try:
                             table = db.open_table("codebase_chunks")
@@ -151,7 +184,9 @@ class BranchAwareIndex:
             return 0
 
         removed = 0
-        normalized_keep = {b.replace("/", "_").replace("\\", "_") for b in keep_branches}
+        normalized_keep = {
+            b.replace("/", "_").replace("\\", "_") for b in keep_branches
+        }
 
         for branch_dir in branches_dir.iterdir():
             if branch_dir.is_dir() and branch_dir.name not in normalized_keep:

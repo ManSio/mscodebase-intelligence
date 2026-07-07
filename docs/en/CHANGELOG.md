@@ -6,6 +6,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.7.0] — 2026-07-08 — Async LanceDB + Call-graph + Code Health + Bugfixes
+
+### 🔬 AI Model Stack (documented)
+- **Embedder**: BAAI/bge-m3 (LM Studio, 1024-dim)
+- **Reranker**: bge-reranker-v2-m3 (LM Studio, cross-encoder)
+- **LLM**: phi-4-mini-instruct (LM Studio, mode=ask)
+- **Agent**: DeepSeek V4 Flash (Zed AI Chat, user-facing)
+
+### 🚀 Native Async LanceDB
+- search_async, to_pandas_async, close_async в Indexer
+- _vector_search_async → прямой вызов Indexer.search_async
+
+### 🧩 Code Health + Call-Graph + Co-change
+- code_health.py: 6 markers, score 1-10
+- parser.py: callees в metadata каждого чанка
+- indexer.py: health_score в схеме LanceDB
+- commit_memory.py: co-change matrix
+- searcher.py: graph-expand + co-change boost
+
+### 🐛 P0-P3 Bugfixes
+- Memory leak (httpx reuse), health O(1),
+  branch_info async, LLM decomposesync
+
+### 🔧 Hardening
+- asyncio.Lock, UNC guard, cache isolation,
+  phi-4 stop-tokens, _safe_close async, dead env vars
+
+---
+
 ## [v2.5.3] — 2026-07-07 — mode=ask: RAG-генерация ответа через phi-4
 
 ### 🚀 mode=ask
