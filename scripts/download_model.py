@@ -157,9 +157,11 @@ def download_onnx_model(
             )
             hidden_size = out.shape[-1] if hasattr(out, "shape") else 1024
 
-    # ── Шаг 5: Экспорт в ONNX ──
-    logger.info(f"🔄 Экспорт в ONNX (размерность {hidden_size})...")
+    # ── Шаг 5: Кастим в float16 (половина размера, минимальная потеря точности) ──
+    logger.info(f"🔄 Экспорт в ONNX (размерность {hidden_size}, float16)...")
     import torch
+
+    model = model.half()  # float32 → float16: 2.2 GB → ~1.1 GB
 
     dummy_input = tokenizer(
         dummy_text,
@@ -168,6 +170,7 @@ def download_onnx_model(
         truncation=True,
         max_length=512,
     )
+    dummy_input = {k: v.half() for k, v in dummy_input.items()}
 
     # Экport с dynamo=False
     torch.onnx.export(
