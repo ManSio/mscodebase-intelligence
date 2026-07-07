@@ -47,7 +47,7 @@ UNINSTALLER = ZED_EXT_DIR / "uninstall.bat"
 LM_STUDIO_HOST = os.environ.get("LM_STUDIO_HOST", "127.0.0.1")
 LM_STUDIO_PORT = int(os.environ.get("LM_STUDIO_PORT", "1234"))
 
-TOTAL_STEPS = 9
+TOTAL_STEPS = 10
 
 # ─── Multi-language strings ────────────────────────────────
 LANG = {
@@ -190,6 +190,56 @@ LANG = {
         "en": "Start coding — the AI agent is ready!",
         "ru": "Начинайте кодить — AI-агент готов!",
         "zh": "开始编码 — AI 代理已就绪！",
+    },
+    "download_models": {
+        "en": "Download AI models (embedding + reranker)",
+        "ru": "Скачать AI-модели (embedding + reranker)",
+        "zh": "下载 AI 模型（嵌入 + 重排序）",
+    },
+    "model_download_skip": {
+        "en": "Skipped — you can download models later via LM Studio",
+        "ru": "Пропущено — модели можно скачать позже через LM Studio",
+        "zh": "已跳过 — 您可以稍后通过 LM Studio 下载模型",
+    },
+    "model_done": {
+        "en": "Models downloaded and ready",
+        "ru": "Модели скачаны и готовы",
+        "zh": "模型已下载并准备就绪",
+    },
+    "model_onnx_fallback": {
+        "en": "Installing ONNX fallback model (BAAI/bge-m3)",
+        "ru": "Установка ONNX fallback модели (BAAI/bge-m3)",
+        "zh": "安装 ONNX 备用模型（BAAI/bge-m3）",
+    },
+    "model_lmstudio_msg": {
+        "en": "For best performance, load these models in LM Studio:",
+        "ru": "Для лучшей производительности загрузите в LM Studio:",
+        "zh": "为获得最佳性能，请在 LM Studio 中加载以下模型：",
+    },
+    "model_required": {
+        "en": "Required for vector search",
+        "ru": "Требуется для векторного поиска",
+        "zh": "向量搜索必需的模型",
+    },
+    "model_optional": {
+        "en": "Required for reranking",
+        "ru": "Требуется для реранкинга",
+        "zh": "重排序必需的模型",
+    },
+    "model_llm": {
+        "en": "Optional — for mode=ask RAG generation",
+        "ru": "Опционально — для mode=ask RAG-генерации",
+        "zh": "可选 — 用于 mode=ask RAG 生成",
+    },
+    "yes": {
+        "en": "Yes",
+        "ru": "Да",
+        "zh": "是",
+    },
+    "no": {
+        "en": "No",
+        "ru": "Нет",
+        "zh": "否",
     },
     "venv_exists": {
         "en": "Virtual environment already exists",
@@ -457,6 +507,61 @@ def info(text: str):
 def hr():
     width = min(_term_width(), 74)
     print(f"  {'─' * (width - 2)}")
+
+
+def download_onnx_model(project_root: Path, lang: str, width: int) -> bool:
+    """Download ONNX fallback model (BAAI/bge-m3) to .codebase_models/onnx/."""
+    label = _tr("model_onnx_fallback", lang)
+    print(
+        f"  {'┌─'} {Color.BOLD}{label}{Color.RESET} {'─' * (width - 6 - len(label))}┐"
+    )
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "huggingface-hub",
+                "torch",
+                "onnxruntime",
+                "transformers",
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+        model_path = project_root / ".codebase_models"
+        model_path.mkdir(parents=True, exist_ok=True)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(project_root / "scripts" / "download_model.py"),
+                "--model",
+                "BAAI/bge-m3",
+                "--output",
+                str(model_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        if proc.returncode == 0:
+            ok(
+                f"{_tr('model_done', lang)}: {Color.DIM}{model_path / 'onnx' / 'model.onnx'}{Color.RESET}"
+            )
+            print(f"  {'└' + '─' * (width - 2) + '┘'}")
+            print()
+            return True
+        else:
+            warn(f"Download failed: {proc.stderr[-200:]}")
+            print(f"  {'└' + '─' * (width - 2) + '┘'}")
+            print()
+            return False
+    except Exception as e:
+        warn(f"Model download error: {e}")
+        print(f"  {'└' + '─' * (width - 2) + '┘'}")
+        print()
+        return False
 
 
 def check_lm_studio_available() -> bool:
@@ -845,7 +950,58 @@ def main():
     if not run_pip_install(PYTHON_EXE, ZED_EXT_DIR, lang):
         return
 
-    # ── Step 6: Check LanceDB ────────────────────────────
+    # ── Step 6: Download AI models ───────────────────────
+    title = _tr("download_models", lang)
+    model_lines = []
+
+    if not lm_ok:
+        # LM Studio offline → offer ONNX download
+        model_lines.append(warn(f"{_tr('lm_offline', lang)}"))
+        model_lines.append(
+            info(
+                f"{Color.CYAN}?{Color.RESET}  {_tr('model_onnx_fallback', lang)}? [Y/n]"
+            )
+        )
+        choice = input(f"  {Color.BOLD}> {Color.RESET}").strip().lower()
+        if choice in ("", "y", "yes"):
+            render_step_box(6, TOTAL_STEPS, title, model_lines, lang)
+            download_onnx_model(PROJECT_ROOT, lang, width)
+        else:
+            model_lines.append(info(f"{_tr('model_download_skip', lang)}"))
+            render_step_box(6, TOTAL_STEPS, title, model_lines, lang)
+    else:
+        # LM Studio online → show what models to load
+        model_lines.append(
+            ok(f"{_tr('lm_online', lang)} {LM_STUDIO_HOST}:{LM_STUDIO_PORT}")
+        )
+        model_lines.append(info(f""))
+        model_lines.append(
+            info(f"  {Color.BOLD}{_tr('model_lmstudio_msg', lang)}{Color.RESET}")
+        )
+        model_lines.append(
+            info(
+                f"  {Color.CYAN}1.{Color.RESET} text-embedding-bge-m3  ({_tr('model_required', lang)})"
+            )
+        )
+        model_lines.append(
+            info(
+                f"  {Color.CYAN}2.{Color.RESET} bge-reranker-v2-m3     ({_tr('model_optional', lang)})"
+            )
+        )
+        model_lines.append(
+            info(
+                f"  {Color.CYAN}3.{Color.RESET} phi-4-mini-instruct    ({_tr('model_llm', lang)})"
+            )
+        )
+        model_lines.append(info(f""))
+        model_lines.append(
+            info(
+                f"  {Color.DIM}Download via LM Studio Search tab or: huggingface-cli download ...{Color.RESET}"
+            )
+        )
+        render_step_box(6, TOTAL_STEPS, title, model_lines, lang)
+
+    # ── Step 7: Check LanceDB ────────────────────────────
     title = _tr("check_db", lang)
     db_path = PROJECT_ROOT / ".codebase_indices" / "lancedb_v2"
     db_status = validate_lancedb_schema(db_path)
@@ -857,9 +1013,9 @@ def main():
         "not_found": info("No database yet — will create on first run"),
     }
     db_lines.append(status_msgs.get(db_status, warn(f"Unknown status: {db_status}")))
-    render_step_box(6, TOTAL_STEPS, title, db_lines, lang)
+    render_step_box(7, TOTAL_STEPS, title, db_lines, lang)
 
-    # ── Step 7: Zed integration ──────────────────────────
+    # ── Step 8: Zed integration ──────────────────────────
     title = _tr("integrate", lang)
     mcp_command = f"{PYTHON_EXE} -u -m src.main"
     zed_lines = []
@@ -879,9 +1035,9 @@ def main():
         print(f"  {'└' + '─' * (width - 2) + '┘'}")
         print()
         return
-    render_step_box(7, TOTAL_STEPS, title, zed_lines, lang)
+    render_step_box(8, TOTAL_STEPS, title, zed_lines, lang)
 
-    # ── Step 8: Skills + Locale ──────────────────────────
+    # ── Step 9: Skills + Locale ──────────────────────────
     title = _tr("install_skills", lang)
     skill_lines = []
 
@@ -924,9 +1080,9 @@ def main():
             f"Locale: {Color.GREEN}{lang_names.get(lang, 'English')}{Color.RESET} ({lang})"
         )
     )
-    render_step_box(8, TOTAL_STEPS, title, skill_lines, lang)
+    render_step_box(9, TOTAL_STEPS, title, skill_lines, lang)
 
-    # ── Step 9: Uninstaller ──────────────────────────────
+    # ── Step 10: Uninstaller ─────────────────────────────
     title = _tr("gen_uninstall", lang)
     uninst_lines = []
     try:
@@ -935,7 +1091,7 @@ def main():
         uninst_lines.append(ok(f"uninstall.bat: {Color.DIM}{UNINSTALLER}{Color.RESET}"))
     except Exception as e:
         uninst_lines.append(warn(f"Uninstaller failed: {e}"))
-    render_step_box(9, TOTAL_STEPS, title, uninst_lines, lang)
+    render_step_box(10, TOTAL_STEPS, title, uninst_lines, lang)
 
     # ── Final summary ────────────────────────────────────
     hr()

@@ -53,7 +53,9 @@ class RemoteEmbedder:
         self._onnx_session = None
         self._tokenizer = None
         self.ext_root = Path(__file__).resolve().parent.parent.parent
-        self.local_model_dir = self.ext_root / ".codebase_models" / "all-MiniLM-L6-v2"
+        # ONNX-модель: скачивается через scripts/download_model.py
+        # По умолчанию BAAI/bge-m3 (1024-dim, сохраняется в .codebase_models/onnx/)
+        self.local_model_dir = self.ext_root / ".codebase_models" / "onnx"
 
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()
