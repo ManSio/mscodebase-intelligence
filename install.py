@@ -127,6 +127,65 @@ LANG = {
         "ru": "LM Studio доступен",
         "zh": "LM Studio可用",
     },
+    "killed": {
+        "en": "Killed {} process(es)",
+        "ru": "Остановлено {} процессов",
+        "zh": "已终止 {} 个进程",
+    },
+    "no_proc": {
+        "en": "No running processes",
+        "ru": "Нет запущенных процессов",
+        "zh": "没有运行中的进程",
+    },
+    "files_copied": {
+        "en": "{} files copied",
+        "ru": "{} файлов скопировано",
+        "zh": "已复制 {} 个文件",
+    },
+    "copy_files": {
+        "en": "Copying files ({} items)",
+        "ru": "Копирование файлов ({})",
+        "zh": "正在复制文件 ({})",
+    },
+    "inst_pkgs": {
+        "en": "Installing packages",
+        "ru": "Установка пакетов",
+        "zh": "正在安装依赖",
+    },
+    "pkgs_ok": {
+        "en": "{} packages installed",
+        "ru": "{} пакетов установлено",
+        "zh": "已安装 {} 个包",
+    },
+    "pip_fail": {
+        "en": "pip install failed",
+        "ru": "pip install не удался",
+        "zh": "pip安装失败",
+    },
+    "db_notfound": {
+        "en": "Not found — will create on first run",
+        "ru": "Не найдена — будет создана при запуске",
+        "zh": "未找到—首次运行时创建",
+    },
+    "db_tables": {
+        "en": "{} table(s), {} fields",
+        "ru": "{} таблиц(ы), {} полей",
+        "zh": "{} 个表，{} 个字段",
+    },
+    "db_empty": {
+        "en": "Empty — will populate on indexing",
+        "ru": "Пуста — заполнится при индексации",
+        "zh": "为空—索引时填充",
+    },
+    "mcp_cfg": {"en": "MCP configured", "ru": "MCP настроен", "zh": "MCP已配置"},
+    "uninst_ok": {
+        "en": "Uninstaller ready",
+        "ru": "Деинсталлятор готов",
+        "zh": "卸载程序已就绪",
+    },
+    "time": {"en": "Time", "ru": "Время", "zh": "用时"},
+    "ext_dir": {"en": "Extension", "ru": "Расширение", "zh": "扩展目录"},
+    "python": {"en": "Python", "ru": "Python", "zh": "Python"},
 }
 
 
@@ -324,9 +383,9 @@ def step_proc(lines, lang):
                     pass
         if killed:
             time.sleep(1)
-            lines.append((C.GRN, f"✔ Killed {killed} process(es)"))
+            lines.append((C.GRN, f"✔ {_tr('killed', lang).format(killed)}"))
         else:
-            lines.append((C.D, "· No running processes"))
+            lines.append((C.D, f"· {_tr('no_proc', lang)}"))
     ZED_EXT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -373,10 +432,10 @@ def step_copy(lines, lang):
         except:
             pass
         pct = int((idx + 1) / len(items) * 100)
-        _prog(f"Copying files ({len(items)} items)", pct, item.name, C.BLU)
+        _prog(_tr("copy_files", lang).format(len(items)), pct, item.name, C.BLU)
     _prog("", 100, "", C.R)
     sys.stdout.write("\n")
-    lines.append((C.GRN, f"✔ {len(items)} files copied"))
+    lines.append((C.GRN, f"✔ {_tr('files_copied', lang).format(len(items))}"))
 
 
 def step_venv(lines, lang):
@@ -422,16 +481,16 @@ def step_pip(lines, lang):
         line = line.strip()
         if line:
             last = line[:50]
-        _prog("Installing packages", 50, last, C.BLU)
+        _prog(_tr("inst_pkgs", lang), 50, last, C.BLU)
     proc.wait()
     if proc.returncode == 0:
         _prog("", 100, "", C.R)
         sys.stdout.write("\n")
-        lines.append((C.GRN, f"✔ {n_pkgs} packages installed"))
+        lines.append((C.GRN, f"✔ {_tr('pkgs_ok', lang).format(n_pkgs)}"))
     else:
         _prog("", 0, "FAILED", C.RED)
         sys.stdout.write("\n")
-        lines.append((C.RED, "✘ pip install failed"))
+        lines.append((C.RED, f"✘ {_tr('pip_fail', lang)}"))
 
 
 def step_models(lines, lang):
@@ -454,7 +513,7 @@ def step_models(lines, lang):
 def step_db(lines, lang):
     db_path = PROJECT_ROOT / ".codebase_indices" / "lancedb_v2"
     if not db_path.exists():
-        lines.append((C.D, "· Not found — will create on first run"))
+        lines.append((C.D, f"· {_tr('db_notfound', lang)}"))
         return
     try:
         import lancedb
@@ -464,9 +523,11 @@ def step_db(lines, lang):
         if tables:
             t = db.open_table(tables[0])
             fields = [f.name for f in t.schema]
-            lines.append((C.GRN, f"✔ {len(tables)} table(s), {len(fields)} fields"))
+            lines.append(
+                (C.GRN, f"✔ {_tr('db_tables', lang).format(len(tables), len(fields))}")
+            )
         else:
-            lines.append((C.D, "· Empty — will populate on indexing"))
+            lines.append((C.D, f"· {_tr('db_empty', lang)}"))
     except Exception as e:
         lines.append((C.YEL, f"⚠ {e}"))
 
@@ -480,7 +541,7 @@ def step_zedcfg(lines, lang):
         languages_config=None,
         install_path=str(ZED_EXT_DIR),
     ):
-        lines.append((C.GRN, f"✔ MCP: {C.D}{cmd}{C.R}"))
+        lines.append((C.GRN, f"✔ {_tr('mcp_cfg', lang)}: {C.D}{cmd}{C.R}"))
     else:
         lines.append((C.RED, "✘ Failed to configure"))
 
@@ -489,7 +550,9 @@ def step_uninst(lines, lang):
     content = _build_uninstall_bat()
     try:
         UNINSTALLER.write_text(content, encoding="utf-8")
-        lines.append((C.GRN, f"✔ {C.D}{UNINSTALLER.name}{C.R}"))
+        lines.append(
+            (C.GRN, f"✔ {_tr('uninst_ok', lang)}: {C.D}{UNINSTALLER.name}{C.R}")
+        )
     except Exception as e:
         lines.append((C.YEL, f"⚠ {e}"))
 
@@ -635,13 +698,13 @@ def main():
         summary.append((C.GRN, f"  {_tr('model_ok', lang)}"))
 
     elapsed = time.time() - start_t
-    summary.insert(1, (C.D, f"  Time: {elapsed:.0f}s"))
+    summary.insert(1, (C.D, f"  {_tr('time', lang)}: {elapsed:.0f}s"))
 
     _box(f"{_tr('done_all', lang)}", summary, C.GRN if not has_err else C.YEL)
 
     # Footer
-    print(f"\n  {C.D}Extension: {ZED_EXT_DIR}{C.R}")
-    print(f"  {C.D}Python:    {PYTHON_EXE}{C.R}")
+    print(f"\n  {C.D}{_tr('ext_dir', lang)}: {ZED_EXT_DIR}{C.R}")
+    print(f"  {C.D}{_tr('python', lang)}:    {PYTHON_EXE}{C.R}")
     print()
 
 
