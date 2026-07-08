@@ -46,7 +46,15 @@ class RemoteEmbedder:
         }
         self.embedding_dim = config.embedding.embedding_dimension
 
-        # ONNX session (ленивая инициализация)
+        # ONNX Server (общий для всех проектов, через HTTP)
+        self.onnx_server_port = int(os.getenv("ONNX_SERVER_PORT", "1235"))
+        self.onnx_server_host = os.getenv("ONNX_SERVER_HOST", "127.0.0.1")
+        self.onnx_server_url = (
+            f"http://{self.onnx_server_host}:{self.onnx_server_port}/v1/embeddings"
+        )
+        self._onnx_server_process: Optional[subprocess.Popen] = None
+
+        # ONNX session (ленивая инициализация, fallback если сервер недоступен)
         self._onnx_session = None
         self._tokenizer = None
         # ONNX idle timeout: выгружать модель через N секунд бездействия
@@ -202,6 +210,45 @@ class RemoteEmbedder:
         except Exception:
             return False
 
+    def _check_onnx_server(self) -> bool:
+        """Проверяет доступность ONNX-сервера."""
+        if self._sync_client is None:
+            self._sync_client = httpx.Client(timeout=2.0)
+        try:
+            r = self._sync_client.get(
+                f"http://{self.onnx_server_host}:{self.onnx_server_port}/health"
+            )
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    def _start_onnx_server_subprocess(self) -> bool:
+        """Запускает ONNX-сервер как отдельный процесс."""
+        try:
+            server_script = Path(__file__).resolve().parent / "onnx_server.py"
+            if not server_script.exists():
+                logger.error(f"ONNX сервер не найден: {server_script}")
+                return False
+
+            self._onnx_server_process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(server_script),
+                    f"--port={self.onnx_server_port}",
+                    f"--host={self.onnx_server_host}",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW
+                if sys.platform == "win32"
+                else 0,
+            )
+            logger.info(f"🚀 ONNX сервер запущен (PID {self._onnx_server_process.pid})")
+            return True
+        except Exception as e:
+            logger.error(f"Не удалось запустить ONNX сервер: {e}")
+            return False
+
     def get_model_info(self) -> dict:
         """Возвращает информацию о текущей модели эмбеддера."""
         return {
@@ -239,6 +286,30 @@ class RemoteEmbedder:
                         "⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA."
                     )
                     return
+
+            # Пробуем ONNX-сервер (общий для всех проектов)
+            if self._check_onnx_server():
+                with self._mode_lock:
+                    self.mode = "onnx_server"
+                    self._preferred_mode = "onnx_server"
+                logger.info("🌐 ONNX-сервер обнаружен. Использую общий сервер.")
+                return
+
+            # Пробуем запустить ONNX-сервер
+            logger.info("🚀 Запускаю ONNX-сервер (общий для всех проектов)...")
+            if self._start_onnx_server_subprocess():
+                # Ждём 3 секунды пока сервер загрузит модель
+                import time as _t
+
+                _t.sleep(3)
+                if self._check_onnx_server():
+                    with self._mode_lock:
+                        self.mode = "onnx_server"
+                        self._preferred_mode = "onnx_server"
+                    logger.info("✅ ONNX-сервер запущен и готов.")
+                    return
+
+            # Если сервер не запустился — падаем на локальный ONNX
             with self._mode_lock:
                 self.mode = "onnx"
                 self._preferred_mode = "lm_studio"
@@ -448,6 +519,25 @@ class RemoteEmbedder:
                     self.mode = "onnx"
                     self._preferred_mode = "lm_studio"
 
+        # Режим 1.5: ONNX-сервер (общий для всех проектов, через HTTP)
+        with self._mode_lock:
+            if self.mode == "onnx_server":
+                try:
+                    payload = {"model": "bge-m3", "input": texts}
+                    with httpx.Client(timeout=self.timeout) as client:
+                        r = client.post(self.onnx_server_url, json=payload)
+                        if r.status_code == 200:
+                            data = r.json().get("data", [])
+                            if data:
+                                data = sorted(data, key=lambda x: x.get("index", 0))
+                                return [item["embedding"] for item in data]
+                except Exception as e:
+                    logger.warning(
+                        f"ONNX-сервер недоступен: {e}. Падаем на локальный ONNX."
+                    )
+                    with self._mode_lock:
+                        self.mode = "onnx"
+
         # Режим 2: Локальный ONNX Runtime (Автономный режим без интернета)
         # Также срабатывает при mode="unknown" (сканер ещё не завершился)
         with self._mode_lock:
@@ -467,7 +557,7 @@ class RemoteEmbedder:
                         texts,
                         padding=True,
                         truncation=True,
-                        max_length=512,
+                        max_length=2048,
                         return_tensors="np",
                     )
                     inputs = {
@@ -503,7 +593,7 @@ class RemoteEmbedder:
                             [text],
                             padding=True,
                             truncation=True,
-                            max_length=512,
+                            max_length=2048,
                             return_tensors="np",
                         )
                         inp = {

@@ -481,7 +481,7 @@ class MultiProviderReranker:
                             [pair],
                             padding=True,
                             truncation=True,
-                            max_length=512,
+                            max_length=2048,
                             return_tensors="np",
                         )
                         out = self._onnx_reranker_session.run(

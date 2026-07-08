@@ -7,7 +7,7 @@
   - База данных SQLite (workspaces, multi_workspace_state)
 
 Usage:
-    from src.core.platform import get_zed_db_path, is_windows
+    # Self-import removed (this file IS platform_utils now)
 
     db_path = get_zed_db_path()
     if db_path.exists():

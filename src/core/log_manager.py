@@ -41,7 +41,7 @@ def get_log_dir(project_path: Path) -> Path:
         log_dir = project_path / ".codebase_indices" / "logs"
     else:
         # Централизованный лог в директории расширения
-        from src.core.platform import get_extension_dir
+        from src.core.platform_utils import get_extension_dir
 
         ext_root = get_extension_dir("mscodebase-intelligence")
         log_dir = ext_root / ".codebase_indices" / "logs"
@@ -155,7 +155,7 @@ def _cleanup_stale_project_logs() -> int:
     """
     deleted = 0
     try:
-        from src.core.platform import get_extension_dir
+        from src.core.platform_utils import get_extension_dir
 
         ext_root = get_extension_dir("mscodebase-intelligence")
         ext_log_dir = ext_root / ".codebase_indices" / "logs"
