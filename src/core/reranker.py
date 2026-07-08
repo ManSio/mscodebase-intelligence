@@ -26,6 +26,7 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -101,6 +102,12 @@ class MultiProviderReranker:
 
         # Кэш HTTP-клиента
         self._client: Optional[httpx.AsyncClient] = None
+
+        # ONNX reranker (fallback when LM Studio unavailable)
+        self._onnx_reranker_session = None
+        self._onnx_reranker_tokenizer = None
+        self._onnx_reranker_available = False
+
         # ─── Fix 1: фоновый перепинг каждые 30с ───
         self._scanner_task: Optional[asyncio.Task] = None
         self._scanner_interval: float = 30.0
@@ -134,11 +141,52 @@ class MultiProviderReranker:
             self.ollama_available = True
 
         if not self.lm_studio_available and not self.ollama_available:
-            logger.info("ℹ️ Реранкер отключён. Запустите модель в LM Studio или Ollama.")
+            logger.info("ℹ️ Провайдеры недоступны, пробую ONNX reranker...")
+            self._init_onnx_reranker()
             return
 
         # Fix 1: фоновый перепинг каждые 30с
         self._scanner_task = asyncio.create_task(self._scanner_loop())
+
+    def _init_onnx_reranker(self):
+        """Инициализация ONNX reranker (cross-encoder bge-reranker-v2-m3)."""
+        try:
+            ext_root = Path(__file__).resolve().parent.parent.parent
+            model_dir = (
+                ext_root / ".codebase_models" / "onnx" / "reranker-bge-reranker-v2-m3"
+            )
+            onnx_path = model_dir / "model.onnx"
+            if not onnx_path.exists():
+                # Try alternative path
+                model_dir = (
+                    ext_root / ".codebase_models" / "onnx" / "rreranker" / "model.onnx"
+                )
+                onnx_path = (
+                    ext_root
+                    / ".codebase_models"
+                    / "onnx"
+                    / "reranker-onnx-community-bge-reranker-v2-m3-onnx"
+                    / "model.onnx"
+                )
+                if not onnx_path.exists():
+                    logger.debug("ONNX reranker model not found")
+                    return
+
+            import onnxruntime as ort
+            from transformers import AutoTokenizer
+
+            self._onnx_reranker_tokenizer = AutoTokenizer.from_pretrained(
+                str(model_dir)
+            )
+            self._onnx_reranker_session = ort.InferenceSession(
+                str(onnx_path), providers=["CPUExecutionProvider"]
+            )
+            self._onnx_reranker_available = True
+            sz = onnx_path.stat().st_size / 1024 / 1024
+            logger.info(f"✅ ONNX reranker loaded: {model_dir.name} ({sz:.0f} MB)")
+        except Exception as e:
+            logger.debug(f"ONNX reranker init failed: {e}")
+            self._onnx_reranker_available = False
 
     async def _scanner_loop(self):
         """Фоновый перепинг провайдеров (подхватывает изменения в LM Studio)."""
@@ -386,8 +434,50 @@ class MultiProviderReranker:
 
         provider = self._select_provider()
         if provider is None:
-            self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
-            return chunks
+            # Try ONNX reranker fallback
+            if self._onnx_reranker_available:
+                import numpy as np
+
+                t1 = _time.perf_counter()
+                try:
+                    scores = []
+                    for idx, chunk in enumerate(chunks):
+                        text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                        pair = f"{query} [SEP] {text}"
+                        encoded = self._onnx_reranker_tokenizer(
+                            [pair],
+                            padding=True,
+                            truncation=True,
+                            max_length=512,
+                            return_tensors="np",
+                        )
+                        out = self._onnx_reranker_session.run(
+                            None,
+                            {
+                                "input_ids": encoded["input_ids"].astype(np.int64),
+                                "attention_mask": encoded["attention_mask"].astype(
+                                    np.int64
+                                ),
+                            },
+                        )
+                        # Cross-encoder output: logits, take first element
+                        score = (
+                            float(out[0][0][0])
+                            if isinstance(out[0], np.ndarray)
+                            else 0.0
+                        )
+                        scores.append({"index": idx, "score": score})
+                    if scores:
+                        chunks = self._apply_scores(chunks, scores, top_n)
+                        self.last_timing["reranker_ms"] = (
+                            _time.perf_counter() - t1
+                        ) * 1000
+                        self.last_timing["model"] = "onnx-reranker"
+                except Exception as e:
+                    logger.debug(f"ONNX reranker inference failed: {e}")
+            else:
+                self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
+                return chunks
 
         sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
 

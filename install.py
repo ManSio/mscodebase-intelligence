@@ -523,7 +523,7 @@ def step_models(lines, lang):
         f"  {C.CYN}2.{C.R} Balanced(bge-base-en-v1.5,  768dim, ~150 MB,  high quality) [default]"
     )
     print(
-        f"  {C.CYN}3.{C.R} Full    (bge-m3,           1024dim, ~1.3 GB,  best quality)"
+        f"  {C.CYN}3.{C.R} Full    (bge-m3,           1024dim, ~570 MB,  best quality)"
     )
     choice = input(f"  {C.B}Select [1-3]{C.R}: ").strip()
     size_map = {"1": "light", "2": "balanced", "3": "full"}
@@ -537,6 +537,8 @@ def step_models(lines, lang):
         capture_output=True,
         timeout=60,
     )
+
+    # Download embedding model
     proc = subprocess.run(
         [
             sys.executable,
@@ -556,15 +558,42 @@ def step_models(lines, lang):
     dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
 
     if proc.returncode == 0 and src.exists():
-        # Copy to extension directory (MCP server runs from there)
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
             shutil.rmtree(str(dst), ignore_errors=True)
         shutil.copytree(str(src), str(dst))
         sz_mb = (dst / "model.onnx").stat().st_size / 1024 / 1024
         lines.append((C.GRN, f"✔ {model_name} ready: {dim}dim, {sz_mb:.0f} MB"))
+
+    # Also download reranker model (cross-encoder, for reranking)
+    rerank_name = "BAAI/bge-reranker-v2-m3"
+    lines.append((C.D, f"  Downloading {rerank_name} (cross-encoder, ~570 MB)..."))
+    proc2 = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "download_model.py"),
+            "--model",
+            rerank_name,
+            "--type",
+            "reranker",
+            "--auto-clean",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    slug2 = "reranker-" + rerank_name.split("/")[-1].lower()
+    src2 = PROJECT_ROOT / ".codebase_models" / "onnx" / slug2
+    dst2 = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug2
+    if proc2.returncode == 0 and src2.exists():
+        dst2.parent.mkdir(parents=True, exist_ok=True)
+        if dst2.exists():
+            shutil.rmtree(str(dst2), ignore_errors=True)
+        shutil.copytree(str(src2), str(dst2))
+        sz2 = (dst2 / "model.onnx").stat().st_size / 1024 / 1024
+        lines.append((C.GRN, f"✔ {rerank_name}: {sz2:.0f} MB"))
     else:
-        lines.append((C.RED, f"✘ Download failed"))
+        lines.append((C.YEL, f"⚠ Reranker download skipped (not critical)"))
 
 
 def step_db(lines, lang):
