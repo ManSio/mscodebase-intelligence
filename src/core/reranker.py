@@ -202,8 +202,17 @@ class MultiProviderReranker:
             self._onnx_reranker_tokenizer = AutoTokenizer.from_pretrained(
                 str(model_dir)
             )
+
+            # Оптимизации памяти и потоков
+            opts = ort.SessionOptions()
+            opts.enable_cpu_mem_arena = False
+            opts.intra_op_num_threads = 2
+            opts.inter_op_num_threads = 1
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+
             self._onnx_reranker_session = ort.InferenceSession(
-                str(onnx_path), providers=["CPUExecutionProvider"]
+                str(onnx_path), sess_options=opts, providers=["CPUExecutionProvider"]
             )
             self._onnx_reranker_available = True
             sz = onnx_path.stat().st_size / 1024 / 1024

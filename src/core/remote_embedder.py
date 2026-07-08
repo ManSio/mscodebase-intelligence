@@ -31,38 +31,31 @@ class RemoteEmbedder:
         timeout: Optional[float] = None,
         breaker: Optional[Any] = None,
     ):
-        """Универсальный клиент эмбеддингов с каскадным переключением (LM Studio -> ONNX -> Fallback).
-
-        Автоматически сканирует доступность LM Studio / Ollama в фоновом потоке.
-        Если внешний сервер появился — переключается на него без перезапуска Zed.
-
-        Args:
-            port: Порт LM Studio (по умолчанию из конфигурации)
-            host: Хост LM Studio (по умолчанию из конфигурации)
-            timeout: Таймаут запросов (по умолчанию из конфигурации)
-            breaker: CircuitBreaker для защиты от каскадных сбоев LM Studio
-        """
         config = get_config()
 
-        # Используем конфигурацию по умолчанию, если не передано
         self.host = host or config.embedding.lm_studio_host
         self.port = port or config.embedding.lm_studio_port
         self.timeout = timeout or config.performance.embedding_timeout
         self.lm_studio_url = f"http://{self.host}:{self.port}/v1/embeddings"
         self.model_name = config.embedding.model_name
 
-        # CircuitBreaker для LM Studio (предотвращает каскадные сбои)
         self._breaker = breaker
         self._breaker_fallback = {
             "status": "fallback",
             "message": "LM Studio breaker open",
         }
-        # Размерность эмбеддинга (берётся из модели при инициализации)
         self.embedding_dim = config.embedding.embedding_dimension
 
-        # Переменные для локального ONNX (ленивая инициализация, чтобы не жрать ОЗУ зря)
+        # ONNX session (ленивая инициализация)
         self._onnx_session = None
         self._tokenizer = None
+        # ONNX idle timeout: выгружать модель через N секунд бездействия
+        self._onnx_idle_timeout = 300  # 5 минут
+        self._onnx_last_used = 0.0
+        self._onnx_cleanup_task: Optional[threading.Thread] = None
+        self._onnx_cleanup_stop = threading.Event()
+        # Запускаем фоновый cleanup (проверка каждые 60 сек)
+        self._start_onnx_cleanup()
         self.ext_root = Path(__file__).resolve().parent.parent.parent
         # ONNX model: auto-detect directory from .codebase_models/onnx/
         # First available: bge-m3 (1024), bge-base (768), bge-small (384), etc.
@@ -315,8 +308,9 @@ class RemoteEmbedder:
             self._scanner_thread = None
 
     def _init_onnx(self):
-        """Отложенная сборка тяжелого локального ONNX контекста только при реальной необходимости."""
+        """Отложенная сборка ONNX сессии с оптимизациями памяти."""
         if self._onnx_session is not None:
+            self._onnx_last_used = time.time()
             return
         try:
             import onnxruntime as ort
@@ -336,14 +330,53 @@ class RemoteEmbedder:
             if "DmlExecutionProvider" in ort.get_available_providers():
                 providers.insert(0, "DmlExecutionProvider")
 
+            # Оптимизации памяти и потоков
+            import onnxruntime as _ort
+
+            opts = _ort.SessionOptions()
+            opts.enable_cpu_mem_arena = False  # меньше RAM
+            opts.intra_op_num_threads = 2  # ограничить потоки
+            opts.inter_op_num_threads = 1
+            opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
+
             self._onnx_session = ort.InferenceSession(
                 str(self.local_model_dir / "model.onnx"),
+                sess_options=opts,
                 providers=providers,
             )
+            self._onnx_last_used = time.time()
             logger.info("✅ Локальный ONNX движок успешно запущен и готов к расчетам.")
         except Exception as e:
             logger.error(f"❌ Ошибка сборки локального ONNX-детектора: {e}")
             self.mode = "fallback"
+
+    def _unload_onnx(self):
+        """Выгружает ONNX модель из памяти для экономии RAM."""
+        if self._onnx_session is not None:
+            logger.info("🧹 Выгрузка ONNX модели (idle timeout)")
+            self._onnx_session = None
+            self._tokenizer = None
+            import gc
+
+            gc.collect()
+
+    def _start_onnx_cleanup(self):
+        """Фоновый поток: выгружает ONNX при долгом бездействии."""
+
+        def _cleanup_loop():
+            while not self._onnx_cleanup_stop.wait(60):
+                if self._onnx_session is not None:
+                    idle = time.time() - self._onnx_last_used
+                    if idle > self._onnx_idle_timeout:
+                        self._unload_onnx()
+
+        self._onnx_cleanup_task = threading.Thread(
+            target=_cleanup_loop,
+            name="mscodebase-onnx-cleanup",
+            daemon=True,
+        )
+        self._onnx_cleanup_task.start()
 
     def embed_batch(
         self, texts: List[str], is_query: bool = False
@@ -402,6 +435,8 @@ class RemoteEmbedder:
             if self._onnx_session:
                 try:
                     import numpy as np
+
+                    self._onnx_last_used = time.time()
 
                     encoded = self._tokenizer(
                         texts,
