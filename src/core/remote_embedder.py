@@ -145,6 +145,31 @@ class RemoteEmbedder:
         )
         self._scanner_thread.start()
 
+        # Фоновая предзагрузка ONNX через 15 сек после старта.
+        # К этому моменту MCP сервер уже инициализирован, а модель
+        # будет готова к первому запросу пользователя (без 11 сек задержки).
+        self._preload_thread = threading.Thread(
+            target=self._preload_onnx_delayed,
+            name="mscodebase-onnx-preload",
+            daemon=True,
+        )
+        self._preload_thread.start()
+
+    def _preload_onnx_delayed(self):
+        """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP."""
+        import time as _time
+
+        _time.sleep(15)
+        # Проверяем: если режим уже не ONNX (появился LM Studio) — не загружаем
+        with self._mode_lock:
+            if self.mode != "onnx":
+                logger.debug("Preload пропущен: режим не ONNX")
+                return
+        logger.info("⏳ Фоновая предзагрузка ONNX модели...")
+        self._init_onnx()
+        if self._onnx_session:
+            logger.info("✅ ONNX модель предзагружена и готова к работе")
+
     def _check_lm_studio(self) -> bool:
         """Быстрая проверка доступности порта LM Studio (переиспользует клиент).
 
