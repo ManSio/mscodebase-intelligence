@@ -370,17 +370,56 @@ class RemoteEmbedder:
 
                     outputs = self._onnx_session.run(None, inputs)
                     token_embeddings = outputs[0]
-                    input_mask_expanded = np.expand_dims(
-                        inputs["attention_mask"], -1
-                    ).astype(float)
-                    sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
-                    sum_mask = np.clip(
-                        np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None
+                    if len(token_embeddings) == 1 or token_embeddings.shape[0] == len(
+                        texts
+                    ):
+                        pass  # single or batch works
+                    else:
+                        raise ValueError(
+                            f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}"
+                        )
+                except Exception as batch_err:
+                    # Batch processing may fail for some ONNX exports (MatMul shape mismatch)
+                    # Fallback: embed one by one (slower but reliable)
+                    logger.debug(
+                        f"ONNX batch failed ({batch_err}), falling back to single embeds"
                     )
-                    embeddings = (sum_embeddings / sum_mask).tolist()
+                    embeddings = []
+                    import numpy as np
+
+                    for text in texts:
+                        encoded = self._tokenizer(
+                            [text],
+                            padding=True,
+                            truncation=True,
+                            max_length=512,
+                            return_tensors="np",
+                        )
+                        inp = {
+                            "input_ids": encoded["input_ids"].astype(np.int64),
+                            "attention_mask": encoded["attention_mask"].astype(
+                                np.int64
+                            ),
+                        }
+                        out = self._onnx_session.run(None, inp)
+                        token_emb = out[0]
+                        mask_exp = np.expand_dims(inp["attention_mask"], -1).astype(
+                            float
+                        )
+                        sum_emb = np.sum(token_emb * mask_exp, 1)
+                        sum_mask = np.clip(np.sum(mask_exp, 1), a_min=1e-9, a_max=None)
+                        embeddings.append((sum_emb / sum_mask).tolist()[0])
                     return embeddings
-                except Exception as e:
-                    logger.error(f"Ошибка вычислений внутри ONNX Runtime: {e}")
+
+                input_mask_expanded = np.expand_dims(
+                    inputs["attention_mask"], -1
+                ).astype(float)
+                sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
+                sum_mask = np.clip(
+                    np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None
+                )
+                embeddings = (sum_embeddings / sum_mask).tolist()
+                return embeddings
 
         # Режим 3: Fallback — пробуем переключиться на LM Studio
         if self._check_lm_studio():
