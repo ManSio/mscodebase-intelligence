@@ -494,20 +494,75 @@ def step_pip(lines, lang):
 
 
 def step_models(lines, lang):
-    """Download ONNX models — 438 MB + 636 MB, auto-clean."""
-    # Check if models already exist
-    bge_m3 = PROJECT_ROOT / ".codebase_models" / "onnx" / "bge-m3" / "model.onnx"
-    rerank = PROJECT_ROOT / ".codebase_models" / "onnx" / "bge-reranker" / "model.onnx"
-    if bge_m3.exists() and rerank.exists():
-        lines.append((C.GRN, f"✔ {_tr('model_ok', lang)}"))
-        emb_sz = bge_m3.stat().st_size / 1024 / 1024
-        rer_sz = rerank.stat().st_size / 1024 / 1024
-        lines.append((C.D, f"  Embed: {emb_sz:.0f} MB  Reranker: {rer_sz:.0f} MB"))
-        return
-    if not bge_m3.exists():
-        lines.append((C.YEL, f"⚠ {_tr('dl_emb', lang)}"))
-    if not rerank.exists():
-        lines.append((C.YEL, f"⚠ {_tr('dl_rerank', lang)}"))
+    """Download ONNX models with user choice of size."""
+    emb_types = {
+        "light": ("BAAI/bge-small-en-v1.5", 384, "~50 MB"),
+        "balanced": ("BAAI/bge-base-en-v1.5", 768, "~150 MB"),
+        "full": ("BAAI/bge-m3", 1024, "~1.3 GB"),
+    }
+    # Check what's already downloaded
+    for size, (name, dim, sz) in emb_types.items():
+        slug = name.split("/")[-1].lower()
+        p = PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx"
+        if p.exists():
+            real_sz = p.stat().st_size / 1024 / 1024
+            lines.append(
+                (C.GRN, f"✔ Embedded model: {name} ({dim}dim, {real_sz:.0f} MB)")
+            )
+            return  # already have one
+
+    # No model found — ask user
+    lines.append((C.YEL, f"⚠ No embedding model found. Choose size:"))
+    # Print options inline
+    print(
+        f"  {C.CYN}1.{C.R} Light   (bge-small-en-v1.5,  384dim,  ~50 MB,  good quality)"
+    )
+    print(
+        f"  {C.CYN}2.{C.R} Balanced(bge-base-en-v1.5,  768dim, ~150 MB,  high quality) [default]"
+    )
+    print(
+        f"  {C.CYN}3.{C.R} Full    (bge-m3,           1024dim, ~1.3 GB,  best quality)"
+    )
+    choice = input(f"  {C.B}Select [1-3]{C.R}: ").strip()
+    size_map = {"1": "light", "2": "balanced", "3": "full"}
+    chosen = size_map.get(choice, "balanced")
+    model_name, dim, _ = emb_types[chosen]
+    lines.append((C.D, f"  Downloading {model_name} ({dim}dim)..."))
+
+    # Install deps + download
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "huggingface-hub",
+            "torch",
+            "onnxruntime",
+            "transformers",
+        ],
+        capture_output=True,
+        timeout=120,
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "download_model.py"),
+            "--model",
+            model_name,
+            "--type",
+            "embedding",
+            "--auto-clean",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    slug = model_name.split("/")[-1].lower()
+    p = PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx"
+    if proc.returncode == 0 and p.exists():
+        real_sz = p.stat().st_size / 1024 / 1024
+        lines.append((C.GRN, f"✔ {model_name} ready: {dim}dim, {real_sz:.0f} MB"))
 
 
 def step_db(lines, lang):

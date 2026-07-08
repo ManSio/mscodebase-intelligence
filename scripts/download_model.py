@@ -32,9 +32,62 @@ logger = logging.getLogger("download_model")
 
 
 # ──────────────────────────────────────────────────
-# Персистентный cache_dir (~/.cache/mscodebase/hf_models/)
-# НЕ в проекте, НЕ удаляется между сессиями
+# Реестр поддерживаемых моделей (HF ID → ONNX)
+# Каждая модель: HF name, embedding_dim, тип, примерный вес int8
 # ──────────────────────────────────────────────────
+
+MODEL_REGISTRY = {
+    # Embedding models (AutoModel)
+    "BAAI/bge-m3": {
+        "dim": 1024,
+        "type": "embedding",
+        "size_mb": 1300,
+        "quality": "best",
+    },
+    "BAAI/bge-base-en-v1.5": {
+        "dim": 768,
+        "type": "embedding",
+        "size_mb": 150,
+        "quality": "high",
+    },
+    "BAAI/bge-small-en-v1.5": {
+        "dim": 384,
+        "type": "embedding",
+        "size_mb": 50,
+        "quality": "good",
+    },
+    "intfloat/multilingual-e5-base": {
+        "dim": 768,
+        "type": "embedding",
+        "size_mb": 250,
+        "quality": "high",
+    },
+    "intfloat/multilingual-e5-small": {
+        "dim": 384,
+        "type": "embedding",
+        "size_mb": 100,
+        "quality": "good",
+    },
+    # Reranker models (AutoModelForSequenceClassification)
+    "BAAI/bge-reranker-v2-m3": {
+        "dim": 1024,
+        "type": "reranker",
+        "size_mb": 2200,
+        "quality": "best",
+    },
+    "BAAI/bge-reranker-v2-base": {
+        "dim": 768,
+        "type": "reranker",
+        "size_mb": 500,
+        "quality": "high",
+    },
+    "cross-encoder/ms-marco-MiniLM-L-6-v2": {
+        "dim": 384,
+        "type": "reranker",
+        "size_mb": 100,
+        "quality": "good",
+    },
+}
 
 
 def _get_persistent_cache_dir() -> Path:
@@ -99,7 +152,11 @@ def download_onnx_model(
     )
 
     onnx_dir = output_dir / "onnx"
-    model_subdir = "bge-m3" if model_type == "embedding" else "bge-reranker"
+    # model_subdir из registry: bge-m3, bge-base, bge-small, etc.
+    model_slug = model_name.split("/")[-1].replace(".", "-").lower()
+    model_subdir = model_slug
+    if model_type == "reranker":
+        model_subdir = f"reranker-{model_slug}"
     onnx_path = onnx_dir / model_subdir / "model.onnx"
 
     # ── Шаг 1: Проверяем ONNX (быстрый skip) ──
@@ -266,32 +323,26 @@ def main():
         print("Использование:")
         print("  python download_model.py")
         print("  python download_model.py --model BAAI/bge-m3")
+        print("  python download_model.py --model BAAI/bge-small-en-v1.5 --size light")
         print(
             "  python download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker"
         )
         print("  python download_model.py --force")
         print("  python download_model.py --auto-clean")
         print()
-        print("Типы:")
-        print(
-            "  --type embedding  (по умолчанию) AutoModel → .codebase_models/onnx/bge-m3/"
-        )
-        print(
-            "  --type reranker   AutoModelForSequenceClassification → .codebase_models/onnx/bge-reranker/"
-        )
+        print("Режимы размера (--size):")
+        print("  full     — bge-m3 (1024-dim, 1.3 GB, best quality)")
+        print("  balanced — bge-base-en-v1.5 (768-dim, 150 MB, high quality) [default]")
+        print("  light    — bge-small-en-v1.5 (384-dim, 50 MB, good quality)")
         print()
-        print("Флаги:")
-        print(
-            "  --auto-clean   Удалить ВСЕ временные файлы после экспорта (HF cache, torch, safetensors)"
-        )
-        print()
-        print("Рекомендуемые модели:")
-        print("  BAAI/bge-m3                  — embedding (1024, ~438 MB ONNX)")
-        print("  BAAI/bge-reranker-v2-m3       — reranker (~636 MB ONNX)")
-        print("  intfloat/multilingual-e5-base  — баланс (768, ~350 MB)")
+        print("Доступные модели:")
+        for name, info in sorted(MODEL_REGISTRY.items()):
+            print(
+                f"  {name:45s} {info['dim']:4d}dim  {info['size_mb']:5d}MB  {info['quality']}"
+            )
         return
 
-    model_name = "BAAI/bge-m3"
+    model_name = "BAAI/bge-base-en-v1.5"
     model_type = "embedding"
     force = False
     purge_cache = False
@@ -304,6 +355,14 @@ def main():
             i += 2
         elif args[i] == "--type" and i + 1 < len(args):
             model_type = args[i + 1]
+            i += 2
+        elif args[i] == "--size" and i + 1 < len(args):
+            size_map = {
+                "light": ("BAAI/bge-small-en-v1.5", "embedding"),
+                "balanced": ("BAAI/bge-base-en-v1.5", "embedding"),
+                "full": ("BAAI/bge-m3", "embedding"),
+            }
+            model_name, model_type = size_map.get(args[i + 1], (model_name, model_type))
             i += 2
         elif args[i] == "--force":
             force = True
