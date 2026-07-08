@@ -109,7 +109,10 @@ class RemoteEmbedder:
                         )
                     except:
                         pass
-                    return  # use first valid model
+                    break  # model found, exit inner loop
+            else:
+                continue  # inner loop didn't break → no model in this base
+            break  # model found, exit outer loop
 
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()
@@ -388,7 +391,10 @@ class RemoteEmbedder:
                     self._preferred_mode = "lm_studio"
 
         # Режим 2: Локальный ONNX Runtime (Автономный режим без интернета)
+        # Также срабатывает при mode="unknown" (сканер ещё не завершился)
         with self._mode_lock:
+            if self.mode in ("onnx", "unknown"):
+                self.mode = "onnx"
             current_mode = self.mode
 
         if current_mode == "onnx":
