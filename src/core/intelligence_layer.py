@@ -395,12 +395,34 @@ class ProjectIntelligenceLayer:
                 else "unknown"
             )
 
+            # Реальный опрос провайдеров вместо хардкода
+            _lm_online = False
+            _onnx_loaded = Path(
+                self.project_path
+                / ".codebase_models"
+                / "onnx"
+                / "bge-m3"
+                / "model.onnx"
+            ).exists()
+            try:
+                import socket as _sock
+
+                _s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+                _s.settimeout(0.5)
+                if _s.connect_ex(("127.0.0.1", 1234)) == 0:
+                    _lm_online = True
+                _s.close()
+            except:
+                pass
+
             return {
-                "embedding_provider": "lm_studio",
+                "embedding_provider": "lm_studio" if _lm_online else "onnx",
                 "provider_status": {
-                    "lm_studio_at_1234": "online",
+                    "lm_studio_at_1234": "online" if _lm_online else "offline",
                     "ollama_at_11434": "offline",
-                    "onnx_local_engine": "loaded_and_ready",
+                    "onnx_local_engine": "loaded_and_ready"
+                    if _onnx_loaded
+                    else "not_loaded",
                 },
                 "project_path": active_path,  # INC-6BCB-v3.1: показываем active
                 "project_path_warning": (
