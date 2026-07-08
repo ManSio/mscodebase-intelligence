@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[用户 / AI 代理] --> MCP[MCP 服务器\n43 个工具]
+    User[用户 / AI 代理] --> MCP[MCP 服务器\n50 个工具]
     MCP --> DI[DI 容器\n15 个服务]
     DI --> Search[搜索管道]
     DI --> Index[索引管道]
@@ -204,7 +204,7 @@ erDiagram
 |------|:--------------:|:----------:|:---------:|:------:|
 | **语言** | Python + LanceDB (Rust-core) | Rust | TypeScript | - |
 | **搜索** | BM25 + Dense + RRF + 重排序 | 静态分析 | 知识图谱 | 符号查找 |
-| **工具数** | **43** | 30+ | - | - |
+| **工具数** | **50** | 30+ | - | - |
 | **测试** | **396** | - | - | - |
 | **Windows** | **原生**（UNC, MAX_PATH） | - | - | - |
 | **增量索引** | MD5 + DebounceBatch | - | - | - |
@@ -238,7 +238,7 @@ flowchart LR
 | 指标 | 值 |
 |------|-----|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP 工具** | 43（33 core + 10 intel） |
+| **MCP 工具** | 50（34 low-level + 14 intel） |
 | **DI 中的服务** | 15 |
 | **测试** | 396 |
 | **语言** | 3（EN, RU, ZH） |

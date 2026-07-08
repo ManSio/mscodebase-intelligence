@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n43 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n50 tools]
     MCP --> DI[DI Container\n15 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -189,7 +189,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 43 tools
+    MCP->>MCP: Register 50 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: Total startup: ~2-5s (async embedder init)
@@ -324,7 +324,7 @@ When the higher level becomes available, it switches automatically — no restar
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 43 (33 core + 10 intel) |
+| **MCP tools** | 50 (34 core + 14 intel + 2 diagnostic) |
 | **Services in DI** | 15 |
 | **Tests** | 396 |
 | **Languages** | 3 (EN, RU, ZH) |

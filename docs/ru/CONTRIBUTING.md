@@ -31,7 +31,7 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   └── tools/           # 10 файлов, 43 инструмента (33 class-based + 10 intel)
+│   └── tools/           # 10 файлов, 50 инструментов (34 class-based + 14 intel + 2 system)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 search tools
 │       ├── indexing_tools.py# 3 indexing tools
@@ -155,7 +155,7 @@ pytest tests/ --tb=long -v
 
 ## 5. Добавление новых MCP инструментов
 
-Все 33 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
+Все 34 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
 ### Основные инструменты:
 

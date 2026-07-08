@@ -5,6 +5,17 @@
 
 ---
 
+## [2026-07-09] — Fix: Update tool counts in Russian docs (43→50, 33→34, 10→14 intel)
+
+**Problem:** All 5 Russian documentation files had outdated tool counts
+(43 total, 33 core, 10 intel) after new tools were added.
+
+**Solution:** Updated docs/ru/ARCHITECTURE.md, ARCHITECTURE_DEEP.md,
+CONTRIBUTING.md, FAQ.md, HANDFOFF.md to 50 total, 34 core, 14 intel.
+
+**Tools Used:** edit_file, grep, read_file, intel_log_incident
+**Status:** ✅
+
 ## [2026-07-08 23:00] — Fix: ONNX model paths, shared cache, installer reliability
 
 **Problem:** Models existed at PROJECT_ROOT (543+544 MB) but were NOT copied to

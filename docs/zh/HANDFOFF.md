@@ -16,7 +16,7 @@
 完全在本地运行：LanceDB（向量索引）+ LM Studio（嵌入生成）。
 
 **关键数据：**
-- 43 个 MCP 工具（33 个核心 + 10 个 intel）
+- 50 个 MCP 工具（34 个底层 + 14 个 intel）
 - 10 个工具文件，DI 容器中有 15 个服务
 - 索引：约 1600 个块、约 115 个文件、约 180 个符号
 
@@ -61,7 +61,7 @@ conn.execute("""
 | **延迟解析活动索引器** | 如果 LSP 未及时写入桥接 — 接管第一个活跃工作区 |
 | **两阶段重新索引** | `intel_trigger_reindex` → job_id → `intel_get_job_status`（反垃圾邮件） |
 | **asyncio.Lock 用于文件 IO** | 防止并发写入 JSON 内存文件时的竞态 |
-| **ui_formatter** | 所有 43 个工具的统一 Markdown 风格（无原始 JSON） |
+| **ui_formatter** | 所有 50 个工具的统一 Markdown 风格（无原始 JSON） |
 
 ---
 
@@ -116,10 +116,10 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 
 | 文件 | 功能 |
 |------|-----------|
-| `src/mcp/server.py` | `resolve_project_root()`、所有 43 个工具的注册 |
+| `src/mcp/server.py` | `resolve_project_root()`、所有 50 个工具的注册 |
 | `src/mcp/tools/base.py` | `MCPTool`（基类）、`resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 个服务、`ProjectIndexerRegistry` |
-| `src/core/intelligence_layer.py` | 10 个 intel 工具、`ProjectIntelligenceLayer` |
+| `src/core/intelligence_layer.py` | 14 个 intel 工具、`ProjectIntelligenceLayer` |
 | `src/core/indexer.py` | LanceDB、向量化、索引 |
 | `src/core/searcher.py` | BM25 + Dense + RRF 混合搜索 |
 | `src/utils/ui_formatter.py` | 所有工具的统一 Markdown 格式 |

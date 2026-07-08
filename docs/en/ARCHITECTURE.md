@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (33 class-based + 10 intel = 43 total)](#4-tool-layer)
+4. [Tool Layer (34 class-based + 14 intel + 2 diagnostic = 50 total)](#4-tool-layer)
 5. [Error Handling](#5-error-handling)
 6. [Rate Limiting & Resilience](#6-rate-limiting--resilience)
 7. [Data Flow: Request → Response](#7-data-flow)
@@ -89,14 +89,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 33 tools + 10 intel_* tools
+3. Register 34 tools + 14 intel_* tools
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **10 files, 33 tools.**
+`src/mcp/tools/*.py` — **10 files, 34 tools.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -139,7 +139,7 @@ Key modules:
 | `indexer.py` | LanceDB vector storage | embedder, file_guard, parser |
 | `searcher.py` | Hybrid search (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Call Graph (BFS, PageRank) | parser |
-| `intelligence_layer.py` | 10 intel_* tools | indexer, searcher, symbol_index |
+| `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `remote_embedder.py` | LM Studio / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |

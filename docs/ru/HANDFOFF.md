@@ -16,7 +16,7 @@
 Работает полностью локально: LanceDB (векторный индекс) + LM Studio (эмбеддинги).
 
 **Ключевые числа:**
-- 43 инструмента MCP (33 core + 10 intel)
+- 50 инструментов MCP (34 core + 14 intel)
 - 10 файлов инструментов, 15 сервисов в DI-контейнере
 - Индекс: ~1600 чанков, ~115 файлов, ~180 символов
 
@@ -61,7 +61,7 @@ conn.execute("""
 | **late-resolve active indexer** | Если LSP не успел записать bridge — подхватываем первый живой workspace |
 | **Двухфазный reindex** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (анти-spam) |
 | **asyncio.Lock для File IO** | Защита от race при конкурентных записях в JSON-файлы памяти |
-| **ui_formatter** | Единый Markdown-стиль для всех 43 инструментов (без сырого JSON) |
+| **ui_formatter** | Единый Markdown-стиль для всех 50 инструментов (без сырого JSON) |
 
 ---
 
@@ -117,10 +117,10 @@ JSON-файлы. **Фикс:** `asyncio.Lock` в `IntelligenceStore`.
 
 | Файл | Что делает |
 |------|-----------|
-| `src/mcp/server.py` | `resolve_project_root()`, регистрация всех 43 инструментов |
+| `src/mcp/server.py` | `resolve_project_root()`, регистрация всех 50 инструментов |
 | `src/mcp/tools/base.py` | `MCPTool` (базовый класс), `resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 сервисов, `ProjectIndexerRegistry` |
-| `src/core/intelligence_layer.py` | 10 intel-инструментов, `ProjectIntelligenceLayer` |
+| `src/core/intelligence_layer.py` | 14 intel-инструментов, `ProjectIntelligenceLayer` |
 | `src/core/indexer.py` | LanceDB, векторизация, индексация |
 | `src/core/searcher.py` | BM25 + Dense + RRF гибридный поиск |
 | `src/utils/ui_formatter.py` | Единый Markdown-формат для всех инструментов |

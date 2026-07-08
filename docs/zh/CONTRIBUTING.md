@@ -31,7 +31,7 @@ src/
 ├── lsp_main.py          # LSP 处理器（通过 ServiceCollection 的 DI）
 ├── mcp/
 │   ├── server.py        # 约 220 行 — 仅工具注册
-│   └── tools/           # 10 个文件，43 个工具（33 个基于类 + 10 个 intel）
+│   └── tools/           # 10 个文件，50 个工具（34 个基于类 + 14 个 intel）
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 个搜索工具
 │       ├── indexing_tools.py# 3 个索引工具
@@ -155,7 +155,7 @@ CI 要求：Python 3.10+、`pytest`、`pytest-asyncio`、`pytest-cov`。
 
 ## 5. 添加新的 MCP 工具
 
-所有 33 个 MCP 工具在 `src/mcp/server.py` 的 `create_mcp_server()` 函数中定义。
+所有 34 个底层 MCP 工具在 `src/mcp/server.py` 的 `create_mcp_server()` 函数中定义。
 
 ### 主要工具：
 

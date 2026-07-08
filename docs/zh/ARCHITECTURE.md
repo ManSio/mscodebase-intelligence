@@ -15,7 +15,7 @@
 1. [核心原则](#1-核心原则)
 2. [分层架构](#2-分层架构)
 3. [DI 容器（ServiceCollection）](#3-di-容器)
-4. [工具层（33 个基于类 + 10 个 intel = 共 43 个）](#4-工具层)
+4. [工具层（34 个基于类 + 14 个 intel = 共 50 个）](#4-工具层)
 5. [错误处理](#5-错误处理)
 6. [速率限制与弹性](#6-速率限制与弹性)
 7. [数据流：请求 → 响应](#7-数据流)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  第 1 层：main.py / lsp_main.py  （入口点，最小化）                │
 │  第 2 层：mcp/server.py          （DI 路由，工具注册）              │
-│  第 3 层：mcp/tools/*.py         （33 个基于类的工具）              │
+│  第 3 层：mcp/tools/*.py         （34 个基于类的工具）              │
 │  第 4 层：core/*.py              （纯业务逻辑）                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -89,14 +89,14 @@ MCP 工具 ← Intel 层 ← ProjectContext ← RuntimeCoordinator
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建 DI 容器（`create_service_collection()`）
-3. 注册 33 个工具 + 10 个 intel_* 工具
+3. 注册 34 个底层工具 + 14 个 intel_* 工具
 4. 注册系统提示（mscodebase-rules）
 
 **这里没有业务逻辑。** 每个工具都是从 `mcp/tools/` 导入的。
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **10 个文件，33 个工具。**
+`src/mcp/tools/*.py` — **10 个文件，34 个工具。**
 
 每个工具：
 - 继承自 `MCPTool`（ABC）
@@ -197,7 +197,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 共 33 个
+        # ... 共 34 个
     ]
 
     for tool_cls in tool_classes:
@@ -217,7 +217,7 @@ def _register_all_tools(mcp, services):
 | **图**（4） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
 | **调查**（3） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **生命周期**（3） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **智能**（10） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex |
+| **智能**（14） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
 
 ---
 

@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (33 class-based + 10 intel = 43 всего)](#4-tool-layer)
+4. [Слой инструментов (34 core + 14 intel = 50 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Ограничение скорости и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -89,14 +89,14 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI контейнер (`create_service_collection()`)
-3. Зарегистрировать 33 инструмента + 10 intel_* инструментов
+3. Зарегистрировать 34 core + 14 intel_* инструментов
 4. Зарегистрировать системный промпт (mscodebase-rules)
 
 **Бизнес-логика здесь не живёт.** Каждый инструмент — импорт из `mcp/tools/`.
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **10 файлов, 33 инструмента.**
+`src/mcp/tools/*.py` — **10 файлов, 34 инструмента.**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -139,7 +139,7 @@ class SearchCodeTool(MCPTool):
 | `indexer.py` | LanceDB векторное хранилище | embedder, file_guard, parser |
 | `searcher.py` | Гибридный поиск (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Граф вызовов (BFS, PageRank) | parser |
-| `intelligence_layer.py` | 10 intel_* инструментов | indexer, searcher, symbol_index |
+| `intelligence_layer.py` | 14 intel_* инструментов | indexer, searcher, symbol_index |
 | `remote_embedder.py` | LM Studio / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + фильтр расширений | config |
@@ -197,7 +197,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 33 всего
+        # ... 34 всего
     ]
 
     for tool_cls in tool_classes:
@@ -217,7 +217,7 @@ def _register_all_tools(mcp, services):
 | **Граф** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
 | **Исследование** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Жизненный цикл** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **Интеллект** (10) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex |
+| **Интеллект** (14) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health, intel_execution_timeline |
 
 ---
 

@@ -49,7 +49,7 @@ Details: `investigations/ACTIVE_WORKSPACE_RESOLUTION.md`
 ### Tool returns raw JSON
 
 **If from an older version:** Fixed. After commit `05de324` (2026-07-05)
-all 43 tools output readable Markdown.
+all 50 tools output readable Markdown.
 **Solution:** Run `python install.py` and restart Zed.
 
 ---

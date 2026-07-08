@@ -31,7 +31,7 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   └── tools/           # 10 файлов, 43 инструмента (33 class-based + 10 intel)
+│   └── tools/           # 10 файлов, 50 инструментов (34 class-based + 14 intel)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 search tools
 │       ├── indexing_tools.py# 3 indexing tools
