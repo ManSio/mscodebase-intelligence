@@ -149,28 +149,52 @@ class MultiProviderReranker:
         self._scanner_task = asyncio.create_task(self._scanner_loop())
 
     def _init_onnx_reranker(self):
-        """Инициализация ONNX reranker (cross-encoder bge-reranker-v2-m3)."""
+        """Инициализация ONNX reranker (cross-encoder bge-reranker-v2-m3).
+
+        Searches multiple locations in priority order:
+          1. Runtime root (ZED_EXT_DIR or PROJECT_ROOT)
+          2. Shared cache ~/.cache/mscodebase/models/
+        """
         try:
             ext_root = Path(__file__).resolve().parent.parent.parent
-            model_dir = (
-                ext_root / ".codebase_models" / "onnx" / "reranker-bge-reranker-v2-m3"
-            )
-            onnx_path = model_dir / "model.onnx"
-            if not onnx_path.exists():
-                # Try alternative path
-                model_dir = (
-                    ext_root / ".codebase_models" / "onnx" / "rreranker" / "model.onnx"
+
+            reranker_candidates = [
+                "reranker-bge-reranker-v2-m3",
+                "bge-reranker-v2-m3",
+            ]
+
+            # Build search paths: runtime root first, then shared cache
+            search_roots = [
+                ext_root,
+                Path.home() / ".cache" / "mscodebase" / "models",
+            ]
+
+            onnx_path = None
+            model_dir = None
+
+            for root in search_roots:
+                if not (root / ".codebase_models" / "onnx").exists():
+                    continue
+                for subdir_name in reranker_candidates:
+                    candidate = (
+                        root / ".codebase_models" / "onnx" / subdir_name / "model.onnx"
+                    )
+                    if candidate.exists():
+                        onnx_path = candidate
+                        model_dir = candidate.parent
+                        logger.debug(
+                            f"ONNX reranker found: {candidate} ({candidate.stat().st_size / 1024 / 1024:.0f} MB)"
+                        )
+                        break
+                if onnx_path:
+                    break
+
+            if not onnx_path:
+                logger.debug(
+                    "ONNX reranker model not found in any location. "
+                    "Run install.py or download_model.py."
                 )
-                onnx_path = (
-                    ext_root
-                    / ".codebase_models"
-                    / "onnx"
-                    / "reranker-onnx-community-bge-reranker-v2-m3-onnx"
-                    / "model.onnx"
-                )
-                if not onnx_path.exists():
-                    logger.debug("ONNX reranker model not found")
-                    return
+                return
 
             import onnxruntime as ort
             from transformers import AutoTokenizer

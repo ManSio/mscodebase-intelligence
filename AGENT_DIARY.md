@@ -5,6 +5,61 @@
 
 ---
 
+## [2026-07-08 23:00] — Fix: ONNX model paths, shared cache, installer reliability
+
+**Problem:** Models existed at PROJECT_ROOT (543+544 MB) but were NOT copied to
+ZED_EXT_DIR where MCP server searches for them. Embedder and reranker had no
+fallback paths. Installer step_models didn't handle the copy-from-project case.
+
+**Solution:**
+- Fixed `step_models` in install.py: 3-phase logic (check ZED_EXT_DIR →
+  copy from PROJECT_ROOT/shared → download fresh). Seeds ~/.cache/mscodebase/models/
+- Fixed `remote_embedder._detect_model_dir()`: checks ZED_EXT_DIR → shared cache;
+  skips reranker subdirs to avoid loading wrong model
+- Fixed `reranker._init_onnx_reranker()`: checks ext_root → shared cache;
+  supports both reranker-bge-reranker-v2-m3 and bge-reranker-v2-m3 dir names
+- Fixed installer main loop: results tracking (skip/fail counts), indentation bug
+- Cleaned unused imports
+
+**Files:** `install.py`, `src/core/remote_embedder.py`, `src/core/reranker.py`
+**Tools Used:** edit_file, read_file, terminal, diagnostics
+**Status:** ✅
+
+---
+
+
+**Problem:** ONNX models not installed — `.codebase_models/onnx/` did not exist.
+
+**Solution:**
+- Installed missing dependency `onnxscript` (required by PyTorch 2.11 ONNX exporter with dynamo=True)
+- Downloaded bge-m3 (embedding) and bge-reranker-v2-m3 (reranker) via `download_model.py --auto-clean`
+- Both exported in ONNX external data format (model.onnx + model.onnx.data) at opset 18
+- Cleaned HF hub cache, mscodebase persistent cache, torch compilation cache, pip cache (~3.8GB freed)
+- Verification: `python -c "..."` → `Embedding OK: 1024 dims`
+
+**Files:** `.codebase_models/onnx/bge-m3/model.onnx`, `.codebase_models/onnx/bge-reranker/model.onnx`
+**Tools Used:** terminal, read_file
+**Status:** ✅
+
+**Notes:**
+- Bug in `download_model.py main()`: `download_onnx_model` called twice with identical args (lines 284 and 291). Harmless — second call skips due to ONNX existence check.
+
+---
+
+## [2026-07-08 10:00] — Feature: Add @error_boundary decorators to intel_* methods
+
+**Problem:** All public intel_* methods in ProjectIntelligenceLayer lacked
+error boundary protection (timeout + retries) for production resilience.
+
+**Solution:** Added `error_boundary` import from `src.core.error_handler` and
+decorated all 11 public methods with appropriate timeout_ms and max_retries.
+
+**Files changed:** `src/core/intelligence_layer.py`
+**Tools Used:** edit_file, notify_change, diagnostics, intel_log_incident
+**Status:** ✅
+
+---
+
 ## [2026-07-07 23:45] — Fix: B1/B2/B3 peripheral bugs from forensic log analysis
 
 **Problem:** Анализ 16k строк логов выявил 3 редких бага:

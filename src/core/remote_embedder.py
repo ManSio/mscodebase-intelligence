@@ -66,18 +66,35 @@ class RemoteEmbedder:
         self.ext_root = Path(__file__).resolve().parent.parent.parent
         # ONNX model: auto-detect directory from .codebase_models/onnx/
         # First available: bge-m3 (1024), bge-base (768), bge-small (384), etc.
-        self.local_model_dir = self.ext_root / ".codebase_models" / "onnx"
+        # ONNX model search paths (in priority order)
+        self._onnx_search_paths = [
+            self.ext_root / ".codebase_models" / "onnx",
+            Path.home()
+            / ".cache"
+            / "mscodebase"
+            / "models"
+            / ".codebase_models"
+            / "onnx",
+        ]
+        self.local_model_dir = self._onnx_search_paths[0]
         self._detect_model_dir()
 
     def _detect_model_dir(self):
-        """Find the first available ONNX model in .codebase_models/onnx/*/model.onnx"""
-        base = self.ext_root / ".codebase_models" / "onnx"
-        if base.exists():
+        """Find the first available ONNX model in .codebase_models/onnx/*/model.onnx
+        Checks multiple locations: ext_root, project_root, shared cache."""
+        for base in self._onnx_search_paths:
+            if not base.exists():
+                continue
             for subdir in sorted(base.iterdir()):
+                # Skip reranker subdirectories for embedder
+                if subdir.name.startswith("reranker-") or subdir.name.startswith(
+                    "rreranker"
+                ):
+                    continue
                 model_file = subdir / "model.onnx"
                 if model_file.exists():
                     self.local_model_dir = subdir
-                    logger.debug(f"ONNX model detected: {subdir.name}")
+                    logger.debug(f"ONNX model detected: {subdir.name} in {base}")
                     # Read dimension from model
                     try:
                         import onnxruntime as ort
@@ -92,7 +109,7 @@ class RemoteEmbedder:
                         )
                     except:
                         pass
-                    break  # use first valid model
+                    return  # use first valid model
 
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()

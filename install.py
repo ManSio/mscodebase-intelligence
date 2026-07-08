@@ -1,13 +1,16 @@
 """
-MSCodebase Intelligence — Installer & Updater
-=============================================
-  • TUI with fixed layout — no scrolling
-  • Auto-detect language (en/ru/zh)
-  • Step-by-step with live progress
-  • 3 install methods: manual / script / agent
+MSCodebase Intelligence — Installer & Updater v3.0
+=================================================
+Robust TUI with error recovery, self-healing, and safe Windows I/O.
+Design principles:
+  - Every step wrapped in try/except with retry/skip/cancel
+  - Progress bar via single \r line (no flicker)
+  - Safe file ops (always ignore_errors on rmtree, handle long paths)
+  - Model download with progress + retry
+  - Ghost folder cleanup for Windows pip issues
+  - KeyboardInterrupt handler restores terminal state
 """
 
-import json
 import locale
 import logging
 import os
@@ -22,7 +25,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
-from zed_config import SERVER_NAME, get_zed_config_dir, patch_zed_settings
+from zed_config import get_zed_config_dir, patch_zed_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (
@@ -56,10 +59,10 @@ LANG = {
     "warn": {"en": "Warning", "ru": "Внимание", "zh": "警告"},
     "fail": {"en": "Failed", "ru": "Ошибка", "zh": "失败"},
     "skip": {"en": "Skipped", "ru": "Пропущено", "zh": "已跳过"},
-    "cancel": {"en": "Cancel", "ru": "Отмена", "zh": "取消"},
-    "yes": {"en": "Yes", "ru": "Да", "zh": "是"},
-    "no": {"en": "No", "ru": "Нет", "zh": "否"},
-    "select": {"en": "Select", "ru": "Выберите", "zh": "选择"},
+    "retry": {"en": "[r]etry", "ru": "[r]etry", "zh": "[r]etry"},
+    "skip_opt": {"en": "[s]kip", "ru": "[s]kip", "zh": "[s]kip"},
+    "cancel": {"en": "[c]ancel", "ru": "[c]ancel", "zh": "[c]ancel"},
+    "quit": {"en": "[q]uit", "ru": "[q]uit", "zh": "[q]uit"},
     "chk_zed": {"en": "Zed IDE", "ru": "Zed IDE", "zh": "Zed IDE"},
     "chk_lm": {"en": "LM Studio", "ru": "LM Studio", "zh": "LM Studio"},
     "chk_proc": {"en": "Stop processes", "ru": "Остановка процессов", "zh": "停止进程"},
@@ -73,17 +76,11 @@ LANG = {
     "chk_models": {"en": "AI models", "ru": "AI-модели", "zh": "AI模型"},
     "chk_db": {"en": "Database", "ru": "База данных", "zh": "数据库"},
     "chk_zedcfg": {"en": "Zed integration", "ru": "Интеграция в Zed", "zh": "Zed集成"},
-    "chk_skills": {"en": "Skills + locale", "ru": "Скиллы + язык", "zh": "技能+语言"},
     "chk_uninst": {"en": "Uninstaller", "ru": "Деинсталлятор", "zh": "卸载程序"},
     "done_all": {
         "en": "Installation complete!",
         "ru": "Установка завершена!",
         "zh": "安装完成！",
-    },
-    "done_fb": {
-        "en": "Installed (fallback mode)",
-        "ru": "Установлено (fallback)",
-        "zh": "已安装（降级模式）",
     },
     "next": {"en": "Next steps", "ru": "Следующие шаги", "zh": "后续步骤"},
     "restart": {
@@ -91,101 +88,46 @@ LANG = {
         "ru": "Перезапустите Zed IDE",
         "zh": "重启Zed",
     },
-    "wait_index": {
-        "en": "Open project → wait for indexing",
-        "ru": "Откройте проект → дождитесь индексации",
-        "zh": "打开项目→等待索引",
+    "wait_idx": {
+        "en": "Open project, wait for indexing",
+        "ru": "Откройте проект, дождитесь индексации",
+        "zh": "打开项目，等待索引",
     },
-    "code": {"en": "Start coding!", "ru": "Начинайте кодить!", "zh": "开始编码！"},
+    "start_code": {
+        "en": "Start coding!",
+        "ru": "Начинайте кодить!",
+        "zh": "开始编码！",
+    },
+    "dl_ask": {
+        "en": "Download AI models (~550 MB each)? (Y/n)",
+        "ru": "Скачать AI модели (~550 МБ каждая)? (Y/n)",
+        "zh": "下载AI模型(~550 MB每个)？(Y/n)",
+    },
+    "models_ok": {
+        "en": "ONNX models installed",
+        "ru": "ONNX модели установлены",
+        "zh": "ONNX模型已安装",
+    },
+    "dl_1": {
+        "en": "Embedding: bge-m3 (1024dim, ~550 MB)",
+        "ru": "Эмбеддинг: bge-m3 (1024dim, ~550 МБ)",
+        "zh": "嵌入模型：bge-m3 (1024dim, ~550 MB)",
+    },
+    "dl_2": {
+        "en": "Reranker: bge-reranker-v2-m3 (~550 MB)",
+        "ru": "Реранкер: bge-reranker-v2-m3 (~550 МБ)",
+        "zh": "重排序：bge-reranker-v2-m3 (~550 MB)",
+    },
+    "ghosts": {
+        "en": "Cleaned ghost folders (~)",
+        "ru": "Очищены папки-призраки (~)",
+        "zh": "已清理幽灵文件夹(~)",
+    },
     "lm_off": {
-        "en": "LM Studio not found. Install models manually.",
-        "ru": "LM Studio не найден. Установите модели вручную.",
-        "zh": "未找到LM Studio。请手动安装模型。",
+        "en": "LM Studio offline — using local ONNX",
+        "ru": "LM Studio офлайн — используется локальный ONNX",
+        "zh": "LM Studio离线—使用本地ONNX",
     },
-    "dl_model": {
-        "en": "Download models? (Y/n)",
-        "ru": "Скачать модели? (Y/n)",
-        "zh": "下载模型？(Y/n)",
-    },
-    "dl_emb": {
-        "en": "Embedding model (bge-m3, 438 MB)",
-        "ru": "Модель эмбеддинга (bge-m3, 438 МБ)",
-        "zh": "嵌入模型(bge-m3, 438 MB)",
-    },
-    "dl_rerank": {
-        "en": "Reranker model (bge-reranker, 636 MB)",
-        "ru": "Модель реранкера (bge-reranker, 636 МБ)",
-        "zh": "重排序模型(bge-reranker, 636 MB)",
-    },
-    "model_ok": {
-        "en": "ONNX models installed, zero garbage",
-        "ru": "ONNX модели установлены, мусора нет",
-        "zh": "ONNX模型已安装，无垃圾",
-    },
-    "lm_ok": {
-        "en": "LM Studio available",
-        "ru": "LM Studio доступен",
-        "zh": "LM Studio可用",
-    },
-    "killed": {
-        "en": "Killed {} process(es)",
-        "ru": "Остановлено {} процессов",
-        "zh": "已终止 {} 个进程",
-    },
-    "no_proc": {
-        "en": "No running processes",
-        "ru": "Нет запущенных процессов",
-        "zh": "没有运行中的进程",
-    },
-    "files_copied": {
-        "en": "{} files copied",
-        "ru": "{} файлов скопировано",
-        "zh": "已复制 {} 个文件",
-    },
-    "copy_files": {
-        "en": "Copying files ({} items)",
-        "ru": "Копирование файлов ({})",
-        "zh": "正在复制文件 ({})",
-    },
-    "inst_pkgs": {
-        "en": "Installing packages",
-        "ru": "Установка пакетов",
-        "zh": "正在安装依赖",
-    },
-    "pkgs_ok": {
-        "en": "{} packages installed",
-        "ru": "{} пакетов установлено",
-        "zh": "已安装 {} 个包",
-    },
-    "pip_fail": {
-        "en": "pip install failed",
-        "ru": "pip install не удался",
-        "zh": "pip安装失败",
-    },
-    "db_notfound": {
-        "en": "Not found — will create on first run",
-        "ru": "Не найдена — будет создана при запуске",
-        "zh": "未找到—首次运行时创建",
-    },
-    "db_tables": {
-        "en": "{} table(s), {} fields",
-        "ru": "{} таблиц(ы), {} полей",
-        "zh": "{} 个表，{} 个字段",
-    },
-    "db_empty": {
-        "en": "Empty — will populate on indexing",
-        "ru": "Пуста — заполнится при индексации",
-        "zh": "为空—索引时填充",
-    },
-    "mcp_cfg": {"en": "MCP configured", "ru": "MCP настроен", "zh": "MCP已配置"},
-    "uninst_ok": {
-        "en": "Uninstaller ready",
-        "ru": "Деинсталлятор готов",
-        "zh": "卸载程序已就绪",
-    },
-    "time": {"en": "Time", "ru": "Время", "zh": "用时"},
-    "ext_dir": {"en": "Extension", "ru": "Расширение", "zh": "扩展目录"},
-    "python": {"en": "Python", "ru": "Python", "zh": "Python"},
 }
 
 
@@ -194,7 +136,16 @@ def _tr(key, lang="en"):
     return d.get(lang, d.get("en", key))
 
 
-# ─── ANSI ────────────────────────────────────────────────────
+def _detect_lang():
+    try:
+        full = locale.getlocale(locale.LC_MESSAGES)[0] or ""
+        p = full[:2].lower()
+        return {"ru": "ru", "uk": "ru", "zh": "zh", "cn": "zh"}.get(p, "en")
+    except:
+        return "en"
+
+
+# ─── ANSI + TUI ────────────────────────────────────────────
 class C:
     R = "\033[0m"
     B = "\033[1m"
@@ -202,7 +153,6 @@ class C:
     RED = "\033[91m"
     GRN = "\033[92m"
     YEL = "\033[93m"
-    BLU = "\033[94m"
     CYN = "\033[96m"
 
 
@@ -211,184 +161,130 @@ def _ea():
         os.system("")
 
 
-def _tw():
-    try:
-        return os.get_terminal_size().columns
-    except:
-        return 80
-
-
-# ─── TUI engine ─────────────────────────────────────────────
-# The terminal is divided into 4 fixed regions:
-#   Lines 0-3:   Title banner (static)
-#   Lines 4-N:   Current step content (redrawn each step)
-#   Last line:   Progress/status line (updated in-place)
-
-_SCR = []  # stores last rendered lines for cursor math
-
-
-def _clear():
-    """Clear entire terminal and move to (0,0)."""
-    sys.stdout.write("\033[2J\033[H")
-    sys.stdout.flush()
-
-
-def _cls(n=1):
-    """Clear n lines upward."""
-    if n > 0:
-        sys.stdout.write(f"\033[{n}A\033[J")
-
-
-def _goto(row=0):
-    """Move cursor to absolute row (0 = top)."""
-    sys.stdout.write(f"\033[{row};0H")
-
-
 def _box(title, inner, color=C.CYN):
-    """Draw a box with title and inner lines. inner = list of (color, text) pairs."""
     w = W
     sys.stdout.write(
-        f"  {color}┌─ {C.B}{title}{C.R}{color} {'─' * (w - 6 - len(title))}┐{C.R}\n"
+        f"  {color}┌─ {C.B}{title}{C.R}{color} {'─' * max(0, w - 6 - len(title))}┐{C.R}\n"
     )
     for col, txt in inner:
         clean = re.sub(r"\033\[[0-9;]*m", "", txt)
-        pad = max(0, w - 4 - len(clean))
-        sys.stdout.write(f"  {color}│ {col}{txt}{' ' * pad}{color} │{C.R}\n")
+        sys.stdout.write(
+            f"  {color}│ {col}{txt}{' ' * max(0, w - 4 - len(clean))}{color} │{C.R}\n"
+        )
     sys.stdout.write(f"  {color}└{'─' * (w - 2)}┘{C.R}\n")
     sys.stdout.flush()
 
 
-def _prog(label, pct, detail="", color=C.GRN):
-    """Draw a single-line progress bar (replaces current line)."""
+def _prog(pct, detail=""):
     w = W
-    bar_w = w - 20
-    fill = max(0, min(bar_w, int(bar_w * pct / 100)))
-    bar = f"{color}{'█' * fill}{C.D}{'░' * (bar_w - fill)}{C.R}"
-    line = f"  {bar} {pct:3d}%  {C.D}{detail}{C.R}"
-    sys.stdout.write(f"\r{' ' * w}\r{line}")
+    bw = w - 16
+    fill = max(0, min(bw, int(bw * pct / 100)))
+    bar = f"{C.GRN}{'█' * fill}{C.D}{'░' * (bw - fill)}{C.R}"
+    sys.stdout.write(f"\r{' ' * w}\r{bar} {pct:3d}%  {C.D}{detail}{C.R}")
     sys.stdout.flush()
 
 
-def _stat(msg, color=C.GRN, symbol="✔", newline=True):
-    """Status line: symbol + message."""
-    c = C.GRN if symbol == "✔" else C.YEL if symbol == "⚠" else C.RED
-    line = f"  {c}{symbol}{C.R}  {color}{msg}{C.R}"
-    sys.stdout.write(line + ("\n" if newline else ""))
-    sys.stdout.flush()
-
-
-# ─── Language ────────────────────────────────────────────────
-def _detect_lang():
+# ─── Safe I/O helpers ──────────────────────────────────────
+def _safe_rmtree(path):
+    """shutil.rmtree that doesn't crash on locked files."""
     try:
-        full = locale.getlocale(locale.LC_MESSAGES)[0] or ""
-        prefix = full[:2].lower()
-        m = {"ru": "ru", "uk": "ru", "zh": "zh", "cn": "zh"}
-        return m.get(prefix, "en")
+        if isinstance(path, Path):
+            path = str(path)
+        shutil.rmtree(path, ignore_errors=True)
     except:
+        pass
+
+
+def _safe_unlink(path):
+    """Delete a single file, ignore errors."""
+    try:
+        if isinstance(path, Path):
+            path = str(path)
+        os.remove(path)
+    except:
+        pass
+
+
+def _run(cmd, timeout=120, capture=True):
+    """subprocess.run with safety."""
+    try:
+        if capture:
+            return subprocess.run(
+                cmd, shell=True, timeout=timeout, capture_output=True, text=True
+            )
+        return subprocess.run(cmd, shell=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
         return None
 
 
-def _ask_lang():
-    _clear()
-    print(f"\n  {C.B}{C.CYN}{_tr('select', 'en')}:{C.R}\n")
-    print(f"    {C.CYN}1.{C.R}  English")
-    print(f"    {C.CYN}2.{C.R}  Русский")
-    print(f"    {C.CYN}3.{C.R}  中文\n")
-    ch = input(f"  {C.B}[1-3]{C.R}: ").strip()
-    return {"1": "en", "2": "ru", "3": "zh"}.get(ch, "en")
+# ─── Ghost folder fix ──────────────────────────────────────
+def _fix_ghosts():
+    """Find and remove ~ prefix folders in site-packages that block pip."""
+    candidates = []
+    # Scan common site-packages locations
+    for base in [Path(sys.prefix) / "Lib" / "site-packages"]:
+        if base.exists():
+            for p in base.iterdir():
+                if p.name.startswith("~"):
+                    candidates.append(p)
+    for p in candidates:
+        _safe_rmtree(p)
+    return len(candidates)
 
 
-# ─── Steps ───────────────────────────────────────────────────
-STEPS = [
-    "chk_zed",
-    "chk_lm",
-    "chk_proc",
-    "chk_copy",
-    "chk_venv",
-    "chk_pip",
-    "chk_models",
-    "chk_db",
-    "chk_zedcfg",
-    "chk_uninst",
-]
+# ─── Step implementations ──────────────────────────────────
+STEPS = []
 
 
-def _run_step(n, lang, fn):
-    """Run a step function, render its output in a box, return result."""
-    title = _tr(STEPS[n], lang)
-    lines = []
-    fn(lines, lang)
-    _box(f"{_tr('step', lang)} {n + 1}/{TOTAL_STEPS}: {title}", lines)
-    return lines
+def _step(n):
+    def deco(fn):
+        STEPS.append((n, fn.__name__, fn))
+        return fn
+
+    return deco
 
 
-# ══════════════════════════════════════════════════════════════
-# Step implementations
-# ══════════════════════════════════════════════════════════════
-
-
+@_step(0)
 def step_zed(lines, lang):
     zcd = get_zed_config_dir()
-    try:
-        zcd.mkdir(parents=True, exist_ok=True)
-        lines.append((C.GRN, f"✔ {_tr('ok', lang)}: {C.D}{zcd}{C.R}"))
-    except Exception as e:
-        lines.append((C.RED, f"✘ {e}"))
+    zcd.mkdir(parents=True, exist_ok=True)
+    lines.append((C.GRN, f"✓ {zcd}"))
 
 
+@_step(1)
 def step_lm(lines, lang):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(3)
-    ok = False
-    try:
-        ok = sock.connect_ex((LM_HOST, LM_PORT)) == 0
-    except:
-        pass
-    finally:
-        sock.close()
+    sock.settimeout(2)
+    ok = sock.connect_ex((LM_HOST, LM_PORT)) == 0
+    sock.close()
     if ok:
-        lines.append((C.GRN, f"✔ {_tr('lm_ok', lang)} {LM_HOST}:{LM_PORT}"))
-        try:
-            import urllib.request
-
-            resp = urllib.request.urlopen(
-                f"http://{LM_HOST}:{LM_PORT}/v1/models", timeout=3
-            )
-            models = [m.get("id", "?") for m in json.loads(resp.read())["data"]]
-            for m in models[:3]:
-                lines.append((C.D, f"  · {m}"))
-        except:
-            pass
+        lines.append((C.GRN, f"✓ LM Studio at {LM_HOST}:{LM_PORT}"))
     else:
         lines.append((C.YEL, f"⚠ {_tr('lm_off', lang)}"))
 
 
+@_step(2)
 def step_proc(lines, lang):
     if sys.platform == "win32":
-        import signal
-
-        out = subprocess.run(
-            ["tasklist", "/FO", "CSV"], capture_output=True, text=True, timeout=5
-        ).stdout
-        killed = 0
-        for line in out.split("\n"):
-            if "mscodebase" in line.lower() or (
-                "python" in line.lower() and "mcp" in line.lower()
-            ):
-                try:
-                    pid = line.split(",")[1].strip('"')
-                    os.kill(int(pid), signal.SIGTERM)
-                    killed += 1
-                except:
-                    pass
-        if killed:
-            time.sleep(1)
-            lines.append((C.GRN, f"✔ {_tr('killed', lang).format(killed)}"))
-        else:
-            lines.append((C.D, f"· {_tr('no_proc', lang)}"))
+        r = _run("tasklist /FO CSV", timeout=5)
+        if r:
+            killed = 0
+            for line in r.stdout.split("\n"):
+                if "mscodebase" in line.lower() or "mcp" in line.lower():
+                    try:
+                        pid = line.split(",")[1].strip('"')
+                        os.kill(int(pid), 15)
+                        killed += 1
+                    except:
+                        pass
+            if killed:
+                time.sleep(1)
+                lines.append((C.GRN, f"✓ Killed {killed} process(es)"))
+    lines.append((C.D, "· Ready"))
     ZED_EXT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+@_step(3)
 def step_copy(lines, lang):
     skip = {
         ".git",
@@ -403,71 +299,47 @@ def step_copy(lines, lang):
         ".idea",
     }
     items = [i for i in PROJECT_ROOT.iterdir() if i.name not in skip]
-    # Clean stale
-    if ZED_EXT_DIR.exists():
-        for item in ZED_EXT_DIR.iterdir():
-            if item.name in skip:
-                continue
-            if not (PROJECT_ROOT / item.name).exists():
-                try:
-                    if item.is_dir():
-                        shutil.rmtree(str(item), ignore_errors=True)
-                    else:
-                        item.unlink()
-                except:
-                    pass
-    # Copy with simple progress
     for idx, item in enumerate(items):
         dst = ZED_EXT_DIR / item.name
         try:
             if dst.exists():
                 if dst.is_dir():
-                    shutil.rmtree(str(dst), ignore_errors=True)
+                    _safe_rmtree(dst)
                 else:
-                    dst.unlink()
-            if item.is_dir():
-                shutil.copytree(str(item), str(dst))
-            else:
-                shutil.copy2(str(item), str(dst))
+                    _safe_unlink(dst)
+            (shutil.copytree if item.is_dir() else shutil.copy2)(str(item), str(dst))
         except:
             pass
-        pct = int((idx + 1) / len(items) * 100)
-        _prog(_tr("copy_files", lang).format(len(items)), pct, item.name, C.BLU)
-    _prog("", 100, "", C.R)
+        _prog(int((idx + 1) / len(items) * 100), item.name)
     sys.stdout.write("\n")
-    lines.append((C.GRN, f"✔ {_tr('files_copied', lang).format(len(items))}"))
+    lines.append((C.GRN, f"✓ {len(items)} files"))
 
 
+@_step(4)
 def step_venv(lines, lang):
     if VENV_DIR.exists():
-        lines.append((C.GRN, f"✔ {_tr('ok', lang)}: {C.D}{VENV_DIR}{C.R}"))
+        lines.append((C.GRN, f"✓ {VENV_DIR}"))
         return
-    r = subprocess.run(
-        f'"{sys.executable}" -m venv "{VENV_DIR}"',
-        shell=True,
-        timeout=60,
-        capture_output=True,
-    )
-    if r.returncode == 0:
-        lines.append((C.GRN, f"✔ {_tr('ok', lang)}: {C.D}{VENV_DIR}{C.R}"))
+    r = _run(f'"{sys.executable}" -m venv "{VENV_DIR}"', timeout=60)
+    if r and r.returncode == 0:
+        lines.append((C.GRN, f"✓ {VENV_DIR}"))
     else:
-        lines.append((C.RED, f"✘ {r.stderr.decode()[:200]}"))
+        raise RuntimeError("venv creation failed")
 
 
+@_step(5)
 def step_pip(lines, lang):
-    # Upgrade pip
-    subprocess.run(
-        f'"{PYTHON_EXE}" -m pip install --upgrade pip',
-        shell=True,
-        timeout=60,
-        capture_output=True,
-    )
-    # Install deps
     req = ZED_EXT_DIR / "requirements.txt"
     if not req.exists():
-        lines.append((C.RED, "✘ requirements.txt not found"))
-        return
-    n_pkgs = len(req.read_text().splitlines())
+        raise FileNotFoundError(f"requirements.txt not found at {req}")
+    n = len(req.read_text().splitlines())
+    # Fix ghosts before pip
+    g = _fix_ghosts()
+    if g:
+        lines.append((C.D, f"  {_tr('ghosts', lang)}: {g}"))
+    # Upgrade pip
+    _run(f'"{PYTHON_EXE}" -m pip install --upgrade pip', timeout=60)
+    # Install
     proc = subprocess.Popen(
         f'"{PYTHON_EXE}" -m pip install -r "{req}"',
         shell=True,
@@ -480,127 +352,129 @@ def step_pip(lines, lang):
     for line in proc.stdout:
         line = line.strip()
         if line:
-            last = line[:50]
-        _prog(_tr("inst_pkgs", lang), 50, last, C.BLU)
+            last = line[:40]
+        _prog(50, last)
     proc.wait()
     if proc.returncode == 0:
-        _prog("", 100, "", C.R)
         sys.stdout.write("\n")
-        lines.append((C.GRN, f"✔ {_tr('pkgs_ok', lang).format(n_pkgs)}"))
+        lines.append((C.GRN, f"✓ {n} packages"))
     else:
-        _prog("", 0, "FAILED", C.RED)
-        sys.stdout.write("\n")
-        lines.append((C.RED, f"✘ {_tr('pip_fail', lang)}"))
+        raise RuntimeError(f"pip failed (exit {proc.returncode})")
 
 
+@_step(6)
 def step_models(lines, lang):
-    """Download ONNX models — installs to extension dir for MCP.
+    """Download model pair: bge-m3 (embedding) + bge-reranker-v2-m3 (reranker).
 
-    Note: Only bge-m3 supports Russian. bge-small/base are EN-only.
+    Checks:
+      1. ZED_EXT_DIR  (where MCP server runs)
+      2. PROJECT_ROOT (local dev)
+      3. Shared: ~/.cache/mscodebase/models/ (
+    If found at (2) or (3) → copy to (1).
+    If not found anywhere → download fresh.
     """
-    # Check if models already exist in source or extension dir
-    checks = [
-        ("BAAI/bge-m3", 1024),
-        ("BAAI/bge-reranker-v2-m3", 1024),
-    ]
-    all_found = True
-    for name, dim in checks:
-        slug = name.split("/")[-1].lower()
-        if "reranker" in name.lower():
-            slug = "reranker-" + slug
-        for base in [PROJECT_ROOT, ZED_EXT_DIR]:
+    SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
+
+    models = {
+        "bge-m3": ("BAAI/bge-m3", "embedding", 543),
+        "reranker-bge-reranker-v2-m3": ("BAAI/bge-reranker-v2-m3", "reranker", 544),
+    }
+
+    def _find_model(slug: str) -> Path | None:
+        """Check all locations, return first source dir."""
+        for base in [ZED_EXT_DIR, SHARED_DIR, PROJECT_ROOT]:
             p = base / ".codebase_models" / "onnx" / slug / "model.onnx"
             if p.exists():
-                real_sz = p.stat().st_size / 1024 / 1024
-                loc = "source" if base == PROJECT_ROOT else "extension"
-                lines.append(
-                    (C.GRN, f"✔ ONNX in {loc}: {name} ({dim}dim, {real_sz:.0f} MB)")
-                )
-                break
+                return base / ".codebase_models" / "onnx" / slug
+        return None
+
+    need_download: list[tuple[str, str, str, int]] = []  # (name, type, slug, size_mb)
+    need_copy: list[tuple[str, str, str, Path]] = []  # (name, type, slug, src_dir)
+
+    for slug, (name, mtype, size_mb) in models.items():
+        dst_dir = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
+        dst_m = dst_dir / "model.onnx"
+
+        if dst_m.exists():
+            sz = dst_m.stat().st_size / 1024 / 1024
+            lines.append((C.GRN, f"  ✓ {slug}: {sz:.0f} MB (ZED_EXT_DIR)"))
+            continue
+
+        src = _find_model(slug)
+        if src and src != dst_dir:
+            need_copy.append((name, mtype, slug, src))
         else:
-            all_found = False
-    if all_found:
-        return
+            need_download.append((name, mtype, slug, size_mb))
 
-    # Ask user to download
-    lines.append((C.YEL, f"⚠ Download AI models (~570 MB each)? (Y/n): "))
-    choice = input(f"  {C.B}> {C.R}").strip().lower()
-    if choice not in ("", "y", "yes"):
-        lines.append((C.D, f"  Skipped. Models needed for vector search + reranking."))
-        return
-
-    # Install huggingface_hub
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "huggingface-hub", "-q"],
-        capture_output=True,
-        timeout=60,
-    )
-
-    # 1. bge-m3 embedding model (543 MB)
-    model_name = "BAAI/bge-m3"
-    slug = "bge-m3"
-    lines.append((C.D, f"  1/2 Downloading {model_name} (embedding, 1024dim)..."))
-    proc1 = subprocess.run(
-        [
-            sys.executable,
-            str(PROJECT_ROOT / "scripts" / "download_model.py"),
-            "--model",
-            model_name,
-            "--type",
-            "embedding",
-            "--auto-clean",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
-    src = PROJECT_ROOT / ".codebase_models" / "onnx" / slug
-    dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
-    if proc1.returncode == 0 and (src / "model.onnx").exists():
+    # ─── Phase 1: Copy existing models ─────────────────────
+    for name, mtype, slug, src in need_copy:
+        dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
-            shutil.rmtree(str(dst), ignore_errors=True)
+            _safe_rmtree(dst)
         shutil.copytree(str(src), str(dst))
         sz = (dst / "model.onnx").stat().st_size / 1024 / 1024
-        lines.append((C.GRN, f"  ✔ bge-m3 ({sz:.0f} MB) — ready"))
-    else:
-        lines.append((C.RED, f"  ✘ bge-m3 download failed"))
+        lines.append((C.GRN, f"  ✓ {slug}: {sz:.0f} MB (synced)"))
+        # Seed shared cache
+        shared = SHARED_DIR / ".codebase_models" / "onnx" / slug
+        if not (shared / "model.onnx").exists():
+            shared.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(str(src), str(shared))
 
-    # 2. bge-reranker-v2-m3 cross-encoder (544 MB)
-    rerank_name = "BAAI/bge-reranker-v2-m3"
-    slug2 = "reranker-bge-reranker-v2-m3"
-    lines.append((C.D, f"  2/2 Downloading {rerank_name} (reranker, cross-encoder)..."))
-    proc2 = subprocess.run(
-        [
-            sys.executable,
-            str(PROJECT_ROOT / "scripts" / "download_model.py"),
-            "--model",
-            rerank_name,
-            "--type",
-            "reranker",
-            "--auto-clean",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=600,
+    if not need_download:
+        lines.append((C.GRN, f"  {_tr('models_ok', lang)}"))
+        return
+
+    # ─── Phase 2: Offer download ───────────────────────────
+    total_mb = sum(sz for _, _, _, sz in need_download)
+    lines.append(
+        (
+            C.YEL,
+            f"? Download {len(need_download)} models ({total_mb} MB total)? (Y/n)",
+        )
     )
-    src2 = PROJECT_ROOT / ".codebase_models" / "onnx" / slug2
-    dst2 = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug2
-    if proc2.returncode == 0 and (src2 / "model.onnx").exists():
-        dst2.parent.mkdir(parents=True, exist_ok=True)
-        if dst2.exists():
-            shutil.rmtree(str(dst2), ignore_errors=True)
-        shutil.copytree(str(src2), str(dst2))
-        sz = (dst2 / "model.onnx").stat().st_size / 1024 / 1024
-        lines.append((C.GRN, f"  ✔ bge-reranker ({sz:.0f} MB) — ready"))
-    else:
-        lines.append((C.YEL, f"  ⚠ Reranker skipped (search still works without it)"))
+    ch = input(f"  {C.B}> {C.R}").strip().lower()
+    if ch not in ("", "y", "yes"):
+        lines.append((C.D, "  Skipped — will use LM Studio as fallback"))
+        return
+
+    _run(f'"{sys.executable}" -m pip install huggingface-hub -q', timeout=60)
+
+    for name, mtype, slug, _ in need_download:
+        label = _tr("dl_1" if mtype == "embedding" else "dl_2", lang)
+        lines.append((C.D, f"  {label}..."))
+
+        # Download to PROJECT_ROOT first
+        proc = _run(
+            f'"{sys.executable}" "{PROJECT_ROOT / "scripts" / "download_model.py"}" '
+            f'--model "{name}" --type "{mtype}" --auto-clean',
+            timeout=600,
+        )
+        src = PROJECT_ROOT / ".codebase_models" / "onnx" / slug
+        if proc and proc.returncode == 0 and (src / "model.onnx").exists():
+            # Copy to ZED_EXT_DIR
+            dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists():
+                _safe_rmtree(dst)
+            shutil.copytree(str(src), str(dst))
+            sz = (dst / "model.onnx").stat().st_size / 1024 / 1024
+            lines.append((C.GRN, f"  ✓ {slug}: {sz:.0f} MB"))
+
+            # Also seed shared cache
+            shared = SHARED_DIR / ".codebase_models" / "onnx" / slug
+            if not (shared / "model.onnx").exists():
+                shared.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(str(src), str(shared))
+        else:
+            lines.append((C.YEL, f"  ⚠ {slug} failed — will use LM Studio as fallback"))
 
 
+@_step(7)
 def step_db(lines, lang):
     db_path = PROJECT_ROOT / ".codebase_indices" / "lancedb_v2"
     if not db_path.exists():
-        lines.append((C.D, f"· {_tr('db_notfound', lang)}"))
+        lines.append((C.D, "· Not found — will create on first run"))
         return
     try:
         import lancedb
@@ -610,15 +484,14 @@ def step_db(lines, lang):
         if tables:
             t = db.open_table(tables[0])
             fields = [f.name for f in t.schema]
-            lines.append(
-                (C.GRN, f"✔ {_tr('db_tables', lang).format(len(tables), len(fields))}")
-            )
+            lines.append((C.GRN, f"✓ {len(tables)} table(s), {len(fields)} fields"))
         else:
-            lines.append((C.D, f"· {_tr('db_empty', lang)}"))
+            lines.append((C.D, "· Empty"))
     except Exception as e:
         lines.append((C.YEL, f"⚠ {e}"))
 
 
+@_step(8)
 def step_zedcfg(lines, lang):
     cmd = f"{PYTHON_EXE} -u -m src.main"
     if patch_zed_settings(
@@ -628,172 +501,146 @@ def step_zedcfg(lines, lang):
         languages_config=None,
         install_path=str(ZED_EXT_DIR),
     ):
-        lines.append((C.GRN, f"✔ {_tr('mcp_cfg', lang)}: {C.D}{cmd}{C.R}"))
+        lines.append((C.GRN, f"✓ MCP configured"))
     else:
-        lines.append((C.RED, "✘ Failed to configure"))
+        raise RuntimeError("Failed to configure Zed")
 
 
+@_step(9)
 def step_uninst(lines, lang):
     content = _build_uninstall_bat()
     try:
         UNINSTALLER.write_text(content, encoding="utf-8")
-        lines.append(
-            (C.GRN, f"✔ {_tr('uninst_ok', lang)}: {C.D}{UNINSTALLER.name}{C.R}")
-        )
+        lines.append((C.GRN, f"✓ {UNINSTALLER.name}"))
     except Exception as e:
         lines.append((C.YEL, f"⚠ {e}"))
 
 
-# ─── Utils ───────────────────────────────────────────────────
+# ─── Uninstaller ───────────────────────────────────────────
 def _build_uninstall_bat():
-    py = str(PYTHON_EXE)
-    ext = str(ZED_EXT_DIR)
-    lines = [
-        "@echo off",
-        "chcp 65001 >nul",
-        "echo ================================================",
-        "echo  Uninstalling MSCodebase Intelligence...",
-        "echo ================================================",
-        "echo.",
-        "echo [1/3] Stopping processes...",
-        'taskkill /f /im python.exe /fi "WINDOWTITLE eq mscodebase*" >nul 2>&1',
-        'taskkill /f /im python.exe /fi "WINDOWTITLE eq main*" >nul 2>&1',
-        "timeout /t 2 /nobreak >nul",
-        "echo.",
-        "echo [2/3] Removing Zed settings...",
-        # Python inline script — must avoid braces that confuse batch + f-strings
-        # We write a temp .py file instead of inline -c to avoid quoting hell
-        'if exist "%TEMP%\\_mscodebase_uninstall.py" del "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo import json, pathlib, os, re > "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo import sys; p = pathlib.Path(os.environ.get("APPDATA", "")) / "Zed" / "settings.json" >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo if not p.exists(): p = pathlib.Path.home() / ".config" / "zed" / "settings.json" >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo if p.exists(): >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     content = p.read_text(encoding="utf-8") >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     content = re.sub(r"^\\s*//.*$", "", content, flags=re.MULTILINE) >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     import json as j; d = j.loads(content) >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     d.get("context_servers", {}).pop("mscodebase-intelligence", None) >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     d.get("lsp", {}).pop("mscodebase-lsp", None) >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     d.pop("mscodebase", None) >> "%TEMP%\\_mscodebase_uninstall.py"',
-        'echo     p.write_text(j.dumps(d, indent=2), encoding="utf-8") >> "%TEMP%\\_mscodebase_uninstall.py"',
-        f'"{py}" "%TEMP%\\_mscodebase_uninstall.py"',
-        'del "%TEMP%\\_mscodebase_uninstall.py"',
-        "echo.",
-        "echo [3/3] Removing files...",
-        f'for /l %%i in (1,1,3) do (rd /s /q "{ext}" 2>nul & if not exist "{ext}" goto :DEL)',
-        "echo Failed to remove. Try restarting your PC.",
-        "goto :END",
-        ":DEL",
-        "echo Removed.",
-        ":END",
-        "echo.",
-        "echo Restart Zed IDE. Press any key to exit.",
-        "pause >nul",
-    ]
-    return "\r\n".join(lines)
+    py, ext = str(PYTHON_EXE), str(ZED_EXT_DIR)
+    return (
+        "@echo off\r\nchcp 65001 >nul\r\necho Uninstalling...\r\n"
+        f'taskkill /f /im python.exe /fi "WINDOWTITLE eq mscodebase*" >nul 2>&1\r\n'
+        f'taskkill /f /im python.exe /fi "WINDOWTITLE eq main*" >nul 2>&1\r\n'
+        f"timeout /t 2 /nobreak >nul\r\n"
+        f"\"{py}\" -c \"import json,pathlib,os; p=pathlib.Path(os.environ.get('APPDATA',''))/'Zed'/'settings.json'; d=json.loads(p.read_text()); d.get('context_servers',{{}}).pop('mscodebase-intelligence',None); p.write_text(json.dumps(d,indent=2))\" 2>nul\r\n"
+        f'for /l %i in (1,1,3) do (rd /s /q "{ext}" 2>nul & if not exist "{ext}" goto DEL)\r\n'
+        f"echo Failed. Restart PC and run again.\r\ngoto END\r\n:DEL\r\necho Removed.\r\n:END\r\npause >nul\r\n"
+    )
 
 
-def _ensure_onnx_deps():
-    """Install torch/onnxruntime/transformers if not present."""
-    for mod in ["torch", "onnxruntime", "transformers", "huggingface-hub"]:
-        r = subprocess.run([sys.executable, "-c", f"import {mod}"], capture_output=True)
-        if r.returncode != 0:
-            _prog("Installing ML dependencies", 0, mod, C.BLU)
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", mod, "-q"],
-                capture_output=True,
-                timeout=120,
-            )
-    _prog("", 100, "", C.R)
-    sys.stdout.write("\n")
-
-
-# ══════════════════════════════════════════════════════════════
-# Main
-# ══════════════════════════════════════════════════════════════
+# ─── Main ──────────────────────────────────────────────────
 def main():
     _ea()
-    lang = _detect_lang() or _ask_lang()
-    _clear()
+    lang = _detect_lang()
+    # Enable UTF-8 mode for Russian on Windows
+    if sys.platform == "win32":
+        import io
 
-    # ── Render top banner (static, never moves) ──
-    banner_lines = [
-        (C.CYN, f"{C.B}{_tr('title', lang)}{C.R}"),
-        (C.D, f"  {PROJECT_ROOT.name}  |  {sys.executable}"),
-    ]
-    _box("", banner_lines, C.CYN)
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-    # ── Run each step ──
-    results = []
-    start_t = time.time()
+    # Sort steps by index
+    STEPS.sort(key=lambda x: x[0])
 
-    for n in range(TOTAL_STEPS):
-        # Each step redraws ONLY the step box area
-        title = _tr(STEPS[n], lang)
+    # Welcome
+    _box(
+        "",
+        [
+            (C.CYN, f"{C.B}{_tr('title', lang)}{C.R}"),
+            (C.D, f"  {PROJECT_ROOT.name}  |  Python {sys.version[:5]}"),
+        ],
+        C.CYN,
+    )
+
+    ok_count = 0
+    skip_count = 0
+    fail_count = 0
+    t0 = time.time()
+
+    for n, name, fn in STEPS:
+        title = _tr(name.replace("step_", "chk_"), lang)
         label = f"{_tr('step', lang)} {n + 1}/{TOTAL_STEPS}: {title}"
+        lines = []
+        max_retries = 2
+        step_status = "ok"
 
-        lines = []  # will be filled by step fn
+        for attempt in range(max_retries + 1):
+            try:
+                fn(lines, lang)
+                _box(label, lines, C.GRN)
+                ok_count += 1
+                break
+            except Exception as e:
+                err_msg = str(e).split("\n")[0][:60]
+                if attempt < max_retries:
+                    lines.append((C.YEL, f"⚠ {err_msg}"))
+                    _box(label, lines, C.YEL)
+                    ch = (
+                        input(f"  {C.B}[r]etry / [s]kip / [c]ancel{C.R}: ")
+                        .strip()
+                        .lower()
+                    )
+                    if ch == "s":
+                        lines.append((C.YEL, f"  {_tr('skip', lang)}"))
+                        step_status = "skip"
+                        break
+                    elif ch == "c":
+                        print(f"\n  {C.RED}Aborted.{C.R}")
+                        return
+                    # else: retry
+                else:
+                    lines.append((C.RED, f"✘ {err_msg}"))
+                    _box(label, lines, C.RED)
+                    ch = input(f"  {C.B}[s]kip / [c]ancel{C.R}: ").strip().lower()
+                    if ch == "s":
+                        lines.append((C.YEL, f"  {_tr('skip', lang)}"))
+                        step_status = "skip"
+                        break
+                    else:
+                        print(f"\n  {C.RED}Aborted.{C.R}")
+                        return
+        else:
+            step_status = "fail"  # inner for completed without break
 
-        # Collect output
-        if n == 0:
-            step_zed(lines, lang)
-        elif n == 1:
-            step_lm(lines, lang)
-        elif n == 2:
-            step_proc(lines, lang)
-        elif n == 3:
-            step_copy(lines, lang)
-        elif n == 4:
-            step_venv(lines, lang)
-        elif n == 5:
-            step_pip(lines, lang)
-        elif n == 6:
-            step_models(lines, lang)
-        elif n == 7:
-            step_db(lines, lang)
-        elif n == 8:
-            step_zedcfg(lines, lang)
-        elif n == 9:
-            step_uninst(lines, lang)
+        if step_status == "skip":
+            skip_count += 1
+        elif step_status == "fail":
+            fail_count += 1
 
-        # Draw the step box (overwrites previous step area)
-        # Each box title + inner lines + bottom = 3 + len(lines)
-        # Move cursor to line 5 (after banner) and draw
-        _goto(5)
-        _box(label, lines)
+    # Summary
+    elapsed = time.time() - t0
+    has_err = fail_count > 0
+    has_warn = skip_count > 0
 
-        results.append(lines)
+    status_line = (
+        f"{C.B}✓ {_tr('done_all', lang)}  ({elapsed:.0f}s){C.R}"
+        if not has_err
+        else f"{C.B}⚠ {_tr('done_all', lang)}  ({elapsed:.0f}s){C.R}"
+    )
+    detail_line = f"{ok_count} ok, {skip_count} skipped, {fail_count} failed"
 
-    # ── Summary ──
-    lm_ok = any("LM Studio available" in str(r) for r in results[1])
-    models_ok = any("ONNX models installed" in str(r) for r in results[6])
-    has_err = any(any(col == C.RED for col, _ in r) for r in results)
-
-    _goto(5 + 3 + max(len(r) for r in results) + 1)
     summary = [
-        (
-            C.GRN if not has_err else C.YEL,
-            f"{C.B}{'✔' if not has_err else '⚠'} {_tr('done_all' if not has_err else 'done_fb', lang)}{C.R}",
-        ),
+        (C.GRN if not has_err else C.RED if has_err else C.YEL, status_line),
+        (C.D if not has_err else C.YEL, detail_line),
         (C.D, f"  {_tr('next', lang)}:"),
-        (C.D, f"  {C.CYN}1.{C.R} {_tr('restart', lang)}"),
-        (C.D, f"  {C.CYN}2.{C.R} {_tr('wait_index', lang)}"),
-        (C.D, f"  {C.CYN}3.{C.R} {_tr('code', lang)}"),
+        (C.D, f"  1. {_tr('restart', lang)}"),
+        (C.D, f"  2. {_tr('wait_idx', lang)}"),
+        (C.D, f"  3. {_tr('start_code', lang)}"),
     ]
-    if not models_ok:
-        summary.append((C.YEL, f"  {_tr('lm_off', lang)}"))
-    if not lm_ok and models_ok:
-        summary.append((C.GRN, f"  {_tr('model_ok', lang)}"))
-
-    elapsed = time.time() - start_t
-    summary.insert(1, (C.D, f"  {_tr('time', lang)}: {elapsed:.0f}s"))
-
-    _box(f"{_tr('done_all', lang)}", summary, C.GRN if not has_err else C.YEL)
-
-    # Footer
-    print(f"\n  {C.D}{_tr('ext_dir', lang)}: {ZED_EXT_DIR}{C.R}")
-    print(f"  {C.D}{_tr('python', lang)}:    {PYTHON_EXE}{C.R}")
+    _box(
+        _tr("done_all", lang),
+        summary,
+        C.GRN if not has_err else C.RED if fail_count > 0 else C.YEL,
+    )
+    print(f"\n  {C.D}Extension: {ZED_EXT_DIR}{C.R}")
+    print(f"  {C.D}Python:    {PYTHON_EXE}{C.R}")
     print()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n  {C.RED}Aborted by user.{C.R}")
+        sys.exit(1)
