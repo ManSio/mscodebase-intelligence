@@ -200,7 +200,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         "   {ll} LM Studio (127.0.0.1:1234)\n"
         "   {oa} Ollama (127.0.0.1:11434)\n"
         "📦 **Index**\n"
-        "   {il} {chunks} chunks | {files} files\n"
+        "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
         "⚙️ **System**\n"
         "   PID: {pid}\n",
         hl=health_led,
@@ -211,6 +211,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         il=idx_led,
         chunks=chunks,
         files=files,
+        symbols=symbols,
         pid=pid,
     )
 
