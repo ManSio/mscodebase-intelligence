@@ -362,7 +362,6 @@ class ProjectIntelligenceLayer:
     # БЛОК 2. Runtime Intelligence (Мониторинг системы)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_get_runtime_status", timeout_ms=3000, max_retries=1)
     async def intel_get_runtime_status(self) -> Dict[str, Any]:
         """Агрегированный статус здоровья рантайма, провайдеров и индексов.
 
