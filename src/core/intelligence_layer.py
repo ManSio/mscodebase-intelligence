@@ -275,7 +275,6 @@ class ProjectIntelligenceLayer:
     # БЛОК 1. Code Intelligence (Быстрый локальный анализ, < 2 сек)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_code_topology", timeout_ms=5000, max_retries=1)
     async def intel_code_topology(self, symbol_name: str) -> Dict[str, Any]:
         """Агрегированный инструмент: отдает полную картину связей символа.
 
@@ -457,7 +456,6 @@ class ProjectIntelligenceLayer:
     # БЛОК Reindex (Фоновая переиндексация)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_trigger_reindex", timeout_ms=3000, max_retries=1)
     async def trigger_async_reindex(self) -> str:
         """Двухфазная операция: запускает асинхронную переиндексацию.
 
@@ -562,7 +560,6 @@ class ProjectIntelligenceLayer:
     # БЛОК 3. Incident Intelligence (Локальная база сбоев)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_log_incident", timeout_ms=3000, max_retries=1)
     async def intel_log_incident(
         self,
         component: str,
@@ -590,7 +587,6 @@ class ProjectIntelligenceLayer:
         logger.info(f"Инцидент {incident_id} записан: {component} — {symptom[:50]}...")
         return _("Incident {incident_id} stored.", incident_id=incident_id)
 
-    @error_boundary("intel_analyze_incident", timeout_ms=10000, max_retries=2)
     async def intel_analyze_incident(self, error_message: str) -> Dict[str, Any]:
         """Находит аналогичные инциденты по тексту ошибки."""
         incidents = self.store.load_incidents()
@@ -624,12 +620,10 @@ class ProjectIntelligenceLayer:
     # БЛОК 4. Project Memory (Архитектурная память)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_get_project_memory", timeout_ms=3000, max_retries=1)
     async def intel_get_project_memory(self) -> Dict[str, List[Dict]]:
         """Получить полную карту памяти проекта."""
         return self.store.load_memory()
 
-    @error_boundary("intel_add_memory_node", timeout_ms=3000, max_retries=1)
     async def intel_add_memory_node(self, section: str, data_json: str) -> str:
         """Добавить запись в проектную память.
 
@@ -682,7 +676,6 @@ class ProjectIntelligenceLayer:
     # БЛОК 5. Hotspot Engine (Зоны высокого риска)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_get_hotspots", timeout_ms=5000, max_retries=1)
     async def intel_get_code_hotspots(self) -> List[Dict[str, Any]]:
         """Возвращает Топ-5 файлов с наивысшей плотностью рисков и баг-нагрузки."""
         try:
@@ -720,7 +713,6 @@ class ProjectIntelligenceLayer:
     # БЛОК 6. Root Cause Engine (Предсказание причин сбоев)
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_predict_root_cause", timeout_ms=10000, max_retries=2)
     async def intel_predict_root_cause(
         self, error_message: str, component_context: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -811,7 +803,6 @@ class ProjectIntelligenceLayer:
     # Telemetry — сбор и отображение метрик
     # -----------------------------------------------------------------
 
-    @error_boundary("intel_get_telemetry", timeout_ms=3000, max_retries=1)
     async def intel_get_telemetry(self, days: int = 7) -> dict:
         """Возвращает телеметрию: runtime счётчики + per-tool метрики + ресурсы + LLM ping."""
         from src.core.error_handler import get_tool_metrics_summary as _get_tools
