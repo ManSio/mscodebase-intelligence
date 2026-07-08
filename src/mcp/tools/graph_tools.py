@@ -24,9 +24,7 @@ class CrossRepoSearchTool(MCPTool):
         self.multi_searcher = services.resolve(MultiProjectSearcher)
 
     @error_boundary("cross_repo_search", timeout_ms=15000)
-    async def execute(
-        self, query: str, kwargs: Optional[Dict[str, Any]] = None
-    ) -> str:
+    async def execute(self, query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
         return self.multi_searcher.search(query, limit=8)
 
 
@@ -90,7 +88,10 @@ class CrossProjectDepsTool(MCPTool):
 
         elif action == "impact":
             if not project_name:
-                return {"status": "error", "message": "project_name required for impact"}
+                return {
+                    "status": "error",
+                    "message": "project_name required for impact",
+                }
             impact = deps_graph.analyze_impact(project_name)
             return {
                 "status": "ok",
@@ -157,12 +158,22 @@ class GraphQueryTool(MCPTool):
 
         elif query_type == "feature":
             result = engine.query_feature(target)
+            # SymbolRef → dict для JSON-сериализации
+            symbols_raw = result.get("symbols", [])
+            symbols_dicts = []
+            for s in symbols_raw:
+                if hasattr(s, "to_dict"):
+                    symbols_dicts.append(s.to_dict())
+                elif isinstance(s, dict):
+                    symbols_dicts.append(s)
+                else:
+                    symbols_dicts.append(str(s))
             return {
                 "status": "ok",
                 "query_type": "feature",
                 "target": target,
                 "files": result.get("files", []),
-                "symbols": result.get("symbols", []),
+                "symbols": symbols_dicts,
             }
 
         elif query_type == "deps":
@@ -206,7 +217,10 @@ class GetRelatedFilesTool(MCPTool):
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
-            return {"status": "error", "message": f"Path does not exist: {project_root}"}
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
 
         memory = CommitMemory(target_path)
         extractor = RelationExtractor(memory)
@@ -225,12 +239,14 @@ class GetRelatedFilesTool(MCPTool):
 
         items = []
         for rel in related[:15]:
-            items.append({
-                "file": rel["file"],
-                "depth": rel["depth"],
-                "weight": round(rel.get("total_weight", 0), 2),
-                "path": " → ".join(rel.get("path", [])),
-            })
+            items.append(
+                {
+                    "file": rel["file"],
+                    "depth": rel["depth"],
+                    "weight": round(rel.get("total_weight", 0), 2),
+                    "path": " → ".join(rel.get("path", [])),
+                }
+            )
 
         return {
             "status": "ok",
