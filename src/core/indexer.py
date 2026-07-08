@@ -1035,6 +1035,18 @@ class Indexer:
             deleted_files = files_in_db - active_files_on_disk
 
             if deleted_files:
+                # Safety ratio: не удалять >50% индекса за раз — это значит
+                # что active_files_on_disk неполный (прерванная индексация).
+                total_files_in_db = len(files_in_db)
+                delete_ratio = len(deleted_files) / max(total_files_in_db, 1)
+                if delete_ratio > 0.5:
+                    logger.warning(
+                        f"⚠️ Safety guard: prune_deleted_files хочет удалить "
+                        f"{len(deleted_files)}/{total_files_in_db} файлов "
+                        f"({delete_ratio:.0%}). Пропуск — active_files_on_disk неполный."
+                    )
+                    return 0
+
                 logger.info(
                     "🧹 Обнаружены удаленные файлы. Начинается чистка базы от мёртвого груза..."
                 )
