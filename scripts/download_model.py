@@ -187,6 +187,39 @@ def download_onnx_model(
         f"   ✅ ONNX float32: {onnx_path}  ({onnx_path.stat().st_size / 1024 / 1024:.1f} MB)"
     )
 
+    # ── Шаг 5b: Динамическая квантизация в int8 (для embedding моделей) ──
+    # Уменьшает размер в ~1.7x. Для reranker моделей может не сработать
+    # (shape inference error) — в этом случае остаётся float32.
+    if model_type == "embedding":
+        try:
+            import os as _os
+
+            from onnxruntime.quantization import QuantType, quantize_dynamic
+
+            # quantize_dynamic работает напрямую с external data (model.onnx + .data)
+            q_path = str(onnx_path).replace(".onnx", "_int8.onnx")
+            logger.info(f"🔄 Квантизация в int8...")
+            quantize_dynamic(
+                str(onnx_path),
+                q_path,
+                weight_type=QuantType.QUInt8,
+                op_types_to_quantize=["MatMul", "Add", "Gemm"],
+                per_channel=True,
+            )
+            q_mb = _os.path.getsize(q_path) / 1024 / 1024
+
+            # Удаляем float32 + external data
+            if onnx_path.with_suffix(".onnx.data").exists():
+                _os.remove(str(onnx_path.with_suffix(".onnx.data")))
+            _os.remove(str(onnx_path))
+            _os.rename(q_path, str(onnx_path))
+
+            logger.info(f"   ✅ ONNX int8: {onnx_path}  ({q_mb:.0f} MB)")
+        except Exception as qe:
+            logger.warning(
+                f"   ⚠️ Квантизация не удалась: {qe}. Модель остаётся float32."
+            )
+
     # ── Шаг 6: Чистка ──
     _cleanup_source_weights(model_dir)
     if purge_cache or "--auto-clean" in sys.argv:
