@@ -148,30 +148,71 @@ def format_repo_rank(items: List[Dict], exec_ms: int, _raw: Any = None) -> str:
 
 
 def format_runtime_status(data: Dict[str, Any]) -> str:
-    proj = data.get("project_path", "?")
-    chunks = data.get("index_telemetry", {}).get("total_chunks", 0)
-    files = data.get("index_telemetry", {}).get("unique_files", 0)
-    pid = data.get("resource_usage", {}).get("process_pid", "?")
-    embedder = data.get("embedding_provider", "?")
-    lm = data.get("provider_status", {}).get("lm_studio_at_1234", "offline")
-    lm_icon = "🟢" if lm == "online" else ("🟡" if lm == "offline" else "🔴")
-    status = data.get("index_telemetry", {}).get("status", "?")
-    status_icon = "🟢" if status == "active" else "🟡"
+    """Форматирует статус рантайма в виде дашборда со светофорами.
 
-    result = _(
-        "{status_icon} **MSCodeBase** — {proj}\n", status_icon=status_icon, proj=proj
+    🟢 = работает / активно
+    🟡 = ожидание / не в приоритете
+    ⚪ = отключено / недоступно
+    """
+    proj = data.get("project_path", "?")
+    pid = data.get("resource_usage", {}).get("process_pid", "?")
+
+    # ─── Провайдеры ──────────────────────────────────
+    provider = data.get("embedding_provider", "unknown")
+    ps = data.get("provider_status", {})
+    lm_status = ps.get("lm_studio_at_1234", "offline")
+    ollama_status = ps.get("ollama_at_11434", "offline")
+    onnx_status = ps.get("onnx_local_engine", "not_found")
+
+    # Светофор: активный = 🟢, доступный но не активный = 🟡, офлайн = ⚪
+    lm_led = (
+        "🟢"
+        if lm_status == "online" and provider == "lm_studio"
+        else ("🟡" if lm_status == "online" else "⚪")
     )
-    result += _(
-        "📦 **Chunks:** {chunks} | **Files:** {files}\n", chunks=chunks, files=files
+    ollama_led = (
+        "🟢"
+        if ollama_status == "online" and provider == "ollama"
+        else ("🟡" if ollama_status == "online" else "⚪")
     )
-    result += _(
-        "🧠 **Embedder:** {embedder} | {lm_icon} LM Studio: {lm}\n",
-        embedder=embedder,
-        lm_icon=lm_icon,
-        lm=lm,
+    onnx_led = (
+        "🟢"
+        if provider == "onnx" and onnx_status == "loaded_and_ready"
+        else ("🟡" if onnx_status == "loaded_and_ready" else "⚪")
     )
-    result += _("⚙️ **PID:** {pid}\n", pid=pid)
-    return result
+
+    # ─── Индекс ──────────────────────────────────────
+    tel = data.get("index_telemetry", {})
+    chunks = tel.get("total_chunks", 0)
+    files = tel.get("unique_files", 0)
+    symbols = tel.get("total_files", 0)
+    idx_led = "🟢" if chunks > 1000 else ("🟡" if chunks > 0 else "⚪")
+
+    # ─── Общий статус ─────────────────────────────────
+    all_green = provider != "unknown" and chunks > 0
+    health_led = "🟢" if all_green else ("🟡" if chunks > 0 else "⚪")
+
+    return _(
+        "{hl} **MSCodeBase** — {proj}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🧠 **Embedder**\n"
+        "   {ol} ONNX (bge-m3, 1024dim)\n"
+        "   {ll} LM Studio (127.0.0.1:1234)\n"
+        "   {oa} Ollama (127.0.0.1:11434)\n"
+        "📦 **Index**\n"
+        "   {il} {chunks} chunks | {files} files\n"
+        "⚙️ **System**\n"
+        "   PID: {pid}\n",
+        hl=health_led,
+        proj=proj,
+        ol=onnx_led,
+        ll=lm_led,
+        oa=ollama_led,
+        il=idx_led,
+        chunks=chunks,
+        files=files,
+        pid=pid,
+    )
 
 
 # ══════════════════════════════════════════════════════════
