@@ -1,6 +1,6 @@
 <img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-# Contributing — MSCodeBase Intelligence
+# Вклад в проект — MSCodeBase Intelligence
 
 [🇬🇧 English](../en/CONTRIBUTING.md) • [🇷🇺 Русский](CONTRIBUTING.md) • [🇨🇳 中文](../zh/CONTRIBUTING.md)
 

@@ -1,5 +1,7 @@
 # MSCodeBase Intelligence — Deep Architecture Guide
 
+[🇬🇧 English](ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
+
 > **Version:** v2.7.0+ | **Last updated:** 2026-07-07
 
 ```mermaid

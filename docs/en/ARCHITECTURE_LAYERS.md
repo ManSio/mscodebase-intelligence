@@ -2,7 +2,7 @@
 
 [🇬🇧 English](ARCHITECTURE_LAYERS.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_LAYERS.md) • [🇨🇳 中文](../zh/ARCHITECTURE_LAYERS.md)
 
-Каждый слой отвечает ровно на один вопрос.
+Each layer answers exactly one question.
 
 ```
  Layer 0: Filesystem        — какие файлы есть на диске?

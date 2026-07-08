@@ -1,5 +1,7 @@
 # MSCodeBase Intelligence — Глубокое Руководство по Архитектуре
 
+[🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
+
 > **Версия:** v2.7.0+ | **Последнее обновление:** 2026-07-07
 
 ```mermaid

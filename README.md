@@ -24,52 +24,52 @@
 
 ## 🎯 Positioning
 
-**MSCodeBase Intelligence** — это MCP-сервер для **Zed IDE**, который даёт AI-ассистентам **глубокое понимание всей кодовой базы**: семантический поиск, граф вызовов, проектная память, диагностика.
+**MSCodeBase Intelligence** is an MCP server for **Zed IDE** that gives AI assistants **deep understanding of the entire codebase**: semantic search, call graph, project memory, diagnostics.
 
-Это **не** LSP-сервер и **не** замена встроенного автокомплита редактора. Это слой «интеллекта о коде» поверх редактора:
+This is **not** an LSP server or a replacement for the editor's built-in autocomplete. It's a "code intelligence" layer on top of the editor:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                      Zed IDE                         │
 │  ┌───────────────────────────────────────────────┐  │
-│  │        LSP (штатный автокомплит,            │  │
-│  │        инлайн-подсказки, диагностика)       │  │
+│  │        LSP (built-in autocomplete,           │  │
+│  │        inline hints, diagnostics)            │  │
 │  └───────────────────────────────────────────────┘  │
 │                        │                              │
 │                        ▼                              │
 │  ┌───────────────────────────────────────────────┐  │
-│  │  MSCodeBase (MCP-сервер)                     │  │
-│  │  · Семантический поиск по всей кодовой базе   │  │
-│  │  · Граф вызовов и impact-анализ              │  │
-│  │  · Проектная память (ADR, tech debt)          │  │
-│  │  · Диагностика и self-healing                │  │
-│  │  · 43 инструмента для AI-ассистента           │  │
+│  │  MSCodeBase (MCP server)                     │  │
+│  │  · Semantic search across the codebase       │  │
+│  │  · Call graph & impact analysis              │  │
+│  │  · Project memory (ADR, tech debt)           │  │
+│  │  · Self-diagnostics and self-healing         │  │
+│  │  · 43 tools for AI assistant                 │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Что вы получаете
+### What you get
 
-| Возможность | MSCodeBase | Обычный LSP (pyright/pylsp) |
-|-------------|:----------:|:---------------------------:|
-| 🔍 **Семантический поиск** (BM25 + Vector + Reranker) | ✅ | ❌ |
-| 🧠 **Граф вызовов + impact analysis** | ✅ | ❌ |
-| 🗃️ **Проектная память** (ADR, known issues) | ✅ | ❌ |
+| Feature | MSCodeBase | Standard LSP (pyright/pylsp) |
+|---------|:----------:|:---------------------------:|
+| 🔍 **Semantic search** (BM25 + Vector + Reranker) | ✅ | ❌ |
+| 🧠 **Call graph + impact analysis** | ✅ | ❌ |
+| 🗃️ **Project memory** (ADR, known issues) | ✅ | ❌ |
 | 🏥 **Self-diagnosis + self-healing** | ✅ | ❌ |
 | 🔎 **Cross-repo search** | ✅ | ❌ |
-| 🤖 **RAG-генерация ответов** (mode=ask) | ✅ | ❌ |
-| ✏️ **Инлайн-автокомплит** | ❌ | ✅ |
+| 🤖 **RAG answer generation** (mode=ask) | ✅ | ❌ |
+| ✏️ **Inline autocomplete** | ❌ | ✅ |
 | 🏷️ **Inlay hints** | ❌ | ✅ |
 
-### Почему не LSP
+### Why not LSP
 
-MSCodeBase **не использует LSP** для своей работы. LSP-сервер (`src/lsp_main.py`) был экспериментальной частью проекта и **не работает в Zed** из-за архитектурных ограничений самого редактора (см. [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)).
+MSCodeBase **does not use LSP**. The LSP server (`src/lsp_main.py`) was an experimental part of the project and **does not work in Zed** due to architectural limitations of the editor itself (see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)).
 
-Вместо LSP вся функциональность реализована через **43 MCP-инструмента**, доступных в Zed через протокол MCP.
+Instead, all functionality is implemented through **43 MCP tools** available in Zed via the MCP protocol.
 
-### Платформы
+### Platforms
 
-Проект разработан и протестирован на **Windows**. macOS и Linux должны работать, но официально не валидированы.
+Designed and tested on **Windows**. macOS and Linux should work but have not been validated officially.
 
 ## ✨ Features
 

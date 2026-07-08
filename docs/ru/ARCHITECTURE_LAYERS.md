@@ -1,4 +1,4 @@
-# Architecture Layers — MSCodeBase Intelligence
+# Архитектурные слои — MSCodeBase Intelligence
 
 [🇬🇧 English](../en/ARCHITECTURE_LAYERS.md) • [🇷🇺 Русский](ARCHITECTURE_LAYERS.md) • [🇨🇳 中文](../zh/ARCHITECTURE_LAYERS.md)
 

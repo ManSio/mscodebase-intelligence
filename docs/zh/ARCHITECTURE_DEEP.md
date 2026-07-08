@@ -1,5 +1,7 @@
 # MSCodeBase Intelligence — 深度架构指南
 
+[🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](ARCHITECTURE_DEEP.md)
+
 > **版本：** v2.7.0+ | **最后更新：** 2026-07-07
 
 ```mermaid

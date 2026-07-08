@@ -2,6 +2,8 @@
 
 # 贡献指南 — MSCodeBase Intelligence
 
+[🇬🇧 English](../en/CONTRIBUTING.md) • [🇷🇺 Русский](../ru/CONTRIBUTING.md) • [🇨🇳 中文](CONTRIBUTING.md)
+
 贡献者指南。项目版本：**2.4.x**（带 DI 的整洁架构）。
 
 ---
