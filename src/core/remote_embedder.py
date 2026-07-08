@@ -57,14 +57,42 @@ class RemoteEmbedder:
             "status": "fallback",
             "message": "LM Studio breaker open",
         }
+        # Размерность эмбеддинга (берётся из модели при инициализации)
+        self.embedding_dim = config.embedding.embedding_dimension
 
         # Переменные для локального ONNX (ленивая инициализация, чтобы не жрать ОЗУ зря)
         self._onnx_session = None
         self._tokenizer = None
         self.ext_root = Path(__file__).resolve().parent.parent.parent
-        # ONNX-модель: скачивается через scripts/download_model.py --type embedding
-        # По умолчанию BAAI/bge-m3 (1024-dim) сохраняется в .codebase_models/onnx/bge-m3/
-        self.local_model_dir = self.ext_root / ".codebase_models" / "onnx" / "bge-m3"
+        # ONNX model: auto-detect directory from .codebase_models/onnx/
+        # First available: bge-m3 (1024), bge-base (768), bge-small (384), etc.
+        self.local_model_dir = self.ext_root / ".codebase_models" / "onnx"
+        self._detect_model_dir()
+
+    def _detect_model_dir(self):
+        """Find the first available ONNX model in .codebase_models/onnx/*/model.onnx"""
+        base = self.ext_root / ".codebase_models" / "onnx"
+        if base.exists():
+            for subdir in sorted(base.iterdir()):
+                model_file = subdir / "model.onnx"
+                if model_file.exists():
+                    self.local_model_dir = subdir
+                    logger.debug(f"ONNX model detected: {subdir.name}")
+                    # Read dimension from model
+                    try:
+                        import onnxruntime as ort
+
+                        sess = ort.InferenceSession(
+                            str(model_file), providers=["CPUExecutionProvider"]
+                        )
+                        dim = sess.get_outputs()[0].shape[-1]
+                        self._model_name = subdir.name
+                        logger.info(
+                            f"ONNX model: {subdir.name} ({dim}dim, {model_file.stat().st_size / 1024 / 1024:.0f}MB)"
+                        )
+                    except:
+                        pass
+                    return
 
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()
@@ -433,7 +461,7 @@ class RemoteEmbedder:
         logger.critical(
             "⚠️ ВНИМАНИЕ: Все движки векторизации недоступны. Генерация пустых заглушек."
         )
-        return [[0.0] * 1024 for _ in texts]
+        return [[0.0] * self.embedding_dim for _ in texts]
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:
         """Получить вектор для одного текстового фрагмента."""
