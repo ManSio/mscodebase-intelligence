@@ -404,8 +404,12 @@ class MultiProviderReranker:
 
     @property
     def is_available(self) -> bool:
-        """True если хотя бы один провайдер доступен."""
-        return self.lm_studio_available or self.ollama_available
+        """True если хотя бы один провайдер доступен (включая ONNX)."""
+        return (
+            self.lm_studio_available
+            or self.ollama_available
+            or self._onnx_reranker_available
+        )
 
     @property
     def model_info(self) -> str:
