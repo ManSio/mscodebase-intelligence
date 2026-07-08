@@ -6,7 +6,7 @@
 
 # MSCodebase Intelligence
 
-**AI-powered semantic code search for Zed IDE**
+**AI-powered semantic code search — работает как MCP-сервер для любого редактора, поддерживающего протокол MCP**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -16,11 +16,68 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-07*
+*Last updated: 2026-07-08*
 
 </div>
 
 ---
+
+## 🎯 Positioning
+
+### Что это такое
+
+**MSCodeBase Intelligence** — это MCP-сервер, который даёт AI-ассистентам (в Zed, Cursor, VS Code, Claude Desktop и любом другом MCP-клиенте) **глубокое понимание всей кодовой базы**: семантический поиск, граф вызовов, проектная память, диагностика.
+
+Это **не** LSP-сервер и **не** замена встроенного автокомплита редактора. Это слой «интеллекта о коде» поверх редактора:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Редактор (Zed / Cursor / VS Code) │
+│  ┌───────────────────────────────────────────────┐  │
+│  │        LSP (штатный автокомплит,            │  │
+│  │        инлайн-подсказки, диагностика)       │  │
+│  └───────────────────────────────────────────────┘  │
+│                        │                              │
+│                        ▼                              │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  MSCodeBase (MCP-сервер)                     │  │
+│  │  · Семантический поиск по всей кодовой базе   │  │
+│  │  · Граф вызовов и impact-анализ              │  │
+│  │  · Проектная память (ADR, tech debt)          │  │
+│  │  · Диагностика и self-healing                │  │
+│  │  · 43 инструмента для AI-ассистента           │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Что вы получаете
+
+| Возможность | MSCodeBase | Обычный LSP (pyright/pylsp) |
+|-------------|:----------:|:---------------------------:|
+| 🔍 **Семантический поиск** (BM25 + Vector + Reranker) | ✅ | ❌ |
+| 🧠 **Граф вызовов + impact analysis** | ✅ | ❌ |
+| 🗃️ **Проектная память** (ADR, known issues) | ✅ | ❌ |
+| 🏥 **Self-diagnosis + self-healing** | ✅ | ❌ |
+| 🔎 **Cross-repo search** | ✅ | ❌ |
+| 🤖 **RAG-генерация ответов** (mode=ask) | ✅ | ❌ |
+| ✏️ **Инлайн-автокомплит** | ❌ | ✅ |
+| 🏷️ **Inlay hints** | ❌ | ✅ |
+
+### Почему не LSP
+
+MSCodeBase **не использует LSP** для своей работы. LSP-сервер (`src/lsp_main.py`) был экспериментальной частью проекта и **не работает в Zed** из-за архитектурных ограничений самого редактора (см. [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)).
+
+Вместо LSP вся функциональность реализована через **43 MCP-инструмента**, которые доступны в любом редакторе с поддержкой MCP.
+
+### Где работает
+
+| Платформа | MCP-сервер (43 инструмента) | LSP-сервер |
+|-----------|:---------------------------:|:----------:|
+| Windows   | ✅ **(родная поддержка)**  | ❌ (WONTFIX) |
+| macOS     | ✅ (не тестировалось в CI) | ❌ (Zed limitation) |
+| Linux     | ✅ (не тестировалось в CI) | ❌ (Zed limitation) |
+
+> **Windows-first:** проект разработан и протестирован на Windows. macOS/Linux должны работать, но официально не валидированы. PR приветствуются!
 
 ## ✨ Features
 

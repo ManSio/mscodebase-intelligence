@@ -7,26 +7,28 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytest.importorskip("lancedb")  # Searcher → indexer depends on lancedb
+
 from src.core.di_container import (
     ServiceCollection,
     create_service_collection,
 )
 from src.core.file_guard import FileGuard
 from src.core.indexer import Indexer
+from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
 from src.core.parser import CodeParser
+from src.core.rate_limiter import (
+    CircuitBreaker,
+    SlidingWindowRateLimiter,
+)
 from src.core.remote_embedder import RemoteEmbedder
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
-from src.core.rate_limiter import (
-    SlidingWindowRateLimiter,
-    CircuitBreaker,
-)
-from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-
 
 # ══════════════════════════════════════════════════════════
 # ServiceCollection
 # ══════════════════════════════════════════════════════════
+
 
 class TestServiceCollection:
     """ServiceCollection — DI контейнер."""
@@ -109,6 +111,7 @@ class TestServiceCollection:
 # create_service_collection
 # ══════════════════════════════════════════════════════════
 
+
 class TestCreateServiceCollection:
     """create_service_collection — фабрика DI контейнера."""
 
@@ -130,12 +133,19 @@ class TestCreateServiceCollection:
         registered = services.list_registered()
         type_names = [t.__name__ for t in registered]
         # Indexer/Searcher/DebounceBatch теперь НЕ singleton — проверяем registry вместо.
-        for expected in ["CodeParser", "FileGuard",
-                          "RemoteEmbedder", "SymbolIndex",
-                          "SlidingWindowRateLimiter",
-                          "ProjectRegistry", "MultiProjectSearcher",
-                          "ProjectIndexerRegistry", "IndexerFactoryKey",
-                          "NotificationBroker", "CircuitBreaker"]:
+        for expected in [
+            "CodeParser",
+            "FileGuard",
+            "RemoteEmbedder",
+            "SymbolIndex",
+            "SlidingWindowRateLimiter",
+            "ProjectRegistry",
+            "MultiProjectSearcher",
+            "ProjectIndexerRegistry",
+            "IndexerFactoryKey",
+            "NotificationBroker",
+            "CircuitBreaker",
+        ]:
             assert expected in type_names, f"Missing: {expected}"
 
     def test_indexer_has_correct_deps(self, project_root):
@@ -145,7 +155,10 @@ class TestCreateServiceCollection:
 
         from src.core.project_indexer_registry import ProjectIndexerRegistry
         from src.mcp.tools.base import resolve_indexer_for_request
-        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+
+        indexer = resolve_indexer_for_request(
+            services, explicit_project_root=str(project_root)
+        )
         assert indexer.project_path.resolve() == project_root.resolve()
         assert isinstance(indexer.parser, CodeParser)
         assert isinstance(indexer.file_guard, FileGuard)
@@ -156,7 +169,10 @@ class TestCreateServiceCollection:
         services = create_service_collection(project_root)
 
         from src.mcp.tools.base import resolve_indexer_for_request
-        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+
+        indexer = resolve_indexer_for_request(
+            services, explicit_project_root=str(project_root)
+        )
         searcher = indexer.searcher
 
         assert searcher is not None
@@ -174,7 +190,10 @@ class TestCreateServiceCollection:
         services = create_service_collection(project_root)
 
         from src.mcp.tools.base import resolve_indexer_for_request
-        indexer = resolve_indexer_for_request(services, explicit_project_root=str(project_root))
+
+        indexer = resolve_indexer_for_request(
+            services, explicit_project_root=str(project_root)
+        )
         searcher = indexer.searcher
         searcher.reindex = MagicMock()
 
@@ -182,6 +201,7 @@ class TestCreateServiceCollection:
         batch = getattr(indexer, "bm25_batch", None)
         assert batch is not None, "per-project bm25_batch must be set on Indexer"
         import asyncio
+
         asyncio.run(batch.add("test.py"))
         asyncio.run(batch.flush_now())
 

@@ -5,9 +5,10 @@
 import tempfile
 from pathlib import Path
 
-import lancedb
-import pyarrow as pa
 import pytest
+
+lancedb = pytest.importorskip("lancedb")
+import pyarrow as pa
 
 from src.core.index_guard import IndexGuard, quick_health_check
 
@@ -17,18 +18,20 @@ class TestIndexGuard:
 
     def _create_full_schema(self) -> pa.schema:
         """Создаёт полную актуальную схему таблицы."""
-        return pa.schema([
-            pa.field("id", pa.string()),
-            pa.field("vector", pa.list_(pa.float32(), 1024)),
-            pa.field("text", pa.string()),
-            pa.field("text_full", pa.string()),
-            pa.field("file_path", pa.string()),
-            pa.field("file_hash", pa.string()),
-            pa.field("chunk_index", pa.int32()),
-            pa.field("source", pa.string()),
-            pa.field("indexed_at", pa.string()),
-            pa.field("summary", pa.string()),
-        ])
+        return pa.schema(
+            [
+                pa.field("id", pa.string()),
+                pa.field("vector", pa.list_(pa.float32(), 1024)),
+                pa.field("text", pa.string()),
+                pa.field("text_full", pa.string()),
+                pa.field("file_path", pa.string()),
+                pa.field("file_hash", pa.string()),
+                pa.field("chunk_index", pa.int32()),
+                pa.field("source", pa.string()),
+                pa.field("indexed_at", pa.string()),
+                pa.field("summary", pa.string()),
+            ]
+        )
 
     def _create_db_with_table(self, db_path: Path, schema: pa.Schema = None):
         """Создаёт тестовую БД с таблицей."""
@@ -47,18 +50,22 @@ class TestIndexGuard:
 
         # Добавляем тестовую запись
         table = db.open_table("codebase_chunks")
-        table.add([{
-            "id": "test1",
-            "vector": [0.0] * 1024,
-            "text": "test content",
-            "text_full": "test content",
-            "file_path": "test.py",
-            "file_hash": "abc123",
-            "chunk_index": 0,
-            "source": "filesystem",
-            "indexed_at": "2024-01-01",
-            "summary": "",
-        }])
+        table.add(
+            [
+                {
+                    "id": "test1",
+                    "vector": [0.0] * 1024,
+                    "text": "test content",
+                    "text_full": "test content",
+                    "file_path": "test.py",
+                    "file_hash": "abc123",
+                    "chunk_index": 0,
+                    "source": "filesystem",
+                    "indexed_at": "2024-01-01",
+                    "summary": "",
+                }
+            ]
+        )
 
         health = quick_health_check(db_path)
         assert health["healthy"] is True
@@ -89,10 +96,12 @@ class TestIndexGuard:
 
         # Создаём таблицу без обязательных полей
         db = lancedb.connect(str(db_path))
-        old_schema = pa.schema([
-            pa.field("id", pa.string()),
-            pa.field("text", pa.string()),
-        ])
+        old_schema = pa.schema(
+            [
+                pa.field("id", pa.string()),
+                pa.field("text", pa.string()),
+            ]
+        )
         db.create_table("codebase_chunks", schema=old_schema)
 
         health = quick_health_check(db_path)
@@ -105,18 +114,22 @@ class TestIndexGuard:
 
         # Добавляем запись
         table = db.open_table("codebase_chunks")
-        table.add([{
-            "id": "test1",
-            "vector": [0.0] * 1024,
-            "text": "test",
-            "text_full": "test",
-            "file_path": "test.py",
-            "file_hash": "abc",
-            "chunk_index": 0,
-            "source": "filesystem",
-            "indexed_at": "2024-01-01",
-            "summary": "",
-        }])
+        table.add(
+            [
+                {
+                    "id": "test1",
+                    "vector": [0.0] * 1024,
+                    "text": "test",
+                    "text_full": "test",
+                    "file_path": "test.py",
+                    "file_hash": "abc",
+                    "chunk_index": 0,
+                    "source": "filesystem",
+                    "indexed_at": "2024-01-01",
+                    "summary": "",
+                }
+            ]
+        )
 
         guard = IndexGuard(db_path, tmp_path)
         report = guard.check_and_repair(db)
@@ -186,11 +199,13 @@ class TestIndexGuard:
         guard = IndexGuard(db_path, tmp_path)
 
         # Симулируем повреждённый guard state
-        guard._save_guard_state({
-            "status": "error",
-            "errors": ["test error"],
-            "actions_taken": [],
-        })
+        guard._save_guard_state(
+            {
+                "status": "error",
+                "errors": ["test error"],
+                "actions_taken": [],
+            }
+        )
 
         assert guard.should_reindex() is True
 
@@ -200,10 +215,12 @@ class TestIndexGuard:
         db_path.mkdir(parents=True, exist_ok=True)
 
         guard = IndexGuard(db_path, tmp_path)
-        guard._save_guard_state({
-            "status": "ok",
-            "actions_taken": [],
-            "errors": [],
-        })
+        guard._save_guard_state(
+            {
+                "status": "ok",
+                "actions_taken": [],
+                "errors": [],
+            }
+        )
 
         assert guard.should_reindex() is False
