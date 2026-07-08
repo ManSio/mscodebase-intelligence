@@ -7,6 +7,8 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -16,7 +18,6 @@ import httpx
 
 from src.core.config import get_config
 
-logger = logging.getLogger("mscodebase.embedder")
 logger = logging.getLogger("mscodebase_server.embedder")
 
 # Интервал проверки доступности внешних API (секунды)
