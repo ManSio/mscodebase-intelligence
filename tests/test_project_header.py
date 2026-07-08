@@ -149,7 +149,7 @@ class TestResolveIndexerSelfIndexGuard:
         assert result is not None  # успешный fallback к default проекту
 
     def test_explicit_ext_root_raises_tool_error(self):
-        """explicit_project_root = _ext_root (исходники MCP) → ToolError.
+        r"""explicit_project_root = _ext_root (исходники MCP) → ToolError.
 
         Без patch: _ext_root уже загружен и равен D:\Project\MSCodeBase.
         """

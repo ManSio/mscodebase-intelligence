@@ -235,6 +235,9 @@ class ProjectIntelligenceLayer:
         self._services = services
         self.store = IntelligenceStore(project_path)
         self._reindex_job_id: Optional[str] = None
+        self._reindex_task: Optional[asyncio.Task] = (
+            None  # Prevent GC from collecting background reindex
+        )
         self._reindex_lock = asyncio.Lock()
         self._write_lock = asyncio.Lock()  # защита от race при записи JSON
 
@@ -521,8 +524,9 @@ class ProjectIntelligenceLayer:
             finally:
                 # Очищаем активный job_id, чтобы разрешить следующий reindex
                 self._reindex_job_id = None
+                self._reindex_task = None
 
-        asyncio.create_task(_run_reindex_job())
+        self._reindex_task = asyncio.create_task(_run_reindex_job())
         return job_id
 
     def get_active_reindex_job_id(self) -> Optional[str]:

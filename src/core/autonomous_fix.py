@@ -23,6 +23,7 @@ logger = logging.getLogger("autonomous_fix")
 @dataclass
 class FixAttempt:
     """Одна попытка исправления."""
+
     id: str
     file: str
     description: str
@@ -36,6 +37,7 @@ class FixAttempt:
 @dataclass
 class FixResult:
     """Результат автоисправления."""
+
     success: bool
     attempts: List[FixAttempt] = field(default_factory=list)
     final_status: str = ""
@@ -79,7 +81,7 @@ class AutonomousFixLoop:
                     "failed": 0,
                     "errors": 1,
                     "output": "Quick check skipped due to timeout",
-                    "returncode": 0,
+                    "returncode": -1,
                 }
 
             stdout_text = stdout.decode("utf-8", errors="replace")
@@ -95,7 +97,10 @@ class AutonomousFixLoop:
                 "passed": passed,
                 "failed": failed,
                 "errors": errors,
-                "output": (stdout_text[-1000:] if len(stdout_text) > 1000 else stdout_text) + (f"\n{stderr_text}" if stderr_text else ""),
+                "output": (
+                    stdout_text[-1000:] if len(stdout_text) > 1000 else stdout_text
+                )
+                + (f"\n{stderr_text}" if stderr_text else ""),
                 "returncode": process.returncode,
             }
         except Exception as e:
@@ -118,10 +123,12 @@ class AutonomousFixLoop:
             output = result.get("output", "")
             for line in output.split("\n"):
                 if "FAILED" in line or "ERROR" in line:
-                    failures.append({
-                        "test": line.strip(),
-                        "type": "failed" if "FAILED" in line else "error",
-                    })
+                    failures.append(
+                        {
+                            "test": line.strip(),
+                            "type": "failed" if "FAILED" in line else "error",
+                        }
+                    )
 
         return failures
 
@@ -216,7 +223,9 @@ class AutonomousFixLoop:
         # Git status
         try:
             process = await asyncio.create_subprocess_exec(
-                "git", "status", "--porcelain",
+                "git",
+                "status",
+                "--porcelain",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.project_path),
@@ -236,7 +245,11 @@ class AutonomousFixLoop:
 
         # Overall
         tests_ok = result["tests"]["success"] if result["tests"] else False
-        git_ok = not result["git_status"].get("dirty", True) if result["git_status"] else True
+        git_ok = (
+            not result["git_status"].get("dirty", True)
+            if result["git_status"]
+            else True
+        )
         result["overall"] = "healthy" if tests_ok else "unhealthy"
 
         return result

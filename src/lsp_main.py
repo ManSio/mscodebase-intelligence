@@ -30,6 +30,7 @@ logger = logging.getLogger("MSCodeBase-LSP")
 # Подключаем файловое логирование
 try:
     from src.core.log_manager import setup_project_logging
+
     _ext_root = Path(__file__).resolve().parent.parent
     setup_project_logging(_ext_root)
 except Exception:
@@ -122,6 +123,7 @@ def init_components(project_root: Path, workspace_uri: str = ""):
             return _services_per_workspace[key]
 
     from src.core.di_container import create_service_collection
+
     services = create_service_collection(project_root)
     with _workspace_lock:
         _services_per_workspace[key] = services
@@ -129,12 +131,15 @@ def init_components(project_root: Path, workspace_uri: str = ""):
     # Инициализируем DebounceBatch для BM25 реиндексации
     # Multi-window (INC-6BCB-v2): batch теперь создаётся per-project внутри
     # _create_indexer_for_path() и доступен как indexer.bm25_batch.
-    from src.core.project_indexer_registry import ProjectIndexerRegistry
     from src.core.di_container import ProjectRootKey
+    from src.core.project_indexer_registry import ProjectIndexerRegistry
+
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
     factory = _get_factory(services)
     # Прогреваем per-project Indexer (lazy) — чтобы bm25_batch был создан.
-    _initial_indexer = registry.get_indexer(services.resolve(ProjectRootKey), factory=factory)
+    _initial_indexer = registry.get_indexer(
+        services.resolve(ProjectRootKey), factory=factory
+    )
     logger.info(
         f"LSP: DI Container инициализирован для {project_root.name} "
         f"(workspace: {key}, BM25 debounce active per-project)"
@@ -145,6 +150,7 @@ def init_components(project_root: Path, workspace_uri: str = ""):
 def _get_factory(services):
     """Извлекает IndexerFactory из services (multi-window)."""
     from src.core.di_container import IndexerFactoryKey
+
     return services.resolve(IndexerFactoryKey)
 
 
@@ -201,7 +207,9 @@ def _execute_file_indexing(
     except ValueError:
         return
 
-    logger.info(f"[LSP INDEXING] Анализ файла: {rel_path_str} (from_memory={content is not None})")
+    logger.info(
+        f"[LSP INDEXING] Анализ файла: {rel_path_str} (from_memory={content is not None})"
+    )
     success = indexer._index_single_file(file_path, rel_path_str, content=content)
 
     # ★ ИСПРАВЛЕНО: BM25 реиндексация через DebounceBatch, а не на каждый файл ★
@@ -212,6 +220,7 @@ def _execute_file_indexing(
             if batch is not None:
                 # Добавляем файл в debounce батч (асинхронно в фоне, fire-and-forget)
                 import asyncio
+
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
@@ -242,11 +251,11 @@ def _process_watched_changes(changes, services=None):
     if services is None:
         return
 
-    from src.core.project_indexer_registry import ProjectIndexerRegistry
-
     # Per-workspace indexer (multi-window). Берём default project_root
     # сервисов как fallback.
     from src.core.di_container import ProjectRootKey
+    from src.core.project_indexer_registry import ProjectIndexerRegistry
+
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
     factory = _get_factory(services)
     project_root = services.resolve(ProjectRootKey)
@@ -282,7 +291,7 @@ def _process_watched_changes(changes, services=None):
 
         # FileChangeType.Created == 1 или Changed == 2
         elif change.type in (1, 2):
-            change_type = 'CREATE' if change.type == 1 else 'CHANGE'
+            change_type = "CREATE" if change.type == 1 else "CHANGE"
             logger.info(f"[LSP {change_type}] {rel_path_str}")
             try:
                 if indexer._index_single_file(file_path, rel_path_str):
@@ -295,9 +304,12 @@ def _process_watched_changes(changes, services=None):
 
     # ★ Вместо немедленного searcher.reindex() — через DebounceBatch ★
     if changed_files and batch is not None:
-        logger.info(f"[LSP WATCHER] {len(changed_files)} files changed, queuing BM25 debounce")
+        logger.info(
+            f"[LSP WATCHER] {len(changed_files)} files changed, queuing BM25 debounce"
+        )
         try:
             import asyncio
+
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 for f in changed_files:
@@ -308,11 +320,15 @@ def _process_watched_changes(changes, services=None):
         except Exception:
             # Fallback если asyncio недоступен
             if indexer.searcher:
-                logger.info("[LSP WATCHER] Debounce failed, fallback to direct BM25 rebuild")
+                logger.info(
+                    "[LSP WATCHER] Debounce failed, fallback to direct BM25 rebuild"
+                )
                 indexer.searcher.reindex()
     elif changed_files and batch is None:
         # Нет per-project batch (legacy путь) — синхронный reindex.
-        logger.info(f"[LSP WATCHER] {len(changed_files)} files changed, no per-project batch — direct reindex")
+        logger.info(
+            f"[LSP WATCHER] {len(changed_files)} files changed, no per-project batch — direct reindex"
+        )
         if indexer.searcher:
             indexer.searcher.reindex()
     else:
@@ -484,7 +500,9 @@ try:
         try:
             file_path = _uri_to_path(params.text_document.uri)
 
-            logger.info(f"[LSP DID_SAVE] File: {file_path.name}, Suffix: {file_path.suffix}")
+            logger.info(
+                f"[LSP DID_SAVE] File: {file_path.name}, Suffix: {file_path.suffix}"
+            )
 
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 logger.info(f"[LSP DID_SAVE] Skip unsupported: {file_path.suffix}")
@@ -525,7 +543,8 @@ try:
 
         except Exception as e:
             logger.error(
-                f"[LSP DID_SAVE] Error: {e}", exc_info=True,
+                f"[LSP DID_SAVE] Error: {e}",
+                exc_info=True,
             )
 
     # === 2. ОБРАБОТКА ВНЕШНИХ ИЗМЕНЕНИЙ (git checkout, удаление вне редактора) ===
@@ -577,7 +596,7 @@ try:
     # === 3. ИНИЦИАЛИЗАЦИЯ ===
     @server.feature("initialize")
     async def on_initialize(ls: MSCodeBaseLanguageServer, params: InitializeParams):
-        """При старте забираем у Zed корни открытых воркспейсов.
+        r"""При старте забираем у Zed корни открытых воркспейсов.
 
         Multi-root (INC-6BCB-v3): LSP 3.6+ присылает `workspaceFolders` —
         массив ВСЕХ открытых воркспейсов одновременно. Это РЕШАЕТ проблему
@@ -623,6 +642,7 @@ try:
         # Фильтруем Zed-установку (self-indexing guard на LSP-стороне).
         # Не индексируем саму директорию, где лежит Zed.exe.
         from src.core.lsp_project_bridge import is_zed_install_dir
+
         filtered = []
         for uri in workspace_uris:
             try:
@@ -662,6 +682,7 @@ try:
         # Передаём primary корень MCP-серверу через bridge.
         try:
             from src.core.lsp_project_bridge import write_active_project
+
             write_active_project(primary_path, all_workspaces=filtered)
         except Exception as e:
             logger.warning(f"[LSP INIT] Не удалось записать project_root в bridge: {e}")
@@ -709,9 +730,7 @@ try:
             # Фильтруем на стороне LSP-протокола, чтобы не получать
             # события для .codebase_indices/, .git/, бинарников и т.п.
             # (см. INC-53EC / REFC-08). Поддерживаемые расширения → один glob.
-            ext_pattern = ",".join(
-                sorted(e.lstrip(".") for e in SUPPORTED_EXTENSIONS)
-            )
+            ext_pattern = ",".join(sorted(e.lstrip(".") for e in SUPPORTED_EXTENSIONS))
             main_pattern = f"**/*.{{{ext_pattern}}}"
             watchers = [
                 FileSystemWatcher(glob_pattern=main_pattern),
@@ -741,6 +760,7 @@ def main():
     # Чистим старые bridge-файлы при старте
     try:
         from src.core.lsp_project_bridge import cleanup_stale
+
         cleanup_stale()
     except Exception:
         pass

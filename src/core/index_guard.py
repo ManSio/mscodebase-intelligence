@@ -23,6 +23,8 @@ from typing import Dict, Optional, Tuple
 import lancedb
 import pyarrow as pa
 
+from src.core.symbol_index import SymbolRef
+
 logger = logging.getLogger("index_guard")
 
 # Текущая версия схемы
@@ -73,7 +75,11 @@ class IndexGuard:
             # 1. Проверка существования таблицы
             tables_response = db.list_tables()
             # list_tables() возвращает ListTablesResponse с полем .tables
-            tables = tables_response.tables if hasattr(tables_response, 'tables') else list(tables_response)
+            tables = (
+                tables_response.tables
+                if hasattr(tables_response, "tables")
+                else list(tables_response)
+            )
             if "codebase_chunks" not in tables:
                 report["actions_taken"].append("table_missing_will_create")
                 report["status"] = "needs_reindex"
@@ -159,7 +165,18 @@ class IndexGuard:
 
     def _is_schema_complete(self, existing_fields: Dict[str, pa.DataType]) -> bool:
         """Проверяет полноту схемы (все ожидаемые поля)."""
-        full_fields = {"id", "vector", "text", "text_full", "file_path", "file_hash", "chunk_index", "source", "indexed_at", "summary"}
+        full_fields = {
+            "id",
+            "vector",
+            "text",
+            "text_full",
+            "file_path",
+            "file_hash",
+            "chunk_index",
+            "source",
+            "indexed_at",
+            "summary",
+        }
         return full_fields.issubset(set(existing_fields.keys()))
 
     def _validate_schema(
@@ -177,7 +194,7 @@ class IndexGuard:
         # Проверяем размерность вектора
         if "vector" in existing_fields:
             vec_type = existing_fields["vector"]
-            if hasattr(vec_type, 'list_size') and vec_type.list_size != 1024:
+            if hasattr(vec_type, "list_size") and vec_type.list_size != 1024:
                 errors.append(f"vector_dim_mismatch:{vec_type.list_size}")
 
         return len(errors) == 0, errors
@@ -216,50 +233,56 @@ class IndexGuard:
 
             records = []
             for _, row in old_df.iterrows():
-                records.append({
-                    "id": str(row["id"]),
-                    "vector": row["vector"],
-                    "text": str(row["text"]),
-                    "text_full": str(row.get("text_full", row["text"])),
-                    "file_path": str(row["file_path"]),
-                    "file_hash": str(row.get("file_hash", "")),
-                    "chunk_index": int(row.get("chunk_index", 0)),
-                    "source": str(row.get("source", "filesystem")),
-                    "indexed_at": str(row.get("indexed_at", "")),
-                    "summary": str(row.get("summary", "")),
-                    # Metadata Enrichment (v2.4.3+) — пустые для старых чанков
-                    "layer": str(row.get("layer", "")),
-                    "module_name": str(row.get("module_name", "")),
-                    "hierarchy_level": str(row.get("hierarchy_level", "")),
-                    "is_public": bool(row.get("is_public", False)),
-                    "symbol_type": str(row.get("symbol_type", "")),
-                    "parent_id": str(row.get("parent_id", "")),
-                })
+                records.append(
+                    {
+                        "id": str(row["id"]),
+                        "vector": row["vector"],
+                        "text": str(row["text"]),
+                        "text_full": str(row.get("text_full", row["text"])),
+                        "file_path": str(row["file_path"]),
+                        "file_hash": str(row.get("file_hash", "")),
+                        "chunk_index": int(row.get("chunk_index", 0)),
+                        "source": str(row.get("source", "filesystem")),
+                        "indexed_at": str(row.get("indexed_at", "")),
+                        "summary": str(row.get("summary", "")),
+                        # Metadata Enrichment (v2.4.3+) — пустые для старых чанков
+                        "layer": str(row.get("layer", "")),
+                        "module_name": str(row.get("module_name", "")),
+                        "hierarchy_level": str(row.get("hierarchy_level", "")),
+                        "is_public": bool(row.get("is_public", False)),
+                        "symbol_type": str(row.get("symbol_type", "")),
+                        "parent_id": str(row.get("parent_id", "")),
+                    }
+                )
 
             new_table = db.create_table(
                 "codebase_chunks",
-                schema=pa.schema([
-                    pa.field("id", pa.string()),
-                    pa.field("vector", pa.list_(pa.float32(), 1024)),
-                    pa.field("text", pa.string()),
-                    pa.field("text_full", pa.string()),
-                    pa.field("file_path", pa.string()),
-                    pa.field("file_hash", pa.string()),
-                    pa.field("chunk_index", pa.int32()),
-                    pa.field("source", pa.string()),
-                    pa.field("indexed_at", pa.string()),
-                    pa.field("summary", pa.string()),
-                    # Metadata Enrichment (v2.4.3+)
-                    pa.field("layer", pa.string()),
-                    pa.field("module_name", pa.string()),
-                    pa.field("hierarchy_level", pa.string()),
-                    pa.field("is_public", pa.bool_()),
-                    pa.field("symbol_type", pa.string()),
-                    pa.field("parent_id", pa.string()),
-                ]),
+                schema=pa.schema(
+                    [
+                        pa.field("id", pa.string()),
+                        pa.field("vector", pa.list_(pa.float32(), 1024)),
+                        pa.field("text", pa.string()),
+                        pa.field("text_full", pa.string()),
+                        pa.field("file_path", pa.string()),
+                        pa.field("file_hash", pa.string()),
+                        pa.field("chunk_index", pa.int32()),
+                        pa.field("source", pa.string()),
+                        pa.field("indexed_at", pa.string()),
+                        pa.field("summary", pa.string()),
+                        # Metadata Enrichment (v2.4.3+)
+                        pa.field("layer", pa.string()),
+                        pa.field("module_name", pa.string()),
+                        pa.field("hierarchy_level", pa.string()),
+                        pa.field("is_public", pa.bool_()),
+                        pa.field("symbol_type", pa.string()),
+                        pa.field("parent_id", pa.string()),
+                    ]
+                ),
             )
             new_table.add(records)
-            logger.info(f"Migrated {len(records)} records to new schema with metadata columns")
+            logger.info(
+                f"Migrated {len(records)} records to new schema with metadata columns"
+            )
             return True
 
         except Exception as e:
@@ -276,7 +299,7 @@ class IndexGuard:
         return symbol_cache.exists()
 
     def save_symbol_index(self, symbol_index: any) -> bool:
-        """Сохраняет SymbolIndex на диск.
+        """Сохраняет SymbolIndex на диск (JSON, безопасный формат).
 
         Args:
             symbol_index: Инстанс SymbolIndex
@@ -285,25 +308,36 @@ class IndexGuard:
             True если сохранение успешно
         """
         try:
-            cache_file = self.db_path / "symbol_index.pkl"
-            with open(cache_file, "wb") as f:
-                pickle.dump(
-                    {
-                        "definitions": symbol_index._definitions,
-                        "references": symbol_index._references,
-                        "file_to_symbols": symbol_index._file_to_symbols,
-                        "saved_at": datetime.now().isoformat(),
-                    },
-                    f,
-                )
+            cache_file = self.db_path / "symbol_index.json"
+            data = {
+                "definitions": {
+                    k: [r.to_dict() for r in v]
+                    for k, v in symbol_index._definitions.items()
+                },
+                "references": {
+                    k: [r.to_dict() for r in v]
+                    for k, v in symbol_index._references.items()
+                },
+                "file_to_symbols": {
+                    k: list(v) for k, v in symbol_index._file_to_symbols.items()
+                },
+                "saved_at": datetime.now().isoformat(),
+            }
+            cache_file.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             logger.info(f"SymbolIndex saved to {cache_file}")
+            # Clean up legacy pickle file
+            legacy = self.db_path / "symbol_index.pkl"
+            if legacy.exists():
+                legacy.unlink()
             return True
         except Exception as e:
             logger.error(f"Failed to save SymbolIndex: {e}")
             return False
 
     def load_symbol_index(self, symbol_index: any) -> bool:
-        """Загружает SymbolIndex с диска.
+        """Загружает SymbolIndex с диска (JSON).
 
         Args:
             symbol_index: Инстанс SymbolIndex для заполнения
@@ -312,20 +346,78 @@ class IndexGuard:
             True если загрузка успешна
         """
         try:
-            cache_file = self.db_path / "symbol_index.pkl"
+            cache_file = self.db_path / "symbol_index.json"
             if not cache_file.exists():
-                return False
+                # Try legacy pickle format
+                legacy = self.db_path / "symbol_index.pkl"
+                if legacy.exists():
+                    logger.info("Migrating legacy pickle SymbolIndex to JSON...")
+                    with open(legacy, "rb") as f:
+                        data = pickle.load(f)
+                    # Immediately re-save as JSON
+                    legacy.unlink()
 
-            with open(cache_file, "rb") as f:
-                data = pickle.load(f)
+                    # Convert pickle data to the format expected by new loader below
+                    # pickle data has SymbolRef objects, convert them
+                    def _ensure_dicts(items):
+                        result = {}
+                        for k, v in items.items():
+                            result[k] = [
+                                r.to_dict() if hasattr(r, "to_dict") else r for r in v
+                            ]
+                        return result
 
-            symbol_index._definitions = data.get("definitions", {})
-            symbol_index._references = data.get("references", {})
-            symbol_index._file_to_symbols = data.get("file_to_symbols", {})
+                    data["definitions"] = _ensure_dicts(data.get("definitions", {}))
+                    data["references"] = _ensure_dicts(data.get("references", {}))
+                    data["file_to_symbols"] = {
+                        k: list(v) if isinstance(v, set) else v
+                        for k, v in data.get("file_to_symbols", {}).items()
+                    }
+                    cache_file.write_text(
+                        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+                    logger.info(f"Migrated to JSON: {cache_file}")
+                else:
+                    return False
 
-            logger.info(
-                f"SymbolIndex loaded: {len(symbol_index._definitions)} symbols"
-            )
+            raw = json.loads(cache_file.read_text(encoding="utf-8"))
+
+            # Reconstruct SymbolRef objects from dicts
+            symbol_index._definitions = {
+                k: [
+                    SymbolRef(
+                        **{
+                            "symbol": r["symbol"],
+                            "file_path": r["file"],
+                            "line": r["line"],
+                            "kind": r["kind"],
+                            "is_definition": r.get("is_def", False),
+                        }
+                    )
+                    for r in v
+                ]
+                for k, v in raw.get("definitions", {}).items()
+            }
+            symbol_index._references = {
+                k: [
+                    SymbolRef(
+                        **{
+                            "symbol": r["symbol"],
+                            "file_path": r["file"],
+                            "line": r["line"],
+                            "kind": r["kind"],
+                            "is_definition": r.get("is_def", False),
+                        }
+                    )
+                    for r in v
+                ]
+                for k, v in raw.get("references", {}).items()
+            }
+            symbol_index._file_to_symbols = {
+                k: set(v) for k, v in raw.get("file_to_symbols", {}).items()
+            }
+
+            logger.info(f"SymbolIndex loaded: {len(symbol_index._definitions)} symbols")
             return True
         except Exception as e:
             logger.error(f"Failed to load SymbolIndex: {e}")
@@ -409,7 +501,7 @@ class IndexGuard:
     def _compute_file_hash(self, file_path: Path) -> str:
         """Вычисляет хеш файла для сравнения."""
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 content = f.read()
                 return hashlib.md5(content).hexdigest()
         except Exception:
@@ -456,7 +548,11 @@ def quick_health_check(db_path: Path) -> Dict[str, any]:
     try:
         db = lancedb.connect(str(db_path))
         tables_response = db.list_tables()
-        tables = tables_response.tables if hasattr(tables_response, 'tables') else list(tables_response)
+        tables = (
+            tables_response.tables
+            if hasattr(tables_response, "tables")
+            else list(tables_response)
+        )
 
         if "codebase_chunks" not in tables:
             return result
@@ -471,16 +567,25 @@ def quick_health_check(db_path: Path) -> Dict[str, any]:
         result["schema_ok"] = minimal_required.issubset(existing)
 
         # Полная схема (для продвинутых фич)
-        full_required = {"id", "vector", "text", "text_full", "file_path", "file_hash", "chunk_index", "source", "indexed_at", "summary"}
+        full_required = {
+            "id",
+            "vector",
+            "text",
+            "text_full",
+            "file_path",
+            "file_hash",
+            "chunk_index",
+            "source",
+            "indexed_at",
+            "summary",
+        }
         result["schema_complete"] = full_required.issubset(existing)
 
         # Проверка SymbolIndex
         result["symbol_index_exists"] = (db_path / "symbol_index.pkl").exists()
 
         result["healthy"] = (
-            result["table_exists"]
-            and result["schema_ok"]
-            and result["row_count"] > 0
+            result["table_exists"] and result["schema_ok"] and result["row_count"] > 0
         )
 
     except Exception as e:
