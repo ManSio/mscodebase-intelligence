@@ -494,15 +494,20 @@ def step_pip(lines, lang):
 
 
 def step_models(lines, lang):
-    """Download ONNX models — installs to extension dir for MCP."""
-    emb_types = {
-        "light": ("BAAI/bge-small-en-v1.5", 384, "~50 MB"),
-        "balanced": ("BAAI/bge-base-en-v1.5", 768, "~150 MB"),
-        "full": ("BAAI/bge-m3", 1024, "~570 MB"),
-    }
-    # Check BOTH source and extension dirs
-    for name, dim, sz in emb_types.values():
+    """Download ONNX models — installs to extension dir for MCP.
+
+    Note: Only bge-m3 supports Russian. bge-small/base are EN-only.
+    """
+    # Check if models already exist in source or extension dir
+    checks = [
+        ("BAAI/bge-m3", 1024),
+        ("BAAI/bge-reranker-v2-m3", 1024),
+    ]
+    all_found = True
+    for name, dim in checks:
         slug = name.split("/")[-1].lower()
+        if "reranker" in name.lower():
+            slug = "reranker-" + slug
         for base in [PROJECT_ROOT, ZED_EXT_DIR]:
             p = base / ".codebase_models" / "onnx" / slug / "model.onnx"
             if p.exists():
@@ -511,35 +516,31 @@ def step_models(lines, lang):
                 lines.append(
                     (C.GRN, f"✔ ONNX in {loc}: {name} ({dim}dim, {real_sz:.0f} MB)")
                 )
-                return
+                break
+        else:
+            all_found = False
+    if all_found:
+        return
 
-    # No model found — ask user
-    lines.append((C.YEL, f"⚠ No embedding model found. Choose size:"))
-    # Print options inline
-    print(
-        f"  {C.CYN}1.{C.R} Light   (bge-small-en-v1.5,  384dim,  ~50 MB,  good quality)"
-    )
-    print(
-        f"  {C.CYN}2.{C.R} Balanced(bge-base-en-v1.5,  768dim, ~150 MB,  high quality) [default]"
-    )
-    print(
-        f"  {C.CYN}3.{C.R} Full    (bge-m3,           1024dim, ~570 MB,  best quality)"
-    )
-    choice = input(f"  {C.B}Select [1-3]{C.R}: ").strip()
-    size_map = {"1": "light", "2": "balanced", "3": "full"}
-    chosen = size_map.get(choice, "balanced")
-    model_name, dim, _ = emb_types[chosen]
-    lines.append((C.D, f"  Downloading {model_name} ({dim}dim)..."))
+    # Ask user to download
+    lines.append((C.YEL, f"⚠ Download AI models (~570 MB each)? (Y/n): "))
+    choice = input(f"  {C.B}> {C.R}").strip().lower()
+    if choice not in ("", "y", "yes"):
+        lines.append((C.D, f"  Skipped. Models needed for vector search + reranking."))
+        return
 
-    # Download via huggingface_hub only (no torch needed for pre-quantized)
+    # Install huggingface_hub
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "huggingface-hub", "-q"],
         capture_output=True,
         timeout=60,
     )
 
-    # Download embedding model
-    proc = subprocess.run(
+    # 1. bge-m3 embedding model (543 MB)
+    model_name = "BAAI/bge-m3"
+    slug = "bge-m3"
+    lines.append((C.D, f"  1/2 Downloading {model_name} (embedding, 1024dim)..."))
+    proc1 = subprocess.run(
         [
             sys.executable,
             str(PROJECT_ROOT / "scripts" / "download_model.py"),
@@ -553,21 +554,22 @@ def step_models(lines, lang):
         text=True,
         timeout=600,
     )
-    slug = model_name.split("/")[-1].lower()
     src = PROJECT_ROOT / ".codebase_models" / "onnx" / slug
     dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
-
-    if proc.returncode == 0 and src.exists():
+    if proc1.returncode == 0 and (src / "model.onnx").exists():
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
             shutil.rmtree(str(dst), ignore_errors=True)
         shutil.copytree(str(src), str(dst))
-        sz_mb = (dst / "model.onnx").stat().st_size / 1024 / 1024
-        lines.append((C.GRN, f"✔ {model_name} ready: {dim}dim, {sz_mb:.0f} MB"))
+        sz = (dst / "model.onnx").stat().st_size / 1024 / 1024
+        lines.append((C.GRN, f"  ✔ bge-m3 ({sz:.0f} MB) — ready"))
+    else:
+        lines.append((C.RED, f"  ✘ bge-m3 download failed"))
 
-    # Also download reranker model (cross-encoder, for reranking)
+    # 2. bge-reranker-v2-m3 cross-encoder (544 MB)
     rerank_name = "BAAI/bge-reranker-v2-m3"
-    lines.append((C.D, f"  Downloading {rerank_name} (cross-encoder, ~570 MB)..."))
+    slug2 = "reranker-bge-reranker-v2-m3"
+    lines.append((C.D, f"  2/2 Downloading {rerank_name} (reranker, cross-encoder)..."))
     proc2 = subprocess.run(
         [
             sys.executable,
@@ -582,18 +584,17 @@ def step_models(lines, lang):
         text=True,
         timeout=600,
     )
-    slug2 = "reranker-" + rerank_name.split("/")[-1].lower()
     src2 = PROJECT_ROOT / ".codebase_models" / "onnx" / slug2
     dst2 = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug2
-    if proc2.returncode == 0 and src2.exists():
+    if proc2.returncode == 0 and (src2 / "model.onnx").exists():
         dst2.parent.mkdir(parents=True, exist_ok=True)
         if dst2.exists():
             shutil.rmtree(str(dst2), ignore_errors=True)
         shutil.copytree(str(src2), str(dst2))
-        sz2 = (dst2 / "model.onnx").stat().st_size / 1024 / 1024
-        lines.append((C.GRN, f"✔ {rerank_name}: {sz2:.0f} MB"))
+        sz = (dst2 / "model.onnx").stat().st_size / 1024 / 1024
+        lines.append((C.GRN, f"  ✔ bge-reranker ({sz:.0f} MB) — ready"))
     else:
-        lines.append((C.YEL, f"⚠ Reranker download skipped (not critical)"))
+        lines.append((C.YEL, f"  ⚠ Reranker skipped (search still works without it)"))
 
 
 def step_db(lines, lang):
