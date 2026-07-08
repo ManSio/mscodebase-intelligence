@@ -92,7 +92,7 @@ class RemoteEmbedder:
                         )
                     except:
                         pass
-                    return
+                    break  # use first valid model
 
         # Блокировка для потокобезопасного переключения режима
         self._mode_lock = threading.Lock()
