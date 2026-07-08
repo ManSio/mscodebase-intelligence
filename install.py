@@ -494,22 +494,24 @@ def step_pip(lines, lang):
 
 
 def step_models(lines, lang):
-    """Download ONNX models with user choice of size."""
+    """Download ONNX models — installs to extension dir for MCP."""
     emb_types = {
         "light": ("BAAI/bge-small-en-v1.5", 384, "~50 MB"),
         "balanced": ("BAAI/bge-base-en-v1.5", 768, "~150 MB"),
-        "full": ("BAAI/bge-m3", 1024, "~1.3 GB"),
+        "full": ("BAAI/bge-m3", 1024, "~570 MB"),
     }
-    # Check what's already downloaded
-    for size, (name, dim, sz) in emb_types.items():
+    # Check BOTH source and extension dirs
+    for name, dim, sz in emb_types.values():
         slug = name.split("/")[-1].lower()
-        p = PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx"
-        if p.exists():
-            real_sz = p.stat().st_size / 1024 / 1024
-            lines.append(
-                (C.GRN, f"✔ Embedded model: {name} ({dim}dim, {real_sz:.0f} MB)")
-            )
-            return  # already have one
+        for base in [PROJECT_ROOT, ZED_EXT_DIR]:
+            p = base / ".codebase_models" / "onnx" / slug / "model.onnx"
+            if p.exists():
+                real_sz = p.stat().st_size / 1024 / 1024
+                loc = "source" if base == PROJECT_ROOT else "extension"
+                lines.append(
+                    (C.GRN, f"✔ ONNX in {loc}: {name} ({dim}dim, {real_sz:.0f} MB)")
+                )
+                return
 
     # No model found — ask user
     lines.append((C.YEL, f"⚠ No embedding model found. Choose size:"))
@@ -529,20 +531,11 @@ def step_models(lines, lang):
     model_name, dim, _ = emb_types[chosen]
     lines.append((C.D, f"  Downloading {model_name} ({dim}dim)..."))
 
-    # Install deps + download
+    # Download via huggingface_hub only (no torch needed for pre-quantized)
     subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "huggingface-hub",
-            "torch",
-            "onnxruntime",
-            "transformers",
-        ],
+        [sys.executable, "-m", "pip", "install", "huggingface-hub", "-q"],
         capture_output=True,
-        timeout=120,
+        timeout=60,
     )
     proc = subprocess.run(
         [
@@ -559,10 +552,19 @@ def step_models(lines, lang):
         timeout=600,
     )
     slug = model_name.split("/")[-1].lower()
-    p = PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx"
-    if proc.returncode == 0 and p.exists():
-        real_sz = p.stat().st_size / 1024 / 1024
-        lines.append((C.GRN, f"✔ {model_name} ready: {dim}dim, {real_sz:.0f} MB"))
+    src = PROJECT_ROOT / ".codebase_models" / "onnx" / slug
+    dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
+
+    if proc.returncode == 0 and src.exists():
+        # Copy to extension directory (MCP server runs from there)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.exists():
+            shutil.rmtree(str(dst), ignore_errors=True)
+        shutil.copytree(str(src), str(dst))
+        sz_mb = (dst / "model.onnx").stat().st_size / 1024 / 1024
+        lines.append((C.GRN, f"✔ {model_name} ready: {dim}dim, {sz_mb:.0f} MB"))
+    else:
+        lines.append((C.RED, f"✘ Download failed"))
 
 
 def step_db(lines, lang):
