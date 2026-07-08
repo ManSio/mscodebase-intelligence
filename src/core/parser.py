@@ -54,9 +54,11 @@ class CodeParser:
     }
 
     # Настройки Fallback-чанкера и защиты от гигантских функций
-    MAX_CHUNK_CHARS = 3000  # Максимальный размер семантического чанка в символах
-    FALLBACK_CHUNK_LINES = 100
-    FALLBACK_OVERLAP_LINES = 20
+    MAX_CHUNK_CHARS = (
+        2000  # Максимальный размер семантического чанка в символах (≈512 токенов)
+    )
+    FALLBACK_CHUNK_LINES = 64  # ≈512 токенов для Python кода
+    FALLBACK_OVERLAP_LINES = 16  # 25% перекрытие
 
     def __init__(self):
         self.parsers = {}
