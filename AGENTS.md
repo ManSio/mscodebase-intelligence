@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (43 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (50 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 33 Low-Level Core MCP Tools.
+> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 34 Low-Level Core MCP + 6 System/Diagnostic Tools.
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -56,18 +56,19 @@ intel_get_project_memory      ──>   get_commit_history / file_hist (no analo
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (43)
+## 2. AVAILABLE TOOLS (50)
 
-### A. High-Level Intelligence Layer (10 tools)
+### A. High-Level Intelligence Layer (14 tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
 `intel_add_memory_node`, `intel_get_project_memory`, `intel_get_project_context`,
-`intel_explain_project_state`.
+`intel_explain_project_state`, `intel_predict_root_cause`, `intel_get_hotspots`,
+`intel_get_telemetry`, `intel_tool_health`.
 
-Diagnostic: `debug_runtime_passport`, `get_runtime_counters`.
+Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline`.
 
-### B. Low-Level Core MCP & Search (33 tools)
+### B. Low-Level Core MCP & Search (34 tools)
 
 `search_code(mode=fast|quality|deep|context|auto)`, `cross_repo_search`,
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`,

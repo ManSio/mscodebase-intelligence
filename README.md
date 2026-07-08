@@ -144,7 +144,7 @@ All documents are cross-referenced.
 
 ---
 
-## 🔧 MCP Tools (43 total)
+## 🔧 MCP Tools (50 total)
 
 ### Core Search
 
@@ -209,7 +209,7 @@ All documents are cross-referenced.
 | `predict_eta(operation)` | Operation time prediction |
 | `run_health_check()` | Full project health check (tests + git) |
 
-### Intelligence Layer (intel_*) — 10 High-Level Tools
+### Intelligence Layer (intel_*) — 14 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -223,6 +223,10 @@ All documents are cross-referenced.
 | `intel_add_memory_node(section, data)` | Add a record to project memory |
 | `intel_get_hotspots()` | Top-5 files with highest bug load |
 | `intel_predict_root_cause(error)` | Predict root cause from logs + history |
+| `intel_get_telemetry(days)` | Per-tool telemetry, resource usage, LLM stats |
+| `intel_tool_health()` | Tool success rates, latency, confidence |
+| `intel_execution_timeline(limit)` | Recent action timeline |
+| `intel_explain_project_state(root)` | Human-readable project state diagnosis |
 
 ---
 
@@ -249,7 +253,7 @@ All documents are cross-referenced.
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  33 Tool Classes   │  │  10 intel_* tools                  │  │
+│  │  34 Tool Classes   │  │  14 intel_* tools                  │  │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  Каждый инструмент  │  │  error_boundary decorator          │  │
 │  │  — отдельный класс │  │  JSON status/message/detail        │  │
