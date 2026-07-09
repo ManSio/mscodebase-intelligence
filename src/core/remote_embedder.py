@@ -494,7 +494,15 @@ class RemoteEmbedder:
                         "🌐 Ollama обнаружен! Переключаюсь с ONNX → Ollama. "
                         "Сканер остановлен."
                     )
-                    return  # Успешное подключение — завершаем поток
+                    return
+                elif self._check_llama_cpp():
+                    with self._mode_lock:
+                        self.mode = "llama_cpp"
+                        self._preferred_mode = "llama_cpp"
+                    logger.info(
+                        "🦙 llama.cpp обнаружен! Переключаюсь с ONNX → llama.cpp."
+                    )
+                    return
 
             except Exception as e:
                 logger.debug(f"Сканер провайдера: ошибка проверки: {e}")
