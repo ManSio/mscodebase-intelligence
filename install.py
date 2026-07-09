@@ -267,21 +267,40 @@ def step_lm(lines, lang):
 
 @_step(2)
 def step_proc(lines, lang):
+    """Убивает старые MCP процессы, чтобы новый код загрузился без кэша."""
+    import subprocess
+    killed = 0
     if sys.platform == "win32":
-        r = _run("tasklist /FO CSV", timeout=5)
+        # Ищем и убиваем python.exe с src.main (MCP сервер)
+        r = _run('wmic process where "name like \'%python%\'" get ProcessId,CommandLine /FORMAT:CSV', timeout=10)
         if r:
-            killed = 0
             for line in r.stdout.split("\n"):
-                if "mscodebase" in line.lower() or "mcp" in line.lower():
+                if "src.main" in line and "python" in line.lower():
                     try:
-                        pid = line.split(",")[1].strip('"')
+                        parts = line.split(",")
+                        pid = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+                        if pid.isdigit():
+                            os.kill(int(pid), 15)
+                            killed += 1
+                    except:
+                        pass
+        
+        # Также ищем llama-server
+        r2 = _run('wmic process where "name like \'%llama-server%\'" get ProcessId /FORMAT:CSV', timeout=5)
+        if r2:
+            for line in r2.stdout.split("\n"):
+                parts = line.split(",")
+                pid = parts[-1].strip() if parts else ""
+                if pid.isdigit():
+                    try:
                         os.kill(int(pid), 15)
                         killed += 1
                     except:
                         pass
-            if killed:
-                time.sleep(1)
-                lines.append((C.GRN, f"✓ Killed {killed} process(es)"))
+        
+        if killed:
+            time.sleep(2)
+            lines.append((C.GRN, f"✓ Killed {killed} old process(es)"))
     lines.append((C.D, "· Ready"))
     ZED_EXT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -315,6 +334,20 @@ def step_copy(lines, lang):
         _prog(int((idx + 1) / len(items) * 100), item.name)
     sys.stdout.write("\n")
     lines.append((C.GRN, f"✓ {len(items)} files"))
+    
+    # Чистим __pycache__ в extension, чтобы старый байткод не мешал
+    import pathlib
+    pycache_dirs = list(pathlib.Path(ZED_EXT_DIR).rglob("__pycache__"))
+    for d in pycache_dirs:
+        _safe_rmtree(d)
+    pyc_files = list(pathlib.Path(ZED_EXT_DIR).rglob("*.pyc"))
+    for f in pyc_files:
+        try:
+            f.unlink()
+        except:
+            pass
+    if pycache_dirs:
+        lines.append((C.D, f"  ✓ cleaned {len(pycache_dirs)} __pycache__ dirs"))
 
 
 @_step(4)
