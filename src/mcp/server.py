@@ -1738,22 +1738,50 @@ def _start_heartbeat_monitor(mcp) -> None:
 
 
 def _warmup_embedder():
-    """Прогрев эмбеддера при старте сервера (убивает cold start LM Studio)."""
+    """Прогрев эмбеддера при старте сервера.
+    
+    Запускает Qwen3/bge-m3 через llama.cpp в фоне.
+    """
+    import threading
+    
+    def _start_llama():
+        """Запускает llama-server асинхронно (не блокирует старт MCP)."""
+        try:
+            from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
+            runner = get_global_runner()
+            if is_compatible() and not runner.is_alive():
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+                logger.info(f"🚀 Запускаю llama.cpp ({model})...")
+                ok = loop.run_until_complete(runner.start(model))
+                loop.close()
+                if ok:
+                    logger.info(f"✅ llama.cpp ({model}) готов")
+                else:
+                    logger.warning(f"⚠️ llama.cpp не стартовал, будет ONNX fallback")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка запуска llama.cpp: {e}")
+    
+    # Запускаем в фоновом потоке (не блокируем MCP)
+    t = threading.Thread(target=_start_llama, daemon=True, name="llama-warmup")
+    t.start()
+    
+    # Также пробуем подключиться к LM Studio (если есть)
     try:
         from src.core.remote_embedder import RemoteEmbedder
-
         if _services_cache is not None:
             embedder = _services_cache.resolve(RemoteEmbedder)
             if embedder and hasattr(embedder, "mode") and embedder.mode == "lm_studio":
-                logger.info("⏳ Прогрев эмбеддера (bge-m3)...")
+                logger.info("⏳ Прогрев эмбеддера (LM Studio)...")
                 import asyncio
-
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(embedder.warmup())
                 loop.close()
     except Exception as e:
-        logger.warning(f"⚠️ Пропускаю прогрев эмбеддера: {e}")
+        logger.warning(f"⚠️ Пропускаю прогрев LM Studio: {e}")
 
 
 def run_server(original_stdout=None):
