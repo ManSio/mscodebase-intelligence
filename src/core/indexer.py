@@ -1252,7 +1252,26 @@ class Indexer:
                 progress_callback("", total_files, total_files, "rebuilding_bm25")
             self.searcher.reindex()
 
-        # Шаг 4: Финальная статистика
+        # Шаг 4: Создание IVF_PQ индекса для ускорения косинусного поиска
+        if self.table and self.table.count_rows() > 1000:
+            try:
+                logger.info(
+                    f"📊 Создаю IVF_PQ индекс ({self.table.count_rows()} чанков)..."
+                )
+                self.table.create_index(
+                    metric="L2",
+                    vector_column_name="vector",
+                    index_type="IVF_PQ",
+                    num_partitions=max(
+                        16, min(256, int(self.table.count_rows() ** 0.5))
+                    ),
+                    num_sub_vectors=16,  # 1024 dim / 64
+                )
+                logger.info("✅ IVF_PQ индекс создан")
+            except Exception as e:
+                logger.debug(f"⚠️ IVF_PQ индекс не создан: {e}")
+
+        # Шаг 5: Финальная статистика
         final_stats = self.get_status()
 
         if progress_callback:

@@ -55,6 +55,13 @@ class RemoteEmbedder:
         )
         self._onnx_server_process: Optional[subprocess.Popen] = None
 
+        # llama.cpp (Zed 1.10.0 native provider)
+        self.llama_cpp_host = os.getenv("LLAMA_CPP_HOST", "127.0.0.1")
+        self.llama_cpp_port = int(os.getenv("LLAMA_CPP_PORT", "8080"))
+        self.llama_cpp_url = (
+            f"http://{self.llama_cpp_host}:{self.llama_cpp_port}/v1/embeddings"
+        )
+
         # ONNX session (ленивая инициализация, fallback если сервер недоступен)
         self._onnx_session = None
         self._tokenizer = None
@@ -83,7 +90,11 @@ class RemoteEmbedder:
 
     def _detect_model_dir(self):
         """Find the first available ONNX model in .codebase_models/onnx/*/model.onnx
-        Checks multiple locations: ext_root, project_root, shared cache."""
+        Checks multiple locations: ext_root, project_root, shared cache.
+
+        Memory-safe: uses onnx.shape_inference (lightweight) instead of
+        creating a full InferenceSession which loads 500+ MB unnecessarily.
+        """
         for base in self._onnx_search_paths:
             if not base.exists():
                 continue
@@ -96,21 +107,15 @@ class RemoteEmbedder:
                 model_file = subdir / "model.onnx"
                 if model_file.exists():
                     self.local_model_dir = subdir
-                    logger.debug(f"ONNX model detected: {subdir.name} in {base}")
-                    # Read dimension from model
-                    try:
-                        import onnxruntime as ort
-
-                        sess = ort.InferenceSession(
-                            str(model_file), providers=["CPUExecutionProvider"]
-                        )
-                        dim = sess.get_outputs()[0].shape[-1]
-                        self._model_name = subdir.name
-                        logger.info(
-                            f"ONNX model: {subdir.name} ({dim}dim, {model_file.stat().st_size / 1024 / 1024:.0f}MB)"
-                        )
-                    except:
-                        pass
+                    self._model_name = subdir.name
+                    sz = model_file.stat().st_size / (1024 * 1024)
+                    # Lightweight dimension detection: onnx protobuf metadata,
+                    # NOT full InferenceSession (saves ~544 MB peak).
+                    dim = self._lightweight_onnx_dim(model_file)
+                    dim_str = f"{dim}dim" if dim else "dim?"
+                    logger.info(
+                        f"ONNX model: {subdir.name} ({dim_str}, {sz:.0f}MB) — no InferenceSession created"
+                    )
                     break  # model found, exit inner loop
             else:
                 continue  # inner loop didn't break → no model in this base
@@ -164,6 +169,44 @@ class RemoteEmbedder:
         )
         self._preload_thread.start()
 
+    @staticmethod
+    def _lightweight_onnx_dim(model_file: Path) -> Optional[int]:
+        """Читает размерность эмбеддинга из ONNX-файла без загрузки весов.
+
+        Использует onnx.shape_inference (только граф, ~5MB пик RSS)
+        вместо ort.InferenceSession (весь модель ~544MB пик RSS).
+        """
+        try:
+            import onnx
+
+            onnx_model = onnx.load(str(model_file), load_external_data=False)
+            # Берём output графа — последний узел, его размерность
+            graph = onnx_model.graph
+            if graph.output:
+                shape = graph.output[0].type.tensor_type.shape
+                if shape and shape.dim:
+                    return shape.dim[-1].dim_value
+        except Exception:
+            try:
+                # Известные модели: infer by name
+                name = model_file.parent.name
+                KNOWN = {
+                    "bge-m3": 1024,
+                    "bge-base": 768,
+                    "bge-small": 384,
+                    "bge-large": 1024,
+                    "text-embedding-ada": 1536,
+                    "gte-small": 384,
+                    "gte-base": 768,
+                    "gte-large": 1024,
+                }
+                for key, val in KNOWN.items():
+                    if key in name:
+                        return val
+            except Exception:
+                pass
+        return None
+
     def _preload_onnx_delayed(self):
         """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP."""
         import time as _time
@@ -197,7 +240,10 @@ class RemoteEmbedder:
     def _check_lm_studio_raw(self) -> bool:
         """Прямая проверка LM Studio без CircuitBreaker (используется breaker.call внутри)."""
         if self._sync_client is None:
-            self._sync_client = httpx.Client(timeout=2.0)
+            self._sync_client = httpx.Client(
+                timeout=2.0,
+                limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0),
+            )
         try:
             r = self._sync_client.get(f"http://{self.host}:{self.port}/v1/models")
             if r.status_code == 200:
@@ -214,7 +260,10 @@ class RemoteEmbedder:
     def _check_onnx_server(self) -> bool:
         """Проверяет доступность ONNX-сервера."""
         if self._sync_client is None:
-            self._sync_client = httpx.Client(timeout=2.0)
+            self._sync_client = httpx.Client(
+                timeout=2.0,
+                limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0),
+            )
         try:
             r = self._sync_client.get(
                 f"http://{self.onnx_server_host}:{self.onnx_server_port}/health"
@@ -224,21 +273,33 @@ class RemoteEmbedder:
             return False
 
     def _start_onnx_server_subprocess(self) -> bool:
-        """Запускает ONNX-сервер как отдельный процесс."""
+        """Запускает ONNX-сервер как отдельный процесс.
+
+        Embedder (bge-m3) + reranker (bge-reranker-v2-m3) оба в подпроцессе.
+        MCP-процесс НЕ загружает ONNX-модели (INC-6BCB-MEM).
+        """
         try:
             server_script = Path(__file__).resolve().parent / "onnx_server.py"
             if not server_script.exists():
                 logger.error(f"ONNX сервер не найден: {server_script}")
                 return False
 
+            cmd = [
+                sys.executable,
+                str(server_script),
+                f"--port={self.onnx_server_port}",
+                f"--host={self.onnx_server_host}",
+                f"--model-dir={self.local_model_dir}",
+            ]
+
+            # Добавляем reranker dir, если модель найдена
+            reranker_dir = self._find_reranker_dir()
+            if reranker_dir:
+                cmd.append(f"--reranker-dir={reranker_dir}")
+                logger.info(f"📎 Reranker модель в подпроцесс: {reranker_dir}")
+
             self._onnx_server_process = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(server_script),
-                    f"--port={self.onnx_server_port}",
-                    f"--host={self.onnx_server_host}",
-                    f"--model-dir={self.local_model_dir}",
-                ],
+                cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NO_WINDOW
@@ -250,6 +311,17 @@ class RemoteEmbedder:
         except Exception as e:
             logger.error(f"Не удалось запустить ONNX сервер: {e}")
             return False
+
+    def _find_reranker_dir(self) -> Optional[str]:
+        """Ищет директорию reranker модели для передачи в ONNX сервер."""
+        for base in self._onnx_search_paths:
+            if not base.exists():
+                continue
+            for slug in ["reranker-bge-reranker-v2-m3", "bge-reranker-v2-m3"]:
+                candidate = base / slug
+                if candidate.exists() and (candidate / "model.onnx").exists():
+                    return str(candidate)
+        return None
 
     def get_model_info(self) -> dict:
         """Возвращает информацию о текущей модели эмбеддера."""
@@ -286,6 +358,17 @@ class RemoteEmbedder:
                         self._preferred_mode = "ollama"
                     logger.info(
                         "⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA."
+                    )
+                    return
+
+            # Проверяем llama.cpp (Zed 1.10.0 native provider)
+            if os.getenv("EMBEDDING_PROVIDER", "") in ("llama_cpp", ""):
+                if self._check_llama_cpp():
+                    with self._mode_lock:
+                        self.mode = "llama_cpp"
+                        self._preferred_mode = "llama_cpp"
+                    logger.info(
+                        "🦙 llama.cpp обнаружен! Использую для эмбеддингов."
                     )
                     return
 
@@ -326,10 +409,28 @@ class RemoteEmbedder:
     def _check_ollama(self) -> bool:
         """Проверка доступности Ollama (переиспользует sync клиент)."""
         if self._sync_client is None:
-            self._sync_client = httpx.Client(timeout=2.0)
+            self._sync_client = httpx.Client(
+                timeout=2.0,
+                limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0),
+            )
         config = get_config()
         try:
             r = self._sync_client.get(config.embedding.ollama_tags_url)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    def _check_llama_cpp(self) -> bool:
+        """Проверка доступности llama.cpp (Zed 1.10.0 native)."""
+        if self._sync_client is None:
+            self._sync_client = httpx.Client(
+                timeout=2.0,
+                limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0),
+            )
+        try:
+            r = self._sync_client.get(
+                f"http://{self.llama_cpp_host}:{self.llama_cpp_port}/v1/models",
+            )
             return r.status_code == 200
         except Exception:
             return False
@@ -412,7 +513,7 @@ class RemoteEmbedder:
             return
         try:
             import onnxruntime as ort
-            from transformers import AutoTokenizer
+            from tokenizers import Tokenizer
 
             logger.info(
                 f"⚙️ Инициализация локального ONNX ядра из папки: {self.local_model_dir}"
@@ -422,7 +523,12 @@ class RemoteEmbedder:
                     f"Локальные веса ONNX не найдены в {self.local_model_dir}. Запустите download_model.py"
                 )
 
-            self._tokenizer = AutoTokenizer.from_pretrained(str(self.local_model_dir))
+            tokenizer_file = self.local_model_dir / "tokenizer.json"
+            if not tokenizer_file.exists():
+                raise FileNotFoundError(f"tokenizer.json не найден в {self.local_model_dir}")
+            self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
+            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1)
+            self._tokenizer.enable_truncation(max_length=2048)
 
             providers = ["CPUExecutionProvider"]
             if "DmlExecutionProvider" in ort.get_available_providers():
@@ -521,7 +627,51 @@ class RemoteEmbedder:
                     self.mode = "onnx"
                     self._preferred_mode = "lm_studio"
 
-        # Режим 1.5: ONNX-сервер (общий для всех проектов, через HTTP)
+        # Режим 1.5: llama.cpp (Zed 1.10.0 native — OpenAI-compatible API)
+        with self._mode_lock:
+            if self.mode == "llama_cpp":
+                try:
+                    payload = {"model": self.model_name, "input": texts}
+                    with httpx.Client(timeout=self.timeout) as client:
+                        r = client.post(self.llama_cpp_url, json=payload)
+                        if r.status_code == 200:
+                            data = r.json().get("data", [])
+                            if data:
+                                data = sorted(data, key=lambda x: x.get("index", 0))
+                                return [item["embedding"] for item in data]
+                except Exception as e:
+                    # Пробуем запустить llama.cpp автоматически
+                    logger.info(f"⚠️ llama.cpp не отвечает, пробую запустить...")
+                    try:
+                        proc = subprocess.Popen(
+                            [sys.executable, '-c', '''
+import asyncio
+from src.core.llama_runner import get_global_runner
+runner = get_global_runner()
+asyncio.run(runner.start("bge-m3"))
+'''],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                            if sys.platform == "win32" else 0,
+                        )
+                        # Ждём немного
+                        import time as _t; _t.sleep(5)
+                        with httpx.Client(timeout=self.timeout) as client:
+                            r = client.post(self.llama_cpp_url, json=payload)
+                            if r.status_code == 200:
+                                data = r.json().get("data", [])
+                                if data:
+                                    data = sorted(data, key=lambda x: x.get("index", 0))
+                                    return [item["embedding"] for item in data]
+                    except Exception as e2:
+                        logger.warning(f"Автозапуск llama.cpp не удался: {e2}")
+                    logger.warning(
+                        f"llama.cpp embedding error: {e}. Пробуем ONNX-сервер."
+                    )
+                    with self._mode_lock:
+                        self.mode = "onnx_server"
+
+        # Режим 1.75: ONNX-сервер (общий для всех проектов, через HTTP)
         with self._mode_lock:
             if self.mode == "onnx_server":
                 try:
@@ -555,20 +705,16 @@ class RemoteEmbedder:
 
                     self._onnx_last_used = time.time()
 
-                    encoded = self._tokenizer(
-                        texts,
-                        padding=True,
-                        truncation=True,
-                        max_length=2048,
-                        return_tensors="np",
-                    )
+                    enc = self._tokenizer.encode_batch(texts, add_special_tokens=True)
+                    ids = np.array([e.ids for e in enc], dtype=np.int64)
+                    mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
                     inputs = {
-                        "input_ids": encoded["input_ids"].astype(np.int64),
-                        "attention_mask": encoded["attention_mask"].astype(np.int64),
+                        "input_ids": ids,
+                        "attention_mask": mask,
                     }
-                    if "token_type_ids" in encoded:
-                        inputs["token_type_ids"] = encoded["token_type_ids"].astype(
-                            np.int64
+                    if enc and hasattr(enc[0], "type_ids") and any(e.type_ids for e in enc):
+                        inputs["token_type_ids"] = np.array(
+                            [e.type_ids for e in enc], dtype=np.int64
                         )
 
                     outputs = self._onnx_session.run(None, inputs)
@@ -591,17 +737,15 @@ class RemoteEmbedder:
                     import numpy as np
 
                     for text in texts:
-                        encoded = self._tokenizer(
-                            [text],
-                            padding=True,
-                            truncation=True,
-                            max_length=2048,
-                            return_tensors="np",
+                        enc_single = self._tokenizer.encode_batch(
+                            [text], add_special_tokens=True
                         )
                         inp = {
-                            "input_ids": encoded["input_ids"].astype(np.int64),
-                            "attention_mask": encoded["attention_mask"].astype(
-                                np.int64
+                            "input_ids": np.array(
+                                [enc_single[0].ids], dtype=np.int64
+                            ),
+                            "attention_mask": np.array(
+                                [enc_single[0].attention_mask], dtype=np.int64
                             ),
                         }
                         out = self._onnx_session.run(None, inp)
@@ -654,8 +798,8 @@ class RemoteEmbedder:
                 if self._async_client is None:
                     limits = httpx.Limits(
                         max_connections=20,
-                        max_keepalive_connections=5,
-                        keepalive_expiry=60.0,
+                        max_keepalive_connections=2,
+                        keepalive_expiry=30.0,
                     )
                     self._async_client = httpx.AsyncClient(
                         limits=limits,

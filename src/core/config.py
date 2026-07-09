@@ -12,7 +12,12 @@ from typing import List, Optional, Set
 
 @dataclass
 class EmbeddingConfig:
-    """Конфигурация для эмбеддингов (LM Studio, Ollama, ONNX)"""
+    """Конфигурация для эмбеддингов (Qwen3, BGE-M3, LM Studio, Ollama, ONNX)"""
+
+    # 🏆 Модель эмбеддинга по умолчанию
+    # Qwen3 — лучшее качество, BGE-M3 — в 5x быстрее индексация
+    # На больших проектах (300k+ строк) рекомендуется BGE-M3 для первого индекса
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
 
     # LM Studio
     lm_studio_host: str = os.getenv("LM_STUDIO_HOST", "127.0.0.1")

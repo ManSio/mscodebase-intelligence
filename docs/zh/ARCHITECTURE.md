@@ -127,7 +127,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 核心层
 
-`src/core/*.py` — **23 个纯业务逻辑文件。**
+`src/core/*.py` — **24 个纯业务逻辑文件。**
 
 关键模块：
 
@@ -139,10 +139,22 @@ class SearchCodeTool(MCPTool):
 | `indexer.py` | LanceDB 向量存储 | embedder, file_guard, parser |
 | `searcher.py` | 混合搜索（BM25 + Dense + RRF） | indexer, embedder |
 | `symbol_index.py` | 调用图（BFS, PageRank） | parser |
-| `intelligence_layer.py` | 10 个 intel_* 工具 | indexer, searcher, symbol_index |
-| `remote_embedder.py` | LM Studio / Ollama / ONNX | config |
+| `intelligence_layer.py` | 14 个 intel_* 工具 | indexer, searcher, symbol_index |
+| `llama_runner.py` | llama-server.exe 生命周期管理器 | 下载、启动、停止 |
+| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + 扩展名过滤 | config |
+
+### 2.5 提供商优先级
+
+MCP 服务器自动检测最佳可用嵌入提供商：
+
+1. **LM Studio** — 最高质量，需要外部服务器
+2. **llama.cpp** — 内置，通过 `install.py` 自动安装（GGUF 模型）
+3. **ONNX server** — 带有远程模型的 ONNX 运行时
+4. **local ONNX** — CPU 仅回退，最低质量
+
+优先级在启动时评估。与 LM Studio 相比，llama.cpp 可减少 5.3 倍 RAM（227 MB vs 1200 MB）。
 
 ---
 

@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минимальные)       │
 │  Слой 2: mcp/server.py          (DI маршрутизация, регистрация)  │
-│  Слой 3: mcp/tools/*.py         (33 class-based инструмента)     │
+│  Слой 3: mcp/tools/*.py         (34 class-based инструмента)     │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)           │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -127,7 +127,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Слой Core
 
-`src/core/*.py` — **23 файла чистой бизнес-логики.**
+`src/core/*.py` — **24 файла чистой бизнес-логики.**
 
 Ключевые модули:
 
@@ -140,9 +140,21 @@ class SearchCodeTool(MCPTool):
 | `searcher.py` | Гибридный поиск (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Граф вызовов (BFS, PageRank) | parser |
 | `intelligence_layer.py` | 14 intel_* инструментов | indexer, searcher, symbol_index |
-| `remote_embedder.py` | LM Studio / Ollama / ONNX | config |
+| `llama_runner.py` | Менеджер lifecycle для llama-server.exe | скачивание, запуск, остановка |
+| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + фильтр расширений | config |
+
+### 2.5 Приоритет провайдеров
+
+MCP-сервер автоматически определяет лучший доступный провайдер эмбеддингов:
+
+1. **LM Studio** — наивысшее качество, требует внешнего сервера
+2. **llama.cpp** — встроенный, авто-установка через `install.py` (GGUF модели)
+3. **ONNX server** — ONNX runtime с удалёнными моделями
+4. **local ONNX** — CPU-only fallback, низшее качество
+
+Приоритет определяется при старте. llama.cpp даёт снижение RAM в 5.3× (227 MB vs 1200 MB) по сравнению с LM Studio.
 
 ---
 

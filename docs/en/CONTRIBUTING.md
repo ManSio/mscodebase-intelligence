@@ -155,7 +155,7 @@ pytest tests/ --tb=long -v
 
 ## 5. Adding New MCP Tools
 
-Все 33 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
+Все 34 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
 ### Основные инструменты:
 

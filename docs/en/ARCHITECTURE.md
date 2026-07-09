@@ -33,7 +33,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (33 class-based tools)           │
+│  Layer 3: mcp/tools/*.py         (34 class-based tools)           │
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -89,14 +89,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 33 tools + 14 intel_* tools
+3. Register 34 tools + 14 intel_* tools
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **10 files, 33 tools.**
+`src/mcp/tools/*.py` — **10 files, 34 tools.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -127,7 +127,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Core Layer
 
-`src/core/*.py` — **23 files of pure business logic.**
+`src/core/*.py` — **24 files of pure business logic.**
 
 Key modules:
 
@@ -140,9 +140,21 @@ Key modules:
 | `searcher.py` | Hybrid search (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Call Graph (BFS, PageRank) | parser |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
-| `remote_embedder.py` | LM Studio / Ollama / ONNX | config |
+| `llama_runner.py` | Lifecycle manager for llama-server.exe | download, launch, stop |
+| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |
+
+### 2.5 Provider Priority
+
+The MCP server auto-detects the best available embedding provider:
+
+1. **LM Studio** — highest quality, requires external server
+2. **llama.cpp** — built-in, auto-installed via `install.py` (GGUF models)
+3. **ONNX server** — ONNX runtime with remote models
+4. **local ONNX** — CPU-only fallback, lowest quality
+
+The priority is evaluated at startup. llama.cpp provides a 5.3× RAM reduction (227 MB vs 1200 MB) compared to LM Studio.
 
 ---
 
@@ -199,7 +211,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 33 total
+        # ... 34 total
     ]
 
     for tool_cls in tool_classes:
@@ -219,7 +231,7 @@ def _register_all_tools(mcp, services):
 | **Graph** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Lifecycle** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **Intelligence** (10) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex |
+| **Intelligence** (14) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
 
 ---
 

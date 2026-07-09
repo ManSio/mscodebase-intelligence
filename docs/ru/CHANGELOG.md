@@ -6,40 +6,26 @@
 
 Все значимые изменения в этом проекте будут задокументированы в этом файле.
 
-## [v2.7.0] — 2026-07-08 — Асинхронный LanceDB + Call-graph + Code Health + Багфиксы
+## [2.7.0] — 2026-07-09
+### Added
+- 🦙 llama.cpp как основной провайдер (авто-установка через install.py)
+- LlamaRunner — менеджер lifecycle для llama-server.exe (скачивание, запуск, остановка)
+- GGUF модели: bge-m3 Q4_K_M (417 MB) + bge-reranker-v2-m3 Q4_K_M (418 MB)
+- Платформенная детекция: Windows/macOS/Linux, x64/ARM64
+- docs/research/2026-07-09-provider-benchmark.md — полный бенчмарк
 
-### 🔬 AI Model Stack (документирован)
-- **Embedder**: BAAI/bge-m3 (LM Studio, 1024-dim)
-- **Reranker**: bge-reranker-v2-m3 (LM Studio, cross-encoder)
-- **LLM**: phi-4-mini-instruct (LM Studio, mode=ask)
-- **Agent**: DeepSeek V4 Flash (Zed AI Chat, user-facing)
+### Changed
+- installer: 10→12 шагов (+llama.cpp, +GGUF моделей)
+- patch_zed_settings: сохраняет // комментарии, no-op guard
+- Приоритет провайдеров: LM Studio → llama.cpp → ONNX server → local ONNX
+- MCP: 227 MB RAM (было 1200 MB) — в 5.3x меньше
+- ONNX server: Tokenizer.from_file() вместо AutoTokenizer — без зависаний
 
-### 🚀 Нативный Async LanceDB
-- search_async, to_pandas_async, close_async в Indexer
-- _vector_search_async → прямой вызов Indexer.search_async
-
-### 🧩 Code Health + Call-Graph + Co-change
-- code_health.py: 6 маркеров, score 1-10
-- parser.py: callees в metadata каждого чанка
-- indexer.py: health_score в схеме LanceDB
-- commit_memory.py: co-change matrix
-- searcher.py: graph-expand + co-change boost
-
-### 🐛 P0-P3 Багфиксы
-- Утечка памяти (httpx reuse), health O(1),
-  branch_info async, LLM decompose sync
-
-### 🔧 Усиление
-- asyncio.Lock, UNC guard, cache isolation,
-  phi-4 stop-tokens, _safe_close async, dead env vars
-
-### 🛡️ Production Hardening (7 июля)
-- **P0**: Восстановление таблицы LanceDB при внешнем сбросе
-- **P3**: Graceful degradation — BM25, vector_search, async search
-- **B1-B3**: Исправлены периферийные баги из forensic-анализа
-- `.env.example`: все 46 переменных, билингвальная документация
-- `install.py`: полный редизайн с боксовым UI и автоязыком
-- **396 тестов, 0 регрессий**
+### Fixed
+- AutoTokenizer.from_pretrained() зависание на Windows (HTTP к huggingface.co)
+- patch_zed_settings вырезал // комментарии → кнопка "восстановить"
+- _detect_model_dir() создавал 544 MB InferenceSession только для чтения размерности
+- Все HTTP-клиенты: httpx.Limits(keepalive_expiry=30.0) для Zed 1.10.0 compat
 
 ---
 

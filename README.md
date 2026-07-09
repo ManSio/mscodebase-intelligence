@@ -14,9 +14,9 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-43-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-50-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-08*
+*Last updated: 2026-07-09*
 
 </div>
 
@@ -65,7 +65,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 MSCodeBase **does not use LSP**. The LSP server (`src/lsp_main.py`) was an experimental part of the project and **does not work in Zed** due to architectural limitations of the editor itself (see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)).
 
-Instead, all functionality is implemented through **43 MCP tools** available in Zed via the MCP protocol.
+Instead, all functionality is implemented through **50 MCP tools** available in Zed via the MCP protocol.
 
 ### Platforms
 
@@ -87,7 +87,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15 services), 43 tools (33 class-based + 10 intel), 391+ tests |
+│ 🧪 **Clean Architecture** | DI Container (15 services), 50 tools (34 class-based + 14 intel + 2 diag), 391+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
 
@@ -95,7 +95,49 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 
 ## 🚀 Quick Start
 
-> Full installation guide: **[docs/en/INSTALL.md](docs/en/INSTALL.md)**
+Выбери **один** из трёх способов установки:
+
+| Способ | Кому подходит | Время | Сложность |
+|--------|---------------|-------|-----------|
+| 🤖 **One-Prompt** | Всем. Копируешь текст → Агент Zed всё делает сам | 5-10 мин | 🟢 Автоматически |
+| 🖥️ **Install.py** | Кто любит TUI-установщики | 5-10 мин | 🟢 Просто |
+| 🛠️ **Вручную** | Кто хочет полный контроль | 15-20 мин | 🟡 Средне |
+
+> **Примечание:** На Windows 11 Insider Preview (build ≥ 26220) llama-server.exe
+> несовместим (отсутствует api-ms-win-crt-heap API Set). Установщик
+> автоматически переключится на ONNX. На стабильных Windows/macOS/Linux
+> — llama.cpp (в 3x быстрее и в 2x легче).
+
+---
+
+### 🤖 Способ 1: One-Prompt (рекомендуется)
+
+**Для кого:** Для всех. Агент Zed сам определит твою платформу, CPU, скачает нужные бинарники и настроит MCP.
+
+**Что делать:**
+1. Открой **Agent Panel** в Zed: `Ctrl+Shift+P` → `Agent Panel: Toggle`
+2. Скопируй весь текст из **[AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md)**
+3. Вставь в чат Агента и нажми Enter
+4. ✅ Готово через 5-10 минут
+
+```
+Что произойдёт:
+  ├─ Диагностика: Windows/macOS/Linux, AVX2/AVX512/ARM
+  ├─ Клонирование репозитория
+  ├─ Виртуальное окружение + pip install
+  ├─ Скачивание llama-server.exe (под твою архитектуру CPU)
+  ├─ Скачивание GGUF моделей bge-m3 + reranker (Q4_K_M)
+  ├─ Настройка MCP в Zed (с сохранением // комментариев!)
+  └─ Если нет интернета / Windows Insider / ошибка → ONNX fallback
+  └─ Авто-детекция: стабильный Windows → llama.cpp, Insider → ONNX
+  └─ ~750 MB с llama.cpp / ~1.9 GB с ONNX
+```
+
+---
+
+### 🖥️ Способ 2: Install.py (TUI-установщик)
+
+**Для кого:** Кто предпочитает классические установщики.
 
 ```bash
 git clone https://github.com/ManSio/mscodebase-intelligence.git
@@ -103,19 +145,118 @@ cd mscodebase-intelligence
 python install.py
 ```
 
-**After installation:** File → Quit → reopen project → wait for indexing.
+**Что делает:**
+1. ✅ Создаёт виртуальное окружение + pip install
+2. ✅ Скачивает **llama.cpp** + GGUF модели (bge-m3 + reranker)
+3. ✅ Или скачивает ONNX модели (bge-m3 + reranker) — fallback
+4. ✅ Настраивает MCP-сервер в Zed
+5. ✅ Создаёт деинсталлятор
 
-**Verify:** in Agent Panel (`Ctrl+Shift+P` → `Agent Panel: Toggle`) run:
+После установки → **File → Quit → reopen project** → жди индексацию.
+
+**Verify:** в Agent Panel выполни:
 ```
 get_index_status()
 ```
 
-> **Windows:** Windows has specifics (Restricted Mode, project resolves via SQLite).
-> Read **[docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md)**
-> before installation.
->
-> **LM Studio:** Recommended for vector search. Install, run on port 1234 —
-> MCP connects automatically.
+---
+
+### 🛠️ Способ 3: Вручную (полный контроль)
+
+**Для кого:** Кто хочет понять каждый шаг или у кого нестандартная конфигурация.
+
+1. **Клонируй:**
+   ```bash
+   git clone https://github.com/ManSio/mscodebase-intelligence.git
+   cd mscodebase-intelligence
+   ```
+
+2. **Создай venv и установи зависимости:**
+   ```bash
+   python -m venv .venv
+   # Windows:
+   .venv\Scripts\python.exe -m pip install -r requirements.txt
+   # macOS/Linux:
+   .venv/bin/python -m pip install -r requirements.txt
+   ```
+
+3. **Скачай llama.cpp (опционально, но сильно быстрее):**
+   ```bash
+   # Windows — скачай с GitHub:
+   curl -LO https://github.com/ggml-org/llama.cpp/releases/download/b9940/llama-b9940-bin-win-cpu-x64.zip
+   # Распакуй в папку llama/
+   
+   # macOS ARM:
+   curl -LO https://github.com/ggml-org/llama.cpp/releases/download/b9940/llama-b9940-bin-macos-arm64.tar.gz
+   
+   # Linux:
+   curl -LO https://github.com/ggml-org/llama.cpp/releases/download/b9940/llama-b9940-bin-ubuntu-x64.tar.gz
+   ```
+
+4. **Скачай GGUF модели:**
+   ```bash
+   pip install huggingface_hub
+   python -c "
+   from huggingface_hub import hf_hub_download
+   import shutil
+   for repo, file in [
+       ('lm-kit/bge-m3-gguf', 'bge-m3-Q4_K_M.gguf'),
+       ('lm-kit/bge-m3-reranker-v2-gguf', 'Bge-M3-568M-Q4_K_M.gguf'),
+   ]:
+       path = hf_hub_download(repo_id=repo, filename=file)
+       shutil.copy2(path, f'models/{file}')
+   "
+   ```
+
+5. **Настрой MCP в Zed:**
+   Добавь в `%APPDATA%/Zed/settings.json` (Windows) или `~/.config/zed/settings.json` (macOS/Linux):
+   ```json
+   {
+     "context_servers": {
+       "mscodebase-intelligence": {
+         "command": ".venv/Scripts/python.exe",
+         "args": ["-u", "-m", "src.main"],
+         "env": {
+           "PYTHONPATH": ".",
+           "PROJECT_PATH": "$ZED_WORKTREE_ROOT"
+         }
+       }
+     },
+     "context_servers_to_query": ["mscodebase-intelligence"]
+   }
+   ```
+
+6. **Запусти и проверь:**
+   ```bash
+   .venv/Scripts/python.exe -u -m src.main &
+   # В Agent Panel: get_index_status()
+   ```
+
+---
+
+### ⚡ Провайдеры (автовыбор)
+
+После установки MCP сам выберет лучший доступный провайдер:
+
+```
+LM Studio (GPU)  →  llama.cpp (CPU GGUF)  →  ONNX server (CPU)  →  local ONNX (fallback)
+   fastest             ~523 MB RAM               ~1.7 GB RAM           медленно
+   ~100ms embed        ~764ms embed              ~988ms embed          +544 MB в MCP
+```
+
+Подробные бенчмарки: **[docs/research/2026-07-09-provider-benchmark.md](docs/research/2026-07-09-provider-benchmark.md)**
+
+---
+
+### 📌 Важные заметки
+
+| Сценарий | Инструкция |
+|----------|-----------|
+| **Windows** | Read [docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md) |
+| **Установка через Агента** | Copy [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md) into chat |
+| **LM Studio** | Install, run on port 1234 — MCP connects automatically |
+| **llama.cpp** | Auto-downloaded by install.py. CPU detected automatically |
+| **Уже установлено** | `python install.py` безопасен — no-op если всё уже настроено |
 
 ---
 
@@ -254,7 +395,7 @@ All documents are cross-referenced.
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  34 Tool Classes   │  │  14 intel_* tools                  │  │
+│  │  34 Tool Classes   │  │  14 intel_* tools + 2 diag      │  │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  Каждый инструмент  │  │  error_boundary decorator          │  │
 │  │  — отдельный класс │  │  JSON status/message/detail        │  │
@@ -350,9 +491,10 @@ mscodebase-intelligence/
 │   │   ├── indexer.py            # LanceDB vector storage
 │   │   ├── searcher.py           # Hybrid search (BM25 + Dense + RRF)
 │   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
-│   │   ├── intelligence_layer.py # intel_* tools (10 high-level)
-│   │   ├── remote_embedder.py    # LM Studio / Ollama client
-│   │   ├── reranker.py           # Multi-Provider Reranker
+│   │   ├── intelligence_layer.py # intel_* tools (14 high-level)
+│   │   ├── llama_runner.py       # llama.cpp lifecycle manager ★
+│   │   ├── remote_embedder.py    # LM Studio / Ollama / llama.cpp / ONNX client
+│   │   ├── reranker.py           # Multi-Provider Reranker (HTTP to providers)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Self-diagnosis engine
 │   │   └── ...

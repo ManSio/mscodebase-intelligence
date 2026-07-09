@@ -6,40 +6,26 @@
 
 本文件中记录了所有重要的项目变更。
 
-## [v2.7.0] — 2026-07-08 — 异步 LanceDB + Call-graph + Code Health + 错误修复
+## [2.7.0] — 2026-07-09
+### Added
+- 🦙 llama.cpp 作为主要提供商（通过 install.py 自动安装）
+- LlamaRunner — llama-server.exe 生命周期管理器（下载、启动、停止）
+- GGUF 模型：bge-m3 Q4_K_M (417 MB) + bge-reranker-v2-m3 Q4_K_M (418 MB)
+- 平台检测：Windows/macOS/Linux、x64/ARM64
+- docs/research/2026-07-09-provider-benchmark.md — 完整基准测试
 
-### 🔬 AI 模型栈（已记录）
-- **Embedder**: BAAI/bge-m3 (LM Studio, 1024-dim)
-- **Reranker**: bge-reranker-v2-m3 (LM Studio, cross-encoder)
-- **LLM**: phi-4-mini-instruct (LM Studio, mode=ask)
-- **Agent**: DeepSeek V4 Flash (Zed AI Chat, user-facing)
+### Changed
+- 安装程序：10→12 步骤（+llama.cpp、+GGUF 模型）
+- patch_zed_settings：保留 // 注释，no-op guard
+- 提供商优先级：LM Studio → llama.cpp → ONNX server → local ONNX
+- MCP：227 MB RAM（原为 1200 MB）— 减少 5.3 倍
+- ONNX server：使用 Tokenizer.from_file() 替代 AutoTokenizer — 无挂起
 
-### 🚀 原生异步 LanceDB
-- Indexer 中的 search_async、to_pandas_async、close_async
-- _vector_search_async → 直接调用 Indexer.search_async
-
-### 🧩 Code Health + Call-Graph + Co-change
-- code_health.py：6 个标记，评分 1-10
-- parser.py：每个块的 callees 元数据
-- indexer.py：LanceDB 模式中的 health_score
-- commit_memory.py：协同变更矩阵
-- searcher.py：图展开 + 协同变更提升
-
-### 🐛 P0-P3 错误修复
-- 内存泄漏 (httpx 重用)、健康 O(1)、
-  branch_info 异步、LLM 分解同步
-
-### 🔧 加固
-- asyncio.Lock、UNC 防护、缓存隔离、
-  phi-4 停止令牌、_safe_close 异步、死环境变量
-
-### 🛡️ 生产加固（7月7日）
-- **P0**：外部删除时恢复 LanceDB 表
-- **P3**：优雅降级 — BM25、vector_search、async search
-- **B1-B3**：修复取证分析中发现的外围错误
-- `.env.example`：全部 46 个变量，双语文档
-- `install.py`：完全重新设计，拥有框 UI 和自动语言检测
-- **396 个测试，0 次回归**
+### Fixed
+- AutoTokenizer.from_pretrained() 在 Windows 上挂起（HTTP 连接到 huggingface.co）
+- patch_zed_settings 删除了 // 注释 → "恢复"按钮
+- _detect_model_dir() 仅为了读取维度创建了 544 MB 的 InferenceSession
+- 所有 HTTP 客户端：httpx.Limits(keepalive_expiry=30.0) 以兼容 Zed 1.10.0
 
 ---
 

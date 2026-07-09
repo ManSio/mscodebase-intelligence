@@ -22,6 +22,7 @@
 | **Disk** | 500 MB (with model — up to 2 GB) |
 | **Zed IDE** | latest version |
 | **LM Studio** (optional) | for vector search via embeddings |
+| **llama.cpp** (auto-installed) | built-in embedder/reranker via GGUF models |
 
 ---
 
@@ -41,12 +42,24 @@ python install.py
 The installer will:
 1. ✅ Check Python and compatibility
 2. ✅ Create a virtual environment and install dependencies
-3. ✅ Configure the MCP server in Zed's `settings.json`
-4. ✅ Copy source files into the installed extension
-5. ✅ Create `uninstall.bat`
+3. ✅ Download and install **llama.cpp** + GGUF models (`bge-m3` + `bge-reranker-v2-m3`)
+4. ✅ Configure the MCP server in Zed's `settings.json`
+5. ✅ Copy source files into the installed extension
+6. ✅ Create `uninstall.bat`
 
 > **Important:** The installer copies files from the current directory into the extension.
 > All source changes take effect only after `python install.py`.
+
+### Автоматическая установка
+
+Начиная с v2.7.0, `install.py` автоматически:
+
+1. **Скачивает llama-server.exe** под вашу платформу (Windows/macOS/Linux, x64/ARM64)
+2. **Скачивает GGUF-модели**: `bge-m3-Q4_K_M` (417 MB) для эмбеддингов и `bge-reranker-v2-m3-Q4_K_M` (418 MB) для реранкинга
+3. **Запускает llama-server** при старте MCP — никаких внешних сервисов не требуется
+4. **Освобождает до 5.3× RAM** по сравнению с LM Studio (227 MB vs 1200 MB)
+
+Весь процесс полностью автоматический. Никаких дополнительных действий от пользователя не требуется.
 
 ### Step 2: Restart Zed
 

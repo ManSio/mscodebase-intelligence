@@ -6,50 +6,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.7.0] — 2026-07-08 — Async LanceDB + Call-graph + Code Health + Bugfixes
+## [2.7.0] — 2026-07-09
+### Added
+- 🦙 llama.cpp как основной провайдер (авто-установка через install.py)
+- LlamaRunner — менеджер lifecycle для llama-server.exe (скачивание, запуск, остановка)
+- GGUF модели: bge-m3 Q4_K_M (417 MB) + bge-reranker-v2-m3 Q4_K_M (418 MB)
+- Платформенная детекция: Windows/macOS/Linux, x64/ARM64
+- docs/research/2026-07-09-provider-benchmark.md — полный бенчмарк
 
-### 🔬 AI Model Stack (documented)
-- **Embedder**: BAAI/bge-m3 (LM Studio, 1024-dim)
-- **Reranker**: bge-reranker-v2-m3 (LM Studio, cross-encoder)
-- **LLM**: phi-4-mini-instruct (LM Studio, mode=ask)
-- **Agent**: DeepSeek V4 Flash (Zed AI Chat, user-facing)
+### Changed
+- installer: 10→12 шагов (+llama.cpp, +GGUF моделей)
+- patch_zed_settings: сохраняет // комментарии, no-op guard
+- Приоритет провайдеров: LM Studio → llama.cpp → ONNX server → local ONNX
+- MCP: 227 MB RAM (было 1200 MB) — в 5.3x меньше
+- ONNX server: Tokenizer.from_file() вместо AutoTokenizer — без зависаний
 
-### 🚀 Native Async LanceDB
-- search_async, to_pandas_async, close_async в Indexer
-- _vector_search_async → прямой вызов Indexer.search_async
-
-### 🧩 Code Health + Call-Graph + Co-change
-- code_health.py: 6 markers, score 1-10
-- parser.py: callees в metadata каждого чанка
-- indexer.py: health_score в схеме LanceDB
-- commit_memory.py: co-change matrix
-- searcher.py: graph-expand + co-change boost
-
-### 🐛 P0-P3 Bugfixes
-- Memory leak (httpx reuse), health O(1),
-  branch_info async, LLM decomposesync
-
-### 🔧 Hardening
-- asyncio.Lock, UNC guard, cache isolation,
-  phi-4 stop-tokens, _safe_close async, dead env vars
-
-### 🛡️ Production Hardening (Jul 7)
-- **P0**: LanceDB table recreation on external drop (`_safe_recreate_table()`,
-  `_ensure_table_ready()`)
-- **P3**: Graceful degradation — BM25, vector_search, async search
-  survive corrupt/missing tables
-- **B1**: Fix `UnboundLocalError: raw` in SearchCodeTool — explicit
-  `raw = None` in all mode branches
-- **B2**: Fix `TypeError: object of type 'int' has no len()` in
-  ImpactAnalysisTool — `_safe_count()` guard
-- **B3**: Fix `ImportError: RemoteEmbedderKey` in server.py —
-  import `RemoteEmbedder` directly
-- Suppress noisy `Event loop is closed` log spam in remote_embedder
-- `.env` removed from git tracking
-- `.env.example`: all 46 vars documented bilingually (EN+RU)
-- `install.py`: complete rewrite with box UI, auto language detection,
-  multi-language support
-- Tags: `396 tests, 0 regressions`
+### Fixed
+- AutoTokenizer.from_pretrained() зависание на Windows (HTTP к huggingface.co)
+- patch_zed_settings вырезал // комментарии → кнопка "восстановить"
+- _detect_model_dir() создавал 544 MB InferenceSession только для чтения размерности
+- Все HTTP-клиенты: httpx.Limits(keepalive_expiry=30.0) для Zed 1.10.0 compat
 
 ---
 

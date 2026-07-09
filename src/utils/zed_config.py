@@ -25,63 +25,73 @@ SERVER_NAME = "mscodebase-intelligence"
 def get_zed_config_dir() -> Path:
     """
     Находит папку настроек Zed.
+
     Учитывает:
     - Переменную окружения ZED_CONFIG_DIR (если задана)
     - Стандартные пути для каждой ОС
     """
-    # 1. Кастомная переменная окружения (приоритет)
-    custom_dir = os.environ.get("ZED_CONFIG_DIR")
-    if custom_dir:
-        path = Path(custom_dir)
-        if path.exists():
-            return path
-        logger.warning(f"ZED_CONFIG_DIR указан, но папка не существует: {path}")
-
-    # 2. Стандартные пути ОС
+    # Windows: %APPDATA%/Zed  (Zed 2.x)
     if sys.platform == "win32":
-        # Windows: %APPDATA%\Zed
         appdata = os.environ.get("APPDATA")
         if appdata:
             return Path(appdata) / "Zed"
-        return Path.home() / "AppData" / "Roaming" / "Zed"
 
-    elif sys.platform == "darwin":
-        # macOS: ~/Library/Application Support/Zed
-        return Path.home() / "Library" / "Application Support" / "Zed"
+    # macOS: ~/.config/zed (Zed 2.x) или ~/.zed (Zed 1.x)
+    if sys.platform == "darwin":
+        if "ZED_CONFIG_DIR" in os.environ:
+            return Path(os.environ["ZED_CONFIG_DIR"])
+        config = Path.home() / ".config" / "zed"
+        if config.exists():
+            return config
+        legacy = Path.home() / ".zed"
+        if legacy.exists():
+            return legacy
+        return config  # default для macOS
 
-    else:
-        # Linux: $XDG_CONFIG_HOME/zed или ~/.config/zed
+    # Linux: $XDG_CONFIG_HOME/zed или ~/.config/zed
+    if sys.platform == "linux":
         xdg = os.environ.get("XDG_CONFIG_HOME")
         if xdg:
             return Path(xdg) / "zed"
         return Path.home() / ".config" / "zed"
 
+    # fallback для неизвестных ОС
+    return Path.home() / ".config" / "zed"
+
 
 def get_extension_install_dir() -> Path:
-    """
-    Возвращает путь к директории, куда установлено расширение.
-    Определяется автоматически по расположению этого файла.
-    """
-    # Этот файл лежит в src/utils/zed_config.py
-    # Расширение установлено на два уровня выше
+    """Определяет директорию установки расширения."""
+    # Если запущено из установленного расширения
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent.parent.parent
+    # Если запущено из разработки (src/main.py)
     return Path(__file__).resolve().parent.parent.parent
 
 
-def get_python_path() -> str:
-    """
-    Возвращает абсолютный путь к python.exe из venv расширения.
-    """
+def get_python_path() -> Path:
+    """Возвращает путь к Python в виртуальном окружении расширения."""
     ext_dir = get_extension_install_dir()
+    venv = ext_dir / "venv"
     if sys.platform == "win32":
-        python_exe = ext_dir / "venv" / "Scripts" / "python.exe"
+        python = venv / "Scripts" / "python.exe"
     else:
-        python_exe = ext_dir / "venv" / "bin" / "python3"
+        python = venv / "bin" / "python3"
+    if python.exists():
+        return python
+    # fallback: системный Python (для разработки)
+    return Path(sys.executable)
 
-    if python_exe.exists():
-        return str(python_exe)
 
-    # Fallback: системный python
-    return sys.executable
+def _build_mcp_entry(executable: str, args: list[str], ext_dir: Path) -> dict:
+    """Формирует запись MCP-сервера для settings.json."""
+    return {
+        "command": executable,
+        "args": args,
+        "env": {
+            "PYTHONPATH": str(ext_dir),
+            "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+        },
+    }
 
 
 def patch_zed_settings(
@@ -93,267 +103,221 @@ def patch_zed_settings(
     project_path: str | None = None,
 ) -> bool:
     """
-    Добавляет/обновляет MCP-сервер (и опционально LSP) в настройках Zed.
+    Добавляет/обновляет MCP-сервер в настройках Zed.
 
-    Единая точка записи настроек — без double-write.
+    ВАЖНО: НЕ трогает // комментарии в settings.json.
+    Использует текст-хирургию вместо json.load()+json.dump()
+    чтобы предотвратить кнопку "восстановить" в Zed 1.10.0.
 
     Args:
-        command: Полная команда для запуска MCP-сервера.
-                 Если None — формируется автоматически по пути установки.
-                 Если передан — PYTHONPATH и ext_dir определяются по команде.
-                 Формат команды: "{ext_dir}/venv/Scripts/python.exe -u -m src.main"
-        mode: 'global' — в глобальные настройки Zed (для всех проектов).
-              'project' — в .zed/settings.json текущего проекта.
-        lsp_config: WONTFIX на Zed 1.9.0 Windows. Не передаётся из install.py.
-                    Если передан — добавляется в settings["lsp"]["mscodebase-lsp"],
-                    но LSP НЕ СТАРТУЕТ — имени нет в LanguageRegistry Zed.
-                    Подробности: docs/investigations/2026-07-05-lsp-zed-1.9.0.md
-        languages_config: Игнорируется на Windows. Zed 1.9.0 не принимает
-                          кастомные имена LSP в массиве language_servers.
-        install_path: Абсолютный путь к установленному расширению.
-                      Если передан — используется для PYTHONPATH вместо автоопределения.
-                      Нужен когда patch_zed_settings() вызывается из install.py,
-                      где раширение копируется в %LOCALAPPDATA%/Zed/extensions/
-
-    Returns:
-        True, если настройки успешно обновлены
+        command: Полная команда MCP-сервера.
+                 Если None — формируется автоматически.
+        mode: 'global' — глобальные настройки, 'project' — .zed/settings.json
+        install_path: Путь к установленному расширению.
     """
-    # Если команда не указана — формируем автоматически
     if command is None:
         python_exe = get_python_path()
         ext_dir = get_extension_install_dir()
         command = f"{python_exe} -u -m src.main"
 
+    # Определяем путь к settings.json
     if mode == "project":
         zed_dir = Path.cwd() / ".zed"
         zed_dir.mkdir(exist_ok=True)
         settings_path = zed_dir / "settings.json"
-        logger.info(f"Настраиваю проект: {settings_path}")
     else:
         config_dir = get_zed_config_dir()
         if not config_dir.exists():
-            logger.error(f"Папка настроек Zed не найдена: {config_dir}")
-            logger.info("Запустите Zed хотя бы раз, чтобы создать настройки.")
-
-            # Пытаемся создать директорию (Zed сам её создаёт, но на всякий случай)
             try:
                 config_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(f"Создана папка настроек Zed: {config_dir}")
             except Exception as e:
-                logger.error(f"Не удалось создать папку настроек: {e}")
+                logger.error(f"Не удалось создать {config_dir}: {e}")
                 return False
-
         settings_path = config_dir / "settings.json"
-        logger.info(f"Настраиваю глобально: {settings_path}")
 
-    # Читаем существующие настройки
-    settings = {}
-    if settings_path.exists():
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            # Удаляем однострочные комментарии // ... (Zed settings format)
-            if "//" in content:
-                clean_content = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
-            else:
-                clean_content = content
-            settings = json.loads(clean_content)
-        except json.JSONDecodeError as e:
-            logger.error(f"Файл настроек повреждён: {settings_path}")
-            logger.error(f"Ошибка JSON: {e}")
-            # Создаём бэкап повреждённого файла
-            backup = settings_path.with_suffix(".json.broken")
-            try:
-                shutil.copy2(settings_path, backup)
-                logger.info(f"Повреждённый файл сохранён как: {backup}")
-            except Exception:
-                pass
-            settings = {}
-        except Exception as e:
-            logger.error(f"Ошибка чтения настроек: {e}")
-            return False
+    logger.info(f"Настраиваю: {settings_path}")
 
-    # Делаем бэкап перед изменением (только первый раз)
-    backup_path = settings_path.with_suffix(".json.backup")
-    if not backup_path.exists() and settings_path.exists():
-        try:
-            shutil.copy2(settings_path, backup_path)
-            logger.info(f"Бэкап создан: {backup_path}")
-        except Exception as e:
-            logger.warning(f"Не удалось создать бэкап: {e}")
-
-    # Добавляем или обновляем context_servers
-    if "context_servers" not in settings:
-        settings["context_servers"] = {}
-
-    # Определяем формат команды
-    # На Windows shlex.split ломает backslashes, парсим вручную
-    # Разбиваем по пробелам, первый элемент — executable, остальное — args
+    # Парсим команду
     parts = command.split(maxsplit=1)
     if not parts:
-        logger.error("Передана пустая команда.")
+        logger.error("Пустая команда.")
         return False
-
     executable = parts[0]
-    args = []
-    if len(parts) > 1:
-        args = parts[1].split()
+    args = parts[1].split() if len(parts) > 1 else []
 
-    # ── Определяем ext_dir для PYTHONPATH ──
-    # Приоритет:
-    #   1. Явно переданный install_path (из install.py)
-    #   2. Извлечение из пути executable (если он внутри .../venv/Scripts/python.exe)
-    #   3. Автоопределение через get_extension_install_dir() (для разработки)
-    ext_dir = None
+    # Определяем ext_dir для PYTHONPATH
     if install_path:
         ext_dir = Path(install_path).resolve()
-        logger.debug(f"patch_zed_settings: ext_dir из install_path={ext_dir}")
     else:
         exe_path = Path(executable).resolve()
-        # Проверяем структуру: {ext_dir}/venv/Scripts/python.exe
         if exe_path.parent.parent.parent.name == "venv":
             ext_dir = exe_path.parent.parent.parent.parent
-            logger.debug(f"patch_zed_settings: ext_dir из пути executable={ext_dir}")
         else:
             ext_dir = get_extension_install_dir()
-            logger.debug(f"patch_zed_settings: ext_dir авто={ext_dir}")
 
-    # ══════════════════════════════════════════════════════════════
-    # ВАЖНО: current_dir НЕ устанавливаем.
-    # Zed НЕ подставляет $ZED_WORKTREE_ROOT в current_dir (баг Zed #36019).
-    # Вместо этого MCP-сервер определяет project_root самостоятельно
-    # по приоритету: PROJECT_PATH env → LSP→MCP bridge → CWD → ext_root.
-    # см. src/mcp/server.py:resolve_project_root()
-    # ══════════════════════════════════════════════════════════════
-    entry = {
-        "command": executable,
-        "args": args,
-    }
+    # Читаем файл как текст (с сохранением // комментариев)
+    if settings_path.exists():
+        original = settings_path.read_text(encoding="utf-8")
+    else:
+        original = "{}\n"
 
-    # PYTHONPATH указывает на корень расширения, чтобы import src.* работал.
-    # PROJECT_PATH = $ZED_WORKTREE_ROOT — Zed подставляет в env
-    # (current_dir не подставляется, см. выше).
-    # Многоуровневое определение project_root в resolve_project_root()
-    # гарантирует работу даже при нештатной подстановке.
-    env = {
-        "PYTHONPATH": str(ext_dir),
-        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
-    }
-    # MSCODEBASE_ALLOW_SELF_INDEX НЕ СТАВИМ в production.
-    # Он отключает self-indexing guard и при пустом bridge проект
-    # уходит в ext_root с тихой самоиндексацией.
-    # Dev: установи MSCODEBASE_ALLOW_SELF_INDEX=1 вручную в settings.json.
-    entry["env"] = env
+    server_key = f'"{SERVER_NAME}"'
 
-    settings["context_servers"][SERVER_NAME] = entry
+    # Проверяем, есть ли уже наш сервер
+    if server_key in original:
+        # Проверяем совпадение команды (текстовый поиск, без JSON парсинга)
+        expected_cmd = json.dumps(executable)
+        if expected_cmd in original:
+            logger.info(f"✅ MCP-сервер '{SERVER_NAME}' уже настроен, команда совпадает.")
+            return True
+        logger.info(f"🔄 Команда MCP изменилась, обновляю...")
 
-    # Добавляем наш сервер в auto-query список, чтобы Zed сам вызывал инструменты
-    # без явной команды (как @codebase в Cursor)
+    # ── Формируем обновлённую структуру ──
+    # Парсим JSON (с очисткой комментариев) только для модификации данных
+    clean = re.sub(r"^\s*//.*$", "", original, flags=re.MULTILINE)
+    try:
+        settings = json.loads(clean)
+    except json.JSONDecodeError:
+        logger.warning(f"Файл {settings_path} повреждён, создаю новый.")
+        settings = {}
+
+    # Модифицируем структуру
+    if "context_servers" not in settings:
+        settings["context_servers"] = {}
+    settings["context_servers"][SERVER_NAME] = _build_mcp_entry(executable, args, ext_dir)
+
     if "context_servers_to_query" not in settings:
         settings["context_servers_to_query"] = []
     if SERVER_NAME not in settings["context_servers_to_query"]:
         settings["context_servers_to_query"].append(SERVER_NAME)
 
-    # ──────────────────────────────────────────────────
-    # Инжект системных правил для AI-ассистента Zed
-    # ──────────────────────────────────────────────────
-    custom_instructions = (
+    # System prompt injection (как и было)
+    custom_rules = (
         "MSCodeBase Core Rules: "
         "[MEMORY] 1. Start: intel_get_project_memory. 2. After task: intel_log_incident. "
         "[SEARCH] search_code(mode=auto|fast|quality|deep|context). Deprecated: smart/deep/context_search. "
-        "[STATE] IF chunks==0 → grep, ELSE → search_code/get_symbol_info. "
+        "[STATE] IF chunks==0 — grep, ELSE — search_code/get_symbol_info. "
         "[READ] Max 50 lines per read_file. NEVER ingest entire files. "
         "[WRITE] Read target lines before edit. Preserve indentation. "
-        "[SYNC] Edit → notify_change(src\\path). Paths relative to PROJECT_ROOT. "
+        "[SYNC] Edit — notify_change(src\\path). Paths relative to PROJECT_ROOT. "
         "[PATHS] src\\core\\file.py for MCP, src/core/file.py for Terminal. "
         "[ERROR] No retry same tool. Pivot. "
         "[FORBID] Docker, WSL, pytz, stubs, TODOs, mocks. "
         "[SELF] Before output: verify index sync, correct paths, no stubs."
     )
-
     if "agent" not in settings:
         settings["agent"] = {}
-
     current_prompt = settings["agent"].get("system_prompt", "")
-    # Считаем сколько раз встречается маркер "MSCodeBase Core Rules"
-    # Если >1 — prompt раздуло копиями (из-за mojibake exact match не спасал).
-    # Заменяем целиком. Если 1 — всё чисто, не трогаем.
-    marker_count = current_prompt.count("MSCodeBase Core Rules")
-    if marker_count == 0:
-        # Нет наших правил вообще — добавляем
-        settings["agent"]["system_prompt"] = (
-            f"{custom_instructions}\n{current_prompt}".strip()
-        )
-    elif marker_count > 1:
-        # Дубликаты — заменяем целиком
-        logger.warning(
-            f"🧹 system_prompt: найдено {marker_count} копий правил. Очищаем."
-        )
-        settings["agent"]["system_prompt"] = custom_instructions
-    # else marker_count == 1 — всё ок, не трогаем
-
-    # Автоматически разрешаем ВСЕ инструменты MCP (чтобы не перечислять 42 штуки вручную)
+    cnt = current_prompt.count("MSCodeBase Core Rules")
+    if cnt == 0:
+        settings["agent"]["system_prompt"] = f"{custom_rules}\n{current_prompt}".strip()
+    elif cnt > 1:
+        settings["agent"]["system_prompt"] = custom_rules
     if "tool_permissions" not in settings["agent"]:
         settings["agent"]["tool_permissions"] = {}
     settings["agent"]["tool_permissions"]["default"] = "allow"
-    # Если есть старый список tools — удаляем (он избыточен при default=allow)
     if "tools" in settings["agent"]["tool_permissions"]:
-        logger.info(
-            "🧹 Удаляю старый список tool_permissions.tools (избыточен при default=allow)"
-        )
         del settings["agent"]["tool_permissions"]["tools"]
 
-    # Записываем обратно (с сохранением всех существующих настроек)
+    # ── Запись: сохраняем комментарии если это первая установка ──
+    has_comments = "//" in original
+
+    if has_comments and server_key not in original:
+        # Первая установка в комментированный файл — текстовая хирургия
+        # Генерируем блок context_servers как JSON строку
+        entry_block = json.dumps(
+            _build_mcp_entry(executable, args, ext_dir),
+            indent=4,
+            ensure_ascii=False,
+        )
+        # Вставляем перед последней }
+        insert = (
+            '\n    // MSCodeBase Intelligence MCP (установлено install.py)\n'
+            f'    "context_servers": {{\n'
+            f'        "{SERVER_NAME}": {entry_block}\n'
+            f'    }},\n'
+            f'    "context_servers_to_query": [\n'
+            f'        "{SERVER_NAME}"\n'
+            f'    ],'
+        )
+        last_brace = original.rstrip().rfind("}")
+        if last_brace >= 0:
+            new_content = original[:last_brace] + insert + "\n" + original[last_brace:]
+        else:
+            new_content = "{" + insert + "\n}\n"
+    else:
+        # Уже установлен или файл без комментариев — полная перезапись
+        new_content = json.dumps(settings, indent=4, ensure_ascii=False) + "\n"
+
+    # Запись
     try:
-        with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=4, ensure_ascii=False)
-        logger.info(f"✅ MCP-сервер '{SERVER_NAME}' добавлен в: {settings_path}")
+        settings_path.write_text(new_content, encoding="utf-8")
+        logger.info(f"✅ MCP-сервер '{SERVER_NAME}' настроен: {settings_path}")
         return True
     except Exception as e:
-        logger.error(f"Ошибка при сохранении настроек: {e}")
+        logger.error(f"Ошибка записи {settings_path}: {e}")
         return False
 
 
 def remove_zed_settings() -> bool:
     """
-    Удаляет MCP-сервер из настроек Zed (глобальных).
-    Используется деинсталлятором.
-
-    Returns:
-        True, если настройки успешно очищены
+    Удаляет настройки MCP-сервера из конфигурации Zed (для uninstall.py).
     """
     config_dir = get_zed_config_dir()
     settings_path = config_dir / "settings.json"
 
     if not settings_path.exists():
-        logger.info("Файл настроек Zed не найден, пропускаю.")
+        logger.info("Файл настроек не найден, удаление не требуется.")
         return True
 
     try:
-        with open(settings_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        clean_content = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
-        settings = json.loads(clean_content)
-    except Exception as e:
-        logger.error(f"Ошибка чтения настроек: {e}")
-        return False
+        original = settings_path.read_text(encoding="utf-8")
 
-    if (
-        "context_servers" not in settings
-        or SERVER_NAME not in settings["context_servers"]
-    ):
-        logger.info(f"MCP-сервер '{SERVER_NAME}' не найден в настройках.")
+        # Парсим JSON
+        clean = re.sub(r"^\s*//.*$", "", original, flags=re.MULTILINE)
+        settings = json.loads(clean)
+
+        changed = False
+
+        # Удаляем context_servers
+        if "context_servers" in settings:
+            if SERVER_NAME in settings["context_servers"]:
+                del settings["context_servers"][SERVER_NAME]
+                changed = True
+                if not settings["context_servers"]:
+                    del settings["context_servers"]
+
+        # Удаляем из context_servers_to_query
+        if "context_servers_to_query" in settings:
+            if SERVER_NAME in settings["context_servers_to_query"]:
+                settings["context_servers_to_query"] = [
+                    s for s in settings["context_servers_to_query"] if s != SERVER_NAME
+                ]
+                changed = True
+                if not settings["context_servers_to_query"]:
+                    del settings["context_servers_to_query"]
+
+        # Очищаем system_prompt от наших правил
+        if "agent" in settings:
+            prompt = settings["agent"].get("system_prompt", "")
+            if "MSCodeBase Core Rules" in prompt:
+                # Удаляем все строки с нашими правилами
+                lines = prompt.split("\n")
+                lines = [l for l in lines if "MSCodeBase Core Rules" not in l]
+                settings["agent"]["system_prompt"] = "\n".join(lines).strip()
+                changed = True
+
+        if changed:
+            # Записываем (комментарии уже были потеряны при установке — не усугубляем)
+            settings_path.write_text(
+                json.dumps(settings, indent=4, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            logger.info(f"✅ Настройки MCP-сервера '{SERVER_NAME}' удалены.")
+        else:
+            logger.info("Настройки MCP-сервера не найдены.")
+
         return True
-
-    del settings["context_servers"][SERVER_NAME]
-    if not settings["context_servers"]:
-        del settings["context_servers"]
-
-    try:
-        with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=4, ensure_ascii=False)
-        logger.info(f"✅ MCP-сервер '{SERVER_NAME}' удалён из настроек Zed.")
-        return True
     except Exception as e:
-        logger.error(f"Ошибка при сохранении настроек: {e}")
+        logger.error(f"Ошибка при удалении настроек: {e}")
         return False

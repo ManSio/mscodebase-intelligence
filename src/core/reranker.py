@@ -26,12 +26,17 @@ import json
 import logging
 import re
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
 
 from src.core.config import get_config
+
+# Единый limits для всех HTTP-клиентов (Zed 1.10.0 keepalive compat)
+_HTTP_LIMITS = httpx.Limits(
+    max_keepalive_connections=2,
+    keepalive_expiry=30.0,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,7 @@ class MultiProviderReranker:
         self,
         lm_studio_url: Optional[str] = None,
         ollama_url: Optional[str] = None,
+        llama_cpp_url: Optional[str] = None,
         ping_timeout: float = _PROVIDER_PING_TIMEOUT,
         inference_timeout: float = _INFERENCE_TIMEOUT,
     ):
@@ -80,14 +86,20 @@ class MultiProviderReranker:
         Args:
             lm_studio_url: Базовый URL LM Studio (по умолчанию из конфигурации)
             ollama_url: Базовый URL Ollama (по умолчанию из конфигурации)
+            llama_cpp_url: Базовый URL llama.cpp (Zed 1.10.0 native, по умолч. localhost:8080)
             ping_timeout: Таймаут проверки доступности провайдера (сек)
             inference_timeout: Таймаут инференса (сек)
         """
+        import os
         self.lm_studio_url = (
             lm_studio_url or _config.embedding.get_lm_studio_base_url() + "/v1"
         ).rstrip("/")
         self.ollama_url = (
             ollama_url or _config.embedding.get_ollama_base_url()
+        ).rstrip("/")
+        self.llama_cpp_url = (
+            llama_cpp_url
+            or f"http://{os.getenv('LLAMA_CPP_HOST', '127.0.0.1')}:{os.getenv('LLAMA_CPP_PORT', '8080')}"
         ).rstrip("/")
         self.ping_timeout = ping_timeout
         self.inference_timeout = inference_timeout
@@ -95,6 +107,7 @@ class MultiProviderReranker:
         # Статус провайдеров (заполняется при initialize())
         self.lm_studio_available: bool = False
         self.ollama_available: bool = False
+        self.llama_cpp_available: bool = False
         self.lm_studio_model_name: Optional[str] = None
         self.lm_studio_embedding_model: Optional[str] = None
         self.lm_studio_reranker_model: Optional[str] = None
@@ -103,9 +116,9 @@ class MultiProviderReranker:
         # Кэш HTTP-клиента
         self._client: Optional[httpx.AsyncClient] = None
 
-        # ONNX reranker (fallback when LM Studio unavailable)
-        self._onnx_reranker_session = None
-        self._onnx_reranker_tokenizer = None
+        # ONNX reranker через HTTP к onnx_server.py (подпроцесс).
+        # Модели ONNX живут ТОЛЬКО в подпроцессе, НЕ в MCP.
+        self._onnx_reranker_url: Optional[str] = None
         self._onnx_reranker_available = False
 
         # ─── Fix 1: фоновый перепинг каждые 30с ───
@@ -122,11 +135,13 @@ class MultiProviderReranker:
 
     async def initialize(self) -> None:
         """Асинхронная инициализация: пинг обоих провайдеров + фоновый сканер."""
-        self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+        limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+        self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
 
         results = await asyncio.gather(
             self._ping_lm_studio(),
             self._ping_ollama(),
+            self._ping_llama_cpp(),
             return_exceptions=True,
         )
 
@@ -140,86 +155,80 @@ class MultiProviderReranker:
         elif results[1]:
             self.ollama_available = True
 
-        if not self.lm_studio_available and not self.ollama_available:
-            logger.info("ℹ️ Провайдеры недоступны, пробую ONNX reranker...")
-            self._init_onnx_reranker()
+        if isinstance(results[2], Exception):
+            logger.debug(f"llama.cpp недоступен: {results[2]}")
+        elif results[2]:
+            self.llama_cpp_available = True
+
+        if not self.lm_studio_available and not self.ollama_available and not self.llama_cpp_available:
+            logger.info("ℹ️ Провайдеры недоступны, пробую ONNX reranker через HTTP...")
+            await self._init_onnx_reranker_http()
             return
 
         # Fix 1: фоновый перепинг каждые 30с
         self._scanner_task = asyncio.create_task(self._scanner_loop())
 
-    def _init_onnx_reranker(self):
-        """Инициализация ONNX reranker (cross-encoder bge-reranker-v2-m3).
+    async def _init_onnx_reranker_http(self):
+        """Проверяет доступность reranker через ONNX server (HTTP).
 
-        Searches multiple locations in priority order:
-          1. Runtime root (ZED_EXT_DIR or PROJECT_ROOT)
-          2. Shared cache ~/.cache/mscodebase/models/
+        Модель загружена в onnx_server.py (подпроцесс), НЕ в MCP-процессе.
+        Это сохраняет ~545 MB RSS в основном процессе MCP.
         """
+        import os
+        onnx_host = os.getenv("ONNX_SERVER_HOST", "127.0.0.1")
+        onnx_port = int(os.getenv("ONNX_SERVER_PORT", "1235"))
+        base = f"http://{onnx_host}:{onnx_port}"
+
         try:
-            ext_root = Path(__file__).resolve().parent.parent.parent
+            if not self._client:
+                limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+                self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
 
-            reranker_candidates = [
-                "reranker-bge-reranker-v2-m3",
-                "bge-reranker-v2-m3",
-            ]
-
-            # Build search paths: runtime root first, then shared cache
-            search_roots = [
-                ext_root,
-                Path.home() / ".cache" / "mscodebase" / "models",
-            ]
-
-            onnx_path = None
-            model_dir = None
-
-            for root in search_roots:
-                if not (root / ".codebase_models" / "onnx").exists():
-                    continue
-                for subdir_name in reranker_candidates:
-                    candidate = (
-                        root / ".codebase_models" / "onnx" / subdir_name / "model.onnx"
-                    )
-                    if candidate.exists():
-                        onnx_path = candidate
-                        model_dir = candidate.parent
-                        logger.debug(
-                            f"ONNX reranker found: {candidate} ({candidate.stat().st_size / 1024 / 1024:.0f} MB)"
-                        )
-                        break
-                if onnx_path:
-                    break
-
-            if not onnx_path:
-                logger.debug(
-                    "ONNX reranker model not found in any location. "
-                    "Run install.py or download_model.py."
-                )
+            resp = await self._client.get(f"{base}/health", timeout=3.0)
+            if resp.status_code != 200:
+                logger.debug("ONNX server not available for reranker")
                 return
 
-            import onnxruntime as ort
-            from transformers import AutoTokenizer
-
-            self._onnx_reranker_tokenizer = AutoTokenizer.from_pretrained(
-                str(model_dir)
-            )
-
-            # Оптимизации памяти и потоков
-            opts = ort.SessionOptions()
-            opts.enable_cpu_mem_arena = False
-            opts.intra_op_num_threads = 2
-            opts.inter_op_num_threads = 1
-            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-
-            self._onnx_reranker_session = ort.InferenceSession(
-                str(onnx_path), sess_options=opts, providers=["CPUExecutionProvider"]
-            )
-            self._onnx_reranker_available = True
-            sz = onnx_path.stat().st_size / 1024 / 1024
-            logger.info(f"✅ ONNX reranker loaded: {model_dir.name} ({sz:.0f} MB)")
+            health = resp.json()
+            if health.get("reranker"):
+                self._onnx_reranker_url = f"{base}/v1/rerank"
+                self._onnx_reranker_available = True
+                logger.info(
+                    f"✅ ONNX reranker через HTTP: {self._onnx_reranker_url} "
+                    f"(модель в подпроцессе, НЕ в MCP)"
+                )
+            else:
+                logger.debug("ONNX server без reranker модели")
         except Exception as e:
-            logger.debug(f"ONNX reranker init failed: {e}")
+            logger.debug(f"ONNX reranker HTTP check failed: {e}")
             self._onnx_reranker_available = False
+
+    async def _http_onnx_rerank(
+        self, query: str, passages: list[str]
+    ) -> Optional[list[float]]:
+        """Вызывает /v1/rerank на ONNX сервере.
+
+        Args:
+            query: поисковый запрос
+            passages: список текстов чанков
+        Returns:
+            список float scores [0..1] или None при ошибке
+        """
+        if not self._onnx_reranker_url or not self._client:
+            return None
+        try:
+            resp = await self._client.post(
+                self._onnx_reranker_url,
+                json={"query": query, "passages": passages},
+                timeout=self.inference_timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("scores")
+            logger.debug(f"ONNX rerank HTTP {resp.status_code}: {resp.text}")
+            return None
+        except Exception as e:
+            logger.debug(f"ONNX rerank HTTP error: {e}")
+            return None
 
     async def _scanner_loop(self):
         """Фоновый перепинг провайдеров (подхватывает изменения в LM Studio)."""
@@ -275,7 +284,8 @@ class MultiProviderReranker:
         2. Если неудача — OpenAI-compatible /v1/models (name-based)
         """
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
         client = self._client
         v0_ok = False
         try:
@@ -386,7 +396,8 @@ class MultiProviderReranker:
     async def _ping_ollama(self) -> bool:
         """Быстрый пинг Ollama. Переиспользует self._client (memory leak fix)."""
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
         try:
             resp = await self._client.get(
                 f"{self.ollama_url}/api/tags",
@@ -402,12 +413,84 @@ class MultiProviderReranker:
         except Exception:
             return False
 
+    async def _ping_llama_cpp(self) -> bool:
+        """Пинг llama.cpp (Zed 1.10.0 native provider).
+
+        Проверяет /v1/models — если есть ответ, сервер жив.
+        Для реранкинга использует Cohere-compatible /v1/rerank.
+        """
+        if not self._client:
+            limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
+        try:
+            resp = await self._client.get(
+                f"{self.llama_cpp_url}/v1/models",
+                timeout=self.ping_timeout,
+            )
+            return resp.status_code == 200
+        except Exception:
+            return False
+
+    async def _llama_cpp_rerank(
+        self, query: str, passages: list[str]
+    ) -> Optional[list[float]]:
+        """Вызывает Cohere-compatible /v1/rerank на llama.cpp сервере.
+
+        Args:
+            query: поисковый запрос
+            passages: список текстов чанков
+        Returns:
+            список float scores [0..1] или None при ошибке
+
+        API формат (llama-server router mode):
+            POST /v1/rerank
+            {"model": "...", "query": "...", "documents": [...], "top_n": N}
+
+        Использованные модели GGUF:
+            - gpustack/bge-reranker-v2-m3-GGUF
+            - lm-kit/bge-m3-reranker-v2-gguf (F16=1.16GB, Q8_0=636MB)
+            - limcheekin/bge-reranker-v2-m3-GGUF
+
+        Запуск:
+            llama-server --hf-repo lm-kit/bge-m3-reranker-v2-gguf \
+                         --hf-file Bge-M3-568M-F16.gguf -c 8192
+        """
+        if not self._client:
+            limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
+        try:
+            resp = await self._client.post(
+                f"{self.llama_cpp_url}/v1/rerank",
+                json={
+                    "query": query,
+                    "documents": passages,
+                    "top_n": len(passages),
+                },
+                timeout=self.inference_timeout,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                if results:
+                    # Cohere format: results[i] = {"index": N, "relevance_score": F}
+                    scores = [0.0] * len(passages)
+                    for r in results:
+                        idx = r.get("index", 0)
+                        scores[idx] = r.get("relevance_score", 0.0)
+                    return scores
+            logger.debug(f"llama.cpp rerank HTTP {resp.status_code}: {resp.text[:200]}")
+            return None
+        except Exception as e:
+            logger.debug(f"llama.cpp rerank error: {e}")
+            return None
+
     @property
     def is_available(self) -> bool:
         """True если хотя бы один провайдер доступен (включая ONNX)."""
         return (
             self.lm_studio_available
             or self.ollama_available
+            or self.llama_cpp_available
             or self._onnx_reranker_available
         )
 
@@ -423,20 +506,25 @@ class MultiProviderReranker:
             parts.append(f"llm={self.lm_studio_model_name}")
         if self.ollama_model_name:
             parts.append(f"oll={self.ollama_model_name}")
+        if self.llama_cpp_available:
+            parts.append("llama.cpp")
         return " ".join(parts) if parts else "no-reranker"
 
     def _select_provider(self) -> Optional[str]:
         """Выбирает лучший доступный провайдер.
 
-        Приоритет:
+        Приоритет (Zed 1.10.0):
         1. Ollama — если доступна (специализированные реранкеры типа bge-reranker)
-        2. LM Studio — как альтернатива (Instruct-модели)
+        2. llama.cpp — если доступен (Zed 1.10.0 native, router mode)
+        3. LM Studio — как альтернатива (Instruct-модели)
 
         Returns:
-            'ollama', 'lm_studio' или None
+            'ollama', 'llama_cpp', 'lm_studio' или None
         """
         if self.ollama_available:
             return "ollama"
+        if self.llama_cpp_available:
+            return "llama_cpp"
         if self.lm_studio_available:
             return "lm_studio"
         return None
@@ -471,73 +559,67 @@ class MultiProviderReranker:
 
         provider = self._select_provider()
         if provider is None:
-            # Try ONNX reranker fallback
-            if self._onnx_reranker_available:
-                import numpy as np
-
+            # ONNX reranker через HTTP (модель в подпроцессе, не в MCP)
+            if self._onnx_reranker_available and self._onnx_reranker_url:
                 t1 = _time.perf_counter()
                 try:
-                    scores = []
-                    for idx, chunk in enumerate(chunks):
-                        text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
-                        pair = f"{query} [SEP] {text}"
-                        encoded = self._onnx_reranker_tokenizer(
-                            [pair],
-                            padding=True,
-                            truncation=True,
-                            max_length=512,
-                            return_tensors="np",
-                        )
-                        out = self._onnx_reranker_session.run(
-                            None,
-                            {
-                                "input_ids": encoded["input_ids"].astype(np.int64),
-                                "attention_mask": encoded["attention_mask"].astype(
-                                    np.int64
-                                ),
-                            },
-                        )
-                        # Cross-encoder output: logits, take first element
-                        score = (
-                            float(out[0][0][0])
-                            if isinstance(out[0], np.ndarray)
-                            else 0.0
-                        )
-                        scores.append({"index": idx, "score": score})
+                    passages = [
+                        chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                        for chunk in chunks
+                    ]
+                    scores = await self._http_onnx_rerank(query, passages)
                     if scores:
-                        chunks = self._apply_scores(chunks, scores, top_n)
-                        self.last_timing["reranker_ms"] = (
-                            _time.perf_counter() - t1
-                        ) * 1000
-                        self.last_timing["model"] = "onnx-reranker"
+                        scored = [{"index": i, "score": s} for i, s in enumerate(scores)]
+                        chunks = self._apply_scores(chunks, scored, top_n)
+                        self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
+                        self.last_timing["model"] = "onnx-server-reranker"
                 except Exception as e:
-                    logger.debug(f"ONNX reranker inference failed: {e}")
+                    logger.debug(f"ONNX reranker HTTP error: {e}")
             else:
                 self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
                 return chunks
 
-        sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
-
-        # ═══════════════════════════════════════════════
-        # Cross-encoder rerank (bge-reranker-v2-m3-m3)
-        # ═══════════════════════════════════════════════
-        if self.lm_studio_reranker_model:
+        if provider == "llama_cpp":
+            # llama.cpp через Cohere-compatible /v1/rerank API
+            # Документация: llama-server с флагом --hf-repo для reranker модели
             t1 = _time.perf_counter()
             try:
-                async with sem:
-                    scores = await self._cross_encoder_rerank(
-                        query,
-                        chunks,
-                        provider,
-                        model_override=self.lm_studio_reranker_model,
-                    )
+                passages = [
+                    chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                    for chunk in chunks
+                ]
+                scores = await self._llama_cpp_rerank(query, passages)
                 if scores:
-                    chunks = self._apply_scores(chunks, scores, top_n)
+                    scored = [{"index": i, "score": s} for i, s in enumerate(scores)]
+                    chunks = self._apply_scores(chunks, scored, top_n)
                     self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
-                    self.last_timing["model"] = self.lm_studio_reranker_model
+                    self.last_timing["model"] = "llama.cpp-reranker"
             except Exception as e:
                 self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
-                self.last_timing["model"] = f"failed: {e}"
+                self.last_timing["model"] = f"llama.cpp failed: {e}"
+        else:
+            sem = self._lm_sem if provider == "lm_studio" else self._ollama_sem
+
+            # ═══════════════════════════════════════════════
+            # Cross-encoder rerank (bge-reranker-v2-m3-m3)
+            # ═══════════════════════════════════════════════
+            if self.lm_studio_reranker_model:
+                t1 = _time.perf_counter()
+                try:
+                    async with sem:
+                        scores = await self._cross_encoder_rerank(
+                            query,
+                            chunks,
+                            provider,
+                            model_override=self.lm_studio_reranker_model,
+                        )
+                    if scores:
+                        chunks = self._apply_scores(chunks, scores, top_n)
+                        self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
+                        self.last_timing["model"] = self.lm_studio_reranker_model
+                except Exception as e:
+                    self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
+                    self.last_timing["model"] = f"failed: {e}"
 
         self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
         return chunks[:top_n]
@@ -593,7 +675,8 @@ class MultiProviderReranker:
         если модель не поддерживает chat — падает на /v1/completions (base модели).
         """
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            limits = httpx.Limits(max_keepalive_connections=2, keepalive_expiry=30.0)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=limits)
 
         model_name = self.lm_studio_model_name or "local-model"
 
@@ -668,7 +751,7 @@ class MultiProviderReranker:
     async def _query_ollama(self, prompt: str) -> List[Dict[str, Any]]:
         """Отправляет пакетный запрос к Ollama (нативный API)."""
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=_HTTP_LIMITS)
 
         payload = {
             "model": self.ollama_model_name or "bge-reranker-v2-m3",
@@ -726,7 +809,7 @@ class MultiProviderReranker:
             Список score'ов [{"index": int, "score": float}, ...]
         """
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=_HTTP_LIMITS)
 
         if provider == "lm_studio":
             url = f"{self.lm_studio_url}/embeddings"
@@ -797,7 +880,7 @@ class MultiProviderReranker:
             Список score'ов [{"index": int, "score": float}, ...]
         """
         if not self._client:
-            self._client = httpx.AsyncClient(timeout=self.inference_timeout)
+            self._client = httpx.AsyncClient(timeout=self.inference_timeout, limits=_HTTP_LIMITS)
 
         # Подготавливаем тексты: query + все чанки (короткие для скорости)
         texts = [f"query: {query}"]

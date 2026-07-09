@@ -76,6 +76,16 @@ nul
 # Agent diary — internal tracking
 
 
+# Large model files and platform binaries — НЕ ЗАГРУЖАТЬ В GITHUB!
+models/
+.hf_cache/
+llama/
+llama_vulkan/
+*.gguf
+
+# Benchmark artifacts
+.cache/
+
 # Temporary session files — not for publishing
 FIX_SUMMARY.md
 ANALYSIS_REPORT.md

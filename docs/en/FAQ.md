@@ -10,6 +10,14 @@
 
 ## 📦 Installation & Startup
 
+### Что такое llama.cpp и зачем он нужен?
+
+**llama.cpp** — это встроенный провайдер для эмбеддингов и реранкинга,
+который автоматически устанавливается через `install.py`. Он скачивает
+GGUF-модели (bge-m3 Q4_K_M 417 MB и bge-reranker-v2-m3 Q4_K_M 418 MB)
+и запускает `llama-server.exe` локально. Не требует внешних сервисов
+вроде LM Studio. Потребляет 227 MB RAM вместо 1200 MB — в 5.3× меньше.
+
 ### MCP server not responding after installation
 
 **Cause:** Zed wasn't restarted. `window: reload` is not enough.

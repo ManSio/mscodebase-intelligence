@@ -44,7 +44,7 @@ UNINSTALLER = ZED_EXT_DIR / "uninstall.bat"
 LM_HOST = os.environ.get("LM_STUDIO_HOST", "127.0.0.1")
 LM_PORT = int(os.environ.get("LM_STUDIO_PORT", "1234"))
 W = 72
-TOTAL_STEPS = 10
+TOTAL_STEPS = 12
 
 # ─── i18n ────────────────────────────────────────────────────
 LANG = {
@@ -73,7 +73,9 @@ LANG = {
         "zh": "虚拟环境",
     },
     "chk_pip": {"en": "Install packages", "ru": "Установка пакетов", "zh": "安装依赖"},
-    "chk_models": {"en": "AI models", "ru": "AI-модели", "zh": "AI模型"},
+    "chk_llama": {"en": "llama.cpp engine", "ru": "llama.cpp движок", "zh": "llama.cpp引擎"},
+    "chk_gguf": {"en": "GGUF models (Qwen3 + bge-m3 + reranker)", "ru": "GGUF модели (Qwen3 + bge-m3 + reranker)", "zh": "GGUF模型"},
+    "chk_models": {"en": "Embedding models (fallback)", "ru": "Модели эмбеддинга (резерв)", "zh": "ONNX模型"},
     "chk_db": {"en": "Database", "ru": "База данных", "zh": "数据库"},
     "chk_zedcfg": {"en": "Zed integration", "ru": "Интеграция в Zed", "zh": "Zed集成"},
     "chk_uninst": {"en": "Uninstaller", "ru": "Деинсталлятор", "zh": "卸载程序"},
@@ -363,6 +365,52 @@ def step_pip(lines, lang):
 
 
 @_step(6)
+def step_llama(lines, lang):
+    """Скачивает llama-server.exe с GitHub."""
+    from src.core.llama_runner import is_installed, download_llama_binary, LLAMA_VERSION
+
+    if is_installed():
+        lines.append((C.GRN, f"✓ llama.cpp уже установлен"))
+        return
+
+    lines.append((C.D, "  ⬇ Скачиваю llama-server.exe ~18 MB..."))
+
+    def _prog_llama(pct, msg):
+        _prog(pct, msg)
+
+    if download_llama_binary(progress_cb=_prog_llama):
+        sys.stdout.write("\n")
+        lines.append((C.GRN, f"✓ llama.cpp {LLAMA_VERSION}"))
+    else:
+        lines.append((C.YEL, f"⚠ Не удалось скачать llama.cpp (будет ONNX)"))
+
+
+@_step(7)
+def step_gguf(lines, lang):
+    """Скачивает GGUF модели (Qwen3 + bge-m3 + reranker) из Hugging Face."""
+    from src.core.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS
+
+    all_ok = True
+    for key in ["qwen3-embedding", "bge-m3", "bge-reranker-v2-m3"]:
+        if is_model_downloaded(key):
+            lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']}"))
+            continue
+
+        lines.append((C.D, f"  ⬇ {GGUF_MODELS[key]['file']} (~{GGUF_MODELS[key]['size_mb']} MB)..."))
+
+        if download_gguf_model(key, progress_cb=lambda p, m: _prog(p, m)):
+            sys.stdout.write("\n")
+            lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']}"))
+        else:
+            sys.stdout.write("\n")
+            lines.append((C.YEL, f"  ⚠ {GGUF_MODELS[key]['file']} не скачан (будет ONNX)"))
+            all_ok = False
+
+    if all_ok:
+        lines.append((C.GRN, f"✅ GGUF модели готовы — llama.cpp работает"))
+
+
+@_step(8)
 def step_models(lines, lang):
     """Download model pair: bge-m3 (embedding) + bge-reranker-v2-m3 (reranker).
 
@@ -470,7 +518,7 @@ def step_models(lines, lang):
             lines.append((C.YEL, f"  ⚠ {slug} failed — will use LM Studio as fallback"))
 
 
-@_step(7)
+@_step(9)
 def step_db(lines, lang):
     db_path = PROJECT_ROOT / ".codebase_indices" / "lancedb_v2"
     if not db_path.exists():
@@ -491,7 +539,7 @@ def step_db(lines, lang):
         lines.append((C.YEL, f"⚠ {e}"))
 
 
-@_step(8)
+@_step(10)
 def step_zedcfg(lines, lang):
     cmd = f"{PYTHON_EXE} -u -m src.main"
     if patch_zed_settings(
@@ -506,7 +554,7 @@ def step_zedcfg(lines, lang):
         raise RuntimeError("Failed to configure Zed")
 
 
-@_step(9)
+@_step(11)
 def step_uninst(lines, lang):
     content = _build_uninstall_bat()
     try:
@@ -523,8 +571,9 @@ def _build_uninstall_bat():
         "@echo off\r\nchcp 65001 >nul\r\necho Uninstalling...\r\n"
         f'taskkill /f /im python.exe /fi "WINDOWTITLE eq mscodebase*" >nul 2>&1\r\n'
         f'taskkill /f /im python.exe /fi "WINDOWTITLE eq main*" >nul 2>&1\r\n'
+        f'taskkill /f /im llama-server.exe >nul 2>&1\r\n'
+        f'taskkill /f /im onnx_server.exe >nul 2>&1\r\n'
         f"timeout /t 2 /nobreak >nul\r\n"
-        f"\"{py}\" -c \"import json,pathlib,os; p=pathlib.Path(os.environ.get('APPDATA',''))/'Zed'/'settings.json'; d=json.loads(p.read_text()); d.get('context_servers',{{}}).pop('mscodebase-intelligence',None); p.write_text(json.dumps(d,indent=2))\" 2>nul\r\n"
         f'for /l %i in (1,1,3) do (rd /s /q "{ext}" 2>nul & if not exist "{ext}" goto DEL)\r\n'
         f"echo Failed. Restart PC and run again.\r\ngoto END\r\n:DEL\r\necho Removed.\r\n:END\r\npause >nul\r\n"
     )
