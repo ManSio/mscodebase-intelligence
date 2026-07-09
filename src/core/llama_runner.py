@@ -274,8 +274,10 @@ def _get_ext_dir() -> Path:
 
 
 def _get_llama_dir() -> Path:
-    """Директория для llama.cpp бинарника."""
-    return _get_ext_dir() / "llama"
+    """Директория для llama.cpp бинарника.
+    На Insider используется Vulkan/Clang сборка (llama_vulkan/)."""
+    subdir = "llama_vulkan" if _USE_VULKAN_BUILD else "llama"
+    return _get_ext_dir() / subdir
 
 
 def _get_models_dir() -> Path:
@@ -306,14 +308,7 @@ def is_compatible() -> bool:
     На Windows Insider (build >= 26000) MSVC-сборка не работает из-за
     отсутствия api-ms-win-crt-heap API Set. Используем Vulkan/Clang сборку.
     """
-    if _is_windows_insider():
-        logger.warning("⚠️ Windows Insider/24H2+ detected. MSVC llama-server "
-                       "needs api-ms-win-crt-heap which is missing. "
-                       "Using Vulkan/Clang build as fallback.")
-        # На Insider бинарник есть в llama_vulkan/
-        vulkan_bin = _get_ext_dir() / "llama_vulkan" / f"llama-server{_EXE_SUFFIX}"
-        return vulkan_bin.exists()
-    return is_installed()
+    return _llama_bin().exists()
 
 
 def is_model_downloaded(model_key: str) -> bool:
