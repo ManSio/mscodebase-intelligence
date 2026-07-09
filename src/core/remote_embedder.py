@@ -643,19 +643,34 @@ class RemoteEmbedder:
                     # Пробуем запустить llama.cpp автоматически
                     logger.info(f"⚠️ llama.cpp не отвечает, пробую запустить...")
                     try:
+                        import sys as _sys
                         proc = subprocess.Popen(
-                            [sys.executable, '-c', '''
+                            [_sys.executable, '-c', '''
 import asyncio
+import os
+import sys
+sys.path.insert(0, r"''' + str(self.ext_root) + '''")
 from src.core.llama_runner import get_global_runner
 runner = get_global_runner()
-asyncio.run(runner.start("bge-m3"))
+model = os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
+asyncio.run(runner.start(model))
 '''],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NO_WINDOW
                             if sys.platform == "win32" else 0,
                         )
-                        # Ждём немного
-                        import time as _t; _t.sleep(5)
+                        # Ждём запуска (до 30 сек)
+                        for _ in range(30):
+                            import time as _t; _t.sleep(1)
+                            try:
+                                with httpx.Client(timeout=2) as _c:
+                                    _r = _c.get(
+                                        self.llama_cpp_url.replace("/v1/embeddings", "/health")
+                                    )
+                                    if _r.status_code == 200:
+                                        break
+                            except:
+                                pass
                         with httpx.Client(timeout=self.timeout) as client:
                             r = client.post(self.llama_cpp_url, json=payload)
                             if r.status_code == 200:
