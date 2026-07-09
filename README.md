@@ -131,6 +131,7 @@ get_index_status()
 | **[docs/en/ARCHITECTURE_LAYERS.md](docs/en/ARCHITECTURE_LAYERS.md)** | 10 runtime layers | Architects | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/FAQ.md](docs/en/FAQ.md)** | Frequently Asked Questions | All | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/TELEMETRY.md](docs/en/TELEMETRY.md)** | Metrics, ETA, data collection | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
+| **[docs/en/investigations/ONNX_SESSION_REPORT.md](docs/en/investigations/ONNX_SESSION_REPORT.md)** | Full ONNX migration, 7 fixes, benchmarks | Support | 🇬🇧 |
 | **[docs/en/investigations/LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)** | LSP on Windows investigation (WONTFIX) | Support | 🇬🇧 🇨🇳 |
 | **[docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md)** | Windows specifics, Restricted Mode | Windows users | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/CHANGELOG.md](docs/en/CHANGELOG.md)** | Version history | All | 🇬🇧 🇷🇺 🇨🇳 |
