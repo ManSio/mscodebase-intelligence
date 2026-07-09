@@ -237,6 +237,7 @@ class RemoteEmbedder:
                     str(server_script),
                     f"--port={self.onnx_server_port}",
                     f"--host={self.onnx_server_host}",
+                    f"--model-dir={self.local_model_dir}",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

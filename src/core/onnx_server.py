@@ -38,36 +38,49 @@ _tokenizer = None
 _start_time = time.time()
 
 
-def init_model():
+def init_model(model_dir_override: Optional[str] = None):
     """Загружает модель ONNX + токенизатор (один раз при старте)."""
     global _model_dir, _session, _tokenizer
 
-    model_path = _model_dir / "model.onnx"
-    model_parent = _model_dir
+    if model_dir_override:
+        _model_dir = Path(model_dir_override)
 
-    if not model_path.exists():
-        # Ищем в других местах
-        alt_paths = [
-            Path.home()
-            / ".cache"
-            / "mscodebase"
-            / "models"
-            / ".codebase_models"
-            / "onnx"
-            / "bge-m3"
-            / "model.onnx",
-            _model_dir.parent.parent / "bge-m3" / "model.onnx",
-        ]
-        for alt in alt_paths:
-            if alt.exists():
-                model_path = alt
-                model_parent = alt.parent
-                break
-        else:
-            raise FileNotFoundError(
-                f"ONNX модель не найдена. Установите через install.py. "
-                f"Искал: {_model_dir / 'model.onnx'}"
-            )
+    # Поиск модели в порядке приоритета
+    candidates = [
+        _model_dir,  # явно переданный путь
+        Path(__file__).resolve().parent.parent.parent
+        / ".codebase_models"
+        / "onnx"
+        / "bge-m3",  # PROJECT_ROOT или ZED_EXT_DIR
+        Path.home()
+        / ".cache"
+        / "mscodebase"
+        / "models"
+        / ".codebase_models"
+        / "onnx"
+        / "bge-m3",  # shared cache
+    ]
+
+    model_path = None
+    model_parent = None
+    for candidate in candidates:
+        p = candidate / "model.onnx"
+        if p.exists():
+            model_path = p
+            model_parent = candidate
+            break
+
+    if not model_path:
+        raise FileNotFoundError(
+            f"ONNX модель не найдена. Установите через install.py. "
+            f"Искал в:\n" + "\n".join(f"  {c / 'model.onnx'}" for c in candidates)
+        )
+
+    logger.info(
+        f"⏳ Загрузка модели: {model_path} ({model_path.stat().st_size / 1024 / 1024:.0f} MB)"
+    )
+
+    _tokenizer = AutoTokenizer.from_pretrained(str(model_parent))
 
     logger.info(
         f"⏳ Загрузка модели: {model_path} ({model_path.stat().st_size / 1024 / 1024:.0f} MB)"
@@ -83,12 +96,12 @@ def init_model():
     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 
     _session = ort.InferenceSession(
-        str(onnx_path), sess_options=opts, providers=["CPUExecutionProvider"]
+        str(model_path), sess_options=opts, providers=["CPUExecutionProvider"]
     )
 
     dim = _session.get_outputs()[0].shape[-1]
     logger.info(
-        f"✅ ONNX сервер готов: bge-m3 ({dim}dim, {onnx_path.stat().st_size / 1024 / 1024:.0f} MB)"
+        f"✅ ONNX сервер готов: bge-m3 ({dim}dim, {model_path.stat().st_size / 1024 / 1024:.0f} MB)"
     )
 
 
@@ -195,9 +208,15 @@ def main():
     parser.add_argument(
         "--host", type=str, default="127.0.0.1", help="Host (default: 127.0.0.1)"
     )
+    parser.add_argument(
+        "--model-dir",
+        type=str,
+        default=None,
+        help="Path to model directory with model.onnx (auto-detect if omitted)",
+    )
     args = parser.parse_args()
 
-    init_model()
+    init_model(model_dir_override=args.model_dir)
 
     server = HTTPServer((args.host, args.port), EmbeddingHandler)
     logger.info(f"🚀 ONNX сервер запущен на http://{args.host}:{args.port}")
