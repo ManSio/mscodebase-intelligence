@@ -6,7 +6,7 @@
 
 > **Version:** 2.4.4  
 > **Last updated:** 2026-07-05  
-> **Architecture:** Clean Architecture with DI Container + Multi-Window Registry
+> **Architecture:** 4-Layer Architecture (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic) with Multi-Window Registry
 
 ---
 
@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (34 class-based + 14 intel + 2 diagnostic = 50 total)](#4-tool-layer)
+4. [Tool Layer (33 class-based + 14 intel + 3 diagnostic = 50 total)](#4-tool-layer)
 5. [Error Handling](#5-error-handling)
 6. [Rate Limiting & Resilience](#6-rate-limiting--resilience)
 7. [Data Flow: Request → Response](#7-data-flow)
@@ -29,7 +29,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│              Four Layers of Clean Architecture                    │
+│              Four Layers of Architecture                          │
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
@@ -89,14 +89,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 34 tools + 14 intel_* tools
+3. Register 33 tools + 14 intel_* tools
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **10 files, 34 tools.**
+`src/mcp/tools/*.py` — **10 files, 33 tools.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -176,12 +176,14 @@ indexer = services.resolve(Indexer)  # same instance every time
 | 5 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
 | 6 | SymbolIndex | singleton | `SymbolIndex()` |
 | 7 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
-| 8 | LmStudioCircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
-| 9 | Indexer | singleton | `Indexer(db_path, embedder, ...)` |
-| 10 | Searcher | singleton | `Searcher(indexer, embedder)` |
-| 11 | DebounceBatch | singleton | `DebounceBatch(callback=searcher.reindex)` |
-| 12 | ProjectRegistry | singleton | `ProjectRegistry()` |
-| 13 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
+| 8 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
+| 9 | ProjectRegistry | singleton | `ProjectRegistry()` |
+| 10 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
+| 11 | ResourceMonitor | singleton | `get_global_resource_monitor()` |
+| 12 | ResourceMonitorKey | singleton | `ResourceMonitor` (shared) |
+| 13 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
+| 14 | NotificationBroker | singleton | `NotificationBroker()` |
+| 15 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
 
 ---
 
@@ -552,7 +554,7 @@ tests/
 ├── ... (20 more test files)
 ```
 
-**Total: 391 tests.**
+**Total: 396 tests.**
 
 Run:
 ```bash

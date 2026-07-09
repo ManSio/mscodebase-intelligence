@@ -18,15 +18,13 @@ flowchart TD
     DW --> PAR
     BW --> PAR
     
-    subgraph PAR[Parallel Search — 3 channels]
+    subgraph PAR[Parallel Search — 2 channels]
         BM25[BM25 Sparse\nkeyword match]
         DENSE[LanceDB Dense\nsemantic search]
-        STRUCT[Structural\nAST patterns]
     end
     
     BM25 --> RRF[RRF Fusion\nk=60]
     DENSE --> RRF
-    STRUCT --> RRF
     
     RRF --> BUCKET[Multi-Bucket RAG\nsoft weighting]
     BUCKET --> CO[Co-change boost\ngit coupling]
@@ -175,6 +173,8 @@ def apply_co_change_boost(chunks: list) -> list:
 
 **Model:** `bge-reranker-v2-m3` (via LM Studio / Ollama)
 
+> **Note:** The reranker visualization assumes LM Studio (GPU). With ONNX Runtime fallback, the reranker uses the same `bge-reranker-v2-m3` model via ONNX Runtime (CPU), with reduced throughput.
+
 - Evaluates each (query, chunk) pair independently — **more accurate than vector cosine**
 - Only reranks top-30 candidates (controlled by `MAX_RERANKER_INPUT`)
 - Falls back gracefully if LM Studio is unavailable
@@ -237,16 +237,18 @@ sequenceDiagram
 | Stage | Time | Cumulative |
 |-------|:----:|:----------:|
 | Query expansion | <1ms | <1ms |
-| BM25 search | ~50ms | ~50ms |
-| Embed query | ~100ms | ~150ms |
-| LanceDB ANN | ~50ms | ~200ms |
-| RRF fusion | <1ms | ~200ms |
-| Bucket weighting | <1ms | ~200ms |
-| Co-change boost | ~50ms | ~250ms |
-| Reranker (5 candidates) | ~250ms | ~500ms |
-| **Total (quality mode)** | **~500ms** | |
-| **Total (fast mode, BM25 only)** | **~50ms** | |
+| BM25 search | ~150ms | ~150ms |
+| Embed query | ~800ms | ~950ms |
+| LanceDB ANN | ~400ms | ~1350ms |
+| RRF fusion | <1ms | ~1350ms |
+| Bucket weighting | <1ms | ~1350ms |
+| Co-change boost | ~50ms | ~1400ms |
+| Reranker (5 candidates) | ~1200ms | ~2600ms |
+| **Total (quality mode)** | **~5600ms** | |
+| **Total (fast mode, BM25 only)** | **~2300ms** | |
 | **Total (deep mode, recursive)** | **2-5s** | |
+
+> *Timings with ONNX Runtime (CPU). LM Studio (GPU) can be 3-5x faster.*
 
 ## Configuration
 

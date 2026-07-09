@@ -124,8 +124,8 @@ class Searcher:
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
     # Режимы поиска
-    MODE_FAST = "fast"  # ~300ms: embed + vector only
-    MODE_QUALITY = "quality"  # ~1200ms: embed + vector + rerank
+    MODE_FAST = "fast"  # ~2300ms: embed + vector only (ONNX CPU)
+    MODE_QUALITY = "quality"  # ~5600ms: embed + vector + rerank (ONNX CPU)
     MODE_DEEP = "deep"  # ~2-5s: full analysis + graph
 
     def __init__(self, indexer, embedder):
@@ -1012,9 +1012,10 @@ class Searcher:
         Args:
             query: Поисковый запрос
             mode: Режим поиска
-                - fast: ~300ms, только embedding + vector
-                - quality: ~1200ms, + reranker
+                - fast: ~2300ms, только embedding + vector (ONNX CPU)
+                - quality: ~5600ms, + reranker (ONNX CPU)
                 - deep: ~2-5s, + graph analysis
+                Timings with ONNX Runtime on CPU. LM Studio (GPU) can be faster.
             limit: Максимум результатов
             layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
 

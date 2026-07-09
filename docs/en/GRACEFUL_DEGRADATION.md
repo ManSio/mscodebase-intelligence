@@ -23,7 +23,7 @@ stateDiagram-v2
         L2_ONNX: ONNX embeddings only
         L2_ONNX: BM25 + Dense (CPU)
         L2_ONNX: No reranker (BM25 ranking only)
-        L2_ONNX: ~500ms-3s latency
+        L2_ONNX: ~1-6s latency
     end
     
     L2_ONNX --> L3_BM25: ONNX model missing
@@ -39,7 +39,7 @@ stateDiagram-v2
     state L4_Fallback[Level 4: Fallback]
         L4_Fallback: Creating index
         L4_Fallback: First run / after table drop
-        L4_Fallback: Basic file structure search
+        L4_Fallback: Empty results (index building)
     end
     
     L4_Fallback --> L3_BM25: Index ready
@@ -90,7 +90,7 @@ class RemoteEmbedder:
 | ONNX model | ✅ Available (438 MB) |
 | Reranker | ❌ Unavailable |
 | mode=ask | ❌ Unavailable |
-| **Latency** | **500ms-3s** |
+| **Latency** | **1-6s** |
 | **Quality** | **Good** (embedding only, no reranker) |
 
 ### Level 3: BM25 Only (Minimal)
