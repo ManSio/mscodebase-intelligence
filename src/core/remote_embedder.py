@@ -208,15 +208,27 @@ class RemoteEmbedder:
         return None
 
     def _preload_onnx_delayed(self):
-        """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP."""
+        """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP.
+        
+        Отключает себя, если llama.cpp работает — ONNX не нужен in-process.
+        """
         import time as _time
 
         _time.sleep(15)
-        # Проверяем: если режим уже не ONNX (появился LM Studio) — не загружаем
+        # Если llama.cpp уже доступен — ONNX не нужен in-process
         with self._mode_lock:
             if self.mode != "onnx":
                 logger.debug("Preload пропущен: режим не ONNX")
                 return
+        
+        # Проверяем, не запустился ли llama-server за эти 15 секунд
+        if self._check_llama_cpp():
+            with self._mode_lock:
+                self.mode = "llama_cpp"
+                self._preferred_mode = "llama_cpp"
+            logger.info("🦙 Preload: найден llama.cpp, ONNX предзагрузка отменена")
+            return
+        
         logger.info("⏳ Фоновая предзагрузка ONNX модели...")
         self._init_onnx()
         if self._onnx_session:
