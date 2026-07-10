@@ -636,8 +636,15 @@ class RemoteEmbedder:
                     self._preferred_mode = "lm_studio"
 
         # Режим 1.5: llama.cpp (Zed 1.10.0 native — OpenAI-compatible API)
-        with self._mode_lock:
-            if self.mode == "llama_cpp":
+        # Проверяем всегда, даже если режим ONNX — llama мог запуститься после сканера
+        _try_llama = self.mode == "llama_cpp" or (
+            self.mode == "onnx" and self._check_llama_cpp()
+        )
+        if _try_llama:
+            if self.mode != "llama_cpp":
+                with self._mode_lock:
+                    self.mode = "llama_cpp"
+                    self._preferred_mode = "llama_cpp"
                 try:
                     payload = {"model": self.model_name, "input": texts}
                     with httpx.Client(timeout=self.timeout) as client:
