@@ -231,7 +231,7 @@ class RemoteEmbedder:
         if self._breaker is not None:
             try:
                 return bool(
-                    self._breaker.call(self._check_lm_studio_raw, fallback=True)
+                    self._breaker.call(self._check_lm_studio_raw, fallback=False)
                 )
             except Exception:
                 return False
