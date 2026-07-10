@@ -374,7 +374,8 @@ class RemoteEmbedder:
                     return
 
             # Проверяем llama.cpp (Zed 1.10.0 native provider)
-            if os.getenv("EMBEDDING_PROVIDER", "") in ("llama_cpp", ""):
+            # auto — значение по умолчанию в .env.example
+            if os.getenv("EMBEDDING_PROVIDER", "") in ("llama_cpp", "auto", ""):
                 if self._check_llama_cpp():
                     with self._mode_lock:
                         self.mode = "llama_cpp"
