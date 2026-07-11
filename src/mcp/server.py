@@ -1261,31 +1261,30 @@ def _register_all_tools(mcp, services):
     # Показываем агенту только основные инструменты, остальные
     # остаются в коде и доступны через MSCODEBASE_MCP_TOOLS env.
     # ══════════════════════════════════════════════════════════
-    _raw_allowlist = os.environ.get("MSCODEBASE_MCP_TOOLS", "").strip()
-    if _raw_allowlist:
-        # Явный список из env — показываем только эти
+    _raw_allowlist_env = os.environ.get("MSCODEBASE_MCP_TOOLS")
+    _raw_allowlist = (_raw_allowlist_env or "").strip()
+    if _raw_allowlist_env is not None and not _raw_allowlist:
+        # Явно установлено в "" — показать ВСЕ инструменты
+        _show_all = True
+        _allowed_names = set()
+    elif _raw_allowlist:
+        # Конкретный список — показать только эти
         _allowed_names = set(_raw_allowlist.split(","))
         _show_all = False
     else:
-        # По умолчанию: только ключевые инструменты
+        # Не установлено — показать дефолтные
         _allowed_names = {
-            # Поиск (агент использует постоянно)
             "search_code",
             "get_symbol_info",
             "impact_analysis",
-            # Индексация
             "notify_change",
-            # Системные
             "get_index_status",
             "get_health_report",
-            # Intel
             "intel_get_runtime_status",
             "intel_get_project_context",
             "intel_get_project_memory",
-            # Write
             "rename_symbol",
             "replace_symbol",
-            # Diagnostics
             "diagnostics",
         }
         _show_all = False
@@ -1312,12 +1311,27 @@ def _register_all_tools(mcp, services):
     # Регистрируем каждый инструмент.
     # ВАЖНО (INC-6BCB-fallback): try/except вокруг каждого tool,
     # чтобы один сломанный __init__ не убивал все 36.
+    from mcp.types import ToolAnnotations
+
+    # readOnlyHint: Cursor Ask mode блокирует инструменты без этого флага.
+    # Только read-only инструменты получают readOnlyHint=True.
+    _write_tool_names = {
+        "rename_symbol", "move_symbol", "safe_delete",
+        "replace_symbol", "insert_before_symbol", "insert_after_symbol",
+        "ack_impact", "notify_change", "index_project_dir",
+    }
+
     registered = 0
     failed = []
     for tool_cls in _filtered_classes:
         try:
             instance = tool_cls(services)
-            mcp.tool(name=instance.name)(instance.execute)
+            _name = instance.name
+            _annotations = ToolAnnotations(
+                readOnlyHint=_name not in _write_tool_names,
+                idempotentHint=True,
+            )
+            mcp.tool(name=_name, annotations=_annotations)(instance.execute)
             registered += 1
             logger.debug(f"  🔧 Tool registered: {instance.name}")
         except Exception as e:
