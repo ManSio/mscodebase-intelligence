@@ -27,9 +27,9 @@ class LspClient:
     Auto-restarts on crash up to MAX_RETRIES attempts.
     """
 
-    START_TIMEOUT = 10.0
+    START_TIMEOUT = float(os.getenv("LSP_START_TIMEOUT", "10.0"))
     MAX_RETRIES = 3
-    REQUEST_TIMEOUT = 5.0
+    REQUEST_TIMEOUT = float(os.getenv("LSP_REQUEST_TIMEOUT", "5.0"))
     BUFFER_SIZE = 65536
 
     def __init__(self, project_root: Path, language: str = "python"):
@@ -386,7 +386,7 @@ class LspClient:
             raise RuntimeError("LSP not running")
         req_id = self._request_id
         self._request_id += 1
-        future = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
         self._pending[req_id] = future
         self._write_message(json.dumps(
             {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
