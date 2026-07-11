@@ -154,24 +154,47 @@ Direct measurements comparing vanilla Read/Grep vs MSCodeBase on specific querie
 
 ---
 
-## 5. Resource Usage
+## 5. Resource Usage — Full Breakdown
 
-| Metric | Idle | Under Load |
-|--------|------|-----------|
-| RAM | 311 MB | ~400 MB (with reranker) |
-| CPU | 0% | ~60% (indexing) |
+| Component | Idle | Under Load | Peak (indexing) | Note |
+|-----------|------|-----------|-----------------|------|
+| Python MCP | 147 MB | 150 MB | 150 MB | streaming, no accumulation |
+| llama embedder (bge-m3) | 440 MB (mmap) | 440 MB | **878 MB** | mmap file, batch buffers |
+| llama reranker (bge-reranker) | **0 MB** (unloaded) | 440 MB | 440 MB | auto-unload after 5min idle |
+| **Total system** | **~147 MB** | **~590 MB** | **~1,028 MB** | physical + mmap |
+
+### Memory by Scenario
+
+```
+Idle:
+  Python MCP ─────── 147 MB   (Working Set, частично в paged pool)
+  ─────────────────────────
+  Total:               147 MB  (reranker unloaded)
+
+Search (search_code quality):
+  Python MCP ─────── 150 MB
+  + embedder  ───── 440 MB   (mmap, shared)
+  + reranker  ───── 440 MB   (loaded on demand)
+  ─────────────────────────
+  Total:              ~1,030 MB  (~590 MB physical, rest is mmap)
+
+Indexing (intel_trigger_reindex):
+  Python MCP ─────── 150 MB
+  + embedder  ───── 878 MB   (batching, temp buffers)
+  + reranker  ───── 0 MB     (not used during indexing)
+  GPU: 99% ───────────────────
+  ─────────────────────────
+  Total:              ~1,028 MB  (440 MB is mmap — model file)
+```
+
+### Other Resources
+
+| Metric | Idle | Load |
+|--------|------|------|
+| CPU | 0% | ~20% (search), ~60% (indexing) |
+| GPU | 0% | 99% (indexing) |
 | Threads | 8 | 8 |
-| Startup time | ~8-12s | (embedder + reranker warm) |
-
-### Memory Breakdown
-
-| Component | RAM |
-|-----------|-----|
-| Python MCP server | ~60 MB |
-| llama.cpp (embedder) | ~180 MB |
-| llama.cpp (reranker, idle) | 0 MB (auto-unloaded) |
-| LanceDB | ~15 MB |
-| Total | ~311 MB |
+| Startup time | ~8-12s | — |
 
 ---
 
