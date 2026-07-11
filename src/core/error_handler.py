@@ -92,7 +92,7 @@ def load_metrics() -> None:
 
 
 def save_metrics() -> None:
-    """Сохраняет метрики в JSON-файл."""
+    """Сохраняет метрики в JSON-файл (атомарно через tempfile + os.replace)."""
     if not _METRICS_PATH:
         return
     try:
@@ -103,8 +103,13 @@ def save_metrics() -> None:
             for name, stats in _TOOL_METRICS.items():
                 clean = {k: v for k, v in stats.items() if k != "latencies"}
                 data[name] = clean
-        with open(_METRICS_PATH, "w", encoding="utf-8") as f:
+        # Атомарная запись: сначала во временный файл, затем rename
+        tmp = _METRICS_PATH.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, _METRICS_PATH)
     except Exception as e:
         logger.warning(f"Не удалось сохранить метрики: {e}")
 

@@ -1040,6 +1040,11 @@ class LlamaRunner:
                     self._reranker_process.wait(timeout=2)
                 except Exception:
                     pass
+            try:
+                if self._reranker_process.stderr:
+                    self._reranker_process.stderr.close()
+            except Exception:
+                pass
             self._reranker_process = None
             logger.info("🛑 Reranker остановлен")
 
@@ -1055,6 +1060,12 @@ class LlamaRunner:
                     self._process.wait(timeout=2)
                 except Exception:
                     pass
+            # Закрываем stderr-файл, сохранённый Popen-ом (issue #9: утечка fd)
+            try:
+                if self._process.stderr:
+                    self._process.stderr.close()
+            except Exception:
+                pass
             self._process = None
             self._model_key = None
             logger.info("🛑 llama.cpp остановлен")

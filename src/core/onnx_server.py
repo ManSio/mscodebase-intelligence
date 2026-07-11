@@ -20,7 +20,7 @@ import gc
 import json
 import logging
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -185,16 +185,19 @@ def rerank(query: str, passages: list[str]) -> list[float]:
 class InferenceHandler(BaseHTTPRequestHandler):
     """HTTP-handler для эмбеддингов и реранкинга."""
 
+    # Разрешаем CORS только для localhost-запросов (защита от "Bleeding Llama"-класса)
+    _CORS_ORIGIN = "http://127.0.0.1"
+
     def _send_json(self, data: dict, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self._CORS_ORIGIN)
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self._CORS_ORIGIN)
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
@@ -219,7 +222,11 @@ class InferenceHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         try:
-            length = int(self.headers.get("Content-Length", 0))
+            raw_length = self.headers.get("Content-Length", "")
+            if not raw_length or not raw_length.isdigit() or int(raw_length) <= 0:
+                self._send_json({"error": "missing or invalid Content-Length"}, 411)
+                return
+            length = int(raw_length)
             body = json.loads(self.rfile.read(length))
         except Exception as e:
             self._send_json({"error": f"invalid request: {e}"}, 400)
@@ -296,8 +303,12 @@ def main():
     init_embedder(model_dir_override=args.model_dir)
     init_reranker(model_dir_override=args.reranker_dir)
 
-    server = HTTPServer((args.host, args.port), InferenceHandler)
+    server = ThreadingHTTPServer((args.host, args.port), InferenceHandler)
+    server.timeout = 30  # таймаут на чтение запроса
     logger.info(f"🚀 ONNX сервер http://{args.host}:{args.port}")
+    if args.host != "127.0.0.1":
+        logger.warning(f"⚠️  Сервер слушает {args.host}, а не 127.0.0.1 — CORS ограничен localhost")
+    logger.info(f"🔒 CORS origin: {InferenceHandler._CORS_ORIGIN}")
     logger.info("   POST /v1/embeddings — эмбеддинги")
     logger.info(f"   POST /v1/rerank     — реранкинг ({'active' if _reranker_session else 'disabled'})")
     logger.info("   GET  /v1/models     — список моделей")
