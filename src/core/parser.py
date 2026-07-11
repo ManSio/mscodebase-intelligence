@@ -244,6 +244,43 @@ class CodeParser:
             except ImportError:
                 logger.debug("Tree-sitter Dart недоступен.")
 
+            # Bash
+            try:
+                import tree_sitter_bash as tsbash
+
+                parser = Parser()
+                parser.language = Language(tsbash.language())
+                self.parsers[".sh"] = parser
+                self.parsers[".bash"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Bash недоступен.")
+
+            # SQL, YAML, TOML, HTML, CSS, HCL — парсеры для контекста
+            # (ASSIGNED_FROM для них не применим)
+            _context_parsers = {
+                "sql": ("tree_sitter_sql", ".sql"),
+                "yaml": ("tree_sitter_yaml", ".yaml", ".yml"),
+                "toml": ("tree_sitter_toml", ".toml"),
+                "html": ("tree_sitter_html", ".html", ".htm"),
+                "css": ("tree_sitter_css", ".css"),
+                "hcl": ("tree_sitter_hcl", ".hcl", ".tf", ".tfvars"),
+            }
+            for lang_name, (mod_name, *exts) in _context_parsers.items():
+                try:
+                    mod = __import__(mod_name)
+                    p = Parser()
+                    if hasattr(mod, "LANGUAGE"):
+                        p.language = Language(mod.LANGUAGE)
+                    elif hasattr(mod, "language"):
+                        p.language = Language(mod.language())
+                    else:
+                        logger.debug(f"Tree-sitter {lang_name}: unknown API.")
+                        continue
+                    for ext in exts:
+                        self.parsers[ext] = p
+                except ImportError:
+                    logger.debug(f"Tree-sitter {lang_name} недоступен.")
+
             logger.info(f"✅ Tree-sitter готов для: {list(self.parsers.keys())}")
 
         except ImportError as e:
@@ -560,6 +597,10 @@ class CodeParser:
         ".scala": {"val_definition", "var_definition"},
         ".dart": {"initialized_variable_definition",
                     "local_variable_declaration"},
+        # Bash, SQL, YAML, TOML, HTML, CSS, HCL — без ASSIGNED_FROM
+        # (Bash: RHS после = — отдельный узел, не поле;
+        #  SQL/конфиги: не имеют переменных-присваиваний)
+        # (языки запросов/конфигурации, не имеют переменных-присваиваний)
     }
 
     # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
