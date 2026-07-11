@@ -177,14 +177,27 @@ Key modules:
 └─────────────────────────────────────────────────────────┘
          │
          ▼
-┌─────────────────────────────────────────────────────────┐
-│  Data Flow Layer (v3.2)                                  │
-│  CodeParser.extract_assignments()                         │
-│    — Tree-sitter walk with scope stack                    │
-│    — ASSIGNED_FROM edges in PropertyGraph                  │
-│    — Variable nodes for each tracked variable               │
-│    — Assignments at ALL nesting levels (if/for/while)      │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Data Flow Layer (v3.2.0)                                         │
+│                                                                  │
+│  1. Unified Walker — _walk_file()                                │
+│     ONE Tree-sitter parse + ONE walk → calls + assignments        │
+│     Parse cache avoids re-parsing for same file                   │
+│                                                                  │
+│  2. Conditional Flow                                              │
+│     ASSIGNED_FROM edges have optional condition_path property     │
+│     → ["if_statement", "for_statement", "while", "try", "except"] │
+│     Tracks if/for/while/try/except nesting                        │
+│                                                                  │
+│  3. Intra-procedural only                                         │
+│     Tracking works within function bodies only                    │
+│     Cross-function (a = f(x) → inside f) NOT tracked (explicit)   │
+│                                                                  │
+│  4. Python only for ASSIGNED_FROM                                 │
+│     Rust/TS parsers exist but assignment node types differ        │
+│                                                                  │
+│  5. 30 core files in src/core                                     │
+└──────────────────────────────────────────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────┐

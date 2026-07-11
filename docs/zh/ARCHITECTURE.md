@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本:** 3.0.0  
-> **最后更新:** 2026-07-11  
-> **架构:** 4层架构 + PropertyGraph（入口点 → MCP服务器/DI → 工具类 → 核心业务逻辑 → SQLite属性图）带多窗口注册表
+> **版本:** 3.2.0  
+> **最后更新:** 2026-07-12  
+> **架构:** 4层架构 + PropertyGraph + Data Flow Layer 带多窗口注册表
 
 ---
 
@@ -151,7 +151,33 @@ class SearchCodeTool(MCPTool):
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + 扩展名过滤器 | config |
 
-### 2.5 提供者优先级
+### 2.5 Data Flow Layer (v3.2.0)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Data Flow Layer                                                 │
+│                                                                  │
+│  1. Unified Walker — _walk_file()                                │
+│     一次 Tree-sitter 解析 + 一次遍历 → 调用 + 赋值                │
+│     Parse cache: 同一文件重复调用时跳过解析                       │
+│                                                                  │
+│  2. Conditional Flow                                             │
+│     ASSIGNED_FROM 边包含可选的 condition_path 属性                │
+│     → ["if_statement", "for_statement", "try", "except"]         │
+│     追踪 if/for/while/try/except 嵌套层级                         │
+│                                                                  │
+│  3. 仅限函数内部                                                 │
+│     追踪仅在函数体内部工作                                        │
+│     跨函数数据流不追踪（已知限制）                                 │
+│                                                                  │
+│  4. 目前仅 Python                                                │
+│     Rust/TS 解析器已存在，但赋值节点类型不同                      │
+│                                                                  │
+│  5. src/core 中 30 个文件                                        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 2.6 提供者优先级
 
 MCP服务器自动检测最佳可用的嵌入提供者：
 

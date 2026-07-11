@@ -410,6 +410,14 @@ class CodeParser:
 
     # ── Unified AST Walker (один parse → два результата) ──
 
+    # Типы assignment-узлов для разных языков (мультиязычность)
+    ASSIGNMENT_NODE_MAP = {
+        ".py": {"assignment", "augmented_assignment"},
+        ".rs": {"let_declaration", "assignment_expression"},
+        ".ts": {"variable_declarator", "assignment_expression"},
+        ".tsx": {"variable_declarator", "assignment_expression"},
+    }
+
     # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
     CONDITIONAL_NODES = {
         "if_statement", "else_clause",
@@ -451,10 +459,11 @@ class CodeParser:
             tree.root_node, code, file_path, calls, current_function=""
         )
         assignments = []
+        assignment_types = self.ASSIGNMENT_NODE_MAP.get(ext, set())
         self._extract_assignments_recursive(
             tree.root_node, code, file_path, assignments,
             current_function="", assigned=None,
-            condition_path=None,
+            condition_path=None, assignment_types=assignment_types,
         )
         return calls, assignments
 
@@ -574,6 +583,7 @@ class CodeParser:
         current_function: str,
         assigned: Optional[Set[str]] = None,
         condition_path: Optional[List[str]] = None,
+        assignment_types: Optional[Set[str]] = None,
     ):
         """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
 
@@ -585,7 +595,11 @@ class CodeParser:
                       в текущем function scope. None → корневой scope.
             condition_path: list[str] — стек условных блоков (if/for/while)
                             для отслеживания контекста присваивания.
+            assignment_types: set[str] — типы assignment-узлов для языка.
+                              None → Python ("assignment", "augmented_assignment").
         """
+        if assignment_types is None:
+            assignment_types = {"assignment", "augmented_assignment"}
         if assigned is None:
             assigned = set()
         if condition_path is None:
@@ -613,35 +627,19 @@ class CodeParser:
             assigned = set()
             pushed_scope = True
 
-        # ── a) Простое присваивание: x = <rhs> ──
-        if node.type == "assignment":
-            left = node.child_by_field_name("left")
-            right = node.child_by_field_name("right")
+        # ── Присваивание: x = <rhs> (язык-независимое) ──
+        if node.type in assignment_types:
+            # Поле для левой части: Python→left, Rust→name, TS→name
+            left = (
+                node.child_by_field_name("left")
+                or node.child_by_field_name("name")
+            )
+            right = node.child_by_field_name("right") or node.child_by_field_name("value")
             if left and left.type == "identifier" and right:
                 self._process_rhs_for_assign(
                     target=code[left.start_byte : left.end_byte].decode(
                         "utf-8", errors="ignore"
                     ),
-                    right=right,
-                    code=code,
-                    assigned=assigned,
-                    assignments=assignments,
-                    file_path=file_path,
-                    line=node.start_point[0],
-                    function=current_function,
-                    condition_path=list(condition_path),
-                )
-
-        # ── b) Составное присваивание: x += <rhs> ──
-        elif node.type == "augmented_assignment":
-            left = node.child_by_field_name("left")
-            right = node.child_by_field_name("right")
-            if left and left.type == "identifier" and right:
-                target = code[left.start_byte : left.end_byte].decode(
-                    "utf-8", errors="ignore"
-                )
-                self._process_rhs_for_assign(
-                    target=target,
                     right=right,
                     code=code,
                     assigned=assigned,
@@ -662,6 +660,7 @@ class CodeParser:
                 current_function,
                 assigned,
                 condition_path,
+                assignment_types,
             )
 
         # ── Восстановление родительского scope при выходе из функции ──
