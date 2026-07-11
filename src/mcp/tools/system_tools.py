@@ -46,11 +46,23 @@ class GetIndexStatusTool(MCPTool):
         if "error" in stats:
             return f"{project_label}\n❌ Error: {stats['error']}"
 
+        sym_idx = self.resolve_symbol_index()
         total_symbols = (
-            self.resolve_symbol_index().get_symbol_count()
-            if hasattr(self.resolve_symbol_index(), "get_symbol_count")
+            sym_idx.get_symbol_count()
+            if hasattr(sym_idx, "get_symbol_count")
             else "N/A"
         )
+        # INC-001 рецидив: chunks есть, symbols=0 → SymbolIndex не загрузился с диска
+        # Пробуем перезагрузить из index_guard (как при старте Indexer'а).
+        if total_symbols == 0 and chunks > 0:
+            try:
+                if hasattr(indexer, "_index_guard"):
+                    indexer._index_guard.load_symbol_index(sym_idx)
+                    total_symbols = sym_idx.get_symbol_count()
+            except Exception:
+                pass
+            if total_symbols == 0:
+                chunks = chunks  # сохраняем для форматтера — он добавит ⚠️
         embedder_mode = getattr(self.resolve_embedder(), "mode", "unknown")
         mode_label = {
             "lm_studio": "🌐 LM Studio",

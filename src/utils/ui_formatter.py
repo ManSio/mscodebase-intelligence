@@ -64,6 +64,14 @@ def format_index_status(
 ) -> str:
     icon = "🟢" if chunks > 0 else "🟡"
     result = _("{icon} **MSCodeBase** — {status}\n", icon=icon, status=status)
+    
+    # INC-001 рецидив: если чанки есть, а symbols=0 — SymbolIndex не загрузился
+    if symbols == 0 and chunks > 0:
+        result += "⚠️ " + _(
+            "**SymbolIndex пуст** — символы не проиндексированы. "
+            "Переиндексация: `intel_trigger_reindex()`\n"
+        )
+    
     result += _(
         "📦 **Chunks:** `{chunks}` | **Files:** `{files}` | **Symbols:** `{symbols}`\n",
         chunks=chunks,
