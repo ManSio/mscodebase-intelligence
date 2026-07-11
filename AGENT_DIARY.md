@@ -5,6 +5,30 @@
 
 ---
 
+## [2026-07-11 23:59] — Финальный коммит: docs синхронизация под v3.1.0
+
+**Problem:** Документация отстала от кода после 10 коммитов (адаптивный бюджет, staleness banner, графовый контекст, DEFAULT_TOOLS, FilenameMatcher, ToolAnnotations, BENCHMARK.md, ZED API защита).
+
+**Solution:**
+1. CHANGELOG.md (en/ru/zh) — добавлен раздел v3.1.0 со всеми 10+ изменениями
+2. GRACEFUL_DEGRADATION.md — обновлены диаграммы: LSP fallback (basedpyright→SymbolIndex), DEFAULT_TOOLS levels (56→12→custom)
+3. AGENT_DIARY.md — эта запись
+
+**Что сделано за сессию (10 коммитов):**
+- Adaptive search budget (CodeGraph)
+- Staleness banner (CodeGraph)
+- FilenameMatcher / extensions.py (Serena)
+- DEFAULT_TOOLS фильтр 56→12 (CodeGraph)
+- ToolAnnotations readOnlyHint (CodeGraph)
+- Context Graph → search_code (semantic-code-mcp)
+- BENCHMARK.md (websines методология)
+- ZED API защита (scoped_kv_store guard, MCP protocol version)
+- LSP фиксы (get_running_loop, таймауты в .env)
+
+**Status:** ✅ Документация синхронизирована с кодом.
+
+---
+
 ## [2026-07-11 23:00] — Threads.db Research + edit_prediction 403 verdict
 
 **Problem:** Исследовать threads.db (39MB) для долговременной памяти и ошибку edit_prediction 403

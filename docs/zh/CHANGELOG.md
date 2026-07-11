@@ -6,6 +6,32 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
+## [3.1.0] — 2026-07-11 — 基于 CodeGraph 的改进
+
+### 新增
+- 📊 **自适应搜索预算**: `search_code` 根据项目规模自动调整 limit (<500 文件→4, <5K→6, <15K→8, ≥15K→10)。显式指定的 `limit` 参数仍然有效。
+- 🕐 **过期警告**: 当上次索引超过1小时前时，显示 "Index may be stale" 警告。一次轻量级 LanceDB 查询，无需磁盘扫描。
+- 🧩 **搜索结果中的图上下文**: `_expand_graph_context` 现在对所有搜索模式运行（之前仅 `deep`）。每个结果都显示谁调用它 — 内联显示，无需额外工具调用。
+- 🔇 **DEFAULT_TOOLS 过滤器**: 默认仅显示 12 个核心工具。其余 44 个仍在代码中，通过 `MSCODEBASE_MCP_TOOLS` 环境变量重新启用。`MSCODEBASE_MCP_TOOLS=""` 显示全部 56 个。
+- 🏷️ **ToolAnnotations** (`readOnlyHint`): 所有只读工具现在带有 `readOnlyHint: true` — Cursor Ask 模式需要此标志。
+- 📁 **统一扩展名管理**: 新的 `src/core/extensions.py` 取代了 3 个不同的 `SUPPORTED_EXTENSIONS` 列表。三个列表的并集 + 按用途拆分。
+- 🛡️ **Zed SQLite 模式保护**: 启动时验证 `scoped_kv_store` 表是否存在。日志中显示警告，不会崩溃。
+- 📋 **MCP 协议版本日志**: 启动时记录协议版本，用于跨版本故障排除。
+- 🔧 **LSP 超时可配置**: `LSP_REQUEST_TIMEOUT` 和 `LSP_START_TIMEOUT` 移至 `.env.example`。`get_event_loop()` → `get_running_loop()`。
+- 📈 **BENCHMARK.md**: 真实基准测试 — 289ms 快速模式, 8-18 倍 token 节省, 各模式的延迟分布。
+
+### 变更
+- `search_code`: 图上下文扩展现在适用于所有模式（之前仅 deep）
+- 工具可见性: 默认 12/56 个工具（之前全部 56 个）
+- LSP 优先级: basedpyright > pyright 在 `_find_server()` 中
+- 超时: 健康报告的 git 检查从 30 秒减少到 15 秒
+
+### 修复
+- DEFAULT_TOOLS 过滤器中的 `_show_all`: `MSCODEBASE_MCP_TOOLS=""` 现在正确显示所有工具
+- LspClient 中废弃的 `asyncio.get_event_loop()` → `get_running_loop()`
+
+---
+
 ## [3.0.0] — 2026-07-11 — Write Tools + LSP 客户端 + 元数据补丁
 
 ### 新增

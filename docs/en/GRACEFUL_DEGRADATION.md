@@ -4,7 +4,7 @@
 
 ## Overview
 
-MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 5 levels,
+MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 6 levels,
 maintaining basic functionality even when external services fail.
 
 ```mermaid
@@ -14,7 +14,7 @@ stateDiagram-v2
     state L1_LLAMA[Level 1: llama.cpp GGUF (GPU)]
         L1_LLAMA: llama.cpp embed + reranker (Vulkan GPU)
         L1_LLAMA: BM25 + Dense + Reranker + Co-change
-        L1_LLAMA: ~280ms-3s latency
+        L1_LLAMA: ~286ms-3s latency
     end
     
     L1_LLAMA --> L2_ONNX: llama.cpp unavailable
@@ -38,12 +38,64 @@ stateDiagram-v2
     
     state L4_BM25[Level 4: BM25 Only]
         L4_BM25: Keyword search only
-        L4_BM25: No semantic understanding
-        L4_BM25: ~50ms-300ms latency
+        L4_BM25: SymbolIndex + FTS5 fallback
+        L4_BM25: No vector search
     end
     
-    L4_BM25 --> L5_Fallback: BM25 index empty
+    L4_BM25 --> L5_SYMBOL: BM25 unavailable
     
+    state L5_SYMBOL[Level 5: SymbolIndex Only]
+        L5_SYMBOL: Pure AST symbol index
+        L5_SYMBOL: Tree-sitter definitions + references
+        L5_SYMBOL: No semantic search
+    end
+```
+
+### Cross-cutting layers (always available)
+
+These are **independent** of the search level above:
+
+```mermaid
+stateDiagram-v2
+    [*] --> LSP_ACTIVE: basedpyright available
+    
+    state LSP_ACTIVE[LSP: basedpyright]
+        LSP_ACTIVE: Cross-file rename precision
+        LSP_ACTIVE: Full semantic WorkspaceEdit
+        LSP_ACTIVE: ~105ms warm latency
+    end
+    
+    LSP_ACTIVE --> LSP_FALLBACK: Timeout (5s) or unavailable
+    
+    state LSP_FALLBACK[LSP: SymbolIndex]
+        LSP_FALLBACK: Tree-sitter text-based rename
+        LSP_FALLBACK: May miss dynamic imports
+        LSP_FALLBACK: Always works, zero infra
+    end
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> DEFAULT_TOOLS: Normal operation
+    
+    state DEFAULT_TOOLS[Visible: 12 tools]
+        DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
+        DEFAULT_TOOLS: notify_change, get_index_status
+        DEFAULT_TOOLS: intel_get_runtime_status
+        DEFAULT_TOOLS: rename_symbol, replace_symbol
+    end
+    
+    DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
+    DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
+    
+    state ALL_TOOLS[Visible: 56 tools]
+        ALL_TOOLS: All 56 MCP tools available
+    end
+    
+    state CUSTOM_TOOLS[Custom selection]
+        CUSTOM_TOOLS: User-specified tool subset
+    end
+```
     state L5_Fallback[Level 5: Fallback]
         L5_Fallback: Creating index
         L5_Fallback: First run / after table drop

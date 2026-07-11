@@ -6,6 +6,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.0] — 2026-07-11 — CodeGraph-inspired improvements
+
+### Added
+- 📊 **Adaptive search budget**: `search_code` limit auto-scales with project size (<500 files→4, <5K→6, <15K→8, ≥15K→10 results). Explicit `limit` param still respected.
+- 🕐 **Staleness banner**: warns "Index may be stale" when last indexed >1h ago. Single lightweight LanceDB query, zero disk scan.
+- 🧩 **Graph context in search results**: `_expand_graph_context` now runs for ALL search modes (was only `deep`). Each result shows who calls it — inline, no extra tool calls.
+- 🔇 **DEFAULT_TOOLS filter**: only 12 core tools visible by default (search, index, system, write). Remaining 44 still in code, re-enable via `MSCODEBASE_MCP_TOOLS` env var. `MSCODEBASE_MCP_TOOLS=""` shows all 56.
+- 🏷️ **ToolAnnotations** (`readOnlyHint`): all read-only tools now carry `readOnlyHint: true` — required by Cursor Ask mode.
+- 📁 **Unified extensions**: new `src/core/extensions.py` replaces 3 divergent `SUPPORTED_EXTENSIONS` lists (parser.py, file_guard.py, lsp_main.py). Union of all three + per-purpose split (`PARSE_EXTENSIONS`, `INDEX_EXTENSIONS`).
+- 🛡️ **Zed SQLite schema guard**: startup check validates `scoped_kv_store` table exists before `resolve_project_root()` uses it. Warning in logs, not a crash.
+- 📋 **MCP protocol version log**: protocol version logged at startup for cross-version troubleshooting.
+- 🔧 **LSP config exposed**: `LSP_REQUEST_TIMEOUT` and `LSP_START_TIMEOUT` moved to `.env.example`. `asyncio.get_event_loop()` → `get_running_loop()` (Python 3.12+ compat).
+- 📈 **BENCHMARK.md**: real-world benchmarks — 289ms fast mode, 8-18x token savings vs Read/Grep, per-mode latency distribution.
+
+### Changed
+- `search_code` default mode: graph context expansion now applies to ALL modes (was deep-only)
+- Tool visibility: 12/56 tools shown by default (previously all 56)
+- LSP priority: basedpyright > pyright in `_find_server()`
+- Timeout: health report git check reduced 30s→15s
+
+### Fixed
+- `_show_all` in DEFAULT_TOOLS filter: `MSCODEBASE_MCP_TOOLS=""` now correctly shows all tools (was always False)
+- Deprecated `asyncio.get_event_loop()` → `get_running_loop()` in LspClient
+
+---
+
 ## [3.0.0] — 2026-07-11 — Write Tools + LSP Client + Meta-Patching
 
 ### Added
