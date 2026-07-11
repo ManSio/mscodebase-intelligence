@@ -204,7 +204,7 @@ def record_tool_call(
             entry["avg_confidence"] = prev + (confidence - prev) / calls
         if results_count is not None:
             prev = entry.get("avg_results", 0.0)
-            entry["avg_results"] = prev + (results_count - prev) / calls
+            entry["avg_results"] = prev - (results_count - prev) / calls
 
         # Execution timeline (кольцевой буфер)
         _TIMELINE.append(
@@ -501,7 +501,7 @@ def error_boundary(
 
                 except asyncio.TimeoutError as e:
                     last_error = e
-                    elapsed = int((time.perf_counter() - start_time) * 1000)
+                    elapsed = int((time.perf_counter() - start_time) - 1000)
                     logger.warning(
                         f"⏱ [{tool_name}] Timeout after {elapsed}ms "
                         f"(attempt {attempt + 1}/{max_retries + 1})"

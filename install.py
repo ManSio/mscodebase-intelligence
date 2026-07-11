@@ -340,20 +340,45 @@ def step_copy(lines, lang):
         "models",            # управляется step_gguf
     }
     items = [i for i in PROJECT_ROOT.iterdir() if i.name not in skip]
+    copied = 0
+    skipped = 0
+    deleted = 0
+    
+    # --- Фаза 1: копируем новые/изменённые файлы ---
     for idx, item in enumerate(items):
         dst = ZED_EXT_DIR / item.name
+        _prog(int((idx + 1) / len(items) * 100), item.name)
         try:
-            if dst.exists():
-                if dst.is_dir():
-                    _safe_rmtree(dst)
+            if item.is_dir():
+                _sync_dir(item, dst)
+                copied += 1
+            else:
+                if _is_up_to_date(item, dst):
+                    skipped += 1
                 else:
-                    _safe_unlink(dst)
-            (shutil.copytree if item.is_dir() else shutil.copy2)(str(item), str(dst))
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(item), str(dst))
+                    copied += 1
         except:
             pass
-        _prog(int((idx + 1) / len(items) * 100), item.name)
     sys.stdout.write("\n")
-    lines.append((C.GRN, f"✓ {len(items)} files"))
+    
+    # --- Фаза 2: удаляем из ZED_EXT_DIR то, чего нет в PROJECT_ROOT ---
+    dst_names = {i.name for i in ZED_EXT_DIR.iterdir() if i.name not in skip}
+    src_names = {i.name for i in items}
+    orphaned = dst_names - src_names
+    for name in orphaned:
+        p = ZED_EXT_DIR / name
+        try:
+            if p.is_dir():
+                _safe_rmtree(p)
+            else:
+                _safe_unlink(p)
+            deleted += 1
+        except:
+            pass
+    
+    lines.append((C.GRN, f"✓ {copied} copied, {skipped} up-to-date" + (f", {deleted} removed" if deleted else "")))
     
     # Чистим __pycache__ в extension, чтобы старый байткод не мешал
     import pathlib
@@ -368,6 +393,54 @@ def step_copy(lines, lang):
             pass
     if pycache_dirs:
         lines.append((C.D, f"  ✓ cleaned {len(pycache_dirs)} __pycache__ dirs"))
+
+
+def _is_up_to_date(src: Path, dst: Path) -> bool:
+    """Проверяет, синхронизирован ли файл (по mtime и размеру)."""
+    if not dst.exists():
+        return False
+    try:
+        s_st = src.stat()
+        d_st = dst.stat()
+        return s_st.st_mtime <= d_st.st_mtime and s_st.st_size == d_st.st_size
+    except:
+        return False
+
+
+def _sync_dir(src: Path, dst: Path):
+    """Инкрементальная синхронизация директории: копирует новые/изменённые файлы,
+    удаляет из dst файлы, которых нет в src."""
+    if not dst.exists():
+        dst.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(str(src), str(dst), dirs_exist_ok=True)
+        return
+    
+    src_files = {}
+    for child in src.rglob("*"):
+        if child.is_file():
+            rel = child.relative_to(src)
+            src_files[rel] = child
+    
+    dst_files = {}
+    for child in dst.rglob("*"):
+        if child.is_file():
+            rel = child.relative_to(dst)
+            dst_files[rel] = child
+    
+    # Копируем новые/изменённые
+    for rel, src_path in src_files.items():
+        dst_path = dst / rel
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        if not _is_up_to_date(src_path, dst_path):
+            shutil.copy2(str(src_path), str(dst_path))
+    
+    # Удаляем orphaned
+    for rel, dst_path in dst_files.items():
+        if rel not in src_files:
+            try:
+                dst_path.unlink()
+            except:
+                pass
 
 
 @_step(4)

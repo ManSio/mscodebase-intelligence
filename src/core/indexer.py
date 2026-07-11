@@ -373,11 +373,11 @@ class Indexer:
                 self._async_table = None
 
     def _warmup_status(self) -> None:
-        """Мгновенный прогрев кэша количества чанков (O(1)).
+        """Прогрев кэша чанков и уникальных файлов.
 
-        Использует только count_rows() — БЕЗ to_pandas(), потому что
-        to_pandas() читает ВСЕ данные и падает на повреждённых файлах.
-        _cached_unique_files заполняется инкрементально из _index_single_file.
+        count_rows() — O(1). Уникальные файлы читаются через
+        search + select (без vector), что работает в LanceDB 0.33
+        стабильно, в отличие от to_pandas(columns=[...]).
         """
         try:
             if self.table is None:
@@ -386,11 +386,20 @@ class Indexer:
             self._cached_total_chunks = count
             if count > 0:
                 logger.info(f"🔥 Прогрев статуса: в базе {count} чанков")
-                # _cached_unique_files заполняется лениво при _index_single_file
-                # Показываем 0 — при первом запросе статуса будет пересчитано
-                logger.debug(
-                    "🔥 unique_files будет заполнен инкрементально при индексации"
-                )
+                # Прогрев unique_files через search + select (без vector)
+                try:
+                    # search API стабильнее to_pandas с columns
+                    result = self.table.search().select(["file_path"]).limit(count).to_pandas()
+                    if not result.empty:
+                        self._cached_unique_files = set(result["file_path"].unique())
+                        logger.info(
+                            f"🔥 Прогрев статуса: {len(self._cached_unique_files)} файлов"
+                        )
+                except Exception as warm_fs:
+                    logger.warning(
+                        f"🔥 lazy unique_files не удался: {warm_fs}. "
+                        "Будет заполнен при первом вызове get_status."
+                    )
             else:
                 logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
         except Exception as e:
@@ -495,19 +504,69 @@ class Indexer:
             # Если кэш пуст, но чанки есть — делаем быстрый запрос
             if unique_files == 0 and total_chunks > 0 and self.table is not None:
                 try:
-                    import pyarrow.compute as pc
-
-                    df = self.table.to_pandas(columns=["file_path"])
-                    unique_files = df["file_path"].nunique()
-                    # Обновляем кэш
-                    self._cached_unique_files = set(df["file_path"].unique())
+                    # search API стабильнее to_pandas с columns
+                    result = (
+                        self.table.search()
+                        .select(["file_path"])
+                        .limit(total_chunks)
+                        .to_pandas()
+                    )
+                    if not result.empty:
+                        unique_files = result["file_path"].nunique()
+                        self._cached_unique_files = set(result["file_path"].unique())
                 except Exception as e:
-                    logger.debug(f"get_status: fallback scan failed: {e}")
+                    logger.warning(f"get_status: fallback scan failed: {e}")
+
+            # Считаем stale/устаревшие файлы (быстрое сканирование диска)
+            stale_files = 0
+            on_disk_files = 0
+            missing_files = 0
+            if unique_files > 0 and self.project_path:
+                try:
+                    # Получаем file_hash из индекса для сверки
+                    idx_df = self.table.search().select(["file_path", "file_hash"]).limit(total_chunks).to_pandas()
+                    indexed_files = {}
+                    if not idx_df.empty:
+                        # Берём последний hash для каждого файла
+                        for fp, fh in zip(idx_df["file_path"], idx_df["file_hash"]):
+                            indexed_files[fp] = fh
+
+                    # Сканируем файлы на диске (учитываем file_guard)
+                    walk_root = str(self.project_path.resolve())
+                    for root, dirs, files in os.walk(walk_root):
+                        if self.file_guard:
+                            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
+                        for file_name in files:
+                            full_path = Path(root) / file_name
+                            if self.file_guard and self.file_guard.should_skip_file(full_path):
+                                continue
+                            on_disk_files += 1
+                            try:
+                                rel = str(full_path.relative_to(self.project_path)).replace(os.sep, "/")
+                            except ValueError:
+                                continue
+                            if rel not in indexed_files:
+                                missing_files += 1
+                            else:
+                                # Сверяем hash (быстро — только SHA256 первых 8KB)
+                                try:
+                                    hasher = hashlib.sha256()
+                                    with open(str(full_path), "rb") as f:
+                                        hasher.update(f.read(8192))
+                                    current_hash = hasher.hexdigest()
+                                    if current_hash != indexed_files[rel]:
+                                        stale_files += 1
+                                except Exception:
+                                    pass
+                except Exception as stale_err:
+                    logger.debug(f"get_status: stale scan skipped: {stale_err}")
 
             return {
                 "total_chunks": total_chunks,
                 "unique_files": unique_files,
-                "total_files": unique_files,
+                "total_files": on_disk_files or unique_files,
+                "stale_files": stale_files,
+                "missing_files": missing_files,
                 "status": "active" if total_chunks > 0 else "empty",
             }
         except Exception as e:

@@ -1,4 +1,4 @@
-# Архитектурные слои — MSCodeBase Intelligence
+# Слои архитектуры — MSCodeBase Intelligence
 
 [🇬🇧 English](../en/ARCHITECTURE_LAYERS.md) • [🇷🇺 Русский](ARCHITECTURE_LAYERS.md) • [🇨🇳 中文](../zh/ARCHITECTURE_LAYERS.md)
 
@@ -49,7 +49,7 @@
 **Код:** `read_project_from_bridge()`, `write_active_project()`
 **Не знает:** про индексы, про Runtime.
 
-Bridge — временный файл (~/.mscodebase/bridge/session_*.json),
+Bridge — временный файл (`~/.mscodebase/bridge/session_*.json`),
 который LSP пишет при каждом didOpen/didSave. MCP читает
 при необходимости определить project_root.
 
@@ -61,7 +61,7 @@ Bridge — временный файл (~/.mscodebase/bridge/session_*.json),
 **Код:** `ProjectIndexerRegistry.get_indexer(path)`
 **Не знает:** про MCP, про Bridge, про Runtime.
 
-Per-project singleton Indexer-ы с LRU eviction (max 5).
+Per-project singleton Indexer-ы с LRU eviction (макс 5).
 Каждый проект имеет свой Lock для LanceDB.
 
 ---
@@ -144,7 +144,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
 
 | Документ | Описание |
 |----------|----------|
-| [README.md](README.md) | Главная документация, карта всех доков |
+| [README.md](../../README.md) | Основная документация, карта всех доков |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Архитектура проекта, DI, слои |
 | [TELEMETRY.md](TELEMETRY.md) | Метрики и телеметрия |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |

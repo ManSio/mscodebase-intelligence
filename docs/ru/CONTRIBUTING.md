@@ -1,8 +1,8 @@
 <img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-# Вклад в проект — MSCodeBase Intelligence
-
 [🇬🇧 English](../en/CONTRIBUTING.md) • [🇷🇺 Русский](CONTRIBUTING.md) • [🇨🇳 中文](../zh/CONTRIBUTING.md)
+
+# Контрибьюция — MSCodeBase Intelligence
 
 Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
 
@@ -31,7 +31,7 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   └── tools/           # 10 файлов, 50 инструментов (34 class-based + 14 intel + 2 system)
+│   └── tools/           # 10 файлов, 50 инструментов (34 class-based + 14 intel)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # 3 search tools
 │       ├── indexing_tools.py# 3 indexing tools
@@ -63,9 +63,9 @@ src/
 
 ## 3. Стиль кода
 
-- **Formatter**: Black (line length 88)
+- **Форматтер**: Black (длина строки 88)
 - **Порядок импортов**: isort
-- **Типизация**: обязательны для публичных API
+- **Type hints**: обязательны для публичных API
 - **Логирование**: `logging.getLogger(__name__)` — никогда `print()` в production-коде
 - **Async**: используйте `async/await` для I/O-операций; тяжёлые дисковые операции — через `asyncio.to_thread()`
 
@@ -153,7 +153,7 @@ pytest tests/ --tb=long -v
 
 ---
 
-## 5. Добавление новых MCP инструментов
+## 5. Добавление новых MCP-инструментов
 
 Все 34 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
 
@@ -213,9 +213,9 @@ def test_my_new_tool():
 ```
 
 5. **Обновите документацию**:
-   - `README.md` — секция «Tools» → обновите категорию и описание
-   - `ARCHITECTURE.md` — добавьте описание инструмента
-   - `CHANGELOG.md` — добавьте запись
+   - [../../README.md](../../README.md) — секция "Tools" → обновите категорию и описание
+   - [../../ARCHITECTURE.md](../../ARCHITECTURE.md) — добавьте описание инструмента
+   - [../../CHANGELOG.md](../../CHANGELOG.md) — добавьте запись
 
 6. **Проверьте форматирование**:
 
@@ -243,7 +243,7 @@ pytest tests/ -v
 | `file_guard.py` | Фильтрация файлов (.gitignore) |
 | `gitignore_parser.py` | Парсинг .gitignore |
 | `log_manager.py` | Файловое логирование |
-| `remote_embedder.py` | Клиент LM Studio/Ollama/ONNX |
+| `remote_embedder.py` | Клиент LM Studio / Ollama / ONNX |
 
 ### Шаги для добавления нового модуля:
 
@@ -288,11 +288,11 @@ class TestMyModule:
         assert result is not None
 ```
 
-4. **Обновите `ARCHITECTURE.md`** — добавьте модуль в диаграмму компонентов.
+4. **Обновите [../../ARCHITECTURE.md](../../ARCHITECTURE.md)** — добавьте модуль в диаграмму компонентов.
 
 ---
 
-## 7. Сообщения коммитов
+## 7. Commit Messages
 
 Формат Conventional Commits: `type(scope): description`
 
@@ -330,9 +330,9 @@ perf(symbol_index): cache call graph results
 - [ ] Type hints на всех публичных функциях
 - [ ] Нет `print()` в production-коде (только `logging`)
 - [ ] Новые инструменты/модули покрыты тестами
-- [ ] `CHANGELOG.md` обновлён
-- [ ] `README.md` обновлён (если изменился публичный API)
-- [ ] `ARCHITECTURE.md` обновлён (если изменилась архитектура)
+- [ ] [../../CHANGELOG.md](../../CHANGELOG.md) обновлён
+- [ ] [../../README.md](../../README.md) обновлён (если изменился публичный API)
+- [ ] [../../ARCHITECTURE.md](../../ARCHITECTURE.md) обновлён (если изменилась архитектура)
 
 ### Описание PR должно содержать:
 
@@ -362,7 +362,7 @@ SemVer: MAJOR.MINOR.PATCH
 
 ---
 
-## 10. Устранение неполадок для контрибьюторов
+## 10. Troubleshooting для контрибьюторов
 
 | Проблема | Решение |
 |---|---|

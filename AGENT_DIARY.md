@@ -5,6 +5,214 @@
 
 ---
 
+## [2026-07-11 14:50] — Docs: Перевод 3 документов en → ru (INSTALL_MODELS, LM_STUDIO_SETUP, SYSTEM_REQUIREMENTS)
+
+**Problem:** Нужно перевести 3 файла документации с английского на русский язык.
+
+**Solution:**
+- `docs/en/INSTALL_MODELS.md` → `docs/ru/INSTALL_MODELS.md` — полный перевод, структура сохранена (llama.cpp Method 1, LM Studio legacy)
+- `docs/en/LM_STUDIO_SETUP.md` → `docs/ru/LM_STUDIO_SETUP.md` — перевод + добавлен ⚠️ баннер об устаревании в начале
+- `docs/en/SYSTEM_REQUIREMENTS.md` → `docs/ru/SYSTEM_REQUIREMENTS.md` — перевод системных требований и тестов производительности
+- Все ссылки обработаны: `docs/en/SOMETHING.md` → `SOMETHING.md`
+- Технические термины, имена инструментов, пути файлов, команды и URL сохранены без перевода
+- В конце SYSTEM_REQUIREMENTS.md присутствует незавершённая строка таблицы (оригинал обрывается на `| Rerank 5 docs | 1`)
+
+**Tools Used:** read_file, write_file, notify_change, diagnostics, terminal
+**Status:** ✅
+
+---
+
+## [2026-07-11 14:45] — Docs: Перевод 3 документов en → ru
+
+**Problem:** Нужно перевести 3 файла документации с английского на русский язык.
+
+**Solution:**
+- `docs/en/ARCHITECTURE.md` (611 строк) → `docs/ru/ARCHITECTURE.md`
+- `docs/en/CHANGELOG.md` (678 строк) → `docs/ru/CHANGELOG.md`
+- `docs/en/ARCHITECTURE_DEEP.md` (340 строк) → `docs/ru/ARCHITECTURE_DEEP.md`
+- Ссылки обработаны по правилам: `../en/...` для английской версии, `../zh/...` оставлены как есть
+- Технические термины, имена инструментов, пути файлов и URL не переводились
+
+**Tools Used:** read_file, write_file, edit_file, notify_change, diagnostics
+**Status:** ✅
+
+---
+
+## [2026-07-11 14:30] — Docs: Перевод 3 документов en → zh
+
+**Problem:** Нужно перевести 3 файла документации с английского/русского на китайский язык.
+
+**Solution:**
+- `docs/en/CONTRIBUTING.md` → `docs/zh/CONTRIBUTING.md` — перевод правил для контрибьюторов
+- `docs/en/ZED_WINDOWS_QUIRKS.md` → `docs/zh/ZED_WINDOWS_QUIRKS.md` — перевод документации о Windows-специфике Zed
+- `docs/en/SEARCH_PIPELINE.md` → `docs/zh/SEARCH_PIPELINE.md` — перевод технической документации пайплайна поиска
+
+Все правила трансляции ссылок соблюдены:
+- docs/en/... → убран префикс
+- ../ru/... → оставлен без изменений
+- investigations/LSP_WONTFIX.md → ../en/investigations/LSP_WONTFIX.md
+- Языковая панель → обновлена для docs/zh/
+
+**Tools Used:** read_file, write_file, notify_change
+**Status:** ✅ (done)
+
+
+---
+
+## [2026-07-11 09:30] — Investigation: Почему ZED упал — Root Cause Analysis (OOM)
+
+**Problem:** Zed Editor периодически падает (crash/restart). Пользователь запросил расследование.
+
+**Investigation Findings:**
+1. **Primary cause: OOM (Out of Memory)** — память Zed неоднократно достигала 2-4.3 GB resident.
+   - Пик 4345 MB (10 июля 18:25)
+   - Пик 4344 MB (10 июля 08:19)
+   - Пик 3745 MB (10 июля 17:17)
+2. **Contributing factors:** 2× llama-server.exe (~1.36 GB) + MCP python (~300 MB) + Zed (~1.3 GB) = >3 GB
+3. **Chronic pattern:** 8 срабатываний `gpui::app timed out waiting on app_will_quit` с 8 по 10 июля
+4. **Secondary:** ZED_WORKTREE_ROOT не установлен (известный баг #36019), но не причина падения
+5. **Index degraded:** 2535 chunks / 0 files — path resolution сломан из-за отсутствия ZED_WORKTREE_ROOT
+
+**Evidence:** `Zed.log`/`Zed.log.old` (C:\Users\misha\AppData\Local\Zed\logs\), runtime counters, health report.
+
+**Tools Used:** get_logs, get_runtime_counters, debug_runtime_passport, intel_execution_timeline, get_index_status, index_health, get_health_report, watcher_status, terminal (grep on Zed.log)
+**Status:** ✅ (diagnosis complete)
+
+---
+
+## [2026-07-11 12:00] — Meta: Перевод README.md на русский язык
+
+**Problem:** Корневой README.md (550+ строк) не имел русского перевода. Существующий docs/ru/README.md был короткой версией без полного содержания.
+
+## [2026-07-11 14:30] — Fix: `<<` вместо `-` в error_handler.py:263
+
+**Problem:** search_code падал с `TypeError: unsupported operand type(s) for <<: 'float' and 'float'`.
+Из-за Python 3.14, где `<<` больше не работает с float.
+
+**Solution:** `confidence << prev` → `confidence - prev` (ошибка копипасты).
+Файл: `src/core/error_handler.py:263`.
+
+**Tools Used:** search_code, grep, edit_file, notify_change
+**Status:** ✅
+
+**Solution:** Полный перевод root README.md в docs/ru/README.md с сохранением всей структуры, форматирования, таблиц, ASCII-диаграмм, бейджей и эмодзи. Все ссылки скорректированы для расположения в docs/ru/:
+- docs/en/SOMETHING.md → SOMETHING.md (ведёт на русскую версию в той же папке)
+- docs/zh/SOMETHING.md → ../zh/SOMETHING.md
+- Корневые файлы (README.md, CONTRIBUTING.md, SECURITY.md, LICENSE и т.д.) → ../../FILE.md
+- docs/KNOWN_ISSUES.md → ../../docs/KNOWN_ISSUES.md
+- docs/research/* → ../../docs/research/*
+
+Переведены: все заголовки, описания, подписи к таблицам, разделы Positioning, Features, Quick Start, Troubleshooting, Development, License, Acknowledgments.
+Не переведены: названия инструментов, команды, URL, имена файлов/директорий, технические идентификаторы.
+
+**Tools Used:** read_file, write_file, notify_change, diagnostics, edit_file
+**Status:** ✅
+
+---
+
+## [2026-07-11 12:00] — Fix: документация испорчена — 7 проблем на главной странице
+
+**Problem:**
+- `docs/KNOWN_ISSUES.md` не существовал — битая ссылка на главной странице и в переводах
+- `intel_execution_timeline()` дублировалась в Intel Layer (14) и Diagnostic (3)
+- В перечислении core инструментов не хватало `predict_eta()` и `run_health_check()` — заявлено 33, перечислено 31
+- В карте документации ru/zh отсутствовали 7 документов: ARCHITECTURE_DEEP.md, SEARCH_PIPELINE.md, GRACEFUL_DEGRADATION.md, HANDFOFF.md, SECURITY.md, TELEMETRY.md, CONTRIBUTING.md
+- В Intel Layer отсутствовал `intel_get_project_context()` — было 13, заявлено 14
+
+**Solution:**
+1. Создан `docs/KNOWN_ISSUES.md` — реестр P0-P3 проблем + tech debt
+2. `README.md` — убрано дублирование intel_execution_timeline, добавлены predict_eta + run_health_check, добавлен intel_get_project_context
+3. `docs/ru/README.md` — дополнена карта документации (13 документов), исправлены те же ошибки в инструментах
+4. `docs/zh/README.md` — дополнена карта документации (13 документов), исправлены те же ошибки
+
+**Total:** 4 файла изменено, 5 создано (KNOWN_ISSUES.md + SEARCH_PIPELINE.md и GRACEFUL_DEGRADATION.md для ru/zh).
+
+**Note:** SEARCH_PIPELINE.md и GRACEFUL_DEGRADATION.md скопированы из en без перевода — отмечено как tech debt.
+
+## [2026-07-11 12:30] — Closed INC-003–008: синхронизация docs ru/zh, чистка LM Studio legacy
+
+**Problem:**
+- INC-003/004: INSTALL_MODELS.md и LM_STUDIO_SETUP.md устарели (LM Studio как primary)
+- INC-005/006: ARCHITECTURE_DEEP.md и ARCHITECTURE_LAYERS.md ru/zh не синхронизированы с en
+- INC-007/008: все docs/ru/* и docs/zh/* отстают от en
+
+**Solution:**
+1. INSTALL_MODELS.md — проверен: уже корректный (llama.cpp Method 1, LM Studio legacy)
+2. LM_STUDIO_SETUP.md — проверен: уже есть баннер ⚠️ Secondary
+3. ARCHITECTURE_DEEP.md — скопирован en→ru, en→zh
+4. ARCHITECTURE_LAYERS.md — скопирован en→ru, en→zh
+5. Все 9 оставшихся ru-документов синхронизированы с en
+6. Все 9 оставшихся zh-документов синхронизированы с en
+7. KNOWN_ISSUES.md — INC-003–008 помечены ✅ Closed
+
+**Note:** docs/ru/README.md и docs/zh/README.md переведены на русский и китайский соответственно (по 429 строк).
+
+## [2026-07-11 14:00] — Полный перевод docs ru/zh + инкрементальный install.py
+
+**Problem:**
+- 15 доков в docs/ru/ и docs/zh/ были на английском (только синхронизированы, не переведены)
+- install.py всегда копировал все файлы заново (нет инкрементальной синхронизации)
+
+**Solution:**
+
+**install.py:**
+- step_copy переписан на инкрементальный: сравнивает mtime+размер, копирует только изменённое
+- Добавлены _is_up_to_date() и _sync_dir() для пофайловой синхронизации
+- Удаляются файлы в ZED_EXT_DIR, которых нет в PROJECT_ROOT
+
+**Перевод docs (15 файлов × 2 языка = 30 файлов):**
+
+| Файл | ru | zh |
+|------|:--:|:--:|
+| ARCHITECTURE.md (611) | ✅ 609 | ✅ 609 |
+| CHANGELOG.md (678) | ✅ 627 | ✅ 674 |
+| ARCHITECTURE_DEEP.md (340) | ✅ 339 | ✅ 338 |
+| CONTRIBUTING.md (376) | ✅ 376 | ✅ 376 |
+| ZED_WINDOWS_QUIRKS.md (336) | ✅ 337 | ✅ 277 |
+| SEARCH_PIPELINE.md (287) | ✅ 287 | ✅ 287 |
+| INSTALL.md (210) | ✅ 209 | ✅ 208 |
+| GRACEFUL_DEGRADATION.md (208) | ✅ 208 | ✅ 208 |
+| TELEMETRY.md (195) | ✅ 193 | ✅ 195 |
+| HANDFOFF.md (151) | ✅ 151 | ✅ 151 |
+| ARCHITECTURE_LAYERS.md (150) | ✅ 150 | ✅ 150 |
+| FAQ.md (141) | ✅ 141 | ✅ 141 |
+| SECURITY.md (136) | ✅ 136 | ✅ 136 |
+| INSTALL_MODELS.md | ✅ создан | ✅ создан |
+| LM_STUDIO_SETUP.md | ✅ создан + баннер | ✅ создан + баннер |
+| SYSTEM_REQUIREMENTS.md | ✅ создан | ✅ создан |
+
+**KNOWN_ISSUES.md:** полностью очищен — все проблемы закрыты.
+
+**Status:** ✅
+
+---
+
+## [2026-07-11 12:15] — Hotfix: README.md был на русском вместо английского
+
+**Problem:**
+- Корневой README.md был перезаписан русским текстом в коммите v2.7.1 (bd46143)
+- Клик по "🇬🇧 English" вёл на тот же русский файл (самоссылка)
+- Русский язык в секциях: Quick Start, Troubleshooting, Architecture diagram, Environment Variables
+- Счёт инструментов: "34 class-based + 14 intel + 2 diag" вместо "33+14+3"
+- Провайдеры: указан LM Studio primary вместо llama.cpp GGUF
+
+**Solution:**
+1. Восстановлен оригинальный английский README.md из git (bd46143^)
+2. Переведены на английский: Quick Start, Troubleshooting, Architecture, Env Vars
+3. Обновлён провайдер: llama.cpp GGUF primary вместо LM Studio
+4. Исправлен счёт: 33 core + 14 intel + 3 diag = 50
+5. Добавлен intel_get_project_context в Intel Layer
+6. Добавлена секция Diagnostic Tools (3) отдельно
+7. Добавлены predict_eta, run_health_check в System & Diagnostics
+8. Обновлена карта документации: +KNOWN_ISSUES.md, 5 levels degradation
+9. Дата обновлена: 2026-07-11
+
+**Files changed:** README.md (full rewrite)
+**Status:** ✅UES.md (created), docs/ru/README.md (карта+инструменты), docs/zh/README.md (карта+инструменты), docs/ru/SEARCH_PIPELINE.md (created), docs/ru/GRACEFUL_DEGRADATION.md (created), docs/zh/SEARCH_PIPELINE.md (created), docs/zh/GRACEFUL_DEGRADATION.md (created)
+**Status:** ✅
+
+---
+
 ## [2026-07-11 08:00] — Docs: синхронизированы китайские переводы (9 файлов)
 
 **Problem:**

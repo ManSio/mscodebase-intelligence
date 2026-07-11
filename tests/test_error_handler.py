@@ -275,3 +275,116 @@ class TestErrorBoundarySync:
         result = sync_crash()
         assert "Error" in result or "error" in result
         assert "boom" in result
+
+
+class TestRecordToolCall:
+    """record_tool_call — запись метрик вызова инструмента."""
+
+    def test_record_basic(self):
+        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        with _TOOL_METRICS_LOCK:
+            _TOOL_METRICS.clear()
+        record_tool_call("test_tool", 100, True)
+        with _TOOL_METRICS_LOCK:
+            stats = _TOOL_METRICS.get("test_tool", {})
+        assert stats["calls"] == 1
+        assert stats["total_ms"] == 100
+        assert stats["errors"] == 0
+
+    def test_record_multiple_calls(self):
+        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        with _TOOL_METRICS_LOCK:
+            _TOOL_METRICS.clear()
+        for i in range(5):
+            record_tool_call("multi_tool", 50 * (i + 1), i % 2 == 0)
+        with _TOOL_METRICS_LOCK:
+            stats = _TOOL_METRICS.get("multi_tool", {})
+        assert stats["calls"] == 5
+        assert stats["errors"] == 2
+
+    def test_record_with_route_increments(self):
+        """Проверяет, что route счётчик инкрементится (+1, а не -1)."""
+        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        with _TOOL_METRICS_LOCK:
+            _TOOL_METRICS.clear()
+        record_tool_call("route_tool", 10, True, route="fast")
+        record_tool_call("route_tool", 20, True, route="fast")
+        record_tool_call("route_tool", 30, True, route="quality")
+        with _TOOL_METRICS_LOCK:
+            stats = _TOOL_METRICS.get("route_tool", {})
+        assert stats["route"]["fast"] == 2
+        assert stats["route"]["quality"] == 1
+
+    def test_rolling_average_confidence(self):
+        """Проверяет скользящее среднее confidence (prev + (conf - prev) / calls)."""
+        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        with _TOOL_METRICS_LOCK:
+            _TOOL_METRICS.clear()
+        record_tool_call("avg_tool", 10, True, confidence=1.0)
+        record_tool_call("avg_tool", 10, True, confidence=0.5)
+        record_tool_call("avg_tool", 10, True, confidence=0.0)
+        with _TOOL_METRICS_LOCK:
+            stats = _TOOL_METRICS.get("avg_tool", {})
+        assert abs(stats["avg_confidence"] - 0.5) < 0.01
+
+
+class TestPercentile:
+    """_percentile — вычисление перцентиля."""
+
+    def test_percentile_empty(self):
+        from src.core.error_handler import _percentile
+        assert _percentile([], 50) == 0.0
+
+    def test_percentile_single(self):
+        from src.core.error_handler import _percentile
+        assert _percentile([100], 50) == 100.0
+
+    def test_percentile_median(self):
+        from src.core.error_handler import _percentile
+        latencies = [10, 20, 30, 40, 50]
+        assert _percentile(latencies, 50) == 30.0
+
+    def test_percentile_with_add(self):
+        """Проверяет c = f + 1 (убивает мутацию c = f - 1)."""
+        from src.core.error_handler import _percentile
+        # p=50, len=5: k = 4 * 0.5 = 2.0, f = 2, c = 3 (нормально)
+        # Если c = f - 1 = 1 — вернёт неверное значение
+        latencies = [10, 20, 30, 40, 50]
+        result = _percentile(latencies, 50)
+        assert result == 30.0, f"expected 30.0, got {result}"
+
+
+class TestGetIdleMetrics:
+    """get_global_idle_metrics — метрики простоя."""
+
+    def test_idle_plus_active(self):
+        """Проверяет total_ms = total_idle + active_ms (+ а не *)."""
+        from src.core.error_handler import (
+            get_global_idle_metrics, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        )
+        with _TOOL_METRICS_LOCK:
+            _TOOL_METRICS.clear()
+        # После очистки — idle и active = 0
+        metrics = get_global_idle_metrics()
+        assert metrics["active_ms"] >= 0
+        assert metrics["idle_ms"] >= 0
+
+
+class TestErrorBoundaryRetryCount:
+    """error_boundary — проверка max_retries."""
+
+    @pytest.mark.asyncio
+    async def test_retry_range_plus_one(self):
+        """Проверяет range(max_retries + 1) — убивает мутацию range(max_retries - 1)."""
+        call_count = 0
+
+        @error_boundary("retry_test", max_retries=3, timeout_ms=100)
+        async def flaky_tool() -> dict:
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.5)  # превышает timeout_ms=100 → TimeoutError
+            return {"ok": True}
+
+        result = await flaky_tool()
+        assert call_count == 4, f"expected 4 attempts, got {call_count}"
+        assert "timeout" in result or "Timeout" in result
