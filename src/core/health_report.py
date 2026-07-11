@@ -93,6 +93,11 @@ class HealthReport:
         self._check_execution_contract()
         logger.warning("[diag] _check_execution_contract OK")
 
+        # 5.5. Zed SQLite schema guard (scoped_kv_store — недокументированный API)
+        logger.warning("[diag] _check_zed_sqlite_schema...")
+        self._check_zed_sqlite_schema()
+        logger.warning("[diag] _check_zed_sqlite_schema OK")
+
         # 6. Synthetic monitoring (качество поиска)
         logger.warning("[diag] _check_search_quality...")
         self._check_search_quality()
@@ -514,6 +519,36 @@ class HealthReport:
                 {
                     "component": "execution_contract",
                     "message": f"Ошибка проверки execution contract: {e}",
+                }
+            )
+
+    def _check_zed_sqlite_schema(self):
+        """Проверка схемы Zed SQLite DB (scoped_kv_store — недокументированный API).
+
+        resolve_project_root() использует таблицы scoped_kv_store и workspaces.
+        Это внутренний API Zed — при обновлении редактора схема может
+        измениться без предупреждения. Проверяем наличие таблиц и
+        предупреждаем если что-то не так.
+        """
+        try:
+            from src.mcp.server import _check_sqlite_schema_health
+
+            warn = _check_sqlite_schema_health()
+            if warn:
+                self.warnings.append(
+                    {
+                        "component": "zed_sqlite_schema",
+                        "message": warn,
+                    }
+                )
+                self.metrics["zed_schema_health"] = "degraded"
+            else:
+                self.metrics["zed_schema_health"] = "ok"
+        except Exception as e:
+            self.warnings.append(
+                {
+                    "component": "zed_sqlite_schema",
+                    "message": f"Не удалось проверить схему: {e}",
                 }
             )
 
