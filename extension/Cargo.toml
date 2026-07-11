@@ -1,0 +1,12 @@
+[package]
+name = "mscodebase-intelligence"
+version = "2.7.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Zed Extension API
+# https://github.com/zed-industries/zed/tree/main/crates/extension_api
+zed_extension_api = { git = "https://github.com/zed-industries/zed", package = "zed_extension_api" }

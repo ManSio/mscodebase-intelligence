@@ -8,9 +8,14 @@ authors = ["Misha <misha@example.com>"]
 themes = []
 icon_themes = []
 languages = []
-capabilities = []
+capabilities = ["context_servers"]
 
-[lib]
+# Rust/WASM extension (для публикации в marketplace Zed)
+# Сборка:
+#   cd extension && cargo build --target wasm32-wasi --release
+# Затем раскомментировать:
+# [lib]
+# path = "extension/target/wasm32-wasi/release/mscodebase-intelligence.wasm"
 
 [grammars]
 
@@ -19,8 +24,13 @@ capabilities = []
 # только в settings.json, без привязки к языкам.
 [language_servers]
 
-# context_servers не указываем — команда в settings.json.
-# Дубль вызывает 2 процесса MCP.
-[context_servers]
+# MCP Context Server — регистрируем здесь, а не в settings.json.
+# Установка из marketplace → один клик, без ручной настройки.
+# Перед первым запуском: python install.py (создаёт venv + скачивает модели).
+# Для marketplace-публикации: Rust/WASM-обёртка в extension/ (auto-venv).
+[context_servers.mscodebase-intelligence]
+command = "python"
+args = ["-u", "-m", "src.main"]
+env = {"PYTHONPATH" = ".", "PROJECT_PATH" = "$ZED_WORKTREE_ROOT"}
 
 [slash_commands]
