@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (58 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (59 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 14 High-Level + 40 Low-Level Core MCP + 3 Diagnostic
+> Optimized for the hybrid model: 15 High-Level + 40 Low-Level Core MCP + 3 Diagnostic
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -159,11 +159,12 @@ intel_get_project_memory      ──>   get_commit_history / file_hist (no analo
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (58)
+## 2. AVAILABLE TOOLS (59)
 
-### A. High-Level Intelligence Layer (14 tools)
+### A. High-Level Intelligence Layer (15 tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`,
+`intel_auto_collect_adrs`,,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
 `intel_add_memory_node`, `intel_get_project_memory`, `intel_get_project_context`,
 `intel_explain_project_state`, `intel_predict_root_cause`, `intel_get_hotspots`,

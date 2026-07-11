@@ -788,6 +788,128 @@ class ProjectIntelligenceLayer:
     # -----------------------------------------------------------------
     # БЛОК 5. Hotspot Engine (Зоны высокого риска)
     # -----------------------------------------------------------------
+    # БЛОК 4.5. ADR Auto-Collector (Автоматический сбор архитектурных решений)
+    # -----------------------------------------------------------------
+
+    async def intel_auto_collect_adrs(self, max_commits: int = 50) -> str:
+        """Автоматический сбор ADR из git-лога.
+
+        Сканирует последние N коммитов, находит архитектурные решения
+        (feat/refactor/arch/adr) и сохраняет их в проектную память.
+
+        Args:
+            max_commits: Сколько последних коммитов проверить (по умолч. 50)
+
+        Returns:
+            Отчёт: сколько ADR найдено, сколько сохранено, список новых
+        """
+        import subprocess
+        import re as _re
+
+        try:
+            result = subprocess.run(
+                ['git', 'log', f'-{max_commits}', '--format=%H||%s||%b'],
+                capture_output=True, text=True, timeout=15,
+                cwd=str(self.project_path),
+            )
+            if result.returncode != 0:
+                return f"Ошибка git log: {result.stderr.strip()}"
+            raw_log = result.stdout.strip()
+        except FileNotFoundError:
+            return "Git не найден. ADR-коллектор требует git-репозиторий."
+        except subprocess.TimeoutExpired:
+            return "Таймаут git log (15с). Попробуйте уменьшить max_commits."
+
+        if not raw_log:
+            return "Нет коммитов для анализа."
+
+        # Паттерны архитектурных решений
+        ADR_PATTERNS = [
+            r'^feat\(.*\):', r'^refactor\(.*\):', r'^arch\(.*\):',
+            r'^feat:', r'^refactor:', r'^arch:', r'^adr:',
+            r'decision', r'replace', r'migrate', r'restructure',
+            r'rewrite', r'redesign', r'extract', r'merge.*module',
+            r'split.*module', r'change.*api', r'change.*interface',
+        ]
+        adr_re = _re.compile('|'.join(f'(?:{p})' for p in ADR_PATTERNS), _re.IGNORECASE)
+
+        # Загружаем существующие ADR (чтобы не дублировать)
+        memory = self.store.load_memory()
+        existing_adrs = memory.get('adrs', [])
+        existing_hashes = set()
+        for a in existing_adrs:
+            d = a.get('data', {})
+            if isinstance(d, dict):
+                h = d.get('commit_hash', '')
+                if h:
+                    existing_hashes.add(h)
+
+        new_adrs = []
+        for line in raw_log.split('\n'):
+            if not line:
+                continue
+            parts = line.split('||', 2)
+            if len(parts) < 2:
+                continue
+            commit_hash = parts[0][:12]
+            subject = parts[1]
+            body = parts[2] if len(parts) > 2 else ''
+
+            # Пропускаем уже сохранённые
+            if commit_hash in existing_hashes:
+                continue
+
+            # Проверяем на архитектурный паттерн
+            full_msg = f'{subject} {body}'
+            if not adr_re.search(full_msg):
+                continue
+
+            # Определяем тип решения
+            decision_type = 'other'
+            subj_lower = subject.lower()
+            if _re.match(r'^feat', subj_lower):
+                decision_type = 'feature'
+            elif _re.match(r'^refactor', subj_lower):
+                decision_type = 'refactor'
+            elif _re.match(r'^arch|^adr', subj_lower):
+                decision_type = 'architecture'
+
+            adr_node = {
+                'node_id': f'ADR-{commit_hash}',
+                'section': 'adrs',
+                'timestamp': '',  # будет заполнено при save
+                'data': {
+                    'commit_hash': commit_hash,
+                    'title': subject,
+                    'body': body[:500] if body else '',
+                    'decision_type': decision_type,
+                    'source': 'auto-collect',
+                },
+            }
+            new_adrs.append(adr_node)
+
+        if not new_adrs:
+            return f"За последние {max_commits} коммитов новых ADR не найдено."
+
+        # Сохраняем новые ADR
+        async with self._write_lock:
+            nodes = self.store._load_json('project_memory.json')
+            if isinstance(nodes, dict):
+                nodes = []
+            for adr in new_adrs:
+                adr['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                nodes.append(adr)
+            self.store._save_json('project_memory.json', nodes)
+
+        lines = []
+        lines.append(f"✅ Найдено и сохранено {len(new_adrs)} ADR:")
+        for adr in new_adrs:
+            d = adr['data']
+            lines.append(f"  • [{d['decision_type']}] {d['title'][:80]}")
+            lines.append(f"    commit={d['commit_hash']}")
+        return chr(10).join(lines)
+
+    # -----------------------------------------------------------------
 
     async def intel_get_code_hotspots(self) -> List[Dict[str, Any]]:
         """Возвращает Топ-5 файлов с наивысшей плотностью рисков и баг-нагрузки."""
@@ -1233,6 +1355,21 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     async def add_memory_node(section: str, data_json: str) -> str:
         """Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'."""
         return await intel_layer.intel_add_memory_node(section, data_json)
+
+    @mcp_app.tool("intel_auto_collect_adrs")
+    async def auto_collect_adrs(max_commits: int = 50) -> str:
+        """Автоматический сбор ADR из git-лога.
+
+        Сканирует последние N коммитов, находит архитектурные решения
+        (feat/refactor/arch/adr) и сохраняет их в проектную память.
+
+        Args:
+            max_commits: Сколько последних коммитов проверить (по умолч. 50)
+
+        Returns:
+            Отчёт: сколько ADR найдено и сохранено
+        """
+        return await intel_layer.intel_auto_collect_adrs(max_commits)
 
     @mcp_app.tool("intel_get_hotspots")
     async def get_hotspots() -> str:

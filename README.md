@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-58-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-59-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-07-12*
 
@@ -43,7 +43,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 58 tools for AI assistant                 │
+│  │  · 59 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -63,7 +63,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **58 MCP tools**.
+MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **59 MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15+ services), 58 tools (41 class-based + 14 intel + 3 diag), 494+ tests |
+| 🧪 **Clean Architecture** | DI Container (15+ services), 59 tools (41 class-based + 15 intel + 3 diag), 494+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | 6 write tools + 1 graph query (`query_graph`) with Cypher engine |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -179,7 +179,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (58 total)
+## 🔧 MCP Tools (59 total)
 
 ### Core Search
 
