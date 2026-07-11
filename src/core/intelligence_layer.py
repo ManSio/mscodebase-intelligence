@@ -366,11 +366,13 @@ class ProjectIntelligenceLayer:
     def _get_process_ram(pid: int) -> int:
         try:
             out = subprocess.check_output(
-                f'wmic process where processid={pid} get WorkingSetSize /format:value',
-                shell=True, timeout=3
+                ["wmic", "process", "where", f"processid={pid}",
+                 "get", "WorkingSetSize", "/format:value"],
+                timeout=3
             ).decode()
             return int(out.split('=')[1].strip()) // (1024*1024)
-        except:
+        except (OSError, subprocess.TimeoutExpired,
+                subprocess.CalledProcessError, ValueError, IndexError):
             return 0
 
     @staticmethod
@@ -378,19 +380,24 @@ class ProjectIntelligenceLayer:
         try:
             import psutil
             return psutil.Process(pid).cpu_percent(interval=0.1)
-        except:
+        except (ImportError, Exception):
             return 0.0
 
     @staticmethod
     def _find_pid(name: str, port: str) -> int:
-        """Ищет PID процесса по имени и порту (через netstat)."""
+        """Ищет PID процесса по порту (через netstat, без shell)."""
         try:
-            out = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, timeout=3).decode()
+            port_int = int(port)
+            out = subprocess.check_output(
+                ["netstat", "-ano"], timeout=3
+            ).decode()
             for line in out.splitlines():
-                parts = line.strip().split()
-                if len(parts) >= 5 and 'LISTENING' in line:
-                    return int(parts[4])
-        except:
+                if f":{port_int}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 5:
+                        return int(parts[4])
+        except (OSError, subprocess.TimeoutExpired,
+                subprocess.CalledProcessError, ValueError, IndexError):
             pass
         return 0
 
@@ -466,7 +473,7 @@ class ProjectIntelligenceLayer:
                 if _s2.connect_ex(("127.0.0.1", _llama_port)) == 0:
                     _llama_online = True
                 _s2.close()
-            except:
+            except (OSError, Exception):
                 pass
 
             # Определяем активного провайдера (llama_cpp > lm_studio > onnx)

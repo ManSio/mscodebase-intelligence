@@ -113,7 +113,7 @@ def _detect_cpu() -> dict:
     try:
         if sys.platform == "win32":
             out = subprocess.check_output(
-                "wmic memorychip get capacity", shell=True, timeout=5
+                ["wmic", "memorychip", "get", "capacity"], timeout=5
             ).decode()
             total_bytes = sum(int(x) for x in re.findall(r"\d+", out) if len(x) > 5)
             info["ram_gb"] = total_bytes // (1024**3)
@@ -134,7 +134,7 @@ def _detect_cpu() -> dict:
     try:
         if sys.platform == "win32":
             out = subprocess.check_output(
-                "wmic cpu get name", shell=True, timeout=5
+                ["wmic", "cpu", "get", "name"], timeout=5
             ).decode()
             for line in out.splitlines():
                 if line.strip() and "Name" not in line:
@@ -397,7 +397,7 @@ def _install_vulkan_build(logger, progress_cb=None) -> bool:
                         p = src.parent
                         while p != vulkan_dir:
                             try: p.rmdir()
-                            except: break
+                            except OSError: break
                             p = p.parent
         archive_path.unlink()
         
@@ -700,13 +700,13 @@ def get_system_summary() -> dict:
     if sys.platform == "win32":
         try:
             out = subprocess.check_output(
-                "wmic os get caption", shell=True, timeout=5
+                ["wmic", "os", "get", "caption"], timeout=5
             ).decode()
             for line in out.splitlines():
                 if line.strip() and "caption" not in line.lower():
                     os_name = line.strip()
                     break
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
             os_name = f"Windows {sys.getwindowsversion().major}"
     elif sys.platform == "darwin":
         try:
