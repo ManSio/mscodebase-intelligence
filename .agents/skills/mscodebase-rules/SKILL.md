@@ -1,9 +1,9 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. 50 registered tools: 14 High-Level Intel layer + 33 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
+description: "Tool selection rules for the Zed AI agent. 57 registered tools: 14 High-Level Intel layer + 40 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
 ---
 
-# MSCodeBase Tool Selection Rules (50 tools)
+# MSCodeBase Tool Selection Rules (57 tools)
 
 ## Architecture Overview
 

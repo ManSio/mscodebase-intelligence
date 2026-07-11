@@ -1154,6 +1154,7 @@ def _register_all_tools(mcp, services):
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
+        CypherQueryTool,
         GetRelatedFilesTool,
         GraphQueryTool,
     )
@@ -1228,9 +1229,10 @@ def _register_all_tools(mcp, services):
         GetRepoRankTool,
         ScanChangesTool,
         GenerateChunkSummariesTool,
-        # Graph (4)
+        # Graph (5)
         CrossRepoSearchTool,
         CrossProjectDepsTool,
+        CypherQueryTool,
         GraphQueryTool,
         GetRelatedFilesTool,
         # Investigation (3)

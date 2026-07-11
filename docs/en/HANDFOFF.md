@@ -16,9 +16,10 @@
 Runs fully locally: LanceDB (vector index) + llama.cpp GGUF (embeddings/reranker) + ONNX (fallback).
 
 **Key numbers:**
-- 50 MCP tools (33 core + 14 intel + 3 diagnostic)
-- 10 tool files, 15 services in the DI container
-- Index: ~3000 chunks, ~170 files, ~1350 symbols
+- 57 MCP tools (40 core + 14 intel + 3 diagnostic) — including `query_graph` (Cypher engine)
+- 11 tool files, 18 services in the DI container
+- Index: ~3000 chunks, ~170 files, ~1550 symbols
+- **PropertyGraph**: SQLite graph (15 node types, 27 edge types) in `.codebase/graph.db`
 
 ---
 
@@ -57,11 +58,11 @@ conn.execute("""
 
 | Decision | Motivation |
 |----------|-----------|
-| **DI container (ServiceCollection)** | 15 services, lazy resolution, per-project registry |
+| **DI container (ServiceCollection)** | 18 services, lazy resolution, per-project registry + PropertyGraph |
 | **late-resolve active indexer** | If LSP hasn't written the bridge file yet — pick up the first live workspace |
 | **Two-phase reindex** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (anti-spam) |
 | **asyncio.Lock for File IO** | Race protection for concurrent writes to memory JSON files |
-| **ui_formatter** | Unified Markdown style for all 50 tools (no raw JSON) |
+| **ui_formatter** | Unified Markdown style for all 57 tools (no raw JSON) |
 
 ---
 

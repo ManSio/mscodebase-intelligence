@@ -16,9 +16,10 @@
 Работает полностью локально: LanceDB (векторный индекс) + llama.cpp GGUF (эмбеддинги/реранкер) + ONNX (fallback).
 
 **Ключевые цифры:**
-- 50 MCP-инструментов (33 core + 14 intel + 3 diagnostic)
-- 10 файлов инструментов, 15 сервисов в DI-контейнере
-- Индекс: ~3000 чанков, ~170 файлов, ~1350 символов
+- 57 MCP-инструментов (40 core + 14 intel + 3 diagnostic) — включая `query_graph` (Cypher engine)
+- 11 файлов инструментов, 18 сервисов в DI-контейнере
+- Индекс: ~3000 чанков, ~170 файлов, ~1550 символов
+- **PropertyGraph**: SQLite граф (15 типов узлов, 27 типов рёбер) в `.codebase/graph.db`
 
 ---
 
@@ -57,11 +58,11 @@ conn.execute("""
 
 | Решение | Мотивация |
 |----------|-----------|
-| **DI-контейнер (ServiceCollection)** | 15 сервисов, ленивое разрешение, per-project registry |
+| **DI-контейнер (ServiceCollection)** | 18 сервисов, ленивое разрешение, per-project registry + PropertyGraph |
 | **late-resolve активного индексера** | Если LSP ещё не записал bridge-файл — подхватить первое живое workspace |
 | **Двухфазная переиндексация** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (анти-спам) |
 | **asyncio.Lock для File IO** | Защита от гонок при конкурентной записи в JSON-файлы памяти |
-| **ui_formatter** | Единый Markdown-стиль для всех 56 инструментов (без сырого JSON) |
+| **ui_formatter** | Единый Markdown-стиль для всех 57 инструментов (без сырого JSON) |
 
 ---
 

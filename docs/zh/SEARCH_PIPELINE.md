@@ -1,6 +1,6 @@
 # 搜索流水线 — 完整技术参考
 
-> **MSCodeBase Intelligence 的一部分** | v2.7.0+
+> **MSCodeBase Intelligence 的一部分** | v3.0.0
 
 ## 概述
 

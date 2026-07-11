@@ -198,6 +198,67 @@ class GraphQueryTool(MCPTool):
         return {"status": "error", "message": f"Unknown query_type: {query_type}"}
 
 
+class CypherQueryTool(MCPTool):
+    """query_graph — Cypher-like запрос к PropertyGraph знаний.
+
+    Позволяет выполнять графовые запросы в стиле openCypher:
+
+        MATCH (f:Function)-[:CALLS]->(g:Function)
+        WHERE f.file_path STARTS WITH "src"
+        RETURN f.name, g.name, count(*) AS calls
+        ORDER BY calls DESC
+        LIMIT 10
+
+    Поддерживаемые конструкции:
+      - MATCH (n:Label), (n)-[:TYPE]->(m), (n)-[:TYPE*1..3]->(m)
+      - WHERE: =, <>, CONTAINS, STARTS WITH, IN, IS NULL, AND/OR, EXISTS
+      - RETURN: n.name, count(*) AS alias, DISTINCT, ORDER BY, LIMIT, SKIP
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="query_graph")
+
+    @error_boundary("query_graph", timeout_ms=15000)
+    async def execute(self, query: str, limit: int = 50) -> dict:
+        from src.core.cypher_engine import CypherExecutor
+        from src.core.graph import PropertyGraph
+
+        try:
+            pg = self.services.resolve(PropertyGraph)
+        except KeyError:
+            # Fallback: per-project PropertyGraph через indexer
+            indexer = self.resolve_indexer()
+            project_path = indexer.project_path
+            db_path = project_path / ".codebase" / "graph.db"
+            pg = PropertyGraph(db_path)
+
+        executor = CypherExecutor(pg)
+
+        # Лимит на результаты для безопасности
+        if limit and limit < 200:
+            query = query.strip()
+            if "LIMIT" not in query.upper():
+                query += f" LIMIT {limit}"
+
+        result = executor.execute(query)
+
+        error = result.get("error")
+        if error:
+            return {
+                "status": "error",
+                "message": error,
+                "query": query,
+            }
+
+        return {
+            "status": "ok",
+            "query": query,
+            "columns": result.get("columns", []),
+            "results": result.get("results", []),
+            "stats": result.get("stats", {}),
+        }
+
+
 class GetRelatedFilesTool(MCPTool):
     """get_related_files — файлы связанные с данным через Knowledge Graph."""
 

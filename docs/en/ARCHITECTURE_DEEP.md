@@ -2,30 +2,34 @@
 
 [🇬🇧 English](ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
 
-> **Version:** v2.7.0+ | **Last updated:** 2026-07-07
+> **Version:** v3.0.0 | **Last updated:** 2026-07-11
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n50 tools]
-    MCP --> DI[DI Container\n15 services]
+    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
+    DI --> Graph[PropertyGraph\nSQLite graph]
     DI --> Intel[Intelligence Layer]
     DI --> Health[Health & Diagnostics]
     
-    Search --> BM25[BM25 Sparse\nkeyword search]
-    Search --> Dense[LanceDB Dense\nvector search]
-    Search --> RRF[RRF Fusion\nreciprocal rank fusion]
-    Search --> Rerank[Cross-encoder\nbge-reranker-v2-m3]
-    Search --> Bucket[Multi-Bucket RAG\ncode/docs weighting]
-    Search --> CoChange[Co-change boost\ngit coupling]
+    Search --> BM25[BM25 Sparse]
+    Search --> Dense[LanceDB Dense]
+    Search --> RRF[RRF Fusion]
+    Search --> MultiSig[MultiSignalScorer\n4 signals]
+    Search --> Rerank[Cross-encoder]
     
-    Intel --> Topology[Code Topology\ncall graph]
-    Intel --> Memory[Project Memory\nADR / debt / issues]
-    Intel --> RCA[Root Cause Analysis\nerror prediction]
+    Graph --> Cypher[CypherEngine\nMATCH/RETURN]
+    Graph --> Route[RouteExtractor\nHTTP routes]
+    Graph --> Dead[Dead Code Detection]
+    Graph --> Topology[Code Topology\ncall graph via SQL]
     
-    Health --> Report[Health Report\nfull diagnostics]
-    Health --> Guard[Index Guard\nself-recovery]
+    Intel --> Memory[Project Memory]
+    Intel --> RCA[Root Cause Analysis]
+    
+    Health --> Report[Health Report]
+    Health --> Guard[Index Guard]
 ```
 
 ---
@@ -36,41 +40,48 @@ The system is divided into 10 runtime layers, from lowest (infrastructure) to hi
 
 ```mermaid
 flowchart LR
-    subgraph "Layer 10 — MCP Tools"
+    subgraph "Layer 11 — MCP Tools"
         T1[search_code]
-        T2[get_symbol_info]
+        T2[query_graph\nCypher]
         T3[impact_analysis]
         T4[intel_*]
     end
-    subgraph "Layer 9 — Error Boundary"
-        EB[@error_boundary\ntimeout + retry]
+    subgraph "Layer 10 — Error Boundary"
+        EB[@error_boundary]
     end
-    subgraph "Layer 8 — Intelligence"
-        IL[intel_predict_root_cause\nintel_code_topology\nintel_get_project_memory]
+    subgraph "Layer 9 — Intelligence"
+        IL[intel_predict_root_cause\nintel_code_topology]
     end
-    subgraph "Layer 7 — Search"
-        SH[hybrid_search_async\nRRF + reranker + buckets]
+    subgraph "Layer 8 — Search + MultiSignal"
+        SH[hybrid_search_async\nRRF + MultiSignalScorer]
     end
-    subgraph "Layer 6 — Index"
-        IX[Indexer\nLanceDB + BM25 + SymbolIndex]
+    subgraph "Layer 7 — Index"
+        IX[Indexer\nLanceDB + BM25]
+    end
+    subgraph "Layer 6 — Graph (v3.0)"
+        PG[PropertyGraph\nSQLite WAL + mmap]
+        CY[CypherEngine\nMATCH→SQL]
+        RE[RouteExtractor]
     end
     subgraph "Layer 5 — Embeddings"
         EM[RemoteEmbedder
-llama.cpp GGUF / LM Studio / ONNX]
+llama.cpp / LM Studio]
     end
     subgraph "Layer 4 — Parsing"
-        PS[Tree-sitter AST\nParser + SymbolIndex]
+        PS[Tree-sitter AST\nParser + SymbolIndexAdapter]
     end
     subgraph "Layer 3 — Storage"
-        ST[LanceDB v2\nper-project isolation]
+        ST[LanceDB v2 + SQLite\ngraph.db]
     end
     subgraph "Layer 2 — Rate Limiting"
-        RL[CircuitBreaker\nDebounceBatch\nSlidingWindow]
+        RL[CircuitBreaker\nDebounceBatch]
     end
     subgraph "Layer 1 — DI Container"
-        DI[ServiceCollection\n15 singletons + factories]
+        DI[ServiceCollection\n18 services]
     end
-    T1 --> EB --> IL --> SH --> IX --> EM --> PS --> ST --> RL --> DI
+    T1 --> EB --> IL --> SH --> IX --> PG --> EM --> PS --> ST --> RL --> DI
+    PG --> CY
+    PG --> RE
 ```
 
 ---

@@ -13,9 +13,13 @@ Each layer answers exactly one question.
  Layer 5: RuntimeCoordinator — можно ли выполнять запрос?
  Layer 6: ProjectContext    — как выглядит проект сейчас?
  Layer 7: Passport          — какой процесс сейчас работает?
- Layer 8: Intel Layer       — что делать с этой информацией?
- Layer 9: AI Agent          — ответ пользователю
+ Layer 8: Graph (v3.0)      — PropertyGraph: SQLite nodes/edges/cypher?
+ Layer 9: Intel Layer       — что делать с этой информацией?
+ Layer 10: AI Agent         — ответ пользователю
 ```
+
+> **v3.0 change:** Layer 8 (Graph) added between Passport and Intel. PropertyGraph
+> stores typed nodes (15 labels) and edges (27 types) in `.codebase/graph.db` (SQLite WAL+mmap).
 
 ---
 

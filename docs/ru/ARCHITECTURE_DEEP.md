@@ -2,12 +2,15 @@
 
 [🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
 
-> **Версия:** v2.7.0+ | **Последнее обновление:** 2026-07-07
+> **Версия:** v3.0.0 | **Последнее обновление:** 2026-07-11
+
+> **Примечание:** Полный перевод architecture diagrams на русский язык
+> требует обновления mermaid-диаграмм. См. английскую версию для актуальных схем.
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n50 tools]
-    MCP --> DI[DI Container\n15 services]
+    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    MCP --> DI[DI Container\n18 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
     DI --> Intel[Intelligence Layer]

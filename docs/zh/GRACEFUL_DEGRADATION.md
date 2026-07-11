@@ -1,6 +1,6 @@
 # 优雅降级 — 系统韧性指南
 
-> **MSCodeBase Intelligence 的一部分** | v2.7.0+
+> **MSCodeBase Intelligence 的一部分** | v3.0.0
 
 ## 概述
 

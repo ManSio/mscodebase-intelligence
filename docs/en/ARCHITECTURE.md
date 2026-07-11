@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 2.7.0  
+> **Version:** 3.0.0  
 > **Last updated:** 2026-07-11  
-> **Architecture:** 4-Layer Architecture (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic) with Multi-Window Registry
+> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph) with Multi-Window Registry
 
 ---
 
@@ -15,13 +15,15 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (39 class-based + 14 intel + 3 diagnostic = 56 total)](#4-tool-layer)
-5. [Error Handling](#5-error-handling)
-6. [Rate Limiting & Resilience](#6-rate-limiting--resilience)
-7. [Data Flow: Request → Response](#7-data-flow)
-8. [Windows Specifics](#8-windows-specifics)
-9. [Multi-Window Registry (v2.3+)](#9-multi-window-registry-v23)
-10. [Testing Strategy](#10-testing-strategy)
+4. [Tool Layer (40 class-based + 14 intel + 3 diagnostic = 57 total)](#4-tool-layer)
+5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
+6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
+7. [Error Handling](#7-error-handling)
+8. [Rate Limiting & Resilience](#8-rate-limiting--resilience)
+9. [Data Flow: Request → Response](#9-data-flow)
+10. [Windows Specifics](#10-windows-specifics)
+11. [Multi-Window Registry (v2.3+)](#11-multi-window-registry-v23)
+12. [Testing Strategy](#12-testing-strategy)
 
 ---
 
@@ -89,14 +91,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 33 tools + 14 intel_* tools + 3 diagnostic
-4. Register system prompt (mscodebase-rules)
+1. Register 40 tools + 14 intel_* tools + 3 diagnostic = 57 total
+2. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **11 files, 39 core tools (33 original + 6 write).**
+`src/mcp/tools/*.py` — **11 files, 40 core tools (33 original + 6 write + 1 graph query).**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -127,23 +129,59 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Core Layer
 
-`src/core/*.py` — **24 files of pure business logic.**
+`src/core/*.py` — **29 files of pure business logic.**
 
 Key modules:
 
 | Module | Purpose | Depends on |
 |--------|---------|------------|
-| `di_container.py` | DI Container (15 services) | — |
+| `di_container.py` | DI Container (15+ services) | — |
 | `error_handler.py` | ToolError + error_boundary | — |
 | `rate_limiter.py` | DebounceBatch + CircuitBreaker | — |
 | `indexer.py` | LanceDB vector storage | embedder, file_guard, parser |
 | `searcher.py` | Hybrid search (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Call Graph (BFS, PageRank) | parser |
+| `graph.py` **(new v3.0)** | **PropertyGraph — SQLite property graph** | — |
+| `graph_adapter.py` **(new v3.0)** | **SymbolIndexAdapter wrapping PropertyGraph** | graph, symbol_index |
+| `cypher_engine.py` **(new v3.0)** | **Cypher→SQL engine for PropertyGraph** | graph |
+| `route_extractor.py` **(new v3.0)** | **HTTP route detection (Flask, FastAPI, Django, Express, Next.js)** | graph |
+| `multi_signal_scorer.py` **(new v3.0)** | **Multi-signal search scoring (4 signals)** | graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `llama_runner.py` | Lifecycle manager for llama-server.exe | download, launch, stop |
 | `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |
+
+### 2.5 Graph-Native Architecture (v3.0)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    PropertyGraph                         │
+│  SQLite (WAL + mmap), nodes/edges, JSON properties       │
+│                                                          │
+│  nodes(id, name, label, qualified_name, file, properties)│
+│  edges(id, src, dst, type, weight, properties)           │
+│  — 15 node labels (File, Function, Class, Route, ...)    │
+│  — 27 edge types (CALLS, DEFINES, IMPLEMENTS, ...)       │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│  CypherEngine     RouteExtractor    MultiSignalScorer   │
+│  MATCH→SQL        Flask/FastAPI     4 signals to RRF    │
+│  WHERE/RETURN     Django/Express    api_signature        │
+│  ORDER BY/LIMIT   Next.js           graph_diffusion      │
+│  Dead code det.   Route→HANDLES edge module_proximity    │
+│                    in PropertyGraph  cochange_boost       │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│  SymbolIndexAdapter (wrap PropertyGraph → SymbolIndex)   │
+│  PURE mode: no in-memory Dict, all data in SQLite        │
+│  Full backward compat: all 57 tools unchanged             │
+└─────────────────────────────────────────────────────────┘
+```
 
 ### 2.5 Provider Priority
 

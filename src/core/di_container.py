@@ -37,6 +37,8 @@ from src.core.resource_monitor import (
 )
 from src.core.searcher import Searcher
 from src.core.symbol_index import SymbolIndex
+from src.core.graph import PropertyGraph
+from src.core.graph_adapter import SymbolIndexAdapter
 
 logger = logging.getLogger("mscodebase_server.di")
 
@@ -233,7 +235,15 @@ def create_service_collection(
     multi_project_searcher = MultiProjectSearcher(embedder, project_registry)
     services.add_singleton(MultiProjectSearcher, multi_project_searcher)
 
-    symbol_index = SymbolIndex()
+    # PropertyGraph — персистентный граф знаний (v3.0)
+    # Хранится в .codebase/graph.db, WAL mode, потокобезопасен.
+    graph_db = project_root / ".codebase" / "graph.db"
+    property_graph = PropertyGraph(graph_db)
+    services.add_singleton(PropertyGraph, property_graph)
+
+    # SymbolIndexAdapter — обёртка PropertyGraph в интерфейс SymbolIndex
+    # HYBRID mode: PropertyGraph + in-memory Dict для плавной миграции
+    symbol_index = SymbolIndexAdapter(property_graph, mode=SymbolIndexAdapter.MODE_PURE)
     services.add_singleton(SymbolIndex, symbol_index)
 
     # ══════════════════════════════════════════════════════
@@ -293,8 +303,10 @@ def create_service_collection(
         """
         p_db_path = _generate_unique_db_path(p)
         p_file_guard = FileGuard(p)
-        # Per-project FileGuard и symbol_index изолируют state.
-        p_symbol_index = SymbolIndex()
+        # Per-project PropertyGraph + SymbolIndexAdapter
+        p_graph_db = p / ".codebase" / "graph.db"
+        p_property_graph = PropertyGraph(p_graph_db)
+        p_symbol_index = SymbolIndexAdapter(p_property_graph, mode=SymbolIndexAdapter.MODE_PURE)
         p_indexer = Indexer(
             db_path=p_db_path,
             embedder=_embedder,

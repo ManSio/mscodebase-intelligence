@@ -6,6 +6,23 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
+## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
+
+### 新增
+- 🕸️ **PropertyGraph**: 基于 SQLite 的持久化知识图谱 (WAL + mmap)。15 种节点类型，27 种边类型。
+- 🔍 **Cypher Query Engine**: `query_graph` MCP 工具 — `MATCH (f:Function)-[:CALLS]->(g)` 语法。
+- 🚦 **HTTP Route Extraction**: Flask/FastAPI/Django/Express/Next.js 路由自动检测 → Route 节点。
+- 📊 **Multi-Signal Scorer**: 4 个额外排名信号 (api_signature, graph_diffusion, module_proximity, cochange_boost)。
+- 💀 **Dead Code Detection**: 检测没有入站 CALLS 边的函数。
+- 🔄 **PURE mode**: SymbolIndexAdapter 不再在内存中复制数据。
+
+### 变更
+- 56 → 57 个 MCP 工具 (+ `query_graph`)
+- 24 → 29 个 `src/core/` 文件
+- 全部 479 个测试通过，无需修改
+
+---
+
 ## [3.1.0] — 2026-07-11 — 基于 CodeGraph 的改进
 
 ### 新增

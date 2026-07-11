@@ -2,12 +2,14 @@
 
 [🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](ARCHITECTURE_DEEP.md)
 
-> **版本:** v2.7.0+ | **最后更新:** 2026-07-07
+> **版本:** v3.0.0 | **最后更新:** 2026-07-11
+
+> **注意:** 架构图的完整翻译需要更新 mermaid 图。请参阅英文版本获取最新图表。
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n50 tools]
-    MCP --> DI[DI Container\n15 services]
+    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    MCP --> DI[DI Container\n18 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
     DI --> Intel[Intelligence Layer]

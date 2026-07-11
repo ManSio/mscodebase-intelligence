@@ -1,10 +1,10 @@
 # Search Pipeline — Complete Technical Reference
 
-> **Part of MSCodeBase Intelligence** | v2.7.0+
+> **Part of MSCodeBase Intelligence** | v3.0.0
 
 ## Overview
 
-The search pipeline is the core of MSCodeBase. It combines **4 retrieval stages** to find the most relevant code context.
+The search pipeline is the core of MSCodeBase. It combines **4 retrieval stages + MultiSignalScorer** to find the most relevant code context.
 
 ```mermaid
 flowchart TD
@@ -26,9 +26,17 @@ flowchart TD
     BM25 --> RRF[RRF Fusion\nk=60]
     DENSE --> RRF
     
-    RRF --> BUCKET[Multi-Bucket RAG\nsoft weighting]
-    BUCKET --> CO[Co-change boost\ngit coupling]
-    CO --> GRAPH[Graph expand\ncallees from AST]
+    RRF --> MULTI[MultiSignalScorer v3.0]
+    MULTI --> BUCKET[Multi-Bucket RAG]
+    
+    subgraph MULTI[MultiSignalScorer — 4 signals]
+        API[api_signature\nJaccard symbol match]
+        DIFF[graph_diffusion\nPageRank centrality]
+        MOD[module_proximity\nhierarchy closeness]
+        CO2[cochange_boost\ngit coupling]
+    end
+    
+    BUCKET --> GRAPH[Graph expand\ncallees from AST]
     GRAPH --> RERANK[Cross-encoder\nbge-reranker-v2-m3]
     
     RERANK --> CUT[Cut to limit]

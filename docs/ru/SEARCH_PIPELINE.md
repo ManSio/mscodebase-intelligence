@@ -1,6 +1,6 @@
 # Поисковый пайплайн — Полная техническая документация
 
-> **Часть MSCodeBase Intelligence** | v2.7.0+
+> **Часть MSCodeBase Intelligence** | v3.0.0
 
 ## Обзор
 

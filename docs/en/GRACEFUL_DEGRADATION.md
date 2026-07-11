@@ -1,6 +1,6 @@
 # Graceful Degradation — System Resilience Guide
 
-> **Part of MSCodeBase Intelligence** | v2.7.0+
+> **Part of MSCodeBase Intelligence** | v3.0.0
 
 ## Overview
 

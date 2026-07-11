@@ -13,8 +13,9 @@
  Layer 5: RuntimeCoordinator — 可以执行请求吗？
  Layer 6: ProjectContext    — 项目当前的状态如何？
  Layer 7: Passport          — 当前运行的是哪个进程？
- Layer 8: Intel Layer       — 如何处理这些信息？
- Layer 9: AI Agent          — 给用户什么回答？
+ Layer 8: Graph (v3.0)      — PropertyGraph: SQLite nodes/edges/cypher?
+ Layer 9: Intel Layer       — 如何处理这些信息？
+ Layer 10: AI Agent         — 给用户什么回答？
 ```
 
 ---

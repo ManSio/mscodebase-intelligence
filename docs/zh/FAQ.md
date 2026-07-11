@@ -57,7 +57,7 @@ GGUF 模型（bge-m3 Q4_K_M 417 MB 和 bge-reranker-v2-m3 Q4_K_M 418 MB）
 ### 工具返回原始 JSON
 
 **如果来自旧版本：** 已修复。在提交 `05de324`（2026-07-05）之后，
-所有 50 个工具输出可读的 Markdown。
+所有 57 个工具输出可读的 Markdown。
 **解决方案：** 运行 `python install.py` 并重启 Zed。
 
 ---

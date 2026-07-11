@@ -15,8 +15,8 @@
 **MSCodeBase Intelligence** — 用于 Zed IDE 中语义代码搜索的 MCP 服务器。
 完全本地运行：LanceDB（向量索引）+ llama.cpp GGUF（embeddings/reranker）+ ONNX（回退）。
 
-**关键数字：**
-- 50 个 MCP 工具（33 核心 + 14 intel + 3 诊断）
+**关键数字:**
+- 57 个 MCP 工具（40 核心 + 14 intel + 3 诊断）
 - 10 个工具文件，DI 容器中的 15 个服务
 - 索引：约 3000 个块，约 170 个文件，约 1350 个符号
 
@@ -57,11 +57,11 @@ conn.execute("""
 
 | 决策 | 动机 |
 |----------|-----------|
-| **DI 容器（ServiceCollection）** | 15 个服务，延迟解析，每个项目注册表 |
+| **DI 容器（ServiceCollection）** | 18 个服务，延迟解析，每个项目注册表 + PropertyGraph |
 | **延迟解析活动索引器** | 如果 LSP 尚未写入桥接文件 — 选择第一个活动工作区 |
 | **两阶段重新索引** | `intel_trigger_reindex` → job_id → `intel_get_job_status`（反垃圾邮件） |
 | **异步锁用于文件 IO** | 保护对内存 JSON 文件的并发写入 |
-| **ui_formatter** | 所有 50 个工具的统一 Markdown 风格（无原始 JSON） |
+| **ui_formatter** | 所有 57 个工具的统一 Markdown 风格（无原始 JSON） |
 
 ---
 

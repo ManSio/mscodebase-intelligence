@@ -87,9 +87,9 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15 services), 56 tools (39 class-based + 14 intel + 3 diag), 406+ tests |
+| 🧪 **Clean Architecture** | DI Container (15+ services), 57 tools (40 class-based + 14 intel + 3 diag), 479+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
-| ✏️ **Write Tools** | 6 tools: rename/move/delete/replace symbols with preview/apply + `@modification_guard` |
+| ✏️ **Write Tools** | 6 write tools + 1 graph query (`query_graph`) with Cypher engine |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
 
@@ -157,7 +157,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (56 total)
+## 🔧 MCP Tools (57 total)
 
 ### Core Search
 
@@ -204,6 +204,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
 | `get_related_files(project_root, path)` | Files related via co-change / bug correlation |
 | `graph_query(query_type, target)` | Knowledge graph queries: `impact` / `feature` / `deps` / `tests` |
+| `query_graph(query)` **(new v3.2)** | Cypher-like graph queries: `MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'main' RETURN g.name` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
 
 ### Git & History

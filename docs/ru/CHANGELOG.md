@@ -6,6 +6,23 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
+## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
+
+### Добавлено
+- 🕸️ **PropertyGraph**: персистентный граф знаний на SQLite (WAL + mmap). 15 типов узлов, 27 типов рёбер, JSON-свойства.
+- 🔍 **Cypher Query Engine**: `query_graph` — `MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'main' RETURN g.name`.
+- 🚦 **HTTP Route Extraction**: автоматическое детектирование маршрутов Flask/FastAPI/Django/Express/Next.js → Route nodes в графе.
+- 📊 **Multi-Signal Scorer**: 4 дополнительных сигнала ранжирования к RRF-пайплайну.
+- 💀 **Dead Code Detection**: поиск функций без входящих CALLS-рёбер.
+- 🔄 **PURE mode**: SymbolIndexAdapter без дублирования данных в памяти.
+
+### Изменено
+- 56 → 57 MCP-инструментов (+ `query_graph`)
+- 24 → 29 файлов в `src/core/`
+- Все 479 тестов проходят без изменений
+
+---
+
 ## [3.1.0] — 2026-07-11 — Улучшения на основе CodeGraph
 
 ### Добавлено
