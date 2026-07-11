@@ -241,6 +241,9 @@ class TestRenameSymbolTool:
         tool.resolve_symbol_index = MagicMock(return_value=si)
         tool.resolve_indexer = MagicMock(return_value=_make_mock_indexer())
 
+        # Mock _get_lsp_client to return None (no LSP in test env)
+        tool._get_lsp_client = MagicMock(return_value=None)
+
         raw = tool.execute.__wrapped__
         result = await raw(
             tool,

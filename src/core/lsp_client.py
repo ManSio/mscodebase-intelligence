@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -58,9 +59,11 @@ class LspClient:
         try:
             self._process = await asyncio.create_subprocess_exec(
                 server_cmd,
+                "--stdio",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
         except (FileNotFoundError, PermissionError) as exc:
             logger.error("Failed to start LSP '%s': %s", server_cmd, exc)
@@ -172,12 +175,20 @@ class LspClient:
             extra={"context": {"includeDeclaration": True}},
         )
 
-    async def rename_symbol(self, file_path: str, line: int, col: int, new_name: str) -> Optional[Dict[str, Any]]:
-        """textDocument/rename → Optional[WorkspaceEdit]."""
+    async def rename_symbol(self, file_path: str, line: int, col: int = -1, new_name: str = "", old_name: str = "") -> Optional[Dict[str, Any]]:
+        """textDocument/rename → Optional[WorkspaceEdit].
+
+        If col == -1, auto-detects the column by scanning the line for old_name.
+        """
         if not await self._ensure_started():
             return None
         if not await self.open_file(file_path):
             return None
+        if col < 0:
+            search_name = old_name or new_name
+            col = self._find_symbol_column(file_path, line, search_name)
+            if col < 0:
+                col = 0  # fallback
         try:
             return await self._send_request("textDocument/rename", {
                 "textDocument": {"uri": self._path_to_uri(file_path)},
@@ -254,14 +265,39 @@ class LspClient:
         return self._started and self._process is not None and self._process.returncode is None
 
     async def _initialize(self) -> dict:
-        """Send initialize request → return capabilities."""
+        """Send initialize request with Zed-pyright specific options.
+
+        Key options:
+        - openFilesOnly: True — pyright only indexes files we didOpen
+        - venvPath: project root — so pyright finds local .venv
+        - pythonPath: sys.executable — same Python as MCP
+        """
+        root_uri = self._path_to_uri(str(self.project_root))
         result = await self._send_request("initialize", {
             "processId": os.getpid(),
+            "rootPath": str(self.project_root),
+            "rootUri": root_uri,
             "clientInfo": {"name": "mscodebase-server", "version": "1.0"},
-            "capabilities": {},
-            "rootUri": self._path_to_uri(str(self.project_root)),
+            "capabilities": {
+                "textDocument": {
+                    "rename": {"dynamicRegistration": True},
+                    "references": {"dynamicRegistration": True},
+                    "definition": {"dynamicRegistration": True},
+                    "hover": {"dynamicRegistration": True},
+                    "documentSymbol": {"dynamicRegistration": True},
+                },
+                "workspace": {
+                    "workspaceEdit": {"documentChanges": True},
+                    "workspaceFolders": True,
+                },
+            },
+            "initializationOptions": {
+                "openFilesOnly": True,
+                "pythonPath": sys.executable,
+                "venvPath": str(self.project_root),
+            },
             "workspaceFolders": [
-                {"uri": self._path_to_uri(str(self.project_root)), "name": self.project_root.name},
+                {"uri": root_uri, "name": self.project_root.name},
             ],
         })
         self._send_notification("initialized", {})
@@ -285,32 +321,60 @@ class LspClient:
     # ── Server discovery ──────────────────────────────────────────────────
 
     def _find_server(self) -> Optional[str]:
-        """Find language server binary: PATH → active venv → project venvs."""
+        """Find language server binary: PATH → Zed LSP dirs → venvs → project venvs."""
         if self.language == "python":
-            candidates = ["pyright-langserver", "pyright-langserver.exe"]
+            if sys.platform == "win32":
+                candidates = ["pyright-langserver.cmd", "pyright-langserver", "pyright-langserver.exe"]
+            else:
+                candidates = ["pyright-langserver", "pyright-langserver.exe"]
         elif self.language in ("typescript", "javascript"):
             candidates = ["typescript-language-server", "typescript-language-server.cmd"]
         else:
             logger.warning("Unsupported LSP language: %s", self.language)
             return None
+
+        # 1. Поиск в PATH (самый быстрый)
         for cmd in candidates:
             found = shutil.which(cmd)
             if found:
                 return found
+
+        # 2. Поиск в Zed LSP директориях (Zed управляет pyright сам!)
+        # Имя папки = имя LSP сервера, а не языка (pyright, а не python)
+        lsp_name = "pyright" if self.language == "python" else "typescript-language-server"
+        zed_lsp_dirs = [
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / lsp_name / "node_modules" / ".bin",
+        ]
+        # basedpyright — альтернатива
+        if self.language == "python":
+            zed_lsp_dirs.append(
+                Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / "basedpyright" / "node_modules" / ".bin"
+            )
+        for d in zed_lsp_dirs:
+            for cmd in candidates:
+                candidate = d / cmd
+                if candidate.is_file():
+                    return str(candidate.resolve())
+
+        # 3. Поиск в venv текущего Python
         search_dirs: List[Path] = []
         if hasattr(sys, "prefix") and sys.prefix:
             p = Path(sys.prefix)
             search_dirs.extend([p / "bin", p / "Scripts"])
+
+        # 4. Поиск в project venvs
         for venv_name in (".venv", "venv", ".env"):
             search_dirs.extend([
                 self.project_root / venv_name / "bin",
                 self.project_root / venv_name / "Scripts",
             ])
+
         for d in search_dirs:
             for cmd in candidates:
                 candidate = d / cmd
                 if candidate.is_file():
                     return str(candidate.resolve())
+
         return None
 
     # ── Wire protocol ─────────────────────────────────────────────────────
@@ -396,7 +460,8 @@ class LspClient:
         headers = {}
         for line in buf[:hdr_end].split(b"\r\n"):
             if b":" in line:
-                k, v = line.split(b":", 1)
+                # Convert bytearray→bytes to avoid 'unhashable type' in Python 3.14+
+                k, v = bytes(line).split(b":", 1)
                 headers[k.strip().lower()] = v.strip()
         cl = headers.get(b"content-length")
         if cl is None:
@@ -469,6 +534,27 @@ class LspClient:
         mapping = {"python": "python", "typescript": "typescript", "javascript": "javascript",
                     "html": "html", "css": "css", "json": "json", "yaml": "yaml", "markdown": "markdown"}
         return mapping.get(self.language, self.language)
+
+    @staticmethod
+    def _find_symbol_column(file_path: str, line_0based: int, symbol_name: str) -> int:
+        """Auto-detect column position of symbol_name on the given line.
+
+        LSP needs the cursor position WITHIN the symbol name, not at column 0.
+        Returns -1 if not found (fallback to col=0).
+        """
+        if not symbol_name:
+            return -1
+        try:
+            content = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            lines = content.split("\n")
+            if 0 <= line_0based < len(lines):
+                line_text = lines[line_0based]
+                idx = line_text.find(symbol_name)
+                if idx >= 0:
+                    return idx
+        except Exception:
+            pass
+        return -1
 
     @staticmethod
     def _format_hover(contents: Any) -> Optional[str]:

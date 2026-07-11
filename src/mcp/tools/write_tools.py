@@ -257,25 +257,33 @@ class RenameSymbolTool(MCPTool):
                     lsp.rename_symbol(
                         file_path=def_ref.file_path,
                         line=max(0, def_ref.line - 1),  # LSP uses 0-based
-                        col=0,
+                        col=-1,  # auto-detect from line content
                         new_name=new_name,
+                        old_name=old_name,
                     ),
                     timeout=2.0,
                 )
                 if workspace_edit is not None:
-                    # LSP returned a WorkspaceEdit — apply it
-                    result = await self._apply_workspace_edit(
-                        workspace_edit, old_name, new_name
+                    # LSP returned a WorkspaceEdit — check if it has real changes
+                    has_changes = bool(
+                        workspace_edit.get("changes")
+                        or workspace_edit.get("documentChanges")
                     )
-                    # Meta-patching after successful rename
-                    try:
-                        indexer = self.resolve_indexer()
-                        if hasattr(indexer, 'apply_file_move'):
-                            for f in result.get("files", []):
-                                indexer.apply_file_move(f, f)
-                    except Exception:
-                        pass
-                    return result
+                    if not has_changes:
+                        logger.debug("[LSP] Empty WorkspaceEdit — SymbolIndex fallback")
+                    else:
+                        result = await self._apply_workspace_edit(
+                            workspace_edit, old_name, new_name
+                        )
+                        # Meta-patching after successful rename
+                        try:
+                            indexer = self.resolve_indexer()
+                            if hasattr(indexer, 'apply_file_move'):
+                                for f in result.get("files", []):
+                                    indexer.apply_file_move(f, f)
+                        except Exception:
+                            pass
+                        return result
             except asyncio.TimeoutError:
                 logger.info("[LSP] Timeout (2s) — fallback to SymbolIndex")
             except Exception as e:
