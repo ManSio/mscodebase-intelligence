@@ -1068,6 +1068,13 @@ class Indexer:
                 self._cached_total_chunks += len(data_records)
             self._cached_unique_files.add(rel_path_str)
 
+            # Сохраняем SymbolIndex на диск после каждого успешного файла
+            # (чтобы после перезапуска были доступны все определения символов)
+            try:
+                self._index_guard.save_symbol_index(self._symbol_index)
+            except Exception:
+                pass
+
             logger.info(
                 f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunk_texts)} чанков)"
             )
