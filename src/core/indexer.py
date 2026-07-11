@@ -1194,6 +1194,144 @@ class Indexer:
             logger.debug(f"delete_file() не нашёл запись {rel_path_str}: {e}")
             return False
 
+    def move_chunks_metadata(self, old_path: str, new_path: str) -> int:
+        """P0 Meta-patching: update file_path in LanceDB WITHOUT re-embedding.
+
+        Extracts old chunks, changes file_path metadata, re-inserts same vectors.
+        Returns count of affected chunks for BM25 sync.
+
+        Args:
+            old_path: Old relative file path
+            new_path: New relative file path
+
+        Returns:
+            Number of chunks moved
+        """
+        # Sanitize paths for LanceDB SQL filter
+        safe_old = old_path.replace("\\", "/").replace("'", "''")
+        safe_new = new_path.replace("\\", "/").replace("'", "''")
+
+        if safe_old == safe_new:
+            return 0
+
+        try:
+            # 1. Read old chunks with vectors and metadata
+            old_df = self.table.search().where(f"file_path = '{safe_old}'").limit(10000).to_pandas()
+
+            if old_df.empty:
+                logger.debug(f"move_chunks_metadata: no chunks found for {old_path}")
+                return 0
+
+            count = len(old_df)
+
+            # 2. Delete old entries from vector index
+            self.table.delete(f"file_path = '{safe_old}'")
+
+            # 3. Mutate metadata
+            old_df['file_path'] = safe_new
+            old_df['module_name'] = self._infer_module_name(new_path)
+            old_df['layer'] = self._infer_layer(new_path)
+            old_df['indexed_at'] = datetime.now().isoformat()
+
+            # 4. Re-insert same vectors with new metadata
+            self.table.add(old_df.to_dict('records'))
+
+            # 5. Invalidate cache
+            self._cached_total_chunks = None
+            self._cached_unique_files.discard(old_path)
+
+            logger.info(f"\u267b\ufe0f Meta-patched {count} chunks: {old_path} \u2192 {new_path}")
+            return count
+
+        except Exception as e:
+            logger.error(f"move_chunks_metadata failed: {old_path} \u2192 {new_path}: {e}")
+            return 0
+
+    def apply_file_move(self, old_path: str, new_path: str) -> dict:
+        """Coordinate file rename across all index layers.
+
+        Instead of notify_change (which triggers full reindex),
+        this does fast meta-patching in all layers.
+
+        Args:
+            old_path: Old relative file path
+            new_path: New relative file path
+
+        Returns:
+            Dict with status, chunks_moved, symbol_updates
+        """
+        results = {"status": "ok", "chunks_moved": 0, "symbol_updates": 0, "bm25": "invalidated"}
+
+        # 1. LanceDB meta-patching
+        chunks = self.move_chunks_metadata(old_path, new_path)
+        results["chunks_moved"] = chunks
+
+        # 2. SymbolIndex remap
+        try:
+            symbol_updates = self._symbol_index.remap_file(old_path, new_path)
+            results["symbol_updates"] = symbol_updates
+        except Exception as e:
+            logger.warning(f"SymbolIndex remap failed: {e}")
+            results["symbol_updates"] = -1
+
+        # 3. BM25 invalidation (next search will rebuild from LanceDB)
+        if self.searcher is not None and hasattr(self.searcher, '_reset_bm25'):
+            try:
+                self.searcher._reset_bm25()
+                results["bm25"] = "invalidated"
+            except Exception as e:
+                logger.debug(f"BM25 reset failed: {e}")
+
+        # 4. Notify file guard
+        try:
+            if hasattr(self.file_guard, 'notify_file_renamed'):
+                self.file_guard.notify_file_renamed(old_path, new_path)
+        except Exception:
+            pass
+
+        return results
+
+    def _infer_module_name(self, file_path: str) -> str:
+        """Infer Python module name from relative file path.
+
+        E.g., 'src/core/indexer.py' \u2192 'core.indexer'
+        """
+        p = Path(file_path.replace("\\", "/"))
+        stem = p.stem
+        parts = p.parts
+        # Find package root (src/, app/, lib/, or first meaningful dir)
+        skip_dirs = {"src", "app", "lib"}
+        module_parts = []
+        in_package = False
+        for part in parts[:-1]:  # exclude filename
+            if not in_package:
+                if part in skip_dirs:
+                    in_package = True
+                continue
+            module_parts.append(part)
+        module_parts.append(stem)
+        return ".".join(module_parts)
+
+    def _infer_layer(self, file_path: str) -> str:
+        """Infer architectural layer from file path.
+
+        E.g., 'src/core/foo.py' \u2192 'core', 'src/mcp/tools/bar.py' \u2192 'mcp_tools'
+        """
+        parts = file_path.replace("\\", "/").split("/")
+        if "core" in parts:
+            return "core"
+        if "mcp" in parts:
+            if "tools" in parts:
+                return "mcp_tools"
+            return "mcp"
+        if "tests" in parts:
+            return "tests"
+        if "utils" in parts:
+            return "utils"
+        if "docs" in parts:
+            return "docs"
+        return "root"
+
     def verify_index_freshness(self, project_path: Path) -> int:
         """Быстрая проверка: переиндексирует только файлы с изменившимся hash.
 

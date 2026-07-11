@@ -116,12 +116,13 @@ class RenameSymbolTool(MCPTool):
         # 5. Update in-memory index
         si.rename_symbol(old_name, new_name)
 
-        # 6. Notify indexer
+        # 6. Meta-patch index instead of full reindex
         try:
             indexer = self.resolve_indexer()
-            if hasattr(indexer, "notify_file_changed"):
+            if hasattr(indexer, 'apply_file_move'):
                 for file in result.get("files", []):
-                    indexer.notify_file_changed(file)
+                    patch = indexer.apply_file_move(file, file)
+                    logger.info(f"Meta-patch for {file}: {patch}")
         except Exception:
             pass
 
@@ -505,6 +506,17 @@ class MoveSymbolTool(MCPTool):
         # Update in-memory index — rename symbol's definition path
         try:
             self.resolve_symbol_index().rename_symbol(symbol, symbol)
+        except Exception:
+            pass
+
+        # Meta-patch index for both affected files (no re-embedding)
+        try:
+            indexer = self.resolve_indexer()
+            if hasattr(indexer, 'apply_file_move'):
+                src_patch = indexer.apply_file_move(source_file, source_file)
+                logger.info(f"Meta-patch source {source_file}: {src_patch}")
+                tgt_patch = indexer.apply_file_move(target_file, target_file)
+                logger.info(f"Meta-patch target {target_file}: {tgt_patch}")
         except Exception:
             pass
 

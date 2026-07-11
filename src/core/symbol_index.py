@@ -1060,6 +1060,57 @@ class SymbolIndex:
 
         return count
 
+    def remap_file(self, old_path: str, new_path: str) -> int:
+        """Update file_path in all internal indexes after a file rename.
+
+        Instead of remove_file + re-index (which loses all symbol relationships),
+        this does a fast remap of all paths pointing to the old file.
+
+        Args:
+            old_path: Old relative file path
+            new_path: New relative file path
+
+        Returns:
+            Number of updated entries
+        """
+        old_norm = Path(old_path).resolve().as_posix()
+        new_norm = Path(new_path).resolve().as_posix()
+
+        if old_norm == new_norm:
+            return 0
+
+        count = 0
+        with self._lock:
+            # Update _file_to_symbols
+            if old_norm in self._file_to_symbols:
+                self._file_to_symbols[new_norm] = self._file_to_symbols.pop(old_norm)
+                count += len(self._file_to_symbols[new_norm])
+
+            # Update _file_to_defs
+            if old_norm in self._file_to_defs:
+                self._file_to_defs[new_norm] = self._file_to_defs.pop(old_norm)
+
+            # Update _file_to_calls
+            if old_norm in self._file_to_calls:
+                self._file_to_calls[new_norm] = self._file_to_calls.pop(old_norm)
+
+            # Update SymbolRef.file_path in _definitions
+            for sym, refs in self._definitions.items():
+                for ref in refs:
+                    if ref.file_path == old_norm:
+                        ref.file_path = new_norm
+                        count += 1
+
+            # Update SymbolRef.file_path in _references
+            for sym, refs in self._references.items():
+                for ref in refs:
+                    if ref.file_path == old_norm:
+                        ref.file_path = new_norm
+                        count += 1
+
+        logger.debug(f"♻️ SymbolIndex remap: {old_norm} -> {new_norm} ({count} entries)")
+        return count
+
     def has_symbol(self, symbol_name: str) -> bool:
         """Quick existence check."""
         with self._lock:

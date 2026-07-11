@@ -150,7 +150,19 @@ class Searcher:
             self._bm25 = None
             self._bm25_ids = []
             self._bm25_df = None
-            logger.debug("🔄 Индекс BM25 сброшен для реиндексации")
+            logger.debug("Индекс BM25 сброшен для реиндексации")
+
+    def _reset_bm25(self) -> None:
+        """Quick BM25 invalidation for meta-patching.
+
+        Called by Indexer.apply_file_move after a file rename
+        to force BM25 rebuild on next search.
+        """
+        with self._bm25_lock:
+            self._bm25 = None
+            self._bm25_ids = []
+            self._bm25_df = None
+            logger.debug("BM25 сброшен после meta-patch")
 
     async def close(self) -> None:
         """Освобождает ресурсы реранкера и кэш.
