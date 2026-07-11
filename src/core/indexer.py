@@ -875,6 +875,13 @@ class Indexer:
             if not content.strip():
                 return False
 
+            # Очистка старых данных файла из PropertyGraph перед переиндексацией
+            if hasattr(self._symbol_index, "graph"):
+                pg = self._symbol_index.graph
+                if pg:
+                    rel_posix = rel_path_str.replace("\\", "/")
+                    pg.remove_file(rel_posix)
+
             # AST-aware чанкинг через CodeParser (если доступен)
             # Fallback: примитивное деление по 1000 символов с перекрытием 200
             #
@@ -1143,6 +1150,18 @@ class Indexer:
                     total_deleted_chunks += file_chunks
 
                     self.table.delete(f"file_path = '{escaped}'")
+
+                    # Очистка PropertyGraph
+                    if hasattr(self._symbol_index, "graph"):
+                        pg = self._symbol_index.graph
+                        if pg:
+                            rel_posix = file_path.replace("\\", "/")
+                            deleted_nodes = pg.remove_file(rel_posix)
+                            if deleted_nodes:
+                                logger.info(
+                                    f"  └─ Изъято из PropertyGraph: {deleted_nodes} узлов"
+                                )
+
                     logger.info(f"  └─ Изъят из индекса: {file_path}")
 
                 # Синхронизация кэша: декремент на количество удалённых чанков

@@ -1018,11 +1018,22 @@ class PropertyGraph:
         with self._lock:
             conn = self._get_conn()
             conn.execute(
-                "DELETE FROM nodes WHERE qualified_name LIKE ?",
-                (f"{project_prefix}%",),
+                "DELETE FROM nodes WHERE qualified_name LIKE ? || '%'",
+                (project_prefix,),
             )
-            # Каскадное удаление рёбер через ON DELETE CASCADE
             conn.commit()
+
+    def remove_file(self, file_path: str) -> int:
+        """Удаляет все узлы и рёбра для файла. Возвращает количество удалённых узлов.
+
+        Рёбра удаляются каскадно (ON DELETE CASCADE).
+        """
+        with self._lock:
+            conn = self._get_conn()
+            cur = conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
+            deleted = cur.rowcount
+            conn.commit()
+            return deleted
 
 
 # Экспорт
