@@ -5,7 +5,25 @@
 
 ---
 
-## [2026-07-11 18:00] — Feature: Write Tools + LSP Architecture (Phase 1 завершён)
+## [2026-07-11 19:00] — Phase 2: LspClient + MoveSymbolTool + SafeDeleteTool
+
+**Problem:** Rename был, но move_symbol и safe_delete отсутствовали.
+LSP-клиент нужен для точного рефакторинга (rename через language server).
+
+**Solution:**
+- `src/core/lsp_client.py` (505 строк) — тонкий LSP-клиент для pyright.
+  JSON-RPC 2.0 через stdin/stdout. Lazy start, auto-restart (3 retries),
+  fallback на SymbolIndex при недоступности LSP.
+- `MoveSymbolTool` — move definition + update all imports (preview/apply)
+- `SafeDeleteTool` — safe delete с reference check + force mode
+- Зарегистрированы в server.py (теперь 41 инструмент + 1 LSP-клиент)
+
+**Tools Used:** spawn_agent, edit_file, diagnostics, terminal, git push
+**Status:** ✅ Committed + Pushed
+
+---
+
+## [2026-07-11 18:00] — Feature: Write Tools + LSP Architecture (Phase 1 начат)
 
 **Problem:** MCP — read-only. Agent не может изменять код. Нужны write-инструменты
 с modification guard по образцу Qartez и LSP-клиент по образцу Serena.
