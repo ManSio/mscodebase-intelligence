@@ -9,12 +9,13 @@
 ## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
 
 ### Добавлено
-- 🕸️ **PropertyGraph**: персистентный граф знаний на SQLite (WAL + mmap). 15 типов узлов, 27 типов рёбер, JSON-свойства.
+- 🕸️ **PropertyGraph**: персистентный граф знаний на SQLite (WAL + mmap). 15 типов узлов, **28 типов рёбер** (+`ASSIGNED_FROM`), JSON-свойства.
 - 🔍 **Cypher Query Engine**: `query_graph` — `MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'main' RETURN g.name`.
 - 🚦 **HTTP Route Extraction**: автоматическое детектирование маршрутов Flask/FastAPI/Django/Express/Next.js → Route nodes в графе.
 - 📊 **Multi-Signal Scorer**: 4 дополнительных сигнала ранжирования к RRF-пайплайну.
 - 💀 **Dead Code Detection**: поиск функций без входящих CALLS-рёбер.
 - 🔄 **PURE mode**: SymbolIndexAdapter без дублирования данных в памяти.
+- 🔗 **Data Flow Tracking**: рёбра `ASSIGNED_FROM` — интра-процедурное отслеживание присваиваний. `CodeParser.extract_assignments()` обходит Tree-sitter AST со scope stack, детектит `x = y` / `x += y`. Создаёт узлы `Variable` + рёбра `ASSIGNED_FROM`. [Бенчмарк: 3 235 edges, 66.6/KLOC, 91.8% файлов MSCodeBase — в 5.4× больше покрытия, чем stdlib `ast`.]
 
 ### Изменено
 - 56 → 57 MCP-инструментов (+ `query_graph`)

@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 3.0.0  
-> **Last updated:** 2026-07-11  
-> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph) with Multi-Window Registry
+> **Version:** 3.2.0  
+> **Last updated:** 2026-07-12  
+> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry
 
 ---
 
@@ -129,7 +129,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Core Layer
 
-`src/core/*.py` — **29 files of pure business logic.**
+`src/core/*.py` — **30 files of pure business logic.**
 
 Key modules:
 
@@ -146,6 +146,7 @@ Key modules:
 | `cypher_engine.py` **(new v3.0)** | **Cypher→SQL engine for PropertyGraph** | graph |
 | `route_extractor.py` **(new v3.0)** | **HTTP route detection (Flask, FastAPI, Django, Express, Next.js)** | graph |
 | `multi_signal_scorer.py` **(new v3.0)** | **Multi-signal search scoring (4 signals)** | graph |
+| `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM edge benchmark & analysis** | parser, graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `llama_runner.py` | Lifecycle manager for llama-server.exe | download, launch, stop |
 | `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
@@ -161,8 +162,8 @@ Key modules:
 │                                                          │
 │  nodes(id, name, label, qualified_name, file, properties)│
 │  edges(id, src, dst, type, weight, properties)           │
-│  — 15 node labels (File, Function, Class, Route, ...)    │
-│  — 27 edge types (CALLS, DEFINES, IMPLEMENTS, ...)       │
+│  — 15 node labels (File, Function, Class, Variable, ...)  │
+│  — 28 edge types (CALLS, DEFINES, ASSIGNED_FROM, ...)    │
 └─────────────────────────────────────────────────────────┘
          │
          ▼
@@ -173,6 +174,16 @@ Key modules:
 │  ORDER BY/LIMIT   Next.js           graph_diffusion      │
 │  Dead code det.   Route→HANDLES edge module_proximity    │
 │                    in PropertyGraph  cochange_boost       │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│  Data Flow Layer (v3.2)                                  │
+│  CodeParser.extract_assignments()                         │
+│    — Tree-sitter walk with scope stack                    │
+│    — ASSIGNED_FROM edges in PropertyGraph                  │
+│    — Variable nodes for each tracked variable               │
+│    — Assignments at ALL nesting levels (if/for/while)      │
 └─────────────────────────────────────────────────────────┘
          │
          ▼

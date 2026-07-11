@@ -2,7 +2,7 @@
 
 [🇬🇧 English](ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
 
-> **Version:** v3.0.0 | **Last updated:** 2026-07-11
+> **Version:** v3.2.0 | **Last updated:** 2026-07-12
 
 ```mermaid
 flowchart TD
@@ -57,6 +57,10 @@ flowchart LR
     end
     subgraph "Layer 7 — Index"
         IX[Indexer\nLanceDB + BM25]
+    end
+    subgraph "Layer 6.5 — Data Flow (v3.2)"
+        DF[ASSIGNED_FROM edges
+Tree-sitter scope walk]
     end
     subgraph "Layer 6 — Graph (v3.0)"
         PG[PropertyGraph\nSQLite WAL + mmap]

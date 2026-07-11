@@ -127,7 +127,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Слой ядра
 
-`src/core/*.py` — **24 файла чистой бизнес-логики.**
+`src/core/*.py` — **30 файлов чистой бизнес-логики.**
 
 Ключевые модули:
 
@@ -139,6 +139,12 @@ class SearchCodeTool(MCPTool):
 | `indexer.py` | LanceDB векторное хранилище | embedder, file_guard, parser |
 | `searcher.py` | Гибридный поиск (BM25 + Dense + RRF) | indexer, embedder |
 | `symbol_index.py` | Граф вызовов (BFS, PageRank) | parser |
+| `graph.py` **(новое v3.0)** | **PropertyGraph — SQLite граф** | — |
+| `graph_adapter.py` **(новое v3.0)** | **SymbolIndexAdapter обёртка PropertyGraph** | graph, symbol_index |
+| `cypher_engine.py` **(новое v3.0)** | **Cypher→SQL для PropertyGraph** | graph |
+| `route_extractor.py` **(новое v3.0)** | **HTTP Route детекция** | graph |
+| `multi_signal_scorer.py` **(новое v3.0)** | **Мульти-сигнальное ранжирование (4 сигнала)** | graph |
+| `dataflow_experiment.py` **(новое v3.2)** | **Бенчмарк ASSIGNED_FROM** | parser |
 | `intelligence_layer.py` | 14 intel_* инструментов | indexer, searcher, symbol_index |
 | `llama_runner.py` | Менеджер lifecycle для llama-server.exe | download, launch, stop |
 | `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |

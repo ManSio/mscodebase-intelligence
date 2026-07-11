@@ -9,12 +9,13 @@
 ## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
 
 ### 新增
-- 🕸️ **PropertyGraph**: 基于 SQLite 的持久化知识图谱 (WAL + mmap)。15 种节点类型，27 种边类型。
+- 🕸️ **PropertyGraph**: 基于 SQLite 的持久化知识图谱 (WAL + mmap)。15 种节点类型，**28 种边类型** (+`ASSIGNED_FROM`)。
 - 🔍 **Cypher Query Engine**: `query_graph` MCP 工具 — `MATCH (f:Function)-[:CALLS]->(g)` 语法。
 - 🚦 **HTTP Route Extraction**: Flask/FastAPI/Django/Express/Next.js 路由自动检测 → Route 节点。
 - 📊 **Multi-Signal Scorer**: 4 个额外排名信号 (api_signature, graph_diffusion, module_proximity, cochange_boost)。
 - 💀 **Dead Code Detection**: 检测没有入站 CALLS 边的函数。
 - 🔄 **PURE mode**: SymbolIndexAdapter 不再在内存中复制数据。
+- 🔗 **Data Flow Tracking**: `ASSIGNED_FROM` 边类型 — 函数内变量赋值追踪。`CodeParser.extract_assignments()` 遍历 Tree-sitter AST (支持嵌套函数的 scope stack)，检测 `x = y` / `x += y` 模式。创建 `Variable` 节点 + `ASSIGNED_FROM` 边。[基准测试: 3,235 条边, 66.6/KLOC, 91.8% 的 MSCodeBase 文件 — 覆盖度是 stdlib `ast` 的 5.4 倍.]
 
 ### 变更
 - 56 → 57 个 MCP 工具 (+ `query_graph`)

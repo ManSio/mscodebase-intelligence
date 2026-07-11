@@ -127,7 +127,7 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 核心层
 
-`src/core/*.py` — **24个纯业务逻辑文件。**
+`src/core/*.py` — **30个纯业务逻辑文件。**
 
 关键模块：
 
@@ -139,6 +139,12 @@ class SearchCodeTool(MCPTool):
 | `indexer.py` | LanceDB向量存储 | embedder, file_guard, parser |
 | `searcher.py` | 混合搜索（BM25 + Dense + RRF） | indexer, embedder |
 | `symbol_index.py` | 调用图（BFS, PageRank） | parser |
+| `graph.py` **(新增 v3.0)** | **PropertyGraph — SQLite 属性图** | — |
+| `graph_adapter.py` **(新增 v3.0)** | **SymbolIndexAdapter 包装 PropertyGraph** | graph, symbol_index |
+| `cypher_engine.py` **(新增 v3.0)** | **Cypher→SQL 引擎** | graph |
+| `route_extractor.py` **(新增 v3.0)** | **HTTP 路由检测** | graph |
+| `multi_signal_scorer.py` **(新增 v3.0)** | **多信号搜索评分（4个信号）** | graph |
+| `dataflow_experiment.py` **(新增 v3.2)** | **ASSIGNED_FROM 基准测试** | parser |
 | `intelligence_layer.py` | 14个intel_*工具 | indexer, searcher, symbol_index |
 | `llama_runner.py` | llama-server.exe生命周期管理器 | download, launch, stop |
 | `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |

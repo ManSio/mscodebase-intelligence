@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
 
 ### Added
-- 🕸️ **PropertyGraph**: persistent knowledge graph on SQLite (WAL + mmap). Replaces in-memory `Dict` stores with typed nodes/edges. 15 node labels, 27 edge types. `qualified_name UNIQUE`, JSON properties. Zero-dependency.
+- 🕸️ **PropertyGraph**: persistent knowledge graph on SQLite (WAL + mmap). Replaces in-memory `Dict` stores with typed nodes/edges. 15 node labels, 28 edge types. `qualified_name UNIQUE`, JSON properties. Zero-dependency.
 - 🔍 **Cypher Query Engine**: `query_graph` MCP tool — LLM-friendly `MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'main' RETURN g.name, count(*) AS calls ORDER BY calls DESC LIMIT 10`. Recursive descent parser → SQL → results.
 - 🚦 **HTTP Route Extraction**: automatic detection of Flask (`@app.route`), FastAPI (`@app.get`), Django (`path()`), Express (`app.get`), Next.js (`route.ts`). Creates `Route` nodes + `HANDLES` edges in PropertyGraph.
 - 📊 **Multi-Signal Scorer**: 4 additional ranking signals for search — `api_signature` (Jaccard), `graph_diffusion` (PageRank), `module_proximity` (hierarchy), `cochange_boost` (git coupling). Weighted fusion with existing RRF pipeline.
@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - 🔄 **PURE mode**: `SymbolIndexAdapter` no longer duplicates data in memory — everything reads/writes PropertyGraph directly. RAM savings, full persistence across restarts.
 - ⚡ **SQLite PRAGMA tuning**: `cache_size=-64000` (64MB), `mmap_size=268435456` (256MB). Sub-millisecond graph queries.
 - 🧩 **Team-Shared Artifact**: `export_compressed()` / `import_compressed()` — zstd-compressed graph snapshots for commit to repo (Phase 3 prep).
+- 🔗 **ASSIGNED_FROM edges**: intra-procedural data flow tracking. `CodeParser.extract_assignments()` walks Tree-sitter AST with scope stack for nested functions, detecting `x = y` patterns. Creates `Variable` nodes + `ASSIGNED_FROM` edges in PropertyGraph. Benchmark: 3,235 edges, 66.6/KLOC, 91.8% files of MSCodeBase.ROM` edges. [Benchmark: 3,235 edges, 66.6/KLOC, 91.8% files of MSCodeBase — 5.4× more coverage than stdlib `ast` reference.]
 
 ### Changed
 - Architecture: 56 → 57 MCP tools (+ `query_graph`)
