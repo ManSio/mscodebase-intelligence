@@ -258,6 +258,16 @@ class ProjectIntelligenceLayer:
                 from src.mcp.tools.base import _is_self_index_path
 
                 registry = self._services.resolve(ProjectIndexerRegistry)
+                # Целенаправленный re-resolve по нормализованному пути проекта,
+                # чтобы не смотреть в произвольный (возможно stale) indexer из
+                # реестра. ProjectContext использует тот же механизм — консистентность.
+                target = Path(self.project_path).resolve()
+                if not _is_self_index_path(target):
+                    try:
+                        return registry.get_indexer(target)
+                    except Exception:
+                        pass
+                # Self-indexing — ищем первый non-self-indexing (multi-window fallback)
                 with registry._meta_lock:
                     for p, idx in registry._indexers.items():
                         if not _is_self_index_path(p):

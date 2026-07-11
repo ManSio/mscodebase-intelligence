@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import threading
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -869,7 +870,6 @@ class SymbolIndex:
                 для корректного определения абсолютности на любой платформе.
                 """
                 import os
-                from pathlib import Path
 
                 # Относительный путь (без диска) — всегда включаем
                 if not os.path.isabs(fp):

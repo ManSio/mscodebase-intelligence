@@ -30,7 +30,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import hashlib
 import httpx
@@ -843,6 +843,8 @@ class LlamaRunner:
         self._process: Optional[subprocess.Popen] = None
         self._model_key: Optional[str] = None
         self._reranker_process: Optional[subprocess.Popen] = None
+        self._embedder_log_fh: Optional[Any] = None  # файл-объект лога embedder
+        self._reranker_log_fh: Optional[Any] = None  # файл-объект лога reranker
         self._host = LLAMA_HOST
         self._port = LLAMA_PORT
         self._startup_timeout = 30
@@ -962,9 +964,10 @@ class LlamaRunner:
                     *flags,
                 ],
                 stdout=subprocess.DEVNULL,
-                stderr=open(self._log_path(), 'a'),
+                stderr=(_embedder_log_fh := open(self._log_path(), 'a')),
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
             )
+            self._embedder_log_fh = _embedder_log_fh
             self._model_key = model_key
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
             return True
@@ -1017,11 +1020,12 @@ class LlamaRunner:
                                         *flags,
                                     ],
                                     stdout=subprocess.DEVNULL,
-                                    stderr=open(self._log_path(), 'a'),
+                                    stderr=(_embedder_log_fh := open(self._log_path(), 'a')),
                                     cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
             )
+            self._embedder_log_fh = _embedder_log_fh
             self._model_key = model_key
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
             return True
@@ -1061,11 +1065,12 @@ class LlamaRunner:
                     "--reranking",
                 ],
                 stdout=subprocess.DEVNULL,
-                stderr=open(self._reranker_log_path(), 'a'),
+                stderr=(_reranker_log_fh := open(self._reranker_log_path(), 'a')),
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
             )
+            self._reranker_log_fh = _reranker_log_fh
 
 
 
@@ -1108,6 +1113,12 @@ class LlamaRunner:
                     self._reranker_process.stderr.close()
             except Exception:
                 pass
+            # Закрываем файл-объект, созданный при запуске (защита от утечки хэндлов)
+            try:
+                if self._reranker_log_fh is not None:
+                    self._reranker_log_fh.close()
+            except Exception:
+                pass
             self._reranker_process = None
             logger.info("🛑 Reranker остановлен")
 
@@ -1127,6 +1138,12 @@ class LlamaRunner:
             try:
                 if self._process.stderr:
                     self._process.stderr.close()
+            except Exception:
+                pass
+            # Закрываем файл-объект, созданный при запуске (защита от утечки хэндлов)
+            try:
+                if self._embedder_log_fh is not None:
+                    self._embedder_log_fh.close()
             except Exception:
                 pass
             self._process = None
