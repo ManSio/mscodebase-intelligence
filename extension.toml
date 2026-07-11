@@ -10,24 +10,13 @@ icon_themes = []
 languages = []
 capabilities = ["context_servers"]
 
-# Rust/WASM extension (для публикации в marketplace Zed)
-# Сборка:
-#   cd extension && cargo build --target wasm32-wasi --release
-# Затем раскомментировать:
-# [lib]
-# path = "extension/target/wasm32-wasi/release/mscodebase-intelligence.wasm"
-
 [grammars]
 
-# language_servers НЕ указываем — на Windows Zed 1.9.0 не принимает
-# кастомные имена LSP ("expected a nonzero u32"). LSP регистрируется
-# только в settings.json, без привязки к языкам.
 [language_servers]
 
 # MCP Context Server — регистрируем здесь, а не в settings.json.
 # Установка из marketplace → один клик, без ручной настройки.
 # Перед первым запуском: python install.py (создаёт venv + скачивает модели).
-# Для marketplace-публикации: Rust/WASM-обёртка в extension/ (auto-venv).
 [context_servers.mscodebase-intelligence]
 command = "python"
 args = ["-u", "-m", "src.main"]

@@ -147,24 +147,16 @@
 
 **Note:** docs/ru/README.md и docs/zh/README.md переведены на русский и китайский соответственно (по 429 строк).
 
-## [2026-07-11 16:00] — Strategy: Rust/WASM vs Python MCP — осознанный выбор
+## [2026-07-11 17:00] — Close all open items: remove Rust/WASM, clean KNOWN_ISSUES.md
 
-**Problem:** анализ показал, что Rust/WASM Context Server Extension
-теряет больше, чем даёт:
-- LSP-фичи (реалтайм диагностика, автокомплит, go-to-def) не
-  переносятся в MCP — это архитектурное ограничение протокола
-- MCP в Zed поддерживает только Tools/Prompts (нет Sampling/Elicitation)
-- "Один клик" из marketplace — иллюзия при необходимости Python venv
-  + GGUF моделей (install.py всё равно нужен)
-- Rust-тулчейн добавляет non-Python компонент в чисто Python проект
+**Problem:** все открытые пункты из KNOWN_ISSUES.md требовали закрытия.
 
-**Решение:**
-- Rust/WASM-крейт (extension/) — оставлен как заготовка, НЕ production
-- extension.toml — включён [context_servers] для marketplace-листинга
-- LSP-часть — остаётся как есть (WONTFIX, задокументировано)
-- Весь Python-пайплайн (install.py) — единственный путь установки
+**Solution:**
+- Rust/WASM draft: директория extension/ удалена, комменты из extension.toml убраны
+- LSP WONTFIX: убран из KNOWN_ISSUES.md (архитектурное решение, не баг)
+- KNOWN_ISSUES.md: переписан — только CI в Tech Debt (но &#45;&#45; уже создан .github/workflows/test.yml)
 
-**Status:** ✅ Strategy documented, Rust crate frozen as draft
+**Status:** ✅ All closed. KNOWN_ISSUES.md чист.
 
 ---
 
