@@ -236,6 +236,7 @@ class SymbolIndexAdapter:
                 source = a.get("source", "")
                 line = a.get("line", 0)
                 function = a.get("function", "")
+                condition_path = a.get("condition_path")
 
                 if not target or not source or target == source:
                     continue
@@ -246,7 +247,8 @@ class SymbolIndexAdapter:
 
                 # Убеждаемся, что оба узла существуют (создаём если нет)
                 for qname, name in [(source_qname, source), (target_qname, target)]:
-                    if not self._graph.get_node(qname):
+                    existing = self._graph.get_node(qname)
+                    if not existing:
                         self._graph.add_node(
                             name=name,
                             label=NodeLabel.VARIABLE,
@@ -259,16 +261,20 @@ class SymbolIndexAdapter:
                         )
 
                 # ASSIGNED_FROM ребро: source → target
+                props = {
+                    "line": line,
+                    "function": function,
+                    "file": file_path,
+                }
+                if condition_path:
+                    props["condition_path"] = condition_path
+
                 self._graph.add_edge(
                     source_qname=source_qname,
                     target_qname=target_qname,
                     type=EdgeType.ASSIGNED_FROM,
                     weight=1.0,
-                    properties={
-                        "line": line,
-                        "function": function,
-                        "file": file_path,
-                    },
+                    properties=props,
                 )
 
     def _hybrid_add_references(self, file_path: str, calls: List[Dict]):

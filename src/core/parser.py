@@ -410,6 +410,14 @@ class CodeParser:
 
     # ── Unified AST Walker (один parse → два результата) ──
 
+    # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
+    CONDITIONAL_NODES = {
+        "if_statement", "else_clause",
+        "for_statement", "while_statement",
+        "with_statement", "try_statement",
+        "except_clause", "match_statement", "case_clause",
+    }
+
     def _walk_file(self, file_path: Path):
         """Единый обход AST: один parse, один walk, два результата.
 
@@ -446,6 +454,7 @@ class CodeParser:
         self._extract_assignments_recursive(
             tree.root_node, code, file_path, assignments,
             current_function="", assigned=None,
+            condition_path=None,
         )
         return calls, assignments
 
@@ -564,6 +573,7 @@ class CodeParser:
         assignments: List[Dict],
         current_function: str,
         assigned: Optional[Set[str]] = None,
+        condition_path: Optional[List[str]] = None,
     ):
         """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
 
@@ -573,9 +583,19 @@ class CodeParser:
         Args:
             assigned: set[str] — имена уже присвоенных переменных
                       в текущем function scope. None → корневой scope.
+            condition_path: list[str] — стек условных блоков (if/for/while)
+                            для отслеживания контекста присваивания.
         """
         if assigned is None:
             assigned = set()
+        if condition_path is None:
+            condition_path = []
+
+        # ── Управление стеком условных блоков ──
+        pushed_conditional = False
+        if node.type in self.CONDITIONAL_NODES:
+            condition_path.append(node.type)
+            pushed_conditional = True
 
         # ── Обнаружение входа в функцию → push scope ──
         pushed_scope = False
@@ -609,6 +629,7 @@ class CodeParser:
                     file_path=file_path,
                     line=node.start_point[0],
                     function=current_function,
+                    condition_path=list(condition_path),
                 )
 
         # ── b) Составное присваивание: x += <rhs> ──
@@ -628,6 +649,7 @@ class CodeParser:
                     file_path=file_path,
                     line=node.start_point[0],
                     function=current_function,
+                    condition_path=list(condition_path),
                 )
 
         # ── Рекурсивный обход детей ──
@@ -639,11 +661,16 @@ class CodeParser:
                 assignments,
                 current_function,
                 assigned,
+                condition_path,
             )
 
         # ── Восстановление родительского scope при выходе из функции ──
         if pushed_scope:
             parent_assigned.update(assigned)
+
+        # ── Pop стека условных блоков ──
+        if pushed_conditional:
+            condition_path.pop()
 
     def _process_rhs_for_assign(
         self,
@@ -655,26 +682,30 @@ class CodeParser:
         file_path: Path,
         line: int,
         function: str,
+        condition_path: Optional[List[str]] = None,
     ):
         """Обрабатывает правую часть присваивания.
 
         Собирает identifier-ссылки в RHS, проверяет каждую против
         assigned set, создаёт ASSIGNED_FROM связи. Target всегда
         добавляется в assigned для последующего отслеживания.
+
+        Если присваивание происходит внутри условного блока (if/for/while),
+        condition_path содержит стек этих блоков.
         """
-        # Собираем все identifier-ссылки в RHS
         ref_names = self._get_names_from_node(right, code)
         for ref in ref_names:
             if ref in assigned:
-                assignments.append(
-                    {
-                        "target": target,
-                        "source": ref,
-                        "line": line,
-                        "file": str(file_path),
-                        "function": function,
-                    }
-                )
+                entry = {
+                    "target": target,
+                    "source": ref,
+                    "line": line,
+                    "file": str(file_path),
+                    "function": function,
+                }
+                if condition_path:
+                    entry["condition_path"] = condition_path
+                assignments.append(entry)
 
         # Target всегда помечается как assigned для chain-отслеживания
         assigned.add(target)
