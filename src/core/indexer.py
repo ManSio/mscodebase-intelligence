@@ -924,6 +924,10 @@ class Indexer:
                         calls = self.parser.extract_calls(full_path)
                         if calls:
                             self._symbol_index.add_references(str(full_path), calls)
+                        # ASSIGNED_FROM: отслеживание присваиваний переменных
+                        assignments = self.parser.extract_assignments(full_path)
+                        if assignments:
+                            self._symbol_index.add_assignments(str(full_path), assignments)
                 except Exception as ast_err:
                     logger.warning(
                         f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"

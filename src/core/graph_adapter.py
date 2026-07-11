@@ -216,6 +216,61 @@ class SymbolIndexAdapter:
             if self._mode == self.MODE_HYBRID:
                 self._hybrid_add_references(file_path, calls)
 
+    def add_assignments(self, file_path: str, assignments: List[Dict]) -> None:
+        """Добавляет ASSIGNED_FROM связи между переменными.
+
+        Создаёт Variable-узлы для source и target, если их ещё нет,
+        и проводит ASSIGNED_FROM ребро от source → target.
+
+        Поток: Variable(source) --[ASSIGNED_FROM]--> Variable(target)
+        """
+        file_path = Path(file_path).resolve().as_posix()
+        project_name = self._get_project_name(file_path)
+
+        if not assignments:
+            return
+
+        with self._lock:
+            for a in assignments:
+                target = a.get("target", "")
+                source = a.get("source", "")
+                line = a.get("line", 0)
+                function = a.get("function", "")
+
+                if not target or not source or target == source:
+                    continue
+
+                # Qualified names для source и target переменных
+                source_qname = f"{project_name}.{file_path}.{source}"
+                target_qname = f"{project_name}.{file_path}.{target}"
+
+                # Убеждаемся, что оба узла существуют (создаём если нет)
+                for qname, name in [(source_qname, source), (target_qname, target)]:
+                    if not self._graph.get_node(qname):
+                        self._graph.add_node(
+                            name=name,
+                            label=NodeLabel.VARIABLE,
+                            qualified_name=qname,
+                            file_path=file_path,
+                            properties={
+                                "line": line,
+                                "function": function,
+                            },
+                        )
+
+                # ASSIGNED_FROM ребро: source → target
+                self._graph.add_edge(
+                    source_qname=source_qname,
+                    target_qname=target_qname,
+                    type=EdgeType.ASSIGNED_FROM,
+                    weight=1.0,
+                    properties={
+                        "line": line,
+                        "function": function,
+                        "file": file_path,
+                    },
+                )
+
     def _hybrid_add_references(self, file_path: str, calls: List[Dict]):
         """HYBRID: дублирует в in-memory структуры SymbolIndex."""
         if file_path not in self._file_to_symbols:

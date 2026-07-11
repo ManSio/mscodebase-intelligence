@@ -122,3 +122,5 @@ target/
 .mscodebase/telemetry/
 llama_msvc/
 .mscodebase/
+.codebase/graph.db-shm
+.codebase/graph.db-wal

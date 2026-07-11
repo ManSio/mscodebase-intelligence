@@ -5,6 +5,26 @@
 
 ---
 
+## [2026-07-12 12:30] — ASSIGNED_FROM Data Flow реализация (v3.2.0)
+
+**Problem:** В PropertyGraph не было связей присваивания переменных —
+агент не мог отследить, откуда переменная получила значение.
+
+**Solution:**
+1. `EdgeType.ASSIGNED_FROM` — новый тип ребра в PropertyGraph
+2. `CodeParser.extract_assignments()` — Tree-sitter обход AST для
+   отслеживания `x = y` внутри тел функций (scope stack, вложенные функции)
+3. `SymbolIndexAdapter.add_assignments()` — создаёт Variable узлы +
+   ASSIGNED_FROM ребра в PropertyGraph
+4. `Indexer._index_single_file()` — вызов в production pipeline
+5. Бенчмарк на MSCodeBase: **3235 edges, 66.6/KLOC, 91.8% files**
+   (stdlib ast давал 603 edges — Tree-sitter версия в 5.4x мощнее)
+
+**Tools Used:** edit_file, terminal, diagnostics, notify_change, search_code
+**Status:** ✅ (выполнено)
+
+---
+
 ## [2026-07-11 23:59] — Финальный коммит: docs синхронизация под v3.1.0
 
 **Problem:** Документация отстала от кода после 10 коммитов (адаптивный бюджет, staleness banner, графовый контекст, DEFAULT_TOOLS, FilenameMatcher, ToolAnnotations, BENCHMARK.md, ZED API защита).

@@ -90,6 +90,7 @@ class EdgeType:
     SEMANTICALLY_RELATED = "SEMANTICALLY_RELATED"
     EMITS = "EMITS"
     LISTENS_ON = "LISTENS_ON"
+    ASSIGNED_FROM = "ASSIGNED_FROM"
 
 
 # ────────────────────────────────────────────────────────────

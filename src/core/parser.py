@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set
 
 from src.core.extensions import PARSE_EXTENSIONS
 
@@ -517,6 +517,197 @@ class CodeParser:
                 else:
                     return name
         return ""
+
+    # ── Assignment tracking for ASSIGNED_FROM edges ────────────
+
+    def extract_assignments(self, file_path: Path) -> List[Dict]:
+        """Извлекает ASSIGNED_FROM связи между переменными внутри функций.
+
+        Использует Tree-sitter AST для отслеживания присваиваний
+        внутри тел функций (интра-процедурный анализ).
+
+        Returns:
+            [
+                {
+                    "target": "x",
+                    "source": "data",
+                    "line": 10,
+                    "file": "path/to/file.py",
+                    "function": "process",
+                },
+                ...
+            ]
+        """
+        ext = file_path.suffix.lower()
+        if ext not in self.parsers or ext == ".md":
+            return []
+
+        try:
+            with open(file_path, "rb") as f:
+                code = f.read()
+        except Exception:
+            return []
+
+        if not code.strip():
+            return []
+
+        parser = self.parsers[ext]
+        tree = parser.parse(code)
+
+        assignments = []
+        self._extract_assignments_recursive(
+            tree.root_node,
+            code,
+            file_path,
+            assignments,
+            current_function="",
+            assigned=None,
+        )
+        return assignments
+
+    def _extract_assignments_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        assignments: List[Dict],
+        current_function: str,
+        assigned: Optional[Set[str]] = None,
+    ):
+        """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
+
+        Использует scope stack: при входе в функцию пушит новый set(),
+        при выходе — merge обратно. Корректно обрабатывает вложенные функции.
+
+        Args:
+            assigned: set[str] — имена уже присвоенных переменных
+                      в текущем function scope. None → корневой scope.
+        """
+        if assigned is None:
+            assigned = set()
+
+        # ── Обнаружение входа в функцию → push scope ──
+        pushed_scope = False
+        if node.type in self.TARGET_NODES:
+            name_node = (
+                self._find_child_by_type(node, "identifier")
+                or self._find_child_by_type(node, "name")
+            )
+            if name_node:
+                current_function = code[
+                    name_node.start_byte : name_node.end_byte
+                ].decode("utf-8", errors="ignore")
+            # Push: сохраняем родительский scope, создаём свежий для тела функции
+            parent_assigned = assigned
+            assigned = set()
+            pushed_scope = True
+
+        # ── a) Простое присваивание: x = <rhs> ──
+        if node.type == "assignment":
+            left = node.child_by_field_name("left")
+            right = node.child_by_field_name("right")
+            if left and left.type == "identifier" and right:
+                self._process_rhs_for_assign(
+                    target=code[left.start_byte : left.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    ),
+                    right=right,
+                    code=code,
+                    assigned=assigned,
+                    assignments=assignments,
+                    file_path=file_path,
+                    line=node.start_point[0],
+                    function=current_function,
+                )
+
+        # ── b) Составное присваивание: x += <rhs> ──
+        elif node.type == "augmented_assignment":
+            left = node.child_by_field_name("left")
+            right = node.child_by_field_name("right")
+            if left and left.type == "identifier" and right:
+                target = code[left.start_byte : left.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+                self._process_rhs_for_assign(
+                    target=target,
+                    right=right,
+                    code=code,
+                    assigned=assigned,
+                    assignments=assignments,
+                    file_path=file_path,
+                    line=node.start_point[0],
+                    function=current_function,
+                )
+
+        # ── Рекурсивный обход детей ──
+        for child in node.children:
+            self._extract_assignments_recursive(
+                child,
+                code,
+                file_path,
+                assignments,
+                current_function,
+                assigned,
+            )
+
+        # ── Восстановление родительского scope при выходе из функции ──
+        if pushed_scope:
+            parent_assigned.update(assigned)
+
+    def _process_rhs_for_assign(
+        self,
+        target: str,
+        right,
+        code: bytes,
+        assigned: Set[str],
+        assignments: List[Dict],
+        file_path: Path,
+        line: int,
+        function: str,
+    ):
+        """Обрабатывает правую часть присваивания.
+
+        Собирает identifier-ссылки в RHS, проверяет каждую против
+        assigned set, создаёт ASSIGNED_FROM связи. Target всегда
+        добавляется в assigned для последующего отслеживания.
+        """
+        # Собираем все identifier-ссылки в RHS
+        ref_names = self._get_names_from_node(right, code)
+        for ref in ref_names:
+            if ref in assigned:
+                assignments.append(
+                    {
+                        "target": target,
+                        "source": ref,
+                        "line": line,
+                        "file": str(file_path),
+                        "function": function,
+                    }
+                )
+
+        # Target всегда помечается как assigned для chain-отслеживания
+        assigned.add(target)
+
+    def _get_names_from_node(self, node, code: bytes) -> List[str]:
+        """Извлекает все identifier имена из поддерева узла.
+
+        Собирает ТОЛЬКО identifier (не type_identifier),
+        чтобы не путать с именами типов (int, str, List).
+        Не заходит в function_definition/class_definition —
+        их внутренние идентификаторы не относятся к текущему контексту.
+        """
+        names = []
+        if node.type == "identifier":
+            name = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            names.append(name)
+        # Не заходим в вложенные определения — их идентификаторы
+        # относятся к внутреннему scope
+        if node.type not in ("function_definition", "class_definition"):
+            for child in node.children:
+                names.extend(self._get_names_from_node(child, code))
+        return names
 
     def _chunk_giant_text(
         self,
