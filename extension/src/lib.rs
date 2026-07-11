@@ -1,3 +1,19 @@
+// ═══════════════════════════════════════════════════════════════
+// DRAFT — не использовать в production.
+//
+// Анализ (2026-07-11) показал, что Rust/WASM Context Server Extension
+// теряет больше чем даёт:
+//   - LSP-фичи (реалтайм диагностика, автокомплит, go-to-def)
+//     не переносятся в MCP — ограничение протокола
+//   - "Один клик" иллюзорен — Python venv + GGUF модели
+//     всё равно требуют install.py
+//   - Rust-тулчейн добавляет non-Python компонент в Python-проект
+//
+// Текущий подход: Python + extension.toml + install.py.
+// Пересмотреть, когда Zed добавит Sampling/Elicitation в MCP,
+// ИЛИ если zed::Project из context_server_command() решит multi-window.
+// ═══════════════════════════════════════════════════════════════
+
 use zed_extension_api::{self as zed, ContextServerCommand, Result};
 
 const EXTENSION_ID: &str = "mscodebase-intelligence";
@@ -14,31 +30,26 @@ impl zed::Extension for MSCodeBaseExtension {
         _context: &zed::Context,
         _server_id: &str,
     ) -> Result<ContextServerCommand> {
-        // Получаем путь к директории расширения (где лежит extension.toml)
         let ext_dir = zed::extension_dir(EXTENSION_ID)?;
 
-        // Путь к venv скриптам
         let venv_python = if cfg!(target_os = "windows") {
             ext_dir.join("venv").join("Scripts").join("python.exe")
         } else {
             ext_dir.join("venv").join("bin").join("python3")
         };
 
-        // Если venv не создан — запускаем установку
         if !venv_python.exists() {
-            zed::set_language_context(EXTENSION_ID, "Установка зависимостей...");
+            zed::set_language_context(EXTENSION_ID, "Installing dependencies...");
 
-            // Создаём venv
             let python = zed::which("python3".to_string())
                 .or_else(|_| zed::which("python".to_string()))
-                .map_err(|e| format!("Python не найден: {}", e))?;
+                .map_err(|e| format!("Python not found: {}", e))?;
 
             zed::run(
                 &python,
                 &["-m", "venv", &venv_python.parent().unwrap().to_string_lossy()],
             )?;
 
-            // Устанавливаем зависимости
             let pip = if cfg!(target_os = "windows") {
                 venv_python.parent().unwrap().join("pip.exe")
             } else {

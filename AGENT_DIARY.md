@@ -147,43 +147,24 @@
 
 **Note:** docs/ru/README.md и docs/zh/README.md переведены на русский и китайский соответственно (по 429 строк).
 
-## [2026-07-11 14:00] — Полный перевод docs ru/zh + инкрементальный install.py
+## [2026-07-11 16:00] — Strategy: Rust/WASM vs Python MCP — осознанный выбор
 
-**Problem:**
-- 15 доков в docs/ru/ и docs/zh/ были на английском (только синхронизированы, не переведены)
-- install.py всегда копировал все файлы заново (нет инкрементальной синхронизации)
+**Problem:** анализ показал, что Rust/WASM Context Server Extension
+теряет больше, чем даёт:
+- LSP-фичи (реалтайм диагностика, автокомплит, go-to-def) не
+  переносятся в MCP — это архитектурное ограничение протокола
+- MCP в Zed поддерживает только Tools/Prompts (нет Sampling/Elicitation)
+- "Один клик" из marketplace — иллюзия при необходимости Python venv
+  + GGUF моделей (install.py всё равно нужен)
+- Rust-тулчейн добавляет non-Python компонент в чисто Python проект
 
-**Solution:**
+**Решение:**
+- Rust/WASM-крейт (extension/) — оставлен как заготовка, НЕ production
+- extension.toml — включён [context_servers] для marketplace-листинга
+- LSP-часть — остаётся как есть (WONTFIX, задокументировано)
+- Весь Python-пайплайн (install.py) — единственный путь установки
 
-**install.py:**
-- step_copy переписан на инкрементальный: сравнивает mtime+размер, копирует только изменённое
-- Добавлены _is_up_to_date() и _sync_dir() для пофайловой синхронизации
-- Удаляются файлы в ZED_EXT_DIR, которых нет в PROJECT_ROOT
-
-**Перевод docs (15 файлов × 2 языка = 30 файлов):**
-
-| Файл | ru | zh |
-|------|:--:|:--:|
-| ARCHITECTURE.md (611) | ✅ 609 | ✅ 609 |
-| CHANGELOG.md (678) | ✅ 627 | ✅ 674 |
-| ARCHITECTURE_DEEP.md (340) | ✅ 339 | ✅ 338 |
-| CONTRIBUTING.md (376) | ✅ 376 | ✅ 376 |
-| ZED_WINDOWS_QUIRKS.md (336) | ✅ 337 | ✅ 277 |
-| SEARCH_PIPELINE.md (287) | ✅ 287 | ✅ 287 |
-| INSTALL.md (210) | ✅ 209 | ✅ 208 |
-| GRACEFUL_DEGRADATION.md (208) | ✅ 208 | ✅ 208 |
-| TELEMETRY.md (195) | ✅ 193 | ✅ 195 |
-| HANDFOFF.md (151) | ✅ 151 | ✅ 151 |
-| ARCHITECTURE_LAYERS.md (150) | ✅ 150 | ✅ 150 |
-| FAQ.md (141) | ✅ 141 | ✅ 141 |
-| SECURITY.md (136) | ✅ 136 | ✅ 136 |
-| INSTALL_MODELS.md | ✅ создан | ✅ создан |
-| LM_STUDIO_SETUP.md | ✅ создан + баннер | ✅ создан + баннер |
-| SYSTEM_REQUIREMENTS.md | ✅ создан | ✅ создан |
-
-**KNOWN_ISSUES.md:** полностью очищен — все проблемы закрыты.
-
-**Status:** ✅
+**Status:** ✅ Strategy documented, Rust crate frozen as draft
 
 ---
 
