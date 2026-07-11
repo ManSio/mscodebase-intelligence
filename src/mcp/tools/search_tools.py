@@ -389,15 +389,21 @@ class SearchCodeTool(MCPTool):
         ui_items = []
         for r in results:
             meta = r.get("metadata", {})
-            ui_items.append(
-                {
-                    "file_path": meta.get("file", r.get("file_path", "")),
-                    "start_line": meta.get("start_line", meta.get("chunk_index", "")),
-                    "text": r.get("text_full", r.get("text", "")),
-                    "layer": meta.get("layer", ""),
-                    "score": r.get("final_score", r.get("score", 0)),
-                }
-            )
+            item = {
+                "file_path": meta.get("file", r.get("file_path", "")),
+                "start_line": meta.get("start_line", meta.get("chunk_index", "")),
+                "text": r.get("text_full", r.get("text", "")),
+                "layer": meta.get("layer", ""),
+                "score": r.get("final_score", r.get("score", 0)),
+            }
+            # Graph context enrich (callers from SymbolIndex)
+            callers = meta.get("callers")
+            if callers:
+                item["callers"] = callers
+            callee_count = meta.get("callee_count")
+            if callee_count:
+                item["callee_count"] = callee_count
+            ui_items.append(item)
 
         output = project_header + "\n" if project_header else ""
         output += format_search_code(query, ui_items, exec_ms, mode)

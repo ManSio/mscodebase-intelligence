@@ -1105,6 +1105,11 @@ class Searcher:
             )
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
+            # Graph context expansion для quality mode (было только для deep)
+            t1 = time.perf_counter()
+            results = self._expand_graph_context(results, query)
+            timing["graph_expansion_ms"] = (time.perf_counter() - t1) * 1000
+
         timing["total_ms"] = (time.perf_counter() - t0) * 1000
 
         # Сохраняем в кэш
@@ -1820,84 +1825,77 @@ class Searcher:
     ) -> List[dict]:
         """Расширяет результаты контекстом из графа вызовов (v3.0).
 
-        Использует callees из metadata чанков + SymbolIndex для нахождения
-        связанных функций. Для найденных callee-имён ищет реальные чанки
-        через BM25 (быстрее и точнее чем SymbolIndex в однорых случаях).
+        Для каждого результата добавляет в metadata:
+        - callers: список функций, которые вызывают этот символ
+        - callees: список функций, которые вызывает этот символ
 
-        Args:
-            results: Исходные результаты поиска
-            original_query: Оригинальный запрос
-
-        Returns:
-            Результаты с добавленным графическим контекстом
+        Вместо создания синтетических [CALLER]-записей (как было раньше)
+        обогащает существующие метаданные — агент видит связи прямо
+        в ответе search_code без лишних вызовов.
         """
         try:
+            import json
+
             expanded_results = list(results)
-            seen_keys: set = set()
 
-            # Собираем dedup ключи существующих результатов
-            for r in results:
-                meta = r.get("metadata", {})
-                key = f"{meta.get('file', '')}:{meta.get('chunk_index', '')}"
-                if key:
-                    seen_keys.add(key)
+            # SymbolIndex для поиска связей (ленивый, может быть None)
+            si = (
+                getattr(self.indexer, "_symbol_index", None)
+                if hasattr(self.indexer, "_symbol_index")
+                else None
+            )
+            if si is None:
+                # Пробуем достать через indexer.searcher.symbol_index
+                try:
+                    si = getattr(self.indexer, "symbol_index", None)
+                except Exception:
+                    si = None
 
-            # Собираем callee-имена из топ-5 результатов
-            callee_names: set = set()
-            for r in results[:5]:
+            if si is None or not hasattr(si, "find_references"):
+                return results
+
+            for r in results[:10]:  # только топ-10 результатов
+                text = r.get("text", "")
+                if not text:
+                    continue
+
+                # Извлекаем имя символа из текста чанка
+                name = self._extract_symbol_name(text)
+                if not name or len(name) < 2:
+                    continue
+
                 meta = r.get("metadata", {})
+                if not isinstance(meta, dict):
+                    meta = {}
+
+                # Находим callers (кто вызывает этот символ)
+                refs = si.find_references(name)
+                callers_list = []
+                for ref in refs[:3]:
+                    if not ref.is_definition and ref.symbol != name:
+                        callers_list.append({
+                            "symbol": ref.symbol,
+                            "file": ref.file_path,
+                            "line": ref.line,
+                        })
+                if callers_list:
+                    meta["callers"] = callers_list
+
+                # Находим callees (что вызывает этот символ) из metadata
                 callees_raw = meta.get("callees", "")
                 if callees_raw and isinstance(callees_raw, str):
                     try:
                         callees_list = json.loads(callees_raw)
-                        for name in callees_list[:10]:  # max 10 per chunk
-                            if len(name) > 2:  # фильтруем короткие
-                                callee_names.add(name)
+                        meta["callee_count"] = len(callees_list)
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-            # Ищем реальные чанки для каждого callee через BM25
-            for callee in list(callee_names)[:15]:  # max 15 callees всего
-                callee_results = self._bm25_search(callee, limit=3)
-                for cr in callee_results:
-                    meta = cr.get("metadata", {})
-                    key = f"{meta.get('file', '')}:{meta.get('chunk_index', '')}"
-                    if key and key not in seen_keys:
-                        seen_keys.add(key)
-                        cr["final_score"] = cr.get("final_score", 0.3) * 0.7
-                        cr["source"] = "graph_expand"
-                        cr["expand_reason"] = f"callee_of: {callee}"
-                        expanded_results.append(cr)
-
-            # Дополнительно: SymbolIndex для cross-file callers (если доступен)
-            if hasattr(self.indexer, "_symbol_index") and self.indexer._symbol_index:
-                si = self.indexer._symbol_index
-                for r in results[:3]:
-                    name = self._extract_symbol_name(r.get("text", ""))
-                    if name:
-                        callers = si.find_references(name)
-                        for c in callers[:5]:
-                            key = f"{c.file_path}:0"
-                            if key not in seen_keys:
-                                seen_keys.add(key)
-                                expanded_results.append(
-                                    {
-                                        "text": f"[CALLER] {c.symbol}",
-                                        "metadata": {
-                                            "file": c.file_path,
-                                            "chunk_index": 0,
-                                        },
-                                        "final_score": 0.15,
-                                        "source": "caller_of",
-                                        "expand_reason": f"calls: {name}",
-                                    }
-                                )
+                r["metadata"] = meta
 
             return expanded_results
         except Exception as e:
             logger.debug(f"Graph context expansion error: {e}")
-
-        return results
+            return results
 
     def _extract_symbol_name(self, text: str) -> Optional[str]:
         """Извлекает имя символа из текста чанка."""

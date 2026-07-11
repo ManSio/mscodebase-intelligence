@@ -115,6 +115,21 @@ def format_search_code(
         layer = _val(r.get("layer"), "—")
         snippet = r.get("text", r.get("snippet", ""))[:300]
         result += f"{i}. 📄 **{file}** (line {line}, {layer})\n"
+        # Graph context: callers
+        callers = r.get("callers")
+        if callers and isinstance(callers, list):
+            caller_str = ", ".join(
+                f"`{c['symbol']}` in {c['file']}:{c['line']}"
+                for c in callers[:2]
+            )
+            if caller_str:
+                result += f"   📞 **Called by:** {caller_str}\n"
+                if len(callers) > 2:
+                    result += f"   *...and {len(callers) - 2} more*\n"
+        # Graph context: callee count
+        callee_count = r.get("callee_count")
+        if callee_count:
+            result += f"   📞 **Calls:** {callee_count} function(s)\n"
         if snippet:
             result += f"```\n{snippet}\n```\n"
         result += "\n"
