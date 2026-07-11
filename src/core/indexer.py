@@ -866,32 +866,11 @@ class Indexer:
             if existing_hash == current_hash:
                 return False  # Файл не изменился, пропускаем
 
-            # Если файл изменился или новый — удаляем его старые чанки
-            if existing_hash is not None:
-                try:
-                    # Подсчёт старых чанков для корректного декремента кэша.
-                    # limit=10000 — аномально большие файлы встречаются редко;
-                    # пересчёт в случае превышения не критичен (кэш обновится
-                    # на следующем get_status).
-                    old_chunks = 0
-                    try:
-                        old_chunks = self.table.count_rows(
-                            filter=f"file_path = '{escaped_path}'"
-                        )
-                    except Exception:
-                        pass
-
-                    self.table.delete(f"file_path = '{escaped_path}'")
-
-                    # Декремент кэша на количество удалённых старых чанков
-                    if old_chunks > 0:
-                        self._cached_total_chunks = max(
-                            0, self._cached_total_chunks - old_chunks
-                        )
-                except Exception as del_err:
-                    logger.debug(
-                        f"delete() не нашёл запись (первичная индексация): {del_err}"
-                    )
+            # СТАРЫЙ delete ПЕРЕМЕЩЁН ниже — после compute, перед add.
+            # Раньше delete был здесь, до parser + embedder, что приводило
+            # к потере файла из индекса при таймауте между delete и add.
+            # Теперь: compute safe → delete (fast) → add (fast).
+            # INC-TIMEOUT-FIX v3.1
 
             if not content.strip():
                 return False
@@ -1043,7 +1022,23 @@ class Indexer:
                 )
 
             # Атомарная запись пачки чанков в таблицу
-            # Если таблица была сброшена извне — пересоздаём и ретраим
+            # Шаг 1: удаляем старые чанки (если файл существовал)
+            # Шаг 2: добавляем новые — всё в быстрой последовательности
+            # < 100ms, чтобы минимизировать окно неконсистентности.
+            old_chunks = 0
+            if existing_hash is not None:
+                try:
+                    old_chunks = self.table.count_rows(
+                        filter=f"file_path = '{escaped_path}'"
+                    )
+                except Exception:
+                    pass
+                try:
+                    self.table.delete(f"file_path = '{escaped_path}'")
+                except Exception as del_err:
+                    logger.debug(f"delete() не нашёл запись: {del_err}")
+
+            # Шаг 2: добавляем новые чанки
             try:
                 self.table.add(data_records)
             except Exception as add_err:
@@ -1063,9 +1058,14 @@ class Indexer:
                 else:
                     raise
 
-            # Синхронизация кэша: инкремент на количество добавленных чанков
-            # (старые чанки этого файла уже были удалены выше, поэтому чистый +N)
-            self._cached_total_chunks += len(data_records)
+            # Синхронизация кэша: вычитаем старые, прибавляем новые
+            # (delete был на шаге 1, add на шаге 2)
+            if old_chunks > 0:
+                self._cached_total_chunks = max(
+                    0, self._cached_total_chunks - old_chunks + len(data_records)
+                )
+            else:
+                self._cached_total_chunks += len(data_records)
             self._cached_unique_files.add(rel_path_str)
 
             logger.info(

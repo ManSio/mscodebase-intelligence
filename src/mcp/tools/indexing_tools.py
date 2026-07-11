@@ -39,7 +39,7 @@ class NotifyChangeTool(MCPTool):
         # как indexer.bm25_batch. Берём per-call через resolve_indexer().
         self.rate_limiter = services.resolve(SlidingWindowRateLimiter)
 
-    @error_boundary("notify_change", timeout_ms=5000)
+    @error_boundary("notify_change", timeout_ms=30000)
     async def execute(
         self,
         file_path: str,
