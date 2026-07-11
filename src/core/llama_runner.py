@@ -786,6 +786,42 @@ def get_system_summary() -> dict:
 
 # ─── Runtime ────────────────────────────────────────────────────
 
+
+import ctypes
+from ctypes import wintypes
+
+
+def _popen_with_job(popen_args, **kwargs):
+    proc = subprocess.Popen(popen_args, **kwargs)
+    if sys.platform == 'win32':
+        try:
+            kernel32 = ctypes.windll.kernel32
+            h_job = kernel32.CreateJobObjectW(None, None)
+            if h_job:
+                class _BLI(ctypes.Structure):
+                    _fields_ = [
+                        ('PerProcessUserTimeLimit', wintypes.LARGE_INTEGER),
+                        ('PerJobUserTimeLimit', wintypes.LARGE_INTEGER),
+                        ('LimitFlags', wintypes.DWORD),
+                        ('MinimumWorkingSetSize', ctypes.c_size_t),
+                        ('MaximumWorkingSetSize', ctypes.c_size_t),
+                        ('ActiveProcessLimit', wintypes.DWORD),
+                        ('Affinity', ctypes.c_size_t),
+                        ('PriorityClass', wintypes.DWORD),
+                        ('SchedulingClass', wintypes.DWORD),
+                    ]
+                limits = _BLI()
+                limits.LimitFlags = 0x2000
+                kernel32.SetInformationJobObject(h_job, 9, ctypes.byref(limits), ctypes.sizeof(limits))
+                h_process = kernel32.OpenProcess(0x00100001, False, proc.pid)
+                if h_process:
+                    kernel32.AssignProcessToJobObject(h_job, h_process)
+                    kernel32.CloseHandle(h_process)
+        except Exception:
+            pass
+    return proc
+
+
 class LlamaRunner:
     """Управляет жизненным циклом llama.cpp сервера.
 
@@ -910,7 +946,7 @@ class LlamaRunner:
         flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
         
         try:
-            self._process = subprocess.Popen(
+            self._process = _popen_with_job(
                 [
                     str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
                     "--host", self._host,
@@ -965,7 +1001,7 @@ class LlamaRunner:
         flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
 
         try:
-            self._process = subprocess.Popen(
+            self._process = _popen_with_job(
                 [
                     str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
                     "--host", self._host,
@@ -1009,7 +1045,7 @@ class LlamaRunner:
         self._ensure_port_free(self.RERANK_PORT)
 
         try:
-            self._reranker_process = subprocess.Popen(
+            self._reranker_process = _popen_with_job(
                 [
                     str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
                     "--host", self._host,
