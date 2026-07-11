@@ -84,7 +84,7 @@ isort src/
 
 ## 4. Running Tests
 
-В проекте **391+ тестов** в директории `tests/`. Запуск через `pytest` с маркерами.
+В проекте **494+ тестов** в директории `tests/`. Запуск через `pytest` с маркерами.
 
 ```powershell
 # Полный набор
@@ -130,6 +130,7 @@ pytest tests/test_searcher.py::TestSearcher::test_basic_search -v
 | `test_index_progress.py` | 11 | unit | Прогресс индексации: статусы, переходы состояний |
 | `test_indexer_project_path.py` | 6 | unit | Пути индексатора: нормализация, валидация |
 | `test_parser.py` | 4 | unit | Парсер: AST-извлечение, синтаксические ошибки |
+| `test_assignments.py` | 34 | unit | ASSIGNED_FROM: basic, conditional, scope, storage, 16 языков |
 | `test_integration.py` | 3 | integration | Интеграция с реальной LanceDB |
 | `benchmark_agentic_search.py` | 6 | benchmark | Производительность агентного поиска |
 
@@ -167,6 +168,8 @@ pytest tests/ --tb=long -v
 | **Символы** | `get_symbol_info`, `impact_analysis`, `get_repo_map`, `get_repo_rank` |
 | **Система** | `get_health_report`, `watcher_status`, `get_logs`, `generate_chunk_summaries` |
 | **Аналитика** | `get_hotspots`, `get_bug_correlation`, `get_related_files`, `graph_query` |
+| **Граф** | `query_graph` (Cypher-like), `graph_query` (Knowledge Graph) |
+| **Write** | `rename_symbol`, `move_symbol`, `safe_delete`, `replace_symbol`, `insert_before_symbol`, `insert_after_symbol` |
 | **Git** | `get_commit_history`, `get_file_history`, `get_branch_info` |
 | **Фон** | `submit_background_task`, `get_task_status` |
 
@@ -239,6 +242,10 @@ pytest tests/ -v
 | `parser.py` | Парсинг кода (Tree-sitter) |
 | `reranker.py` | Мульти-провайдерный реранкинг |
 | `symbol_index.py` | Индекс символов + Call Graph |
+| `graph.py` | PropertyGraph (SQLite WAL, 28 edge types) |
+| `graph_adapter.py` | SymbolIndexAdapter — PropertyGraph → SymbolIndex |
+| `cypher_engine.py` | Cypher→SQL для PropertyGraph |
+| `modification_guard.py` | PageRank + blast radius защита Write Tools |
 | `structural_search.py` | AST-паттерны |
 | `multi_project_searcher.py` | Cross-repo поиск |
 | `file_guard.py` | Фильтрация файлов (.gitignore) |
