@@ -215,6 +215,87 @@ class Analyzer:
             "verdict": "🟢" if chains_per_kloc > 20 else "🟡" if chains_per_kloc > 3 else "🔴",
         }
 
+    # ── Сценарий E: Conditional Flow ───────────────────
+
+    def scenario_e(self) -> Dict:
+        """Сколько ASSIGNED_FROM живут внутри if/else/try/while/for.
+
+        Анализирует каждое присваивание в AST и проверяет,
+        является ли какой-либо из его предков условным узлом.
+        """
+        parser = CodeParser()
+        total_assignments = 0
+        total_conditional = 0
+        total_time = 0.0
+        files_with = 0
+
+        # Узлы, которые считаются "условным контекстом"
+        CONDITIONAL_ANCESTORS = {
+            "if_statement",
+            "else_clause",
+            "try_statement",
+            "except_clause",
+            "while_statement",
+            "for_statement",
+            "match_statement",
+            "case_clause",
+        }
+
+        for f in self.files:
+            if f.suffix != ".py":
+                continue
+            t0 = time.monotonic()
+            try:
+                with open(f, "rb") as fp:
+                    code = fp.read()
+                if not code.strip():
+                    continue
+                ext = f.suffix.lower()
+                if ext not in parser.parsers:
+                    continue
+                tree = parser.parsers[ext].parse(code)
+                root = tree.root_node
+            except Exception:
+                continue
+
+            # Собираем assignment-узлы
+            assign_nodes = []
+
+            def walk(node, ancestors):
+                if node.type in ("assignment", "augmented_assignment"):
+                    # Проверяем, есть ли среди ancestors условный узел
+                    is_conditional = any(a in CONDITIONAL_ANCESTORS for a in ancestors)
+                    assign_nodes.append(is_conditional)
+                # Рекурсия с добавлением текущего узла в ancestors
+                new_ancestors = ancestors | {node.type}
+                for child in node.children:
+                    walk(child, new_ancestors)
+
+            walk(root, set())
+
+            elapsed = (time.monotonic() - t0) * 1000
+            total_time += elapsed
+            if assign_nodes:
+                files_with += 1
+                total_assignments += len(assign_nodes)
+                total_conditional += sum(1 for c in assign_nodes if c)
+
+        conditional_pct = (total_conditional / max(total_assignments, 1)) * 100
+        return {
+            "label": "E Conditional Flow",
+            "assignments": total_assignments,
+            "conditional": total_conditional,
+            "%conditional": round(conditional_pct, 1),
+            "ms": round(total_time, 1),
+            "ms/file": round(total_time / max(len(self.files), 1), 2),
+            "%files": round(files_with / len(self.files) * 100, 1) if self.files else 0,
+            "verdict": (
+                "🟡 HIGH" if conditional_pct > 50 else
+                "🟢 LOW" if conditional_pct < 20 else
+                "🟡 MID"
+            ),
+        }
+
     # ── Сценарий B: RETURNS_TO ─────────────────────────
 
     def scenario_b(self) -> Dict:
@@ -426,6 +507,7 @@ class MultiProjectExperiment:
             ("B — RETURNS_TO", lambda a: a.scenario_b()),
             ("C — Data Provenance", lambda a: a.scenario_c()),
             ("D — Taint S→S", lambda a: a.scenario_d()),
+            ("E — Conditional Flow", lambda a: a.scenario_e()),
         ]
 
         for sc_name, sc_fn in scenarios:
@@ -464,6 +546,11 @@ class MultiProjectExperiment:
                     logger.info(
                         f"{'':22}       avg_depth={r['avg_depth']} "
                         f"max_depth={max(r.get('chains', 0), 1)}"
+                    )
+                if "%conditional" in r:
+                    logger.info(
+                        f"{'':22}       conditional={r['conditional']}/{r['assignments']} "
+                        f"({r['%conditional']}%)"
                     )
 
 

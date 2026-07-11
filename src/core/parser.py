@@ -65,6 +65,13 @@ class CodeParser:
     def __init__(self):
         self.parsers = {}
         self._init_tree_sitter()
+        # Parse cache: исключает повторный parse когда extract_calls
+        # и extract_assignments вызываются подряд для одного файла.
+        # (indexer: parse_file→extract_calls, затем extract_assignments)
+        self._cache_path: Optional[Path] = None
+        self._cache_code: Optional[bytes] = None
+        self._cache_tree = None
+        self._cache_ext: Optional[str] = None
 
     def _init_tree_sitter(self):
         """Инициализирует Tree-sitter парсеры с поддержкой разных версий API."""
@@ -401,40 +408,57 @@ class CodeParser:
             "parent_id": parent_id,
         }
 
-    def extract_calls(self, file_path: Path) -> List[Dict]:
-        """Извлекает все вызовы функций из файла для построения графа вызовов.
+    # ── Unified AST Walker (один parse → два результата) ──
 
-        Возвращает список словарей:
-        [
-            {
-                "caller": "function_name",   # кто вызывает
-                "callee": "called_function",  # кого вызывают
-                "line": 42,                    # строка вызова
-                "file": "path/to/file.py",     # файл
-            },
-            ...
-        ]
+    def _walk_file(self, file_path: Path):
+        """Единый обход AST: один parse, один walk, два результата.
+
+        Returns:
+            (calls, assignments) — кортеж из двух списков.
         """
         ext = file_path.suffix.lower()
         if ext not in self.parsers or ext == ".md":
-            return []
+            return [], []
 
-        try:
-            with open(file_path, "rb") as f:
-                code = f.read()
-        except Exception:
-            return []
-
-        if not code.strip():
-            return []
-
-        parser = self.parsers[ext]
-        tree = parser.parse(code)
+        # Cache hit: если тот же файл, используем закешированное дерево
+        if file_path == self._cache_path:
+            code = self._cache_code
+            tree = self._cache_tree
+        else:
+            try:
+                with open(file_path, "rb") as f:
+                    code = f.read()
+            except Exception:
+                return [], []
+            if not code.strip():
+                return [], []
+            tree = self.parsers[ext].parse(code)
+            self._cache_path = file_path
+            self._cache_code = code
+            self._cache_tree = tree
+            self._cache_ext = ext
 
         calls = []
         self._extract_calls_recursive(
             tree.root_node, code, file_path, calls, current_function=""
         )
+        assignments = []
+        self._extract_assignments_recursive(
+            tree.root_node, code, file_path, assignments,
+            current_function="", assigned=None,
+        )
+        return calls, assignments
+
+    def extract_calls(self, file_path: Path) -> List[Dict]:
+        """Извлекает все вызовы функций из файла для построения графа вызовов.
+
+        Использует _walk_file — один Tree-sitter parse на файл
+        независимо от того, сколько раз вызван (кеш на 1 файл).
+
+        Returns:
+            [{"caller": ..., "callee": ..., "line": ..., "file": ...}, ...]
+        """
+        calls, _ = self._walk_file(file_path)
         return calls
 
     def _extract_calls_recursive(
@@ -523,46 +547,13 @@ class CodeParser:
     def extract_assignments(self, file_path: Path) -> List[Dict]:
         """Извлекает ASSIGNED_FROM связи между переменными внутри функций.
 
-        Использует Tree-sitter AST для отслеживания присваиваний
-        внутри тел функций (интра-процедурный анализ).
+        Использует _walk_file — один Tree-sitter parse на файл
+        независимо от того, сколько раз вызван (кеш на 1 файл).
 
         Returns:
-            [
-                {
-                    "target": "x",
-                    "source": "data",
-                    "line": 10,
-                    "file": "path/to/file.py",
-                    "function": "process",
-                },
-                ...
-            ]
+            [{"target": ..., "source": ..., "line": ..., "file": ..., "function": ...}, ...]
         """
-        ext = file_path.suffix.lower()
-        if ext not in self.parsers or ext == ".md":
-            return []
-
-        try:
-            with open(file_path, "rb") as f:
-                code = f.read()
-        except Exception:
-            return []
-
-        if not code.strip():
-            return []
-
-        parser = self.parsers[ext]
-        tree = parser.parse(code)
-
-        assignments = []
-        self._extract_assignments_recursive(
-            tree.root_node,
-            code,
-            file_path,
-            assignments,
-            current_function="",
-            assigned=None,
-        )
+        _, assignments = self._walk_file(file_path)
         return assignments
 
     def _extract_assignments_recursive(
