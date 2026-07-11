@@ -1,7 +1,7 @@
 # Project Agent Rules — MSCodeBase Hybrid Architecture (50 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 10 High-Level Intelligence Tools + 34 Low-Level Core MCP + 6 System/Diagnostic Tools.
+> Optimized for the hybrid model: 14 High-Level Intelligence Tools + 33 Low-Level Core MCP + 3 Diagnostic Tools.
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -18,6 +18,108 @@
    - Проверь, открыт ли проект: `ls <путь>`
    - Предупреди пользователя: «Сейчас MCP показывает проект X. Хотите, переключусь на Y?»
    - Используй `intel_explain_project_state` для проверки другого проекта
+
+## 0.5. WORKFLOW: ИСХОДНИКИ → РАСШИРЕНИЕ ZED
+
+### Архитектура
+
+- **Source code:** `D:\Project\MSCodeBase` — здесь ты редактируешь код.
+- **Extension dir:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — откуда MCP реально запускается.
+- **Venv:** `{EXT}\venv\Scripts\python.exe` — Python со всеми пакетами.
+- **llama binary:** `{EXT}\llama_msvc\` (CPU) или `{EXT}\llama_vulkan\` (GPU).
+- **Models:** `{EXT}\models\` — GGUF файлы.
+- **install.py** (из папки проекта) копирует файлы из исходников в расширение.
+
+### Стандартный цикл разработки
+
+Когда пользователь просит что-то изменить и проверить:
+
+```
+ШАГ 1 — Правим код в исходниках (D:\Project\MSCodeBase\src\)
+ШАГ 2 — Синхронизируем в расширение + убиваем процессы
+ШАГ 3 — Запускаем install.py для обновления
+ШАГ 4 — Запускаем MCP вручную из расширения
+ШАГ 5 — Тестируем (search_code, embed, rerank)
+ШАГ 6 — Убиваем процессы
+ШАГ 7 — Говорим пользователю: «Перезагрузи Zed»
+```
+
+### Детальный протокол
+
+**Шаг 1 — Правка кода:**
+- Редактируешь файлы в `D:\Project\MSCodeBase\src\`.
+- После `edit_file` / `write_file` → `notify_change()`.
+
+**Шаг 2 — Синхронизация + очистка:**
+```bash
+# Убить старые процессы
+taskkill //F //IM "llama-server.exe" 2>&1 | tail -1
+taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1 | tail -1
+sleep 2
+
+# Скопировать изменённые файлы в расширение
+# (если install.py запускать не надо, а надо быстро обновить один файл)
+cp /d/Project/MSCodeBase/src/core/llama_runner.py \
+   "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence/src/core/llama_runner.py"
+```
+
+**Шаг 3 — install.py (если нужно обновить бинарники/модули):**
+```bash
+cd /d/Project/MSCodeBase && python install.py
+```
+Учти: install.py интерактивный (спрашивает Y/n). Если нужно авто-подтверждение:
+```bash
+printf 's\nn\n' | python install.py   # s=skip pip, n=skip ONNX models
+```
+
+**Шаг 4 — Запуск MCP для теста:**
+```bash
+cd "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence" && \
+  nohup venv/Scripts/python.exe -m src.main > /tmp/mcp_test.log 2>&1 &
+sleep 8   # ждём пока стартанёт embedder + reranker
+```
+
+Проверить что процессы поднялись:
+```bash
+tasklist //FI "IMAGENAME eq llama-server.exe" //NH 2>&1
+/c/Windows/System32/netstat.exe -ano 2>&1 | grep -E ":8080 |:8081 " | grep LISTEN
+```
+
+**Шаг 5 — Тестирование:**
+```python
+import httpx
+# Embedder
+r = httpx.post('http://127.0.0.1:8080/v1/embeddings',
+    json={'input': ['Тест']}, timeout=10)
+print('Embed:', r.status_code, 'dim=', len(r.json()['data'][0]['embedding']))
+
+# Reranker
+r = httpx.post('http://127.0.0.1:8081/rerank',
+    json={'query': 'test', 'texts': ['a', 'b']}, timeout=10)
+print('Rerank:', r.status_code)
+
+# MCP tools (если MCP запущен — они должны отвечать)
+# Используй search_code, intel_get_runtime_status и т.д.
+```
+
+**Шаг 6 — Убить тестовые процессы:**
+```bash
+taskkill //F //IM "llama-server.exe" 2>&1
+taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
+```
+
+**Шаг 7 — Сообщить пользователю:**
+> «Готово. Перезагрузи Zed — изменения применятся.»
+
+### Важные замечания
+
+- **install.py шаг 4** (step_copy) копирует `llama_msvc/`, `llama_vulkan/`, `models/` ТОЛЬКО если их нет в `skip`.
+  Там они уже есть в `skip`, так что install.py не затрёт бинарники — только код.
+- **llama_runner.py** содержит `_start_sync()` с авто-восстановлением: если CPU DLL пропали — сам скачает
+  и пропатчит. Это страховка на случай если расширение сбросилось при перезагрузке Zed.
+- **Vulkan детекция** работает автоматически: если есть GPU с Vulkan и `llama_vulkan/` с бинарником —
+  MCP использует GPU, иначе CPU.
+- Все тесты проводи в терминале (GitBash), пути в POSIX формате (`src/core/...`).
 
 ## 1. TOOL SELECTION
 
@@ -68,7 +170,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline`.
 
-### B. Low-Level Core MCP & Search (34 tools)
+### B. Low-Level Core MCP & Search (33 tools)
 
 `search_code(mode=fast|quality|deep|context|auto)`, `cross_repo_search`,
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`,

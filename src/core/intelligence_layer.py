@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -361,6 +362,52 @@ class ProjectIntelligenceLayer:
     # БЛОК 2. Runtime Intelligence (Мониторинг системы)
     # -----------------------------------------------------------------
 
+    @staticmethod
+    def _get_process_ram(pid: int) -> int:
+        try:
+            out = subprocess.check_output(
+                f'wmic process where processid={pid} get WorkingSetSize /format:value',
+                shell=True, timeout=3
+            ).decode()
+            return int(out.split('=')[1].strip()) // (1024*1024)
+        except:
+            return 0
+
+    @staticmethod
+    def _get_process_cpu(pid: int) -> float:
+        try:
+            import psutil
+            return psutil.Process(pid).cpu_percent(interval=0.1)
+        except:
+            return 0.0
+
+    @staticmethod
+    def _find_pid(name: str, port: str) -> int:
+        """Ищет PID процесса по имени и порту (через netstat)."""
+        try:
+            out = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, timeout=3).decode()
+            for line in out.splitlines():
+                parts = line.strip().split()
+                if len(parts) >= 5 and 'LISTENING' in line:
+                    return int(parts[4])
+        except:
+            pass
+        return 0
+
+    @staticmethod
+    def _get_ram_by_port(port: str) -> int:
+        pid = ProjectIntelligenceLayer._find_pid('', port)
+        if pid:
+            return ProjectIntelligenceLayer._get_process_ram(pid)
+        return 0
+
+    @staticmethod
+    def _get_total_ram() -> int:
+        total = ProjectIntelligenceLayer._get_process_ram(os.getpid())
+        for port in ['8080', '8081']:
+            total += ProjectIntelligenceLayer._get_ram_by_port(port)
+        return total
+
     async def intel_get_runtime_status(self) -> Dict[str, Any]:
         """Агрегированный статус здоровья рантайма, провайдеров и индексов.
 
@@ -396,6 +443,7 @@ class ProjectIntelligenceLayer:
 
             # Реальный опрос провайдеров вместо хардкода
             _lm_online = False
+            _llama_online = False
             _onnx_loaded = Path(
                 self.project_path
                 / ".codebase_models"
@@ -411,12 +459,28 @@ class ProjectIntelligenceLayer:
                 if _s.connect_ex(("127.0.0.1", 1234)) == 0:
                     _lm_online = True
                 _s.close()
+                # Проверяем llama.cpp (Qwen3 на порту 8080)
+                _s2 = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+                _s2.settimeout(0.5)
+                _llama_port = int(os.getenv("LLAMA_CPP_PORT", "8080"))
+                if _s2.connect_ex(("127.0.0.1", _llama_port)) == 0:
+                    _llama_online = True
+                _s2.close()
             except:
                 pass
 
+            # Определяем активного провайдера (llama_cpp > lm_studio > onnx)
+            if _llama_online:
+                _active_provider = "llama_cpp"
+            elif _lm_online:
+                _active_provider = "lm_studio"
+            else:
+                _active_provider = "onnx"
+
             return {
-                "embedding_provider": "lm_studio" if _lm_online else "onnx",
+                "embedding_provider": _active_provider,
                 "provider_status": {
+                    "llama_cpp_at_8080": "online" if _llama_online else "offline",
                     "lm_studio_at_1234": "online" if _lm_online else "offline",
                     "ollama_at_11434": "offline",
                     "onnx_local_engine": "loaded_and_ready"
@@ -441,12 +505,21 @@ class ProjectIntelligenceLayer:
                     if isinstance(status, dict)
                     else 0,
                     "total_files": total_files,
+                    "symbol_index_count": self.symbol_index.get_stats().get("total_symbols", 0)
+                    if hasattr(self.symbol_index, "get_stats")
+                    else 0,
                     "status": "active" if total_chunks > 0 else "empty",
                 },
                 "resource_usage": {
                     "process_pid": os.getpid(),
                     "async_loop_tasks": len(asyncio.all_tasks()),
+                    "process_ram_mb": ProjectIntelligenceLayer._get_process_ram(os.getpid()),
+                    "llama_qwen_pid": ProjectIntelligenceLayer._find_pid("llama-server.exe", "8080"),
+                    "llama_qwen_ram": ProjectIntelligenceLayer._get_ram_by_port("8080"),
+                    "llama_rerank_ram": ProjectIntelligenceLayer._get_ram_by_port("8081"),
+                    "total_ram_mb": ProjectIntelligenceLayer._get_total_ram(),
                 },
+                "_debug": str(type(active_indexer)),
             }
         except Exception as e:
             logger.error(f"Ошибка получения статуса: {e}")

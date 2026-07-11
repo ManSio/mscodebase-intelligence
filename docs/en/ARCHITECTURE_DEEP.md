@@ -55,7 +55,8 @@ flowchart LR
         IX[Indexer\nLanceDB + BM25 + SymbolIndex]
     end
     subgraph "Layer 5 — Embeddings"
-        EM[RemoteEmbedder\nLM Studio / Ollama / ONNX]
+        EM[RemoteEmbedder
+llama.cpp GGUF / LM Studio / ONNX]
     end
     subgraph "Layer 4 — Parsing"
         PS[Tree-sitter AST\nParser + SymbolIndex]
@@ -140,9 +141,11 @@ flowchart TD
     Guard -->|ready| Boundary[error_boundary wraps call\nwith timeout + retry]
     
     Boundary --> Execute[Tool.execute params]
-    Execute --> LMEnd{LM Studio\navailable?}
+    Execute --> LMEnd{llama.cpp / LM Studio\navailable?}
     
-    LMEnd -->|yes| LM[RemoteEmbedder\nembeddings via LM Studio]
+    LMEnd -->|yes| LLAMA[RemoteEmbedder
+llama.cpp GGUF (GPU)]
+    LMEnd -->|no| LM[RemoteEmbedder\nembeddings via LM Studio]
     LMEnd -->|no| ONNX[RemoteEmbedder\nembeddings via ONNX Runtime]
     
     LM --> Result[Return structured result]
@@ -308,14 +311,15 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["Level 1: LM Studio\nFull pipeline\n300ms-5s"] -->|offline| L2
-    L2["Level 2: ONNX Runtime\nEmbeddings only\nCPU, slower"] -->|missing| L3
-    L3["Level 3: BM25 only\nKeyword search\nNo semantic"] -->|index missing| L4
-    L4["Level 4: Fallback\nCreate index\nFirst run"]
+    L1["Level 1: llama.cpp GGUF\nGPU embeddings + reranker\n280ms-3s"] -->|offline| L2
+    L2["Level 2: ONNX Runtime\nCPU embeddings only\nSlower"] -->|missing| L3
+    L3["Level 3: LM Studio\nExternal API\n300ms-5s"] -->|offline| L4
+    L4["Level 4: BM25 only\nKeyword search\nNo semantic"] -->|index missing| L5
+    L5["Level 5: Fallback\nCreate index\nFirst run"]
 ```
 
-**Auto-recovery:** The system continuously scans for LM Studio/Ollama availability.
-When the higher level becomes available, it switches automatically — no restart needed.
+**Auto-recovery:** The system continuously scans for llama.cpp GGUF, then LM Studio/Ollama.
+When a higher level becomes available, it switches automatically — no restart needed.
 
 ---
 

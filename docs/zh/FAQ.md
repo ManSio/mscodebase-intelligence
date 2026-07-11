@@ -35,7 +35,7 @@
 
 **可能原因：**
 - 索引为空 → 见上方
-- LM Studio未运行 → `intel_get_runtime_status()` 会显示 "offline"
+- 嵌入器未运行 → `intel_get_runtime_status()` 会显示 "offline"
 - 错误的项目 → 检查 `get_index_status()` 输出
 
 ### `get_index_status()` 显示错误项目
@@ -86,14 +86,15 @@ Windows上的Zed不支持自动重启。
 ### 搜索缓慢 (>10秒)
 
 **可能原因：**
-- LM Studio在弱机上运行（检查 `intel_get_telemetry()` → ping）
+- llama.cpp 或嵌入器未准备就绪（检查 `intel_get_runtime_status()`）
 - 索引未优化（运行 `intel_trigger_reindex()`）
 - `search_code` 中的 `limit` 过高（建议6-10）
 
 ### LLM Ping > 2000ms
 
-**解决方法：** 检查LM Studio。确保已加载嵌入模型（如 `BAAI/bge-m3`）。
-不要通过LM Studio使用LLM模型进行嵌入 — 它们速度很慢。
+**解决方法：** 检查嵌入器状态。如果使用 llama.cpp：
+`curl http://127.0.0.1:8080/health`。如果使用 LM Studio：
+确保已加载嵌入模型（如 `BAAI/bge-m3`）。
 
 ### 内存占用 > 500 MB
 

@@ -99,31 +99,51 @@ async def dense_search(query_vector: list, limit: int) -> list:
 
 ### 4. RRF Fusion (Reciprocal Rank Fusion)
 
+> ⚠️ **Важно:** Ранги считаются **раздельно** для каждого канала, начиная с 1.
+> Объединённый `enumerate(bm25 + dense)` дал бы неверные скоры.
+
 ```python
 def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
-    """Merge BM25 + dense results using RRF formula."""
+    """Merge BM25 + dense results using RRF formula.
+    
+    Ранги считаются отдельно для каждого канала (начиная с 1),
+    как того требует математически корректная RRF.
+    """
     scores = {}
-    for rank, doc in enumerate(bm25 + dense):
+    results_map = {}
+    
+    # BM25 ранги (отдельный enumerate с start=1)
+    for rank, doc in enumerate(bm25, 1):
         key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
-        if key not in scores:
-            scores[key] = {
-                "text": doc["text"],
-                "metadata": doc["metadata"],
-                "bm25_score": 0.0,
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+        if key not in results_map:
+            results_map[key] = {
+                **doc,
+                "bm25_score": 1.0 / (k + rank),
                 "dense_score": 0.0,
-                "final_score": 0.0,
             }
-        # RRF: 1 / (k + rank)
-        is_bm25 = rank < len(bm25)
-        if is_bm25:
-            scores[key]["bm25_score"] += 1.0 / (k + rank + 1)
         else:
-            scores[key]["dense_score"] += 1.0 / (k + rank + 1 - len(bm25))
+            results_map[key]["bm25_score"] = 1.0 / (k + rank)
     
-    for key in scores:
-        scores[key]["final_score"] = scores[key]["bm25_score"] + scores[key]["dense_score"]
+    # Dense ранги (отдельный enumerate с start=1)
+    for rank, doc in enumerate(dense, 1):
+        key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+        if key not in results_map:
+            results_map[key] = {
+                **doc,
+                "bm25_score": 0.0,
+                "dense_score": 1.0 / (k + rank),
+            }
+        else:
+            results_map[key]["dense_score"] = 1.0 / (k + rank)
     
-    return sorted(scores.values(), key=lambda x: x["final_score"], reverse=True)
+    for key in results_map:
+        results_map[key]["final_score"] = (
+            results_map[key]["bm25_score"] + results_map[key]["dense_score"]
+        )
+    
+    return sorted(results_map.values(), key=lambda x: x["final_score"], reverse=True)
 ```
 
 ### 5. Multi-Bucket RAG

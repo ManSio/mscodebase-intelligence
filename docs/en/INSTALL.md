@@ -7,8 +7,7 @@
 [🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
 > **MSCodebase Intelligence** — MCP server for semantic code search in Zed IDE.
-> Development hosted at [github.com/ManSio/mscodebase-intelligence](https://github.com/ManSio/mscodebase-intelligence)
-> Runs fully locally after installation.
+> Runs as a Zed extension. Development in `D:\Project\MSCodeBase`.
 
 ---
 
@@ -79,8 +78,8 @@ You should see:
 ```
 📂 <your-project-root>
 🟢 **MSCodeBase** — active
-📦 **Chunks:** `1603` | **Files:** `114` | **Symbols:** `134`
-🧠 **Embedder:** 🌐 LM Studio
+📦 **Chunks:** `2985` | **Files:** `170` | **Symbols:** `1357`
+🧠 **Embedder:** 🦙 llama.cpp
 ```
 
 If the project is detected incorrectly (showing a different project instead of yours) — close
@@ -164,7 +163,8 @@ Or manually:
 | **Tools not responding** | MCP server not running | File → Quit → reopen the project. Logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
 | **Wrong project** | SQLite selected another workspace | Close all Zed windows, open only the desired project |
 | **0 chunks** | Index is empty | `intel_trigger_reindex()` — wait 1-5 minutes |
-| **LM Studio offline** | Server not running | Start LM Studio, check port 1234 |
+| **llama.cpp offline** | Embedder not started | Check `intel_get_runtime_status()`. Logs: `extension dir` + `.codebase_indices/logs/` |
+| **LM Studio offline** | Only if using LM Studio | Start LM Studio, check port 1234 |
 | **settings.json warning** | Outdated keys (`lsp`, `mscodebase`) | Run `python install.py` — it will clean up |
 | **ModuleNotFoundError** | PYTHONPATH doesn't point to the extension | `python install.py` — fixes automatically |
 
@@ -207,3 +207,4 @@ Details: **[CONTRIBUTING.md](CONTRIBUTING.md)**
 | [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md) | Why LSP doesn't work on Windows |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development, tests, PRs |
+ts, PRs |

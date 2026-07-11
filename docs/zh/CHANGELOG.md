@@ -6,6 +6,25 @@
 
 本文件中记录了所有重要的项目变更。
 
+## [2.7.1+] — 2026-07-10/11 — Insider CRT、Vulkan、verify_index_freshness、文档同步
+
+### Added
+- 🔧 适用于 Windows Insider（版本 >= 26000）的 CRT API Set 补丁器 — 修补 PE 导入 api-ms-win-crt → ucrtbase
+- 🖥️ Vulkan GPU 支持 — 自动检测 + `LLAMA_BACKEND=vulkan` + `-ngl 99`
+- 🔄 `verify_index_freshness()` — 快速 SHA256 哈希检查（2-5 秒，代替完全重新索引的 5 分钟）
+- 📝 `docs/KNOWN_ISSUES.md` — 统一的 P0-P3 问题和技术债务登记表
+- `docs/zh/investigations/ACTIVE_WORKSPACE_RESOLUTION.md` — "已知限制"章节
+
+### Fixed
+- `server.py:329-331` — 在 `scoped_kv_store` 中添加了 SQL ORDER BY（多窗口竞态）
+- `llama_runner.py` — `-ngl` 三元修复：`else "-ngl","0"` → `else "0"`
+- `llama_runner.py` — GGUF_MODELS 中 'bge-m3' 键重复（已恢复 'qwen3-embedding'）
+- `health_report.py` — 只读检查（不再从索引中删除孤立项）
+- `install.py` — `llama_msvc`、`llama_vulkan`、`models` 已添加到跳过列表
+- 在 `SEARCH_PIPELINE.md` 中的 RRF 伪代码 — 修复了 `enumerate(bm25 + dense)` 为单独的 enumerate
+
+---
+
 ## [2.7.0] — 2026-07-09
 ### Added
 - 🦙 llama.cpp 作为主要提供商（通过 install.py 自动安装）

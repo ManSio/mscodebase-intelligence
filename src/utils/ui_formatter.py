@@ -175,17 +175,22 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         if ollama_status == "online" and provider == "ollama"
         else ("🟡" if ollama_status == "online" else "⚪")
     )
-    onnx_led = (
-        "🟢"
-        if provider == "onnx" and onnx_status == "loaded_and_ready"
-        else ("🟡" if onnx_status == "loaded_and_ready" else "⚪")
-    )
+    # Активный провайдер
+    if provider == "llama_cpp":
+        llm_led = "🟢"
+        llm_name = "llama.cpp (BGE-M3, 1024dim)"
+    elif provider == "onnx":
+        llm_led = "🟢" if onnx_status == "loaded_and_ready" else "🟡"
+        llm_name = "ONNX (bge-m3, 1024dim)"
+    else:
+        llm_led = "⚪"
+        llm_name = f"{provider} (?)"
 
     # ─── Индекс ──────────────────────────────────────
     tel = data.get("index_telemetry", {})
     chunks = tel.get("total_chunks", 0)
     files = tel.get("unique_files", 0)
-    symbols = tel.get("total_files", 0)
+    symbols = tel.get("symbol_index_count", tel.get("total_files", 0))
     idx_led = "🟢" if chunks > 1000 else ("🟡" if chunks > 0 else "⚪")
 
     # ─── Общий статус ─────────────────────────────────
@@ -196,16 +201,16 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         "{hl} **MSCodeBase** — {proj}\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "🧠 **Embedder**\n"
-        "   {ol} ONNX (bge-m3, 1024dim)\n"
-        "   {ll} LM Studio (127.0.0.1:1234)\n"
-        "   {oa} Ollama (127.0.0.1:11434)\n"
+        "   {llm} {llm_name}\n"
+                "   {ll} LM Studio (127.0.0.1:1234)\n"
+                "   {oa} Ollama (127.0.0.1:11434)\n"
         "📦 **Index**\n"
         "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
         "⚙️ **System**\n"
         "   PID: {pid}\n",
         hl=health_led,
         proj=proj,
-        ol=onnx_led,
+        llm=llm_led,
         ll=lm_led,
         oa=ollama_led,
         il=idx_led,
@@ -213,6 +218,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         files=files,
         symbols=symbols,
         pid=pid,
+        llm_name=llm_name,
     )
 
 

@@ -11,16 +11,9 @@ Design principles:
   - KeyboardInterrupt handler restores terminal state
 """
 
-import locale
-import logging
-import os
-import re
-import shutil
-import socket
-import subprocess
-import sys
-import time
+import locale, logging, os, re, shutil, socket, subprocess, sys, time
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +36,6 @@ PYTHON_EXE = (
 UNINSTALLER = ZED_EXT_DIR / "uninstall.bat"
 LM_HOST = os.environ.get("LM_STUDIO_HOST", "127.0.0.1")
 LM_PORT = int(os.environ.get("LM_STUDIO_PORT", "1234"))
-W = 72
 TOTAL_STEPS = 12
 
 # ─── i18n ────────────────────────────────────────────────────
@@ -148,6 +140,8 @@ def _detect_lang():
 
 
 # ─── ANSI + TUI ────────────────────────────────────────────
+BOX_W = 60  # фиксированная ширина, не зависит от терминала
+
 class C:
     R = "\033[0m"
     B = "\033[1m"
@@ -163,26 +157,48 @@ def _ea():
         os.system("")
 
 
+def _vis_len(s: str) -> int:
+    """Длина строки без ANSI кодов."""
+    return len(re.sub(r"\033\[[0-9;]*m", "", s))
+
+
+def _trunc(s: str, w: int) -> str:
+    """Обрезает строку до w видимых символов с учётом ANSI."""
+    clean = re.sub(r"\033\[[0-9;]*m", "", s)
+    if len(clean) <= w:
+        return s
+    # Усекаем, сохраняя ANSI коды в начале
+    ans = re.match(r"^(\033\[[0-9;]*m)*", s)
+    prefix = ans.group(0) if ans else ""
+    return prefix + clean[:w] + C.R
+
+
 def _box(title, inner, color=C.CYN):
-    w = W
+    w = BOX_W
     sys.stdout.write(
-        f"  {color}┌─ {C.B}{title}{C.R}{color} {'─' * max(0, w - 6 - len(title))}┐{C.R}\n"
+        f"  {color}┌─ {C.B}{title}{C.R}{color} {'─' * max(2, w - 4 - _vis_len(title))}┐{C.R}\n"
     )
     for col, txt in inner:
+        # Разбиваем длинный текст на строки
         clean = re.sub(r"\033\[[0-9;]*m", "", txt)
+        if len(clean) > w - 6:
+            # Обрезаем и ставим ...
+            txt = _trunc(txt, w - 9) + C.D + "..." + C.R
+            clean = re.sub(r"\033\[[0-9;]*m", "", txt)
+        pad = max(0, w - 4 - _vis_len(txt))
         sys.stdout.write(
-            f"  {color}│ {col}{txt}{' ' * max(0, w - 4 - len(clean))}{color} │{C.R}\n"
+            f"  {color}│ {col}{txt}{' ' * pad}{color} │{C.R}\n"
         )
     sys.stdout.write(f"  {color}└{'─' * (w - 2)}┘{C.R}\n")
     sys.stdout.flush()
 
 
 def _prog(pct, detail=""):
-    w = W
-    bw = w - 16
-    fill = max(0, min(bw, int(bw * pct / 100)))
-    bar = f"{C.GRN}{'█' * fill}{C.D}{'░' * (bw - fill)}{C.R}"
-    sys.stdout.write(f"\r{' ' * w}\r{bar} {pct:3d}%  {C.D}{detail}{C.R}")
+    w = BOX_W - 4
+    fill = max(0, min(w, int(w * pct / 100)))
+    bar = f"{C.GRN}{'█' * fill}{C.D}{'░' * (w - fill)}{C.R}"
+    det = _trunc(detail, 20) if detail else ""
+    sys.stdout.write(f"\r{bar} {pct:3d}%  {det}")
     sys.stdout.flush()
 
 
@@ -318,6 +334,10 @@ def step_copy(lines, lang):
         ".ruff_cache",
         ".zed",
         ".idea",
+        ".env",
+        "llama_msvc",      # управляется step_llama
+        "llama_vulkan",     # управляется step_llama
+        "models",            # управляется step_gguf
     }
     items = [i for i in PROJECT_ROOT.iterdir() if i.name not in skip]
     for idx, item in enumerate(items):
@@ -399,14 +419,37 @@ def step_pip(lines, lang):
 
 @_step(6)
 def step_llama(lines, lang):
-    """Скачивает llama-server.exe с GitHub."""
-    from src.core.llama_runner import is_installed, download_llama_binary, LLAMA_VERSION
+    """Скачивает llama-server.exe с GitHub и синхронизирует в ZED_EXT_DIR."""
+    from src.core.llama_runner import (
+        is_installed, download_llama_binary, LLAMA_VERSION,
+        _get_llama_dir, _IS_INSIDER,
+    )
 
-    if is_installed():
-        lines.append((C.GRN, f"✓ llama.cpp уже установлен"))
+    zed_llama_dir = ZED_EXT_DIR / "llama_msvc"
+    zed_bin = zed_llama_dir / "llama-server.exe"
+
+    if zed_bin.exists():
+        lines.append((C.GRN, f"✓ llama.cpp в расширении: {LLAMA_VERSION}"))
         return
 
-    lines.append((C.D, "  ⬇ Скачиваю llama-server.exe ~18 MB..."))
+    # Проверяем в проекте (куда download_llama_binary скачает)
+    if is_installed():
+        lines.append((C.D, f"  📋 Копирую llama.cpp в расширение..."))
+        try:
+            src_dir = _get_llama_dir()
+            if zed_llama_dir.exists():
+                _safe_rmtree(zed_llama_dir)
+            shutil.copytree(str(src_dir), str(zed_llama_dir))
+            lines.append((C.GRN, f"✓ llama.cpp скопирован в расширение"))
+            return
+        except Exception as e:
+            lines.append((C.YEL, f"⚠ Ошибка копирования: {e}"))
+
+    # Нет нигде — скачиваем
+    arch_label = "MSVC"
+    lines.append((C.D, f"  ⬇ Скачиваю llama-server.exe ({arch_label})..."))
+    if _IS_INSIDER:
+        lines.append((C.D, "  🔧 Insider: будет пропатчен CRT API Set → ucrtbase.dll"))
 
     def _prog_llama(pct, msg):
         _prog(pct, msg)
@@ -414,26 +457,62 @@ def step_llama(lines, lang):
     if download_llama_binary(progress_cb=_prog_llama):
         sys.stdout.write("\n")
         lines.append((C.GRN, f"✓ llama.cpp {LLAMA_VERSION}"))
+        # Копируем в расширение
+        try:
+            src_dir = _get_llama_dir()
+            if zed_llama_dir.exists():
+                _safe_rmtree(zed_llama_dir)
+            shutil.copytree(str(src_dir), str(zed_llama_dir))
+            lines.append((C.GRN, f"✓ llama.cpp скопирован в расширение"))
+        except Exception as e:
+            lines.append((C.YEL, f"⚠ Не удалось скопировать в расширение: {e}"))
     else:
         lines.append((C.YEL, f"⚠ Не удалось скачать llama.cpp (будет ONNX)"))
 
 
 @_step(7)
 def step_gguf(lines, lang):
-    """Скачивает GGUF модели (Qwen3 + bge-m3 + reranker) из Hugging Face."""
-    from src.core.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS
+    """Скачивает GGUF модели (Qwen3 + bge-m3 + reranker) и синхронизирует в ZED_EXT_DIR."""
+    from src.core.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
     all_ok = True
+    zed_models_dir = ZED_EXT_DIR / "models"
+
     for key in ["qwen3-embedding", "bge-m3", "bge-reranker-v2-m3"]:
-        if is_model_downloaded(key):
-            lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']}"))
+        # Проверяем в ZED_EXT_DIR (где MCP реально работает)
+        zed_gguf = zed_models_dir / GGUF_MODELS[key]["file"]
+        if zed_gguf.exists():
+            lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']} (расширение)"))
             continue
 
+        # Проверяем в проекте
+        if is_model_downloaded(key):
+            # Копируем в расширение
+            lines.append((C.D, f"  📋 Копирую {GGUF_MODELS[key]['file']} в расширение..."))
+            try:
+                zed_models_dir.mkdir(parents=True, exist_ok=True)
+                src_gguf = _get_models_dir() / GGUF_MODELS[key]["file"]
+                if src_gguf.exists():
+                    shutil.copy2(str(src_gguf), str(zed_gguf))
+                    lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']} (скопирован)"))
+                    continue
+            except Exception as e:
+                lines.append((C.YEL, f"  ⚠ Не удалось скопировать {key}: {e}"))
+
+        # Скачиваем
         lines.append((C.D, f"  ⬇ {GGUF_MODELS[key]['file']} (~{GGUF_MODELS[key]['size_mb']} MB)..."))
 
         if download_gguf_model(key, progress_cb=lambda p, m: _prog(p, m)):
             sys.stdout.write("\n")
             lines.append((C.GRN, f"  ✓ {GGUF_MODELS[key]['file']}"))
+            # Копируем в расширение
+            try:
+                zed_models_dir.mkdir(parents=True, exist_ok=True)
+                src_gguf = _get_models_dir() / GGUF_MODELS[key]["file"]
+                if src_gguf.exists():
+                    shutil.copy2(str(src_gguf), str(zed_gguf))
+            except Exception:
+                pass
         else:
             sys.stdout.write("\n")
             lines.append((C.YEL, f"  ⚠ {GGUF_MODELS[key]['file']} не скачан (будет ONNX)"))

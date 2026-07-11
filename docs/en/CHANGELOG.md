@@ -6,6 +6,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.1] — 2026-07-11 — SQLite кэш, статус индекса, docs синхронизация
+
+### Added
+- 🔧 CRT API Set patcher для Windows Insider (build >= 26000) — патч PE-импортов api-ms-win-crt → ucrtbase
+- 🖥️ Vulkan GPU поддержка — авто-детекция + `LLAMA_BACKEND=vulkan` + `-ngl 99`
+- 🔄 `verify_index_freshness()` — проверка SHA256 хэшей (2-5 сек вместо 5 мин полной переиндексации)
+- 💾 SQLite connection cache — `_get_sqlite_connection()` с TTL 2с (вместо 2 новых коннектов на вызов)
+- 📝 `docs/KNOWN_ISSUES.md` — единый реестр P0-P3 проблем и техдолга
+
+### Fixed
+- `server.py:329-331` — SQL ORDER BY добавлен в `scoped_kv_store` (multi-window race)
+- `indexer.py:get_status()` — `_cached_unique_files` fallback: если кэш пуст, а чанки есть — scan LanceDB
+- `ui_formatter.py:193` — `symbols` читался из `total_files` вместо `symbol_index_count`
+- `intelligence_layer.py` — добавлен `symbol_index_count` в index_telemetry
+- `llama_runner.py` — `-ngl` ternary fix: `else "-ngl","0"` → `else "0"`
+- `llama_runner.py` — дубликат ключа 'bge-m3' в GGUF_MODELS (восстановлен 'qwen3-embedding')
+- `health_report.py` — read-only check (больше не удаляет orphans из индекса)
+- `install.py` — `llama_msvc`, `llama_vulkan`, `models` добавлены в skip-лист
+- RRF pseudo-code в `SEARCH_PIPELINE.md` — исправлен `enumerate(bm25 + dense)` на раздельные enumerate
+
+### Docs
+- 28 файлов синхронизировано (12 en + 6 ru + 9 zh + 1 код)
+- AI_INSTALLATION_PROMPT.md — переписан под real workflow (install.py → test MCP → reload)
+- README.md (en/ru/zh) — очищены от бутафории: 43→50 tools, LM Studio→llama.cpp primary
+- CHANGELOG.md — исправлены битые ссылки на LSP_WONTFIX.md
+- HANDFOFF.md — 34→33 core tools
+
+---
+
 ## [2.7.0] — 2026-07-09
 ### Added
 - 🦙 llama.cpp как основной провайдер (авто-установка через install.py)
@@ -139,7 +168,7 @@ All notable changes to this project will be documented in this file.
 ---
 
 ### 📄 Документация
-- **Новый отчёт-расследование**: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
+- **Новый отчёт-расследование**: [`LSP_WONTFIX.md`](investigations/LSP_WONTFIX.md).
   Полный аудит исходников Zed 1.9.0 (`crates/project/src/lsp_store.rs`,
   `crates/extension/src/extension_manifest.rs`, `crates/settings_content/src/language.rs`)
   с цитатами кода и ссылками на raw GitHub. Вердикт: **WONTFIX на Zed 1.9.0** —

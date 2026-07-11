@@ -3,8 +3,8 @@
 [🇬🇧 English](../en/ZED_WINDOWS_QUIRKS.md) • [🇷🇺 Русский](ZED_WINDOWS_QUIRKS.md) • [🇨🇳 中文](../zh/ZED_WINDOWS_QUIRKS.md)
 
 
-> Версия: 1.1 (2026-07-05) — обновлена секция «LSP не стартует»
-> Актуально для: MSCodeBase Intelligence v2.4.4+
+> Версия: 1.2 (2026-07-11) — обновлено для llama.cpp + Vulkan
+> Актуально для: MSCodeBase Intelligence v2.7.0+
 > Подробный отчёт: `../en/investigations/LSP_WONTFIX.md`
 
 ## ⚠️ Критически важно: Restricted Mode (Безопасный режим)

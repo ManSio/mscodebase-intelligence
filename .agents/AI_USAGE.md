@@ -1,10 +1,11 @@
-# MSCodeBase Intelligence — AI Usage Guide (Hybrid MCP + LSP)
+# MSCodeBase Intelligence — AI Usage Guide
 
 > Global instruction for AI assistants working inside Zed with the MSCodeBase Intelligence extension.
 >
 > Architecture:
-> - Hybrid LSP + MCP
+> - MCP protocol (stdio)
 > - Multi-Window Registry
+> - SQLite project resolution
 > - Background Indexing
 > - Semantic Search
 > - Project Memory
@@ -535,28 +536,26 @@ Do not rewrite architecture.
 
 # 18. WINDOWS PATHS
 
-Always use native Windows paths.
+Use Windows paths for MCP tools, POSIX paths for terminal (GitBash).
 
-Correct:
-
-```
-src\\core\\indexer.py
-```
-
-Absolute:
+MCP tools:
 
 ```
-D:\\Project\\MSCodeBase\\src\\core\\indexer.py
+src\core\indexer.py
 ```
 
-Never use Linux separators.
+Terminal (GitBash):
+
+```
+src/core/indexer.py
+```
 
 Never pass environment variables as file paths.
 
 Incorrect:
 
 ```
-$ZED_WORKTREE_ROOT\\src...
+$ZED_WORKTREE_ROOT\src...
 ```
 
 Correct:
@@ -613,29 +612,29 @@ Current production architecture:
 
 ```
           Zed
-
-     +-------------+
-     |     LSP     |
-     +-------------+
-            │
-            ▼
-    LSP Project Bridge
-            │
-            ▼
-ProjectIndexerRegistry
-            │
-            ▼
-      MCP Server
-            │
-            ▼
-  Intel + Search + Memory
-            │
-            ▼
-       LanceDB Index
+             │
+     ┌───────┴───────┐
+     │               │
+  SQLite DB    LSP (Windows: WONTFIX)
+  (project      │
+   resolution)   │
+     │         Bridge
+     │           │
+     └───────┬───┘
+             │
+    ProjectIndexerRegistry
+             │
+             ▼
+       MCP Server
+             │
+             ▼
+   Intel + Search + Memory
+             │
+             ▼
+        LanceDB Index
 ```
 
-Project context always flows from LSP to MCP through the Bridge.
-
+Project context comes from SQLite (primary, Windows) or LSP Bridge (macOS/Linux).
 Never assume MCP knows the project independently.
 
 ---

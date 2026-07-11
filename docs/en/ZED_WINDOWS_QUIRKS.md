@@ -2,8 +2,8 @@
 
 [🇬🇧 English](ZED_WINDOWS_QUIRKS.md) • [🇷🇺 Русский](../ru/ZED_WINDOWS_QUIRKS.md) • [🇨🇳 中文](../zh/ZED_WINDOWS_QUIRKS.md)
 
-> Version: 1.1 (2026-07-05) — section "LSP doesn't start" updated
-> Applies to: MSCodeBase Intelligence v2.4.4+
+> Version: 1.2 (2026-07-11) — updated for llama.cpp + Vulkan
+> Applies to: MSCodeBase Intelligence v2.7.0+
 > Detailed report: `investigations/LSP_WONTFIX.md`
 
 ## ⚠️ Critical: Restricted Mode
@@ -61,7 +61,7 @@ A fallback chain is used (see below) that works without
 
 1. ~~`LSP Bridge` — LSP gets `root_uri` through the LSP protocol~~
    **DOESN'T WORK on Windows** — LSP server doesn't start (see
-   `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`).
+   [`LSP_WONTFIX.md`](investigations/LSP_WONTFIX.md)).
 2. `SQLite DB` — reads `workspaces` from Zed's database (primary working path)
 3. `PROJECT_PATH` from `.env` — manual project specification
 
@@ -256,7 +256,7 @@ This strips UNC prefixes.
 ## 🚫 LSP doesn't start in Zed 1.9.0 (WONTFIX)
 
 **Status:** ⚠️ Known limitation of Zed 1.9.0 on Windows. Detailed report
-with source code quotes: `docs/investigations/2026-07-05-lsp-zed-1.9.0.md`.
+with source code quotes: [`LSP_WONTFIX.md`](investigations/LSP_WONTFIX.md).
 
 ### What doesn't work
 

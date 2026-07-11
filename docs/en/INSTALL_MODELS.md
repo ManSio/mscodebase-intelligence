@@ -1,153 +1,109 @@
 # Install AI Models — 3 Methods
 
-> Choose your method: **Manual** (UI), **Script** (CLI), or **Agent** (AI-driven)
+> Choose your method: **Auto** (install.py), **Manual** (GGUF), or **LM Studio** (legacy)
 
 ---
 
-## METHOD 1: Manual — LM Studio GUI
+## METHOD 1: Auto — install.py (Recommended)
 
-> **Best for:** First-time users who want visual feedback
-
-1. Open **LM Studio**
-2. Go to **Search** tab
-3. Search and download these 3 models:
-
-| Model | Search Query | Size |
-|-------|-------------|------|
-| `text-embedding-bge-m3` | `bge-m3` | ~2.2 GB |
-| `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | ~1.1 GB |
-| `phi-4-mini-instruct` | `phi-4-mini-instruct` | ~2.8 GB |
-
-4. Go to **Local Server** tab → load all 3 → Start Server (port 1234)
-5. Verify: `curl http://127.0.0.1:1234/v1/models`
-
----
-
-## METHOD 2: Script — One-Click Installer
-
-> **Best for:** Users who want automation
+> **Best for:** All users. Installs llama.cpp + GGUF models automatically.
 
 ```bash
-# Quick install (recommended):
 python install.py
-
-# Manual download (both models, auto-clean = no garbage):
-cd scripts
-python download_model.py --model BAAI/bge-m3 --type embedding --auto-clean
-python download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker --auto-clean
 ```
 
 **What happens:**
-1. Downloads BAAI/bge-m3 → `.codebase_models/onnx/bge-m3/model.onnx` (438 MB)
-2. Downloads BAAI/bge-reranker-v2-m3 → `.codebase_models/onnx/bge-reranker/model.onnx` (636 MB)
-3. Auto-clean: removes HuggingFace cache, torch cache, safetensors, bin files
-4. **Final disk usage: ~1.1 GB** (only ONNX files, zero garbage)
+1. Detects Windows/macOS/Linux, AVX2/AVX512, Vulkan GPU
+2. Downloads `llama-server.exe` (or binary for your platform)
+3. Downloads **bge-m3 Q4_K_M** (417 MB) — embedding model
+4. Downloads **bge-reranker-v2-m3 Q4_K_M** (418 MB) — reranker model
+5. Starts both llama-server processes on ports 8080 (embed) + 8081 (rerank)
 
-**System behavior after installation:**
-- If LM Studio is online → uses LM Studio (faster, GPU)
-- If LM Studio is offline but ONNX models exist → uses ONNX Runtime (CPU)
-- If no models at all → degraded BM25-only mode
+**Disk usage after install:** ~900 MB (llama binary + 2 GGUF models)
+
+### System behavior
+
+| Scenario | What runs | Memory |
+|----------|-----------|--------|
+| llama.cpp installed | 2× llama-server (embed + rerank) | ~1.0 GB |
+| Vulkan GPU available | llama-server with `-ngl 99` (GPU offload) | ~1.0 GB |
+| CPU only (no Vulkan) | llama-server with `-ngl 0` (CPU only) | ~700 MB |
 
 ---
 
-## METHOD 3: Agent — AI-Powered Installation
+## METHOD 2: Manual — GGUF Download
 
-> **Best for:** Users who want to copy-paste one instruction to any AI agent
-> (Zed AI, Claude, ChatGPT, etc.) and let it handle everything
+> **Best for:** Users who want to download models manually.
 
-### 📋 Copy this entire block to your AI agent:
-
-```
-## Task: Install AI models for MSCodeBase Intelligence
-
-You are an expert Python/systems engineer. Install both ONNX models
-for the MSCodeBase code search engine at the project root.
-
-### Prerequisites
-- Python 3.10+ with pip
-- The project is already cloned and `pip install -r requirements.txt` is done
-- Working directory is the project root
-
-### Step 1: Install PyTorch + ONNX Runtime
-Run:
+**Embedding model (bge-m3, required):**
 ```bash
-pip install torch onnxruntime onnxscript transformers huggingface-hub
+# From HuggingFace
+huggingface-cli download lm-kit/bge-m3-gguf \
+  bge-m3-Q4_K_M.gguf \
+  --local-dir extensions/mscodebase-intelligence/models/
 ```
 
-### Step 2: Download embedding model (BAAI/bge-m3, 438 MB)
-Run:
+**Reranker model (bge-reranker-v2-m3, required):**
 ```bash
-python scripts/download_model.py --model BAAI/bge-m3 --type embedding --auto-clean
+huggingface-cli download lm-kit/bge-m3-reranker-v2-gguf \
+  Bge-M3-568M-Q4_K_M.gguf \
+  --local-dir extensions/mscodebase-intelligence/models/
 ```
 
-### Step 3: Download reranker model (BAAI/bge-reranker-v2-m3, 636 MB)
-Run:
+**Alternative embedding (Qwen3, for smaller RAM):**
 ```bash
-python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker --auto-clean
+huggingface-cli download coolbeev5/Qwen3-Embedding-0.6B-GGUF \
+  qwen3-embedding-0.6b-q4_k_m.gguf \
+  --local-dir extensions/mscodebase-intelligence/models/
+# Set: EMBEDDING_MODEL=qwen3-embedding in .env (346 MB RAM)
 ```
 
-### Step 4: Verify installation
-Check that both ONNX files exist:
-```bash
-ls -la .codebase_models/onnx/bge-m3/model.onnx
-ls -la .codebase_models/onnx/bge-reranker/model.onnx
-```
+---
 
-Expected output:
-```
-.../bge-m3/model.onnx    (438 MB)
-.../bge-reranker/model.onnx (636 MB)
-```
+## METHOD 3: LM Studio (Legacy)
 
-### Step 5: Clean up garbage
-```bash
-# Remove HuggingFace cache (saves ~2 GB)
-rm -rf ~/.cache/huggingface/hub
-rm -rf ~/.cache/mscodebase/hf_models
+> **Best for:** Users who already have LM Studio with models installed.
 
-# Remove PyTorch compilation cache
-rm -rf ~/.cache/torch/compilation*
+LM Studio can still be used as a fallback provider. If llama.cpp is not available,
+MSCodeBase automatically switches to LM Studio.
 
-# Remove pip cache
-pip cache purge
-```
+| Model | Size | Purpose |
+|-------|:----:|---------|
+| `text-embedding-bge-m3` | ~2.2 GB | Embedding (vector search) |
+| `bge-reranker-v2-m3` | ~1.1 GB | Reranking (cross-encoder) |
+| `phi-4-mini-instruct` | ~2.8 GB | `mode=ask` RAG generation (optional) |
 
-### Step 6: System check
-Run a quick integration test:
-```bash
-python -c "
-from src.core.config import get_config
-from src.core.remote_embedder import RemoteEmbedder
-import asyncio
-
-async def test():
-    emb = RemoteEmbedder()
-    await emb.warmup()
-    vec = await emb.embed_async('test query')
-    print(f'Embedding OK: {len(vec)} dims')
-
-asyncio.run(test())
-"
-```
-
-Expected: `Embedding OK: 1024 dims`
-
-### What NOT to do
-- Do NOT use `--purge-cache` without `--auto-clean` (leaves HF cache at ~2 GB)
-- Do NOT skip the cleanup step (leaves garbage in ~/.cache/)
-- Do NOT use the embedder without running warmup first (cold start takes ~30s on CPU)
-```
+See [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md) for detailed setup.
 
 ---
 
 ## Comparison Table
 
-| Criterion | Method 1 (Manual) | Method 2 (Script) | Method 3 (Agent) |
-|-----------|:-----------------:|:-----------------:|:----------------:|
-| Time to install | ~20 min | ~10 min | ~10 min |
-| User interaction | Full (download, load, config) | One command | None (AI does it) |
-| Garbage left | None | **Zero** (auto-clean) | **Zero** (cleanup step) |
-| Disk usage (final) | ~6 GB (GGUF) | ~1.1 GB (ONNX) | ~1.1 GB (ONNX) |
-| Requires LM Studio? | ✅ Yes | ❌ No (ONNX fallback) | ❌ No (ONNX fallback) |
-| GPU support | ✅ Yes | ❌ CPU only | ❌ CPU only |
-| mode=ask support | ✅ Yes | ❌ No | ❌ No |
+| Criterion | Method 1 (Auto) | Method 2 (Manual) | Method 3 (LM Studio) |
+|-----------|:---------------:|:-----------------:|:--------------------:|
+| **Provider** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
+| **GPU** | Vulkan (auto) | Vulkan (auto) | Any (CUDA/Metal) |
+| **RAM (total)** | **~1.0 GB** | **~1.0 GB** | ~3-6 GB |
+| **Disk** | **~900 MB** | **~900 MB** | ~6 GB |
+| **Install time** | **3 min** | 5 min | 20 min |
+| **mode=ask** | ❌ No (needs LM Studio) | ❌ No | ✅ Yes |
+
+---
+
+## Model Configuration
+
+### `.env` Variables
+
+```ini
+# Embedding model: bge-m3 (default) or qwen3-embedding
+EMBEDDING_MODEL=bge-m3
+
+# Backend: auto, msvc, or vulkan
+LLAMA_BACKEND=auto
+
+# GPU layers (0 = CPU only, 99 = all layers on GPU)
+LLAMA_NGL=99
+
+# Context size (1024 = ~500 MB RAM for Qwen3)
+LLAMA_CTX_SIZE=1024
+```

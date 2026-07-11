@@ -6,6 +6,25 @@
 
 Все значимые изменения в этом проекте будут задокументированы в этом файле.
 
+## [2.7.1+] — 2026-07-10/11 — Insider CRT, Vulkan, verify_index_freshness, docs sync
+
+### Added
+- 🔧 CRT API Set patcher для Windows Insider (build >= 26000) — патч PE-импортов
+- 🖥️ Vulkan GPU поддержка — авто-детекция + `LLAMA_BACKEND=vulkan` + `-ngl 99`
+- 🔄 `verify_index_freshness()` — проверка SHA256 хэшей (2-5 сек вместо 5 мин)
+- 📝 `docs/KNOWN_ISSUES.md` — единый реестр проблем и техдолга
+
+### Fixed
+- SQL ORDER BY в запросе scoped_kv_store (multi-window race)
+- `-ngl` ternary fix: `else "-ngl","0"` → `else "0"` в llama_runner.py
+- Дубликат ключа 'bge-m3' в GGUF_MODELS
+- Health report — read-only (больше не удаляет orphans)
+- install.py — llama_msvc, llama_vulkan, models в skip-лист
+- RRF псевдокод в SEARCH_PIPELINE.md — раздельные enumerate
+- docs: ARCHITECTURE.md (34→33 tools), HANDFOFF.md (~1600→~3000 chunks)
+
+---
+
 ## [2.7.0] — 2026-07-09
 ### Added
 - 🦙 llama.cpp как основной провайдер (авто-установка через install.py)

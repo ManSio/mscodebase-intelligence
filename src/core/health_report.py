@@ -304,28 +304,22 @@ class HealthReport:
                                 pass
                     orphans = files_in_index - files_on_disk
                     if orphans:
-                        # Удаляем мёртвые записи из индекса
-                        deleted_count = 0
-                        for orphan_path in orphans:
-                            if hasattr(self.indexer, "delete_file"):
-                                try:
-                                    if self.indexer.delete_file(orphan_path):
-                                        deleted_count += 1
-                                except Exception:
-                                    pass
+                        # Health report ТОЛЬКО ЧИТАЕТ, не удаляет.
+                        # Удаление orphan происходит только при явной переиндексации
+                        # в index_project → prune_deleted_files.
                         self.warnings.append(
                             {
                                 "component": "filesystem_sync",
                                 "message": (
                                     f"Осиротевшие файлы в индексе "
-                                    f"({len(orphans)}): удалены с диска, "
-                                    f"очищено {deleted_count} из индекса"
+                                    f"({len(orphans)}): не совпадают с диском. "
+                                    f"Запустите переиндексацию для очистки."
                                 ),
                                 "count": len(orphans),
                             }
                         )
                         self.metrics["orphan_files_count"] = len(orphans)
-                        self.metrics["orphan_files_cleaned"] = deleted_count
+                        self.metrics["orphan_files_cleaned"] = 0
             except Exception as orph_err:
                 logger.debug(f"Orphan detection skipped: {orph_err}")
 

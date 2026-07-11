@@ -1,6 +1,6 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. 50 registered tools: 14 High-Level Intel layer + 34 Low-Level Core MCP + 2 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
+description: "Tool selection rules for the Zed AI agent. 50 registered tools: 14 High-Level Intel layer + 33 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
 ---
 
 # MSCodeBase Tool Selection Rules (50 tools)
@@ -35,8 +35,13 @@ MCP Tool Execution
 | `intel_log_incident` | Запись инцидента в историю проекта |
 | `intel_add_memory_node` | Добавление записи в проектную память |
 | `intel_get_project_context` | **Единый снэпшот проекта** — state + index + bridge + health + memory + jobs |
+| `intel_explain_project_state` | Человекочитаемый диагноз состояния проекта |
+| `intel_get_hotspots` | Топ-5 файлов с баг-нагрузкой |
+| `intel_get_telemetry` | Телеметрия: per-tool метрики, ресурсы |
+| `intel_tool_health` | Панель здоровья инструментов |
+| `intel_execution_timeline` | Лента последних действий системы |
 
-## Low-Level Core MCP (34 tools)
+## Low-Level Core MCP (33 tools)
 
 ### Search & Index
 | Tool | Purpose |
@@ -82,13 +87,12 @@ MCP Tool Execution
 | `verify_action(action_type)` | Action verification |
 | `generate_chunk_summaries(project_root)` | LLM summaries for chunks |
 
-### Diagnostics
+### Diagnostics (3 tools)
 | Tool | Purpose |
 |---|---|
-| `get_health_report(project_root)` | Full system health |
-| `get_logs(project_root)` | Recent errors from logs |
-| `run_health_check()` | Health check |
 | `debug_runtime_passport()` | **Process passport** — RUN_ID, PID, build, env, guard result |
+| `get_runtime_counters()` | Runtime counters: calls, blocks, warnings |
+| `intel_execution_timeline(limit)` | Recent action timeline with confidence |
 
 ## Project State Machine
 

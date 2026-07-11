@@ -9,16 +9,20 @@ MSCodeBase LSP Server - проактивный индексатор через L
 2. didChangeWatchedFiles - встроенный в Zed Rust-watcher заметил изменения на диске
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
-import os
 import sys
 import threading
-import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 
+if TYPE_CHECKING:
+    from src.core.di_container import ServiceCollection
+
+_services_per_workspace: dict[str, ServiceCollection] = {}
 logging.basicConfig(
     stream=sys.stderr,
     level=logging.INFO,
@@ -767,7 +771,7 @@ def main():
 
     logger.info("=" * 60)
     logger.info("MSCodeBase LSP Server запущен")
-    logger.info(f"Версия: 1.0.0")
+    logger.info("Версия: 1.0.0")
     logger.info(f"Python: {sys.version.split()[0]}")
     logger.info(f"Рабочая директория: {Path.cwd()}")
     logger.info(f"Поддерживаемые расширения: {len(SUPPORTED_EXTENSIONS)} типов")

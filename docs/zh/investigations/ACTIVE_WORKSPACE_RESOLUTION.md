@@ -156,6 +156,27 @@ WHERE workspace_id = <active_workspace_id>;
 
 ---
 
+## 已知限制
+
+### 1. 多窗口时的 ORDER BY（已于 2026-07-11 修复）
+
+**问题：** 查询 `SELECT key, value FROM scoped_kv_store WHERE namespace = 'multi_workspace_state'`
+没有 `ORDER BY`。如果打开了多个 Zed 窗口，返回行的顺序不保证 —
+可能选择了错误的 workspace。
+
+**修复：** 添加了 `ORDER BY rowid DESC` — SQLite 按创建顺序写入行，
+最后一条记录 = 最后一次更改。
+
+### 2. SQLite 连接未缓存
+
+每次调用 `resolve_project_root()` 都会创建新的 `sqlite3.connect()`。
+对于单个窗口，这大约有 ~2-5ms 的开销。对于生产环境，可以添加带 TTL 的缓存。
+
+### 3. 多窗口竞态（部分）
+
+当有两个物理 Zed 窗口时，父 PID 的启发式方法未实现。
+`ORDER BY rowid DESC` 最小化了问题，但未完全解决。
+
 ## 结论
 
 问题已通过从 SQLite 读取 `scoped_kv_store.multi_workspace_state.active_workspace_id` 解决。这是一个可靠的机制，内置于 Zed 本身，不需要任何环境变量、external_dir 或 LSP。在 Windows、macOS 和 Linux 上均有效。

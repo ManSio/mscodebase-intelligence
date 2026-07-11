@@ -4,8 +4,8 @@
 
 [🇬🇧 English](../en/ARCHITECTURE.md) • [🇷🇺 Русский](ARCHITECTURE.md) • [🇨🇳 中文](../zh/ARCHITECTURE.md)
 
-> **Версия:** 2.4.4  
-> **Последнее обновление:** 2026-07-05  
+> **Версия:** 2.7.0  
+> **Последнее обновление:** 2026-07-11  
 > **Архитектура:** Clean Architecture с DI Container + Multi-Window Registry
 
 ---
@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (34 core + 14 intel = 50 всего)](#4-tool-layer)
+4. [Слой инструментов (33 core + 14 intel + 3 diagnostic = 50 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Ограничение скорости и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минимальные)       │
 │  Слой 2: mcp/server.py          (DI маршрутизация, регистрация)  │
-│  Слой 3: mcp/tools/*.py         (34 class-based инструмента)     │
+│  Слой 3: mcp/tools/*.py         (33 class-based инструмента)     │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)           │
 └──────────────────────────────────────────────────────────────────┘
 ```

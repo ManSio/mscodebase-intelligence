@@ -9,6 +9,8 @@
 - core/* — чистая бизнес-логика без MCP-зависимостей
 """
 
+from __future__ import annotations
+
 import asyncio
 import atexit
 import json
@@ -19,7 +21,11 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import sqlite3
+    from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger("mscodebase_server")
 
@@ -27,7 +33,6 @@ logger = logging.getLogger("mscodebase_server")
 # Process Passport — уникальный ID запуска для диагностики
 # ══════════════════════════════════════════════════════════
 
-import uuid as _uuid
 
 from src.core.passport import (
     BUILD_ID as _BUILD_ID,
@@ -203,6 +208,55 @@ else:
 _env_project_root_cache: Optional[Path] = None
 _env_cache_lock = threading.Lock()
 
+# SQLite connection cache — открываем соединение раз в 2 секунды, а не на каждый вызов.
+# Zed пишет workspace_id при переключении проекта, 2с TTL — достаточная свежесть.
+_sqlite_conn: Optional[sqlite3.Connection] = None
+_sqlite_conn_time: float = 0
+_sqlite_conn_lock = threading.Lock()
+_SQLITE_CACHE_TTL = 2.0
+
+
+def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
+    """Возвращает кэшированное SQLite-соединение или открывает новое.
+    TTL = _SQLITE_CACHE_TTL секунд, потокобезопасно."""
+    import sqlite3
+    import time
+
+    global _sqlite_conn, _sqlite_conn_time
+    now = time.time()
+    with _sqlite_conn_lock:
+        if _sqlite_conn is not None and now - _sqlite_conn_time < _SQLITE_CACHE_TTL:
+            try:
+                _sqlite_conn.execute("SELECT 1")  # проверка живости
+                return _sqlite_conn
+            except Exception:
+                _sqlite_conn = None  # умерло, создадим новое
+        
+        # открываем новое
+        _db_path = get_zed_db_path()
+        if not _db_path.exists():
+            return None
+        try:
+            _sqlite_conn = sqlite3.connect(str(_db_path), timeout=2.0)
+            _sqlite_conn_time = now
+            return _sqlite_conn
+        except Exception:
+            _sqlite_conn = None
+            return None
+
+
+def _close_sqlite_connection():
+    """Принудительно закрывает кэшированное SQLite-соединение."""
+    global _sqlite_conn
+    with _sqlite_conn_lock:
+        if _sqlite_conn is not None:
+            try:
+                _sqlite_conn.close()
+            except Exception:
+                pass
+            _sqlite_conn = None
+
+
 
 def _reject_self_index_target(p: Path, *, source: str) -> bool:
     """Возвращает True если path — это self-indexing target (отклонить).
@@ -314,21 +368,18 @@ def resolve_project_root(provided: str = "") -> Path:
     if provided and provided.strip():
         return Path(provided).resolve()
 
-    # ─── 1. SQLite: multi_workspace_state.active_workspace_id (НАДЁЖНО!) ───
-    # Zed пишет сюда активный workspace при каждом переключении проекта.
-    # Единственный механизм, который работает на Windows (не требует env/LSP).
+    # ─── 1. SQLite: multi_workspace_state.active_workspace_id ───
+    # Используем кэшированное соединение (TTL 2с, см. _get_sqlite_connection).
     try:
-        _db_path = get_zed_db_path()
-        if _db_path.exists():
+        _conn = _get_sqlite_connection()
+        if _conn is not None:
             import json as _json
-            import sqlite3
 
-            _conn = sqlite3.connect(str(_db_path), timeout=2.0)
             _cur = _conn.cursor()
-            # Ищем multi_workspace_state для любого window_id
             _cur.execute(
                 "SELECT key, value FROM scoped_kv_store "
-                "WHERE namespace = 'multi_workspace_state'"
+                "WHERE namespace = 'multi_workspace_state' "
+                "ORDER BY rowid DESC"
             )
             for _row in _cur.fetchall():
                 try:
@@ -345,14 +396,12 @@ def resolve_project_root(provided: str = "") -> Path:
                             if _path.exists() and not _reject_self_index_target(
                                 _path, source="ACTIVE_WORKSPACE"
                             ):
-                                _conn.close()
                                 logger.debug(
                                     f"resolve_project_root: active_workspace_id={_active_id} → {_path}"
                                 )
                                 return _path.resolve()
                 except Exception:
                     continue
-            _conn.close()
     except Exception as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 
@@ -367,22 +416,15 @@ def resolve_project_root(provided: str = "") -> Path:
     except Exception:
         pass
 
-    # Fallback: Zed SQLite DB (не зависит от LSP!)
-    # Multi-window: читаем ВСЕ воркспейсы, фильтруем self-indexing,
-    # выбираем самый свежий с .git (реальный проект).
+    # Fallback: Zed SQLite DB (через то же кэшированное соединение)
     try:
-        _zed_db_path = get_zed_db_path()
-        if _zed_db_path.exists():
-            import sqlite3
-
-            _conn = sqlite3.connect(str(_zed_db_path), timeout=2.0)
-            _cur = _conn.cursor()
-            # Читаем ВСЕ workspace paths, сортируем по свежести
-            _cur.execute(
+        _conn2 = _get_sqlite_connection()
+        if _conn2 is not None:
+            _cur2 = _conn2.cursor()
+            _cur2.execute(
                 "SELECT paths, timestamp FROM workspaces WHERE paths != '' AND paths IS NOT NULL ORDER BY timestamp DESC"
             )
-            _all_rows = _cur.fetchall()
-            _conn.close()
+            _all_rows = _cur2.fetchall()
             _candidates = []
             for _row in _all_rows:
                 if not _row[0]:
@@ -394,11 +436,9 @@ def resolve_project_root(provided: str = "") -> Path:
                     _path = Path(_p)
                     if _reject_self_index_target(_path, source="ZED_DB"):
                         continue
-                    # Предпочитаем проекты с .git (реальные, не临时ные)
                     _score = 2 if (_path / ".git").exists() else 1
                     _candidates.append((_score, _row[1] or "", _path))
             if _candidates:
-                # Сортируем: score(выше) → timestamp(новее)
                 _candidates.sort(key=lambda x: (x[0], x[1] or ""), reverse=True)
                 _best = _candidates[0][2]
                 logger.debug(
@@ -471,7 +511,7 @@ _services_cache: Optional[Any] = None  # для debug_runtime_passport
 # ══════════════════════════════════════════════════════════
 
 
-def create_mcp_server() -> "FastMCP":
+def create_mcp_server() -> FastMCP:
     """Создаёт и настраивает MCP-сервер с DI-контейнером.
 
     Шаги:
@@ -510,8 +550,8 @@ def create_mcp_server() -> "FastMCP":
             f"   Error: {_lsp_err}"
         )
         logger.critical(
-            f"   Fix: reinstall extension (install.py) or restart Zed.\n"
-            f"   Until fixed: extension will self-index instead of your project."
+            "   Fix: reinstall extension (install.py) or restart Zed.\n"
+            "   Until fixed: extension will self-index instead of your project."
         )
     except Exception:
         pass
@@ -769,12 +809,7 @@ def _register_extension_handlers(mcp, services):
     """
     try:
         server = mcp._mcp_server
-        from src.mcp.server import resolve_project_root as _rpr
         from src.mcp.tools.base import resolve_indexer_for_request
-
-        # Multi-window: default project_root для дашборда (per-call tools
-        # резолвят свой).
-        default_project_root = _rpr()
 
         if not (
             hasattr(server, "request_handlers")
@@ -816,7 +851,7 @@ def _register_extension_handlers(mcp, services):
 - **Files:** {files}
 - **DB:** `{db_path}`
 
-## 📁 Project: {project_root.name}
+## 📁 Project: {idx.project_path.name}
 - [**src/core/**](zed://file/{root}/src/core/)
 - [**tests/**](zed://file/{root}/tests/)
 
@@ -897,7 +932,6 @@ def _trigger_auto_index_if_empty(services):
     import asyncio
 
     try:
-        from src.mcp.server import resolve_project_root as _rpr
         from src.mcp.tools.base import resolve_indexer_for_request
 
         try:
@@ -949,7 +983,28 @@ def _trigger_auto_index_if_empty(services):
             except RuntimeError:
                 pass
         else:
-            logger.info(f"Индекс не пуст ({status.get('total_chunks', 0)} чанков)")
+            chunks = status.get('total_chunks', 0)
+            logger.info(f"Индекс не пуст ({chunks} чанков) — проверяю свежесть...")
+
+            async def _auto_verify():
+                try:
+                    target = indexer.project_path
+                    reindexed = await asyncio.to_thread(
+                        indexer.verify_index_freshness, target
+                    )
+                    if reindexed > 0:
+                        logger.info(f"✅ Переиндексировано {reindexed} изменённых файлов")
+                    else:
+                        logger.info("✅ Индекс свежий, изменений нет")
+                except Exception as e:
+                    logger.warning(f"verify_index_freshness не удалась: {e}")
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(_auto_verify())
+            except RuntimeError:
+                pass
     except Exception as e:
         logger.debug(f"Авто-индексация: {e}")
 
@@ -1107,7 +1162,13 @@ def _register_all_tools(mcp, services):
     except Exception as e:
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 
-    logger.info(f"✅ Все инструменты зарегистрированы ({len(tool_classes)}+10)")
+    total_core = len(tool_classes)
+    total_intel = 14
+    total_diag = 3
+    logger.info(
+        f"✅ Все инструменты зарегистрированы "
+        f"({total_core} core + {total_intel} intel + {total_diag} diagnostic = {total_core + total_intel + total_diag} total)"
+    )
 
     # ─── Debug tool: passport ────────────────────
     # Возвращает JSON с RUN_ID, PID, env summary. Полезно для отладки
@@ -1151,7 +1212,6 @@ def _register_all_tools(mcp, services):
         _project_state: str = "UNKNOWN"
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
-            from src.core.project_indexer_registry import ProjectState
 
             if _services_cache is not None:
                 _reg = _services_cache.resolve(PIRKey)
@@ -1262,40 +1322,40 @@ def _register_all_tools(mcp, services):
 
         lines = [
             f"📂 Project: {target}",
-            f"",
+            "",
             f"=== State: {verdict.state} ===",
-            f"",
+            "",
         ]
 
         if verdict.ok:
-            lines.append(f"✅ Ready to execute")
+            lines.append("✅ Ready to execute")
         else:
             lines.append(f"❌ Cannot execute: {verdict.reason}")
             lines.append(f"   {verdict.detail}")
 
         lines.append("")
-        lines.append(f"── Index ──")
+        lines.append("── Index ──")
         lines.append(f"  Chunks: {snap.index_chunks or 0}")
         lines.append(f"  Files:  {snap.index_files or 0}")
         lines.append(f"  Symbols: {snap.index_symbols or 0}")
         lines.append(f"  Embedder: {snap.index_embedder or 'N/A'}")
 
-        lines.append(f"")
-        lines.append(f"── Bridge ──")
+        lines.append("")
+        lines.append("── Bridge ──")
         if snap.bridge_synced:
             lines.append(f"  ✅ LSP synchronized: {snap.bridge_path}")
         else:
-            lines.append(f"  ❌ LSP not synced")
+            lines.append("  ❌ LSP not synced")
 
-        lines.append(f"")
-        lines.append(f"── Runtime ──")
+        lines.append("")
+        lines.append("── Runtime ──")
         lines.append(f"  PID: {snap.runtime_pid or 'N/A'}")
         lines.append(f"  Uptime: {snap.runtime_uptime or 0}s")
 
-        lines.append(f"")
-        lines.append(f"── Health ──")
+        lines.append("")
+        lines.append("── Health ──")
         if snap.health_ok:
-            lines.append(f"  ✅ OK")
+            lines.append("  ✅ OK")
         if snap.health_warnings:
             for w in snap.health_warnings[:5]:
                 lines.append(f"  ⚠️  {w}")
@@ -1303,28 +1363,28 @@ def _register_all_tools(mcp, services):
             for e in snap.health_errors[:5]:
                 lines.append(f"  ❌ {e}")
 
-        lines.append(f"")
-        lines.append(f"── Memory ──")
+        lines.append("")
+        lines.append("── Memory ──")
         lines.append(f"  Incidents: {snap.memory_incidents}")
         lines.append(f"  ADRs: {snap.memory_adrs}")
         lines.append(f"  Known issues: {snap.memory_known_issues}")
 
         if verdict.warnings:
-            lines.append(f"")
-            lines.append(f"── Warnings ──")
+            lines.append("")
+            lines.append("── Warnings ──")
             for w in verdict.warnings:
                 lines.append(f"  ⚠️  {w}")
 
         if verdict.requires_reindex:
-            lines.append(f"")
-            lines.append(f"── Action Required ──")
+            lines.append("")
+            lines.append("── Action Required ──")
             lines.append(
-                f"  Run intel_trigger_reindex() then check status via intel_get_job_status()"
+                "  Run intel_trigger_reindex() then check status via intel_get_job_status()"
             )
 
         if not verdict.requires_bridge_sync and snap.bridge_path:
-            lines.append(f"")
-            lines.append(f"── Bridge path ──")
+            lines.append("")
+            lines.append("── Bridge path ──")
             lines.append(f"  LSP workspace: {snap.bridge_path}")
 
         return chr(10).join(lines)
@@ -1509,7 +1569,6 @@ def _register_all_tools(mcp, services):
 
 def _register_system_prompt(mcp):
     """Регистрирует mscodebase-rules prompt для AI-агента."""
-    from src.core.config import get_config
 
     mcp_prompt_text = """
 # MSCODEBASE INTELLIGENCE CORE SYSTEM RULES
@@ -1760,7 +1819,7 @@ def _warmup_embedder():
                 if ok:
                     logger.info(f"✅ llama.cpp ({model}) готов")
                 else:
-                    logger.warning(f"⚠️ llama.cpp не стартовал, будет ONNX fallback")
+                    logger.warning("⚠️ llama.cpp не стартовал, будет ONNX fallback")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка запуска llama.cpp: {e}")
     
@@ -1798,11 +1857,44 @@ def run_server(original_stdout=None):
 
             atexit.register(_di_shutdown)
 
-            # Прогрев эмбеддера (убивает cold start LM Studio)
+            # ═══ Синхронный запуск llama.cpp с ожиданием готовности ═══
+            # _warmup_embedder() уже был вызван в create_mcp_server().
+            # Здесь запускаем ТОЛЬКО если он ещё не стартовал.
             try:
-                _warmup_embedder()
-            except Exception:
-                pass
+                from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
+                import time as _time
+                import httpx
+                runner = get_global_runner()
+                if is_compatible() and not runner.is_alive():
+                    model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+                    logger.info(f"🦙 Синхронный запуск llama.cpp ({model})...")
+                    ok = runner._start_sync(model)
+                    if ok:
+                        for _ in range(40):
+                            try:
+                                r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
+                                if r.status_code == 200:
+                                    from src.core.remote_embedder import RemoteEmbedder
+                                    embedder = _services_cache.resolve(RemoteEmbedder)
+                                    with embedder._mode_lock:
+                                        embedder.mode = "llama_cpp"
+                                        embedder._preferred_mode = "llama_cpp"
+                                    logger.info("🦙 llama.cpp готов — режим принудительно llama_cpp")
+                                    try:
+                                        import asyncio as _aio
+                                        _aio.run(runner.start_reranker())
+                                    except Exception:
+                                        pass
+                                    break
+                            except Exception:
+                                pass
+                            _time.sleep(0.5)
+                        else:
+                            logger.warning("⚠️ llama.cpp не ответил за 20с")
+                    else:
+                        logger.warning("⚠️ llama.cpp не запустился")
+            except Exception as _llama_err:
+                logger.warning(f"⚠️ Синхронный запуск llama: {_llama_err}")
 
             if original_stdout:
                 sys.stdout = original_stdout

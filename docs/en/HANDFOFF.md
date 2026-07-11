@@ -13,12 +13,12 @@
 ## 🎯 What Is This Project
 
 **MSCodeBase Intelligence** — an MCP server for semantic code search in Zed IDE.
-Runs fully locally: LanceDB (vector index) + LM Studio (embeddings).
+Runs fully locally: LanceDB (vector index) + llama.cpp GGUF (embeddings/reranker) + ONNX (fallback).
 
 **Key numbers:**
-- 50 MCP tools (34 core + 14 intel)
+- 50 MCP tools (33 core + 14 intel + 3 diagnostic)
 - 10 tool files, 15 services in the DI container
-- Index: ~1600 chunks, ~115 files, ~180 symbols
+- Index: ~3000 chunks, ~170 files, ~1350 symbols
 
 ---
 

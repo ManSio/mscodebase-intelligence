@@ -1,14 +1,32 @@
 # LM Studio Setup Guide for MSCodeBase Intelligence
 
-> **Last updated:** 2026-07-07 | **Applies to:** v2.7.0+
+> **Last updated:** 2026-07-11 | **Applies to:** v2.7.0+
 
-## Why LM Studio?
+## ⚠️ LM Studio is now Secondary
 
-MSCodeBase uses **local AI models** for semantic code search. LM Studio provides
-an OpenAI-compatible API that runs **fully offline** on your machine — no cloud,
-no data egress, no API costs.
+**Since v2.7.0, the primary embedding provider is `llama.cpp` with GGUF models.**
+LM Studio is still supported as a **fallback provider** and is required for:
+- **`mode=ask`** (RAG generation via phi-4) — llama.cpp doesn't support chat
+- Users who prefer LM Studio's GUI for model management
 
-### Required Models
+**Default provider priority:**
+```
+1. llama.cpp GGUF (bge-m3 embed + bge-reranker, Vulkan GPU)
+2. ONNX Runtime (CPU fallback)
+3. LM Studio (external API, port 1234)
+4. BM25 only (keyword search)
+```
+
+See [`INSTALL_MODELS.md`](INSTALL_MODELS.md) for the primary installation method.
+
+---
+
+## Why LM Studio (Legacy)?
+
+MSCodeBase can use **local AI models** via LM Studio's OpenAI-compatible API.
+It runs **fully offline** on your machine — no cloud, no data egress, no API costs.
+
+### Models for LM Studio
 
 | Model | Type | Purpose | Required | Size |
 |-------|------|---------|----------|------|
@@ -16,34 +34,18 @@ no data egress, no API costs.
 | `bge-reranker-v2-m3` | Cross-encoder | Result reranking | **YES** | ~1.1 GB |
 | `phi-4-mini-instruct` | LLM (3.8B) | `mode=ask` RAG generation | Optional | ~2.8 GB |
 
-### Fallback: ONNX Runtime (No GPU Required)
+### Alternative: llama.cpp GGUF (Recommended)
 
-If LM Studio is not available, MSCodeBase automatically falls back to
-**ONNX Runtime** with two local ONNX models:
+| Model | Size | RAM | Purpose |
+|-------|:----:|:---:|---------|
+| bge-m3 Q4_K_M | **417 MB** | 676 MB | Embedding (vector search) |
+| bge-reranker-v2-m3 Q4_K_M | **418 MB** | 684 MB | Reranking (cross-encoder) |
 
-| Model | Size | Path | Purpose |
-|-------|:----:|------|---------|
-| BAAI/bge-m3 | **438 MB** | `.codebase_models/onnx/bge-m3/model.onnx` | Embedding (vector search) |
-| BAAI/bge-reranker-v2-m3 | **636 MB** | `.codebase_models/onnx/bge-reranker/model.onnx` | Reranking (cross-encoder) |
-
-```bash
-# Install both models via the installer (Step 6):
-python install.py
-# When prompted, choose Yes to download ONNX models
-
-# Or manually:
-pip install onnxruntime transformers torch huggingface-hub
-python scripts/download_model.py --model BAAI/bge-m3 --type embedding
-python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker
-```
-
-**System behaviour:**
-- If **LM Studio is online** → uses LM Studio API for all models (faster, GPU)
-- If **LM Studio is offline** but **ONNX models exist** → uses:
-  - ONNX Runtime for embedding (bge-m3, vector search)
-  - ONNX Runtime for reranking (bge-reranker-v2-m3, cross-encoder scores)
-  - `mode=ask` is unavailable (requires phi-4 in LM Studio)
-- If **neither available** → degraded mode: only BM25 (keyword) search
+**Advantages over LM Studio:**
+- 5× smaller RAM (~1.0 GB total vs ~6 GB)
+- No external app needed (runs as subprocess)
+- Auto-installed by `install.py`
+- Vulkan GPU support
 
 ---
 

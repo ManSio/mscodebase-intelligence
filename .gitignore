@@ -91,6 +91,16 @@ FIX_SUMMARY.md
 ANALYSIS_REPORT.md
 TESTING.md
 
+# Stress / benchmark artifacts (root level)
+stress_*.py
+stress_*.log
+test_*.py
+tmp_*.py
+reindex_clean.py
+ram_monitor.log
+llama_*_stderr.log
+Agent Panel
+
 # Static analysis cache
 .ruff_cache/
 .mypy_cache/
@@ -110,3 +120,5 @@ codebase_chunks.lance/
 .index_guard.json
 target/
 .mscodebase/telemetry/
+llama_msvc/
+.mscodebase/

@@ -66,5 +66,15 @@
   "⚠️ Предупреждения": "⚠️ 警告",
   "• No warnings\n": "• 无警告\n",
   "⏱ Производительность": "⏱ 性能",
-  "• **Wait:** {time:.1f}s\n": "• **等待:** {time:.1f}秒\n"
+  "• **Wait:** {time:.1f}s\n": "• **等待:** {time:.1f}秒\n",
+  "❌ LLM unavailable. Use mode=quality.": "❌ LLM 不可用。请使用 mode=quality。",
+  "❌ LLM returned empty response.": "❌ LLM 返回空响应。",
+  "❌ LLM timed out. Try mode=quality.": "❌ LLM 超时。请尝试 mode=quality。",
+  "📊 State": "📊 状态",
+  "🚫 Blocks": "🚫 阻塞",
+  "⚠️ Warnings": "⚠️ 警告",
+  "⏱ Performance": "⏱ 性能",
+  "\n📁 **Other projects:**\n": "\n📁 **其他项目:**\n",
+  "\n📊 **Tools:**\n": "\n📊 **工具:**\n",
+  "\n📅 **History (snapshots):**\n": "\n📅 **历史 (快照):**\n"
 }

@@ -66,5 +66,15 @@
   "⚠️ Предупреждения": "⚠️ Warnings",
   "• No warnings\n": "• No warnings\n",
   "⏱ Производительность": "⏱ Performance",
-  "• **Wait:** {time:.1f}s\n": "• **Wait:** {time:.1f}s\n"
+  "• **Wait:** {time:.1f}s\n": "• **Wait:** {time:.1f}s\n",
+  "❌ LLM unavailable. Use mode=quality.": "❌ LLM unavailable. Use mode=quality.",
+  "❌ LLM returned empty response.": "❌ LLM returned empty response.",
+  "❌ LLM timed out. Try mode=quality.": "❌ LLM timed out. Try mode=quality.",
+  "📊 State": "📊 State",
+  "🚫 Blocks": "🚫 Blocks",
+  "⚠️ Warnings": "⚠️ Warnings",
+  "⏱ Performance": "⏱ Performance",
+  "\n📁 **Other projects:**\n": "\n📁 **Other projects:**\n",
+  "\n📊 **Tools:**\n": "\n📊 **Tools:**\n",
+  "\n📅 **History (snapshots):**\n": "\n📅 **History (snapshots):**\n"
 }

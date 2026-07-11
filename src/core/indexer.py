@@ -473,13 +473,11 @@ class Indexer:
         return hasher.hexdigest()
 
     def get_status(self) -> Dict[str, Any]:
-        """Возвращает статистику базы данных (O(1), без to_pandas).
+        """Возвращает статистику базы данных.
 
         Использует кэш количества чанков (_cached_total_chunks) и
         уникальных файлов (_cached_unique_files) для мгновенного
-        ответа. Без сканирования таблицы.
-
-        Для полной статистики с to_pandas() — используйте get_full_stats().
+        ответа. Если кэш пуст — делает быстрый scan LanceDB.
         """
         try:
             total_chunks = self._cached_total_chunks
@@ -493,6 +491,18 @@ class Indexer:
             unique_files = getattr(self, "_cached_unique_files", 0)
             if isinstance(unique_files, set):
                 unique_files = len(unique_files)
+
+            # Если кэш пуст, но чанки есть — делаем быстрый запрос
+            if unique_files == 0 and total_chunks > 0 and self.table is not None:
+                try:
+                    import pyarrow.compute as pc
+
+                    df = self.table.to_pandas(columns=["file_path"])
+                    unique_files = df["file_path"].nunique()
+                    # Обновляем кэш
+                    self._cached_unique_files = set(df["file_path"].unique())
+                except Exception as e:
+                    logger.debug(f"get_status: fallback scan failed: {e}")
 
             return {
                 "total_chunks": total_chunks,
@@ -1125,6 +1135,74 @@ class Indexer:
             logger.debug(f"delete_file() не нашёл запись {rel_path_str}: {e}")
             return False
 
+    def verify_index_freshness(self, project_path: Path) -> int:
+        """Быстрая проверка: переиндексирует только файлы с изменившимся hash.
+
+        В отличие от index_project:
+        - Не удаляет orphan файлы (только предупреждает)
+        - Не перестраивает BM25
+        - Не создаёт IVF_PQ индекс
+        - Работает за 2-5 секунд вместо 5 минут
+
+        Returns: количество переиндексированных файлов.
+        """
+        project_path = Path(project_path).resolve()
+        if not project_path.exists():
+            return 0
+
+        if self.table is None:
+            return 0
+
+        try:
+            # Получаем все file_hash из индекса
+            df = self.table.to_pandas(columns=["file_path", "file_hash"])
+        except Exception:
+            return 0
+
+        if df.empty:
+            return 0
+
+        indexed_hashes = dict(zip(df["file_path"], df["file_hash"]))
+
+        reindexed = 0
+        walk_root = str(project_path.resolve())
+        for root, dirs, files in os.walk(walk_root):
+            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
+            for file_name in files:
+                full_path = Path(root) / file_name
+                if self.file_guard.should_skip_file(full_path):
+                    continue
+                try:
+                    rel = str(full_path.relative_to(project_path)).replace(
+                        os.sep, "/"
+                    )
+                except ValueError:
+                    continue
+
+                # Если файла нет в индексе — пропускаем (не наша забота)
+                if rel not in indexed_hashes:
+                    continue
+
+                # Сверяем hash
+                try:
+                    current_hash = self._calculate_file_hash(full_path)
+                except Exception:
+                    continue
+
+                if current_hash == indexed_hashes[rel]:
+                    continue  # не изменился
+
+                # Файл изменился — переиндексируем
+                if self._index_single_file(full_path, project_path):
+                    reindexed += 1
+
+        if reindexed > 0:
+            logger.info(f"📝 Переиндексировано {reindexed} изменённых файлов")
+        else:
+            logger.info("✅ Индекс свежий, изменений нет")
+
+        return reindexed
+
     def index_project(
         self, project_path: Path, progress_callback: Optional[Callable] = None
     ) -> int:
@@ -1258,18 +1336,39 @@ class Indexer:
                 logger.info(
                     f"📊 Создаю IVF_PQ индекс ({self.table.count_rows()} чанков)..."
                 )
+                # Удаляем старый индекс, если он есть (предотвращает битые метаданные)
+                try:
+                    for idx in self.table.list_indices():
+                        idx_name = getattr(idx, "name", None)
+                        if idx_name:
+                            self.table.drop_index(idx_name)
+                            logger.info(f"🗑️ Удалён старый индекс: {idx_name}")
+                except Exception as drop_err:
+                    logger.debug(f"drop old index: {drop_err}")
+
+                # Убеждаемся, что все данные записаны на диск перед индексацией
+                try:
+                    from datetime import timedelta
+                    self.table.optimize(cleanup_older_than=timedelta(seconds=0))
+                except Exception as opt_err:
+                    logger.debug(f"optimize before index: {opt_err}")
+
                 self.table.create_index(
-                    metric="L2",
+                    metric="cosine",
                     vector_column_name="vector",
                     index_type="IVF_PQ",
                     num_partitions=max(
                         16, min(256, int(self.table.count_rows() ** 0.5))
                     ),
                     num_sub_vectors=16,  # 1024 dim / 64
+                    replace=True,
                 )
-                logger.info("✅ IVF_PQ индекс создан")
+                # Дожидаемся завершения построения индекса (до 10 минут)
+                from datetime import timedelta
+                self.table.wait_for_index(["vector_idx"], timeout=timedelta(minutes=10))
+                logger.info("✅ IVF_PQ индекс создан и готов к поиску")
             except Exception as e:
-                logger.debug(f"⚠️ IVF_PQ индекс не создан: {e}")
+                logger.error(f"⚠️ IVF_PQ индекс не создан: {e}")
 
         # Шаг 5: Финальная статистика
         final_stats = self.get_status()

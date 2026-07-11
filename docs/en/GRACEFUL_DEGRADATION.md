@@ -4,50 +4,60 @@
 
 ## Overview
 
-MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 4 levels,
+MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 5 levels,
 maintaining basic functionality even when external services fail.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> L1_Full: All services available
+    [*] --> L1_LLAMA: All services available
     
-    state L1_Full[Level 1: Full Pipeline]
-        L1_Full: LM Studio + ONNX + BM25
-        L1_Full: BM25 + Dense + Reranker + Co-change
-        L1_Full: ~300ms-5s latency
+    state L1_LLAMA[Level 1: llama.cpp GGUF (GPU)]
+        L1_LLAMA: llama.cpp embed + reranker (Vulkan GPU)
+        L1_LLAMA: BM25 + Dense + Reranker + Co-change
+        L1_LLAMA: ~280ms-3s latency
     end
     
-    L1_Full --> L2_ONNX: LM Studio offline
+    L1_LLAMA --> L2_ONNX: llama.cpp unavailable
     
-    state L2_ONNX[Level 2: ONNX Runtime]
+    state L2_ONNX[Level 2: ONNX Runtime (CPU)]
         L2_ONNX: ONNX embeddings only
         L2_ONNX: BM25 + Dense (CPU)
         L2_ONNX: No reranker (BM25 ranking only)
         L2_ONNX: ~1-6s latency
     end
     
-    L2_ONNX --> L3_BM25: ONNX model missing
+    L2_ONNX --> L3_LM: llama.cpp offline → LM Studio fallback
     
-    state L3_BM25[Level 3: BM25 Only]
-        L3_BM25: Keyword search only
-        L3_BM25: No semantic understanding
-        L3_BM25: ~50ms-300ms latency
+    state L3_LM[Level 3: LM Studio (remote)]
+        L3_LM: External API (port 1234)
+        L3_LM: BM25 + Dense + Reranker
+        L3_LM: ~300ms-5s latency (network)
     end
     
-    L3_BM25 --> L4_Fallback: BM25 index empty
+    L3_LM --> L4_BM25: All external offline
     
-    state L4_Fallback[Level 4: Fallback]
-        L4_Fallback: Creating index
-        L4_Fallback: First run / after table drop
-        L4_Fallback: Empty results (index building)
+    state L4_BM25[Level 4: BM25 Only]
+        L4_BM25: Keyword search only
+        L4_BM25: No semantic understanding
+        L4_BM25: ~50ms-300ms latency
     end
     
-    L4_Fallback --> L3_BM25: Index ready
-    L3_BM25 --> L2_ONNX: ONNX loaded
-    L2_ONNX --> L1_Full: LM Studio detected
+    L4_BM25 --> L5_Fallback: BM25 index empty
     
-    L1_Full --> L2_ONNX: LM Studio crash
-    L2_ONNX --> L3_BM25: ONNX error
+    state L5_Fallback[Level 5: Fallback]
+        L5_Fallback: Creating index
+        L5_Fallback: First run / after table drop
+        L5_Fallback: Empty results (index building)
+    end
+    
+    L5_Fallback --> L4_BM25: Index ready
+    L4_BM25 --> L3_LM: LM Studio detected
+    L3_LM --> L2_ONNX: ONNX reloaded
+    L2_ONNX --> L1_LLAMA: llama.cpp GGUF available
+    
+    L1_LLAMA --> L2_ONNX: llama crash
+    L2_ONNX --> L3_LM: ONNX error → LM Studio scan
+    L3_LM --> L4_BM25: LM Studio crash
     L3_BM25 --> [*]: Catastrophic failure
 ```
 

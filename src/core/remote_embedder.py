@@ -214,22 +214,38 @@ class RemoteEmbedder:
         """
         import time as _time
 
-        _time.sleep(15)
-        # Если llama.cpp уже доступен — ONNX не нужен in-process
+        # Ждём до 60 секунд пока llama.cpp запустится (он стартует через _warmup_embedder)
+        # Проверяем каждые 5 секунд — если появился, отменяем ONNX загрузку
         with self._mode_lock:
             if self.mode != "onnx":
                 logger.debug("Preload пропущен: режим не ONNX")
                 return
         
-        # Проверяем, не запустился ли llama-server за эти 15 секунд
-        if self._check_llama_cpp():
+        # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
+        if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
+            logger.info("🔌 ONNX fallback отключён через DISABLE_ONNX_FALLBACK=true")
             with self._mode_lock:
-                self.mode = "llama_cpp"
-                self._preferred_mode = "llama_cpp"
-            logger.info("🦙 Preload: найден llama.cpp, ONNX предзагрузка отменена")
+                self.mode = "fallback"
             return
+
+        for attempt in range(12):  # 12 * 5 = 60 секунд
+            if self._check_llama_cpp():
+                with self._mode_lock:
+                    self.mode = "llama_cpp"
+                    self._preferred_mode = "llama_cpp"
+                logger.info("🦙 Preload: найден llama.cpp, ONNX предзагрузка отменена")
+                # Запускаем реранкер (BGE-M3 на порту 8081)
+                try:
+                    import asyncio
+                    from src.core.llama_runner import get_global_runner
+                    runner = get_global_runner()
+                    asyncio.run(runner.start_reranker())
+                except Exception as e:
+                    logger.warning(f"Reranker autostart failed: {e}")
+                return
+            _time.sleep(5)
         
-        logger.info("⏳ Фоновая предзагрузка ONNX модели...")
+        logger.info("⏳ Фоновая предзагрузка ONNX модели (llama.cpp не найден за 60с)...")
         self._init_onnx()
         if self._onnx_session:
             logger.info("✅ ONNX модель предзагружена и готова к работе")
@@ -266,7 +282,8 @@ class RemoteEmbedder:
                     )
                     return True
             return False
-        except Exception:
+        except Exception as _elx:
+            logger.debug(f"[check_lm_studio_raw] {type(_elx).__name__}: {_elx}")
             return False
 
     def _check_onnx_server(self) -> bool:
@@ -344,48 +361,46 @@ class RemoteEmbedder:
         }
 
     def _init_provider_async(self):
-        """Фоновая инициализация режима провайдера (НЕ блокирует __init__).
-
-        Выполняет _check_lm_studio / _check_ollama в отдельном потоке.
-        Если ни один не доступен — переходит в ONNX.
-
-        (См. INC-6BCB: __init__ должен возвращать мгновенно, иначе
-        create_mcp_server() зависает на старте, и Zed убивает процесс
-        по таймауту.)
-        """
+        """Фоновая инициализация режима провайдера."""
         try:
-            _lm_available = self._check_lm_studio()
-            if _lm_available:
+            # ═══ 1. llama.cpp (приоритет, запускается _warmup_embedder) ═══
+            _provider = os.getenv("EMBEDDING_PROVIDER", "auto")
+            _disable_onnx = os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes")
+            if _provider in ("llama_cpp", "auto", ""):
+                # Ждём до 30 сек пока llama-server загрузится (раньше было 10)
+                for attempt in range(30):
+                    if self._check_llama_cpp():
+                        with self._mode_lock:
+                            self.mode = "llama_cpp"
+                            self._preferred_mode = "llama_cpp"
+                        logger.info("🦙 llama.cpp обнаружен! Использую для эмбеддингов.")
+                        # Reranker запускается в run_server() после health check.
+                        # Здесь не стартуем — чтобы не было гонки с sync section.
+                        return
+                    import time as _t; _t.sleep(1)
+                if _disable_onnx:
+                    logger.warning("⏳ llama.cpp не найден за 30с, но ONNX отключён. Оставляю mode=unknown (embed_batch будет ретраить llama).")
+                    return  # НЕ падаем в ONNX — embed_batch с mode=unknown пробует llama первым
+
+            # ═══ 2. LM Studio ═══
+            if self._check_lm_studio_raw():
                 with self._mode_lock:
                     self.mode = "lm_studio"
                     self._preferred_mode = "lm_studio"
-                logger.info(
-                    "✅ LM Studio доступен при старте. Фоновый сканер не запускается."
-                )
+                logger.info("✅ LM Studio доступен.")
                 return
+
+            # ═══ 3. Ollama ═══
             if os.getenv("EMBEDDING_PROVIDER") == "ollama":
                 if self._check_ollama():
                     with self._mode_lock:
                         self.mode = "ollama"
                         self._preferred_mode = "ollama"
-                    logger.info(
-                        "⚠️ LM Studio не отвечает. Переключаемся в режим OLLAMA."
-                    )
+                    logger.info("⚠️ Переключаюсь на Ollama.")
                     return
 
-            # Проверяем llama.cpp (Zed 1.10.0 native provider)
-            # auto — значение по умолчанию в .env.example
-            if os.getenv("EMBEDDING_PROVIDER", "") in ("llama_cpp", "auto", ""):
-                if self._check_llama_cpp():
-                    with self._mode_lock:
-                        self.mode = "llama_cpp"
-                        self._preferred_mode = "llama_cpp"
-                    logger.info(
-                        "🦙 llama.cpp обнаружен! Использую для эмбеддингов."
-                    )
-                    return
-
-            # Пробуем ONNX-сервер (общий для всех проектов)
+            # ═══ 4. ONNX ═══
+            # ... existing ONNX startup logic ...
             if self._check_onnx_server():
                 with self._mode_lock:
                     self.mode = "onnx_server"
@@ -489,8 +504,14 @@ class RemoteEmbedder:
                     logger.debug("Ollama стабилен. Сканер завершает работу.")
                     break
 
+                # llama.cpp — стабилен, не трогаем
+                if current == "llama_cpp":
+                    logger.debug("llama.cpp стабилен. Сканер завершает работу.")
+                    break
+
                 # current == "onnx" или "fallback" — ищем внешний провайдер
-                if self._check_lm_studio():
+                # Используем _raw, чтобы CircuitBreaker не кэшировал недоступный сервер
+                if self._check_lm_studio_raw():
                     with self._mode_lock:
                         self.mode = "lm_studio"
                         self._preferred_mode = "lm_studio"
@@ -515,6 +536,14 @@ class RemoteEmbedder:
                     logger.info(
                         "🦙 llama.cpp обнаружен! Переключаюсь с ONNX → llama.cpp."
                     )
+                    # Запускаем реранкер (BGE-M3 на порту 8081)
+                    try:
+                        import asyncio
+                        from src.core.llama_runner import get_global_runner
+                        runner = get_global_runner()
+                        asyncio.run(runner.start_reranker())
+                    except Exception as e:
+                        logger.warning(f"Reranker autostart failed: {e}")
                     return
 
             except Exception as e:
@@ -529,6 +558,10 @@ class RemoteEmbedder:
 
     def _init_onnx(self):
         """Отложенная сборка ONNX сессии с оптимизациями памяти."""
+        # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
+        if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
+            logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
+            return
         if self._onnx_session is not None:
             self._onnx_last_used = time.time()
             return
@@ -606,14 +639,40 @@ class RemoteEmbedder:
     def embed_batch(
         self, texts: List[str], is_query: bool = False
     ) -> List[List[float]]:
-        """Пакетное получение векторов через активный провайдер."""
+        """Пакетное получение векторов через активный провайдер.
+        
+        НИКОГДА не меняет mode. Если провайдер недоступен —
+        возвращает нулевые векторы (режим не сбрасывается).
+        """
         if not texts:
             return []
 
         with self._mode_lock:
             current_mode = self.mode
 
-        # Режим 1: LM Studio (Высокий приоритет)
+        # ═══ llama.cpp ═══
+        if current_mode in ("llama_cpp", "unknown"):
+            try:
+                payload = {"input": texts}
+                with httpx.Client(timeout=self.timeout) as client:
+                    r = client.post(self.llama_cpp_url, json=payload)
+                    if r.status_code == 200:
+                        data = r.json().get("data", [])
+                        if data:
+                            data = sorted(data, key=lambda x: x.get("index", 0))
+                            return [item["embedding"] for item in data]
+                        else:
+                            logger.warning(f"llama.cpp: 200 OK but пустой data, url={self.llama_cpp_url}")
+                    else:
+                        logger.warning(f"llama.cpp: HTTP {r.status_code}, url={self.llama_cpp_url}")
+            except Exception as _exc:
+                logger.warning(f"llama.cpp embed error for {self.llama_cpp_url}: {_exc}")
+            # Если unknown — падаем дальше, если llama_cpp — заглушка
+            if current_mode == "llama_cpp":
+                logger.warning("llama.cpp не отвечает, возвращаю заглушки")
+                return [[0.0] * self.embedding_dim for _ in texts]
+
+        # ═══ LM Studio ═══
         if current_mode == "lm_studio":
             try:
                 payload = {"model": self.model_name, "input": texts}
@@ -621,208 +680,78 @@ class RemoteEmbedder:
                     r = client.post(self.lm_studio_url, json=payload)
                     if r.status_code == 200:
                         data = r.json().get("data", [])
-                        if not data:
-                            logger.warning(
-                                f"LM Studio вернул пустой список embeddings. "
-                                f"Проверьте что модель '{self.model_name}' поддерживает embeddings. "
-                                f"Падаем в ONNX."
-                            )
-                            with self._mode_lock:
-                                self.mode = "onnx"
-                                self._preferred_mode = "lm_studio"
-                        else:
+                        if data:
                             data = sorted(data, key=lambda x: x.get("index", 0))
                             return [item["embedding"] for item in data]
-                    else:
-                        logger.warning(
-                            f"LM Studio отклонил запрос (HTTP {r.status_code}). Падаем в ONNX."
-                        )
-                        with self._mode_lock:
-                            self.mode = "onnx"
-                            self._preferred_mode = "lm_studio"
-            except Exception as e:
-                logger.warning(
-                    f"Сбой связи с LM Studio: {e}. Переходим на локальный ONNX."
-                )
-                with self._mode_lock:
-                    self.mode = "onnx"
-                    self._preferred_mode = "lm_studio"
+            except Exception:
+                pass
+            logger.warning("LM Studio не отвечает, возвращаю заглушки")
+            return [[0.0] * self.embedding_dim for _ in texts]
 
-        # Режим 1.5: llama.cpp (Zed 1.10.0 native — OpenAI-compatible API)
-        # Проверяем всегда, даже если режим ONNX — llama мог запуститься после сканера
-        _try_llama = self.mode == "llama_cpp" or (
-            self.mode == "onnx" and self._check_llama_cpp()
-        )
-        if _try_llama:
-            if self.mode != "llama_cpp":
-                with self._mode_lock:
-                    self.mode = "llama_cpp"
-                    self._preferred_mode = "llama_cpp"
-                try:
-                    payload = {"model": self.model_name, "input": texts}
-                    with httpx.Client(timeout=self.timeout) as client:
-                        r = client.post(self.llama_cpp_url, json=payload)
-                        if r.status_code == 200:
-                            data = r.json().get("data", [])
-                            if data:
-                                data = sorted(data, key=lambda x: x.get("index", 0))
-                                return [item["embedding"] for item in data]
-                except Exception as e:
-                    # Пробуем запустить llama.cpp автоматически
-                    logger.info(f"⚠️ llama.cpp не отвечает, пробую запустить...")
-                    try:
-                        import sys as _sys
-                        proc = subprocess.Popen(
-                            [_sys.executable, '-c', '''
-import asyncio
-import os
-import sys
-sys.path.insert(0, r"''' + str(self.ext_root) + '''")
-from src.core.llama_runner import get_global_runner
-runner = get_global_runner()
-model = os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
-asyncio.run(runner.start(model))
-'''],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            creationflags=subprocess.CREATE_NO_WINDOW
-                            if sys.platform == "win32" else 0,
-                        )
-                        # Ждём запуска (до 30 сек)
-                        for _ in range(30):
-                            import time as _t; _t.sleep(1)
-                            try:
-                                with httpx.Client(timeout=2) as _c:
-                                    _r = _c.get(
-                                        self.llama_cpp_url.replace("/v1/embeddings", "/health")
-                                    )
-                                    if _r.status_code == 200:
-                                        break
-                            except:
-                                pass
-                        with httpx.Client(timeout=self.timeout) as client:
-                            r = client.post(self.llama_cpp_url, json=payload)
-                            if r.status_code == 200:
-                                data = r.json().get("data", [])
-                                if data:
-                                    data = sorted(data, key=lambda x: x.get("index", 0))
-                                    return [item["embedding"] for item in data]
-                    except Exception as e2:
-                        logger.warning(f"Автозапуск llama.cpp не удался: {e2}")
-                    logger.warning(
-                        f"llama.cpp embedding error: {e}. Пробуем ONNX-сервер."
-                    )
-                    with self._mode_lock:
-                        self.mode = "onnx_server"
+        # ═══ ONNX-сервер ═══
+        if current_mode == "onnx_server":
+            try:
+                payload = {"model": "bge-m3", "input": texts}
+                with httpx.Client(timeout=self.timeout) as client:
+                    r = client.post(self.onnx_server_url, json=payload)
+                    if r.status_code == 200:
+                        data = r.json().get("data", [])
+                        if data:
+                            data = sorted(data, key=lambda x: x.get("index", 0))
+                            return [item["embedding"] for item in data]
+            except Exception:
+                pass
+            logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
+            return [[0.0] * self.embedding_dim for _ in texts]
 
-        # Режим 1.75: ONNX-сервер (общий для всех проектов, через HTTP)
-        with self._mode_lock:
-            if self.mode == "onnx_server":
-                try:
-                    payload = {"model": "bge-m3", "input": texts}
-                    with httpx.Client(timeout=self.timeout) as client:
-                        r = client.post(self.onnx_server_url, json=payload)
-                        if r.status_code == 200:
-                            data = r.json().get("data", [])
-                            if data:
-                                data = sorted(data, key=lambda x: x.get("index", 0))
-                                return [item["embedding"] for item in data]
-                except Exception as e:
-                    logger.warning(
-                        f"ONNX-сервер недоступен: {e}. Падаем на локальный ONNX."
-                    )
-                    with self._mode_lock:
-                        self.mode = "onnx"
-
-        # Режим 2: Локальный ONNX Runtime (Автономный режим без интернета)
-        # Также срабатывает при mode="unknown" (сканер ещё не завершился)
-        with self._mode_lock:
-            if self.mode in ("onnx", "unknown"):
-                self.mode = "onnx"
-            current_mode = self.mode
-
-        if current_mode == "onnx":
+        # ═══ Локальный ONNX (fallback только для unknown, не меняет mode) ═══
+        if current_mode in ("unknown", "onnx"):
             self._init_onnx()
             if self._onnx_session:
                 try:
-                    import numpy as np
-
                     self._onnx_last_used = time.time()
-
+                    import numpy as np
                     enc = self._tokenizer.encode_batch(texts, add_special_tokens=True)
                     ids = np.array([e.ids for e in enc], dtype=np.int64)
                     mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
-                    inputs = {
-                        "input_ids": ids,
-                        "attention_mask": mask,
-                    }
+                    inputs = {"input_ids": ids, "attention_mask": mask}
                     if enc and hasattr(enc[0], "type_ids") and any(e.type_ids for e in enc):
                         inputs["token_type_ids"] = np.array(
                             [e.type_ids for e in enc], dtype=np.int64
                         )
-
                     outputs = self._onnx_session.run(None, inputs)
                     token_embeddings = outputs[0]
-                    if len(token_embeddings) == 1 or token_embeddings.shape[0] == len(
-                        texts
-                    ):
-                        pass  # single or batch works
-                    else:
-                        raise ValueError(
-                            f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}"
-                        )
+                    if len(token_embeddings) != 1 and token_embeddings.shape[0] != len(texts):
+                        raise ValueError(f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}")
+                    input_mask_expanded = np.expand_dims(inputs["attention_mask"], -1).astype(float)
+                    sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
+                    sum_mask = np.clip(np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None)
+                    return (sum_embeddings / sum_mask).tolist()
                 except Exception as batch_err:
-                    # Batch processing may fail for some ONNX exports (MatMul shape mismatch)
-                    # Fallback: embed one by one (slower but reliable)
-                    logger.debug(
-                        f"ONNX batch failed ({batch_err}), falling back to single embeds"
-                    )
-                    embeddings = []
-                    import numpy as np
+                    logger.debug(f"ONNX batch failed ({batch_err}), пробую по одному")
+                    try:
+                        import numpy as np
+                        embeddings = []
+                        for text in texts:
+                            enc_single = self._tokenizer.encode_batch([text], add_special_tokens=True)
+                            inp = {
+                                "input_ids": np.array([enc_single[0].ids], dtype=np.int64),
+                                "attention_mask": np.array([enc_single[0].attention_mask], dtype=np.int64),
+                            }
+                            out = self._onnx_session.run(None, inp)
+                            token_emb = out[0]
+                            mask_exp = np.expand_dims(inp["attention_mask"], -1).astype(float)
+                            sum_emb = np.sum(token_emb * mask_exp, 1)
+                            sum_mask = np.clip(np.sum(mask_exp, 1), a_min=1e-9, a_max=None)
+                            embeddings.append((sum_emb / sum_mask).tolist()[0])
+                        return embeddings
+                    except Exception:
+                        pass
+            logger.warning("ONNX Runtime недоступен, возвращаю заглушки")
+            return [[0.0] * self.embedding_dim for _ in texts]
 
-                    for text in texts:
-                        enc_single = self._tokenizer.encode_batch(
-                            [text], add_special_tokens=True
-                        )
-                        inp = {
-                            "input_ids": np.array(
-                                [enc_single[0].ids], dtype=np.int64
-                            ),
-                            "attention_mask": np.array(
-                                [enc_single[0].attention_mask], dtype=np.int64
-                            ),
-                        }
-                        out = self._onnx_session.run(None, inp)
-                        token_emb = out[0]
-                        mask_exp = np.expand_dims(inp["attention_mask"], -1).astype(
-                            float
-                        )
-                        sum_emb = np.sum(token_emb * mask_exp, 1)
-                        sum_mask = np.clip(np.sum(mask_exp, 1), a_min=1e-9, a_max=None)
-                        embeddings.append((sum_emb / sum_mask).tolist()[0])
-                    return embeddings
-
-                input_mask_expanded = np.expand_dims(
-                    inputs["attention_mask"], -1
-                ).astype(float)
-                sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
-                sum_mask = np.clip(
-                    np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None
-                )
-                embeddings = (sum_embeddings / sum_mask).tolist()
-                return embeddings
-
-        # Режим 3: Fallback — пробуем переключиться на LM Studio
-        if self._check_lm_studio():
-            with self._mode_lock:
-                self.mode = "lm_studio"
-            logger.info("🌐 Fallback: LM Studio обнаружен, переключаюсь на него.")
-            # Рекурсивный вызов с новым режимом
-            return self.embed_batch(texts, is_query)
-
-        # Режим 4: Честный заглушечный вектор (Защита сервера от падения)
-        logger.critical(
-            "⚠️ ВНИМАНИЕ: Все движки векторизации недоступны. Генерация пустых заглушек."
-        )
+        # ═══ Заглушка ═══
+        logger.critical(f"Неизвестный режим {current_mode}, возвращаю заглушки")
         return [[0.0] * self.embedding_dim for _ in texts]
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:

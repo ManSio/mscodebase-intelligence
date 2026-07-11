@@ -1,6 +1,6 @@
 # Session Investigation: ONNX Migration & System Optimization
 
-[🇬🇧 English](ONNX_SESSION_REPORT.md) • [🇷🇺 Русский](../ru/investigations/ONNX_SESSION_REPORT.md)
+[🇬🇧 English](ONNX_SESSION_REPORT.md) • [🇷🇺 Русский](../ru/investigations/ONNX_SESSION_REPORT.md) *(не переведён)*
 
 **Дата:** 2026-07-08 — 2026-07-09
 **Автор:** AI-Agent (по запросу misha)

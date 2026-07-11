@@ -158,6 +158,26 @@ WHERE workspace_id = <active_workspace_id>;
 
 ---
 
+## Известные ограничения
+
+### 1. ORDER BY при нескольких окнах (FIXED 2026-07-11)
+
+**Проблема:** Запрос `SELECT key, value FROM scoped_kv_store WHERE namespace = 'multi_workspace_state'`
+не имел `ORDER BY`. Если открыто несколько окон Zed, порядок возврата строк не гарантирован —
+может быть выбран не тот workspace.
+
+**Фикс:** Добавлен `ORDER BY rowid DESC`.
+
+### 2. SQLite соединение не кэшируется
+
+На каждый вызов `resolve_project_root()` создаётся новое `sqlite3.connect()`.
+Можно добавить кэш с TTL.
+
+### 3. Multi-window race (частично)
+
+При двух физических окнах Zed эвристика с parent PID не реализована.
+`ORDER BY rowid DESC` минимизирует, но не решает полностью.
+
 ## Заключение
 
 Проблема решена через чтение `scoped_kv_store.multi_workspace_state.active_workspace_id`

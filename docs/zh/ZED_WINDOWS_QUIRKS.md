@@ -1,7 +1,7 @@
 # Zed 在 Windows 上：注意事项和架构决策
 
-> 版本：1.1（2026-07-05）— 更新了「LSP 无法启动」部分
-> 适用于：MSCodeBase Intelligence v2.4.4+
+> **版本：** 1.2（2026-07-11）— 更新了 llama.cpp + Vulkan
+> **适用于：** MSCodeBase Intelligence v2.7.0+
 > 详细报告：`../en/investigations/LSP_WONTFIX.md`
 
 [🇬🇧 English](../en/ZED_WINDOWS_QUIRKS.md) • [🇷🇺 Русский](../ru/ZED_WINDOWS_QUIRKS.md) • [🇨🇳 中文](ZED_WINDOWS_QUIRKS.md)

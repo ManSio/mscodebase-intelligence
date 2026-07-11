@@ -4,8 +4,8 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 2.4.4  
-> **Last updated:** 2026-07-05  
+> **Version:** 2.7.0  
+> **Last updated:** 2026-07-11  
 > **Architecture:** 4-Layer Architecture (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic) with Multi-Window Registry
 
 ---
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (34 class-based tools)           │
+│  Layer 3: mcp/tools/*.py         (33 class-based tools)           │
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -89,14 +89,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 34 tools + 14 intel_* tools
+3. Register 33 tools + 14 intel_* tools + 3 diagnostic
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **10 files, 34 tools.**
+`src/mcp/tools/*.py` — **10 files, 33 core tools.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -211,7 +211,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 34 total
+        # ... 33 total
     ]
 
     for tool_cls in tool_classes:

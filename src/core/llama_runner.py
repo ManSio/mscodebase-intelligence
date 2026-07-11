@@ -49,9 +49,12 @@ LLAMA_HOST = os.getenv("LLAMA_CPP_HOST", "127.0.0.1")
 # batch-size 512: обрабатывает до 512 токенов за один проход
 # ubatch-size 128: физический батч для CPU
 # device none: CPU-only (работает и на MSVC, и на Clang сборках)
-LLAMA_CTX_SIZE = int(os.getenv("LLAMA_CTX_SIZE", "1024"))     # 1024 = 722 MB RAM для Qwen3
-LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "512"))   # 512 токенов за проход
-LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "128")) # физический батч CPU
+LLAMA_CTX_SIZE = int(os.getenv("LLAMA_CTX_SIZE", "1024"))     # 1024 = ~500 MB RAM для Qwen3
+LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "512"))   # 256 токенов за проход (быстрая индексация)
+LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "512"))  # 64 микро-батч для CPU
+LLAMA_DEFRAG_THOLD = float(os.getenv("LLAMA_DEFRAG_THOLD", "0.3"))  # дефрагментация KV при 30%
+LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit)
+LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit, без потери качества)
 
 # ─── Платформенная детекция ────────────────────────────────────
 def _detect_platform() -> tuple:
@@ -244,16 +247,35 @@ GGUF_MODELS = {
 # Модель по умолчанию (можно переопределить через EMEDDING_MODEL)
 # qwen3-embedding — лучшее качество (722 MB RAM, 2.4 чанка/с)
 # bge-m3 — в 5x быстрее индексация (692 MB RAM, 12 чанков/с)
-DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
+DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3")
 DEFAULT_RERANKER_MODEL = "bge-reranker-v2-m3"
 
-# Windows Insider: используем Vulkan/Clang сборку вместо MSVC
-_USE_VULKAN_BUILD = _is_windows_insider()
-if _USE_VULKAN_BUILD:
-    logger.info("🔧 Windows Insider detected: using Vulkan/Clang llama-server build")
-    LLAMA_BIN_TAG = "win-vulkan-x64"
+# На Insider (build >= 26000): MSVC сборка не может загрузить api-ms-win-crt-* DLL
+# (виртуальные API Set удалены Microsoft). Решение: патчим импорты всех DLL на
+# ucrtbase.dll после распаковки (см. _patch_dll_imports в download_llama_binary).
+_IS_INSIDER = _is_windows_insider()
+if _IS_INSIDER:
+    logger.info("🔧 Windows Insider detected: CRT API Set missing, will patch DLL imports")
+    LLAMA_BIN_TAG = "win-cpu-x64"
     LLAMA_BIN_ZIP = f"llama-{LLAMA_VERSION}-bin-{LLAMA_BIN_TAG}{_ZIP_EXT}"
     LLAMA_BIN_URL = f"{LLAMA_BASE_URL}/{LLAMA_BIN_ZIP}"
+
+# ─── Vulkan детекция ────────────────────────────────────────
+# Если есть Vulkan-совместимая видеокарта — используем GPU для эмбеддингов.
+# Это разгружает CPU и ускоряет индексацию в 2-5x.
+_HAVE_VULKAN = False
+if sys.platform == "win32":
+    try:
+        _vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
+        if _vk_dll.exists():
+            import subprocess as _sp
+            _vk_info = _sp.run(["vulkaninfo", "--summary"], capture_output=True, timeout=5, text=True)
+            if "GPU0" in _vk_info.stdout and "PHYSICAL_DEVICE_TYPE" in _vk_info.stdout:
+                _HAVE_VULKAN = True
+                os.environ.setdefault("LLAMA_BACKEND", "vulkan")
+                logger.info(f"🖥️ Vulkan GPU detected — using GPU for embeddings")
+    except Exception:
+        pass
 
 # ─── Планировщик модели ────────────────────────────────────────
 # Пока llama-server умеет загружать только 1 модель за раз.
@@ -262,11 +284,22 @@ if _USE_VULKAN_BUILD:
 
 
 def _get_ext_dir() -> Path:
-    """Определяет директорию расширения."""
-    # Если запущено из установленного расширения
+    """Определяет директорию расширения.
+    
+    Приоритет:
+    1. Расширение (по sys.executable: .../venv/Scripts/python.exe)
+    2. Frozen (PyInstaller)
+    3. Режим разработки (по __file__)
+    4. Кеш пользователя
+    """
+    # Frozen (PyInstaller) — sys.executable это сам бинарник
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent.parent.parent
-    # Если запущено из разработки
+    # Расширение: .../venv/Scripts/python.exe → …/
+    p = Path(sys.executable).resolve().parent.parent.parent
+    if (p / "src" / "main.py").exists():
+        return p
+    # Режим разработки
     p = Path(__file__).resolve().parent.parent.parent
     if (p / "src" / "main.py").exists():
         return p
@@ -274,10 +307,13 @@ def _get_ext_dir() -> Path:
 
 
 def _get_llama_dir() -> Path:
-    """Директория для llama.cpp бинарника.
-    На Insider используется Vulkan/Clang сборка (llama_vulkan/)."""
-    subdir = "llama_vulkan" if _USE_VULKAN_BUILD else "llama"
-    return _get_ext_dir() / subdir
+    """Директория для llama.cpp бинарника по умолчанию (MSVC с CRT DLL)."""
+    return _get_ext_dir() / "llama_msvc"
+
+
+def _get_vulkan_dir() -> Path:
+    """Директория для Vulkan/Clang сборки (без утечки памяти, для embedder)."""
+    return _get_ext_dir() / "llama_vulkan"
 
 
 def _get_models_dir() -> Path:
@@ -286,8 +322,13 @@ def _get_models_dir() -> Path:
 
 
 def _llama_bin() -> Path:
-    """Полный путь к llama-server бинарнику."""
+    """Полный путь к llama-server бинарнику (MSVC)."""
     return _get_llama_dir() / f"llama-server{_EXE_SUFFIX}"
+
+
+def _llama_bin_vulkan() -> Path:
+    """Полный путь к Vulkan/Clang сборке (без утечки, для embedder)."""
+    return _get_vulkan_dir() / f"llama-server{_EXE_SUFFIX}"
 
 
 def _gguf_path(model_key: str) -> Path:
@@ -303,11 +344,7 @@ def is_installed() -> bool:
 
 
 def is_compatible() -> bool:
-    """Проверяет, может ли llama.cpp работать на этой системе.
-
-    На Windows Insider (build >= 26000) MSVC-сборка не работает из-за
-    отсутствия api-ms-win-crt-heap API Set. Используем Vulkan/Clang сборку.
-    """
+    """Проверяет, может ли llama.cpp работать на этой системе."""
     return _llama_bin().exists()
 
 
@@ -316,17 +353,165 @@ def is_model_downloaded(model_key: str) -> bool:
     return _gguf_path(model_key).exists()
 
 
-def download_llama_binary(progress_cb=None) -> bool:
-    """Скачивает и распаковывает llama.cpp бинарник."""
-    llama_dir = _get_llama_dir()
-    llama_dir.mkdir(parents=True, exist_ok=True)
+def _install_vulkan_build(logger, progress_cb=None) -> bool:
+    """Скачивает Vulkan/Clang сборку и добавляет CPU fallback DLL."""
+    if not _HAVE_VULKAN:
+        return False
+    vulkan_dir = _get_vulkan_dir()
+    vulkan_dir.mkdir(parents=True, exist_ok=True)
+    
+    v_tag = "win-vulkan-x64"
+    v_zip = f"llama-{LLAMA_VERSION}-bin-{v_tag}{_ZIP_EXT}"
+    v_url = f"{LLAMA_BASE_URL}/{v_zip}"
+    archive_path = vulkan_dir / v_zip
+    
+    bin_path = vulkan_dir / f"llama-server{_EXE_SUFFIX}"
+    if bin_path.exists() and not archive_path.exists():
+        return True  # uzhe ustanovleno
+    
+    logger.info(f"⬇️  Skachivayu Vulkan build ({v_tag})...")
+    try:
+        import urllib.request
+        def _r(b, bs, total):
+            if progress_cb and total > 0:
+                progress_cb(int(b*bs*100/total), f"vulkan ({b*bs//1024//1024}MB)")
+        urllib.request.urlretrieve(v_url, str(archive_path), _r)
+        
+        needed = {"llama-server.exe", "llama-server-impl.dll", "ggml.dll",
+                  "ggml-base.dll", "ggml-vulkan.dll", "mtmd.dll",
+                  "ggml-rpc.dll", "ggml-rpc-server.exe",
+                  "llama.dll", "llama-common.dll",
+                  "llama-server-impl.dll", "llama-batched-bench-impl.dll",
+                  "libomp140.x86_64.dll"}
+        
+        import zipfile
+        with zipfile.ZipFile(str(archive_path)) as zf:
+            for name in zf.namelist():
+                bn = os.path.basename(name)
+                if bn in needed:
+                    zf.extract(name, str(vulkan_dir))
+                    src = vulkan_dir / name
+                    dst = vulkan_dir / bn
+                    if src != dst:
+                        shutil.move(str(src), str(dst))
+                        p = src.parent
+                        while p != vulkan_dir:
+                            try: p.rmdir()
+                            except: break
+                            p = p.parent
+        archive_path.unlink()
+        
+        # Copy CPU DLLs from main build for fallback
+        cpu_dir = _get_llama_dir()
+        for f in cpu_dir.iterdir():
+            if f.name.startswith('ggml-cpu-') and not (vulkan_dir / f.name).exists():
+                shutil.copy2(str(f), str(vulkan_dir / f.name))
+        
+        # Patch CRT
+        patched = _patch_dll_imports(vulkan_dir)
+        if patched:
+            logger.info(f"🔧 Vulkan CRT patched: {patched}")
+        
+        logger.info(f"✅ Vulkan build installed: {bin_path}")
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ Vulkan download failed: {e}")
+        return False
 
-    archive_path = llama_dir / LLAMA_BIN_ZIP
-    if archive_path.exists() and _llama_bin().exists():
-        logger.info(f"✅ llama.cpp уже установлен: {_llama_bin()}")
+
+def _patch_dll_imports(dll_dir: Path) -> int:
+    """Заменяет api-ms-win-crt-* → ucrtbase.dll в PE-импортах всех DLL в папке.
+    
+    На Windows Insider (build >= 26000) Microsoft удалила виртуальные API Set
+    DLL (api-ms-win-crt-*). Функции из них есть в ucrtbase.dll — меняем имя DLL.
+    
+    Returns: количество пропатченных импортов.
+    """
+    import struct
+    patched = 0
+    for fpath in dll_dir.iterdir():
+        if fpath.suffix.lower() not in (".dll", ".exe"):
+            continue
+        try:
+            data = bytearray(fpath.read_bytes())
+        except Exception:
+            continue
+
+        pe_off = struct.unpack_from('<I', data, 0x3C)[0]
+        if data[pe_off:pe_off + 4] != b'PE\x00\x00':
+            continue
+
+        opt = pe_off + 24
+        magic = struct.unpack_from('<H', data, opt)[0]
+        ds = opt + (96 if magic == 0x10b else 112)
+        irva = struct.unpack_from('<I', data, ds + 8)[0]
+        if irva == 0:
+            continue
+
+        so = ds + 128
+        ns = struct.unpack_from('<H', data, pe_off + 6)[0]
+
+        def _r2r(rva):
+            for i in range(ns):
+                s = so + i * 40
+                sv = struct.unpack_from('<I', data, s + 12)[0]
+                ss = struct.unpack_from('<I', data, s + 8)[0]
+                sr = struct.unpack_from('<I', data, s + 20)[0]
+                if sv <= rva < sv + ss:
+                    return sr + (rva - sv)
+            return None
+
+        itr = _r2r(irva)
+        if itr is None:
+            continue
+
+        changed = 0
+        pos = itr
+        while True:
+            nth = struct.unpack_from('<I', data, pos)[0]
+            nr = struct.unpack_from('<I', data, pos + 12)[0]
+            if nth == 0 and nr == 0:
+                break
+            dnr = _r2r(nr)
+            if dnr is not None:
+                end = data.index(b'\x00', dnr)
+                dn = data[dnr:end].decode('ascii', errors='replace')
+                if dn.lower().startswith('api-ms-win-crt-'):
+                    new_name = b'ucrtbase.dll\x00'
+                    old_len = end - dnr
+                    if len(new_name) <= old_len:
+                        data[dnr:dnr + len(new_name)] = new_name
+                        for i in range(dnr + len(new_name), dnr + old_len):
+                            data[i] = 0
+                        changed += 1
+            pos += 20
+
+        if changed:
+            fpath.write_bytes(bytes(data))
+            patched += changed
+            logger.debug(f"  🔄 {fpath.name}: {changed} imports patched")
+
+    return patched
+
+
+def download_llama_binary(progress_cb=None) -> bool:
+    """Скачивает и распаковывает llama.cpp бинарник.
+    
+    На Windows Insider (build >= 26000) после распаковки патчит PE-импорты
+    всех DLL: заменяет api-ms-win-crt-* → ucrtbase.dll, так как на Insider
+    виртуальные CRT API Set DLL удалены Microsoft.
+    """
+    target_dir = _get_llama_dir()
+    bin_path = _llama_bin()
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    archive_path = target_dir / LLAMA_BIN_ZIP
+    if archive_path.exists() and bin_path.exists():
+        logger.info(f"✅ llama.cpp уже установлен: {bin_path}")
         return True
 
-    logger.info(f"⬇️  Скачиваю llama.cpp ({_PLATFORM_TAG}): {LLAMA_BIN_URL}")
+    logger.info(f"⬇️  Скачиваю llama.cpp ({LLAMA_BIN_TAG}): {LLAMA_BIN_URL}")
 
     try:
         # Скачиваем архив
@@ -349,7 +534,7 @@ def download_llama_binary(progress_cb=None) -> bool:
                       "ggml-cpu-sse42.dll", "ggml-rpc.dll", "ggml-rpc-server.exe",
                       "llama.dll", "llama-common.dll",
                       "llama-server-impl.dll", "llama-batched-bench-impl.dll",
-                      "libomp140.x86_64.dll"}
+                      "libomp140.x86_64.dll", "mtmd.dll"}
             extract = lambda zf, name, dst: zf.extract(name, str(dst))
             move = lambda src, dst: shutil.move(str(src), str(dst))
         else:
@@ -364,10 +549,10 @@ def download_llama_binary(progress_cb=None) -> bool:
             for name in zf.namelist():
                 basename = os.path.basename(name)
                 if needed is None or basename in needed:
-                    extract(zf, name, llama_dir)
-                    extracted = llama_dir / name
-                    if extracted != llama_dir / basename:
-                        move(extracted, llama_dir / basename)
+                    extract(zf, name, target_dir)
+                    extracted = target_dir / name
+                    if extracted != target_dir / basename:
+                        move(extracted, target_dir / basename)
             zf.close()
         else:
             # tar.gz
@@ -376,23 +561,32 @@ def download_llama_binary(progress_cb=None) -> bool:
                 for member in tf.getmembers():
                     basename = os.path.basename(member.name)
                     if needed is None or basename in needed:
-                        tf.extract(member, str(llama_dir))
-                        extracted = llama_dir / member.name
-                        if extracted != llama_dir / basename:
-                            move(extracted, llama_dir / basename)
+                        tf.extract(member, str(target_dir))
+                        extracted = target_dir / member.name
+                        if extracted != target_dir / basename:
+                            move(extracted, target_dir / basename)
 
         # Удаляем архив
         archive_path.unlink()
 
         # Делаем исполняемым (macOS/Linux)
         if sys.platform != "win32":
-            _llama_bin().chmod(0o755)
-            # На macOS может быть .dylib вместо .dll
-            for f in llama_dir.iterdir():
+            bin_path.chmod(0o755)
+            for f in target_dir.iterdir():
                 if f.suffix in (".dylib", ".so"):
                     f.chmod(0o755)
 
-        logger.info(f"✅ llama.cpp установлен: {_llama_bin()}")
+        # На Insider (build >= 26000): патчим api-ms-win-crt-* → ucrtbase во всех DLL
+        if _IS_INSIDER and sys.platform == "win32":
+            patched = _patch_dll_imports(target_dir)
+            if patched > 0:
+                logger.info(f"🔧 api-ms-win-crt-* → ucrtbase.dll: {patched} imports patched in {target_dir.name}")
+
+        # Vulkan: если есть GPU — скачиваем Vulkan build и добавляем CPU fallback
+        if _HAVE_VULKAN and sys.platform == "win32" and not _IS_INSIDER:
+            _install_vulkan_build(logger, progress_cb)
+
+        logger.info(f"✅ llama.cpp установлен: {bin_path} (build={LLAMA_BIN_TAG})")
         return True
 
     except Exception as e:
@@ -560,35 +754,139 @@ class LlamaRunner:
         await runner.stop()
     """
 
+    RERANK_PORT = int(os.getenv("LLAMA_CPP_RERANK_PORT", "8081"))
+    MAX_RAM_MB = int(os.getenv("LLAMA_MAX_RAM_MB", "1024"))  # авто-рестарт при превышении
+
     def __init__(self):
         self._process: Optional[subprocess.Popen] = None
-        self._model_key: Optional[str] = None  # что загружено: bge-m3 | bge-reranker-v2-m3
+        self._model_key: Optional[str] = None
+        self._reranker_process: Optional[subprocess.Popen] = None
         self._host = LLAMA_HOST
         self._port = LLAMA_PORT
-        self._startup_timeout = 15  # секунд ждём /health
+        self._startup_timeout = 30
+        # Watchdog — авто-рестарт при утечке памяти
+        self._watchdog_stop = threading.Event()
+        self._watchdog_thread: Optional[threading.Thread] = None
 
-    @property
+    def _start_watchdog(self):
+        """Фоновый мониторинг RAM llama-server. Перезапуск при превышении лимита."""
+        if self._watchdog_thread is not None and self._watchdog_thread.is_alive():
+            return
+        self._watchdog_stop.clear()
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop,
+            name="llama-watchdog",
+            daemon=True,
+        )
+        self._watchdog_thread.start()
+        logger.debug(f"🔍 Watchdog запущен (лимит {self.MAX_RAM_MB} MB)")
+
+    def _watchdog_loop(self):
+        while not self._watchdog_stop.wait(30):
+            for proc, name in [(self._process, "embedder"), (self._reranker_process, "reranker")]:
+                if proc is None:
+                    continue
+                try:
+                    pid = proc.pid
+                    import subprocess as _sp
+                    out = _sp.check_output(
+                        ['powershell', '-NoProfile', '-Command',
+                         f'Get-Process -Id {pid} | Select-Object -ExpandProperty WorkingSet64'],
+                        timeout=5
+                    ).decode().strip()
+                    ram_mb = int(out) // (1024*1024)
+                    if ram_mb > self.MAX_RAM_MB:
+                        logger.warning(f"🚨 {name} RAM {ram_mb}MB > лимит {self.MAX_RAM_MB}MB. Перезапуск...")
+                        if name == "embedder":
+                            self._restart_embedder()
+                        else:
+                            self._restart_reranker()
+                except Exception as _wtf:
+                    logger.error(f"Watchdog error ({name} PID={pid}): {_wtf}")
+
+    def _restart_embedder(self):
+        model_key = self._model_key or DEFAULT_EMBEDDING_MODEL
+        # Асинхронный рестарт в синхронном потоке
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.stop())
+        loop.run_until_complete(self.start(model_key))
+        loop.close()
+
+    def _restart_reranker(self):
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.stop_reranker())
+        loop.run_until_complete(self.start_reranker())
+        loop.close()
     def base_url(self) -> str:
         return f"http://{self._host}:{self._port}"
 
+    @property
+    def reranker_url(self) -> str:
+        return f"http://{self._host}:{self.RERANK_PORT}"
+
     async def start(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
-        """Запускает llama-server с указанной моделью.
+        """Запускает llama-server (просто Popen, без health check)."""
+        if self.is_alive() and self._model_key == model_key:
+            return True
 
-        Args:
-            model_key: 'qwen3-embedding' (default, лучший), 'bge-m3' (fallback),
-                       'bge-reranker-v2-m3' (reranker)
+        gguf_path = _gguf_path(model_key)
+        if not gguf_path.exists():
+            logger.error(f"GGUF модель не найдена: {gguf_path}")
+            return False
 
-        Returns:
-            True если сервер запущен и отвечает на /health
+        flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
+        
+        try:
+            self._process = subprocess.Popen(
+                [
+                    str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
+                    "--host", self._host,
+                    "--port", str(self._port),
+                    "-m", str(gguf_path),
+                    "-c", str(LLAMA_CTX_SIZE),
+                    "--batch-size", "512",
+                    "--ubatch-size", "512",
+                    "--cache-type-k", str(LLAMA_CACHE_TYPE),
+                    "--cache-type-v", str(LLAMA_CACHE_TYPE),
+                    "--no-webui",
+                    "-ngl", str(int(os.getenv("LLAMA_NGL","99"))) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else "0",
+                    *flags,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=open(self._log_path(), 'a'),
+                cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
+            )
+            self._model_key = model_key
+            logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка запуска llama.cpp: {e}")
+            return False
+
+    def _start_sync(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
+        """Синхронная версия start() — без asyncio, для вызова из run_server().
+        
+        На Insider: если CPU DLL пропали (Zed сбросил расширение) —
+        автоматически качает и патчит бинарник.
         """
         if self.is_alive() and self._model_key == model_key:
-            return True  # уже запущен с этой моделью
+            return True
 
-        await self.stop()
-
-        if not is_installed():
-            logger.error("llama.cpp не установлен. Запустите install.py")
-            return False
+        # На Insider: проверяем наличие CPU DLL и восстанавливаем если надо
+        if _IS_INSIDER and sys.platform == 'win32':
+            cpu_dll = _llama_bin().parent / 'ggml-cpu-haswell.dll'
+            if not cpu_dll.exists():
+                logger.warning('⚠️ CPU DLL не найдены — запускаю download_llama_binary()')
+                if download_llama_binary():
+                    logger.info('✅ llama.cpp восстановлен после авто-загрузки')
+                else:
+                    logger.error('❌ Не удалось восстановить llama.cpp')
+                    return False
 
         gguf_path = _gguf_path(model_key)
         if not gguf_path.exists():
@@ -600,24 +898,71 @@ class LlamaRunner:
         try:
             self._process = subprocess.Popen(
                 [
-                    str(_llama_bin()),
+                    str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
                     "--host", self._host,
                     "--port", str(self._port),
                     "-m", str(gguf_path),
-                    "-c", str(LLAMA_CTX_SIZE),     # 🔒 1024 = 722 MB (Qwen3) / 573 MB (BGE-M3)
-                    "--batch-size", str(LLAMA_BATCH_SIZE),   # 🔥 512 токенов за проход
-                    "--ubatch-size", str(LLAMA_UBATCH_SIZE), # ⚡ 128 физический батч для CPU
+                    "-c", str(LLAMA_CTX_SIZE),
+                    "--batch-size", "512",
+                    "--ubatch-size", "512",
+                    "--cache-type-k", str(LLAMA_CACHE_TYPE),
+                    "--cache-type-v", str(LLAMA_CACHE_TYPE),
                     "--no-webui",
-                    "-ngl", "0",  # CPU-only
-                    "--mlock",      # блокировка в RAM (без свопинга)
-                    *flags,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW
+                    "-ngl", str(int(os.getenv("LLAMA_NGL","99"))) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else "0",
+                                        *flags,
+                                    ],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=open(self._log_path(), 'a'),
+                                    cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
             )
             self._model_key = model_key
+            logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка синхронного запуска llama.cpp: {e}")
+            return False
+
+    async def start_reranker(self) -> bool:
+        """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT)."""
+        if self._reranker_process is not None:
+            poll = self._reranker_process.poll()
+            if poll is None:
+                return True  # уже работает
+
+        gguf_path = _gguf_path(DEFAULT_RERANKER_MODEL)
+        if not gguf_path.exists():
+            logger.error(f"Reranker GGUF не найден: {gguf_path}")
+            return False
+
+        self._ensure_port_free(self.RERANK_PORT)
+
+        try:
+            self._reranker_process = subprocess.Popen(
+                [
+                    str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
+                    "--host", self._host,
+                    "--port", str(self.RERANK_PORT),
+                    "-m", str(gguf_path),
+                    "-c", str(LLAMA_CTX_SIZE),     # 🔒 1024 = 573 MB для BGE-M3
+                    "--batch-size", "512",
+                    "--ubatch-size", "512",
+                    "--cache-type-k", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
+                    "--cache-type-v", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
+                    "--no-webui",
+                    "-ngl", str(int(os.getenv("LLAMA_NGL","99"))) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else "0",
+                    "--reranking",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=open(self._reranker_log_path(), 'a'),
+                cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+                if sys.platform == "win32" else 0,
+            )
+
+
 
             # Ждём /health
             t0 = time.time()
@@ -625,27 +970,39 @@ class LlamaRunner:
                 for i in range(self._startup_timeout):
                     await asyncio.sleep(1)
                     try:
-                        r = await client.get(f"{self.base_url}/health")
+                        r = await client.get(f"http://{self._host}:{self.RERANK_PORT}/health")
                         if r.status_code == 200:
                             dt = time.time() - t0
-                            logger.info(
-                                f"🚀 llama.cpp ({model_key}) готов за {dt:.1f}s"
-                            )
+                            logger.info(f"🚀 Reranker (BGE-M3) готов за {dt:.1f}s")
                             return True
                     except Exception:
                         pass
 
-            # Не дождались
-            logger.error(f"llama.cpp ({model_key}) не стартовал за {self._startup_timeout}s")
-            await self.stop()
+            logger.error(f"Reranker не стартовал за {self._startup_timeout}s")
+            await self.stop_reranker()
             return False
 
         except Exception as e:
-            logger.error(f"Ошибка запуска llama.cpp: {e}")
+            logger.error(f"Ошибка запуска reranker: {e}")
             return False
 
+    async def stop_reranker(self):
+        """Останавливает reranker."""
+        if self._reranker_process:
+            try:
+                self._reranker_process.terminate()
+                self._reranker_process.wait(timeout=5)
+            except Exception:
+                try:
+                    self._reranker_process.kill()
+                    self._reranker_process.wait(timeout=2)
+                except Exception:
+                    pass
+            self._reranker_process = None
+            logger.info("🛑 Reranker остановлен")
+
     async def stop(self):
-        """Останавливает сервер."""
+        """Останавливает embedder (reranker не трогаем)."""
         if self._process:
             try:
                 self._process.terminate()
@@ -659,6 +1016,30 @@ class LlamaRunner:
             self._process = None
             self._model_key = None
             logger.info("🛑 llama.cpp остановлен")
+
+    def _log_path(self) -> str:
+        """Путь к лог-файлу для stderr llama-server."""
+        return str(_get_ext_dir() / 'llama_server_stderr.log')
+
+    def _reranker_log_path(self) -> str:
+        return str(_get_ext_dir() / 'llama_reranker_stderr.log')
+
+    def _ensure_port_free(self, port: int):
+        """Убивает любой процесс, слушающий указанный порт."""
+        import subprocess as _sp
+        try:
+            out = _sp.check_output(
+                ['powershell', '-NoProfile', '-Command',
+                 f'Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess'],
+                timeout=5
+            ).decode().strip()
+            for line in out.split('\n'):
+                pid = line.strip()
+                if pid and pid.isdigit() and int(pid) > 0:
+                    _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True, timeout=3)
+                    logger.warning(f'🧹 Убит процесс PID {pid} (порт {port})')
+        except Exception:
+            pass
 
     def is_alive(self) -> bool:
         """Проверяет, жив ли процесс."""

@@ -43,7 +43,7 @@ Track progress via `intel_get_job_status(<job_id>)`.
 
 **Causes:**
 - Empty index → see above
-- LM Studio not running → `intel_get_runtime_status()` shows "offline"
+- Embedder not running → `intel_get_runtime_status()` shows "offline"
 - Wrong project → check `get_index_status()` output
 
 ### `get_index_status()` shows wrong project
@@ -94,15 +94,15 @@ If empty — Restricted Mode may be blocking it.
 ### Slow search (>10s)
 
 **Causes:**
-- LM Studio on a weak machine (check `intel_get_telemetry()` → ping)
+- llama.cpp or embedder not ready (check `intel_get_runtime_status()`)
 - Index not optimized (run `intel_trigger_reindex()`)
 - `limit` too high in `search_code` (recommended 6-10)
 
 ### LLM Ping > 2000ms
 
-**Solution:** Check LM Studio. Make sure an embedding model
-(e.g. `BAAI/bge-m3`) is loaded. Don't use LLM models via LM Studio
-for embeddings — they're slow.
+**Solution:** Check the embedder status. If using llama.cpp:
+`curl http://127.0.0.1:8080/health`. If using LM Studio:
+Make sure an embedding model (e.g. `BAAI/bge-m3`) is loaded.
 
 ### Memory > 500 MB
 
