@@ -261,7 +261,7 @@ class RenameSymbolTool(MCPTool):
                         new_name=new_name,
                         old_name=old_name,
                     ),
-                    timeout=2.0,
+                    timeout=5.0,
                 )
                 if workspace_edit is not None:
                     # LSP returned a WorkspaceEdit — check if it has real changes
