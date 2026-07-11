@@ -523,17 +523,22 @@ class HealthReport:
             )
 
     def _check_zed_sqlite_schema(self):
-        """Проверка схемы Zed SQLite DB (scoped_kv_store — недокументированный API).
-
-        resolve_project_root() использует таблицы scoped_kv_store и workspaces.
-        Это внутренний API Zed — при обновлении редактора схема может
-        измениться без предупреждения. Проверяем наличие таблиц и
-        предупреждаем если что-то не так.
-        """
+        """Проверка схемы Zed SQLite DB (scoped_kv_store — недокументированный API)."""
         try:
+            import sqlite3
+            from src.core.platform_utils import get_zed_db_path
             from src.mcp.server import _check_sqlite_schema_health
 
-            warn = _check_sqlite_schema_health()
+            _db_path = get_zed_db_path()
+            if not _db_path.exists():
+                self.warnings.append({
+                    "component": "zed_sqlite_schema",
+                    "message": "Zed SQLite DB не найдена",
+                })
+                return
+            conn = sqlite3.connect(str(_db_path), timeout=1.0)
+            warn = _check_sqlite_schema_health(conn)
+            conn.close()
             if warn:
                 self.warnings.append(
                     {

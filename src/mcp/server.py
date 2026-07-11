@@ -214,7 +214,7 @@ _env_cache_lock = threading.Lock()
 # При обновлении Zed схема может измениться — мы логируем предупреждение.
 _sqlite_conn: Optional[sqlite3.Connection] = None
 _sqlite_conn_time: float = 0
-_sqlite_conn_lock = threading.Lock()
+_sqlite_conn_lock = threading.RLock()  # RLock, т.к. _check_sqlite_schema_health вызывается изнутри _get_sqlite_connection
 _SQLITE_CACHE_TTL = 2.0
 # Флаг: проверка схемы выполнена (однократно при старте)
 _sqlite_schema_checked: bool = False
@@ -222,26 +222,21 @@ _sqlite_schema_checked: bool = False
 
 
 
-def _check_sqlite_schema_health() -> Optional[str]:
+def _check_sqlite_schema_health(conn) -> Optional[str]:
     """Проверяет, что таблицы scoped_kv_store и workspaces существуют.
 
-    scoped_kv_store — недокументированный API Zed (внутренняя таблица).
-    Zed может переименовать её или изменить схему в любой версии.
-    Это защитный чек: если таблица не найдена, workspace-резолвинг
-    сломается молча — мы предупреждаем явно.
+    Принимает уже открытое соединение — не вызывает _get_sqlite_connection()
+    рекурсивно. Вызывается один раз при старте.
     """
-    conn = _get_sqlite_connection()
     if conn is None:
         return "Zed SQLite DB недоступна — workspace-резолвинг будет degraded"
     try:
         cur = conn.cursor()
-        # Проверяем scoped_kv_store
         cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='scoped_kv_store'"
         )
         if cur.fetchone() is None:
             return "scoped_kv_store не найдена! workspace-резолвинг будет degraded"
-        # Проверяем workspaces
         cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='workspaces'"
         )
@@ -276,7 +271,7 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
             _sqlite_conn = sqlite3.connect(str(_db_path), timeout=2.0)
             # Однократная проверка схемы при старте
             if not _sqlite_schema_checked:
-                warn = _check_sqlite_schema_health()
+                warn = _check_sqlite_schema_health(_sqlite_conn)
                 if warn:
                     logger.warning(f"[🛡 SQLite Schema Guard] {warn}")
                 _sqlite_schema_checked = True
