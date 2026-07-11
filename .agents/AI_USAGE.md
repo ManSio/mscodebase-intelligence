@@ -32,10 +32,45 @@ Read
    ↓
 Modify
    ↓
-notify_change()
+Write Tools (rename/move/delete/replace/insert)
+   ↓
+apply_file_move() OR notify_change()
+   ↓
+pytest tests/ -k write_tools
 ```
 
 Never skip steps.
+
+---
+
+# 1.5 WRITE TOOLS USAGE
+
+### Available Write Tools
+
+| Tool | Description |
+|------|-------------|
+| `rename_symbol(old, new, apply)` | Rename symbol across all files |
+| `move_symbol(symbol, to_file, apply)` | Move symbol to another file |
+| `safe_delete(symbol, force, apply)` | Safe delete with reference check |
+| `replace_symbol(symbol, new_code, apply)` | Replace function/class body |
+| `insert_before/after_symbol(anchor, new_code, apply)` | Anchor-based insertion |
+| `ack_impact(file_path)` | Acknowledge impact for modification guard |
+
+### Modification Guard Protocol
+
+All write tools have `@modification_guard` — if it fires, call `ack_impact(file_path)` to confirm the destructive operation.
+
+### Preview/Apply Pattern
+
+All rename/move/delete tools follow `apply=False` (default) for preview. Set `apply=True` to execute.
+
+### Testing After Writes
+
+Always run write tool tests after modifications:
+
+```
+pytest tests/ -k write_tools -v
+```
 
 ---
 

@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (50 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (56 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 14 High-Level Intelligence Tools + 33 Low-Level Core MCP + 3 Diagnostic Tools.
+> Optimized for the hybrid model: 14 High-Level + 39 Low-Level Core MCP + 3 Diagnostic
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -49,6 +49,7 @@
 **Шаг 1 — Правка кода:**
 - Редактируешь файлы в `D:\Project\MSCodeBase\src\`.
 - После `edit_file` / `write_file` → `notify_change()`.
+- Для переименования файлов используй `apply_file_move(old, new)` вместо `notify_change` — мета-патчинг (50ms, 0MB RAM) вместо полной переиндексации (5s, 700MB RAM).
 
 **Шаг 2 — Синхронизация + очистка:**
 ```bash
@@ -170,7 +171,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline`.
 
-### B. Low-Level Core MCP & Search (33 tools)
+### B. Low-Level Core MCP & Search (39 tools)
 
 `search_code(mode=fast|quality|deep|context|auto)`, `cross_repo_search`,
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`,
@@ -183,12 +184,27 @@ Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_t
 `get_task_status`, `submit_background_task`, `read_live_file`,
 `structural_search`.
 
+`ack_impact(file_path)`, `rename_symbol(old, new, apply)`,
+`move_symbol(symbol, to_file, apply)`, `safe_delete(symbol, force, apply)`,
+`replace_symbol(symbol, new_code, apply)`,
+`insert_before/after_symbol(anchor, new_code, apply)`.
+
 > **Deprecated** (use `search_code`): `smart_search`, `deep_search`, `context_search`.
+
+### C. Write Tools (6)
+
+`rename_symbol(old, new, apply)` — rename symbol across all files
+`move_symbol(symbol, to_file, apply)` — move symbol to another file
+`safe_delete(symbol, force, apply)` — safe delete with reference check
+`replace_symbol(symbol, new_code, apply)` — replace function/class body
+`insert_before/after_symbol(anchor, new_code, apply)` — anchor-based insertion
+`ack_impact(file_path)` — acknowledge impact for modification guard
 
 ## 3. STATE AWARENESS
 
 - If `get_index_status` returns 0 chunks → FORBIDDEN to use `search_code`. Switch to `grep`/regex.
 - If chunks > 0 → use `search_code` for semantic, `get_symbol_info` for exact names.
+- If using write tools, call `ack_impact(file_path)` before destructive operations on load-bearing files.
 
 ## 4. MEMORY PROTOCOL
 
@@ -206,6 +222,7 @@ Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_t
 ### Post-Modification
 After `edit_file` / `write_file` → `notify_change(file_path=...)` → `get_index_status()`.
 Use batch notify: `notify_change(file_path=["src/a.py", "src/b.py"])`.
+For file renames, use `apply_file_move(old, new)` instead of `notify_change` — it does meta-patching in 50ms instead of full reindex (5s).
 
 ### Error Handling
 - Do not retry same tool with same params. Pivot to alternative.
@@ -243,4 +260,5 @@ Use batch notify: `notify_change(file_path=["src/a.py", "src/b.py"])`.
 5. Did I update `AGENT_DIARY.md`?
 6. Did I log the incident in project memory? (`intel_log_incident`)
 7. Did I check `diagnostics`?
-8. All correct? → **TASK VERIFIED**
+8. Did I run `python -m pytest tests/ -k write_tools -v` before committing?
+9. All correct? → **TASK VERIFIED**
