@@ -377,11 +377,19 @@ class SymbolIndex:
         scored: List[Tuple[int, str]] = []
 
         with self._lock:
+            # Ищем в _definitions
             for name in self._definitions:
                 if query_lower in name.lower():
                     refs = self._references.get(name, [])
                     unique_users = len(set(r.file_path for r in refs))
                     scored.append((unique_users, name))
+
+            # Также ищем в _references (символы, которые используются, но не определены)
+            for name in self._references:
+                if query_lower in name.lower() and name not in self._definitions:
+                    refs = self._references.get(name, [])
+                    unique_users = len(set(r.file_path for r in refs))
+                    scored.append((unique_users // 2, name))  # ниже приоритет
 
         # Сортируем по популярности
         scored.sort(key=lambda x: -x[0])
