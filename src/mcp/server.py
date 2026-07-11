@@ -1130,6 +1130,10 @@ def _register_all_tools(mcp, services):
         ImpactAnalysisTool,
         SearchCodeTool,
     )
+    from src.mcp.tools.write_tools import (
+        AckImpactTool,
+        RenameSymbolTool,
+    )
     from src.mcp.tools.system_tools import (
         GetHealthReportTool,
         GetIndexProgressTool,
@@ -1185,6 +1189,9 @@ def _register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
         VerifyActionTool,
+        # Write (2)
+        RenameSymbolTool,
+        AckImpactTool,
     ]
 
     # Регистрируем каждый инструмент.

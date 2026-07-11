@@ -975,3 +975,92 @@ class SymbolIndex:
                 "total_files": len(all_files),
                 "total_symbols": len(all_symbols),
             }
+
+    # --- Write tools support ---
+
+    def find_all_references(self, symbol_name: str, kind: str = "") -> List[SymbolRef]:
+        """Cross-file reference search. Returns definitions + usages.
+
+        Args:
+            symbol_name: Имя символа
+            kind: Фильтр по типу (function, class, method), "" = все
+
+        Returns:
+            List of SymbolRef (definitions first, then usages).
+        """
+        with self._lock:
+            result: List[SymbolRef] = []
+
+            # Definitions
+            defs = self._definitions.get(symbol_name, [])
+            for d in defs:
+                if not kind or d.kind == kind:
+                    result.append(d)
+
+            # References (usages only, exclude definitions)
+            refs = self._references.get(symbol_name, [])
+            for r in refs:
+                if not r.is_definition and (not kind or r.kind == kind):
+                    if r.symbol == symbol_name:
+                        result.append(r)
+
+            return result
+
+    def rename_symbol(self, old_name: str, new_name: str) -> int:
+        """Update in-memory index after a rename operation.
+
+        Moves all entries from old_name to new_name in both
+        _definitions and _references dicts.
+
+        Args:
+            old_name: Старое имя символа
+            new_name: Новое имя символа
+
+        Returns:
+            Number of updated entries.
+        """
+        count = 0
+        with self._lock:
+            # Definitions
+            if old_name in self._definitions:
+                refs = self._definitions.pop(old_name)
+                for r in refs:
+                    r.symbol = new_name
+                self._definitions[new_name] = refs
+                count += len(refs)
+
+                # Update _file_to_defs
+                for r in refs:
+                    if r.file_path in self._file_to_defs:
+                        if old_name in self._file_to_defs[r.file_path]:
+                            self._file_to_defs[r.file_path].discard(old_name)
+                            self._file_to_defs[r.file_path].add(new_name)
+
+            # References
+            if old_name in self._references:
+                refs = self._references.pop(old_name)
+                for r in refs:
+                    r.symbol = new_name
+                self._references[new_name] = refs
+                count += len(refs)
+
+                # Update _file_to_calls
+                for r in refs:
+                    if r.file_path in self._file_to_calls:
+                        if old_name in self._file_to_calls[r.file_path]:
+                            self._file_to_calls[r.file_path].discard(old_name)
+                            self._file_to_calls[r.file_path].add(new_name)
+
+            # Update _file_to_symbols
+            for file_path in list(self._file_to_symbols.keys()):
+                symbols = self._file_to_symbols[file_path]
+                if old_name in symbols:
+                    symbols.discard(old_name)
+                    symbols.add(new_name)
+
+        return count
+
+    def has_symbol(self, symbol_name: str) -> bool:
+        """Quick existence check."""
+        with self._lock:
+            return symbol_name in self._definitions or symbol_name in self._references

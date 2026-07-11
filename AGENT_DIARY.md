@@ -5,6 +5,42 @@
 
 ---
 
+## [2026-07-11 18:00] — Feature: Write Tools + LSP Architecture (Phase 1 завершён)
+
+**Problem:** MCP — read-only. Agent не может изменять код. Нужны write-инструменты
+с modification guard по образцу Qartez и LSP-клиент по образцу Serena.
+
+**Solution (Phase 1 completed):**
+- `docs/research/2026-07-11-write-tools-lsp-architecture.md` — полный архитектурный документ
+- `src/core/modification_guard.py` — @modification_guard декоратор + ack registry
+  - decorator с PageRank (0.05) и blast radius (10) порогами
+  - ack-система с TTL=600s
+  - Возвращает Deny с детальным guard-отчётом
+- SymbolIndex: `find_all_references()`, `rename_symbol()`, `has_symbol()` — расширения для write tools
+- `src/mcp/tools/write_tools.py` — `RenameSymbolTool` + `AckImpactTool`
+  - RenameSymbolTool: preview/apply режимы, collision check, fallback search
+  - AckImpactTool: подтверждение осведомлённости для обхода modification guard
+- `src/mcp/server.py` — регистрация write tools в `_register_all_tools`
+
+**Status:** ✅ Phase 1 complete
+
+---
+
+## [2026-07-11 17:30] — Fix: 3 production bugs (commit 48c2b28)
+
+**Problem:** Stale indexer reference, fd leak in llama_runner, lazy Path imports.
+
+**Solution:**
+- `_resolve_active_indexer` — `registry.get_indexer(target)` с нормализованным путём
+- `llama_runner.py` — fd leak fix: `_embedder_log_fh`/`_reranker_log_fh` сохраняются и закрываются
+- `symbol_index.py` — `from pathlib import Path` на уровне модуля, убраны lazy import из 5 методов
+
+**Files changed:** `src/core/intelligence_layer.py`, `src/core/llama_runner.py`, `src/core/symbol_index.py`
+**Tools Used:** grep, read_file, edit_file, terminal, git push
+**Status:** ✅ Committed + Pushed
+
+---
+
 ## [2026-07-11 14:50] — Docs: Перевод 3 документов en → ru (INSTALL_MODELS, LM_STUDIO_SETUP, SYSTEM_REQUIREMENTS)
 
 **Problem:** Нужно перевести 3 файла документации с английского на русский язык.
