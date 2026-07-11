@@ -87,8 +87,10 @@ MSCodeBase **не использует LSP**. LSP-сервер (`src/lsp_main.py
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (15 сервисов), 50 инструментов (33 на классах + 14 intel + 3 diag), 406+ тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (15 сервисов), 56 инструментов (39 на классах + 14 intel + 3 diag), 406+ тестов |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
+| ✏️ **Write Tools** | 6 инструментов: rename/move/delete/replace символов с preview/apply + `@modification_guard` |
+| ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename без пере-эмбеддинга (50ms против 5s) |
 | ⚙️ **SYSTEM_PROFILE** | `light` (синхронный) / `server` (асинхронный с phi-4) |
 
 ---
@@ -155,7 +157,7 @@ llama.cpp GGUF (GPU) → ONNX Runtime (CPU) → LM Studio (если запуще
 
 ---
 
-## 🔧 MCP Инструменты (50 всего)
+## 🔧 MCP Инструменты (56 всего)
 
 ### Основной поиск
 
@@ -219,6 +221,18 @@ llama.cpp GGUF (GPU) → ONNX Runtime (CPU) → LM Studio (если запуще
 | `submit_background_task(type, root)` | Запуск долгих задач: `bug_correlation` / `build_knowledge_graph` / `full_analysis` |
 | `get_task_status(task_id)` | Статус фоновой задачи |
 | `verify_action(action_type)` | Верификация: `file_write` / `git_commit` / `git_push` / `index_sync` |
+
+### Write Tools (7)
+
+| Инструмент | Когда использовать |
+|------------|-------------------|
+| `rename_symbol(old, new, apply)` | Переименование символа во всех файлах (preview/apply, проверка коллизий) |
+| `move_symbol(symbol, to_file, apply)` | Перемещение символа в другой файл (preview/apply, обновление импортов) |
+| `safe_delete(symbol, force, apply)` | Безопасное удаление с проверкой ссылок (force mode) |
+| `replace_symbol(symbol, new_code, apply)` | Замена тела функции/класса (preview/apply) |
+| `insert_before_symbol(anchor, new_code, apply)` | Вставка кода перед anchor-символом (preview/apply) |
+| `insert_after_symbol(anchor, new_code, apply)` | Вставка кода после тела anchor (preview/apply) |
+| `ack_impact(file_path)` | Подтверждение влияния для modification guard |
 
 ### Интеллектуальный слой (intel_*) — 14 высокоуровневых инструментов
 

@@ -96,7 +96,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **10 файлов, 33 основных инструмента.**
+`src/mcp/tools/*.py` — **11 файлов, 39 основных инструментов (33 исходных + 6 write).**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -211,7 +211,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... всего 33
+        # ... всего 39
     ]
 
     for tool_cls in tool_classes:
@@ -231,6 +231,7 @@ def _register_all_tools(mcp, services):
 | **Граф** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
 | **Расследование** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Жизненный цикл** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **Write** (6) | `write_tools.py` | rename_symbol, move_symbol, safe_delete, replace_symbol, insert_before_symbol, insert_after_symbol |
 | **Intelligence** (14) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
 
 ---

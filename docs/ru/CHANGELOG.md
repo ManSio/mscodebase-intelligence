@@ -6,6 +6,22 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
+## [3.0.0] — 2026-07-11 — Write Tools + LSP Client + Meta-Patching
+
+### Добавлено
+- ✏️ **6 Write Tools**: `rename_symbol`, `move_symbol`, `safe_delete`, `replace_symbol`, `insert_before_symbol`, `insert_after_symbol` — все с preview/apply + декоратор `@modification_guard` (PageRank + blast radius + ack TTL)
+- 🧠 **LspClient**: тонкий LSP-клиент для pyright (JSON-RPC 2.0 через stdio, ленивый запуск, авто-перезапуск, graceful fallback)
+- ⚡ **P0 Meta-Patching**: `move_chunks_metadata` — обновление file_path в LanceDB БЕЗ пере-эмбеддинга (30-80ms против 2000-5000ms, 0MB RAM против 700MB)
+- 🛡 **Modification Guard**: `@modification_guard(pagerank_min, blast_min, ack_ttl)` — предотвращает запись в критически важные файлы без явного подтверждения
+- 🔄 **Расширения SymbolIndex**: `find_all_references()`, `rename_symbol()`, `has_symbol()`, `remap_file()`
+- ⚡ **BM25 fast invalidation**: `_reset_bm25()` — сброс кэша вместо полной перестройки
+
+### Исправлено
+- `intelligence_layer.py` — `_resolve_symbol_count` на колонке 0 «проглатывал» все методы классов (Intel-инструменты были невидимы). Перемещён до определения класса
+- `intel_get_runtime_status`, `intel_log_incident` и все Intel-инструменты теперь работают корректно (11 методов на ProjectIntelligenceLayer)
+
+---
+
 ## [2.7.1] — 2026-07-11 — SQLite кэш, статус индекса, docs синхронизация
 
 ### Added

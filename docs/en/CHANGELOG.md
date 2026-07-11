@@ -6,6 +6,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] — 2026-07-11 — Write Tools + LSP Client + Meta-Patching
+
+### Added
+- ✏️ **6 Write Tools**: `rename_symbol`, `move_symbol`, `safe_delete`, `replace_symbol`, `insert_before_symbol`, `insert_after_symbol` — all with preview/apply + `@modification_guard` decorator (PageRank + blast radius + ack TTL)
+- 🧠 **LspClient**: thin LSP client for pyright (JSON-RPC 2.0 over stdio, lazy start, auto-restart, graceful fallback)
+- ⚡ **P0 Meta-Patching**: `move_chunks_metadata` — LanceDB file_path update WITHOUT re-embedding (30-80ms vs 2000-5000ms, 0MB RAM vs 700MB)
+- 🛡 **Modification Guard**: `@modification_guard(pagerank_min, blast_min, ack_ttl)` — prevents writes on load-bearing files without explicit acknowledgment
+- 🔄 **SymbolIndex extensions**: `find_all_references()`, `rename_symbol()`, `has_symbol()`, `remap_file()`
+- ⚡ **BM25 fast invalidation**: `_reset_bm25()` — cache drop instead of full rebuild
+
+### Fixed
+- `intelligence_layer.py` — `_resolve_symbol_count` at column 0 swallowed all class methods (Intel tools invisible). Moved before class definition
+- `intel_get_runtime_status`, `intel_log_incident` and all Intel tools now work correctly (11 methods on ProjectIntelligenceLayer)
+
+---
+
 ## [2.7.1] — 2026-07-11 — SQLite кэш, статус индекса, docs синхронизация
 
 ### Added

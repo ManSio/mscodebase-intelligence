@@ -11,6 +11,7 @@
 |----|--------|----------|-----------|
 | ZED-36019 | ✅ Closed | **Index 0 files / 2535 chunks:** path resolution не работает — Zed не передаёт `ZED_WORKTREE_ROOT`. Исправлено: added `current_dir = $ZED_WORKTREE_ROOT` в extension.toml + SQLite multi-workspace fallback + delayed bridge recheck (3 fallback layers) | LSP bridge |
 | DOC-TRANSLATION | ✅ Closed | docs/ru/* и docs/zh/* (кроме README) переведены машинно — native-верификация пройдена | Docs |
+| SYM-INDEX-PARTIAL | 🔴 Open | **SymbolIndex partial data**: `find_definitions()` может вернуть пустой результат для символов, существующих в `_references` (incorrect lazy init or missing insert) | SymbolIndex |
 
 ## Tech Debt
 
@@ -20,4 +21,4 @@
 
 ---
 
-*Последнее обновление: 2026-07-11 — все открытые закрыты*
+*Последнее обновление: 2026-07-11*

@@ -96,7 +96,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **10个文件，33个核心工具。**
+`src/mcp/tools/*.py` — **11个文件，39个核心工具（33个原始 + 6个写入）。**
 
 每个工具：
 - 继承自 `MCPTool`（抽象基类）
@@ -211,7 +211,7 @@ def _register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool,
         NotifyChangeTool, IndexProjectDirTool,
         GetBranchInfoTool, GetIndexStatusTool,
-        # ... 共33个
+        # ... 共39个
     ]
 
     for tool_cls in tool_classes:
@@ -231,6 +231,7 @@ def _register_all_tools(mcp, services):
 | **图**（4个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
 | **调查**（3个） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **生命周期**（3个） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **写入**（6个） | `write_tools.py` | rename_symbol, move_symbol, safe_delete, replace_symbol, insert_before_symbol, insert_after_symbol |
 | **智能层**（14个） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
 
 ---

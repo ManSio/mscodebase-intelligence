@@ -6,6 +6,22 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
+## [3.0.0] — 2026-07-11 — Write Tools + LSP 客户端 + 元数据补丁
+
+### 新增
+- ✏️ **6 个写入工具**: `rename_symbol`, `move_symbol`, `safe_delete`, `replace_symbol`, `insert_before_symbol`, `insert_after_symbol` — 全部支持预览/应用 + `@modification_guard` 装饰器 (PageRank + 影响范围 + ack TTL)
+- 🧠 **LspClient**: 轻量级 pyright LSP 客户端 (JSON-RPC 2.0 over stdio, 懒启动, 自动重启, 优雅降级)
+- ⚡ **P0 元数据补丁**: `move_chunks_metadata` — 无需重新嵌入即可更新 LanceDB 中的 file_path (30-80ms vs 2000-5000ms, 0MB RAM vs 700MB)
+- 🛡 **Modification Guard**: `@modification_guard(pagerank_min, blast_min, ack_ttl)` — 防止在未明确确认的情况下写入关键文件
+- 🔄 **SymbolIndex 扩展**: `find_all_references()`, `rename_symbol()`, `has_symbol()`, `remap_file()`
+- ⚡ **BM25 快速失效**: `_reset_bm25()` — 丢弃缓存而非完全重建
+
+### 修复
+- `intelligence_layer.py` — `_resolve_symbol_count` 在列 0 处吞没了所有类方法 (Intel 工具不可见)。已移至类定义之前
+- `intel_get_runtime_status`, `intel_log_incident` 及所有 Intel 工具现在正常工作 (ProjectIntelligenceLayer 上的 11 个方法)
+
+---
+
 ## [2.7.1] — 2026-07-11 — SQLite缓存，索引状态，docs同步
 
 ### 新增
