@@ -320,8 +320,8 @@ class RenameSymbolTool(MCPTool):
         - changes: dict[uri, TextEdit[]]
         - documentChanges: TextDocumentEdit[] (preferred by pyright)
         """
-        files_modified = []
-        errors = []
+        files_modified: list = []
+        errors: list = []
 
         # Extract all (uri, edits) pairs from both formats
         all_edits = []
@@ -338,6 +338,9 @@ class RenameSymbolTool(MCPTool):
 
         if not all_edits:
             return {"status": "warning", "message": "LSP returned empty WorkspaceEdit"}
+
+        for uri, text_changes in all_edits:
+            file_path = self._uri_to_path(uri)
             if not file_path:
                 continue
             try:
