@@ -798,6 +798,10 @@ class LlamaRunner:
 
     RERANK_PORT = int(os.getenv("LLAMA_CPP_RERANK_PORT", "8081"))
     MAX_RAM_MB = int(os.getenv("LLAMA_MAX_RAM_MB", "1024"))  # авто-рестарт при превышении
+    # Idle timeout для реранкера: выгружаем через N секунд бездействия
+    # Решает OOM-краш (issue OOM-20260711): 2× llama-server ~2.7 GB
+    # Реранкер используется реже эмбеддера — держать постоянно нет смысла.
+    RERANKER_IDLE_TIMEOUT = int(os.getenv("RERANKER_IDLE_TIMEOUT", "300"))
 
     def __init__(self):
         self._process: Optional[subprocess.Popen] = None
@@ -806,12 +810,13 @@ class LlamaRunner:
         self._host = LLAMA_HOST
         self._port = LLAMA_PORT
         self._startup_timeout = 30
+        self._last_reranker_use: float = 0.0  # timestamp последнего использования
         # Watchdog — авто-рестарт при утечке памяти
         self._watchdog_stop = threading.Event()
         self._watchdog_thread: Optional[threading.Thread] = None
 
     def _start_watchdog(self):
-        """Фоновый мониторинг RAM llama-server. Перезапуск при превышении лимита."""
+        """Фоновый мониторинг RAM llama-server. Перезапуск/выгрузка при превышении лимита."""
         if self._watchdog_thread is not None and self._watchdog_thread.is_alive():
             return
         self._watchdog_stop.clear()
@@ -821,10 +826,17 @@ class LlamaRunner:
             daemon=True,
         )
         self._watchdog_thread.start()
-        logger.debug(f"🔍 Watchdog запущен (лимит {self.MAX_RAM_MB} MB)")
+        logger.debug(f"🔍 Watchdog запущен (лимит {self.MAX_RAM_MB} MB, idle {self.RERANKER_IDLE_TIMEOUT}s)")
 
     def _watchdog_loop(self):
         while not self._watchdog_stop.wait(30):
+            # Проверка idle-таймаута реранкера (выгружаем если простаивает)
+            if self._reranker_process is not None and self._last_reranker_use > 0:
+                idle = time.time() - self._last_reranker_use
+                if idle > self.RERANKER_IDLE_TIMEOUT:
+                    logger.info(f"🧹 Реренкер простаивает {idle:.0f}s > {self.RERANKER_IDLE_TIMEOUT}s — выгружаю")
+                    self._unload_reranker()
+            # Проверка RAM per-process
             for proc, name in [(self._process, "embedder"), (self._reranker_process, "reranker")]:
                 if proc is None:
                     continue
@@ -863,6 +875,21 @@ class LlamaRunner:
         loop.run_until_complete(self.stop_reranker())
         loop.run_until_complete(self.start_reranker())
         loop.close()
+
+    def _unload_reranker(self):
+        """Выгружает реранкер без авто-рестарта (idle timeout)."""
+        if self._reranker_process is None:
+            return
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.stop_reranker())
+        loop.close()
+        self._last_reranker_use = 0.0
+
+    def touch_reranker(self):
+        """Отмечает использование реранкера (сбрасывает idle-таймер)."""
+        self._last_reranker_use = time.time()
     def base_url(self) -> str:
         return f"http://{self._host}:{self._port}"
 
@@ -1161,10 +1188,11 @@ class LlamaRunner:
             return None
 
     async def rerank(self, query: str, passages: list[str]) -> Optional[list[float]]:
-        """Отправляет запрос на реранкинг."""
-        if self._model_key != "bge-reranker-v2-m3":
-            if not await self.start("bge-reranker-v2-m3"):
+        """Отправляет запрос на реранкинг. Авто-рестарт при idle-выгрузке."""
+        if self._reranker_process is None:
+            if not await self.start_reranker():
                 return None
+        self.touch_reranker()
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 r = await client.post(
