@@ -38,7 +38,7 @@ import httpx
 logger = logging.getLogger("mscodebase_server.llama_runner")
 
 # ─── Конфигурация ──────────────────────────────────────────────
-LLAMA_VERSION = "b9940"
+LLAMA_VERSION = "b9940"  # ⚠️ перед бампом проверь https://github.com/ggml-org/llama.cpp/security (GHSA-advisories)
 LLAMA_BASE_URL = (
     f"https://github.com/ggml-org/llama.cpp/releases/download/{LLAMA_VERSION}"
 )

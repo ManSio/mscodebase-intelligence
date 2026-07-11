@@ -27,7 +27,10 @@ python-dotenv>=1.0.0
 # Data Processing
 pandas>=2.0.0
 
-# ONNX Runtime (локальные эмбеддинги, fallback если LM Studio недоступен)
+# ONNX Runtime (локальные эмбеддинги, fallback)
+# ⚠️ CVE-2026-4372 в transformers 4.56.0..5.2.x — запинено <4.56.0
+#    В рантайме не используется (reranker через httpx).
+#    Нужен только scripts/download_model.py для экспорта ONNX.
 onnxruntime>=1.17.0
-transformers>=4.36.0
+transformers>=4.36.0,<4.56.0
 tokenizers>=0.15.0
