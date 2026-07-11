@@ -39,7 +39,7 @@ class RenameSymbolTool(MCPTool):
         file_path: str = "",
         apply: bool = False,
         allow_collision: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> str:
         """Rename a symbol across all files that reference it.
 
         Args:
@@ -261,7 +261,7 @@ class AckImpactTool(MCPTool):
         self,
         file_path: str = "",
         symbol: str = "",
-    ) -> Dict[str, Any]:
+    ) -> str:
         """Acknowledge impact of changes.
 
         Args:
@@ -269,19 +269,21 @@ class AckImpactTool(MCPTool):
             symbol: Symbol name being modified (alternative to file_path)
 
         Returns:
-            Ack status with TTL.
+            Markdown string with ack status and TTL.
         """
         from src.core.modification_guard import ack_impact as _ack
 
         target = file_path or symbol
         if not target:
-            return {
-                "status": "error",
-                "message": "Provide either file_path or symbol.",
-            }
+            return "🚫 **Error:** Provide either file_path or symbol."
 
         result = _ack(target)
-        return result
+        ttl = result.get("ttl_seconds", 600)
+        return (
+            f"✅ **Impact acknowledged** for `{target}`\n"
+            f"  • Write operations allowed for **{ttl}s**\n"
+            f"  • Expires: auto (TTL={ttl}s)"
+        )
 
 
 class MoveSymbolTool(MCPTool):
@@ -297,7 +299,7 @@ class MoveSymbolTool(MCPTool):
         to_file: str,
         file_path: str = "",
         apply: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> str:
         """Move a symbol to another file, updating all imports.
 
         Args:
@@ -542,7 +544,7 @@ class SafeDeleteTool(MCPTool):
         file_path: str = "",
         force: bool = False,
         apply: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> str:
         """Delete a symbol safely with reference check.
 
         Args:
