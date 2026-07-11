@@ -13,6 +13,7 @@ PLANNED (Phase 2-3):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -30,6 +31,7 @@ class RenameSymbolTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="rename_symbol")
+        self._lsp_client = None
 
     @error_boundary("rename_symbol", timeout_ms=30000)
     async def execute(
@@ -55,19 +57,18 @@ class RenameSymbolTool(MCPTool):
         await self.require_ready_project()
         si = self.resolve_symbol_index()
 
-        # 1. Find all references
+        # 1. Find definition + all references
+        defs = si.find_definitions(old_name)
         all_refs = si.find_all_references(old_name)
 
         if not all_refs:
             # Fallback: full-text search for the symbol name
             all_refs = self._find_references_fallback(old_name)
 
-        if not all_refs:
-            return {
-                "status": "warning",
-                "message": f"Symbol '{old_name}' not found in index.",
-                "changes": [],
-            }
+        if not all_refs and not defs:
+            return self._format_result(
+                "warning", f"Symbol '{old_name}' not found in index."
+            )
 
         # Filter by file_path if specified
         if file_path:
@@ -77,13 +78,16 @@ class RenameSymbolTool(MCPTool):
                 for r in all_refs
                 if Path(r.file_path).resolve().as_posix() == target
             ]
+            defs = [
+                d
+                for d in defs
+                if Path(d.file_path).resolve().as_posix() == target
+            ]
 
         if not all_refs:
-            return {
-                "status": "warning",
-                "message": f"Symbol '{old_name}' not found in file '{file_path}'.",
-                "changes": [],
-            }
+            return self._format_result(
+                "warning", f"Symbol '{old_name}' not found in file '{file_path}'."
+            )
 
         # 2. Collision check
         if not allow_collision:
@@ -98,35 +102,10 @@ class RenameSymbolTool(MCPTool):
                     "collision": collision,
                 }
 
-        # 3. Build preview
-        changes = self._build_changes(old_name, new_name, all_refs)
-
-        if not apply:
-            return {
-                "status": "preview",
-                "message": f"Preview: rename '{old_name}' \u2192 '{new_name}' ({len(changes)} occurrences)",
-                "changes": changes,
-                "files_affected": len(set(c["file"] for c in changes)),
-                "total_occurrences": len(changes),
-            }
-
-        # 4. Apply changes
-        result = await self._apply_changes(changes)
-
-        # 5. Update in-memory index
-        si.rename_symbol(old_name, new_name)
-
-        # 6. Meta-patch index instead of full reindex
-        try:
-            indexer = self.resolve_indexer()
-            if hasattr(indexer, 'apply_file_move'):
-                for file in result.get("files", []):
-                    patch = indexer.apply_file_move(file, file)
-                    logger.info(f"Meta-patch for {file}: {patch}")
-        except Exception:
-            pass
-
-        return result
+        # 3. LSP hybrid rename (try LSP → fallback SymbolIndex)
+        return await self._rename_with_lsp_fallback(
+            old_name, new_name, defs, all_refs, apply, allow_collision
+        )
 
     def _find_references_fallback(self, symbol: str) -> list:
         """Fallback: search for symbol in file contents via symbol_index text search."""
@@ -242,6 +221,208 @@ class RenameSymbolTool(MCPTool):
         if errors:
             result["errors"] = errors
             result["status"] = "partial"
+
+        return result
+
+    # ─── LSP-aware hybrid rename helpers ────────────────────────────────
+
+    def _get_lsp_client(self):
+        """Lazy-init and return LspClient instance."""
+        if self._lsp_client is None:
+            try:
+                from src.core.lsp_client import LspClient
+                from src.mcp.server import resolve_project_root
+                pr = resolve_project_root()
+                self._lsp_client = LspClient(project_root=pr)
+            except Exception:
+                self._lsp_client = False  # sentinel: don't retry
+        return self._lsp_client if self._lsp_client is not False else None
+
+    async def _rename_with_lsp_fallback(
+        self, old_name, new_name, def_refs, all_refs, apply, allow_collision
+    ):
+        """Hybrid rename: try LSP (2s timeout) → fallback to SymbolIndex."""
+        if not def_refs:
+            # No definition found — can't use LSP (need file+line+col)
+            return await self._fallback_rename(old_name, new_name, all_refs, apply)
+
+        # Use first definition for LSP call
+        def_ref = def_refs[0]
+
+        lsp = self._get_lsp_client()
+        if lsp is not None:
+            try:
+                # Try LSP with 2s hard timeout
+                workspace_edit = await asyncio.wait_for(
+                    lsp.rename_symbol(
+                        file_path=def_ref.file_path,
+                        line=max(0, def_ref.line - 1),  # LSP uses 0-based
+                        col=0,
+                        new_name=new_name,
+                    ),
+                    timeout=2.0,
+                )
+                if workspace_edit is not None:
+                    # LSP returned a WorkspaceEdit — apply it
+                    result = await self._apply_workspace_edit(
+                        workspace_edit, old_name, new_name
+                    )
+                    # Meta-patching after successful rename
+                    try:
+                        indexer = self.resolve_indexer()
+                        if hasattr(indexer, 'apply_file_move'):
+                            for f in result.get("files", []):
+                                indexer.apply_file_move(f, f)
+                    except Exception:
+                        pass
+                    return result
+            except asyncio.TimeoutError:
+                logger.info("[LSP] Timeout (2s) — fallback to SymbolIndex")
+            except Exception as e:
+                logger.debug(f"[LSP] Error: {e} — fallback to SymbolIndex")
+
+        # Fallback: SymbolIndex
+        return await self._fallback_rename(old_name, new_name, all_refs, apply)
+
+    async def _apply_workspace_edit(
+        self, edit: dict, old_name: str, new_name: str
+    ) -> dict:
+        """Apply a WorkspaceEdit from LSP (dict with 'changes' key)."""
+        # Convert LSP WorkspaceEdit to our rename format
+        changes = edit.get("changes", {})
+        if not changes:
+            return {"status": "warning", "message": "LSP returned empty WorkspaceEdit"}
+
+        files_modified = []
+        errors = []
+
+        for uri, text_changes in changes.items():
+            file_path = self._uri_to_path(uri)
+            if not file_path:
+                continue
+            try:
+                abs_path = Path(file_path)
+                if not abs_path.exists():
+                    errors.append(f"File not found: {file_path}")
+                    continue
+
+                content = abs_path.read_text(encoding="utf-8")
+                lines = content.splitlines(True)
+
+                # Apply changes in reverse order (to preserve line numbers)
+                text_changes.sort(
+                    key=lambda c: (
+                        c["range"]["start"]["line"],
+                        c["range"]["start"]["character"],
+                    ),
+                    reverse=True,
+                )
+
+                for change in text_changes:
+                    start = change["range"]["start"]
+                    end = change["range"]["end"]
+                    new_text = change.get("newText", "")
+
+                    if (
+                        start["line"] == end["line"]
+                        and start["character"] == end["character"]
+                    ):
+                        # Insertion
+                        idx = start["line"]
+                        col = start["character"]
+                        line = lines[idx]
+                        lines[idx] = line[:col] + new_text + line[col:]
+                    else:
+                        # Replacement
+                        start_idx = start["line"]
+                        end_idx = min(end["line"] + 1, len(lines))
+
+                        if start["line"] == end["line"]:
+                            line = lines[start_idx]
+                            lines[start_idx] = (
+                                line[: start["character"]]
+                                + new_text
+                                + line[end["character"] :]
+                            )
+                        else:
+                            # Multi-line replacement
+                            first_line = lines[start_idx]
+                            lines[start_idx] = (
+                                first_line[: start["character"]] + new_text
+                            )
+                            # Remove middle lines
+                            del lines[start_idx + 1 : end_idx]
+
+                abs_path.write_text("".join(lines), encoding="utf-8")
+                files_modified.append(file_path)
+
+            except Exception as e:
+                errors.append(f"Error processing {file_path}: {e}")
+
+        status = "applied" if not errors else "partial"
+        return {
+            "status": status,
+            "message": f"LSP rename applied across {len(files_modified)} files.",
+            "files": files_modified,
+            "errors": errors if errors else None,
+        }
+
+    def _uri_to_path(self, uri: str) -> Optional[str]:
+        """Convert file:// URI to filesystem path."""
+        if not uri.startswith("file://"):
+            return None
+        from urllib.parse import unquote
+
+        path = unquote(uri[7:])  # strip file://
+        if path.startswith("/") and len(path) > 2 and path[2] == ":":
+            path = path[1:]  # /C:/... → C:/...
+        return path
+
+    def _format_result(self, status: str, message: str) -> str:
+        """Return a Markdown-formatted result string."""
+        icons = {
+            "warning": "\u26a0\ufe0f",
+            "error": "\U0001f6ab",
+            "preview": "\U0001f50d",
+            "applied": "\u2705",
+            "partial": "\u26a0\ufe0f",
+        }
+        icon = icons.get(status, "\u2139\ufe0f")
+        return f"{icon} **{status.title()}:** {message}\n"
+
+    async def _fallback_rename(
+        self, old_name: str, new_name: str, all_refs: list, apply: bool
+    ) -> dict:
+        """Original SymbolIndex-based rename (preview + apply_changes + meta-patching)."""
+        changes = self._build_changes(old_name, new_name, all_refs)
+
+        if not apply:
+            return {
+                "status": "preview",
+                "message": (
+                    f"Preview: rename '{old_name}' → '{new_name}'"
+                    f" ({len(changes)} occurrences)"
+                ),
+                "changes": changes,
+                "files_affected": len(set(c["file"] for c in changes)),
+                "total_occurrences": len(changes),
+            }
+
+        result = await self._apply_changes(changes)
+
+        # Update in-memory index
+        si = self.resolve_symbol_index()
+        si.rename_symbol(old_name, new_name)
+
+        # Meta-patch index
+        try:
+            indexer = self.resolve_indexer()
+            if hasattr(indexer, 'apply_file_move'):
+                for file in result.get("files", []):
+                    patch = indexer.apply_file_move(file, file)
+                    logger.info(f"Meta-patch for {file}: {patch}")
+        except Exception:
+            pass
 
         return result
 

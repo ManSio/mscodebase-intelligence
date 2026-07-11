@@ -117,6 +117,18 @@ class LspClient:
                 f.set_exception(RuntimeError("LSP stopped"))
         self._pending.clear()
 
+    async def is_ready(self) -> bool:
+        """Non-blocking check if LSP server is started and responsive.
+
+        Returns True if the server process is running and initialized.
+        Does NOT attempt to start the server (use _ensure_started for that).
+        """
+        if self._stopped:
+            return False
+        if self._started and self._process is not None and self._process.returncode is None:
+            return True
+        return False
+
     async def open_file(self, file_path: str) -> bool:
         """Send textDocument/didOpen. Returns True when file is tracked."""
         if not await self._ensure_started():
