@@ -502,9 +502,11 @@ def _patch_dll_imports(dll_dir: Path) -> int:
 # При обновлении LLAMA_VERSION нужно пересчитать хэш:
 #   python -c "import hashlib; print(hashlib.sha256(open('llama-...zip','rb').read()).hexdigest())"
 # Если проверка не проходит — бинарник не будет установлен.
+# win-cpu-x64 + win-vulkan-x64: посчитаны 2026-07-11 для b9940.
 LLAMA_BIN_SHA256 = {
-    "win-cpu-x64": "",  # заполнить при первом скачивании: hashlib.sha256(archive).hexdigest()
-    "macos-arm64": "",
+    "win-cpu-x64": "d5d7248c7aacaeb0c8f15311acb0f1081874aa7a5de55843702e9e2394a05788",
+    "win-vulkan-x64": "036835f0adb53b5d48444ab9adb7c29fff898be6fa74f7f9fc15f674ea38b153",
+    "macos-arm64": "",  # вычислить: hashlib.sha256(open('llama-...tar.gz','rb').read()).hexdigest()
     "macos-x64": "",
     "ubuntu-x64": "",
 }
@@ -1195,15 +1197,6 @@ def reset_global_runner():
         _global_runner = None
 
 
-
-__all__ = [
-    "LlamaRunner",
-    "get_global_runner",
-    "is_installed",
-    "download_llama_binary",
-    "download_gguf_model",
-    "install_all",
-]
 
 __all__ = [
     "LlamaRunner",
