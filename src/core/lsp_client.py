@@ -339,18 +339,19 @@ class LspClient:
             if found:
                 return found
 
-        # 2. Поиск в Zed LSP директориях (Zed управляет pyright сам!)
-        # Имя папки = имя LSP сервера, а не языка (pyright, а не python)
-        lsp_name = "pyright" if self.language == "python" else "typescript-language-server"
-        zed_lsp_dirs = [
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / lsp_name / "node_modules" / ".bin",
-        ]
-        # basedpyright — альтернатива
+        # 2. Поиск в Zed LSP директориях (Zed управляет языковыми серверами сам!)
+        # basedpyright в приоритете — community-форк с лучшим type checking
+        # (см. ACP Registry docs/research/2026-07-11-zed-deep-dive.md)
+        lsp_dirs = []
         if self.language == "python":
-            zed_lsp_dirs.append(
+            lsp_dirs.append(
                 Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / "basedpyright" / "node_modules" / ".bin"
             )
-        for d in zed_lsp_dirs:
+        lsp_name = "pyright" if self.language == "python" else "typescript-language-server"
+        lsp_dirs.append(
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / lsp_name / "node_modules" / ".bin"
+        )
+        for d in lsp_dirs:
             for cmd in candidates:
                 candidate = d / cmd
                 if candidate.is_file():

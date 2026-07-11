@@ -37,7 +37,7 @@ class HealthReport:
         self.warnings: List[Dict[str, Any]] = []
         self.metrics: Dict[str, Any] = {}
 
-    def _run_with_timeout(self, func, timeout=30):
+    def _run_with_timeout(self, func, timeout=15):
         """Выполняет функцию с таймаутом через ThreadPoolExecutor.
 
         В отличие от старой реализации (threading.Thread + join),
@@ -479,7 +479,7 @@ class HealthReport:
 
         try:
             # Вызов оригинального _run_with_timeout из первой части кода
-            last_commit = self._run_with_timeout(_git_worker, timeout=30)
+            last_commit = self._run_with_timeout(_git_worker, timeout=15)
 
             # Если вернулось исключение или TimeoutError
             if isinstance(last_commit, (Exception, TimeoutError)):

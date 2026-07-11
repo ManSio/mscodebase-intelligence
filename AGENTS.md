@@ -159,7 +159,7 @@ intel_get_project_memory      ──>   get_commit_history / file_hist (no analo
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (50)
+## 2. AVAILABLE TOOLS (56)
 
 ### A. High-Level Intelligence Layer (14 tools)
 

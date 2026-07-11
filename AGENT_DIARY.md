@@ -5,6 +5,128 @@
 
 ---
 
+## [2026-07-11 23:00] — Threads.db Research + edit_prediction 403 verdict
+
+**Problem:** Исследовать threads.db (39MB) для долговременной памяти и ошибку edit_prediction 403
+
+**Findings:**
+
+### threads.db — формат полностью расшифрован
+- SQLite: `CREATE TABLE threads (id, summary, updated_at, data_type, data BLOB, ...)`
+- Все 300 тредов сжаты **zstd** (Zstandard)
+- Внутри: **JSON** версии 0.3.0
+- Текущий диалог: **11.2 MB несжатых, 702 сообщения**
+- Формат сообщений: `{"User"/"Assistant": {"id": "...", "content": [{"Text": "..."}]}}`
+- Модель: `{"provider": "opencode", "model": "go/deepseek-v4-flash"}`
+- Код декодирования: zstandard.decompress() → json.loads() → messages[]
+
+### edit_prediction 403 — вердикт
+- Server-side ошибка сервиса edit prediction от Zed
+- Код: `edit_prediction_blocked` — нужно писать в billing-support@zed.dev
+- Известный баг: #59013 (closed as not planned)
+- MSCodeBase НЕ использует edit prediction — ошибка не влияет на нас
+
+### Связанные проекты memory-layer
+- OB1 (4.1k ⭐), AtomicMemory (440⭐), knowns (214⭐)
+- Memesh — SQLite + FTS5 + vectors (ближе всего к нашему подходу)
+
+**Docs:** docs/research/2026-07-11-threads-db-research.md
+**Status:** ✅ Threads.db расшифрован. edit_prediction — не наша ошибка.
+
+---
+
+## [2026-07-11 22:30] — Zed Deep Dive: ACP Agent Registry (38 agents), basedpyright LSP, Zed internals
+
+**Problem:** Исследовать скрытые возможности Zed внутри %LOCALAPPDATA%\Zed\
+
+**Findings:**
+
+### 1. 🔥 ACP Agent Registry (38 agents)
+Zed имеет встроенный реестр внешних агентов по протоколу ACP (Agent Communication Protocol):
+- Файл: `%LOCALAPPDATA%\Zed\external_agents\registry\registry.json`
+- **14+ агентов** поддерживают ACP с флагом `--acp`
+- Gemini CLI: `npx @google/gemini-cli@0.50.0 --acp`
+- Claude ACP (от Anthropic + Zed + JetBrains)
+- Cursor, Devin, GitHub Copilot, Kilo, OpenCode, siGit и другие
+- Distribution: npx (21), direct binary (17), uvx (2)
+
+### 2. 🎯 basedpyright LSP — альтернатива pyright
+- Установлен в `%LOCALAPPDATA%\Zed\languages\basedpyright\`
+- Версия 1.39.9 (pyright: 1.1.410)
+- **Совместим с pyright** — предоставляет те же `pyright-langserver`, `pyright` команды
+- basedpyright = community-форк с лучшим type checking
+
+### 3. 📋 Zed Languages
+- pyright (1.1.410), basedpyright (1.39.9)
+- bash-language-server, json-language-server, yaml-language-server
+- rust-analyzer (2026-07-06), package-version-server
+
+### 4. 🗄 Zed DB
+- `db/0-global/db.sqlite` — таблицы: `migrations`, `kv_store` (key-value)
+- `threads/threads.db` — 39MB база данных
+- `prompts/prompts-library-db.0.mdb` — LMDB prompt library
+
+### 5. 📝 Логи Zed
+- `logs/Zed.log` (837KB) — основные логи
+- `logs/telemetry.log` (436KB) — телеметрия
+- Error: `edit_prediction` — 403 (Zed Copilot)
+- Error: `lsp_store` — no snapshots for buffer
+
+**Action:** LspClient._find_server() — basedpyright поставлен в приоритет над pyright.
+**Docs:** docs/research/2026-07-11-zed-deep-dive.md — полный отчёт.
+**Memory:** ADR записан в проектную память.
+**Status:** ✅ Исследование завершено + basedpyright интегрирован
+
+---
+
+## [2026-07-11 22:00] — Full System Audit + Fix: timeout, AGENTS.md, orphan files, project memory
+
+**Problem:** 
+1. `get_health_report` зависал на 32.6s из-за Git timeout (30s)
+2. AGENTS.md (проектный) показывал 50 инструментов вместо 56
+3. 156 orphan files в индексе после rename-операций
+4. Проектная память пуста (0 ADRs, 0 known_issues)
+5. Персональный AGENTS.md не содержал write tools и LSP hybrid
+
+**Solution:**
+1. `src/core/health_report.py` — `_run_with_timeout` default timeout 30→15s
+2. `AGENTS.md` — заголовок 50→56 (фактических инструментов)
+3. `intel_trigger_reindex` — очистка orphan files через переиндексацию
+4. Project memory — добавлены ADR (Write Tools LSP Hybrid) + 3 known_issues
+5. Personal AGENTS.md (%APPDATA%/Zed) — добавлены 6 write tools + LSP hybrid
+
+**Tools Used:** edit_file, intel_trigger_reindex, intel_add_memory_node, read_live_file, terminal
+**Status:** ✅
+
+---
+
+## [2026-07-11 22:30] — Tests: test_modification_guard.py — 13 tests for ack_impact + @modification_guard
+
+**Problem:** No test coverage for the modification guard module (ack_impact + @modification_guard decorator).
+
+**Solution:** Created `tests/test_modification_guard.py` with 13 tests covering:
+- ack_impact: registers ack, returns TTL, normalizes paths, multiple files
+- @modification_guard: allows non-hot files, denies hot files without ack, allows with fresh ack, re-blocks after TTL expiry, cleans up expired acks
+- Edge cases: no file_path/symbol, diagnostics in denied response, file-only and symbol-only triggers
+
+**Tools Used:** read_file, write_file, terminal, intel_log_incident
+**Status:** ✅ (13/13 passed)
+
+## [2026-07-11 22:30] — Docs: Synchronize ALL docs for v3.0 (write tools, LSP, meta-patching)
+
+**Problem:** 10 documentation files out of sync after Phases 1-3, P0 meta-patching, and bug fix.
+
+**Solution:** Updated all 10 files:
+- README.md (en/ru/zh): 50→56 tools, added Write Tools section/table, features list
+- ARCHITECTURE.md (en/ru/zh): 33→39 core tools, added Write group in tool layer
+- CHANGELOG.md (en/ru/zh): v3.0.0 entry for all changes
+- KNOWN_ISSUES.md: added SYM-INDEX-PARTIAL issue
+
+**Tools Used:** read_file, edit_file, notify_change, intel_log_incident, terminal (git)
+**Status:** ✅
+
+---
+
 ## [2026-07-11 20:30] — P0: LanceDB Meta-Patching (file rename without re-embed)
 
 **Problem:** File rename triggers full delete+re-embed cycle (2-5s, 700MB RAM).
