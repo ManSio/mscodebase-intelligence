@@ -251,8 +251,26 @@ class RenameSymbolTool(MCPTool):
 
         lsp = self._get_lsp_client()
         if lsp is not None:
+            # --- Warm-up: open all files with references so pyright sees them ---
+            # Without this, pyright returns empty WorkspaceEdit (Open Files Trap)
+            warmed = 0
+            if all_refs:
+                seen = set()
+                for ref in all_refs:
+                    fp = ref.file_path
+                    if fp not in seen and len(seen) < 10:
+                        seen.add(fp)
+                        try:
+                            if await lsp.open_file(fp):
+                                warmed += 1
+                        except Exception:
+                            pass
+            if warmed:
+                logger.debug(f"[LSP] Warmed {warmed} files for pyright context")
+                await asyncio.sleep(0.3)  # Give pyright a moment to index
+
             try:
-                # Try LSP with 2s hard timeout
+                # Try LSP with timeout
                 workspace_edit = await asyncio.wait_for(
                     lsp.rename_symbol(
                         file_path=def_ref.file_path,
@@ -265,6 +283,7 @@ class RenameSymbolTool(MCPTool):
                 )
                 if workspace_edit is not None:
                     # LSP returned a WorkspaceEdit — check if it has real changes
+                    # Check if it has actual changes (not empty)
                     has_changes = bool(
                         workspace_edit.get("changes")
                         or workspace_edit.get("documentChanges")
@@ -295,17 +314,30 @@ class RenameSymbolTool(MCPTool):
     async def _apply_workspace_edit(
         self, edit: dict, old_name: str, new_name: str
     ) -> dict:
-        """Apply a WorkspaceEdit from LSP (dict with 'changes' key)."""
-        # Convert LSP WorkspaceEdit to our rename format
-        changes = edit.get("changes", {})
-        if not changes:
-            return {"status": "warning", "message": "LSP returned empty WorkspaceEdit"}
+        """Apply a WorkspaceEdit from LSP.
 
+        Handles two LSP WorkspaceEdit formats:
+        - changes: dict[uri, TextEdit[]]
+        - documentChanges: TextDocumentEdit[] (preferred by pyright)
+        """
         files_modified = []
         errors = []
 
-        for uri, text_changes in changes.items():
-            file_path = self._uri_to_path(uri)
+        # Extract all (uri, edits) pairs from both formats
+        all_edits = []
+
+        # Format 1: changes (deprecated but sometimes used)
+        for uri, edits in edit.get("changes", {}).items():
+            all_edits.append((uri, edits))
+
+        # Format 2: documentChanges (preferred by pyright)
+        for doc_change in edit.get("documentChanges", []):
+            if "textDocument" in doc_change and "edits" in doc_change:
+                uri = doc_change["textDocument"].get("uri", "")
+                all_edits.append((uri, doc_change["edits"]))
+
+        if not all_edits:
+            return {"status": "warning", "message": "LSP returned empty WorkspaceEdit"}
             if not file_path:
                 continue
             try:
