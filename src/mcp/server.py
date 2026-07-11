@@ -745,10 +745,87 @@ def create_mcp_server() -> FastMCP:
             name="mscodebase-bridge-recheck",
             daemon=True,
         ).start()
+        
+        # ─── 11. Warm-up pipeline: прогрев подсистем ───────
+        # Упреждающая инициализация Indexer + Embedder, чтобы первый
+        # запрос пользователя не ждал загрузки моделей и LanceDB.
+        threading.Thread(
+            target=_warm_up_ecosystem,
+            args=(services,),
+            name="mscodebase-warmup",
+            daemon=True,
+        ).start()
     except Exception:
         pass
 
     return mcp
+
+
+def _warm_up_ecosystem(services):
+    """Упреждающий прогрев подсистем: Indexer и Embedder.
+
+    Запускается в фоновом потоке после старта MCP-сервера.
+    Форсирует загрузку SymbolIndex и пинг llama-server,
+    чтобы первый вызов search_code() не ждал ~3s на прогрев.
+    """
+    import asyncio
+
+    logger.info("[🔥 Warm-up] Запуск упреждающего прогрева...")
+
+    # 1. Прогрев SymbolIndex через registry
+    try:
+        from src.mcp.tools.base import resolve_indexer_for_request, _is_self_index_path
+        from src.core.di_container import ProjectIndexerRegistry
+
+        registry = services.resolve(ProjectIndexerRegistry)
+
+        def _warm_indexers():
+            """Форсирует загрузку SymbolIndex для всех проектов в реестре."""
+            with registry._meta_lock:
+                paths = list(registry._indexers.keys())
+            for p in paths:
+                if _is_self_index_path(p):
+                    continue
+                with registry._meta_lock:
+                    idx = registry._indexers.get(p)
+                if idx is None:
+                    continue
+                try:
+                    # Проверяем, что SymbolIndex не пуст — триггерит
+                    # lazy-загрузку с диска, если ещё не загружен.
+                    sc = idx._symbol_index.get_symbol_count() if hasattr(idx, "_symbol_index") else 0
+                    logger.info(f"[🔥 Warm-up] {p.name}: SymbolIndex={sc} symbols")
+                except Exception as e:
+                    logger.debug(f"[🔥 Warm-up] {p.name}: {e}")
+
+        _warm_indexers()
+    except Exception as e:
+        logger.warning(f"[🔥 Warm-up] Indexer прогрев: {e}")
+
+    # 2. Прогрев embedder (пинг llama-server)
+    try:
+        from src.core.remote_embedder import RemoteEmbedder
+
+        embedder = services.resolve(RemoteEmbedder)
+
+        async def _ping_embedder():
+            """Проверяет, что embedder отвечает (разогрев модели)."""
+            for attempt in range(3):
+                try:
+                    mode = getattr(embedder, "mode", None)
+                    if mode and mode != "fallback":
+                        logger.info(f"[🔥 Warm-up] Embedder: mode={mode}")
+                        return
+                    await asyncio.sleep(1)
+                except Exception:
+                    await asyncio.sleep(1)
+            logger.debug("[🔥 Warm-up] Embedder не доступен (будет ленивый старт)")
+
+        asyncio.run(_ping_embedder())
+    except Exception as e:
+        logger.debug(f"[🔥 Warm-up] Embedder: {e}")
+
+    logger.info("[🔥 Warm-up] Прогрев завершён")
 
 
 def _register_notification_broker(mcp, services):

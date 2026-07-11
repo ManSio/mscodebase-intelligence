@@ -243,34 +243,32 @@ class ProjectIntelligenceLayer:
         self._write_lock = asyncio.Lock()  # защита от race при записи JSON
 
     def _resolve_active_indexer(self) -> Any:
-        """Возвращает Indexer для активного workspace (с fallback).
+        """Динамически резолвит актуальный Indexer из реестра.
 
-        Если self.indexer — self-indexing (Zed install / ext_root / None)
-        и в реестре есть другие active indexers — выбирает первый
-        non-self-indexing. Это позволяет intel_* tools работать
-        даже когда LSP не успел записать bridge.
+        В отличие от self.indexer (закеширован при старте), этот метод
+        всегда берёт свежий синглтон из ProjectIndexerRegistry.
+        Предотвращает stale-состояние (рецидив INC-001).
 
         Returns:
-            Indexer (может быть self.indexer если всё в порядке).
+            Indexer из реестра, или self.indexer как fallback.
         """
-        try:
-            from src.mcp.tools.base import _is_self_index_path
+        if self._services is not None:
+            try:
+                from src.core.di_container import ProjectIndexerRegistry
+                from src.mcp.tools.base import _is_self_index_path
 
-            if not _is_self_index_path(self.indexer.project_path):
-                return self.indexer
-            # Self-indexing — ищем non-self-indexing в реестре.
-            if self._services is None:
-                return self.indexer
-            from src.core.di_container import ProjectIndexerRegistry
+                registry = self._services.resolve(ProjectIndexerRegistry)
+                with registry._meta_lock:
+                    for p, idx in registry._indexers.items():
+                        if not _is_self_index_path(p):
+                            return idx
+            except Exception as e:
+                logger.warning(f"[Intel] Registry re-resolve failed: {e}")
 
-            registry = self._services.resolve(ProjectIndexerRegistry)
-            with registry._meta_lock:
-                for p, idx in registry._indexers.items():
-                    if not _is_self_index_path(p):
-                        return idx
-        except Exception:
-            pass
-        return self.indexer
+        # Fallback: self.indexer (может быть stale, но лучше чем None)
+        if hasattr(self, "indexer") and self.indexer is not None:
+            return self.indexer
+        return None
 
     # -----------------------------------------------------------------
     # БЛОК 1. Code Intelligence (Быстрый локальный анализ, < 2 сек)
@@ -512,9 +510,14 @@ class ProjectIntelligenceLayer:
                     if isinstance(status, dict)
                     else 0,
                     "total_files": total_files,
-                    "symbol_index_count": self.symbol_index.get_stats().get("total_symbols", 0)
-                    if hasattr(self.symbol_index, "get_stats")
-                    else 0,
+                    # INC-6BCB-v3.1: self.symbol_index может указывать на default
+                    # indexer (self-indexing при старте). Берём из активного.
+                    "symbol_index_count": (
+                        active_indexer._symbol_index.get_stats().get("total_symbols", 0)
+                        if hasattr(active_indexer, "_symbol_index")
+                        and hasattr(active_indexer._symbol_index, "get_stats")
+                        else 0
+                    ),
                     "status": "active" if total_chunks > 0 else "empty",
                 },
                 "resource_usage": {
