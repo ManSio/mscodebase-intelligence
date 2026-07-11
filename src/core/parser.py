@@ -116,6 +116,72 @@ class CodeParser:
             except ImportError:
                 logger.debug("Tree-sitter TypeScript недоступен.")
 
+            # Go
+            try:
+                import tree_sitter_go as tsgo
+
+                parser = Parser()
+                parser.language = Language(tsgo.language())
+                self.parsers[".go"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Go недоступен.")
+
+            # JavaScript
+            try:
+                import tree_sitter_javascript as tsjs
+
+                parser = Parser()
+                parser.language = Language(tsjs.language())
+                self.parsers[".js"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter JavaScript недоступен.")
+
+            # Java
+            try:
+                import tree_sitter_java as tsjava
+
+                parser = Parser()
+                parser.language = Language(tsjava.language())
+                self.parsers[".java"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Java недоступен.")
+
+            # C#
+            try:
+                import tree_sitter_c_sharp as tscs
+
+                parser = Parser()
+                parser.language = Language(tscs.language())
+                self.parsers[".cs"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C# недоступен.")
+
+            # Ruby
+            try:
+                import tree_sitter_ruby as tsrb
+
+                parser = Parser()
+                parser.language = Language(tsrb.language())
+                self.parsers[".rb"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Ruby недоступен.")
+
+            # PHP
+            try:
+                import tree_sitter_php as tsphp
+
+                parser = Parser()
+                # PHP grammar: может быть language_php() или LANGUAGE
+                if hasattr(tsphp, "language_php"):
+                    parser.language = Language(tsphp.language_php())
+                elif hasattr(tsphp, "language"):
+                    parser.language = Language(tsphp.language())
+                elif hasattr(tsphp, "LANGUAGE"):
+                    parser.language = Language(tsphp.LANGUAGE)  # type: ignore[attr-defined]
+                self.parsers[".php"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter PHP недоступен.")
+
             logger.info(f"✅ Tree-sitter готов для: {list(self.parsers.keys())}")
 
         except ImportError as e:
@@ -416,6 +482,13 @@ class CodeParser:
         ".rs": {"let_declaration", "assignment_expression"},
         ".ts": {"variable_declarator", "assignment_expression"},
         ".tsx": {"variable_declarator", "assignment_expression"},
+        ".go": {"short_var_declaration", "assignment_statement",
+                  "var_spec", "send_statement"},
+        ".js": {"variable_declarator", "assignment_expression"},
+        ".java": {"variable_declarator", "assignment_expression"},
+        ".cs": {"variable_declarator", "assignment_expression"},
+        ".rb": {"assignment", "op_assignment"},
+        ".php": {"assignment_expression", "variable_declarator"},
     }
 
     # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
@@ -635,12 +708,44 @@ class CodeParser:
                 or node.child_by_field_name("pattern")
                 or node.child_by_field_name("name")
             )
-            right = node.child_by_field_name("right") or node.child_by_field_name("value")
-            if left and left.type == "identifier" and right:
-                self._process_rhs_for_assign(
-                    target=code[left.start_byte : left.end_byte].decode(
+            right = (
+                node.child_by_field_name("right")
+                or node.child_by_field_name("value")
+                or node.child_by_field_name("initializer")
+            )
+            # Если right не найден по полю — ищем ребёнка после '=' (C# fallback)
+            if right is None:
+                for i, child in enumerate(node.children):
+                    if child.type == "=" and i + 1 < len(node.children):
+                        right = node.children[i + 1]
+                        break
+            # Извлекаем имя переменной из left (может быть identifier
+            # или expression_list для Go/Java множественных присваиваний)
+            left_name = None
+            if left:
+                if left.type == "identifier":
+                    left_name = code[left.start_byte : left.end_byte].decode(
                         "utf-8", errors="ignore"
-                    ),
+                    )
+                elif left.type == "expression_list":
+                    # Берём первый identifier из списка (x, y := ...)
+                    for child in left.children:
+                        if child.type == "identifier":
+                            left_name = code[child.start_byte : child.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
+                            break
+            else:
+                # Fallback: ищем первый identifier среди детей (Go var_spec)
+                for child in node.children:
+                    if child.type == "identifier":
+                        left_name = code[child.start_byte : child.end_byte].decode(
+                            "utf-8", errors="ignore"
+                        )
+                        break
+            if left_name and right:
+                self._process_rhs_for_assign(
+                    target=left_name,
                     right=right,
                     code=code,
                     assigned=assigned,
