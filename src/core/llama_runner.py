@@ -32,6 +32,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+import hashlib
 import httpx
 
 logger = logging.getLogger("mscodebase_server.llama_runner")
@@ -53,7 +54,6 @@ LLAMA_CTX_SIZE = int(os.getenv("LLAMA_CTX_SIZE", "1024"))     # 1024 = ~500 MB R
 LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "512"))   # 256 токенов за проход (быстрая индексация)
 LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "512"))  # 64 микро-батч для CPU
 LLAMA_DEFRAG_THOLD = float(os.getenv("LLAMA_DEFRAG_THOLD", "0.3"))  # дефрагментация KV при 30%
-LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit)
 LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit, без потери качества)
 
 # ─── Платформенная детекция ────────────────────────────────────
@@ -437,61 +437,96 @@ def _patch_dll_imports(dll_dir: Path) -> int:
         except Exception:
             continue
 
-        pe_off = struct.unpack_from('<I', data, 0x3C)[0]
-        if data[pe_off:pe_off + 4] != b'PE\x00\x00':
+        try:
+            pe_off = struct.unpack_from('<I', data, 0x3C)[0]
+            if data[pe_off:pe_off + 4] != b'PE\x00\x00':
+                continue
+
+            opt = pe_off + 24
+            magic = struct.unpack_from('<H', data, opt)[0]
+            ds = opt + (96 if magic == 0x10b else 112)
+            irva = struct.unpack_from('<I', data, ds + 8)[0]
+            if irva == 0:
+                continue
+
+            so = ds + 128
+            ns = struct.unpack_from('<H', data, pe_off + 6)[0]
+
+            def _r2r(rva):
+                for i in range(ns):
+                    s = so + i * 40
+                    sv = struct.unpack_from('<I', data, s + 12)[0]
+                    ss = struct.unpack_from('<I', data, s + 8)[0]
+                    sr = struct.unpack_from('<I', data, s + 20)[0]
+                    if sv <= rva < sv + ss:
+                        return sr + (rva - sv)
+                return None
+
+            itr = _r2r(irva)
+            if itr is None:
+                continue
+
+            changed = 0
+            pos = itr
+            while True:
+                nth = struct.unpack_from('<I', data, pos)[0]
+                nr = struct.unpack_from('<I', data, pos + 12)[0]
+                if nth == 0 and nr == 0:
+                    break
+                dnr = _r2r(nr)
+                if dnr is not None:
+                    end = data.index(b'\x00', dnr)
+                    dn = data[dnr:end].decode('ascii', errors='replace')
+                    if dn.lower().startswith('api-ms-win-crt-'):
+                        new_name = b'ucrtbase.dll\x00'
+                        old_len = end - dnr
+                        if len(new_name) <= old_len:
+                            data[dnr:dnr + len(new_name)] = new_name
+                            for i in range(dnr + len(new_name), dnr + old_len):
+                                data[i] = 0
+                            changed += 1
+                pos += 20
+
+            if changed:
+                fpath.write_bytes(bytes(data))
+                patched += changed
+                logger.debug(f"  🔄 {fpath.name}: {changed} imports patched")
+        except Exception:
+            logger.warning(f"⚠️ PE patch failed for {fpath.name}, skipping")
             continue
-
-        opt = pe_off + 24
-        magic = struct.unpack_from('<H', data, opt)[0]
-        ds = opt + (96 if magic == 0x10b else 112)
-        irva = struct.unpack_from('<I', data, ds + 8)[0]
-        if irva == 0:
-            continue
-
-        so = ds + 128
-        ns = struct.unpack_from('<H', data, pe_off + 6)[0]
-
-        def _r2r(rva):
-            for i in range(ns):
-                s = so + i * 40
-                sv = struct.unpack_from('<I', data, s + 12)[0]
-                ss = struct.unpack_from('<I', data, s + 8)[0]
-                sr = struct.unpack_from('<I', data, s + 20)[0]
-                if sv <= rva < sv + ss:
-                    return sr + (rva - sv)
-            return None
-
-        itr = _r2r(irva)
-        if itr is None:
-            continue
-
-        changed = 0
-        pos = itr
-        while True:
-            nth = struct.unpack_from('<I', data, pos)[0]
-            nr = struct.unpack_from('<I', data, pos + 12)[0]
-            if nth == 0 and nr == 0:
-                break
-            dnr = _r2r(nr)
-            if dnr is not None:
-                end = data.index(b'\x00', dnr)
-                dn = data[dnr:end].decode('ascii', errors='replace')
-                if dn.lower().startswith('api-ms-win-crt-'):
-                    new_name = b'ucrtbase.dll\x00'
-                    old_len = end - dnr
-                    if len(new_name) <= old_len:
-                        data[dnr:dnr + len(new_name)] = new_name
-                        for i in range(dnr + len(new_name), dnr + old_len):
-                            data[i] = 0
-                        changed += 1
-            pos += 20
-
-        if changed:
-            fpath.write_bytes(bytes(data))
-            patched += changed
-            logger.debug(f"  🔄 {fpath.name}: {changed} imports patched")
 
     return patched
+
+
+# Хэш известного релиза llama.cpp b9940 для проверки целостности скачанного архива.
+# При обновлении LLAMA_VERSION нужно пересчитать хэш:
+#   python -c "import hashlib; print(hashlib.sha256(open('llama-...zip','rb').read()).hexdigest())"
+# Если проверка не проходит — бинарник не будет установлен.
+LLAMA_BIN_SHA256 = {
+    "win-cpu-x64": "",  # заполнить при первом скачивании: hashlib.sha256(archive).hexdigest()
+    "macos-arm64": "",
+    "macos-x64": "",
+    "ubuntu-x64": "",
+}
+
+
+def _verify_archive_sha256(archive_path: Path, tag: str) -> bool:
+    """Проверяет SHA256 скачанного архива, если хэш известен."""
+    expected = LLAMA_BIN_SHA256.get(tag)
+    if not expected:
+        logger.warning(f"⚠️ SHA256 для {tag} не задан, пропускаем проверку")
+        return True
+    try:
+        actual = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+        if actual == expected:
+            logger.info(f"✅ SHA256 {tag}: {actual[:16]}... совпадает")
+            return True
+        logger.error(f"❌ SHA256 не совпадает! Ожидался {expected}, получен {actual[:16]}...")
+        archive_path.unlink()
+        return False
+    except Exception as e:
+        logger.error(f"❌ Ошибка проверки SHA256: {e}")
+        return False
 
 
 def download_llama_binary(progress_cb=None) -> bool:
@@ -521,6 +556,11 @@ def download_llama_binary(progress_cb=None) -> bool:
                 progress_cb(pct, f"llama.cpp ({b*bs//1024//1024}MB / {total//1024//1024}MB)")
 
         urllib.request.urlretrieve(LLAMA_BIN_URL, str(archive_path), _report)
+
+        # Проверка целостности скачанного архива
+        if not _verify_archive_sha256(archive_path, LLAMA_BIN_TAG):
+            logger.error("🚫 Отказ от установки: SHA256 не прошёл проверку")
+            return False
 
         # Список нужных файлов (платформозависимый)
         if sys.platform == "win32":
@@ -1025,9 +1065,14 @@ class LlamaRunner:
         return str(_get_ext_dir() / 'llama_reranker_stderr.log')
 
     def _ensure_port_free(self, port: int):
-        """Убивает любой процесс, слушающий указанный порт."""
+        """Освобождает порт, убивая только процесс llama-server (по команде)."""
         import subprocess as _sp
+        # Проверяем, что порт в ожидаемом диапазоне (8080-8090 для llama.cpp)
+        if not (8080 <= port <= 8090):
+            logger.warning(f"⚠️ Порт {port} вне диапазона llama.cpp (8080-8090), пропускаем")
+            return
         try:
+            # Шаг 1: находим PID процесса на порту
             out = _sp.check_output(
                 ['powershell', '-NoProfile', '-Command',
                  f'Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess'],
@@ -1035,11 +1080,27 @@ class LlamaRunner:
             ).decode().strip()
             for line in out.split('\n'):
                 pid = line.strip()
-                if pid and pid.isdigit() and int(pid) > 0:
-                    _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True, timeout=3)
-                    logger.warning(f'🧹 Убит процесс PID {pid} (порт {port})')
-        except Exception:
-            pass
+                if not (pid and pid.isdigit() and int(pid) > 0):
+                    continue
+                # Шаг 2: проверяем CommandLine процесса — убиваем только llama-server
+                try:
+                    cmd = _sp.check_output(
+                        ['powershell', '-NoProfile', '-Command',
+                         f'Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = {pid}" | Select-Object -ExpandProperty CommandLine'],
+                        timeout=3
+                    ).decode().strip().lower()
+                    if 'llama-server' not in cmd and 'ggml-rpc-server' not in cmd:
+                        logger.warning(f'⏭️ Порт {port} занят процессом PID {pid} (не llama-server), пропускаем')
+                        continue
+                except Exception:
+                    # Не смогли проверить — не убиваем
+                    logger.warning(f'⚠️ Не удалось проверить PID {pid} на порту {port}, пропускаем')
+                    continue
+                # Шаг 3: убиваем
+                _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True, timeout=3)
+                logger.warning(f'🧹 Убит процесс llama-server PID {pid} (порт {port})')
+        except Exception as e:
+            logger.warning(f'⚠️ Ошибка при освобождении порта {port}: {e}')
 
     def is_alive(self) -> bool:
         """Проверяет, жив ли процесс."""
