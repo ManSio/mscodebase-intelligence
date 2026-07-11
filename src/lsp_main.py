@@ -41,37 +41,8 @@ except Exception:
     pass  # Файловое логирование опционально
 
 # Поддерживаемые расширения (код + конфиги + документация)
-SUPPORTED_EXTENSIONS = {
-    ".py",
-    ".rs",
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".go",
-    ".java",
-    ".cpp",
-    ".c",
-    ".h",
-    ".hpp",
-    ".php",
-    ".rb",
-    ".swift",
-    ".kt",
-    ".scala",
-    ".r",
-    ".m",
-    ".mm",
-    ".html",
-    ".css",
-    ".scss",
-    ".json",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".md",
-    ".txt",
-}
+# Единый источник правды — extensions.py
+from src.core.extensions import INDEX_EXTENSIONS as SUPPORTED_EXTENSIONS
 
 
 def _uri_to_path(uri: str) -> Path:

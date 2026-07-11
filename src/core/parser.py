@@ -9,13 +9,15 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
+from src.core.extensions import PARSE_EXTENSIONS
+
 logger = logging.getLogger(__name__)
 
 
 class CodeParser:
     """Парсит код и разбивает на семантически значимые чанки (функции, методы)."""
 
-    SUPPORTED_EXTENSIONS = {".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go", ".md"}
+    SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS
 
     # Узлы, которые мы извлекаем как чанки
     TARGET_NODES = {

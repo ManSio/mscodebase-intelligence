@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Set
 
+from src.core.extensions import INDEX_EXTENSIONS
 from src.core.config import get_config
 from src.core.system_artifacts import SystemArtifacts
 
@@ -30,43 +31,8 @@ class FileGuard:
     SKIP_DIRS = SystemArtifacts.get_system_dirs()
 
     # Белый список расширений (Всеядность языков)
-    SUPPORTED_EXTENSIONS = {
-        ".py",
-        ".js",
-        ".ts",
-        ".jsx",
-        ".tsx",
-        ".rs",
-        ".go",
-        ".c",
-        ".cpp",
-        ".h",
-        ".hpp",
-        ".java",
-        ".cs",
-        ".php",
-        ".rb",
-        ".swift",
-        ".kt",
-        ".scala",
-        ".r",
-        ".m",
-        ".mm",
-        ".css",
-        ".scss",
-        ".sass",
-        ".less",
-        ".html",
-        ".xml",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".md",
-        ".sql",
-        ".sh",
-        ".bash",
-    }
+    # Единый источник правды — extensions.py
+    SUPPORTED_EXTENSIONS = INDEX_EXTENSIONS
 
     # Лимит размера файла (1 МБ)
     MAX_FILE_SIZE_BYTES = 1024 * 1024
