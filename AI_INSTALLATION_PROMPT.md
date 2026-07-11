@@ -19,7 +19,7 @@
   ✅ GGUF модели bge-m3 Q4_K_M + bge-reranker-v2-m3 (417+418 MB)
   ✅ MCP сервер настроен в Zed
   ✅ ~1.0 GB RAM в простое (llama.cpp GGUF)
-  ✅ 50 инструментов доступны Агенту (33 core + 14 intel + 3 diagnostic)
+  ✅ 56 инструментов доступны Агенту (39 core + 14 intel + 3 diagnostic)
 ```
 
 ---

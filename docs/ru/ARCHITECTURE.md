@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (33 class-based + 14 intel + 3 diagnostic = 50 всего)](#4-tool-layer)
+4. [Слой инструментов (39 class-based + 14 intel + 3 diagnostic = 56 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Rate Limiting и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (33 class-based инструмента)       │
+│  Слой 3: mcp/tools/*.py         (39 class-based инструментов)      │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```

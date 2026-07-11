@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (33 class-based + 14 intel + 3 diagnostic = 50 total)](#4-tool-layer)
+4. [Tool Layer (39 class-based + 14 intel + 3 diagnostic = 56 total)](#4-tool-layer)
 5. [Error Handling](#5-error-handling)
 6. [Rate Limiting & Resilience](#6-rate-limiting--resilience)
 7. [Data Flow: Request → Response](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (33 class-based tools)           │
+│  Layer 3: mcp/tools/*.py         (39 class-based tools)           │
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```

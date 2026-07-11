@@ -61,7 +61,7 @@ conn.execute("""
 | **late-resolve активного индексера** | Если LSP ещё не записал bridge-файл — подхватить первое живое workspace |
 | **Двухфазная переиндексация** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (анти-спам) |
 | **asyncio.Lock для File IO** | Защита от гонок при конкурентной записи в JSON-файлы памяти |
-| **ui_formatter** | Единый Markdown-стиль для всех 50 инструментов (без сырого JSON) |
+| **ui_formatter** | Единый Markdown-стиль для всех 56 инструментов (без сырого JSON) |
 
 ---
 
@@ -117,7 +117,7 @@ JSON-файлы. **Исправление:** `asyncio.Lock` в `IntelligenceStor
 
 | Файл | Что делает |
 |------|-------------|
-| `src/mcp/server.py` | `resolve_project_root()`, регистрация всех 50 инструментов |
+| `src/mcp/server.py` | `resolve_project_root()`, регистрация всех 56 инструментов |
 | `src/mcp/tools/base.py` | `MCPTool` (базовый класс), `resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 сервисов, `ProjectIndexerRegistry` |
 | `src/core/intelligence_layer.py` | 14 intel-инструментов, `ProjectIntelligenceLayer` |

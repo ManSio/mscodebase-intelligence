@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-406%20passing-brightgreen)](../../tests/)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共50个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共56个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
 
 *最后更新：2026-07-11*
 

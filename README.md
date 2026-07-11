@@ -366,7 +366,8 @@ mscodebase-intelligence/
 │   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
 │   ├── mcp/
 │   │   ├── server.py             # DI routing — only imports + registration
-│   └── tools/                 # 10 files, 33 class-based tools
+│   │   ├── write_tools.py        # rename/move/delete/replace/insert symbols
+│   │   └── tools/                 # 11 files, 39 class-based tools
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history
@@ -388,6 +389,8 @@ mscodebase-intelligence/
 │   │   ├── reranker.py           # Multi-Provider Reranker (HTTP to providers)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Self-diagnosis engine
+│   │   ├── lsp_client.py          # Thin LSP client (pyright JSON-RPC 2.0)
+│   │   ├── modification_guard.py  # @modification_guard decorator (ack + TTL)
 │   │   └── ...
 │   └── utils/
 │       ├── paths.py              # SafePathManager, to_win_long_path
