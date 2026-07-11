@@ -11,6 +11,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.core.config import get_config
@@ -27,8 +30,92 @@ logger = logging.getLogger("mscodebase_server.search_tools")
 
 
 # ══════════════════════════════════════════════════════════
-# Эвристика сложности запроса (исправлена)
+# Adaptive search budget (CodeGraph-inspired)
+# Размер ответа подстраивается под размер проекта.
 # ══════════════════════════════════════════════════════════
+
+
+def _get_search_budget(searcher) -> int:
+    """Возвращает оптимальный limit для search_code под размер проекта.
+
+    Маленькие проекты (<500 файлов): меньше результатов (быстрее, дешевле).
+    Большие проекты (>15000 файлов): больше результатов (чтобы не потерять).
+    """
+    try:
+        indexer = getattr(searcher, 'indexer', None)
+        if indexer is None:
+            return 6
+        cache = getattr(indexer, '_cached_unique_files', None)
+        if isinstance(cache, set):
+            count = len(cache)
+        elif isinstance(cache, int):
+            count = cache
+        else:
+            status = indexer.get_status() if hasattr(indexer, 'get_status') else {}
+            count = status.get('unique_files', 0) if isinstance(status, dict) else 0
+            count = count or 0
+        
+        # CodeGraph-inspired budget:
+        if count == 0:
+            return 6
+        elif count < 500:
+            return 4
+        elif count < 5000:
+            return 6
+        elif count < 15000:
+            return 8
+        else:
+            return 10
+    except Exception:
+        return 6
+
+
+# ══════════════════════════════════════════════════════════
+# Staleness checker (CodeGraph-inspired)
+# Предупреждает, если индекс мог устареть после индексации.
+# ══════════════════════════════════════════════════════════
+
+# Время старта MCP-сервера (для сравнения с indexed_at)
+_MCP_START_TIME = time.time()
+
+
+def _get_stale_warning(searcher) -> str:
+    """Проверяет, актуален ли индекс, и возвращает предупреждение если нет.
+
+    Стратегия (без полного сканирования файлов):
+    1. Берём самый свежий indexed_at из LanceDB
+    2. Если MCP запущен ПОСЛЕ последней индексации — файлы могли измениться
+    3. Показываем баннер один раз ("may be stale")
+    """
+    try:
+        indexer = getattr(searcher, 'indexer', None)
+        if indexer is None or not hasattr(indexer, 'table') or indexer.table is None:
+            return ''
+        # Быстрый запрос: max(indexed_at) через SQL
+        table = indexer.table
+        result = table.search().select(["indexed_at"]).limit(1).to_pandas()
+        if result.empty:
+            return ''
+        latest = str(result["indexed_at"].iloc[0])
+        if not latest:
+            return ''
+        try:
+            latest_dt = datetime.fromisoformat(latest)
+            latest_ts = latest_dt.timestamp()
+        except Exception:
+            return ''
+        
+        if _MCP_START_TIME > latest_ts + 10:  # 10s запас на погрешность
+            return ''  # молчим, если старт был после последней индексации (всё свежее)
+        
+        elapsed = time.time() - latest_ts
+        if elapsed > 3600:  # >1 часа
+            return '⚠️ Index may be stale (last indexed >1h ago). Run intel_trigger_reindex or wait for next auto-sync.\n'
+        elif elapsed > 600:  # >10 мин
+            return '⚠️ Index may be stale (last indexed >10min ago). Consider re-indexing if files changed.\n'
+        return ''
+    except Exception:
+        return ''
 
 
 def _is_complex_query(query: str) -> bool:
@@ -120,10 +207,21 @@ class SearchCodeTool(MCPTool):
         if not query or not query.strip():
             return _("❌ Query is empty")
 
+        # P1: Adaptive search budget (CodeGraph-inspired)
+        # Адаптируем limit под размер проекта если не указан явно.
+        searcher = self.resolve_searcher()
+        adaptive_limit = _get_search_budget(searcher)
+        effective_limit = limit if limit != 6 else adaptive_limit
+
+        # P3: Staleness check
+        stale_banner = _get_stale_warning(searcher)
+
         # === Project header ===
         project_header = self._project_header()
         if filter_layer:
             project_header += _("\n🔬 Layer filter: {layer}", layer=filter_layer)
+        if effective_limit != limit:
+            project_header += _("\n📊 Adaptive limit: {n} results for this project size", n=effective_limit)
 
         result_str: str
         results_count: int = 0
@@ -134,32 +232,34 @@ class SearchCodeTool(MCPTool):
             raw = self.resolve_searcher().search_with_mode(
                 query,
                 mode=mode,
-                limit=limit,
+                limit=effective_limit,
                 layer=filter_layer,
                 intent_hint=intent_hint,
             )
             if isinstance(raw, str):
-                result_str = project_header + "\n" + raw
+                result_str = stale_banner + project_header + "\n" + raw
             else:
                 results_count = len(raw.get("results", []))
-                result_str = self._format_results(
+                result_str = stale_banner + self._format_results(
                     raw, mode, project_header=project_header
                 )
 
         elif mode == "deep":
             raw = None  # deep_search возвращает str
             result_str = (
-                project_header
+                stale_banner
+                + project_header
                 + "\n"
-                + self.resolve_searcher().deep_search(query, limit=limit)
+                + self.resolve_searcher().deep_search(query, limit=effective_limit)
             )
 
         elif mode == "context":
             raw = None  # context_search возвращает str
             result_str = (
-                project_header
+                stale_banner
+                + project_header
                 + "\n"
-                + self.resolve_searcher().context_search(query, limit=limit)
+                + self.resolve_searcher().context_search(query, limit=effective_limit)
             )
 
         elif mode == "ask":
@@ -174,23 +274,24 @@ class SearchCodeTool(MCPTool):
                 raw = self.resolve_searcher().search_with_mode(
                     query,
                     mode="quality",
-                    limit=limit,
+                    limit=effective_limit,
                     layer=filter_layer,
                     intent_hint=intent_hint,
                 )
                 if isinstance(raw, str):
-                    result_str = project_header + "\n" + raw
+                    result_str = stale_banner + project_header + "\n" + raw
                 else:
                     results_count = len(raw.get("results", []))
-                    result_str = self._format_results(
+                    result_str = stale_banner + self._format_results(
                         raw, mode, project_header=project_header
                     )
             else:
                 raw = None  # ask_async возвращает str
                 result_str = (
-                    project_header
+                    stale_banner
+                    + project_header
                     + "\n"
-                    + await self.resolve_searcher().ask_async(query, limit=limit)
+                    + await self.resolve_searcher().ask_async(query, limit=effective_limit)
                 )
 
         else:
@@ -199,14 +300,15 @@ class SearchCodeTool(MCPTool):
             since = kwargs.get("since") if kwargs else None
             before = kwargs.get("before") if kwargs else None
             if _is_complex_query(query):
-                result_str = project_header + "\n" + await self._agentic_search(query)
+                result_str = stale_banner + project_header + "\n" + await self._agentic_search(query)
             else:
                 result_str = (
-                    project_header
+                    stale_banner
+                    + project_header
                     + "\n"
                     + self.resolve_searcher().search(
                         query,
-                        limit=limit,
+                        limit=effective_limit,
                         since=since,
                         before=before,
                         layer=filter_layer,
