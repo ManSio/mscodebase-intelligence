@@ -203,9 +203,23 @@ class SymbolIndex:
     # --- Поиск ---
 
     def find_definitions(self, symbol: str) -> List[SymbolRef]:
-        """Где определён символ (файл + строка)."""
+        """Где определён символ (файл + строка).
+
+        Если точное совпадение не найдено — пытается найти через search_symbols
+        (частичное совпадение + full-text fallback).
+        """
         with self._lock:
-            return list(self._definitions.get(symbol, []))
+            result = self._definitions.get(symbol, [])
+            if result:
+                return list(result)
+
+        # Fallback: search_symbols находит даже если _definitions пуст
+        # (SYM-INDEX-PARTIAL: после переиндексации определения могут потеряться)
+        try:
+            fallback = self.search_symbols(symbol, top_k=5)
+            return [r for r in fallback if r.is_definition]
+        except Exception:
+            return []
 
     def find_references(self, symbol: str) -> List[SymbolRef]:
         """Где используется символ."""
