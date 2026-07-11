@@ -1256,12 +1256,65 @@ def _register_all_tools(mcp, services):
         InsertAfterSymbolTool,
     ]
 
+    # ══════════════════════════════════════════════════════════
+    # CodeGraph-inspired DEFAULT_TOOLS filter
+    # Показываем агенту только основные инструменты, остальные
+    # остаются в коде и доступны через MSCODEBASE_MCP_TOOLS env.
+    # ══════════════════════════════════════════════════════════
+    _raw_allowlist = os.environ.get("MSCODEBASE_MCP_TOOLS", "").strip()
+    if _raw_allowlist:
+        # Явный список из env — показываем только эти
+        _allowed_names = set(_raw_allowlist.split(","))
+        _show_all = False
+    else:
+        # По умолчанию: только ключевые инструменты
+        _allowed_names = {
+            # Поиск (агент использует постоянно)
+            "search_code",
+            "get_symbol_info",
+            "impact_analysis",
+            # Индексация
+            "notify_change",
+            # Системные
+            "get_index_status",
+            "get_health_report",
+            # Intel
+            "intel_get_runtime_status",
+            "intel_get_project_context",
+            "intel_get_project_memory",
+            # Write
+            "rename_symbol",
+            "replace_symbol",
+            # Diagnostics
+            "diagnostics",
+        }
+        _show_all = False
+    
+    if _show_all:
+        logger.info(f"📐 MCP Tools: все {len(tool_classes)} инструментов видимы")
+        _filtered_classes = tool_classes
+    else:
+        _before = len(tool_classes)
+        _filtered_classes = []
+        for _cls in tool_classes:
+            _inst = _cls(services)  # временный экземпляр для имени
+            _name = _inst.name
+            if _name not in _allowed_names:
+                logger.debug(f"  🔇 Tool hidden: {_name}")
+                continue
+            _filtered_classes.append(_cls)
+        logger.info(
+            f"📐 MCP Tools: {len(_filtered_classes)}/{_before} видимы "
+            f"(MSCODEBASE_MCP_TOOLS={_raw_allowlist or 'default'}; "
+            f"56 total — show all with MSCODEBASE_MCP_TOOLS='')"
+        )
+
     # Регистрируем каждый инструмент.
     # ВАЖНО (INC-6BCB-fallback): try/except вокруг каждого tool,
     # чтобы один сломанный __init__ не убивал все 36.
     registered = 0
     failed = []
-    for tool_cls in tool_classes:
+    for tool_cls in _filtered_classes:
         try:
             instance = tool_cls(services)
             mcp.tool(name=instance.name)(instance.execute)
