@@ -70,7 +70,7 @@ conn.execute("""
 
 | Component | Reason | Status |
 |-----------|--------|--------|
-| **LSP server** (`lsp_main.py`) | Zed doesn't register custom LSP names (needs Rust/WASM) | **WONTFIX** |
+| **LSP server** (`lsp_main.py`) | Standalone LSP — Zed doesn't register custom LSP names. LSP _client_ for rename (`lsp_client.py`) works fine | **WONTFIX** (standalone only) |
 | **auto-restart MCP** | No hook in Zed to restart a crashed context_server | **WONTFIX** |
 | **`ZED_WORKTREE_ROOT`** | Not set on Windows (Zed bug #36019) | **Workaround via SQLite** |
 

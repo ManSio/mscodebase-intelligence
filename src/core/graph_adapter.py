@@ -343,6 +343,135 @@ class SymbolIndexAdapter:
 
     # ── Поиск ─────────────────────────────────────────────
 
+    def find_variables(
+        self,
+        name: str,
+        scope_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict]:
+        """Находит Variable-узлы по имени, опционально фильтруя по scope_id.
+
+        Без scope_id: возвращает все переменные с таким именем + их scope_id.
+        С scope_id: возвращает только конкретную переменную.
+
+        Returns:
+            Список словарей: name, file_path, line, function, function_scope (scope_id)
+        """
+        if scope_id:
+            nodes = self._graph.find_nodes_by_property(
+                label=NodeLabel.VARIABLE,
+                property_key="function_scope",
+                property_value=scope_id,
+                name_pattern=name,
+                limit=limit,
+            )
+        else:
+            nodes = self._graph.find_nodes(
+                label=NodeLabel.VARIABLE,
+                name_pattern=name,
+                limit=limit,
+            )
+
+        results = []
+        for n in nodes:
+            entry = {
+                "name": n.name,
+                "file_path": n.file_path,
+                "line": n.properties.get("line", 0),
+                "function": n.properties.get("function", ""),
+                "function_scope": n.properties.get("function_scope", ""),
+                "qualified_name": n.qualified_name,
+            }
+            results.append(entry)
+        return results
+
+    def get_variable_flow(
+        self,
+        variable_name: str,
+        scope_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+        max_depth: int = 3,
+    ) -> Dict:
+        """Возвращает полный Data Flow для переменной.
+
+        Ищет Variable-узел по имени + scope_id (если указан),
+        затем собирает цепочку ASSIGNED_FROM (откуда пришло значение)
+        и ASSIGNED_TO (куда пошло дальше).
+
+        Returns:
+            Dict с variable (инфо об узле), incoming (откуда),
+            outgoing (куда), chain (полная цепочка присваиваний)
+        """
+        results = self.find_variables(variable_name, scope_id=scope_id, limit=5)
+        if not results:
+            return {"variable": None, "incoming": [], "outgoing": [], "chain": []}
+
+        # Если scope_id не указан, но нашли только один — используем его
+        var_info = results[0]
+        var_qname = var_info["qualified_name"]
+
+        # Собираем ASSIGNED_FROM цепочку через обход графа
+        chain = []
+        incoming = []
+        outgoing = []
+
+        # Outgoing: от этой переменной к другим (это источник для других)
+        neighbors = self._graph.get_neighbors(
+            var_qname,
+            edge_type=EdgeType.ASSIGNED_FROM,
+            direction="outgoing",
+            max_depth=max_depth,
+        )
+        for neighbor_node, edge, depth in neighbors:
+            entry = {
+                "depth": depth,
+                "target_name": neighbor_node.name,
+                "target_file": neighbor_node.file_path,
+                "line": edge.properties.get("line", 0),
+                "condition_path": edge.properties.get("condition_path", []),
+                "scope_id": edge.properties.get("scope_id", ""),
+            }
+            outgoing.append(entry)
+            chain.append({
+                "from": var_info["name"],
+                "to": neighbor_node.name,
+                "via": "ASSIGNED_FROM",
+                "condition_path": edge.properties.get("condition_path", []),
+                "line": edge.properties.get("line", 0),
+            })
+
+        # Incoming: от других переменных к этой (откуда берётся значение)
+        neighbors = self._graph.get_neighbors(
+            var_qname,
+            edge_type=EdgeType.ASSIGNED_FROM,
+            direction="incoming",
+            max_depth=max_depth,
+        )
+        for neighbor_node, edge, depth in neighbors:
+            entry = {
+                "depth": depth,
+                "source_name": neighbor_node.name,
+                "source_file": neighbor_node.file_path,
+                "line": edge.properties.get("line", 0),
+                "condition_path": edge.properties.get("condition_path", []),
+                "scope_id": edge.properties.get("scope_id", ""),
+            }
+            incoming.append(entry)
+            chain.append({
+                "from": neighbor_node.name,
+                "to": var_info["name"],
+                "via": "ASSIGNED_FROM",
+                "condition_path": edge.properties.get("condition_path", []),
+                "line": edge.properties.get("line", 0),
+            })
+
+        return {
+            "variable": var_info,
+            "incoming": incoming,
+            "outgoing": outgoing,
+            "chain": chain,
+        }
+
     def find_definitions(self, symbol: str) -> List[SymbolRef]:
         """Где определён символ.
 

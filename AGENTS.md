@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (57 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (58 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 14 High-Level + 39 Low-Level Core MCP + 3 Diagnostic
+> Optimized for the hybrid model: 14 High-Level + 40 Low-Level Core MCP + 3 Diagnostic
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -159,7 +159,7 @@ intel_get_project_memory      ──>   get_commit_history / file_hist (no analo
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (56)
+## 2. AVAILABLE TOOLS (58)
 
 ### A. High-Level Intelligence Layer (14 tools)
 
@@ -171,14 +171,15 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline`.
 
-### B. Low-Level Core MCP & Search (39 tools)
+### B. Low-Level Core MCP & Search (40 tools)
 
 > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
-> Use `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name = 'x' RETURN s.name, e.condition_path` to trace variable provenance.
+> Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.
+> Use `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name = 'x' RETURN s.name, e.condition_path` (Cypher) for advanced queries.
 > Edges have optional `condition_path` property — list of control-flow contexts like `["if_statement", "for_statement"]`.
 > Supported for: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart.
 
-`search_code(mode=fast|quality|deep|context|auto)`, `cross_repo_search`,
+`search_code(mode=fast|quality|deep|context|auto)`, `get_variable_flow(name, scope_id)`, `cross_repo_search`
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`,
 `get_repo_rank`, `get_hotspots`, `get_bug_correlation`, `get_related_files`,
 `graph_query`, `get_index_status`, `get_index_progress`, `get_index_timeline`,
@@ -195,6 +196,13 @@ Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_t
 `insert_before/after_symbol(anchor, new_code, apply)`.
 
 > **Deprecated** (use `search_code`): `smart_search`, `deep_search`, `context_search`.
+
+> **v3.2.0 Scope Resolution:** Use `get_variable_flow(name="x")` for data flow queries.
+> **Protocol:**
+> 1. Call `get_variable_flow(name="result")` without scope_id — see ALL `result` variables with their context.
+> 2. If multiple results → pick the right `scope_id` (it encodes file + function + line).
+> 3. Call `get_variable_flow(name="result", scope_id="...")` to get precise data flow.
+> 4. Check `condition_path` on edges — empty list = unconditional, `["if_statement"]` = inside IF.
 
 ### C. Write Tools (6)
 

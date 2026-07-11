@@ -66,9 +66,8 @@ all 57 tools output readable Markdown.
 
 ### LSP won't start (mscodebase-lsp)
 
-**Cause:** Zed on Windows cannot register custom LSP names.
-Requires a Rust/WASM adapter. `settings.json` is powerless.
-**Status:** WONTFIX. MCP server works fully without LSP.
+**Context:** The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work** — Zed requires a Rust/WASM adapter for custom LSP.
+**But:** MSCodeBase **does use LSP internally** for `rename_symbol` — the LSP client (`src/core/lsp_client.py`) spawns pyright-langserver for precise cross-file rename, with graceful fallback to SymbolIndex.
 Details: `investigations/LSP_WONTFIX.md`
 
 ### Zed shows "Restricted Mode"

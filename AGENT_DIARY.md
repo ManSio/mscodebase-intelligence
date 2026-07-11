@@ -5,6 +5,69 @@
 
 ---
 
+## [2026-07-13 00:15] — New Tool: get_variable_flow (scope-resolved variable data flow)
+
+**Problem:** У агента не было прямого MCP-инструмента для запроса переменных
+с scope_id. Scope Resolution был реализован в PropertyGraph (function_scope
+в properties узлов + scope_id в properties edges), но агенту приходилось
+писать Cypher-запросы через query_graph.
+
+**Solution:**
+1. PropertyGraph: добавлены find_nodes_by_property() и get_edges_by_properties()
+   — поиск по JSON-свойствам через SQLite json_extract
+2. SymbolIndexAdapter: добавлены find_variables(name, scope_id) и
+   get_variable_flow(name, scope_id) — обход ASSIGNED_FROM графа
+3. graph_tools.py: новый GetVariableFlowTool (get_variable_flow) — MCP
+   инструмент для агента с двухшаговым протоколом:
+   a) без scope_id → все переменные с именем + их контекст для выбора
+   b) со scope_id → точный data flow (incoming + outgoing ASSIGNED_FROM)
+4. server.py: 57→58 tools, регистрация GetVariableFlowTool
+5. AGENTS.md: Scope Resolution Protocol секция
+6. README (en/ru/zh): 57→58 tools
+7. Тесты: 490/490 passed ✅
+8. Валидация: find_variables('result') → 5 vars; с scope_id → 1 var, 2 ASSIGNED_FROM
+
+**Tools Used:** edit_file, write_file, terminal (pytest, python inline test)
+
+**Status:** ✅ (выполнено)
+
+---
+
+## [2026-07-12 23:30] — Docs Sync: полный аудит 15 doc-файлов в 3 языках под v3.2.0
+
+**Problem:** После внедрения PropertyGraph, ASSIGNED_FROM (16 языков), Scope Resolution
+и Conditional Flow документация осталась на уровне v2.4.x: 56 tools, 39 class-based,
+3,235 edges, 478 tests, "Python only for ASSIGNED_FROM".
+
+**Solution:**
+1. Переиндексация — 3,198 chunks, 179 files
+2. Прогон dataflow_experiment — 3,337 edges, 67.2/KLOC, 91.9% files — метрики стабильны
+3. 494/494 тестов пройдены ✅
+4. Обновлено 15 doc-файлов:
+   - ARCHITECTURE.md (en/ru/zh): 56→57 tools, 39→40 class-based, "Python only"→"16 languages"
+   - CONTRIBUTING.md: создан корневой (отсутствовал!), обновлены en/ru/zh с v2.4.x→v3.2.0
+   - README.md (ru/zh): "50 инструментов"→57, "482 tests"→494
+   - AGENTS.md: (56)→(57)
+   - CHANGELOG.md (en/ru/zh): 3,235→3,337 edges, 66.6→67.2/KLOC, 478→494 tests
+   - INSTALL_MODELS.md: LLAMA_CTX_SIZE=1024→2048 (BGE-M3 requires 2048)
+   - GRACEFUL_DEGRADATION.md (en/ru/zh): v3.0.0→v3.2.0
+
+**Files Changed:**
+- AGENTS.md, CONTRIBUTING.md (root, en, ru, zh)
+- docs/en/ARCHITECTURE.md, docs/ru/ARCHITECTURE.md, docs/zh/ARCHITECTURE.md
+- docs/ru/README.md, docs/zh/README.md
+- docs/en/CHANGELOG.md, docs/ru/CHANGELOG.md, docs/zh/CHANGELOG.md
+- docs/en/INSTALL_MODELS.md
+- docs/en/GRACEFUL_DEGRADATION.md, docs/ru/GRACEFUL_DEGRADATION.md, docs/zh/GRACEFUL_DEGRADATION.md
+
+**Tools Used:** intel_get_runtime_status, get_index_status, intel_trigger_reindex,
+intel_get_job_status, search_code, terminal (pytest, sed, dataflow_experiment),
+edit_file, write_file, read_file, diagnostics
+
+**Status:** ✅ (выполнено)
+
+---
+
 ## [2026-07-12 18:00] — v3.2.0 harden: Unified Walker, Conditional Flow, i18n, 22 теста
 
 **Problem:** Документация отставала, тестов не было, только Python.

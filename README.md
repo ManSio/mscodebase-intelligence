@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-57-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-58-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-07-12*
 
@@ -43,7 +43,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 57 tools for AI assistant                 │  │
+│  │  · 58 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -61,11 +61,11 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 | ✏️ **Inline autocomplete** | ❌ | ✅ |
 | 🏷️ **Inlay hints** | ❌ | ✅ |
 
-### Why not LSP
+### LSP: Hybrid Rename Only
 
-MSCodeBase **does not use LSP**. The LSP server (`src/lsp_main.py`) was an experimental part of the project and **does not work in Zed** due to architectural limitations of the editor itself (see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)).
+MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **58 MCP tools**.
 
-Instead, all functionality is implemented through **57 MCP tools** available in Zed via the MCP protocol.
+The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
 ### Platforms
 
@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15+ services), 57 tools (40 class-based + 14 intel + 3 diag), 494+ tests |
+| 🧪 **Clean Architecture** | DI Container (15+ services), 58 tools (41 class-based + 14 intel + 3 diag), 494+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | 6 write tools + 1 graph query (`query_graph`) with Cypher engine |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -179,7 +179,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (57 total)
+## 🔧 MCP Tools (58 total)
 
 ### Core Search
 
@@ -309,7 +309,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  39 Tool Classes   │  │  14 intel_* tools + 3 diag      │
+│  41 Tool Classes   │  │  14 intel_* tools + 3 diag      │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  One class per tool  │  │  error_boundary decorator          │
 │  │  Constructor Inj.   │  │  JSON status/message/detail        │  │
@@ -390,7 +390,7 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py             # DI routing — only imports + registration
 │   │   ├── write_tools.py        # rename/move/delete/replace/insert symbols
-│   │   └── tools/                 # 11 files, 39 class-based tools
+│   └── tools/                 # 11 files, 41 class-based tools
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history

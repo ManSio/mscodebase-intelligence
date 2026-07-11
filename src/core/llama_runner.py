@@ -230,17 +230,20 @@ GGUF_MODELS = {
         "size_mb": 379,
         "dim": 1024,
         "ctx_recommended": 1024,
+        "sha256": "17c3e3f2eaabc6e321702b4a13680d042e72afc5d602f359f27a670c3e54718c",
     },
     "bge-m3": {
         "repo": "lm-kit/bge-m3-gguf",
         "file": "bge-m3-Q4_K_M.gguf",
         "size_mb": 417,
         "dim": 1024,
+        "sha256": "e251234fcb7d050991a6be491952f485bf5c641dd10c3272dc1301fd281ad50f",
     },
     "bge-reranker-v2-m3": {
         "repo": "lm-kit/bge-m3-reranker-v2-gguf",
         "file": "Bge-M3-568M-Q4_K_M.gguf",
         "size_mb": 418,
+        "sha256": "ce947cece730cbf7d836da8c5490a9987ef0f919014b9275e7ce9aa12d96e6d9",
     },
 }
 
@@ -670,6 +673,11 @@ def download_gguf_model(model_key: str, progress_cb=None) -> bool:
                         if progress_cb:
                             progress_cb(pct, f"{gguf_path.name} ({mb:.0f}MB/{total_mb:.0f}MB)")
         return _Progress()
+
+    # Проверка SHA256 (если хэш известен)
+    gguf_sha256 = info.get('sha256', '')
+    if gguf_sha256:
+        logger.info(f'⬇️  SHA256 для {info["file"]}: {gguf_sha256[:16]}...')
 
     try:
         path = hf_hub_download(

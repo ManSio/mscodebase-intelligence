@@ -410,6 +410,123 @@ class PropertyGraph:
             rows = conn.execute(sql, params).fetchall()
             return [Node.from_row(r) for r in rows]
 
+    def find_nodes_by_property(
+        self,
+        label: Optional[str] = None,
+        property_key: str = "",
+        property_value: str = "",
+        name_pattern: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Node]:
+        """Поиск узлов по значению в JSON properties.
+
+        Использует SQLite json_extract для фильтрации.
+
+        Args:
+            label: Фильтр по типу узла
+            property_key: Ключ в JSON properties (например, "function_scope")
+            property_value: Искомое значение
+            name_pattern: LIKE-паттерн для имени (доп. фильтр)
+            limit: Максимум результатов
+            offset: Смещение
+
+        Returns:
+            Список Node
+        """
+        conditions: List[str] = []
+        params: List[Any] = []
+
+        if label:
+            conditions.append("label = ?")
+            params.append(label)
+        if property_key and property_value:
+            conditions.append(f"json_extract(properties, '$.{property_key}') = ?")
+            params.append(property_value)
+        if name_pattern:
+            conditions.append("(name LIKE ? OR qualified_name LIKE ?)")
+            params.extend([name_pattern, name_pattern])
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        sql = (
+            f"SELECT id, name, label, qualified_name, file_path, properties "
+            f"FROM nodes WHERE {where} ORDER BY name LIMIT ? OFFSET ?"
+        )
+        params.extend([limit, offset])
+
+        with self._lock:
+            conn = self._get_conn()
+            rows = conn.execute(sql, params).fetchall()
+            return [Node.from_row(r) for r in rows]
+
+    def get_edges_by_properties(
+        self,
+        edge_type: Optional[str] = None,
+        property_key: str = "",
+        property_value: str = "",
+        limit: int = 100,
+    ) -> List[Tuple[Node, Node, "Edge"]]:
+        """Поиск рёбер по типу и JSON properties.
+
+        Возвращает (source_node, target_node, edge) для каждого ребра.
+
+        Args:
+            edge_type: Фильтр по типу ребра (EdgeType.*)
+            property_key: Ключ в JSON properties (например, "scope_id")
+            property_value: Искомое значение
+            limit: Максимум результатов
+
+        Returns:
+            Список (source_node, target_node, edge)
+        """
+        conditions: List[str] = []
+        params: List[Any] = []
+
+        if edge_type:
+            conditions.append("e.type = ?")
+            params.append(edge_type)
+        if property_key and property_value:
+            conditions.append(f"json_extract(e.properties, '$.{property_key}') = ?")
+            params.append(property_value)
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        sql = f"""
+            SELECT e.id, e.source_id, e.target_id, e.type, e.weight, e.properties,
+                   s.id AS s_id, s.name AS s_name, s.label AS s_label,
+                   s.qualified_name AS s_qname, s.file_path AS s_file,
+                   s.properties AS s_props,
+                   t.id AS t_id, t.name AS t_name, t.label AS t_label,
+                   t.qualified_name AS t_qname, t.file_path AS t_file,
+                   t.properties AS t_props
+            FROM edges e
+            JOIN nodes s ON e.source_id = s.id
+            JOIN nodes t ON e.target_id = t.id
+            WHERE {where}
+            ORDER BY e.id
+            LIMIT ?
+        """
+        params.append(limit)
+
+        with self._lock:
+            conn = self._get_conn()
+            rows = conn.execute(sql, params).fetchall()
+            from .graph import Edge  # local import to avoid circular
+            results = []
+            for r in rows:
+                src = Node(
+                    id=r["s_id"], name=r["s_name"], label=r["s_label"],
+                    qualified_name=r["s_qname"], file_path=r["s_file"],
+                    properties=json.loads(r["s_props"]),
+                )
+                tgt = Node(
+                    id=r["t_id"], name=r["t_name"], label=r["t_label"],
+                    qualified_name=r["t_qname"], file_path=r["t_file"],
+                    properties=json.loads(r["t_props"]),
+                )
+                edge = Edge.from_row(r)
+                results.append((src, tgt, edge))
+            return results
+
     def count_nodes(self, label: Optional[str] = None) -> int:
         """Количество узлов (опционально по label)."""
         with self._lock:

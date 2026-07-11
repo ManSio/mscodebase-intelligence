@@ -15,7 +15,7 @@
 - 📊 **Multi-Signal Scorer**: 4 个额外排名信号 (api_signature, graph_diffusion, module_proximity, cochange_boost)。
 - 💀 **Dead Code Detection**: 检测没有入站 CALLS 边的函数。
 - 🔄 **PURE mode**: SymbolIndexAdapter 不再在内存中复制数据。
-- 🔗 **Data Flow Tracking**: `ASSIGNED_FROM` 边类型 — 函数内变量赋值追踪。`CodeParser.extract_assignments()` 遍历 Tree-sitter AST (支持嵌套函数的 scope stack)，检测 `x = y` / `x += y` 模式。创建 `Variable` 节点 + `ASSIGNED_FROM` 边。[基准测试: 3,235 条边, 66.6/KLOC, 91.8% 的 MSCodeBase 文件 — 覆盖度是 stdlib `ast` 的 5.4 倍.]
+- 🔗 **Data Flow Tracking**: `ASSIGNED_FROM` 边类型 — 函数内变量赋值追踪。`CodeParser.extract_assignments()` 遍历 Tree-sitter AST (支持嵌套函数的 scope stack)，检测 `x = y` / `x += y` 模式。创建 `Variable` 节点 + `ASSIGNED_FROM` 边。[基准测试: 3,337 条边, 67.2/KLOC, 91.9% 的 MSCodeBase 文件 — 覆盖度是 stdlib `ast` 的 5.4 倍.]
 - ⚡ **Unified Walker**: `_walk_file()` — 一次 Tree-sitter 解析 + 一次遍历 → 调用 + 赋值。Parse cache 避免重复解析。~30% 更快。
 - 🚦 **Conditional Flow**: `condition_path` 属性追踪 if/for/while/try/except 嵌套。69% 的 `src/core` 边是有条件的。
 - 🌐 **多语言支持**: `ASSIGNMENT_NODE_MAP` — Rust 和 TypeScript/TSX 已配置。
@@ -25,7 +25,7 @@
 ### 变更
 - 56 → 57 个 MCP 工具 (+ `query_graph`)
 - 24 → 29 个 `src/core/` 文件
-- 全部 479 个测试通过，无需修改
+- 全部 494 个测试通过，无需修改
 
 ---
 

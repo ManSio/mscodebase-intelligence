@@ -4,7 +4,7 @@
 
 # 贡献指南 — MSCodeBase Intelligence
 
-贡献者指南。项目版本：**2.4.x**（带 DI 的整洁架构）
+贡献者指南。项目版本：**3.2.0**（Polyglot Graph Engine）
 
 ---
 
@@ -21,6 +21,8 @@ pip install -e "."
 
 要求：Python 3.10+，LM Studio（可选，用于嵌入）
 
+> 💡 v3.2.0 使用 **llama.cpp** 作为主要嵌入提供者（通过 `install.py` 自动安装）。LM Studio 作为备用。
+
 ---
 
 ## 2. 架构（整洁架构 Clean Architecture）
@@ -31,20 +33,33 @@ src/
 ├── lsp_main.py          # LSP 处理器（通过 ServiceCollection 的 DI）
 ├── mcp/
 │   ├── server.py        # ~220 行 — 仅工具注册
-│   └── tools/           # 10 个文件，50 个工具（34 个基于类 + 14 个 intel）
+│   ├── write_tools.py   # 6 个写入工具
+│   └── tools/           # 11 个文件，57 个工具（40 个基于类 + 14 个 intel + 3 个诊断）
 │       ├── base.py          # MCPTool ABC
-│       ├── search_tools.py  # 3 个搜索工具
-│       ├── indexing_tools.py# 3 个索引工具
-│       ├── git_tools.py     # 3 个 git 工具
-│       ├── system_tools.py  # 9 个系统工具
-│       ├── analysis_tools.py# 5 个分析工具
-│       └── ...
+│       ├── search_tools.py  # search_code（+ 已弃用的 smart_search 等）
+│       ├── graph_tools.py   # query_graph + Cypher 查询引擎
+│       ├── indexing_tools.py# 索引管理
+│       ├── git_tools.py     # git 集成
+│       ├── system_tools.py  # 9 个系统/健康工具
+│       ├── analysis_tools.py# impact_analysis, structural_search 等
+│       └── write_tools.py   # rename/move/delete/replace/insert
 ├── core/                # 业务逻辑（无 MCP 依赖）
-│   ├── di_container.py  # ServiceCollection（15 个服务）
+│   ├── di_container.py  # ServiceCollection（15+ 个服务）
 │   ├── error_handler.py # error_boundary + ToolError
 │   ├── rate_limiter.py  # DebounceBatch + CircuitBreaker
-│   ├── indexer.py
-│   ├── searcher.py
+│   ├── indexer.py       # LanceDB 向量存储
+│   ├── searcher.py      # 混合搜索（BM25 + 稠密 + RRF）
+│   ├── parser.py        # Tree-sitter AST + ASSIGNED_FROM 提取
+│   ├── graph.py         # PropertyGraph（SQLite WAL）— 节点/边
+│   ├── graph_adapter.py # 包装 PropertyGraph 的 SymbolIndexAdapter
+│   ├── cypher_engine.py # MATCH→SQL 引擎
+│   ├── route_extractor.py# HTTP 路由检测（Flask/FastAPI/Django/Express）
+│   ├── multi_signal_scorer.py# 4 信号搜索评分
+│   ├── dataflow_experiment.py# ASSIGNED_FROM 基准测试
+│   ├── intelligence_layer.py  # 14 个 intel_* 工具
+│   ├── llama_runner.py   # llama-server.exe 生命周期
+│   ├── remote_embedder.py# LM Studio / llama.cpp / Ollama / ONNX
+│   ├── file_guard.py     # .gitignore + 扩展过滤器
 │   └── ...
 └── utils/
     ├── paths.py         # SafePathManager
@@ -83,7 +98,7 @@ isort src/
 
 ## 4. 运行测试
 
-项目在 `tests/` 目录中有 **391+ 个测试**。通过 `pytest` 加标记运行。
+在 `tests/` 目录中有 **494 个测试**。通过 `pytest` 运行，支持标记。
 
 ```powershell
 # 完整测试集

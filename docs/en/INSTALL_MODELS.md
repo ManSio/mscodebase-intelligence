@@ -104,6 +104,8 @@ LLAMA_BACKEND=auto
 # GPU layers (0 = CPU only, 99 = all layers on GPU)
 LLAMA_NGL=99
 
-# Context size (1024 = ~500 MB RAM for Qwen3)
-LLAMA_CTX_SIZE=1024
+# Context size (1024 = ~500 MB RAM for Qwen3; 2048 recommended for BGE-M3)
+# BGE-M3 requires 2048 context for full 1024-dim embeddings
+# Qwen3-Embedding works with 1024 (lower RAM usage)
+LLAMA_CTX_SIZE=2048
 ```

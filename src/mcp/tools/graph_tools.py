@@ -333,9 +333,157 @@ class GetRelatedFilesTool(MCPTool):
         }
 
 
+class GetVariableFlowTool(MCPTool):
+    """get_variable_flow — трассировка потока данных переменной.
+
+    Позволяет агентам проследить цепочку ASSIGNED_FROM для переменной:
+    откуда пришло значение (source) и куда пошло дальше (target).
+
+    Без scope_id: возвращает ВСЕ переменные с таким именем + их контекст
+    (scope_id, файл, функция) — агент может выбрать нужный scope_id.
+    С scope_id: возвращает полный data flow для конкретной переменной.
+
+    Использование:
+        1. get_variable_flow(name="result")
+           → видит 5 result в разных scope, выбирает нужный
+        2. get_variable_flow(name="result", scope_id="src/core/indexer.py::_index_single_file:42")
+           → полная цепочка присваиваний: откуда → куда → при каких условиях
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="get_variable_flow")
+
+    def _resolve_adapter(self):
+        """Resolve SymbolIndexAdapter, per-project aware."""
+        from src.core.graph import PropertyGraph
+        from src.core.graph_adapter import SymbolIndexAdapter
+
+        try:
+            pg = self.services.resolve(PropertyGraph)
+            return SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+        except KeyError:
+            indexer = self.resolve_indexer()
+            pg = getattr(indexer, "_graph", None) or getattr(
+                indexer, "property_graph", None
+            )
+            if pg:
+                return SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+            return None
+
+    @error_boundary("get_variable_flow", timeout_ms=10000)
+    async def execute(
+        self,
+        name: str,
+        scope_id: Optional[str] = None,
+        file_path: Optional[str] = None,
+        max_depth: int = 3,
+    ) -> dict:
+        """Выполнить трассировку переменной.
+
+        Args:
+            name: Имя переменной (например, "result", "auth_token")
+            scope_id: Опциональный scope_id для точного поиска.
+                      Если не указан — возвращает все совпадения с их scope_id.
+            file_path: Опциональный фильтр по файлу
+            max_depth: Глубина обхода цепочки (по умолчанию 3)
+
+        Returns:
+            Dict с переменной, её контекстом и ASSIGNED_FROM цепочкой
+        """
+        adapter = self._resolve_adapter()
+        if not adapter:
+            return {
+                "status": "error",
+                "message": "PropertyGraph not available. Run reindex first.",
+            }
+
+        # Шаг 1: найти переменную(ые)
+        variables = adapter.find_variables(
+            name=name,
+            scope_id=scope_id,
+            limit=20,
+        )
+
+        if not variables:
+            return {
+                "status": "ok",
+                "variable": None,
+                "message": f"No variable '{name}' found.",
+                "suggestion": "Try a different name or run reindex.",
+            }
+
+        # Если scope_id не указан — показываем все найденные (агент выбирает)
+        if not scope_id:
+            # Краткая сводка по коллизиям
+            files = set(v["file_path"] for v in variables)
+            scopes = [
+                {
+                    "scope_id": v["function_scope"],
+                    "file": v["file_path"],
+                    "function": v["function"],
+                    "line": v["line"],
+                }
+                for v in variables
+                if v["function_scope"]
+            ]
+            return {
+                "status": "ok",
+                "variable": {
+                    "name": name,
+                    "found": len(variables),
+                    "files": sorted(files),
+                    "scopes": scopes,
+                    "conflict": len(variables) > 1,
+                },
+                "message": (
+                    f"Found {len(variables)} variable(s) named '{name}'. "
+                    f"{'Multiple scopes detected! ' if len(variables) > 1 else ''}"
+                    f"Use scope_id parameter to get precise data flow."
+                ),
+            }
+
+        # Шаг 2: scope_id указан — собираем полный data flow
+        # Если нашли несколько — фильтруем по scope_id
+        if scope_id:
+            variables = [v for v in variables if v["function_scope"] == scope_id]
+
+        if not variables:
+            return {
+                "status": "ok",
+                "variable": None,
+                "message": f"Variable '{name}' with scope_id '{scope_id}' not found.",
+            }
+
+        flow = adapter.get_variable_flow(
+            variable_name=name,
+            scope_id=scope_id,
+            file_path=file_path,
+            max_depth=max_depth,
+        )
+
+        return {
+            "status": "ok",
+            "variable": flow["variable"],
+            "incoming": flow["incoming"],
+            "outgoing": flow["outgoing"],
+            "chain": flow["chain"],
+            "summary": {
+                "name": name,
+                "scope_id": scope_id,
+                "incoming_count": len(flow["incoming"]),
+                "outgoing_count": len(flow["outgoing"]),
+                "chain_length": len(flow["chain"]),
+                "conditional_edges": sum(
+                    1 for e in flow["chain"] if e.get("condition_path")
+                ),
+            },
+        }
+
+
 __all__ = [
     "CrossRepoSearchTool",
     "CrossProjectDepsTool",
     "GraphQueryTool",
     "GetRelatedFilesTool",
+    "GetVariableFlowTool",
 ]

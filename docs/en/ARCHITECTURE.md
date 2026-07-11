@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (40 class-based + 14 intel + 3 diagnostic = 57 total)](#4-tool-layer)
+4. [Tool Layer (41 class-based + 14 intel + 3 diagnostic = 58 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (39 class-based tools)           │
+│  Layer 3: mcp/tools/*.py         (40 class-based tools)           │
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,7 +91,7 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-1. Register 40 tools + 14 intel_* tools + 3 diagnostic = 57 total
+1. Register 41 tools + 14 intel_* tools + 3 diagnostic = 58 total
 2. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
@@ -193,8 +193,9 @@ Key modules:
 │     Tracking works within function bodies only                    │
 │     Cross-function (a = f(x) → inside f) NOT tracked (explicit)   │
 │                                                                  │
-│  4. Python only for ASSIGNED_FROM                                 │
-│     Rust/TS parsers exist but assignment node types differ        │
+│  4. 16 languages for ASSIGNED_FROM                                │
+│     Python, Rust, TypeScript, TSX, Go, JavaScript, Java, C#,     │
+│     Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart                │
 │                                                                  │
 │  5. 30 core files in src/core                                     │
 └──────────────────────────────────────────────────────────────────┘
@@ -211,10 +212,10 @@ Key modules:
 
 The MCP server auto-detects the best available embedding provider:
 
-1. **LM Studio** — highest quality, requires external server
-2. **llama.cpp** — built-in, auto-installed via `install.py` (GGUF models)
-3. **ONNX server** — ONNX runtime with remote models
-4. **local ONNX** — CPU-only fallback, lowest quality
+1. **llama.cpp** — built-in, auto-installed via `install.py` (GGUF models). Primary provider.
+2. **LM Studio** — fallback, requires external server
+3. **ONNX server** — ONNX runtime with remote models (legacy)
+4. **local ONNX** — CPU-only fallback, lowest quality (legacy)
 
 The priority is evaluated at startup. llama.cpp provides a 5.3× RAM reduction (227 MB vs 1200 MB) compared to LM Studio.
 

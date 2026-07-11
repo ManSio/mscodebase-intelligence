@@ -4,7 +4,7 @@
 
 # Contributing — MSCodeBase Intelligence
 
-Гайд для контрибьюторов. Версия проекта: **2.4.x** (Clean Architecture с DI).
+Гайд для контрибьюторов. Версия проекта: **3.2.0** (Polyglot Graph Engine).
 
 ---
 
@@ -21,6 +21,9 @@ pip install -e "."
 
 Требования: Python 3.10+, LM Studio (опционально, для эмбеддингов).
 
+> 💡 v3.2.0 использует **llama.cpp** как основной провайдер эмбеддингов (авто-установка
+> через `install.py`). LM Studio — fallback.
+
 ---
 
 ## 2. Архитектура (Clean Architecture)
@@ -31,21 +34,33 @@ src/
 ├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
-│   ├── write_tools.py  # 6 write tools
-│   └── tools/           # 11 файлов, 56 инструментов (39 class-based + 14 intel + 3 diag)
+│   ├── write_tools.py   # 6 write tools
+│   └── tools/           # 11 файлов, 57 инструментов (40 class-based + 14 intel + 3 diag)
 │       ├── base.py          # MCPTool ABC
-│       ├── search_tools.py  # 3 search tools
-│       ├── indexing_tools.py# 3 indexing tools
-│       ├── git_tools.py     # 3 git tools
-│       ├── system_tools.py  # 9 system tools
-│       ├── analysis_tools.py# 5 analysis tools
-│       └── ...
+│       ├── search_tools.py  # search_code (+ deprecated smart_search etc.)
+│       ├── graph_tools.py   # query_graph + Cypher query engine
+│       ├── indexing_tools.py# index management
+│       ├── git_tools.py     # git integration
+│       ├── system_tools.py  # 9 system/health tools
+│       ├── analysis_tools.py# impact_analysis, structural_search и др.
+│       └── write_tools.py   # rename/move/delete/replace/insert
 ├── core/                # Бизнес-логика (без MCP-зависимостей)
-│   ├── di_container.py  # ServiceCollection (15 services)
+│   ├── di_container.py  # ServiceCollection (15+ services)
 │   ├── error_handler.py # error_boundary + ToolError
 │   ├── rate_limiter.py  # DebounceBatch + CircuitBreaker
-│   ├── indexer.py
-│   ├── searcher.py
+│   ├── indexer.py       # LanceDB vector storage
+│   ├── searcher.py      # Hybrid search (BM25 + Dense + RRF)
+│   ├── parser.py        # Tree-sitter AST + ASSIGNED_FROM extraction
+│   ├── graph.py         # PropertyGraph (SQLite WAL) — nodes/edges
+│   ├── graph_adapter.py # SymbolIndexAdapter wrapping PropertyGraph
+│   ├── cypher_engine.py # MATCH→SQL engine
+│   ├── route_extractor.py# HTTP route detection (Flask/FastAPI/Django/Express)
+│   ├── multi_signal_scorer.py# 4-signal search scoring
+│   ├── dataflow_experiment.py# ASSIGNED_FROM benchmarks
+│   ├── intelligence_layer.py  # 14 intel_* tools
+│   ├── llama_runner.py   # llama-server.exe lifecycle
+│   ├── remote_embedder.py# LM Studio / llama.cpp / Ollama / ONNX
+│   ├── file_guard.py     # .gitignore + extension filter
 │   └── ...
 └── utils/
     ├── paths.py         # SafePathManager
@@ -84,7 +99,7 @@ isort src/
 
 ## 4. Running Tests
 
-В проекте **494+ тестов** в директории `tests/`. Запуск через `pytest` с маркерами.
+В проекте **494 теста** в директории `tests/`. Запуск через `pytest` с маркерами.
 
 ```powershell
 # Полный набор
