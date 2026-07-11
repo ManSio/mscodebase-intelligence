@@ -250,11 +250,25 @@ class CypherQueryTool(MCPTool):
                 "query": query,
             }
 
+        # Пост-обработка: добавляем condition_path как читаемую строку
+        # для ASSIGNED_FROM рёбер, чтобы LLM сразу видела контекст.
+        rows = result.get("results", [])
+        for row in rows:
+            if isinstance(row, dict):
+                for key, val in row.items():
+                    if isinstance(val, str) and val.startswith("[") and "condition" not in key:
+                        continue  # не трогаем уже форматированные строки
+                    # Если есть properties с condition_path — выводим как строку
+                    if key.endswith("_properties") or key == "properties":
+                        if isinstance(val, dict) and "condition_path" in val:
+                            cp = val["condition_path"]
+                            row[key + "_flow"] = " → ".join(cp) if cp else "unconditional"
+
         return {
             "status": "ok",
             "query": query,
             "columns": result.get("columns", []),
-            "results": result.get("results", []),
+            "results": rows,
             "stats": result.get("stats", {}),
         }
 

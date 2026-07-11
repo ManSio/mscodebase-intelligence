@@ -629,9 +629,10 @@ class CodeParser:
 
         # ── Присваивание: x = <rhs> (язык-независимое) ──
         if node.type in assignment_types:
-            # Поле для левой части: Python→left, Rust→name, TS→name
+            # Поле для левой части: Python→left, Rust→pattern, TS→name
             left = (
                 node.child_by_field_name("left")
+                or node.child_by_field_name("pattern")
                 or node.child_by_field_name("name")
             )
             right = node.child_by_field_name("right") or node.child_by_field_name("value")

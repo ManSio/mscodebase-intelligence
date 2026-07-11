@@ -16,6 +16,11 @@
 - 💀 **Dead Code Detection**: поиск функций без входящих CALLS-рёбер.
 - 🔄 **PURE mode**: SymbolIndexAdapter без дублирования данных в памяти.
 - 🔗 **Data Flow Tracking**: рёбра `ASSIGNED_FROM` — интра-процедурное отслеживание присваиваний. `CodeParser.extract_assignments()` обходит Tree-sitter AST со scope stack, детектит `x = y` / `x += y`. Создаёт узлы `Variable` + рёбра `ASSIGNED_FROM`. [Бенчмарк: 3 235 edges, 66.6/KLOC, 91.8% файлов MSCodeBase — в 5.4× больше покрытия, чем stdlib `ast`.]
+- ⚡ **Unified Walker**: `_walk_file()` — ОДИН Tree-sitter parse + ОДИН обход → вызовы + присваивания. Parse cache без повторного парсинга. ~30% быстрее.
+- 🚦 **Conditional Flow**: `condition_path` в свойствах ASSIGNED_FROM — стек if/for/while/try/except. 69% рёбер в `src/core` условные.
+- 🌐 **Мультиязычность**: `ASSIGNMENT_NODE_MAP` — Rust и TypeScript/TSX (конфиг готов, парсеры есть).
+- 🧪 **Тесты**: 18 новых unit-тестов для присваиваний.
+- 🔍 **Агент видит**: `condition_path` в результатах `query_graph`.
 
 ### Изменено
 - 56 → 57 MCP-инструментов (+ `query_graph`)
