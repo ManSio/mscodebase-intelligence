@@ -12,11 +12,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-406%20passing-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-482%20passing-brightgreen)](../../tests/)
 
 [Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-50-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
-*Последнее обновление: 2026-07-11*
+*Последнее обновление: 2026-07-12*
 
 </div>
 
@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 56 инструментов для AI-ассистента          │  │
+│  │  · 57 инструментов для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -65,11 +65,21 @@
 
 MSCodeBase **не использует LSP**. LSP-сервер (`src/lsp_main.py`) был экспериментальной частью проекта и **не работает в Zed** из-за архитектурных ограничений самого редактора (см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)).
 
-Вместо этого вся функциональность реализована через **50 MCP-инструментов**, доступных в Zed по протоколу MCP.
+Вместо этого вся функциональность реализована через **57 MCP-инструментов**, доступных в Zed по протоколу MCP.
 
 ### Платформы
 
 Спроектирован и протестирован на **Windows**. macOS и Linux должны работать, но официально не валидированы.
+
+### Языки
+
+| Язык | Парсинг | Граф вызовов | Data Flow (ASSIGNED_FROM) |
+|---|---|---|---|
+| **Python** | ✅ | ✅ | ✅ |
+| **TypeScript** | ✅ | ✅ | ✅ (v3.2.0) |
+| **TSX** | ✅ | ✅ | ✅ (v3.2.0) |
+| **Rust** | ✅ | ✅ | ✅ (v3.2.0) |
+| Java, Go, C++ и др. | ❌ | ❌ | ❌ (в планах) |
 
 ## ✨ Возможности
 
@@ -87,7 +97,8 @@ MSCodeBase **не использует LSP**. LSP-сервер (`src/lsp_main.py
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (15 сервисов), 56 инструментов (39 на классах + 14 intel + 3 diag), 406+ тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (15 сервисов), 57 инструментов (40 на классах + 14 intel + 3 diag), 482+ теста |
+| 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 3,235 рёбер на MSCodeBase (69% условных). |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | 6 инструментов: rename/move/delete/replace символов с preview/apply + `@modification_guard` |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename без пере-эмбеддинга (50ms против 5s) |
@@ -157,7 +168,7 @@ llama.cpp GGUF (GPU) → ONNX Runtime (CPU) → LM Studio (если запуще
 
 ---
 
-## 🔧 MCP Инструменты (56 всего)
+## 🔧 MCP Инструменты (57 всего)
 
 ### Основной поиск
 
@@ -397,7 +408,7 @@ mscodebase-intelligence/
 │   ├── en/               # Документация на английском
 │   ├── ru/               # Документация на русском
 │   └── zh/               # Документация на китайском
-├── tests/                        # 406 тестов (pytest)
+├── tests/                        # 482 теста (pytest)
 ├── .agents/skills/               # Навыки для AI-агента
 ├── install.py                    # Установщик
 └── README.md

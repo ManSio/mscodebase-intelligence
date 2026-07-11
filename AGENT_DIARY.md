@@ -5,6 +5,24 @@
 
 ---
 
+## [2026-07-12 18:00] — v3.2.0 harden: Unified Walker, Conditional Flow, i18n, 22 теста
+
+**Problem:** Документация отставала, тестов не было, только Python.
+
+**Solution:**
+1. Unified Walker — `_walk_file()` единый проход, кеш парсинга
+2. Conditional Flow — `condition_path` (if/for/while/try стек) в ASSIGNED_FROM
+3. 22 теста (basic, conditional, scope, storage, edge, Rust, TS, TSX)
+4. Мультиязычность: ASSIGNMENT_NODE_MAP для .rs/.ts/.tsx
+5. Expose to Agent: `condition_path` в query_graph ответе
+6. README (en/ru/zh): языки, 482 теста, 57 tools, Data Flow
+7. ARCHITECTURE (en/ru/zh): Data Flow Layer, границы
+8. CHANGELOG (en/ru/zh): полная хронология v3.2.0
+
+**Status:** ✅ (v3.2.0 закрыт)
+
+---
+
 ## [2026-07-12 12:30] — ASSIGNED_FROM Data Flow реализация (v3.2.0)
 
 **Problem:** В PropertyGraph не было связей присваивания переменных —
