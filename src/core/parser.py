@@ -21,12 +21,12 @@ class CodeParser:
 
     # Узлы, которые мы извлекаем как чанки
     TARGET_NODES = {
-        "function_definition",
-        "method_definition",
-        "function_item",
-        "impl_item",
-        "method_declaration",
-        "function_declaration",
+        "function_definition",          # Python, Rust, C/C++, Dart
+        "method_definition",            # Python class method
+        "function_item",                # Rust fn
+        "impl_item",                    # Rust impl
+        "method_declaration",           # Java, C#
+        "function_declaration",         # Go, Swift, Kotlin, C, C++
     }
 
     # Узлы вызовов функций — для построения графа вызовов
@@ -181,6 +181,68 @@ class CodeParser:
                 self.parsers[".php"] = parser
             except ImportError:
                 logger.debug("Tree-sitter PHP недоступен.")
+
+            # Kotlin
+            try:
+                import tree_sitter_kotlin as tskt
+
+                parser = Parser()
+                parser.language = Language(tskt.language())
+                self.parsers[".kt"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Kotlin недоступен.")
+
+            # Swift
+            try:
+                import tree_sitter_swift as tssw
+
+                parser = Parser()
+                parser.language = Language(tssw.language())
+                self.parsers[".swift"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Swift недоступен.")
+
+            # C
+            try:
+                import tree_sitter_c as tsc
+
+                parser = Parser()
+                parser.language = Language(tsc.language())
+                self.parsers[".c"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C недоступен.")
+
+            # C++
+            try:
+                import tree_sitter_cpp as tscpp
+
+                parser = Parser()
+                parser.language = Language(tscpp.language())
+                self.parsers[".cpp"] = parser
+                self.parsers[".cxx"] = parser
+                self.parsers[".hpp"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C++ недоступен.")
+
+            # Scala
+            try:
+                import tree_sitter_scala as tssc
+
+                parser = Parser()
+                parser.language = Language(tssc.language())
+                self.parsers[".scala"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Scala недоступен.")
+
+            # Dart
+            try:
+                import tree_sitter_dart as tsdart
+
+                parser = Parser()
+                parser.language = Language(tsdart.language())
+                self.parsers[".dart"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Dart недоступен.")
 
             logger.info(f"✅ Tree-sitter готов для: {list(self.parsers.keys())}")
 
@@ -489,6 +551,15 @@ class CodeParser:
         ".cs": {"variable_declarator", "assignment_expression"},
         ".rb": {"assignment", "op_assignment"},
         ".php": {"assignment_expression", "variable_declarator"},
+        ".kt": {"property_declaration"},
+        ".swift": {"property_declaration"},
+        ".c": {"init_declarator"},
+        ".cpp": {"init_declarator"},
+        ".cxx": {"init_declarator"},
+        ".hpp": {"init_declarator"},
+        ".scala": {"val_definition", "var_definition"},
+        ".dart": {"initialized_variable_definition",
+                    "local_variable_declaration"},
     }
 
     # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
@@ -723,7 +794,7 @@ class CodeParser:
             # или expression_list для Go/Java множественных присваиваний)
             left_name = None
             if left:
-                if left.type == "identifier":
+                if left.type in ("identifier", "pattern", "simple_identifier"):
                     left_name = code[left.start_byte : left.end_byte].decode(
                         "utf-8", errors="ignore"
                     )
@@ -736,14 +807,26 @@ class CodeParser:
                             )
                             break
             else:
-                # Fallback: ищем первый identifier среди детей (Go var_spec)
+                # Fallback: ищем первый identifier среди детей (Go var_spec, Kotlin)
                 for child in node.children:
                     if child.type == "identifier":
                         left_name = code[child.start_byte : child.end_byte].decode(
                             "utf-8", errors="ignore"
                         )
                         break
+                    # Kotlin: property_declaration → variable_declaration → identifier
+                    if child.type == "variable_declaration":
+                        for sub in child.children:
+                            if sub.type == "identifier":
+                                left_name = code[sub.start_byte : sub.end_byte].decode(
+                                    "utf-8", errors="ignore"
+                                )
+                                break
+                        if left_name:
+                            break
+            # Для right принимаем identifier/simple_identifier/expression_list
             if left_name and right:
+                # Убеждаемся что right — это не служебное слово
                 self._process_rhs_for_assign(
                     target=left_name,
                     right=right,
@@ -824,7 +907,7 @@ class CodeParser:
         их внутренние идентификаторы не относятся к текущему контексту.
         """
         names = []
-        if node.type == "identifier":
+        if node.type in ("identifier", "simple_identifier"):
             name = code[node.start_byte : node.end_byte].decode(
                 "utf-8", errors="ignore"
             )

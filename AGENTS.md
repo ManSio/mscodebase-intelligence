@@ -1,4 +1,4 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (56 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (57 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
 > Optimized for the hybrid model: 14 High-Level + 39 Low-Level Core MCP + 3 Diagnostic
@@ -176,7 +176,7 @@ Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_t
 > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
 > Use `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name = 'x' RETURN s.name, e.condition_path` to trace variable provenance.
 > Edges have optional `condition_path` property — list of control-flow contexts like `["if_statement", "for_statement"]`.
-> Supported for: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP.
+> Supported for: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart.
 
 `search_code(mode=fast|quality|deep|context|auto)`, `cross_repo_search`,
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `get_repo_map`,

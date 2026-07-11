@@ -76,10 +76,21 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Language | Parsing | Call Graph | Data Flow (ASSIGNED_FROM) |
 |---|---|---|---|
 | **Python** | ✅ | ✅ | ✅ |
-| **TypeScript** | ✅ | ✅ | ✅ (v3.2.0) |
-| **TSX** | ✅ | ✅ | ✅ (v3.2.0) |
-| **Rust** | ✅ | ✅ | ✅ (v3.2.0) |
-| Java, Go, C++, etc. | ❌ | ❌ | ❌ (planned) |
+| **TypeScript** | ✅ | ✅ | ✅ |
+| **TSX** | ✅ | ✅ | ✅ |
+| **Rust** | ✅ | ✅ | ✅ |
+| **Go** | ✅ | ✅ | ✅ |
+| **JavaScript** | ✅ | ✅ | ✅ |
+| **Java** | ✅ | ✅ | ✅ |
+| **C#** | ✅ | ✅ | ✅ |
+| **Ruby** | ✅ | ✅ | ✅ |
+| **PHP** | ✅ | ✅ | ✅ |
+| **Kotlin** | ✅ | ✅ | ✅ |
+| **Swift** | ✅ | ✅ | ✅ |
+| **C** | ✅ | ✅ | ✅ |
+| **C++** | ✅ | ✅ | ✅ |
+| **Scala** | ✅ | ✅ | ✅ |
+| **Dart** | ✅ | ✅ | ✅ |
 
 ## ✨ Features
 
