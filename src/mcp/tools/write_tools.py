@@ -693,9 +693,370 @@ class SafeDeleteTool(MCPTool):
         }
 
 
+class ReplaceSymbolTool(MCPTool):
+    """replace_symbol — replace a symbol's body (preview/apply)."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="replace_symbol")
+
+    @error_boundary("replace_symbol", timeout_ms=30000)
+    async def execute(
+        self,
+        symbol: str,
+        new_code: str,
+        file_path: str = "",
+        apply: bool = False,
+    ) -> str:
+        """Replace a symbol's body (function/class) at its definition site.
+
+        Args:
+            symbol: Symbol name to replace
+            new_code: New body code to replace with
+            file_path: Restrict to specific file (optional)
+            apply: If False — preview only; if True — apply changes
+
+        Returns:
+            Markdown string with preview or apply result.
+        """
+        await self.require_ready_project()
+        si = self.resolve_symbol_index()
+
+        # 1. Find definition via SymbolIndex
+        defs = si.find_definitions(symbol)
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{symbol}` not found in index."
+
+        # Filter by file_path
+        if file_path:
+            target = Path(file_path).resolve().as_posix()
+            defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
+
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{symbol}` not found in specified file."
+
+        source_def = defs[0]
+        source_file = source_def.file_path
+        def_line = source_def.line  # 1-based
+
+        # 2. Read file content
+        abs_path = Path(source_file).resolve()
+        if not abs_path.exists():
+            return f"\U0001f6ab **Error:** File not found: `{source_file}`"
+
+        content = abs_path.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines(True)
+
+        # 3. Locate definition range
+        start_idx = def_line - 1  # 0-based
+        end_idx = self._find_body_end(lines, start_idx)
+
+        # Extract original code
+        original_lines = lines[start_idx:end_idx]
+        original_code = "".join(original_lines)
+
+        if not apply:
+            return (
+                f"\U0001f50d **Preview** — replace `{symbol}` in `{source_file}` (line {def_line})\n\n"
+                f"**Old code:**\n```python\n{original_code.rstrip()}\n```\n\n"
+                f"**New code:**\n```python\n{new_code.rstrip()}\n```"
+            )
+
+        # 4. Apply: replace lines
+        new_lines = new_code.splitlines(True)
+        # Preserve original indentation of the definition line
+        base_indent = len(lines[start_idx]) - len(lines[start_idx].lstrip())
+        if new_lines and base_indent > 0:
+            indented_new = []
+            for i, nl in enumerate(new_lines):
+                if i == 0:
+                    indented_new.append(nl)
+                elif nl.strip():
+                    indented_new.append(" " * base_indent + nl)
+                else:
+                    indented_new.append(nl)
+            new_lines = indented_new
+
+        # Replace the block
+        lines[start_idx:end_idx] = new_lines
+
+        # Write back
+        abs_path.write_text("".join(lines), encoding="utf-8")
+
+        # 5. Update index
+        try:
+            si.remove_file(source_file)
+        except Exception:
+            pass
+        try:
+            indexer = self.resolve_indexer()
+            if hasattr(indexer, 'apply_file_move'):
+                indexer.apply_file_move(source_file, source_file)
+        except Exception:
+            pass
+
+        return (
+            f"\u2705 **Replaced** `{symbol}` in `{source_file}`\n"
+            f"  \u2022 Location: line **{def_line}**\n"
+            f"  \u2022 Replaced {len(original_lines)} lines with {len(new_lines)} lines"
+        )
+
+    def _find_body_end(self, lines: list, def_line: int) -> int:
+        """Find where a symbol's body ends by tracking indentation.
+
+        Args:
+            lines: List of file lines (with line endings preserved).
+            def_line: 0-based index of the definition line.
+
+        Returns:
+            0-based index of the first line after the body.
+        """
+        if def_line >= len(lines):
+            return def_line
+
+        # Get base indentation of the definition line
+        base_indent = len(lines[def_line]) - len(lines[def_line].lstrip())
+
+        # If it's a one-liner (e.g. def foo(): pass), body is right after colon on same line
+        def_text = lines[def_line].rstrip()
+        if def_text.rstrip().endswith(':'):
+            after_colon = def_text.split(':', 1)[1].strip()
+            if after_colon and not after_colon.startswith('#'):
+                return def_line + 1
+
+        # Scan forward to find where indentation returns to base level
+        for i in range(def_line + 1, len(lines)):
+            stripped = lines[i].strip()
+            if stripped and not stripped.startswith('#'):
+                indent = len(lines[i]) - len(lines[i].lstrip())
+                if indent <= base_indent:
+                    return i
+            elif stripped == '':
+                continue
+
+        return len(lines)
+
+
+class InsertBeforeSymbolTool(MCPTool):
+    """insert_before_symbol — insert code before a symbol (preview/apply)."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="insert_before_symbol")
+
+    @error_boundary("insert_before_symbol", timeout_ms=15000)
+    async def execute(
+        self,
+        anchor_symbol: str,
+        new_code: str,
+        file_path: str = "",
+        apply: bool = False,
+    ) -> str:
+        """Insert code before an anchor symbol's definition.
+
+        Args:
+            anchor_symbol: Symbol to insert before
+            new_code: Code to insert
+            file_path: Restrict to specific file (optional)
+            apply: If False — preview only; if True — apply changes
+
+        Returns:
+            Markdown string with preview or apply result.
+        """
+        await self.require_ready_project()
+        si = self.resolve_symbol_index()
+
+        # 1. Find anchor definition
+        defs = si.find_definitions(anchor_symbol)
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{anchor_symbol}` not found in index."
+
+        if file_path:
+            target = Path(file_path).resolve().as_posix()
+            defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
+
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{anchor_symbol}` not found in specified file."
+
+        source_def = defs[0]
+        source_file = source_def.file_path
+        anchor_line = source_def.line  # 1-based
+
+        # 2. Read file
+        abs_path = Path(source_file).resolve()
+        if not abs_path.exists():
+            return f"\U0001f6ab **Error:** File not found: `{source_file}`"
+
+        content = abs_path.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines(True)
+
+        insert_idx = anchor_line - 1  # 0-based: insert before this line
+
+        # Check if there's a blank line before the anchor we should respect
+        # (Insert before the blank line too if it's a separator)
+        if insert_idx > 0 and lines[insert_idx - 1].strip() == '':
+            insert_idx = insert_idx - 1
+
+        if not apply:
+            return (
+                f"\U0001f50d **Preview** — insert before `{anchor_symbol}` in `{source_file}` (line {anchor_line})\n\n"
+                f"**Code to insert:**\n```python\n{new_code.rstrip()}\n```"
+            )
+
+        # 3. Insert before anchor line
+        new_lines = new_code.splitlines(True)
+        # Add a blank line after the inserted code if not present
+        if new_lines and new_lines[-1].strip() != '':
+            new_lines.append('\n')
+
+        lines[insert_idx:insert_idx] = new_lines
+
+        # Write back
+        abs_path.write_text("".join(lines), encoding="utf-8")
+
+        # 4. Update index
+        try:
+            si.remove_file(source_file)
+        except Exception:
+            pass
+        try:
+            indexer = self.resolve_indexer()
+            if hasattr(indexer, 'apply_file_move'):
+                indexer.apply_file_move(source_file, source_file)
+        except Exception:
+            pass
+
+        return (
+            f"\u2705 **Inserted before** `{anchor_symbol}` in `{source_file}`\n"
+            f"  \u2022 Anchor at line **{anchor_line}**\n"
+            f"  \u2022 Inserted {len(new_lines)} lines"
+        )
+
+
+class InsertAfterSymbolTool(MCPTool):
+    """insert_after_symbol — insert code after a symbol's body (preview/apply)."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="insert_after_symbol")
+
+    @error_boundary("insert_after_symbol", timeout_ms=15000)
+    async def execute(
+        self,
+        anchor_symbol: str,
+        new_code: str,
+        file_path: str = "",
+        apply: bool = False,
+    ) -> str:
+        """Insert code after an anchor symbol's definition (after its body ends).
+
+        Args:
+            anchor_symbol: Symbol to insert after
+            new_code: Code to insert
+            file_path: Restrict to specific file (optional)
+            apply: If False — preview only; if True — apply changes
+
+        Returns:
+            Markdown string with preview or apply result.
+        """
+        await self.require_ready_project()
+        si = self.resolve_symbol_index()
+
+        # 1. Find anchor definition
+        defs = si.find_definitions(anchor_symbol)
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{anchor_symbol}` not found in index."
+
+        if file_path:
+            target = Path(file_path).resolve().as_posix()
+            defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
+
+        if not defs:
+            return f"\U0001f6ab **Error:** Symbol `{anchor_symbol}` not found in specified file."
+
+        source_def = defs[0]
+        source_file = source_def.file_path
+        anchor_line = source_def.line  # 1-based
+
+        # 2. Read file
+        abs_path = Path(source_file).resolve()
+        if not abs_path.exists():
+            return f"\U0001f6ab **Error:** File not found: `{source_file}`"
+
+        content = abs_path.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines(True)
+
+        # 3. Find end of symbol's body
+        start_idx = anchor_line - 1  # 0-based
+        body_end_idx = self._find_body_end(lines, start_idx)
+
+        if not apply:
+            return (
+                f"\U0001f50d **Preview** — insert after `{anchor_symbol}` in `{source_file}` (line {anchor_line})\n\n"
+                f"**Code to insert:**\n```python\n{new_code.rstrip()}\n```"
+            )
+
+        # 4. Insert after body end
+        new_lines = new_code.splitlines(True)
+        # Ensure blank line separation
+        if new_lines and new_lines[-1].strip() != '':
+            new_lines.append('\n')
+        # If the body end is at EOF, add a newline before
+        if body_end_idx < len(lines) and lines[body_end_idx - 1].strip() != '':
+            new_lines.insert(0, '\n')
+
+        lines[body_end_idx:body_end_idx] = new_lines
+
+        # Write back
+        abs_path.write_text("".join(lines), encoding="utf-8")
+
+        # 5. Update index
+        try:
+            si.remove_file(source_file)
+        except Exception:
+            pass
+        try:
+            indexer = self.resolve_indexer()
+            if hasattr(indexer, 'apply_file_move'):
+                indexer.apply_file_move(source_file, source_file)
+        except Exception:
+            pass
+
+        return (
+            f"\u2705 **Inserted after** `{anchor_symbol}` in `{source_file}`\n"
+            f"  \u2022 Anchor body ends at line **{body_end_idx + 1}**\n"
+            f"  \u2022 Inserted {len(new_lines)} lines"
+        )
+
+    def _find_body_end(self, lines: list, def_line: int) -> int:
+        """Find where a symbol's body ends by tracking indentation."""
+        if def_line >= len(lines):
+            return def_line
+
+        base_indent = len(lines[def_line]) - len(lines[def_line].lstrip())
+
+        # One-liner check
+        def_text = lines[def_line].rstrip()
+        if def_text.rstrip().endswith(':'):
+            after_colon = def_text.split(':', 1)[1].strip()
+            if after_colon and not after_colon.startswith('#'):
+                return def_line + 1
+
+        for i in range(def_line + 1, len(lines)):
+            stripped = lines[i].strip()
+            if stripped and not stripped.startswith('#'):
+                indent = len(lines[i]) - len(lines[i].lstrip())
+                if indent <= base_indent:
+                    return i
+            elif stripped == '':
+                continue
+
+        return len(lines)
+
+
 __all__ = [
     "RenameSymbolTool",
     "AckImpactTool",
     "MoveSymbolTool",
     "SafeDeleteTool",
+    "ReplaceSymbolTool",
+    "InsertBeforeSymbolTool",
+    "InsertAfterSymbolTool",
 ]

@@ -5,6 +5,51 @@
 
 ---
 
+## [2026-07-11 20:30] — P0: LanceDB Meta-Patching (file rename without re-embed)
+
+**Problem:** File rename triggers full delete+re-embed cycle (2-5s, 700MB RAM).
+No way to update file_path in vectors without re-indexing.
+
+**Solution:**
+- `SymbolIndex.remap_file(old, new)` — remaps file_path in all internal dicts
+  and SymbolRef instances (file_to_symbols, file_to_defs, file_to_calls, definitions, references)
+- `Indexer.move_chunks_metadata(old, new)` — reads LanceDB chunks, deletes old,
+  mutates file_path/module_name/layer/indexed_at, re-inserts same vectors
+- `Indexer._infer_module_name(path)` / `Indexer._infer_layer(path)` — helper methods
+- `Indexer.apply_file_move(old, new)` — coordinator: lanceDB + SymbolIndex + BM25 + file_guard
+- `Searcher._reset_bm25()` — quick BM25 invalidation for meta-patching
+- Wired into `RenameSymbolTool._apply_changes` (refreshes metadata for modified files)
+  and `MoveSymbolTool._apply_move` (refreshes both source and target)
+
+**Files changed:**
+- `src/core/symbol_index.py` — added `remap_file` (lines 1063-1112)
+- `src/core/indexer.py` — added `move_chunks_metadata`, `apply_file_move`,
+  `_infer_module_name`, `_infer_layer` (lines 1197-1333)
+- `src/core/searcher.py` — added `_reset_bm25` (lines 155-165)
+- `src/mcp/tools/write_tools.py` — wired `apply_file_move` into both tools
+
+**Status:** ✅ Implemented and verified (no new diagnostics)
+
+---
+
+## [2026-07-11 21:30] — Phase 3: replace_symbol, insert_before/after_symbol
+
+**Problem:** Agent could only rename/move/delete symbols. No way to replace a symbol's
+body or insert new code relative to an anchor symbol.
+
+**Solution:**
+- `ReplaceSymbolTool` — find definition via SymbolIndex, locate body via
+  indentation tracking, preview old vs new, apply by replacing lines
+- `InsertBeforeSymbolTool` — insert code before an anchor symbol's definition
+- `InsertAfterSymbolTool` — insert code after a symbol's body ends
+- All return Markdown strings (`-> str`) following the @error_boundary pattern
+- Registered in server.py (now 44 core tools)
+
+**Tools Used:** read_file, edit_file, diagnostics
+**Status:** ✅ 
+
+---
+
 ## [2026-07-11 19:00] — Phase 2: LspClient + MoveSymbolTool + SafeDeleteTool
 
 **Problem:** Rename был, но move_symbol и safe_delete отсутствовали.

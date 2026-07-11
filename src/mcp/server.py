@@ -1132,8 +1132,11 @@ def _register_all_tools(mcp, services):
     )
     from src.mcp.tools.write_tools import (
         AckImpactTool,
+        InsertAfterSymbolTool,
+        InsertBeforeSymbolTool,
         MoveSymbolTool,
         RenameSymbolTool,
+        ReplaceSymbolTool,
         SafeDeleteTool,
     )
     from src.mcp.tools.system_tools import (
@@ -1191,11 +1194,14 @@ def _register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
         VerifyActionTool,
-        # Write (4)
+        # Write (7)
         RenameSymbolTool,
         AckImpactTool,
         MoveSymbolTool,
         SafeDeleteTool,
+        ReplaceSymbolTool,
+        InsertBeforeSymbolTool,
+        InsertAfterSymbolTool,
     ]
 
     # Регистрируем каждый инструмент.
