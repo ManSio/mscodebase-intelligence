@@ -769,6 +769,7 @@ class CodeParser:
         assigned: Optional[Set[str]] = None,
         condition_path: Optional[List[str]] = None,
         assignment_types: Optional[Set[str]] = None,
+        scope_id: Optional[str] = None,
     ):
         """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
 
@@ -782,6 +783,8 @@ class CodeParser:
                             для отслеживания контекста присваивания.
             assignment_types: set[str] — типы assignment-узлов для языка.
                               None → Python ("assignment", "augmented_assignment").
+            scope_id: str — идентификатор scope (файл::функция::строка).
+                      None для глобального scope.
         """
         if assignment_types is None:
             assignment_types = {"assignment", "augmented_assignment"}
@@ -807,6 +810,10 @@ class CodeParser:
                 current_function = code[
                     name_node.start_byte : name_node.end_byte
                 ].decode("utf-8", errors="ignore")
+            # Вычисляем scope_id: file_path::function_name::line
+            file_str = str(file_path).replace("::", "/")
+            line = node.start_point[0] if hasattr(node, "start_point") else 0
+            scope_id = f"{file_str}::{current_function}:{line}"
             # Push: сохраняем родительский scope, создаём свежий для тела функции
             parent_assigned = assigned
             assigned = set()
@@ -878,6 +885,7 @@ class CodeParser:
                     line=node.start_point[0],
                     function=current_function,
                     condition_path=list(condition_path),
+                    scope_id=scope_id,
                 )
 
         # ── Рекурсивный обход детей ──
@@ -891,6 +899,7 @@ class CodeParser:
                 assigned,
                 condition_path,
                 assignment_types,
+                scope_id,
             )
 
         # ── Восстановление родительского scope при выходе из функции ──
@@ -912,6 +921,7 @@ class CodeParser:
         line: int,
         function: str,
         condition_path: Optional[List[str]] = None,
+        scope_id: Optional[str] = None,
     ):
         """Обрабатывает правую часть присваивания.
 
@@ -921,6 +931,7 @@ class CodeParser:
 
         Если присваивание происходит внутри условного блока (if/for/while),
         condition_path содержит стек этих блоков.
+        scope_id — уникальный ID scope (файл::функция::строка).
         """
         ref_names = self._get_names_from_node(right, code)
         for ref in ref_names:
@@ -934,6 +945,8 @@ class CodeParser:
                 }
                 if condition_path:
                     entry["condition_path"] = condition_path
+                if scope_id:
+                    entry["scope_id"] = scope_id
                 assignments.append(entry)
 
         # Target всегда помечается как assigned для chain-отслеживания

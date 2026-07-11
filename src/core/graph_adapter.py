@@ -237,6 +237,7 @@ class SymbolIndexAdapter:
                 line = a.get("line", 0)
                 function = a.get("function", "")
                 condition_path = a.get("condition_path")
+                scope_id = a.get("scope_id")
 
                 if not target or not source or target == source:
                     continue
@@ -249,15 +250,18 @@ class SymbolIndexAdapter:
                 for qname, name in [(source_qname, source), (target_qname, target)]:
                     existing = self._graph.get_node(qname)
                     if not existing:
+                        props_node = {
+                            "line": line,
+                            "function": function,
+                        }
+                        if scope_id:
+                            props_node["function_scope"] = scope_id
                         self._graph.add_node(
                             name=name,
                             label=NodeLabel.VARIABLE,
                             qualified_name=qname,
                             file_path=file_path,
-                            properties={
-                                "line": line,
-                                "function": function,
-                            },
+                            properties=props_node,
                         )
 
                 # ASSIGNED_FROM ребро: source → target
@@ -268,6 +272,8 @@ class SymbolIndexAdapter:
                 }
                 if condition_path:
                     props["condition_path"] = condition_path
+                if scope_id:
+                    props["scope_id"] = scope_id
 
                 self._graph.add_edge(
                     source_qname=source_qname,
