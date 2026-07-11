@@ -202,6 +202,28 @@ job_manager = JobManager()
 # =====================================================================
 
 
+def _resolve_symbol_count(active_indexer, total_chunks: int) -> int:
+    """Безопасно получает количество символов из active Indexer.
+
+    Если SymbolIndex пуст (0), но индекс не пуст (chunks > 0) —
+    пробует перезагрузить с диска через index_guard.
+    Возвращает int (0 если недоступно).
+    """
+    sym_idx = getattr(active_indexer, "_symbol_index", None)
+    if sym_idx is None:
+        return 0
+    try:
+        count = sym_idx.get_stats().get("total_symbols", 0)
+        if count == 0 and total_chunks > 0:
+            guard = getattr(active_indexer, "_index_guard", None)
+            if guard is not None:
+                guard.load_symbol_index(sym_idx)
+                count = sym_idx.get_stats().get("total_symbols", 0)
+        return count
+    except Exception:
+        return 0
+
+
 class ProjectIntelligenceLayer:
     """Интеллектуальный слой проекта.
 
@@ -280,28 +302,6 @@ class ProjectIntelligenceLayer:
             return self.indexer
         return None
 
-
-def _resolve_symbol_count(active_indexer, total_chunks: int) -> int:
-    """Безопасно получает количество символов из active Indexer.
-
-    Если SymbolIndex пуст (0), но индекс не пуст (chunks > 0) —
-    пробует перезагрузить с диска через index_guard.
-    Возвращает int (0 если недоступно).
-    """
-    sym_idx = getattr(active_indexer, "_symbol_index", None)
-    if sym_idx is None:
-        return 0
-    try:
-        count = sym_idx.get_stats().get("total_symbols", 0)
-        if count == 0 and total_chunks > 0:
-            # Авто-загрузка с диска (рецидив INC-001)
-            guard = getattr(active_indexer, "_index_guard", None)
-            if guard is not None:
-                guard.load_symbol_index(sym_idx)
-                count = sym_idx.get_stats().get("total_symbols", 0)
-        return count
-    except Exception:
-        return 0
 
     # -----------------------------------------------------------------
     # БЛОК 1. Code Intelligence (Быстрый локальный анализ, < 2 сек)
