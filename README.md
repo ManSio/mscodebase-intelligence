@@ -286,7 +286,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-39 Tool Classes   │  │  14 intel_* tools + 3 diag      │
+│  39 Tool Classes   │  │  14 intel_* tools + 3 diag      │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  One class per tool  │  │  error_boundary decorator          │
 │  │  Constructor Inj.   │  │  JSON status/message/detail        │  │
