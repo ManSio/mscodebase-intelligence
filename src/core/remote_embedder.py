@@ -570,8 +570,10 @@ class RemoteEmbedder:
             import onnxruntime as _ort
 
             opts = _ort.SessionOptions()
-            opts.enable_cpu_mem_arena = False  # меньше RAM
-            opts.intra_op_num_threads = 2  # ограничить потоки
+            opts.enable_cpu_mem_arena = False
+            opts.enable_mem_pattern = False
+            opts.enable_mem_reuse = True
+            opts.intra_op_num_threads = 2
             opts.inter_op_num_threads = 1
             opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
             opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
