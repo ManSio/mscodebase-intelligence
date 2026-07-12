@@ -563,7 +563,7 @@ class ProjectIntelligenceLayer:
                     "provider": _active_provider,
                     "model": "e5-base-v2",
                     "dimension": 768,
-                }
+                },
                 "_debug": str(type(active_indexer)),
             }
         except Exception as e:

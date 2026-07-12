@@ -1098,12 +1098,8 @@ def _trigger_auto_index_if_empty(services):
                 if loop.is_running():
                     asyncio.ensure_future(_auto_index())
                 else:
-                    # Loop ещё не запущен. НЕ блокируем — просто пропускаем.
-                    # Индексация может быть запущена позже через явный вызов.
-                    logger.debug(
-                        "Event loop не запущен — auto-index будет пропущен. "
-                        "Запустите index_project_dir() вручную."
-                    )
+                    # Loop ещё не запущен — ставим в очередь при старте
+                    loop.call_soon(lambda: asyncio.ensure_future(_auto_index()))
             except RuntimeError:
                 pass
         else:
