@@ -132,7 +132,7 @@ python install.py
 **install.py does:**
 1. Copies 39+ source files to the extension directory
 2. Installs Python dependencies
-3. Downloads llama-server.exe + GGUF models (bge-m3 embed + reranker)
+3. Downloads llama-server.exe + GGUF models (E5-base embed + reranker)
 4. Configures MCP in Zed's settings.json
 
 See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTALL.md](docs/en/INSTALL.md)

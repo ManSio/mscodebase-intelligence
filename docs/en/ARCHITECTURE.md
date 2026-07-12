@@ -148,8 +148,8 @@ Key modules:
 | `multi_signal_scorer.py` **(new v3.0)** | **Multi-signal search scoring (4 signals)** | graph |
 | `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM edge benchmark & analysis** | parser, graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
-| `llama_runner.py` | Lifecycle manager for llama-server.exe | download, launch, stop |
-| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
+| `llama_runner.py` | Lifecycle manager for llama-server.exe (reranker only) | download, launch, stop |
+| `remote_embedder.py` | ONNX E5-base / LM Studio / Ollama (legacy) | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |
 
@@ -208,16 +208,20 @@ Key modules:
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.5 Provider Priority
+### 2.5 Embedder: E5-base ONNX (in-process)
 
-The MCP server auto-detects the best available embedding provider:
+The MCP server now uses E5-base-v2 via ONNX Runtime (CPU, in-process) as its primary embedder:
 
-1. **llama.cpp** — built-in, auto-installed via `install.py` (GGUF models). Primary provider.
-2. **LM Studio** — fallback, requires external server
-3. **ONNX server** — ONNX runtime with remote models (legacy)
-4. **local ONNX** — CPU-only fallback, lowest quality (legacy)
+- **Model**: `intfloat/e5-base-v2` (768-dim)
+- **Runtime**: ONNX (CPU, no GPU required)
+- **Architecture**: in-process — no external HTTP server
+- **Performance**: ~360 i/s (was 18 i/s with BGE-M3)
+- **RAM**: ~265 MB (was 285 MB + VRAM)
+- **Config**: `EMBEDDING_DIMENSION=768`, `EMBEDDING_PROVIDER=e5_onnx`
 
-The priority is evaluated at startup. llama.cpp provides a 5.3× RAM reduction (227 MB vs 1200 MB) compared to LM Studio.
+The reranker still runs via llama-server (1 process, not 2).
+
+Legacy fallback providers (LM Studio, Ollama, remote ONNX) remain available via `remote_embedder.py` for custom setups.
 
 ---
 

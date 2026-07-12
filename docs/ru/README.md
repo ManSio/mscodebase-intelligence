@@ -132,19 +132,19 @@ python install.py
 **install.py выполняет:**
 1. Копирует 39+ файлов исходников в директорию расширения
 2. Устанавливает Python-зависимости
-3. Скачивает llama-server.exe + GGUF-модели (bge-m3 embed + reranker)
+3. Скачивает llama-server.exe (reranker) + модель E5-base-v2 (ONNX, CPU)
 4. Настраивает MCP в settings.json Zed
 
 См. также: [AI_INSTALLATION_PROMPT.md](../../AI_INSTALLATION_PROMPT.md), [INSTALL.md](INSTALL.md)
 
 ### Провайдеры
 
-MCP автоматически выбирает лучший доступный провайдер:
+MCP использует E5-base-v2 (ONNX, CPU, in-process) для эмбеддингов и llama-server для реранкера:
 
 ```
-llama.cpp GGUF (GPU) → ONNX Runtime (CPU) → LM Studio (если запущен) → только BM25
-   ~1.0 GB RAM           ~1.7 GB RAM          ~6 GB RAM             нет эмбеддингов
-   2× llama-server       встраиваемый ONNX     внешний API
+E5-base ONNX (CPU, in-process) → llama-server reranker
+   ~265 MB RAM                 ~1.0 GB RAM
+   360 i/s                     1 процесс
 ```
 
 Бенчмарки: [../../docs/research/2026-07-10-final-benchmark.md](../../docs/research/2026-07-10-final-benchmark.md)
@@ -320,8 +320,8 @@ MCP Инструменты (59 всего)
 │         ▼
 │  ┌─────────────────┐     ┌───────────────────┐
 │  │  RemoteEmbedder  │     │  LanceDB v2       │
-│  │  (LM Studio /    │     │  (Vector DB)       │
-│  │   Ollama / ONNX) │     │  BM25 + Vector    │
+│  │  (ONNX E5-base,  │     │  (Vector DB)       │
+│  │   CPU, in-process)│     │  BM25 + Vector    │
 │  └─────────────────┘     └───────────────────┘
 ```
 
@@ -406,8 +406,8 @@ mscodebase-intelligence/
 │   │   ├── searcher.py           # Гибридный поиск (BM25 + Dense + RRF)
 │   │   ├── symbol_index.py       # Граф вызовов (BFS, анализ влияния)
 │   │   ├── intelligence_layer.py # Инструменты intel_* (14 высокоуровневых)
-│   │   ├── llama_runner.py       # ★ Менеджер жизненного цикла llama.cpp
-│   │   ├── remote_embedder.py    # Клиент LM Studio / Ollama / llama.cpp / ONNX
+│   │   ├── llama_runner.py       # ★ Менеджер жизненного цикла llama-server (reranker)
+│   │   ├── remote_embedder.py    # ONNX E5-base / LM Studio / Ollama
 │   │   ├── reranker.py           # Мульти-провайдерный реранкер (HTTP к провайдерам)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Движок самодиагностики

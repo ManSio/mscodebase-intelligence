@@ -39,7 +39,7 @@ class EmbeddingConfig:
 
     # Общие
     model_name: str = os.getenv("MODEL_NAME", "text-embedding-bge-m3")
-    embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1024"))
+    embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 
     def get_lm_studio_base_url(self) -> str:
         return f"http://{self.lm_studio_host}:{self.lm_studio_port}"

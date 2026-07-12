@@ -132,7 +132,7 @@ python install.py
 **install.py 完成以下操作：**
 1. 将 39+ 个源文件复制到扩展目录
 2. 安装 Python 依赖
-3. 下载 llama-server.exe + GGUF 模型（bge-m3 嵌入 + 重排序）
+3. 下载 llama-server.exe + GGUF 模型（E5-base 嵌入 + 重排序）
 4. 在 Zed 的 settings.json 中配置 MCP
 
 另见：[AI_INSTALLATION_PROMPT.md](../../AI_INSTALLATION_PROMPT.md)、[INSTALL.md](INSTALL.md)

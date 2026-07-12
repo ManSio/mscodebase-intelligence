@@ -20,14 +20,6 @@ logger = logging.getLogger("download_model")
 # ─── Model Registry ───────────────────────────────────────
 MODEL_REGISTRY = {
     # Embedding models — with pre-quantized ONNX source where available
-    "BAAI/bge-m3": {
-        "dim": 1024,
-        "type": "embedding",
-        "size_mb": 570,
-        "quality": "best",
-        "onnx": "Xenova/bge-m3",
-        "onnx_file": "onnx/model_quantized.onnx",
-    },
     "BAAI/bge-base-en-v1.5": {
         "dim": 768,
         "type": "embedding",
@@ -272,7 +264,7 @@ def main():
         print()
         print("Usage:")
         print("  python download_model.py")
-        print("  python download_model.py --model BAAI/bge-m3")
+        print("  python download_model.py --model intfloat/multilingual-e5-base")
         print("  python download_model.py --size light")
         print(
             "  python download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker"
@@ -282,7 +274,7 @@ def main():
         print("Size presets (for embedding):")
         print("  light    — bge-small-en-v1.5 (384dim, ~50 MB)")
         print("  balanced — bge-base-en-v1.5  (768dim, ~150 MB)  [default]")
-        print("  full     — bge-m3             (1024dim, ~570 MB)")
+        print("  full     — e5-base           (768dim, ~250 MB)")
         print()
         print("Available models:")
         for name, info in sorted(MODEL_REGISTRY.items()):
@@ -306,7 +298,7 @@ def main():
             m = {
                 "light": ("BAAI/bge-small-en-v1.5", "embedding"),
                 "balanced": ("BAAI/bge-base-en-v1.5", "embedding"),
-                "full": ("BAAI/bge-m3", "embedding"),
+                "full": ("intfloat/multilingual-e5-base", "embedding")
             }
             model_name, model_type = m.get(args[i + 1], (model_name, model_type))
             i += 2

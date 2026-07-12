@@ -2035,6 +2035,12 @@ def _warmup_embedder():
         except Exception as e:
             logger.warning(f"⚠️ Ошибка запуска llama.cpp: {e}")
     
+    # ═══ E5-base ONNX: не запускаем llama.cpp ═══
+    _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+    if _provider == "e5_onnx":
+        logger.info("🔌 E5-base ONNX: пропускаю запуск llama.cpp")
+        return
+    
     # Запускаем в фоновом потоке (не блокируем MCP)
     t = threading.Thread(target=_start_llama, daemon=True, name="llama-warmup")
     t.start()
@@ -2069,44 +2075,58 @@ def run_server(original_stdout=None):
 
             atexit.register(_di_shutdown)
 
-            # ═══ Синхронный запуск llama.cpp с ожиданием готовности ═══
-            # _warmup_embedder() уже был вызван в create_mcp_server().
-            # Здесь запускаем ТОЛЬКО если он ещё не стартовал.
-            try:
-                from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
-                import time as _time
-                import httpx
-                runner = get_global_runner()
-                if is_compatible() and not runner.is_alive():
-                    model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
-                    logger.info(f"🦙 Синхронный запуск llama.cpp ({model})...")
-                    ok = runner._start_sync(model)
-                    if ok:
-                        for _ in range(40):
-                            try:
-                                r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
-                                if r.status_code == 200:
-                                    from src.core.remote_embedder import RemoteEmbedder
-                                    embedder = _services_cache.resolve(RemoteEmbedder)
-                                    with embedder._mode_lock:
-                                        embedder.mode = "llama_cpp"
-                                        embedder._preferred_mode = "llama_cpp"
-                                    logger.info("🦙 llama.cpp готов — режим принудительно llama_cpp")
-                                    try:
-                                        import asyncio as _aio
-                                        _aio.run(runner.start_reranker())
-                                    except Exception:
-                                        pass
-                                    break
-                            except Exception:
-                                pass
-                            _time.sleep(0.5)
+            # ═══ Синхронный запуск llama.cpp ═══
+            # Пропускаем если EMBEDDING_PROVIDER=e5_onnx (E5-base ONNX in-process)
+            _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+            if _provider != "e5_onnx":
+                try:
+                    from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
+                    import time as _time
+                    import httpx
+                    runner = get_global_runner()
+                    if is_compatible() and not runner.is_alive():
+                        model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+                        logger.info(f"🦙 Синхронный запуск llama.cpp ({model})...")
+                        ok = runner._start_sync(model)
+                        if ok:
+                            for _ in range(40):
+                                try:
+                                    r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
+                                    if r.status_code == 200:
+                                        from src.core.remote_embedder import RemoteEmbedder
+                                        embedder = _services_cache.resolve(RemoteEmbedder)
+                                        with embedder._mode_lock:
+                                            embedder.mode = "llama_cpp"
+                                            embedder._preferred_mode = "llama_cpp"
+                                        logger.info("🦙 llama.cpp готов — режим принудительно llama_cpp")
+                                        try:
+                                            import asyncio as _aio
+                                            _aio.run(runner.start_reranker())
+                                        except Exception:
+                                            pass
+                                        break
+                                except Exception:
+                                    pass
+                                _time.sleep(0.5)
+                            else:
+                                logger.warning("⚠️ llama.cpp не ответил за 20с")
                         else:
-                            logger.warning("⚠️ llama.cpp не ответил за 20с")
-                    else:
-                        logger.warning("⚠️ llama.cpp не запустился")
-            except Exception as _llama_err:
-                logger.warning(f"⚠️ Синхронный запуск llama: {_llama_err}")
+                            logger.warning("⚠️ llama.cpp не запустился")
+                except Exception as _llama_err:
+                    logger.warning(f"⚠️ Синхронный запуск llama: {_llama_err}")
+            else:
+                logger.info("🔌 E5-base ONNX: синхронный запуск llama.cpp пропущен")
+                # Реренкер всё равно нужен (через llama-server)
+                try:
+                    from src.core.llama_runner import get_global_runner
+                    runner = get_global_runner()
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(runner.start_reranker())
+                    loop.close()
+                except Exception:
+                    pass
 
             if original_stdout:
                 sys.stdout = original_stdout

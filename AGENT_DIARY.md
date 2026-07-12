@@ -5,6 +5,28 @@
 
 ---
 
+## [2026-07-12] — Великий Рефакторинг: BGE-M3 → E5-base ONNX
+
+**Problem:** BGE-M3 через llama-server: нестабилен, 2 процесса, 18 i/s, 285 MB + VRAM.
+E5-base ONNX: 265 MB CPU, 360 i/s, стабилен, 0 VRAM.
+
+**Solution:**
+1. Скачан E5-base ONNX INT8 (265 MB) из HuggingFace `intfloat/multilingual-e5-base`
+2. `remote_embedder.py`: ONNX mode по умолчанию, E5 prefix (query:/passage:), max_length=512
+3. `server.py`: отключён запуск llama-server (`EMBEDDING_PROVIDER=e5_onnx`)
+4. `config.py`: embedding_dimension=768
+5. `install.py`: step_gguf (только reranker) + step_models (e5-base-v2 вместо bge-m3)
+6. `download_model.py`: MODEL_REGISTRY обновлён (e5-base-v2 вместо bge-m3)
+7. docs: README, ARCHITECTURE обновлены
+8. Создан `docs/research/2026-07-12-e5-base-migration.md` — полный документ исследования
+9. Reranker (bge-reranker-v2-m3) сохранён, работает на порту 8081
+
+**Итог:** 1 процесс llama (только reranker), E5-base in-process, 360 i/s, 20× быстрее индексации
+
+**Status:** ✅
+
+---
+
 ## [2026-07-13] — Session Close: Full audit, hardening, demo
 
 **Problem:** Сессия закрытия — проверено всё от установщика до финального коммита.

@@ -66,8 +66,8 @@ LANG = {
     },
     "chk_pip": {"en": "Install packages", "ru": "Установка пакетов", "zh": "安装依赖"},
     "chk_llama": {"en": "llama.cpp engine", "ru": "llama.cpp движок", "zh": "llama.cpp引擎"},
-    "chk_gguf": {"en": "GGUF models (Qwen3 + bge-m3 + reranker)", "ru": "GGUF модели (Qwen3 + bge-m3 + reranker)", "zh": "GGUF模型"},
-    "chk_models": {"en": "Embedding models (fallback)", "ru": "Модели эмбеддинга (резерв)", "zh": "ONNX模型"},
+    "chk_gguf": {"en": "GGUF reranker model (bge-reranker-v2-m3)", "ru": "GGUF модель реранкера (bge-reranker-v2-m3)", "zh": "GGUF排序模型"},
+    "chk_models": {"en": "ONNX models: E5-base (embedder) + BGE-M3 (reranker)", "ru": "ONNX модели: E5-base (эмбеддер) + BGE-M3 (реранкер)", "zh": "ONNX模型: E5-base嵌入 + BGE-M3排序"},
     "chk_db": {"en": "Database", "ru": "База данных", "zh": "数据库"},
     "chk_zedcfg": {"en": "Zed integration", "ru": "Интеграция в Zed", "zh": "Zed集成"},
     "chk_uninst": {"en": "Uninstaller", "ru": "Деинсталлятор", "zh": "卸载程序"},
@@ -93,19 +93,19 @@ LANG = {
         "zh": "开始编码！",
     },
     "dl_ask": {
-        "en": "Download AI models (~550 MB each)? (Y/n)",
-        "ru": "Скачать AI модели (~550 МБ каждая)? (Y/n)",
-        "zh": "下载AI模型(~550 MB每个)？(Y/n)",
-    },
+            "en": "Download ONNX models (e5-base ~265 MB + reranker ~544 MB)? (Y/n)",
+            "ru": "Скачать ONNX модели (e5-base ~265 МБ + реранкер ~544 МБ)? (Y/n)",
+            "zh": "下载ONNX模型(e5-base ~265 MB + 排序 ~544 MB)？(Y/n)",
+        },
     "models_ok": {
         "en": "ONNX models installed",
         "ru": "ONNX модели установлены",
         "zh": "ONNX模型已安装",
     },
     "dl_1": {
-        "en": "Embedding: bge-m3 (1024dim, ~550 MB)",
-        "ru": "Эмбеддинг: bge-m3 (1024dim, ~550 МБ)",
-        "zh": "嵌入模型：bge-m3 (1024dim, ~550 MB)",
+        "en": "Embedding: e5-base-v2 (multilingual, 768dim)",
+        "ru": "Эмбеддер: e5-base-v2 (multilingual, 768dim)",
+        "zh": "嵌入模型：e5-base-v2 (多语言, 768维)",
     },
     "dl_2": {
         "en": "Reranker: bge-reranker-v2-m3 (~550 MB)",
@@ -545,13 +545,13 @@ def step_llama(lines, lang):
 
 @_step(7)
 def step_gguf(lines, lang):
-    """Скачивает GGUF модели (Qwen3 + bge-m3 + reranker) и синхронизирует в ZED_EXT_DIR."""
+    """Скачивает GGUF модель реранкера (bge-reranker-v2-m3) и синхронизирует в ZED_EXT_DIR."""
     from src.core.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
     all_ok = True
     zed_models_dir = ZED_EXT_DIR / "models"
 
-    for key in ["qwen3-embedding", "bge-m3", "bge-reranker-v2-m3"]:
+    for key in ["bge-reranker-v2-m3"]:
         # Проверяем в ZED_EXT_DIR (где MCP реально работает)
         zed_gguf = zed_models_dir / GGUF_MODELS[key]["file"]
         if zed_gguf.exists():
@@ -592,24 +592,24 @@ def step_gguf(lines, lang):
             all_ok = False
 
     if all_ok:
-        lines.append((C.GRN, f"✅ GGUF модели готовы — llama.cpp работает"))
+        lines.append((C.GRN, f"✅ GGUF модель реранкера готова — llama.cpp работает"))
 
 
 @_step(8)
 def step_models(lines, lang):
-    """Download model pair: bge-m3 (embedding) + bge-reranker-v2-m3 (reranker).
+    """Download ONNX models: e5-base-v2 (embedder) + bge-reranker-v2-m3 (reranker).
 
     Checks:
       1. ZED_EXT_DIR  (where MCP server runs)
       2. PROJECT_ROOT (local dev)
-      3. Shared: ~/.cache/mscodebase/models/ (
+      3. Shared: ~/.cache/mscodebase/models/
     If found at (2) or (3) → copy to (1).
     If not found anywhere → download fresh.
     """
     SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
 
     models = {
-        "bge-m3": ("BAAI/bge-m3", "embedding", 543),
+        "e5-base-v2": ("intfloat/multilingual-e5-base", "embedding", 265),
         "reranker-bge-reranker-v2-m3": ("BAAI/bge-reranker-v2-m3", "reranker", 544),
     }
 

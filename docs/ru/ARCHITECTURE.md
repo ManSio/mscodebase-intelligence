@@ -146,8 +146,8 @@ class SearchCodeTool(MCPTool):
 | `multi_signal_scorer.py` **(новое v3.0)** | **Мульти-сигнальное ранжирование (4 сигнала)** | graph |
 | `dataflow_experiment.py` **(новое v3.2)** | **Бенчмарк ASSIGNED_FROM** | parser |
 | `intelligence_layer.py` | 14 intel_* инструментов | indexer, searcher, symbol_index |
-| `llama_runner.py` | Менеджер lifecycle для llama-server.exe | download, launch, stop |
-| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
+| `llama_runner.py` | Менеджер lifecycle для llama-server.exe (только реранкер) | download, launch, stop |
+| `remote_embedder.py` | ONNX E5-base / LM Studio / Ollama (legacy) | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + фильтр расширений | config |
 
@@ -177,16 +177,20 @@ class SearchCodeTool(MCPTool):
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.6 Приоритет провайдеров
+### 2.6 Эмбеддер: E5-base ONNX (in-process)
 
-MCP-сервер авто-детектирует лучший доступный провайдер эмбеддингов:
+MCP-сервер теперь использует E5-base-v2 через ONNX Runtime (CPU, in-process) как основной эмбеддер:
 
-1. **LM Studio** — наивысшее качество, требует внешний сервер
-2. **llama.cpp** — встроенный, авто-устанавливается через `install.py` (GGUF модели)
-3. **ONNX server** — ONNX runtime с удалёнными моделями
-4. **local ONNX** — CPU-only fallback, наименьшее качество
+- **Модель**: `intfloat/e5-base-v2` (768-dim)
+- **Runtime**: ONNX (CPU, без GPU)
+- **Архитектура**: in-process — без внешнего HTTP-сервера
+- **Производительность**: ~360 i/s (было 18 i/s с BGE-M3)
+- **RAM**: ~265 MB (было 285 MB + VRAM)
+- **Конфиг**: `EMBEDDING_DIMENSION=768`, `EMBEDDING_PROVIDER=e5_onnx`
 
-Приоритет оценивается при запуске. llama.cpp обеспечивает снижение RAM в 5,3× (227 MB против 1200 MB) по сравнению с LM Studio.
+Реранкер по-прежнему работает через llama-server (1 процесс, не 2).
+
+Legacy fallback-провайдеры (LM Studio, Ollama, remote ONNX) остаются доступны через `remote_embedder.py` для кастомных настроек.
 
 ---
 

@@ -363,72 +363,50 @@ class RemoteEmbedder:
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
-            # ═══ 1. llama.cpp (приоритет, запускается _warmup_embedder) ═══
-            _provider = os.getenv("EMBEDDING_PROVIDER", "auto")
-            _disable_onnx = os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes")
-            if _provider in ("llama_cpp", "auto", ""):
-                # Ждём до 30 сек пока llama-server загрузится (раньше было 10)
-                for attempt in range(30):
-                    if self._check_llama_cpp():
+            # ═══ E5-base ONNX (in-process, без внешних процессов) ═══
+                # Пытаемся сразу загрузить ONNX. Не ждём llama.cpp — он упразднён.
+                _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+                if _provider in ("e5_onnx", "auto", ""):
+                    logger.info("🔌 E5-base ONNX: инициализация локального эмбеддера...")
+                    self._init_onnx()
+                    if self._onnx_session:
                         with self._mode_lock:
-                            self.mode = "llama_cpp"
-                            self._preferred_mode = "llama_cpp"
-                        logger.info("🦙 llama.cpp обнаружен! Использую для эмбеддингов.")
-                        # Reranker запускается в run_server() после health check.
-                        # Здесь не стартуем — чтобы не было гонки с sync section.
+                            self.mode = "onnx"
+                            self._preferred_mode = "onnx"
+                        logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
                         return
-                    import time as _t; _t.sleep(1)
-                if _disable_onnx:
-                    logger.warning("⏳ llama.cpp не найден за 30с, но ONNX отключён. Оставляю mode=unknown (embed_batch будет ретраить llama).")
-                    return  # НЕ падаем в ONNX — embed_batch с mode=unknown пробует llama первым
+                    else:
+                        logger.warning("E5-base ONNX не загрузился, пробую другие провайдеры...")
 
-            # ═══ 2. LM Studio ═══
-            if self._check_lm_studio_raw():
-                with self._mode_lock:
-                    self.mode = "lm_studio"
-                    self._preferred_mode = "lm_studio"
-                logger.info("✅ LM Studio доступен.")
-                return
-
-            # ═══ 3. Ollama ═══
-            if os.getenv("EMBEDDING_PROVIDER") == "ollama":
-                if self._check_ollama():
+                # ═══ LM Studio (fallback) ═══
+                if self._check_lm_studio_raw():
                     with self._mode_lock:
-                        self.mode = "ollama"
-                        self._preferred_mode = "ollama"
-                    logger.info("⚠️ Переключаюсь на Ollama.")
+                        self.mode = "lm_studio"
+                        self._preferred_mode = "lm_studio"
+                    logger.info("✅ LM Studio доступен (fallback).")
                     return
 
-            # ═══ 4. ONNX ═══
-            # ... existing ONNX startup logic ...
-            if self._check_onnx_server():
-                with self._mode_lock:
-                    self.mode = "onnx_server"
-                    self._preferred_mode = "onnx_server"
-                logger.info("🌐 ONNX-сервер обнаружен. Использую общий сервер.")
-                return
+                # ═══ Ollama (fallback) ═══
+                if os.getenv("EMBEDDING_PROVIDER") == "ollama":
+                    if self._check_ollama():
+                        with self._mode_lock:
+                            self.mode = "ollama"
+                            self._preferred_mode = "ollama"
+                        logger.info("⚠️ Переключаюсь на Ollama.")
+                        return
 
-            # Пробуем запустить ONNX-сервер
-            logger.info("🚀 Запускаю ONNX-сервер (общий для всех проектов)...")
-            if self._start_onnx_server_subprocess():
-                # Ждём 3 секунды пока сервер загрузит модель
-                import time as _t
-
-                _t.sleep(3)
-                if self._check_onnx_server():
+                # ═══ ONNX — последняя попытка ═══
+                self._init_onnx()
+                if self._onnx_session:
                     with self._mode_lock:
-                        self.mode = "onnx_server"
-                        self._preferred_mode = "onnx_server"
-                    logger.info("✅ ONNX-сервер запущен и готов.")
+                        self.mode = "onnx"
+                        self._preferred_mode = "onnx"
+                    logger.info("✅ E5-base ONNX (повторная попытка) — успех.")
                     return
 
-            # Если сервер не запустился — падаем на локальный ONNX
-            with self._mode_lock:
-                self.mode = "onnx"
-                self._preferred_mode = "lm_studio"
-            logger.info(
-                "⚠️ Внешние API не обнаружены. Будет задействован ЛОКАЛЬНЫЙ движок ONNX Runtime."
-            )
+                with self._mode_lock:
+                    self.mode = "fallback"
+                logger.error("❌ НЕ УДАЛОСЬ загрузить E5-base ONNX. Режим fallback.")
         except Exception as e:
             logger.debug(f"_init_provider_async: {e}")
             with self._mode_lock:
@@ -582,7 +560,7 @@ class RemoteEmbedder:
                 raise FileNotFoundError(f"tokenizer.json не найден в {self.local_model_dir}")
             self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
             self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1)
-            self._tokenizer.enable_truncation(max_length=2048)
+            self._tokenizer.enable_truncation(max_length=512)
 
             providers = ["CPUExecutionProvider"]
             if "DmlExecutionProvider" in ort.get_available_providers():
@@ -704,14 +682,25 @@ class RemoteEmbedder:
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]
 
-        # ═══ Локальный ONNX (fallback только для unknown, не меняет mode) ═══
+        # ═══ Локальный ONNX (E5-base, in-process) ═══
         if current_mode in ("unknown", "onnx"):
             self._init_onnx()
             if self._onnx_session:
                 try:
                     self._onnx_last_used = time.time()
                     import numpy as np
-                    enc = self._tokenizer.encode_batch(texts, add_special_tokens=True)
+                    
+                    # E5-base требует префиксы: query: / passage:
+                    prefixed = []
+                    for t in texts:
+                        if is_query and not t.startswith("query: "):
+                            prefixed.append(f"query: {t}")
+                        elif not is_query and not t.startswith("passage: "):
+                            prefixed.append(f"passage: {t}")
+                        else:
+                            prefixed.append(t)
+                    
+                    enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
                     ids = np.array([e.ids for e in enc], dtype=np.int64)
                     mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
                     inputs = {"input_ids": ids, "attention_mask": mask}
@@ -733,7 +722,12 @@ class RemoteEmbedder:
                         import numpy as np
                         embeddings = []
                         for text in texts:
-                            enc_single = self._tokenizer.encode_batch([text], add_special_tokens=True)
+                            t = text
+                            if is_query and not t.startswith("query: "):
+                                t = f"query: {t}"
+                            elif not is_query and not t.startswith("passage: "):
+                                t = f"passage: {t}"
+                            enc_single = self._tokenizer.encode_batch([t], add_special_tokens=True)
                             inp = {
                                 "input_ids": np.array([enc_single[0].ids], dtype=np.int64),
                                 "attention_mask": np.array([enc_single[0].attention_mask], dtype=np.int64),
