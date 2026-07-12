@@ -85,11 +85,14 @@ def get_python_path() -> Path:
 def _build_mcp_entry(executable: str, args: list[str], ext_dir: Path) -> dict:
     """Формирует запись MCP-сервера для settings.json."""
     return {
+        "enabled": True,
         "command": executable,
         "args": args,
         "env": {
             "PYTHONPATH": str(ext_dir),
             "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+            "EMBEDDING_PROVIDER": "e5_onnx",
+            "EMBEDDING_DIMENSION": "768",
         },
     }
 

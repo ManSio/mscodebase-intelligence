@@ -385,7 +385,7 @@ class RemoteEmbedder:
                         logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
                         return
                     else:
-                        logger.warning("E5-base ONNX не загрузился, пробую другие провайдеры...")
+                        logger.warning(f"E5-base ONNX не загрузился: session={self._onnx_session}, model_dir={self.local_model_dir}, file_exists={(self.local_model_dir / 'model.onnx').exists() if self.local_model_dir else 'N/A'}, tokenizer_exists={(self.local_model_dir / 'tokenizer.json').exists() if self.local_model_dir else 'N/A'}, disable_fallback={os.getenv('DISABLE_ONNX_FALLBACK', 'unset')}")
 
                 # ═══ LM Studio (fallback) ═══
                 if self._check_lm_studio_raw():
@@ -595,7 +595,7 @@ class RemoteEmbedder:
             self._onnx_last_used = time.time()
             logger.info("✅ Локальный ONNX движок успешно запущен и готов к расчетам.")
         except Exception as e:
-            logger.error(f"❌ Ошибка сборки локального ONNX-детектора: {e}")
+            logger.error(f"❌ Ошибка сборки локального ONNX-детектора: {e}", exc_info=True)
             self.mode = "fallback"
 
     def _unload_onnx(self):
