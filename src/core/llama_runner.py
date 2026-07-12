@@ -632,7 +632,8 @@ def download_llama_binary(progress_cb=None) -> bool:
                 logger.info(f"🔧 api-ms-win-crt-* → ucrtbase.dll: {patched} imports patched in {target_dir.name}")
 
         # Vulkan: если есть GPU — скачиваем Vulkan build и добавляем CPU fallback
-        if _HAVE_VULKAN and sys.platform == "win32" and not _IS_INSIDER:
+        # Insider: CRT DLL патчатся (api-ms-win-crt-* → ucrtbase.dll), Vulkan работает
+        if _HAVE_VULKAN and sys.platform == "win32":
             _install_vulkan_build(logger, progress_cb)
 
         logger.info(f"✅ llama.cpp установлен: {bin_path} (build={LLAMA_BIN_TAG})")
