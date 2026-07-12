@@ -171,6 +171,30 @@ class Indexer:
             self._migrate_add_metadata_columns(existing_fields)
 
             logger.info(f"📦 Открыта таблица: {self.table_name}")
+
+            # ── Auto-detect: dimension mismatch → пересоздание ──
+            # При смене модели эмбеддинга (1024→768, 768→1024) старые
+            # векторы несовместимы. Проверяем размерность при старте.
+            _schema = self.table.schema
+            _vec_field = next((f for f in _schema if f.name == "vector"), None)
+            if _vec_field is not None:
+                _stored_dim = 0
+                try:
+                    _t = _vec_field.type
+                    if hasattr(_t, 'value_type'):
+                        _vt = _t.value_type
+                        if hasattr(_vt, 'get_field'):
+                            _stored_dim = _vt.get_field("item").type.list_size
+                except Exception:
+                    pass
+                _current_dim = getattr(self.embedder, 'embedding_dim', None) or 768
+                if _stored_dim and _stored_dim != _current_dim:
+                    logger.warning(f"⚠️ Dim mismatch: index={_stored_dim}, embedder={_current_dim}. Recreating table...")
+                    self.db.drop_table(self.table_name)
+                    self.table = self.db.create_table(self.table_name, schema=self.schema)
+                    logger.info(f"✅ Table recreated for {_current_dim}dim")
+                    self._needs_full_reindex = True
+
         except Exception as open_err:
             logger.debug(f"Не удалось открыть таблицу: {open_err}. Пробуем создать.")
             try:
@@ -1587,7 +1611,7 @@ class Indexer:
                     num_partitions=max(
                         16, min(256, int(self.table.count_rows() ** 0.5))
                     ),
-                    num_sub_vectors=16,  # 1024 dim / 64
+                    num_sub_vectors=max(4, int(self.embedder.embedding_dim / 64)),  # dim / 64
                     replace=True,
                 )
                 # Дожидаемся завершения построения индекса (до 10 минут)
