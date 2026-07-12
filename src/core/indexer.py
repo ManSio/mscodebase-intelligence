@@ -71,8 +71,21 @@ class Indexer:
         self._notification_broker = notification_broker  # опциональный брокер событий
         self._last_reported_progress = -1  # для троттлинга уведомлений
 
-        # SymbolIndex для отслеживания определений и вызовов
-        # Если передан внешний индекс — используем его, иначе создаём новый
+        import threading
+        # Блокировки для thread-safe параллельной индексации
+        self._index_lock = threading.Lock()          # защита shared state
+        self._table_write_lock = threading.Lock()    # сериализация записи в LanceDB
+        self._symbol_index_lock = threading.Lock()   # SymbolIndex thread safety
+
+        # Счётчики кэша (защищены _index_lock)
+        self._cached_total_chunks = 0
+        self._cached_unique_files: Set[str] = set()
+
+        # Определяем размерность из embedder (768 для E5-base, 1024 для BGE-M3 и т.д.)
+        _dim = getattr(self.embedder, 'embedding_dim', None) or 768
+        logger.info(f"📐 Размерность эмбеддинга: {_dim}")
+
+        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source, summary
         if symbol_index is not None:
             self._symbol_index = symbol_index
         else:
@@ -126,8 +139,8 @@ class Indexer:
             [
                 pa.field("id", pa.string()),
                 pa.field(
-                    "vector", pa.list_(pa.float32(), 1024)
-                ),  # Фиксируем под MiniLM / BGE размерность
+                    "vector", pa.list_(pa.float32(), _dim)
+                ),  # Динамическая размерность от embedder
                 pa.field("text", pa.string()),
                 pa.field("text_full", pa.string()),
                 pa.field("file_path", pa.string()),
@@ -210,10 +223,8 @@ class Indexer:
                     raise
 
         # Прогрев статуса: мгновенный подсчёт существующих чанков без сканирования диска.
-        # Решает race condition "холодного старта" — агент Zed видит реальное количество
-        # чанков с первой миллисекунды, не дожидаясь завершения lazy-инициализации LanceDB.
-        self._cached_total_chunks: int = 0
-        self._cached_unique_files: set = set()
+        # Решает race condition "холодного старта".
+        # Счётчики уже инициализированы в блоке threading выше.
         self._warmup_status()
 
         # ══════════════════════════════════════════════════════════
@@ -927,8 +938,19 @@ class Indexer:
                             compact = c.get("text_compact", "") or c.get("text", "")
                             full = c.get("text", "")
                             if compact.strip():
-                                chunk_texts.append(compact)
-                                chunk_texts_full.append(full)
+                                # Контекстуальный заголовок (breadcrumb) для E5-base
+                                # Каждый чанк получает «якорь»: файл + модуль + тип символа
+                                # Это компенсирует ограничение окна 512 токенов E5-base.
+                                _module = c.get("module_name", "")
+                                _level = c.get("hierarchy_level", "other")
+                                _type = c.get("symbol_type", c.get("type", ""))
+                                _scope_parts = [p for p in [_level, _type, _module] if p]
+                                _scope = " | ".join(_scope_parts) if _scope_parts else _module
+                                _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
+                                compact_with_ctx = _header + compact
+                                full_with_ctx = _header + full
+                                chunk_texts.append(compact_with_ctx)
+                                chunk_texts_full.append(full_with_ctx)
                                 # Извлекаем метаданные из результата парсера
                                 chunk_metadatas.append(
                                     {
@@ -948,17 +970,20 @@ class Indexer:
                         logger.debug(
                             f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
                         )
-                    # Добавляем определения символов в SymbolIndex
+                    # Добавляем определения символов в SymbolIndex (thread-safe)
                     if symbols:
-                        self._symbol_index.add_definitions(str(full_path), symbols)
+                        with self._symbol_index_lock:
+                            self._symbol_index.add_definitions(str(full_path), symbols)
                         # Извлекаем связи вызовов
                         calls = self.parser.extract_calls(full_path)
                         if calls:
-                            self._symbol_index.add_references(str(full_path), calls)
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_references(str(full_path), calls)
                         # ASSIGNED_FROM: отслеживание присваиваний переменных
                         assignments = self.parser.extract_assignments(full_path)
                         if assignments:
-                            self._symbol_index.add_assignments(str(full_path), assignments)
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_assignments(str(full_path), assignments)
                 except Exception as ast_err:
                     logger.warning(
                         f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"
@@ -967,13 +992,12 @@ class Indexer:
                     chunk_metadatas = []
 
             if not chunk_texts:
-                # Fallback: символьное деление с перекрытием
+                # Fallback: символьное деление с перекрытием + контекстуальный заголовок
+                _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
                 chunk_texts = [
-                    content[i : i + 1000] for i in range(0, len(content), 800)
+                    _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
                 ]
-                chunk_texts_full = (
-                    chunk_texts  # fallback: текст и полный текст одинаковы
-                )
+                chunk_texts_full = chunk_texts
                 chunk_metadatas = [
                     {
                         "layer": "",
@@ -1011,9 +1035,9 @@ class Indexer:
             data_records = []
             for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
                 # Нормализация вектора под размерность схемы
-                if len(chunk_vec) != 1024:
-                    # Приведение размерности (дополнение нулями или обрезка) при форс-мажорах API
-                    chunk_vec = chunk_vec[:1024] + [0.0] * (1024 - len(chunk_vec))
+                _target_dim = self.embedder.embedding_dim or 768
+                if len(chunk_vec) != _target_dim:
+                    chunk_vec = chunk_vec[:_target_dim] + [0.0] * (_target_dim - len(chunk_vec))
 
                 # Полный текст для детального анализа (если есть)
                 full_text = (
@@ -1056,52 +1080,50 @@ class Indexer:
                     }
                 )
 
-            # Атомарная запись пачки чанков в таблицу
-            # Шаг 1: удаляем старые чанки (если файл существовал)
-            # Шаг 2: добавляем новые — всё в быстрой последовательности
-            # < 100ms, чтобы минимизировать окно неконсистентности.
-            old_chunks = 0
-            if existing_hash is not None:
-                try:
-                    old_chunks = self.table.count_rows(
-                        filter=f"file_path = '{escaped_path}'"
-                    )
-                except Exception:
-                    pass
-                try:
-                    self.table.delete(f"file_path = '{escaped_path}'")
-                except Exception as del_err:
-                    logger.debug(f"delete() не нашёл запись: {del_err}")
+            # Атомарная запись пачки чанков в таблицу (thread-safe через _table_write_lock)
+            # Потоки не пересекаются: разные файлы пишутся последовательно.
+            with self._table_write_lock:
+                old_chunks = 0
+                if existing_hash is not None:
+                    try:
+                        old_chunks = self.table.count_rows(
+                            filter=f"file_path = '{escaped_path}'"
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        self.table.delete(f"file_path = '{escaped_path}'")
+                    except Exception as del_err:
+                        logger.debug(f"delete() не нашёл запись: {del_err}")
 
-            # Шаг 2: добавляем новые чанки
-            try:
-                self.table.add(data_records)
-            except Exception as add_err:
-                err_str = str(add_err).lower()
-                if (
-                    "not found" in err_str
-                    or "does not exist" in err_str
-                    or "no such table" in err_str
-                ):
-                    logger.warning(
-                        f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
-                    )
-                    if self._safe_recreate_table():
-                        self.table.add(data_records)
+                try:
+                    self.table.add(data_records)
+                except Exception as add_err:
+                    err_str = str(add_err).lower()
+                    if (
+                        "not found" in err_str
+                        or "does not exist" in err_str
+                        or "no such table" in err_str
+                    ):
+                        logger.warning(
+                            f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
+                        )
+                        if self._safe_recreate_table():
+                            self.table.add(data_records)
+                        else:
+                            raise
                     else:
                         raise
-                else:
-                    raise
 
-            # Синхронизация кэша: вычитаем старые, прибавляем новые
-            # (delete был на шаге 1, add на шаге 2)
-            if old_chunks > 0:
-                self._cached_total_chunks = max(
-                    0, self._cached_total_chunks - old_chunks + len(data_records)
-                )
-            else:
-                self._cached_total_chunks += len(data_records)
-            self._cached_unique_files.add(rel_path_str)
+            # Синхронизация кэша (thread-safe через _index_lock)
+            with self._index_lock:
+                if old_chunks > 0:
+                    self._cached_total_chunks = max(
+                        0, self._cached_total_chunks - old_chunks + len(data_records)
+                    )
+                else:
+                    self._cached_total_chunks += len(data_records)
+                self._cached_unique_files.add(rel_path_str)
 
             # Сохраняем SymbolIndex на диск после каждого успешного файла
             # (чтобы после перезапуска были доступны все определения символов)
@@ -1534,41 +1556,63 @@ class Indexer:
 
         _notify_progress(0, total_files, "scanning", "")
 
-        # Шаг 1: Сканирование диска и обновление базы
-        # Adaptive throttling (INC-6BCB): при высокой RAM/CPU делаем
-        # короткие паузы между файлами, чтобы не блокировать Zed IDE.
-        _throttle_monitor = None
-        try:
-            from src.core.resource_monitor import get_global_resource_monitor
+        # Шаг 1: Параллельная индексация через Producer-Consumer
+        # Используем ThreadPoolExecutor для параллельной обработки файлов.
+        # LanceDB writes сериализованы через _table_write_lock — безопасно.
+        # SymbolIndex защищён через _symbol_index_lock.
+        #
+        # Producer: главный поток собирает файлы (уже сделано выше в all_files)
+        # Consumer: пул воркеров вызывает _index_single_file
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
 
-            _throttle_monitor = get_global_resource_monitor()
-        except Exception:
-            pass
-        _last_throttle_check = 0.0
+        _max_workers = min(4, (os.cpu_count() or 4) // 2)
+        _indexed_lock = threading.Lock()
+        _indexed_count_local = 0
 
-        for idx, (root, file_name, full_path) in enumerate(all_files):
-            rel_path_str = str(full_path.relative_to(project_path))
-            current_files_on_disk.add(rel_path_str)
-
+        # Обновляем прогресс (thread-safe через Lock)
+        def _safe_progress(done: int, total: int, phase: str, fname: str):
             if progress_callback:
-                progress_callback(file_name, idx + 1, total_files, "scanning")
-            _notify_progress(idx + 1, total_files, "scanning", file_name)
+                try:
+                    progress_callback(fname, done, total, phase)
+                except Exception:
+                    pass
+            _notify_progress(done, total, phase, fname)
+
+        # Consumer worker: индексирует один файл
+        def _index_worker(args):
+            nonlocal _indexed_count_local
+            _idx, _root, _fname, _full_path = args
+            _rel_path = str(_full_path.relative_to(project_path))
+            current_files_on_disk.add(_rel_path)
+
+            if _idx % max(1, total_files // 20) == 0 or _idx == total_files - 1:
+                _safe_progress(_idx + 1, total_files, "indexing", _fname)
 
             try:
-                if self._index_single_file(full_path, rel_path_str):
-                    indexed_count += 1
+                if self._index_single_file(_full_path, _rel_path):
+                    with _indexed_lock:
+                        _indexed_count_local += 1
             except Exception as e:
-                logger.warning(f"Ошибка индексации {rel_path_str}: {e}")
+                logger.warning(f"⚠️ Ошибка индексации {_rel_path}: {e}")
 
-            # Throttle: не чаще раза в секунду, чтобы не тратить CPU на
-            # сам мониторинг. При soft pressure — 0.1s, hard — до 2s.
-            if _throttle_monitor is not None and idx % 10 == 0:
-                now = time.monotonic()
-                if now - _last_throttle_check > 1.0:
-                    delay = _throttle_monitor.suggest_throttle_delay_sec()
-                    if delay > 0.01:
-                        time.sleep(delay)
-                    _last_throttle_check = now
+        # Запускаем пул воркеров
+        _futures = []
+        with ThreadPoolExecutor(max_workers=_max_workers) as _executor:
+            for idx, (root, file_name, full_path) in enumerate(all_files):
+                _futures.append(
+                    _executor.submit(_index_worker, (idx, root, file_name, full_path))
+                )
+            # Дожидаемся завершения всех воркеров
+            for _f in as_completed(_futures):
+                try:
+                    _f.result()
+                except Exception as _e:
+                    logger.error(f"Worker died: {_e}")
+
+        indexed_count = _indexed_count_local
+
+        _safe_progress(total_files, total_files, "indexing", "")
 
         # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
         pruned = self.prune_deleted_files(current_files_on_disk)

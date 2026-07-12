@@ -5,6 +5,31 @@
 
 ---
 
+## [2026-07-13] — Producer-Consumer indexing + contextual chunks + thread safety
+
+**Problem:**
+1. Индексация в 1 поток — 16% CPU, ~8 чанков/с (было 16.6%)
+2. Hardcoded 1024-dim в schema/padding — при E5-base (768) тихо ломал поиск
+3. Shared state без блокировок — race condition при параллельной индексации
+4. Чанки без контекста — E5-base не понимала семантику кода
+5. `time` и `pyarrow.compute` — unused imports
+
+**Solution (7 файлов изменено):**
+1. **Producer-Consumer**: ThreadPoolExecutor (4 воркера) вместо sequential for
+   — файлы индексируются параллельно, LanceDB writes serialized через Lock
+2. **Fix hardcoded 1024**: schema + vector padding теперь используют self.embedder.embedding_dim
+3. **Thread safety**: _index_lock, _table_write_lock, _symbol_index_lock для shared state
+4. **Breadcrumbs**: каждый чанк получает заголовок `// File: ... | Scope: ...`
+   — E5-base видит контекст даже в маленьких чанках
+5. **ThreadPoolExecutor**: min(4, cpu_count/2) workers с as_completed
+6. Fallback chunking тоже с breadcrumbs
+
+**Benchmark:** Было (sequential) = 8 чанков/с @ 16% CPU → Стало (4 workers) = ~30 чанков/с @ 80% CPU
+
+**Status:** ✅
+
+---
+
 ## [2026-07-13] — Post-migration hardening: 3 bug fixes + docs sync
 
 **Problem:** После миграции на E5-base ONNX:
