@@ -274,9 +274,13 @@ if sys.platform == "win32":
             import subprocess as _sp
             _vk_info = _sp.run(["vulkaninfo", "--summary"], capture_output=True, timeout=5, text=True)
             if "GPU0" in _vk_info.stdout and "PHYSICAL_DEVICE_TYPE" in _vk_info.stdout:
-                _HAVE_VULKAN = True
-                os.environ.setdefault("LLAMA_BACKEND", "vulkan")
-                logger.info(f"🖥️ Vulkan GPU detected — using GPU for embeddings")
+                _vk_bin = _get_vulkan_dir() / f"llama-server{_EXE_SUFFIX}"
+                if _vk_bin.exists():
+                    _HAVE_VULKAN = True
+                    os.environ.setdefault("LLAMA_BACKEND", "vulkan")
+                    logger.info(f"🖥️ Vulkan GPU detected — using GPU for embeddings")
+                else:
+                    logger.info(f"🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
     except Exception:
         pass
 
