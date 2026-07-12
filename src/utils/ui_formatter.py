@@ -201,10 +201,17 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     # Активный провайдер
     if provider == "llama_cpp":
         llm_led = "🟢"
-        llm_name = "llama.cpp (BGE-M3, 1024dim)"
+        llm_name = "llama.cpp"
     elif provider == "onnx":
         llm_led = "🟢" if onnx_status == "loaded_and_ready" else "🟡"
-        llm_name = "ONNX (bge-m3, 1024dim)"
+        # Пытаемся определить реальную модель
+        _info = ps.get("model_info", {})
+        _model_name = _info.get("model", "") if isinstance(_info, dict) else ""
+        _dim = _info.get("dimension", 768) if isinstance(_info, dict) else 768
+        if _model_name:
+            llm_name = f"{_model_name} ({_dim}dim)"
+        else:
+            llm_name = f"ONNX ({_dim}dim)"
     else:
         llm_led = "⚪"
         llm_name = f"{provider} (?)"
@@ -220,6 +227,15 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     all_green = provider != "unknown" and chunks > 0
     health_led = "🟢" if all_green else ("🟡" if chunks > 0 else "⚪")
 
+    # ─── Reranker ──────────────────────────────────────
+    _reranker_port = data.get("resource_usage", {}).get("llama_rerank_ram", None)
+    if _reranker_port is not None and _reranker_port > 0:
+        _reranker_led = "🟢"
+        _reranker_info = f"BGE-M3 ({_reranker_port} MB)"
+    else:
+        _reranker_led = "🔴"
+        _reranker_info = "offline"
+
     return _(
         "{hl} **MSCodeBase** — {proj}\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -227,6 +243,8 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         "   {llm} {llm_name}\n"
                 "   {ll} LM Studio (127.0.0.1:1234)\n"
                 "   {oa} Ollama (127.0.0.1:11434)\n"
+        "⚡ **Reranker**\n"
+        "   {rrl} {rrn}\n"
         "📦 **Index**\n"
         "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
         "⚙️ **System**\n"
@@ -242,6 +260,8 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         symbols=symbols,
         pid=pid,
         llm_name=llm_name,
+        rrl=_reranker_led,
+        rrn=_reranker_info,
     )
 
 

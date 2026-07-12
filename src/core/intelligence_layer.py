@@ -486,7 +486,7 @@ class ProjectIntelligenceLayer:
                 self.project_path
                 / ".codebase_models"
                 / "onnx"
-                / "bge-m3"
+                / "e5-base-v2"
                 / "model.onnx"
             ).exists()
             try:
@@ -559,6 +559,11 @@ class ProjectIntelligenceLayer:
                     "llama_rerank_ram": ProjectIntelligenceLayer._get_ram_by_port("8081"),
                     "total_ram_mb": ProjectIntelligenceLayer._get_total_ram(),
                 },
+                "model_info": {
+                    "provider": _active_provider,
+                    "model": "e5-base-v2",
+                    "dimension": 768,
+                }
                 "_debug": str(type(active_indexer)),
             }
         except Exception as e:
