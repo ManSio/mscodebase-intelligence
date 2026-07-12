@@ -373,49 +373,49 @@ class RemoteEmbedder:
         """Фоновая инициализация режима провайдера."""
         try:
             # ═══ E5-base ONNX (in-process, без внешних процессов) ═══
-                # Пытаемся сразу загрузить ONNX. Не ждём llama.cpp — он упразднён.
-                _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-                if _provider in ("e5_onnx", "auto", ""):
-                    logger.info("🔌 E5-base ONNX: инициализация локального эмбеддера...")
-                    self._init_onnx()
-                    if self._onnx_session:
-                        with self._mode_lock:
-                            self.mode = "onnx"
-                            self._preferred_mode = "onnx"
-                        logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
-                        return
-                    else:
-                        logger.warning(f"E5-base ONNX не загрузился: session={self._onnx_session}, model_dir={self.local_model_dir}, file_exists={(self.local_model_dir / 'model.onnx').exists() if self.local_model_dir else 'N/A'}, tokenizer_exists={(self.local_model_dir / 'tokenizer.json').exists() if self.local_model_dir else 'N/A'}, disable_fallback={os.getenv('DISABLE_ONNX_FALLBACK', 'unset')}")
-
-                # ═══ LM Studio (fallback) ═══
-                if self._check_lm_studio_raw():
-                    with self._mode_lock:
-                        self.mode = "lm_studio"
-                        self._preferred_mode = "lm_studio"
-                    logger.info("✅ LM Studio доступен (fallback).")
-                    return
-
-                # ═══ Ollama (fallback) ═══
-                if os.getenv("EMBEDDING_PROVIDER") == "ollama":
-                    if self._check_ollama():
-                        with self._mode_lock:
-                            self.mode = "ollama"
-                            self._preferred_mode = "ollama"
-                        logger.info("⚠️ Переключаюсь на Ollama.")
-                        return
-
-                # ═══ ONNX — последняя попытка ═══
+            # Пытаемся сразу загрузить ONNX. Не ждём llama.cpp — он упразднён.
+            _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+            if _provider in ("e5_onnx", "auto", ""):
+                logger.info("🔌 E5-base ONNX: инициализация локального эмбеддера...")
                 self._init_onnx()
                 if self._onnx_session:
                     with self._mode_lock:
                         self.mode = "onnx"
                         self._preferred_mode = "onnx"
-                    logger.info("✅ E5-base ONNX (повторная попытка) — успех.")
+                    logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
+                    return
+                else:
+                    logger.warning(f"E5-base ONNX не загрузился: session={self._onnx_session}, model_dir={self.local_model_dir}, file_exists={(self.local_model_dir / 'model.onnx').exists() if self.local_model_dir else 'N/A'}, tokenizer_exists={(self.local_model_dir / 'tokenizer.json').exists() if self.local_model_dir else 'N/A'}, disable_fallback={os.getenv('DISABLE_ONNX_FALLBACK', 'unset')}")
+
+            # ═══ LM Studio (fallback) ═══
+            if self._check_lm_studio_raw():
+                with self._mode_lock:
+                    self.mode = "lm_studio"
+                    self._preferred_mode = "lm_studio"
+                logger.info("✅ LM Studio доступен (fallback).")
+                return
+
+            # ═══ Ollama (fallback) ═══
+            if os.getenv("EMBEDDING_PROVIDER") == "ollama":
+                if self._check_ollama():
+                    with self._mode_lock:
+                        self.mode = "ollama"
+                        self._preferred_mode = "ollama"
+                    logger.info("⚠️ Переключаюсь на Ollama.")
                     return
 
+            # ═══ ONNX — последняя попытка ═══
+            self._init_onnx()
+            if self._onnx_session:
                 with self._mode_lock:
-                    self.mode = "fallback"
-                logger.error("❌ НЕ УДАЛОСЬ загрузить E5-base ONNX. Режим fallback.")
+                    self.mode = "onnx"
+                    self._preferred_mode = "onnx"
+                logger.info("✅ E5-base ONNX (повторная попытка) — успех.")
+                return
+
+            with self._mode_lock:
+                self.mode = "fallback"
+            logger.error("❌ НЕ УДАЛОСЬ загрузить E5-base ONNX. Режим fallback.")
         except Exception as e:
             logger.debug(f"_init_provider_async: {e}")
             with self._mode_lock:
@@ -702,14 +702,14 @@ class RemoteEmbedder:
                     import numpy as np
                     
                     # E5-base требует префиксы: query: / passage:
-                    prefixed = []
-                    for t in texts:
-                        if is_query and not t.startswith("query: "):
-                            prefixed.append(f"query: {t}")
-                        elif not is_query and not t.startswith("passage: "):
-                            prefixed.append(f"passage: {t}")
-                        else:
-                            prefixed.append(t)
+                    # Всегда очищаем существующий префикс перед добавлением правильного
+                    def _ensure_prefix(text: str, is_query: bool) -> str:
+                        for prefix in ("query: ", "passage: "):
+                            if text.startswith(prefix):
+                                text = text[len(prefix):]
+                                break
+                        return f"{'query' if is_query else 'passage'}: {text}"
+                    prefixed = [_ensure_prefix(t, is_query) for t in texts]
                     
                     enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
                     ids = np.array([e.ids for e in enc], dtype=np.int64)
@@ -734,10 +734,12 @@ class RemoteEmbedder:
                         embeddings = []
                         for text in texts:
                             t = text
-                            if is_query and not t.startswith("query: "):
-                                t = f"query: {t}"
-                            elif not is_query and not t.startswith("passage: "):
-                                t = f"passage: {t}"
+                            # Очищаем существующий префикс перед добавлением
+                            for prefix in ("query: ", "passage: "):
+                                if t.startswith(prefix):
+                                    t = t[len(prefix):]
+                                    break
+                            t = f"{'query' if is_query else 'passage'}: {t}"
                             enc_single = self._tokenizer.encode_batch([t], add_special_tokens=True)
                             inp = {
                                 "input_ids": np.array([enc_single[0].ids], dtype=np.int64),

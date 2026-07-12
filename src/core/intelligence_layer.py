@@ -400,7 +400,7 @@ class ProjectIntelligenceLayer:
                 ["wmic", "process", "where", f"processid={pid}",
                  "get", "WorkingSetSize", "/format:value"],
                 timeout=3
-            ).decode()
+            ).decode("utf-8", errors="replace")
             return int(out.split('=')[1].strip()) // (1024*1024)
         except (OSError, subprocess.TimeoutExpired,
                 subprocess.CalledProcessError, ValueError, IndexError):
@@ -421,7 +421,7 @@ class ProjectIntelligenceLayer:
             port_int = int(port)
             out = subprocess.check_output(
                 ["netstat", "-ano"], timeout=3
-            ).decode()
+            ).decode("utf-8", errors="replace")
             for line in out.splitlines():
                 if f":{port_int}" in line and "LISTENING" in line:
                     parts = line.strip().split()
@@ -482,13 +482,25 @@ class ProjectIntelligenceLayer:
             # Реальный опрос провайдеров вместо хардкода
             _lm_online = False
             _llama_online = False
-            _onnx_loaded = Path(
-                self.project_path
-                / ".codebase_models"
-                / "onnx"
-                / "e5-base-v2"
-                / "model.onnx"
-            ).exists()
+            # Динамическое сканирование ONNX модели (как в _detect_model_dir RemoteEmbedder)
+            _search_paths = [
+                self.project_path / ".codebase_models" / "onnx",
+                Path(__file__).resolve().parent.parent.parent / ".codebase_models" / "onnx",
+                Path.home() / ".cache" / "mscodebase" / "models" / ".codebase_models" / "onnx",
+            ]
+            _onnx_loaded = False
+            for _base in _search_paths:
+                if not _base.exists():
+                    continue
+                for _subdir in sorted(_base.iterdir()):
+                    # Пропускаем reranker
+                    if _subdir.name.startswith("reranker-"):
+                        continue
+                    if (_subdir / "model.onnx").exists():
+                        _onnx_loaded = True
+                        break
+                if _onnx_loaded:
+                    break
             try:
                 import socket as _sock
 

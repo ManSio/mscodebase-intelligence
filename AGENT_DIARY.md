@@ -5,6 +5,25 @@
 
 ---
 
+## [2026-07-13] — Post-migration hardening: 3 bug fixes + docs sync
+
+**Problem:** После миграции на E5-base ONNX:
+1. Reranker статус всегда 🔴 offline — баг `_find_pid()` (UnicodeDecodeError в netstat -ano)
+2. E5 prefix double-adding при повторном вызове
+3. Hardcoded путь модели в `intelligence_layer.py`
+4. Индекс пуст (0 chunks) — auto-index self-indexing guard срабатывал
+
+**Solution:**
+1. `intelligence_layer.py: _find_pid() + _get_process_ram()` — `.decode("utf-8", errors="replace")`
+2. `remote_embedder.py: embed_batch()` — strip prefix before add
+3. `intelligence_layer.py: _onnx_loaded` — динамическое сканирование 3 локаций
+4. Docs: `docs/research/2026-07-12-e5-base-migration.md` — раздел 7 с описанием фиксов
+5. `install.py`: проверено — llama binary (9940) рабочий, GGUF модели на месте
+
+**Status:** ✅ (awaiting Zed restart)
+
+---
+
 ## [2026-07-12] — Великий Рефакторинг: BGE-M3 → E5-base ONNX
 
 **Problem:** BGE-M3 через llama-server: нестабилен, 2 процесса, 18 i/s, 285 MB + VRAM.
