@@ -164,7 +164,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 ### A. High-Level Intelligence Layer (15 tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`,
-`intel_auto_collect_adrs`,,
+`intel_auto_collect_adrs`,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
 `intel_add_memory_node`, `intel_get_project_memory`, `intel_get_project_context`,
 `intel_explain_project_state`, `intel_predict_root_cause`, `intel_get_hotspots`,

@@ -1,9 +1,9 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. 57 registered tools: 14 High-Level Intel layer + 40 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
+description: "Tool selection rules for the Zed AI agent. 59 registered tools: 15 High-Level Intel layer + 40 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
 ---
 
-# MSCodeBase Tool Selection Rules (57 tools)
+# MSCodeBase Tool Selection Rules (59 tools)
 
 ## Architecture Overview
 
@@ -19,7 +19,7 @@ SystemArtifacts.is_system_path()           ← защита от feedback loop
 MCP Tool Execution
 ```
 
-## High-Level Intel Layer (14 tools)
+## High-Level Intel Layer (15 tools)
 
 Аналитические, агрегирующие инструменты. Заменяют несколько low-level вызовов одним.
 
@@ -34,6 +34,7 @@ MCP Tool Execution
 | `intel_get_project_memory` | Карта памяти проекта (ADRs, Known Issues, Tech Debt) |
 | `intel_log_incident` | Запись инцидента в историю проекта |
 | `intel_add_memory_node` | Добавление записи в проектную память |
+| `intel_auto_collect_adrs` | **Авто-сбор ADR из git-лога** — сканирует коммиты, находит архитектурные решения |
 | `intel_get_project_context` | **Единый снэпшот проекта** — state + index + bridge + health + memory + jobs |
 | `intel_explain_project_state` | Человекочитаемый диагноз состояния проекта |
 | `intel_get_hotspots` | Топ-5 файлов с баг-нагрузкой |
@@ -41,19 +42,20 @@ MCP Tool Execution
 | `intel_tool_health` | Панель здоровья инструментов |
 | `intel_execution_timeline` | Лента последних действий системы |
 
-## Low-Level Core MCP (33 tools)
+## Low-Level Core MCP (40 tools)
 
-### Search & Index
+### Search & Data Flow
 | Tool | Purpose |
 |---|---|
 | `search_code(query, mode=fast/quality/deep/context/auto)` | Semantic search by concept |
+| `get_variable_flow(name, scope_id)` | **Data flow** — trace ASSIGNED_FROM chain with scope resolution |
 | `cross_repo_search(query)` | Multi-project search with @-mentions |
 | `get_symbol_info(query)` | Call graph: definition + callers + callees |
 | `impact_analysis(symbol)` | Risk: score, affected files, depth |
 | `get_repo_map(project_root)` | File tree + structural symbols |
 | `structural_search(project_root, pattern=...)` | AST pattern matching (13 patterns) |
 | `get_related_files(file_path)` | Related files by co-change history |
-| `graph_query(query_type, target)` | GraphRAG queries over code graph |
+| `query_graph(cypher_query)` | **Cypher queries** over PropertyGraph |
 
 ### Project & Indexing
 | Tool | Purpose |
@@ -66,6 +68,7 @@ MCP Tool Execution
 | `notify_change(file_path)` | Incremental index update (after edit) |
 | `watcher_status()` | File watcher health |
 | `submit_background_task(task_type)` | Submit async task |
+| `get_task_status(job_id)` | Background task progress |
 
 ### Git & History
 | Tool | Purpose |
@@ -74,6 +77,7 @@ MCP Tool Execution
 | `get_file_history(file_path)` | File change history |
 | `get_branch_info(project_root)` | Branch info |
 | `scan_changes(project_root)` | Files changed outside Zed |
+| `generate_chunk_summaries(project_root)` | LLM summaries for chunks |
 
 ### Code Intelligence
 | Tool | Purpose |
@@ -85,7 +89,18 @@ MCP Tool Execution
 | `find_similar_bugs(error_message)` | Similar bugs by error message |
 | `predict_eta(operation)` | ETA prediction |
 | `verify_action(action_type)` | Action verification |
-| `generate_chunk_summaries(project_root)` | LLM summaries for chunks |
+| `read_live_file(file_path)` | Read file directly from disk |
+
+### Write Tools (6)
+| Tool | Purpose |
+|---|---|
+| `rename_symbol(old, new, apply)` | **LSP-hybrid** rename — tries pyright, falls back to SymbolIndex |
+| `move_symbol(symbol, to_file, apply)` | Move symbol to another file |
+| `safe_delete(symbol, force, apply)` | Safe delete with reference check |
+| `replace_symbol(symbol, new_code, apply)` | Replace function/class body |
+| `insert_before_symbol(anchor, new_code, apply)` | Insert code before anchor |
+| `insert_after_symbol(anchor, new_code, apply)` | Insert code after anchor |
+| `ack_impact(file_path)` | Acknowledge impact for modification guard |
 
 ### Diagnostics (3 tools)
 | Tool | Purpose |
