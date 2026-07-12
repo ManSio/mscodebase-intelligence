@@ -1,4 +1,34 @@
 # AGENT DIARY — MSCodeBase Intelligence
+## [2026-07-12 20:00] — Fix: symbol_index_count 0 vs 3197 (timing race)
+
+**Problem:** `intel_get_runtime_status` показывал `symbol_index_count: 0`, а `get_health_report` — `symbols: 3197` для одного проекта. Рассинхрон диагностики.
+
+**Root Cause:** `_resolve_symbol_count()` вызывал `guard.load_symbol_index()` только при `count == 0 AND total_chunks > 0`. Но при cold start `active_indexer._symbol_index` — пустой объект, и перезагрузка с диска не срабатывала надёжно (другой экземпляр / гонка инициализации).
+
+**Fix:** Убрал условие `total_chunks > 0`. Теперь если `count == 0` — всегда пробуем `guard.load_symbol_index(sym_idx)` (с try/except). Оба вызова показывают одинаково.
+
+**Files:** `src/core/intelligence_layer.py` (`_resolve_symbol_count`)
+
+**Status:** ✅
+
+
+## [2026-07-12 19:55] — Fix: Watchdog "56 лет простоя" ложная critical при idle
+
+**Problem:** `indexer.py:84` инициализировал `_watchdog_heartbeat = 0.0` (эпоха Unix 1970).
+При idle `watchdog_status()` считал `age = time.time() - 0.0 ≈ 1.7e9 сек ≈ 56 лет`
+→ `alive=False` → health_report писал ложную 🚨 critical-ошибку при каждом простое.
+
+**Solution:**
+1. `_watchdog_heartbeat = time.time()` при init (не 0.0)
+2. Добавлен флаг `_watchdog_ever_beat` — при чистом idle возвращаем `alive=True, idle_sec=0.0`
+3. Реальный завис (heartbeat >60s назад) всё ещё детектится корректно
+
+**Files:** `src/core/indexer.py`
+**Tests:** `tests/test_watchdog.py` (4 passed)
+
+**Status:** ✅
+
+
 
 > Хроника разработки проекта. Ведётся на русском языке.
 > Содержит ключевые архитектурные решения, найденные баги и их исправления.

@@ -5,6 +5,38 @@ description: "Tool selection rules for the Zed AI agent. 59 registered tools: 15
 
 # MSCodeBase Tool Selection Rules (59 tools)
 
+> **Полный справочник MCP** (аргументы, паттерны вызова, anti-patterns):
+> [MCP_TOOLS.md](./MCP_TOOLS.md) — читай перед любой MCP-задачей.
+
+## MCP Tool Call Protocol (кратко)
+
+1. **Формат Zed:** Tool name + **JSON Raw Input** (не shell, не `func()`).
+2. Без аргументов → `{}`. Пример search: `{ "query": "...", "mode": "fast" }`.
+3. Один tool за раз. Не 3+ параллельно.
+4. Сессия:
+
+| Tool | Raw Input |
+|------|-----------|
+| `debug_runtime_passport` | `{}` |
+| `intel_get_runtime_status` | `{}` |
+| `intel_get_project_memory` | `{}` |
+| `intel_explain_project_state` | `{}` |
+
+5. Источник правды: `src/mcp/server.py`.
+
+## MCP-FIRST (обязательно при живом MCP)
+
+**MCP online → исследование кода ТОЛЬКО через MCP.** Не grep, не read_file, не Glob.
+
+| IDE (запрещено) | MCP (использовать) |
+|-----------------|-------------------|
+| grep | `search_code` |
+| read_file | `read_live_file`, `get_symbol_info` |
+| git log | `get_commit_history` |
+| cat logs | `get_logs`, `intel_predict_root_cause` |
+
+Fallback на IDE — только при transport error, chunks=0, или двойном MCP-fail.
+
 ## Architecture Overview
 
 ```

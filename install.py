@@ -13,6 +13,7 @@ Design principles:
 
 import locale, logging, os, re, shutil, socket, subprocess, sys, time
 from pathlib import Path
+import json
 from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -782,6 +783,61 @@ def _build_uninstall_bat():
 
 
 # ─── Main ──────────────────────────────────────────────────
+def _record_install_meta():
+    """DEV-ONLY: записывает метаданные для детекции рассинхрона source↔extension.
+
+    Вызывается ТОЛЬКО в dev-режиме (MSCODEBASE_DEV=1 или файл .dev в проекте).
+    Обычные пользователи (ставят расширение один раз) этого не видят.
+
+    Сохраняет git HEAD и mtime исходников в .codebase_indices/install_meta.json.
+    При старте MCP (server.py) сверяет текущий git HEAD с записанным —
+    если отличается, выдаёт НЕБЛОКИРУЮЩИЙ warning в health report.
+    """
+    try:
+        is_dev = (
+            os.environ.get("MSCODEBASE_DEV") == "1"
+            or (PROJECT_ROOT / ".dev").exists()
+        )
+        if not is_dev:
+            return  # обычный пользователь — не пишем мета
+
+        meta = {
+            "installed_at": time.time(),
+            "git_head": None,
+            "src_mtime": None,
+        }
+        # Git HEAD (если проект в git)
+        try:
+            r = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if r.returncode == 0:
+                meta["git_head"] = r.stdout.strip()
+        except Exception:
+            pass
+        # Самый свежий mtime файла в src/ (для случая без git)
+        try:
+            latest = 0.0
+            for p in (PROJECT_ROOT / "src").rglob("*.py"):
+                m = p.stat().st_mtime
+                if m > latest:
+                    latest = m
+            meta["src_mtime"] = latest
+        except Exception:
+            pass
+
+        meta_path = PROJECT_ROOT / ".codebase_indices" / "install_meta.json"
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except Exception:
+        pass
+
+
 def main():
     _ea()
     lang = _detect_lang()
@@ -863,6 +919,9 @@ def main():
     elapsed = time.time() - t0
     has_err = fail_count > 0
     has_warn = skip_count > 0
+
+    # DEV-ONLY: записываем мета для детекции рассинхрона (не мешает обычным юзерам)
+    _record_install_meta()
 
     status_line = (
         f"{C.B}✓ {_tr('done_all', lang)}  ({elapsed:.0f}s){C.R}"

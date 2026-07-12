@@ -294,11 +294,17 @@ def _resolve_symbol_count(active_indexer, total_chunks: int) -> int:
         return 0
     try:
         count = sym_idx.get_stats().get("total_symbols", 0)
-        if count == 0 and total_chunks > 0:
+        # Принудительная загрузка с диска, если SymbolIndex ещё пуст
+        # (cold start / другой экземпляр). Без этого intel_get_runtime_status
+        # и get_health_report показывают разные цифры (0 vs 3197).
+        if count == 0:
             guard = getattr(active_indexer, "_index_guard", None)
             if guard is not None:
-                guard.load_symbol_index(sym_idx)
-                count = sym_idx.get_stats().get("total_symbols", 0)
+                try:
+                    if guard.load_symbol_index(sym_idx):
+                        count = sym_idx.get_stats().get("total_symbols", 0)
+                except Exception:
+                    pass
         return count
     except Exception:
         return 0
@@ -1290,7 +1296,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     # ХЕЛПЕР: Обогащение ответа job'а служебными полями
     # -------------------------------------------------------------
 
-    def _enrich_job_response(job: BackgroundJob) -> Dict[str, Any]:
+    def _enrich_job_response(self, job: BackgroundJob) -> Dict[str, Any]:
         """Обогащает ответ job'а служебными полями: poll_interval_seconds, progress_label, estimated_seconds.
 
         poll_interval_seconds — оптимальная задержка перед следующим опросом,
@@ -1329,18 +1335,26 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         else:
             base["progress_label"] = "Finishing..."
 
-        # Примерное оставшееся время (эвристика: extrapolate по средней скорости)
-        if job.status == "running" and job.progress > 0.05:
+        # Примерное оставшееся время (адаптивный ETA)
+        if job.status == "running":
             elapsed = max(time.time() - job.started_at, 1.0)
-            if job.progress < 0.95:
-                estimated = int(elapsed / job.progress * (1.0 - job.progress))
-                base["estimated_seconds"] = max(estimated, 5)
+            # 1. Если есть история похожих проектов — используем rolling average
+            if job.project_size:
+                avg_duration = self.job_history.get_estimated_duration(job.project_size)
+                if avg_duration and avg_duration > 5:
+                    remaining = max(avg_duration - elapsed, 5)
+                    base["estimated_seconds"] = int(remaining)
+                    return base
+            # 2. Fallback: линейная экстраполяция по текущему прогрессу
+            if job.progress > 0.05:
+                if job.progress < 0.95:
+                    estimated = int(elapsed / job.progress * (1.0 - job.progress))
+                    base["estimated_seconds"] = max(estimated, 5)
+                else:
+                    base["estimated_seconds"] = 10
             else:
-                base["estimated_seconds"] = 10
-        elif job.status == "running":
-            # Заглушка на старте: если прогресс есть (>0), используем его для оценки,
-            # иначе 120с — но это только для get_job_status.
-            base["estimated_seconds"] = 120
+                # Старт: заглушка 120с (нет данных для экстраполяции)
+                base["estimated_seconds"] = 120
 
         return base
 
@@ -1364,7 +1378,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         p_label = job.status if job else "starting"
 
         # Берём real-time ETA из job'а, если хватило прогресса
-        enriched = _enrich_job_response(job) if job else {}
+        enriched = intel_layer._enrich_job_response(job) if job else {}
         estimated_sec = enriched.get("estimated_seconds", 120)
 
         from datetime import datetime, timedelta
@@ -1417,7 +1431,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         job = job_manager.get_job(job_id)
         if not job:
             return _("ℹ️ **Job {job_id}** not found\n", job_id=job_id)
-        enriched = _enrich_job_response(job)
+        enriched = intel_layer._enrich_job_response(job)
         status_icon = (
             "✅"
             if job.status == "completed"

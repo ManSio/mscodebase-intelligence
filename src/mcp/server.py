@@ -125,6 +125,50 @@ def _log_run_passport() -> None:
         logger.info(ln)
 
 
+def _check_source_extension_sync() -> Optional[str]:
+    """DEV-ONLY: проверяет рассинхрон source↔extension.
+
+    Читает .codebase_indices/install_meta.json (записанный install.py в dev-режиме).
+    Сверяет git HEAD исходников с записанным.
+    Возвращает warning-строку или None.
+
+    Обычные пользователи: install_meta.json отсутствует → возвращает None.
+    """
+    try:
+        meta_path = Path(".codebase_indices") / "install_meta.json"
+        if not meta_path.exists():
+            return None  # не dev-режим — не проверяем
+
+        import json
+        import subprocess
+
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+
+        installed_head = meta.get("git_head")
+        if not installed_head:
+            return None
+
+        r = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(Path.cwd()),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if r.returncode == 0:
+            current_head = r.stdout.strip()
+            if current_head != installed_head:
+                return (
+                    f"⚠️ Исходники обновлены (git {current_head[:8]} ≠ "
+                    f"установлено {installed_head[:8]}). Запустите install.py "
+                    f"для синхронизации расширения."
+                )
+        return None
+    except Exception:
+        return None
+
+
 # ══════════════════════════════════════════════════════════
 # Progress Tracking — для визуализации хода индексации
 # ══════════════════════════════════════════════════════════
@@ -567,6 +611,13 @@ def create_mcp_server() -> FastMCP:
     # Если в логах MCP RUN_ID отличается от ожидаемого — значит
     # процесс не перезапустился после обновления кода.
     _log_run_passport()
+
+    # ─── 0.2 DEV-ONLY: проверка рассинхрона source↔extension ───
+    # Только если install.py записал install_meta.json (dev-режим).
+    # Обычные пользователи не видят этого warning.
+    _sync_warning = _check_source_extension_sync()
+    if _sync_warning:
+        logger.warning(_sync_warning)
 
     # ─── 0.5 Health Check LSP (чтобы не было silent crash) ───
     # Проверяем, что LSP-модуль компилируется — если нет,

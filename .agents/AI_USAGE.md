@@ -15,6 +15,8 @@
 
 # 1. PRIMARY EXECUTION MODEL
 
+**MCP online → всё исследование через MCP** (см. AGENTS.md §0.2). IDE grep/read — только fallback.
+
 Always work in this order:
 
 ```
@@ -40,6 +42,9 @@ pytest tests/ -k write_tools
 ```
 
 Never skip steps.
+
+**MCP call rule:** one tool per request — never chain `intel_trigger_reindex(); intel_get_job_status(); search_code(...)`.
+Full reference: `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
 
 ---
 
@@ -627,7 +632,9 @@ Never:
 
 # 20. FALLBACK STRATEGY
 
-If MCP becomes unavailable:
+**MCP-FIRST:** пока MCP отвечает — не переключайся на grep/read/terminal для поиска и чтения кода.
+
+If MCP becomes unavailable (transport error, timeout, pipe broken):
 
 Immediately switch to:
 
@@ -637,7 +644,7 @@ Immediately switch to:
 
 Continue solving task.
 
-Do not repeatedly retry broken MCP calls.
+Do not repeatedly retry broken MCP calls (max 1 retry with different params, then fallback).
 
 ---
 

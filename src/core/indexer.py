@@ -81,8 +81,9 @@ class Indexer:
         self._symbol_index_lock = threading.Lock()   # SymbolIndex thread safety
 
         # Watchdog: heartbeat обновляется при каждом прогрессе
-        self._watchdog_heartbeat = 0.0
-        self._watchdog_label = "init"
+        self._watchdog_heartbeat = time.time()  # инициализация ТЕКУЩИМ временем, не эпохой (1970)
+        self._watchdog_ever_beat = False  # бился ли хоть раз (для корректного idle)
+        self._watchdog_label = "idle"
         self._watchdog_lock = threading.Lock()
 
         # Счётчики кэша (защищены _index_lock)
@@ -270,12 +271,26 @@ class Indexer:
         """
         with self._watchdog_lock:
             self._watchdog_heartbeat = time.time()
+            self._watchdog_ever_beat = True
             if label:
                 self._watchdog_label = label
 
     def watchdog_status(self) -> dict:
-        """Возвращает статус watchdog для HealthReport."""
+        """Возвращает статус watchdog для HealthReport.
+
+        Корректно обрабатывает idle-состояние:
+        - Если heartbeat никогда не бился (чистый idle) — alive=True, idle_sec=0.
+        - Если бился, но давно — считаем age от последнего удара.
+        - Ложная critical-ошибка "56 лет простоя" устранена (init = time.time()).
+        """
         with self._watchdog_lock:
+            if not self._watchdog_ever_beat:
+                # Индексер простаивает с момента запуска — это норма, не сбой
+                return {
+                    "alive": True,
+                    "idle_sec": 0.0,
+                    "label": self._watchdog_label,
+                }
             age = time.time() - self._watchdog_heartbeat
             return {
                 "alive": age < 60.0,

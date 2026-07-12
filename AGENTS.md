@@ -7,9 +7,12 @@
 
 1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root).
 2. **Determine MCP Context:**
-   - If `intel_*` tools or `search_code` are available → Full Hybrid Context Mode.
+   - If `intel_*` tools or `search_code` are available → **MCP-FIRST MODE** (§0.2). IDE grep/read — только fallback.
    - If absent → MCP server offline. Work exclusively with `grep`, `read_file`, `terminal`.
-3. **Runtime Check:** Call `intel_get_runtime_status`. If it fails with pipe/transport error → switch to grep/cat fallback.
+3. **Runtime Check (MCP pipe):** Call **`debug_runtime_passport()`** — единственная команда проверки «жив ли MCP-процесс».
+   - Ответ с RUN_ID / BUILD_ID / PID → MCP подключён, продолжаем.
+   - Transport error / «Not connected» → MCP offline, fallback на grep.
+   - **НЕ** использовать `intel_get_runtime_status` для проверки связи — он проверяет embedder/индекс, а не pipe.
 4. **Load Project Memory:** Call `intel_get_project_memory()` to learn ADRs, known issues, tech debt.
 5. **⚠️ MULTI-WINDOW CHECK:** `intel_get_runtime_status().project_path` — ЭТОТ проект видит MCP.
    Если пользователь говорит о ДРУГОМ проекте (лежит рядом, открыт в другом окне) —
@@ -18,6 +21,114 @@
    - Проверь, открыт ли проект: `ls <путь>`
    - Предупреди пользователя: «Сейчас MCP показывает проект X. Хотите, переключусь на Y?»
    - Используй `intel_explain_project_state` для проверки другого проекта
+
+## 0.1. MCP TOOL CALL PROTOCOL (MANDATORY)
+
+> Полный справочник 59 инструментов с JSON Raw Input:
+> `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
+
+### Формат вызова: JSON Raw Input (Zed MCP)
+
+Каждый tool call = **имя инструмента** + **JSON-тело (Raw Input)**. Это не shell, не Python, не `func()`.
+
+```
+Tool:   search_code
+Raw Input:
+{
+  "query": "ETA estimated_seconds reindex job progress",
+  "mode": "fast"
+}
+```
+
+**Без аргументов** → пустой объект `{}`:
+
+```
+Tool:   debug_runtime_passport
+Raw Input: {}
+
+Tool:   intel_trigger_reindex
+Raw Input: {}
+```
+
+1. **Один tool + один JSON за раз** — отдельный JSON-RPC запрос.
+2. **Запрещено склеивать** в одну строку или один Raw Input несколько инструментов.
+3. **Запрещено 3+ MCP параллельно** — таймауты. Строго последовательно.
+4. **Порядок сессии (Raw Input):**
+
+| # | Tool | Raw Input |
+|---|------|-----------|
+| 1 | `debug_runtime_passport` | `{}` |
+| 2 | `intel_get_runtime_status` | `{}` |
+| 3 | `intel_get_project_memory` | `{}` |
+| 4 | `intel_explain_project_state` | `{}` |
+
+5. **Источник правды:** `src/mcp/server.py` + `src/core/intelligence_layer.py`.
+6. **После ошибки** — не retry с теми же JSON. Сначала `debug_runtime_passport` `{}`, потом альтернатива.
+
+**Reindex (Raw Input):**
+
+```
+Tool: intel_trigger_reindex     Raw Input: {}
+      → ответ: job_id
+
+Tool: intel_get_job_status      Raw Input: { "job_id": "24fc56ed" }
+
+Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
+```
+
+## 0.2. MCP-FIRST MODE (MANDATORY when MCP online)
+
+**Если `intel_get_runtime_status` ответил без transport error → работай ТОЛЬКО через MCP.**
+Не используй `grep`, `read_file`, `Glob`, `Shell` для исследования кода, пока MCP жив.
+
+### Замена IDE-инструментов на MCP
+
+| Задача | ❌ Не использовать | ✅ MCP |
+|--------|-------------------|--------|
+| Найти код по смыслу | grep | `search_code(mode="quality")` |
+| Точное имя файла/символа | grep | `search_code(mode="fast")` |
+| Архитектура / связи | читать файлы | `intel_code_topology`, `impact_analysis` |
+| Символ: кто вызывает | grep | `get_symbol_info` |
+| Прочитать файл | read_file | `read_live_file` |
+| Состояние проекта | shell / cat | `intel_explain_project_state` |
+| Полный снэпшот | 5+ вызовов | `intel_get_project_context` |
+| Индекс / chunks | — | `get_index_status` |
+| Логи / ошибки | cat terminal | `get_logs`, `intel_predict_root_cause` |
+| Здоровье системы | — | `get_health_report`, `debug_runtime_passport` |
+| Git история | git log | `get_commit_history`, `get_file_history` |
+| Рисковые файлы | — | `intel_get_hotspots` |
+| Data flow переменной | grep | `get_variable_flow` |
+| AST-паттерн | grep | `structural_search` |
+| После правки кода | — | `notify_change` → `get_index_status` |
+
+### Когда fallback на IDE разрешён
+
+| Условие | Fallback |
+|---------|----------|
+| MCP transport error / timeout | grep + read (≤50 строк) |
+| `total_chunks == 0` | `intel_trigger_reindex` → grep до completed |
+| Редактирование файлов | Write/StrReplace в IDE (MCP не пишет за агента Cursor) |
+| `pytest` / `install.py` / git commit | Shell (операции среды, не поиск) |
+| 2 подряд одинаковых MCP-fail | pivot на grep |
+
+### Запрещено при живом MCP
+
+- ❌ `grep` вместо `search_code` (если chunks > 0)
+- ❌ `Read` целых файлов вместо `read_live_file` / `get_symbol_info`
+- ❌ `Glob` для поиска символов вместо `search_code(mode="fast")`
+- ❌ `Shell: git log` вместо `get_commit_history`
+- ❌ Угадывать номера строк — сначала MCP, потом read точечно
+
+### Демонстрация правильной сессии (только MCP)
+
+```
+intel_get_runtime_status()
+intel_get_project_memory()
+intel_explain_project_state()
+search_code(query="watchdog heartbeat", mode="quality")
+get_symbol_info(query="watchdog_status")
+read_live_file(file_path="src\\core\\indexer.py")   ← только нужные строки через MCP
+```
 
 ## 0.5. WORKFLOW: ИСХОДНИКИ → РАСШИРЕНИЕ ZED
 
@@ -160,6 +271,9 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
 ## 2. AVAILABLE TOOLS (59)
+
+> **Полный справочник** (аргументы, когда вызывать, anti-patterns):
+> `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
 
 ### A. High-Level Intelligence Layer (15 tools)
 
