@@ -582,8 +582,12 @@ class RemoteEmbedder:
             opts.enable_cpu_mem_arena = False
             opts.enable_mem_pattern = False
             opts.enable_mem_reuse = True
-            opts.intra_op_num_threads = 2
-            opts.inter_op_num_threads = 1
+            # Автоопределение потоков: intra_op для параллельных вычислений ONNX
+            # Ryzen 5 5600H: 12 логических → 6 intra, 2 inter (полная утилизация)
+            # Можно переопределить через ONNX_INTRA_THREADS / ONNX_INTER_THREADS env
+            _cpu_count = os.cpu_count() or 4
+            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", str(max(4, _cpu_count // 2))))
+            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", str(max(1, _cpu_count // 6))))
             opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
             opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
 
