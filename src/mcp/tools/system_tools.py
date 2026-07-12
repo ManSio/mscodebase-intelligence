@@ -46,6 +46,10 @@ class GetIndexStatusTool(MCPTool):
         if "error" in stats:
             return f"{project_label}\n❌ Error: {stats['error']}"
 
+        chunks = stats.get("total_chunks", 0)
+        files = stats.get("unique_files", 0)
+        db_status = stats.get("status", "unknown")
+
         sym_idx = self.resolve_symbol_index()
         total_symbols = (
             sym_idx.get_symbol_count()
@@ -70,10 +74,6 @@ class GetIndexStatusTool(MCPTool):
             "onnx": "⚙️ ONNX (локальный)",
             "fallback": "⚠️ Заглушка",
         }.get(embedder_mode, embedder_mode)
-
-        chunks = stats.get("total_chunks", 0)
-        files = stats.get("unique_files", 0)
-        db_status = stats.get("status", "unknown")
 
         # Проверка: есть ли другие проекты в этом окне (multi-window)
         other_projects = []
