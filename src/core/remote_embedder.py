@@ -98,13 +98,20 @@ class RemoteEmbedder:
         for base in self._onnx_search_paths:
             if not base.exists():
                 continue
-            for subdir in sorted(base.iterdir()):
+            # Сортируем: INT8 директории (со星 -int8) — первыми
+            _subdirs = sorted(base.iterdir(), key=lambda d: (
+                0 if '-int8' in d.name else 1,  # INT8 first
+                d.name
+            ))
+            for subdir in _subdirs:
                 # Skip reranker subdirectories for embedder
                 if subdir.name.startswith("reranker-") or subdir.name.startswith(
                     "rreranker"
                 ):
                     continue
-                model_file = subdir / "model.onnx"
+                model_file = subdir / "model_quantized.onnx"
+                if not model_file.exists():
+                    model_file = subdir / "model.onnx"
                 if model_file.exists():
                     self.local_model_dir = subdir
                     self._model_name = subdir.name
@@ -372,12 +379,20 @@ class RemoteEmbedder:
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
-            # ═══ E5-base ONNX (in-process, без внешних процессов) ═══
-            # Пытаемся сразу загрузить ONNX. Не ждём llama.cpp — он упразднён.
+            # ═══ E5-base OpenVINO/ONNX (in-process) ═══
             _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
             if _provider in ("e5_onnx", "auto", ""):
-                logger.info("🔌 E5-base ONNX: инициализация локального эмбеддера...")
+                logger.info("🔌 Инициализация локального эмбеддера...")
                 self._init_onnx()
+                
+                # OpenVINO имеет приоритет (INT8, ~350 ch/s)
+                if hasattr(self, '_ov_compiled') and self._ov_compiled:
+                    with self._mode_lock:
+                        self.mode = "onnx"
+                        self._preferred_mode = "onnx"
+                    logger.info("✅ OpenVINO INT8 запущен! (~350 ch/s, 768dim)")
+                    return
+                
                 if self._onnx_session:
                     with self._mode_lock:
                         self.mode = "onnx"
@@ -385,7 +400,7 @@ class RemoteEmbedder:
                     logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
                     return
                 else:
-                    logger.warning(f"E5-base ONNX не загрузился: session={self._onnx_session}, model_dir={self.local_model_dir}, file_exists={(self.local_model_dir / 'model.onnx').exists() if self.local_model_dir else 'N/A'}, tokenizer_exists={(self.local_model_dir / 'tokenizer.json').exists() if self.local_model_dir else 'N/A'}, disable_fallback={os.getenv('DISABLE_ONNX_FALLBACK', 'unset')}")
+                    logger.warning("E5-base не загрузился")
 
             # ═══ LM Studio (fallback) ═══
             if self._check_lm_studio_raw():
@@ -544,7 +559,7 @@ class RemoteEmbedder:
             self._scanner_thread = None
 
     def _init_onnx(self):
-        """Отложенная сборка ONNX сессии с оптимизациями памяти."""
+        """Отложенная сборка ONNX/OpenVINO сессии с оптимизациями."""
         # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
@@ -552,6 +567,25 @@ class RemoteEmbedder:
         if self._onnx_session is not None:
             self._onnx_last_used = time.time()
             return
+
+        # Проверка: OpenVINO уже загружен (re-entry guard)
+        if getattr(self, '_ov_compiled', None) is not None:
+            self._onnx_last_used = time.time()
+            return
+
+        _provider = os.getenv("ONNX_PROVIDERS", "").lower()
+
+        # ═══════════════════════════════════════════════════════════════
+        # OpenVINO INT8 (рекомендуемый режим для Windows)
+        # Даёт 250-350 ch/s на E5-base INT8 (против 7-8 ch/s у ONNX)
+        # ═══════════════════════════════════════════════════════════════
+        if _provider == "openvino":
+            self._init_openvino()
+            return
+
+        # ═══════════════════════════════════════════════════════════════
+        # ONNX Runtime (FP32, fallback)
+        # ═══════════════════════════════════════════════════════════════
         try:
             import onnxruntime as ort
             from tokenizers import Tokenizer
@@ -568,26 +602,28 @@ class RemoteEmbedder:
             if not tokenizer_file.exists():
                 raise FileNotFoundError(f"tokenizer.json не найден в {self.local_model_dir}")
             self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
-            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1)
-            self._tokenizer.enable_truncation(max_length=512)
+            self._max_embed_tokens = int(os.getenv("ONNX_MAX_LENGTH", "128"))
+            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=self._max_embed_tokens)
+            self._tokenizer.enable_truncation(max_length=self._max_embed_tokens)
 
-            providers = ["CPUExecutionProvider"]
-            if "DmlExecutionProvider" in ort.get_available_providers():
-                providers.insert(0, "DmlExecutionProvider")
+            # Определяем провайдеры ONNX:
+            if _provider == "cpu":
+                providers = ["CPUExecutionProvider"]
+            elif _provider == "dml":
+                providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
+            else:
+                providers = ["CPUExecutionProvider"]
+                if "DmlExecutionProvider" in ort.get_available_providers():
+                    providers.insert(0, "DmlExecutionProvider")
 
-            # Оптимизации памяти и потоков
             import onnxruntime as _ort
-
             opts = _ort.SessionOptions()
             opts.enable_cpu_mem_arena = False
             opts.enable_mem_pattern = False
             opts.enable_mem_reuse = True
-            # Автоопределение потоков: intra_op для параллельных вычислений ONNX
-            # Ryzen 5 5600H: 12 логических → 6 intra, 2 inter (полная утилизация)
-            # Можно переопределить через ONNX_INTRA_THREADS / ONNX_INTER_THREADS env
-            _cpu_count = os.cpu_count() or 4
-            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", str(max(4, _cpu_count // 2))))
-            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", str(max(1, _cpu_count // 6))))
+            _cpu_count = os.cpu_count() or 8
+            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", str(_cpu_count)))
+            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", str(_cpu_count)))
             opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
             opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
 
@@ -596,10 +632,98 @@ class RemoteEmbedder:
                 sess_options=opts,
                 providers=providers,
             )
+            self._onnx_input_names: List[str] = [
+                inp.name for inp in self._onnx_session.get_inputs()
+            ]
             self._onnx_last_used = time.time()
-            logger.info("✅ Локальный ONNX движок успешно запущен и готов к расчетам.")
+            logger.info(
+                f"✅ ONNX движок запущен. Входы модели: {self._onnx_input_names}"
+            )
         except Exception as e:
-            logger.error(f"❌ Ошибка сборки локального ONNX-детектора: {e}", exc_info=True)
+            logger.error(f"❌ Ошибка сборки ONNX: {e}", exc_info=True)
+            self.mode = "fallback"
+
+    def _init_openvino(self):
+        """Инициализация OpenVINO с INT8 моделью.
+        
+        Даёт 250-350 ch/s на E5-base INT8 (Windows CPU).
+        Ключевые оптимизации:
+        - max_length=128 (Padding Trap fix)
+        - dynamic batch shape
+        - БЕЗ token_type_ids (иначе 6 ch/s вместо 350)
+        """
+        # Re-entry guard: уже загружено
+        if getattr(self, '_ov_compiled', None) is not None:
+            self._onnx_last_used = time.time()
+            return
+        try:
+            import openvino as ov
+            from tokenizers import Tokenizer
+            import numpy as np
+
+            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx)
+            model_dir_path = Path(self.local_model_dir)
+            int8_path = model_dir_path / "model_quantized.onnx"
+            fp32_path = model_dir_path / "model.onnx"
+
+            if int8_path.exists():
+                model_file = int8_path
+                logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
+            elif fp32_path.exists():
+                model_file = fp32_path
+                logger.info(f"🔧 OpenVINO: загружаю FP32 модель {fp32_path}")
+            else:
+                raise FileNotFoundError(f"Модель не найдена в {model_dir_path}")
+
+            tokenizer_file = model_dir_path / "tokenizer.json"
+            if not tokenizer_file.exists():
+                raise FileNotFoundError(f"tokenizer.json не найден в {model_dir_path}")
+
+            # Токенизатор
+            self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
+            self._max_embed_tokens = int(os.getenv("ONNX_MAX_LENGTH", "128"))
+            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=self._max_embed_tokens)
+            self._tokenizer.enable_truncation(max_length=self._max_embed_tokens)
+
+            # OpenVINO Core
+            core = ov.Core()
+            model = core.read_model(str(model_file))
+
+            # Dynamic batch shape (последняя dim = max_length)
+            for inp in model.inputs:
+                model.reshape({inp.any_name: [-1, self._max_embed_tokens]})
+
+            # Компиляция для throughput
+            compiled = core.compile_model(model, "CPU", config={
+                "PERFORMANCE_HINT": "THROUGHPUT",
+                "NUM_STREAMS": "1",  # 1 stream — меньше RAM, та же скорость для batch=1
+                "INFERENCE_NUM_THREADS": "0",  # 0 = все ядра
+            })
+            self._ov_compiled = compiled
+            self._ov_infer_request = compiled.create_infer_request()
+
+            # Future-proof: проверяем есть ли token_type_ids в модели
+            # Для E5-base/BGE — НЕ подаём (убивает скорость в 60x)
+            # Если другая модель требует — подадим zeros
+            self._ov_has_token_type_ids = any(
+                "token_type_ids" in inp.get_names()
+                for inp in model.inputs
+            )
+            self._onnx_input_names = [
+                inp.any_name for inp in model.inputs
+                if inp.any_name != "token_type_ids"
+            ]
+            self._onnx_last_used = time.time()
+
+            sz_mb = model_file.stat().st_size / (1024 * 1024)
+            logger.info(
+                f"✅ OpenVINO INT8 запущен! ({sz_mb:.0f}MB, "
+                f"{self._max_embed_tokens}tok, "
+                f"token_type_ids={self._ov_has_token_type_ids})"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации OpenVINO: {e}", exc_info=True)
             self.mode = "fallback"
 
     def _unload_onnx(self):
@@ -697,73 +821,96 @@ class RemoteEmbedder:
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]
 
-        # ═══ Локальный ONNX (E5-base, in-process) ═══
+        # ═══ OpenVINO (INT8, ~350 ch/s) ═══
+        if current_mode in ("unknown", "onnx") and getattr(self, '_ov_compiled', None) is not None:
+            try:
+                self._onnx_last_used = time.time()
+                import numpy as np
+
+                def _ensure_prefix(text: str, is_query: bool) -> str:
+                    for prefix in ("query: ", "passage: "):
+                        if text.startswith(prefix):
+                            text = text[len(prefix):]
+                            break
+                    return f"{'query' if is_query else 'passage'}: {text}"
+
+                prefixed = [_ensure_prefix(t, is_query) for t in texts]
+                enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
+
+                _dim = self.embedding_dim or 768
+                _zero_vec = [0.0] * _dim
+                results = [_zero_vec] * len(texts)
+
+                # Валидные токенизированные тексты
+                valid_indices = [i for i, e in enumerate(enc) if e and len(e.ids) > 0]
+                if not valid_indices:
+                    logger.warning(f"Токенизация вернула 0 результатов (batch={len(texts)})")
+                    return results
+
+                ids_all = np.array([enc[i].ids for i in valid_indices], dtype=np.int64)
+                mask_all = np.array([enc[i].attention_mask for i in valid_indices], dtype=np.int64)
+
+                for idx_in, i in enumerate(valid_indices):
+                    feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
+                    outputs = self._ov_infer_request.infer(feed)
+                    out_key = list(outputs.keys())[0]
+                    out_data = outputs[out_key]
+                    if out_data.shape[0] == 0:
+                        continue  # пустой output → остаётся zero vector
+                    token_emb = out_data[0]
+
+                    mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
+                    sum_emb = np.sum(token_emb * mask_exp, 0)
+                    sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
+                    results[i] = (sum_emb / sum_mask).tolist()
+
+                return results
+
+            except Exception as ov_err:
+                logger.warning(f"OpenVINO path error: {ov_err}, fallback")
+                # fall through to ONNX Runtime
+
+        # ═══ Локальный ONNX (E5-base, fallback) ═══
         if current_mode in ("unknown", "onnx"):
             self._init_onnx()
             if self._onnx_session:
-                try:
-                    self._onnx_last_used = time.time()
-                    import numpy as np
-                    
-                    # E5-base требует префиксы: query: / passage:
-                    # Всегда очищаем существующий префикс перед добавлением правильного
-                    def _ensure_prefix(text: str, is_query: bool) -> str:
-                        for prefix in ("query: ", "passage: "):
-                            if text.startswith(prefix):
-                                text = text[len(prefix):]
-                                break
-                        return f"{'query' if is_query else 'passage'}: {text}"
-                    prefixed = [_ensure_prefix(t, is_query) for t in texts]
-                    
-                    enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
-                    ids = np.array([e.ids for e in enc], dtype=np.int64)
-                    mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
-                    inputs = {"input_ids": ids, "attention_mask": mask}
-                    if enc and hasattr(enc[0], "type_ids") and any(e.type_ids for e in enc):
-                        inputs["token_type_ids"] = np.array(
-                            [e.type_ids for e in enc], dtype=np.int64
-                        )
-                    outputs = self._onnx_session.run(None, inputs)
-                    token_embeddings = outputs[0]
-                    if len(token_embeddings) != 1 and token_embeddings.shape[0] != len(texts):
-                        raise ValueError(f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}")
-                    input_mask_expanded = np.expand_dims(inputs["attention_mask"], -1).astype(float)
-                    sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
-                    sum_mask = np.clip(np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None)
-                    return (sum_embeddings / sum_mask).tolist()
-                except Exception as batch_err:
-                    logger.debug(f"ONNX batch failed ({batch_err}), пробую по одному")
-                    try:
-                        import numpy as np
-                        embeddings = []
-                        for text in texts:
-                            t = text
-                            # Очищаем существующий префикс перед добавлением
-                            for prefix in ("query: ", "passage: "):
-                                if t.startswith(prefix):
-                                    t = t[len(prefix):]
-                                    break
-                            t = f"{'query' if is_query else 'passage'}: {t}"
-                            enc_single = self._tokenizer.encode_batch([t], add_special_tokens=True)
-                            inp = {
-                                "input_ids": np.array([enc_single[0].ids], dtype=np.int64),
-                                "attention_mask": np.array([enc_single[0].attention_mask], dtype=np.int64),
-                            }
-                            out = self._onnx_session.run(None, inp)
-                            token_emb = out[0]
-                            mask_exp = np.expand_dims(inp["attention_mask"], -1).astype(float)
-                            sum_emb = np.sum(token_emb * mask_exp, 1)
-                            sum_mask = np.clip(np.sum(mask_exp, 1), a_min=1e-9, a_max=None)
-                            embeddings.append((sum_emb / sum_mask).tolist()[0])
-                        return embeddings
-                    except Exception:
-                        pass
-            logger.warning("ONNX Runtime недоступен, возвращаю заглушки")
-            return [[0.0] * self.embedding_dim for _ in texts]
+                self._onnx_last_used = time.time()
+                import numpy as np
+                
+                def _ensure_prefix(text: str, is_query: bool) -> str:
+                    for prefix in ("query: ", "passage: "):
+                        if text.startswith(prefix):
+                            text = text[len(prefix):]
+                            break
+                    return f"{'query' if is_query else 'passage'}: {text}"
+                prefixed = [_ensure_prefix(t, is_query) for t in texts]
+                enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
+                ids = np.array([e.ids for e in enc], dtype=np.int64)
+                mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
+                inputs = {"input_ids": ids, "attention_mask": mask}
+                onnx_inputs = self._onnx_input_names if hasattr(self, '_onnx_input_names') else []
+                if "token_type_ids" in onnx_inputs:
+                    _type_ids = np.array(
+                        [getattr(e, "type_ids", None) or [0]*len(e.ids) for e in enc],
+                        dtype=np.int64,
+                    )
+                    inputs["token_type_ids"] = _type_ids
+                outputs = self._onnx_session.run(None, inputs)
+                token_embeddings = outputs[0]
+                del outputs
+                if token_embeddings.shape[0] != len(texts):
+                    raise ValueError(f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}")
+                input_mask_expanded = np.expand_dims(inputs["attention_mask"], -1).astype(float)
+                sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
+                sum_mask = np.clip(np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None)
+                return (sum_embeddings / sum_mask).tolist()
 
-        # ═══ Заглушка ═══
-        logger.critical(f"Неизвестный режим {current_mode}, возвращаю заглушки")
-        return [[0.0] * self.embedding_dim for _ in texts]
+        # ═══ Ни один провайдер не сработал — критическая ошибка ═══
+        raise RuntimeError(
+            f"Embedder failed: mode={current_mode}, "
+            f"ov_compiled={getattr(self, '_ov_compiled', None) is not None}, "
+            f"onnx_session={self._onnx_session is not None}"
+        )
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:
         """Получить вектор для одного текстового фрагмента."""
@@ -824,6 +971,15 @@ class RemoteEmbedder:
         """Асинхронный embed для одного текста."""
         res = await self.embed_batch_async([text], is_query=is_query)
         return res[0] if res else []
+
+    def is_ready(self) -> bool:
+        """Проверка готовности эмбеддера к работе."""
+        with self._mode_lock:
+            if self.mode in ("unknown", "fallback"):
+                return False
+            if self.mode == "onnx":
+                return getattr(self, '_ov_compiled', None) is not None or self._onnx_session is not None
+            return self.mode in ("lm_studio", "llama_cpp", "ollama")
 
     async def warmup(self) -> bool:
         """Прогрев эмбеддера тестовым запросом (убивает cold start)."""

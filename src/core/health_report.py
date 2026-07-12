@@ -164,6 +164,17 @@ class HealthReport:
                     }
                 )
 
+            # Watchdog: жив ли индексер?
+            watchdog = status.get("watchdog", {})
+            if watchdog.get("alive") is False:
+                self.issues.append({
+                    "component": "indexer",
+                    "message": f"🚨 Watchdog: индексер молчит {watchdog.get('idle_sec', '?')}с. Последняя активность: {watchdog.get('label', '?')}",
+                })
+            elif watchdog.get("idle_sec", 0) > 10:
+                self.metrics["watchdog_idle_sec"] = watchdog["idle_sec"]
+                self.metrics["watchdog_label"] = watchdog.get("label", "")
+
         except Exception as e:
             self.issues.append(
                 {
@@ -174,7 +185,11 @@ class HealthReport:
 
     def _check_logs(self):
         """Проверка состояния логов."""
-        logs_dir = self.project_path / ".codebase_indices" / "logs"
+        try:
+            from src.core.log_manager import get_log_dir
+            logs_dir = get_log_dir(self.project_path)
+        except Exception:
+            logs_dir = self.project_path / ".codebase_indices" / "logs"
         if not logs_dir.exists():
             self.warnings.append(
                 {
@@ -406,6 +421,9 @@ class HealthReport:
             self.metrics["process_cpu_percent"] = summary["cpu_percent"]
             self.metrics["process_threads"] = summary["num_threads"]
 
+            # Отслеживание подпроцессов (llama-server embedder + reranker)
+            self.metrics["subprocesses"] = monitor.get_subprocesses_info()
+
             if summary["under_hard_pressure"]:
                 self.issues.append(
                     {
@@ -428,6 +446,33 @@ class HealthReport:
                         ),
                     }
                 )
+
+            # RAM тренд: если память стабильно растёт >10 MB/мин
+            ram_trend = summary.get("ram_trend", {})
+            if ram_trend.get("is_growing"):
+                self.warnings.append(
+                    {
+                        "component": "resources",
+                        "message": (
+                            f"📈 RAM растёт: {ram_trend['rate_mb_per_min']} MB/мин, "
+                            f"пик {ram_trend['peak_mb']:.0f}MB. "
+                            f"Возможна утечка памяти."
+                        ),
+                    }
+                )
+            self.metrics["ram_trend_mb_min"] = ram_trend.get("rate_mb_per_min", 0)
+            self.metrics["ram_peak_mb"] = ram_trend.get("peak_mb", 0)
+
+            # GPU + Disk I/O
+            gpu = summary.get("gpu", {})
+            if gpu.get("util_pct") is not None:
+                self.metrics["gpu_util_pct"] = gpu["util_pct"]
+                self.metrics["gpu_ram_mb"] = gpu.get("ram_mb", 0)
+                self.metrics["gpu_temp_c"] = gpu.get("temp_c", 0)
+            disk = summary.get("disk_io", {})
+            if disk:
+                self.metrics["disk_read_mb"] = disk.get("read_mb", 0)
+                self.metrics["disk_write_mb"] = disk.get("write_mb", 0)
 
             registry = get_global_registry()
             reg_stats = registry.get_stats()

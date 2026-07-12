@@ -1204,11 +1204,14 @@ class LlamaRunner:
             return
         try:
             # Шаг 1: находим PID процесса на порту
-            out = _sp.check_output(
-                ['powershell', '-NoProfile', '-Command',
-                 f'Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess'],
-                timeout=5
-            ).decode().strip()
+            try:
+                out = _sp.check_output(
+                    ['powershell', '-NoProfile', '-Command',
+                     f'Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess'],
+                    timeout=5, stderr=_sp.DEVNULL
+                ).decode().strip()
+            except _sp.CalledProcessError:
+                out = ""  # порт свободен, это нормально
             for line in out.split('\n'):
                 pid = line.strip()
                 if not (pid and pid.isdigit() and int(pid) > 0):

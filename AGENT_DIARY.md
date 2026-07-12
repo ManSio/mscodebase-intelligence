@@ -5,6 +5,174 @@
 
 ---
 
+## [2026-07-12 19:10] — Fix: ETA в intel_trigger_reindex real-time вместо хардкода 5м
+
+**Problem:** intel_trigger_reindex всегда показывал ETA ~5м независимо от реального прогресса. _enrich_job_response на старте (<5%) выдавал заглушку 120с.
+
+**Solution:**
+
+1. trigger_reindex() — убрал хардкод timedelta(seconds=300), ETA берётся из _enrich_job_response()
+
+2. _enrich_job_response() — elapsed c max(..., 1.0) для защиты от деления на 0
+
+3. ETA форматируется адекватно: ~40с, ~2м вместо ~5м
+
+4. poll_interval динамический, next_poll из job'а
+
+
+
+**Files:** src/core/intelligence_layer.py
+
+
+
+**Status:** ✅
+
+---
+
+## [2026-07-12] — BREAKTHROUGH: OpenVINO INT8 — 340 ch/s на E5-base
+
+**Problem:**
+Индексация работала на 7-8 ch/s (ONNX Runtime FP32). Пользователь
+ожидал 270 ch/s на основе ранних бенчмарков. RAM скакал 870→2550MB.
+
+**Root Cause (3 проблемы):**
+1. **Padding Trap:** `max_length=512` → в батче самый длинный чанк
+   определял padding → квадратичный рост attention (8×304² = 739k ops
+   вместо 8×64² = 33k ops — в 22x больше).
+2. **Dead Code Elimination:** `token_type_ids` (всегда нули для passage)
+   заставлял OpenVINO честно вычислять ветку NSP → 175ms вместо 2.9ms.
+3. **Producer-Consumer deadlock:** queue.put(maxsize=10) блокировал
+   workers, consumer запускался после workers → дедлок.
+
+**Solution:**
+1. OpenVINO INT8 (105 MB вместо 266 MB FP32)
+2. `max_length=128` (фиксация длины, без Padding Trap)
+3. **Без `token_type_ids`** (Dead Code Elimination — 60x speedup)
+4. 3-фазный BatchEmbedder: Parse → Sort+Embed → Write
+
+**Benchmark:**
+  Raw infer (warm):     2.9ms = 348 ch/s
+  Sequential:           1.0s = 274 ch/s (272 chunks)
+  Producer-Consumer:    0.8s = 341 ch/s
+  Projected 3200 ch:    ~9-12 секунд
+
+**Files:** `src/core/remote_embedder.py`, `src/core/indexer.py`, `.env`
+**Status:** ✅
+
+---
+
+## 🚫 LESSONS LEARNED — Индексация: что сломалось и почему
+
+### 1. Padding Trap (max_length=512)
+**Симптом:** 8 ch/s вместо 340. Batch=8 работал как 8 отдельных infer.
+**Причина:** `max_length=512` → самый длинный чанк в батче добивал все
+остальные до 512 токенов → attention O(n²) × batch. 8×304² = 739k ops
+вместо 8×64² = 33k ops.
+**Правило:** Для code embedding всегда фиксировать `max_length ≤ 128`.
+BERT-подобные модели не успевают набрать контекст за 128 токенов для
+кода (достаточно 64-96).
+
+### 2. Dead Code Elimination (token_type_ids)
+**Симптом:** 175ms/infer вместо 2.9ms. Загадочное 60x замедление.
+**Причина:** `token_type_ids` для passage всегда нули. Но если явно
+подать нулевой тензор в OpenVINO, он НЕ вырезает ветку NSP — честно
+считает умножение на нули. Без tensor -> Graph Pruning.
+**Правило:** Не подавать inputs, которые гарантированно dead (всегда
+нули). OpenVINO сам оптимизирует граф, если вход отсутствует.
+
+### 3. Producer-Consumer deadlock
+**Симптом:** Первый файл проиндексирован, дальше тишина.
+**Причина:** ThreadPoolExecutor.wait() для всех workers → queue.put()
+блокируется (maxsize=10) → consumer не запущен → deadlock.
+**Правило:** Consumer thread запускать ДО workers, не после.
+Или использовать 2-фазную схему (сначала всё распарсить, потом
+всю эмбеддить) — проще и без deadlock.
+
+### 4. ONNX Runtime без OpenMP на Windows
+**Симптом:** 8 ch/s независимо от batch_size и intra_op_threads.
+**Причина:** onnxruntime на Windows использует MLAS (Microsoft
+Linear Algebra), а не OpenMP. MLAS не параллелит матричные
+операции для маленьких моделей.
+**Решение:** OpenVINO (собственный threading) или PyTorch (MKL+OpenMP).
+Не тратить время на настройку ORT threads на Windows.
+
+### 5. Первым делом — .env и конфиг
+**Симптом:** Полдня переписывания кода при смене провайдера.
+**Решение:** Все настройки (ONNX_PROVIDERS, ONNX_MAX_LENGTH,
+EMBEDDING_PROVIDER) в `.env`. Код читает env, а не хардкодит.
+
+---
+
+## [2026-07-12] — Windows CPU monitoring через kernel32.GetProcessTimes
+
+**Problem:**
+`resource.getrusage()` — POSIX-only. На Windows `_get_cpu_percent()` всегда
+возвращал `(0.0, None)`. HealthReport показывал `process_cpu_percent: 0.0`
+даже когда процесс жрал 50% CPU. Пользователь видел нагрузку, а система
+говорила «всё хорошо».
+
+**Solution:**
+Реализован Windows CPU measurement через `kernel32.GetProcessTimes`
+(user + kernel time) + `kernel32.GetSystemTimes` (idle + kernel + user).
+Дельта между измерениями нормируется на `_num_cpus`.
+Больше не надо гадать — HealthReport показывает реальный CPU%.
+
+**Files:** `src/core/resource_monitor.py`
+**Status:** ✅
+
+---
+
+## [2026-07-12] — Bugfix: token_type_ids ломал ONNX batch. RAM thresholds починены
+
+**Problem:**
+1. `embed_batch` добавлял `token_type_ids` в input-словарь, но E5-base-v2
+   не принимает этот input → batch падал с INVALID_ARGUMENT → fallback по одному
+   тоже падал → возвращались нулевые векторы → 0 чанков в БД
+2. ResourceMonitor: ram_soft=768MB слишком низко для MCP + ONNX + reranker (~1.3GB)
+   → throttling индексации на 891MB останавливал Phase 2
+
+**Solution (3 файла):**
+1. **remote_embedder.py**: авто-детекция входов ONNX-модели через `get_inputs()`
+   — E5-base: [input_ids, attention_mask] — БЕЗ token_type_ids
+   — BGE-M3: [input_ids, attention_mask, token_type_ids] — С token_type_ids
+   — Любая другая модель: подстроится автоматически
+2. **indexer.py**: bulk hash loading (один LanceDB-запрос вместо N)
+   + _warmup_status через table.to_lance()
+3. **resource_monitor.py**: ram_soft=1536MB, ram_hard=2048MB, cpu_thresholds подняты
+
+**Benchmark (прямой тест, без MCP):** 3726 чанков за 13.8с = 270 чанков/с
+
+**Tools Used:** read_file, edit_file, diagnostics, terminal
+**Status:** ✅
+
+---
+
+## [2026-07-12] — Cross-file batch embedding pipeline (3-phase: Parse → Batch Embed → Write)
+
+**Problem:**
+Индексация упиралась в per-file эмбеддинг: 4 parallel workers по 5-20 чанков/файл.
+Модель (E5-base/BGE-M3) простаивала — оверхед на HTTP + tokenization на каждый маленький батч.
+Теоретический предел ~360 i/s, реально ~30 чанков/с.
+
+**Solution (src/core/indexer.py):**
+1. **Phase 1 (Parse)**: параллельный `_parse_file_only` через ThreadPoolExecutor
+2. **Phase 2 (Batch Embed)**: все чанки со всех файлов собираются в плоский список,
+   эмбеддятся батчами по `_BATCH_SIZE=64` через один `embed_batch()`
+3. **Phase 3 (Write)**: результаты разбираются обратно по файлам → `_write_file_records`
+4. **`_write_file_records`**: извлечённая из `_index_single_file` метода построения records + LanceDB write,
+   переиспользуется и в single-file (LSP) и в full-index (batch) режимах
+5. Убран unused import `pyarrow.compute`
+
+**Benchmark prediction:** Было (~30 чанков/с @ 80% CPU) → Станет (~200+ чанков/с @ 40-60% CPU)
+- 64 текста за один проход ONNX вместо 5-20
+- Один HTTP round-trip на 64 текста вместо 4-12
+- CPU уходит из GIL contention в чистое ONNX-вычисление
+
+**Tools Used:** grep, edit_file, diagnostics, terminal, git stash pop
+**Status:** ✅
+
+---
+
 ## [2026-07-13] — Producer-Consumer indexing + contextual chunks + thread safety
 
 **Problem:**

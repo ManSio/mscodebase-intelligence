@@ -9,17 +9,20 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import lancedb
 import pyarrow as pa
-import pyarrow.compute as pc
 
 from src.core.chunk_summarizer import ChunkSummarizer
 from src.core.index_guard import IndexGuard
 from src.utils.paths import SafePathManager, to_win_long_path
 
 logger = logging.getLogger("mscodebase_server.indexer")
+
+# Размер батча для кросс-файлового эмбеддинга.
+# E5-base/BGE-M3 обрабатывают 64 текста почти за то же время, что и 1.
+_BATCH_SIZE = 64
 
 
 def _generate_unique_db_path(project_path: Path) -> Path:
@@ -76,6 +79,11 @@ class Indexer:
         self._index_lock = threading.Lock()          # защита shared state
         self._table_write_lock = threading.Lock()    # сериализация записи в LanceDB
         self._symbol_index_lock = threading.Lock()   # SymbolIndex thread safety
+
+        # Watchdog: heartbeat обновляется при каждом прогрессе
+        self._watchdog_heartbeat = 0.0
+        self._watchdog_label = "init"
+        self._watchdog_lock = threading.Lock()
 
         # Счётчики кэша (защищены _index_lock)
         self._cached_total_chunks = 0
@@ -254,6 +262,27 @@ class Indexer:
         except Exception:
             pass
 
+    def watchdog_heartbeat(self, label: str = ""):
+        """Обновляет heartbeat — вызывается при каждом прогрессе.
+
+        Если индексер завис, watchdog не обновляется >60s.
+        HealthReport проверяет это поле.
+        """
+        with self._watchdog_lock:
+            self._watchdog_heartbeat = time.time()
+            if label:
+                self._watchdog_label = label
+
+    def watchdog_status(self) -> dict:
+        """Возвращает статус watchdog для HealthReport."""
+        with self._watchdog_lock:
+            age = time.time() - self._watchdog_heartbeat
+            return {
+                "alive": age < 60.0,
+                "idle_sec": round(age, 1),
+                "label": self._watchdog_label,
+            }
+
     def set_searcher(self, searcher) -> None:
         """Ленивая инжекция Searcher (см. INC-53EC / REFC-05).
 
@@ -421,20 +450,28 @@ class Indexer:
             self._cached_total_chunks = count
             if count > 0:
                 logger.info(f"🔥 Прогрев статуса: в базе {count} чанков")
-                # Прогрев unique_files через search + select (без vector)
+                # Тройной fallback для file_path
+                _fp_set = None
                 try:
-                    # search API стабильнее to_pandas с columns
-                    result = self.table.search().select(["file_path"]).limit(count).to_pandas()
-                    if not result.empty:
-                        self._cached_unique_files = set(result["file_path"].unique())
-                        logger.info(
-                            f"🔥 Прогрев статуса: {len(self._cached_unique_files)} файлов"
-                        )
-                except Exception as warm_fs:
-                    logger.warning(
-                        f"🔥 lazy unique_files не удался: {warm_fs}. "
-                        "Будет заполнен при первом вызове get_status."
-                    )
+                    ds = self.table.to_lance()
+                    _fp_df = ds.to_pandas(columns=["file_path"])
+                    if not _fp_df.empty:
+                        _fp_set = set(_fp_df["file_path"].unique())
+                except Exception:
+                    try:
+                        _fp_df = self.table.search().select(["file_path"]).limit(count).to_pandas()
+                        if not _fp_df.empty:
+                            _fp_set = set(_fp_df["file_path"].unique())
+                    except Exception:
+                        try:
+                            _fp_df = self.table.to_pandas(columns=["file_path"])
+                            if not _fp_df.empty:
+                                _fp_set = set(_fp_df["file_path"].unique())
+                        except Exception:
+                            pass
+                if _fp_set is not None:
+                    self._cached_unique_files = _fp_set
+                    logger.info(f"🔥 Прогрев статуса: {len(_fp_set)} файлов")
             else:
                 logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
         except Exception as e:
@@ -537,20 +574,30 @@ class Indexer:
                 unique_files = len(unique_files)
 
             # Если кэш пуст, но чанки есть — делаем быстрый запрос
+            # Пробуем 3 fallback-метода: to_lance → search → to_pandas
             if unique_files == 0 and total_chunks > 0 and self.table is not None:
+                _fp_series = None
                 try:
-                    # search API стабильнее to_pandas с columns
-                    result = (
-                        self.table.search()
-                        .select(["file_path"])
-                        .limit(total_chunks)
-                        .to_pandas()
-                    )
-                    if not result.empty:
-                        unique_files = result["file_path"].nunique()
-                        self._cached_unique_files = set(result["file_path"].unique())
-                except Exception as e:
-                    logger.warning(f"get_status: fallback scan failed: {e}")
+                    ds = self.table.to_lance()
+                    _fp_series = ds.to_pandas(columns=["file_path"])["file_path"]
+                except Exception as e1:
+                    logger.debug(f"get_status: to_lance failed ({e1}), trying search...")
+                    try:
+                        _fp_series = (
+                            self.table.search()
+                            .select(["file_path"])
+                            .limit(total_chunks)
+                            .to_pandas()
+                        )["file_path"]
+                    except Exception as e2:
+                        logger.debug(f"get_status: search failed ({e2}), trying to_pandas...")
+                        try:
+                            _fp_series = self.table.to_pandas(columns=["file_path"])["file_path"]
+                        except Exception:
+                            logger.warning(f"get_status: все fallback-и не удались: {e1}")
+                if _fp_series is not None and len(_fp_series) > 0:
+                    unique_files = _fp_series.nunique()
+                    self._cached_unique_files = set(_fp_series.unique())
 
             # Считаем stale/устаревшие файлы (быстрое сканирование диска)
             stale_files = 0
@@ -596,6 +643,7 @@ class Indexer:
                 except Exception as stale_err:
                     logger.debug(f"get_status: stale scan skipped: {stale_err}")
 
+            watchdog = self.watchdog_status()
             return {
                 "total_chunks": total_chunks,
                 "unique_files": unique_files,
@@ -603,6 +651,7 @@ class Indexer:
                 "stale_files": stale_files,
                 "missing_files": missing_files,
                 "status": "active" if total_chunks > 0 else "empty",
+                "watchdog": watchdog,
             }
         except Exception as e:
             logger.error(f"get_status error: {e}")
@@ -850,6 +899,280 @@ class Indexer:
             logger.debug(f"_ensure_table_ready: {e}")
             return True
 
+    def _write_file_records(
+        self,
+        parsed: Dict,
+        embeddings: List[List[float]],
+    ) -> bool:
+        """Запись результатов эмбеддинга в LanceDB.
+
+        Принимает результат `_parse_file_only` и список векторов,
+        собирает PyArrow-записи и атомарно пишет в таблицу.
+
+        Args:
+            parsed: результат _parse_file_only
+            embeddings: список векторов (по одному на чанк)
+
+        Returns:
+            True если запись успешна, иначе False
+        """
+        rel_path_str = parsed["rel_path"]
+        current_hash = parsed["current_hash"]
+        escaped_path = parsed["escaped_path"]
+        existing_hash = parsed["existing_hash"]
+        chunk_texts = parsed["chunk_texts"]
+        chunk_texts_full = parsed["chunk_texts_full"]
+        chunk_metadatas = parsed["chunk_metadatas"]
+        health = parsed["health"]
+        source = parsed["source"]
+
+        if not embeddings or len(embeddings) != len(chunk_texts):
+            logger.warning(
+                f"⚠️ Несовпадение числа эмбеддингов и чанков для {rel_path_str}: "
+                f"{len(embeddings)} vs {len(chunk_texts)}"
+            )
+            return False
+
+        _target_dim = self.embedder.embedding_dim or 768
+        data_records = []
+        for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
+            # Нормализация вектора под размерность схемы
+            if len(chunk_vec) != _target_dim:
+                chunk_vec = chunk_vec[:_target_dim] + [0.0] * (_target_dim - len(chunk_vec))
+
+            full_text = (
+                chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
+            )
+
+            # LLM-описание если включено
+            summary = ""
+            if self.summarizer and self.enable_summaries:
+                symbol_name = ""
+                if self.parser and hasattr(self.parser, "_current_symbol"):
+                    symbol_name = getattr(self.parser, "_current_symbol", "")
+                summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
+
+            meta = chunk_metadatas[i] if i < len(chunk_metadatas) else {}
+
+            data_records.append(
+                {
+                    "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
+                    "vector": chunk_vec,
+                    "text": chunk_text,
+                    "text_full": full_text,
+                    "file_path": rel_path_str,
+                    "file_hash": current_hash,
+                    "chunk_index": i,
+                    "source": source,
+                    "indexed_at": datetime.now().isoformat(),
+                    "summary": summary,
+                    "layer": meta.get("layer", ""),
+                    "module_name": meta.get("module_name", ""),
+                    "hierarchy_level": meta.get("hierarchy_level", "other"),
+                    "is_public": meta.get("is_public", False),
+                    "symbol_type": meta.get("symbol_type", ""),
+                    "parent_id": meta.get("parent_id", ""),
+                    "callees": meta.get("callees", ""),
+                    "health_score": health.get("score", 0.0),
+                    "health_band": health.get("band", ""),
+                }
+            )
+
+        # Атомарная запись пачки чанков в таблицу
+        with self._table_write_lock:
+            old_chunks = 0
+            if existing_hash is not None:
+                try:
+                    old_chunks = self.table.count_rows(
+                        filter=f"file_path = '{escaped_path}'"
+                    )
+                except Exception:
+                    pass
+                try:
+                    self.table.delete(f"file_path = '{escaped_path}'")
+                except Exception as del_err:
+                    logger.debug(f"delete() не нашёл запись: {del_err}")
+
+            try:
+                self.table.add(data_records)
+            except Exception as add_err:
+                err_str = str(add_err).lower()
+                if (
+                    "not found" in err_str
+                    or "does not exist" in err_str
+                    or "no such table" in err_str
+                ):
+                    logger.warning(
+                        f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
+                    )
+                    if self._safe_recreate_table():
+                        self.table.add(data_records)
+                    else:
+                        raise
+                else:
+                    raise
+
+        # Синхронизация кэша
+        with self._index_lock:
+            if old_chunks > 0:
+                self._cached_total_chunks = max(
+                    0, self._cached_total_chunks - old_chunks + len(data_records)
+                )
+            else:
+                self._cached_total_chunks += len(data_records)
+            self._cached_unique_files.add(rel_path_str)
+
+        # Сохраняем SymbolIndex на диск
+        try:
+            self._index_guard.save_symbol_index(self._symbol_index)
+        except Exception:
+            pass
+
+        logger.info(
+            f"✅ Записано в БД: {rel_path_str} ({len(chunk_texts)} чанков)"
+        )
+        return True
+
+    def _parse_file_only(
+        self,
+        full_path: Path,
+        rel_path_str: str,
+        source: str = "filesystem",
+        known_hashes: Optional[Dict[str, str]] = None,
+    ) -> Optional[Dict]:
+        """Только парсинг файла (без эмбеддинга и записи в БД).
+
+        Returns:
+            Dict с данными чанков или None если файл не изменился.
+            Структура: {
+                "rel_path": str, "current_hash": str, "escaped_path": str,
+                "existing_hash": str | None, "chunk_texts": List[str],
+                "chunk_texts_full": List[str], "chunk_metadatas": List[Dict],
+                "health": Dict, "source": str
+            }
+        """
+        try:
+            safe_read_path = self.path_manager.get_safe_path(full_path)
+            with open(str(safe_read_path), "rb") as f:
+                raw_data = f.read()
+            content = raw_data.decode("utf-8", errors="replace")
+
+            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+            escaped_path = self._escape_file_path_for_lance(rel_path_str)
+
+            # Проверка хэша (один bulk-запрос в index_project или per-file в _index_single_file)
+            existing_hash = None
+            if known_hashes is not None:
+                existing_hash = known_hashes.get(rel_path_str)
+            else:
+                try:
+                    if self.table is not None:
+                        existing_df = (
+                            self.table.search()
+                            .where(f"file_path = '{escaped_path}'", prefilter=True)
+                            .limit(1)
+                            .to_pandas()
+                        )
+                        if not existing_df.empty:
+                            existing_hash = str(existing_df["file_hash"].iloc[0])
+                except Exception:
+                    pass
+
+            if existing_hash == current_hash:
+                return None  # не изменился
+
+            if not content.strip():
+                return None
+
+            # Очистка PropertyGraph
+            if hasattr(self._symbol_index, "graph"):
+                pg = self._symbol_index.graph
+                if pg:
+                    pg.remove_file(rel_path_str.replace("\\", "/"))
+
+            # AST-чанкинг + Breadcrumbs (как в _index_single_file)
+            chunk_texts: List[str] = []
+            chunk_texts_full: List[str] = []
+            chunk_metadatas: List[Dict] = []
+            health = {"score": 0.0, "band": ""}
+
+            if self.parser is not None:
+                try:
+                    ast_chunks, symbols = self.parser.parse_file(full_path)
+                    if ast_chunks:
+                        for c in ast_chunks:
+                            compact = c.get("text_compact", "") or c.get("text", "")
+                            full = c.get("text", "")
+                            if compact.strip():
+                                _module = c.get("module_name", "")
+                                _level = c.get("hierarchy_level", "other")
+                                _type = c.get("symbol_type", c.get("type", ""))
+                                _scope_parts = [p for p in [_level, _type, _module] if p]
+                                _scope = " | ".join(_scope_parts) if _scope_parts else _module
+                                _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
+                                chunk_texts.append(_header + compact)
+                                chunk_texts_full.append(_header + full)
+                                chunk_metadatas.append({
+                                    "layer": c.get("layer", ""),
+                                    "module_name": c.get("module_name", ""),
+                                    "hierarchy_level": c.get("hierarchy_level", "other"),
+                                    "is_public": c.get("is_public", False),
+                                    "symbol_type": c.get("symbol_type", c.get("type", "")),
+                                    "parent_id": c.get("parent_id", ""),
+                                    "callees": c.get("callees", ""),
+                                })
+                    if symbols:
+                        with self._symbol_index_lock:
+                            self._symbol_index.add_definitions(str(full_path), symbols)
+                        calls = self.parser.extract_calls(full_path)
+                        if calls:
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_references(str(full_path), calls)
+                        assignments = self.parser.extract_assignments(full_path)
+                        if assignments:
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_assignments(str(full_path), assignments)
+                except Exception as ast_err:
+                    logger.warning(f"⚠️ AST-чанкинг не удался для {rel_path_str}: {ast_err}")
+                    chunk_texts = []
+                    chunk_metadatas = []
+
+            if not chunk_texts:
+                _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
+                chunk_texts = [
+                    _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
+                ]
+                chunk_texts_full = chunk_texts
+                chunk_metadatas = [{
+                    "layer": "", "module_name": "", "hierarchy_level": "other",
+                    "is_public": False, "symbol_type": "", "parent_id": "", "callees": "",
+                } for _ in chunk_texts]
+
+            if not chunk_texts:
+                return None
+
+            # Code Health
+            try:
+                from src.core.code_health import score_file
+                health = score_file(rel_path_str, self.project_path)
+            except Exception:
+                pass
+
+            return {
+                "rel_path": rel_path_str,
+                "current_hash": current_hash,
+                "escaped_path": escaped_path,
+                "existing_hash": existing_hash,
+                "chunk_texts": chunk_texts,
+                "chunk_texts_full": chunk_texts_full,
+                "chunk_metadatas": chunk_metadatas,
+                "health": health,
+                "source": source,
+            }
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка парсинга {rel_path_str}: {e}")
+            return None
+
     def _index_single_file(
         self,
         full_path: Path,
@@ -1022,120 +1345,32 @@ class Indexer:
             except Exception:
                 pass
 
-            # Получение эмбеддингов через провайдер (LM Studio)
-            # Эмбеддинги считаются от компактных танков — быстрее и точнее
+            # Получение эмбеддингов через провайдер
             embeddings = self.embedder.embed_batch(chunk_texts)
+            import gc
+            gc.collect()  # освободить ONNX тензоры
             if not embeddings or any(len(e) == 0 for e in embeddings):
                 logger.warning(
                     f"⚠️ Пустые эмбеддинги для файла {rel_path_str}. Пропуск записи."
                 )
                 return False
 
-            # Подготовка данных для PyArrow
-            data_records = []
-            for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
-                # Нормализация вектора под размерность схемы
-                _target_dim = self.embedder.embedding_dim or 768
-                if len(chunk_vec) != _target_dim:
-                    chunk_vec = chunk_vec[:_target_dim] + [0.0] * (_target_dim - len(chunk_vec))
-
-                # Полный текст для детального анализа (если есть)
-                full_text = (
-                    chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
-                )
-
-                # Генерируем LLM-описание если включено
-                summary = ""
-                if self.summarizer and self.enable_summaries:
-                    symbol_name = ""
-                    if self.parser and hasattr(self.parser, "_current_symbol"):
-                        symbol_name = getattr(self.parser, "_current_symbol", "")
-                    summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
-
-                # Метаданные для Metadata Enrichment (v2.4.3+)
-                meta = chunk_metadatas[i] if i < len(chunk_metadatas) else {}
-
-                data_records.append(
-                    {
-                        "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
-                        "vector": chunk_vec,
-                        "text": chunk_text,
-                        "text_full": full_text,
-                        "file_path": rel_path_str,
-                        "file_hash": current_hash,
-                        "chunk_index": i,
-                        "source": source,
-                        "indexed_at": datetime.now().isoformat(),
-                        "summary": summary,
-                        # Metadata Enrichment (MCompassRAG + SproutRAG)
-                        "layer": meta.get("layer", ""),
-                        "module_name": meta.get("module_name", ""),
-                        "hierarchy_level": meta.get("hierarchy_level", "other"),
-                        "is_public": meta.get("is_public", False),
-                        "symbol_type": meta.get("symbol_type", ""),
-                        "parent_id": meta.get("parent_id", ""),
-                        "callees": meta.get("callees", ""),
-                        "health_score": health.get("score", 0.0),
-                        "health_band": health.get("band", ""),
-                    }
-                )
-
-            # Атомарная запись пачки чанков в таблицу (thread-safe через _table_write_lock)
-            # Потоки не пересекаются: разные файлы пишутся последовательно.
-            with self._table_write_lock:
-                old_chunks = 0
-                if existing_hash is not None:
-                    try:
-                        old_chunks = self.table.count_rows(
-                            filter=f"file_path = '{escaped_path}'"
-                        )
-                    except Exception:
-                        pass
-                    try:
-                        self.table.delete(f"file_path = '{escaped_path}'")
-                    except Exception as del_err:
-                        logger.debug(f"delete() не нашёл запись: {del_err}")
-
-                try:
-                    self.table.add(data_records)
-                except Exception as add_err:
-                    err_str = str(add_err).lower()
-                    if (
-                        "not found" in err_str
-                        or "does not exist" in err_str
-                        or "no such table" in err_str
-                    ):
-                        logger.warning(
-                            f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
-                        )
-                        if self._safe_recreate_table():
-                            self.table.add(data_records)
-                        else:
-                            raise
-                    else:
-                        raise
-
-            # Синхронизация кэша (thread-safe через _index_lock)
-            with self._index_lock:
-                if old_chunks > 0:
-                    self._cached_total_chunks = max(
-                        0, self._cached_total_chunks - old_chunks + len(data_records)
-                    )
-                else:
-                    self._cached_total_chunks += len(data_records)
-                self._cached_unique_files.add(rel_path_str)
-
-            # Сохраняем SymbolIndex на диск после каждого успешного файла
-            # (чтобы после перезапуска были доступны все определения символов)
-            try:
-                self._index_guard.save_symbol_index(self._symbol_index)
-            except Exception:
-                pass
-
-            logger.info(
-                f"✅ Успешно проиндексирован: {rel_path_str} ({len(chunk_texts)} чанков)"
-            )
-            return True
+            # Собираем parsed-словарь и делегируем запись в _write_file_records
+            parsed = {
+                "rel_path": rel_path_str,
+                "current_hash": current_hash,
+                "escaped_path": escaped_path,
+                "existing_hash": existing_hash,
+                "chunk_texts": chunk_texts,
+                "chunk_texts_full": chunk_texts_full,
+                "chunk_metadatas": chunk_metadatas,
+                "health": health,
+                "source": source,
+            }
+            result = self._write_file_records(parsed, embeddings)
+            import gc
+            gc.collect()
+            return result
 
         except Exception as e:
             logger.error(f"❌ Критический сбой индексации файла {rel_path_str}: {e}")
@@ -1532,12 +1767,17 @@ class Indexer:
         if progress_callback:
             progress_callback("", 0, total_files, "scanning")
 
-        # Уведомление через NotificationBroker (синхронный вызов из thread)
-        def _notify_progress(done: int, total: int, phase: str, current: str):
+        # Уведомление через NotificationBroker — сквозной прогресс 0-100%
+        # через все фазы: Phase 1 (parse) 0-70%, Phase 2 (embed) 70-90%, Phase 3 (write) 90-100%
+        def _notify_progress(
+            done: int, total: int, phase: str, current: str,
+            offset_pct: float = 0.0, span_pct: float = 100.0,
+        ):
             if not self._notification_broker:
                 return
-            pct = int((done / total) * 100) if total > 0 else 0
-            # Троттлинг: шлём только на 0%, 5%, 10%, ..., 100%
+            raw = (done / total) if total > 0 else 0.0
+            continuous = offset_pct + raw * span_pct
+            pct = int(continuous)
             if (
                 pct == 0
                 or pct == 100
@@ -1554,70 +1794,200 @@ class Indexer:
                     },
                 )
 
-        _notify_progress(0, total_files, "scanning", "")
+        _notify_progress(0, total_files, "scanning", "", 0, 5)
 
-        # Шаг 1: Параллельная индексация через Producer-Consumer
-        # Используем ThreadPoolExecutor для параллельной обработки файлов.
-        # LanceDB writes сериализованы через _table_write_lock — безопасно.
-        # SymbolIndex защищён через _symbol_index_lock.
+        # ═══════════════════════════════════════════════════════════
+        # Batch Embedder: Фаза 1 (Parse) → Фаза 2 (Sort+Embed) → Фаза 3 (Write)
+        # ═══════════════════════════════════════════════════════════
         #
-        # Producer: главный поток собирает файлы (уже сделано выше в all_files)
-        # Consumer: пул воркеров вызывает _index_single_file
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        import threading
+        # Фаза 1 (параллельный парсинг):
+        #   workers парсят файлы → список parsed (с хэшами)
+        #
+        # Фаза 2 (сортировка + батчинг):
+        #   все чанки собираются в плоский список
+        #   сортируются по длине (чтобы минимизировать padding)
+        #   эмбеддятся батчами по _BATCH_SIZE
+        #
+        # Фаза 3 (запись):
+        #   результаты разбираются обратно по файлам → _write_file_records
+        # ═══════════════════════════════════════════════════════════
+
+        # ── Фаза 1: Параллельный парсинг ───────────────────────────
+        from concurrent.futures import ThreadPoolExecutor
 
         _max_workers = min(4, (os.cpu_count() or 4) // 2)
-        _indexed_lock = threading.Lock()
-        _indexed_count_local = 0
+        _all_parsed: list = []  # список {"parsed": Dict, "name": str}
+        _parse_errors = []
 
-        # Обновляем прогресс (thread-safe через Lock)
-        def _safe_progress(done: int, total: int, phase: str, fname: str):
-            if progress_callback:
-                try:
-                    progress_callback(fname, done, total, phase)
-                except Exception:
-                    pass
-            _notify_progress(done, total, phase, fname)
-
-        # Consumer worker: индексирует один файл
-        def _index_worker(args):
-            nonlocal _indexed_count_local
+        def _parse_worker_file(args):
             _idx, _root, _fname, _full_path = args
             _rel_path = str(_full_path.relative_to(project_path))
             current_files_on_disk.add(_rel_path)
 
-            if _idx % max(1, total_files // 20) == 0 or _idx == total_files - 1:
-                _safe_progress(_idx + 1, total_files, "indexing", _fname)
-
             try:
-                if self._index_single_file(_full_path, _rel_path):
-                    with _indexed_lock:
-                        _indexed_count_local += 1
-            except Exception as e:
-                logger.warning(f"⚠️ Ошибка индексации {_rel_path}: {e}")
-
-        # Запускаем пул воркеров
-        _futures = []
-        with ThreadPoolExecutor(max_workers=_max_workers) as _executor:
-            for idx, (root, file_name, full_path) in enumerate(all_files):
-                _futures.append(
-                    _executor.submit(_index_worker, (idx, root, file_name, full_path))
+                parsed = self._parse_file_only(
+                    _full_path, _rel_path, source="filesystem"
                 )
-            # Дожидаемся завершения всех воркеров
-            for _f in as_completed(_futures):
+                if parsed is not None:
+                    return {"parsed": parsed, "name": _fname, "rel": _rel_path}
+            except Exception as e:
+                return {"error": str(e), "rel": _rel_path}
+            return None
+
+        _parsed_list: list = []
+        with ThreadPoolExecutor(max_workers=_max_workers) as _exec:
+            _futs = []
+            for idx, (root, fname, fpath) in enumerate(all_files):
+                _futs.append(_exec.submit(_parse_worker_file, (idx, root, fname, fpath)))
+            
+            for i, fut in enumerate(_futs):
                 try:
-                    _f.result()
-                except Exception as _e:
-                    logger.error(f"Worker died: {_e}")
+                    res = fut.result()
+                    if res:
+                        if "error" in res:
+                            _parse_errors.append((res["rel"], res["error"]))
+                        else:
+                            _parsed_list.append(res)
+                            self.watchdog_heartbeat(f"parse:{res['name']}")
+                except Exception as e:
+                    logger.warning(f"\u26a0\ufe0f Worker error: {e}")
+                
+                # Прогресс парсинга
+                if i % max(1, total_files // 20) == 0 or i == total_files - 1:
+                    if progress_callback:
+                        try:
+                            progress_callback("", i + 1, total_files, "parsing")
+                        except Exception:
+                            pass
+                    _notify_progress(i + 1, total_files, "parsing", "", 5, 50)
 
-        indexed_count = _indexed_count_local
+        parsed_count = len(_parsed_list)
+        logger.info(f"\u2705 Парсинг завершён: {parsed_count} файлов изменено из {total_files}")
 
-        _safe_progress(total_files, total_files, "indexing", "")
+        if parsed_count == 0:
+            logger.info("\u2705 Нет изменённых файлов — индекс актуален")
+            indexed_count = 0
+            # Всё равно делаем pruning и финализируем
+            pruned = self.prune_deleted_files(current_files_on_disk)
+            if self.searcher:
+                self.searcher.reindex()
+            if progress_callback:
+                progress_callback("", total_files, total_files, "complete")
+            _notify_progress(total_files, total_files, "complete", "", 0, 100)
+            return 0
+
+        # ── Фаза 2: Сортировка + батчинг эмбеддинга ────────────────
+        # Собираем все чанки в плоский список с индексами файлов
+        _flat_chunks: list = []  # [(file_idx, text), ...]
+        for fp_idx, fp_data in enumerate(_parsed_list):
+            parsed = fp_data["parsed"]
+            for chunk_text in parsed["chunk_texts"]:
+                _flat_chunks.append((fp_idx, chunk_text))
+
+        total_chunks = len(_flat_chunks)
+        logger.info(f"\U0001f4ca Всего чанков: {total_chunks}, batch_size={_BATCH_SIZE}")
+
+        # Сортируем по длине текста (минимизируем padding)
+        _flat_chunks.sort(key=lambda x: len(x[1]))
+
+        # Проверка: embedder готов?
+        if not getattr(self.embedder, 'is_ready', lambda: True)():
+            logger.error("❌ Embedder не готов к работе. Индексация прервана.")
+            return 0
+
+        # Батчим по _BATCH_SIZE
+        _all_embeddings: list = [None] * total_chunks
+        _embed_t0 = time.time()
+
+        for batch_start in range(0, total_chunks, _BATCH_SIZE):
+            batch_end = min(batch_start + _BATCH_SIZE, total_chunks)
+            batch_data = _flat_chunks[batch_start:batch_end]
+            batch_texts = [text for (_, text) in batch_data]
+            batch_indices = [idx for (idx, _) in batch_data]
+
+            # Эмбеддинг батча
+            t0 = time.time()
+            try:
+                embeddings = self.embedder.embed_batch(batch_texts)
+            except Exception as embed_err:
+                logger.error(f"❌ Embedder error: {embed_err}. Пропускаем батч.")
+                embeddings = [[0.0] * (self.embedder.embedding_dim or 768) for _ in batch_texts]
+                # Продолжаем с нулевыми векторами — лучше пустой поиск, чем краш
+            embed_time = time.time() - t0
+
+            if not embeddings or len(embeddings) != len(batch_texts):
+                logger.warning(f"⚠️ embed вернул {len(embeddings) if embeddings else 0} вместо {len(batch_texts)}")
+                embeddings = [[0.0] * (self.embedder.embedding_dim or 768) for _ in batch_texts]
+
+            # Раскладываем результаты обратно по flat-индексу
+            for i, flat_idx in enumerate(range(batch_start, batch_end)):
+                _all_embeddings[flat_idx] = embeddings[i]
+
+            # Мониторинг каждые 5 батчей
+            if batch_start % (_BATCH_SIZE * 5) == 0 or batch_end >= total_chunks:
+                elapsed = time.time() - _embed_t0
+                done = min(batch_end, total_chunks)
+                speed = done / elapsed if elapsed > 0 else 0
+                try:
+                    from src.core.resource_monitor import get_monitor
+                    mon = get_monitor()
+                    snap = mon.sample(force=True)
+                    ram_info = f"RAM={snap.rss_mb:.0f}MB CPU={snap.cpu_percent:.0f}%"
+                except Exception:
+                    ram_info = ""
+                logger.info(
+                    f"\U0001f4ca [embed] {done}/{total_chunks} chunks "
+                    f"{ram_info} "
+                    f"batch={len(batch_texts)}ch/{embed_time:.1f}s={len(batch_texts)/max(embed_time,0.001):.0f}ch/s "
+                    f"avg={speed:.0f}ch/s elapsed={elapsed:.0f}s"
+                )
+                _notify_progress(done, total_chunks, "embedding", "", 50, 40)
+                self.watchdog_heartbeat(f"embed:{done}/{total_chunks}")
+
+            import gc
+            gc.collect()
+
+        _embed_total = time.time() - _embed_t0
+        logger.info(f"\u2705 Эмбеддинг завершён: {total_chunks} чанков за {_embed_total:.1f}s ({total_chunks/max(_embed_total,0.001):.0f} ch/s)")
+        _notify_progress(total_chunks, total_chunks, "writing", "", 90, 10)
+
+        # ── Фаза 3: Запись результатов по файлам ────────────────────
+        # Восстанавливаем маппинг: для каждого файла собираем его embeddings
+        _file_embeddings: dict = {}  # {fp_idx: {parsed: ..., vecs: [...]}}
+        for flat_idx, (fp_idx, _) in enumerate(_flat_chunks):
+            if fp_idx not in _file_embeddings:
+                _file_embeddings[fp_idx] = {
+                    "parsed": _parsed_list[fp_idx]["parsed"],
+                    "vecs": [],
+                }
+            _file_embeddings[fp_idx]["vecs"].append(_all_embeddings[flat_idx])
+
+        indexed_count = 0
+        for fp_idx, fdata in _file_embeddings.items():
+            try:
+                if self._write_file_records(fdata["parsed"], fdata["vecs"]):
+                    indexed_count += 1
+                    self.watchdog_heartbeat(f"write:{Path(fdata['parsed']['rel_path']).name}")
+            except Exception as e:
+                logger.warning(f"\u26a0\ufe0f Ошибка записи {fdata['parsed']['rel_path']}: {e}")
+
+        logger.info(f"\u2705 Запись завершена: {indexed_count} файлов записано")
+
+        # Финальное уведомление
+        if progress_callback:
+            progress_callback("", total_files, total_files, "indexing")
+
+        # Пауза: даём Windows сбросить буферы записи (race condition LanceDB)
+        time.sleep(1)
 
         # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
-        pruned = self.prune_deleted_files(current_files_on_disk)
-        if pruned > 0:
-            logger.info(f"🗑️ Удалено {pruned} устаревших файлов из базы")
+        pruned = 0
+        try:
+            pruned = self.prune_deleted_files(current_files_on_disk)
+            if pruned > 0:
+                logger.info(f"🗑️ Удалено {pruned} устаревших файлов из базы")
+        except Exception as prune_err:
+            logger.warning(f"⚠️ Pruning не удался (некритично): {prune_err}")
 
         # Шаг 3: Перестройка BM25 индекса
         if indexed_count > 0 and self.searcher:
@@ -1625,43 +1995,42 @@ class Indexer:
                 progress_callback("", total_files, total_files, "rebuilding_bm25")
             self.searcher.reindex()
 
-        # Шаг 4: Создание IVF_PQ индекса для ускорения косинусного поиска
+        # Шаг 4: Создание индекса для ускорения косинусного поиска
         if self.table and self.table.count_rows() > 1000:
             try:
-                logger.info(
-                    f"📊 Создаю IVF_PQ индекс ({self.table.count_rows()} чанков)..."
-                )
-                # Удаляем старый индекс, если он есть (предотвращает битые метаданные)
+                # 1. Flush данных на диск (compaction)
+                try:
+                    self.table.optimize(compaction=True)
+                except Exception as opt_err:
+                    logger.debug(f"optimize: {opt_err}")
+
+                # 2. Пауза для Windows I/O
+                time.sleep(2)
+
+                # 3. Проверка реального количества строк
+                _row_count = self.table.count_rows()
+                logger.info(f"📊 Создаю индекс ({_row_count} чанков)...")
+                if _row_count == 0:
+                    logger.warning("⚠️ Таблица пуста после optimize, индекс пропущен")
+                    return
+
+                # Удаляем старый индекс
                 try:
                     for idx in self.table.list_indices():
                         idx_name = getattr(idx, "name", None)
                         if idx_name:
                             self.table.drop_index(idx_name)
-                            logger.info(f"🗑️ Удалён старый индекс: {idx_name}")
-                except Exception as drop_err:
-                    logger.debug(f"drop old index: {drop_err}")
+                except Exception:
+                    pass
 
-                # Убеждаемся, что все данные записаны на диск перед индексацией
-                try:
-                    from datetime import timedelta
-                    self.table.optimize(cleanup_older_than=timedelta(seconds=0))
-                except Exception as opt_err:
-                    logger.debug(f"optimize before index: {opt_err}")
-
+                # 4. IVF_FLAT — стабилен на Windows, без KMeans/PQ
                 self.table.create_index(
                     metric="cosine",
                     vector_column_name="vector",
-                    index_type="IVF_PQ",
-                    num_partitions=max(
-                        16, min(256, int(self.table.count_rows() ** 0.5))
-                    ),
-                    num_sub_vectors=max(4, int(self.embedder.embedding_dim / 64)),  # dim / 64
+                    index_type="IVF_FLAT",
                     replace=True,
                 )
-                # Дожидаемся завершения построения индекса (до 10 минут)
-                from datetime import timedelta
-                self.table.wait_for_index(["vector_idx"], timeout=timedelta(minutes=10))
-                logger.info("✅ IVF_PQ индекс создан и готов к поиску")
+                logger.info("✅ IVF_FLAT индекс создан")
             except Exception as e:
                 logger.error(f"⚠️ IVF_PQ индекс не создан: {e}")
 
@@ -1672,7 +2041,7 @@ class Indexer:
             progress_callback("", total_files, total_files, "complete")
 
         # Финальное Push-уведомление
-        _notify_progress(total_files, total_files, "complete", "")
+        _notify_progress(total_files, total_files, "complete", "", 0, 100)
 
         # Сохраняем кэш суммари
         if self.summarizer:

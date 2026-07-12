@@ -130,6 +130,85 @@ class IntelligenceStore:
         self._save_json("project_memory.json", nodes)
 
 
+class JobHistoryStore:
+    """Persistent история индексаций для адаптивного ETA.
+
+    Хранится в .codebase_indices/metrics/job_history.json как список записей:
+    {"project_size": int, "duration_sec": float, "timestamp": float}
+
+    Используется для rolling average по размеру проекта (+-20%).
+    """
+
+    def __init__(self, project_path: Path):
+        self.metrics_dir = project_path / ".codebase_indices" / "metrics"
+        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        self.history_file = self.metrics_dir / "job_history.json"
+        self._lock = None  # лениво создаётся при записи
+
+    def _get_lock(self):
+        if self._lock is None:
+            import threading
+
+            self._lock = threading.Lock()
+        return self._lock
+
+    def load_history(self) -> List[Dict[str, Any]]:
+        """Загружает историю. Возвращает [] при ошибке/отсутствии."""
+        if self.history_file.exists():
+            try:
+                with open(self.history_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except (json.JSONDecodeError, OSError):
+                return []
+        return []
+
+    def append_record(self, project_size: int, duration_sec: float) -> None:
+        """Дописывает запись и обрезает историю до 50 последних."""
+        with self._get_lock():
+            history = self.load_history()
+            history.append(
+                {
+                    "project_size": project_size,
+                    "duration_sec": round(duration_sec, 1),
+                    "timestamp": time.time(),
+                }
+            )
+            # Ограничиваем размер: храним последние 50 записей
+            if len(history) > 50:
+                history = history[-50:]
+            try:
+                with open(self.history_file, "w", encoding="utf-8") as f:
+                    json.dump(history, f, ensure_ascii=False, indent=2)
+            except OSError as e:
+                logger.warning(f"Не удалось сохранить историю job'а: {e}")
+
+    def get_estimated_duration(
+        self, project_size: int, fallback: float = 120.0
+    ) -> float:
+        """Rolling average по размеру проекта (+-20%).
+
+        Возвращает среднее время последних 3-х похожих запусков,
+        либо fallback, если истории нет или похожих проектов не найдено.
+        """
+        history = self.load_history()
+        if not history:
+            return fallback
+
+        # Ищем похожие проекты по размеру (отклонение +-20%)
+        lo, hi = 0.8 * project_size, 1.2 * project_size
+        similar = [j for j in history if lo <= j.get("project_size", 0) <= hi]
+        if not similar:
+            # Fallback: среднее по всем (если размер сильно изменился)
+            similar = history
+
+        # Берём последние 3 запуска
+        recent = similar[-3:]
+        avg = sum(j["duration_sec"] for j in recent) / len(recent)
+        return max(avg, 5.0)
+
+
 # =====================================================================
 # ФОНОВЫЕ ЗАДАЧИ (Блоки 1-6)
 # =====================================================================
@@ -147,6 +226,7 @@ class BackgroundJob:
     ended_at: Optional[float] = None
     error: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
+    project_size: Optional[int] = None  # кол-во файлов (для ETA-истории)
 
 
 class JobManager:
@@ -257,6 +337,7 @@ class ProjectIntelligenceLayer:
         # оказался self-indexing (например, race LSP↔MCP при cold start).
         self._services = services
         self.store = IntelligenceStore(project_path)
+        self.job_history = JobHistoryStore(project_path)
         self._reindex_job_id: Optional[str] = None
         self._reindex_task: Optional[asyncio.Task] = (
             None  # Prevent GC from collecting background reindex
@@ -645,7 +726,10 @@ class ProjectIntelligenceLayer:
                         _index_progress_callback,
                     )
                     job.progress = 0.1
-                    await future
+                    indexed_count = await future
+
+                    # Сохраняем размер проекта (кол-во индексированных файлов)
+                    job.project_size = indexed_count if indexed_count else None
 
                     # Also index symbols via Tree-sitter
                     if hasattr(self.symbol_index, "index_project"):
@@ -664,6 +748,11 @@ class ProjectIntelligenceLayer:
                 job.status = "completed"
                 job.ended_at = time.time()
                 job.result = {"files_processed": "Индексация завершена", "status": "ok"}
+
+                # Сохраняем в историю для адаптивного ETA (только если есть размер)
+                if job.project_size:
+                    duration = (job.ended_at or time.time()) - job.started_at
+                    self.job_history.append_record(job.project_size, duration)
 
             except Exception as e:
                 job.status = "failed"
@@ -1242,14 +1331,16 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
 
         # Примерное оставшееся время (эвристика: extrapolate по средней скорости)
         if job.status == "running" and job.progress > 0.05:
-            elapsed = time.time() - job.started_at
+            elapsed = max(time.time() - job.started_at, 1.0)
             if job.progress < 0.95:
                 estimated = int(elapsed / job.progress * (1.0 - job.progress))
                 base["estimated_seconds"] = max(estimated, 5)
             else:
                 base["estimated_seconds"] = 10
         elif job.status == "running":
-            base["estimated_seconds"] = 120  # заглушка на старте
+            # Заглушка на старте: если прогресс есть (>0), используем его для оценки,
+            # иначе 120с — но это только для get_job_status.
+            base["estimated_seconds"] = 120
 
         return base
 
@@ -1272,6 +1363,10 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         progress = round(job.progress * 100) if job else 0
         p_label = job.status if job else "starting"
 
+        # Берём real-time ETA из job'а, если хватило прогресса
+        enriched = _enrich_job_response(job) if job else {}
+        estimated_sec = enriched.get("estimated_seconds", 120)
+
         from datetime import datetime, timedelta
 
         _started = (
@@ -1279,23 +1374,33 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
             if job and job.started_at
             else datetime.now()
         )
-        _eta_time = (_started + timedelta(seconds=300)).strftime(
-            "%H:%M:%S"
-        )  # ~5min default
+        _eta_dt = _started + timedelta(seconds=estimated_sec)
+        _eta_time = _eta_dt.strftime("%H:%M:%S")
+
+        # Форматируем ETA человекочитаемо
+        if estimated_sec >= 120:
+            eta_str = f"~{estimated_sec // 60}м"
+        elif estimated_sec >= 60:
+            eta_str = f"~{estimated_sec // 60}м {estimated_sec % 60}с"
+        else:
+            eta_str = f"~{estimated_sec}с"
 
         _now = datetime.now().strftime("%H:%M:%S")
         _bar = "[" + "█" * (progress // 7) + "░" * (15 - progress // 7) + "]"
+
+        _poll_interval = enriched.get("poll_interval_seconds", 30)
+        _next_poll = (_now if _poll_interval == 0
+                      else (datetime.now() + timedelta(seconds=_poll_interval)).strftime("%H:%M:%S"))
 
         dashboard = (
             f"📦 **MSCodeBase: Indexing Started**\n"
             f"{'━' * 30}\n"
             f"🏗️ **Progress:** {_bar} `{progress}%`\n"
             f"⏱️ Старт: `{_now}` | Статус: `{p_label}`\n"
-            f"⏱️ **ETA:** ~5м (готовность к `{_eta_time}`)\n"
+            f"⏱️ **ETA:** {eta_str} (готовность к `{_eta_time}`)\n"
             f"📌 Job ID: `{job_id}`\n"
             f"{'━' * 30}\n"
-            f"💡 *Следующая проверка: не ранее `{_eta_time}`."
-            f" Используй `intel_get_job_status` только после этого времени.*\n"
+            f"💡 *Следующая проверка: не ранее `{_next_poll}`.*\n"
         )
         return dashboard
 
