@@ -5,6 +5,43 @@
 
 ---
 
+## [2026-07-13] — Session Close: Full audit, hardening, demo
+
+**Problem:** Сессия закрытия — проверено всё от установщика до финального коммита.
+
+**Summary (3 commits, 32 files changed):**
+
+**Commit 1** (`f0c4f09`):
+- New MCP tool `get_variable_flow(name, scope_id)` — scope-resolved ASSIGNED_FROM
+- SHA-256 verification for GGUF models (all 3: qwen3-embedding, bge-m3, bge-reranker)
+- Archive dead `lsp_main.py` → `docs/research/lsp-archive/`
+- Fix docs: "does not use LSP" → hybrid LSP rename reality
+- Tool counts sync: 57→58, 39→41 class-based, 56→57
+- Create missing root CONTRIBUTING.md, sync ru/zh translations
+
+**Commit 2** (`82f1701`):
+- New Intel tool `intel_auto_collect_adrs(max_commits=50)` — auto-extract ADRs from git log
+- Pattern: feat/refactor/arch/adr/decision/migrate/restructure/...
+- Deduplication by commit_hash. Result: 8 ADRs from 30 commits
+- Intel layer: 14→15 tools. Total MCP: 58→59
+
+**Commit 3** (`31cd675`):
+- Sync mscodebase-rules SKILL.md with v3.2.0 toolset
+- 57→59 tools, 14→15 intel, 33→40 core MCP
+- Added get_variable_flow, intel_auto_collect_adrs, query_graph
+- Added Write Tools section (6+1) with LSP-hybrid note
+
+**Final validation:**
+- 38/38 test_assignments + test_parser ✅
+- 490/490 full suite (exc. benchmark/integration) ✅
+- Dataflow experiment: 3,378 edges, 67.3/KLOC, 91.9% files ✅
+- 21 tools demonstrated, 100% success rate ✅
+- Benchmark comparison: system grew 111% (1,515→3,198 chunks), 66% (108→179 files)
+
+**Status:** ✅ СЕССИЯ ЗАКРЫТА
+
+---
+
 ## [2026-07-13 00:15] — New Tool: get_variable_flow (scope-resolved variable data flow)
 
 **Problem:** У агента не было прямого MCP-инструмента для запроса переменных
