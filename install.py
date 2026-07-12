@@ -657,7 +657,16 @@ def step_models(lines, lang):
     if not need_download:
         lines.append((C.GRN, f"  {_tr('models_ok', lang)}"))
         return
-
+    
+    # Автопропуск если модели есть в проекте (их скопирует step_copy)
+    all_in_project = all(
+        (PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx").exists()
+        for _, _, slug, _ in need_download
+    )
+    if all_in_project:
+        lines.append((C.D, "  В проекте — скопируются при синхронизации"))
+        return
+    
     # ─── Phase 2: Offer download ───────────────────────────
     total_mb = sum(sz for _, _, _, sz in need_download)
     lines.append(
@@ -666,9 +675,17 @@ def step_models(lines, lang):
             f"? Download {len(need_download)} models ({total_mb} MB total)? (Y/n)",
         )
     )
-    ch = input(f"  {C.B}> {C.R}").strip().lower()
+    # Автоответ: если есть --yes или YN env — не ждать ввода
+    _auto = os.getenv("YN", "").strip().lower()
+    if _auto:
+        ch = _auto
+    else:
+        try:
+            ch = input(f"  {C.B}> {C.R}").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            ch = "n"
     if ch not in ("", "y", "yes"):
-        lines.append((C.D, "  Skipped — will use LM Studio as fallback"))
+        lines.append((C.D, "  Skipped — models will be handled by step_copy"))
         return
 
     _run(f'"{sys.executable}" -m pip install huggingface-hub -q', timeout=60)
