@@ -944,8 +944,18 @@ class LlamaRunner:
         return f"http://{self._host}:{self.RERANK_PORT}"
 
     async def start(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
-        """Запускает llama-server (просто Popen, без health check)."""
+        """Запускает llama-server или подключается к уже запущенному на self._port.
+        
+        Сначала проверяет, отвечает ли порт /health — если да, используем
+        существующий процесс. Иначе запускаем новый.
+        """
         if self.is_alive() and self._model_key == model_key:
+            return True
+
+        # Проверяем, не запущен ли уже llama-server на этом порту (другим процессом)
+        if await self._probe_port(self._port):
+            logger.info(f"🔌 llama-server уже запущен на порту {self._port}, подключаюсь")
+            self._model_key = model_key
             return True
 
         gguf_path = _gguf_path(model_key)
@@ -991,6 +1001,12 @@ class LlamaRunner:
         автоматически качает и патчит бинарник.
         """
         if self.is_alive() and self._model_key == model_key:
+            return True
+
+        # Проверяем, не запущен ли уже llama-server на этом порту
+        if self._probe_port_sync(self._port):
+            logger.info(f"🔌 llama-server уже запущен на порту {self._port}, подключаюсь")
+            self._model_key = model_key
             return True
 
         # На Insider: проверяем наличие CPU DLL и восстанавливаем если надо
@@ -1043,11 +1059,20 @@ class LlamaRunner:
             return False
 
     async def start_reranker(self) -> bool:
-        """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT)."""
+        """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).
+        
+        Сначала проверяет, отвечает ли порт /health — если да, используем
+        существующий процесс. Иначе запускаем новый.
+        """
         if self._reranker_process is not None:
             poll = self._reranker_process.poll()
             if poll is None:
                 return True  # уже работает
+
+        # Проверяем, не запущен ли уже reranker на этом порту
+        if await self._probe_port(self.RERANK_PORT):
+            logger.info(f"🔌 Реренкер уже запущен на порту {self.RERANK_PORT}, подключаюсь")
+            return True
 
         gguf_path = _gguf_path(DEFAULT_RERANKER_MODEL)
         if not gguf_path.exists():
@@ -1202,6 +1227,23 @@ class LlamaRunner:
                 logger.warning(f'🧹 Убит процесс llama-server PID {pid} (порт {port})')
         except Exception as e:
             logger.warning(f'⚠️ Ошибка при освобождении порта {port}: {e}')
+
+    async def _probe_port(self, port: int) -> bool:
+        """Проверяет, отвечает ли порт HTTP (живой ли llama-server)."""
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as c:
+                r = await c.get(f'http://{self._host}:{port}/health')
+                return r.status_code == 200
+        except Exception:
+            return False
+
+    def _probe_port_sync(self, port: int) -> bool:
+        """Синхронная версия _probe_port — для вызова из _start_sync."""
+        try:
+            r = httpx.get(f'http://{self._host}:{port}/health', timeout=2.0)
+            return r.status_code == 200
+        except Exception:
+            return False
 
     def is_alive(self) -> bool:
         """Проверяет, жив ли процесс."""
