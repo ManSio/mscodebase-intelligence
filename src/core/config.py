@@ -38,7 +38,7 @@ class EmbeddingConfig:
     ollama_embeddings_url: str = f"http://{ollama_host}:{ollama_port}/api/embeddings"
 
     # Общие
-    model_name: str = os.getenv("MODEL_NAME", "text-embedding-bge-m3")
+    model_name: str = os.getenv("MODEL_NAME", "multilingual-e5-base")
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 
     def get_lm_studio_base_url(self) -> str:

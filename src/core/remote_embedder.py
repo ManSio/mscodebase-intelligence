@@ -199,6 +199,9 @@ class RemoteEmbedder:
                     "gte-small": 384,
                     "gte-base": 768,
                     "gte-large": 1024,
+                    "e5-base": 768,
+                    "e5-small": 384,
+                    "e5-large": 1024,
                 }
                 for key, val in KNOWN.items():
                     if key in name:
@@ -354,10 +357,16 @@ class RemoteEmbedder:
 
     def get_model_info(self) -> dict:
         """Возвращает информацию о текущей модели эмбеддера."""
+        # Если ONNX загружен — показываем реальную модель
+        if self._onnx_session is not None:
+            model_name = getattr(self, "_model_name", "e5-base-v2")
+        else:
+            model_name = getattr(self, "_model_name", self.model_name)
         return {
             "provider": self.mode,
-            "model": getattr(self, "_model_name", self.model_name),
+            "model": model_name,
             "configured_model": self.model_name,
+            "dimension": self.embedding_dim,
         }
 
     def _init_provider_async(self):
