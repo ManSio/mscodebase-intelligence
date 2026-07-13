@@ -1,5 +1,69 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-14 01:30] — Full investigation: INT8 speed regression & Golden Config
+
+**Симптом:** После архитектурной реструктуры (IEmbedder interface, domain split)
+скорость эмбеддинга упала с 320-499 ch/s до 5-8 ch/s.
+`search_code(mode=fast)` возвращал `extension.toml` (нулевые векторы).
+
+**Root Cause (3 проблемы):**
+
+1. **ext_root неверный** — после переезда `remote_embedder.py` в
+   `src/providers/embedder/` `Path(__file__).parent.parent.parent` давал
+   неверный путь. Фикс: `get_extension_dir()` вместо `__file__`.
+
+2. **token_type_ids подавался** — INT8 модель (`model_quantized.onnx`) имеет
+   3 входа. Подача tt убивает скорость в 60× (320→5 ch/s).
+   Оригинальный код (commit 28fc9b8) НЕ подавал tt.
+   batch=0 без tt — артефакт fresh compile, в реальном рантайме
+   (кэшированный InferRequest) INT8 выдаёт корректные векторы без tt.
+   См. AGENT_DIARY [02:30] Post-Mortem.
+
+3. **PERFORMANCE_HINT=THROUGHPUT** — для batch=1 оптимальнее LATENCY.
+
+**Golden Config (итоговая):**
+```
+_ov_has_token_type_ids = False    # Не подаём tt (оригинальное поведение)
+PERFORMANCE_HINT = LATENCY         # Вместо THROUGHPUT
+INFERENCE_NUM_THREADS = 0          # Все ядра
+ONNX_MAX_LENGTH = 128              # Баланс контекст/скорость
+```
+
+**Бенчмарки (OpenVINO 2026.2.1, CPU Windows):**
+```
+=== OpenVINO CONFIG ===
+LATENCY:          745 ch/s  ← ПОБЕДИТЕЛЬ (в изолированном тесте)
+DEFAULT:          669 ch/s
+8THREADS:         705 ch/s
+THROUGHPUT+1STR:  478 ch/s  ← БЫЛО
+
+=== ONNX_MAX_LENGTH ===
+max_len= 32:  477 ch/s  ← быстрее всего, но теряет контекст
+max_len= 64:  474 ch/s
+max_len=128:  432 ch/s  ← текущий (оптимально)
+max_len=256:  447 ch/s
+
+=== batch_size (INT8 model_quantized.onnx) ===
+batch=1:  478-745 ch/s  ← штатный режим (3.1ms/chunk)
+batch≥2:  FAIL (Multiply_28769 shape mismatch)
+```
+
+**Верификация (реальный реиндекс, PID 19380):**
+- mode=fast: 48ms
+- OpenVINO path (mode=onnx, ov_compiled=True, has_tt=False)
+- Реиндекс: batch=45ch/0.1s=319ch/s peak, 174 ch/s avg
+- Все 4 search_mode работают корректно
+- 3579 chunks, 218 files, 3345 symbols
+
+**Guard (как не повторить):**
+1. **Изолированный тест ≠ реальный runtime.** batch=0 при fresh compile
+   — проверить через embed_batch в реальном MCP.
+2. **token_type_ids убивает скорость в 60×.** Не подавать для E5-base.
+3. **После реструктуры — проверять ext_root.** `__file__` меняется.
+4. **LATENCY быстрее THROUGHPUT для batch=1.**
+
+---
+
 ## [2026-07-13 02:30] — Post-Mortem: FP32-priority regression + INT8 revert
 
 **Симптом:** После коммита `e7c61dc` скорость эмбеддинга упала с ~350 до ~9 ch/s.

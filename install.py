@@ -610,14 +610,15 @@ def step_models(lines, lang):
     SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
 
     models = {
-        "e5-base-v2": ("intfloat/multilingual-e5-base", "embedding", 265),
+        "e5-base-v2-int8": ("intfloat/multilingual-e5-base", "embedding", 109),
         "reranker-bge-reranker-v2-m3": ("BAAI/bge-reranker-v2-m3", "reranker", 544),
     }
 
     def _find_model(slug: str) -> Path | None:
         """Check all locations, return first source dir."""
+        model_file = "model_quantized.onnx" if "int8" in slug else "model.onnx"
         for base in [ZED_EXT_DIR, SHARED_DIR, PROJECT_ROOT]:
-            p = base / ".codebase_models" / "onnx" / slug / "model.onnx"
+            p = base / ".codebase_models" / "onnx" / slug / model_file
             if p.exists():
                 return base / ".codebase_models" / "onnx" / slug
         return None
@@ -627,7 +628,8 @@ def step_models(lines, lang):
 
     for slug, (name, mtype, size_mb) in models.items():
         dst_dir = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
-        dst_m = dst_dir / "model.onnx"
+        model_file = "model_quantized.onnx" if "int8" in slug else "model.onnx"
+        dst_m = dst_dir / model_file
 
         if dst_m.exists():
             sz = dst_m.stat().st_size / 1024 / 1024
@@ -643,15 +645,16 @@ def step_models(lines, lang):
     # ─── Phase 1: Copy existing models ─────────────────────
     for name, mtype, slug, src in need_copy:
         dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
+        model_file = "model_quantized.onnx" if "int8" in slug else "model.onnx"
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
             _safe_rmtree(dst)
         shutil.copytree(str(src), str(dst))
-        sz = (dst / "model.onnx").stat().st_size / 1024 / 1024
+        sz = (dst / model_file).stat().st_size / 1024 / 1024
         lines.append((C.GRN, f"  ✓ {slug}: {sz:.0f} MB (synced)"))
         # Seed shared cache
         shared = SHARED_DIR / ".codebase_models" / "onnx" / slug
-        if not (shared / "model.onnx").exists():
+        if not (shared / model_file).exists():
             shared.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(str(src), str(shared))
 
@@ -661,7 +664,7 @@ def step_models(lines, lang):
     
     # Автопропуск если модели есть в проекте (их скопирует step_copy)
     all_in_project = all(
-        (PROJECT_ROOT / ".codebase_models" / "onnx" / slug / "model.onnx").exists()
+        (PROJECT_ROOT / ".codebase_models" / "onnx" / slug / ("model_quantized.onnx" if "int8" in slug else "model.onnx")).exists()
         for _, _, slug, _ in need_download
     )
     if all_in_project:
@@ -702,19 +705,20 @@ def step_models(lines, lang):
             timeout=600,
         )
         src = PROJECT_ROOT / ".codebase_models" / "onnx" / slug
-        if proc and proc.returncode == 0 and (src / "model.onnx").exists():
+        model_file = "model_quantized.onnx" if "int8" in slug else "model.onnx"
+        if proc and proc.returncode == 0 and (src / model_file).exists():
             # Copy to ZED_EXT_DIR
             dst = ZED_EXT_DIR / ".codebase_models" / "onnx" / slug
             dst.parent.mkdir(parents=True, exist_ok=True)
             if dst.exists():
                 _safe_rmtree(dst)
             shutil.copytree(str(src), str(dst))
-            sz = (dst / "model.onnx").stat().st_size / 1024 / 1024
+            sz = (dst / model_file).stat().st_size / 1024 / 1024
             lines.append((C.GRN, f"  ✓ {slug}: {sz:.0f} MB"))
 
             # Also seed shared cache
             shared = SHARED_DIR / ".codebase_models" / "onnx" / slug
-            if not (shared / "model.onnx").exists():
+            if not (shared / model_file).exists():
                 shared.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(str(src), str(shared))
         else:

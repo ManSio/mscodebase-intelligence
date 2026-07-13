@@ -588,7 +588,7 @@ class ProjectIntelligenceLayer:
                     # Пропускаем reranker
                     if _subdir.name.startswith("reranker-"):
                         continue
-                    if (_subdir / "model.onnx").exists():
+                    if (_subdir / "model_quantized.onnx").exists() or (_subdir / "model.onnx").exists():
                         _onnx_loaded = True
                         break
                 if _onnx_loaded:

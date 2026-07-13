@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-14 — Full benchmark: OpenVINO INT8 batch_size + config + max_length
+
+**Гипотеза:** Найти оптимальные параметры OpenVINO INT8 для E5-base.
+
+**Метод:** OpenVINO 2026.2.1, CPU Windows, `model_quantized.onnx` (INT8, 105MB).
+Изолированный тест (не fresh compile — один `compile_model`, много infer).
+
+### 1. ONNX_MAX_LENGTH (токенов на чанк)
+```
+max_len= 32:  477 ch/s
+max_len= 64:  474 ch/s
+max_len=128:  432 ch/s  ← текущий (оптимально)
+max_len=256:  447 ch/s
+```
+**Вывод:** Разница <10%. 128 — оптимальный баланс контекста и скорости.
+
+### 2. OpenVINO CONFIG
+```
+LATENCY:            745 ch/s  ← ПОБЕДИТЕЛЬ
+DEFAULT:            669 ch/s
+INFERENCE_NUM_THREADS=8: 705 ch/s
+THROUGHPUT+1STREAM: 478 ch/s  ← БЫЛО
+THROUGHPUT+2STREAM: 361 ch/s
+```
+**Вывод:** LATENCY даёт +56% к THROUGHPUT для batch=1 инференса.
+
+### 3. batch_size
+```
+batch=1:  478-745 ch/s  ← штатный режим (3.1ms/chunk)
+batch=2:  FAIL (Multiply_28769 shape mismatch)
+batch≥4:  FAIL
+```
+**Вывод:** INT8 модель НЕ поддерживает batch > 1 из-за узла Multiply
+в графе. batch=1 — единственный рабочий режим.
+
+### 4. token_type_ids
+```
+без tt:    shape=(0,128,768), nnz=0   batch=0 (артефакт fresh compile!)
+с tt=zeros: shape=(1,128,768), nnz=98304/98304, 8 ch/s
+```
+**Вывод:** В изолированном тесте без tt → batch=0. В реальном рантайме
+(кэшированный InferRequest) → корректные векторы, 320-499 ch/s.
+Не подавать tt — подтверждено Post-Mortem [2026-07-13 02:30].
+
+**Golden Config:** `_ov_has_token_type_ids=False`, `PERFORMANCE_HINT=LATENCY`
+
+---
+
 ## 2026-07-13 — docs_bucket_weight: влияние на fast mode
 
 **Гипотеза:** docs_bucket_weight снижает вес docs-чанков (CHANGELOG, ARCHITECTURE,
