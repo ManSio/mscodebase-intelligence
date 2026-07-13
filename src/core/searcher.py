@@ -1962,12 +1962,16 @@ class Searcher:
                     )
                     self._multi_reranker = None
                     return None
+                # ─── Передаём ПРАВИЛЬНЫЙ URL реранкера (порт 8081, не 8080) ───
+                # MultiProviderReranker по умолчанию коннектится к порту
+                # эмбеддера (8080), а --reranking живёт на RERANK_PORT (8081).
+                reranker_url = runner.reranker_url
             except Exception as e:
                 logger.warning(f"Не удалось проверить/запустить реранкер: {e}")
                 # fall through — quality mode без реранкера
 
             try:
-                reranker = MultiProviderReranker()
+                reranker = MultiProviderReranker(llama_cpp_url=reranker_url)
                 await reranker.initialize()
                 self._multi_reranker = reranker
                 return reranker
