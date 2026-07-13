@@ -950,12 +950,30 @@ class LlamaRunner:
     # ─── Reranker Lifecycle: On-Demand Start + Crash Loop Detection ───
 
     def is_reranker_alive(self) -> bool:
-        """Проверяет, жив ли процесс реранкера (без health-ping).
-        Возвращает False если процесса нет или он завершился."""
-        if self._reranker_process is None:
+        """Проверяет, жив ли процесс реранкера.
+
+        Проверяет в порядке приоритета:
+        1. Если есть сохранённый Popen и его poll() == None → жив
+        2. Если процесс неизвестен (None), но порт отвечает → жив
+           (другой экземпляр LlamaRunner или MCP пережил процесс)
+        Возвращает False если процесс точно мёртв."""
+        # Проверка через сохранённый процесс
+        if self._reranker_process is not None:
+            ret = self._reranker_process.poll()
+            if ret is None:
+                return True
+            # Процесс завершился
             return False
-        ret = self._reranker_process.poll()
-        return ret is None
+        # Процесс не сохранён — проверяем порт (возможно запущен другим экземпляром)
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            result = s.connect_ex((self._host, self.RERANK_PORT))
+            s.close()
+            return result == 0
+        except Exception:
+            return False
 
     def get_reranker_feedback(self) -> dict:
         """Возвращает структурированный статус реранкера для health report.
@@ -970,17 +988,11 @@ class LlamaRunner:
                 "idle_sec": float,
             }
         """
-        with self._reranker_lock:
-            alive = self.is_reranker_alive()
-            now = time.time()
-            # Очищаем попытки старше 5 минут
-            self._reranker_restart_attempts = [
-                t for t in self._reranker_restart_attempts
-                if now - t < 300
-            ]
-            return {
-                "alive": alive,
-                "process_pid": self._reranker_process.pid if alive else None,
+        alive = self.is_reranker_alive()
+        now = time.time()
+        return {
+            "alive": alive,
+                "process_pid": self._reranker_process.pid if (alive and self._reranker_process is not None) else None,
                 "last_error": self._reranker_last_error,
                 "restart_attempts": len(self._reranker_restart_attempts),
                 "restart_blocked_until": max(0.0, self._reranker_restart_blocked_until - now),
