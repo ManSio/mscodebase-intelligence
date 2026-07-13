@@ -1,4 +1,45 @@
 # AGENT DIARY — MSCodeBase Intelligence
+
+## [2026-07-13 02:30] — Post-Mortem: FP32-priority regression + INT8 revert
+
+**Симптом:** После коммита `e7c61dc` скорость эмбеддинга упала с ~350 до ~9 ch/s.
+`search_code(mode='fast')` возвращал `extension.toml`/`lsp_client.py` (score 0.0).
+
+**Root Cause (первопричина):** Я (агент сессии 01:30) ошибочно диагностировал,
+что INT8-модель E5-base требует `token_type_ids` на вход, иначе OpenVINO 2026.2.1
+возвращает тензор с batch=0 → все эмбеддинги нулевые. На основании ЕДИНСТВЕННОГО
+тестового бенча (ovtest4.py, fresh model compile + infer) сделал вывод 
+«INT8 сломан» и переключил приоритет на FP32. Это было ошибкой:
+- В реальном рантайме (с кэшированным compiled model + infer request) INT8
+  выдаёт корректные ненулевые эмбеддинги (768/768) без token_type_ids.
+- batch=0 — артефакт тестового стенда, а не реального MCP-конвейера.
+- Результат: 350→9 ch/s (40× регресс) при полностью корректной INT8-модели.
+
+Дополнительно: предыдущая модель (сессия 23:40) не обновила stale счётчики
+инструментов в ARCHITECTURE.md/CONTRIBUTING.md (40 class-based → 42, 57 → 59).
+
+**Fix (как починили):**
+1. Revert FP32-приоритета → INT8 restored as primary (commit `0665a4b`).
+2. `_detect_model_dir`: INT8-first sort restored (был alphabet-only).
+3. `_init_openvino`: INT8 load restored first.
+4. token_type_ids feed сохранён как страховка для моделей, которые его требуют.
+5. Docs: stale счётчики починены (42 class-based, 59 tools).
+
+**Guard (как не повторить):**
+1. **Bench-артефакт ≠ реальный runtime.** Если isolated-тест показывает
+   аномалию (batch=0), сперва проверить в контексте реального сериализованного
+   InferRequest (с кэшем), а не fresh compile каждый раз.
+2. **Свериться с DEV_DIARY/docs до инверсии приоритета.** Документация
+   утверждает 350 ch/s для INT8 — если я собираюсь его отключить, я обязан
+   сначала обосновать регресс, а не просто переключить.
+3. **Не переключать приоритет модели по одному тесту.** Нужно минимум два
+   независимых подтверждения: (а) isolated infer test, (б) embed_batch через
+   реальный Searcher.
+4. **Post-Mortem добавлять сразу** при обнаружении root-cause (не ждать
+   команды владельца).
+
+---
+
 ## [2026-07-13 01:30] — CRITICAL FIX: broken fast mode (zero-vector embeddings) + reranker model
 
 **Problem (root cause of "fast mode returns garbage"):**

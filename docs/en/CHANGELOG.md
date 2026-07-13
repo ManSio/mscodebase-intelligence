@@ -10,6 +10,30 @@ All notable changes to this project will be documented in this file.
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals (56/57) from before
 > the intel-layer grew to 14 tools. `MSCODEBASE_MCP_TOOLS=""` shows all 59; by default only 12 are visible.
 
+## [3.2.2] — 2026-07-13 — Restore INT8 as primary embedder path
+
+### Fixed
+- 🔧 **INT8 restored as primary** (was wrongly demoted to FP32 priority in 3.2.1).
+  Previous agent misdiagnosed `batch=0` in isolated OpenVINO bench as «INT8 broken»
+  and switched to FP32, causing **40× speed regression** (350→9 ch/s).
+  In the real inference pipeline (cached `InferRequest`) INT8 produces correct
+  non-zero embeddings without `token_type_ids`. Reverted in `0665a4b`.
+- 🔧 **Reranker tokenizer**: `bge-reranker-v2-m3` downloaded `tokenizer.json`
+  (17 MB) from HuggingFace — ONNX reranker server now starts correctly.
+
+### Changed
+- **`_detect_model_dir`**: INT8-first sort restored (`-int8` dirs first, then alphabetical).
+- **`_init_openvino`**: INT8 `model_quantized.onnx` loaded first; FP32 fallback.
+- **Docs (ARCHITECTURE.md, CONTRIBUTING.md)**: stale tool counts updated
+  (40→42 class-based, 57→59 total).
+
+### Added
+- **`token_type_ids` safety net**: OpenVINO embed branch now feeds `token_type_ids`
+  when the model has this input (`_ov_has_token_type_ids`), preventing silent
+  zero-vector corruption on models that require it.
+
+---
+
 ## [3.2.1] — 2026-07-12 — Embedder & Index Integrity Fixes
 
 ### Fixed
