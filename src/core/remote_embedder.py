@@ -916,6 +916,39 @@ class RemoteEmbedder:
 
             except Exception as ov_err:
                 logger.warning(f"OpenVINO path error: {ov_err}, fallback")
+                # ─── Recovery: сбрасываем и перезагружаем OpenVINO ───
+                # Re-entry guard не даст _init_openvino перезагрузиться,
+                # пока _ov_compiled не None. См. INC: embedder stuck
+                # after reindex (ov_compiled=True, onnx_session=False).
+                with self._mode_lock:
+                    self.mode = "unknown"
+                self._ov_compiled = None
+                self._ov_infer_request = None
+                # Пытаемся перезагрузить OpenVINO (re-entry guard снят)
+                self._init_onnx()
+                if getattr(self, '_ov_compiled', None) is not None:
+                    # Повторная попытка OpenVINO с перезагруженной моделью
+                    logger.info("OpenVINO recovery: модель перезагружена, повторная попытка")
+                    # goto for-loop restart: аккуратно прокручиваем valid_indices
+                    # уже токенизировано, просто переиспользуем ids/mask
+                    for idx_in2, i2 in enumerate(valid_indices):
+                        feed = {"input_ids": ids_all[idx_in2:idx_in2+1], "attention_mask": mask_all[idx_in2:idx_in2+1]}
+                        if _ov_has_tt and tt_all is not None:
+                            feed["token_type_ids"] = tt_all[idx_in2:idx_in2+1]
+                        try:
+                            outputs2 = self._ov_infer_request.infer(feed)
+                            out_key2 = list(outputs2.keys())[0]
+                            out_data2 = outputs2[out_key2]
+                            if out_data2.shape[0] == 0:
+                                continue
+                            token_emb2 = out_data2[0]
+                            mask_exp2 = np.expand_dims(mask_all[idx_in2], -1).astype(float)
+                            sum_emb2 = np.sum(token_emb2 * mask_exp2, 0)
+                            sum_mask2 = np.clip(np.sum(mask_exp2, 0), a_min=1e-9, a_max=None)
+                            results[i2] = (sum_emb2 / sum_mask2).tolist()
+                        except Exception:
+                            continue
+                    return results
                 # fall through to ONNX Runtime
 
         # ═══ Локальный ONNX (E5-base, fallback) ═══
