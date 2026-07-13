@@ -98,25 +98,28 @@ class RemoteEmbedder:
         for base in self._onnx_search_paths:
             if not base.exists():
                 continue
-            # ВАЖНО (INC: broken fast mode / corrupt index):
-            # INT8-модель E5-base (model_quantized.onnx) в этом пайплайне СЛОМАНА —
-            # OpenVINO возвращает batch=0 без token_type_ids, отчего ВСЕ эмбеддинги
-            # нулевые и индекс тихо портится. Поэтому FP32 model.onnx имеет
-            # ПРИОРИТЕТ. INT8 используется только если FP32 отсутствует.
-            _subdirs = sorted(base.iterdir(), key=lambda d: d.name)
+            # INT8 (model_quantized.onnx) — штатный путь, ~350 ch/s на Windows CPU
+            # (см. docs/en/GRACEFUL_DEGRADATION.md, CHANGELOG 3.2.1). OpenVINO 2026.x
+            # ОБЯЗАН получать token_type_ids (иначе возвращает batch=0 → нулевые
+            # эмбеддинги); подача token_type_ids реализована в OpenVINO embed-ветке.
+            # FP32 model.onnx — fallback, если INT8 отсутствует.
+            _subdirs = sorted(base.iterdir(), key=lambda d: (
+                0 if '-int8' in d.name else 1,  # INT8 first
+                d.name
+            ))
             for subdir in _subdirs:
                 # Skip reranker subdirectories for embedder
                 if subdir.name.startswith("reranker-") or subdir.name.startswith(
                     "rreranker"
                 ):
                     continue
-                # FP32 имеет приоритет над INT8 (см. выше)
-                fp32_file = subdir / "model.onnx"
+                # INT8 имеет приоритет (350 ch/s); FP32 — fallback
                 int8_file = subdir / "model_quantized.onnx"
-                if fp32_file.exists():
-                    model_file = fp32_file
-                elif int8_file.exists():
+                fp32_file = subdir / "model.onnx"
+                if int8_file.exists():
                     model_file = int8_file
+                elif fp32_file.exists():
+                    model_file = fp32_file
                 else:
                     continue
                 self.local_model_dir = subdir
@@ -683,22 +686,19 @@ class RemoteEmbedder:
             from tokenizers import Tokenizer
             import numpy as np
 
-            # Ищем модель: FP32 (model.onnx) имеет ПРИОРИТЕТ над INT8
-            # (model_quantized.onnx), т.к. INT8 E5-base в этом пайплайне сломан
-            # (возвращает batch=0 без token_type_ids → нулевые эмбеддинги).
+            # Ищем модель: INT8 (model_quantized.onnx) — штатный путь (~350 ch/s),
+            # FP32 (model.onnx) — fallback. token_type_ids подаётся в embed-ветке
+            # (OpenVINO 2026.x иначе возвращает batch=0).
             model_dir_path = Path(self.local_model_dir)
             int8_path = model_dir_path / "model_quantized.onnx"
             fp32_path = model_dir_path / "model.onnx"
 
-            if fp32_path.exists():
-                model_file = fp32_path
-                logger.info(f"🔧 OpenVINO: загружаю FP32 модель {fp32_path}")
-            elif int8_path.exists():
+            if int8_path.exists():
                 model_file = int8_path
-                logger.warning(
-                    f"🔧 OpenVINO: INT8 модель {int8_path} (FP32 отсутствует). "
-                    "ВНИМАНИЕ: INT8 E5-base требует token_type_ids, иначе эмбеддинги нулевые."
-                )
+                logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
+            elif fp32_path.exists():
+                model_file = fp32_path
+                logger.info(f"🔧 OpenVINO: FP32 fallback модель {fp32_path}")
             else:
                 raise FileNotFoundError(f"Модель не найдена в {model_dir_path}")
 
@@ -729,9 +729,10 @@ class RemoteEmbedder:
             self._ov_compiled = compiled
             self._ov_infer_request = compiled.create_infer_request()
 
-            # Future-proof: проверяем есть ли token_type_ids в модели
-            # Для E5-base/BGE — НЕ подаём (убивает скорость в 60x)
-            # Если другая модель требует — подадим zeros
+            # Определяем, требует ли модель token_type_ids на вход.
+            # INT8 E5-base (OpenVINO 2026.x) ОБЯЗАН его получать, иначе
+            # возвращает batch=0 → нулевые эмбеддинги (см. INC выше).
+            # Embed-ветка подаёт token_type_ids только если модель его имеет.
             self._ov_has_token_type_ids = any(
                 "token_type_ids" in inp.get_names()
                 for inp in model.inputs
