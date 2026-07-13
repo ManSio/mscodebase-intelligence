@@ -15,13 +15,14 @@ from src.core.index_guard import IndexGuard, quick_health_check
 
 class TestIndexGuard:
     """Тесты IndexGuard."""
+    # Размерность вектора E5-base. При смене модели — обновить.
+    DIM = 768
 
     def _create_full_schema(self) -> pa.schema:
         """Создаёт полную актуальную схему таблицы."""
-        return pa.schema(
-            [
+        return pa.schema([
                 pa.field("id", pa.string()),
-                pa.field("vector", pa.list_(pa.float32(), 1024)),
+                pa.field("vector", pa.list_(pa.float32(), self.DIM)),
                 pa.field("text", pa.string()),
                 pa.field("text_full", pa.string()),
                 pa.field("file_path", pa.string()),
@@ -54,7 +55,7 @@ class TestIndexGuard:
             [
                 {
                     "id": "test1",
-                    "vector": [0.0] * 1024,
+                    "vector": [0.0] * self.DIM,
                     "text": "test content",
                     "text_full": "test content",
                     "file_path": "test.py",
@@ -118,7 +119,7 @@ class TestIndexGuard:
             [
                 {
                     "id": "test1",
-                    "vector": [0.0] * 1024,
+                    "vector": [0.0] * self.DIM,
                     "text": "test",
                     "text_full": "test",
                     "file_path": "test.py",

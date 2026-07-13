@@ -572,7 +572,26 @@ class HealthReport:
         try:
             import sqlite3
             from src.core.platform_utils import get_zed_db_path
-            from src.mcp.server import _check_sqlite_schema_health
+
+            def _check_schema(conn) -> str | None:
+                """Проверяет наличие scoped_kv_store и workspaces."""
+                if conn is None:
+                    return "Zed SQLite DB недоступна"
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='scoped_kv_store'"
+                    )
+                    if cur.fetchone() is None:
+                        return "scoped_kv_store не найдена"
+                    cur.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='workspaces'"
+                    )
+                    if cur.fetchone() is None:
+                        return "workspaces не найдена"
+                    return None
+                except Exception as e:
+                    return f"Ошибка проверки: {e}"
 
             _db_path = get_zed_db_path()
             if not _db_path.exists():
@@ -582,7 +601,7 @@ class HealthReport:
                 })
                 return
             conn = sqlite3.connect(str(_db_path), timeout=1.0)
-            warn = _check_sqlite_schema_health(conn)
+            warn = _check_schema(conn)
             conn.close()
             if warn:
                 self.warnings.append(

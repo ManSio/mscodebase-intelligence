@@ -10,6 +10,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Размерность вектора для тестов. Должна совпадать с _dim в Indexer.__init__
+# (getattr embedder.embedding_dim, default 768 для E5-base).
+# При смене модели (BGE-M3 = 1024, E5-large = 1024) — обновить здесь.
+_TEST_DIM = 768
+_vec = lambda: [0.1] * _TEST_DIM
+
+
 
 def test_indexer_has_project_path_attribute():
     """Проверяет, что Indexer всегда имеет атрибут project_path."""
@@ -21,6 +28,7 @@ def test_indexer_has_project_path_attribute():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
+        embedder_mock.embedding_dim = 768
         file_guard_mock = MagicMock()
 
         # Создаём Indexer с project_path
@@ -41,6 +49,7 @@ def test_indexer_project_path_fallback():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
+        embedder_mock.embedding_dim = 768
         file_guard_mock = MagicMock()
 
         # Создаём Indexer БЕЗ project_path
@@ -65,6 +74,7 @@ def test_indexer_switch_project_updates_path():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
+        embedder_mock.embedding_dim = 768
         file_guard_mock = MagicMock()
 
         indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path_1)
@@ -85,7 +95,8 @@ def test_lsp_execute_file_indexing_no_attribute_error():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
-        embedder_mock.embed_batch.return_value = [[0.1] * 1024]
+        embedder_mock.embedding_dim = 768
+        embedder_mock.embed_batch.return_value = [_vec()]
         file_guard_mock = MagicMock()
         file_guard_mock.should_skip_file.return_value = False
 
@@ -113,6 +124,7 @@ def test_prune_deleted_files_with_empty_set_does_nothing():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
+        embedder_mock.embedding_dim = 768
         file_guard_mock = MagicMock()
 
         indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path)
@@ -121,7 +133,7 @@ def test_prune_deleted_files_with_empty_set_does_nothing():
         data = [
             {
                 "id": "file1_0",
-                "vector": [0.1] * 1024,
+                "vector": _vec(),
                 "text": "file1 content",
                 "file_path": "file1.py",
                 "file_hash": "hash1",
@@ -129,7 +141,7 @@ def test_prune_deleted_files_with_empty_set_does_nothing():
             },
             {
                 "id": "file2_0",
-                "vector": [0.2] * 1024,
+                "vector": _vec(),
                 "text": "file2 content",
                 "file_path": "file2.py",
                 "file_hash": "hash2",
@@ -137,7 +149,7 @@ def test_prune_deleted_files_with_empty_set_does_nothing():
             },
             {
                 "id": "file3_0",
-                "vector": [0.3] * 1024,
+                "vector": _vec(),
                 "text": "file3 content",
                 "file_path": "file3.py",
                 "file_hash": "hash3",
@@ -168,15 +180,16 @@ def test_delete_file_removes_only_specified_file():
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         embedder_mock = MagicMock()
+        embedder_mock.embedding_dim = 768
         file_guard_mock = MagicMock()
 
         indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path)
 
         # Добавляем 3 файла
         data = [
-            {"id": "f1_0", "vector": [0.1] * 1024, "text": "f1", "file_path": "a.py", "file_hash": "h1", "chunk_index": 0},
-            {"id": "f2_0", "vector": [0.2] * 1024, "text": "f2", "file_path": "b.py", "file_hash": "h2", "chunk_index": 0},
-            {"id": "f3_0", "vector": [0.3] * 1024, "text": "f3", "file_path": "c.py", "file_hash": "h3", "chunk_index": 0},
+            {"id": "f1_0", "vector": _vec(), "text": "f1", "file_path": "a.py", "file_hash": "h1", "chunk_index": 0},
+            {"id": "f2_0", "vector": _vec(), "text": "f2", "file_path": "b.py", "file_hash": "h2", "chunk_index": 0},
+            {"id": "f3_0", "vector": _vec(), "text": "f3", "file_path": "c.py", "file_hash": "h3", "chunk_index": 0},
         ]
         indexer.table.add(data)
         assert len(indexer.table.to_pandas()) == 3

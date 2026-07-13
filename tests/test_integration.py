@@ -52,9 +52,13 @@ def isolated_indexer(tmp_path, temp_project):
     db_dir = tmp_path / "isolated_lancedb"
 
     # Мокаем эмбеддер, возвращающий вектор правильной размерности
+    # и КОРРЕКТНОЕ количество векторов (равное batch size).
+    _vec768 = [0.1] * 768
     embedder_mock = MagicMock()
-    embedder_mock.embed.return_value = [0.1] * 1024
-    embedder_mock.embed_batch.return_value = [[0.1] * 1024] * 5
+    embedder_mock.embedding_dim = 768
+    embedder_mock.embed.return_value = _vec768
+    # Возвращаем столько векторов, сколько запрошено (batch_size)
+    embedder_mock.embed_batch.side_effect = lambda texts, is_query=False: [_vec768] * len(texts)
 
     file_guard = FileGuard(temp_project)
     indexer = Indexer(
