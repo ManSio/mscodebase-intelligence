@@ -125,3 +125,4 @@ llama_msvc/
 .codebase/graph.db-shm
 .codebase/graph.db-wal
 .dev
+.agent_task_state.md
