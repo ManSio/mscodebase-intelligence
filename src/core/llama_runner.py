@@ -862,6 +862,11 @@ class LlamaRunner:
         self._port = LLAMA_PORT
         self._startup_timeout = 30
         self._last_reranker_use: float = 0.0  # timestamp последнего использования
+        # ─── Crash loop detection ───
+        self._reranker_restart_attempts: List[float] = []  # timestamps попыток
+        self._reranker_last_error: str = ""  # последняя ошибка
+        self._reranker_restart_blocked_until: float = 0.0  # блокировка при crash loop
+        self._reranker_lock = threading.Lock()  # thread-safe для полей реранкера
         # Watchdog — авто-рестарт при утечке памяти
         self._watchdog_stop = threading.Event()
         self._watchdog_thread: Optional[threading.Thread] = None
@@ -941,6 +946,133 @@ class LlamaRunner:
     def touch_reranker(self):
         """Отмечает использование реранкера (сбрасывает idle-таймер)."""
         self._last_reranker_use = time.time()
+
+    # ─── Reranker Lifecycle: On-Demand Start + Crash Loop Detection ───
+
+    def is_reranker_alive(self) -> bool:
+        """Проверяет, жив ли процесс реранкера (без health-ping).
+        Возвращает False если процесса нет или он завершился."""
+        if self._reranker_process is None:
+            return False
+        ret = self._reranker_process.poll()
+        return ret is None
+
+    def get_reranker_feedback(self) -> dict:
+        """Возвращает структурированный статус реранкера для health report.
+
+        Returns:
+            {
+                "alive": bool,
+                "process_pid": int|None,
+                "last_error": str,
+                "restart_attempts": int,
+                "restart_blocked_until": float,
+                "idle_sec": float,
+            }
+        """
+        with self._reranker_lock:
+            alive = self.is_reranker_alive()
+            now = time.time()
+            # Очищаем попытки старше 5 минут
+            self._reranker_restart_attempts = [
+                t for t in self._reranker_restart_attempts
+                if now - t < 300
+            ]
+            return {
+                "alive": alive,
+                "process_pid": self._reranker_process.pid if alive else None,
+                "last_error": self._reranker_last_error,
+                "restart_attempts": len(self._reranker_restart_attempts),
+                "restart_blocked_until": max(0.0, self._reranker_restart_blocked_until - now),
+                "idle_sec": (now - self._last_reranker_use) if self._last_reranker_use > 0 else 0.0,
+            }
+
+    async def ensure_reranker_started(self, timeout: int = 30) -> dict:
+        """Гарантирует, что реранкер запущен. Стартует если нужно.
+
+        Args:
+            timeout: максимальное время ожидания старта (сек)
+
+        Returns:
+            {
+                "success": bool,
+                "error": str,  # пустая строка если ok
+                "startup_time_ms": float,
+                "attempts": int,
+            }
+        """
+        now = time.time()
+
+        # Crash loop detection: >3 попыток за 5 мин → блокируем
+        self._reranker_restart_attempts = [
+            t for t in self._reranker_restart_attempts
+            if now - t < 300
+        ]
+        if len(self._reranker_restart_attempts) >= 3:
+            self._reranker_restart_blocked_until = now + 600  # 10 мин
+            msg = (f"Реренкер заблокирован: {len(self._reranker_restart_attempts)} "
+                   f"попыток за 5 мин. Следующая попытка через 10 мин.")
+            logger.error(msg)
+            self._reranker_last_error = msg
+            return {
+                "success": False,
+                "error": msg,
+                "startup_time_ms": 0,
+                "attempts": len(self._reranker_restart_attempts),
+                "crash_loop_blocked": True,
+            }
+
+        if self.is_reranker_alive():
+            self.touch_reranker()
+            return {
+                "success": True,
+                "error": "",
+                "startup_time_ms": 0,
+                "attempts": 0,
+                "crash_loop_blocked": False,
+            }
+
+        # Пробуем запустить
+        self._reranker_restart_attempts.append(now)
+        t0 = time.time()
+        try:
+            started = await self.start_reranker()
+            dt = (time.time() - t0) * 1000
+            if started:
+                self.touch_reranker()
+                logger.info(f"Реренкер запущен по требованию за {dt:.0f}ms")
+                self._reranker_last_error = ""
+                return {
+                    "success": True,
+                    "error": "",
+                    "startup_time_ms": dt,
+                    "attempts": len(self._reranker_restart_attempts),
+                    "crash_loop_blocked": False,
+                }
+            else:
+                msg = f"Не удалось запустить реранкер (start_reranker вернул False)"
+                self._reranker_last_error = msg
+                logger.warning(msg)
+                return {
+                    "success": False,
+                    "error": msg,
+                    "startup_time_ms": dt,
+                    "attempts": len(self._reranker_restart_attempts),
+                    "crash_loop_blocked": False,
+                }
+        except Exception as e:
+            dt = (time.time() - t0) * 1000
+            msg = f"Критическая ошибка запуска реранкера: {e}"
+            self._reranker_last_error = msg
+            logger.error(msg)
+            return {
+                "success": False,
+                "error": msg,
+                "startup_time_ms": dt,
+                "attempts": len(self._reranker_restart_attempts),
+                "crash_loop_blocked": False,
+            }
+
     def base_url(self) -> str:
         return f"http://{self._host}:{self._port}"
 

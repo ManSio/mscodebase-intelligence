@@ -1936,7 +1936,12 @@ class Searcher:
             return None
 
     async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
-        """Ленивая thread-safe async инициализация мульти-провайдерного реранкера."""
+        """Ленивая thread-safe async инициализация мульти-провайдерного реранкера.
+
+        Перед инициализацией проверяет, запущен ли llama-server с --reranking.
+        Если процесс выгружен (idle timeout) — запускает его по требованию.
+        Если запуск не удался — возвращает None с логом ошибки.
+        """
         if self._multi_reranker_initialized:
             return self._multi_reranker
 
@@ -1944,6 +1949,23 @@ class Searcher:
             # Double-check после захвата блокировки
             if self._multi_reranker_initialized:
                 return self._multi_reranker
+
+            # ─── Убеждаемся, что llama-server с --reranking запущен ───
+            try:
+                from src.core.llama_runner import get_global_runner
+                runner = get_global_runner()
+                status = await runner.ensure_reranker_started()
+                if not status["success"]:
+                    logger.warning(
+                        f"Реренкер недоступен: {status.get('error', 'неизвестная ошибка')}. "
+                        f"Quality mode будет без реранкинга (BM25+RRF)."
+                    )
+                    self._multi_reranker = None
+                    return None
+            except Exception as e:
+                logger.warning(f"Не удалось проверить/запустить реранкер: {e}")
+                # fall through — quality mode без реранкера
+
             try:
                 reranker = MultiProviderReranker()
                 await reranker.initialize()
