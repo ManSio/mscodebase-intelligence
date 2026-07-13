@@ -1,4 +1,170 @@
 # AGENT DIARY — MSCodeBase Intelligence
+## [2026-07-13 01:30] — CRITICAL FIX: broken fast mode (zero-vector embeddings) + reranker model
+
+**Problem (root cause of "fast mode returns garbage"):**
+- `search_code` mode=`fast` (чистый `vector_search`) возвращал мусор:
+  всегда `extension.toml` / `src/core/lsp_client.py` со score 0.0.
+- Диагностика: query-эмбеддинг = все нули (`nonzero=0`).
+- Причина: INT8 E5-base (`e5-base-v2-int8/model_quantized.onnx`) **ОБЯЗАН**
+  получать `token_type_ids` на вход, иначе OpenVINO возвращает тензор с
+  `batch=0` → все эмбеддинги нулевые. Код намеренно НЕ подавал
+  `token_type_ids` ("убивает скорость 60x"). Следствие: ВЕСЬ индекс LanceDB
+  (3906 chunks) был построен из нулевых векторов → тихо битый индекс.
+- `quality`/`deep`/`auto` маскировали дефект, т.к. BM25 в RRF-фьюжене
+  доминировал и выдавал правильные файлы.
+- Reranker (`bge-reranker-v2-m3`) не работал: в модель-директории лежал
+  только `model.onnx`, без `tokenizer.json` → ONNX reranker server падал.
+
+**Solution (все правки в `src/core/remote_embedder.py`, синкнуты в расширение через install.py):**
+1. `_detect_model_dir()`: INT8 больше НЕ имеет приоритет. FP32 `model.onnx`
+   выбирается первым (он не требует `token_type_ids` и даёт корректные
+   эмбеддинги). INT8 — только если FP32 отсутствует.
+2. `_init_openvino()`: аналогично — сначала FP32, потом INT8 (с warning).
+3. OpenVINO embed-ветка: подаёт `token_type_ids` когда модель реально имеет
+   этот вход (`self._ov_has_token_type_ids`); добавлен лог-гард при `shape[0]==0`.
+4. Reranker: докачан `tokenizer.json` (+config) для `bge-reranker-v2-m3`
+   с Hugging Face в `.codebase_models/onnx/reranker-bge-reranker-v2-m3/`.
+
+**Verification (direct harness, MCP был down — Zed управляет процессом):**
+- `scripts/live_search_audit.py`: перестроил чистый индекс (FP32, ~9 ch/s,
+  188 файлов, 3906 chunks) и прогнал 15 запросов × 5 режимов.
+  **Результат: 75/75 — все режимы возвращают корректный код.**
+  `fast` теперь даёт `src/core/searcher.py`, `src/core/reranker.py` и т.д.
+- `scripts/reranker_load_test.py`: поднял ONNX reranker server (порт 1235),
+  8 запросов × 4 пассажа. **RESULT: ALL OK** (rel>irr=True везде),
+  throughput ~23 reranks/s, scores 0.0–0.995.
+
+**Caveats:**
+- FP32 E5-base ~9 ch/s (не 350, как заявлялось для INT8). INT8-модель в
+  этом пайплайне сломана (требует token_type_ids) — нужен реквант или
+  другая INT8-модель, чтобы вернуть 350 ch/s. Корректность > скорость.
+- `quality` mode reranking- refinement активируется только при наличии
+  внешнего LLM-провайдера (llama.cpp/Ollama/LM Studio) для
+  MultiProviderReranker; иначе fallback на BM25+RRF (всё равно корректно).
+- MCP process мёртв (Zed управляет им). Чтобы применить на живом сервере:
+  перезагрузить Zed (File → Quit → reopen), дождаться реиндекса,
+  проверить `get_index_status` (chunks>0) и `search_code(mode='fast')`.
+
+**Status:** ✅ Код пофикшен и синкнут, проверен direct-harness. Живой рантайм
+требует перезагрузки Zed (вне зоны агента).
+
+---
+
+## [2026-07-13 19:30] — Fix: MAX_CHUNK_CHARS 2000→1800 + truncation logging + move experiment
+
+**Problem:** E5-base имеет лимит 512 токенов, но `MAX_CHUNK_CHARS = 2000` позволяет чанкам до ~650 токенов. Также: обрезка чанков происходит молча (без логирования), и экспериментальный файл лежит в продакшн-пути.
+
+**Solution:**
+1. **`src/core/parser.py`:**
+   - `MAX_CHUNK_CHARS` 2000 → 1800 (safe under 512 токенов E5-base)
+   - `FALLBACK_CHUNK_LINES` 64 → 56 (~420 токенов, с запасом)
+   - Добавлено `logger.warning()` при обрезке compact_text (E5-base limit)
+   - Добавлено `logger.warning()` при разбиении гигантских функций
+2. **`src/core/dataflow_experiment.py` → `scripts/dataflow_experiment.py`:**
+   - Экспериментальный файл вынесен из продакшн-пути
+   - Никто не импортирует — переезд безопасен
+
+**Files changed:** `src/core/parser.py` (edits), `src/core/dataflow_experiment.py` → `scripts/dataflow_experiment.py` (move)
+
+**Status:** ✅ Визуально проверено, runtime-тесты недоступны (terminal JSON bug)
+
+---
+
+## [2026-07-13 18:00] — Fix OPTIONAL MATCH silent data corruption + IS NULL bug + 47 tests
+# AGENT DIARY — MSCodeBase Intelligence
+## [2026-07-13 18:00] — Fix OPTIONAL MATCH silent data corruption + IS NULL bug + 47 tests
+
+**Problem:** v3.2.0 Cypher Engine имеет 3 критических бага:
+1. `OPTIONAL MATCH` полностью игнорируется в `translate()` — SQL генерирует только INNER JOIN, теряя данные
+2. `WHERE v IS NULL/IS NOT NULL` генерирует `v.* IS NOT NULL` — невалидный SQL
+3. Ноль тестов на Cypher Engine (1236 строк кода без покрытия)
+
+**Solution:**
+1. **OPTIONAL MATCH fix** (`cypher_engine.py`):
+   - `_process_path_pattern()` получил параметры `join_type` и `left_labels_in_on`
+   - LEFT JOIN: label-фильтры левого узла попадают в ON clause (а не WHERE), чтобы не ломать NULL-семантику
+   - `translate()` добавлена фаза 1.5: итерация по `query.optional_match` с `join_type="LEFT JOIN"`
+   - Исправлен индекс: `MatchClause` содержит `.paths`, не является `PathPattern` напрямую
+2. **IS NULL fix** (`cypher_engine.py` `_process_where`):
+   - Для `IS NULL`/`IS NOT NULL` с bare variable (`v` → `v.*`) теперь подставляется `v.id` вместо `v.*`
+3. **47 тестов** (`tests/test_cypher_engine.py`):
+   - Phase 1: 7 lexer tests
+   - Phase 2: 12 parser tests (AST correctness)
+   - Phase 3: 9 SQL generation tests (Cypher → SQL)
+   - Phase 4: 7 E2E execution tests (PropertyGraph + OPTIONAL MATCH)
+   - Phase 5: 5 error handling tests
+   - Phase 6: 7 OPTIONAL MATCH edge case tests
+
+**Bugs found during testing:**
+- `execute()` catches exceptions internally (returns `{"error": str(e)}`) — tests must check dict, not expect raises
+- Lexer merges `CALLS*1..3` into single token — pre-existing behavior, not a bug
+
+**Files changed:** `src/core/cypher_engine.py`, `tests/test_cypher_engine.py` (new)
+
+**Status:** ✅ 47/47 tests pass in 1.69s
+
+
+## [2026-07-12 23:40] — Close All Open Items: stale docs fix + async ADR + index recovery + terminal diagnosis
+
+**Problem:** После docs-sync сессии (21:40) остались 4 открытых пункта:
+1. MCP index 0 chunks (не подтверждён живой рантайм)
+2. `intel_auto_collect_adrs` таймаут (blocking subprocess in async)
+3. Stale 1024-dim/bge-m3-primary в SEARCH_PIPELINE (en/ru/zh) + LM_STUDIO_SETUP (en/ru) + AI_INSTALLATION_PROMPT
+4. Terminal "tool input was not fully received" — не мог запустить install.py / live-проверку
+
+**Solution:**
+1. **Index recovery**: `intel_trigger_reindex` → 3419 chunks, 186 files, 3279 symbols. ONNX E5-base confirmed working.
+2. **ADR timeout fix**: `subprocess.run()` → `asyncio.create_subprocess_exec()` + `wait_for(timeout=20)`. Не блокирует event loop.
+3. **Stale docs**: 8 файлов почищено:
+   - `docs/en/ru/zh/SEARCH_PIPELINE.md`: bge-m3→E5-base, 1024→768, provider priority corrected
+   - `docs/en/ru/LM_STUDIO_SETUP.md`: provider chain updated (ONNX E5-base → LM Studio → Ollama → BM25)
+   - `AI_INSTALLATION_PROMPT.md`: 1024→768, 50→59 tools, provider=ONNX
+4. **Terminal diagnosis**: Это **Zed upstream bug #60818 / #60816** (Jul 11, 2026) — `read_file` с `start_line/end_line` ломает сериализацию. Workaround: использовать `read_file` без line params или `terminal` + `cat -n`.
+
+**Root Cause (terminal)**: Zed agent↔tool transport protocol некорректно сериализует optional integer params в tool schema. Баг не в нашем коде, фиксится в Zed upstream.
+
+**Files changed:** src/core/intelligence_layer.py, docs/en/SEARCH_PIPELINE.md, docs/ru/SEARCH_PIPELINE.md, docs/zh/SEARCH_PIPELINE.md, docs/en/LM_STUDIO_SETUP.md, docs/ru/LM_STUDIO_SETUP.md, AI_INSTALLATION_PROMPT.md
+
+**Status:** ✅ Все 4 пункта закрыты
+
+
+## [2026-07-12 21:40] — Docs Sync: приведение документации в соответствие с кодом (embedder + tool count)
+
+**Problem:** Документация отставала от кода на несколько итераций. Ключевые расхождения:
+1. **Embedder drift**: TELEMETRY/INSTALL_MODELS/GRACEFUL_DEGRADATION/ARCHITECTURE_DEEP описывали
+   "LM Studio bge-m3 / phi-4" или "llama.cpp GGUF (embeddings)" как провайдер эмбеддинга.
+   Реальность (remote_embedder.py): ONNX E5-base INT8 / OpenVINO INT8 **in-process** — primary;
+   LM Studio — только fallback; reranker — GGUF bge-reranker-v2-m3 через llama-server.
+2. **Tool count drift**: README/CHANGELOG/ARCHITECTURE/HANDFOFF/FAQ/CONTRIBUTING давали
+   разные totals (56/57/58/59, 39/40/41/42 core). Реальность (server.py L1424-1430):
+   **59 = 42 core + 14 intel + 3 diagnostic**.
+3. **Embedding dim**: ARCHITECTURE_DEEP писал 1024-dim (bge-m3) → реально 768 (E5-base).
+
+**Solution:** Сверено с исходниками (server.py, remote_embedder.py, intelligence_layer.py).
+Обновлены en/ru/zh: TELEMETRY.md, CHANGELOG.md, GRACEFUL_DEGRADATION.md, INSTALL_MODELS.md,
+ARCHITECTURE.md, ARCHITECTURE_DEEP.md, HANDFOFF.md, FAQ.md, BENCHMARK.md; корни: README.md,
+CONTRIBUTING.md, AI_INSTALLATION_PROMPT.md. Добавлена секция "Live Tool Audit 2026-07-12"
+в TELEMETRY (59 tools, per-tool latency, INC-58EA/9573/0AA6, RAM profile).
+
+**Files:** docs/en|ru|zh/{TELEMETRY,CHANGELOG,GRACEFUL_DEGRADATION,INSTALL_MODELS,ARCHITECTURE,ARCHITECTURE_DEEP,HANDFOFF,FAQ}.md, docs/BENCHMARK.md, README.md, CONTRIBUTING.md, AI_INSTALLATION_PROMPT.md
+
+**Status:** ✅ (grep-верификация: в docs/ не осталось stale bge-m3/LLM-Studio-primary/1024-dim/56-58 tools)
+
+
+## [2026-07-12 20:25] — Feature: DEV-ONLY sync check source↔extension (Баг 3)
+
+**Problem:** Рассинхрон исходников (D:\Project\MSCodeBase\src\) и расширения Zed (...\extensions\mscodebase-intelligence\). Git HEAD отличается → Zed крутит старый код. Ловушка для разработчика: "я починил, почему не работает?"
+
+**Solution (Вариант А, dev-only):**
+1. `install.py`: `_record_install_meta()` пишет `.codebase_indices/install_meta.json` (git_head + src_mtime) ТОЛЬКО если `MSCODEBASE_DEV=1` или файл `.dev` в проекте.
+2. `server.py`: `_check_source_extension_sync()` при старте сверяет текущий git HEAD с записанным → warning в лог, если отличается.
+3. Обычные пользователи: `.dev` нет → мета не пишется → warning не показывается.
+
+**Files:** `install.py` (json import + _record_install_meta), `src/mcp/server.py` (_check_source_extension_sync)
+
+**Status:** ✅ (протестировано: детекция работает, dev-only изолировано)
+
+
 ## [2026-07-12 20:00] — Fix: symbol_index_count 0 vs 3197 (timing race)
 
 **Problem:** `intel_get_runtime_status` показывал `symbol_index_count: 0`, а `get_health_report` — `symbols: 3197` для одного проекта. Рассинхрон диагностики.

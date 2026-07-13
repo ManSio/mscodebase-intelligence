@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (41 class-based + 14 intel + 3 diagnostic = 58 total)](#4-tool-layer)
+4. [Tool Layer (42 class-based + 14 intel + 3 diagnostic = 59 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (40 class-based tools)           │
+│  Layer 3: mcp/tools/*.py         (42 class-based tools)           │
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,14 +91,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-1. Register 41 tools + 14 intel_* tools + 3 diagnostic = 58 total
+1. Register 42 tools + 14 intel_* tools + 3 diagnostic = 59 total
 2. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **11 files, 40 core tools (33 original + 6 write + 1 graph query).**
+`src/mcp/tools/*.py` — **11 files, 42 core tools (33 original + 6 write + 1 graph query + 2 graph/analysis).**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -149,7 +149,7 @@ Key modules:
 | `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM edge benchmark & analysis** | parser, graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `llama_runner.py` | Lifecycle manager for llama-server.exe (reranker only) | download, launch, stop |
-| `remote_embedder.py` | ONNX E5-base / LM Studio / Ollama (legacy) | config |
+| `remote_embedder.py` | ONNX E5-base INT8 / OpenVINO INT8 (in-process, primary) + LM Studio / Ollama (legacy fallback) | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |
 
@@ -204,7 +204,7 @@ Key modules:
 ┌─────────────────────────────────────────────────────────┐
 │  SymbolIndexAdapter (wrap PropertyGraph → SymbolIndex)   │
 │  PURE mode: no in-memory Dict, all data in SQLite        │
-│  Full backward compat: all 57 tools unchanged             │
+|  Full backward compat: all 59 tools unchanged             |
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -395,7 +395,7 @@ error_boundary decorator
         │       ▼
         │   core/searcher.py
         │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + LM Studio)
+        │       ├── Vector search (LanceDB + ONNX E5-base, in-process)
         │       └── RRF fusion + reranking
         │
         └── return {"status": "ok", "results": [...]}

@@ -13,10 +13,10 @@
 ## 🎯 What Is This Project
 
 **MSCodeBase Intelligence** — an MCP server for semantic code search in Zed IDE.
-Runs fully locally: LanceDB (vector index) + llama.cpp GGUF (embeddings/reranker) + ONNX (fallback).
+Runs fully locally: LanceDB (vector index) + ONNX E5-base INT8 (in-process embeddings) + llama.cpp GGUF (reranker only) + OpenVINO INT8 (optional).
 
 **Key numbers:**
-- 57 MCP tools (40 core + 14 intel + 3 diagnostic) — including `query_graph` (Cypher engine)
+- 59 MCP tools (42 core + 14 intel + 3 diagnostic) — including `query_graph` (Cypher engine)
 - 11 tool files, 18 services in the DI container
 - Index: ~3000 chunks, ~170 files, ~1550 symbols
 - **PropertyGraph**: SQLite graph (15 node types, 27 edge types) in `.codebase/graph.db`
@@ -62,7 +62,7 @@ conn.execute("""
 | **late-resolve active indexer** | If LSP hasn't written the bridge file yet — pick up the first live workspace |
 | **Two-phase reindex** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (anti-spam) |
 | **asyncio.Lock for File IO** | Race protection for concurrent writes to memory JSON files |
-| **ui_formatter** | Unified Markdown style for all 57 tools (no raw JSON) |
+| **ui_formatter** | Unified Markdown style for all 59 tools (no raw JSON) |
 
 ---
 

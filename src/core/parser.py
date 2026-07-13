@@ -57,9 +57,9 @@ class CodeParser:
 
     # Настройки Fallback-чанкера и защиты от гигантских функций
     MAX_CHUNK_CHARS = (
-        2000  # Максимальный размер семантического чанка в символах (≈512 токенов)
+        1800  # Максимальный размер семантического чанка в символах (≤512 токенов E5-base)
     )
-    FALLBACK_CHUNK_LINES = 64  # ≈512 токенов для Python кода
+    FALLBACK_CHUNK_LINES = 56  # ≈420 токенов для Python кода (с запасом под E5-base 512)
     FALLBACK_OVERLAP_LINES = 16  # 25% перекрытие
 
     def __init__(self):
@@ -423,10 +423,20 @@ class CodeParser:
 
                 compact_text = signature + body_preview
                 if len(compact_text) > self.MAX_CHUNK_CHARS:
+                    logger.warning(
+                        "Chunk compact_text truncated: %d -> %d chars "
+                        "(E5-base limit) file=%s symbol=%s",
+                        len(compact_text), self.MAX_CHUNK_CHARS,
+                        file_path, symbol_name,
+                    )
                     compact_text = compact_text[: self.MAX_CHUNK_CHARS] + "\n..."
 
-                # Защита от гигантских функций
+                # Защита от гигантских функций (>512 токенов E5-base)
                 if len(text) > self.MAX_CHUNK_CHARS:
+                    logger.warning(
+                        "Giant function chunked: %d chars file=%s symbol=%s",
+                        len(text), file_path, symbol_name,
+                    )
                     start_offset = node.start_point[0]
                     sub_chunks = self._chunk_giant_text(
                         lines,

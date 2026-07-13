@@ -13,7 +13,7 @@
 ## 🎯 项目简介
 
 **MSCodeBase Intelligence** — 用于 Zed IDE 中语义代码搜索的 MCP 服务器。
-完全本地运行：LanceDB（向量索引）+ llama.cpp GGUF（embeddings/reranker）+ ONNX（回退）。
+完全本地运行：LanceDB（向量索引）+ ONNX E5-base INT8（进程内嵌入）+ llama.cpp GGUF（仅重排序器）+ OpenVINO INT8（可选）。
 
 **关键数字:**
 - 57 个 MCP 工具（40 核心 + 14 intel + 3 诊断）

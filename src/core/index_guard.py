@@ -58,6 +58,14 @@ class IndexGuard:
         self.project_path = project_path
         self._guard_file = db_path / ".index_guard.json"
 
+        # Динамическая размерность вектора (E5-base=768, BGE-M3=1024 и т.д.)
+        # Берём из EMBEDDING_DIMENSION env или config, иначе 768 по умолчанию.
+        import os
+        try:
+            self._expected_dim = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+        except (ValueError, TypeError):
+            self._expected_dim = 768
+
     def check_and_repair(self, db: lancedb.LanceDB) -> Dict[str, any]:
         """Полная проверка и восстановление индекса.
 
@@ -191,10 +199,11 @@ class IndexGuard:
         if missing:
             errors.append(f"missing_required_fields:{','.join(missing)}")
 
-        # Проверяем размерность вектора
+        # Проверяем размерность вектора (динамически из embedder)
         if "vector" in existing_fields:
             vec_type = existing_fields["vector"]
-            if hasattr(vec_type, "list_size") and vec_type.list_size != 1024:
+            _expected_dim = getattr(self, '_expected_dim', None) or 768
+            if hasattr(vec_type, "list_size") and vec_type.list_size != _expected_dim:
                 errors.append(f"vector_dim_mismatch:{vec_type.list_size}")
 
         return len(errors) == 0, errors

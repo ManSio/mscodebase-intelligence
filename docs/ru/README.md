@@ -407,7 +407,7 @@ mscodebase-intelligence/
 │   │   ├── symbol_index.py       # Граф вызовов (BFS, анализ влияния)
 │   │   ├── intelligence_layer.py # Инструменты intel_* (14 высокоуровневых)
 │   │   ├── llama_runner.py       # ★ Менеджер жизненного цикла llama-server (reranker)
-│   │   ├── remote_embedder.py    # ONNX E5-base / LM Studio / Ollama
+│   ├── remote_embedder.py    # ONNX/OpenVINO E5-base (in-process) + LM Studio / Ollama fallback
 │   │   ├── reranker.py           # Мульти-провайдерный реранкер (HTTP к провайдерам)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Движок самодиагностики

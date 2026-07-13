@@ -1,92 +1,93 @@
 # 安装 AI 模型 — 3 种方法
 
-> 选择您的方式：**自动**（install.py）、**手动**（GGUF）或 **LM Studio**（旧版）
+> 选择您的方法：**自动**（install.py）、**手动**（ONNX + GGUF）或 **LM Studio**（旧版 fallback）
+
+> **提供方现实（2026-07-12）：** **嵌入器进程内** 运行，通过
+> **ONNX E5-base INT8 / OpenVINO INT8**（`intfloat/multilingual-e5-base`，768 维，Windows CPU 上 ~350 ch/s）。
+> `install.py` 自动下载它。**重排序器** 是独立的 `llama-server.exe` 进程，提供 `bge-reranker-v2-m3`
+> GGUF 模型。`LM Studio` 仅是可选 fallback，当本地 ONNX 模型不可用时。
 
 ---
 
-## 方法 1：自动 — install.py（推荐）
+## 方法 1: 自动 — install.py（推荐）
 
-> **最适合：** 所有用户。自动安装 llama.cpp + GGUF 模型。
+> **最适合：** 所有用户。自动安装 llama.cpp + ONNX + GGUF 模型。
 
 ```bash
 python install.py
 ```
 
-**执行过程：**
+**发生了什么：**
 1. 检测 Windows/macOS/Linux、AVX2/AVX512、Vulkan GPU
-2. 下载 `llama-server.exe`（或对应平台的二进制文件）
-3. 下载 **bge-m3 Q4_K_M**（417 MB）— 嵌入模型
-4. 下载 **bge-reranker-v2-m3 Q4_K_M**（418 MB）— 重排序模型
-5. 启动两个 llama-server 进程，分别监听端口 8080（嵌入）+ 8081（重排序）
+2. 下载 `llama-server.exe`（或您的平台二进制）— 用于 **重排序器**
+3. 下载 **E5-base v2 ONNX**（`intfloat/multilingual-e5-base`，~265 MB）— **嵌入模型（进程内）**
+4. 下载 **bge-reranker-v2-m3 GGUF**（`BAAI/bge-reranker-v2-m3`，~544 MB）— **重排序模型**
+5. 在端口 `:8081` 启动重排序器 llama-server 进程
 
-**安装后磁盘占用：** ~900 MB（llama 二进制文件 + 2 个 GGUF 模型）
+**安装后磁盘占用：** ~900 MB（llama 二进制 + ONNX 嵌入器 + GGUF 重排序器）
 
 ### 系统行为
 
 | 场景 | 运行内容 | 内存 |
 |----------|-----------|--------|
-| 已安装 llama.cpp | 2× llama-server（嵌入 + 重排序） | ~1.0 GB |
-| 有 Vulkan GPU | llama-server 带 `-ngl 99`（GPU 卸载） | ~1.0 GB |
-| 仅 CPU（无 Vulkan） | llama-server 带 `-ngl 0`（仅 CPU） | ~700 MB |
+| ONNX/OpenVINO E5-base（默认） | 进程内嵌入器 + 1× llama-server（重排序） | ~1.0 GB |
+| 有 Vulkan GPU | llama-server 带 `-ngl 99`（GPU offload，仅重排序） | ~1.0 GB |
+| 仅 CPU（无 Vulkan） | llama-server 带 `-ngl 0`（仅 CPU，重排序） | ~700 MB |
+| LM Studio fallback | `:1234` 上的外部 API（若启用） | ~3-6 GB |
 
 ---
 
-## 方法 2：手动 — 下载 GGUF
+## 方法 2: 手动 — ONNX + GGUF 下载
 
-> **最适合：** 希望手动下载模型的用户。
+> **最适合：** 想手动下载模型的用户。
 
-**嵌入模型（bge-m3，必需）：**
+**嵌入模型（E5-base v2 ONNX，必需 — 进程内）：**
 ```bash
-# 从 HuggingFace 下载
-huggingface-cli download lm-kit/bge-m3-gguf \
-  bge-m3-Q4_K_M.gguf \
+python scripts/download_model.py --model intfloat/multilingual-e5-base
+# → .codebase_models/onnx/e5-base-v2/model_quantized.onnx (INT8)
+```
+
+**重排序模型（bge-reranker-v2-m3 GGUF，必需）：**
+```bash
+# 从 HuggingFace
+huggingface-cli download lm-kit/bge-reranker-v2-m3-gguf \
+  Bge-M3-reranker-2-3-568M-Q4_K_M.gguf \
   --local-dir extensions/mscodebase-intelligence/models/
 ```
 
-**重排序模型（bge-reranker-v2-m3，必需）：**
-```bash
-huggingface-cli download lm-kit/bge-m3-reranker-v2-gguf \
-  Bge-M3-568M-Q4_K_M.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
-```
-
-**替代嵌入模型（Qwen3，适用于小内存）：**
-```bash
-huggingface-cli download coolbeev5/Qwen3-Embedding-0.6B-GGUF \
-  qwen3-embedding-0.6b-q4_k_m.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
-# 设置：在 .env 中设置 EMBEDDING_MODEL=qwen3-embedding（346 MB 内存）
-```
+> ONNX 嵌入器是 **默认且主要** 的路径。GGUF 重排序器作为独立的 `llama-server.exe` 进程运行。
+> 搜索不需要 GGUF *嵌入* 模型。
 
 ---
 
-## 方法 3：LM Studio（旧版）
+## 方法 3: LM Studio（旧版 Fallback）
 
-> **最适合：** 已安装 LM Studio 并带有模型的用户。
+> **最适合：** 已安装 LM Studio 并希望作为 fallback 的用户。
 
-LM Studio 仍可作为备选提供者使用。如果 llama.cpp 不可用，
-MSCodeBase 会自动切换到 LM Studio。
+LM Studio 仍可用作 fallback 嵌入提供方。如果本地 ONNX 模型不可用，MSCodeBase 可切换到
+LM Studio（设置 `EMBEDDING_PROVIDER=lm_studio`）。
 
 | 模型 | 大小 | 用途 |
 |-------|:----:|---------|
-| `text-embedding-bge-m3` | ~2.2 GB | 嵌入（向量搜索） |
-| `bge-reranker-v2-m3` | ~1.1 GB | 重排序（交叉编码器） |
+| `text-embedding-bge-m3` | ~2.2 GB | 嵌入 fallback（向量搜索） |
+| `bge-reranker-v2-m3` | ~1.1 GB | 重排序（cross-encoder） |
 | `phi-4-mini-instruct` | ~2.8 GB | `mode=ask` RAG 生成（可选） |
 
-详细设置请参见 [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md)。
+详见 [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md)。
 
 ---
 
-## 对比表
+## 比较表
 
-| 指标 | 方法 1（自动） | 方法 2（手动） | 方法 3（LM Studio） |
+| 标准 | 方法 1（自动） | 方法 2（手动） | 方法 3（LM Studio） |
 |-----------|:---------------:|:-----------------:|:--------------------:|
-| **提供者** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
-| **GPU** | Vulkan（自动） | Vulkan（自动） | 任意（CUDA/Metal） |
+| **嵌入器** | ONNX E5-base INT8（进程内） | ONNX E5-base INT8 | LM Studio（bge-m3） |
+| **重排序器** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
+| **GPU** | Vulkan（仅重排序） | Vulkan（仅重排序） | Any（CUDA/Metal） |
 | **RAM（总计）** | **~1.0 GB** | **~1.0 GB** | ~3-6 GB |
 | **磁盘** | **~900 MB** | **~900 MB** | ~6 GB |
 | **安装时间** | **3 分钟** | 5 分钟 | 20 分钟 |
-| **mode=ask** | ❌ 否（需要 LM Studio） | ❌ 否 | ✅ 是 |
+| **mode=ask** | ❌ 否（需要 LLM profile） | ❌ 否 | ✅ 是 |
 
 ---
 
@@ -95,15 +96,22 @@ MSCodeBase 会自动切换到 LM Studio。
 ### `.env` 变量
 
 ```ini
-# 嵌入模型：bge-m3（默认）或 qwen3-embedding
-EMBEDDING_MODEL=bge-m3
+# 嵌入提供方: e5_onnx (默认, 进程内) | openvino | lm_studio
+EMBEDDING_PROVIDER=e5_onnx
 
-# 后端：auto、msvc 或 vulkan
+# ONNX 模型 slug (由 install.py 下载)
+#   e5-base-v2  → intfloat/multilingual-e5-base (768维, INT8)
+ONNX_MODEL=e5-base-v2
+
+# 由 llama-server 在 :8081 提供服务的 Reranker GGUF 模型
+RERANKER_MODEL=bge-reranker-v2-m3
+
+# 重排序器的 llama.cpp 后端: auto, msvc, 或 vulkan
 LLAMA_BACKEND=auto
 
-# GPU 层数（0 = 仅 CPU，99 = 所有层在 GPU）
+# 重排序器的 GPU 层数 (0 = 仅 CPU, 99 = 所有层在 GPU)
 LLAMA_NGL=99
 
-# 上下文大小（1024 = Qwen3 约 500 MB 内存）
+# 重排序器的上下文大小 (1024 对 bge-reranker-v2-m3 足够)
 LLAMA_CTX_SIZE=1024
 ```

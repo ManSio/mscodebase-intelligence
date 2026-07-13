@@ -142,9 +142,9 @@ python install.py
 MCP 自动选择最佳可用提供者：
 
 ```
-llama.cpp GGUF（GPU）→ ONNX Runtime（CPU）→ LM Studio（如果运行中）→ 仅 BM25
+ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如果运行中）→ 仅 BM25
    ~1.0 GB RAM           ~1.7 GB RAM          ~6 GB RAM             无嵌入
-   2× llama-server       进程内 ONNX          外部 API
+   E5-base 嵌入器        重排序器（bge-reranker-v2-m3）   外部 API
 ```
 
 基准测试：[docs/research/2026-07-10-final-benchmark.md](../research/2026-07-10-final-benchmark.md)
@@ -406,7 +406,7 @@ mscodebase-intelligence/
 │   │   ├── symbol_index.py       # 调用图（BFS、影响分析）
 │   │   ├── intelligence_layer.py # intel_* 工具（14 个高级）
 │   │   ├── llama_runner.py       # llama.cpp 生命周期管理器 ★
-│   │   ├── remote_embedder.py    # LM Studio / Ollama / llama.cpp / ONNX 客户端
+│   ├── remote_embedder.py    # ONNX/OpenVINO E5-base（进程内）+ LM Studio / Ollama fallback
 │   │   ├── reranker.py           # 多提供者重排序（HTTP 到提供者）
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # 自诊断引擎

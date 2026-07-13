@@ -89,14 +89,14 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建DI容器（`create_service_collection()`）
-3. 注册33个工具 + 14个intel_*工具 + 3个诊断工具
+3. 注册42个工具 + 14个intel_*工具 + 3个诊断工具
 4. 注册系统提示词（mscodebase-rules）
 
 **此处不包含业务逻辑。** 每个工具都从 `mcp/tools/` 导入。
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **11个文件，39个核心工具（33个原始 + 6个写入）。**
+`src/mcp/tools/*.py` — **11个文件，42个核心工具（33个原始 + 6个写入 + 1个图查询 + 2个图/分析）。**
 
 每个工具：
 - 继承自 `MCPTool`（抽象基类）
@@ -181,12 +181,12 @@ class SearchCodeTool(MCPTool):
 
 MCP服务器自动检测最佳可用的嵌入提供者：
 
-1. **LM Studio** — 质量最高，需要外部服务器
-2. **llama.cpp** — 内置，通过 `install.py` 自动安装（GGUF模型）
-3. **ONNX server** — 带远程模型的ONNX运行时
-4. **local ONNX** — 仅CPU的降级方案，质量最低
+1. **ONNX/OpenVINO INT8（进程内）** — 默认且主要，无需外部服务器（E5-base，768维，~350 ch/s）
+2. **llama.cpp GGUF（GPU）** — 可选加速，通过 `install.py` 自动安装
+3. **LM Studio** — 可选 fallback，需要外部服务器
+4. **Ollama / remote ONNX** — 自定义设置
 
-优先级在启动时评估。llama.cpp相比LM Studio提供5.3倍的RAM减少（227 MB对比1200 MB）。
+优先级在启动时评估。ONNX/OpenVINO 相比 LM Studio 提供约 5.3 倍的 RAM 减少（~265 MB 对比 ~1200 MB）。
 
 ---
 
@@ -360,7 +360,7 @@ error_boundary decorator
         │       ▼
         │   core/searcher.py
         │       ├── BM25搜索（内存中TF-IDF）
-        │       ├── 向量搜索（LanceDB + LM Studio）
+        │       ├── 向量搜索（LanceDB + ONNX E5-base，进程内）
         │       └── RRF融合 + 重排序
         │
         └── return {"status": "ok", "results": [...]}

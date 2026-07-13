@@ -38,7 +38,9 @@ class FileGuard:
     MAX_FILE_SIZE_BYTES = 1024 * 1024
 
     def __init__(self, project_path: Path):
-        self.project_path = project_path
+        # Резолвим в абсолютный путь — иначе relative_to() падает
+        # при сравнении абсолютных путей из os.walk с относительным project_path.
+        self.project_path = Path(project_path).resolve()
         self._gitignore_patterns = set()
 
         # Оптимизация: Вытаскиваем конфигурацию один раз при инициализации

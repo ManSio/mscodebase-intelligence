@@ -1,112 +1,173 @@
-# 优雅降级 — 系统韧性指南
+# 优雅降级 — 系统弹性指南
 
-> **MSCodeBase Intelligence 的一部分** | v3.2.0
+> **MSCodeBase Intelligence 的一部分** | v3.2.1
 
 ## 概述
 
-MSCodeBase 从不完全崩溃。相反，它通过 5 个级别**优雅降级**，
-即使在外部服务故障时也能维持基本功能。
+MSCodeBase 永远不会完全崩溃。相反，它通过 **6 个级别优雅降级**，
+即使外部服务失败也能保持基本功能。
+
+> **提供方现实（2026-07-12）：** 嵌入提供方 **进程内** 运行，通过
+> **ONNX INT8 / OpenVINO INT8**（`intfloat/multilingual-e5-base`，768 维，Windows CPU 上 ~350 ch/s）。
+> 这是 **默认且主要** 的路径 — 语义搜索不需要外部服务器。`LM Studio` 仅是
+> **可选 fallback**，当本地 ONNX/OpenVINO 模型不可用时。**重排序器** 作为独立
+> `llama-server.exe` 进程运行，提供 `bge-reranker-v2-m3` GGUF 模型（端口 `:8081`）。
 
 ```mermaid
 stateDiagram-v2
-    [*] --> L1_LLAMA: All services available
-    
-    state L1_LLAMA[Level 1: llama.cpp GGUF (GPU)]
-        L1_LLAMA: llama.cpp embed + reranker (Vulkan GPU)
-        L1_LLAMA: BM25 + Dense + Reranker + Co-change
-        L1_LLAMA: ~280ms-3s latency
+    [*] --> L1_ONNX: 默认启动（进程内）
+
+    state L1_ONNX[级别 1: ONNX/OpenVINO INT8（进程内）]
+        L1_ONNX: E5-base 嵌入器（768 维）
+        L1_ONNX: BM25 + Dense + Reranker（llama.cpp）
+        L1_ONNX: ~300ms-3s 延迟
     end
-    
-    L1_LLAMA --> L2_ONNX: llama.cpp unavailable
-    
-    state L2_ONNX[Level 2: ONNX Runtime (CPU)]
-        L2_ONNX: ONNX embeddings only
-        L2_ONNX: BM25 + Dense (CPU)
-        L2_ONNX: No reranker (BM25 ranking only)
-        L2_ONNX: ~1-6s latency
+
+    L1_ONNX --> L2_GGUF: 有 GPU，偏好 llama.cpp
+    L1_ONNX --> L3_LM: ONNX 模型缺失 → LM Studio fallback
+
+    state L2_GGUF[级别 2: llama.cpp GGUF（GPU）]
+        L2_GGUF: GGUF 嵌入 + 重排序（Vulkan GPU）
+        L2_GGUF: BM25 + Dense + Reranker
+        L2_GGUF: ~286ms-3s 延迟
     end
-    
-    L2_ONNX --> L3_LM: llama.cpp offline → LM Studio fallback
-    
-    state L3_LM[Level 3: LM Studio (remote)]
-        L3_LM: External API (port 1234)
+
+    L2_GGUF --> L1_ONNX: llama.cpp 不可用
+
+    state L3_LM[级别 3: LM Studio（远程，可选）]
+        L3_LM: 外部 API（端口 1234）
         L3_LM: BM25 + Dense + Reranker
-        L3_LM: ~300ms-5s latency (network)
+        L3_LM: ~300ms-5s 延迟（网络）
     end
-    
-    L3_LM --> L4_BM25: All external offline
-    
-    state L4_BM25[Level 4: BM25 Only]
-        L4_BM25: Keyword search only
-        L4_BM25: No semantic understanding
-        L4_BM25: ~50ms-300ms latency
+
+    L3_LM --> L4_BM25: 所有外部离线
+
+    state L4_BM25[级别 4: 仅 BM25]
+        L4_BM25: 仅关键词搜索
+        L4_BM25: SymbolIndex + FTS5 fallback
+        L4_BM25: 无向量搜索
     end
-    
-    L4_BM25 --> L5_Fallback: BM25 index empty
-    
-    state L5_Fallback[Level 5: Fallback]
-        L5_Fallback: Creating index
-        L5_Fallback: First run / after table drop
-        L5_Fallback: Empty results (index building)
+
+    L4_BM25 --> L5_SYMBOL: BM25 不可用
+
+    state L5_SYMBOL[级别 5: 仅 SymbolIndex]
+        L5_SYMBOL: 纯 AST 符号索引
+        L5_SYMBOL: Tree-sitter 定义 + 引用
+        L5_SYMBOL: 无语义搜索
     end
-    
-    L5_Fallback --> L4_BM25: Index ready
-    L4_BM25 --> L3_LM: LM Studio detected
-    L3_LM --> L2_ONNX: ONNX reloaded
-    L2_ONNX --> L1_LLAMA: llama.cpp GGUF available
-    
-    L1_LLAMA --> L2_ONNX: llama crash
-    L2_ONNX --> L3_LM: ONNX error → LM Studio scan
-    L3_LM --> L4_BM25: LM Studio crash
-    L3_BM25 --> [*]: Catastrophic failure
 ```
 
-## 各级别详情
+### 横切层（始终可用）
 
-### 级别 1：完整流水线（生产环境）
+```mermaid
+stateDiagram-v2
+    [*] --> LSP_ACTIVE: basedpyright 可用
+
+    state LSP_ACTIVE[LSP: basedpyright]
+        LSP_ACTIVE: 跨文件重命名精度
+        LSP_ACTIVE: 完整语义 WorkspaceEdit
+        LSP_ACTIVE: ~105ms warm 延迟
+    end
+
+    LSP_ACTIVE --> LSP_FALLBACK: 超时（5s）或不可用
+
+    state LSP_FALLBACK[LSP: SymbolIndex]
+        LSP_FALLBACK: Tree-sitter 基于文本的重命名
+        LSP_FALLBACK: 可能遗漏动态导入
+        LSP_FALLBACK: 始终工作，零基础设施
+    end
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> DEFAULT_TOOLS: 正常操作
+
+    state DEFAULT_TOOLS[可见: 12 个工具]
+        DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
+        DEFAULT_TOOLS: notify_change, get_index_status
+        DEFAULT_TOOLS: intel_get_runtime_status
+        DEFAULT_TOOLS: rename_symbol, replace_symbol
+    end
+
+    DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
+    DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
+
+    state ALL_TOOLS[可见: 59 个工具]
+        ALL_TOOLS: 全部 59 个 MCP 工具（42 core + 14 intel + 3 diag）
+    end
+
+    state CUSTOM_TOOLS[自定义选择]
+        CUSTOM_TOOLS: 用户指定的工具子集
+    end
+```
+
+## 级别详情
+
+### 级别 1: ONNX/OpenVINO INT8（默认，进程内）
+
+```python
+# 默认提供方路径（EMBEDDING_PROVIDER=e5_onnx）
+class RemoteEmbedder:
+    def _init_provider_async(self):
+        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+        if _provider in ("e5_onnx", "auto", ""):
+            self._init_onnx()
+            # OpenVINO INT8 优先（Windows CPU 上 ~350 ch/s）
+            if getattr(self, "_ov_compiled", None) is not None:
+                self.mode = "onnx"
+```
 
 | 组件 | 状态 |
 |-----------|:------:|
-| LM Studio | ✅ 在线 |
+| ONNX/OpenVINO E5-base | ✅ 进程内（768 维，INT8） |
+| BM25 索引 | ✅ 已构建 |
+| Reranker（llama.cpp） | ✅ 可用（`:8081`） |
+| mode=ask | ⚠️ 可选（需要 LLM profile） |
+| **延迟** | **300ms-3s** |
+| **质量** | **最佳**（无外部依赖） |
+
+**触发：** 默认启动。不需要外部服务器。
+
+### 级别 2: llama.cpp GGUF（GPU，可选）
+
+如果用户有 Vulkan GPU 并偏好 GGUF 嵌入，`llama-server.exe` 可提供嵌入。这是加速路径，非默认。
+
+| 组件 | 状态 |
+|-----------|:------:|
+| llama.cpp embed（GPU） | ✅ 可用 |
 | BM25 索引 | ✅ 已构建 |
 | Reranker | ✅ 可用 |
-| mode=ask (phi-4) | ✅ 可用 |
-| **延迟** | **300ms-5s** |
+| mode=ask | ⚠️ 可选 |
+| **延迟** | **286ms-3s** |
 | **质量** | **最佳** |
 
-**触发条件：** LM Studio 在 `127.0.0.1:1234/v1/models` 响应
-
-### 级别 2：ONNX Runtime（回退）
+### 级别 3: LM Studio（远程，可选 fallback）
 
 ```python
-# 当 LM Studio 不可达时自动回退
+# 仅当本地 ONNX/OpenVINO 模型不可用时到达
 class RemoteEmbedder:
     def _check_lm_studio(self) -> bool:
-        """通过 CircuitBreaker 路由以防止级联故障。"""
+        """通过 CircuitBreaker 路由，防止级联失败。"""
         if self._breaker is not None:
             return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
         return self._check_lm_studio_raw()
-    
-    def _init_onnx(self):
-        """从 .codebase_models/onnx/bge-m3/ 加载 ONNX 模型"""
-        if not self.local_model_dir.exists():
-            raise FileNotFoundError("运行：python scripts/download_model.py")
-        self._onnx_session = ort.InferenceSession(str(self.local_model_dir / "model.onnx"))
 ```
 
 | 组件 | 状态 |
 |-----------|:------:|
-| LM Studio | ❌ 离线 |
-| ONNX 模型 | ✅ 可用（438 MB） |
-| Reranker | ❌ 不可用 |
-| mode=ask | ❌ 不可用 |
-| **延迟** | **1-6s** |
-| **质量** | **良好**（仅 embedding，无 reranker） |
+| LM Studio | ✅ 在线（若运行） |
+| ONNX 模型 | ❌ 缺失 |
+| Reranker | ✅ 可用（通过 LM Studio） |
+| mode=ask | ✅ 可用 |
+| **延迟** | **300ms-5s**（网络） |
+| **质量** | **良好** |
 
-### 级别 3：仅 BM25（最低限度）
+**触发：** `EMBEDDING_PROVIDER=lm_studio` 或本地 ONNX 模型缺失。
+
+### 级别 4: 仅 BM25（最小）
 
 ```python
-# BM25 构建器中的优雅降级
+# BM25 builder 中的优雅降级
 class Searcher:
     def _build_bm25_index(self) -> None:
         if self.indexer.table is None:
@@ -123,34 +184,35 @@ class Searcher:
 
 | 组件 | 状态 |
 |-----------|:------:|
-| LM Studio | ❌ 离线 |
 | ONNX 模型 | ❌ 缺失 |
+| LM Studio | ❌ 离线 |
 | BM25 索引 | ✅ 可用 |
 | Reranker | ❌ 不可用 |
 | mode=ask | ❌ 不可用 |
 | **延迟** | **50ms-300ms** |
 | **质量** | **基础**（仅关键词） |
 
-### 级别 4：回退（首次运行）
-
-```python
-# 表重建后的首次运行
-class Indexer:
-    def _warmup_status(self) -> None:
-        count = self.table.count_rows()
-        self._cached_total_chunks = count
-        if count == 0:
-            logger.debug("🔥 冷启动 — 空数据库")
-```
+### 级别 5: 仅 SymbolIndex（最后手段）
 
 | 组件 | 状态 |
 |-----------|:------:|
-| LM Studio | ❌ 离线 |
-| ONNX 模型 | ❌ 不可用 |
-| BM25 索引 | ❌ 为空 |
+| ONNX 模型 | ❌ 缺失 |
+| BM25 索引 | ❌ 不可用 |
+| SymbolIndex | ✅ 可用 |
 | Reranker | ❌ 不可用 |
 | mode=ask | ❌ 不可用 |
-| **延迟** | 不适用 |
+| **延迟** | **<50ms** |
+| **质量** | **仅 AST 符号**（无语义搜索） |
+
+### 级别 6: Fallback（首次运行）
+
+| 组件 | 状态 |
+|-----------|:------:|
+| ONNX 模型 | ❌ 不可用 |
+| BM25 索引 | ❌ 空 |
+| Reranker | ❌ 不可用 |
+| mode=ask | ❌ 不可用 |
+| **延迟** | N/A |
 | **质量** | **无**（等待索引） |
 
 ## 自动恢复
@@ -158,51 +220,18 @@ class Indexer:
 ```mermaid
 sequenceDiagram
     participant EM as RemoteEmbedder
-    participant LM as LM Studio
-    participant ONNX as ONNX Runtime
+    participant ONNX as ONNX/OpenVINO（进程内）
+    participant LM as LM Studio（可选）
     participant BM25 as BM25 Index
-    
-    Note over EM: Level 2 (ONNX)
-    EM->>ONNX: embed query
-    ONNX-->>EM: vector (1024-dim)
-    
-    par Every 30s — scanner loop
-        EM->>LM: GET /v1/models
-        LM-->>EM: 200 OK (bge-m3, phi-4)
-        EM->>EM: switch to LM Studio
-        Note over EM: Level 1 restored!
+
+    Note over EM: 级别 1（ONNX，默认）
+    EM->>ONNX: embed query（进程内）
+    ONNX-->>EM: vector（768 维）
+
+    par 每 30s — scanner loop
+        EM->>LM: GET /v1/models（若启用）
+        LM-->>EM: 200 OK
+        EM->>EM: 切换到 LM Studio（可选）
+        Note over EM: 级别 3 恢复（可选）
     end
-    
-    EM->>LM: embed query (async)
-    LM-->>EM: vector (faster, GPU)
 ```
-
-**关键特性：**
-- 扫描器每 30 秒在后台线程中运行
-- 当更高级别变为可用时 → **自动切换**
-- 无需重启
-- CircuitBreaker 防止快速开关循环
-
-## 保护机制
-
-```mermaid
-flowchart LR
-    subgraph "Protection Layer"
-        CB[CircuitBreaker\n5 failures → 30s cooldown]
-        DB[DebounceBatch\n500ms batch window]
-        RL[RateLimiter\n10 calls/sec per tool]
-        IG[IndexGuard\nself-recovery on corruption]
-    end
-    
-    CB --> |open| FALLBACK[Fallback to level 2/3]
-    DB --> |batched| BM25[Incremental reindex]
-    RL --> |throttled| REQ[MCP requests]
-    IG --> |repaired| TABLE[LanceDB table]
-```
-
-| 保护机制 | 原理 | 恢复 |
-|-----------|-----------|----------|
-| **CircuitBreaker** | 5 次失败 → OPEN（30 秒）→ HALF_OPEN → CLOSED | 冷却后自动恢复 |
-| **DebounceBatch** | 500ms 窗口，最多 100 个文件 | 触发一次 BM25 重建 |
-| **RateLimiter** | 滑动窗口，每个工具 10 次调用/秒 | 超出时以 RateLimitError 丢弃 |
-| **IndexGuard** | 计数检查 + 模式验证 | 表损坏时重建 |

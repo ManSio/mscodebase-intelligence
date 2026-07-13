@@ -85,8 +85,8 @@ flowchart LR
 ### 3. Плотный поиск (векторный, LanceDB)
 
 - **Назначение:** Семантическая близость — находит концептуально связанный код
-- **Модель:** `text-embedding-bge-m3` (BAAI, 1024-dim)
-- **Провайдер:** LM Studio / Ollama / ONNX Runtime (fallback)
+- **Модель:** `multilingual-e5-base` (intfloat, 768-dim)
+- **Провайдер:** ONNX INT8 in-process (primary) / LM Studio (fallback)
 - **Индекс:** LanceDB v2 с IVF-PQ квантизацией
 
 ```python
@@ -234,7 +234,7 @@ sequenceDiagram
         I-->>S: BM25 candidates
     and Плотный поиск
         S->>E: embed_batch_async([query])
-        E-->>S: query vector (1024-dim)
+        E-->>S: query vector (768-dim)
         S->>I: search_async(vector, limit=30)
         I-->>S: dense candidates
     end

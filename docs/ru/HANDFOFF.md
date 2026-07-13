@@ -13,10 +13,10 @@
 ## 🎯 Что это за проект
 
 **MSCodeBase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
-Работает полностью локально: LanceDB (векторный индекс) + llama.cpp GGUF (эмбеддинги/реранкер) + ONNX (fallback).
+Работает полностью локально: LanceDB (векторный индекс) + ONNX E5-base INT8 (эмбеддинги in-process) + llama.cpp GGUF (только реренкер) + OpenVINO INT8 (опционально).
 
 **Ключевые цифры:**
-- 57 MCP-инструментов (40 core + 14 intel + 3 diagnostic) — включая `query_graph` (Cypher engine)
+- 59 MCP-инструментов (42 core + 14 intel + 3 diagnostic) — включая `query_graph` (Cypher engine)
 - 11 файлов инструментов, 18 сервисов в DI-контейнере
 - Индекс: ~3000 чанков, ~170 файлов, ~1550 символов
 - **PropertyGraph**: SQLite граф (15 типов узлов, 27 типов рёбер) в `.codebase/graph.db`

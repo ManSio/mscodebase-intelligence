@@ -40,16 +40,6 @@
 └── ...
 ```
 
----
-
-### 🔗 相关文档
-
-| 文档 | 描述 |
-|----------|-------------|
-| [README.md](../../README.md) | 主文档，所有文档的导览 |
-| [TELEMETRY.md](TELEMETRY.md) | 本文档 |
-| [CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
-
 每个文件是一个记录数组：
 ```json
 [
@@ -77,6 +67,15 @@
   }
 ]
 ```
+
+### 🔗 相关文档
+
+| 文档 | 描述 |
+|----------|-------------|
+| [README.md](../../README.md) | 主文档，所有文档的导览 |
+| [TELEMETRY.md](TELEMETRY.md) | 本文档 |
+| [CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | 已知问题，含 RAM 画像（KI-002） |
 
 ## 使用方法
 
@@ -133,6 +132,62 @@ python scripts/collect_telemetry.py --history 7
 | `run_id` | 唯一的运行 ID |
 | `build_id` | Git 提交哈希 |
 
+## 实时遥测工具（MCP）
+
+除了后台收集器（`scripts/collect_telemetry.py`），指标还可通过 MCP 工具实时获取：
+
+### `intel_get_telemetry`
+进程运行时快照：
+- **Runtime State**：Ready/Blocked、Warnings、Total wait
+- **Per-Tool Calls**：表格 `Tool | Calls | Errors | Min/Avg/Max ms | Last call`
+- **Resources**：`RAM`（MB）、`CPU`（%）、`Threads`
+- **LLM Provider**：模型、ping、batch-10 延迟、吞吐（tok/s）
+- **ETA Predictor**：`Total measurements`、`Learned: N/8 ops`
+- **History**：最近快照（日期 / chunks / files / RAM / LLM ping）
+
+### `intel_execution_timeline`
+最近调用表：`Time | Tool | ms | Status | Route | Confidence | Results`。显示实时会话中每个工具的真实延迟。
+
+### `get_runtime_counters`
+`Checks` / `Ready` / `Blocked`（%）、`Blocks`、`Warnings`、`Performance.Wait`。
+
+### `debug_runtime_passport`
+扩展护照：`RUN_ID`、`BUILD_ID`、`PID`、`Uptime`、`CWD`、`Ext Root`、`Bridge State`、`Registry`、`Env`。
+
+### `intel_tool_health`
+每工具健康面板：成功率、延迟、置信度、路由。
+
+### 示例（实时运行 2026-07-12）
+
+| 工具 | 调用 | 平均 ms | 状态 |
+|------|-------|--------|--------|
+| get_index_status | 1 | 295 | ✅ |
+| get_symbol_info | 1 | 1611 | ✅ |
+| impact_analysis | 1 | 1588 | ✅ |
+| search_code | 1 | 1651 | ✅ |
+| rename_symbol | 1 | 2624 | ✅（预览） |
+| get_health_report | 1 | 21618 | ✅（重量级：日志扫描） |
+
+> MCP 服务器空闲 RAM ~1GB，负载峰值 ~2.8GB（非泄漏，见 KNOWN_ISSUES KI-002）。
+
+---
+
+## 模型流水线（实际，2026-07-12）
+
+嵌入/重排序流水线是 **本地且进程内** 的 — 语义搜索不需要外部 LLM 服务器：
+
+| 阶段 | 引擎 | 模型 | 说明 |
+|------|------|------|------|
+| 嵌入 | ONNX INT8 / OpenVINO INT8（进程内） | `intfloat/multilingual-e5-base`（768 维） | Windows CPU 上 ~350 ch/s。文件：`model_quantized.onnx`。LM Studio 仅是 **fallback 提供方**。 |
+| 重排序 | llama.cpp（`llama-server.exe`，独立进程，`:8081`） | `BAAI/bge-reranker-v2-m3`（GGUF Q4_K_M） | 由 `install.py` 的 `step_gguf` 加载。 |
+| LLM（RAG，可选） | 保留 | — | 搜索不需要。 |
+
+> ⚠️ **文档漂移已修复（2026-07-12）**：旧遥测文档将 "LM Studio bge-m3 / phi-4-mini"
+> 描述为嵌入提供方。这 **已过时** — 嵌入已进程内迁移到 ONNX/OpenVINO E5-base INT8
+> （见 CHANGELOG 3.2.1）。LM Studio 仅作为本地 ONNX/OpenVINO 模型不可用时的可选 fallback。
+
+---
+
 ## 构建图表
 
 积累的 JSON 文件可以加载到任何 BI 系统中：
@@ -151,6 +206,8 @@ python scripts/collect_telemetry.py --history 7
 | `total_wait_time_sec` | < 10 秒/天 | > 60 秒/天 |
 | `warnings_bridge_not_synced` | < 3 次/天 | > 20 次/天 |
 | `index_latency_ms` | < 50ms | > 500ms |
+| MCP RAM（空闲） | ~1.0 GB | > 2.0 GB 空闲持续 |
+| MCP RAM（负载峰值） | < 3.0 GB 瞬时 | 持续 > 3.0 GB |
 
 ## 📊 压力测试结果（2026-07-07）
 
@@ -171,19 +228,11 @@ python scripts/collect_telemetry.py --history 7
 
 ### 流水线延迟（5 个块，`quality` 模式）
 
-| 阶段 | 模型 | 时间 |
+| 阶段 | 引擎 | 时间 |
 |-------|-------|------|
 | 向量搜索 | LanceDB | ~300ms |
-| 重排序 | bge-reranker-v2-m3-m3（余弦相似度） | ~200ms |
+| 重排序 | bge-reranker-v2-m3（余弦相似度） | ~200ms |
 | **总计** | | **~500ms** |
-
-### LM Studio 模型（已加载）
-
-| 模型 | 类型 | 角色 |
-|-------|------|------|
-| text-embedding-bge-m3 Q4_K_M | embeddings | 向量搜索 |
-| bge-reranker-v2-m3-m3 Q8_0 | embeddings (reranker) | **评分** |
-| phi-4-mini-instruct Q4_K_M | llm | 为 RAG 预留 |
 
 ### 结论
 
@@ -191,5 +240,43 @@ python scripts/collect_telemetry.py --history 7
 |--------|--------|
 | 稳定性 | ✅ 20/20 成功 |
 | 准确性 | ✅ P@5=1.00 |
-| 速度 | ✅ 500ms-5s 取决于模式 |
-| 内存泄漏 | ⚠️ RAM 268 MB（稳定） |
+| 速度 | ✅ 500ms–5s 取决于模式 |
+| 内存泄漏 | ⚠️ 无 — 空闲 ~1GB，瞬时峰值 ~2.8GB（KI-002） |
+
+---
+
+## 📊 实时工具审计（2026-07-12）
+
+完整负载测试：**所有 59 个注册工具** 通过真实 MCP 服务器实时调用。
+
+### 工具面
+- **共 59 个工具** = 42 core + 14 intel + 3 diagnostic（按服务器启动日志）。
+- **默认过滤器**：除非设置 `MSCODEBASE_MCP_TOOLS`，否则仅显示 **12 个工具**。
+  设置 `MSCODEBASE_MCP_TOOLS=""` 显示全部 59 个。逗号列表显示子集。
+- ~19 个工具返回实时数据；~36 个被默认过滤器隐藏（按设计，非 bug）。
+
+### 每工具延迟（实时运行）
+
+| 工具 | 调用 | 平均 ms | 状态 |
+|------|-------|--------|--------|
+| get_index_status | 1 | 295 | ✅ |
+| get_symbol_info | 1 | 1611 | ✅ |
+| impact_analysis | 1 | 1588 | ✅ |
+| search_code | 1 | 1651 | ✅ |
+| replace_symbol | 1 | 1598 | ✅（预览） |
+| rename_symbol | 1 | 2624 | ✅（预览） |
+| get_health_report | 1 | 21618 | ✅（重量级：日志扫描） |
+
+### 审计中发现并修复的 bug（见 KNOWN_ISSUES / CHANGELOG 3.2.1）
+- **INC-58EA** — IVF 索引 "0 vectors"：`_init_onnx` 加载了 `model.onnx`，但磁盘文件是
+  `model_quantized.onnx` → embedder 返回零 → 所有向量 norm 为 0.0 → KMeans 失败。
+  修复：`_init_onnx` 现在优先使用 `model_quantized.onnx`（同 `_init_openvino`）。
+- **INC-9573** — `intel_get_runtime_status` 显示 `symbol_index_count: 0`，而
+  `get_health_report` 显示 `3197`。修复：使用实时 `get_symbol_count()` + 磁盘重载。
+- **INC-0AA6** — job 卡在 80% "Finalizing"：`await future_symbols`（Tree-sitter 符号索引）
+  无超时。修复：`asyncio.wait_for(..., timeout=120)` 优雅完成 job。
+
+### RAM 画像（通过 `psutil` 测量）
+- 空闲 MCP ~1.0 GB，重索引峰值 ~1.1 GB，负载下瞬时 2.8 GB。
+- 确认 **非泄漏**：2.8 GB 瞬时来自孤儿 benchmark 进程（`PID 15620`），已终止；
+  steady-state RSS 回到 ~1.0 GB。

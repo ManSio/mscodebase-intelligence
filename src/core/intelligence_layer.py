@@ -285,24 +285,29 @@ job_manager = JobManager()
 def _resolve_symbol_count(active_indexer, total_chunks: int) -> int:
     """Безопасно получает количество символов из active Indexer.
 
-    Если SymbolIndex пуст (0), но индекс не пуст (chunks > 0) —
-    пробует перезагрузить с диска через index_guard.
+    Использует тот же надёжный путь, что и рабочий get_index_status:
+    1) читаем живой count через get_symbol_count();
+    2) если 0 при непустом индексе — перезагружаем SymbolIndex с диска
+       через index_guard (в тот же экземпляр, который и отдаём дальше);
+    3) повторно читаем get_symbol_count().
     Возвращает int (0 если недоступно).
     """
     sym_idx = getattr(active_indexer, "_symbol_index", None)
     if sym_idx is None:
         return 0
     try:
-        count = sym_idx.get_stats().get("total_symbols", 0)
+        # Живой count (get_stats может отдавать кэш, get_symbol_count — всегда актуально)
+        count = sym_idx.get_symbol_count()
         # Принудительная загрузка с диска, если SymbolIndex ещё пуст
         # (cold start / другой экземпляр). Без этого intel_get_runtime_status
         # и get_health_report показывают разные цифры (0 vs 3197).
-        if count == 0:
+        if count == 0 and total_chunks > 0:
             guard = getattr(active_indexer, "_index_guard", None)
             if guard is not None:
                 try:
                     if guard.load_symbol_index(sym_idx):
-                        count = sym_idx.get_stats().get("total_symbols", 0)
+                        # reload пишет в тот же sym_idx — читаем повторно
+                        count = sym_idx.get_symbol_count()
                 except Exception:
                     pass
         return count
@@ -746,7 +751,19 @@ class ProjectIntelligenceLayer:
                             CodeParser(),
                         )
                         job.progress = 0.8
-                        await future_symbols
+                        job.result = {
+                            "phase": "finalizing_symbols",
+                            "files_processed": indexed_count,
+                        }
+                        try:
+                            # Таймаут на символьную индексацию, чтобы job не
+                            # зависал на 80% Finalizing при зависании Tree-sitter.
+                            await asyncio.wait_for(future_symbols, timeout=120)
+                        except asyncio.TimeoutError:
+                            logger.warning(
+                                "⚠️ Символьная индексация превысила 120с — "
+                                "завершаем job без неё (векторный индекс готов)."
+                            )
                     else:
                         job.progress = 0.8
 
@@ -919,18 +936,21 @@ class ProjectIntelligenceLayer:
         import re as _re
 
         try:
-            result = subprocess.run(
-                ['git', 'log', f'-{max_commits}', '--format=%H||%s||%b'],
-                capture_output=True, text=True, timeout=15,
+            proc = await asyncio.create_subprocess_exec(
+                'git', 'log', f'-{max_commits}', '--format=%H||%s||%b',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.project_path),
             )
-            if result.returncode != 0:
-                return f"Ошибка git log: {result.stderr.strip()}"
-            raw_log = result.stdout.strip()
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
+            if proc.returncode != 0:
+                return f"Ошибка git log: {stderr.decode().strip()}"
+            raw_log = stdout.decode().strip()
         except FileNotFoundError:
             return "Git не найден. ADR-коллектор требует git-репозиторий."
-        except subprocess.TimeoutExpired:
-            return "Таймаут git log (15с). Попробуйте уменьшить max_commits."
+        except asyncio.TimeoutError:
+            proc.kill()
+            return "Таймаут git log (20с). Попробуйте уменьшить max_commits."
 
         if not raw_log:
             return "Нет коммитов для анализа."
@@ -1271,31 +1291,6 @@ class ProjectIntelligenceLayer:
         return result
 
 
-# =====================================================================
-# РЕГИСТРАЦИЯ ИНСТРУМЕНТОВ В MCP СЕРВЕРЕ
-# =====================================================================
-
-
-def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
-    """
-    Регистрирует все инструменты Intelligence Layer в MCP сервере.
-
-    Вызывайте эту функцию при инициализации MCP-сервера в src/mcp/server.py.
-    Инструменты агрегируют функциональность для уменьшения количества вызовов.
-    """
-
-    @mcp_app.tool("intel_get_runtime_status")
-    async def get_runtime_status() -> str:
-        """Получить агрегированный статус здоровья рантайма, ИИ-провайдеров и индексов за 1 вызов."""
-        status = await intel_layer.intel_get_runtime_status()
-        from src.utils.ui_formatter import format_runtime_status
-
-        return format_runtime_status(status)
-
-    # -------------------------------------------------------------
-    # ХЕЛПЕР: Обогащение ответа job'а служебными полями
-    # -------------------------------------------------------------
-
     def _enrich_job_response(self, job: BackgroundJob) -> Dict[str, Any]:
         """Обогащает ответ job'а служебными полями: poll_interval_seconds, progress_label, estimated_seconds.
 
@@ -1357,6 +1352,32 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
                 base["estimated_seconds"] = 120
 
         return base
+
+
+# =====================================================================
+# РЕГИСТРАЦИЯ ИНСТРУМЕНТОВ В MCP СЕРВЕРЕ
+# =====================================================================
+
+
+def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
+    """
+    Регистрирует все инструменты Intelligence Layer в MCP сервере.
+
+    Вызывайте эту функцию при инициализации MCP-сервера в src/mcp/server.py.
+    Инструменты агрегируют функциональность для уменьшения количества вызовов.
+    """
+
+    @mcp_app.tool("intel_get_runtime_status")
+    async def get_runtime_status() -> str:
+        """Получить агрегированный статус здоровья рантайма, ИИ-провайдеров и индексов за 1 вызов."""
+        status = await intel_layer.intel_get_runtime_status()
+        from src.utils.ui_formatter import format_runtime_status
+
+        return format_runtime_status(status)
+
+    # -------------------------------------------------------------
+    # ХЕЛПЕР: Обогащение ответа job'а служебными полями
+    # -------------------------------------------------------------
 
     @mcp_app.tool("intel_trigger_reindex")
     async def trigger_reindex() -> str:

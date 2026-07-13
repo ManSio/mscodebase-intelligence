@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n59 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -115,7 +115,7 @@ sequenceDiagram
     and Dense Search
         ST->>S: embed query vector
         S->>E: embed_batch_async([query])
-        E-->>S: query vector (1024-dim)
+        E-->>S: query vector (768-dim)
         S->>DB: search(vector, limit=raw_limit)
         DB-->>S: dense results
     end
@@ -256,7 +256,7 @@ erDiagram
     CHUNK ||--o{ METADATA : contains
     CHUNK {
         string id PK
-        vector vector "1024-dim float"
+        vector vector "768-dim float"
         string text "compact chunk"
         string text_full "full function text"
         string file_path "relative path"
@@ -326,15 +326,14 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["Level 1: llama.cpp GGUF\nGPU embeddings + reranker\n280ms-3s"] -->|offline| L2
-    L2["Level 2: ONNX Runtime\nCPU embeddings only\nSlower"] -->|missing| L3
-    L3["Level 3: LM Studio\nExternal API\n300ms-5s"] -->|offline| L4
+    L1["Level 1: ONNX/OpenVINO INT8\nin-process embeddings + llama.cpp reranker\n300ms-3s"] -->|offline| L2
+    L2["Level 2: llama.cpp GGUF\nGPU embeddings (optional)\n286ms-3s"] -->|offline| L3
+    L3["Level 3: LM Studio\nExternal API (fallback)\n300ms-5s"] -->|offline| L4
     L4["Level 4: BM25 only\nKeyword search\nNo semantic"] -->|index missing| L5
     L5["Level 5: Fallback\nCreate index\nFirst run"]
 ```
 
-**Auto-recovery:** The system continuously scans for llama.cpp GGUF, then LM Studio/Ollama.
-When a higher level becomes available, it switches automatically — no restart needed.
+**Auto-recovery:** The system runs ONNX/OpenVINO E5-base in-process by default, and continuously scans for an optional llama.cpp GGUF GPU embedder, then LM Studio/Ollama as fallback. When a higher level becomes available, it switches automatically — no restart needed.
 
 ---
 
@@ -343,13 +342,13 @@ When a higher level becomes available, it switches automatically — no restart 
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 50 (34 core + 14 intel + 2 diagnostic) |
+| **MCP tools** | 59 (42 core + 14 intel + 3 diagnostic) |
 | **Services in DI** | 15 |
 | **Tests** | 396 |
 | **Languages** | 3 (EN, RU, ZH) |
 | **Schema fields** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Embedding dim** | 1024 (bge-m3) |
+| **Embedding dim** | 768 (E5-base INT8, in-process) |
 | **Reranker** | bge-reranker-v2-m3 |
-| **LLM** | phi-4-mini-instruct |
+| **LLM** | phi-4-mini-instruct (optional, mode=ask only) |
 | **Vector DB** | LanceDB v2 |
 | **Parser** | Tree-sitter |

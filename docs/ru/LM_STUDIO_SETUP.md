@@ -6,16 +6,15 @@
 
 ## ⚠️ LM Studio теперь второстепенен
 
-**Начиная с v2.7.0, основным провайдером эмбеддингов является `llama.cpp` с GGUF моделями.**
-LM Studio всё ещё поддерживается как **запасной провайдер** и требуется для:
+С 2026-07-12 основным провайдером является **ONNX E5-base INT8** (in-process CPU, 768-dim). LM Studio — запасной провайдер.
 - **`mode=ask`** (генерация RAG через phi-4) — llama.cpp не поддерживает чат
 - Пользователей, предпочитающих GUI LM Studio для управления моделями
 
 **Приоритет провайдеров по умолчанию:**
 ```
-1. llama.cpp GGUF (bge-m3 embed + bge-reranker, Vulkan GPU)
-2. ONNX Runtime (CPU fallback)
-3. LM Studio (внешний API, порт 1234)
+1. ONNX E5-base INT8 (in-process CPU, 768-dim)
+2. LM Studio (внешний API, порт 1234)
+3. Ollama (внешний API, порт 11434)
 4. Только BM25 (ключевой поиск)
 ```
 

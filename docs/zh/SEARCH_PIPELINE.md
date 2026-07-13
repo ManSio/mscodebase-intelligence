@@ -85,8 +85,8 @@ flowchart LR
 ### 3. 稠密搜索（向量，LanceDB）
 
 - **目的：** 语义相似度 — 查找概念相关的代码
-- **模型：** `text-embedding-bge-m3`（BAAI，1024 维）
-- **提供商：** LM Studio / Ollama / ONNX Runtime（回退）
+- **模型：** `multilingual-e5-base`（intfloat，768 维）
+- **提供商：** ONNX INT8 进程内（主要）/ LM Studio（回退）
 - **索引：** 带 IVF-PQ 量化的 LanceDB v2
 
 ```python
@@ -234,7 +234,7 @@ sequenceDiagram
         I-->>S: BM25 candidates
     and Dense search
         S->>E: embed_batch_async([query])
-        E-->>S: query vector (1024-dim)
+        E-->>S: query vector (768-dim)
         S->>I: search_async(vector, limit=30)
         I-->>S: dense candidates
     end

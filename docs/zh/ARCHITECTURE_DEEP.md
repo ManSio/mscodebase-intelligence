@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n59 tools]
     MCP --> DI[DI Container\n18 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -101,7 +101,7 @@ sequenceDiagram
     and 稠密搜索
         ST->>S: 嵌入查询向量
         S->>E: embed_batch_async([query])
-        E-->>S: 查询向量（1024维）
+        E-->>S: 查询向量（768维）
         S->>DB: search(vector, limit=raw_limit)
         DB-->>S: 稠密结果
     end
@@ -241,7 +241,7 @@ erDiagram
     CHUNK ||--o{ METADATA : contains
     CHUNK {
         string id PK
-        vector vector "1024-dim float"
+        vector vector "768-dim float"
         string text "compact chunk"
         string text_full "full function text"
         string file_path "relative path"
@@ -318,8 +318,7 @@ flowchart LR
     L5["级别 5: Fallback\nCreate index\nFirst run"]
 ```
 
-**自动恢复：** 系统持续扫描llama.cpp GGUF，然后是LM Studio/Ollama。
-当更高级别的提供者变为可用时，它会自动切换 — 无需重启。
+**自动恢复：** 系统默认运行 ONNX/OpenVINO E5-base（进程内），并持续扫描可选的 llama.cpp GGUF GPU 嵌入器，然后是 LM Studio/Ollama 作为 fallback。当更高级别变为可用时，自动切换 — 无需重启。
 
 ---
 
@@ -328,13 +327,13 @@ flowchart LR
 | 指标 | 值 |
 |--------|-------|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP工具** | 50（34个核心 + 14个intel + 2个诊断） |
+| **MCP工具** | 59（42个核心 + 14个intel + 3个诊断） |
 | **DI中的服务** | 15 |
 | **测试** | 396 |
 | **语言** | 3（EN, RU, ZH） |
 | **模式字段** | 19（chunk: 9 + metadata: 6 + v3.0: 4） |
-| **嵌入维度** | 1024（bge-m3） |
+| **嵌入维度** | 768（E5-base INT8，进程内） |
 | **重排序器** | bge-reranker-v2-m3 |
-| **LLM** | phi-4-mini-instruct |
+| **LLM** | phi-4-mini-instruct（可选，仅 mode=ask） |
 | **向量数据库** | LanceDB v2 |
 | **解析器** | Tree-sitter |

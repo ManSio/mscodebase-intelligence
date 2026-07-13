@@ -1,12 +1,18 @@
 # Install AI Models — 3 Methods
 
-> Choose your method: **Auto** (install.py), **Manual** (GGUF), or **LM Studio** (legacy)
+> Choose your method: **Auto** (install.py), **Manual** (ONNX + GGUF), or **LM Studio** (legacy fallback)
+
+> **Provider reality (2026-07-12):** The **embedder runs in-process** via
+> **ONNX E5-base INT8 / OpenVINO INT8** (`intfloat/multilingual-e5-base`, 768-dim, ~350 ch/s
+> on Windows CPU). `install.py` downloads this automatically. The **reranker** is a separate
+> `llama-server.exe` process serving the `bge-reranker-v2-m3` GGUF model. `LM Studio` is only
+> an optional fallback if the local ONNX model is unavailable.
 
 ---
 
 ## METHOD 1: Auto — install.py (Recommended)
 
-> **Best for:** All users. Installs llama.cpp + GGUF models automatically.
+> **Best for:** All users. Installs llama.cpp + ONNX + GGUF models automatically.
 
 ```bash
 python install.py
@@ -14,62 +20,57 @@ python install.py
 
 **What happens:**
 1. Detects Windows/macOS/Linux, AVX2/AVX512, Vulkan GPU
-2. Downloads `llama-server.exe` (or binary for your platform)
-3. Downloads **bge-m3 Q4_K_M** (417 MB) — embedding model
-4. Downloads **bge-reranker-v2-m3 Q4_K_M** (418 MB) — reranker model
-5. Starts both llama-server processes on ports 8080 (embed) + 8081 (rerank)
+2. Downloads `llama-server.exe` (or binary for your platform) — used for the **reranker**
+3. Downloads **E5-base v2 ONNX** (`intfloat/multilingual-e5-base`, ~265 MB) — **embedding model (in-process)**
+4. Downloads **bge-reranker-v2-m3 GGUF** (`BAAI/bge-reranker-v2-m3`, ~544 MB) — **reranker model**
+5. Starts the reranker llama-server process on port `:8081`
 
-**Disk usage after install:** ~900 MB (llama binary + 2 GGUF models)
+**Disk usage after install:** ~900 MB (llama binary + ONNX embedder + GGUF reranker)
 
 ### System behavior
 
 | Scenario | What runs | Memory |
 |----------|-----------|--------|
-| llama.cpp installed | 2× llama-server (embed + rerank) | ~1.0 GB |
-| Vulkan GPU available | llama-server with `-ngl 99` (GPU offload) | ~1.0 GB |
-| CPU only (no Vulkan) | llama-server with `-ngl 0` (CPU only) | ~700 MB |
+| ONNX/OpenVINO E5-base (default) | in-process embedder + 1× llama-server (rerank) | ~1.0 GB |
+| Vulkan GPU available | llama-server with `-ngl 99` (GPU offload, reranker only) | ~1.0 GB |
+| CPU only (no Vulkan) | llama-server with `-ngl 0` (CPU only, reranker) | ~700 MB |
+| LM Studio fallback | external API on `:1234` (if enabled) | ~3-6 GB |
 
 ---
 
-## METHOD 2: Manual — GGUF Download
+## METHOD 2: Manual — ONNX + GGUF Download
 
 > **Best for:** Users who want to download models manually.
 
-**Embedding model (bge-m3, required):**
+**Embedding model (E5-base v2 ONNX, required — in-process):**
+```bash
+python scripts/download_model.py --model intfloat/multilingual-e5-base
+# → .codebase_models/onnx/e5-base-v2/model_quantized.onnx (INT8)
+```
+
+**Reranker model (bge-reranker-v2-m3 GGUF, required):**
 ```bash
 # From HuggingFace
-huggingface-cli download lm-kit/bge-m3-gguf \
-  bge-m3-Q4_K_M.gguf \
+huggingface-cli download lm-kit/bge-reranker-v2-m3-gguf \
+  Bge-M3-reranker-2-3-568M-Q4_K_M.gguf \
   --local-dir extensions/mscodebase-intelligence/models/
 ```
 
-**Reranker model (bge-reranker-v2-m3, required):**
-```bash
-huggingface-cli download lm-kit/bge-m3-reranker-v2-gguf \
-  Bge-M3-568M-Q4_K_M.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
-```
-
-**Alternative embedding (Qwen3, for smaller RAM):**
-```bash
-huggingface-cli download coolbeev5/Qwen3-Embedding-0.6B-GGUF \
-  qwen3-embedding-0.6b-q4_k_m.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
-# Set: EMBEDDING_MODEL=qwen3-embedding in .env (346 MB RAM)
-```
+> The ONNX embedder is the **default and primary** path. The GGUF reranker runs as a
+> separate `llama-server.exe` process. You do NOT need a GGUF *embedding* model for search.
 
 ---
 
-## METHOD 3: LM Studio (Legacy)
+## METHOD 3: LM Studio (Legacy Fallback)
 
-> **Best for:** Users who already have LM Studio with models installed.
+> **Best for:** Users who already have LM Studio with models installed and want it as a fallback.
 
-LM Studio can still be used as a fallback provider. If llama.cpp is not available,
-MSCodeBase automatically switches to LM Studio.
+LM Studio can still be used as a fallback embedding provider. If the local ONNX model is
+unavailable, MSCodeBase can switch to LM Studio (set `EMBEDDING_PROVIDER=lm_studio`).
 
 | Model | Size | Purpose |
 |-------|:----:|---------|
-| `text-embedding-bge-m3` | ~2.2 GB | Embedding (vector search) |
+| `text-embedding-bge-m3` | ~2.2 GB | Embedding fallback (vector search) |
 | `bge-reranker-v2-m3` | ~1.1 GB | Reranking (cross-encoder) |
 | `phi-4-mini-instruct` | ~2.8 GB | `mode=ask` RAG generation (optional) |
 
@@ -81,12 +82,13 @@ See [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md) for detailed setup.
 
 | Criterion | Method 1 (Auto) | Method 2 (Manual) | Method 3 (LM Studio) |
 |-----------|:---------------:|:-----------------:|:--------------------:|
-| **Provider** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
-| **GPU** | Vulkan (auto) | Vulkan (auto) | Any (CUDA/Metal) |
+| **Embedder** | ONNX E5-base INT8 (in-process) | ONNX E5-base INT8 | LM Studio (bge-m3) |
+| **Reranker** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
+| **GPU** | Vulkan (reranker only) | Vulkan (reranker only) | Any (CUDA/Metal) |
 | **RAM (total)** | **~1.0 GB** | **~1.0 GB** | ~3-6 GB |
 | **Disk** | **~900 MB** | **~900 MB** | ~6 GB |
 | **Install time** | **3 min** | 5 min | 20 min |
-| **mode=ask** | ❌ No (needs LM Studio) | ❌ No | ✅ Yes |
+| **mode=ask** | ❌ No (needs LLM profile) | ❌ No | ✅ Yes |
 
 ---
 
@@ -95,17 +97,22 @@ See [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md) for detailed setup.
 ### `.env` Variables
 
 ```ini
-# Embedding model: bge-m3 (default) or qwen3-embedding
-EMBEDDING_MODEL=bge-m3
+# Embedding provider: e5_onnx (default, in-process) | openvino | lm_studio
+EMBEDDING_PROVIDER=e5_onnx
 
-# Backend: auto, msvc, or vulkan
+# ONNX model slug (downloaded by install.py)
+#   e5-base-v2  → intfloat/multilingual-e5-base (768-dim, INT8)
+ONNX_MODEL=e5-base-v2
+
+# Reranker GGUF model served by llama-server on :8081
+RERANKER_MODEL=bge-reranker-v2-m3
+
+# llama.cpp backend for reranker: auto, msvc, or vulkan
 LLAMA_BACKEND=auto
 
-# GPU layers (0 = CPU only, 99 = all layers on GPU)
+# GPU layers for reranker (0 = CPU only, 99 = all layers on GPU)
 LLAMA_NGL=99
 
-# Context size (1024 = ~500 MB RAM for Qwen3; 2048 recommended for BGE-M3)
-# BGE-M3 requires 2048 context for full 1024-dim embeddings
-# Qwen3-Embedding works with 1024 (lower RAM usage)
-LLAMA_CTX_SIZE=2048
+# Context size for reranker (1024 is sufficient for bge-reranker-v2-m3)
+LLAMA_CTX_SIZE=1024
 ```

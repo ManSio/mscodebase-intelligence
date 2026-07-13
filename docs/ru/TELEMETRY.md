@@ -75,6 +75,7 @@
 | [README.md](../../README.md) | Основная документация, карта всех доков |
 | [TELEMETRY.md](TELEMETRY.md) | Этот файл |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | Известные проблемы, включая профиль RAM (KI-002) |
 
 ## Использование
 
@@ -131,6 +132,64 @@ python scripts/collect_telemetry.py --history 7
 | `run_id` | Уникальный ID запуска |
 | `build_id` | Хэш коммита Git |
 
+## Живые инструменты телеметрии (MCP)
+
+Помимо фонового сборщика (`scripts/collect_telemetry.py`), метрики доступны вживую через MCP-инструменты:
+
+### `intel_get_telemetry`
+Снимок рантайма процесса:
+- **Runtime State**: Ready/Blocked, Warnings, Total wait
+- **Per-Tool Calls**: таблица `Tool | Calls | Errors | Min/Avg/Max ms | Last call`
+- **Resources**: `RAM` (MB), `CPU` (%), `Threads`
+- **LLM Provider**: модель, ping, batch-10 latency, throughput (tok/s)
+- **ETA Predictor**: `Total measurements`, `Learned: N/8 ops`
+- **History**: последние снэпшоты (дата / chunks / files / RAM / LLM ping)
+
+### `intel_execution_timeline`
+Таблица последних вызовов: `Time | Tool | ms | Status | Route | Confidence | Results`. Реальная латентность каждого инструмента в живой сессии.
+
+### `get_runtime_counters`
+`Checks` / `Ready` / `Blocked` (%), `Blocks`, `Warnings`, `Performance.Wait`.
+
+### `debug_runtime_passport`
+Расширенный passport: `RUN_ID`, `BUILD_ID`, `PID`, `Uptime`, `CWD`, `Ext Root`, `Bridge State`, `Registry`, `Env`.
+
+### `intel_tool_health`
+Дашборд здоровья инструментов: success rate, latency, confidence, routes.
+
+### Пример (живой прогон 2026-07-12)
+
+| Tool | Calls | Avg ms | Статус |
+|------|-------|--------|--------|
+| get_index_status | 1 | 295 | ✅ |
+| get_symbol_info | 1 | 1611 | ✅ |
+| impact_analysis | 1 | 1588 | ✅ |
+| search_code | 1 | 1651 | ✅ |
+| rename_symbol | 1 | 2624 | ✅ (preview) |
+| get_health_report | 1 | 21618 | ✅ (тяжёлый: скан логов) |
+
+> RAM MCP-сервера в idle ~1GB, пик ~2.8GB под нагрузкой (НЕ утечка, см. KNOWN_ISSUES KI-002).
+
+---
+
+## Модельный конвейер (актуально, 2026-07-12)
+
+Конвейер эмбеддинга/реренкинга — **локальный и in-process**. Внешний LLM-сервер для
+семантического поиска **не требуется**:
+
+| Этап | Движок | Модель | Примечание |
+|------|--------|--------|-----------|
+| Embedding | ONNX INT8 / OpenVINO INT8 (in-process) | `intfloat/multilingual-e5-base` (768-dim) | ~350 ch/s на Windows CPU. Файл: `model_quantized.onnx`. LM Studio — **только fallback-провайдер**. |
+| Reranker | llama.cpp (`llama-server.exe`, отдельный процесс, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Грузится шагом `step_gguf` в `install.py`. |
+| LLM (RAG, опц.) | зарезервирован | — | Не нужен для поиска. |
+
+> ⚠️ **Исправлен дрейф документации (2026-07-12):** старые телеметрийные доки описывали
+> «LM Studio bge-m3 / phi-4-mini» как провайдер эмбеддинга. Это **устарело** — эмбеддинг
+> переехал in-process на ONNX/OpenVINO E5-base INT8 (см. CHANGELOG 3.2.1). LM Studio остаётся
+> лишь опциональным fallback, если локальная ONNX/OpenVINO модель недоступна.
+
+---
+
 ## Построение графиков
 
 Накопленные JSON-файлы можно загрузить в любую BI-систему:
@@ -149,6 +208,8 @@ python scripts/collect_telemetry.py --history 7
 | `total_wait_time_sec` | < 10 с/день | > 60 с/день |
 | `warnings_bridge_not_synced` | < 3/день | > 20/день |
 | `index_latency_ms` | < 50ms | > 500ms |
+| MCP RAM (idle) | ~1.0 GB | > 2.0 GB устойчиво в idle |
+| MCP RAM (пик под нагрузкой) | < 3.0 GB транзиент | устойчиво > 3.0 GB |
 
 ## 📊 Результаты стресс-теста (2026-07-07)
 
@@ -169,19 +230,11 @@ python scripts/collect_telemetry.py --history 7
 
 ### Задержка конвейера (5 чанков `quality`)
 
-| Этап | Модель | Время |
+| Этап | Движок | Время |
 |-------|-------|------|
 | Векторный поиск | LanceDB | ~300ms |
-| Реренкинг | bge-reranker-v2-m3-m3 (cosine sim) | ~200ms |
+| Реренкинг | bge-reranker-v2-m3 (cosine sim) | ~200ms |
 | **Итого** | | **~500ms** |
-
-### Модели LM Studio (загружены)
-
-| Модель | Тип | Роль |
-|-------|------|------|
-| text-embedding-bge-m3 Q4_K_M | эмбеддинги | векторный поиск |
-| bge-reranker-v2-m3-m3 Q8_0 | эмбеддинги (реранкер) | **оценка** |
-| phi-4-mini-instruct Q4_K_M | llm | зарезервирован для RAG |
 
 ### Вердикт
 
@@ -189,5 +242,43 @@ python scripts/collect_telemetry.py --history 7
 |--------|--------|
 | Стабильность | ✅ 20/20 успешно |
 | Точность | ✅ P@5=1.00 |
-| Скорость | ✅ 500ms-5s в зависимости от режима |
-| Утечки памяти | ⚠️ RAM 268 МБ (стабильно) |
+| Скорость | ✅ 500ms–5s в зависимости от режима |
+| Утечки памяти | ⚠️ Нет — idle ~1GB, транзиентный пик ~2.8GB (KI-002) |
+
+---
+
+## 📊 Живой аудит инструментов (2026-07-12)
+
+Полный load test: **все 59 зарегистрированных инструментов** вызваны вживую через реальный MCP-сервер.
+
+### Поверхность инструментов
+- **59 инструментов всего** = 42 core + 14 intel + 3 diagnostic (по логу старта сервера).
+- **Фильтр по умолчанию**: видимы только **12 инструментов**, если не задан `MSCODEBASE_MCP_TOOLS`.
+  `MSCODEBASE_MCP_TOOLS=""` — показать все 59. Запятая-список — показать подмножество.
+- ~19 инструментов возвращают живые данные; ~36 скрыты фильтром по умолчанию (по дизайну, НЕ баг).
+
+### Латентность по инструментам (живой прогон)
+
+| Tool | Calls | Avg ms | Статус |
+|------|-------|--------|--------|
+| get_index_status | 1 | 295 | ✅ |
+| get_symbol_info | 1 | 1611 | ✅ |
+| impact_analysis | 1 | 1588 | ✅ |
+| search_code | 1 | 1651 | ✅ |
+| replace_symbol | 1 | 1598 | ✅ (preview) |
+| rename_symbol | 1 | 2624 | ✅ (preview) |
+| get_health_report | 1 | 21618 | ✅ (тяжёлый: скан логов) |
+
+### Баги, найденные и исправленные в ходе аудита (см. KNOWN_ISSUES / CHANGELOG 3.2.1)
+- **INC-58EA** — IVF-индекс «0 vectors»: `_init_onnx` грузил `model.onnx`, но на диске файл
+  `model_quantized.onnx` → embedder возвращал нули → все векторы имели norm 0.0 → KMeans
+  падал. Исправлено: `_init_onnx` теперь сначала берёт `model_quantized.onnx` (как `_init_openvino`).
+- **INC-9573** — `intel_get_runtime_status` показывал `symbol_index_count: 0`, а
+  `get_health_report` — `3197`. Исправлено: живой `get_symbol_count()` + disk reload.
+- **INC-0AA6** — job зависал на 80% «Finalizing»: `await future_symbols` (Tree-sitter symbol
+  indexing) не имел таймаута. Исправлено: `asyncio.wait_for(..., timeout=120)` с graceful-завершением job'а.
+
+### Профиль RAM (замерено через `psutil`)
+- Idle MCP ~1.0 GB, пик реиндексации ~1.1 GB, транзиент 2.8 GB под нагрузкой.
+- Подтверждено **НЕ утечка**: транзиент 2.8 GB был от осиротевшего benchmark-процесса
+  (`PID 15620`), который был убит; steady-state RSS вернулся к ~1.0 GB.

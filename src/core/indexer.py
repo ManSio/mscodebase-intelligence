@@ -1925,14 +1925,25 @@ class Indexer:
             try:
                 embeddings = self.embedder.embed_batch(batch_texts)
             except Exception as embed_err:
-                logger.error(f"❌ Embedder error: {embed_err}. Пропускаем батч.")
-                embeddings = [[0.0] * (self.embedder.embedding_dim or 768) for _ in batch_texts]
-                # Продолжаем с нулевыми векторами — лучше пустой поиск, чем краш
+                # НЕ подменяем нулями — это отравляет индекс (все векторы
+                # становятся нулевыми, семантический поиск ломается, а
+                # IVF-индекс не строится с "0 vectors"). Прерываем индексацию
+                # с явной ошибкой, чтобы причина была видна пользователю.
+                logger.error(
+                    f"❌ Embedder error: {embed_err}. Индексация прервана "
+                    f"(embedder недоступен — проверьте ONNX/OpenVINO модель)."
+                )
+                raise RuntimeError(
+                    f"Embedder unavailable: {embed_err}. "
+                    f"Indexing aborted to avoid zero-vector corruption."
+                ) from embed_err
             embed_time = time.time() - t0
 
             if not embeddings or len(embeddings) != len(batch_texts):
-                logger.warning(f"⚠️ embed вернул {len(embeddings) if embeddings else 0} вместо {len(batch_texts)}")
-                embeddings = [[0.0] * (self.embedder.embedding_dim or 768) for _ in batch_texts]
+                raise RuntimeError(
+                    f"Embedder returned {len(embeddings) if embeddings else 0} "
+                    f"vectors instead of {len(batch_texts)} — indexing aborted."
+                )
 
             # Раскладываем результаты обратно по flat-индексу
             for i, flat_idx in enumerate(range(batch_start, batch_end)):

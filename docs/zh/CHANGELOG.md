@@ -6,6 +6,22 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
+> **工具数量（当前）:** 实时服务器注册 **59 个工具** = 42 core + 14 intel + 3 diagnostic
+> （见 `src/mcp/server.py` 启动日志）。以下旧条目引用了早期总数（56/57），当时 intel 层尚未增长到 14 个工具。
+> `MSCODEBASE_MCP_TOOLS=""` 显示全部 59 个；默认仅显示 12 个。
+
+## [3.2.1] — 2026-07-12 — Embedder 与索引完整性修复
+
+### 修复
+- 🔧 **ONNX 加载**: `_init_onnx` 现在优先加载 `model_quantized.onnx` (INT8)，其次 `model.onnx`。之前查找 `model.onnx` 失败 → 会话崩溃，embedder 返回零向量。
+- 🔧 **零向量污染**: `index_project` 在 embedder 失败时不再用零向量替换——索引中断并抛出 `RuntimeError`。之前静默写入零向量 → 语义搜索失效，IVF 索引无法构建。
+- 🔧 **符号计数不同步 (INC-9573)**: `intel_get_runtime_status` 现在使用实时 `get_symbol_count()` + 磁盘重载。消除 0 vs 3221 的不一致。
+- 🔧 **卡在 80% Finalizing (INC-0AA6)**: Tree-sitter 符号索引现在受 `asyncio.wait_for(timeout=120)` 保护，超时则优雅完成 job。
+
+> ⚠️ **版本不一致**: `extension.toml` 仍为 `version = "2.7.1"`，而 CHANGELOG 从 3.2.0 开始。发布时需对齐。
+
+---
+
 ## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
 
 ### 新增
@@ -23,7 +39,7 @@
 - 🔍 **Agent 可见**: `condition_path` 在 `query_graph` 结果中显示。
 
 ### 变更
-- 56 → 57 个 MCP 工具 (+ `query_graph`)
+- 56 → 57 个 MCP 工具 (+ `query_graph`)。当前总数为 **59** (42 core + 14 intel + 3 diag)。
 - 24 → 29 个 `src/core/` 文件
 - 全部 494 个测试通过，无需修改
 
@@ -35,7 +51,7 @@
 - 📊 **自适应搜索预算**: `search_code` 根据项目规模自动调整 limit (<500 文件→4, <5K→6, <15K→8, ≥15K→10)。显式指定的 `limit` 参数仍然有效。
 - 🕐 **过期警告**: 当上次索引超过1小时前时，显示 "Index may be stale" 警告。一次轻量级 LanceDB 查询，无需磁盘扫描。
 - 🧩 **搜索结果中的图上下文**: `_expand_graph_context` 现在对所有搜索模式运行（之前仅 `deep`）。每个结果都显示谁调用它 — 内联显示，无需额外工具调用。
-- 🔇 **DEFAULT_TOOLS 过滤器**: 默认仅显示 12 个核心工具。其余 44 个仍在代码中，通过 `MSCODEBASE_MCP_TOOLS` 环境变量重新启用。`MSCODEBASE_MCP_TOOLS=""` 显示全部 56 个。
+- 🔇 **DEFAULT_TOOLS 过滤器**: 默认仅显示 12 个核心工具。其余 47 个仍在代码中，通过 `MSCODEBASE_MCP_TOOLS` 环境变量重新启用。`MSCODEBASE_MCP_TOOLS=""` 显示全部 59 个。
 - 🏷️ **ToolAnnotations** (`readOnlyHint`): 所有只读工具现在带有 `readOnlyHint: true` — Cursor Ask 模式需要此标志。
 - 📁 **统一扩展名管理**: 新的 `src/core/extensions.py` 取代了 3 个不同的 `SUPPORTED_EXTENSIONS` 列表。三个列表的并集 + 按用途拆分。
 - 🛡️ **Zed SQLite 模式保护**: 启动时验证 `scoped_kv_store` 表是否存在。日志中显示警告，不会崩溃。
@@ -45,7 +61,7 @@
 
 ### 变更
 - `search_code`: 图上下文扩展现在适用于所有模式（之前仅 deep）
-- 工具可见性: 默认 12/56 个工具（之前全部 56 个）
+- 工具可见性: 默认 12/59 个工具（之前全部 59 个）
 - LSP 优先级: basedpyright > pyright 在 `_find_server()` 中
 - 超时: 健康报告的 git 检查从 30 秒减少到 15 秒
 

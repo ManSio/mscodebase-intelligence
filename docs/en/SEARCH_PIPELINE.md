@@ -93,8 +93,8 @@ flowchart LR
 ### 3. Dense Search (Vector, LanceDB)
 
 - **Purpose:** Semantic similarity — finds conceptually related code
-- **Model:** `text-embedding-bge-m3` (BAAI, 1024-dim)
-- **Provider:** LM Studio / Ollama / ONNX Runtime (fallback)
+- **Model:** `multilingual-e5-base` (intfloat, 768-dim)
+- **Provider:** ONNX INT8 in-process (primary) / LM Studio (fallback)
 - **Index:** LanceDB v2 with IVF-PQ quantization
 
 ```python
@@ -242,7 +242,7 @@ sequenceDiagram
         I-->>S: BM25 candidates
     and Dense search
         S->>E: embed_batch_async([query])
-        E-->>S: query vector (1024-dim)
+        E-->>S: query vector (768-dim)
         S->>I: search_async(vector, limit=30)
         I-->>S: dense candidates
     end

@@ -34,7 +34,7 @@ src/
 ├── mcp/
 │   ├── server.py        # ~220 行 — 仅工具注册
 │   ├── write_tools.py   # 6 个写入工具
-│   └── tools/           # 11 个文件，57 个工具（40 个基于类 + 14 个 intel + 3 个诊断）
+│   └── tools/           # 11 个文件，59 个工具（42 个基于类 + 14 个 intel + 3 个诊断）
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code（+ 已弃用的 smart_search 等）
 │       ├── graph_tools.py   # query_graph + Cypher 查询引擎

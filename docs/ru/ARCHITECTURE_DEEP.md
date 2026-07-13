@@ -9,7 +9,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n59 tools]
     MCP --> DI[DI Container\n18 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -102,7 +102,7 @@ sequenceDiagram
     and Dense Search
         ST->>S: embed query vector
         S->>E: embed_batch_async([query])
-        E-->>S: query vector (1024-dim)
+        E-->>S: query vector (768-dim)
         S->>DB: search(vector, limit=raw_limit)
         DB-->>S: dense results
     end
@@ -243,7 +243,7 @@ erDiagram
     CHUNK ||--o{ METADATA : contains
     CHUNK {
         string id PK
-        vector vector "1024-dim float"
+        vector vector "768-dim float"
         string text "compact chunk"
         string text_full "полный текст функции"
         string file_path "относительный путь"
@@ -320,8 +320,7 @@ flowchart LR
     L5["Уровень 5: Fallback\nСоздание индекса\nПервый запуск"]
 ```
 
-**Автовосстановление:** Система непрерывно сканирует llama.cpp GGUF, затем LM Studio/Ollama.
-Когда более высокий уровень становится доступен, переключение происходит автоматически — без перезапуска.
+**Автовосстановление:** Система по умолчанию запускает ONNX/OpenVINO E5-base in-process и непрерывно сканирует опциональный llama.cpp GGUF GPU-эмбеддер, затем LM Studio/Ollama как fallback. Когда более высокий уровень становится доступен, переключение происходит автоматически — без перезапуска.
 
 ---
 
@@ -330,12 +329,12 @@ flowchart LR
 | Метрика | Значение |
 |---------|---------|
 | **Режимы поиска** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP инструменты** | 50 (34 core + 14 intel + 2 diagnostic) |
+| **MCP инструменты** | 59 (42 core + 14 intel + 3 diagnostic) |
 | **Сервисы в DI** | 15 |
 | **Тесты** | 396 |
 | **Языки** | 3 (EN, RU, ZH) |
 | **Поля схемы** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Размерность эмбеддинга** | 1024 (bge-m3) |
+| **Размерность эмбеддинга** | 768 (E5-base INT8, in-process) |
 | **Реренкер** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct |
 | **Векторная БД** | LanceDB v2 |

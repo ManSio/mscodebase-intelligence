@@ -779,6 +779,17 @@ class CypherToSQL:
         for path_idx, path in enumerate(query.match.paths):
             self._process_path_pattern(path, node_vars, path_joins, path_where, params, path_idx, path_where_params)
 
+        # Фаза 1.5: OPTIONAL MATCH — LEFT JOIN
+        opt_path_counter = len(query.match.paths)
+        for opt_clause in query.optional_match:
+            for opt_path in opt_clause.paths:
+                self._process_path_pattern(
+                    opt_path, node_vars, path_joins, path_where, params,
+                    opt_path_counter, path_where_params,
+                    join_type="LEFT JOIN", left_labels_in_on=True,
+                )
+                opt_path_counter += 1
+
         # Фаза 2: WHERE (из паттернов + явный WHERE)
         where_clauses: List[str] = list(path_where)
 
@@ -867,8 +878,16 @@ class CypherToSQL:
         params: List[Any],
         path_idx: int,
         where_params: Optional[List[Any]] = None,
+        join_type: str = "JOIN",
+        left_labels_in_on: bool = False,
     ):
-        """Генерирует JOIN для одного паттерна (n)-[:TYPE]->(m)."""
+        """Генерирует JOIN для одного паттерна (n)-[:TYPE]->(m).
+
+        Args:
+            join_type: "JOIN" для обязательного MATCH, "LEFT JOIN" для OPTIONAL MATCH.
+            left_labels_in_on: Если True, label-фильтры левого узла попадают в ON
+                (а не WHERE), чтобы не ломать NULL-семантику LEFT JOIN.
+        """
         left_var = path.left.variable or f"n{path_idx * 2}"
         has_right = path.right is not None and path.rel is not None
 
@@ -876,13 +895,20 @@ class CypherToSQL:
         if left_var not in node_vars:
             node_vars[left_var] = left_var
 
-        # Левый узел: label фильтр в WHERE
+        # Левый узел: label фильтр
+        left_label_sql: Optional[str] = None
+        left_label_vals: Optional[List[Any]] = None
         if path.left.labels:
             labels = path.left.labels
             placeholders = ",".join("?" for _ in labels)
-            wheres.append(f"{node_vars[left_var]}.label IN ({placeholders})")
-            target = where_params if where_params is not None else params
-            target.extend(labels)
+            if left_labels_in_on and has_right:
+                # LEFT JOIN: фильтр в ON, чтобы не ломать NULL-семантику
+                left_label_sql = f"{node_vars[left_var]}.label IN ({placeholders})"
+                left_label_vals = list(labels)
+            else:
+                wheres.append(f"{node_vars[left_var]}.label IN ({placeholders})")
+                target = where_params if where_params is not None else params
+                target.extend(labels)
 
         # Если нет ребра — одиночный узел, дальше не идём
         if not has_right:
@@ -930,7 +956,13 @@ class CypherToSQL:
                 f"OR {edge_alias}.target_id = {node_vars[right_var]}.id)"
             )
 
-        joins.append(f"JOIN edges AS {edge_alias} ON {edge_join}")
+        # LEFT JOIN: label фильтр левого узла в ON
+        if left_label_sql:
+            edge_join += f" AND {left_label_sql}"
+            target = where_params if where_params is not None else params
+            target.extend(left_label_vals)
+
+        joins.append(f"{join_type} edges AS {edge_alias} ON {edge_join}")
 
         # Правый узел: label фильтр в условие JOIN
         if path.right and path.right.labels:
@@ -943,7 +975,7 @@ class CypherToSQL:
                 target_join += f" AND {node_vars[right_var]}.label IN ({placeholders})"
                 params.extend(labels)
 
-        joins.append(f"JOIN nodes AS {node_vars[right_var]} ON {target_join}")
+        joins.append(f"{join_type} nodes AS {node_vars[right_var]} ON {target_join}")
 
         # Variable-length path: пока не поддерживается в SQL генерации
         # Для [*1..3] используем обычный JOIN (single hop) — функционально
@@ -988,9 +1020,12 @@ class CypherToSQL:
                 clauses.append(f"{sql_ref} LIKE ?")
                 params.append(expr.right)
             elif expr.op in ("IS NULL",):
-                clauses.append(f"{sql_ref} IS NULL")
+                # Bare variable (v.* -> v.id) to avoid invalid SQL
+                null_ref = sql_ref[:-2] + ".id" if sql_ref.endswith(".*") else sql_ref
+                clauses.append(f"{null_ref} IS NULL")
             elif expr.op in ("IS NOT NULL",):
-                clauses.append(f"{sql_ref} IS NOT NULL")
+                null_ref = sql_ref[:-2] + ".id" if sql_ref.endswith(".*") else sql_ref
+                clauses.append(f"{null_ref} IS NOT NULL")
             elif expr.op in ("=",):
                 clauses.append(f"{sql_ref} = ?")
                 params.append(expr.right)

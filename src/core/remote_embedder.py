@@ -98,32 +98,38 @@ class RemoteEmbedder:
         for base in self._onnx_search_paths:
             if not base.exists():
                 continue
-            # Сортируем: INT8 директории (со星 -int8) — первыми
-            _subdirs = sorted(base.iterdir(), key=lambda d: (
-                0 if '-int8' in d.name else 1,  # INT8 first
-                d.name
-            ))
+            # ВАЖНО (INC: broken fast mode / corrupt index):
+            # INT8-модель E5-base (model_quantized.onnx) в этом пайплайне СЛОМАНА —
+            # OpenVINO возвращает batch=0 без token_type_ids, отчего ВСЕ эмбеддинги
+            # нулевые и индекс тихо портится. Поэтому FP32 model.onnx имеет
+            # ПРИОРИТЕТ. INT8 используется только если FP32 отсутствует.
+            _subdirs = sorted(base.iterdir(), key=lambda d: d.name)
             for subdir in _subdirs:
                 # Skip reranker subdirectories for embedder
                 if subdir.name.startswith("reranker-") or subdir.name.startswith(
                     "rreranker"
                 ):
                     continue
-                model_file = subdir / "model_quantized.onnx"
-                if not model_file.exists():
-                    model_file = subdir / "model.onnx"
-                if model_file.exists():
-                    self.local_model_dir = subdir
-                    self._model_name = subdir.name
-                    sz = model_file.stat().st_size / (1024 * 1024)
-                    # Lightweight dimension detection: onnx protobuf metadata,
-                    # NOT full InferenceSession (saves ~544 MB peak).
-                    dim = self._lightweight_onnx_dim(model_file)
-                    dim_str = f"{dim}dim" if dim else "dim?"
-                    logger.info(
-                        f"ONNX model: {subdir.name} ({dim_str}, {sz:.0f}MB) — no InferenceSession created"
-                    )
-                    break  # model found, exit inner loop
+                # FP32 имеет приоритет над INT8 (см. выше)
+                fp32_file = subdir / "model.onnx"
+                int8_file = subdir / "model_quantized.onnx"
+                if fp32_file.exists():
+                    model_file = fp32_file
+                elif int8_file.exists():
+                    model_file = int8_file
+                else:
+                    continue
+                self.local_model_dir = subdir
+                self._model_name = subdir.name
+                sz = model_file.stat().st_size / (1024 * 1024)
+                # Lightweight dimension detection: onnx protobuf metadata,
+                # NOT full InferenceSession (saves ~544 MB peak).
+                dim = self._lightweight_onnx_dim(model_file)
+                dim_str = f"{dim}dim" if dim else "dim?"
+                logger.info(
+                    f"ONNX model: {subdir.name} ({dim_str}, {sz:.0f}MB) — no InferenceSession created"
+                )
+                break  # model found, exit inner loop
             else:
                 continue  # inner loop didn't break → no model in this base
             break  # model found, exit outer loop
@@ -616,6 +622,22 @@ class RemoteEmbedder:
                 if "DmlExecutionProvider" in ort.get_available_providers():
                     providers.insert(0, "DmlExecutionProvider")
 
+            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
+            # Синхронно с _init_openvino: INT8 даёт 250-350 ch/s на Windows CPU.
+            _model_dir_path = Path(self.local_model_dir)
+            _int8_path = _model_dir_path / "model_quantized.onnx"
+            _fp32_path = _model_dir_path / "model.onnx"
+            if _int8_path.exists():
+                _onnx_model_file = _int8_path
+                logger.info(f"🔧 ONNX: загружаю INT8 модель {_int8_path}")
+            elif _fp32_path.exists():
+                _onnx_model_file = _fp32_path
+                logger.info(f"🔧 ONNX: загружаю FP32 модель {_fp32_path}")
+            else:
+                raise FileNotFoundError(
+                    f"ONNX модель не найдена ни в {_int8_path}, ни в {_fp32_path}"
+                )
+
             import onnxruntime as _ort
             opts = _ort.SessionOptions()
             opts.enable_cpu_mem_arena = False
@@ -628,7 +650,7 @@ class RemoteEmbedder:
             opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
 
             self._onnx_session = ort.InferenceSession(
-                str(self.local_model_dir / "model.onnx"),
+                str(_onnx_model_file),
                 sess_options=opts,
                 providers=providers,
             )
@@ -661,17 +683,22 @@ class RemoteEmbedder:
             from tokenizers import Tokenizer
             import numpy as np
 
-            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx)
+            # Ищем модель: FP32 (model.onnx) имеет ПРИОРИТЕТ над INT8
+            # (model_quantized.onnx), т.к. INT8 E5-base в этом пайплайне сломан
+            # (возвращает batch=0 без token_type_ids → нулевые эмбеддинги).
             model_dir_path = Path(self.local_model_dir)
             int8_path = model_dir_path / "model_quantized.onnx"
             fp32_path = model_dir_path / "model.onnx"
 
-            if int8_path.exists():
-                model_file = int8_path
-                logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
-            elif fp32_path.exists():
+            if fp32_path.exists():
                 model_file = fp32_path
                 logger.info(f"🔧 OpenVINO: загружаю FP32 модель {fp32_path}")
+            elif int8_path.exists():
+                model_file = int8_path
+                logger.warning(
+                    f"🔧 OpenVINO: INT8 модель {int8_path} (FP32 отсутствует). "
+                    "ВНИМАНИЕ: INT8 E5-base требует token_type_ids, иначе эмбеддинги нулевые."
+                )
             else:
                 raise FileNotFoundError(f"Модель не найдена в {model_dir_path}")
 
@@ -849,13 +876,33 @@ class RemoteEmbedder:
 
                 ids_all = np.array([enc[i].ids for i in valid_indices], dtype=np.int64)
                 mask_all = np.array([enc[i].attention_mask for i in valid_indices], dtype=np.int64)
+                # E5-base INT8 (model_quantized.onnx) ОБЯЗАН получать token_type_ids,
+                # иначе OpenVINO возвращает тензор с batch=0 → все эмбеддинги нулевые
+                # (см. INC: broken fast mode / corrupt index). FP32 model.onnx его не требует.
+                # Подаём token_type_ids только если модель реально имеет этот вход.
+                _ov_has_tt = getattr(self, "_ov_has_token_type_ids", False)
+                tt_all = None
+                if _ov_has_tt:
+                    tt_all = np.array(
+                        [getattr(enc[i], "type_ids", None) or [0] * len(enc[i].ids) for i in valid_indices],
+                        dtype=np.int64,
+                    )
 
                 for idx_in, i in enumerate(valid_indices):
                     feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
+                    if _ov_has_tt and tt_all is not None:
+                        feed["token_type_ids"] = tt_all[idx_in:idx_in+1]
                     outputs = self._ov_infer_request.infer(feed)
                     out_key = list(outputs.keys())[0]
                     out_data = outputs[out_key]
                     if out_data.shape[0] == 0:
+                        # Защита от битого INT8 (batch=0): логируем и продолжаем,
+                        # чтобы не засорять индекс нулевыми векторами молча.
+                        logger.error(
+                            "OpenVINO вернул пустой batch (shape[0]==0) — модель "
+                            f"{getattr(self, '_model_name', '?')} требует token_type_ids "
+                            "или сломана. Эмбеддинг будет нулевым."
+                        )
                         continue  # пустой output → остаётся zero vector
                     token_emb = out_data[0]
 

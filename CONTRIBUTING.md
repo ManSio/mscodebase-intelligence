@@ -28,7 +28,7 @@
 |--------|-------|
 | **Version** | 3.2.0 — Polyglot Graph Engine |
 | **Tests** | 494 ✅ |
-**MCP Tools** | 58 (41 class-based + 14 intel + 3 diagnostic) |
+| **MCP Tools** | 59 (42 class-based + 14 intel + 3 diagnostic) |
 | **Parsing Languages** | 30 file extensions (16 with ASSIGNED_FROM data flow) |
 | **PropertyGraph** | SQLite WAL — 3,337 ASSIGNED_FROM edges on MSCodeBase |
 

@@ -1,19 +1,19 @@
 # LM Studio Setup Guide for MSCodeBase Intelligence
 
-> **Last updated:** 2026-07-11 | **Applies to:** v2.7.0+
+> **Last updated:** 2026-07-12 | **Applies to:** v3.2.0+
 
 ## ⚠️ LM Studio is now Secondary
 
-**Since v2.7.0, the primary embedding provider is `llama.cpp` with GGUF models.**
-LM Studio is still supported as a **fallback provider** and is required for:
+**Since 2026-07-12, the primary embedding provider is ONNX E5-base INT8 (in-process CPU, 768-dim).**
+LM Studio is a **fallback provider** and is required for:
 - **`mode=ask`** (RAG generation via phi-4) — llama.cpp doesn't support chat
 - Users who prefer LM Studio's GUI for model management
 
 **Default provider priority:**
 ```
-1. llama.cpp GGUF (bge-m3 embed + bge-reranker, Vulkan GPU)
-2. ONNX Runtime (CPU fallback)
-3. LM Studio (external API, port 1234)
+1. ONNX E5-base INT8 (in-process CPU, 768-dim)
+2. LM Studio (external API, port 1234)
+3. Ollama (external API, port 11434)
 4. BM25 only (keyword search)
 ```
 

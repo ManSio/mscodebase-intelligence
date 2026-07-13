@@ -15,11 +15,11 @@
 ```
 Ожидаемый результат:
   ✅ Python + venv + pip packages (в расширении Zed)
-  ✅ llama.cpp embedder + reranker (Vulkan GPU / CPU)
-  ✅ GGUF модели bge-m3 Q4_K_M + bge-reranker-v2-m3 (417+418 MB)
+  ✅ ONNX E5-base INT8 embedder (in-process) + llama.cpp reranker (Vulkan GPU / CPU)
+  ✅ ONNX модель e5-base-v2 (~265 MB) + GGUF модель bge-reranker-v2-m3 (~544 MB)
   ✅ MCP сервер настроен в Zed
-  ✅ ~1.0 GB RAM в простое (llama.cpp GGUF)
-  ✅ 56 инструментов доступны Агенту (39 core + 14 intel + 3 diagnostic)
+  ✅ ~1.0 GB RAM в простое (ONNX in-process + reranker)
+  ✅ 59 инструментов доступны Агенту (42 core + 14 intel + 3 diagnostic)
 ```
 
 ---
@@ -138,11 +138,11 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 ✅ MSCodeBase Intelligence установлен и проверен!
    Система:           ${os} ${arch}
    RAM:               ${total_ram} GB
-   Провайдер:         llama.cpp GGUF (${gpu})
+   Провайдер:         ONNX E5-base INT8 (in-process)
    MCP:               ${python} -u -m src.main
-   Embed:             8080 ✅ (1024 dim)
+   Embed:             ONNX ✅ (768 dim)
    Reranker:          8081 ✅
-   Инструменты:       50 (33 core + 14 intel + 3 diagnostic)
+   Инструменты:       59 (42 core + 14 intel + 3 diagnostic)
    
    Действие: Перезагрузи Zed (File → Quit → reopen)
    После перезапуска проверь: intel_get_runtime_status()

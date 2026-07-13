@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (41 class-based + 14 intel + 3 diagnostic = 58 всего)](#4-tool-layer)
+4. [Слой инструментов (42 class-based + 14 intel + 3 diagnostic = 59 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Rate Limiting и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (40 class-based инструментов)      │
+│  Слой 3: mcp/tools/*.py         (42 class-based инструментов)      │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -89,14 +89,14 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 33 инструмента + 14 intel_* + 3 diagnostic
+3. Зарегистрировать 42 инструмента + 14 intel_* + 3 diagnostic
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **11 файлов, 39 основных инструментов (33 исходных + 6 write).**
+`src/mcp/tools/*.py` — **11 файлов, 42 основных инструмента (33 исходных + 6 write + 1 graph query + 2 graph/analysis).**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -364,7 +364,7 @@ error_boundary decorator
         │       ▼
         │   core/searcher.py
         │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + LM Studio)
+        │       ├── Vector search (LanceDB + ONNX E5-base, in-process)
         │       └── RRF fusion + реранжирование
         │
         └── return {"status": "ok", "results": [...]}

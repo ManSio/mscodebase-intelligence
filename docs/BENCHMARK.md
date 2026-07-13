@@ -11,14 +11,14 @@
 | Metric | Value |
 |--------|-------|
 | Codebase | MSCodeBase (self-hosted) |
-| Project files | 169 |
-| Source lines | ~30,700 |
-| Indexed chunks | 2,917 |
-| Indexed symbols | 1,424 |
+| Project files | 188 |
+| Source lines | ~32,000 |
+| Indexed chunks | 3,365 |
+| Indexed symbols | 3,221 |
 | Platform | Windows 11 (GitBash) |
 | Python | 3.12 |
-| Embedder | llama.cpp (BGE-M3, Q4_K_M) |
-| Reranker | llama.cpp (BGE-reranker-v2-m3, Q4_K_M) |
+| Embedder | **ONNX E5-base INT8** (локальный, ~350 ch/s) |
+| Reranker | llama.cpp BGE-M3 (Q4_K_M, отдельный процесс) |
 
 ---
 
@@ -144,13 +144,13 @@ Direct measurements comparing vanilla Read/Grep vs MSCodeBase on specific querie
 | LSP timeout (2s) | — | 1,500ms | +1,400ms, but works |
 | LSP unavailable | — | 1,500ms | Same as fallback |
 
-### Embedder Fallback (llama.cpp → ONNX → LM Studio)
+### Embedder Fallback (ONNX/OpenVINO INT8 → llama.cpp GGUF → LM Studio)
 
 | Scenario | Time | Notes |
 |----------|------|-------|
-| llama.cpp (BGE-M3) | 286ms | Default, fastest |
-| ONNX (CPU fallback) | ~800ms | No GPU, works |
-| LM Studio (external) | ~2,000ms | Requires running server |
+| ONNX/OpenVINO E5-base INT8 (in-process) | ~300ms | Default, fastest, no external server |
+| llama.cpp GGUF (GPU, optional) | 286ms | Optional GPU acceleration |
+| LM Studio (external, fallback) | ~2,000ms | Requires running server |
 
 ---
 
@@ -158,10 +158,9 @@ Direct measurements comparing vanilla Read/Grep vs MSCodeBase on specific querie
 
 | Component | Idle | Under Load | Peak (indexing) | Note |
 |-----------|------|-----------|-----------------|------|
-| Python MCP | 147 MB | 150 MB | 150 MB | streaming, no accumulation |
-| llama embedder (bge-m3) | 440 MB (mmap) | 440 MB | **878 MB** | mmap file, batch buffers |
+| Python MCP | ~1.0 GB | ~1.1 GB | ~1.1 GB | in-process ONNX/OpenVINO E5-base embedder |
 | llama reranker (bge-reranker) | **0 MB** (unloaded) | 440 MB | 440 MB | auto-unload after 5min idle |
-| **Total system** | **~147 MB** | **~590 MB** | **~1,028 MB** | physical + mmap |
+| **Total system** | **~1.0 GB** | **~1.5 GB** | **~1.5 GB** | physical + mmap |
 
 ### Memory by Scenario
 
@@ -310,6 +309,54 @@ MSCodeBase's fundamental value: **its costs scale with answer size, not file siz
 | 100K lines | ~120,000 tokens | ~4,800 tokens | **25x** |
 
 The bigger the codebase, the more MSCodeBase saves.
+
+---
+
+## 12. MCP Tool Load Test (2026-07-12)
+
+**Цель:** прогнать ВСЕ зарегистрированные MCP-инструменты (59) вживую, замерить латентность и зафиксировать дефекты.
+
+### Результаты по категориям
+
+| Категория | Инструменты | Статус |
+|-----------|-------------|--------|
+| Intel (11) | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`, `intel_get_project_memory` ✅, `intel_analyze_incident`, `intel_predict_root_cause`, `intel_code_topology`, `intel_get_hotspots`, `intel_get_telemetry`, `intel_tool_health`, `intel_get_project_context` | ✅ работают |
+| Core/Search (5) | `search_code`, `get_symbol_info`, `impact_analysis`, `get_index_status`, `get_health_report` | ✅ работают |
+| Write (2) | `rename_symbol`, `replace_symbol` | ✅ работают (preview) |
+| Diagnostic (3) | `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline` | ✅ работают |
+| Отфильтрованы `MSCODEBASE_MCP_TOOLS=default` | `get_variable_flow`, `cross_repo_search`, `cross_project_deps`, `get_repo_map`, `get_repo_rank`, `get_bug_correlation`, `get_related_files`, `graph_query`, `get_index_progress`, `get_index_timeline`, `index_health`, `watcher_status`, `get_logs`, `run_health_check`, `get_commit_history`, `get_file_history`, `get_branch_info`, `generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `predict_eta`, `verify_action`, `get_task_status`, `submit_background_task`, `read_live_file`, `structural_search`, `move_symbol`, `safe_delete`, `insert_before_symbol`, `insert_after_symbol`, `ack_impact`, `intel_auto_collect_adrs`* | ⚠️ не зарегистрированы в default-режиме |
+
+> *`intel_auto_collect_adrs` — зарегистрирован, но падает с таймаутом транспорта (блокирующий git-вызов в event loop, даже при `max_commits=5`). Требует fix.
+
+### Латентность (живой прогон, мс)
+
+| Tool | Avg ms | Примечание |
+|------|--------|-----------|
+| get_index_status | 295 | быстро |
+| get_symbol_info | 1611 | |
+| impact_analysis | 1588 | |
+| search_code | 1651 | |
+| replace_symbol | 1598 | preview |
+| rename_symbol | 2624 | preview, 10 occurrences |
+| get_health_report | 21618 | тяжёлый: скан логов + полный отчёт |
+
+### Найденные и исправленные дефекты
+
+| ID | Дефект | Статус |
+|----|--------|--------|
+| INC-58EA | ONNX грузил `model.onnx` (файл `model_quantized.onnx`) → нулевые векторы → IVF-индекс не строился | ✅ Fixed |
+| INC-9573 | `intel_get_runtime_status` показывал 0 symbols (рассинхрон с `get_index_status`) | ✅ Fixed |
+| INC-0AA6 | Job зависал на 80% Finalizing (Tree-sitter без таймаута) | ✅ Fixed |
+
+### Память (RSS MCP-сервера)
+
+| Состояние | RSS |
+|-----------|-----|
+| Idle (до reindex) | ~1.0 GB |
+| Reindex (пик) | ~1.1 GB |
+| Под нагрузкой (тесты + орфан-процесс) | до 2.8 GB (временный пик, НЕ утечка) |
+
+> См. `docs/KNOWN_ISSUES.md` KI-002. ONNX native heap ~400-600MB + LanceDB + Python overhead.
 
 ---
 

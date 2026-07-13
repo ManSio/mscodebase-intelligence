@@ -98,7 +98,6 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
 | 🧠 **Intelligence Layer** | 14 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
-| 🗃️ **Project Memory** | ADR, known issues, tech debt — automatically persisted between sessions |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -108,7 +107,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15+ services), 59 tools (41 class-based + 15 intel + 3 diag), 494+ tests |
+| 🧪 **Clean Architecture** | DI Container (15+ services), 59 tools (42 class-based + 14 intel + 3 diag), 494+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | 6 write tools + 1 graph query (`query_graph`) with Cypher engine |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -132,7 +131,7 @@ python install.py
 **install.py does:**
 1. Copies 39+ source files to the extension directory
 2. Installs Python dependencies
-3. Downloads llama-server.exe + GGUF models (E5-base embed + reranker)
+3. Downloads llama-server.exe + GGUF reranker model (bge-reranker-v2-m3). The embedder (E5-base INT8) is an ONNX/OpenVINO model downloaded separately.
 4. Configures MCP in Zed's settings.json
 
 See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTALL.md](docs/en/INSTALL.md)
@@ -142,10 +141,14 @@ See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTA
 MCP auto-selects the best available provider:
 
 ```
-llama.cpp GGUF (GPU) → ONNX Runtime (CPU) → LM Studio (if running) → BM25 only
-   ~1.0 GB RAM           ~1.7 GB RAM          ~6 GB RAM             no embeddings
-   2× llama-server       in-process ONNX       external API
+ONNX/OpenVINO INT8 (in-process) → llama.cpp GGUF (GPU) → LM Studio (if running) → BM25 only
+   ~1.0 GB RAM                  ~1.7 GB RAM (2× llama-server)   ~6 GB RAM          no embeddings
+   E5-base embedder             reranker (bge-reranker-v2-m3)     external API
 ```
+
+> Embedding runs **in-process** via ONNX/OpenVINO E5-base INT8 (~350 ch/s on Windows CPU).
+> The reranker runs as a separate `llama-server.exe` process serving the BGE-M3 GGUF model.
+> LM Studio is only an optional fallback provider if the local ONNX/OpenVINO model is unavailable.
 
 Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-10-final-benchmark.md)
 
@@ -309,7 +312,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  41 Tool Classes   │  │  14 intel_* tools + 3 diag      │
+│  │  42 Tool Classes   │  │  14 intel_* tools + 3 diag      │  │
 │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  One class per tool  │  │  error_boundary decorator          │
 │  │  Constructor Inj.   │  │  JSON status/message/detail        │  │
@@ -320,8 +323,11 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
          ▼
 ┌─────────────────┐     ┌───────────────────┐
 │  RemoteEmbedder  │     │  LanceDB v2       │
-│  (LM Studio /    │     │  (Vector DB)       │
-│   Ollama / ONNX) │     │  BM25 + Vector    │
+│  (ONNX/OpenVINO   │     │  (Vector DB)       │
+│   E5-base INT8,    │     │  BM25 + Vector    │
+│   in-process;      │     │                    │
+│   LM Studio/Ollama │     │                    │
+│   fallback)        │     │                    │
 └─────────────────┘     └───────────────────┘
 ```
 
@@ -390,7 +396,7 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py             # DI routing — only imports + registration
 │   │   ├── write_tools.py        # rename/move/delete/replace/insert symbols
-│   └── tools/                 # 11 files, 41 class-based tools
+│   └── tools/                 # 11 files, 42 class-based tools
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history
@@ -408,7 +414,7 @@ mscodebase-intelligence/
 │   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
 │   │   ├── intelligence_layer.py # intel_* tools (14 high-level)
 │   │   ├── llama_runner.py       # llama.cpp lifecycle manager ★
-│   │   ├── remote_embedder.py    # LM Studio / Ollama / llama.cpp / ONNX client
+│   ├── remote_embedder.py    # ONNX/OpenVINO E5-base (in-process) + LM Studio / Ollama fallback
 │   │   ├── reranker.py           # Multi-Provider Reranker (HTTP to providers)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Self-diagnosis engine

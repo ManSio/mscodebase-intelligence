@@ -1,49 +1,56 @@
 # Graceful Degradation — System Resilience Guide
 
-> **Part of MSCodeBase Intelligence** | v3.2.0
+> **Part of MSCodeBase Intelligence** | v3.2.1
 
 ## Overview
 
 MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 6 levels,
 maintaining basic functionality even when external services fail.
 
+> **Provider reality (2026-07-12):** The embedding provider runs **in-process** via
+> **ONNX INT8 / OpenVINO INT8** (`intfloat/multilingual-e5-base`, 768-dim, ~350 ch/s on
+> Windows CPU). This is the **default and primary** path — no external server required for
+> semantic search. `LM Studio` is only an **optional fallback** if the local ONNX/OpenVINO
+> model is unavailable. The **reranker** runs as a separate `llama-server.exe` process
+> serving the `bge-reranker-v2-m3` GGUF model (port `:8081`).
+
 ```mermaid
 stateDiagram-v2
-    [*] --> L1_LLAMA: All services available
-    
-    state L1_LLAMA[Level 1: llama.cpp GGUF (GPU)]
-        L1_LLAMA: llama.cpp embed + reranker (Vulkan GPU)
-        L1_LLAMA: BM25 + Dense + Reranker + Co-change
-        L1_LLAMA: ~286ms-3s latency
+    [*] --> L1_ONNX: Default startup (in-process)
+
+    state L1_ONNX[Level 1: ONNX/OpenVINO INT8 (in-process)]
+        L1_ONNX: E5-base embedder (768-dim)
+        L1_ONNX: BM25 + Dense + Reranker (llama.cpp)
+        L1_ONNX: ~300ms-3s latency
     end
-    
-    L1_LLAMA --> L2_ONNX: llama.cpp unavailable
-    
-    state L2_ONNX[Level 2: ONNX Runtime (CPU)]
-        L2_ONNX: ONNX embeddings only
-        L2_ONNX: BM25 + Dense (CPU)
-        L2_ONNX: No reranker (BM25 ranking only)
-        L2_ONNX: ~1-6s latency
+
+    L1_ONNX --> L2_GGUF: User has GPU, prefers llama.cpp embed
+    L1_ONNX --> L3_LM: ONNX model missing → LM Studio fallback
+
+    state L2_GGUF[Level 2: llama.cpp GGUF (GPU)]
+        L2_GGUF: GGUF embed + reranker (Vulkan GPU)
+        L2_GGUF: BM25 + Dense + Reranker
+        L2_GGUF: ~286ms-3s latency
     end
-    
-    L2_ONNX --> L3_LM: llama.cpp offline → LM Studio fallback
-    
-    state L3_LM[Level 3: LM Studio (remote)]
+
+    L2_GGUF --> L1_ONNX: llama.cpp unavailable
+
+    state L3_LM[Level 3: LM Studio (remote, optional)]
         L3_LM: External API (port 1234)
         L3_LM: BM25 + Dense + Reranker
         L3_LM: ~300ms-5s latency (network)
     end
-    
+
     L3_LM --> L4_BM25: All external offline
-    
+
     state L4_BM25[Level 4: BM25 Only]
         L4_BM25: Keyword search only
         L4_BM25: SymbolIndex + FTS5 fallback
         L4_BM25: No vector search
     end
-    
+
     L4_BM25 --> L5_SYMBOL: BM25 unavailable
-    
+
     state L5_SYMBOL[Level 5: SymbolIndex Only]
         L5_SYMBOL: Pure AST symbol index
         L5_SYMBOL: Tree-sitter definitions + references
@@ -58,15 +65,15 @@ These are **independent** of the search level above:
 ```mermaid
 stateDiagram-v2
     [*] --> LSP_ACTIVE: basedpyright available
-    
+
     state LSP_ACTIVE[LSP: basedpyright]
         LSP_ACTIVE: Cross-file rename precision
         LSP_ACTIVE: Full semantic WorkspaceEdit
         LSP_ACTIVE: ~105ms warm latency
     end
-    
+
     LSP_ACTIVE --> LSP_FALLBACK: Timeout (5s) or unavailable
-    
+
     state LSP_FALLBACK[LSP: SymbolIndex]
         LSP_FALLBACK: Tree-sitter text-based rename
         LSP_FALLBACK: May miss dynamic imports
@@ -77,85 +84,91 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> DEFAULT_TOOLS: Normal operation
-    
+
     state DEFAULT_TOOLS[Visible: 12 tools]
         DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
         DEFAULT_TOOLS: notify_change, get_index_status
         DEFAULT_TOOLS: intel_get_runtime_status
         DEFAULT_TOOLS: rename_symbol, replace_symbol
     end
-    
+
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
-    
-    state ALL_TOOLS[Visible: 56 tools]
-        ALL_TOOLS: All 56 MCP tools available
+
+    state ALL_TOOLS[Visible: 59 tools]
+        ALL_TOOLS: All 59 MCP tools available (42 core + 14 intel + 3 diag)
     end
-    
+
     state CUSTOM_TOOLS[Custom selection]
         CUSTOM_TOOLS: User-specified tool subset
     end
 ```
-    state L5_Fallback[Level 5: Fallback]
-        L5_Fallback: Creating index
-        L5_Fallback: First run / after table drop
-        L5_Fallback: Empty results (index building)
-    end
-    
-    L5_Fallback --> L4_BM25: Index ready
-    L4_BM25 --> L3_LM: LM Studio detected
-    L3_LM --> L2_ONNX: ONNX reloaded
-    L2_ONNX --> L1_LLAMA: llama.cpp GGUF available
-    
-    L1_LLAMA --> L2_ONNX: llama crash
-    L2_ONNX --> L3_LM: ONNX error → LM Studio scan
-    L3_LM --> L4_BM25: LM Studio crash
-    L3_BM25 --> [*]: Catastrophic failure
-```
 
 ## Level Details
 
-### Level 1: Full Pipeline (Production)
-
-| Component | Status |
-|-----------|:------:|
-| LM Studio | ✅ Online |
-| BM25 index | ✅ Built |
-| Reranker | ✅ Available |
-| mode=ask (phi-4) | ✅ Available |
-| **Latency** | **300ms-5s** |
-| **Quality** | **Best** |
-
-**Trigger:** LM Studio responds on `127.0.0.1:1234/v1/models`
-
-### Level 2: ONNX Runtime (Fallback)
+### Level 1: ONNX/OpenVINO INT8 (Default, in-process)
 
 ```python
-# Automatic fallback when LM Studio is unreachable
+# Default provider path (EMBEDDING_PROVIDER=e5_onnx)
 class RemoteEmbedder:
-    def _check_lm_studio(self) -> bool:
-        """Routes through CircuitBreaker to prevent cascade failures."""
-        if self._breaker is not None:
-            return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
-        return self._check_lm_studio_raw()
-    
-    def _init_onnx(self):
-        """Loads ONNX model from .codebase_models/onnx/bge-m3/"""
-        if not self.local_model_dir.exists():
-            raise FileNotFoundError("Run: python scripts/download_model.py")
-        self._onnx_session = ort.InferenceSession(str(self.local_model_dir / "model.onnx"))
+    def _init_provider_async(self):
+        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
+        if _provider in ("e5_onnx", "auto", ""):
+            self._init_onnx()
+            # OpenVINO INT8 has priority (~350 ch/s on Windows CPU)
+            if getattr(self, "_ov_compiled", None) is not None:
+                self.mode = "onnx"
 ```
 
 | Component | Status |
 |-----------|:------:|
-| LM Studio | ❌ Offline |
-| ONNX model | ✅ Available (438 MB) |
-| Reranker | ❌ Unavailable |
-| mode=ask | ❌ Unavailable |
-| **Latency** | **1-6s** |
-| **Quality** | **Good** (embedding only, no reranker) |
+| ONNX/OpenVINO E5-base | ✅ In-process (768-dim, INT8) |
+| BM25 index | ✅ Built |
+| Reranker (llama.cpp) | ✅ Available (`:8081`) |
+| mode=ask | ⚠️ Optional (needs LLM profile) |
+| **Latency** | **300ms-3s** |
+| **Quality** | **Best** (no external dependency) |
 
-### Level 3: BM25 Only (Minimal)
+**Trigger:** Default startup. No external server required.
+
+### Level 2: llama.cpp GGUF (GPU, optional)
+
+If the user has a Vulkan-capable GPU and prefers GGUF embedding, `llama-server.exe` can
+serve the embedder. This is an acceleration path, not the default.
+
+| Component | Status |
+|-----------|:------:|
+| llama.cpp embed (GPU) | ✅ Available |
+| BM25 index | ✅ Built |
+| Reranker | ✅ Available |
+| mode=ask | ⚠️ Optional |
+| **Latency** | **286ms-3s** |
+| **Quality** | **Best** |
+
+### Level 3: LM Studio (remote, optional fallback)
+
+```python
+# Only reached if the local ONNX/OpenVINO model is unavailable
+class RemoteEmbedder:
+    def _check_lm_studio(self) -> bool:
+        """Routed through CircuitBreaker to prevent cascade failures."""
+        if self._breaker is not None:
+            return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
+        return self._check_lm_studio_raw()
+```
+
+| Component | Status |
+|-----------|:------:|
+| LM Studio | ✅ Online (if running) |
+| ONNX model | ❌ Missing |
+| Reranker | ✅ Available (via LM Studio) |
+| mode=ask | ✅ Available |
+| **Latency** | **300ms-5s** (network) |
+| **Quality** | **Good** |
+
+**Trigger:** `EMBEDDING_PROVIDER=lm_studio` or local ONNX model absent.
+
+### Level 4: BM25 Only (Minimal)
 
 ```python
 # Graceful degradation in BM25 builder
@@ -175,29 +188,30 @@ class Searcher:
 
 | Component | Status |
 |-----------|:------:|
-| LM Studio | ❌ Offline |
 | ONNX model | ❌ Missing |
+| LM Studio | ❌ Offline |
 | BM25 index | ✅ Available |
 | Reranker | ❌ Unavailable |
 | mode=ask | ❌ Unavailable |
 | **Latency** | **50ms-300ms** |
 | **Quality** | **Basic** (keyword only) |
 
-### Level 4: Fallback (First Run)
-
-```python
-# First run after table recreation
-class Indexer:
-    def _warmup_status(self) -> None:
-        count = self.table.count_rows()
-        self._cached_total_chunks = count
-        if count == 0:
-            logger.debug("🔥 Cold start — empty database")
-```
+### Level 5: SymbolIndex Only (Last resort)
 
 | Component | Status |
 |-----------|:------:|
-| LM Studio | ❌ Offline |
+| ONNX model | ❌ Missing |
+| BM25 index | ❌ Unavailable |
+| SymbolIndex | ✅ Available |
+| Reranker | ❌ Unavailable |
+| mode=ask | ❌ Unavailable |
+| **Latency** | **<50ms** |
+| **Quality** | **AST symbols only** (no semantic search) |
+
+### Level 6: Fallback (First Run)
+
+| Component | Status |
+|-----------|:------:|
 | ONNX model | ❌ Unavailable |
 | BM25 index | ❌ Empty |
 | Reranker | ❌ Unavailable |
@@ -210,51 +224,18 @@ class Indexer:
 ```mermaid
 sequenceDiagram
     participant EM as RemoteEmbedder
-    participant LM as LM Studio
-    participant ONNX as ONNX Runtime
+    participant ONNX as ONNX/OpenVINO (in-process)
+    participant LM as LM Studio (optional)
     participant BM25 as BM25 Index
-    
-    Note over EM: Level 2 (ONNX)
-    EM->>ONNX: embed query
-    ONNX-->>EM: vector (1024-dim)
-    
+
+    Note over EM: Level 1 (ONNX, default)
+    EM->>ONNX: embed query (in-process)
+    ONNX-->>EM: vector (768-dim)
+
     par Every 30s — scanner loop
-        EM->>LM: GET /v1/models
-        LM-->>EM: 200 OK (bge-m3, phi-4)
-        EM->>EM: switch to LM Studio
-        Note over EM: Level 1 restored!
+        EM->>LM: GET /v1/models (if enabled)
+        LM-->>EM: 200 OK
+        EM->>EM: switch to LM Studio (optional)
+        Note over EM: Level 3 restored (optional)
     end
-    
-    EM->>LM: embed query (async)
-    LM-->>EM: vector (faster, GPU)
 ```
-
-**Key properties:**
-- Scanner runs every 30s in background thread
-- When higher level becomes available → **automatic switch**
-- No restart needed
-- CircuitBreaker prevents rapid on/off cycling
-
-## Protection Mechanisms
-
-```mermaid
-flowchart LR
-    subgraph "Protection Layer"
-        CB[CircuitBreaker\n5 failures → 30s cooldown]
-        DB[DebounceBatch\n500ms batch window]
-        RL[RateLimiter\n10 calls/sec per tool]
-        IG[IndexGuard\nself-recovery on corruption]
-    end
-    
-    CB --> |open| FALLBACK[Fallback to level 2/3]
-    DB --> |batched| BM25[Incremental reindex]
-    RL --> |throttled| REQ[MCP requests]
-    IG --> |repaired| TABLE[LanceDB table]
-```
-
-| Protection | Mechanism | Recovery |
-|-----------|-----------|----------|
-| **CircuitBreaker** | 5 failures → OPEN (30s) → HALF_OPEN → CLOSED | Auto-recovery after cooldown |
-| **DebounceBatch** | 500ms window, max 100 files | Triggers BM25 rebuild once |
-| **RateLimiter** | Sliding window, 10 calls/s per tool | Drops excess with RateLimitError |
-| **IndexGuard** | Count check + schema validation | Recreates table on corruption |

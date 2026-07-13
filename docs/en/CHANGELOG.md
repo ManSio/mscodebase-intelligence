@@ -6,6 +6,27 @@
 
 All notable changes to this project will be documented in this file.
 
+> **Tool count (current):** the live server registers **59 tools** = 42 core + 14 intel + 3 diagnostic
+> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals (56/57) from before
+> the intel-layer grew to 14 tools. `MSCODEBASE_MCP_TOOLS=""` shows all 59; by default only 12 are visible.
+
+## [3.2.1] — 2026-07-12 — Embedder & Index Integrity Fixes
+
+### Fixed
+- 🔧 **ONNX model loading**: `_init_onnx` теперь грузит `model_quantized.onnx` (INT8) сначала, затем `model.onnx` (как `_init_openvino`). Ранее искал `model.onnx` → сессия падала, embedder возвращал нули.
+- 🔧 **Zero-vector poisoning**: `index_project` больше НЕ подменяет векторы нулями при сбое embedder — индексация прерывается с `RuntimeError`. Ранее молча писал нули → семантический поиск был нефункционален, а IVF-индекс не строился (`KMeans cannot train 1 centroids with 0 vectors`).
+- 🔧 **Symbol count desync (INC-9573)**: `intel_get_runtime_status` теперь использует живой `get_symbol_count()` + диск-reload (как рабочий `get_index_status`). Устранён рассинхрон 0 vs 3221.
+- 🔧 **Job hang at 80% Finalizing (INC-0AA6)**: символьная индексация Tree-sitter теперь под `asyncio.wait_for(timeout=120)` с graceful-завершением job'а.
+
+### Verified
+- `embed_batch` → norm≈14 (реальные векторы, не нули)
+- `create_index(IvfFlat)` строится на реальных данных
+- `_resolve_symbol_count` in-process → 3221
+
+> ⚠️ **Version mismatch**: `extension.toml` всё ещё `version = "2.7.1"`, хотя CHANGELOG ведётся от 3.2.0. Требует выравнивания при следующем релизе.
+
+---
+
 ## [3.2.0] — 2026-07-11 — Graph-Native Engine (PropertyGraph + Cypher)
 
 ### Added
@@ -25,7 +46,7 @@ All notable changes to this project will be documented in this file.
 - 🔍 **Agent visibility**: `condition_path` exposed in `query_graph` results — agent sees `x → y (if_statement → for_statement)`.
 
 ### Changed
-- Architecture: 56 → 57 MCP tools (+ `query_graph`)
+- Architecture: 56 → 57 MCP tools (+ `query_graph`). Current total is **59** (42 core + 14 intel + 3 diag).
 - DI container: `PropertyGraph` registered as singleton, `SymbolIndex` replaced by `SymbolIndexAdapter` (PURE mode)
 - Core layer: `src/core/*.py` 24 → 30 files (+ `graph.py`, `graph_adapter.py`, `cypher_engine.py`, `route_extractor.py`, `multi_signal_scorer.py`, `dataflow_experiment.py`)
 - ALL 494 tests pass without changes — full backward compatibility via adapter layer
@@ -38,7 +59,7 @@ All notable changes to this project will be documented in this file.
 - 📊 **Adaptive search budget**: `search_code` limit auto-scales with project size (<500 files→4, <5K→6, <15K→8, ≥15K→10 results). Explicit `limit` param still respected.
 - 🕐 **Staleness banner**: warns "Index may be stale" when last indexed >1h ago. Single lightweight LanceDB query, zero disk scan.
 - 🧩 **Graph context in search results**: `_expand_graph_context` now runs for ALL search modes (was only `deep`). Each result shows who calls it — inline, no extra tool calls.
-- 🔇 **DEFAULT_TOOLS filter**: only 12 core tools visible by default (search, index, system, write). Remaining 44 still in code, re-enable via `MSCODEBASE_MCP_TOOLS` env var. `MSCODEBASE_MCP_TOOLS=""` shows all 56.
+- 🔇 **DEFAULT_TOOLS filter**: only 12 core tools visible by default (search, index, system, write). Remaining 47 still in code, re-enable via `MSCODEBASE_MCP_TOOLS` env var. `MSCODEBASE_MCP_TOOLS=""` shows all 59.
 - 🏷️ **ToolAnnotations** (`readOnlyHint`): all read-only tools now carry `readOnlyHint: true` — required by Cursor Ask mode.
 - 📁 **Unified extensions**: new `src/core/extensions.py` replaces 3 divergent `SUPPORTED_EXTENSIONS` lists (parser.py, file_guard.py, lsp_main.py). Union of all three + per-purpose split (`PARSE_EXTENSIONS`, `INDEX_EXTENSIONS`).
 - 🛡️ **Zed SQLite schema guard**: startup check validates `scoped_kv_store` table exists before `resolve_project_root()` uses it. Warning in logs, not a crash.
@@ -48,7 +69,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - `search_code` default mode: graph context expansion now applies to ALL modes (was deep-only)
-- Tool visibility: 12/56 tools shown by default (previously all 56)
+- Tool visibility: 12/59 tools shown by default (previously all 59)
 - LSP priority: basedpyright > pyright in `_find_server()`
 - Timeout: health report git check reduced 30s→15s
 
