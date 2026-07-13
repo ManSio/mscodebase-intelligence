@@ -26,20 +26,31 @@ See [`INSTALL_MODELS.md`](INSTALL_MODELS.md) for the primary installation method
 MSCodeBase can use **local AI models** via LM Studio's OpenAI-compatible API.
 It runs **fully offline** on your machine — no cloud, no data egress, no API costs.
 
-### Models for LM Studio
+### Models for ONNX/OpenVINO (Primary, in-process)
 
-| Model | Type | Purpose | Required | Size |
-|-------|------|---------|----------|------|
-| `text-embedding-bge-m3` | Embedding (1024-dim) | Vector semantic search | **YES** | ~2.2 GB |
-| `bge-reranker-v2-m3` | Cross-encoder | Result reranking | **YES** | ~1.1 GB |
-| `phi-4-mini-instruct` | LLM (3.8B) | `mode=ask` RAG generation | Optional | ~2.8 GB |
+| Model | Type | Purpose | Size |
+|-------|------|---------|:----:|
+| `multilingual-e5-base` INT8/FP32 | Embedding (768-dim) | Vector semantic search | 105 MB / 266 MB |
+| `bge-reranker-v2-m3` (ONNX) | Cross-encoder | Result reranking | 544 MB |
 
-### Alternative: llama.cpp GGUF (Recommended)
+> **E5-base ONNX** — основной эмбеддер, запускается в процессе MCP без внешних зависимостей.
+> BGE-M3 реранкер — ONNX-модель через onnx_server.py (порт 1235) или llama.cpp (порт 8081).
+
+### Models for LM Studio (Fallback only)
+
+| Model | Type | Purpose | Size |
+|-------|------|---------|:----:|
+| `text-embedding-bge-m3` | Embedding (1024-dim) | Fallback vector search | ~2.2 GB |
+| `bge-reranker-v2-m3` | Cross-encoder | Fallback reranking | ~1.1 GB |
+
+> LM Studio используется **только если ONNX/OpenVINO модель недоступна**.
+> По умолчанию LM Studio — fallback.
+
+### Alternative: llama.cpp GGUF (Recommended for Reranker)
 
 | Model | Size | RAM | Purpose |
 |-------|:----:|:---:|---------|
-| bge-m3 Q4_K_M | **417 MB** | 676 MB | Embedding (vector search) |
-| bge-reranker-v2-m3 Q4_K_M | **418 MB** | 684 MB | Reranking (cross-encoder) |
+| bge-reranker-v2-m3 Q4_K_M | **418 MB** | 684 MB | Reranking (cross-encoder, recommended) |
 
 **Advantages over LM Studio:**
 - 5× smaller RAM (~1.0 GB total vs ~6 GB)
