@@ -927,8 +927,14 @@ class RemoteEmbedder:
                 # Пытаемся перезагрузить OpenVINO (re-entry guard снят)
                 self._init_onnx()
                 if getattr(self, '_ov_compiled', None) is not None:
+                    # ─── Восстанавливаем mode (был сброшен в unknown) ───
+                    # Иначе health report видит embedder_status=unknown
+                    # и помечает эмбеддер как недоступный.
+                    with self._mode_lock:
+                        if self.mode == "unknown":
+                            self.mode = "onnx"
                     # Повторная попытка OpenVINO с перезагруженной моделью
-                    logger.info("OpenVINO recovery: модель перезагружена, повторная попытка")
+                    logger.info("OpenVINO recovery: модель перезагружена, mode=onnx восстановлен")
                     # goto for-loop restart: аккуратно прокручиваем valid_indices
                     # уже токенизировано, просто переиспользуем ids/mask
                     for idx_in2, i2 in enumerate(valid_indices):
@@ -955,6 +961,10 @@ class RemoteEmbedder:
         if current_mode in ("unknown", "onnx"):
             self._init_onnx()
             if self._onnx_session:
+                # ─── Восстанавливаем mode (был сброшен recovery) ───
+                with self._mode_lock:
+                    if self.mode == "unknown":
+                        self.mode = "onnx"
                 self._onnx_last_used = time.time()
                 import numpy as np
                 
