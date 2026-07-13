@@ -12,6 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.core.searcher import Searcher
+from src.core.config import get_config
+
 
 # ─────────────────────────────────────────────────────────────
 # _apply_bucket_weights
@@ -28,6 +30,9 @@ def _chunk(file: str, score: float) -> dict:
 
 def test_apply_bucket_weights_empty_and_unc_paths():
     """Пустые пути и UNC-префиксы не ломают определение расширения."""
+    # Фиксируем вес docs=1.0 для теста (по умолч. 0.5, но тест проверяет механику)
+    orig_docs_w = get_config().performance.docs_bucket_weight
+    get_config().performance.docs_bucket_weight = 1.0
     Searcher(MagicMock(), MagicMock())
     chunks = [
         _chunk("", 1.0),
@@ -47,10 +52,13 @@ def test_apply_bucket_weights_empty_and_unc_paths():
     assert result[3]["final_score"] == pytest.approx(1.0)
     # Неизвестное расширение — без изменений
     assert result[4]["final_score"] == pytest.approx(1.0)
+    get_config().performance.docs_bucket_weight = orig_docs_w
 
 
 def test_apply_bucket_weights_intent_hint():
     """intent_hint code/docs меняет веса относительно базовых."""
+    orig_docs_w = get_config().performance.docs_bucket_weight
+    get_config().performance.docs_bucket_weight = 1.0
     Searcher(MagicMock(), MagicMock())
 
     auto = Searcher._apply_bucket_weights(
@@ -68,6 +76,7 @@ def test_apply_bucket_weights_intent_hint():
         [_chunk("code.py", 1.0), _chunk("docs.md", 1.0)], intent_hint="docs"
     )
     assert docs[1]["final_score"] > docs[0]["final_score"]
+    get_config().performance.docs_bucket_weight = orig_docs_w
 
 
 # ─────────────────────────────────────────────────────────────
