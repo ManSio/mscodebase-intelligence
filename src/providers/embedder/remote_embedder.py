@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from src.core.config import get_config
+from src.core.interfaces import IEmbedder
 
 logger = logging.getLogger("mscodebase_server.embedder")
 
@@ -24,7 +25,7 @@ logger = logging.getLogger("mscodebase_server.embedder")
 _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
 
 
-class RemoteEmbedder:
+class RemoteEmbedder(IEmbedder):
     def __init__(
         self,
         port: Optional[int] = None,
