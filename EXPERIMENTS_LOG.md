@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-13 — docs_bucket_weight: влияние на fast mode
+
+**Гипотеза:** docs_bucket_weight снижает вес docs-чанков (CHANGELOG, ARCHITECTURE,
+AGENT_DIARY) в fast mode. При weight=0.0 docs должны исчезнуть из топ-10.
+
+**Метод:** Прямой вызов `vector_search` → `_apply_bucket_weights` для 3 запросов
+с weight=1.0, 0.5, 0.0. LanceDB `_distance` добавлен как `final_score`
+(фикс: `vector_search` не возвращал score → bucket weights не работали).
+
+**Результаты:**
+```
+RAW (без bucket):
+  1. score=0.1567  docs\en\CHANGELOG.md
+  2. score=0.1707  docs\en\ARCHITECTURE.md
+  3. score=0.1875  docs\en\ARCHITECTURE.md
+
+AFTER bucket (docs_weight=0.0):
+  1. final_score=0.0000  docs\en\CHANGELOG.md    ← docs обнулены
+  2. final_score=0.0000  docs\en\ARCHITECTURE.md
+```
+
+**Вывод:** Bucket weighting РАБОТАЕТ. Кэш поиска (`cache_key` без веса)
+маскировал эффект в последовательных тестах. Для production `docs_bucket_weight=0.5`
+(коммит 995768e) — docs получают вдвое меньший вес. Для полного исключения
+docs из fast mode можно выставить `0.0`.
+
+**Guard:** При изменении `docs_bucket_weight` очищать кэш поиска
+(`Searcher._cache`), либо добавить вес в `cache_key`.
+
+---
+
 ## 2026-07-13 — INT8 vs FP32: скорость эмбеддинга в OpenVINO 2026.2.1
 
 **Гипотеза:** INT8 E5-base (`model_quantized.onnx`) даёт ~350 ch/s против FP32 (`model.onnx`).

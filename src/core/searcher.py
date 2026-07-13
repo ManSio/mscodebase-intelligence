@@ -421,10 +421,16 @@ class Searcher:
 
             results = []
             for _, row in df.iterrows():
+                # LanceDB _distance = негативная косинусная дистанция
+                # (чем больше, тем ближе). Нужна для bucket weighting
+                # в fast mode — иначе все final_score=0.0 и docs не штрафуются.
+                l2_score = row.get("_distance", 0.0)
                 results.append(
                     {
                         "text": row["text"],
                         "text_full": row.get("text_full", row["text"]),
+                        "score": l2_score,
+                        "final_score": l2_score,
                         "metadata": {
                             "file": row["file_path"],
                             "chunk_index": row["chunk_index"],
