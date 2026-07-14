@@ -98,9 +98,14 @@ class Indexer:
         if symbol_index is not None:
             self._symbol_index = symbol_index
         else:
-            from src.core.symbol_index import SymbolIndex
+            from src.core.search.graph_adapter import SymbolIndexAdapter
+            from src.core.graph import PropertyGraph
 
-            self._symbol_index = SymbolIndex()
+            _graph_db = project_path / ".codebase" / "graph.db"
+            _pg = PropertyGraph(_graph_db)
+            self._symbol_index = SymbolIndexAdapter(_pg, mode=SymbolIndexAdapter.MODE_HYBRID)
+            logger.info(f"📊 PropertyGraph загружен: {_pg.count_nodes()} nodes")
+            self._property_graph = _pg
 
         # Chunk Summarizer для LLM-описаний
         self.enable_summaries = enable_summaries
