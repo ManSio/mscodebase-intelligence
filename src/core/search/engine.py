@@ -14,6 +14,7 @@ from src.core.config import (
     get_config,
 )
 from src.core.reranker import MultiProviderReranker, SearchResultReranker
+from src.core.interfaces.searcher import ISearcher
 from src.utils.i18n import _
 
 # ── Extracted sub-modules ──────────────────────────────────────
@@ -28,13 +29,12 @@ from .utils import (
     _extract_key_terms,
     _extract_symbol_name,
     _filter_by_time,
-    _parse_iso_datetime,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class Searcher(BM25Mixin):
+class Searcher(BM25Mixin, ISearcher):
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
     # Режимы поиска

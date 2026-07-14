@@ -8,8 +8,7 @@ Searcher via class inheritance.
 import asyncio
 import logging
 import math
-import threading
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from src.core.search.utils import _tokenize
 

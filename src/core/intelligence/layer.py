@@ -935,22 +935,40 @@ class ProjectIntelligenceLayer:
         import subprocess
         import re as _re
 
+        # Windows: asyncio.create_subprocess_exec ненадёжен,
+        # используем to_thread + subprocess.run
+        def _run_git_log() -> str:
+            try:
+                result = subprocess.run(
+                    ['git', 'log', f'-{max_commits}', '--format=%H||%s||%b'],
+                    capture_output=True,
+                    text=True,
+                    cwd=str(self.project_path),
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    return f"ERROR:{result.stderr.strip()}"
+                return result.stdout.strip()
+            except FileNotFoundError:
+                return "ERROR:Git not found"
+            except subprocess.TimeoutExpired:
+                return "ERROR:Timeout"
+
         try:
-            proc = await asyncio.create_subprocess_exec(
-                'git', 'log', f'-{max_commits}', '--format=%H||%s||%b',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(self.project_path),
+            raw_log = await asyncio.wait_for(
+                asyncio.to_thread(_run_git_log),
+                timeout=65,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
-            if proc.returncode != 0:
-                return f"Ошибка git log: {stderr.decode().strip()}"
-            raw_log = stdout.decode().strip()
-        except FileNotFoundError:
-            return "Git не найден. ADR-коллектор требует git-репозиторий."
         except asyncio.TimeoutError:
-            proc.kill()
-            return "Таймаут git log (20с). Попробуйте уменьшить max_commits."
+            return "Таймаут git log (65с). Попробуйте уменьшить max_commits."
+
+        if raw_log.startswith("ERROR:"):
+            err = raw_log[6:]
+            if "Git not found" in err:
+                return "Git не найден. ADR-коллектор требует git-репозиторий."
+            if "Timeout" in err:
+                return "Таймаут git log (60с). Попробуйте уменьшить max_commits."
+            return f"Ошибка git log: {err}"
 
         if not raw_log:
             return "Нет коммитов для анализа."

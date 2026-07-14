@@ -1,5 +1,17 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-14] — Split engine.py (2281→1614 lines) into 3 modules
+
+**Что сделано:**
+- `src/core/search/engine.py` был 2281 строка, Searcher class + module-level functions
+- Вынесены:
+  - `scoring.py` — RRF, bucket weights, co-change boost
+  - `utils.py` — query expansion, tokenize, datetime parse, filter, key terms, symbol name
+  - `bm25.py` — BM25Mixin class (build index, search, incremental update)
+- engine.py уменьшен до 1614 строк, Searcher наследует BM25Mixin
+- Полная обратная совместимость: shim `searcher.py` обновлён,
+  статические методы назначены на Searcher, все тесты (96) проходят.
+
 ## [2026-07-14 01:30] — Full investigation: INT8 speed regression & Golden Config
 
 **Симптом:** После архитектурной реструктуры (IEmbedder interface, domain split)

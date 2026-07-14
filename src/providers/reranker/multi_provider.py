@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from src.core.config import get_config
+from src.core.interfaces.reranker import IReranker
 
 # Единый limits для всех HTTP-клиентов (Zed 1.10.0 keepalive compat)
 _HTTP_LIMITS = httpx.Limits(
@@ -67,7 +68,7 @@ _SCORE_ITEM_RE = re.compile(
 )
 
 
-class MultiProviderReranker:
+class MultiProviderReranker(IReranker):
     """Реранкер на основе внешних LLM-провайдеров (Ollama / LM Studio).
 
     Автоматически сканирует доступные провайдеры при инициализации
@@ -509,6 +510,24 @@ class MultiProviderReranker:
         if self.llama_cpp_available:
             parts.append("llama.cpp")
         return " ".join(parts) if parts else "no-reranker"
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Информация о текущей модели реранкера (реализация IReranker).
+
+        Returns:
+            Словарь с информацией о модели: имя, провайдер, статус доступности.
+        """
+        return {
+            "summary": self.model_info,
+            "provider": self._select_provider() or "none",
+            "lm_studio_embedding_model": self.lm_studio_embedding_model,
+            "lm_studio_reranker_model": self.lm_studio_reranker_model,
+            "lm_studio_model": self.lm_studio_model_name,
+            "ollama_model": self.ollama_model_name,
+            "llama_cpp_available": self.llama_cpp_available,
+            "onnx_available": getattr(self, "_onnx_reranker_available", False),
+            "available": self.is_available,
+        }
 
     def _select_provider(self) -> Optional[str]:
         """Выбирает лучший доступный провайдер.
