@@ -103,8 +103,8 @@ class Indexer:
 
             _graph_db = project_path / ".codebase" / "graph.db"
             _pg = PropertyGraph(_graph_db)
-            self._symbol_index = SymbolIndexAdapter(_pg, mode=SymbolIndexAdapter.MODE_HYBRID)
-            logger.info(f"📊 PropertyGraph загружен: {_pg.count_nodes()} nodes")
+            self._symbol_index = SymbolIndexAdapter(_pg, mode=SymbolIndexAdapter.MODE_PURE)
+            logger.info(f"📊 PropertyGraph загружен: {_pg.count_nodes()} nodes, {_pg.count_edges()} edges")
             self._property_graph = _pg
 
         # Chunk Summarizer для LLM-описаний

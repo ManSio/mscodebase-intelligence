@@ -100,10 +100,13 @@ class SymbolIndexAdapter:
                 line = sym.get("line", 0)
                 qname = f"{project_name}.{file_path}.{name}"
 
-                # Определяем label по kind
+                # Определяем label по kind (Tree-sitter node types)
                 label_map = {
+                    "function_definition": NodeLabel.FUNCTION,
                     "function": NodeLabel.FUNCTION,
+                    "class_definition": NodeLabel.CLASS,
                     "class": NodeLabel.CLASS,
+                    "method_definition": NodeLabel.METHOD,
                     "method": NodeLabel.METHOD,
                     "interface": NodeLabel.INTERFACE,
                     "enum": NodeLabel.ENUM,
