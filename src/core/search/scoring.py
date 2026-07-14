@@ -8,7 +8,10 @@ Contains:
 
 import logging
 import os
-from typing import List
+import re
+from typing import List, Optional
+
+import numpy as np
 
 from src.core.config import CODE_EXTENSIONS, DOCS_EXTENSIONS, get_config
 
@@ -78,6 +81,64 @@ def reciprocal_rank_fusion(
         )
 
     return results
+
+
+def auto_detect_intent(query: str) -> str:
+    """Авто-определение intent по тексту запроса (v3.2.1 B1).
+
+    Keyword-based эвристики: анализирует запрос и определяет,
+    ищет пользователь код, документацию или архитектуру.
+
+    Args:
+        query: Поисковый запрос
+
+    Returns:
+        "code", "docs" или "auto"
+    """
+    if not query:
+        return "auto"
+    q = query.lower()
+
+    # Сигналы кода: определения, классы, функции, типы
+    code_signals = [
+        r'\bdef\b', r'\bclass\b', r'\bfunc\b', r'\bfn\b',
+        r'\bimport\b', r'\bfrom\b', r'\breturn\b', r'\basync\b',
+        r'\bawait\b', r'\btype\b', r'\binterface\b', r'\bimpl\b',
+        r'\benum\b', r'\bstruct\b', r'\bconst\b', r'\blet\b',
+        r'\bvar\b', r'\bλ\b', r'\blambda\b',
+        r'^def ', r'^class ', r'^async def ',
+        r'::', r'->',  # type hints
+    ]
+    code_score = sum(1 for p in code_signals if re.search(p, q))
+
+    # Сигналы документации: readme, docs, help, guide
+    docs_signals = [
+        r'\bdoc\b', r'\bdocs\b', r'\breadme\b', r'\bhelp\b',
+        r'\bguide\b', r'\btutorial\b', r'\bexample\b', r'\busage\b',
+        r'\binstall\b', r'\bhow to\b', r'\bwhat is\b',
+        r'\.md$', r'\.rst$', r'readme', r'changelog', r'license',
+    ]
+    docs_score = sum(1 for p in docs_signals if re.search(p, q))
+
+    # Сигналы архитектуры: layer, module, arch, component
+    arch_signals = [
+        r'\barch\b', r'\barchitecture\b', r'\blayer\b',
+        r'\bmodule\b', r'\bcomponent\b', r'\bdependency\b',
+        r'\bcoupling\b', r'\bdiagram\b', r'\bflow\b',
+        r'\bpattern\b', r'\bdesign\b', r'\bstructure\b',
+    ]
+    arch_score = sum(1 for p in arch_signals if re.search(p, q))
+
+    # Если архитектурных сигналов больше всего — docs (схемы/диаграммы)
+    # Иначе — выбираем между code и docs
+    if arch_score >= code_score and arch_score >= docs_score and arch_score >= 2:
+        return "docs"
+    if code_score > docs_score:
+        return "code"
+    if docs_score > code_score:
+        return "docs"
+
+    return "auto"
 
 
 def apply_bucket_weights(
@@ -187,5 +248,108 @@ def _apply_co_change_boost(self, chunks: List[dict]) -> List[dict]:
                 chunk["final_score"] = chunk.get("final_score", 0.0) * (
                     1.0 + best_coupling * 0.3
                 )
+
+    return chunks
+
+
+def apply_mmr_diversity(
+    chunks: List[dict],
+    query_vector: Optional[list] = None,
+    lambda_param: float = 0.6,
+    top_k: int = 10,
+) -> List[dict]:
+    """MMR-диверсификация: убирает дубли, сохраняя релевантность.
+
+    v3.2.1: Применяется после RRF, перед bucket weights.
+    Использует dense vectors из LanceDB для расчёта разнообразия.
+
+    Args:
+        chunks: Результаты после RRF (с полем "vector" для dense-результатов)
+        query_vector: Вектор запроса (если None — MMR пропускается)
+        lambda_param: Баланс (0=max diversity, 1=max relevance)
+        top_k: Сколько результатов диверсифицировать (остальные — по relevance)
+
+    Returns:
+        Тот же список с пересортированными final_score (in-place + return)
+    """
+    if not chunks or query_vector is None or lambda_param >= 1.0:
+        return chunks
+
+    n = len(chunks)
+    if n <= 1:
+        return chunks
+
+    # Собираем векторы (только те, у кого есть vector)
+    vecs = []
+    idx_map = []  # индекс в chunks → позиция в vecs
+    for i, ch in enumerate(chunks):
+        v = ch.get("vector")
+        if v is not None and isinstance(v, (list, np.ndarray)):
+            vecs.append(np.asarray(v, dtype=np.float32))
+            idx_map.append(i)
+
+    if len(vecs) < 2:
+        # Недостаточно векторов — возвращаем как есть
+        return chunks
+
+    vecs = np.stack(vecs)
+    # Нормализуем
+    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    vecs = vecs / norms
+
+    query_vec = np.asarray(query_vector, dtype=np.float32)
+    q_norm = np.linalg.norm(query_vec)
+    if q_norm > 0:
+        query_vec = query_vec / q_norm
+
+    # Relevance scores (cosine similarity с запросом)
+    relevance = vecs @ query_vec
+    # Нормализуем relevance в [0, 1]
+    if relevance.max() > relevance.min():
+        relevance = (relevance - relevance.min()) / (relevance.max() - relevance.min())
+    else:
+        relevance = np.ones_like(relevance) * 0.5
+
+    # MMR greedy selection
+    selected_mask = np.zeros(len(vecs), dtype=bool)
+    selected_order = []
+
+    # Первый — самый релевантный
+    first = int(relevance.argmax())
+    selected_mask[first] = True
+    selected_order.append(idx_map[first])
+
+    for _ in range(min(top_k - 1, len(vecs) - 1)):
+        candidates = np.where(~selected_mask)[0]
+        if len(candidates) == 0:
+            break
+
+        sim_to_selected = vecs[candidates] @ vecs[selected_mask].T
+        max_sim = sim_to_selected.max(axis=1) if sim_to_selected.shape[1] > 0 else np.zeros(len(candidates))
+
+        mmr = lambda_param * relevance[candidates] - (1 - lambda_param) * max_sim
+        best = candidates[int(mmr.argmax())]
+
+        selected_mask[best] = True
+        selected_order.append(idx_map[best])
+
+    # Добавляем оставшиеся (те, что не прошли MMR) в порядке relevance
+    remaining = [i for i in range(n) if i not in selected_order]
+    final_order = selected_order + remaining
+
+    # Пересортировываем chunks
+    reordered = [chunks[i] for i in final_order]
+
+    # Обновляем final_score с учётом MMR
+    for pos, (i, orig_i) in enumerate(zip(range(n), final_order)):
+        if pos < len(selected_order):
+            # MMR-отобранные получают boost
+            reordered[pos]["final_score"] = chunks[orig_i].get("final_score", 0.0) * (
+                1.0 + (1 - lambda_param) * 0.2
+            )
+
+    # Копируем обратно в исходный список (in-place)
+    chunks[:] = reordered
 
     return chunks

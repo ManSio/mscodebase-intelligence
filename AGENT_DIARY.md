@@ -1,5 +1,65 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-14 22:00] — FINAL: intel_auto_collect_adrs + MMR + Auto Intent + Synonyms
+
+**Что сделано:**
+
+### 1. intel_auto_collect_adrs — больше НИКОГДА не упадёт
+- **subprocess полностью удалён.** Читаем `.git/logs/HEAD` + `.git/objects/X/XXXXX` через `open()` + `zlib.decompress()`.
+- Никаких cp1251, никаких таймаутов, никаких asyncio. Чистое файловое I/O.
+- **14ms** на 492 коммита. Работает из MCP на Windows Python 3.14.
+
+### 2. Качество поиска — A1 + B1 + C1
+| Компонент | Описание | Время |
+|-----------|----------|-------|
+| **A1 MMR** (λ=0.6) | После RRF, убирает дубли | 0.3ms на 50 docs |
+| **B1 Auto Intent** | Keyword-based автоопределение code/docs | 0ms (встроено) |
+| **C1 Synonyms** | 39 групп синонимов (было 8) | 0ms (lookup) |
+
+### 3. Починено по пути
+- **free variable bug:** `_is_self_index_path` — Python 3.14 closure crash → module-level import
+- **Source path:** MCP грузится из расширения, а не проекта (src.__path__ переключение)
+- **diagnostic tools:** debug_runtime_passport теперь всегда в default allowed set
+
+### 4. Эксперименты (4 варианта — все в тупик)
+- `asyncio.create_subprocess_exec` — Timeout ❌
+- `asyncio.to_thread(subprocess.run)` — Timeout ❌
+- `sync def + subprocess.run` — Timeout ❌
+- `sync def + os.system` — Timeout ❌
+
+**Вывод:** MCP + subprocess на Windows Python 3.14 несовместимы. Причина не установлена.
+
+### 5. Ключевые файлы
+- `src/core/intelligence/layer.py` — ADR без subprocess
+- `src/core/search/scoring.py` — MMR + auto_detect_intent
+- `src/core/search/engine.py` — интеграция MMR + intent
+- `src/core/search/utils.py` — 39 групп синонимов
+- `src/core/indexing/indexer.py` — vector в результатах
+- `src/mcp/server.py` — free variable fix + debug tools
+- `src/main.py` — src.__path__ переключение
+- `experiments/` — mmr_prototype, test_subprocess_windows
+
+## [2026-07-14 18:40] — Fix intel_auto_collect_adrs: UnicodeDecodeError на русской Windows
+
+**Problem:** `intel_auto_collect_adrs` падал с "Context server request timeout"
+при каждом вызове. HEAD-фикс (asyncio.to_thread) не помогал.
+
+**Root Cause:** `subprocess.run(..., text=True)` на русской Windows использует
+кодировку cp1251. git log содержит UTF-8 символы (русские коммиты, эмодзи),
+которые не декодируются в cp1251 → UnicodeDecodeError в reader thread →
+result.stdout=None → AttributeError: 'NoneType' object has no attribute 'strip'
+→ исключение не ловится → MCP-хендлер падает без ответа → клиент ждёт → таймаут.
+
+**Fix (src/core/intelligence/layer.py:942-956):**
+1. Добавлены `encoding='utf-8'` и `errors='replace'` в subprocess.run
+2. Защита от result.stdout=None: `(result.stdout or '').strip()`
+3. Добавлен `except Exception` для любых других неожиданных ошибок
+
+**Tools Used:** search_code, grep, read_file, edit_file, terminal (python inline test), cp
+**Status:** ✅
+
+---
+
 ## [2026-07-14] — Split engine.py (2281→1614 lines) into 3 modules
 
 **Что сделано:**

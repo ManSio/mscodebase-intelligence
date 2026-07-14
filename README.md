@@ -16,7 +16,7 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-59-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-12*
+*Last updated: 2026-07-14*
 
 </div>
 
@@ -113,6 +113,9 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
 | 🔗 **Data Flow Graph** | `ASSIGNED_FROM` edges track variable assignments. Unified Walker + Conditional Flow (if/for/while/try). 3,337 edges on MSCodeBase (81% conditional). |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
+| 🎯 **MMR Diversification** | Maximal Marginal Relevance (λ=0.6) после RRF — убирает дубли, сохраняя релевантность. 0.3ms на 50 docs. |
+| 🧠 **Auto Intent Detection** | Keyword-based автоопределение code/docs по тексту запроса. Не требует ручного `intent_hint`. |
+| 📖 **Extended Synonyms** | 39 групп синонимов (auth↔login, function↔method, cache↔buffer и др.) — закрывает разрыв между терминологией пользователя и кодом. |
 
 ---
 

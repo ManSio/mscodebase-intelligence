@@ -18,8 +18,8 @@ capabilities = ["context_servers"]
 # Установка из marketplace → один клик, без ручной настройки.
 # Перед первым запуском: python install.py (создаёт venv + скачивает модели).
 [context_servers.mscodebase-intelligence]
-command = "python"
-args = ["-u", "-m", "src.main"]
-env = {"PYTHONPATH" = ".", "PROJECT_PATH" = "$ZED_WORKTREE_ROOT"}
+command = "venv\\Scripts\\python.exe"
+args = ["-u", "run_mcp.py"]
+env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT"}
 
 [slash_commands]

@@ -50,6 +50,7 @@ from src.core.passport import (
     RUN_STARTED_AT as _RUN_STARTED_AT,
 )
 from src.core.platform_utils import get_zed_db_path
+from src.mcp.tools.base import _is_self_index_path
 
 # (passport vars imported from src.core.passport above)
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
@@ -872,7 +873,6 @@ def _warm_up_ecosystem(services):
 
     # 1. Прогрев SymbolIndex через registry
     try:
-        from src.mcp.tools.base import resolve_indexer_for_request, _is_self_index_path
         from src.core.di_container import ProjectIndexerRegistry
 
         registry = services.resolve(ProjectIndexerRegistry)
@@ -1320,18 +1320,38 @@ def _register_all_tools(mcp, services):
     else:
         # Не установлено — показать дефолтные
         _allowed_names = {
+            # Search
             "search_code",
             "get_symbol_info",
             "impact_analysis",
+            # Index & System
             "notify_change",
             "get_index_status",
             "get_health_report",
+            "get_logs",
+            "read_live_file",
+            # Intel Layer
             "intel_get_runtime_status",
             "intel_get_project_context",
             "intel_get_project_memory",
+            "intel_code_topology",
+            "intel_auto_collect_adrs",
+            # Git
+            "get_commit_history",
+            "get_file_history",
+            # Write
             "rename_symbol",
             "replace_symbol",
+            # Graph
+            "get_variable_flow",
+            "graph_query",
+            # Analysis
+            "structural_search",
+            # Diagnostic
             "diagnostics",
+            "debug_runtime_passport",
+            "get_runtime_counters",
+            "intel_execution_timeline",
         }
         _show_all = False
     

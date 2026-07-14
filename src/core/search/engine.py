@@ -20,9 +20,11 @@ from src.utils.i18n import _
 # ── Extracted sub-modules ──────────────────────────────────────
 from .bm25 import BM25Mixin
 from .scoring import (
-    _apply_co_change_boost,
-    apply_bucket_weights,
-    reciprocal_rank_fusion,
+_apply_co_change_boost,
+apply_bucket_weights,
+apply_mmr_diversity,
+auto_detect_intent,
+reciprocal_rank_fusion,
 )
 from .utils import (
     _expand_query,
@@ -302,6 +304,7 @@ class Searcher(BM25Mixin, ISearcher):
         # Собираем результаты от всех вариантов
         all_bm25_results = []
         all_dense_results = []
+        query_vector = None  # для MMR
 
         for variant in query_variants:
             # BM25 поиск (sparse) — пост-фильтрация по layer
@@ -364,6 +367,20 @@ class Searcher(BM25Mixin, ISearcher):
                 }
                 for res in reranked
             ]
+
+        # === v3.2.1: MMR diversification (убирает дубли, сохраняя релевантность) ===
+        rrf_results = apply_mmr_diversity(
+            rrf_results,
+            query_vector=query_vector,
+            lambda_param=0.6,
+            top_k=limit * 2,
+        )
+
+        # === v3.2.1 B1: Auto-detect intent ===
+        if intent_hint == "auto":
+            intent_hint = auto_detect_intent(query)
+            if intent_hint != "auto":
+                logger.debug(f"[Intent] {query[:40]}... → {intent_hint}")
 
         # === Multi-Bucket RAG: Soft Weighting + Cut to limit ===
         rrf_results = apply_bucket_weights(rrf_results, intent_hint)

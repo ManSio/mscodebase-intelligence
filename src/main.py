@@ -8,24 +8,53 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Определяем PROJECT_ROOT:
+# Если Python запущен из расширения -> корень расширения
+# Иначе -> родитель родителя __file__
+_exec = Path(sys.executable).resolve()
+_EXT_MARKER = "extensions" + os.sep + "mscodebase-intelligence" + os.sep + "venv"
+if _EXT_MARKER in str(_exec):
+    # Запущены из расширения: PROJECT_ROOT = корень расширения
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    # Если __file__ из проекта (Zed ставит CWD=проект), то PROJECT_ROOT неверный.
+    # В таком случае определяем через sys.executable:
+    if "MSCodeBase" in str(PROJECT_ROOT):
+        # __file__ = проект, но sys.executable = расширение
+        # PROJECT_ROOT = корень расширения = ext_root
+        PROJECT_ROOT = _exec.parent.parent.parent.resolve()
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Нормализуем пути для Windows-совместимости (убираем разницу слешей)
 _normalized_sys_path = [str(Path(p).resolve()) for p in sys.path]
 
-# ⚠️ КРИТИЧЕСКИ ВАЖНО: Убираем src/ из sys.path, чтобы не перекрывать
-# пакет mcp из site-packages.
-script_dir_resolved = str(Path(__file__).resolve().parent.resolve())
-if script_dir_resolved in _normalized_sys_path:
-    # Находим и удаляем точное вхождение (с учётом нормализации)
-    for _i, _p in enumerate(sys.path):
-        if str(Path(_p).resolve()) == script_dir_resolved:
-            sys.path.pop(_i)
-            break
+# ⚠️ КРИТИЧЕСКИ ВАЖНО: Убираем CWD из sys.path, если он — корень проекта
+# (чтобы src/ из проекта не перекрыл src/ из расширения)
+cwd = Path.cwd().resolve()
+if cwd != PROJECT_ROOT:
+    sys.path = [p for p in sys.path if Path(p).resolve() != cwd]
 
+# Добавляем PROJECT_ROOT в sys.path (если ещё нет)
 project_root_resolved = str(PROJECT_ROOT.resolve())
 if project_root_resolved not in [str(Path(p).resolve()) for p in sys.path]:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# ⚠️ Критично: при запуске через `python -m src.main` пакет `src` уже загружен
+# из CWD (проекта). Даже если мы поменяли sys.path, Python не перезагружает
+# уже загруженный пакет. Принудительно переключаем src на расширение.
+try:
+    _src_pkg = sys.modules.get("src")
+    if _src_pkg and hasattr(_src_pkg, "__path__"):
+        _new_src_path = str(PROJECT_ROOT / "src")
+        if _src_pkg.__path__[0] != _new_src_path:
+            _old_path = _src_pkg.__path__[0]
+            _src_pkg.__path__ = [_new_src_path]
+            # Удаляем src.mcp.* — они будут перезагружены с новым __path__
+            # (src.core.* уже загружен в setup_logging — не трогаем)
+            for _mod_name in list(sys.modules.keys()):
+                if _mod_name.startswith("src.mcp"):
+                    del sys.modules[_mod_name]
+except Exception:
+    pass
 
 # После удаления src/ из sys.path модули src.* всё ещё доступны
 # через PROJECT_ROOT, но import mcp теперь правильно идёт в site-packages.

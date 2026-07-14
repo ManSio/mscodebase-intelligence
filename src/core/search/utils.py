@@ -11,8 +11,9 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# ─── Query synonyms ───────────────────────────────────────────
+# ─── Query synonyms (v3.2.1 C1: расширенный словарь) ──────
 _QUERY_SYNONYMS = {
+    # CRUD (8)
     "auth": ["authentication", "login", "authorize"],
     "login": ["auth", "signin", "authenticate"],
     "config": ["configuration", "settings", "options"],
@@ -21,6 +22,42 @@ _QUERY_SYNONYMS = {
     "delete": ["remove", "destroy", "clear"],
     "update": ["edit", "modify", "change"],
     "get": ["fetch", "retrieve", "read"],
+    # Поиск/запросы (5)
+    "find": ["search", "locate", "lookup"],
+    "query": ["search", "request", "lookup"],
+    "filter": ["where", "condition", "predicate"],
+    "sort": ["order", "arrange", "rank"],
+    "list": ["all", "enumerate", "collect"],
+    # Код (10)
+    "function": ["method", "fn", "def", "procedure"],
+    "class": ["type", "struct", "object"],
+    "import": ["include", "require", "using"],
+    "export": ["expose", "publish", "re-export"],
+    "callback": ["handler", "listener", "hook"],
+    "event": ["signal", "notification", "trigger"],
+    "stream": ["channel", "pipe", "queue"],
+    "cache": ["buffer", "temporary", "memoize"],
+    "pool": ["connection-pool", "reuse", "recycle"],
+    "thread": ["goroutine", "task", "concurrent"],
+    # Данные (8)
+    "database": ["db", "storage", "persistence"],
+    "table": ["collection", "entity", "relation"],
+    "schema": ["structure", "blueprint", "model"],
+    "field": ["column", "property", "attribute"],
+    "index": ["key", "lookup", "catalog"],
+    "migrate": ["schema-change", "version", "evolve"],
+    "serialize": ["marshal", "encode", "pack"],
+    "parse": ["compile", "tokenize", "deserialize"],
+    # Сеть (5)
+    "request": ["http-call", "api-call", "invoke"],
+    "response": ["reply", "result", "answer"],
+    "socket": ["connection", "endpoint", "port"],
+    "route": ["endpoint", "path", "url"],
+    "middleware": ["interceptor", "filter", "plugin"],
+    # UI (3)
+    "render": ["display", "draw", "paint"],
+    "click": ["press", "tap", "select"],
+    "focus": ["highlight", "select", "active"],
 }
 
 

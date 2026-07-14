@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -355,6 +356,7 @@ class ProjectIntelligenceLayer:
         )
         self._reindex_lock = asyncio.Lock()
         self._write_lock = asyncio.Lock()  # защита от race при записи JSON
+        self._sync_write_lock = threading.Lock()  # для sync-методов (intel_auto_collect_adrs)
 
     def _resolve_active_indexer(self) -> Any:
         """Динамически резолвит актуальный Indexer из реестра.
@@ -920,58 +922,71 @@ class ProjectIntelligenceLayer:
     # БЛОК 4.5. ADR Auto-Collector (Автоматический сбор архитектурных решений)
     # -----------------------------------------------------------------
 
-    async def intel_auto_collect_adrs(self, max_commits: int = 50) -> str:
-        """Автоматический сбор ADR из git-лога.
-
-        Сканирует последние N коммитов, находит архитектурные решения
-        (feat/refactor/arch/adr) и сохраняет их в проектную память.
-
-        Args:
-            max_commits: Сколько последних коммитов проверить (по умолч. 50)
-
-        Returns:
-            Отчёт: сколько ADR найдено, сколько сохранено, список новых
-        """
-        import subprocess
+    def intel_auto_collect_adrs(self, max_commits: int = 50) -> str:
+        """Автоматический сбор ADR из git-лога. (без subprocess, чтение .git/logs/HEAD)"""
         import re as _re
+        import zlib
+        from pathlib import Path as _P
 
-        # Windows: asyncio.create_subprocess_exec ненадёжен,
-        # используем to_thread + subprocess.run
-        def _run_git_log() -> str:
-            try:
-                result = subprocess.run(
-                    ['git', 'log', f'-{max_commits}', '--format=%H||%s||%b'],
-                    capture_output=True,
-                    text=True,
-                    cwd=str(self.project_path),
-                    timeout=60,
-                )
-                if result.returncode != 0:
-                    return f"ERROR:{result.stderr.strip()}"
-                return result.stdout.strip()
-            except FileNotFoundError:
-                return "ERROR:Git not found"
-            except subprocess.TimeoutExpired:
-                return "ERROR:Timeout"
+        git_dir = _P(self.project_path) / '.git'
+        reflog_path = git_dir / 'logs' / 'HEAD'
+        if not reflog_path.exists():
+            return "Git-репозиторий не найден. ADR-коллектор требует git."
 
+        # Читаем .git/logs/HEAD (без subprocess)
         try:
-            raw_log = await asyncio.wait_for(
-                asyncio.to_thread(_run_git_log),
-                timeout=65,
-            )
-        except asyncio.TimeoutError:
-            return "Таймаут git log (65с). Попробуйте уменьшить max_commits."
+            reflog_raw = reflog_path.read_text('utf-8', errors='replace')
+        except Exception as e:
+            return f"Ошибка чтения .git/logs/HEAD: {type(e).__name__}: {e}"
 
-        if raw_log.startswith("ERROR:"):
-            err = raw_log[6:]
-            if "Git not found" in err:
-                return "Git не найден. ADR-коллектор требует git-репозиторий."
-            if "Timeout" in err:
-                return "Таймаут git log (60с). Попробуйте уменьшить max_commits."
-            return f"Ошибка git log: {err}"
+        reflog_lines = reflog_raw.strip().split('\n')
+        # Берём последние max_commits строк (новые коммиты в конце)
+        recent = reflog_lines[-max_commits:] if len(reflog_lines) > max_commits else reflog_lines
 
-        if not raw_log:
-            return "Нет коммитов для анализа."
+        # Парсим хеши коммитов из reflog
+        commits: list[tuple[str, str, str]] = []  # (hash, subject, body)
+        seen_hashes: set[str] = set()
+        for line in recent:
+            if not line.strip():
+                continue
+            parts = line.split(' ', 2)
+            if len(parts) < 2:
+                continue
+            new_hash = parts[1].strip()
+            if len(new_hash) < 10 or new_hash.count('0') == len(new_hash):
+                continue  # хеш из нулей — merge/initial
+            if new_hash in seen_hashes:
+                continue
+            seen_hashes.add(new_hash)
+
+            # Читаем объект коммита из .git/objects/
+            obj_path = git_dir / 'objects' / new_hash[:2] / new_hash[2:]
+            if not obj_path.exists():
+                continue
+            try:
+                compressed = obj_path.read_bytes()
+                raw = zlib.decompress(compressed)
+                # raw = "commit <size>\0<content>" или "commit <size>\n<content>"
+                if b'\x00' in raw:
+                    content = raw.split(b'\x00', 1)[1]
+                else:
+                    # Формат: "commit <size>\n<headers>\n\n<message>"
+                    content = raw.split(b'\n', 1)[1] if b'\n' in raw else raw
+                # Ищем двойной newline (конец заголовка, начало сообщения)
+                header_end = content.find(b'\n\n')
+                if header_end == -1:
+                    continue
+                msg_raw = content[header_end + 2:].decode('utf-8', errors='replace')
+                msg_lines = msg_raw.strip().split('\n')
+                subject = msg_lines[0] if msg_lines else ''
+                body = '\n'.join(msg_lines[1:]) if len(msg_lines) > 1 else ''
+                if subject:
+                    commits.append((new_hash[:12], subject, body[:500]))
+            except Exception:
+                continue
+
+        if not commits:
+            return f"За последние {max_commits} коммитов новых ADR не найдено."
 
         # Паттерны архитектурных решений
         ADR_PATTERNS = [
@@ -995,15 +1010,7 @@ class ProjectIntelligenceLayer:
                     existing_hashes.add(h)
 
         new_adrs = []
-        for line in raw_log.split('\n'):
-            if not line:
-                continue
-            parts = line.split('||', 2)
-            if len(parts) < 2:
-                continue
-            commit_hash = parts[0][:12]
-            subject = parts[1]
-            body = parts[2] if len(parts) > 2 else ''
+        for commit_hash, subject, body in commits:
 
             # Пропускаем уже сохранённые
             if commit_hash in existing_hashes:
@@ -1041,8 +1048,8 @@ class ProjectIntelligenceLayer:
         if not new_adrs:
             return f"За последние {max_commits} коммитов новых ADR не найдено."
 
-        # Сохраняем новые ADR
-        async with self._write_lock:
+        # Сохраняем новые ADR (sync lock — функция def, не async def)
+        with self._sync_write_lock:
             nodes = self.store._load_json('project_memory.json')
             if isinstance(nodes, dict):
                 nodes = []
@@ -1532,7 +1539,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         return await intel_layer.intel_add_memory_node(section, data_json)
 
     @mcp_app.tool("intel_auto_collect_adrs")
-    async def auto_collect_adrs(max_commits: int = 50) -> str:
+    def auto_collect_adrs(max_commits: int = 50) -> str:
         """Автоматический сбор ADR из git-лога.
 
         Сканирует последние N коммитов, находит архитектурные решения
@@ -1544,7 +1551,11 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         Returns:
             Отчёт: сколько ADR найдено и сохранено
         """
-        return await intel_layer.intel_auto_collect_adrs(max_commits)
+        try:
+            return intel_layer.intel_auto_collect_adrs(max_commits)
+        except Exception as e:
+            import traceback
+            return f"Ошибка: {type(e).__name__}: {e}\n{traceback.format_exc()}"
 
     @mcp_app.tool("intel_get_hotspots")
     async def get_hotspots() -> str:

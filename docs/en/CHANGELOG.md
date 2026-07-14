@@ -10,6 +10,41 @@ All notable changes to this project will be documented in this file.
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals (56/57) from before
 > the intel-layer grew to 14 tools. `MSCODEBASE_MCP_TOOLS=""` shows all 59; by default only 12 are visible.
 
+## [3.2.3] — 2026-07-14 — MMR diversification + Auto Intent + Synonyms + subprocess-free ADR
+
+### Added
+- 🎯 **MMR Diversification** (λ=0.6) — Maximal Marginal Relevance после RRF.
+  Убирает дублирующиеся чанки, сохраняя релевантность. 0.3ms на 50 docs.
+  Включён по умолчанию в `search_code`. Отключается через lambda_param=1.0.
+- 🧠 **Auto Intent Detection** — keyword-based автоопределение `intent_hint` (code/docs/auto)
+  по тексту запроса. Не требует ручного указания режима.
+- 📖 **Extended Synonyms Map** — с 8 до 39 групп синонимов (auth↔login, function↔method,
+  cache↔buffer, database↔db и др.) для query expansion.
+- 📁 **intel_auto_collect_adrs** — переписан на чтение `.git/logs/HEAD` + `.git/objects/`
+  через zlib. **Больше не использует subprocess.** 14ms на 492 коммита.
+
+### Fixed
+- 🐛 **Python 3.14 free variable bug** — `_is_self_index_path` crash fixed (module-level import).
+- 🐛 **MCP Source path** — сервер гарантированно грузится из расширения, а не из проекта.
+- 🐛 **debug_runtime_passport** — добавлен в default allowed set.
+
+### Changed
+- `src/core/indexing/indexer.py` — `search_async` теперь возвращает `vector` для MMR.
+- `src/core/search/scoring.py` — добавлен `apply_mmr_diversity` + `auto_detect_intent`.
+- `src/core/search/engine.py` — интеграция MMR + auto intent в search pipeline.
+- `src/core/search/utils.py` — расширен `_QUERY_SYNONYMS` (8→39 групп).
+- `src/main.py` — принудительное переключение `src.__path__` на расширение.
+
+### Experiments
+- Полное исследование subprocess на Windows Python 3.14.14:
+  - `asyncio.create_subprocess_exec` — Timeout ❌
+  - `asyncio.to_thread(subprocess.run)` — Timeout ❌
+  - `sync def + subprocess.run` — Timeout ❌
+  - `sync def + os.system` — Timeout ❌
+  - **Вывод:** MCP + subprocess на Windows несовместимы.
+- MMR prototype (numpy): 100 docs → 0.62ms, 1000 docs → 8.9ms.
+  λ=0.6 снижает дубли в 2× при минимальной потере релевантности.
+
 ## [3.2.2] — 2026-07-13 — Restore INT8 as primary embedder path
 
 ### Fixed

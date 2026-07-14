@@ -412,6 +412,7 @@ class Indexer:
                             "hierarchy_level": row.get("hierarchy_level", ""),
                             "parent_id": row.get("parent_id", ""),
                         },
+                        "vector": row.get("vector"),  # v3.2.1: для MMR
                     }
                 )
             return results
