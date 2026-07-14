@@ -66,7 +66,7 @@ class CommitMemory:
             logger.warning(f"Failed to save commit cache: {e}")
 
     def fetch_commits(self, limit: int = 100) -> List[Dict]:
-        """Получает историю коммитов из git.
+        """Получает историю коммитов из .git/logs/HEAD (без subprocess).
 
         Args:
             limit: Максимальное количество коммитов
@@ -74,60 +74,104 @@ class CommitMemory:
         Returns:
             Список коммитов с метаданными
         """
-        try:
-            result = subprocess.run(
-                [
-                    "git",
-                    "log",
-                    f"--max-count={limit}",
-                    "--pretty=format:%H|%an|%ae|%ad|%s",
-                    "--date=iso",
-                    "--name-only",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                cwd=str(self.project_path),
-                encoding="utf-8",
-                errors="replace",
-            )
+        import zlib
 
-            if result.returncode != 0:
-                return []
-
-            commits = []
-            current_commit = None
-
-            for line in result.stdout.strip().split("\n"):
-                if "|" in line and not line.startswith(" "):
-                    # Строка коммита: hash|author|email|date|subject
-                    parts = line.split("|", 4)
-                    if len(parts) >= 5:
-                        if current_commit:
-                            commits.append(current_commit)
-                        current_commit = {
-                            "hash": parts[0],
-                            "author": parts[1],
-                            "email": parts[2],
-                            "date": parts[3],
-                            "message": parts[4],
-                            "files": [],
-                        }
-                elif line.strip() and current_commit:
-                    # Строка файла
-                    current_commit["files"].append(line.strip())
-
-            if current_commit:
-                commits.append(current_commit)
-
-            self._commits = commits
-            self._save_cache()
-
-            return commits
-
-        except Exception as e:
-            logger.error(f"Failed to fetch commits: {e}")
+        git_dir = self.project_path / '.git'
+        reflog_path = git_dir / 'logs' / 'HEAD'
+        if not reflog_path.exists():
+            logger.warning(f".git/logs/HEAD not found: {reflog_path}")
             return []
+
+        try:
+            reflog_raw = reflog_path.read_text('utf-8', errors='replace')
+        except Exception as e:
+            logger.error(f"Failed to read reflog: {e}")
+            return []
+
+        lines = reflog_raw.strip().split('\n')
+        # Последние limit строк (новые коммиты в конце)
+        recent = lines[-limit:] if len(lines) > limit else lines
+
+        commits = []
+        seen_hashes: set = set()
+
+        for line in recent:
+            if not line.strip():
+                continue
+            parts = line.split(' ', 2)
+            if len(parts) < 2:
+                continue
+            new_hash = parts[1].strip()
+            # Пропускаем нулевые хеши (merge, initial)
+            if len(new_hash) < 10 or new_hash.count('0') == len(new_hash):
+                continue
+            if new_hash in seen_hashes:
+                continue
+            seen_hashes.add(new_hash)
+
+            # Парсим reflog: "old_hash new_hash committer <timestamp> tz\tmessage"
+            rest = parts[2] if len(parts) > 2 else ''
+            reflog_msg = rest.split('\t', 1)[-1] if '\t' in rest else ''
+
+            # Читаем объект коммита из .git/objects/
+            obj_path = git_dir / 'objects' / new_hash[:2] / new_hash[2:]
+            if not obj_path.exists():
+                continue
+
+            try:
+                compressed = obj_path.read_bytes()
+                raw = zlib.decompress(compressed)
+
+                # Парсим commit объект: "commit <size>\0<content>"
+                if b'\x00' in raw:
+                    content = raw.split(b'\x00', 1)[1]
+                else:
+                    content = raw.split(b'\n', 1)[1] if b'\n' in raw else raw
+
+                # Извлекаем заголовки (до двойного \n\n)
+                header_end = content.find(b'\n\n')
+                msg_raw = content[header_end + 2:].decode('utf-8', 'replace') if header_end != -1 else ''
+                msg_lines = msg_raw.strip().split('\n')
+                subject = msg_lines[0] if msg_lines else reflog_msg
+                body = '\n'.join(msg_lines[1:]) if len(msg_lines) > 1 else ''
+
+                # Парсим заголовки: tree, parent, author, committer
+                header_part = content[:header_end].decode('utf-8', 'replace') if header_end != -1 else ''
+                author = ''
+                email = ''
+                date_str = ''
+                for hdr_line in header_part.split('\n'):
+                    if hdr_line.startswith('author '):
+                        # "author Name <email> timestamp timezone"
+                        hdr = hdr_line[7:]
+                        if '<' in hdr:
+                            author = hdr.split('<')[0].strip()
+                            email_part = hdr.split('<')[1].split('>')[0]
+                            email = email_part
+                            ts_part = hdr.split('>')[-1].strip().split()
+                            if ts_part:
+                                date_str = ts_part[0]
+
+                commit = {
+                    "hash": new_hash,
+                    "author": author or 'unknown',
+                    "email": email or '',
+                    "date": date_str or '',
+                    "message": subject,
+                    "body": body[:200] if body else '',
+                    "files": [],  # список файлов не парсим (сложно), но не критично
+                }
+                commits.append(commit)
+            except Exception:
+                continue
+
+            if len(commits) >= limit:
+                break
+
+        self._commits = commits
+        self._save_cache()
+
+        return commits
 
     def compute_co_change_matrix(
         self, min_co_changes: int = 3
@@ -193,7 +237,16 @@ class CommitMemory:
         if not self._commits:
             self.fetch_commits()
 
-        return [c for c in self._commits if file_path in c.get("files", [])]
+        # Fallback: если files пуст (новая реализация без subprocess) —
+        # ищем по упоминанию файла в сообщении или теле коммита
+        def _matches(c: dict) -> bool:
+            if file_path in c.get("files", []):
+                return True
+            # Fallback: поиск в message + body
+            fp_lower = file_path.lower()
+            msg = (c.get("message", "") + " " + c.get("body", "")).lower()
+            return fp_lower in msg
+        return [c for c in self._commits if _matches(c)]
 
     def get_commits_for_symbol(
         self, symbol_name: str, file_path: str = ""

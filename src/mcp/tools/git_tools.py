@@ -239,6 +239,22 @@ class GetFileHistoryTool(MCPTool):
                 "message": commit.get("message", "")[:80],
             })
 
+        # Если нет точных совпадений — показываем последние коммиты
+        if not formatted:
+            all_commits = memory.get_commits_for_file("")
+            for commit in all_commits[:10]:
+                formatted.append({
+                    "hash": commit["hash"][:8],
+                    "date": commit.get("date", "")[:10],
+                    "message": commit.get("message", "")[:80],
+                })
+            return {
+                "status": "ok",
+                "file": file_path,
+                "note": "Нет точных совпадений. Показаны последние коммиты.",
+                "commits": formatted,
+            }
+
         return {
             "status": "ok",
             "file": file_path,

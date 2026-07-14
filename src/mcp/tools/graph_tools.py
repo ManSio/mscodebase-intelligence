@@ -224,7 +224,7 @@ class CypherQueryTool(MCPTool):
         from src.core.graph import PropertyGraph
 
         try:
-            pg = self.services.resolve(PropertyGraph)
+            pg = self._services.resolve(PropertyGraph)
         except KeyError:
             # Fallback: per-project PropertyGraph через indexer
             indexer = self.resolve_indexer()
@@ -359,7 +359,7 @@ class GetVariableFlowTool(MCPTool):
         from src.core.graph_adapter import SymbolIndexAdapter
 
         try:
-            pg = self.services.resolve(PropertyGraph)
+            pg = self._services.resolve(PropertyGraph)
             return SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
         except KeyError:
             indexer = self.resolve_indexer()

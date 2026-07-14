@@ -35,6 +35,25 @@ All notable changes to this project will be documented in this file.
 - `src/core/search/utils.py` — расширен `_QUERY_SYNONYMS` (8→39 групп).
 - `src/main.py` — принудительное переключение `src.__path__` на расширение.
 
+### Fixed
+- 🐛 **commit_memory.py** — `fetch_commits` переписан на чтение `.git/logs/HEAD`
+  через zlib (без subprocess). Работает в MCP на Windows.
+- 🐛 **get_file_history** — fallback на последние коммиты если нет точных
+  совпадений (файл не упоминается в сообщениях коммитов).
+- 🐛 **GetVariableFlowTool** — `self.services` → `self._services` (AttributeError).
+- 🐛 **CypherQueryTool** — `self.services` → `self._services`.
+- 🐛 **Удалены** экспериментальные инструменты (`intel_ping`, `intel_exp_*`).
+- 🐛 **impact_analysis** — работает с полным именем (`Searcher.method`).
+
+### Changed
+- Default MCP tools set расширен **15→24** инструмента:
+  `get_logs`, `read_live_file`, `intel_code_topology`, `intel_auto_collect_adrs`,
+  `get_commit_history`, `get_file_history`, `get_variable_flow`, `graph_query`,
+  `structural_search`.
+- `src/core/commit_memory.py` — полная переписка на файловое I/O.
+- `src/mcp/tools/graph_tools.py` — исправлен баг с `services`.
+- `src/mcp/tools/git_tools.py` — fallback для get_file_history.
+
 ### Experiments
 - Полное исследование subprocess на Windows Python 3.14.14:
   - `asyncio.create_subprocess_exec` — Timeout ❌
