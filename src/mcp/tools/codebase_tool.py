@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -202,6 +204,9 @@ class ExecuteScriptTool(MCPTool):
     ) -> str:
         """Execute Python code in a sandboxed environment.
 
+        Использует asyncio.create_subprocess_exec для Windows-совместимости.
+        Без temp-файлов (через -c), без PYTHONPATH (чистая среда).
+
         Args:
             code: Python code to execute
             timeout: Max execution time in seconds (5-120)
@@ -215,54 +220,64 @@ class ExecuteScriptTool(MCPTool):
 
         timeout = max(5, min(timeout, 120))
 
-        # Создаём временный файл
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, encoding="utf-8"
-        ) as f:
-            f.write(code)
-            script_path = f.name
+        # Настройки для Windows: не наследовать консоль родителя
+        # и не показывать окно cmd
+        startupinfo = None
+        creationflags = 0
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore
+
+        # Чистое окружение — без PYTHONPATH, чтобы исключить
+        # влияние импортов src.* модулей
+        clean_env = {
+            "PATH": os.environ.get("PATH", ""),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        }
 
         try:
-            # Запускаем в subprocess с таймаутом
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, script_path,
+                sys.executable, "-c", code,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={**{k: v for k, v in dict(
-                    PATH=__import__('os').environ.get('PATH', ''),
-                    PYTHONPATH=str(Path(__file__).resolve().parent.parent.parent),
-                ).items()}},
+                env=clean_env,
                 cwd=str(Path.cwd()),
+                startupinfo=startupinfo,
+                creationflags=creationflags,
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
                     proc.communicate(), timeout=timeout
                 )
             except asyncio.TimeoutError:
-                proc.kill()
-                await proc.wait()
+                # При таймауте — убиваем процесс
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
                 return f"⏱ **Timeout** ({timeout}s)\n```\n{code[:200]}...\n```"
 
-            out = (stdout or b"").decode("utf-8", errors="replace")
-            err = (stderr or b"").decode("utf-8", errors="replace")
+            out = (stdout_bytes or b"").decode("utf-8", errors="replace")
+            err = (stderr_bytes or b"").decode("utf-8", errors="replace")
+            exit_code = proc.returncode or 0
 
             # Обрезаем до 10000 символов
-            result = ""
+            result_parts = []
             if out:
-                result += f"**stdout:**\n```\n{out[:5000]}\n```\n"
+                result_parts.append(f"**stdout:**\n```\n{out[:5000]}\n```")
             if err:
-                result += f"**stderr:**\n```\n{err[:5000]}\n```\n"
-            if not result:
-                result = "_Выполнено (нет вывода)_"
+                result_parts.append(f"**stderr:**\n```\n{err[:5000]}\n```")
+            if not result_parts:
+                result_parts.append("_Выполнено (нет вывода)_")
 
-            summary = f"✅ **Script executed** (exit={proc.returncode}, {timeout}s timeout)\n\n{result}"
-            return summary
+            return f"✅ **Script executed** (exit={exit_code}, {timeout}s timeout)\n\n" + "\n".join(result_parts)
 
         except Exception as e:
             return f"🚫 **Error:** {e}"
-        finally:
-            Path(script_path).unlink(missing_ok=True)
 
 
 __all__ = ["CodebaseTool", "ExecuteScriptTool"]
