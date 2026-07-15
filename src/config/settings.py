@@ -14,38 +14,52 @@ from typing import List, Optional, Set
 class EmbeddingConfig:
     """Конфигурация для эмбеддингов (Qwen3, BGE-M3, LM Studio, Ollama, ONNX)"""
 
-    # 🏆 Модель эмбеддинга по умолчанию
-    # Qwen3 — лучшее качество, BGE-M3 — в 5x быстрее индексация
-    # На больших проектах (300k+ строк) рекомендуется BGE-M3 для первого индекса
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
-
-    # LM Studio
-    lm_studio_host: str = os.getenv("LM_STUDIO_HOST", "127.0.0.1")
-    lm_studio_port: int = int(os.getenv("LM_STUDIO_PORT", "1234"))
-    lm_studio_embeddings_url: str = (
-        f"http://{lm_studio_host}:{lm_studio_port}/v1/embeddings"
+    embedding_model: str = field(
+        default_factory=lambda: os.getenv("EMBEDDING_MODEL", "qwen3-embedding")
     )
-    lm_studio_models_url: str = f"http://{lm_studio_host}:{lm_studio_port}/v1/models"
-    lm_studio_chat_url: str = (
-        f"http://{lm_studio_host}:{lm_studio_port}/v1/chat/completions"
+    lm_studio_host: str = field(
+        default_factory=lambda: os.getenv("LM_STUDIO_HOST", "127.0.0.1")
+    )
+    lm_studio_port: int = field(
+        default_factory=lambda: int(os.getenv("LM_STUDIO_PORT", "1234"))
+    )
+    ollama_host: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_HOST", "127.0.0.1")
+    )
+    ollama_port: int = field(
+        default_factory=lambda: int(os.getenv("OLLAMA_PORT", "11434"))
+    )
+    model_name: str = field(
+        default_factory=lambda: os.getenv("MODEL_NAME", "multilingual-e5-base")
+    )
+    embedding_dimension: int = field(
+        default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "768"))
     )
 
-    # Ollama
-    ollama_host: str = os.getenv("OLLAMA_HOST", "127.0.0.1")
-    ollama_port: int = int(os.getenv("OLLAMA_PORT", "11434"))
-    ollama_tags_url: str = f"http://{ollama_host}:{ollama_port}/api/tags"
-    ollama_chat_url: str = f"http://{ollama_host}:{ollama_port}/api/chat"
-    ollama_embeddings_url: str = f"http://{ollama_host}:{ollama_port}/api/embeddings"
-
-    # Общие
-    model_name: str = os.getenv("MODEL_NAME", "multilingual-e5-base")
-    embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "768"))
-
+    # URL-ы вычисляются лениво (чтобы реагировать на изменения .env)
     def get_lm_studio_base_url(self) -> str:
         return f"http://{self.lm_studio_host}:{self.lm_studio_port}"
 
+    def get_lm_studio_embeddings_url(self) -> str:
+        return f"http://{self.lm_studio_host}:{self.lm_studio_port}/v1/embeddings"
+
+    def get_lm_studio_models_url(self) -> str:
+        return f"http://{self.lm_studio_host}:{self.lm_studio_port}/v1/models"
+
+    def get_lm_studio_chat_url(self) -> str:
+        return f"http://{self.lm_studio_host}:{self.lm_studio_port}/v1/chat/completions"
+
     def get_ollama_base_url(self) -> str:
         return f"http://{self.ollama_host}:{self.ollama_port}"
+
+    def get_ollama_tags_url(self) -> str:
+        return f"http://{self.ollama_host}:{self.ollama_port}/api/tags"
+
+    def get_ollama_chat_url(self) -> str:
+        return f"http://{self.ollama_host}:{self.ollama_port}/api/chat"
+
+    def get_ollama_embeddings_url(self) -> str:
+        return f"http://{self.ollama_host}:{self.ollama_port}/api/embeddings"
 
 
 @dataclass
@@ -240,12 +254,12 @@ def get_config() -> Config:
 # Удобные функции доступа
 def get_lm_studio_embeddings_url() -> str:
     """Возвращает URL для эмбеддингов LM Studio"""
-    return config.embedding.lm_studio_embeddings_url
+    return config.embedding.get_lm_studio_embeddings_url()
 
 
 def get_ollama_embeddings_url() -> str:
     """Возвращает URL для эмбеддингов Ollama"""
-    return config.embedding.ollama_embeddings_url
+    return config.embedding.get_ollama_embeddings_url()
 
 
 def get_mcp_sse_url() -> str:

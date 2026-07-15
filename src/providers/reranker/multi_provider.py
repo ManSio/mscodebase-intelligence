@@ -41,23 +41,20 @@ _HTTP_LIMITS = httpx.Limits(
 
 logger = logging.getLogger(__name__)
 
-# Загружаем конфигурацию при импорте
-_config = get_config()
+# URL-ы провайдеров — не кэшируем на уровне модуля, используем config лениво
 
-# Эндпоинты провайдеров (из конфигурации)
-_LM_STUDIO_MODELS_URL = _config.embedding.lm_studio_models_url
-_LM_STUDIO_CHAT_URL = _config.embedding.lm_studio_chat_url
-_LM_STUDIO_EMBEDDINGS_URL = _config.embedding.lm_studio_embeddings_url
-_OLLAMA_TAGS_URL = _config.embedding.ollama_tags_url
-_OLLAMA_CHAT_URL = _config.embedding.ollama_chat_url
-_OLLAMA_EMBEDDINGS_URL = _config.embedding.ollama_embeddings_url
+# Таймауты и константы — ленивый доступ через функцию
+# (чтобы реагировать на reload_config())
+def _get_inference_timeout() -> float:
+    return get_config().performance.reranker_timeout
 
-# Таймауты (сек) - из конфигурации
-_PROVIDER_PING_TIMEOUT = _config.performance.provider_ping_timeout
-_INFERENCE_TIMEOUT = _config.performance.reranker_timeout
 
-# Максимальная длина текста чанка для промпта (символы)
-_MAX_CHUNK_PREVIEW_LEN = _config.search.max_chunk_preview_len
+def _get_ping_timeout() -> float:
+    return get_config().performance.provider_ping_timeout
+
+
+def _get_max_chunk_preview_len() -> int:
+    return get_config().search.max_chunk_preview_len
 
 
 # Регулярка для извлечения JSON-массива scores из ответа
@@ -80,8 +77,8 @@ class MultiProviderReranker(IReranker):
         lm_studio_url: Optional[str] = None,
         ollama_url: Optional[str] = None,
         llama_cpp_url: Optional[str] = None,
-        ping_timeout: float = _PROVIDER_PING_TIMEOUT,
-        inference_timeout: float = _INFERENCE_TIMEOUT,
+        ping_timeout: Optional[float] = None,
+        inference_timeout: Optional[float] = None,
     ):
         """
         Args:
@@ -93,17 +90,18 @@ class MultiProviderReranker(IReranker):
         """
         import os
         self.lm_studio_url = (
-            lm_studio_url or _config.embedding.get_lm_studio_base_url() + "/v1"
+            lm_studio_url or get_config().embedding.get_lm_studio_base_url() + "/v1"
         ).rstrip("/")
         self.ollama_url = (
-            ollama_url or _config.embedding.get_ollama_base_url()
+            ollama_url or get_config().embedding.get_ollama_base_url()
         ).rstrip("/")
         self.llama_cpp_url = (
             llama_cpp_url
             or f"http://{os.getenv('LLAMA_CPP_HOST', '127.0.0.1')}:{os.getenv('LLAMA_CPP_PORT', '8080')}"
         ).rstrip("/")
-        self.ping_timeout = ping_timeout
-        self.inference_timeout = inference_timeout
+        self.ping_timeout = ping_timeout if ping_timeout is not None else _get_ping_timeout()
+        self.inference_timeout = inference_timeout if inference_timeout is not None else _get_inference_timeout()
+        self._max_preview_len = _get_max_chunk_preview_len()
 
         # Статус провайдеров (заполняется при initialize())
         self.lm_studio_available: bool = False
@@ -583,7 +581,7 @@ class MultiProviderReranker(IReranker):
                 t1 = _time.perf_counter()
                 try:
                     passages = [
-                        chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                        chunk.get("text", "")[:self._max_preview_len].strip()
                         for chunk in chunks
                     ]
                     scores = await self._http_onnx_rerank(query, passages)
@@ -604,7 +602,7 @@ class MultiProviderReranker(IReranker):
             t1 = _time.perf_counter()
             try:
                 passages = [
-                    chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+                    chunk.get("text", "")[:self._max_preview_len].strip()
                     for chunk in chunks
                 ]
                 scores = await self._llama_cpp_rerank(query, passages)
@@ -844,7 +842,7 @@ class MultiProviderReranker(IReranker):
         # Энкодим query и passage отдельно (короткие для скорости)
         texts = [f"query: {query}"]
         for chunk in chunks:
-            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+            text = chunk.get("text", "")[:self._max_preview_len].strip()
             texts.append(f"passage: {text}")
 
         payload = {
@@ -904,7 +902,7 @@ class MultiProviderReranker(IReranker):
         # Подготавливаем тексты: query + все чанки (короткие для скорости)
         texts = [f"query: {query}"]
         for chunk in chunks:
-            text = chunk.get("text", "")[:_MAX_CHUNK_PREVIEW_LEN].strip()
+            text = chunk.get("text", "")[:self._max_preview_len].strip()
             texts.append(f"passage: {text}")
 
         if provider == "lm_studio":
