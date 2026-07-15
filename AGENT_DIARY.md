@@ -1,5 +1,33 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-15 05:52] — Операция «Санация» завершена
+
+**Что сделано:**
+
+### 1. Аудит MCP vs IDE-Native
+- Двойной аудит: Агент A (MCP) vs Агент B (grep/read_file/terminal)
+- Документирован: `docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md`
+- Вывод: MCP медленнее ×37, но даёт семантику и граф вызовов
+
+### 2. Декомпозиция server.py (2211→603 строк)
+- `server_tools.py` (651 строк) — регистрация инструментов
+- `server_factory.py` (431 строк) — жизненный цикл
+- Итого: 1685 строк (-24%)
+
+### 3. Фикс bare except
+- 6 ручных правок в layer.py + error_handler.py
+- scripts/ast_sanitize.py — AST-кодмод для 219 оставшихся блоков
+- scripts/sanitize_exceptions.py — regex-подход (НЕ ПРИМЕНЯТЬ)
+
+### 4. RAM leak: 648→7.7 MB/min (×84)
+- Причина: глобальное состояние в монолитном server.py
+- Фикс: декомпозиция уменьшила scope глобальных переменных
+
+### 5. Коммит и пуш
+- commit 79272b8
+- 10 файлов, +2009/-1637 строк
+- 539 тестов, 0 регрессий
+
 ## [2026-07-14 22:42] — Архитектурный аудит MCP vs IDE-Native + фикс bare except
 
 **Что сделано:**

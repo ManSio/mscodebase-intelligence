@@ -388,38 +388,42 @@ def _start_llama_sync():
         from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
         import httpx
         runner = get_global_runner()
-        if not is_compatible() or runner.is_alive():
-            return
         model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
-        logger.info(f"🦙 Запуск llama.cpp ({model})...")
-        ok = runner._start_sync(model)
-        if ok:
-            for _ in range(40):
-                try:
-                    r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
-                    if r.status_code == 200:
-                        from src.core.remote_embedder import RemoteEmbedder
-                        from src.mcp.server import _services_cache
-                        embedder = _services_cache.resolve(RemoteEmbedder)
-                        with embedder._mode_lock:
-                            embedder.mode = "llama_cpp"
-                            embedder._preferred_mode = "llama_cpp"
-                        break
-                except Exception:
-                    pass
-                time.sleep(0.5)
+        if is_compatible() and not runner.is_alive():
+            logger.info(f"🦙 Запуск llama.cpp ({model})...")
+            ok = runner._start_sync(model)
+            if ok:
+                for _ in range(40):
+                    try:
+                        r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
+                        if r.status_code == 200:
+                            from src.core.remote_embedder import RemoteEmbedder
+                            from src.mcp.server import _services_cache
+                            embedder = _services_cache.resolve(RemoteEmbedder)
+                            with embedder._mode_lock:
+                                embedder.mode = "llama_cpp"
+                                embedder._preferred_mode = "llama_cpp"
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
     except Exception as e:
-        logger.warning(f"⚠️ llama.cpp: {e}")
-    else:
-        # E5 ONNX — запускаем только reranker
-        try:
-            from src.core.llama_runner import get_global_runner
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(get_global_runner().start_reranker())
-            loop.close()
-        except Exception:
-            pass
+        logger.warning(f"⚠️ llama.cpp embedder: {e}")
+
+    # Всегда пытаемся запустить reranker (не зависит от embedder)
+    try:
+        from src.core.llama_runner import get_global_runner
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        ok = loop.run_until_complete(get_global_runner().start_reranker())
+        loop.close()
+        if ok:
+            logger.info("✅ Реренкер (BGE-M3) запущен")
+        else:
+            logger.warning("⚠️ Реренкер не запустился (будет fallback)")
+    except Exception as e:
+        # Не критично — search_code работает без реранкера
+        logger.warning(f"⚠️ Реренкер (BGE-M3) не запустился: {e}")
 
 
 def _shutdown_services():
