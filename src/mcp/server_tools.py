@@ -38,11 +38,6 @@ def register_all_tools(mcp, services):
         ScanChangesTool,
         StructuralSearchTool,
     )
-    from src.mcp.tools.git_tools import (
-        GetBranchInfoTool,
-        GetCommitHistoryTool,
-        GetFileHistoryTool,
-    )
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
@@ -50,11 +45,6 @@ def register_all_tools(mcp, services):
         GetRelatedFilesTool,
         GetVariableFlowTool,
         GraphQueryTool,
-    )
-    from src.mcp.tools.indexing_tools import (
-        IndexHealthTool,
-        IndexProjectDirTool,
-        NotifyChangeTool,
     )
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
@@ -66,30 +56,18 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         VerifyActionTool,
     )
+    from src.mcp.tools.meta_tools import (
+        GitTool,
+        IndexTool,
+        SystemTool,
+    )
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
         SearchCodeTool,
     )
     from src.mcp.tools.write_tools import (
-        AckImpactTool,
-        InsertAfterSymbolTool,
-        InsertBeforeSymbolTool,
-        MoveSymbolTool,
-        RenameSymbolTool,
-        ReplaceSymbolTool,
-        SafeDeleteTool,
-    )
-    from src.mcp.tools.system_tools import (
-        GetHealthReportTool,
-        GetIndexProgressTool,
-        GetIndexStatusTool,
-        GetIndexTimelineTool,
-        GetLogsTool,
-        PredictEtaTool,
-        ReadLiveFileTool,
-        RunHealthCheckTool,
-        WatcherStatusTool,
+        WriteTool,
     )
 
     # Список всех инструментов для регистрации
@@ -98,24 +76,12 @@ def register_all_tools(mcp, services):
         SearchCodeTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
-        # Indexing (3)
-        NotifyChangeTool,
-        IndexProjectDirTool,
-        IndexHealthTool,
-        # Git (3)
-        GetBranchInfoTool,
-        GetCommitHistoryTool,
-        GetFileHistoryTool,
-        # System (9)
-        GetIndexStatusTool,
-        GetIndexProgressTool,
-        GetIndexTimelineTool,
-        WatcherStatusTool,
-        GetLogsTool,
-        GetHealthReportTool,
-        PredictEtaTool,
-        RunHealthCheckTool,
-        ReadLiveFileTool,
+        # Index (6-in-1 meta-tool)
+        IndexTool,
+        # Git (3-in-1 meta-tool)
+        GitTool,
+        # System (6-in-1 meta-tool)
+        SystemTool,
         # Analysis (5)
         StructuralSearchTool,
         GetRepoMapTool,
@@ -137,14 +103,8 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
         VerifyActionTool,
-        # Write (7)
-        RenameSymbolTool,
-        AckImpactTool,
-        MoveSymbolTool,
-        SafeDeleteTool,
-        ReplaceSymbolTool,
-        InsertBeforeSymbolTool,
-        InsertAfterSymbolTool,
+        # Write (1 meta-tool вместо 7)
+        WriteTool,
     ]
 
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
@@ -158,6 +118,15 @@ def register_all_tools(mcp, services):
         _show_all = False
     else:
         _allowed_names = {
+            # Write meta-tool
+            "write",
+            # Index meta-tool (notify, reindex, status)
+            "index",
+            # Git meta-tool (log, history, branch)
+            "git",
+            # System meta-tool (health, logs, read, ...)
+            "system",
+            # Legacy individual names (для обратной совместимости)
             "search_code", "get_symbol_info", "impact_analysis",
             "notify_change", "get_index_status", "get_health_report",
             "get_logs", "read_live_file",
@@ -194,6 +163,7 @@ def register_all_tools(mcp, services):
     from mcp.types import ToolAnnotations
 
     _write_tool_names = {
+        "write", "index",
         "rename_symbol", "move_symbol", "safe_delete",
         "replace_symbol", "insert_before_symbol", "insert_after_symbol",
         "ack_impact", "notify_change", "index_project_dir",

@@ -22,6 +22,7 @@ Self-Indexing Protection (INC-6BCB-v3):
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +32,9 @@ from src.core.di_container import (
     IndexerFactoryKey,
 )
 from src.core.error_handler import ToolError, IndexNotReadyError
+
+logger = logging.getLogger(__name__)
+
 from src.core.project_indexer_registry import (
     ProjectIndexerRegistry,
     get_global_registry,
