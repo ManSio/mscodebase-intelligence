@@ -50,16 +50,22 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         self._bm25: Optional[Dict[str, Dict[str, float]]] = None
         self._bm25_ids: List[str] = []
         self._bm25_lock = threading.Lock()
-        self._bm25_df: Any = None  # кэш DataFrame для _bm25_search
+        self._bm25_df: Any = None
         self._tokenizer_re = re.compile(r"\W+")
         self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
-        # Мульти-провайдерный реранкер (Ollama / LM Studio) — ленивая инициализация
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock = asyncio.Lock()
-        # Кэш запросов (query -> results)
+        
+        # ── Multi-level cache ──
         self._cache: Dict[str, List[dict]] = {}
-        self._cache_max_size = 100
+        self._cache_max_size = 500  # было 100
+        self._embedding_cache: Dict[int, List[float]] = {}  # hash(query) -> vector
+        self._embedding_cache_max = 1000  # ~1MB для 768d векторов
+        self._embedding_cache_lock = threading.Lock()
+        self._reranker_cache: Dict[str, List[dict]] = {}  # hash(query+chunks) -> scores
+        self._reranker_cache_max = 200
+        self._reranker_cache_lock = threading.Lock()
 
     async def close(self) -> None:
         """Освобождает ресурсы реранкера и кэш.
@@ -67,6 +73,10 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         Безопасно для многократного вызова.
         """
         self._cache.clear()
+        with self._embedding_cache_lock:
+            self._embedding_cache.clear()
+        with self._reranker_cache_lock:
+            self._reranker_cache.clear()
         if self._multi_reranker is not None:
             try:
                 await self._multi_reranker.close()
@@ -321,16 +331,26 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             # (варианты синонимов дают те же эмбеддинги)
             if variant == query and not all_dense_results:
                 try:
-                    # Используем async embedder если доступен (и это реальная корутина, а не MagicMock)
-                    embed_async = getattr(self.embedder, "embed_batch_async", None)
-                    if embed_async is not None and inspect.iscoroutinefunction(
-                        embed_async
-                    ):
-                        query_vectors = await embed_async([variant], is_query=True)
-                        query_vector = query_vectors[0] if query_vectors else None
+                    # ── Embedding cache ──
+                    query_hash = hash(variant)
+                    with self._embedding_cache_lock:
+                        cached_vector = self._embedding_cache.get(query_hash)
+                    
+                    if cached_vector is not None:
+                        query_vector = cached_vector
+                        logger.debug(f"[Cache] Embedding HIT: {variant[:40]}...")
                     else:
-                        query_vector = self.embedder.embed(variant)
-                    if query_vector:
+                        embed_async = getattr(self.embedder, "embed_batch_async", None)
+                        if embed_async is not None and inspect.iscoroutinefunction(embed_async):
+                            query_vectors = await embed_async([variant], is_query=True)
+                            query_vector = query_vectors[0] if query_vectors else None
+                        else:
+                            query_vector = self.embedder.embed(variant)
+                        if query_vector:
+                            with self._embedding_cache_lock:
+                                if len(self._embedding_cache) >= self._embedding_cache_max:
+                                    self._embedding_cache.clear()
+                                self._embedding_cache[query_hash] = query_vector
                         dense_results = await self._vector_search_async(
                             query_vector, limit=raw_limit, filter_expr=filter_expr
                         )
@@ -894,11 +914,24 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         rrf_results: List[dict],
         top_n: int,
     ) -> List[dict]:
-        """Асинхронный мульти-провайдерный реранкинг."""
+        """Асинхронный мульти-провайдерный реранкинг с кэшем."""
         self._last_rerank_timing = {}
 
         if not rrf_results:
             return rrf_results
+
+        # ── Reranker cache ──
+        chunk_keys = "|".join(
+            f"{r.get('metadata', {}).get('file', '')}:{r.get('metadata', {}).get('chunk_index', '')}"
+            for r in rrf_results[:top_n]
+        )
+        cache_key = f"{hash(query)}:{hash(chunk_keys)}:{top_n}"
+        
+        with self._reranker_cache_lock:
+            cached = self._reranker_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"[Cache] Reranker HIT: {len(cached)} results")
+            return cached
 
         reranker = await self._ensure_multi_reranker_async()
         if reranker is None or not reranker.is_available:
@@ -908,6 +941,11 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             results = await reranker.rerank(query, rrf_results, top_n=top_n)
             if hasattr(reranker, "last_timing"):
                 self._last_rerank_timing = reranker.last_timing
+            # Сохраняем в кэш
+            with self._reranker_cache_lock:
+                if len(self._reranker_cache) >= self._reranker_cache_max:
+                    self._reranker_cache.clear()
+                self._reranker_cache[cache_key] = results
             return results
         except Exception as e:
             logger.warning(f"MultiProviderReranker ошибка: {e}. Fallback к RRF.")

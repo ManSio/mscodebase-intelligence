@@ -165,10 +165,15 @@ class PerformanceConfig:
     mcp_startup_delay: float = float(os.getenv("MCP_STARTUP_DELAY", "1.0"))
 
     # Multi-Bucket RAG (v2.6.0+)
-    overfetch_factor: int = int(os.getenv("OVERFETCH_FACTOR", "3"))
-    # Веса по умолчанию (neutral). На Этапе 3 управляются через intent_hint.
-    code_bucket_weight: float = float(os.getenv("CODE_BUCKET_WEIGHT", "1.0"))
-    docs_bucket_weight: float = float(os.getenv("DOCS_BUCKET_WEIGHT", "0.5"))
+    overfetch_factor: int = field(
+        default_factory=lambda: int(os.getenv("OVERFETCH_FACTOR", "2"))
+    )
+    code_bucket_weight: float = field(
+        default_factory=lambda: float(os.getenv("CODE_BUCKET_WEIGHT", "1.0"))
+    )
+    docs_bucket_weight: float = field(
+        default_factory=lambda: float(os.getenv("DOCS_BUCKET_WEIGHT", "0.5"))
+    )
 
     # SYSTEM PROFILE (v2.6.0+)
     system_profile: str = os.getenv("SYSTEM_PROFILE", "light")
