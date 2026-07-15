@@ -240,12 +240,14 @@ class ExecuteScriptTool(MCPTool):
         try:
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-c", code,
+                stdin=asyncio.subprocess.DEVNULL,  # Изоляция от MCP stdio
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=clean_env,
                 cwd=str(Path.cwd()),
                 startupinfo=startupinfo,
                 creationflags=creationflags,
+                close_fds=True,  # Закрыть все file descriptors родителя
             )
 
             try:
