@@ -367,9 +367,8 @@ def run_server(original_stdout=None):
     try:
         atexit.register(lambda: _shutdown_services())
 
-        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-        if _provider != "e5_onnx":
-            _start_llama_sync()
+        # Всегда запускаем reranker (не зависит от провайдера эмбеддинга)
+        _start_llama_sync()
 
         if original_stdout:
             sys.stdout = original_stdout
