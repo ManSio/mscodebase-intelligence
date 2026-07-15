@@ -26,10 +26,14 @@ logger = logging.getLogger("mscodebase_server.tools")
 
 
 def register_all_tools(mcp, services):
-    """Регистрирует все 36 MCP-инструментов через DI контейнер.
+    """Регистрирует core-инструменты + codebase hub + execute_script E2B.
 
-    Каждый инструмент — отдельный class с constructor injection,
-    задекорированный @error_boundary. Вызывается из create_mcp_server().
+    Hub & Spoke архитектура:
+    - codebase(action) — единый интерфейс для всех операций с кодом
+    - execute_script(code) — E2B-песочница для всего остального
+    - ML-инструменты (search, symbol, graph, intel) — остаются native
+
+    Вызывается из create_mcp_server().
     """
     from src.mcp.tools.analysis_tools import (
         GenerateChunkSummariesTool,
@@ -56,18 +60,14 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         VerifyActionTool,
     )
-    from src.mcp.tools.meta_tools import (
-        GitTool,
-        IndexTool,
-        SystemTool,
+    from src.mcp.tools.codebase_tool import (
+        CodebaseTool,
+        ExecuteScriptTool,
     )
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
         SearchCodeTool,
-    )
-    from src.mcp.tools.write_tools import (
-        WriteTool,
     )
 
     # Список всех инструментов для регистрации
@@ -76,12 +76,10 @@ def register_all_tools(mcp, services):
         SearchCodeTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
-        # Index (6-in-1 meta-tool)
-        IndexTool,
-        # Git (3-in-1 meta-tool)
-        GitTool,
-        # System (6-in-1 meta-tool)
-        SystemTool,
+        # Hub: codebase (единый интерфейс для всех операций)
+        CodebaseTool,
+        # Spoke: E2B песочница (код как инструмент)
+        ExecuteScriptTool,
         # Analysis (5)
         StructuralSearchTool,
         GetRepoMapTool,
@@ -103,8 +101,6 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
         VerifyActionTool,
-        # Write (1 meta-tool вместо 7)
-        WriteTool,
     ]
 
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
@@ -118,25 +114,18 @@ def register_all_tools(mcp, services):
         _show_all = False
     else:
         _allowed_names = {
-            # Write meta-tool
-            "write",
-            # Index meta-tool (notify, reindex, status)
-            "index",
-            # Git meta-tool (log, history, branch)
-            "git",
-            # System meta-tool (health, logs, read, ...)
-            "system",
-            # Legacy individual names (для обратной совместимости)
+            # Hub: codebase — единый интерфейс
+            "codebase",
+            # Spoke: E2B песочница
+            "execute_script",
+            # ML-native (не заменяются E2B)
             "search_code", "get_symbol_info", "impact_analysis",
-            "notify_change", "get_index_status", "get_health_report",
-            "get_logs", "read_live_file",
             "intel_get_runtime_status", "intel_get_project_context",
             "intel_get_project_memory", "intel_code_topology",
             "intel_auto_collect_adrs",
-            "get_commit_history", "get_file_history",
-            "rename_symbol", "replace_symbol",
             "get_variable_flow", "graph_query",
             "structural_search",
+            # Diagnostic
             "diagnostics", "debug_runtime_passport",
             "get_runtime_counters", "intel_execution_timeline",
         }
@@ -163,7 +152,7 @@ def register_all_tools(mcp, services):
     from mcp.types import ToolAnnotations
 
     _write_tool_names = {
-        "write", "index",
+        "codebase",
         "rename_symbol", "move_symbol", "safe_delete",
         "replace_symbol", "insert_before_symbol", "insert_after_symbol",
         "ack_impact", "notify_change", "index_project_dir",
