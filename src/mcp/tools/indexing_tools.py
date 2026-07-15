@@ -189,9 +189,9 @@ class IndexProjectDirTool(MCPTool):
                     f"❌ Refusing to index extension's own directory: {target_path}\n"
                     f"  Это исходники самого MCP/LSP. Открой проект явно."
                 )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         # Запускаем полную индексацию в фоновом потоке
         logger.info(f"🔄 Starting full indexing for {target_path.name}...")
 

@@ -96,9 +96,11 @@ class BranchAwareIndex:
                 try:
                     table = db.open_table("codebase_chunks")
                     chunks = table.count_rows()
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
         return {
             "branch": branch,

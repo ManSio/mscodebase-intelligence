@@ -331,7 +331,8 @@ class ResourceMonitor:
                     rss_mb = rss / 1024.0
                 if rss_mb > 0:
                     return rss_mb
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
         # Windows / fallback: читаем через /proc/self/status (если есть)
         # или OpenProcess + GetProcessMemoryInfo.
@@ -347,7 +348,8 @@ class ResourceMonitor:
                         # VmRSS:    12345 kB
                         kb = float(line.split()[1])
                         return kb / 1024.0
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return 0.0
 
@@ -392,18 +394,20 @@ class ResourceMonitor:
                 GetProcessMemoryInfo.restype = wintypes.BOOL
                 if GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
                     return counters.WorkingSetSize / (1024 * 1024)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
             # Путь 2: kernel32 (legacy)
             try:
                 if ctypes.windll.kernel32.GetProcessMemoryInfo(
                     handle, ctypes.byref(counters), counters.cb,
                 ):
                     return counters.WorkingSetSize / (1024 * 1024)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return 0.0
 
@@ -481,9 +485,9 @@ class ResourceMonitor:
                 result["util_pct"] = float(parts[0]) if parts[0] != "[N/A]" else None
                 result["ram_mb"] = float(parts[1]) if parts[1] != "[N/A]" else None
                 result["temp_c"] = float(parts[2]) if parts[2] != "[N/A]" else None
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         self._gpu_cache = {**result, "timestamp": now}
         return result
 
@@ -514,9 +518,9 @@ class ResourceMonitor:
                 # Оцениваем MB примерно (обычно 4KB на операцию)
                 result["read_mb"] = round(reads * 4 / 1024, 1)
                 result["write_mb"] = round(writes * 4 / 1024, 1)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         self._disk_io_cache = {**result, "timestamp": now}
         return result
 
@@ -540,9 +544,9 @@ class ResourceMonitor:
             self._CRASH_LOG.write_text(
                 __import__('json').dumps(data), encoding='utf-8'
             )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     @staticmethod
     def check_crash_log() -> Optional[dict]:
         """Проверяет crash-лог на старте.
@@ -567,7 +571,8 @@ class ResourceMonitor:
                     "last_cpu_pct": data.get("cpu_pct", 0),
                     "seconds_ago": round(time.time() - data["timestamp"], 0),
                 }
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return None
 
@@ -604,7 +609,8 @@ class ResourceMonitor:
                             f"📊 {ram_str} | {cpu_str} | {gpu_str} | {disk_str} | "
                             f"threads={snap.num_threads}"
                         )
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
                 time.sleep(5)
 

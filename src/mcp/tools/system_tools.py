@@ -63,7 +63,8 @@ class GetIndexStatusTool(MCPTool):
                 if hasattr(indexer, "_index_guard"):
                     indexer._index_guard.load_symbol_index(sym_idx)
                     total_symbols = sym_idx.get_symbol_count()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             if total_symbols == 0:
                 chunks = chunks  # сохраняем для форматтера — он добавит ⚠️
@@ -102,9 +103,9 @@ class GetIndexStatusTool(MCPTool):
                         if _p and Path(_p).resolve() != Path(project_path).resolve():
                             other_projects.append(_p)
                 _conn.close()
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         # Используем UI-форматтер
         output = f"📂 {project_path}\n"
         output += format_index_status(
@@ -424,9 +425,9 @@ class ReadLiveFileTool(MCPTool):
                     content = doc.source
                     source = "lsp_vfs"
                     logger.debug(f"read_live_file: from LSP VFS ({len(content)} chars)")
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         # Fallback: читаем с диска
         if content is None:
             if not target.exists():

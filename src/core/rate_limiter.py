@@ -294,9 +294,9 @@ class CircuitBreaker:
                     new_state,
                     self._last_error,
                 )
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
     async def call(self, coro_factory: Callable, fallback: Any = None) -> Any:
         """Выполняет корутину через circuit breaker.
 

@@ -47,9 +47,9 @@ async def start_reranker(self) -> bool:
                             dt = time.time() - t0
                             logger.info(f"🚀 Reranker (BGE-M3) готов за {dt:.1f}s")
                             return True
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
-
             logger.error(f"Reranker не стартовал за {self._startup_timeout}s")
             await self.stop_reranker()
             return False

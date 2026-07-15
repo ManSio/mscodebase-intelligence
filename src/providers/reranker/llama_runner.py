@@ -149,9 +149,9 @@ def _detect_cpu() -> dict:
                     if line.startswith("model name"):
                         info["name"] = line.split(":")[1].strip()
                         break
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-    
     # CPU features через python
     cpu_name = info["name"].lower()
     
@@ -209,7 +209,8 @@ def _is_windows_insider() -> bool:
         if len(parts) >= 3:
             build = int(parts[2])
             return build >= 26000
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     return False
 
@@ -281,9 +282,9 @@ if sys.platform == "win32":
                     logger.info(f"🖥️ Vulkan GPU detected — using GPU for embeddings")
                 else:
                     logger.info(f"🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
 # ─── Планировщик модели ────────────────────────────────────────
 # Пока llama-server умеет загружать только 1 модель за раз.
 # Запускаем embedder, при необходимости реранкинга — рестарт с --reranking.
@@ -830,7 +831,8 @@ def _popen_with_job(popen_args, **kwargs):
                 if h_process:
                     kernel32.AssignProcessToJobObject(h_job, h_process)
                     kernel32.CloseHandle(h_process)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
     return proc
 
@@ -1267,9 +1269,9 @@ class LlamaRunner:
                             dt = time.time() - t0
                             logger.info(f"🚀 Reranker (BGE-M3) готов за {dt:.1f}s")
                             return True
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
-
             logger.error(f"Reranker не стартовал за {self._startup_timeout}s")
             await self.stop_reranker()
             return False
@@ -1288,18 +1290,21 @@ class LlamaRunner:
                 try:
                     self._reranker_process.kill()
                     self._reranker_process.wait(timeout=2)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             try:
                 if self._reranker_process.stderr:
                     self._reranker_process.stderr.close()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             # Закрываем файл-объект, созданный при запуске (защита от утечки хэндлов)
             try:
                 if self._reranker_log_fh is not None:
                     self._reranker_log_fh.close()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             self._reranker_process = None
             logger.info("🛑 Reranker остановлен")
@@ -1314,19 +1319,22 @@ class LlamaRunner:
                 try:
                     self._process.kill()
                     self._process.wait(timeout=2)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             # Закрываем stderr-файл, сохранённый Popen-ом (issue #9: утечка fd)
             try:
                 if self._process.stderr:
                     self._process.stderr.close()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             # Закрываем файл-объект, созданный при запуске (защита от утечки хэндлов)
             try:
                 if self._embedder_log_fh is not None:
                     self._embedder_log_fh.close()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             self._process = None
             self._model_key = None

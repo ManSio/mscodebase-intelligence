@@ -167,7 +167,8 @@ class IndexGuard:
             if self._guard_file.exists():
                 with open(self._guard_file, "r", encoding="utf-8") as f:
                     return json.load(f)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return None
 
@@ -441,9 +442,9 @@ class IndexGuard:
             }
             with open(self._guard_file, "w") as f:
                 json.dump(state, f, indent=2, default=str)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     def get_stale_files(self) -> list:
         """Находит файлы которые изменились с последней индексации.
 

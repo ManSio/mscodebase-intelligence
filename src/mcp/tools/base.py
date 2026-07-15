@@ -84,9 +84,9 @@ def resolve_indexer_for_intel(
                     if not _is_self_index_path(p):
                         target = p
                         break
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     # 3. Резолвим через ту же логику, но без self-indexing guard
     #    (мы уже отфильтровали self-index paths выше).
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
@@ -288,7 +288,8 @@ class MCPTool(ABC):
         try:
             from src.mcp.server import resolve_project_root as _rpr
             return _rpr()
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         try:
             from src.core.di_container import ProjectRootKey
@@ -316,7 +317,8 @@ class MCPTool(ABC):
             from src.mcp.tools.base import _is_self_index_path
             if not _is_self_index_path(idx.project_path):
                 return idx
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         # Fallback: первый non-self-indexing из реестра.
         try:
@@ -328,7 +330,8 @@ class MCPTool(ABC):
                     from src.mcp.tools.base import _is_self_index_path
                     if not _is_self_index_path(p):
                         return idx
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         # Last resort: текущий (даже если self-indexing).
         try:
@@ -382,9 +385,9 @@ class MCPTool(ABC):
                     f"Bridge ещё пуст (LSP не синхронизирован). "
                     f"Жду READY..."
                 )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         # Stage 2: полное ожидание через Coordinator
         verdict = await coord.can_execute(target, timeout=timeout)
         if not verdict:

@@ -205,7 +205,8 @@ class ProjectContext:
                 try:
                     if hasattr(indexer, "_symbol_index"):
                         snap.index_symbols = indexer._symbol_index.get_symbol_count()
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
                 # Берём embedder из embedder объекта
                 try:
@@ -213,9 +214,11 @@ class ProjectContext:
                         snap.index_embedder = getattr(
                             indexer.embedder, "mode", "unknown"
                         )
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
         except Exception as e:
             logger.debug(f"ProjectContext: registry error: {e}")

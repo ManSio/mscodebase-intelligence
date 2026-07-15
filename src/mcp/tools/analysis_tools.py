@@ -466,7 +466,8 @@ class GenerateChunkSummariesTool(MCPTool):
                     for r in to_update:
                         try:
                             table.delete(f"id = '{r['id']}'")
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                     table.add(to_update)
                 except Exception as e:

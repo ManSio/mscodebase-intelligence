@@ -298,9 +298,9 @@ class HealthReport:
                         try:
                             df = self.indexer.table.search().limit(100000).to_pandas()
                             files_in_index = set(df["file_path"].unique())
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
-
                 if files_in_index:
                     files_on_disk = set()
                     rglob_count = 0

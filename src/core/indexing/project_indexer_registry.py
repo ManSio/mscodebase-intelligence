@@ -218,7 +218,8 @@ class ProjectIndexerRegistry:
             if self._on_evict:
                 try:
                     self._on_evict(p, idx)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             return True
         return False
@@ -383,9 +384,9 @@ class ProjectIndexerRegistry:
             if hasattr(indexer, "notification_broker") and indexer.notification_broker:
                 try:
                     indexer.notification_broker.detach_session()
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             # Очищаем in-memory кэши Indexer-а.
             for cache_attr in (
                 "_cached_total_chunks",
@@ -401,32 +402,35 @@ class ProjectIndexerRegistry:
                             setattr(indexer, cache_attr, 0)
                         else:
                             setattr(indexer, cache_attr, None)
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
-
             # Явно сбрасываем LanceDB connection — иначе на Windows файл
             # .lance остаётся залоченным через mmap до GC.
             if hasattr(indexer, "db"):
                 try:
                     indexer.db = None
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             if hasattr(indexer, "table"):
                 try:
                     indexer.table = None
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             # Async LanceDB + Searcher cleanup (memory leak fix v2.7.0).
             if hasattr(indexer, "_async_db"):
                 try:
                     indexer._async_db = None
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             if hasattr(indexer, "_async_table"):
                 try:
                     indexer._async_table = None
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
             searcher_ref = getattr(indexer, "searcher", None)
             if searcher_ref is not None and hasattr(searcher_ref, "close"):
@@ -439,9 +443,9 @@ class ProjectIndexerRegistry:
                             asyncio.run(searcher_ref.close())
                     if loop is not None and loop.is_running():
                         searcher_ref._cache.clear()
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             # Принудительный GC — освобождает mmap handles на Windows.
             import gc
 

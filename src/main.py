@@ -53,9 +53,9 @@ try:
             for _mod_name in list(sys.modules.keys()):
                 if _mod_name.startswith("src.mcp"):
                     del sys.modules[_mod_name]
-except Exception:
+except Exception as _e:
+    logger.warning("exception", exc_info=True)
     pass
-
 # После удаления src/ из sys.path модули src.* всё ещё доступны
 # через PROJECT_ROOT, но import mcp теперь правильно идёт в site-packages.
 

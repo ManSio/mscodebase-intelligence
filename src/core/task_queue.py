@@ -90,9 +90,9 @@ class TaskQueue:
                 self.cleanup_old_results(self._result_ttl_sec // 60)
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
     async def stop(self):
         """Останавливает воркер + cleanup."""
         if self._worker_task:

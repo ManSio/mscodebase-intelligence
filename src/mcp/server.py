@@ -72,10 +72,9 @@ try:
                     _BUILD_ID = _ref_path.read_text("utf-8").strip()[:12]
             else:
                 _BUILD_ID = _ref[:12]
-except Exception:
+except Exception as _e:
+    logger.warning("exception", exc_info=True)
     pass
-
-
 def _log_run_passport() -> None:
     """Печатает 'паспорт' процесса при старте — уникальный RUN_ID + BUILD_ID + env summary.
 
@@ -91,7 +90,8 @@ def _log_run_passport() -> None:
 
         _bp = read_project_from_bridge(max_wait=0.1)
         _bridge_state = str(_bp) if _bp else "<empty — LSP not synced>"
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     try:
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
@@ -101,9 +101,9 @@ def _log_run_passport() -> None:
             _reg = _services_cache.resolve(PIRKey)
             _paths = _reg.get_all_paths()
             _registry_state = "; ".join(str(p) for p in _paths) if _paths else "<empty>"
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
     lines = [
         "",
         "=" * 60,
@@ -220,9 +220,9 @@ def _create_progress_callback(project_name: str):
                     f"📊 Progress [{project_name}]: "
                     f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
                 )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     return progress_callback
 
 
@@ -337,7 +337,8 @@ def _close_sqlite_connection():
         if _sqlite_conn is not None:
             try:
                 _sqlite_conn.close()
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             _sqlite_conn = None
 
@@ -498,9 +499,9 @@ def resolve_project_root(provided: str = "") -> Path:
         if bridge_path is not None:
             logger.debug(f"resolve_project_root: bridge={bridge_path}")
             return bridge_path
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
     # Fallback: Zed SQLite DB (через то же кэшированное соединение)
     try:
         _conn2 = _get_sqlite_connection()

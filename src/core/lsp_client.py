@@ -92,7 +92,8 @@ class LspClient:
         if self._process is not None and self._process.returncode is None:
             try:
                 await self._send_request("shutdown", {})
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             self._send_notification("exit", {})
         for task in (self._reader_task, self._stderr_task):
@@ -553,7 +554,8 @@ class LspClient:
                 idx = line_text.find(symbol_name)
                 if idx >= 0:
                     return idx
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return -1
 

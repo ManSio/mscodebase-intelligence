@@ -55,10 +55,9 @@ try:
                     BUILD_ID = _ref_path.read_text("utf-8").strip()[:12]
             else:
                 BUILD_ID = _ref[:12]
-except Exception:
+except Exception as _e:
+    logger.warning("exception", exc_info=True)
     pass
-
-
 def get_uptime() -> float:
     """Секунд с момента старта процесса."""
     return time.time() - RUN_STARTED_AT

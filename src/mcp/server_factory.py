@@ -94,7 +94,8 @@ class HeartbeatService:
         try:
             sys.stdout.flush()
             sys.stderr.flush()
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         os._exit(0)
 
@@ -173,9 +174,9 @@ def create_mcp_server():
             py_compile.compile(str(lsp_path), doraise=True)
     except py_compile.PyCompileError as err:
         logger.critical(f"❌ LSP HAS COMPILE ERROR: {err}")
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
     project_root = resolve_project_root()
     _default_project_root = project_root
 
@@ -192,7 +193,8 @@ def create_mcp_server():
                     if line.startswith("MSCODEBASE_LOCALE="):
                         locale = line.split("=", 1)[1].strip()
                         break
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
     from src.utils.i18n import set_locale
     set_locale(locale or "en")
@@ -209,9 +211,9 @@ def create_mcp_server():
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(get_task_queue().start())
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
     from src.core.error_handler import set_metrics_path
     set_metrics_path(_ext_root / "telemetry" / "tool_metrics.json")
 
@@ -312,9 +314,9 @@ def _trigger_auto_index_if_empty(services):
             if indexer.project_path.resolve() == _ext_root.resolve():
                 logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
                 return
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         status = indexer.get_status()
         if status.get("total_chunks", 0) == 0:
             logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
@@ -345,14 +347,13 @@ def _start_delayed_bridge_recheck(services):
                 if bridged and bridged.resolve() != _ext_root.resolve():
                     reset_project_root_cache()
                     logger.info(f"🌉 Delayed recheck: project_root = {bridged}")
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
         threading.Thread(target=_recheck, name="bridge-recheck", daemon=True).start()
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
-
 # ══════════════════════════════════════════════════════════
 # run_server — точка входа stdio
 # ══════════════════════════════════════════════════════════
@@ -403,7 +404,8 @@ def _start_llama_sync():
                                 embedder.mode = "llama_cpp"
                                 embedder._preferred_mode = "llama_cpp"
                             break
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
                     time.sleep(0.5)
     except Exception as e:
@@ -430,5 +432,6 @@ def _shutdown_services():
         from src.mcp.server import _services_cache
         if _services_cache:
             _services_cache.shutdown()
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass

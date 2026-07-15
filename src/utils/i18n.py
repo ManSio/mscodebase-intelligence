@@ -68,9 +68,9 @@ def _(msg: str, **kwargs: Any) -> str:
                 with open(en_path, "r", encoding="utf-8") as f:
                     en_data = json.load(f)
                 translated = en_data.get(msg, msg)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
     if kwargs:
         try:
             return translated.format(**kwargs)

@@ -377,7 +377,8 @@ class StructuralSearcher:
                 if child.type in ("identifier", "type_identifier"):
                     try:
                         return code[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
             current = current.parent
 
@@ -399,9 +400,9 @@ class StructuralSearcher:
         try:
             if file_path.stat().st_size > 1_000_000:
                 return False
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return True
 
     def list_patterns(self) -> Dict[str, str]:

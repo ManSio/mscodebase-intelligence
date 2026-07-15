@@ -158,9 +158,9 @@ class GraphRAGQueryEngine:
                             callee_file = self._symbol_files.get(callee)
                             if callee_file and callee_file != file_path:
                                 result["depends_on"].append(callee_file)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             # Find who calls these symbols
             for sym in symbols[:10]:
                 try:
@@ -170,9 +170,9 @@ class GraphRAGQueryEngine:
                             caller_file = self._symbol_files.get(caller)
                             if caller_file and caller_file != file_path:
                                 result["depended_by"].append(caller_file)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
         except Exception as e:
             logger.error(f"Dependency query failed: {e}")
 

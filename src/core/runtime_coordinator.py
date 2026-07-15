@@ -177,9 +177,9 @@ class RuntimeCoordinator:
             if uptime < 3.0:
                 warnings.append(f"MCP just started ({uptime:.0f}s ago)")
                 _COUNTERS["warnings_just_started"] += 1
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         _COUNTERS["verdict_ready"] += 1
         return ExecutionVerdict(
             ok=True,

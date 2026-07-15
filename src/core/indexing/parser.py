@@ -316,9 +316,9 @@ class CodeParser:
                     callees_json = json.dumps(list(set(c["callee"] for c in calls)))
                     for ch in chunks:
                         ch["callees"] = callees_json
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
         return chunks, symbols
 
     def _parse_with_tree_sitter(self, file_path: Path, ext: str) -> tuple:

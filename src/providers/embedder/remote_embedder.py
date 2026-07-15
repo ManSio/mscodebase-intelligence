@@ -218,7 +218,8 @@ class RemoteEmbedder(IEmbedder):
                 for key, val in KNOWN.items():
                     if key in name:
                         return val
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
         return None
 
@@ -811,7 +812,8 @@ class RemoteEmbedder(IEmbedder):
                         if data:
                             data = sorted(data, key=lambda x: x.get("index", 0))
                             return [item["embedding"] for item in data]
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             logger.warning("LM Studio не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]
@@ -827,7 +829,8 @@ class RemoteEmbedder(IEmbedder):
                         if data:
                             data = sorted(data, key=lambda x: x.get("index", 0))
                             return [item["embedding"] for item in data]
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]

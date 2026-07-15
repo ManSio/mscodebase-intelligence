@@ -148,7 +148,8 @@ def _max_nesting_depth(file_path: Path) -> int:
                     indent = len(line) - len(line.lstrip())
                     depth = indent // 4  # 4 пробела = 1 уровень
                     max_depth = max(max_depth, depth)
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     return max_depth
 
@@ -177,7 +178,8 @@ def _count_cyclomatic_complexity(file_path: Path) -> int:
         data = file_path.read_bytes()
         for kw in keywords:
             cc += data.count(kw)
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     return cc
 
@@ -196,6 +198,7 @@ def _count_bare_excepts(file_path: Path) -> int:
         count += len(
             re.findall(r"except\s+Exception\s*:\s*\n\s*(pass|\.\.\.)", content)
         )
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     return count

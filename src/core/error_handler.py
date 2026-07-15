@@ -773,5 +773,6 @@ def _notify_error(error_msg: str, severity: str = "Error"):
                     ],
                 },
             )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass

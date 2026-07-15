@@ -116,7 +116,8 @@ class RenameSymbolTool(MCPTool):
             found = si.search_symbols(symbol)
             if found:
                 results = found
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         return results
 
@@ -263,7 +264,8 @@ class RenameSymbolTool(MCPTool):
                         try:
                             if await lsp.open_file(fp):
                                 warmed += 1
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
             if warmed:
                 logger.debug(f"[LSP] Warmed {warmed} files for pyright context")
@@ -300,7 +302,8 @@ class RenameSymbolTool(MCPTool):
                             if hasattr(indexer, 'apply_file_move'):
                                 for f in result.get("files", []):
                                     indexer.apply_file_move(f, f)
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                         return result
             except asyncio.TimeoutError:
@@ -464,9 +467,9 @@ class RenameSymbolTool(MCPTool):
                 for file in result.get("files", []):
                     patch = indexer.apply_file_move(file, file)
                     logger.info(f"Meta-patch for {file}: {patch}")
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return result
 
 
@@ -732,9 +735,9 @@ class MoveSymbolTool(MCPTool):
         # Update in-memory index — rename symbol's definition path
         try:
             self.resolve_symbol_index().rename_symbol(symbol, symbol)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         # Meta-patch index for both affected files (no re-embedding)
         try:
             indexer = self.resolve_indexer()
@@ -743,9 +746,9 @@ class MoveSymbolTool(MCPTool):
                 logger.info(f"Meta-patch source {source_file}: {src_patch}")
                 tgt_patch = indexer.apply_file_move(target_file, target_file)
                 logger.info(f"Meta-patch target {target_file}: {tgt_patch}")
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         status = "applied" if not errors else "partial"
         return {
             "status": status,
@@ -905,9 +908,9 @@ class SafeDeleteTool(MCPTool):
             for f in set(d.file_path for d in defs):
                 try:
                     si.remove_file(f)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
         status = "applied" if not errors else "partial"
         return {
             "status": status,
@@ -1009,15 +1012,16 @@ class ReplaceSymbolTool(MCPTool):
         # 5. Update index
         try:
             si.remove_file(source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         try:
             indexer = self.resolve_indexer()
             if hasattr(indexer, 'apply_file_move'):
                 indexer.apply_file_move(source_file, source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return (
             f"\u2705 **Replaced** `{symbol}` in `{source_file}`\n"
             f"  \u2022 Location: line **{def_line}**\n"
@@ -1139,15 +1143,16 @@ class InsertBeforeSymbolTool(MCPTool):
         # 4. Update index
         try:
             si.remove_file(source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         try:
             indexer = self.resolve_indexer()
             if hasattr(indexer, 'apply_file_move'):
                 indexer.apply_file_move(source_file, source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return (
             f"\u2705 **Inserted before** `{anchor_symbol}` in `{source_file}`\n"
             f"  \u2022 Anchor at line **{anchor_line}**\n"
@@ -1234,15 +1239,16 @@ class InsertAfterSymbolTool(MCPTool):
         # 5. Update index
         try:
             si.remove_file(source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
         try:
             indexer = self.resolve_indexer()
             if hasattr(indexer, 'apply_file_move'):
                 indexer.apply_file_move(source_file, source_file)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return (
             f"\u2705 **Inserted after** `{anchor_symbol}` in `{source_file}`\n"
             f"  \u2022 Anchor body ends at line **{body_end_idx + 1}**\n"

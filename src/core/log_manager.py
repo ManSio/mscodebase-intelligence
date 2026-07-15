@@ -141,9 +141,9 @@ def _cleanup_old_logs(log_dir: Path) -> int:
             if log_file.stat().st_mtime < cutoff:
                 log_file.unlink()
                 deleted += 1
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     return deleted
 
 
@@ -174,19 +174,22 @@ def _cleanup_stale_project_logs() -> int:
                         try:
                             f.unlink()
                             deleted += 1
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                     # Удаляем пустую директорию
                     try:
                         if not any(log_dir.iterdir()):
                             log_dir.rmdir()
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("exception", exc_info=True)
                         pass
         if deleted > 0:
             logging.getLogger("mscodebase").info(
                 f"🧹 Удалено {deleted} stale per-project лог-файлов"
             )
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
     return deleted
 
@@ -293,7 +296,7 @@ def _parse_log_line(line: str) -> dict:
             else:
                 result["message"] = rest
 
-    except Exception:
+    except Exception as _e:
+        logger.warning("exception", exc_info=True)
         pass
-
     return result

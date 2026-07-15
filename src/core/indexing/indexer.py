@@ -212,7 +212,8 @@ class Indexer:
                         _vt = _t.value_type
                         if hasattr(_vt, 'get_field'):
                             _stored_dim = _vt.get_field("item").type.list_size
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
                 _current_dim = getattr(self.embedder, 'embedding_dim', None) or 768
                 if _stored_dim and _stored_dim != _current_dim:
@@ -254,9 +255,9 @@ class Indexer:
             # Перезагружаем таблицу после возможных изменений
             try:
                 self.table = self.db.open_table(self.table_name)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
         logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
 
         # Загружаем сохранённый SymbolIndex с диска (если есть)
@@ -265,9 +266,9 @@ class Indexer:
                 logger.info(
                     f"SymbolIndex loaded: {self._symbol_index.get_symbol_count()} symbols"
                 )
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
     def watchdog_heartbeat(self, label: str = ""):
         """Обновляет heartbeat — вызывается при каждом прогрессе.
 
@@ -345,7 +346,8 @@ class Indexer:
                     if self._async_db is not None:
                         try:
                             await self._async_db.close()
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                         self._async_db = None
                     # Пересоздаём таблицу через синхронный API
@@ -488,7 +490,8 @@ class Indexer:
                             _fp_df = self.table.to_pandas(columns=["file_path"])
                             if not _fp_df.empty:
                                 _fp_set = set(_fp_df["file_path"].unique())
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                 if _fp_set is not None:
                     self._cached_unique_files = _fp_set
@@ -587,9 +590,9 @@ class Indexer:
                 try:
                     total_chunks = self.table.count_rows()
                     self._cached_total_chunks = total_chunks
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             unique_files = getattr(self, "_cached_unique_files", 0)
             if isinstance(unique_files, set):
                 unique_files = len(unique_files)
@@ -659,7 +662,8 @@ class Indexer:
                                     current_hash = hasher.hexdigest()
                                     if current_hash != indexed_files[rel]:
                                         stale_files += 1
-                                except Exception:
+                                except Exception as _e:
+                                    logger.warning("exception", exc_info=True)
                                     pass
                 except Exception as stale_err:
                     logger.debug(f"get_status: stale scan skipped: {stale_err}")
@@ -862,9 +866,9 @@ class Indexer:
             # Пытаемся удалить таблицу если существует
             try:
                 self.db.drop_table(self.table_name)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
             # Создаём новую таблицу с полной схемой
             self.table = self.db.create_table(self.table_name, schema=self.schema)
 
@@ -879,9 +883,9 @@ class Indexer:
             if hasattr(self, "searcher") and self.searcher is not None:
                 try:
                     self.searcher.reindex()
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             logger.info(f"📦 Таблица {self.table_name} пересоздана с полной схемой")
             return True
         except Exception as e:
@@ -1007,7 +1011,8 @@ class Indexer:
                     old_chunks = self.table.count_rows(
                         filter=f"file_path = '{escaped_path}'"
                     )
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
                 try:
                     self.table.delete(f"file_path = '{escaped_path}'")
@@ -1046,9 +1051,9 @@ class Indexer:
         # Сохраняем SymbolIndex на диск
         try:
             self._index_guard.save_symbol_index(self._symbol_index)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         logger.info(
             f"✅ Записано в БД: {rel_path_str} ({len(chunk_texts)} чанков)"
         )
@@ -1096,9 +1101,9 @@ class Indexer:
                         )
                         if not existing_df.empty:
                             existing_hash = str(existing_df["file_hash"].iloc[0])
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
             if existing_hash == current_hash:
                 return None  # не изменился
 
@@ -1176,9 +1181,9 @@ class Indexer:
             try:
                 from src.core.code_health import score_file
                 health = score_file(rel_path_str, self.project_path)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
             return {
                 "rel_path": rel_path_str,
                 "current_hash": current_hash,
@@ -1363,9 +1368,9 @@ class Indexer:
                 from src.core.code_health import score_file
 
                 health = score_file(rel_path_str, self.project_path)
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
             # Получение эмбеддингов через провайдер
             embeddings = self.embedder.embed_batch(chunk_texts)
             import gc
@@ -1508,9 +1513,9 @@ class Indexer:
                 df_all = self.table.to_pandas()
                 if not df_all.empty:
                     deleted_count = int((df_all["file_path"] == rel_path_str).sum())
-            except Exception:
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
                 pass
-
             self.table.delete(f"file_path = '{escaped}'")
 
             # Синхронизация кэша: декремент на количество удалённых чанков
@@ -1618,9 +1623,9 @@ class Indexer:
         try:
             if hasattr(self.file_guard, 'notify_file_renamed'):
                 self.file_guard.notify_file_renamed(old_path, new_path)
-        except Exception:
+        except Exception as _e:
+            logger.warning("exception", exc_info=True)
             pass
-
         return results
 
     def _infer_module_name(self, file_path: str) -> str:
@@ -1878,7 +1883,8 @@ class Indexer:
                     if progress_callback:
                         try:
                             progress_callback("", i + 1, total_files, "parsing")
-                        except Exception:
+                        except Exception as _e:
+                            logger.warning("exception", exc_info=True)
                             pass
                     _notify_progress(i + 1, total_files, "parsing", "", 5, 50)
 
@@ -2052,9 +2058,9 @@ class Indexer:
                         idx_name = getattr(idx, "name", None)
                         if idx_name:
                             self.table.drop_index(idx_name)
-                except Exception:
+                except Exception as _e:
+                    logger.warning("exception", exc_info=True)
                     pass
-
                 # 4. IVF_FLAT — стабилен на Windows, без KMeans/PQ
                 self.table.create_index(
                     metric="cosine",
