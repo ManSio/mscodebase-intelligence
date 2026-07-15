@@ -1,5 +1,39 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-14 22:42] — Архитектурный аудит MCP vs IDE-Native + фикс bare except
+
+**Что сделано:**
+
+### 1. Сравнительный аудит MCP vs IDE-Native
+- Запущен **двойной аудит**: Агент A (MCP) vs Агент B (grep/read_file/terminal)
+- Замерены тайминги 8 операций, RAM, качество, полнота охвата
+- **Результат:** MCP медленнее ×37 в сумме, но даёт семантику и граф вызовов
+- **RAM:** MCP ~3000 MB vs IDE ~50 MB (×60 разница)
+
+### 2. Найденные риски
+| Риск | Кол-во | Степень |
+|------|--------|---------|
+| `except Exception:` | 223 (133 silent pass) | 🔴 |
+| God-objects (>1500 строк) | 6 | 🟠 |
+| RAM leak (+648 MB/мин) | подтверждён | 🔴 |
+| Hardcoded 127.0.0.1 | 19 | 🟡 |
+
+### 3. Починено
+- **`intelligence/layer.py`**: дубликат строки (references_count ×2) убран
+- **`intelligence/layer.py`**: 4 silent `except Exception: pass` → `logger.debug()`
+- **`error_handler.py`**: `idle_tick()` silent pass → `logger.debug()`
+- **`error_handler.py`**: `_notify_error` silent pass → `logger.debug()`
+
+### 4. Документация
+- `docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md` — полный отчёт со сравнением
+
+### 5. Ключевые файлы
+- `docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md` — новый документ
+- `src/core/intelligence/layer.py` — 5 правок (дубликат + logging)
+- `src/core/error_handler.py` — 2 правки (idle_tick + _notify_error)
+
+**Статус:** ✅
+
 ## [2026-07-14 22:00] — FINAL: intel_auto_collect_adrs + MMR + Auto Intent + Synonyms
 
 **Что сделано:**

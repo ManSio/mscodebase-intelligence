@@ -183,7 +183,7 @@ class JobHistoryStore:
                 with open(self.history_file, "w", encoding="utf-8") as f:
                     json.dump(history, f, ensure_ascii=False, indent=2)
             except OSError as e:
-                logger.warning(f"Не удалось сохранить историю job'а: {e}")
+                logger.warning("Exception suppressed at layer.py")
 
     def get_estimated_duration(
         self, project_size: int, fallback: float = 120.0
@@ -309,10 +309,11 @@ def _resolve_symbol_count(active_indexer, total_chunks: int) -> int:
                     if guard.load_symbol_index(sym_idx):
                         # reload пишет в тот же sym_idx — читаем повторно
                         count = sym_idx.get_symbol_count()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"SymbolIndex guard reload failed: {_e}")
         return count
-    except Exception:
+    except Exception as _e:
+        logger.debug(f"_resolve_symbol_count failed: {_e}")
         return 0
 
 
@@ -381,7 +382,8 @@ class ProjectIntelligenceLayer:
                 if not _is_self_index_path(target):
                     try:
                         return registry.get_indexer(target)
-                    except Exception:
+                    except Exception as _e:
+                        logger.warning("Exception suppressed at layer.py")
                         pass
                 # Self-indexing — ищем первый non-self-indexing (multi-window fallback)
                 with registry._meta_lock:
@@ -389,7 +391,7 @@ class ProjectIntelligenceLayer:
                         if not _is_self_index_path(p):
                             return idx
             except Exception as e:
-                logger.warning(f"[Intel] Registry re-resolve failed: {e}")
+                logger.warning("Exception suppressed at layer.py")
 
         # Fallback: self.indexer (может быть stale, но лучше чем None)
         if hasattr(self, "indexer") and self.indexer is not None:
@@ -467,7 +469,6 @@ class ProjectIntelligenceLayer:
                     ]
 
             result["references_count"] = len(result["call_graph"]["incoming_callers"])
-            result["references_count"] = len(result["call_graph"]["incoming_callers"])
 
             # Статический анализ
             if result["references_count"] == 0 and result["definitions_count"] > 0:
@@ -478,7 +479,7 @@ class ProjectIntelligenceLayer:
                 }
 
         except Exception as e:
-            logger.warning(f"Ошибка code_topology для '{symbol_name}': {e}")
+            logger.warning("Exception suppressed at layer.py")
 
         result["latency_ms"] = int((time.perf_counter() - start) * 1000)
         return result
@@ -610,8 +611,8 @@ class ProjectIntelligenceLayer:
                 if _s2.connect_ex(("127.0.0.1", _llama_port)) == 0:
                     _llama_online = True
                 _s2.close()
-            except (OSError, Exception):
-                pass
+            except (OSError, Exception) as _e:
+                logger.debug(f"Проверка портов провайдеров: {_e}")
 
             # Определяем активного провайдера (llama_cpp > lm_studio > onnx)
             if _llama_online:
@@ -762,7 +763,7 @@ class ProjectIntelligenceLayer:
                             # зависал на 80% Finalizing при зависании Tree-sitter.
                             await asyncio.wait_for(future_symbols, timeout=120)
                         except asyncio.TimeoutError:
-                            logger.warning(
+                                logger.warning(
                                 "⚠️ Символьная индексация превысила 120с — "
                                 "завершаем job без неё (векторный индекс готов)."
                             )
@@ -780,6 +781,7 @@ class ProjectIntelligenceLayer:
                     self.job_history.append_record(job.project_size, duration)
 
             except Exception as e:
+                logger.warning("Exception suppressed at layer.py")
                 job.status = "failed"
                 job.error = str(e)
                 job.ended_at = time.time()
@@ -937,6 +939,7 @@ class ProjectIntelligenceLayer:
         try:
             reflog_raw = reflog_path.read_text('utf-8', errors='replace')
         except Exception as e:
+            logger.warning("Exception suppressed at layer.py")
             return f"Ошибка чтения .git/logs/HEAD: {type(e).__name__}: {e}"
 
         reflog_lines = reflog_raw.strip().split('\n')
@@ -982,7 +985,8 @@ class ProjectIntelligenceLayer:
                 body = '\n'.join(msg_lines[1:]) if len(msg_lines) > 1 else ''
                 if subject:
                     commits.append((new_hash[:12], subject, body[:500]))
-            except Exception:
+            except Exception as _e:
+                logger.warning("Exception suppressed at layer.py")
                 continue
 
         if not commits:
@@ -1098,7 +1102,7 @@ class ProjectIntelligenceLayer:
             return hotspots[:5]
 
         except Exception as e:
-            logger.warning(f"Ошибка Hotspot Engine: {e}")
+            logger.warning("Exception suppressed at layer.py")
             return []
 
     # -----------------------------------------------------------------
@@ -1149,10 +1153,10 @@ class ProjectIntelligenceLayer:
                             "source": "health_report",
                         }
                     )
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Exception suppressed at layer.py")
 
-        # 3. Проверяем Hotspots
+    # 3. Проверяем Hotspots
         try:
             hotspots = await self.intel_get_code_hotspots()
             if hotspots and component_context:
@@ -1166,7 +1170,8 @@ class ProjectIntelligenceLayer:
                                 "source": "hotspot_analysis",
                             }
                         )
-        except Exception:
+        except Exception as _e:
+            logger.warning("Exception suppressed at layer.py")
             pass
 
         # 4. Если ничего не нашли — дефолтная эвристика
@@ -1215,6 +1220,7 @@ class ProjectIntelligenceLayer:
             _mon = get_global_resource_monitor()
             result["resources"] = _mon.get_summary()
         except Exception as _re:
+            logger.warning("Exception suppressed at layer.py")
             result["resources"] = {"error": str(_re)}
 
         # LLM ping + model info + throughput
@@ -1242,6 +1248,7 @@ class ProjectIntelligenceLayer:
                 "configured_model": _info["configured_model"],
             }
         except Exception as _le:
+            logger.warning("Exception suppressed at layer.py")
             result["llm"] = {"error": str(_le)}
 
         # ETA predictor — кормим реальными данными
@@ -1255,6 +1262,7 @@ class ProjectIntelligenceLayer:
             ds = _pred.get_stats() if hasattr(_pred, "get_stats") else {}
             result["eta_stats"] = ds
         except Exception as _ee:
+            logger.warning("Exception suppressed at layer.py")
             result["eta_stats"] = {"error": str(_ee)}
 
         # Сохраняем снэпшот на диск при каждом вызове
@@ -1270,7 +1278,8 @@ class ProjectIntelligenceLayer:
                     _entries = json.loads(_filepath.read_text(encoding="utf-8"))
                     if not isinstance(_entries, list):
                         _entries = []
-                except Exception:
+                except Exception as _e:
+                    logger.warning("Exception suppressed at layer.py")
                     _entries = []
 
             _snapshot = {
@@ -1301,15 +1310,16 @@ class ProjectIntelligenceLayer:
                 json.dumps(_entries, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Сохранение снэпшота телеметрии: {_e}")
 
-        # История телеметрии за N дней (из .mscodebase/telemetry/)
+        # История телеметрии за N дней (из .mscodebase/telemetry/)}
         try:
             from scripts.collect_telemetry import get_history
 
             result["history"] = get_history(days)
-        except Exception:
+        except Exception as _e:
+            logger.warning("Exception suppressed at layer.py")
             result["history"] = []
 
         result["collect_ms"] = round((time.perf_counter() - _start) * 1000, 1)
@@ -1554,6 +1564,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         try:
             return intel_layer.intel_auto_collect_adrs(max_commits)
         except Exception as e:
+            logger.warning("Exception suppressed at layer.py")
             import traceback
             return f"Ошибка: {type(e).__name__}: {e}\n{traceback.format_exc()}"
 

@@ -239,7 +239,7 @@ try:
 
     idle_tick()
 except Exception:
-    pass
+    logger.debug("idle_tick() недоступен — модуль task_queue не загружен")
 
 
 def record_tool_result(
