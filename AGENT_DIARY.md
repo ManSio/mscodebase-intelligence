@@ -1,5 +1,30 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-15 23:30] — Фаза 1 завершена: Fix execute_script (E2B Sandbox)
+
+**Проблема:** `execute_script` работал через `loop.run_in_executor(None, subprocess.run)` + temp file + PYTHONPATH → timeout внутри MCP на Windows Python 3.14.
+
+**Root Cause:** Thread pool + blocking subprocess.run + наследование file handles = deadlock на Windows ProactorEventLoop.
+
+**Решение:** Полная переделка `ExecuteScriptTool.execute()`:
+1. `asyncio.create_subprocess_exec` вместо thread pool (нативный async)
+2. `-c` flag вместо temp файлов (нет filesystem race conditions)
+3. Чистое окружение (только PATH + SYSTEMROOT, без PYTHONPATH)
+4. Windows handle management: `STARTF_USESHOWWINDOW` + `CREATE_NO_WINDOW`
+5. `proc.kill()` при timeout (не оставляет zombie-процессов)
+
+**Результат:** 5/5 тестов PASS (simple print, computation, file ops, stderr, timeout handling).
+
+**Коммит:** `61b8498` — 1 файл, +41/-26 строк.
+
+**Следующий шаг:** Перезагрузка Zed → тест через MCP → Фаза 2 (группировка Graph-тулов).
+
+**Ключевые файлы:**
+- `src/mcp/tools/codebase_tool.py` — ExecuteScriptTool.execute() переписан
+- `.agent_task_state.md` — обновлён
+
+---
+
 ## [2026-07-15 05:52] — Операция «Санация» завершена
 
 **Что сделано:**
