@@ -78,6 +78,8 @@ class Indexer(IndexerTableMixin):
         self._watchdog_ever_beat = False
         self._watchdog_label = "idle"
         self._watchdog_lock = threading.Lock()
+        from src.core.indexing.watchdog import Watchdog
+        self._watchdog = Watchdog()
 
         # ─── LanceDB Manager ────────────────────────────────
         _dim = getattr(self.embedder, 'embedding_dim', None) or 768
@@ -145,39 +147,10 @@ class Indexer(IndexerTableMixin):
         except Exception as _e:
             logger.debug(f"SymbolIndex load skipped: {_e}")
     def watchdog_heartbeat(self, label: str = ""):
-        """Обновляет heartbeat — вызывается при каждом прогрессе.
-
-        Если индексер завис, watchdog не обновляется >60s.
-        HealthReport проверяет это поле.
-        """
-        with self._watchdog_lock:
-            self._watchdog_heartbeat = time.time()
-            self._watchdog_ever_beat = True
-            if label:
-                self._watchdog_label = label
+        self._watchdog.heartbeat(label)
 
     def watchdog_status(self) -> dict:
-        """Возвращает статус watchdog для HealthReport.
-
-        Корректно обрабатывает idle-состояние:
-        - Если heartbeat никогда не бился (чистый idle) — alive=True, idle_sec=0.
-        - Если бился, но давно — считаем age от последнего удара.
-        - Ложная critical-ошибка "56 лет простоя" устранена (init = time.time()).
-        """
-        with self._watchdog_lock:
-            if not self._watchdog_ever_beat:
-                # Индексер простаивает с момента запуска — это норма, не сбой
-                return {
-                    "alive": True,
-                    "idle_sec": 0.0,
-                    "label": self._watchdog_label,
-                }
-            age = time.time() - self._watchdog_heartbeat
-            return {
-                "alive": age < 60.0,
-                "idle_sec": round(age, 1),
-                "label": self._watchdog_label,
-            }
+        return self._watchdog.status()
 
     def set_searcher(self, searcher) -> None:
         """Ленивая инжекция Searcher (см. INC-53EC / REFC-05).
