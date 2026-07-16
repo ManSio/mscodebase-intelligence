@@ -178,6 +178,19 @@ def create_mcp_server():
         logger.warning("exception", exc_info=True)
         pass
     project_root = resolve_project_root()
+    # Sanitization guard: if path has \n (Zed multi-root bug), pick last valid dir.
+    _pr_str = str(project_root)
+    if "\n" in _pr_str:
+        _parts = _pr_str.split("\n")
+        logger.warning(f"project_root contains newline ({len(_parts)} parts)")
+        _found = None
+        for _p in reversed(_parts):
+            _p = _p.strip()
+            if _p and Path(_p).is_dir():
+                _found = Path(_p).resolve()
+                break
+        project_root = _found or Path(_pr_str.split("\n")[0].strip()).resolve()
+        logger.warning(f"  -> sanitized: {project_root}")
     _default_project_root = project_root
 
     from src.core.di_container import create_service_collection
@@ -402,11 +415,9 @@ def _start_llama_sync():
                             embedder = _services_cache.resolve(RemoteEmbedder)
                             with embedder._mode_lock:
                                 embedder.mode = "llama_cpp"
-                                embedder._preferred_mode = "llama_cpp"
                             break
                     except Exception as _e:
-                        logger.warning("exception", exc_info=True)
-                        pass
+                        logger.warning(f"llama health check failed: {_e}")
                     time.sleep(0.5)
     except Exception as e:
         logger.warning(f"⚠️ llama.cpp embedder: {e}")

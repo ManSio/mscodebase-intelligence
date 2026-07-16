@@ -3,16 +3,12 @@ MSCodeBase Intelligence - Универсальный адаптивный Эмб
 Размещается в src/core/remote_embedder.py
 """
 
-import asyncio
-import json
 import logging
 import os
-import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import httpx
 
@@ -43,10 +39,6 @@ class RemoteEmbedder(IEmbedder):
         self.model_name = config.embedding.model_name
 
         self._breaker = breaker
-        self._breaker_fallback = {
-            "status": "fallback",
-            "message": "LM Studio breaker open",
-        }
         self.embedding_dim = config.embedding.embedding_dimension
 
         # ONNX Server (общий для всех проектов, через HTTP)
@@ -55,8 +47,6 @@ class RemoteEmbedder(IEmbedder):
         self.onnx_server_url = (
             f"http://{self.onnx_server_host}:{self.onnx_server_port}/v1/embeddings"
         )
-        self._onnx_server_process: Optional[subprocess.Popen] = None
-
         # llama.cpp (Zed 1.10.0 native provider)
         self.llama_cpp_host = os.getenv("LLAMA_CPP_HOST", "127.0.0.1")
         self.llama_cpp_port = int(os.getenv("LLAMA_CPP_PORT", "8080"))
@@ -141,7 +131,6 @@ class RemoteEmbedder(IEmbedder):
         # секунд и привести к таймауту создания сервера в Zed.
         # Решение: mode = "unknown", фоновый сканер определит режим асинхронно.
         self.mode = "unknown"
-        self._preferred_mode = "lm_studio"  # режим, к которому стремимся вернуться
         _lm_available = None  # async, см. _init_provider_async
 
         # Async HTTP client с connection pool (LM Studio)
@@ -198,9 +187,9 @@ class RemoteEmbedder(IEmbedder):
                 shape = graph.output[0].type.tensor_type.shape
                 if shape and shape.dim:
                     return shape.dim[-1].dim_value
-        except Exception:
+        except Exception as _e:
+            # fallback to known model dimensions by name
             try:
-                # Известные модели: infer by name
                 name = model_file.parent.name
                 KNOWN = {
                     "bge-m3": 1024,
@@ -218,9 +207,8 @@ class RemoteEmbedder(IEmbedder):
                 for key, val in KNOWN.items():
                     if key in name:
                         return val
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
+            except Exception:
+                logger.debug(f"Could not infer dimension for {model_file.name}", exc_info=True)
         return None
 
     def _preload_onnx_delayed(self):
@@ -248,8 +236,7 @@ class RemoteEmbedder(IEmbedder):
             if self._check_llama_cpp():
                 with self._mode_lock:
                     self.mode = "llama_cpp"
-                    self._preferred_mode = "llama_cpp"
-                logger.info("🦙 Preload: найден llama.cpp, ONNX предзагрузка отменена")
+                    logger.info("🦙 Preload: найден llama.cpp, ONNX предзагрузка отменена")
                 # Запускаем реранкер (BGE-M3 на порту 8081)
                 try:
                     import asyncio
@@ -317,46 +304,6 @@ class RemoteEmbedder(IEmbedder):
         except Exception:
             return False
 
-    def _start_onnx_server_subprocess(self) -> bool:
-        """Запускает ONNX-сервер как отдельный процесс.
-
-        Embedder (bge-m3) + reranker (bge-reranker-v2-m3) оба в подпроцессе.
-        MCP-процесс НЕ загружает ONNX-модели (INC-6BCB-MEM).
-        """
-        try:
-            server_script = Path(__file__).resolve().parent / "onnx_server.py"
-            if not server_script.exists():
-                logger.error(f"ONNX сервер не найден: {server_script}")
-                return False
-
-            cmd = [
-                sys.executable,
-                str(server_script),
-                f"--port={self.onnx_server_port}",
-                f"--host={self.onnx_server_host}",
-                f"--model-dir={self.local_model_dir}",
-            ]
-
-            # Добавляем reranker dir, если модель найдена
-            reranker_dir = self._find_reranker_dir()
-            if reranker_dir:
-                cmd.append(f"--reranker-dir={reranker_dir}")
-                logger.info(f"📎 Reranker модель в подпроцесс: {reranker_dir}")
-
-            self._onnx_server_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW
-                if sys.platform == "win32"
-                else 0,
-            )
-            logger.info(f"🚀 ONNX сервер запущен (PID {self._onnx_server_process.pid})")
-            return True
-        except Exception as e:
-            logger.error(f"Не удалось запустить ONNX сервер: {e}")
-            return False
-
     def _find_reranker_dir(self) -> Optional[str]:
         """Ищет директорию reranker модели для передачи в ONNX сервер."""
         for base in self._onnx_search_paths:
@@ -395,15 +342,13 @@ class RemoteEmbedder(IEmbedder):
                 if hasattr(self, '_ov_compiled') and self._ov_compiled:
                     with self._mode_lock:
                         self.mode = "onnx"
-                        self._preferred_mode = "onnx"
-                    logger.info("✅ OpenVINO INT8 запущен! (~350 ch/s, 768dim)")
+                    logger.info("✅ OpenVINO INT8 запущен!")
                     return
                 
                 if self._onnx_session:
                     with self._mode_lock:
                         self.mode = "onnx"
-                        self._preferred_mode = "onnx"
-                    logger.info("✅ E5-base ONNX запущен! (265MB, 768dim, CPU)")
+                    logger.info("✅ E5-base ONNX запущен!")
                     return
                 else:
                     logger.warning("E5-base не загрузился")
@@ -412,7 +357,6 @@ class RemoteEmbedder(IEmbedder):
             if self._check_lm_studio_raw():
                 with self._mode_lock:
                     self.mode = "lm_studio"
-                    self._preferred_mode = "lm_studio"
                 logger.info("✅ LM Studio доступен (fallback).")
                 return
 
@@ -421,7 +365,6 @@ class RemoteEmbedder(IEmbedder):
                 if self._check_ollama():
                     with self._mode_lock:
                         self.mode = "ollama"
-                        self._preferred_mode = "ollama"
                     logger.info("⚠️ Переключаюсь на Ollama.")
                     return
 
@@ -430,7 +373,6 @@ class RemoteEmbedder(IEmbedder):
             if self._onnx_session:
                 with self._mode_lock:
                     self.mode = "onnx"
-                    self._preferred_mode = "onnx"
                 logger.info("✅ E5-base ONNX (повторная попытка) — успех.")
                 return
 
@@ -488,7 +430,6 @@ class RemoteEmbedder(IEmbedder):
                     if not self._check_lm_studio():
                         with self._mode_lock:
                             self.mode = "onnx"
-                            self._preferred_mode = "lm_studio"
                         logger.warning(
                             "📡 LM Studio пропал. Переключаюсь на ONNX. "
                             "Сканер продолжит поиск."
@@ -502,7 +443,6 @@ class RemoteEmbedder(IEmbedder):
                     if not self._check_ollama():
                         with self._mode_lock:
                             self.mode = "onnx"
-                            self._preferred_mode = "ollama"
                         logger.warning(
                             "📡 Ollama пропал. Переключаюсь на ONNX. "
                             "Сканер продолжит поиск."
@@ -522,7 +462,6 @@ class RemoteEmbedder(IEmbedder):
                 if self._check_lm_studio_raw():
                     with self._mode_lock:
                         self.mode = "lm_studio"
-                        self._preferred_mode = "lm_studio"
                     logger.info(
                         "🌐 LM Studio обнаружен! Переключаюсь с ONNX → LM Studio. "
                         "Сканер остановлен."
@@ -531,7 +470,6 @@ class RemoteEmbedder(IEmbedder):
                 elif self._check_ollama():
                     with self._mode_lock:
                         self.mode = "ollama"
-                        self._preferred_mode = "ollama"
                     logger.info(
                         "🌐 Ollama обнаружен! Переключаюсь с ONNX → Ollama. "
                         "Сканер остановлен."
@@ -540,7 +478,6 @@ class RemoteEmbedder(IEmbedder):
                 elif self._check_llama_cpp():
                     with self._mode_lock:
                         self.mode = "llama_cpp"
-                        self._preferred_mode = "llama_cpp"
                     logger.info(
                         "🦙 llama.cpp обнаружен! Переключаюсь с ONNX → llama.cpp."
                     )
@@ -661,7 +598,8 @@ class RemoteEmbedder(IEmbedder):
             )
         except Exception as e:
             logger.error(f"❌ Ошибка сборки ONNX: {e}", exc_info=True)
-            self.mode = "fallback"
+            with self._mode_lock:
+                self.mode = "fallback"
 
     def _init_openvino(self):
         """Инициализация OpenVINO с INT8 моделью.
@@ -736,7 +674,8 @@ class RemoteEmbedder(IEmbedder):
 
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации OpenVINO: {e}", exc_info=True)
-            self.mode = "fallback"
+            with self._mode_lock:
+                self.mode = "fallback"
 
     def _unload_onnx(self):
         """Выгружает ONNX модель из памяти для экономии RAM."""
@@ -813,8 +752,7 @@ class RemoteEmbedder(IEmbedder):
                             data = sorted(data, key=lambda x: x.get("index", 0))
                             return [item["embedding"] for item in data]
             except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
+                logger.warning(f"LM Studio embed error: {_e}")
             logger.warning("LM Studio не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]
 
@@ -830,8 +768,7 @@ class RemoteEmbedder(IEmbedder):
                             data = sorted(data, key=lambda x: x.get("index", 0))
                             return [item["embedding"] for item in data]
             except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
+                logger.warning(f"ONNX server embed error: {_e}")
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
             return [[0.0] * self.embedding_dim for _ in texts]
 

@@ -454,6 +454,36 @@ def resolve_project_root(provided: str = "") -> Path:
     if provided and provided.strip():
         return Path(provided).resolve()
 
+    # ═══════════════════════════════════════════════════════════
+    # SANITIZATION GUARD (INC-2026): path с \n — баг Zed
+    # когда в workspaces несколько путей, склеенных через \n.
+    # Берём первую часть до \n (или запятой).
+    # ═══════════════════════════════════════════════════════════
+    _all_possible = []
+    for _probe in [
+        provided,
+        os.environ.get("PROJECT_PATH", ""),
+        os.environ.get("ZED_WORKTREE_ROOT", ""),
+    ]:
+        if _probe and _probe.strip():
+            for _cand in _probe.replace("\n", ",").split(","):
+                _c = _cand.strip()
+                if _c:
+                    _all_possible.append(_c)
+
+    def _first_valid(path_str: str) -> Optional[Path]:
+        """Берёт первый валидный путь из строки (может быть склейкой через \n или ,)."""
+        for p in path_str.replace("\n", ",").split(","):
+            p = p.strip()
+            if p:
+                try:
+                    _p = Path(p)
+                    if _p.exists() and not _reject_self_index_target(_p, source="SANITIZE"):
+                        return _p.resolve()
+                except Exception:
+                    continue
+        return None
+
     # ─── 1. SQLite: multi_workspace_state.active_workspace_id ───
     # Используем кэшированное соединение (TTL 2с, см. _get_sqlite_connection).
     try:
@@ -478,8 +508,11 @@ def resolve_project_root(provided: str = "") -> Path:
                         )
                         _match = _cur.fetchone()
                         if _match and _match[0]:
-                            _path = Path(_match[0].strip())
-                            if _path.exists() and not _reject_self_index_target(
+                            # Guard: SQLite paths могут быть через \n (multi-root).
+                            _raw = _match[0].strip()
+                            _first = _raw.split("\n")[0].split(",")[0].strip()
+                            _path = Path(_first)
+                            if _path.exists() and _path.is_dir() and not _reject_self_index_target(
                                 _path, source="ACTIVE_WORKSPACE"
                             ):
                                 logger.debug(
@@ -515,7 +548,10 @@ def resolve_project_root(provided: str = "") -> Path:
             for _row in _all_rows:
                 if not _row[0]:
                     continue
-                for _part in _row[0].split(","):
+                # Guard: SQLite paths may contain \n (multi-root workspace).
+                _raw = _row[0].strip()
+                _parts = _raw.split("\n") if "\n" in _raw else _raw.split(",")
+                for _part in _parts:
                     _p = _part.strip()
                     if not _p:
                         continue
@@ -560,6 +596,23 @@ def resolve_project_root(provided: str = "") -> Path:
         f"(возможна self-indexing; установите PROJECT_PATH=$ZED_WORKTREE_ROOT)"
     )
     return _ext_root
+
+
+_resolve_project_root = resolve_project_root
+
+
+def resolve_project_root(provided: str = "") -> Path:
+    """resolve_project_root с защитой от склейки путей через \n."""
+    result = _resolve_project_root(provided)
+    # Sanitization guard: если путь содержит \n — берем первую часть
+    result_str = str(result)
+    if "\n" in result_str:
+        first = result_str.split("\n")[0].strip()
+        logger.warning(
+            f"resolve_project_root: path contains newline, using first part: {first}"
+        )
+        result = Path(first).resolve()
+    return result
 
 
 def _log_project_resolution_failure() -> None:

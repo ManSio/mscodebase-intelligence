@@ -3,7 +3,7 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- _register_all_tools() — регистрация 36 core-инструментов
+- _register_all_tools() — регистрация 33 core-инструментов
 - _register_system_prompt() — системный промпт для AI
 - 7 inline @mcp.tool функций (debug_runtime_passport, intel_get_project_context, ...)
 """
@@ -16,7 +16,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("mscodebase_server.tools")
 
@@ -45,9 +45,6 @@ def register_all_tools(mcp, services):
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
-        CypherQueryTool,
-        GetRelatedFilesTool,
-        GetVariableFlowTool,
         GraphQueryTool,
     )
     from src.mcp.tools.investigation_tools import (
@@ -86,13 +83,10 @@ def register_all_tools(mcp, services):
         GetRepoRankTool,
         ScanChangesTool,
         GenerateChunkSummariesTool,
-        # Graph (6)
+        # Graph (3 — Фаза 2: graph_query мультиплексирует 4 бывших тула)
         CrossRepoSearchTool,
         CrossProjectDepsTool,
-        CypherQueryTool,
         GraphQueryTool,
-        GetRelatedFilesTool,
-        GetVariableFlowTool,
         # Investigation (3)
         GetBugCorrelationTool,
         GetHotspotsTool,
@@ -123,7 +117,7 @@ def register_all_tools(mcp, services):
             "intel_get_runtime_status", "intel_get_project_context",
             "intel_get_project_memory", "intel_code_topology",
             "intel_auto_collect_adrs",
-            "get_variable_flow", "graph_query",
+            "graph_query",  # Фаза 2: мультиплексирует graph_query + cypher + related + flow
             "structural_search",
             # Diagnostic
             "diagnostics", "debug_runtime_passport",
@@ -219,7 +213,7 @@ def _register_intelligence_tools(mcp, services):
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
-        from src.mcp.tools.base import _is_self_index_path, resolve_indexer_for_request
+        from src.mcp.tools.base import resolve_indexer_for_request
 
         idx = resolve_indexer_for_request(services)
         intel_layer = ProjectIntelligenceLayer(
@@ -268,6 +262,7 @@ def _register_inline_tools(mcp, services):
         from src.utils.ui_formatter import _val, header, section
 
         from src.mcp.server import resolve_project_root
+        from src.mcp.tools.base import _is_self_index_path
 
         pr = _default_project_root or resolve_project_root()
 
@@ -569,7 +564,7 @@ def _register_inline_tools(mcp, services):
 
         return "\n".join(lines)
 
-    logger.info(f"  🔧 Inline diagnostic tools registered (7 tools)")
+    logger.info("  🔧 Inline diagnostic tools registered (7 tools)")
 
 
 # ══════════════════════════════════════════════════════════

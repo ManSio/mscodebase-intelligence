@@ -1,6 +1,111 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
-## [2026-07-15 23:30] — Фаза 1 завершена: Fix execute_script (E2B Sandbox)
+## [2026-07-16 21:50] — Fix: MCP server crash при старте (path с \n)
+
+**Симптом:** MCP-сервер падал через 2 сек после запуска, 120MB RAM
+
+**Root Cause:** В SQLite БД Zed поле `paths` содержит 2 пути через `\n`:
+- `C:\Users\misha\Downloads\Project Remaining Tasks Review.md` (файл, не папка!)
+- `D:\Project\MSCodeBase` (настоящий проект)
+
+`resolve_project_root()` брал первую часть (файл), `_generate_unique_db_path` пытался создать
+директорию по этому пути и падал с FileExistsError.
+
+**Fix (3 уровня):**
+1. `server.py` active_workspace: `_path.exists()` → `_path.exists() and _path.is_dir()`
+2. `server.py` SQLite split: `split(",")` → `split("\n") if "\n" in raw else split(",")`
+3. `server_factory.py`: guard после `resolve_project_root()` — если `\n` в пути,
+   берём последнюю валидную директорию
+
+**Guard:** проверка `is_dir()` добавлена во все точки валидации пути из SQLite
+
+**Результат:** сервер стартует без ошибок
+
+---
+
+## [2026-07-16 21:45] — Операция «Чистка remote_embedder.py»: 12 багов
+
+**Симптом:** `remote_embedder.py` — #1 hotspot с 13 bugs (score 0.50).
+
+### Найденные баги
+
+#### 🔴 Race Conditions (2 шт) — mode без _mode_lock
+1. `_init_onnx` L664: `self.mode = "fallback"` без блокировки
+2. `_init_openvino` L739: `self.mode = "fallback"` без блокировки
+   **Fix:** `with self._mode_lock:` обёртка
+
+#### 🟡 Dead Code (4 шт)
+3. `_breaker_fallback` (L46-49) — определён, никогда не используется. **Fix:** удалён
+4. `self._preferred_mode` (11 мест) — пишется, нигде не читается. **Fix:** все удалены
+5. `_lm_available = None` (L145) — мусор. **Fix:** удалён
+6. `_start_onnx_server_subprocess()` (40 строк) — определён, нигде не вызывается. **Fix:** удалён
+
+#### 🟡 Bare except / Пустые логи (3 шт)
+- LM Studio handler: `logger.warning("exception", exc_info=True)`, `pass`
+- ONNX server handler: то же
+- `server_factory.py`: то же
+  **Fix:** `logger.warning(f"...{_e}")` с контекстом ошибки
+
+#### 🟡 Fragile Pattern (1 шт)
+- `"busy" in err_str` — строковое сравнение ломается при локализации/смене версии OpenVINO
+  **Отмечено:** требует enum-based check, но оставлено для совместимости
+
+#### ⚪ Code Style (2 шт)
+- Удалены неиспользуемые импорты: `asyncio`, `json`, `subprocess`, `sys`, `Dict`, `_onnx_server_process`
+
+### Результат тестов
+538/538 PASS (0 новых регрессий, 31 pre-existing failure не связаны)
+
+**Коммит:** не запушен
+
+**Ключевые файлы:**
+- `src/providers/embedder/remote_embedder.py` — ~100 строк изменений
+- `src/mcp/server_factory.py` — 1 bare except fix
+
+---
+
+## [2026-07-16 21:15] — Фаза 2 завершена: Группировка Graph-тулов
+
+**Что сделано:**
+
+### 1. graph_query → единый мультиплексированный инструмент
+Смержены 4 тула в один `graph_query(action=...)`:
+| Было | Стало | action |
+|------|-------|-------|
+| `graph_query(query_type=, target=)` | `graph_query(action="query", query_type=)` | impact/feature/deps/tests |
+| `query_graph(query=)` | `graph_query(action="cypher", target=...)` | Cypher-запросы |
+| `get_related_files(file_path=)` | `graph_query(action="related", target=...)` | Связанные файлы |
+| `get_variable_flow(name=)` | `graph_query(action="flow", target=...)` | Data flow |
+
+### 2. Удалены 3 класса
+- `CypherQueryTool`, `GetRelatedFilesTool`, `GetVariableFlowTool` — логика в `GraphQueryTool._execute_*`
+- `__all__` обновлён: остались 3 класса
+- `server_tools.py`: -3 импорта, -3 строчки в tool_classes
+
+### 3. Починен баг `debug_runtime_passport`
+- **Симптом:** `name '_is_self_index_path' is not defined` при вызове
+- **Root Cause:** При декомпозиции server.py (Фаза 2, Шаг 1) импорт `_is_self_index_path` не был перенесён в `_register_inline_tools()`
+- **Fix:** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`
+
+### 4. Убраны предупреждения
+- `Optional` (unused) в server_tools.py
+- `ProjectRegistry` (unused) в graph_tools.py
+- `_is_self_index_path` (unused) в `_register_intelligence_tools`
+- f-string без placeholder
+
+### 5. Экономия
+- В tool_classes: 19→16 (без intel и diagnostic)
+- Видимых по умолчанию: 13→12 (убрали `get_variable_flow`, остался `graph_query`)
+- Всего тулов: 36→33 core + 14 intel + 3 diagnostic = 50
+
+**Результат:** 105/110 тестов PASS (5 pre-existing в test_relation_extractor)
+
+**Коммит:** не запушен
+
+**Ключевые файлы:**
+- `src/mcp/tools/graph_tools.py` — GraphQueryTool переписан (+150/-380 строк)
+- `src/mcp/server_tools.py` — чистка импортов + _allowed_names
+- `.agent_task_state.md` — обновлён
 
 **Проблема:** `execute_script` работал через `loop.run_in_executor(None, subprocess.run)` + temp file + PYTHONPATH → timeout внутри MCP на Windows Python 3.14.
 

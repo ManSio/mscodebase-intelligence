@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
-from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
+from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.graph_tools")
@@ -122,11 +122,20 @@ class CrossProjectDepsTool(MCPTool):
 
 
 class GraphQueryTool(MCPTool):
-    """graph_query — запрос к графу знаний (GraphRAG).
+    """graph_query — единый мультиплексированный инструмент для всех графовых запросов.
+
+    Заменяет собой 4 отдельных тула: graph_query, cypher_query,
+    get_related_files, get_variable_flow (Фаза 2).
 
     Multi-window (INC-6BCB-v2): НЕ кэшируем symbol_index в __init__ —
     Indexer (и его _symbol_index) теперь per-project через registry.
     Резолвим per-call через resolve_symbol_index() / resolve_indexer().
+
+    Параметр `action` выбирает тип запроса:
+    - "query" — GraphRAG (query_type=impact|feature|deps|tests), target=symbol
+    - "cypher" — Cypher-like запрос к PropertyGraph
+    - "related" — связанные файлы через CommitMemory
+    - "flow" — трассировка переменной (data flow)
     """
 
     def __init__(self, services: ServiceCollection):
@@ -134,11 +143,28 @@ class GraphQueryTool(MCPTool):
 
     @error_boundary("graph_query", timeout_ms=15000)
     async def execute(
+        self,
+        action: str = "query",
+        query_type: str = "",
+        target: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> dict:
+        if action == "cypher":
+            return await self._execute_cypher(target, kwargs)
+        elif action == "related":
+            return await self._execute_related(target, kwargs)
+        elif action == "flow":
+            return await self._execute_flow(target, kwargs)
+        else:
+            # По умолчанию — GraphRAG (action="query")
+            return await self._execute_query(query_type or "impact", target, kwargs)
+
+    async def _execute_query(
         self, query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
+        """GraphRAG: impact/feature/deps/tests запросы к графу знаний."""
         from src.core.graph_rag import GraphRAGQueryEngine
 
-        # Multi-window: per-project indexer → per-project symbol_index.
         indexer = self.resolve_indexer()
         engine = GraphRAGQueryEngine(
             indexer.project_path,
@@ -149,6 +175,7 @@ class GraphQueryTool(MCPTool):
             result = engine.query_impact(target)
             return {
                 "status": "ok",
+                "action": "query",
                 "query_type": "impact",
                 "target": target,
                 "risk_score": result.get("risk_score", 0),
@@ -158,7 +185,6 @@ class GraphQueryTool(MCPTool):
 
         elif query_type == "feature":
             result = engine.query_feature(target)
-            # SymbolRef → dict для JSON-сериализации
             symbols_raw = result.get("symbols", [])
             symbols_dicts = []
             for s in symbols_raw:
@@ -170,6 +196,7 @@ class GraphQueryTool(MCPTool):
                     symbols_dicts.append(str(s))
             return {
                 "status": "ok",
+                "action": "query",
                 "query_type": "feature",
                 "target": target,
                 "files": result.get("files", []),
@@ -180,6 +207,7 @@ class GraphQueryTool(MCPTool):
             result = engine.query_dependencies(target)
             return {
                 "status": "ok",
+                "action": "query",
                 "query_type": "deps",
                 "target": target,
                 "depends_on": result.get("depends_on", []),
@@ -190,43 +218,29 @@ class GraphQueryTool(MCPTool):
             tests = engine.query_tests(target)
             return {
                 "status": "ok",
+                "action": "query",
                 "query_type": "tests",
                 "target": target,
                 "tests": tests or [],
             }
 
-        return {"status": "error", "message": f"Unknown query_type: {query_type}"}
+        return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}"}
 
-
-class CypherQueryTool(MCPTool):
-    """query_graph — Cypher-like запрос к PropertyGraph знаний.
-
-    Позволяет выполнять графовые запросы в стиле openCypher:
-
-        MATCH (f:Function)-[:CALLS]->(g:Function)
-        WHERE f.file_path STARTS WITH "src"
-        RETURN f.name, g.name, count(*) AS calls
-        ORDER BY calls DESC
-        LIMIT 10
-
-    Поддерживаемые конструкции:
-      - MATCH (n:Label), (n)-[:TYPE]->(m), (n)-[:TYPE*1..3]->(m)
-      - WHERE: =, <>, CONTAINS, STARTS WITH, IN, IS NULL, AND/OR, EXISTS
-      - RETURN: n.name, count(*) AS alias, DISTINCT, ORDER BY, LIMIT, SKIP
-    """
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="query_graph")
-
-    @error_boundary("query_graph", timeout_ms=15000)
-    async def execute(self, query: str, limit: int = 50) -> dict:
+    async def _execute_cypher(
+        self, query: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Cypher-like запрос к PropertyGraph."""
         from src.core.cypher_engine import CypherExecutor
         from src.core.graph import PropertyGraph
 
+        limit = (kwargs or {}).get("limit", 50)
+        if not query:
+            return {"status": "error", "action": "cypher", "message": "query is required"}
+
+        _kwargs = kwargs or {}
         try:
             pg = self._services.resolve(PropertyGraph)
         except KeyError:
-            # Fallback: per-project PropertyGraph через indexer
             indexer = self.resolve_indexer()
             project_path = indexer.project_path
             db_path = project_path / ".codebase" / "graph.db"
@@ -234,31 +248,19 @@ class CypherQueryTool(MCPTool):
 
         executor = CypherExecutor(pg)
 
-        # Лимит на результаты для безопасности
-        if limit and limit < 200:
-            query = query.strip()
-            if "LIMIT" not in query.upper():
-                query += f" LIMIT {limit}"
+        q = query.strip()
+        if limit and limit < 200 and "LIMIT" not in q.upper():
+            q += f" LIMIT {limit}"
 
-        result = executor.execute(query)
-
+        result = executor.execute(q)
         error = result.get("error")
         if error:
-            return {
-                "status": "error",
-                "message": error,
-                "query": query,
-            }
+            return {"status": "error", "action": "cypher", "message": error, "query": query}
 
-        # Пост-обработка: добавляем condition_path как читаемую строку
-        # для ASSIGNED_FROM рёбер, чтобы LLM сразу видела контекст.
         rows = result.get("results", [])
         for row in rows:
             if isinstance(row, dict):
                 for key, val in row.items():
-                    if isinstance(val, str) and val.startswith("[") and "condition" not in key:
-                        continue  # не трогаем уже форматированные строки
-                    # Если есть properties с condition_path — выводим как строку
                     if key.endswith("_properties") or key == "properties":
                         if isinstance(val, dict) and "condition_path" in val:
                             cp = val["condition_path"]
@@ -266,40 +268,34 @@ class CypherQueryTool(MCPTool):
 
         return {
             "status": "ok",
+            "action": "cypher",
             "query": query,
             "columns": result.get("columns", []),
             "results": rows,
             "stats": result.get("stats", {}),
         }
 
-
-class GetRelatedFilesTool(MCPTool):
-    """get_related_files — файлы связанные с данным через Knowledge Graph."""
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="get_related_files")
-
-    @error_boundary("get_related_files", timeout_ms=15000)
-    async def execute(
-        self,
-        project_root: str,
-        file_path: str,
-        max_depth: int = 1,
-        kwargs: Optional[Dict[str, Any]] = None,
+    async def _execute_related(
+        self, file_path: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
+        """Связанные файлы через CommitMemory + RelationExtractor."""
         from src.core.commit_memory import CommitMemory
         from src.core.relation_extractor import RelationExtractor
+
+        _kwargs = kwargs or {}
+        project_root = _kwargs.get("project_root", "")
+        max_depth = _kwargs.get("max_depth", 1)
 
         target_path = Path(project_root).resolve()
         if not target_path.exists():
             return {
                 "status": "error",
+                "action": "related",
                 "message": f"Path does not exist: {project_root}",
             }
 
         memory = CommitMemory(target_path)
         extractor = RelationExtractor(memory)
-
         extractor.extract_all_relations()
         related = extractor.get_related_files(file_path, max_depth=max_depth)
         summary = extractor.get_relation_summary()
@@ -307,6 +303,7 @@ class GetRelatedFilesTool(MCPTool):
         if not related:
             return {
                 "status": "ok",
+                "action": "related",
                 "file": file_path,
                 "related_files": [],
                 "relation_summary": summary,
@@ -314,17 +311,16 @@ class GetRelatedFilesTool(MCPTool):
 
         items = []
         for rel in related[:15]:
-            items.append(
-                {
-                    "file": rel["file"],
-                    "depth": rel["depth"],
-                    "weight": round(rel.get("total_weight", 0), 2),
-                    "path": " → ".join(rel.get("path", [])),
-                }
-            )
+            items.append({
+                "file": rel["file"],
+                "depth": rel["depth"],
+                "weight": round(rel.get("total_weight", 0), 2),
+                "path": " → ".join(rel.get("path", [])),
+            })
 
         return {
             "status": "ok",
+            "action": "related",
             "file": file_path,
             "search_depth": max_depth,
             "total_relations": len(related),
@@ -332,89 +328,45 @@ class GetRelatedFilesTool(MCPTool):
             "relation_summary": summary,
         }
 
-
-class GetVariableFlowTool(MCPTool):
-    """get_variable_flow — трассировка потока данных переменной.
-
-    Позволяет агентам проследить цепочку ASSIGNED_FROM для переменной:
-    откуда пришло значение (source) и куда пошло дальше (target).
-
-    Без scope_id: возвращает ВСЕ переменные с таким именем + их контекст
-    (scope_id, файл, функция) — агент может выбрать нужный scope_id.
-    С scope_id: возвращает полный data flow для конкретной переменной.
-
-    Использование:
-        1. get_variable_flow(name="result")
-           → видит 5 result в разных scope, выбирает нужный
-        2. get_variable_flow(name="result", scope_id="src/core/indexer.py::_index_single_file:42")
-           → полная цепочка присваиваний: откуда → куда → при каких условиях
-    """
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="get_variable_flow")
-
-    def _resolve_adapter(self):
-        """Resolve SymbolIndexAdapter, per-project aware."""
+    async def _execute_flow(
+        self, name: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Трассировка потока данных переменной (ASSIGNED_FROM)."""
         from src.core.graph import PropertyGraph
         from src.core.graph_adapter import SymbolIndexAdapter
 
+        _kwargs = kwargs or {}
+        scope_id = _kwargs.get("scope_id")
+        file_path = _kwargs.get("file_path")
+        max_depth = _kwargs.get("max_depth", 3)
+
+        if not name:
+            return {"status": "error", "action": "flow", "message": "name is required"}
+
         try:
             pg = self._services.resolve(PropertyGraph)
-            return SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+            adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
         except KeyError:
             indexer = self.resolve_indexer()
-            pg = getattr(indexer, "_graph", None) or getattr(
-                indexer, "property_graph", None
-            )
-            if pg:
-                return SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
-            return None
+            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
+            if not pg:
+                return {
+                    "status": "error",
+                    "action": "flow",
+                    "message": "PropertyGraph not available. Run reindex first.",
+                }
+            adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
 
-    @error_boundary("get_variable_flow", timeout_ms=10000)
-    async def execute(
-        self,
-        name: str,
-        scope_id: Optional[str] = None,
-        file_path: Optional[str] = None,
-        max_depth: int = 3,
-    ) -> dict:
-        """Выполнить трассировку переменной.
-
-        Args:
-            name: Имя переменной (например, "result", "auth_token")
-            scope_id: Опциональный scope_id для точного поиска.
-                      Если не указан — возвращает все совпадения с их scope_id.
-            file_path: Опциональный фильтр по файлу
-            max_depth: Глубина обхода цепочки (по умолчанию 3)
-
-        Returns:
-            Dict с переменной, её контекстом и ASSIGNED_FROM цепочкой
-        """
-        adapter = self._resolve_adapter()
-        if not adapter:
-            return {
-                "status": "error",
-                "message": "PropertyGraph not available. Run reindex first.",
-            }
-
-        # Шаг 1: найти переменную(ые)
-        variables = adapter.find_variables(
-            name=name,
-            scope_id=scope_id,
-            limit=20,
-        )
-
+        variables = adapter.find_variables(name=name, scope_id=scope_id, limit=20)
         if not variables:
             return {
                 "status": "ok",
+                "action": "flow",
                 "variable": None,
                 "message": f"No variable '{name}' found.",
-                "suggestion": "Try a different name or run reindex.",
             }
 
-        # Если scope_id не указан — показываем все найденные (агент выбирает)
         if not scope_id:
-            # Краткая сводка по коллизиям
             files = set(v["file_path"] for v in variables)
             scopes = [
                 {
@@ -428,6 +380,7 @@ class GetVariableFlowTool(MCPTool):
             ]
             return {
                 "status": "ok",
+                "action": "flow",
                 "variable": {
                     "name": name,
                     "found": len(variables),
@@ -438,31 +391,29 @@ class GetVariableFlowTool(MCPTool):
                 "message": (
                     f"Found {len(variables)} variable(s) named '{name}'. "
                     f"{'Multiple scopes detected! ' if len(variables) > 1 else ''}"
-                    f"Use scope_id parameter to get precise data flow."
+                    f"Use scope_id for precise data flow."
                 ),
             }
 
-        # Шаг 2: scope_id указан — собираем полный data flow
-        # Если нашли несколько — фильтруем по scope_id
         if scope_id:
             variables = [v for v in variables if v["function_scope"] == scope_id]
 
         if not variables:
             return {
                 "status": "ok",
+                "action": "flow",
                 "variable": None,
                 "message": f"Variable '{name}' with scope_id '{scope_id}' not found.",
             }
 
         flow = adapter.get_variable_flow(
-            variable_name=name,
-            scope_id=scope_id,
-            file_path=file_path,
-            max_depth=max_depth,
+            variable_name=name, scope_id=scope_id,
+            file_path=file_path, max_depth=max_depth,
         )
 
         return {
             "status": "ok",
+            "action": "flow",
             "variable": flow["variable"],
             "incoming": flow["incoming"],
             "outgoing": flow["outgoing"],
@@ -480,10 +431,10 @@ class GetVariableFlowTool(MCPTool):
         }
 
 
+
+
 __all__ = [
     "CrossRepoSearchTool",
     "CrossProjectDepsTool",
     "GraphQueryTool",
-    "GetRelatedFilesTool",
-    "GetVariableFlowTool",
 ]
