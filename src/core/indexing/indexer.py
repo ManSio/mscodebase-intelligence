@@ -8,7 +8,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.indexer_table import IndexerTableMixin
@@ -157,6 +157,22 @@ class Indexer(IndexerTableMixin):
         if enable_summaries:
             cache_dir = db_path.parent / "summaries_cache"
             self.summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
+
+        # ─── IndexProjectRunner
+        from src.core.indexing.index_project_runner import IndexProjectRunner
+        self._project_runner = IndexProjectRunner(
+            parse_file_only=self._parse_file_only,
+            write_file_records=self._write_file_records,
+            embedder=self.embedder,
+            file_guard=self.file_guard,
+            searcher=self.searcher,
+            table=self.table,
+            path_manager=self.path_manager,
+            project_path=self.project_path,
+            notification_broker=self._notification_broker,
+            summarizer=self.summarizer,
+            last_reported_progress=self._last_reported_progress,
+        )
 
         # ─── Load SymbolIndex from disk ─────────────────────
         try:
@@ -610,363 +626,21 @@ class Indexer(IndexerTableMixin):
             return False
 
     def index_project(
-        self, project_path: Path, progress_callback: Optional[Callable] = None
+        self,
+        project_path: Path,
+        progress_callback: Optional[Callable] = None,
+        phase_callback: Optional[Callable] = None,
     ) -> int:
-        """Полное сканирование проекта.
-
-        1. Инкрементально добавляет новые/измененные файлы.
-        2. Автоматически удаляет из базы файлы, стертые с диска (Pruning).
-
-        Args:
-            project_path: Путь к корневой директории проекта.
-                Должен существовать и быть директорией.
-            progress_callback: Опциональный callback для отслеживания прогресса.
-                Вызывается с аргументами: (current_file, files_done, files_total, phase)
-                phase: 'scanning', 'embedding', 'complete'
-
-        Returns:
-            Количество индексированных (новых/изменённых) файлов.
-
-        Raises:
-            FileNotFoundError: Если project_path не существует.
-            NotADirectoryError: Если project_path не является директорией.
-        """
-        project_path = Path(project_path).resolve()
-
-        if not project_path.exists():
-            raise FileNotFoundError(f"Путь проекта не существует: {project_path}")
-        if not project_path.is_dir():
-            raise NotADirectoryError(f"Путь не является директорией: {project_path}")
-
-        logger.info(f"🚀 Старт фоновой синхронизации проекта: {project_path}")
-        indexed_count = 0
-        current_files_on_disk: Set[str] = set()
-
-        if not self.path_manager.is_safe_to_process(project_path):
-            logger.warning(f"Путь не прошёл проверку безопасности: {project_path}")
-            if progress_callback:
-                progress_callback("", 0, 0, "error_security")
-            return 0
-
-        # Подсчёт общего числа файлов для прогресса
-        all_files: list = []
-        walk_root = str(project_path.resolve())
-        for root, dirs, files in os.walk(walk_root):
-            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
-            for file_name in files:
-                full_path = Path(root) / file_name
-                if self.file_guard.should_skip_file(full_path):
-                    continue
-                all_files.append((root, file_name, full_path))
-
-        total_files = len(all_files)
-        logger.info(f"📁 Найдено {total_files} файлов для индексации")
-
-        if progress_callback:
-            progress_callback("", 0, total_files, "scanning")
-
-        # Уведомление через NotificationBroker — сквозной прогресс 0-100%
-        # через все фазы: Phase 1 (parse) 0-70%, Phase 2 (embed) 70-90%, Phase 3 (write) 90-100%
-        def _notify_progress(
-            done: int, total: int, phase: str, current: str,
-            offset_pct: float = 0.0, span_pct: float = 100.0,
-        ):
-            if not self._notification_broker:
-                return
-            raw = (done / total) if total > 0 else 0.0
-            continuous = offset_pct + raw * span_pct
-            pct = int(continuous)
-            if (
-                pct == 0
-                or pct == 100
-                or (pct % 5 == 0 and pct != self._last_reported_progress)
-            ):
-                self._last_reported_progress = pct
-                self._notification_broker.publish_sync(
-                    "mscodebase/indexing_status",
-                    {
-                        "status": "indexing" if pct < 100 else "idle",
-                        "progress": pct,
-                        "total_chunks": total,
-                        "current_file": current or "",
-                    },
-                )
-
-        _notify_progress(0, total_files, "scanning", "", 0, 5)
-
-        # ═══════════════════════════════════════════════════════════
-        # Batch Embedder: Фаза 1 (Parse) → Фаза 2 (Sort+Embed) → Фаза 3 (Write)
-        # ═══════════════════════════════════════════════════════════
-        #
-        # Фаза 1 (параллельный парсинг):
-        #   workers парсят файлы → список parsed (с хэшами)
-        #
-        # Фаза 2 (сортировка + батчинг):
-        #   все чанки собираются в плоский список
-        #   сортируются по длине (чтобы минимизировать padding)
-        #   эмбеддятся батчами по _BATCH_SIZE
-        #
-        # Фаза 3 (запись):
-        #   результаты разбираются обратно по файлам → _write_file_records
-        # ═══════════════════════════════════════════════════════════
-
-        # ── Фаза 1: Параллельный парсинг ───────────────────────────
-        from concurrent.futures import ThreadPoolExecutor
-
-        _max_workers = min(4, (os.cpu_count() or 4) // 2)
-        _all_parsed: list = []  # список {"parsed": Dict, "name": str}
-        _parse_errors = []
-
-        def _parse_worker_file(args):
-            _idx, _root, _fname, _full_path = args
-            _rel_path = str(_full_path.relative_to(project_path))
-            current_files_on_disk.add(_rel_path)
-
-            try:
-                parsed = self._parse_file_only(
-                    _full_path, _rel_path, source="filesystem"
-                )
-                if parsed is not None:
-                    return {"parsed": parsed, "name": _fname, "rel": _rel_path}
-            except Exception as e:
-                return {"error": str(e), "rel": _rel_path}
-            return None
-
-        _parsed_list: list = []
-        with ThreadPoolExecutor(max_workers=_max_workers) as _exec:
-            _futs = []
-            for idx, (root, fname, fpath) in enumerate(all_files):
-                _futs.append(_exec.submit(_parse_worker_file, (idx, root, fname, fpath)))
-
-            for i, fut in enumerate(_futs):
-                try:
-                    res = fut.result()
-                    if res:
-                        if "error" in res:
-                            _parse_errors.append((res["rel"], res["error"]))
-                        else:
-                            _parsed_list.append(res)
-                            self.watchdog_heartbeat(f"parse:{res['name']}")
-                except Exception as e:
-                    logger.warning(f"\u26a0\ufe0f Worker error: {e}")
-
-                # Прогресс парсинга
-                if i % max(1, total_files // 20) == 0 or i == total_files - 1:
-                    if progress_callback:
-                        try:
-                            progress_callback("", i + 1, total_files, "parsing")
-                        except Exception as _e:
-                            logger.warning("exception", exc_info=True)
-                            pass
-                    _notify_progress(i + 1, total_files, "parsing", "", 5, 50)
-
-        parsed_count = len(_parsed_list)
-        logger.info(f"\u2705 Парсинг завершён: {parsed_count} файлов изменено из {total_files}")
-
-        if parsed_count == 0:
-            logger.info("\u2705 Нет изменённых файлов — индекс актуален")
-            indexed_count = 0
-            # Всё равно делаем pruning и финализируем
-            pruned = self.prune_deleted_files(current_files_on_disk)
-            if self.searcher:
-                self.searcher.reindex()
-            if progress_callback:
-                progress_callback("", total_files, total_files, "complete")
-            _notify_progress(total_files, total_files, "complete", "", 0, 100)
-            return 0
-
-        # ── Фаза 2: Сортировка + батчинг эмбеддинга ────────────────
-        # Собираем все чанки в плоский список с индексами файлов
-        _flat_chunks: list = []  # [(file_idx, text), ...]
-        for fp_idx, fp_data in enumerate(_parsed_list):
-            parsed = fp_data["parsed"]
-            for chunk_text in parsed["chunk_texts"]:
-                _flat_chunks.append((fp_idx, chunk_text))
-
-        total_chunks = len(_flat_chunks)
-        logger.info(f"\U0001f4ca Всего чанков: {total_chunks}, batch_size={_BATCH_SIZE}")
-
-        # Сортируем по длине текста (минимизируем padding)
-        _flat_chunks.sort(key=lambda x: len(x[1]))
-
-        # Проверка: embedder готов?
-        if not getattr(self.embedder, 'is_ready', lambda: True)():
-            logger.error("❌ Embedder не готов к работе. Индексация прервана.")
-            return 0
-
-        # Батчим по _BATCH_SIZE
-        _all_embeddings: list = [None] * total_chunks
-        _embed_t0 = time.time()
-
-        for batch_start in range(0, total_chunks, _BATCH_SIZE):
-            batch_end = min(batch_start + _BATCH_SIZE, total_chunks)
-            batch_data = _flat_chunks[batch_start:batch_end]
-            batch_texts = [text for (_, text) in batch_data]
-            [idx for (idx, _) in batch_data]
-
-            # Эмбеддинг батча
-            t0 = time.time()
-            try:
-                embeddings = self.embedder.embed_batch(batch_texts)
-            except Exception as embed_err:
-                # НЕ подменяем нулями — это отравляет индекс (все векторы
-                # становятся нулевыми, семантический поиск ломается, а
-                # IVF-индекс не строится с "0 vectors"). Прерываем индексацию
-                # с явной ошибкой, чтобы причина была видна пользователю.
-                logger.error(
-                    f"❌ Embedder error: {embed_err}. Индексация прервана "
-                    f"(embedder недоступен — проверьте ONNX/OpenVINO модель)."
-                )
-                raise RuntimeError(
-                    f"Embedder unavailable: {embed_err}. "
-                    f"Indexing aborted to avoid zero-vector corruption."
-                ) from embed_err
-            embed_time = time.time() - t0
-
-            if not embeddings or len(embeddings) != len(batch_texts):
-                raise RuntimeError(
-                    f"Embedder returned {len(embeddings) if embeddings else 0} "
-                    f"vectors instead of {len(batch_texts)} — indexing aborted."
-                )
-
-            # Раскладываем результаты обратно по flat-индексу
-            for i, flat_idx in enumerate(range(batch_start, batch_end)):
-                _all_embeddings[flat_idx] = embeddings[i]
-
-            # Мониторинг каждые 5 батчей
-            if batch_start % (_BATCH_SIZE * 5) == 0 or batch_end >= total_chunks:
-                elapsed = time.time() - _embed_t0
-                done = min(batch_end, total_chunks)
-                speed = done / elapsed if elapsed > 0 else 0
-                try:
-                    from src.core.indexing.resource_monitor import get_monitor
-                    mon = get_monitor()
-                    snap = mon.sample(force=True)
-                    ram_info = f"RAM={snap.rss_mb:.0f}MB CPU={snap.cpu_percent:.0f}%"
-                except Exception:
-                    ram_info = ""
-                logger.info(
-                    f"\U0001f4ca [embed] {done}/{total_chunks} chunks "
-                    f"{ram_info} "
-                    f"batch={len(batch_texts)}ch/{embed_time:.1f}s={len(batch_texts)/max(embed_time,0.001):.0f}ch/s "
-                    f"avg={speed:.0f}ch/s elapsed={elapsed:.0f}s"
-                )
-                _notify_progress(done, total_chunks, "embedding", "", 50, 40)
-                self.watchdog_heartbeat(f"embed:{done}/{total_chunks}")
-
-            import gc
-            gc.collect()
-
-        _embed_total = time.time() - _embed_t0
-        logger.info(f"\u2705 Эмбеддинг завершён: {total_chunks} чанков за {_embed_total:.1f}s ({total_chunks/max(_embed_total,0.001):.0f} ch/s)")
-        _notify_progress(total_chunks, total_chunks, "writing", "", 90, 10)
-
-        # ── Фаза 3: Запись результатов по файлам ────────────────────
-        # Восстанавливаем маппинг: для каждого файла собираем его embeddings
-        _file_embeddings: dict = {}  # {fp_idx: {parsed: ..., vecs: [...]}}
-        for flat_idx, (fp_idx, _) in enumerate(_flat_chunks):
-            if fp_idx not in _file_embeddings:
-                _file_embeddings[fp_idx] = {
-                    "parsed": _parsed_list[fp_idx]["parsed"],
-                    "vecs": [],
-                }
-            _file_embeddings[fp_idx]["vecs"].append(_all_embeddings[flat_idx])
-
-        indexed_count = 0
-        for fp_idx, fdata in _file_embeddings.items():
-            try:
-                if self._write_file_records(fdata["parsed"], fdata["vecs"]):
-                    indexed_count += 1
-                    self.watchdog_heartbeat(f"write:{Path(fdata['parsed']['rel_path']).name}")
-            except Exception as e:
-                logger.warning(f"\u26a0\ufe0f Ошибка записи {fdata['parsed']['rel_path']}: {e}")
-
-        logger.info(f"\u2705 Запись завершена: {indexed_count} файлов записано")
-
-        # Финальное уведомление
-        if progress_callback:
-            progress_callback("", total_files, total_files, "indexing")
-
-        # Пауза: даём Windows сбросить буферы записи (race condition LanceDB)
-        time.sleep(1)
-
-        # Шаг 2: Автоматическое вычищение (Pruning) «мертвого груза"
-        pruned = 0
-        try:
-            pruned = self.prune_deleted_files(current_files_on_disk)
-            if pruned > 0:
-                logger.info(f"🗑️ Удалено {pruned} устаревших файлов из базы")
-        except Exception as prune_err:
-            logger.warning(f"⚠️ Pruning не удался (некритично): {prune_err}")
-
-        # Шаг 3: Перестройка BM25 индекса
-        if indexed_count > 0 and self.searcher:
-            if progress_callback:
-                progress_callback("", total_files, total_files, "rebuilding_bm25")
-            self.searcher.reindex()
-
-        # Шаг 4: Создание индекса для ускорения косинусного поиска
-        if self.table and self.table.count_rows() > 1000:
-            try:
-                # 1. Flush данных на диск (compaction)
-                try:
-                    self.table.optimize(compaction=True)
-                except Exception as opt_err:
-                    logger.debug(f"optimize: {opt_err}")
-
-                # 2. Пауза для Windows I/O
-                time.sleep(2)
-
-                # 3. Проверка реального количества строк
-                _row_count = self.table.count_rows()
-                logger.info(f"📊 Создаю индекс ({_row_count} чанков)...")
-                if _row_count == 0:
-                    logger.warning("⚠️ Таблица пуста после optimize, индекс пропущен")
-                    return
-
-                # Удаляем старый индекс
-                try:
-                    for idx in self.table.list_indices():
-                        idx_name = getattr(idx, "name", None)
-                        if idx_name:
-                            self.table.drop_index(idx_name)
-                except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
-                # 4. IVF_FLAT — стабилен на Windows, без KMeans/PQ
-                self.table.create_index(
-                    metric="cosine",
-                    vector_column_name="vector",
-                    index_type="IVF_FLAT",
-                    replace=True,
-                )
-                logger.info("✅ IVF_FLAT индекс создан")
-            except Exception as e:
-                logger.error(f"⚠️ IVF_PQ индекс не создан: {e}")
-
-        # Шаг 5: Финальная статистика
-        final_stats = self.get_status()
-
-        if progress_callback:
-            progress_callback("", total_files, total_files, "complete")
-
-        # Финальное Push-уведомление
-        _notify_progress(total_files, total_files, "complete", "", 0, 100)
-
-        # Сохраняем кэш суммари
-        if self.summarizer:
-            self.summarizer.save_cache()
-
-        # Сохраняем SymbolIndex на диск (persistence между перезапусками)
-        if hasattr(self, "_symbol_index") and self._symbol_index:
-            self._index_guard.save_symbol_index(self._symbol_index)
-
-        logger.info(
-            f"✅ Индексация завершена: {indexed_count} новых/изменённых, "
-            f"{pruned} удалено, всего {final_stats.get('total_chunks', 0)} чанков"
+        """Полная индексация проекта (делегировано IndexProjectRunner)."""
+        return self._project_runner.run(
+            project_path=project_path,
+            progress_callback=progress_callback,
+            phase_callback=phase_callback,
+            watchdog_heartbeat=self.watchdog_heartbeat,
+            prune_deleted_files=self.prune_deleted_files,
+            get_status=self.get_status,
+            save_symbol_index=lambda: self._index_guard.save_symbol_index(self._symbol_index),
         )
-
-        return indexed_count
 
     def index_file(
         self, full_path: Path, project_path: Path, content: Optional[str] = None
