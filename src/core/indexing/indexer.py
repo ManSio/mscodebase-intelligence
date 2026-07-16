@@ -142,6 +142,15 @@ class Indexer(IndexerTableMixin):
             embedder=self.embedder,
         )
 
+        # ─── FreshnessChecker
+        from src.core.indexing.freshness import FreshnessChecker
+        self._freshness_checker = FreshnessChecker(
+            table=self.table,
+            file_guard=self.file_guard,
+            index_single_file=self._index_single_file,
+            calculate_file_hash=self._calculate_file_hash,
+        )
+
         # ─── Chunk Summarizer ───────────────────────────────
         self.enable_summaries = enable_summaries
         self.summarizer = None
@@ -586,72 +595,8 @@ class Indexer(IndexerTableMixin):
         return "root"
 
     def verify_index_freshness(self, project_path: Path) -> int:
-        """Быстрая проверка: переиндексирует только файлы с изменившимся hash.
-
-        В отличие от index_project:
-        - Не удаляет orphan файлы (только предупреждает)
-        - Не перестраивает BM25
-        - Не создаёт IVF_PQ индекс
-        - Работает за 2-5 секунд вместо 5 минут
-
-        Returns: количество переиндексированных файлов.
-        """
-        project_path = Path(project_path).resolve()
-        if not project_path.exists():
-            return 0
-
-        if self.table is None:
-            return 0
-
-        try:
-            # Получаем все file_hash из индекса
-            df = self.table.to_pandas(columns=["file_path", "file_hash"])
-        except Exception:
-            return 0
-
-        if df.empty:
-            return 0
-
-        indexed_hashes = dict(zip(df["file_path"], df["file_hash"]))
-
-        reindexed = 0
-        walk_root = str(project_path.resolve())
-        for root, dirs, files in os.walk(walk_root):
-            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
-            for file_name in files:
-                full_path = Path(root) / file_name
-                if self.file_guard.should_skip_file(full_path):
-                    continue
-                try:
-                    rel = str(full_path.relative_to(project_path)).replace(
-                        os.sep, "/"
-                    )
-                except ValueError:
-                    continue
-
-                # Если файла нет в индексе — пропускаем (не наша забота)
-                if rel not in indexed_hashes:
-                    continue
-
-                # Сверяем hash
-                try:
-                    current_hash = self._calculate_file_hash(full_path)
-                except Exception:
-                    continue
-
-                if current_hash == indexed_hashes[rel]:
-                    continue  # не изменился
-
-                # Файл изменился — переиндексируем
-                if self._index_single_file(full_path, project_path):
-                    reindexed += 1
-
-        if reindexed > 0:
-            logger.info(f"📝 Переиндексировано {reindexed} изменённых файлов")
-        else:
-            logger.info("✅ Индекс свежий, изменений нет")
-
-        return reindexed
+        """Быстрая проверка: переиндексирует только файлы с изменившимся hash."""
+        return self._freshness_checker.verify(project_path)
 
     def _safe_recreate_table(self):
         """Fallback: удалить и пересоздать таблицу."""
