@@ -158,6 +158,13 @@ class Indexer(IndexerTableMixin):
             cache_dir = db_path.parent / "summaries_cache"
             self.summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
 
+        # ─── FileMoveManager
+        from src.core.indexing.file_move_manager import FileMoveManager
+        self._file_move_manager = FileMoveManager(
+            table=self.table,
+            searcher=self.searcher,
+        )
+
         # ─── IndexProjectRunner
         from src.core.indexing.index_project_runner import IndexProjectRunner
         self._project_runner = IndexProjectRunner(

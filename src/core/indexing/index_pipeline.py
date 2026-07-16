@@ -79,76 +79,11 @@ class IndexPipeline:
         chunk_metadatas: List[Dict] = []
         health = {"score": 0.0, "band": ""}
 
-        if self.parser is not None:
-            try:
-                ast_chunks, symbols = self.parser.parse_file(full_path)
-                if ast_chunks:
-                    for c in ast_chunks:
-                        compact = c.get("text_compact", "") or c.get("text", "")
-                        full = c.get("text", "")
-                        if compact.strip():
-                            _module = c.get("module_name", "")
-                            _level = c.get("hierarchy_level", "other")
-                            _type = c.get("symbol_type", c.get("type", ""))
-                            _scope_parts = [p for p in [_level, _type, _module] if p]
-                            _scope = " | ".join(_scope_parts) if _scope_parts else _module
-                            _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
-                            chunk_texts.append(_header + compact)
-                            chunk_texts_full.append(_header + full)
-                            chunk_metadatas.append({
-                                "layer": c.get("layer", ""),
-                                "module_name": c.get("module_name", ""),
-                                "hierarchy_level": c.get("hierarchy_level", "other"),
-                                "is_public": c.get("is_public", False),
-                                "symbol_type": c.get("symbol_type", c.get("type", "")),
-                                "parent_id": c.get("parent_id", ""),
-                                "callees": c.get("callees", ""),
-                            })
-                    logger.debug(
-                        f"AST chunking: {full_path.name} -> {len(chunk_texts)} chunks"
-                    )
-                    # SymbolIndex update
-                    if symbols:
-                        with self._symbol_index_lock:
-                            self._symbol_index.add_definitions(str(full_path), symbols)
-                        calls = self.parser.extract_calls(full_path)
-                        if calls:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_references(str(full_path), calls)
-                        assignments = self.parser.extract_assignments(full_path)
-                        if assignments:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_assignments(
-                                    str(full_path), assignments
-                                )
-            except Exception as ast_err:
-                logger.warning(
-                    f"AST chunking failed for {rel_path_str}, fallback: {ast_err}"
-                )
-                chunk_texts = []
-                chunk_metadatas = []
-
-        # Fallback: character-level splitting
-        if not chunk_texts:
-            _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
-            chunk_texts = [
-                _fb_header + content[i : i + 1000]
-                for i in range(0, len(content), 800)
-            ]
-            chunk_texts_full = chunk_texts
-            chunk_metadatas = [
-                {
-                    "layer": "",
-                    "module_name": "",
-                    "hierarchy_level": "other",
-                    "is_public": False,
-                    "symbol_type": "",
-                    "parent_id": "",
-                    "callees": "",
-                }
-                for _ in chunk_texts
-            ]
-
+        chunk_texts, chunk_texts_full, chunk_metadatas = self._parse_chunks(
+            rel_path_str=rel_path_str,
+            full_path=full_path,
+            content=content,
+        )
         if not chunk_texts:
             return None
 
@@ -178,3 +113,114 @@ class IndexPipeline:
             "source": source,
             "embeddings": embeddings,
         }
+
+    def parse_file_only(
+        self,
+        full_path: Path,
+        rel_path_str: str,
+        source: str = "filesystem",
+    ):
+        """Parse only (no embedding). Returns dict for write or None."""
+        try:
+            safe_path = full_path
+            if not safe_path.exists():
+                return None
+            with open(str(safe_path), "rb") as f:
+                raw_data = f.read()
+            content = raw_data.decode("utf-8", errors="replace")
+            if not content.strip():
+                return None
+            import hashlib
+            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+            escaped_path = rel_path_str.replace("'", "''")
+
+            # Parse chunks (same logic as process_file but without embedding)
+            chunk_texts, chunk_texts_full, chunk_metadatas, health = self._parse_chunks(
+                rel_path_str=rel_path_str,
+                full_path=full_path,
+                content=content,
+            )
+            if not chunk_texts:
+                return None
+
+            health_score = {"score": 0.0, "band": ""}
+            try:
+                from src.core.code_health import score_file
+                health_score = score_file(rel_path_str, self.project_path)
+            except Exception:
+                pass
+
+            return {
+                "rel_path": rel_path_str,
+                "current_hash": current_hash,
+                "escaped_path": escaped_path,
+                "existing_hash": None,
+                "chunk_texts": chunk_texts,
+                "chunk_texts_full": chunk_texts_full,
+                "chunk_metadatas": chunk_metadatas,
+                "health": health_score,
+                "source": source,
+            }
+        except Exception as e:
+            logger.warning(f"Parse failed {rel_path_str}: {e}")
+            return None
+
+    def _parse_chunks(self, rel_path_str, full_path, content):
+        """Common chunking logic used by both process_file and parse_file_only."""
+        chunk_texts = []
+        chunk_texts_full = []
+        chunk_metadatas = []
+
+        if self.parser is not None:
+            try:
+                ast_chunks, symbols = self.parser.parse_file(full_path)
+                if ast_chunks:
+                    for c in ast_chunks:
+                        compact = c.get("text_compact", "") or c.get("text", "")
+                        full = c.get("text", "")
+                        if compact.strip():
+                            _module = c.get("module_name", "")
+                            _level = c.get("hierarchy_level", "other")
+                            _type = c.get("symbol_type", c.get("type", ""))
+                            _scope_parts = [p for p in [_level, _type, _module] if p]
+                            _scope = " | ".join(_scope_parts) if _scope_parts else _module
+                            _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
+                            chunk_texts.append(_header + compact)
+                            chunk_texts_full.append(_header + full)
+                            chunk_metadatas.append({
+                                "layer": c.get("layer", ""),
+                                "module_name": c.get("module_name", ""),
+                                "hierarchy_level": c.get("hierarchy_level", "other"),
+                                "is_public": c.get("is_public", False),
+                                "symbol_type": c.get("symbol_type", c.get("type", "")),
+                                "parent_id": c.get("parent_id", ""),
+                                "callees": c.get("callees", ""),
+                            })
+                    if symbols:
+                        with self._symbol_index_lock:
+                            self._symbol_index.add_definitions(str(full_path), symbols)
+                        calls = self.parser.extract_calls(full_path)
+                        if calls:
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_references(str(full_path), calls)
+                        assignments = self.parser.extract_assignments(full_path)
+                        if assignments:
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_assignments(str(full_path), assignments)
+            except Exception as ast_err:
+                logger.warning(f"AST chunking failed for {rel_path_str}, fallback: {ast_err}")
+                chunk_texts = []
+                chunk_metadatas = []
+
+        if not chunk_texts:
+            _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
+            chunk_texts = [
+                _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
+            ]
+            chunk_texts_full = chunk_texts
+            chunk_metadatas = [{
+                "layer": "", "module_name": "", "hierarchy_level": "other",
+                "is_public": False, "symbol_type": "", "parent_id": "", "callees": "",
+            } for _ in chunk_texts]
+
+        return chunk_texts, chunk_texts_full, chunk_metadatas
