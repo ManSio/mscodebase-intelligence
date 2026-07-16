@@ -133,6 +133,15 @@ class Indexer(IndexerTableMixin):
         self._cached_total_chunks = self._status_reporter._cached_total_chunks
         self._cached_unique_files = self._status_reporter._cached_unique_files
 
+        # ─── LanceDBWriter
+        from src.core.indexing.db_writer import LanceDBWriter
+        self._db_writer = LanceDBWriter(
+            table=self.table,
+            table_write_lock=self._table_write_lock,
+            index_lock=self._index_lock,
+            embedder=self.embedder,
+        )
+
         # ─── Chunk Summarizer ───────────────────────────────
         self.enable_summaries = enable_summaries
         self.summarizer = None
@@ -207,123 +216,23 @@ class Indexer(IndexerTableMixin):
         parsed: Dict,
         embeddings: List[List[float]],
     ) -> bool:
-        """Запись результатов эмбеддинга в LanceDB.
-
-        Принимает результат `_parse_file_only` и список векторов,
-        собирает PyArrow-записи и атомарно пишет в таблицу.
-
-        Args:
-            parsed: результат _parse_file_only
-            embeddings: список векторов (по одному на чанк)
-
-        Returns:
-            True если запись успешна, иначе False
-        """
+        """Запись результатов эмбеддинга в LanceDB (делегировано LanceDBWriter)."""
         rel_path_str = parsed["rel_path"]
         current_hash = parsed["current_hash"]
-        escaped_path = parsed["escaped_path"]
-        existing_hash = parsed["existing_hash"]
-        chunk_texts = parsed["chunk_texts"]
-        chunk_texts_full = parsed["chunk_texts_full"]
-        chunk_metadatas = parsed["chunk_metadatas"]
-        health = parsed["health"]
-        source = parsed["source"]
 
-        if not embeddings or len(embeddings) != len(chunk_texts):
-            logger.warning(
-                f"⚠️ Несовпадение числа эмбеддингов и чанков для {rel_path_str}: "
-                f"{len(embeddings)} vs {len(chunk_texts)}"
-            )
+        records = self._db_writer.write_records(
+            parsed=parsed,
+            embeddings=embeddings,
+            summarizer=self.summarizer,
+            enable_summaries=self.enable_summaries,
+            parser=self.parser,
+        )
+        if not records:
             return False
-
-        _target_dim = self.embedder.embedding_dim or 768
-        data_records = []
-        for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
-            # Нормализация вектора под размерность схемы
-            if len(chunk_vec) != _target_dim:
-                chunk_vec = chunk_vec[:_target_dim] + [0.0] * (_target_dim - len(chunk_vec))
-
-            full_text = (
-                chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
-            )
-
-            # LLM-описание если включено
-            summary = ""
-            if self.summarizer and self.enable_summaries:
-                symbol_name = ""
-                if self.parser and hasattr(self.parser, "_current_symbol"):
-                    symbol_name = getattr(self.parser, "_current_symbol", "")
-                summary = self.summarizer.summarize_chunk(chunk_text, symbol_name)
-
-            meta = chunk_metadatas[i] if i < len(chunk_metadatas) else {}
-
-            data_records.append(
-                {
-                    "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
-                    "vector": chunk_vec,
-                    "text": chunk_text,
-                    "text_full": full_text,
-                    "file_path": rel_path_str,
-                    "file_hash": current_hash,
-                    "chunk_index": i,
-                    "source": source,
-                    "indexed_at": datetime.now().isoformat(),
-                    "summary": summary,
-                    "layer": meta.get("layer", ""),
-                    "module_name": meta.get("module_name", ""),
-                    "hierarchy_level": meta.get("hierarchy_level", "other"),
-                    "is_public": meta.get("is_public", False),
-                    "symbol_type": meta.get("symbol_type", ""),
-                    "parent_id": meta.get("parent_id", ""),
-                    "callees": meta.get("callees", ""),
-                    "health_score": health.get("score", 0.0),
-                    "health_band": health.get("band", ""),
-                }
-            )
-
-        # Атомарная запись пачки чанков в таблицу
-        with self._table_write_lock:
-            old_chunks = 0
-            if existing_hash is not None:
-                try:
-                    old_chunks = self.table.count_rows(
-                        filter=f"file_path = '{escaped_path}'"
-                    )
-                except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
-                try:
-                    self.table.delete(f"file_path = '{escaped_path}'")
-                except Exception as del_err:
-                    logger.debug(f"delete() не нашёл запись: {del_err}")
-
-            try:
-                self.table.add(data_records)
-            except Exception as add_err:
-                err_str = str(add_err).lower()
-                if (
-                    "not found" in err_str
-                    or "does not exist" in err_str
-                    or "no such table" in err_str
-                ):
-                    logger.warning(
-                        f"⚠️ Таблица не найдена при записи, пересоздаём и ретраим: {add_err}"
-                    )
-                    if self._safe_recreate_table():
-                        self.table.add(data_records)
-                    else:
-                        raise
-                else:
-                    raise
 
         # Синхронизация кэша
         with self._index_lock:
-            if old_chunks > 0:
-                self._cached_total_chunks = max(
-                    0, self._cached_total_chunks - old_chunks + len(data_records)
-                )
-            else:
-                self._cached_total_chunks += len(data_records)
+            self._cached_total_chunks += len(records)
             self._cached_unique_files.add(rel_path_str)
 
         # Сохраняем SymbolIndex на диск
@@ -332,9 +241,8 @@ class Indexer(IndexerTableMixin):
         except Exception as _e:
             logger.warning("exception", exc_info=True)
             pass
-        logger.info(
-            f"✅ Записано в БД: {rel_path_str} ({len(chunk_texts)} чанков)"
-        )
+
+        logger.info(f"Записано в БД: {rel_path_str} ({len(records)} чанков)")
         return True
 
     def _parse_file_only(
@@ -744,6 +652,17 @@ class Indexer(IndexerTableMixin):
             logger.info("✅ Индекс свежий, изменений нет")
 
         return reindexed
+
+    def _safe_recreate_table(self):
+        """Fallback: удалить и пересоздать таблицу."""
+        try:
+            schema = self.table.schema
+            self.db.drop_table("codebase_chunks")
+            self.table = self.db.create_table("codebase_chunks", schema=schema)
+            return True
+        except Exception as e:
+            logger.error(f"Table recreation failed: {e}")
+            return False
 
     def index_project(
         self, project_path: Path, progress_callback: Optional[Callable] = None
