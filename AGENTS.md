@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (59 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (36 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 15 High-Level + 40 Low-Level Core MCP + 3 Diagnostic
+> Optimized for the hybrid model: 15 High-Level + 19 Core MCP + 3 Diagnostic + 2 Hub&Spoke (codebase + E2B)
 
 ## 0. FIRST STEP IN ANY SESSION
 
@@ -24,7 +24,7 @@
 
 ## 0.1. MCP TOOL CALL PROTOCOL (MANDATORY)
 
-> Полный справочник 59 инструментов с JSON Raw Input:
+> Полный справочник 36 инструментов с JSON Raw Input:
 > `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
 
 ### Формат вызова: JSON Raw Input (Zed MCP)
@@ -270,7 +270,7 @@ intel_get_project_memory      ──>   get_commit_history / file_hist (no analo
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (59)
+## 2. AVAILABLE TOOLS (36)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
@@ -286,7 +286,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Diagnostic: `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline`.
 
-### B. Low-Level Core MCP & Search (40 tools)
+### B. Core MCP & Search (19 tools)
 
 > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
 > Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.

@@ -1,9 +1,9 @@
 ---
 name: mscodebase-rules
-description: "Tool selection rules for the Zed AI agent. 59 registered tools: 15 High-Level Intel layer + 40 Low-Level Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
+description: "Tool selection rules for the Zed AI agent. 36 registered tools: 15 High-Level Intel layer + 19 Core MCP + 3 Diagnostic. Architecture layers: RuntimeCoordinator → ProjectContext → StateMachine → SystemArtifacts. Use search_code(mode=...) for all semantic search."
 ---
 
-# MSCodeBase Tool Selection Rules (59 tools)
+# MSCodeBase Tool Selection Rules (36 tools)
 
 > **Полный справочник MCP** (аргументы, паттерны вызова, anti-patterns):
 > [MCP_TOOLS.md](./MCP_TOOLS.md) — читай перед любой MCP-задачей.
@@ -74,7 +74,7 @@ MCP Tool Execution
 | `intel_tool_health` | Панель здоровья инструментов |
 | `intel_execution_timeline` | Лента последних действий системы |
 
-## Low-Level Core MCP (40 tools)
+## Core MCP (19 tools)
 
 ### Search & Data Flow
 | Tool | Purpose |
