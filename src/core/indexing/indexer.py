@@ -14,6 +14,9 @@ from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.indexer_table import IndexerTableMixin
 from src.utils.paths import SafePathManager
 
+__all__ = [
+    "Indexer",
+]
 logger = logging.getLogger("mscodebase_server.indexer")
 
 # Размер батча для кросс-файлового эмбеддинга.

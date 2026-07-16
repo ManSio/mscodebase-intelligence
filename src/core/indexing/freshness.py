@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 from typing import Callable
 
+__all__ = [
+    "FreshnessChecker",
+]
 logger = logging.getLogger("mscodebase_server.freshness")
 
 

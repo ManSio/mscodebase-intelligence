@@ -24,6 +24,14 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Optional
 
+__all__ = [
+    "get_bridge_dir",
+    "is_zed_install_dir",
+    "write_active_project",
+    "read_active_project",
+    "cleanup_stale",
+    "read_project_from_bridge",
+]
 logger = logging.getLogger("MSCodeBase.Bridge")
 
 # ──────────────────────────────────────────────

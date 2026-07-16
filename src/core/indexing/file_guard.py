@@ -17,6 +17,9 @@ from src.config.settings import get_config
 from src.core.extensions import INDEX_EXTENSIONS
 from src.core.system_artifacts import SystemArtifacts
 
+__all__ = [
+    "FileGuard",
+]
 logger = logging.getLogger(__name__)
 
 

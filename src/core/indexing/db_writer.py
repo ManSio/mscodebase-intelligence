@@ -11,6 +11,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
+__all__ = [
+    "LanceDBWriter",
+]
 logger = logging.getLogger("mscodebase_server.db_writer")
 
 

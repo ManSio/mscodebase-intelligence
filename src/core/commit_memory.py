@@ -16,6 +16,9 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+__all__ = [
+    "CommitMemory",
+]
 logger = logging.getLogger("commit_memory")
 
 

@@ -8,6 +8,9 @@ MSCodebase Intelligence — Indexer LanceDB Table Management Mixin
 import logging
 from typing import Set
 
+__all__ = [
+    "IndexerTableMixin",
+]
 logger = logging.getLogger("mscodebase_server.indexer")
 
 

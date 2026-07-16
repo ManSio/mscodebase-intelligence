@@ -4,7 +4,9 @@ from __future__ import annotations
 import threading
 import time
 
-
+__all__ = [
+    "Watchdog",
+]
 class Watchdog:
     """Отслеживает активность индексатора через heartbeat."""
 

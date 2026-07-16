@@ -22,6 +22,9 @@ import logging
 from pathlib import Path
 from typing import Set
 
+__all__ = [
+    "SystemArtifacts",
+]
 logger = logging.getLogger(__name__)
 
 

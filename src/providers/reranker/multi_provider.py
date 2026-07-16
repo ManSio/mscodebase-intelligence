@@ -33,6 +33,10 @@ import httpx
 from src.config.settings import get_config
 from src.core.interfaces.reranker import IReranker
 
+__all__ = [
+    "MultiProviderReranker",
+    "SearchResultReranker",
+]
 # Единый limits для всех HTTP-клиентов (Zed 1.10.0 keepalive compat)
 _HTTP_LIMITS = httpx.Limits(
     max_keepalive_connections=2,

@@ -33,6 +33,9 @@ from .utils import (
     _filter_by_time,
 )
 
+__all__ = [
+    "Searcher",
+]
 logger = logging.getLogger(__name__)
 
 

@@ -15,6 +15,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    "StructuralMatch",
+    "SearchResult",
+    "StructuralSearcher",
+]
 logger = logging.getLogger(__name__)
 
 

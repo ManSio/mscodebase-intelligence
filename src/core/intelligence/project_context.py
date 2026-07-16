@@ -29,6 +29,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    "ProjectContextSnapshot",
+    "ProjectContext",
+]
 logger = logging.getLogger("mscodebase_server.project_context")
 
 

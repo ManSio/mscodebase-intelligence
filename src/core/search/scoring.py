@@ -15,6 +15,12 @@ import numpy as np
 
 from src.config.settings import CODE_EXTENSIONS, DOCS_EXTENSIONS, get_config
 
+__all__ = [
+    "reciprocal_rank_fusion",
+    "auto_detect_intent",
+    "apply_bucket_weights",
+    "apply_mmr_diversity",
+]
 logger = logging.getLogger(__name__)
 
 

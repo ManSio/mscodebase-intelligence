@@ -26,6 +26,23 @@ from typing import Any, Callable, Optional
 
 from src.utils.i18n import _
 
+__all__ = [
+    "set_metrics_path",
+    "load_metrics",
+    "save_metrics",
+    "record_tool_call",
+    "record_tool_result",
+    "get_global_idle_metrics",
+    "get_execution_timeline",
+    "get_tool_metrics",
+    "get_tool_metrics_summary",
+    "flush_tool_metrics",
+    "ToolError",
+    "IndexNotReadyError",
+    "RateLimitError",
+    "error_boundary",
+    "set_notification_broker",
+]
 logger = logging.getLogger("mscodebase_server.error_handler")
 
 # ══════════════════════════════════════════════════════════

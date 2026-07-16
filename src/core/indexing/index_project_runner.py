@@ -16,6 +16,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional, Set
 
+__all__ = [
+    "IndexProjectRunner",
+]
 logger = logging.getLogger("mscodebase_server.index_project")
 
 

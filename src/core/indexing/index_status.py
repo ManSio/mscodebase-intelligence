@@ -12,6 +12,9 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Set
 
+__all__ = [
+    "IndexStatusReporter",
+]
 logger = logging.getLogger("mscodebase_server.index_status")
 
 

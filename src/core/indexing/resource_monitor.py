@@ -624,6 +624,12 @@ class ResourceMonitor:
 # Импорт sys в конце чтобы не сломать type hints выше.
 import sys  # noqa: E402
 
+__all__ = [
+    "ResourceSnapshot",
+    "ResourceMonitor",
+    "get_global_resource_monitor",
+    "reset_global_resource_monitor",
+]
 # Singleton instance (один на процесс).
 _global_monitor: Optional[ResourceMonitor] = None
 _global_lock = threading.Lock()

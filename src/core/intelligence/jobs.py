@@ -13,6 +13,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+__all__ = [
+    "BackgroundJob",
+    "JobManager",
+]
 logger = logging.getLogger("MSCodeBase.Intelligence.Jobs")
 
 

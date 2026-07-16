@@ -28,6 +28,12 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+__all__ = [
+    "ProjectState",
+    "ProjectIndexerRegistry",
+    "get_global_registry",
+    "reset_global_registry",
+]
 logger = logging.getLogger("mscodebase_server.registry")
 
 

@@ -16,6 +16,9 @@ from src.config.settings import get_config
 from src.core.interfaces import IEmbedder
 from src.core.platform_utils import get_extension_dir
 
+__all__ = [
+    "RemoteEmbedder",
+]
 logger = logging.getLogger("mscodebase_server.embedder")
 
 # Интервал проверки доступности внешних API (секунды)

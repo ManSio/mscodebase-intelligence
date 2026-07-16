@@ -12,6 +12,10 @@ Inspired by Serena's FilenameMatcher (oraios/serena).
 
 from pathlib import Path
 
+__all__ = [
+    "is_supported",
+    "is_parseable",
+]
 # ── Языки с семантическим парсингом (tree-sitter) ─────────────────────────
 # Используется в parser.py для AST-чанкинга.
 PARSE_EXTENSIONS: frozenset[str] = frozenset({

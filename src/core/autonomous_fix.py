@@ -17,6 +17,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+__all__ = [
+    "FixAttempt",
+    "FixResult",
+    "AutonomousFixLoop",
+    "get_fix_loop",
+]
 logger = logging.getLogger("autonomous_fix")
 
 

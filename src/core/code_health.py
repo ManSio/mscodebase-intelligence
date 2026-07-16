@@ -19,6 +19,9 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+__all__ = [
+    "score_file",
+]
 logger = logging.getLogger("code_health")
 
 

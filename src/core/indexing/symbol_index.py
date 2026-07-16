@@ -9,6 +9,10 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
+__all__ = [
+    "SymbolRef",
+    "SymbolIndex",
+]
 logger = logging.getLogger(__name__)
 
 

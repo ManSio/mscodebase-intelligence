@@ -39,6 +39,14 @@ from src.core.intelligence.jobs import BackgroundJob, job_manager
 from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
 from src.utils.i18n import _
 
+__all__ = [
+    "ProjectIntelligenceLayer",
+    "register_intelligence_tools",
+    "IntelligenceStore",
+    "JobHistoryStore",
+    "BackgroundJob",
+    "job_manager",
+]
 # =====================================================================
 # ОСНОВНОЙ СЛОЙ ПРОЕКТНОГО ИНТЕЛЛЕКТА
 # =====================================================================

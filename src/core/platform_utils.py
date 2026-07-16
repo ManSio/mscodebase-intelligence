@@ -20,6 +20,17 @@ import os
 import sys
 from pathlib import Path
 
+__all__ = [
+    "is_windows",
+    "is_macos",
+    "is_linux",
+    "platform_label",
+    "get_zed_db_path",
+    "get_zed_logs_dir",
+    "get_extension_dir",
+    "get_zed_config_path",
+    "get_zed_settings_dir",
+]
 # ─── Детекция платформы ───
 
 

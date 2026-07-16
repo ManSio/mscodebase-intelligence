@@ -9,6 +9,12 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+__all__ = [
+    "OperationProfile",
+    "ETAPredictor",
+    "get_predictor",
+    "estimate_eta",
+]
 logger = logging.getLogger("eta_predictor")
 
 

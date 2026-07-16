@@ -17,6 +17,11 @@ from src.core.indexer import _generate_unique_db_path
 logger = logging.getLogger(__name__)
 from src.utils.i18n import _
 
+__all__ = [
+    "parse_cross_repo_query",
+    "ProjectRegistry",
+    "MultiProjectSearcher",
+]
 # Паттерн для извлечения @-mentions
 _AT_MENTION_RE = re.compile(r"@([\w\-\.]+)")
 

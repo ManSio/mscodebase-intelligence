@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional, Set
 
 from src.core.extensions import PARSE_EXTENSIONS
 
+__all__ = [
+    "CodeParser",
+]
 logger = logging.getLogger(__name__)
 
 

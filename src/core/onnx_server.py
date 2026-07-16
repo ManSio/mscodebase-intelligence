@@ -29,6 +29,14 @@ import numpy as np
 import onnxruntime as ort
 from tokenizers import Tokenizer
 
+__all__ = [
+    "init_embedder",
+    "embed_texts",
+    "init_reranker",
+    "rerank",
+    "InferenceHandler",
+    "main",
+]
 # Константы токенизации для BGE-M3 (XLM-Roberta)
 _TOKENIZER_PAD_ID = 1      # <pad>
 _TOKENIZER_CLS_ID = 0      # <s>

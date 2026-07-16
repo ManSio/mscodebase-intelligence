@@ -8,7 +8,9 @@ IEmbedder — абстрактный контракт для эмбеддера.
 from abc import ABC, abstractmethod
 from typing import List
 
-
+__all__ = [
+    "IEmbedder",
+]
 class IEmbedder(ABC):
     """Интерфейс эмбеддера (векторизация текста)."""
 

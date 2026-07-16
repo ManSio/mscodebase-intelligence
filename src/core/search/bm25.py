@@ -12,6 +12,9 @@ from typing import Dict, List
 
 from src.core.search.utils import _tokenize
 
+__all__ = [
+    "BM25Mixin",
+]
 logger = logging.getLogger(__name__)
 
 

@@ -23,6 +23,9 @@ import pyarrow as pa
 from src.core.indexing.index_guard import IndexGuard
 from src.utils.paths import to_win_long_path
 
+__all__ = [
+    "LanceDBManager",
+]
 logger = logging.getLogger("mscodebase_server.db_manager")
 
 

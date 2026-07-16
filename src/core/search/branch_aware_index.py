@@ -10,6 +10,9 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
+__all__ = [
+    "BranchAwareIndex",
+]
 logger = logging.getLogger("branch_aware_index")
 
 

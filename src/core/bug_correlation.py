@@ -18,6 +18,9 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
 
+__all__ = [
+    "BugCorrelation",
+]
 logger = logging.getLogger("bug_correlation")
 
 # Паттерны для определения баг-фиксов

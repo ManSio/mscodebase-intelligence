@@ -3,7 +3,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-
+__all__ = [
+    "IReranker",
+]
 class IReranker(ABC):
     """Абстрактный реранкер результатов поиска."""
 

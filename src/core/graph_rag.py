@@ -12,6 +12,10 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Set
 
+__all__ = [
+    "GraphRAGQueryEngine",
+    "get_query_engine",
+]
 logger = logging.getLogger("graph_rag")
 
 

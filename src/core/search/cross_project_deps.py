@@ -16,6 +16,10 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from src.core.multi_project_searcher import ProjectRegistry
 
+__all__ = [
+    "CrossProjectDependencyGraph",
+    "get_cross_project_deps",
+]
 logger = logging.getLogger("cross_project_deps")
 
 # Расширения файлов, которые сканируем на импорты

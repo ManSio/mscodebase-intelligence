@@ -14,6 +14,9 @@ import logging
 from collections import defaultdict
 from typing import Dict, List
 
+__all__ = [
+    "RelationExtractor",
+]
 logger = logging.getLogger("relation_extractor")
 
 

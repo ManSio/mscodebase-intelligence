@@ -15,6 +15,12 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
+__all__ = [
+    "get_log_dir",
+    "setup_project_logging",
+    "get_recent_errors",
+    "get_log_summary",
+]
 logger = logging.getLogger("mscodebase_server.log")
 
 _MAX_LOG_BYTES = 2 * 1024 * 1024  # 2 MB на файл

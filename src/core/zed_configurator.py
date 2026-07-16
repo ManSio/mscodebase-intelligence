@@ -5,6 +5,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+__all__ = [
+    "ZedSmartConfigurator",
+]
 logger = logging.getLogger("mscodebase_configurator")
 
 class ZedSmartConfigurator:

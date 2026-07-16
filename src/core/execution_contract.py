@@ -13,6 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+__all__ = [
+    "ExecutionContract",
+    "format_verification_report",
+]
 logger = logging.getLogger("execution_contract")
 
 

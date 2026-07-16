@@ -22,6 +22,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    "IndexPipeline",
+]
 logger = logging.getLogger("mscodebase_server.index_pipeline")
 
 

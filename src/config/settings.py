@@ -9,7 +9,23 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Set
 
-
+__all__ = [
+    "EmbeddingConfig",
+    "ServerConfig",
+    "SearchConfig",
+    "IndexConfig",
+    "PerformanceConfig",
+    "SecurityConfig",
+    "Config",
+    "reload_config",
+    "get_config",
+    "get_lm_studio_embeddings_url",
+    "get_ollama_embeddings_url",
+    "get_mcp_sse_url",
+    "get_mcp_port",
+    "get_lm_studio_port",
+    "get_ollama_port",
+]
 @dataclass
 class EmbeddingConfig:
     """Конфигурация для эмбеддингов (Qwen3, BGE-M3, LM Studio, Ollama, ONNX)"""

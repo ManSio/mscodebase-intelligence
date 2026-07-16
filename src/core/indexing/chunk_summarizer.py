@@ -16,6 +16,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    "ChunkSummarizer",
+    "format_chunk_for_embedding",
+]
 logger = logging.getLogger("chunk_summarizer")
 
 

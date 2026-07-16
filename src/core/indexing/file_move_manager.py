@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import logging
 
+__all__ = [
+    "FileMoveManager",
+]
 logger = logging.getLogger("mscodebase_server.file_move")
 
 

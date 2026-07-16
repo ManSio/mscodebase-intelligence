@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
+__all__ = [
+    "calculate_file_hash",
+    "escape_file_path_for_lance",
+    "infer_module_name",
+    "infer_layer",
+]
 def calculate_file_hash(safe_path: Path) -> str:
     """SHA256 хэш файла для отслеживания изменений."""
     import hashlib

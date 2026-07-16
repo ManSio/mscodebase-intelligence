@@ -23,6 +23,10 @@ import pyarrow as pa
 
 from src.core.indexing.symbol_index import SymbolRef
 
+__all__ = [
+    "IndexGuard",
+    "quick_health_check",
+]
 logger = logging.getLogger("index_guard")
 
 # Текущая версия схемы

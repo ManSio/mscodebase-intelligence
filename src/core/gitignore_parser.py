@@ -7,6 +7,10 @@ import os
 from pathlib import Path
 from typing import Set
 
+__all__ = [
+    "load_gitignore_patterns",
+    "is_file_excluded_by_gitignore",
+]
 logger = logging.getLogger(__name__)
 
 # Module-level cache: project_path -> (mtime, patterns)

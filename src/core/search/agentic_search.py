@@ -16,6 +16,9 @@ from src.utils.i18n import _
 
 from .utils import _expand_query, _extract_key_terms
 
+__all__ = [
+    "AgenticSearchMixin",
+]
 logger = logging.getLogger(__name__)
 
 
