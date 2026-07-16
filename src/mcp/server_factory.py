@@ -189,11 +189,11 @@ def create_mcp_server():
                 break
         project_root = _found or Path(_pr_str.split("\n")[0].strip()).resolve()
         logger.warning(f"  -> sanitized: {project_root}")
-    _default_project_root = project_root
+    _default_project_root = project_root  # noqa: F811
 
     from src.core.di_container import create_service_collection
     services = create_service_collection(project_root)
-    _services_cache = services
+    _services_cache = services  # noqa: F811
 
     locale = os.environ.get("MSCODEBASE_LOCALE", "")
     if not locale:

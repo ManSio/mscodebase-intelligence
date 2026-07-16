@@ -99,12 +99,6 @@ class ETAPredictor:
             "tokens_estimate": profile.tokens_estimate * max(items, 1),
         }
 
-    def record_measurement(self, operation: str, actual_ms: float):
-        """Записывает реальное время выполнения для улучшения предсказаний."""
-        if operation not in self._measurements:
-            self._measurements[operation] = []
-        self._measurements[operation].append(actual_ms)
-
     def batch_estimate(self, operations: list) -> Dict:
         """Предсказывает время для серии операций.
 

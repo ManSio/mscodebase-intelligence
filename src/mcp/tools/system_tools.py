@@ -124,18 +124,13 @@ class GetIndexProgressTool(MCPTool):
 
     @error_boundary("get_index_progress", timeout_ms=5000)
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
-        try:
-            from src.core.log_manager import get_log_summary
-        except ImportError:
-            return {"status": "ok", "progress": []}
-
         # Получаем базовую статистику
         stats = self.resolve_indexer().get_status()
         return {
             "status": "ok",
             "total_chunks": stats.get("total_chunks", 0),
             "unique_files": stats.get("unique_files", 0),
-            "status": stats.get("status", "unknown"),
+            "indexer_status": stats.get("status", "unknown"),
         }
 
 

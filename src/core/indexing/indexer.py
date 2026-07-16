@@ -253,8 +253,6 @@ class Indexer(IndexerTableMixin):
     ) -> bool:
         """Запись результатов эмбеддинга в LanceDB (делегировано LanceDBWriter)."""
         rel_path_str = parsed["rel_path"]
-        current_hash = parsed["current_hash"]
-
         records = self._db_writer.write_records(
             parsed=parsed,
             embeddings=embeddings,

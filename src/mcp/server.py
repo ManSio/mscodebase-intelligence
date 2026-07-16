@@ -49,10 +49,10 @@ from src.core.passport import (
 from src.core.platform_utils import get_zed_db_path
 
 # (passport vars imported from src.core.passport above)
-_RUN_SOURCE_FILE = str(Path(__file__).resolve())
+_RUN_SOURCE_FILE = str(Path(__file__).resolve())  # noqa: F811
 
 # BUILD_ID — git commit hash для мгновенной верификации версии кода.
-_BUILD_ID: str = ""
+_BUILD_ID: str = ""  # noqa: F811
 try:
     _git_dir = Path(__file__).resolve().parent.parent.parent / ".git"
     if _git_dir.is_dir():

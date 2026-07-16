@@ -32,12 +32,11 @@ from src.core.di_container import (
     ServiceCollection,
 )
 from src.core.error_handler import IndexNotReadyError, ToolError
-
-logger = logging.getLogger(__name__)
-
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_indexer_for_intel(

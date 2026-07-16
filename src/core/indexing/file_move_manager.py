@@ -34,7 +34,6 @@ class FileMoveManager:
             self.table.delete(f"file_path = '{escaped_old}'")
             logger.info(f"Deleted {old_chunk_count} chunks for {old_path}")
             new_chunk_count = 0
-            escaped_new = new_path.replace("'", "''")
             rows = self.table.search().where(f"file_hash = '{old_hash}'", prefilter=True).limit(old_chunk_count).to_pandas()
             if not rows.empty:
                 for _, row in rows.iterrows():

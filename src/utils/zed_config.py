@@ -305,7 +305,7 @@ def remove_zed_settings() -> bool:
             if "MSCodeBase Core Rules" in prompt:
                 # Удаляем все строки с нашими правилами
                 lines = prompt.split("\n")
-                lines = [l for l in lines if "MSCodeBase Core Rules" not in l]
+                lines = [line for line in lines if "MSCodeBase Core Rules" not in line]
                 settings["agent"]["system_prompt"] = "\n".join(lines).strip()
                 changed = True
 
