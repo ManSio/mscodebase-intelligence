@@ -89,14 +89,15 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建DI容器（`create_service_collection()`）
-3. 注册42个工具 + 14个intel_*工具 + 3个诊断工具
+3. 注册16个core工具 + 14个intel工具 + 3个诊断工具 = 33个总计
+4. 注册系统提示词（mscodebase-rules）
 4. 注册系统提示词（mscodebase-rules）
 
 **此处不包含业务逻辑。** 每个工具都从 `mcp/tools/` 导入。
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **11个文件，42个核心工具（33个原始 + 6个写入 + 1个图查询 + 2个图/分析）。**
+`src/mcp/tools/*.py` — **12个文件，19个核心工具（Hub & Spoke：codebase + execute_script + 17个原生）。**
 
 每个工具：
 - 继承自 `MCPTool`（抽象基类）
@@ -235,38 +236,49 @@ indexer = services.resolve(Indexer)  # 每次返回同一实例
 
 ### 4.1 工具注册
 
-在 `src/mcp/server.py` 中：
+在 `src/mcp/server_tools.py` 中：
 
 ```python
-def _register_all_tools(mcp, services):
+def register_all_tools(mcp, services):
     tool_classes = [
-        SearchCodeTool, GetSymbolInfoTool,
-        NotifyChangeTool, IndexProjectDirTool,
-        GetBranchInfoTool, GetIndexStatusTool,
-        # ... 共39个
+        # Search (3)
+        SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
+        # Hub: codebase (write/index/git/notify — 通过action复用)
+        CodebaseTool,
+        # Spoke: E2B沙箱
+        ExecuteScriptTool,
+        # Analysis (5)
+        StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
+        ScanChangesTool, GenerateChunkSummariesTool,
+        # Graph (3 — 第二阶段: graph_query复用cypher + related + flow)
+        CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
+        # Investigation (3)
+        GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
+        # Lifecycle (3)
+        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-
-    for tool_cls in tool_classes:
-        instance = tool_cls(services)
-        mcp.tool(name=instance.name)(instance.execute)
+    # +14 个intel工具 + 3 个诊断工具
+    # 总计: 36 个注册 (19 core + 14 intel + 3 diag)
 ```
+
+**可见性过滤器:** 默认 ~16 个工具可见。设置 `MSCODEBASE_MCP_TOOLS=""` 显示全部 36 个。
 
 ### 4.2 按组分组的全部工具
 
 | 组 | 文件 | 工具 |
 |-------|------|-------|
-| **搜索**（3个） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **索引**（3个） | `indexing_tools.py` | notify_change, index_project_dir, index_health |
-| **Git**（3个） | `git_tools.py` | get_branch_info, get_commit_history, get_file_history |
-| **系统**（9个） | `system_tools.py` | get_index_status, get_index_progress, get_index_timeline, watcher_status, get_logs, get_health_report, predict_eta, run_health_check, read_live_file |
-| **分析**（5个） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **图**（4个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
-| **调查**（3个） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
-| **生命周期**（3个） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **写入**（6个） | `write_tools.py` | rename_symbol, move_symbol, safe_delete, replace_symbol, insert_before_symbol, insert_after_symbol |
-| **智能层**（14个） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **搜索**（3） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
+| **Hub: codebase**（1） | `codebase_tool.py` | codebase(action={rename,move,delete,replace,insert,notify,index,git,branch,...}) |
+| **Spoke: E2B**（1） | `codebase_tool.py` | execute_script(code) |
+| **分析**（5） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
+| **图**（3） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query(action={query,cypher,related,flow}) |
+| **调查**（3） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
+| **生命周期**（3） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **智能层**（14） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **Diagnostic**（3） | `server_tools.py` 内联 | debug_runtime_passport, get_runtime_counters, intel_execution_timeline |
 
----
+> **总计:** 36 个注册 (19 core + 14 intel + 3 diag)。
+> **默认可见:** ~16。显示全部: `MSCODEBASE_MCP_TOOLS=""`。
 
 ## 5. 错误处理
 
