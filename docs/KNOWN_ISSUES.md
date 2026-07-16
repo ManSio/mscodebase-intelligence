@@ -1,6 +1,6 @@
 # Known Issues & Technical Debt
 
-> **Part of MSCodeBase Intelligence** | v3.2.0
+> **Part of MSCodeBase Intelligence** | v3.2.3
 > Честный реестр известных проблем и текущих ограничений.
 > Синхронизировано с Project Memory (`intel_get_project_memory`): ADR-001, KI-001/002, TD-001..004.
 
