@@ -73,8 +73,7 @@ try:
             else:
                 _BUILD_ID = _ref[:12]
 except Exception as _e:
-    logger.warning("exception", exc_info=True)
-    pass
+    logger.warning(f"BUILD_ID detection failed: {_e}")
 def _log_run_passport() -> None:
     """Печатает 'паспорт' процесса при старте — уникальный RUN_ID + BUILD_ID + env summary.
 
@@ -91,8 +90,7 @@ def _log_run_passport() -> None:
         _bp = read_project_from_bridge(max_wait=0.1)
         _bridge_state = str(_bp) if _bp else "<empty — LSP not synced>"
     except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+        logger.warning(f"Bridge state check failed: {_e}")
     try:
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
         from src.mcp.server import _services_cache
@@ -102,8 +100,7 @@ def _log_run_passport() -> None:
             _paths = _reg.get_all_paths()
             _registry_state = "; ".join(str(p) for p in _paths) if _paths else "<empty>"
     except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+        logger.warning(f"Registry state check failed: {_e}")
     lines = [
         "",
         "=" * 60,
@@ -221,8 +218,7 @@ def _create_progress_callback(project_name: str):
                     f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
                 )
         except Exception as _e:
-            logger.warning("exception", exc_info=True)
-            pass
+            logger.warning(f"Progress callback failed: {_e}")
     return progress_callback
 
 
@@ -338,8 +334,7 @@ def _close_sqlite_connection():
             try:
                 _sqlite_conn.close()
             except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
+                logger.warning(f"SQLite close failed: {_e}")
             _sqlite_conn = None
 
 
@@ -454,36 +449,6 @@ def resolve_project_root(provided: str = "") -> Path:
     if provided and provided.strip():
         return Path(provided).resolve()
 
-    # ═══════════════════════════════════════════════════════════
-    # SANITIZATION GUARD (INC-2026): path с \n — баг Zed
-    # когда в workspaces несколько путей, склеенных через \n.
-    # Берём первую часть до \n (или запятой).
-    # ═══════════════════════════════════════════════════════════
-    _all_possible = []
-    for _probe in [
-        provided,
-        os.environ.get("PROJECT_PATH", ""),
-        os.environ.get("ZED_WORKTREE_ROOT", ""),
-    ]:
-        if _probe and _probe.strip():
-            for _cand in _probe.replace("\n", ",").split(","):
-                _c = _cand.strip()
-                if _c:
-                    _all_possible.append(_c)
-
-    def _first_valid(path_str: str) -> Optional[Path]:
-        """Берёт первый валидный путь из строки (может быть склейкой через \n или ,)."""
-        for p in path_str.replace("\n", ",").split(","):
-            p = p.strip()
-            if p:
-                try:
-                    _p = Path(p)
-                    if _p.exists() and not _reject_self_index_target(_p, source="SANITIZE"):
-                        return _p.resolve()
-                except Exception:
-                    continue
-        return None
-
     # ─── 1. SQLite: multi_workspace_state.active_workspace_id ───
     # Используем кэшированное соединение (TTL 2с, см. _get_sqlite_connection).
     try:
@@ -533,8 +498,7 @@ def resolve_project_root(provided: str = "") -> Path:
             logger.debug(f"resolve_project_root: bridge={bridge_path}")
             return bridge_path
     except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+        logger.warning(f"Bridge read failed: {_e}")
     # Fallback: Zed SQLite DB (через то же кэшированное соединение)
     try:
         _conn2 = _get_sqlite_connection()
@@ -596,23 +560,6 @@ def resolve_project_root(provided: str = "") -> Path:
         f"(возможна self-indexing; установите PROJECT_PATH=$ZED_WORKTREE_ROOT)"
     )
     return _ext_root
-
-
-_resolve_project_root = resolve_project_root
-
-
-def resolve_project_root(provided: str = "") -> Path:
-    """resolve_project_root с защитой от склейки путей через \n."""
-    result = _resolve_project_root(provided)
-    # Sanitization guard: если путь содержит \n — берем первую часть
-    result_str = str(result)
-    if "\n" in result_str:
-        first = result_str.split("\n")[0].strip()
-        logger.warning(
-            f"resolve_project_root: path contains newline, using first part: {first}"
-        )
-        result = Path(first).resolve()
-    return result
 
 
 def _log_project_resolution_failure() -> None:
