@@ -110,6 +110,16 @@ class Indexer(IndexerTableMixin):
             logger.info(f"PropertyGraph: {_pg.count_nodes()} nodes, {_pg.count_edges()} edges")
             self._property_graph = _pg
 
+        # ─── IndexPipeline (parse -> embed)
+        from src.core.indexing.index_pipeline import IndexPipeline
+        self._pipeline = IndexPipeline(
+            embedder=self.embedder,
+            parser=self.parser,
+            symbol_index=self._symbol_index,
+            symbol_index_lock=self._symbol_index_lock,
+            project_path=self.project_path,
+        )
+
         # ─── Chunk Summarizer ───────────────────────────────
         self.enable_summaries = enable_summaries
         self.summarizer = None
@@ -591,35 +601,20 @@ class Indexer(IndexerTableMixin):
         content: Optional[str] = None,
         source: str = "filesystem",
     ) -> bool:
-        """Индицирует один файл, если его хэш изменился.
-
-        Args:
-            full_path: Абсолютный путь к файлу
-            rel_path_str: Относительный путь для хранения в базе
-            content: Готовый текст файла (из памяти LSP). Если None — читает с диска.
-            source: источник индексации — 'lsp_vfs' (память IDE) или 'filesystem' (диск)
-        """
+        """Индексирует один файл: проверка хэша -> IndexPipeline -> запись."""
         try:
             safe_read_path = self.path_manager.get_safe_path(full_path)
-
-            # Если контент не передан — читаем с диска
             if content is None:
                 with open(str(safe_read_path), "rb") as f:
                     raw_data = f.read()
                 content = raw_data.decode("utf-8", errors="replace")
 
-            # Вычисляем хэш из контента (не с диска)
             current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
-
-            # Экранируем путь для SQL-like where-выражений LanceDB
             escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
-            # Проверяем, есть ли уже этот файл с таким же хэшем в LanceDB.
-            # Используем table.search().where(...) вместо to_pandas() по всей
-            # таблице — см. INC-53EC / REFC-09. Раньше: O(N) на каждый чанк.
+            # Проверка хэша — файл не изменился?
             existing_hash = None
             try:
-                # LanceDB SQL: фильтрация по file_path нативно.
                 existing_df = (
                     self.table.search()
                     .where(f"file_path = '{escaped_path}'", prefilter=True)
@@ -629,162 +624,36 @@ class Indexer(IndexerTableMixin):
                 if not existing_df.empty:
                     existing_hash = str(existing_df["file_hash"].iloc[0])
             except Exception:
-                # Fallback: пусть будет без хеша → переиндексируем.
                 pass
 
             if existing_hash == current_hash:
                 return False  # Файл не изменился, пропускаем
 
-            # СТАРЫЙ delete ПЕРЕМЕЩЁН ниже — после compute, перед add.
-            # Раньше delete был здесь, до parser + embedder, что приводило
-            # к потере файла из индекса при таймауте между delete и add.
-            # Теперь: compute safe → delete (fast) → add (fast).
-            # INC-TIMEOUT-FIX v3.1
-
-            if not content.strip():
+            # ─── IndexPipeline: парсинг -> эмбеддинг ────────
+            parsed = self._pipeline.process_file(
+                rel_path_str=rel_path_str,
+                full_path=full_path,
+                content=content,
+                current_hash=current_hash,
+                source=source,
+            )
+            if parsed is None:
                 return False
 
-            # Очистка старых данных файла из PropertyGraph перед переиндексацией
-            if hasattr(self._symbol_index, "graph"):
-                pg = self._symbol_index.graph
-                if pg:
-                    rel_posix = rel_path_str.replace("\\", "/")
-                    pg.remove_file(rel_posix)
+            # ─── Delete old + Write new ──────────────────────
+            # Сначала удаляем старые записи, потом добавляем новые.
+            # Такой порядок гарантирует, что файл не пропадёт из индекса
+            # при таймауте между delete и add (INC-TIMEOUT-FIX v3.1).
+            with self._table_write_lock:
+                self.table.delete(f"file_path = '{escaped_path}'")
+                self._write_file_records(parsed, parsed["embeddings"])
 
-            # AST-aware чанкинг через CodeParser (если доступен)
-            # Fallback: примитивное деление по 1000 символов с перекрытием 200
-            #
-            # Стратегия экономии токенов:
-            # - text_compact (сигнатура + 3 строки тела) → для эмбеддинга и поиска
-            # - text_full (полный код функции) → для детального анализа по запросу
-            #
-            # Metadata Enrichment (v2.4.3+):
-            # - layer, module_name, hierarchy_level, is_public, symbol_type, parent_id
-            chunk_texts = []  # компактные тексты для эмбеддинга
-            chunk_texts_full = []  # полные тексты для хранения
-            chunk_metadatas = []  # метаданные для Metadata Enrichment
-            health = {"score": 0.0, "band": ""}  # Code Health v3.0
-            if self.parser is not None:
-                try:
-                    ast_chunks, symbols = self.parser.parse_file(full_path)
-                    if ast_chunks:
-                        for c in ast_chunks:
-                            compact = c.get("text_compact", "") or c.get("text", "")
-                            full = c.get("text", "")
-                            if compact.strip():
-                                # Контекстуальный заголовок (breadcrumb) для E5-base
-                                # Каждый чанк получает «якорь»: файл + модуль + тип символа
-                                # Это компенсирует ограничение окна 512 токенов E5-base.
-                                _module = c.get("module_name", "")
-                                _level = c.get("hierarchy_level", "other")
-                                _type = c.get("symbol_type", c.get("type", ""))
-                                _scope_parts = [p for p in [_level, _type, _module] if p]
-                                _scope = " | ".join(_scope_parts) if _scope_parts else _module
-                                _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
-                                compact_with_ctx = _header + compact
-                                full_with_ctx = _header + full
-                                chunk_texts.append(compact_with_ctx)
-                                chunk_texts_full.append(full_with_ctx)
-                                # Извлекаем метаданные из результата парсера
-                                chunk_metadatas.append(
-                                    {
-                                        "layer": c.get("layer", ""),
-                                        "module_name": c.get("module_name", ""),
-                                        "hierarchy_level": c.get(
-                                            "hierarchy_level", "other"
-                                        ),
-                                        "is_public": c.get("is_public", False),
-                                        "symbol_type": c.get(
-                                            "symbol_type", c.get("type", "")
-                                        ),
-                                        "parent_id": c.get("parent_id", ""),
-                                        "callees": c.get("callees", ""),
-                                    }
-                                )
-                        logger.debug(
-                            f"🌳 AST-чанкинг: {full_path.name} → {len(chunk_texts)} семантических чанков"
-                        )
-                    # Добавляем определения символов в SymbolIndex (thread-safe)
-                    if symbols:
-                        with self._symbol_index_lock:
-                            self._symbol_index.add_definitions(str(full_path), symbols)
-                        # Извлекаем связи вызовов
-                        calls = self.parser.extract_calls(full_path)
-                        if calls:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_references(str(full_path), calls)
-                        # ASSIGNED_FROM: отслеживание присваиваний переменных
-                        assignments = self.parser.extract_assignments(full_path)
-                        if assignments:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_assignments(str(full_path), assignments)
-                except Exception as ast_err:
-                    logger.warning(
-                        f"⚠️ AST-чанкинг не удался для {rel_path_str}, fallback: {ast_err}"
-                    )
-                    chunk_texts = []
-                    chunk_metadatas = []
-
-            if not chunk_texts:
-                # Fallback: символьное деление с перекрытием + контекстуальный заголовок
-                _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
-                chunk_texts = [
-                    _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
-                ]
-                chunk_texts_full = chunk_texts
-                chunk_metadatas = [
-                    {
-                        "layer": "",
-                        "module_name": "",
-                        "hierarchy_level": "other",
-                        "is_public": False,
-                        "symbol_type": "",
-                        "parent_id": "",
-                        "callees": "",
-                    }
-                    for _ in chunk_texts
-                ]
-
-            if not chunk_texts:
-                return False
-
-            # v3.0: Code Health — вычисляем один раз на файл
-            try:
-                from src.core.code_health import score_file
-
-                health = score_file(rel_path_str, self.project_path)
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
-            # Получение эмбеддингов через провайдер
-            embeddings = self.embedder.embed_batch(chunk_texts)
-            import gc
-            gc.collect()  # освободить ONNX тензоры
-            if not embeddings or any(len(e) == 0 for e in embeddings):
-                logger.warning(
-                    f"⚠️ Пустые эмбеддинги для файла {rel_path_str}. Пропуск записи."
-                )
-                return False
-
-            # Собираем parsed-словарь и делегируем запись в _write_file_records
-            parsed = {
-                "rel_path": rel_path_str,
-                "current_hash": current_hash,
-                "escaped_path": escaped_path,
-                "existing_hash": existing_hash,
-                "chunk_texts": chunk_texts,
-                "chunk_texts_full": chunk_texts_full,
-                "chunk_metadatas": chunk_metadatas,
-                "health": health,
-                "source": source,
-            }
-            result = self._write_file_records(parsed, embeddings)
             import gc
             gc.collect()
-            return result
+            return True
 
         except Exception as e:
-            logger.error(f"❌ Критический сбой индексации файла {rel_path_str}: {e}")
+            logger.error(f"Index failed for {rel_path_str}: {e}")
             return False
 
     def move_chunks_metadata(self, old_path: str, new_path: str) -> int:
