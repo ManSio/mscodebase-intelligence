@@ -2,7 +2,6 @@
 MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
 
-import asyncio
 import hashlib
 import logging
 import os
@@ -11,13 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-import lancedb
-import pyarrow as pa
-
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
-from src.core.indexing.index_guard import IndexGuard
 from src.core.indexing.indexer_table import IndexerTableMixin
-from src.utils.paths import SafePathManager, to_win_long_path
+from src.utils.paths import SafePathManager
 
 logger = logging.getLogger("mscodebase_server.indexer")
 
@@ -67,209 +62,67 @@ class Indexer(IndexerTableMixin):
         self.embedder = embedder
         self.file_guard = file_guard
         self.path_manager = SafePathManager(db_path.parent)
-        # searcher инжектируется явно через DI (см. INC-53EC / REFC-05).
-        # Если None — будет установлен позже через set_searcher().
         self.searcher = searcher
         self.project_path = project_path or db_path.parent.parent.parent
-        self.parser = parser  # CodeParser для AST-aware чанкинга
-        self._notification_broker = notification_broker  # опциональный брокер событий
-        self._last_reported_progress = -1  # для троттлинга уведомлений
+        self.parser = parser
+        self._notification_broker = notification_broker
+        self._last_reported_progress = -1
 
         import threading
-        # Блокировки для thread-safe параллельной индексации
-        self._index_lock = threading.Lock()          # защита shared state
-        self._table_write_lock = threading.Lock()    # сериализация записи в LanceDB
-        self._symbol_index_lock = threading.Lock()   # SymbolIndex thread safety
+        self._index_lock = threading.Lock()
+        self._table_write_lock = threading.Lock()
+        self._symbol_index_lock = threading.Lock()
 
-        # Watchdog: heartbeat обновляется при каждом прогрессе
-        self._watchdog_heartbeat = time.time()  # инициализация ТЕКУЩИМ временем, не эпохой (1970)
-        self._watchdog_ever_beat = False  # бился ли хоть раз (для корректного idle)
+        # Watchdog
+        self._watchdog_heartbeat = time.time()
+        self._watchdog_ever_beat = False
         self._watchdog_label = "idle"
         self._watchdog_lock = threading.Lock()
 
-        # Счётчики кэша (защищены _index_lock)
-        self._cached_total_chunks = 0
-        self._cached_unique_files: Set[str] = set()
-
-        # Определяем размерность из embedder (768 для E5-base, 1024 для BGE-M3 и т.д.)
+        # ─── LanceDB Manager ────────────────────────────────
         _dim = getattr(self.embedder, 'embedding_dim', None) or 768
-        logger.info(f"📐 Размерность эмбеддинга: {_dim}")
+        from src.core.indexing.db_manager import LanceDBManager
+        self.db_manager = LanceDBManager(
+            db_path=db_path,
+            embedder=embedder,
+            project_path=self.project_path,
+            embedding_dim=_dim,
+        )
+        # Прокси для обратной совместимости
+        self.db = self.db_manager.db
+        self.table = self.db_manager.table
+        self.schema = self.db_manager.schema
+        self._cached_total_chunks = self.db_manager._cached_total_chunks
+        self._cached_unique_files = self.db_manager._cached_unique_files
+        self._needs_full_reindex = self.db_manager._needs_full_reindex
+        self._index_guard = self.db_manager._index_guard
 
-        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source, summary
+        # ─── SymbolIndex (persistent graph) ─────────────────
         if symbol_index is not None:
             self._symbol_index = symbol_index
         else:
             from src.core.graph import PropertyGraph
             from src.core.search.graph_adapter import SymbolIndexAdapter
 
-            _graph_db = project_path / ".codebase" / "graph.db"
+            _graph_db = self.project_path / ".codebase" / "graph.db"
             _pg = PropertyGraph(_graph_db)
             self._symbol_index = SymbolIndexAdapter(_pg, mode=SymbolIndexAdapter.MODE_PURE)
-            logger.info(f"📊 PropertyGraph загружен: {_pg.count_nodes()} nodes, {_pg.count_edges()} edges")
+            logger.info(f"PropertyGraph: {_pg.count_nodes()} nodes, {_pg.count_edges()} edges")
             self._property_graph = _pg
 
-        # Chunk Summarizer для LLM-описаний
+        # ─── Chunk Summarizer ───────────────────────────────
         self.enable_summaries = enable_summaries
         self.summarizer = None
         if enable_summaries:
             cache_dir = db_path.parent / "summaries_cache"
             self.summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
 
-        # Настройка директории базы данных
-        # На Windows tmp_path может содержать \\?\ префикс.
-        # LanceDB (Rust) не понимает этот префикс — снимаем его.
-        raw_path = str(db_path.resolve())
-        if raw_path.startswith("\\\\?\\"):
-            lancedb_path = raw_path[4:]
-        else:
-            lancedb_path = raw_path
-
-        # Создаём директорию через \\?\ если нужно (обходит MAX_PATH)
-        Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
-
-        # Подключение к LanceDB (чистый путь, без \\?\\).
-        # Async-соединение для неблокирующих операций (поиск).
-        self.db = lancedb.connect(lancedb_path)
-        self._lancedb_connect_path = lancedb_path
-
-        # Async LanceDB (ленивая инициализация при первом поиске).
-        self._async_db: Optional[Any] = None
-        self._async_table: Optional[Any] = None
-        self._async_db_lock = asyncio.Lock()
-
-        # Схема таблицы: id, vector, text, text_full, file_path, file_hash, chunk_index, source, summary
-        # text — компактный чанк (сигнатура + превью) для эмбеддинга и экономии токенов
-        # text_full — полный текст функции/метода (для детального анализа по запросу)
-        # source — источник индексации: 'lsp_vfs' (память IDE) или 'filesystem' (диск)
-        # summary — LLM-описание чанка (для улучшения семантического поиска)
-        #
-        # Metadata Enrichment (MCompassRAG-style + SproutRAG-style):
-        # layer — архитектурный слой (core/mcp/tests/...)
-        # module_name — логическое имя модуля (core.parser)
-        # hierarchy_level — уровень иерархии (function/method/class/...)
-        # is_public — публичный/приватный символ
-        # symbol_type — AST-тип (function_definition/method_definition/...)
-        # parent_id — детерминированный хеш родителя для multi-granularity
-        self.schema = pa.schema(
-            [
-                pa.field("id", pa.string()),
-                pa.field(
-                    "vector", pa.list_(pa.float32(), _dim)
-                ),  # Динамическая размерность от embedder
-                pa.field("text", pa.string()),
-                pa.field("text_full", pa.string()),
-                pa.field("file_path", pa.string()),
-                pa.field("file_hash", pa.string()),
-                pa.field("chunk_index", pa.int32()),
-                pa.field("source", pa.string()),
-                pa.field("indexed_at", pa.string()),
-                pa.field("summary", pa.string()),
-                # Metadata Enrichment (v2.4.3+)
-                pa.field("layer", pa.string()),
-                pa.field("module_name", pa.string()),
-                pa.field("hierarchy_level", pa.string()),
-                pa.field("is_public", pa.bool_()),
-                pa.field("symbol_type", pa.string()),
-                pa.field("parent_id", pa.string()),
-                # Call-graph edges (v3.0): JSON-массив callee-имён из AST
-                pa.field("callees", pa.string()),
-                # Code Health (v3.0): score 1-10, вычисляется при индексации
-                pa.field("health_score", pa.float64()),
-                pa.field("health_band", pa.string()),
-            ]
-        )
-
-        self.table_name = "codebase_chunks"
-        # LanceDB может кэшировать список таблиц, из-за чего open_table и create_table
-        # могут кидать race condition. Пробуем открыть, при ошибке — создаём,
-        # при "already exists" — пробуем открыть снова.
-        try:
-            self.table = self.db.open_table(self.table_name)
-            # Проверяем, что схема содержит text_full (миграция).
-            # Используем add_columns — НЕ drop+create (см. INC-53EC / REFC-07):
-            # ранее при kill -9 между drop_table и create_table вся база терялась.
-            existing_fields = [f.name for f in self.table.schema]
-            if "text_full" not in existing_fields:
-                logger.warning(
-                    "⚠️ Миграция: добавляем text_full через _migrate_text_full_inplace"
-                )
-                self._migrate_text_full_inplace()
-
-            # Миграция: Metadata Enrichment (v2.4.3+)
-            self._migrate_add_metadata_columns(existing_fields)
-
-            logger.info(f"📦 Открыта таблица: {self.table_name}")
-
-            # ── Auto-detect: dimension mismatch → пересоздание ──
-            # При смене модели эмбеддинга (1024→768, 768→1024) старые
-            # векторы несовместимы. Проверяем размерность при старте.
-            _schema = self.table.schema
-            _vec_field = next((f for f in _schema if f.name == "vector"), None)
-            if _vec_field is not None:
-                _stored_dim = 0
-                try:
-                    _t = _vec_field.type
-                    if hasattr(_t, 'value_type'):
-                        _vt = _t.value_type
-                        if hasattr(_vt, 'get_field'):
-                            _stored_dim = _vt.get_field("item").type.list_size
-                except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
-                _current_dim = getattr(self.embedder, 'embedding_dim', None) or 768
-                if _stored_dim and _stored_dim != _current_dim:
-                    logger.warning(f"⚠️ Dim mismatch: index={_stored_dim}, embedder={_current_dim}. Recreating table...")
-                    self.db.drop_table(self.table_name)
-                    self.table = self.db.create_table(self.table_name, schema=self.schema)
-                    logger.info(f"✅ Table recreated for {_current_dim}dim")
-                    self._needs_full_reindex = True
-
-        except Exception as open_err:
-            logger.debug(f"Не удалось открыть таблицу: {open_err}. Пробуем создать.")
-            try:
-                self.table = self.db.create_table(self.table_name, schema=self.schema)
-                logger.info(f"📦 Создана новая таблица: {self.table_name}")
-            except Exception as create_err:
-                # Если таблица уже существует (race condition) — пробуем открыть ещё раз
-                err_str = str(create_err).lower()
-                if "already exists" in err_str:
-                    self.table = self.db.open_table(self.table_name)
-                    logger.info(f"📦 Открыта таблица после гонки: {self.table_name}")
-                else:
-                    raise
-
-        # Прогрев статуса: мгновенный подсчёт существующих чанков без сканирования диска.
-        # Решает race condition "холодного старта".
-        # Счётчики уже инициализированы в блоке threading выше.
-        self._warmup_status()
-
-        # ══════════════════════════════════════════════════════════
-        # Index Guard: самовосстановление при сбоях
-        # ══════════════════════════════════════════════════════════
-        self._index_guard = IndexGuard(db_path, self.project_path)
-        guard_report = self._index_guard.check_and_repair(self.db)
-        if guard_report["status"] != "ok":
-            logger.warning(
-                f"⚠️ Index Guard: {guard_report['status']} — "
-                f"{', '.join(guard_report['actions_taken'])}"
-            )
-            # Перезагружаем таблицу после возможных изменений
-            try:
-                self.table = self.db.open_table(self.table_name)
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
-        logger.info(f"📦 Движок LanceDB запущен. Индексы изолированы в {db_path}")
-
-        # Загружаем сохранённый SymbolIndex с диска (если есть)
+        # ─── Load SymbolIndex from disk ─────────────────────
         try:
             if self._index_guard.load_symbol_index(self._symbol_index):
-                logger.info(
-                    f"SymbolIndex loaded: {self._symbol_index.get_symbol_count()} symbols"
-                )
+                logger.info(f"SymbolIndex: {self._symbol_index.get_symbol_count()} symbols")
         except Exception as _e:
-            logger.warning("exception", exc_info=True)
-            pass
+            logger.debug(f"SymbolIndex load skipped: {_e}")
     def watchdog_heartbeat(self, label: str = ""):
         """Обновляет heartbeat — вызывается при каждом прогрессе.
 
@@ -315,209 +168,34 @@ class Indexer(IndexerTableMixin):
         self.searcher = searcher
 
     # ══════════════════════════════════════════════════════════
-    # Async LanceDB API (неблокирующие чтения для поиска)
-    # ══════════════════════════════════════════════════════════
-
+        # Async LanceDB API (delegated to LanceDBManager)
     async def _ensure_async_table(self):
-        """Ленивая thread-safe инициализация async-соединения LanceDB.
-
-        Использует отдельный AsyncConnection для неблокирующих
-        read-операций (поиск). Синхронный self.db остаётся для
-        write-операций (индексация).
-
-        Если таблица была сброшена извне — пересоздаёт её
-        через синхронный self.db, затем открывает async-соединение.
-        """
-        if self._async_table is not None:
-            return self._async_table
-        async with self._async_db_lock:
-            if self._async_table is not None:
-                return self._async_table
-            try:
-                self._async_db = await lancedb.connect_async(self._lancedb_connect_path)
-                self._async_table = await self._async_db.open_table(self.table_name)
-                logger.debug(f"Async LanceDB подключён: {self._lancedb_connect_path}")
-            except Exception as e:
-                err_str = str(e).lower()
-                if "not found" in err_str or "does not exist" in err_str:
-                    logger.warning(
-                        f"⚠️ Async таблица не найдена, пересоздаём через sync: {e}"
-                    )
-                    # Сначала закрываем неудачное async-соединение
-                    if self._async_db is not None:
-                        try:
-                            await self._async_db.close()
-                        except Exception as _e:
-                            logger.warning("exception", exc_info=True)
-                            pass
-                        self._async_db = None
-                    # Пересоздаём таблицу через синхронный API
-                    if self._ensure_table_ready():
-                        # Пробуем снова открыть async-соединение
-                        try:
-                            self._async_db = await lancedb.connect_async(
-                                self._lancedb_connect_path
-                            )
-                            self._async_table = await self._async_db.open_table(
-                                self.table_name
-                            )
-                            logger.debug(
-                                f"Async LanceDB переподключён: {self._lancedb_connect_path}"
-                            )
-                        except Exception as retry_err:
-                            logger.warning(f"Async LanceDB retry failed: {retry_err}")
-                            self._async_db = None
-                            self._async_table = None
-                    else:
-                        logger.error("Не удалось восстановить таблицу для async-поиска")
-                else:
-                    logger.warning(f"Async LanceDB init failed: {e}")
-                    self._async_db = None
-                    self._async_table = None
-            return self._async_table
+        return await self.db_manager.ensure_async_table()
 
     async def to_pandas_async(self):
-        """Асинхронная загрузка всей таблицы в DataFrame."""
-        table = await self._ensure_async_table()
-        if table is None:
-            return None
-        try:
-            return await table.to_pandas()
-        except Exception as e:
-            logger.error(f"Ошибка async to_pandas: {e}")
-            return None
+        return await self.db_manager.to_pandas_async()
 
     async def count_rows_async(self) -> int:
-        """Асинхронный подсчёт строк таблицы."""
-        table = await self._ensure_async_table()
-        if table is None:
-            return 0
-        try:
-            return await table.count_rows()
-        except Exception:
-            return 0
+        return await self.db_manager.count_rows_async()
 
     async def close_async(self) -> None:
-        """Закрывает async-соединение LanceDB."""
-        if self._async_db is not None:
-            try:
-                await self._async_db.close()
-            except Exception as e:
-                logger.debug(f"Ошибка закрытия async LanceDB: {e}")
-            finally:
-                self._async_db = None
-                self._async_table = None
+        await self.db_manager.close_async()
 
     def _warmup_status(self) -> None:
-        """Прогрев кэша чанков и уникальных файлов.
-
-        count_rows() — O(1). Уникальные файлы читаются через
-        search + select (без vector), что работает в LanceDB 0.33
-        стабильно, в отличие от to_pandas(columns=[...]).
-        """
-        try:
-            if self.table is None:
-                return
-            count = self.table.count_rows()
-            self._cached_total_chunks = count
-            if count > 0:
-                logger.info(f"🔥 Прогрев статуса: в базе {count} чанков")
-                # Тройной fallback для file_path
-                _fp_set = None
-                try:
-                    ds = self.table.to_lance()
-                    _fp_df = ds.to_pandas(columns=["file_path"])
-                    if not _fp_df.empty:
-                        _fp_set = set(_fp_df["file_path"].unique())
-                except Exception:
-                    try:
-                        _fp_df = self.table.search().select(["file_path"]).limit(count).to_pandas()
-                        if not _fp_df.empty:
-                            _fp_set = set(_fp_df["file_path"].unique())
-                    except Exception:
-                        try:
-                            _fp_df = self.table.to_pandas(columns=["file_path"])
-                            if not _fp_df.empty:
-                                _fp_set = set(_fp_df["file_path"].unique())
-                        except Exception as _e:
-                            logger.warning("exception", exc_info=True)
-                            pass
-                if _fp_set is not None:
-                    self._cached_unique_files = _fp_set
-                    logger.info(f"🔥 Прогрев статуса: {len(_fp_set)} файлов")
-            else:
-                logger.debug("🔥 Прогрев статуса: база пустая (первый запуск)")
-        except Exception as e:
-            err_str = str(e).lower()
-            if "not found" in err_str or "does not exist" in err_str:
-                logger.warning(
-                    f"🔥 Таблица не найдена при прогреве: {e}. Будет создана при первой индексации."
-                )
-            else:
-                logger.debug(f"🔥 Прогрев статуса не удался: {e}. Кэш = 0.")
-            self._cached_total_chunks = 0
+        self.db_manager._warmup_cache()
+        self._cached_total_chunks = self.db_manager._cached_total_chunks
+        self._cached_unique_files = self.db_manager._cached_unique_files
 
     def switch_project(self, project_path: Path) -> None:
-        """Динамически переключает базу данных на проект.
-
-        Позволяет использовать один инстанс Indexer для разных проектов.
-
-        Args:
-            project_path: Путь к корневой директории проекта.
-                Должен существовать и быть директорией.
-
-        Raises:
-            FileNotFoundError: Если project_path не существует.
-            NotADirectoryError: Если project_path не является директорией.
-        """
-        project_path = Path(project_path).resolve()
-
-        if not project_path.exists():
-            raise FileNotFoundError(f"Путь проекта не существует: {project_path}")
-        if not project_path.is_dir():
-            raise NotADirectoryError(f"Путь не является директорией: {project_path}")
-
-        new_db_path = _generate_unique_db_path(project_path)
-        if new_db_path == self.db_path:
-            return  # Уже на нужной базе
-
-        logger.info(f"🔄 Переключение БД: {self.db_path.name} → {new_db_path.name}")
-        self.db_path = new_db_path
         self.project_path = project_path
-        self.path_manager = SafePathManager(new_db_path.parent)
-
-        # Переподключаемся к новой базе
-        raw_path = str(new_db_path.resolve())
-        # \\?\ (4 backslashes в Python-строке = 2 литеральных backslash)
-        if raw_path.startswith("\\\\?\\"):
-            lancedb_path = raw_path[4:]
-        else:
-            lancedb_path = raw_path
-
-        Path(to_win_long_path(new_db_path)).mkdir(parents=True, exist_ok=True)
-        self.db = lancedb.connect(lancedb_path)
-        self._lancedb_connect_path = lancedb_path
-
-        # Сбрасываем async-соединение (пересоздастся лениво при следующем поиске)
-        self._async_db = None
-        self._async_table = None
-
-        # Открываем или создаём таблицу
-        try:
-            self.table = self.db.open_table(self.table_name)
-            logger.info(f"📦 Открыта таблица: {self.table_name}")
-            # Проверяем схему — при необходимости мигрируем
-            existing_fields = [f.name for f in self.table.schema]
-            self._migrate_add_metadata_columns(existing_fields)
-        except Exception:
-            self.table = self.db.create_table(self.table_name, schema=self.schema)
-            logger.info(f"📦 Создана таблица: {self.table_name}")
-
-        # Прогрев кэша
-        self._cached_total_chunks = 0
-        self._cached_unique_files = set()
-        self._warmup_status()
-
+        new_db_path = _generate_unique_db_path(project_path)
+        self.db_manager.switch_db(new_db_path)
+        self.db = self.db_manager.db
+        self.table = self.db_manager.table
+        self._cached_total_chunks = self.db_manager._cached_total_chunks
+        self._cached_unique_files = self.db_manager._cached_unique_files
+        self._needs_full_reindex = self.db_manager._needs_full_reindex
+        self._index_guard = self.db_manager._index_guard
     def _calculate_file_hash(self, safe_path: Path) -> str:
         """Вычисляет хэш файла для отслеживания изменений (SHA256)."""
         hasher = hashlib.sha256()
