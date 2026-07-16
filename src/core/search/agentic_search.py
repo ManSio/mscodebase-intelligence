@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from src.core.config import get_config
+from src.config.settings import get_config
 from src.utils.i18n import _
 
 from .utils import _expand_query, _extract_key_terms, _extract_symbol_name

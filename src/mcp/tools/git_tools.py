@@ -122,7 +122,7 @@ class GetBranchInfoTool(MCPTool):
         project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        from src.core.branch_aware_index import BranchAwareIndex
+        from src.core.search.branch_aware_index import BranchAwareIndex
 
         target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
         if not target_path.exists():

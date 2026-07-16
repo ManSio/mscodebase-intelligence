@@ -398,7 +398,7 @@ def run_server(original_stdout=None):
 def _start_llama_sync():
     """Синхронный запуск llama.cpp при старте."""
     try:
-        from src.core.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
+        from src.providers.reranker.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
         import httpx
         runner = get_global_runner()
         model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
@@ -410,7 +410,7 @@ def _start_llama_sync():
                     try:
                         r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
                         if r.status_code == 200:
-                            from src.core.remote_embedder import RemoteEmbedder
+                            from src.providers.embedder.remote_embedder import RemoteEmbedder
                             from src.mcp.server import _services_cache
                             embedder = _services_cache.resolve(RemoteEmbedder)
                             with embedder._mode_lock:
@@ -424,7 +424,7 @@ def _start_llama_sync():
 
     # Всегда пытаемся запустить reranker (не зависит от embedder)
     try:
-        from src.core.llama_runner import get_global_runner
+        from src.providers.reranker.llama_runner import get_global_runner
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         ok = loop.run_until_complete(get_global_runner().start_reranker())

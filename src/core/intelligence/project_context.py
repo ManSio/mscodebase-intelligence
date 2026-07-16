@@ -191,7 +191,7 @@ class ProjectContext:
     def _capture_registry(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
-            from src.core.project_indexer_registry import ProjectState
+            from src.core.indexing.project_indexer_registry import ProjectState
 
             registry = self._services.resolve(PIRKey)
             snap.state = registry.get_state(self._path).name
@@ -269,7 +269,7 @@ class ProjectContext:
         self, snap: ProjectContextSnapshot
     ) -> ProjectContextSnapshot:
         try:
-            from src.core.health_report import HealthReport
+            from src.core.intelligence.health import HealthReport
 
             hr = HealthReport(self._path, self._services)
             report = await hr.generate()
@@ -285,7 +285,7 @@ class ProjectContext:
 
     def _capture_memory(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.core.intelligence_layer import IntelligenceStore
+            from src.core.intelligence.layer import IntelligenceStore
 
             store = IntelligenceStore(self._path)
             memory = store.load_memory()

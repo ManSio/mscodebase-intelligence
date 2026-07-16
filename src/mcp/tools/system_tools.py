@@ -16,9 +16,9 @@ from typing import Any, Dict, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.core.indexer import Indexer
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.providers.embedder.remote_embedder import RemoteEmbedder
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 from src.utils.ui_formatter import format_index_status
 
@@ -246,7 +246,7 @@ class WatcherStatusTool(MCPTool):
     def _check_lm_studio_models(self) -> dict:
         import httpx
 
-        from src.core.config import get_config
+        from src.config.settings import get_config
 
         config = get_config()
         # INC-6BCB-v3.1: self.embedder → self.resolve_embedder()
@@ -317,7 +317,7 @@ class GetHealthReportTool(MCPTool):
     async def execute(
         self, project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
-        from src.core.health_report import HealthReport, format_health_report
+        from src.core.intelligence.health import HealthReport, format_health_report
 
         target_path = self.resolve_indexer().project_path
         if project_root:

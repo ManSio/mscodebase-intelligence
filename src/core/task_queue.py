@@ -338,7 +338,7 @@ def disable_idle_scheduler():
 def _cpu_available() -> bool:
     """Проверяет, можно ли запустить фоновую задачу по ресурсам."""
     try:
-        from src.core.resource_monitor import get_global_resource_monitor
+        from src.core.indexing.resource_monitor import get_global_resource_monitor
 
         mon = get_global_resource_monitor()
         return not mon.is_under_pressure() if mon else True

@@ -23,7 +23,7 @@ from typing import Dict, Optional, Tuple
 import lancedb
 import pyarrow as pa
 
-from src.core.symbol_index import SymbolRef
+from src.core.indexing.symbol_index import SymbolRef
 
 logger = logging.getLogger("index_guard")
 

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
-from src.core.symbol_index import SymbolIndex
+from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.write_tools")

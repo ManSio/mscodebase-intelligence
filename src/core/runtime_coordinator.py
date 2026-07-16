@@ -118,7 +118,7 @@ class RuntimeCoordinator:
         # Layer 3: проверка registry + state machine
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
-            from src.core.project_indexer_registry import ProjectState
+            from src.core.indexing.project_indexer_registry import ProjectState
 
             registry = self._services.resolve(PIRKey)
             state = registry.get_state(path)

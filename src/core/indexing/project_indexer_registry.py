@@ -469,7 +469,7 @@ def get_global_registry() -> ProjectIndexerRegistry:
         if _registry is None:
             # Lazy import — избегаем цикл импорта resource_monitor.
             try:
-                from src.core.resource_monitor import get_global_resource_monitor
+                from src.core.indexing.resource_monitor import get_global_resource_monitor
 
                 monitor = get_global_resource_monitor()
             except Exception:

@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from src.core.config import get_config
+from src.config.settings import get_config
 from src.core.interfaces.reranker import IReranker
 
 # Единый limits для всех HTTP-клиентов (Zed 1.10.0 keepalive compat)

@@ -18,7 +18,7 @@ from src.core.graph import (
     Node,
     NodeLabel,
 )
-from src.core.symbol_index import SymbolRef
+from src.core.indexing.symbol_index import SymbolRef
 
 
 class PureGraphMixin:

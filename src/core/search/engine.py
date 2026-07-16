@@ -8,11 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from src.core.config import (
+from src.config.settings import (
     MAX_RERANKER_INPUT,
     get_config,
 )
-from src.core.reranker import MultiProviderReranker, SearchResultReranker
+from src.providers.reranker.multi_provider import MultiProviderReranker, SearchResultReranker
 from src.core.interfaces.searcher import ISearcher
 from src.utils.i18n import _
 
@@ -851,7 +851,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             # ─── Убеждаемся, что llama-server с --reranking запущен ───
             reranker_url = None
             try:
-                from src.core.llama_runner import get_global_runner
+                from src.providers.reranker.llama_runner import get_global_runner
 
                 runner = get_global_runner()
                 status = await runner.ensure_reranker_started()

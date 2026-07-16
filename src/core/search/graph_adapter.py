@@ -30,7 +30,7 @@ from src.core.graph import (
     NodeLabel,
     PropertyGraph,
 )
-from src.core.symbol_index import SymbolRef
+from src.core.indexing.symbol_index import SymbolRef
 from src.core.search.graph_adapter_pure import PureGraphMixin
 
 logger = logging.getLogger(__name__)

@@ -203,7 +203,7 @@ class StructuralSearcher:
     def __init__(self, parser=None):
         """Инициализирует серчер с существующим CodeParser или создаёт новый."""
         if parser is None:
-            from src.core.parser import CodeParser
+            from src.core.indexing.parser import CodeParser
             parser = CodeParser()
         self.parser = parser
         self._query_cache: Dict[str, Any] = {}

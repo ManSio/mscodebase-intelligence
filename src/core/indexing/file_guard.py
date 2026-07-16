@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Set
 
 from src.core.extensions import INDEX_EXTENSIONS
-from src.core.config import get_config
+from src.config.settings import get_config
 from src.core.system_artifacts import SystemArtifacts
 
 logger = logging.getLogger(__name__)

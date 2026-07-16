@@ -13,7 +13,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from src.core.config import CODE_EXTENSIONS, DOCS_EXTENSIONS, get_config
+from src.config.settings import CODE_EXTENSIONS, DOCS_EXTENSIONS, get_config
 
 logger = logging.getLogger(__name__)
 

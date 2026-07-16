@@ -13,12 +13,12 @@ from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import ToolError, error_boundary
-from src.core.file_guard import FileGuard
+from src.core.indexing.file_guard import FileGuard
 from src.core.indexer import Indexer
-from src.core.parser import CodeParser
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.core.indexing.parser import CodeParser
+from src.providers.embedder.remote_embedder import RemoteEmbedder
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
 from src.utils.ui_formatter import format_repo_rank
@@ -264,7 +264,7 @@ class ScanChangesTool(MCPTool):
         """Синхронное выполнение сканирования в ThreadPool."""
         import time
 
-        from src.core.file_guard import FileGuard
+        from src.core.indexing.file_guard import FileGuard
 
         _t = time.time()
         logger.info(f"[bg] scan_changes: {target_path.name}...")
@@ -381,7 +381,7 @@ class GenerateChunkSummariesTool(MCPTool):
         embedder = self.resolve_embedder()
         cache_dir = self.resolve_indexer().db_path.parent / "summaries_cache"
 
-        from src.core.chunk_summarizer import ChunkSummarizer
+        from src.core.indexing.chunk_summarizer import ChunkSummarizer
 
         summarizer = ChunkSummarizer(embedder=embedder, cache_dir=cache_dir)
 

@@ -209,7 +209,7 @@ def _register_intelligence_tools(mcp, services):
     INC-6BCB-v3.1: передаём services для late-resolve.
     """
     try:
-        from src.core.intelligence_layer import (
+        from src.core.intelligence.layer import (
             ProjectIntelligenceLayer,
             register_intelligence_tools,
         )
@@ -340,7 +340,7 @@ def _register_inline_tools(mcp, services):
         Returns:
             JSON со всей известной информацией о проекте.
         """
-        from src.core.project_context import ProjectContext
+        from src.core.intelligence.project_context import ProjectContext
         from src.mcp.server import _default_project_root, resolve_project_root
 
         _default = _default_project_root or resolve_project_root()
@@ -360,7 +360,7 @@ def _register_inline_tools(mcp, services):
         Returns:
             Текстовый диагноз с состоянием каждого слоя.
         """
-        from src.core.project_context import ProjectContext
+        from src.core.intelligence.project_context import ProjectContext
         from src.core.runtime_coordinator import RuntimeCoordinator
         from src.mcp.server import _default_project_root, resolve_project_root
 

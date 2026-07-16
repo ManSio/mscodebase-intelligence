@@ -42,7 +42,7 @@ class CrossProjectDepsTool(MCPTool):
         project_name: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        from src.core.cross_project_deps import CrossProjectDependencyGraph
+        from src.core.search.cross_project_deps import CrossProjectDependencyGraph
 
         registry = getattr(self.multi_searcher, "registry", None)
         deps_graph = CrossProjectDependencyGraph(project_registry=registry)
@@ -333,7 +333,7 @@ class GraphQueryTool(MCPTool):
     ) -> dict:
         """Трассировка потока данных переменной (ASSIGNED_FROM)."""
         from src.core.graph import PropertyGraph
-        from src.core.graph_adapter import SymbolIndexAdapter
+        from src.core.search.graph_adapter import SymbolIndexAdapter
 
         _kwargs = kwargs or {}
         scope_id = _kwargs.get("scope_id")

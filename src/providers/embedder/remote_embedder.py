@@ -12,7 +12,7 @@ from typing import Any, List, Optional
 
 import httpx
 
-from src.core.config import get_config
+from src.config.settings import get_config
 from src.core.interfaces import IEmbedder
 from src.core.platform_utils import get_extension_dir
 
@@ -240,7 +240,7 @@ class RemoteEmbedder(IEmbedder):
                 # Запускаем реранкер (BGE-M3 на порту 8081)
                 try:
                     import asyncio
-                    from src.core.llama_runner import get_global_runner
+                    from src.providers.reranker.llama_runner import get_global_runner
                     runner = get_global_runner()
                     asyncio.run(runner.start_reranker())
                 except Exception as e:
@@ -484,7 +484,7 @@ class RemoteEmbedder(IEmbedder):
                     # Запускаем реранкер (BGE-M3 на порту 8081)
                     try:
                         import asyncio
-                        from src.core.llama_runner import get_global_runner
+                        from src.providers.reranker.llama_runner import get_global_runner
                         runner = get_global_runner()
                         asyncio.run(runner.start_reranker())
                     except Exception as e:

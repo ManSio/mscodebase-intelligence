@@ -14,8 +14,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 import lancedb
 import pyarrow as pa
 
-from src.core.chunk_summarizer import ChunkSummarizer
-from src.core.index_guard import IndexGuard
+from src.core.indexing.chunk_summarizer import ChunkSummarizer
+from src.core.indexing.index_guard import IndexGuard
 from src.utils.paths import SafePathManager, to_win_long_path
 from src.core.indexing.indexer_table import IndexerTableMixin
 
@@ -1545,7 +1545,7 @@ class Indexer(IndexerTableMixin):
                 done = min(batch_end, total_chunks)
                 speed = done / elapsed if elapsed > 0 else 0
                 try:
-                    from src.core.resource_monitor import get_monitor
+                    from src.core.indexing.resource_monitor import get_monitor
                     mon = get_monitor()
                     snap = mon.sample(force=True)
                     ram_info = f"RAM={snap.rss_mb:.0f}MB CPU={snap.cpu_percent:.0f}%"

@@ -411,8 +411,8 @@ class HealthReport:
         throttling и LRU eviction.)
         """
         try:
-            from src.core.project_indexer_registry import get_global_registry
-            from src.core.resource_monitor import get_global_resource_monitor
+            from src.core.indexing.project_indexer_registry import get_global_registry
+            from src.core.indexing.resource_monitor import get_global_resource_monitor
 
             monitor = get_global_resource_monitor()
             summary = monitor.get_summary()

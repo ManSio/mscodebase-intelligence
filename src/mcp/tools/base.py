@@ -35,7 +35,7 @@ from src.core.error_handler import ToolError, IndexNotReadyError
 
 logger = logging.getLogger(__name__)
 
-from src.core.project_indexer_registry import (
+from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
     get_global_registry,
 )
@@ -66,7 +66,7 @@ def resolve_indexer_for_intel(
     from src.core.lsp_project_bridge import is_zed_install_dir
     from src.mcp.server import resolve_project_root as _rpr, _ext_root
     from src.core.di_container import ProjectRootKey, IndexerFactoryKey, ProjectIndexerRegistry
-    from src.core.project_indexer_registry import ProjectIndexerRegistry as PIReg
+    from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry as PIReg
 
     # 1. explicit project_root (highest priority) — bypass fallback, guard всё ещё
     #    активен на уровне resolve_indexer_for_request ниже.
@@ -276,12 +276,12 @@ class MCPTool(ABC):
 
     def resolve_embedder(self) -> Any:
         """Embedder шарится между всеми проектами (singleton в DI)."""
-        from src.core.remote_embedder import RemoteEmbedder
+        from src.providers.embedder.remote_embedder import RemoteEmbedder
         return self._services.resolve(RemoteEmbedder)
 
     def resolve_parser(self) -> Any:
         """CodeParser — stateless, шарится."""
-        from src.core.parser import CodeParser
+        from src.core.indexing.parser import CodeParser
         return self._services.resolve(CodeParser)
 
     def _resolve_target_path(self, explicit_project_root: Optional[str]) -> Optional[Path]:
@@ -327,7 +327,7 @@ class MCPTool(ABC):
         # Fallback: первый non-self-indexing из реестра.
         try:
             from src.core.di_container import ProjectIndexerRegistry
-            from src.core.project_indexer_registry import ProjectIndexerRegistry as PIReg
+            from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry as PIReg
             registry = self._services.resolve(ProjectIndexerRegistry)
             with registry._meta_lock:
                 for p, idx in registry._indexers.items():

@@ -17,10 +17,10 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
-from src.core.file_guard import FileGuard
+from src.core.indexing.file_guard import FileGuard
 from src.core.indexer import Indexer, _generate_unique_db_path
-from src.core.parser import CodeParser
-from src.core.project_indexer_registry import (
+from src.core.indexing.parser import CodeParser
+from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
     get_global_registry,
 )
@@ -30,15 +30,15 @@ from src.core.rate_limiter import (
     DebounceConfig,
     SlidingWindowRateLimiter,
 )
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.resource_monitor import (
+from src.providers.embedder.remote_embedder import RemoteEmbedder
+from src.core.indexing.resource_monitor import (
     ResourceMonitor,
     get_global_resource_monitor,
 )
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 from src.core.graph import PropertyGraph
-from src.core.graph_adapter import SymbolIndexAdapter
+from src.core.search.graph_adapter import SymbolIndexAdapter
 
 logger = logging.getLogger("mscodebase_server.di")
 

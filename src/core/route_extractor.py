@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 from src.core.graph import EdgeType, NodeLabel, PropertyGraph
-from src.core.graph_adapter import SymbolIndexAdapter
+from src.core.search.graph_adapter import SymbolIndexAdapter
 
 logger = logging.getLogger(__name__)
 

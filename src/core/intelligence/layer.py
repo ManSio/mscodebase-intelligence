@@ -25,11 +25,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Импортируем модули ядра и глобальные настройки
-from src.core.config import settings
+from src.config.settings import settings
 from src.core.indexer import Indexer
-from src.core.parser import CodeParser
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.core.indexing.parser import CodeParser
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 
 logger = logging.getLogger("MSCodeBase.Intelligence")
 from src.core.error_handler import error_boundary, record_tool_result
@@ -314,8 +314,8 @@ class ProjectIntelligenceLayer:
         (LSP не успел записать bridge), ищет non-self-indexing в реестре.
         """
         try:
-            from src.core.file_guard import FileGuard
-            from src.core.remote_embedder import RemoteEmbedder
+            from src.core.indexing.file_guard import FileGuard
+            from src.providers.embedder.remote_embedder import RemoteEmbedder
 
             # INC-6BCB-v3.1: late-resolve.
             active_indexer = self._resolve_active_indexer()
@@ -481,7 +481,7 @@ class ProjectIntelligenceLayer:
 
                 # Вызываем индексацию проекта
                 if hasattr(self.indexer, "index_project"):
-                    from src.core.file_guard import FileGuard
+                    from src.core.indexing.file_guard import FileGuard
 
                     project_file_guard = FileGuard(self.project_path)
                     self.indexer.file_guard = project_file_guard
@@ -877,8 +877,8 @@ class ProjectIntelligenceLayer:
         self, error_message: str, component_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """Предсказывает наиболее вероятную причину сбоя."""
-        from src.core.health_report import HealthReport
-        from src.core.remote_embedder import RemoteEmbedder
+        from src.core.intelligence.health import HealthReport
+        from src.providers.embedder.remote_embedder import RemoteEmbedder
 
         _start = time.perf_counter()
         candidates = []
@@ -979,7 +979,7 @@ class ProjectIntelligenceLayer:
 
         # RAM / CPU
         try:
-            from src.core.resource_monitor import get_global_resource_monitor
+            from src.core.indexing.resource_monitor import get_global_resource_monitor
 
             _mon = get_global_resource_monitor()
             result["resources"] = _mon.get_summary()
@@ -989,7 +989,7 @@ class ProjectIntelligenceLayer:
 
         # LLM ping + model info + throughput
         try:
-            from src.core.remote_embedder import RemoteEmbedder
+            from src.providers.embedder.remote_embedder import RemoteEmbedder
 
             _emb = RemoteEmbedder()
             _t0 = time.perf_counter()

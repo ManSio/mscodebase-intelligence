@@ -16,12 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.core.config import get_config
+from src.config.settings import get_config
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import IndexNotReadyError, error_boundary
 from src.core.indexer import Indexer
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
 from src.utils.ui_formatter import format_search_code
