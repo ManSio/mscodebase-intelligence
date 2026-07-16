@@ -40,7 +40,9 @@ _FORBIDDEN_MCP_IMPORTS = {
 _ALLOWED_CORE_MCP_IMPORTS: dict[str, list[str]] = {
     "src.core.runtime_coordinator": ["src.mcp.server"],
     "src.core.intelligence_layer": ["src.mcp.tools.base"],
+    "src.core.intelligence.layer": ["src.mcp.tools.base"],
     "src.core.project_context": ["src.mcp.server"],
+    "src.core.intelligence.project_context": ["src.mcp.server"],
 }
 
 

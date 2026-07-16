@@ -147,7 +147,7 @@ class ProjectIntelligenceLayer:
                     try:
                         return registry.get_indexer(target)
                     except Exception as _e:
-                        logger.warning("Exception suppressed at layer.py")
+                        logger.warning(f"Exception suppressed at layer.py: {_e}")
                         pass
                 # Self-indexing — ищем первый non-self-indexing (multi-window fallback)
                 with registry._meta_lock:
@@ -155,7 +155,7 @@ class ProjectIntelligenceLayer:
                         if not _is_self_index_path(p):
                             return idx
             except Exception as e:
-                logger.warning("Exception suppressed at layer.py")
+                logger.warning(f"Exception suppressed at layer.py: {e}")
 
         # Fallback: self.indexer (может быть stale, но лучше чем None)
         if hasattr(self, "indexer") and self.indexer is not None:
@@ -243,7 +243,7 @@ class ProjectIntelligenceLayer:
                 }
 
         except Exception as e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {e}")
 
         result["latency_ms"] = int((time.perf_counter() - start) * 1000)
         return result
@@ -545,7 +545,7 @@ class ProjectIntelligenceLayer:
                     self.job_history.append_record(job.project_size, duration)
 
             except Exception as e:
-                logger.warning("Exception suppressed at layer.py")
+                logger.warning(f"Exception suppressed at layer.py: {e}")
                 job.status = "failed"
                 job.error = str(e)
                 job.ended_at = time.time()
@@ -703,7 +703,7 @@ class ProjectIntelligenceLayer:
         try:
             reflog_raw = reflog_path.read_text('utf-8', errors='replace')
         except Exception as e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {e}")
             return f"Ошибка чтения .git/logs/HEAD: {type(e).__name__}: {e}"
 
         reflog_lines = reflog_raw.strip().split('\n')
@@ -750,7 +750,7 @@ class ProjectIntelligenceLayer:
                 if subject:
                     commits.append((new_hash[:12], subject, body[:500]))
             except Exception as _e:
-                logger.warning("Exception suppressed at layer.py")
+                logger.warning(f"Exception suppressed at layer.py: {_e}")
                 continue
 
         if not commits:
@@ -866,7 +866,7 @@ class ProjectIntelligenceLayer:
             return hotspots[:5]
 
         except Exception as e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {e}")
             return []
 
     # -----------------------------------------------------------------
@@ -918,7 +918,7 @@ class ProjectIntelligenceLayer:
                         }
                     )
         except Exception as _e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_e}")
 
     # 3. Проверяем Hotspots
         try:
@@ -935,7 +935,7 @@ class ProjectIntelligenceLayer:
                             }
                         )
         except Exception as _e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_e}")
             pass
 
         # 4. Если ничего не нашли — дефолтная эвристика
@@ -984,7 +984,7 @@ class ProjectIntelligenceLayer:
             _mon = get_global_resource_monitor()
             result["resources"] = _mon.get_summary()
         except Exception as _re:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_re}")
             result["resources"] = {"error": str(_re)}
 
         # LLM ping + model info + throughput
@@ -1012,7 +1012,7 @@ class ProjectIntelligenceLayer:
                 "configured_model": _info["configured_model"],
             }
         except Exception as _le:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_le}")
             result["llm"] = {"error": str(_le)}
 
         # ETA predictor — кормим реальными данными
@@ -1026,7 +1026,7 @@ class ProjectIntelligenceLayer:
             ds = _pred.get_stats() if hasattr(_pred, "get_stats") else {}
             result["eta_stats"] = ds
         except Exception as _ee:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_ee}")
             result["eta_stats"] = {"error": str(_ee)}
 
         # Сохраняем снэпшот на диск при каждом вызове
@@ -1043,7 +1043,7 @@ class ProjectIntelligenceLayer:
                     if not isinstance(_entries, list):
                         _entries = []
                 except Exception as _e:
-                    logger.warning("Exception suppressed at layer.py")
+                    logger.warning(f"Exception suppressed at layer.py: {_e}")
                     _entries = []
 
             _snapshot = {
@@ -1083,7 +1083,7 @@ class ProjectIntelligenceLayer:
 
             result["history"] = get_history(days)
         except Exception as _e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {_e}")
             result["history"] = []
 
         result["collect_ms"] = round((time.perf_counter() - _start) * 1000, 1)
@@ -1328,7 +1328,7 @@ def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
         try:
             return intel_layer.intel_auto_collect_adrs(max_commits)
         except Exception as e:
-            logger.warning("Exception suppressed at layer.py")
+            logger.warning(f"Exception suppressed at layer.py: {e}")
             import traceback
             return f"Ошибка: {type(e).__name__}: {e}\n{traceback.format_exc()}"
 
