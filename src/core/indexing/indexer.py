@@ -120,6 +120,17 @@ class Indexer(IndexerTableMixin):
             project_path=self.project_path,
         )
 
+        # ─── IndexStatusReporter
+        from src.core.indexing.index_status import IndexStatusReporter
+        self._status_reporter = IndexStatusReporter(
+            table=self.table,
+            project_path=self.project_path,
+            file_guard=self.file_guard,
+            watchdog_callback=self.watchdog_status,
+        )
+        self._cached_total_chunks = self._status_reporter._cached_total_chunks
+        self._cached_unique_files = self._status_reporter._cached_unique_files
+
         # ─── Chunk Summarizer ───────────────────────────────
         self.enable_summaries = enable_summaries
         self.summarizer = None
@@ -215,109 +226,8 @@ class Indexer(IndexerTableMixin):
         return hasher.hexdigest()
 
     def get_status(self) -> Dict[str, Any]:
-        """Возвращает статистику базы данных.
-
-        Использует кэш количества чанков (_cached_total_chunks) и
-        уникальных файлов (_cached_unique_files) для мгновенного
-        ответа. Если кэш пуст — делает быстрый scan LanceDB.
-        """
-        try:
-            total_chunks = self._cached_total_chunks
-            if total_chunks == 0 and self.table is not None:
-                try:
-                    total_chunks = self.table.count_rows()
-                    self._cached_total_chunks = total_chunks
-                except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
-            unique_files = getattr(self, "_cached_unique_files", 0)
-            if isinstance(unique_files, set):
-                unique_files = len(unique_files)
-
-            # Если кэш пуст, но чанки есть — делаем быстрый запрос
-            # Пробуем 3 fallback-метода: to_lance → search → to_pandas
-            if unique_files == 0 and total_chunks > 0 and self.table is not None:
-                _fp_series = None
-                try:
-                    ds = self.table.to_lance()
-                    _fp_series = ds.to_pandas(columns=["file_path"])["file_path"]
-                except Exception as e1:
-                    logger.debug(f"get_status: to_lance failed ({e1}), trying search...")
-                    try:
-                        _fp_series = (
-                            self.table.search()
-                            .select(["file_path"])
-                            .limit(total_chunks)
-                            .to_pandas()
-                        )["file_path"]
-                    except Exception as e2:
-                        logger.debug(f"get_status: search failed ({e2}), trying to_pandas...")
-                        try:
-                            _fp_series = self.table.to_pandas(columns=["file_path"])["file_path"]
-                        except Exception:
-                            logger.warning(f"get_status: все fallback-и не удались: {e1}")
-                if _fp_series is not None and len(_fp_series) > 0:
-                    unique_files = _fp_series.nunique()
-                    self._cached_unique_files = set(_fp_series.unique())
-
-            # Считаем stale/устаревшие файлы (быстрое сканирование диска)
-            stale_files = 0
-            on_disk_files = 0
-            missing_files = 0
-            if unique_files > 0 and self.project_path:
-                try:
-                    # Получаем file_hash из индекса для сверки
-                    idx_df = self.table.search().select(["file_path", "file_hash"]).limit(total_chunks).to_pandas()
-                    indexed_files = {}
-                    if not idx_df.empty:
-                        # Берём последний hash для каждого файла
-                        for fp, fh in zip(idx_df["file_path"], idx_df["file_hash"]):
-                            indexed_files[fp] = fh
-
-                    # Сканируем файлы на диске (учитываем file_guard)
-                    walk_root = str(self.project_path.resolve())
-                    for root, dirs, files in os.walk(walk_root):
-                        if self.file_guard:
-                            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
-                        for file_name in files:
-                            full_path = Path(root) / file_name
-                            if self.file_guard and self.file_guard.should_skip_file(full_path):
-                                continue
-                            on_disk_files += 1
-                            try:
-                                rel = str(full_path.relative_to(self.project_path)).replace(os.sep, "/")
-                            except ValueError:
-                                continue
-                            if rel not in indexed_files:
-                                missing_files += 1
-                            else:
-                                # Сверяем hash (быстро — только SHA256 первых 8KB)
-                                try:
-                                    hasher = hashlib.sha256()
-                                    with open(str(full_path), "rb") as f:
-                                        hasher.update(f.read(8192))
-                                    current_hash = hasher.hexdigest()
-                                    if current_hash != indexed_files[rel]:
-                                        stale_files += 1
-                                except Exception as _e:
-                                    logger.warning("exception", exc_info=True)
-                                    pass
-                except Exception as stale_err:
-                    logger.debug(f"get_status: stale scan skipped: {stale_err}")
-
-            watchdog = self.watchdog_status()
-            return {
-                "total_chunks": total_chunks,
-                "unique_files": unique_files,
-                "total_files": on_disk_files or unique_files,
-                "stale_files": stale_files,
-                "missing_files": missing_files,
-                "status": "active" if total_chunks > 0 else "empty",
-                "watchdog": watchdog,
-            }
-        except Exception as e:
-            logger.error(f"get_status error: {e}")
-            return {"error": str(e)}
+        """Делегировано IndexStatusReporter."""
+        return self._status_reporter.get_status()
 
     def _write_file_records(
         self,
