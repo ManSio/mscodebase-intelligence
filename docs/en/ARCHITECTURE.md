@@ -80,7 +80,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 | File | Protocol | Purpose |
 |------|----------|---------|
 | `src/main.py` | MCP STDIO | AI-ассистент в Zed Chat |
-| `src/lsp_main.py` | LSP STDIO | Индексация через didSave/didChange от Zed |
+| `src/lsp_main.py` *(удалён)* | LSP STDIO | Заменён на LSP-клиент `src/core/lsp_client.py` |
 
 Both use the same `create_service_collection()` factory.
 

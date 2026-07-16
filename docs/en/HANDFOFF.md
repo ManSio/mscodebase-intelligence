@@ -136,7 +136,7 @@ JSON files. **Fix:** `asyncio.Lock` in `IntelligenceStore`.
 2. **MCP restart** — only File → Quit (not `window: reload`, not kill)
 3. **Git subprocess** — `GIT_ASKPASS=echo`, `CREATE_NO_WINDOW`, timeouts
 4. **LanceDB on Windows** — mmap files aren't released until `_safe_close()` + `gc.collect()`
-5. **Paths** — MCP: `src\core\file.py`, terminal: `src/core/file.py`
+5. **Paths** — MCP: `src\core\file_guard.py`, terminal: `src/core/file_guard.py`
 
 ---
 

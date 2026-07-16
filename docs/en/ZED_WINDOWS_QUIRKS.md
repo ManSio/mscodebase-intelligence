@@ -293,9 +293,6 @@ registered adapter, not a registration of a new one. **This is by design, not a 
 - **LSP features in the editor (inlay-hints, code-actions, autocomplete via
   mscodebase-lsp) are impossible on Zed 1.9.0 Windows.**
 **All semantics and search continue to work through MCP** — 33 tools,
-  filtering by `layer`, multi-granularity retrieval via
-  `get_chunks_by_parent_id()`, telemetry, ETAPredictor. This is sufficient
-  for 95% of code-assistant scenarios.
 - **The LSP bridge (project_root from LSP)** remains empty, but `resolve_project_root()`
   compensates for this via the SQLite fallback.
 

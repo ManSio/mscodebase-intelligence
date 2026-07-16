@@ -66,7 +66,7 @@ all 33 tools output readable Markdown.
 
 ### LSP won't start (mscodebase-lsp)
 
-**Context:** The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work** — Zed requires a Rust/WASM adapter for custom LSP.
+**Context:** The standalone LSP server (`src/lsp_main.py`, removed — was experimental) **does not work** — Zed requires a Rust/WASM adapter for custom LSP.
 **But:** MSCodeBase **does use LSP internally** for `rename_symbol` — the LSP client (`src/core/lsp_client.py`) spawns pyright-langserver for precise cross-file rename, with graceful fallback to SymbolIndex.
 Details: `investigations/LSP_WONTFIX.md`
 
