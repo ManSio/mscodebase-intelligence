@@ -35,7 +35,7 @@ src/
 ├── mcp/
 │   ├── server.py        # ~220 строк — только регистрация инструментов
 │   ├── write_tools.py   # 6 write tools
-│   └── tools/           # 11 файлов, 59 инструментов (42 class-based + 14 intel + 3 diag)
+│   └── tools/           # 11 файлов, 33 инструментов (42 class-based + 14 intel + 3 diag)
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code (+ deprecated smart_search etc.)
 │       ├── graph_tools.py   # query_graph + Cypher query engine

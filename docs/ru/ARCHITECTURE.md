@@ -89,7 +89,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 42 инструмента + 14 intel_* + 3 diagnostic
+3. Зарегистрировать 33 инструмента + 14 intel_* + 3 diagnostic
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.

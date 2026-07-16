@@ -206,8 +206,7 @@ class ProjectContext:
                     if hasattr(indexer, "_symbol_index"):
                         snap.index_symbols = indexer._symbol_index.get_symbol_count()
                 except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
+                    logger.warning(f"symbol_index count failed: {_e}")
                 # Берём embedder из embedder объекта
                 try:
                     if hasattr(indexer, "embedder"):
@@ -215,11 +214,9 @@ class ProjectContext:
                             indexer.embedder, "mode", "unknown"
                         )
                 except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
+                    logger.warning(f"embedder mode failed: {_e}")
             except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
+                logger.warning(f"registry snapshot iteration failed: {_e}")
         except Exception as e:
             logger.debug(f"ProjectContext: registry error: {e}")
         return snap

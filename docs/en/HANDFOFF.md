@@ -62,7 +62,7 @@ conn.execute("""
 | **late-resolve active indexer** | If LSP hasn't written the bridge file yet — pick up the first live workspace |
 | **Two-phase reindex** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (anti-spam) |
 | **asyncio.Lock for File IO** | Race protection for concurrent writes to memory JSON files |
-| **ui_formatter** | Unified Markdown style for all 59 tools (no raw JSON) |
+| **ui_formatter** | Unified Markdown style for all 33 tools (no raw JSON) |
 
 ---
 
@@ -118,7 +118,7 @@ JSON files. **Fix:** `asyncio.Lock` in `IntelligenceStore`.
 
 | File | What it does |
 |------|-------------|
-| `src/mcp/server.py` | `resolve_project_root()`, registration of all 50 tools |
+| `src/mcp/server.py` | `resolve_project_root()`, registration of all 33 tools |
 | `src/mcp/tools/base.py` | `MCPTool` (base class), `resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 services, `ProjectIndexerRegistry` |
 | `src/core/intelligence_layer.py` | 14 intel tools, `ProjectIntelligenceLayer` |

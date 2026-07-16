@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n59 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n33 tools]
     MCP --> DI[DI Container\n18 services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]

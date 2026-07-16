@@ -91,7 +91,7 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-1. Register 42 tools + 14 intel_* tools + 3 diagnostic = 59 total
+1. Register 33 tools + 14 intel_* tools + 3 diagnostic = 59 total
 2. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
@@ -204,7 +204,7 @@ Key modules:
 ┌─────────────────────────────────────────────────────────┐
 │  SymbolIndexAdapter (wrap PropertyGraph → SymbolIndex)   │
 │  PURE mode: no in-memory Dict, all data in SQLite        │
-|  Full backward compat: all 59 tools unchanged             |
+|  Full backward compat: all 33 tools unchanged             |
 └─────────────────────────────────────────────────────────┘
 ```
 
