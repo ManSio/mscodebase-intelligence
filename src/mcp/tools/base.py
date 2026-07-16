@@ -28,16 +28,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 from src.core.di_container import (
-    ServiceCollection,
     IndexerFactoryKey,
+    ServiceCollection,
 )
-from src.core.error_handler import ToolError, IndexNotReadyError
+from src.core.error_handler import IndexNotReadyError, ToolError
 
 logger = logging.getLogger(__name__)
 
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
-    get_global_registry,
 )
 
 
@@ -63,10 +62,9 @@ def resolve_indexer_for_intel(
         (крайне редкий случай) — возвращает default и self-indexing guard
         сработает с понятным сообщением.
     """
-    from src.core.lsp_project_bridge import is_zed_install_dir
-    from src.mcp.server import resolve_project_root as _rpr, _ext_root
-    from src.core.di_container import ProjectRootKey, IndexerFactoryKey, ProjectIndexerRegistry
+    from src.core.di_container import IndexerFactoryKey, ProjectIndexerRegistry, ProjectRootKey
     from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry as PIReg
+    from src.mcp.server import resolve_project_root as _rpr
 
     # 1. explicit project_root (highest priority) — bypass fallback, guard всё ещё
     #    активен на уровне resolve_indexer_for_request ниже.
@@ -160,8 +158,8 @@ def resolve_indexer_for_request(
         ToolError: если target — self-indexing path. Error содержит
             hint и safe alternatives (открыть правильный проект).
     """
-    from src.mcp.server import resolve_project_root as _rpr
     from src.core.di_container import ProjectRootKey
+    from src.mcp.server import resolve_project_root as _rpr
 
     if explicit_project_root and explicit_project_root.strip():
         target = Path(explicit_project_root).resolve()
@@ -327,7 +325,6 @@ class MCPTool(ABC):
         # Fallback: первый non-self-indexing из реестра.
         try:
             from src.core.di_container import ProjectIndexerRegistry
-            from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry as PIReg
             registry = self._services.resolve(ProjectIndexerRegistry)
             with registry._meta_lock:
                 for p, idx in registry._indexers.items():

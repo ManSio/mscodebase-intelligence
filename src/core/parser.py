@@ -1,2 +1,2 @@
-from src.core.indexing.parser import *
+from src.core.indexing.parser import *  # noqa: F403, F405
 

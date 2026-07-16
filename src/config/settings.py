@@ -7,7 +7,7 @@ MSCodeBase Intelligence - Central Configuration Module
 
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional, Set
+from typing import List, Set
 
 
 @dataclass

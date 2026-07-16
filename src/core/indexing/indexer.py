@@ -16,8 +16,8 @@ import pyarrow as pa
 
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.index_guard import IndexGuard
-from src.utils.paths import SafePathManager, to_win_long_path
 from src.core.indexing.indexer_table import IndexerTableMixin
+from src.utils.paths import SafePathManager, to_win_long_path
 
 logger = logging.getLogger("mscodebase_server.indexer")
 
@@ -99,8 +99,8 @@ class Indexer(IndexerTableMixin):
         if symbol_index is not None:
             self._symbol_index = symbol_index
         else:
-            from src.core.search.graph_adapter import SymbolIndexAdapter
             from src.core.graph import PropertyGraph
+            from src.core.search.graph_adapter import SymbolIndexAdapter
 
             _graph_db = project_path / ".codebase" / "graph.db"
             _pg = PropertyGraph(_graph_db)
@@ -1443,7 +1443,7 @@ class Indexer(IndexerTableMixin):
             _futs = []
             for idx, (root, fname, fpath) in enumerate(all_files):
                 _futs.append(_exec.submit(_parse_worker_file, (idx, root, fname, fpath)))
-            
+
             for i, fut in enumerate(_futs):
                 try:
                     res = fut.result()
@@ -1455,7 +1455,7 @@ class Indexer(IndexerTableMixin):
                             self.watchdog_heartbeat(f"parse:{res['name']}")
                 except Exception as e:
                     logger.warning(f"\u26a0\ufe0f Worker error: {e}")
-                
+
                 # Прогресс парсинга
                 if i % max(1, total_files // 20) == 0 or i == total_files - 1:
                     if progress_callback:
@@ -1508,7 +1508,7 @@ class Indexer(IndexerTableMixin):
             batch_end = min(batch_start + _BATCH_SIZE, total_chunks)
             batch_data = _flat_chunks[batch_start:batch_end]
             batch_texts = [text for (_, text) in batch_data]
-            batch_indices = [idx for (idx, _) in batch_data]
+            [idx for (idx, _) in batch_data]
 
             # Эмбеддинг батча
             t0 = time.time()

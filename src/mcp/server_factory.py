@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 logger = logging.getLogger("mscodebase_server")
 
@@ -150,14 +150,12 @@ def create_mcp_server():
 
     # Lazy импорты из server.py (избегаем циклической зависимости)
     from src.mcp.server import (
-        _log_run_passport,
         _check_source_extension_sync,
-        _ext_root,
-        resolve_project_root,
         _default_project_root,
+        _ext_root,
+        _log_run_passport,
         _services_cache,
-        _is_self_index_path,
-        reset_project_root_cache,
+        resolve_project_root,
     )
     from src.mcp.server_tools import register_all_tools, register_system_prompt
 
@@ -250,6 +248,7 @@ def create_mcp_server():
 def _register_notification_broker(mcp, services):
     try:
         from mcp.types import InitializedNotification
+
         from src.core.notification_broker import NotificationBroker
         broker = services.resolve(NotificationBroker)
         server = mcp._mcp_server
@@ -301,7 +300,7 @@ def _register_extension_handlers(mcp, services):
                 idx = resolve_indexer_for_request(services, explicit_project_root=root or None)
                 if hasattr(idx, "_symbol_index") and idx._symbol_index:
                     idx._symbol_index._definitions.clear()
-                return f'{{"status": "ok"}}'
+                return '{"status": "ok"}'
             except Exception as e:
                 return f'{{"status": "error", "message": "{e}"}}'
 
@@ -322,7 +321,7 @@ def _trigger_auto_index_if_empty(services):
         except Exception:
             return
 
-        from src.mcp.server import _ext_root, _is_self_index_path
+        from src.mcp.server import _ext_root
         try:
             if indexer.project_path.resolve() == _ext_root.resolve():
                 logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
@@ -398,8 +397,13 @@ def run_server(original_stdout=None):
 def _start_llama_sync():
     """Синхронный запуск llama.cpp при старте."""
     try:
-        from src.providers.reranker.llama_runner import get_global_runner, is_compatible, DEFAULT_EMBEDDING_MODEL
         import httpx
+
+        from src.providers.reranker.llama_runner import (
+            DEFAULT_EMBEDDING_MODEL,
+            get_global_runner,
+            is_compatible,
+        )
         runner = get_global_runner()
         model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
         if is_compatible() and not runner.is_alive():
@@ -410,8 +414,8 @@ def _start_llama_sync():
                     try:
                         r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
                         if r.status_code == 200:
-                            from src.providers.embedder.remote_embedder import RemoteEmbedder
                             from src.mcp.server import _services_cache
+                            from src.providers.embedder.remote_embedder import RemoteEmbedder
                             embedder = _services_cache.resolve(RemoteEmbedder)
                             with embedder._mode_lock:
                                 embedder.mode = "llama_cpp"

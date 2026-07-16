@@ -11,26 +11,20 @@
 
 from __future__ import annotations
 
-import asyncio
-import atexit
-import json
 import logging
 import os
-import sys
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     import sqlite3
-    from mcp.server.fastmcp import FastMCP
+
 
 logger = logging.getLogger("mscodebase_server")
 
-from src.mcp.server_tools import register_all_tools as _register_all_tools
-from src.mcp.server_tools import register_system_prompt as _register_system_prompt
 
 # ══════════════════════════════════════════════════════════
 # Process Passport — уникальный ID запуска для диагностики
@@ -53,7 +47,6 @@ from src.core.passport import (
     RUN_STARTED_AT as _RUN_STARTED_AT,
 )
 from src.core.platform_utils import get_zed_db_path
-from src.mcp.tools.base import _is_self_index_path
 
 # (passport vars imported from src.core.passport above)
 _RUN_SOURCE_FILE = str(Path(__file__).resolve())
@@ -306,7 +299,7 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
                 return _sqlite_conn
             except Exception:
                 _sqlite_conn = None  # умерло, создадим новое
-        
+
         # открываем новое
         _db_path = get_zed_db_path()
         if not _db_path.exists():

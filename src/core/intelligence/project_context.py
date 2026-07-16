@@ -191,7 +191,6 @@ class ProjectContext:
     def _capture_registry(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.core.di_container import ProjectIndexerRegistry as PIRKey
-            from src.core.indexing.project_indexer_registry import ProjectState
 
             registry = self._services.resolve(PIRKey)
             snap.state = registry.get_state(self._path).name
@@ -242,7 +241,7 @@ class ProjectContext:
 
     def _capture_runtime(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.core.passport import BUILD_ID, RUN_ID, RUN_PID, RUN_STARTED_AT
+            from src.core.passport import RUN_PID, RUN_STARTED_AT
             from src.mcp.server import _ext_root
 
             snap.runtime_pid = RUN_PID

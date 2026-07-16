@@ -4,18 +4,17 @@ Extracted from engine.py for separation of concerns.
 """
 
 import asyncio
-import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 
 from src.config.settings import get_config
 from src.utils.i18n import _
 
-from .utils import _expand_query, _extract_key_terms, _extract_symbol_name
+from .utils import _expand_query, _extract_key_terms
 
 logger = logging.getLogger(__name__)
 

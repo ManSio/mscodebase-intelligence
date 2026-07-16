@@ -729,7 +729,6 @@ class SymbolIndex:
             project_path: Корневая директория проекта
             parser: Экземпляр CodeParser для парсинга файлов
         """
-        import os
         from pathlib import Path
 
         project_root = Path(project_path).resolve()

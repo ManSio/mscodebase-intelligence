@@ -298,7 +298,7 @@ def get_global_idle_metrics() -> dict:
     with _TOOL_METRICS_LOCK:
         total_idle = sum(e.get("idle_ms", 0) for e in _TOOL_METRICS.values())
         total_calls = sum(e.get("calls", 0) for e in _TOOL_METRICS.values())
-        uptime = time.time() - _LAST_CALL_AT + (total_idle / 1000)
+        time.time() - _LAST_CALL_AT + (total_idle / 1000)
         active_ms = sum(e.get("total_ms", 0) for e in _TOOL_METRICS.values())
         total_ms = total_idle + active_ms
         return {

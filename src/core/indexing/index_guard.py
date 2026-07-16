@@ -14,8 +14,6 @@ import json
 import logging
 import os
 import pickle
-import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -60,7 +58,6 @@ class IndexGuard:
 
         # Динамическая размерность вектора (E5-base=768, BGE-M3=1024 и т.д.)
         # Берём из EMBEDDING_DIMENSION env или config, иначе 768 по умолчанию.
-        import os
         try:
             self._expected_dim = int(os.getenv("EMBEDDING_DIMENSION", "768"))
         except (ValueError, TypeError):

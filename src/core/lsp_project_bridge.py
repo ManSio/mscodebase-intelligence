@@ -15,14 +15,14 @@ Multi-root (INC-6BCB-v3): LSP 3.6+ присылает массив workspaceFold
   - Self-indexing guard: is_zed_install_dir() пропускает Zed-установку.
 """
 
+import hashlib
 import json
 import logging
 import os
 import sys
 import time
-import hashlib
 from pathlib import Path
-from typing import Optional, List, Iterable
+from typing import Iterable, List, Optional
 
 logger = logging.getLogger("MSCodeBase.Bridge")
 

@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -12,19 +12,19 @@ from src.config.settings import (
     MAX_RERANKER_INPUT,
     get_config,
 )
-from src.providers.reranker.multi_provider import MultiProviderReranker, SearchResultReranker
 from src.core.interfaces.searcher import ISearcher
+from src.providers.reranker.multi_provider import MultiProviderReranker, SearchResultReranker
 from src.utils.i18n import _
 
 # ── Extracted sub-modules ──────────────────────────────────────
 from .agentic_search import AgenticSearchMixin
 from .bm25 import BM25Mixin
 from .scoring import (
-_apply_co_change_boost,
-apply_bucket_weights,
-apply_mmr_diversity,
-auto_detect_intent,
-reciprocal_rank_fusion,
+    _apply_co_change_boost,
+    apply_bucket_weights,
+    apply_mmr_diversity,
+    auto_detect_intent,
+    reciprocal_rank_fusion,
 )
 from .utils import (
     _expand_query,
@@ -56,7 +56,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock = asyncio.Lock()
-        
+
         # ── Multi-level cache ──
         self._cache: Dict[str, List[dict]] = {}
         self._cache_max_size = 500  # было 100
@@ -335,7 +335,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
                     query_hash = hash(variant)
                     with self._embedding_cache_lock:
                         cached_vector = self._embedding_cache.get(query_hash)
-                    
+
                     if cached_vector is not None:
                         query_vector = cached_vector
                         logger.debug(f"[Cache] Embedding HIT: {variant[:40]}...")
@@ -926,7 +926,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             for r in rrf_results[:top_n]
         )
         cache_key = f"{hash(query)}:{hash(chunk_keys)}:{top_n}"
-        
+
         with self._reranker_cache_lock:
             cached = self._reranker_cache.get(cache_key)
         if cached is not None:

@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -173,7 +172,7 @@ def patch_zed_settings(
         if expected_cmd in original:
             logger.info(f"✅ MCP-сервер '{SERVER_NAME}' уже настроен, команда совпадает.")
             return True
-        logger.info(f"🔄 Команда MCP изменилась, обновляю...")
+        logger.info("🔄 Команда MCP изменилась, обновляю...")
 
     # ── Формируем обновлённую структуру ──
     # Парсим JSON (с очисткой комментариев) только для модификации данных

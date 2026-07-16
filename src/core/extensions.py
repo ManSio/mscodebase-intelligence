@@ -12,7 +12,6 @@ Inspired by Serena's FilenameMatcher (oraios/serena).
 
 from pathlib import Path
 
-
 # ── Языки с семантическим парсингом (tree-sitter) ─────────────────────────
 # Используется в parser.py для AST-чанкинга.
 PARSE_EXTENSIONS: frozenset[str] = frozenset({

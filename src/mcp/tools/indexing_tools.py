@@ -8,18 +8,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import RateLimitError, ToolError, error_boundary
-from src.core.indexing.file_guard import FileGuard
-from src.core.indexer import Indexer
+from src.core.error_handler import ToolError, error_boundary
 from src.core.rate_limiter import SlidingWindowRateLimiter
-from src.core.search.engine import Searcher
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.indexing_tools")
@@ -231,7 +226,7 @@ class IndexHealthTool(MCPTool):
         project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        from src.core.indexing.index_guard import IndexGuard, quick_health_check
+        from src.core.indexing.index_guard import quick_health_check
 
         if project_root:
             target_path = Path(project_root).resolve()

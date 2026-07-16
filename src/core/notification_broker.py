@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import threading
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("mscodebase.notification_broker")
 

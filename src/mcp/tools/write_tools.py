@@ -108,7 +108,7 @@ class WriteTool(MCPTool):
             )
 
         # Вызываем хендлер с параметрами (без служебных ключей)
-        kwargs = {k: v for k, v in locals().items() 
+        kwargs = {k: v for k, v in locals().items()
                   if k not in ('self', 'action', 'handler', 'kwargs', 'action_map')}
         return await handler(**kwargs)
 

@@ -6,19 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import ToolError, error_boundary
+from src.core.error_handler import error_boundary
 from src.core.indexing.file_guard import FileGuard
-from src.core.indexer import Indexer
-from src.core.indexing.parser import CodeParser
-from src.providers.embedder.remote_embedder import RemoteEmbedder
-from src.core.search.engine import Searcher
-from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
 from src.utils.ui_formatter import format_repo_rank
@@ -264,7 +258,6 @@ class ScanChangesTool(MCPTool):
         """Синхронное выполнение сканирования в ThreadPool."""
         import time
 
-        from src.core.indexing.file_guard import FileGuard
 
         _t = time.time()
         logger.info(f"[bg] scan_changes: {target_path.name}...")
@@ -283,7 +276,6 @@ class ScanChangesTool(MCPTool):
             diff_lines = []
             if hasattr(symbol_index, "get_architectural_diff") and indexed_count > 0:
                 try:
-                    import pandas as pd
 
                     df = indexer.table.to_pandas()
                     changed_files = list(df["file_path"].unique())[:20]
@@ -345,7 +337,6 @@ class GenerateChunkSummariesTool(MCPTool):
                 "message": _("LanceDB table not initialized"),
             }
 
-        import pandas as pd
 
         df = table.to_pandas()
         if df.empty:

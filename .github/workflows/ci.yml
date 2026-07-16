@@ -59,7 +59,6 @@ jobs:
 
       - name: Run ruff
         run: ruff check src/ tests/ --output-format=github
-        continue-on-error: true
 
       - name: Run mypy
         run: mypy src/ --ignore-missing-imports

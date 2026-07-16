@@ -19,9 +19,7 @@ import shutil
 import struct
 import subprocess
 import sys
-import tarfile
 import urllib.request
-import zipfile
 from pathlib import Path
 
 logger = logging.getLogger("mscodebase_server.llama_install")
@@ -50,14 +48,14 @@ def _detect_platform() -> tuple:
     """Определяет platform tag для скачивания llama.cpp.
 
     Returns:
-        (tag, exe_name, zip_ext, cpu_info) 
+        (tag, exe_name, zip_ext, cpu_info)
         tag: "win-cpu-x64", "macos-arm64", "macos-x64", "ubuntu-x64"
         exe_name: ".exe" или ""
         zip_ext: ".zip" или ".tar.gz"
         cpu_info: словарь с информацией о CPU
     """
     cpu_info = _detect_cpu()
-    
+
     if sys.platform == "win32":
         return "win-cpu-x64", ".exe", ".zip", cpu_info
     elif sys.platform == "darwin":
@@ -85,8 +83,8 @@ def _detect_cpu() -> dict:
             "ram_gb": int,
         }
     """
-    import subprocess, re
-    
+    import subprocess
+
     info = {
         "arch": "x86_64",
         "avx": False,
@@ -97,7 +95,7 @@ def _detect_cpu() -> dict:
         "cores": os.cpu_count() or 4,
         "ram_gb": 0,
     }
-    
+
     # RAM
     try:
         if sys.platform == "win32":
@@ -118,7 +116,7 @@ def _detect_cpu() -> dict:
                         break
     except Exception:
         info["ram_gb"] = 8  # conservative default
-    
+
     # CPU name
     try:
         if sys.platform == "win32":
@@ -143,7 +141,7 @@ def _detect_cpu() -> dict:
         pass
     # CPU features через python
     cpu_name = info["name"].lower()
-    
+
     # По имени CPU определяем возможности
     if "ryzen" in cpu_name or "epyc" in cpu_name:
         info["avx"] = True
@@ -173,14 +171,14 @@ def _detect_cpu() -> dict:
             info["avx512"] = gen >= 10  # Ice Lake
     elif "arm" in cpu_name or "apple" in cpu_name:
         info["arch"] = "arm64"
-    
+
     # Попробуем проверить через cpuid напрямую если не сработало
     if not info["sse"] and not info["avx"]:
         # Попробуем запустить простой тест
         info["avx2"] = True  # optimistic default для современных CPU
         info["avx"] = True
         info["sse"] = True
-    
+
     return info
 
 
@@ -256,7 +254,7 @@ if _IS_INSIDER:
 # ─── Path helpers ────────────────────────────────────────────────
 def _get_ext_dir() -> Path:
     """Определяет директорию расширения.
-    
+
     Приоритет:
     1. Расширение (по sys.executable: .../venv/Scripts/python.exe)
     2. Frozen (PyInstaller)
@@ -322,9 +320,9 @@ if sys.platform == "win32":
                 if _vk_bin.exists():
                     _HAVE_VULKAN = True
                     os.environ.setdefault("LLAMA_BACKEND", "vulkan")
-                    logger.info(f"🖥️ Vulkan GPU detected — using GPU for embeddings")
+                    logger.info("🖥️ Vulkan GPU detected — using GPU for embeddings")
                 else:
-                    logger.info(f"🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
+                    logger.info("🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
     except Exception as _e:
         logger.warning("exception", exc_info=True)
         pass
@@ -353,16 +351,16 @@ def _install_vulkan_build(logger, progress_cb=None) -> bool:
         return False
     vulkan_dir = _get_vulkan_dir()
     vulkan_dir.mkdir(parents=True, exist_ok=True)
-    
+
     v_tag = "win-vulkan-x64"
     v_zip = f"llama-{LLAMA_VERSION}-bin-{v_tag}{_ZIP_EXT}"
     v_url = f"{LLAMA_BASE_URL}/{v_zip}"
     archive_path = vulkan_dir / v_zip
-    
+
     bin_path = vulkan_dir / f"llama-server{_EXE_SUFFIX}"
     if bin_path.exists() and not archive_path.exists():
         return True  # uzhe ustanovleno
-    
+
     logger.info(f"⬇️  Skachivayu Vulkan build ({v_tag})...")
     try:
         import urllib.request
@@ -370,14 +368,14 @@ def _install_vulkan_build(logger, progress_cb=None) -> bool:
             if progress_cb and total > 0:
                 progress_cb(int(b*bs*100/total), f"vulkan ({b*bs//1024//1024}MB)")
         urllib.request.urlretrieve(v_url, str(archive_path), _r)
-        
+
         needed = {"llama-server.exe", "llama-server-impl.dll", "ggml.dll",
                   "ggml-base.dll", "ggml-vulkan.dll", "mtmd.dll",
                   "ggml-rpc.dll", "ggml-rpc-server.exe",
                   "llama.dll", "llama-common.dll",
                   "llama-server-impl.dll", "llama-batched-bench-impl.dll",
                   "libomp140.x86_64.dll"}
-        
+
         import zipfile
         with zipfile.ZipFile(str(archive_path)) as zf:
             for name in zf.namelist():
@@ -394,18 +392,18 @@ def _install_vulkan_build(logger, progress_cb=None) -> bool:
                             except OSError: break
                             p = p.parent
         archive_path.unlink()
-        
+
         # Copy CPU DLLs from main build for fallback
         cpu_dir = _get_llama_dir()
         for f in cpu_dir.iterdir():
             if f.name.startswith('ggml-cpu-') and not (vulkan_dir / f.name).exists():
                 shutil.copy2(str(f), str(vulkan_dir / f.name))
-        
+
         # Patch CRT
         patched = _patch_dll_imports(vulkan_dir)
         if patched:
             logger.info(f"🔧 Vulkan CRT patched: {patched}")
-        
+
         logger.info(f"✅ Vulkan build installed: {bin_path}")
         return True
     except Exception as e:
@@ -415,13 +413,12 @@ def _install_vulkan_build(logger, progress_cb=None) -> bool:
 
 def _patch_dll_imports(dll_dir: Path) -> int:
     """Заменяет api-ms-win-crt-* → ucrtbase.dll в PE-импортах всех DLL в папке.
-    
+
     На Windows Insider (build >= 26000) Microsoft удалила виртуальные API Set
     DLL (api-ms-win-crt-*). Функции из них есть в ucrtbase.dll — меняем имя DLL.
-    
+
     Returns: количество пропатченных импортов.
     """
-    import struct
     patched = 0
     for fpath in dll_dir.iterdir():
         if fpath.suffix.lower() not in (".dll", ".exe"):
@@ -527,7 +524,7 @@ def _verify_archive_sha256(archive_path: Path, tag: str) -> bool:
 
 def download_llama_binary(progress_cb=None) -> bool:
     """Скачивает и распаковывает llama.cpp бинарник.
-    
+
     На Windows Insider (build >= 26000) после распаковки патчит PE-импорты
     всех DLL: заменяет api-ms-win-crt-* → ucrtbase.dll, так как на Insider
     виртуальные CRT API Set DLL удалены Microsoft.
@@ -571,13 +568,17 @@ def download_llama_binary(progress_cb=None) -> bool:
                       "llama.dll", "llama-common.dll",
                       "llama-server-impl.dll", "llama-batched-bench-impl.dll",
                       "libomp140.x86_64.dll", "mtmd.dll"}
-            extract = lambda zf, name, dst: zf.extract(name, str(dst))
-            move = lambda src, dst: shutil.move(str(src), str(dst))
+            def extract(zf, name, dst):
+                return zf.extract(name, str(dst))
+            def move(src, dst):
+                return shutil.move(str(src), str(dst))
         else:
             # macOS/Linux — всё из bin/ в llama/
             needed = None  # extract all
-            extract = lambda zf, name, dst: zf.extract(name, str(dst))
-            move = lambda src, dst: shutil.move(str(src), str(dst))
+            def extract(zf, name, dst):
+                return zf.extract(name, str(dst))
+            def move(src, dst):
+                return shutil.move(str(src), str(dst))
 
         if _ZIP_EXT == ".zip":
             import zipfile

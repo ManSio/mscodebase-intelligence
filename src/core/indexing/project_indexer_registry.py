@@ -23,7 +23,6 @@ import asyncio
 import atexit
 import logging
 import threading
-import time
 from collections import OrderedDict
 from enum import Enum, auto
 from pathlib import Path

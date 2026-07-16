@@ -4,13 +4,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
-from src.core.indexer import Indexer
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.lifecycle_tools")
@@ -26,9 +24,7 @@ class SubmitBackgroundTaskTool(MCPTool):
     async def execute(
         self, task_type: str, project_root: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
-        from src.core.bug_correlation import BugCorrelation
         from src.core.commit_memory import CommitMemory
-        from src.core.relation_extractor import RelationExtractor
         from src.core.eta_predictor import get_predictor
         from src.core.task_queue import get_task_queue
 
@@ -77,7 +73,7 @@ class SubmitBackgroundTaskTool(MCPTool):
         hotspots = bug_corr.get_hotspots(10)
 
         lines = [
-            f"Bug Correlation Analysis",
+            "Bug Correlation Analysis",
             f"Total commits: {stats['total_commits']}",
             f"Bugfixes: {stats['bugfix_commits']} ({stats['bugfix_ratio']:.1%})",
             f"Hotspots: {len(hotspots)}",
@@ -88,7 +84,7 @@ class SubmitBackgroundTaskTool(MCPTool):
         from src.core.relation_extractor import RelationExtractor
 
         extractor = RelationExtractor(memory)
-        relations = extractor.extract_all_relations()
+        extractor.extract_all_relations()
         summary = extractor.get_relation_summary()
 
         return f"Knowledge Graph: {summary.get('total_relations', 0)} relations"

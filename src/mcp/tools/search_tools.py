@@ -10,18 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.config.settings import get_config
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import IndexNotReadyError, error_boundary
-from src.core.indexer import Indexer
-from src.core.search.engine import Searcher
-from src.core.indexing.symbol_index import SymbolIndex
+from src.core.error_handler import error_boundary
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
 from src.utils.ui_formatter import format_search_code
@@ -54,7 +49,7 @@ def _get_search_budget(searcher) -> int:
             status = indexer.get_status() if hasattr(indexer, 'get_status') else {}
             count = status.get('unique_files', 0) if isinstance(status, dict) else 0
             count = count or 0
-        
+
         # CodeGraph-inspired budget:
         if count == 0:
             return 6
@@ -104,10 +99,10 @@ def _get_stale_warning(searcher) -> str:
             latest_ts = latest_dt.timestamp()
         except Exception:
             return ''
-        
+
         if _MCP_START_TIME > latest_ts + 10:  # 10s запас на погрешность
             return ''  # молчим, если старт был после последней индексации (всё свежее)
-        
+
         elapsed = time.time() - latest_ts
         if elapsed > 3600:  # >1 часа
             return '⚠️ Index may be stale (last indexed >1h ago). Run intel_trigger_reindex or wait for next auto-sync.\n'
@@ -512,9 +507,10 @@ class ImpactAnalysisTool(MCPTool):
             }
 
         # Guard: защита от не-списковых значений (B2 — TypeError в логах)
-        _safe_count = lambda v: (
-            len(v) if isinstance(v, (list, str, dict)) else int(v or 0)
-        )
+        def _safe_count(v):
+            return (
+                    len(v) if isinstance(v, (list, str, dict)) else int(v or 0)
+                )
         dc = _safe_count(result.get("direct_callers", 0))
         tc = _safe_count(result.get("transitive_callers", 0))
         dcal = _safe_count(result.get("direct_callees", 0))

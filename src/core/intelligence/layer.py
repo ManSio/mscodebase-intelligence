@@ -20,27 +20,24 @@ import subprocess
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Импортируем модули ядра и глобальные настройки
-from src.config.settings import settings
 from src.core.indexer import Indexer
 from src.core.indexing.parser import CodeParser
-from src.core.search.engine import Searcher
 from src.core.indexing.symbol_index import SymbolIndex
+from src.core.search.engine import Searcher
 
 logger = logging.getLogger("MSCodeBase.Intelligence")
-from src.core.error_handler import error_boundary, record_tool_result
-from src.utils.i18n import _
-
 from dataclasses import asdict
+
+from src.core.intelligence.jobs import BackgroundJob, job_manager
 
 # Импорты из декомпозированных модулей
 from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
-from src.core.intelligence.jobs import BackgroundJob, JobManager, job_manager
-
+from src.utils.i18n import _
 
 # =====================================================================
 # ОСНОВНОЙ СЛОЙ ПРОЕКТНОГО ИНТЕЛЛЕКТА
@@ -314,8 +311,6 @@ class ProjectIntelligenceLayer:
         (LSP не успел записать bridge), ищет non-self-indexing в реестре.
         """
         try:
-            from src.core.indexing.file_guard import FileGuard
-            from src.providers.embedder.remote_embedder import RemoteEmbedder
 
             # INC-6BCB-v3.1: late-resolve.
             active_indexer = self._resolve_active_indexer()
@@ -882,7 +877,7 @@ class ProjectIntelligenceLayer:
 
         _start = time.perf_counter()
         candidates = []
-        embedder = RemoteEmbedder()
+        RemoteEmbedder()
         health = HealthReport(self.project_path)
 
         # 1. Проверяем историю инцидентов

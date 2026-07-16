@@ -292,11 +292,11 @@ class ExecutionVerdict:
             if self.retry_after > 0:
                 lines.append(f"Retry after: {self.retry_after}s")
             if self.requires_reindex:
-                lines.append(f"Action required: trigger reindex")
+                lines.append("Action required: trigger reindex")
             if self.requires_bridge_sync:
-                lines.append(f"Action required: wait for LSP sync")
+                lines.append("Action required: wait for LSP sync")
             if self.requires_restart:
-                lines.append(f"Action required: restart MCP")
+                lines.append("Action required: restart MCP")
             if self.recommended_action:
                 lines.append(f"Recommended: {self.recommended_action}")
         return chr(10).join(lines)

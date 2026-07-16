@@ -8,17 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
-from src.core.indexer import Indexer
-from src.providers.embedder.remote_embedder import RemoteEmbedder
-from src.core.search.engine import Searcher
-from src.core.indexing.symbol_index import SymbolIndex
 from src.mcp.tools.base import MCPTool
 from src.utils.ui_formatter import format_index_status
 
@@ -154,7 +149,6 @@ class GetIndexTimelineTool(MCPTool):
     async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
         from collections import defaultdict
 
-        import pandas as pd
 
         if not self.resolve_indexer().table or len(self.resolve_indexer().table) == 0:
             return {"status": "warning", "message": "Database is empty"}
@@ -317,7 +311,7 @@ class GetHealthReportTool(MCPTool):
     async def execute(
         self, project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
-        from src.core.intelligence.health import HealthReport, format_health_report
+        from src.core.intelligence.health import HealthReport
 
         target_path = self.resolve_indexer().project_path
         if project_root:

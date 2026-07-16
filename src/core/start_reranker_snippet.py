@@ -1,3 +1,13 @@
+import asyncio
+import logging
+import subprocess
+import sys
+import time
+
+import httpx
+
+logger = logging.getLogger("mscodebase_server.reranker")
+
 async def start_reranker(self) -> bool:
         """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT)."""
         if self._reranker_process is not None:

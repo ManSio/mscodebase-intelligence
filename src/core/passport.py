@@ -19,6 +19,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import logging
+logger = logging.getLogger("mscodebase_server.passport")
+
 # ══════════════════════════════════════════════════════════════
 # Runtime Identity
 # ══════════════════════════════════════════════════════════════

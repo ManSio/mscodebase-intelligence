@@ -173,7 +173,7 @@ class JobHistoryStore:
             try:
                 with open(self.history_file, "w", encoding="utf-8") as f:
                     json.dump(history, f, ensure_ascii=False, indent=2)
-            except OSError as e:
+            except OSError:
                 logger.warning("Failed to append job history record", exc_info=True)
 
     def get_estimated_duration(

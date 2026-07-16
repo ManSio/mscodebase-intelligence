@@ -213,7 +213,7 @@ class RemoteEmbedder(IEmbedder):
 
     def _preload_onnx_delayed(self):
         """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP.
-        
+
         Отключает себя, если llama.cpp работает — ONNX не нужен in-process.
         """
         import time as _time
@@ -224,7 +224,7 @@ class RemoteEmbedder(IEmbedder):
             if self.mode != "onnx":
                 logger.debug("Preload пропущен: режим не ONNX")
                 return
-        
+
         # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.info("🔌 ONNX fallback отключён через DISABLE_ONNX_FALLBACK=true")
@@ -240,6 +240,7 @@ class RemoteEmbedder(IEmbedder):
                 # Запускаем реранкер (BGE-M3 на порту 8081)
                 try:
                     import asyncio
+
                     from src.providers.reranker.llama_runner import get_global_runner
                     runner = get_global_runner()
                     asyncio.run(runner.start_reranker())
@@ -247,7 +248,7 @@ class RemoteEmbedder(IEmbedder):
                     logger.warning(f"Reranker autostart failed: {e}")
                 return
             _time.sleep(5)
-        
+
         logger.info("⏳ Фоновая предзагрузка ONNX модели (llama.cpp не найден за 60с)...")
         self._init_onnx()
         if self._onnx_session:
@@ -337,14 +338,14 @@ class RemoteEmbedder(IEmbedder):
             if _provider in ("e5_onnx", "auto", ""):
                 logger.info("🔌 Инициализация локального эмбеддера...")
                 self._init_onnx()
-                
+
                 # OpenVINO имеет приоритет (INT8, ~350 ch/s)
                 if hasattr(self, '_ov_compiled') and self._ov_compiled:
                     with self._mode_lock:
                         self.mode = "onnx"
                     logger.info("✅ OpenVINO INT8 запущен!")
                     return
-                
+
                 if self._onnx_session:
                     with self._mode_lock:
                         self.mode = "onnx"
@@ -484,6 +485,7 @@ class RemoteEmbedder(IEmbedder):
                     # Запускаем реранкер (BGE-M3 на порту 8081)
                     try:
                         import asyncio
+
                         from src.providers.reranker.llama_runner import get_global_runner
                         runner = get_global_runner()
                         asyncio.run(runner.start_reranker())
@@ -603,7 +605,7 @@ class RemoteEmbedder(IEmbedder):
 
     def _init_openvino(self):
         """Инициализация OpenVINO с INT8 моделью.
-        
+
         Даёт 250-350 ch/s на E5-base INT8 (Windows CPU).
         Ключевые оптимизации:
         - max_length=128 (Padding Trap fix)
@@ -617,7 +619,6 @@ class RemoteEmbedder(IEmbedder):
         try:
             import openvino as ov
             from tokenizers import Tokenizer
-            import numpy as np
 
             # Только INT8 model_quantized.onnx. FP32 не используется.
             model_dir_path = Path(self.local_model_dir)
@@ -708,7 +709,7 @@ class RemoteEmbedder(IEmbedder):
         self, texts: List[str], is_query: bool = False
     ) -> List[List[float]]:
         """Пакетное получение векторов через активный провайдер.
-        
+
         НИКОГДА не меняет mode. Если провайдер недоступен —
         возвращает нулевые векторы (режим не сбрасывается).
         """
@@ -894,7 +895,7 @@ class RemoteEmbedder(IEmbedder):
                         self.mode = "onnx"
                 self._onnx_last_used = time.time()
                 import numpy as np
-                
+
                 def _ensure_prefix(text: str, is_query: bool) -> str:
                     for prefix in ("query: ", "passage: "):
                         if text.startswith(prefix):
@@ -1021,4 +1022,4 @@ class RemoteEmbedder(IEmbedder):
             await self._async_client.aclose()
             self._async_client = None
             logger.info("Connection pool закрыт")
- 
+

@@ -4,8 +4,6 @@ MSCodeBase Intelligence — Визуальный UI-форматтер для MC
 Стиль: приборная панель — прогресс-бары, эмодзи-статусы, узкие карточки.
 """
 
-import json
-import time
 from typing import Any, Dict, List, Optional
 
 from src.utils.i18n import _
@@ -64,14 +62,14 @@ def format_index_status(
 ) -> str:
     icon = "🟢" if chunks > 0 else "🟡"
     result = _("{icon} **MSCodeBase** — {status}\n", icon=icon, status=status)
-    
+
     # INC-001 рецидив: если чанки есть, а symbols=0 — SymbolIndex не загрузился
     if symbols == 0 and chunks > 0:
         result += "⚠️ " + _(
             "**SymbolIndex пуст** — символы не проиндексированы. "
             "Переиндексация: `intel_trigger_reindex()`\n"
         )
-    
+
     result += _(
         "📦 **Chunks:** `{chunks}` | **Files:** `{files}` | **Symbols:** `{symbols}`\n",
         chunks=chunks,
@@ -332,7 +330,6 @@ def format_telemetry(
 
 
 def format_eta(operation: str, eta_sec: float, confidence: float, history: int) -> str:
-    icon = "🟢" if confidence > 0.7 else ("🟡" if confidence > 0.4 else "🔴")
     bar = _bar(min(confidence, 1.0), 1.0)
     return _(
         "⏱ **ETA:** `{op}`\n"

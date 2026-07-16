@@ -42,6 +42,10 @@ def register_all_tools(mcp, services):
         ScanChangesTool,
         StructuralSearchTool,
     )
+    from src.mcp.tools.codebase_tool import (
+        CodebaseTool,
+        ExecuteScriptTool,
+    )
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
@@ -56,10 +60,6 @@ def register_all_tools(mcp, services):
         GetTaskStatusTool,
         SubmitBackgroundTaskTool,
         VerifyActionTool,
-    )
-    from src.mcp.tools.codebase_tool import (
-        CodebaseTool,
-        ExecuteScriptTool,
     )
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
@@ -258,11 +258,10 @@ def _register_inline_tools(mcp, services):
             _default_project_root,
             _ext_root,
             _services_cache,
+            resolve_project_root,
         )
-        from src.utils.ui_formatter import _val, header, section
-
-        from src.mcp.server import resolve_project_root
         from src.mcp.tools.base import _is_self_index_path
+        from src.utils.ui_formatter import _val, header, section
 
         pr = _default_project_root or resolve_project_root()
 

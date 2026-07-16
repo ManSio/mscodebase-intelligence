@@ -13,8 +13,8 @@ import time
 from pathlib import Path
 from typing import Set
 
-from src.core.extensions import INDEX_EXTENSIONS
 from src.config.settings import get_config
+from src.core.extensions import INDEX_EXTENSIONS
 from src.core.system_artifacts import SystemArtifacts
 
 logger = logging.getLogger(__name__)
@@ -139,7 +139,7 @@ class FileGuard:
         if self._gitignore_patterns:
             try:
                 rel_path = str(file_path.relative_to(self.project_path))
-                rel_path_posix = rel_path.replace(os.sep, "/")
+                rel_path.replace(os.sep, "/")
                 from src.core.gitignore_parser import is_file_excluded_by_gitignore
 
                 if is_file_excluded_by_gitignore(

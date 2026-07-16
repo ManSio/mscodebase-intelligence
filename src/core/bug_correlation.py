@@ -15,9 +15,8 @@ Bug Correlation — анализ связи багов с изменениями
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+from datetime import datetime
+from typing import Any, Dict, List
 
 logger = logging.getLogger("bug_correlation")
 

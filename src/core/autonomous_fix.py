@@ -157,7 +157,7 @@ class AutonomousFixLoop:
             if not full_path.exists():
                 return False
 
-            content = full_path.read_text(encoding="utf-8")
+            full_path.read_text(encoding="utf-8")
             # This is simplified - in practice need to track exact changes
             return True
         except Exception as e:
@@ -245,7 +245,7 @@ class AutonomousFixLoop:
 
         # Overall
         tests_ok = result["tests"]["success"] if result["tests"] else False
-        git_ok = (
+        (
             not result["git_status"].get("dirty", True)
             if result["git_status"]
             else True

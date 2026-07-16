@@ -5,7 +5,6 @@ Branch-Aware Index — управление индексами для разны
 При смене ветки автоматически переключается база данных.
 """
 
-import hashlib
 import logging
 import subprocess
 from pathlib import Path

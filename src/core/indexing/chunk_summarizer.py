@@ -13,9 +13,8 @@ LLM Chunk Summaries — генерация семантических описа
 import hashlib
 import json
 import logging
-import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("chunk_summarizer")
 
@@ -128,7 +127,7 @@ Description:"""
         elif first_line.startswith("if __name__"):
             return "Main entry point guard"
         elif "return " in code:
-            return f"Function that returns a value"
+            return "Function that returns a value"
         elif "raise " in code:
             return "Raises an exception"
         elif "class " in code and "def " in code:

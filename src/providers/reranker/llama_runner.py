@@ -16,35 +16,7 @@ llama.cpp runner — автоматический lifecycle.
     └── Fallback: ONNX server (если llama не запустился)
 """
 
-from __future__ import annotations
-
-import asyncio
-import logging
-import os
-import subprocess
-import sys
-import threading
-import time
-from typing import Any, Optional
-
-import ctypes
-from ctypes import wintypes
-import httpx
-
-from src.providers.reranker.llama_install import *  # type: ignore  # noqa: F401, F403, F811
-from src.providers.reranker.llama_install import (  # noqa: F401 — explicit compat
-    LLAMA_VERSION,
-    GGUF_MODELS,
-    is_model_downloaded,
-    download_llama_binary,
-    download_gguf_model,
-    is_installed,
-    _get_llama_dir,
-    _get_models_dir,
-    _IS_INSIDER,
-)
-
-logger = logging.getLogger("mscodebase_server.llama_runner")
+from __future__ import annotationsimport asyncioimport ctypesimport loggingimport osimport subprocessimport sysimport threadingimport timefrom ctypes import wintypesfrom typing import Any, Optionalimport httpxfrom src.providers.reranker.llama_install import *  # type: ignore  # noqa: F401, F403, F811from src.providers.reranker.llama_install import (  # noqa: F401 — explicit compat    _IS_INSIDER,    GGUF_MODELS,    LLAMA_VERSION,    _get_llama_dir,    _get_models_dir,    download_gguf_model,    download_llama_binary,    is_installed,    is_model_downloaded,)logger = logging.getLogger("mscodebase_server.llama_runner")
 
 # ─── Планировщик модели ────────────────────────────────────────
 # Пока llama-server умеет загружать только 1 модель за раз.
@@ -345,7 +317,7 @@ class LlamaRunner:
 
     async def start(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
         """Запускает llama-server или подключается к уже запущенному на self._port.
-        
+
         Сначала проверяет, отвечает ли порт /health — если да, используем
         существующий процесс. Иначе запускаем новый.
         """
@@ -364,7 +336,7 @@ class LlamaRunner:
             return False
 
         flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
-        
+
         try:
             self._process = _popen_with_job(
                 [
@@ -396,7 +368,7 @@ class LlamaRunner:
 
     def _start_sync(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
         """Синхронная версия start() — без asyncio, для вызова из run_server().
-        
+
         На Insider: если CPU DLL пропали (Zed сбросил расширение) —
         автоматически качает и патчит бинарник.
         """
@@ -460,7 +432,7 @@ class LlamaRunner:
 
     async def start_reranker(self) -> bool:
         """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).
-        
+
         Сначала проверяет, отвечает ли порт /health — если да, используем
         существующий процесс. Иначе запускаем новый.
         """

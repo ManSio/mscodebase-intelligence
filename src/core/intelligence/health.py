@@ -12,8 +12,6 @@ import concurrent.futures
 import logging
 import os
 import subprocess
-import threading
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -570,6 +568,7 @@ class HealthReport:
         """Проверка схемы Zed SQLite DB (scoped_kv_store — недокументированный API)."""
         try:
             import sqlite3
+
             from src.core.platform_utils import get_zed_db_path
 
             def _check_schema(conn) -> str | None:
