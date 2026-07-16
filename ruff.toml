@@ -1,0 +1,14 @@
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = ["F", "I", "E", "W"]
+ignore = ["E501", "F405", "E701", "F821"]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401", "F403", "F405"]
+"src/core/*.py" = ["F403"]
+"tests/*.py" = ["E402"]
+"src/core/intelligence/layer.py" = ["E402"]
+"src/core/multi_project_searcher.py" = ["E402"]
+"src/mcp/server.py" = ["E402"]
