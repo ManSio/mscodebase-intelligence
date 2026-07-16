@@ -98,7 +98,7 @@ Responsibilities:
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **11 files, 42 core tools (33 original + 6 write + 1 graph query + 2 graph/analysis).**
+`src/mcp/tools/*.py` — **12 files, 19 core tools (Hub & Spoke: codebase + execute_script + 17 native).**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -270,38 +270,48 @@ indexer = services.resolve(Indexer)  # same instance every time
 
 ### 4.1 Tool Registration
 
-In `src/mcp/server.py`:
+In `src/mcp/server_tools.py`:
 
 ```python
-def _register_all_tools(mcp, services):
+def register_all_tools(mcp, services):
     tool_classes = [
-        SearchCodeTool, GetSymbolInfoTool,
-        NotifyChangeTool, IndexProjectDirTool,
-        GetBranchInfoTool, GetIndexStatusTool,
-        # ... 39 total
+        # Search (3)
+        SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
+        # Hub: codebase (write/index/git/notify — multiplexed by action)
+        CodebaseTool,
+        # Spoke: E2B sandbox
+        ExecuteScriptTool,
+        # Analysis (5)
+        StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
+        ScanChangesTool, GenerateChunkSummariesTool,
+        # Graph (3 — Фаза 2: graph_query multiplexes cypher + related + flow)
+        CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
+        # Investigation (3)
+        GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
+        # Lifecycle (3)
+        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-
-    for tool_cls in tool_classes:
-        instance = tool_cls(services)
-        mcp.tool(name=instance.name)(instance.execute)
+    # +14 intel_* tools + 3 diagnostic inline
+    # Total: 36 registered (19 core + 14 intel + 3 diag)
 ```
+
+**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 36.
 
 ### 4.2 All Tools by Group
 
 | Group | File | Tools |
 |-------|------|-------|
 | **Search** (3) | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **Indexing** (3) | `indexing_tools.py` | notify_change, index_project_dir, index_health |
-| **Git** (3) | `git_tools.py` | get_branch_info, get_commit_history, get_file_history |
-| **System** (9) | `system_tools.py` | get_index_status, get_index_progress, get_index_timeline, watcher_status, get_logs, get_health_report, predict_eta, run_health_check, read_live_file |
+| **Hub: codebase** (1) | `codebase_tool.py` | codebase(action={rename,move,delete,replace,insert,notify,index,git,branch,...}) |
+| **Spoke: E2B** (1) | `codebase_tool.py` | execute_script(code) |
 | **Analysis** (5) | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **Graph** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, get_related_files |
+| **Graph** (3) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query(action={query,cypher,related,flow}) |
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Lifecycle** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **Write** (6) | `write_tools.py` | rename_symbol, move_symbol, safe_delete, replace_symbol, insert_before_symbol, insert_after_symbol |
 | **Intelligence** (14) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **Diagnostic** (3) | inline in `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline |
 
----
+> **Total:** 36 registered (19 core + 14 intel + 3 diag). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 
