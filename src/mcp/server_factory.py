@@ -200,7 +200,7 @@ def create_mcp_server():
         try:
             env_file = _ext_root / ".env"
             if env_file.exists():
-                for line in env_file.read_text().splitlines():
+                for line in env_file.read_text(encoding='utf-8').splitlines():
                     if line.startswith("MSCODEBASE_LOCALE="):
                         locale = line.split("=", 1)[1].strip()
                         break
@@ -219,9 +219,14 @@ def create_mcp_server():
     from src.core.task_queue import enable_idle_scheduler, get_task_queue
     enable_idle_scheduler()
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        try:
+            loop = asyncio.get_running_loop()
             loop.create_task(get_task_queue().start())
+        except RuntimeError:
+            # Нет event loop — create_mcp_server вызван синхронно ДО asyncio.run().
+            # task_queue запустится автоматически при старте event loop через 
+            # asyncio.run(mcp.run_stdio_async()).
+            pass
     except Exception as _e:
         logger.warning("exception", exc_info=True)
         pass

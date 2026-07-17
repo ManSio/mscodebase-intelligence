@@ -182,12 +182,12 @@ def register_all_tools(mcp, services):
     # ─── Intelligence Layer (10 инструментов) ──────
     _register_intelligence_tools(mcp, services)
 
-    # ─── Inline diagnostic tools (7 шт) ────────────
+    # ─── Inline diagnostic tools (6 шт) ────────────
     _register_inline_tools(mcp, services)
 
     total_core = len(tool_classes)
-    total_intel = 14
-    total_diag = 3
+    total_intel = 12
+    total_diag = 6
     logger.info(
         f"✅ Все инструменты зарегистрированы "
         f"({total_core} core + {total_intel} intel + {total_diag} diagnostic = "
@@ -235,7 +235,7 @@ def _register_intelligence_tools(mcp, services):
 
 
 def _register_inline_tools(mcp, services):
-    """Регистрирует 7 инструментов, определённых прямо в server.py.
+    """Регистрирует 6 инструментов, определённых прямо в server.py.
 
     Перенесены сюда при декомпозиции server.py (Фаза 2, Шаг 1).
     """
@@ -473,23 +473,7 @@ def _register_inline_tools(mcp, services):
         result += _("• **Wait:** {time:.1f}s\n", time=counters.get("total_wait_time_sec", 0))
         return result
 
-    # ─── 5. intel_get_telemetry ───────────────────
-    @mcp.tool("intel_get_telemetry")
-    async def intel_get_telemetry(days: int = 7) -> str:
-        """Возвращает историю метрик за последние N дней.
-
-        Args:
-            days: количество дней истории (по умолчанию 7).
-
-        Returns:
-            JSON с историей метрик.
-        """
-        from scripts.collect_telemetry import get_history
-
-        history = get_history(min(max(days, 1), 365))
-        return json.dumps(history, ensure_ascii=False, indent=2)
-
-    # ─── 6. intel_tool_health ─────────────────────
+    # ─── 5. intel_tool_health ─────────────────────
     @mcp.tool("intel_tool_health")
     async def intel_tool_health() -> str:
         """Панель здоровья инструментов:成功率, latency, confidence, routes."""

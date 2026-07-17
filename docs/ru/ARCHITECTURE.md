@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (42 class-based + 14 intel + 3 diagnostic = 59 всего)](#4-tool-layer)
+4. [Слой инструментов (19 core + 12 intel + 6 diagnostic = 37 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Rate Limiting и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (42 class-based инструментов)      │
+│  Слой 3: mcp/tools/*.py         (19 core инструментов)      │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -89,7 +89,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 16 core + 14 intel + 3 diagnostic = 33 инструмента
+3. Зарегистрировать 19 core + 12 intel + 6 diagnostic = 33 инструмента
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
