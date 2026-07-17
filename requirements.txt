@@ -38,8 +38,7 @@ tokenizers>=0.15.0
 # OpenVINO (INT8 эмбеддинги, ~350 ch/s)
 openvino>=2026.0.0
 
-# LanceDB native bindings (pylance для to_lance() и list_indices())
-pylance>=8.0.0
+# LanceDB native bindings (тянется транзитивно через lancedb)
 
 # LanceDB dependency (dateutil для api_client)
 python-dateutil>=2.8.0
