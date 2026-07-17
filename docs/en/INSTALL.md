@@ -49,6 +49,25 @@ The installer will:
 > **Important:** The installer copies files from the current directory into the extension.
 > All source changes take effect only after `python install.py`.
 
+**Available flags:**
+
+| Flag | What it does |
+|------|-------------|
+| *(no flags)* | Full install: copy files + dependencies + models (compact UI) |
+| `--sync` | **Quick sync** — copy changed files only, no other steps |
+| `--yes` / `-y` | **CI mode** — skip all prompts, fail fast on error |
+| `--skip-models` | Install without downloading models (already have them) |
+| `--verbose` / `-v` | Full box UI (instead of compact single-line) |
+| `--quiet` / `-q` | Errors only, no progress bars |
+
+```bash
+# Quick code sync (daily dev)
+python install.py --sync
+
+# Full install, no questions (CI/CD)
+python install.py --yes
+```
+
 ### Автоматическая установка
 
 Начиная с v2.7.0, `install.py` автоматически:

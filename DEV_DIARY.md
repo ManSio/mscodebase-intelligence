@@ -52,4 +52,4 @@ structured output и streaming.
 - `.agent_task_state.md` — создан (auto-generated)
 - `.gitignore` — добавлен `.agent_task_state.md`
 
-**Статус:** ✅ Активно (ожидает перезагрузки MCP для вступления в силу)
+**Статус:** ✅ Закрыто (commit 5aeb723, pushed to main)

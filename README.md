@@ -127,6 +127,15 @@ Install the `mscodebase-intelligence` extension in Zed, then:
 cd D:\Project\MSCodeBase
 python install.py
 
+# Quick sync (code only, no prompts):
+python install.py --sync
+
+# CI mode (no prompts, fail fast):
+python install.py --yes
+
+# Skip model downloads:
+python install.py --skip-models
+
 # Restart Zed (File → Quit → reopen)
 # Verify: intel_get_runtime_status()
 ```
@@ -196,6 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `cross_repo_search(query @repo)` | Search across multiple projects (mono-repo) |
 | `cross_project_deps(action)` | Cross-project dependency graph: `graph` / `deps` / `cycles` / `impact` |
 | `get_symbol_info(query)` | Call Graph: callers, callees, impact files |
+| `execute_script(code, timeout, args)` | **Sandboxed Python execution.** TempDirectory isolation, PYTHONPATH=project, graceful shutdown. Returns structured `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
 | `impact_analysis(symbol)` | Symbol change impact analysis (risk score, depth) |
 
 ### Index Management
