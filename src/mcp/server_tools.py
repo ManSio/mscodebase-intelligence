@@ -66,10 +66,6 @@ def register_all_tools(mcp, services):
         ImpactAnalysisTool,
         SearchCodeTool,
     )
-    from src.mcp.tools.claim_verifier import (
-        ClaimVerifierTool,
-    )
-
     # Список всех инструментов для регистрации
     tool_classes = [
         # Search (3)
@@ -94,8 +90,7 @@ def register_all_tools(mcp, services):
         GetBugCorrelationTool,
         GetHotspotsTool,
         FindSimilarBugsTool,
-        # Claim Verifier (1)
-        ClaimVerifierTool,
+
         # Lifecycle (3)
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
@@ -123,7 +118,6 @@ def register_all_tools(mcp, services):
             "intel_get_project_memory", "intel_code_topology",
             "intel_auto_collect_adrs",
             "graph_query",  # Фаза 2: мультиплексирует graph_query + cypher + related + flow
-            "verify_claim",
             "structural_search",
             # Diagnostic
             "diagnostics", "debug_runtime_passport",

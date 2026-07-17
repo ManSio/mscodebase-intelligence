@@ -137,6 +137,8 @@ class GraphQueryTool(MCPTool):
     - "cypher" — Cypher-like запрос к PropertyGraph
     - "related" — связанные файлы через CommitMemory
     - "flow" — трассировка переменной (data flow)
+    - "drift" — Architecture Drift Detector
+    - "verify" — Claim Verifier (проверка утверждений против кода)
     """
 
     def __init__(self, services: ServiceCollection):
@@ -158,6 +160,8 @@ class GraphQueryTool(MCPTool):
             return await self._execute_flow(target, kwargs)
         elif action == "drift":
             return await self._execute_arch_drift(target)
+        elif action == "verify":
+            return await self._execute_verify(target, kwargs)
         else:
             # По умолчанию — GraphRAG (action="query")
             return await self._execute_query(query_type or "impact", target, kwargs)
@@ -561,6 +565,221 @@ class GraphQueryTool(MCPTool):
 
         conn.close()
         return result
+
+    # ── Claim Verifier ─────────────────────────────────────
+
+    async def _execute_verify(
+        self, claim: str, kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Проверяет утверждение AI-агента против SymbolIndex + PropertyGraph.
+
+        Args:
+            claim: JSON-строка с полями:
+                - subject (str): имя символа
+                - predicate (str): calls|defined_in|imports|handles_error|defines|implements|inherits
+                - object (str): цель
+                - file (str, optional): файл для сужения
+
+        Returns:
+            dict с вердиктом: confirmed / contradicted / unverifiable
+        """
+        import json
+
+        # Парсим claim (строка или dict)
+        if isinstance(claim, str):
+            try:
+                claim_dict = json.loads(claim)
+            except json.JSONDecodeError:
+                return {"status": "error", "message": "claim must be valid JSON"}
+        elif isinstance(claim, dict):
+            claim_dict = claim
+        else:
+            return {"status": "error", "message": "claim must be a string or dict"}
+
+        subject = claim_dict.get("subject", "").strip()
+        predicate = claim_dict.get("predicate", "").strip()
+        obj = claim_dict.get("object", "").strip()
+        if not subject:
+            return {"status": "error", "message": "claim.subject is required"}
+
+        SUPPORTED = {"calls", "defined_in", "imports", "handles_error", "defines", "implements", "inherits"}
+        if predicate not in SUPPORTED:
+            return {"status": "error", "message": f"Unsupported predicate '{predicate}'. Supported: {sorted(SUPPORTED)}"}
+
+        # Get PropertyGraph
+        pg = None
+        db_path = None
+        try:
+            indexer = self.resolve_indexer()
+            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
+            if pg:
+                db_path = pg._db_path if hasattr(pg, '_db_path') else getattr(pg, 'path', None)
+        except Exception:
+            pass
+        if not db_path:
+            from pathlib import Path
+            try:
+                registry = self._services.resolve(ProjectIndexerRegistry)
+                roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
+                for r in roots:
+                    candidate = Path(r) / ".codebase" / "graph.db"
+                    if candidate.exists():
+                        db_path = str(candidate)
+                        break
+            except Exception:
+                pass
+        if not db_path:
+            candidate = Path("D:/Project/MSCodeBase/.codebase/graph.db")
+            if candidate.exists():
+                db_path = str(candidate)
+
+        if not db_path or not Path(str(db_path)).exists():
+            return _unverifiable("PropertyGraph not available", predicate)
+
+        from src.core.graph import EdgeType, NodeLabel, PropertyGraph
+        from src.core.search.graph_adapter import SymbolIndexAdapter
+
+        pg = PropertyGraph(db_path)
+        adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+
+        # Dispatch
+        if predicate == "calls":
+            return await self._v_calls(pg, adapter, subject, obj)
+        elif predicate == "defined_in":
+            return await self._v_defined_in(pg, adapter, subject, obj)
+        elif predicate == "imports":
+            return await self._v_imports(pg, subject, obj)
+        elif predicate == "handles_error":
+            return await self._v_error_handling(pg, subject)
+        elif predicate == "defines":
+            return await self._v_defines(pg, subject, obj)
+        elif predicate in ("implements", "inherits"):
+            return await self._v_relationship(pg, subject, obj, predicate)
+
+        return {"status": "error", "message": f"Unhandled predicate: {predicate}"}
+
+    async def _v_calls(self, pg, adapter, subject: str, obj: str) -> dict:
+        nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        if not nodes:
+            return _unverifiable(f"Symbol '{subject}' not found", "calls")
+        evidence = []
+        for node in nodes[:3]:
+            for neighbor, edge, _ in pg.get_neighbors(
+                node.qualified_name, edge_type=EdgeType.CALLS, direction="outgoing", max_depth=1,
+            ):
+                if not obj or obj.lower() in neighbor.name.lower():
+                    evidence.append({
+                        "file": neighbor.file_path or edge.properties.get("file", "?"),
+                        "line": edge.properties.get("line", 0),
+                        "detail": f"{node.name} -> {neighbor.name}",
+                    })
+        if evidence:
+            return _confirmed(f"{subject} calls {obj}" if obj else f"{subject} calls", evidence, "calls")
+        # Show what it actually calls
+        callees = []
+        for node in nodes[:1]:
+            for neighbor, edge, _ in pg.get_neighbors(
+                node.qualified_name, edge_type=EdgeType.CALLS, direction="outgoing", max_depth=1,
+            ):
+                callees.append(neighbor.name)
+        if callees:
+            return _contradicted(f"{subject} does NOT call {obj}. Actually calls: {callees[:10]}", [{"detail": f"Callees: {', '.join(callees[:10])}"}], "calls")
+        return _unverifiable(f"No call info for '{subject}'", "calls")
+
+    async def _v_defined_in(self, pg, adapter, subject: str, obj: str) -> dict:
+        nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        if not nodes:
+            try:
+                si = self.resolve_symbol_index()
+                defs = si.find_definitions(subject) or []
+                if defs:
+                    files = list(set(d.file_path for d in defs))
+                    if obj and any(obj in f for f in files):
+                        return _confirmed(f"{subject} defined in {files[0]}", [{"file": files[0], "line": defs[0].line}], "defined_in")
+                    return _confirmed(f"{subject} defined in: {', '.join(files[:3])}", [{"file": f} for f in files[:3]], "defined_in")
+            except Exception:
+                pass
+            return _unverifiable(f"Symbol '{subject}' not found", "defined_in")
+        node = nodes[0]
+        fp = node.file_path or ""
+        if fp:
+            return _confirmed(f"{subject} defined in {fp}" + (f" (not {obj})" if obj and obj not in fp else ""), [{"file": fp, "line": node.properties.get("line", 0)}], "defined_in")
+        return _unverifiable(f"File for '{subject}' not found", "defined_in")
+
+    async def _v_imports(self, pg, subject: str, obj: str) -> dict:
+        nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        file_nodes = [n for n in nodes if n.label == NodeLabel.FILE]
+        if not file_nodes:
+            return _unverifiable(f"File matching '{subject}' not found", "imports")
+        for fn in file_nodes[:2]:
+            for neighbor, edge, _ in pg.get_neighbors(
+                fn.qualified_name, edge_type=EdgeType.IMPORTS, direction="outgoing", max_depth=1,
+            ):
+                if not obj or obj.lower() in neighbor.name.lower():
+                    return _confirmed(f"{fn.name} imports {neighbor.name}", [{"file": fn.file_path or fn.name, "line": edge.properties.get("line", 0), "detail": f"import {neighbor.name}"}], "imports")
+        return _contradicted(f"{subject} does NOT import {obj}" if obj else f"{subject} has no matching imports", [], "imports")
+
+    async def _v_error_handling(self, pg, subject: str) -> dict:
+        nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        if not nodes:
+            return _unverifiable(f"Symbol '{subject}' not found", "handles_error")
+        node = nodes[0]
+        fp = node.file_path
+        if not fp:
+            return _unverifiable(f"No file for '{subject}'", "handles_error")
+        full_path = Path("D:/Project/MSCodeBase") / fp
+        if not full_path.exists():
+            return _unverifiable(f"File not found: {fp}", "handles_error")
+        try:
+            lines = full_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            start = node.properties.get("line", 0)
+            func_text = "\n".join(lines[start:start + 50])
+            if "try" in func_text and ("except" in func_text or "finally" in func_text):
+                evidence = []
+                for i, line in enumerate(lines[start:start + 50], start):
+                    if "try" in line or "except" in line or "finally" in line:
+                        evidence.append({"line": i, "detail": line.strip()[:80]})
+                return _confirmed(f"{subject} handles errors ({len(evidence)} try/except blocks)", evidence[:5], "handles_error")
+            return _contradicted(f"No try/except found in {subject}", [{"detail": f"Scanned lines {start}-{start + 50} of {fp}"}], "handles_error")
+        except Exception as e:
+            return _unverifiable(f"Error reading file: {e}", "handles_error")
+
+    async def _v_defines(self, pg, subject: str, obj: str) -> dict:
+        subject_nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        if not subject_nodes:
+            return _unverifiable(f"'{subject}' not found", "defines")
+        sn = subject_nodes[0]
+        for neighbor, edge, _ in pg.get_neighbors(
+            sn.qualified_name, edge_type=EdgeType.DEFINES, direction="outgoing", max_depth=1,
+        ):
+            if not obj or obj.lower() in neighbor.name.lower():
+                return _confirmed(f"{subject} defines {neighbor.name}", [{"file": neighbor.file_path or sn.file_path, "line": edge.properties.get("line", 0), "detail": f"defines {neighbor.name} ({neighbor.label})"}], "defines")
+        return _contradicted(f"'{subject}' does NOT define '{obj}'" if obj else f"'{subject}' has no DEFINES edges", [], "defines")
+
+    async def _v_relationship(self, pg, subject: str, obj: str, rel_type: str) -> dict:
+        edge_type = EdgeType.IMPLEMENTS if rel_type == "implements" else EdgeType.INHERITS
+        subject_nodes = pg.find_nodes(name_pattern=subject, limit=5)
+        if not subject_nodes:
+            return _unverifiable(f"'{subject}' not found", rel_type)
+        sn = subject_nodes[0]
+        for neighbor, edge, _ in pg.get_neighbors(
+            sn.qualified_name, edge_type=edge_type, direction="outgoing", max_depth=1,
+        ):
+            if not obj or obj.lower() in neighbor.name.lower():
+                return _confirmed(f"{subject} {rel_type} {neighbor.name}", [{"file": neighbor.file_path or sn.file_path, "line": edge.properties.get("line", 0)}], rel_type)
+        return _contradicted(f"No {rel_type} relationship found for '{subject}'", [], rel_type)
+
+
+# ── Helper factories (module-level) ──
+
+def _confirmed(message: str, evidence: list, predicate: str) -> dict:
+    return {"status": "ok", "verdict": "confirmed", "message": message, "evidence": evidence, "confidence": 0.9, "predicate": predicate}
+
+def _contradicted(message: str, evidence: list, predicate: str) -> dict:
+    return {"status": "ok", "verdict": "contradicted", "message": message, "evidence": evidence, "confidence": 0.85, "predicate": predicate}
+
+def _unverifiable(message: str, predicate: str) -> dict:
+    return {"status": "ok", "verdict": "unverifiable", "message": message, "evidence": [], "confidence": 0.3, "predicate": predicate}
 
 
 __all__ = [
