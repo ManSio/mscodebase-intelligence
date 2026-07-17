@@ -441,10 +441,24 @@ class ProjectIntelligenceLayer:
             return {"status": "error", "detail": str(e)}
 
     def _get_embedder_model_info(self) -> dict:
-        """Get real model info from embedder (not hardcoded)."""
+        """Get real model info from the global embedder singleton.
+
+        Сначала пытается получить embedder из DI-контейнера (живой синглтон),
+        иначе создаёт временный экземпляр для диагностики.
+        """
         try:
-            from src.providers.embedder.remote_embedder import RemoteEmbedder
-            emb = RemoteEmbedder()
+            emb = None
+            # 1. Пробуем достать embedder из DI контейнера
+            if self._services is not None:
+                try:
+                    from src.providers.embedder.remote_embedder import RemoteEmbedder
+                    emb = self._services.resolve(RemoteEmbedder)
+                except Exception:
+                    pass
+            # 2. Fallback: создаём временный экземпляр
+            if emb is None:
+                from src.providers.embedder.remote_embedder import RemoteEmbedder
+                emb = RemoteEmbedder()
             info = emb.get_model_info()
             return {
                 "provider": info.get("provider", "unknown"),
