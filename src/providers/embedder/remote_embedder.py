@@ -1000,7 +1000,10 @@ class RemoteEmbedder(IEmbedder):
             if self.mode in ("unknown", "fallback"):
                 return False
             if self.mode == "onnx":
-                return getattr(self, '_ov_compiled', None) is not None or self._onnx_session is not None
+                # Если ONNX_PROVIDERS=openvino — ждём именно OpenVINO
+                if os.getenv("ONNX_PROVIDERS", "").lower() == "openvino":
+                    return getattr(self, '_ov_compiled', None) is not None
+                return self._onnx_session is not None
             return self.mode in ("lm_studio", "llama_cpp", "ollama")
 
     async def warmup(self) -> bool:
