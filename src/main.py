@@ -7,19 +7,25 @@ import os
 import sys
 from pathlib import Path
 
+logger = logging.getLogger("MSCodebase")
+
 # Определяем PROJECT_ROOT:
 # Если Python запущен из расширения -> корень расширения
 # Иначе -> родитель родителя __file__
 _exec = Path(sys.executable).resolve()
 _EXT_MARKER = "extensions" + os.sep + "mscodebase-intelligence" + os.sep + "venv"
+_EXT_MARKER_FILE = "__mscodebase_ext__.marker"
 if _EXT_MARKER in str(_exec):
     # Запущены из расширения: PROJECT_ROOT = корень расширения
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
     # Если __file__ из проекта (Zed ставит CWD=проект), то PROJECT_ROOT неверный.
-    # В таком случае определяем через sys.executable:
-    if "MSCodeBase" in str(PROJECT_ROOT):
-        # __file__ = проект, но sys.executable = расширение
-        # PROJECT_ROOT = корень расширения = ext_root
+    # Проверяем через маркерный файл в корне расширения:
+    _marker_path = Path(__file__).resolve().parent.parent / _EXT_MARKER_FILE
+    _exec_marker = _exec.parent.parent.parent.resolve() / _EXT_MARKER_FILE
+    if _marker_path.exists():
+        pass  # PROJECT_ROOT уже правильный
+    elif _exec_marker.exists():
+        # PROJECT_ROOT через sys.executable
         PROJECT_ROOT = _exec.parent.parent.parent.resolve()
 else:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent

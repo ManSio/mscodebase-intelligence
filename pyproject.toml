@@ -45,6 +45,14 @@ dependencies = [
     "pathspec>=0.14.0",
     "httpx>=0.24.0",
     "python-dotenv>=1.0.0",
+    "pandas>=2.0.0",
+    "python-dateutil>=2.8.0",
+    # ONNX Embedder
+    "onnxruntime>=1.17.0",
+    "openvino>=2026.0.0",
+    # Reranker (transformers-based)
+    "transformers>=4.36.0,<4.56.0",
+    "tokenizers>=0.15.0",
 ]
 
 [project.optional-dependencies]

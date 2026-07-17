@@ -394,6 +394,16 @@ def step_copy(lines, lang):
             pass
     if pycache_dirs:
         lines.append((C.D, f"  ✓ cleaned {len(pycache_dirs)} __pycache__ dirs"))
+    
+    # Создаём маркерный файл расширения (для main.py)
+    marker_dst = ZED_EXT_DIR / "__mscodebase_ext__.marker"
+    marker_src = PROJECT_ROOT / "__mscodebase_ext__.marker"
+    if marker_src.exists():
+        marker_dst.write_text(marker_src.read_text(), encoding="utf-8")
+        lines.append((C.GRN, f"  ✓ marker created"))
+    else:
+        marker_dst.write_text("# MSCodeBase Extension Marker\n", encoding="utf-8")
+        lines.append((C.D, f"  ✓ marker created (default)"))
 
 
 def _is_up_to_date(src: Path, dst: Path) -> bool:
