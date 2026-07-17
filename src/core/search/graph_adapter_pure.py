@@ -146,6 +146,46 @@ class PureGraphMixin:
         for node in self._graph.find_nodes(file_path=file_path):
             self._graph.delete_node(node.qualified_name)
 
+    # ── Imports ───────────────────────────────────────────
+
+    def _pure_add_imports(self, file_path: str, imports: List[Dict]) -> None:
+        """PropertyGraph контур: IMPORTS рёбра между File узлами.
+
+        Каждый импорт создаёт ребро:
+        (File:source) --[IMPORTS]--> (Module:target)
+
+        Вызывается из SymbolIndexAdapter.add_imports() под self._lock.
+        """
+        project_name = self._get_project_name(file_path)
+        file_qname = f"{project_name}.{file_path}"
+
+        for imp in imports:
+            target = imp.get("target_module", "")
+            if not target:
+                continue
+            line = imp.get("line", 0)
+
+            # Создаём или находим Module-узел для импортируемого модуля
+            target_qname = f"{project_name}.__import__.{target}"
+            if not self._graph.get_node(target_qname):
+                self._graph.add_node(
+                    name=target,
+                    label=NodeLabel.MODULE,
+                    qualified_name=target_qname,
+                    file_path=file_path,
+                    properties={"line": line, "imported": True},
+                )
+
+            # IMPORTS ребро: source_file -> target_module
+            if self._graph.get_node(file_qname):
+                self._graph.add_edge(
+                    source_qname=file_qname,
+                    target_qname=target_qname,
+                    type=EdgeType.IMPORTS,
+                    weight=1.0,
+                    properties={"line": line, "text": imp.get("text", "")},
+                )
+
     # ── Call Chain ────────────────────────────────────────
 
     def _graph_call_chain(self, node: Node, direction: str, max_depth: int) -> Dict:

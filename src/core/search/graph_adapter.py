@@ -200,6 +200,19 @@ class SymbolIndexAdapter(PureGraphMixin):
                     properties=props,
                 )
 
+    def add_imports(self, file_path: str, imports: List[Dict]) -> None:
+        """Добавляет IMPORTS рёбра между файлами и модулями.
+
+        PropertyGraph: File --[IMPORTS]--> Module (target).
+        """
+        file_path = Path(file_path).resolve().as_posix()
+
+        if not imports:
+            return
+
+        with self._lock:
+            self._pure_add_imports(file_path, imports)
+
     def _hybrid_add_references(self, file_path: str, calls: List[Dict]):
         """HYBRID: дублирует в in-memory структуры SymbolIndex."""
         if file_path not in self._file_to_symbols:

@@ -588,6 +588,30 @@ class CodeParser:
 
     # ── Unified AST Walker (один parse → два результата) ──
 
+    # Узлы импортов для разных языков — для построения IMPORTS-рёбер
+    IMPORT_NODE_MAP = {
+        ".py": {"import_statement", "import_from_statement"},
+        ".rs": {"use_declaration"},
+        ".ts": {"import_statement", "import_declaration"},
+        ".tsx": {"import_statement", "import_declaration"},
+        ".go": {"import_declaration"},
+        ".js": {"import_statement", "import_declaration"},
+        ".java": {"import_declaration"},
+        ".cs": {"using_directive"},
+        ".rb": {"require", "include"},
+        ".php": {"include_expression", "require_expression"},
+        ".kt": {"import_declaration"},
+        ".swift": {"import_declaration"},
+        ".c": {"include_statement", "import_declaration"},
+        ".cpp": {"include_statement", "import_declaration"},
+        ".cxx": {"include_statement", "import_declaration"},
+        ".hpp": {"include_statement", "import_declaration"},
+        ".scala": {"import"},
+        ".dart": {"import_declaration", "export_declaration"},
+        ".sh": {"source_statement"},
+        ".bash": {"source_statement"},
+    }
+
     # Типы assignment-узлов для разных языков (мультиязычность)
     ASSIGNMENT_NODE_MAP = {
         ".py": {"assignment", "augmented_assignment"},
@@ -625,14 +649,14 @@ class CodeParser:
     }
 
     def _walk_file(self, file_path: Path):
-        """Единый обход AST: один parse, один walk, два результата.
+        """Единый обход AST: один parse, один walk, три результата.
 
         Returns:
-            (calls, assignments) — кортеж из двух списков.
+            (calls, assignments, imports) — кортеж из трёх списков.
         """
         ext = file_path.suffix.lower()
         if ext not in self.parsers or ext == ".md":
-            return [], []
+            return [], [], []
 
         # Cache hit: если тот же файл, используем закешированное дерево
         if file_path == self._cache_path:
@@ -663,7 +687,14 @@ class CodeParser:
             current_function="", assigned=None,
             condition_path=None, assignment_types=assignment_types,
         )
-        return calls, assignments
+        imports = []
+        import_types = self.IMPORT_NODE_MAP.get(ext, set())
+        if import_types:
+            self._extract_imports_recursive(
+                tree.root_node, code, file_path, imports,
+                import_types=import_types,
+            )
+        return calls, assignments, imports
 
     def extract_calls(self, file_path: Path) -> List[Dict]:
         """Извлекает все вызовы функций из файла для построения графа вызовов.
@@ -674,7 +705,7 @@ class CodeParser:
         Returns:
             [{"caller": ..., "callee": ..., "line": ..., "file": ...}, ...]
         """
-        calls, _ = self._walk_file(file_path)
+        calls, _, _ = self._walk_file(file_path)
         return calls
 
     def _extract_calls_recursive(
@@ -769,8 +800,116 @@ class CodeParser:
         Returns:
             [{"target": ..., "source": ..., "line": ..., "file": ..., "function": ...}, ...]
         """
-        _, assignments = self._walk_file(file_path)
+        _, assignments, _ = self._walk_file(file_path)
         return assignments
+
+    # ── Import extraction for IMPORTS edges ────────────────
+
+    def extract_imports(self, file_path: Path) -> List[Dict]:
+        """Извлекает импорты из файла для построения IMPORTS-рёбер.
+
+        Использует _walk_file — один Tree-sitter parse на файл.
+
+        Returns:
+            [{"source_module": ..., "target_module": ..., "line": ..., "file": ...}, ...]
+            source_module = имя файла, который импортирует
+            target_module = имя импортируемого модуля/пакета
+        """
+        _, _, imports = self._walk_file(file_path)
+        return imports
+
+    def _extract_imports_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        imports: List[Dict],
+        import_types: set,
+    ):
+        """Рекурсивно обходит AST, извлекая импорты.
+
+        Args:
+            node: Текущий узел AST
+            code: Исходный код файла
+            file_path: Путь к файлу
+            imports: Накопитель результатов
+            import_types: Множество типов узлов импорта для этого языка
+        """
+        if node.type in import_types:
+            # Извлекаем текст импорта (всё строковое содержимое узла)
+            import_text = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            if import_text.strip():
+                # Для разных языков импорт выглядит по-разному,
+                # но нас интересует имя модуля/пакета.
+                # Извлекаем первое имя после ключевого слова import/use.
+                module_name = self._extract_import_target(node, code)
+                if module_name:
+                    imports.append(
+                        {
+                            "source_file": str(file_path),
+                            "target_module": module_name,
+                            "line": node.start_point[0],
+                            "text": import_text.strip(),
+                        }
+                    )
+
+        for child in node.children:
+            self._extract_imports_recursive(
+                child, code, file_path, imports, import_types
+            )
+
+    @staticmethod
+    def _extract_import_target(import_node, code: bytes) -> str:
+        """Извлекает имя импортируемого модуля из узла импорта.
+
+        Ищет:
+        - Python: import X / from X import Y → X
+        - Rust: use X::Y → X
+        - Go: import "X" → X
+        - JS/TS: import X from 'Y' → Y / import 'Y' → Y
+        - C/C++: #include "X" / #include <X> → X
+        - Java/C#: import X.Y.Z → X
+        - Ruby: require 'X' → X
+        """
+        # Пробуем найти строковое содержимое (имя модуля в кавычках)
+        text = code[import_node.start_byte : import_node.end_byte].decode(
+            "utf-8", errors="ignore"
+        )
+
+        # Ищем строку в кавычках: import "os" / require 'x' / from "x"
+        import re
+        quote_match = re.search(r'["\']([^"\']+)["\']', text)
+        if quote_match:
+            return quote_match.group(1).split("/")[0].split(".")[0]
+
+        # Для Python/Rust/Java: ищем первый identifier после import/use
+        # import os → os, use std::io → std, import java.util.List → java
+        words = text.split()
+        for i, w in enumerate(words):
+            if w.lower() in ("import", "from", "use", "require", "include"):
+                if i + 1 < len(words):
+                    candidate = words[i + 1]
+                    # Отбрасываем скобки, точки с запятой
+                    candidate = candidate.strip("();,")
+                    if candidate and not candidate.startswith("#"):
+                        # Берём первую часть (пакет, не подмодуль)
+                        return candidate.split(".")[0].split("::")[0]
+
+        # Fallback: первый не-keyword identifier
+        _punctuation = "();," + chr(39) + chr(34)  # ();,'"
+        for w in words:
+            w_clean = w.strip(_punctuation)
+            if not w_clean:
+                continue
+            if w_clean and w_clean[0].isalpha() and w_clean.lower() not in (
+                "import", "from", "use", "require", "include",
+                "as", "pub", "crate", "self", "super",
+            ):
+                return w_clean.split(".")[0].split("::")[0]
+
+        return text.split()[0] if text else ""
 
     def _extract_assignments_recursive(
         self,
