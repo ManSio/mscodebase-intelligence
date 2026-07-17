@@ -59,7 +59,8 @@ class LanceDBWriter:
             # Guard: проверка нормы вектора (если norm=0, эмбеддер не работал)
             _norm_sq = sum(v*v for v in embeddings[i])
             if _norm_sq < 1e-9:
-                logger.warning(f"Zero vector for chunk {i} in {rel_path_str}")
+                logger.warning(f"Zero vector for chunk {i} in {rel_path_str} "
+                              f"(text={repr(chunk_texts[i])[:100]}))")
                 # Не возвращаем [] — записываем как есть, чтобы индекс построился.
                 # Позже re-embed заменит нулевые векторы.
 

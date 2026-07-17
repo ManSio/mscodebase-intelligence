@@ -149,7 +149,7 @@ class IndexProjectRunner:
         if parsed_count == 0:
             logger.info("No changes — index is current")
             if prune_deleted_files:
-                prune_deleted_files()
+                prune_deleted_files(current_files_on_disk)
             if self.searcher:
                 self.searcher.reindex()
             if progress_callback:
@@ -239,7 +239,7 @@ class IndexProjectRunner:
         pruned = 0
         if prune_deleted_files:
             try:
-                pruned = prune_deleted_files()
+                pruned = prune_deleted_files(current_files_on_disk)
                 if pruned > 0:
                     logger.info(f"Pruned {pruned} stale files")
             except Exception as e:

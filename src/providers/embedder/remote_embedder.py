@@ -645,9 +645,9 @@ class RemoteEmbedder(IEmbedder):
             core = ov.Core()
             model = core.read_model(str(model_file))
 
-            # Dynamic batch shape (последняя dim = max_length)
+            # Dynamic batch shape — не работает с этой моделью
             for inp in model.inputs:
-                model.reshape({inp.any_name: [-1, self._max_embed_tokens]})
+                model.reshape({inp.any_name: [1, self._max_embed_tokens]})
 
             # Компиляция для throughput (LATENCY быстрее для batch=1)
             compiled = core.compile_model(model, "CPU", config={
