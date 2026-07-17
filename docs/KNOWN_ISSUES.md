@@ -24,7 +24,7 @@
 |----|--------|----------|-----------|
 | ZED-36019 | ✅ Closed | **Index 0 files / 2535 chunks:** path resolution не работает — Zed не передаёт `ZED_WORKTREE_ROOT`. Исправлено: added `current_dir = $ZED_WORKTREE_ROOT` в extension.toml + SQLite multi-workspace fallback + delayed bridge recheck (3 fallback layers) | LSP bridge |
 | DOC-TRANSLATION | ✅ Closed | docs/ru/* и docs/zh/* (кроме README) переведены машинно — native-верификация пройдена | Docs |
-| SYM-INDEX-PARTIAL | 🔴 Open | **SymbolIndex partial data**: `find_definitions()` может вернуть пустой результат для символов, существующих в `_references` (incorrect lazy init or missing insert) | SymbolIndex |
+| SYM-INDEX-PARTIAL | ✅ Fixed | **SymbolIndex partial data**: `_parse_file_only` вызывал `pg.remove_file(rel_path)` напрямую вместо `self._symbol_index.remove_file(abs_path)` — path mismatch. PropertyGraph не удалял старые узлы, find_definitions() находил orphaned node. Фикс: замена на `self._symbol_index.remove_file(str(full_path))`. Добавлен invariant-test (20 тестов). | SymbolIndexAdapter / indexer |
 
 ## Tech Debt (из Project Memory)
 
