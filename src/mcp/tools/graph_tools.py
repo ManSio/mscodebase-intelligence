@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
 
@@ -451,23 +452,39 @@ class GraphQueryTool(MCPTool):
         import sqlite3
         from pathlib import Path
 
-        # Находим PropertyGraph
-        indexer = self.resolve_indexer()
-        pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
-        if not pg:
-            return {
-                "status": "error",
-                "action": "drift",
-                "message": "PropertyGraph not available. Run reindex first.",
-            }
+        # Находим PropertyGraph (через indexer или напрямую)
+        db_path = None
+        try:
+            indexer = self.resolve_indexer()
+            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
+            if pg:
+                db_path = pg._db_path if hasattr(pg, '_db_path') else getattr(pg, 'path', None)
+        except Exception:
+            pass
 
-        db_path = pg._db_path if hasattr(pg, '_db_path') else \
-                  Path(getattr(pg, 'path', ''))
+        # Fallback: прямой путь к PropertyGraph
+        if not db_path:
+            from pathlib import Path
+            try:
+                registry = self._services.resolve(ProjectIndexerRegistry)
+                roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
+                for r in roots:
+                    candidate = Path(r) / ".codebase" / "graph.db"
+                    if candidate.exists():
+                        db_path = str(candidate)
+                        break
+            except Exception:
+                pass
+        if not db_path:
+            candidate = Path("D:/Project/MSCodeBase/.codebase/graph.db")
+            if candidate.exists():
+                db_path = str(candidate)
+
         if not db_path or not Path(str(db_path)).exists():
             return {
                 "status": "error",
                 "action": "drift",
-                "message": "PropertyGraph DB not found.",
+                "message": "PropertyGraph not available. Run reindex first.",
             }
 
         conn = sqlite3.connect(str(db_path))
