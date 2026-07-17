@@ -34,13 +34,9 @@ If you discover a security vulnerability in MSCodeBase Intelligence, please repo
 
 | Version | Support |
 |---------|---------|
-| 2.0.x | ✅ Current (hybrid LSP+MCP) |
-| 1.4.x | ✅ Yes |
-| 1.3.x | ✅ Yes |
-| 1.2.x | ✅ Yes |
-| 1.1.x | ⚠️ Critical patches only |
-| 1.0.x | ⚠️ Critical patches only |
-| <1.0 | ❌ No |
+| 3.2.x | ✅ Current (hybrid LSP+MCP) |
+| 2.x | ⚠️ Critical patches only |
+| < 2.0 | ❌ No |
 
 ---
 

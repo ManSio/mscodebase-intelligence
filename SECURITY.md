@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.4.x   | ✅ Active development |
+| 3.2.x   | ✅ Active development |
+| 2.4.x   | ⚠️ Critical patches only |
 | < 2.4   | ❌ Not supported |
 
 ## Reporting a Vulnerability
