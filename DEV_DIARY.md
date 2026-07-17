@@ -5,6 +5,87 @@
 
 ---
 
+## 2026-07-17 — Phase 2: PropertyGraph IMPORTS (Idea 1 blocker) устранён
+
+**Контекст:** В PropertyGraph было 0 IMPORTS-рёбер при 3517 других рёбрах.
+Парсер (CodeParser) извлекал calls и assignments, но полностью игнорировал
+import statements. Это блокировало Architecture Drift Detector (Idea 1).
+
+**Что сделано:**
+1. `IMPORT_NODE_MAP` — per-language отображение Tree-sitter node-типов импортов
+   (20 языков: Python, Rust, TS/TSX, Go, JS, Java, C#, Ruby, PHP, Kotlin, Swift,
+   C/C++, Scala, Dart, Bash)
+2. `extract_imports()` — обход AST, сбор импортов с target_module
+3. `_pure_add_imports()` — создание Module-узлов + IMPORTS-рёбер в PropertyGraph
+4. `add_imports()` — публичный API SymbolIndexAdapter
+5. Интеграция в `index_pipeline.py` — вызов при каждом индексировании файла
+
+**Валидация:**
+- `parser.extract_imports(engine.py)` → 17 импортов
+- `parser.extract_imports(parser.py)` → 25 импортов
+- SymbolIndexAdapter.add_imports() → корректные IMPORTS edges (mock.py → httpx)
+
+**Архитектурный урок:** CodeParser игнорировал import-узлы AST ровно по той же
+причине, что и TARGET_NODES/CALL_NODES — их просто не было в списке. Добавление
+IMPORT_NODE_MAP решило проблему за один проход.
+
+**Следующий шаг:** `intel_trigger_reindex()` для наполнения PropertyGraph
+IMPORTS-рёбрами в production. После реиндекса — Cypher-запросы для
+Architecture Drift Detector.
+
+**Коммит:** `142761d` — 4 файла, +202/-6 строк
+
+**Статус:** ✅ Phase 2 завершена
+
+---
+
+## 2026-07-17 — Phase 1: Explainability Layer (Idea 3) внедрён
+
+**Контекст:** search_code был «чёрным ящиком» — агент видел финальный список
+результатов, но не знал, ПОЧЕМУ каждый чанк на конкретной позиции.
+
+**Что сделано:**
+1. Создан `src/core/search/trace.py` — SearchTracer (коллектор) + ChunkTrace (per-chunk dataclass)
+2. В `engine.py` добавлены tracer-хуки на 7 этапов пайплайна:
+   Query Expansion → BM25 → Dense → RRF → MMR → Bucket → Co-change → Reranker
+3. В `search_tools.py` — `explain: bool = False` параметр для search_code
+4. Формат вывода: to_dict() для JSON, to_markdown() для агента
+5. Zero-cost disable: при explain=False tracer не создаётся (0 оверхед)
+
+**API:** `search_code(query="...", explain=True)` → результаты + блок 🔍 Explain Trace
+
+**Коммит:** `012da96` — 4 файла, +470/-10 строк
+
+**Статус:** ✅ Phase 1 завершена. Следующий шаг: Phase 2 — PropertyGraph IMPORTS.
+
+---
+
+## 2026-07-17 — R&D: 4 идеи для новых MCP-инструментов
+
+**Контекст:** Глубокое архитектурное исследование 4 направлений развития MSCodeBase.
+
+**Исследовано:** 35+ файлов кода, 5 прототипов, comparison matrix с 15 внешними инструментами.
+
+**Результаты:**
+| Идея | Вердикт | Сложность |
+|------|---------|-----------|
+| 1. Architecture Drift Detector | Блокер: 0 IMPORTS-рёбер в PropertyGraph | Средняя |
+| 2. Semantic Drift Tracker | Перспективно, но требует pre-commit hook | Высокая |
+| 3. Explainability Layer ✅ | Внедрено (см. выше) | Низкая |
+| 4. Claim Verifier | Готовность высокая, SymbolIndex + AST + CALLS есть | Средняя |
+
+**Ключевое открытие:** PropertyGraph содержит 2743 узла и 3517 рёбер,
+но 0 (ноль!) IMPORTS-рёбер — парсер не извлекает импорты в граф.
+Это блокер для Architecture Drift Detector.
+
+**Статус:** ✅ Исследование завершено, Phase 1 реализована
+
+---
+
+## 2026-07-17 — Переключение на multilingual-e5-small-int8 (384-dim)
+
+---
+
 ## 2026-07-17 — Переключение на multilingual-e5-small-int8 (384-dim)
 
 **Контекст:** После многомесячной борьбы с «плавающими» нулевыми векторами и мусорными результатами поиска обнаружена первопричина — INT8 модель `e5-base-v2-int8` была сквантизирована из BERT-uncased (vocab=30522), а не из `intfloat/e5-base-v2` (vocab=250002). Все семантические эмбеддинги были ортогональны эталону (cos≈0), но это маскировалось гибридным поиском BM25+Vector (RRF).
