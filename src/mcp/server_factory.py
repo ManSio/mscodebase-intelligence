@@ -90,14 +90,18 @@ class HeartbeatService:
                 self._running = False
 
     def _shutdown(self, reason: str) -> None:
+        """Graceful shutdown — atexit и finally сработают корректно."""
         logger.warning(f"🛑 Graceful shutdown: {reason}")
         try:
             sys.stdout.flush()
             sys.stderr.flush()
+        except Exception:
+            pass
+        try:
+            _shutdown_services()
         except Exception as _e:
             logger.warning("exception", exc_info=True)
-            pass
-        os._exit(0)
+        sys.exit(0)
 
     def start_monitor(self) -> None:
         with self._lock:
@@ -346,15 +350,25 @@ def _trigger_auto_index_if_empty(services):
             logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
             async def _auto():
                 try:
+                    # Ждём готовности рантайма (1.5s чтобы MCP успел стартовать)
+                    await asyncio.sleep(1.5)
+                    from src.mcp.server import _ext_root
+                    if indexer.project_path.resolve() == _ext_root.resolve():
+                        logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
+                        return
                     c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
-                    logger.info(f"✅ Авто-индексация: {c} файлов")
+                    logger.info(f"✅ Авто-индексация завершена: {c} файлов")
                 except Exception as e:
-                    logger.warning(f"Авто-индексация: {e}")
+                    logger.warning(f"Авто-индексация не выполнена: {e}")
             try:
                 loop = asyncio.get_event_loop()
-                (asyncio.ensure_future if loop.is_running() else loop.call_soon)(lambda: asyncio.ensure_future(_auto()))
+                if loop.is_running():
+                    asyncio.ensure_future(_auto())
+                else:
+                    # Если цикл ещё не запущен — используем create_task после старта
+                    loop.call_soon(lambda: asyncio.ensure_future(_auto()))
             except RuntimeError:
-                pass
+                logger.debug("Auto-index: event loop not available, retry at first request")
     except Exception as e:
         logger.debug(f"Авто-индексация: {e}")
 

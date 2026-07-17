@@ -3,7 +3,7 @@ line-length = 100
 
 [lint]
 select = ["F", "I", "E", "W"]
-ignore = ["E501", "F405", "E701", "F821"]
+ignore = ["E501", "F405", "E701"]
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401", "F403", "F405"]
@@ -12,3 +12,8 @@ ignore = ["E501", "F405", "E701", "F821"]
 "src/core/intelligence/layer.py" = ["E402"]
 "src/core/multi_project_searcher.py" = ["E402"]
 "src/mcp/server.py" = ["E402"]
+# Легаси-долг: F821 (undefined name) — будет починено при рефакторинге
+"src/core/search/cypher_sql.py" = ["F821"]
+"src/core/search/composition_adapter.py" = ["F821"]
+"src/mcp/tools/graph_tools.py" = ["F821"]
+"src/core/start_reranker_snippet.py" = ["F821"]

@@ -125,13 +125,32 @@ class LanceDBWriter:
         return data_records
 
     def _safe_recreate_table(self):
-        """Fallback: удалить и пересоздать таблицу при потере."""
+        """Fallback: удалить и пересоздать таблицу при потере.
+        
+        После пересоздания обновляет self.table на актуальный объект
+        и вызывает on_recreate callback (если есть) для синхронизации
+        ссылок в Indexer и IndexProjectRunner.
+        """
         try:
-            # Берём схему из существующей таблицы
             schema = self.table.schema
             self.table.db.drop_table("codebase_chunks")
             self.table = self.table.db.create_table("codebase_chunks", schema=schema)
+            logger.info("✅ Таблица пересоздана (fresh schema)")
+            # Оповещаем внешние компоненты о новом объекте таблицы
+            if hasattr(self, '_on_recreate') and self._on_recreate:
+                try:
+                    self._on_recreate(self.table)
+                except Exception as cb_err:
+                    logger.warning(f"on_recreate callback failed: {cb_err}")
             return True
         except Exception as e:
             logger.error(f"Table recreation failed: {e}")
             return False
+
+    def set_on_recreate_callback(self, callback):
+        """Устанавливает callback, который вызывается после пересоздания таблицы.
+        
+        Позволяет Indexer/IndexProjectRunner синхронизировать свою ссылку self.table
+        с новым объектом таблицы после _safe_recreate_table().
+        """
+        self._on_recreate = callback

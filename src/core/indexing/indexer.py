@@ -76,6 +76,14 @@ class Indexer(IndexerTableMixin):
         self._table_write_lock = threading.Lock()
         self._symbol_index_lock = threading.Lock()
 
+        # IndexParser — чистый парсер без БД и SymbolIndex
+        from src.core.indexing.index_parser import IndexParser
+        self._index_parser = IndexParser(
+            parser=self.parser,
+            path_manager=self.path_manager,
+            project_path=self.project_path,
+        )
+
         # Watchdog
         self._watchdog_heartbeat = time.time()
         self._watchdog_ever_beat = False
@@ -120,6 +128,7 @@ class Indexer(IndexerTableMixin):
         self._pipeline = IndexPipeline(
             embedder=self.embedder,
             parser=self.parser,
+            index_parser=self._index_parser,
             symbol_index=self._symbol_index,
             symbol_index_lock=self._symbol_index_lock,
             project_path=self.project_path,
@@ -144,6 +153,8 @@ class Indexer(IndexerTableMixin):
             index_lock=self._index_lock,
             embedder=self.embedder,
         )
+        # Регистрируем callback для синхронизации таблицы при пересоздании
+        self._db_writer.set_on_recreate_callback(self._sync_table_ref)
 
         # ─── FreshnessChecker
         from src.core.indexing.freshness import FreshnessChecker
@@ -204,6 +215,30 @@ class Indexer(IndexerTableMixin):
         Идемпотентен: повторный вызов заменяет ссылку.
         """
         self.searcher = searcher
+
+    def _sync_table_ref(self, new_table) -> None:
+        """Синхронизирует self.table во всех компонентах после пересоздания таблицы.
+
+        Вызывается из LanceDBWriter._safe_recreate_table() через callback.
+        Обновляет table в:
+        - Indexer.table
+        - Indexer._db_writer.table (уже обновлён в _safe_recreate_table)
+        - Indexer._status_reporter.table
+        - Indexer._freshness_checker.table
+        - Indexer._file_move_manager.table
+        - Indexer._project_runner.table
+        """
+        self.table = new_table
+        if hasattr(self, '_status_reporter') and self._status_reporter is not None:
+            self._status_reporter.table = new_table
+            self._status_reporter.reset_cache()
+        if hasattr(self, '_freshness_checker') and self._freshness_checker is not None:
+            self._freshness_checker.table = new_table
+        if hasattr(self, '_file_move_manager') and self._file_move_manager is not None:
+            self._file_move_manager.table = new_table
+        if hasattr(self, '_project_runner') and self._project_runner is not None:
+            self._project_runner.table = new_table
+        logger.info("🔄 Table reference synced across all components")
 
     # ══════════════════════════════════════════════════════════
         # Async LanceDB API (delegated to LanceDBManager)
@@ -287,31 +322,21 @@ class Indexer(IndexerTableMixin):
     ) -> Optional[Dict]:
         """Только парсинг файла (без эмбеддинга и записи в БД).
 
+        Делегирует чтение и AST-чанкинг в IndexParser, затем
+        добавляет LanceDB-специфичные поля и обновляет SymbolIndex.
+
         Returns:
             Dict с данными чанков или None если файл не изменился.
-            Структура: {
-                "rel_path": str, "current_hash": str, "escaped_path": str,
-                "existing_hash": str | None, "chunk_texts": List[str],
-                "chunk_texts_full": List[str], "chunk_metadatas": List[Dict],
-                "health": Dict, "source": str
-            }
         """
         try:
-            safe_read_path = self.path_manager.get_safe_path(full_path)
-            with open(str(safe_read_path), "rb") as f:
-                raw_data = f.read()
-            content = raw_data.decode("utf-8", errors="replace")
-
-            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
-            escaped_path = self._escape_file_path_for_lance(rel_path_str)
-
-            # Проверка хэша (один bulk-запрос в index_project или per-file в _index_single_file)
+            # 1. Получаем existing_hash (из bulk-кэша или через self.table)
             existing_hash = None
             if known_hashes is not None:
                 existing_hash = known_hashes.get(rel_path_str)
             else:
                 try:
                     if self.table is not None:
+                        escaped_path = self._escape_file_path_for_lance(rel_path_str)
                         existing_df = (
                             self.table.search()
                             .where(f"file_path = '{escaped_path}'", prefilter=True)
@@ -323,49 +348,31 @@ class Indexer(IndexerTableMixin):
                 except Exception as _e:
                     logger.warning("exception", exc_info=True)
                     pass
-            if existing_hash == current_hash:
-                return None  # не изменился
 
-            if not content.strip():
+            # 2. Чистый парсинг через IndexParser
+            parsed = self._index_parser.parse_file(
+                full_path=full_path,
+                rel_path_str=rel_path_str,
+                source=source,
+                existing_hash=existing_hash,
+            )
+            if parsed is None:
                 return None
 
-            # Очистка PropertyGraph через SymbolIndexAdapter (с нормализацией пути)
-            if hasattr(self._symbol_index, "graph"):
-                pg = self._symbol_index.graph
-                if pg:
-                    self._symbol_index.remove_file(str(full_path))
+            # 3. LanceDB-специфичное экранирование пути
+            parsed["escaped_path"] = self._escape_file_path_for_lance(rel_path_str)
 
-            # AST-чанкинг + Breadcrumbs (как в _index_single_file)
-            chunk_texts: List[str] = []
-            chunk_texts_full: List[str] = []
-            chunk_metadatas: List[Dict] = []
-            health = {"score": 0.0, "band": ""}
-
+            # 4. Обновление SymbolIndex
             if self.parser is not None:
                 try:
-                    ast_chunks, symbols = self.parser.parse_file(full_path)
-                    if ast_chunks:
-                        for c in ast_chunks:
-                            compact = c.get("text_compact", "") or c.get("text", "")
-                            full = c.get("text", "")
-                            if compact.strip():
-                                _module = c.get("module_name", "")
-                                _level = c.get("hierarchy_level", "other")
-                                _type = c.get("symbol_type", c.get("type", ""))
-                                _scope_parts = [p for p in [_level, _type, _module] if p]
-                                _scope = " | ".join(_scope_parts) if _scope_parts else _module
-                                _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
-                                chunk_texts.append(_header + compact)
-                                chunk_texts_full.append(_header + full)
-                                chunk_metadatas.append({
-                                    "layer": c.get("layer", ""),
-                                    "module_name": c.get("module_name", ""),
-                                    "hierarchy_level": c.get("hierarchy_level", "other"),
-                                    "is_public": c.get("is_public", False),
-                                    "symbol_type": c.get("symbol_type", c.get("type", "")),
-                                    "parent_id": c.get("parent_id", ""),
-                                    "callees": c.get("callees", ""),
-                                })
+                    # Очистка PropertyGraph
+                    if hasattr(self._symbol_index, "graph"):
+                        pg = self._symbol_index.graph
+                        if pg:
+                            self._symbol_index.remove_file(str(full_path))
+
+                    # AST-символы из кэша IndexParser (без повторного парсинга)
+                    _ast_chunks, symbols = parsed.get("_ast_symbols", (None, None))
                     if symbols:
                         with self._symbol_index_lock:
                             self._symbol_index.add_definitions(str(full_path), symbols)
@@ -381,43 +388,11 @@ class Indexer(IndexerTableMixin):
                         if imports:
                             with self._symbol_index_lock:
                                 self._symbol_index.add_imports(str(full_path), imports)
-                except Exception as ast_err:
-                    logger.warning(f"⚠️ AST-чанкинг не удался для {rel_path_str}: {ast_err}")
-                    chunk_texts = []
-                    chunk_metadatas = []
+                except Exception as sym_err:
+                    logger.warning(f"SymbolIndex update failed for {rel_path_str}: {sym_err}")
 
-            if not chunk_texts:
-                _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
-                chunk_texts = [
-                    _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
-                ]
-                chunk_texts_full = chunk_texts
-                chunk_metadatas = [{
-                    "layer": "", "module_name": "", "hierarchy_level": "other",
-                    "is_public": False, "symbol_type": "", "parent_id": "", "callees": "",
-                } for _ in chunk_texts]
+            return parsed
 
-            if not chunk_texts:
-                return None
-
-            # Code Health
-            try:
-                from src.core.code_health import score_file
-                health = score_file(rel_path_str, self.project_path)
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
-            return {
-                "rel_path": rel_path_str,
-                "current_hash": current_hash,
-                "escaped_path": escaped_path,
-                "existing_hash": existing_hash,
-                "chunk_texts": chunk_texts,
-                "chunk_texts_full": chunk_texts_full,
-                "chunk_metadatas": chunk_metadatas,
-                "health": health,
-                "source": source,
-            }
         except Exception as e:
             logger.warning(f"⚠️ Ошибка парсинга {rel_path_str}: {e}")
             return None

@@ -251,15 +251,30 @@ class IndexProjectRunner:
                 progress_callback("", total_files, total_files, "rebuilding_bm25")
             self.searcher.reindex()
 
-        # IVF index
-        if self.table and self.table.count_rows() > 1000:
-            try:
-                # LanceDB new API: optimize без compaction
-                self.table.optimize()
-                time.sleep(1)
+        # IVF index — separate optimize from create_index with timeout + circuit breaker
+        if self.table:
+            _row_count = self.table.count_rows()
+            if _row_count > 1000:
+                # Phase 1: optimize (with timeout protection for Windows)
+                try:
+                    _opt_ex = ThreadPoolExecutor(max_workers=1)
+                    try:
+                        _opt_ex.submit(self.table.optimize).result(timeout=300)
+                    finally:
+                        _opt_ex.shutdown(wait=False)
+                except Exception as e:
+                    logger.warning(f"Table optimize failed (non-critical, continuing): {e}")
+
+                # Circuit breaker: if rows dropped to 0 after optimize, skip index
                 _row_count = self.table.count_rows()
-                logger.info(f"Creating index ({_row_count} chunks)...")
-                if _row_count > 0:
+                if _row_count == 0:
+                    logger.warning(
+                        "count_rows is 0 after optimize — "
+                        "skipping index creation"
+                    )
+                else:
+                    logger.info(f"Creating index ({_row_count} chunks)...")
+                    # Drop existing indices
                     try:
                         for idx in self.table.list_indices():
                             idx_name = getattr(idx, "name", None)
@@ -267,13 +282,22 @@ class IndexProjectRunner:
                                 self.table.drop_index(idx_name)
                     except Exception:
                         pass
-                    self.table.create_index(
-                        metric="cosine", vector_column_name="vector",
-                        index_type="IVF_FLAT", replace=True,
-                    )
-                    logger.info("IVF_FLAT index created")
-            except Exception as e:
-                logger.warning(f"Index optimize/create failed (non-critical): {e}")
+                    # Create IVF_FLAT index (LanceDB 0.33+ config-based API)
+                    try:
+                        self.table.create_index(
+                            "vector",
+                            index_type="IVF_FLAT",
+                            metric="cosine",
+                            replace=True,
+                        )
+                        logger.info("IVF_FLAT index created")
+                    except TypeError:
+                        # Fallback to legacy positional API (< 0.33)
+                        self.table.create_index(
+                            metric="cosine", vector_column_name="vector",
+                            index_type="IVF_FLAT", replace=True,
+                        )
+                        logger.info("IVF_FLAT index created (legacy API)")
 
         final_stats = get_status() if get_status else {}
         if progress_callback:

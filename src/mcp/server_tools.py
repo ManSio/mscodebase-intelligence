@@ -26,15 +26,20 @@ logger = logging.getLogger("mscodebase_server.tools")
 
 
 def register_all_tools(mcp, services):
-    """Регистрирует core-инструменты + codebase hub + execute_script E2B.
+    """Регистрирует core-инструменты + codebase hub + execute_script.
 
     Hub & Spoke архитектура:
     - codebase(action) — единый интерфейс для всех операций с кодом
-    - execute_script(code) — E2B-песочница для всего остального
+    - execute_script(code) — выполнение Python-кода (отключено по умолчанию,
+      требуется MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env)
     - ML-инструменты (search, symbol, graph, intel) — остаются native
 
     Вызывается из create_mcp_server().
     """
+    _exec_script_enabled = (
+        os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower()
+        == "true"
+    )
     from src.mcp.tools.analysis_tools import (
         GenerateChunkSummariesTool,
         GetRepoMapTool,
@@ -42,10 +47,10 @@ def register_all_tools(mcp, services):
         ScanChangesTool,
         StructuralSearchTool,
     )
-    from src.mcp.tools.codebase_tool import (
-        CodebaseTool,
-        ExecuteScriptTool,
-    )
+    from src.mcp.tools.codebase_tool import CodebaseTool
+
+    if _exec_script_enabled:
+        from src.mcp.tools.codebase_tool import ExecuteScriptTool
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
@@ -74,8 +79,6 @@ def register_all_tools(mcp, services):
         ImpactAnalysisTool,
         # Hub: codebase (единый интерфейс для всех операций)
         CodebaseTool,
-        # Spoke: E2B песочница (код как инструмент)
-        ExecuteScriptTool,
         # Analysis (5)
         StructuralSearchTool,
         GetRepoMapTool,
@@ -97,6 +100,19 @@ def register_all_tools(mcp, services):
         VerifyActionTool,
     ]
 
+    # Spoke: execute_cript — только если явно включён
+    if _exec_script_enabled:
+        tool_classes.append(ExecuteScriptTool)
+        logger.warning(
+            "⚠️ ExecuteScriptTool включён — RCE-риск: код выполняется на хосте "
+            "без sandbox-изоляции. Убедитесь, что понимаете последствия."
+        )
+    else:
+        logger.info(
+            "🔒 ExecuteScriptTool отключён. Включить: "
+            "MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env"
+        )
+
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
     _raw_allowlist_env = os.environ.get("MSCODEBASE_MCP_TOOLS")
     _raw_allowlist = (_raw_allowlist_env or "").strip()
@@ -110,8 +126,8 @@ def register_all_tools(mcp, services):
         _allowed_names = {
             # Hub: codebase — единый интерфейс
             "codebase",
-            # Spoke: E2B песочница
-            "execute_script",
+            # execute_cript не в allowlist по умолчанию — регистрируется
+            # только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
             # ML-native (не заменяются E2B)
             "search_code", "get_symbol_info", "impact_analysis",
             "intel_get_runtime_status", "intel_get_project_context",

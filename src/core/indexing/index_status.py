@@ -29,22 +29,32 @@ class IndexStatusReporter:
         self._cached_total_chunks = 0
         self._cached_unique_files: Set[str] = set()
 
+    def reset_cache(self) -> None:
+        """Сбрасывает кэш (вызывается при пересоздании таблицы)."""
+        self._cached_total_chunks = 0
+        self._cached_unique_files.clear()
+
     def get_status(self) -> Dict[str, Any]:
-        """Возвращает статистику базы данных."""
+        """Возвращает статистику базы данных.
+        
+        Всегда сверяет кэш с реальным count_rows() — stale cache
+        не должен показывать данные, которых нет в таблице.
+        """
         try:
-            total_chunks = self._cached_total_chunks
-            if total_chunks == 0 and self.table is not None:
+            # Всегда FALLBACK к реальному count_rows, кэш — только оптимизация
+            total_chunks = 0
+            if self.table is not None:
                 try:
                     total_chunks = self.table.count_rows()
-                    self._cached_total_chunks = total_chunks
                 except Exception:
-                    pass
+                    total_chunks = self._cached_total_chunks
+            self._cached_total_chunks = total_chunks
 
             unique_files = self._cached_unique_files
             unique_count = len(unique_files) if isinstance(unique_files, set) else 0
 
-            # Fallback: если кэш пуст, но чанки есть
-            if unique_count == 0 and total_chunks > 0 and self.table is not None:
+            # Всегда обновляем unique_files из таблицы, если есть чанки
+            if total_chunks > 0 and self.table is not None:
                 _fp_series = None
                 for method_name, method in [
                     ("to_lance", lambda: self.table.to_lance().to_pandas(columns=["file_path"])["file_path"]),

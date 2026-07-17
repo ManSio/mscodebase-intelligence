@@ -12,6 +12,8 @@ from typing import Any, List, Optional
 
 import httpx
 
+import numpy as np
+
 from src.config.settings import get_config
 from src.core.interfaces import IEmbedder
 from src.core.platform_utils import get_extension_dir

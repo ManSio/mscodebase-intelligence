@@ -3,16 +3,16 @@ IndexPipeline — ядро пайплайна индексации одного 
 
 Выделено из Indexer._index_single_file + _parse_file_only (Фаза 2).
 Отвечает за:
-- AST-парсинг через CodeParser (с fallback на символьное деление)
+- AST-парсинг через IndexParser (делегировано)
 - Эмбеддинг чанков через embedder
 - Обновление SymbolIndex (definitions, references, assignments)
-- Code Health scoring
 - Возврат готовых данных для записи в LanceDB
 
 Не содержит:
 - Логику открытия/закрытия таблиц (LanceDBManager)
-- Логику записи в LanceDB (_write_file_records)
+- Логику записи в LanceDB (LanceDBWriter)
 - Логику переключения проектов
+- Собственный парсинг (использует IndexParser)
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 __all__ = [
     "IndexPipeline",
@@ -29,18 +29,20 @@ logger = logging.getLogger("mscodebase_server.index_pipeline")
 
 
 class IndexPipeline:
-    """Пайплайн: файл -> AST-чанки -> эмбеддинги -> готовые записи."""
+    """Пайплайн: файл -> IndexParser -> эмбеддинги -> готовые записи."""
 
     def __init__(
         self,
         embedder,
         parser,
+        index_parser,
         symbol_index,
         symbol_index_lock,
         project_path: Path,
     ):
         self.embedder = embedder
         self.parser = parser
+        self._index_parser = index_parser
         self._symbol_index = symbol_index
         self._symbol_index_lock = symbol_index_lock
         self.project_path = project_path
@@ -53,7 +55,7 @@ class IndexPipeline:
         current_hash: str,
         source: str = "filesystem",
     ) -> Optional[Dict[str, Any]]:
-        """Обрабатывает один файл: парсинг -> эмбеддинг.
+        """Обрабатывает один файл: IndexParser -> эмбеддинг.
 
         Args:
             rel_path_str: относительный путь (src/core/indexer.py)
@@ -69,50 +71,53 @@ class IndexPipeline:
         if not content.strip():
             return None
 
-        # Очистка старых данных из PropertyGraph
-        if hasattr(self._symbol_index, "graph"):
-            pg = self._symbol_index.graph
-            if pg:
-                rel_posix = rel_path_str.replace("\\", "/")
-                pg.remove_file(rel_posix)
-
-        # AST-aware чанкинг
-        chunk_texts: List[str] = []
-        chunk_texts_full: List[str] = []
-        chunk_metadatas: List[Dict] = []
-        health = {"score": 0.0, "band": ""}
-
-        chunk_texts, chunk_texts_full, chunk_metadatas = self._parse_chunks(
-            rel_path_str=rel_path_str,
+        # Парсинг через IndexParser (с AST-кэшем)
+        parsed = self._index_parser.parse_file(
             full_path=full_path,
-            content=content,
+            rel_path_str=rel_path_str,
+            source=source,
         )
-        if not chunk_texts:
+        if parsed is None:
             return None
 
-        # Code Health
-        try:
-            from src.core.code_health import score_file
-            health = score_file(rel_path_str, self.project_path)
-        except Exception:
-            pass
+        # SymbolIndex из AST-кэша (без повторного парсинга)
+        _ast_chunks, symbols = parsed.get("_ast_symbols", (None, None))
+        if symbols and self.parser is not None:
+            try:
+                with self._symbol_index_lock:
+                    self._symbol_index.add_definitions(str(full_path), symbols)
+                calls = self.parser.extract_calls(full_path)
+                if calls:
+                    with self._symbol_index_lock:
+                        self._symbol_index.add_references(str(full_path), calls)
+                assignments = self.parser.extract_assignments(full_path)
+                if assignments:
+                    with self._symbol_index_lock:
+                        self._symbol_index.add_assignments(str(full_path), assignments)
+                imports = self.parser.extract_imports(full_path)
+                if imports:
+                    with self._symbol_index_lock:
+                        self._symbol_index.add_imports(str(full_path), imports)
+            except Exception as sym_err:
+                logger.warning(f"SymbolIndex update failed for {rel_path_str}: {sym_err}")
 
         # Embedding
+        chunk_texts = parsed.get("chunk_texts", [])
+        if not chunk_texts:
+            return None
         embeddings = self.embedder.embed_batch(chunk_texts)
         gc.collect()
         if not embeddings or any(len(e) == 0 for e in embeddings):
-            logger.warning(
-                f"Empty embeddings for {rel_path_str}. Skipping."
-            )
+            logger.warning(f"Empty embeddings for {rel_path_str}. Skipping.")
             return None
 
         return {
             "rel_path": rel_path_str,
             "current_hash": current_hash,
-            "chunk_texts": chunk_texts,
-            "chunk_texts_full": chunk_texts_full,
-            "chunk_metadatas": chunk_metadatas,
-            "health": health,
+            "chunk_texts": parsed["chunk_texts"],
+            "chunk_texts_full": parsed.get("chunk_texts_full", []),
+            "chunk_metadatas": parsed.get("chunk_metadatas", []),
+            "health": parsed.get("health", {"score": 0.0, "band": ""}),
             "source": source,
             "embeddings": embeddings,
         }
@@ -123,111 +128,13 @@ class IndexPipeline:
         rel_path_str: str,
         source: str = "filesystem",
     ):
-        """Parse only (no embedding). Returns dict for write or None."""
-        try:
-            safe_path = full_path
-            if not safe_path.exists():
-                return None
-            with open(str(safe_path), "rb") as f:
-                raw_data = f.read()
-            content = raw_data.decode("utf-8", errors="replace")
-            if not content.strip():
-                return None
-            import hashlib
-            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
-            escaped_path = rel_path_str.replace("'", "''")
+        """Parse only (no embedding). Delegated to IndexParser.
 
-            # Parse chunks (same logic as process_file but without embedding)
-            chunk_texts, chunk_texts_full, chunk_metadatas, health = self._parse_chunks(
-                rel_path_str=rel_path_str,
-                full_path=full_path,
-                content=content,
-            )
-            if not chunk_texts:
-                return None
-
-            health_score = {"score": 0.0, "band": ""}
-            try:
-                from src.core.code_health import score_file
-                health_score = score_file(rel_path_str, self.project_path)
-            except Exception:
-                pass
-
-            return {
-                "rel_path": rel_path_str,
-                "current_hash": current_hash,
-                "escaped_path": escaped_path,
-                "existing_hash": None,
-                "chunk_texts": chunk_texts,
-                "chunk_texts_full": chunk_texts_full,
-                "chunk_metadatas": chunk_metadatas,
-                "health": health_score,
-                "source": source,
-            }
-        except Exception as e:
-            logger.warning(f"Parse failed {rel_path_str}: {e}")
-            return None
-
-    def _parse_chunks(self, rel_path_str, full_path, content):
-        """Common chunking logic used by both process_file and parse_file_only."""
-        chunk_texts = []
-        chunk_texts_full = []
-        chunk_metadatas = []
-
-        if self.parser is not None:
-            try:
-                ast_chunks, symbols = self.parser.parse_file(full_path)
-                if ast_chunks:
-                    for c in ast_chunks:
-                        compact = c.get("text_compact", "") or c.get("text", "")
-                        full = c.get("text", "")
-                        if compact.strip():
-                            _module = c.get("module_name", "")
-                            _level = c.get("hierarchy_level", "other")
-                            _type = c.get("symbol_type", c.get("type", ""))
-                            _scope_parts = [p for p in [_level, _type, _module] if p]
-                            _scope = " | ".join(_scope_parts) if _scope_parts else _module
-                            _header = f"// File: {rel_path_str} | Scope: {_scope}\n"
-                            chunk_texts.append(_header + compact)
-                            chunk_texts_full.append(_header + full)
-                            chunk_metadatas.append({
-                                "layer": c.get("layer", ""),
-                                "module_name": c.get("module_name", ""),
-                                "hierarchy_level": c.get("hierarchy_level", "other"),
-                                "is_public": c.get("is_public", False),
-                                "symbol_type": c.get("symbol_type", c.get("type", "")),
-                                "parent_id": c.get("parent_id", ""),
-                                "callees": c.get("callees", ""),
-                            })
-                    if symbols:
-                        with self._symbol_index_lock:
-                            self._symbol_index.add_definitions(str(full_path), symbols)
-                        calls = self.parser.extract_calls(full_path)
-                        if calls:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_references(str(full_path), calls)
-                        assignments = self.parser.extract_assignments(full_path)
-                        if assignments:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_assignments(str(full_path), assignments)
-                        imports = self.parser.extract_imports(full_path)
-                        if imports:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_imports(str(full_path), imports)
-            except Exception as ast_err:
-                logger.warning(f"AST chunking failed for {rel_path_str}, fallback: {ast_err}")
-                chunk_texts = []
-                chunk_metadatas = []
-
-        if not chunk_texts:
-            _fb_header = f"// File: {rel_path_str} | Scope: fallback\n"
-            chunk_texts = [
-                _fb_header + content[i : i + 1000] for i in range(0, len(content), 800)
-            ]
-            chunk_texts_full = chunk_texts
-            chunk_metadatas = [{
-                "layer": "", "module_name": "", "hierarchy_level": "other",
-                "is_public": False, "symbol_type": "", "parent_id": "", "callees": "",
-            } for _ in chunk_texts]
-
-        return chunk_texts, chunk_texts_full, chunk_metadatas
+        Сохранён для обратной совместимости. Новый код использует
+        IndexParser напрямую.
+        """
+        return self._index_parser.parse_file(
+            full_path=full_path,
+            rel_path_str=rel_path_str,
+            source=source,
+        )
