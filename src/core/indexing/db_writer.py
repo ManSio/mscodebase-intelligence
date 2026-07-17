@@ -56,6 +56,12 @@ class LanceDBWriter:
         for i, vec in enumerate(embeddings):
             if len(vec) != _target_dim:
                 embeddings[i] = vec[:_target_dim] + [0.0] * (_target_dim - len(vec))
+            # Guard: проверка нормы вектора (если norm=0, эмбеддер не работал)
+            _norm_sq = sum(v*v for v in embeddings[i])
+            if _norm_sq < 1e-9:
+                logger.warning(f"Zero vector for chunk {i} in {rel_path_str}")
+                # Не возвращаем [] — записываем как есть, чтобы индекс построился.
+                # Позже re-embed заменит нулевые векторы.
 
         for i in range(len(chunk_texts)):
             if i >= len(chunk_texts_full) or not chunk_texts_full[i]:

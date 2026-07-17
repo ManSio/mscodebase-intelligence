@@ -336,6 +336,13 @@ def _trigger_auto_index_if_empty(services):
             pass
         status = indexer.get_status()
         if status.get("total_chunks", 0) == 0:
+            # Ждём готовности эмбеддера (максимум 30с)
+            embedder = getattr(indexer, 'embedder', None)
+            if embedder and hasattr(embedder, 'is_ready'):
+                for _ in range(30):
+                    if embedder.is_ready():
+                        break
+                    time.sleep(1)
             logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
             async def _auto():
                 try:
