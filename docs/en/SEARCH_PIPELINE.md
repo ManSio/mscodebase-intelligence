@@ -93,7 +93,7 @@ flowchart LR
 ### 3. Dense Search (Vector, LanceDB)
 
 - **Purpose:** Semantic similarity — finds conceptually related code
-- **Model:** `multilingual-e5-base` (intfloat, 768-dim)
+- **Model:** `multilingual-e5-small-int8` (384-dim)
 - **Provider:** ONNX INT8 in-process (primary) / LM Studio (fallback)
 - **Index:** LanceDB v2 with IVF-PQ quantization
 

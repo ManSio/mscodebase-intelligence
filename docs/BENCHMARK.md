@@ -17,7 +17,7 @@
 | Indexed symbols | 3,221 |
 | Platform | Windows 11 (GitBash) |
 | Python | 3.12 |
-| Embedder | **ONNX E5-base INT8** (локальный, ~350 ch/s) |
+| Embedder | **ONNX multilingual-e5-small INT8** (113MB, 384-dim, ~37 ch/s) |
 | Reranker | llama.cpp BGE-M3 (Q4_K_M, отдельный процесс) |
 
 ---
@@ -148,7 +148,7 @@ Direct measurements comparing vanilla Read/Grep vs MSCodeBase on specific querie
 
 | Scenario | Time | Notes |
 |----------|------|-------|
-| ONNX/OpenVINO E5-base INT8 (in-process) | ~300ms | Default, fastest, no external server |
+| ONNX multilingual-e5-small INT8 (in-process) | ~300ms | Default, 113MB, 384-dim |
 | llama.cpp GGUF (GPU, optional) | 286ms | Optional GPU acceleration |
 | LM Studio (external, fallback) | ~2,000ms | Requires running server |
 
@@ -158,7 +158,7 @@ Direct measurements comparing vanilla Read/Grep vs MSCodeBase on specific querie
 
 | Component | Idle | Under Load | Peak (indexing) | Note |
 |-----------|------|-----------|-----------------|------|
-| Python MCP | ~1.0 GB | ~1.1 GB | ~1.1 GB | in-process ONNX/OpenVINO E5-base embedder |
+| Python MCP | ~1.0 GB | ~1.1 GB | ~1.1 GB | in-process ONNX E5-small embedder (113MB) |
 | llama reranker (bge-reranker) | **0 MB** (unloaded) | 440 MB | 440 MB | auto-unload after 5min idle |
 | **Total system** | **~1.0 GB** | **~1.5 GB** | **~1.5 GB** | physical + mmap |
 
@@ -314,7 +314,7 @@ The bigger the codebase, the more MSCodeBase saves.
 
 ## 12. MCP Tool Load Test (2026-07-12)
 
-**Цель:** прогнать ВСЕ зарегистрированные MCP-инструменты (59) вживую, замерить латентность и зафиксировать дефекты.
+**Цель:** прогнать ВСЕ зарегистрированные MCP-инструменты (37) вживую, замерить латентность и зафиксировать дефекты.
 
 ### Результаты по категориям
 

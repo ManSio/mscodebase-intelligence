@@ -694,10 +694,13 @@ def step_models(lines, lang):
     if _auto:
         ch = _auto
     else:
-        try:
-            ch = input(f"  {C.B}> {C.R}").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            ch = "n"
+        if os.getenv("MSCODEBASE_INSTALL_AUTO"):
+            ch = "y"
+        else:
+            try:
+                ch = input(f"  {C.B}> {C.R}").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                ch = "n"
     if ch not in ("", "y", "yes"):
         lines.append((C.D, "  Skipped — models will be handled by step_copy"))
         return

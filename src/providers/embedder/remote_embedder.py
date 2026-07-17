@@ -117,9 +117,11 @@ class RemoteEmbedder(IEmbedder):
                 # Lightweight dimension detection: onnx protobuf metadata,
                 # NOT full InferenceSession (saves ~544 MB peak).
                 dim = self._lightweight_onnx_dim(model_file)
+                if dim:
+                    self.embedding_dim = dim
                 dim_str = f"{dim}dim" if dim else "dim?"
                 logger.info(
-                    f"ONNX model: {subdir.name} ({dim_str}, {sz:.0f}MB) — no InferenceSession created"
+                    f"ONNX model: {subdir.name} ({dim_str}, {sz:.0f}MB) — embedding_dim={self.embedding_dim}"
                 )
                 break  # model found, exit inner loop
             else:
@@ -336,18 +338,31 @@ class RemoteEmbedder(IEmbedder):
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
-            # ═══ E5-base OpenVINO/ONNX (in-process) ═══
-            _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-            if _provider in ("e5_onnx", "auto", ""):
-                logger.info("🔌 Инициализация локального эмбеддера...")
-                self._init_onnx()
+            # ═══ E5-base ONNX Runtime/OpenVINO (in-process) ═══
+            _provider = os.getenv("ONNX_PROVIDERS", "cpu").lower()
 
-                # OpenVINO имеет приоритет (INT8, ~350 ch/s)
-                if hasattr(self, '_ov_compiled') and self._ov_compiled:
+            # ═══════════════════════════════════════════════════════════════
+            # ONNX Runtime CPU (рекомендуемый режим для AMD Ryzen)
+            # BASIC + i6 + inter=1 — лучшая конфигурация (17 ch/s)
+            # ═══════════════════════════════════════════════════════════════
+            if _provider in ("cpu", ""):
+                self._init_onnx()
+                if self._onnx_session:
                     with self._mode_lock:
                         self.mode = "onnx"
-                    logger.info("✅ OpenVINO INT8 запущен!")
+                        self._preferred_mode = "onnx"
+                    logger.info("✅ ONNX Runtime CPU запущен!")
                     return
+
+            # OpenVINO (по запросу, если ONNX_PROVIDERS=openvino)
+            if _provider == "openvino":
+                self._init_openvino()
+                if getattr(self, '_ov_compiled', None) is not None:
+                    with self._mode_lock:
+                        self.mode = "onnx"
+                        self._preferred_mode = "onnx"
+                    logger.info("✅ OpenVINO INT8 запущен!")
+                return
 
                 if self._onnx_session:
                     with self._mode_lock:
@@ -567,26 +582,31 @@ class RemoteEmbedder(IEmbedder):
                 if "DmlExecutionProvider" in ort.get_available_providers():
                     providers.insert(0, "DmlExecutionProvider")
 
-            # Только INT8 модель (model_quantized.onnx). FP32 не используется.
+            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
+            # INT8 — штатный путь (~350 ch/s), FP32 — fallback.
+            # Синхронно с _init_openvino.
             _model_dir_path = Path(self.local_model_dir)
             _int8_path = _model_dir_path / "model_quantized.onnx"
-            if not _int8_path.exists():
-                raise FileNotFoundError(
-                    f"INT8 модель не найдена: {_int8_path}. "
-                    f"Запустите install.py для установки модели."
-                )
-            _onnx_model_file = _int8_path
-            logger.info(f"🔧 ONNX: загружаю INT8 модель {_int8_path}")
+            _fp32_path = _model_dir_path / "model.onnx"
+            if _int8_path.exists():
+                _onnx_model_file = _int8_path
+                logger.info(f"🔧 ONNX: загружаю INT8 модель {_int8_path}")
+            elif _fp32_path.exists():
+                _onnx_model_file = _fp32_path
+                logger.info(f"🔧 ONNX: загружаю FP32 модель {_fp32_path}")
+            else:
+                raise FileNotFoundError(f"Модель не найдена: INT8={_int8_path}, FP32={_fp32_path}")
 
             import onnxruntime as _ort
             opts = _ort.SessionOptions()
             opts.enable_cpu_mem_arena = False
             opts.enable_mem_pattern = False
             opts.enable_mem_reuse = True
-            _cpu_count = os.cpu_count() or 8
-            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", str(_cpu_count)))
-            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", str(_cpu_count)))
-            opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            # BASIC — не фузит граф, сохраняет parallelism (см. эксперементы)
+            opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+            # 8 потоков — оптимум для Ryzen 5600 (18 ch/s, batch=4)
+            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", "8"))
+            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", "1"))
             opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
 
             self._onnx_session = ort.InferenceSession(
@@ -623,13 +643,21 @@ class RemoteEmbedder(IEmbedder):
             import openvino as ov
             from tokenizers import Tokenizer
 
-            # Только INT8 model_quantized.onnx. FP32 не используется.
+            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
+            # INT8 — штатный путь (~350 ch/s), FP32 — fallback.
+            # ORIGINAL from commit 0665a4b (Restore INT8).
             model_dir_path = Path(self.local_model_dir)
             int8_path = model_dir_path / "model_quantized.onnx"
-            if not int8_path.exists():
-                raise FileNotFoundError(f"INT8 модель не найдена: {int8_path}. Запустите install.py")
-            model_file = int8_path
-            logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
+            fp32_path = model_dir_path / "model.onnx"
+
+            if int8_path.exists():
+                model_file = int8_path
+                logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
+            elif fp32_path.exists():
+                model_file = fp32_path
+                logger.info(f"🔧 OpenVINO: FP32 fallback {fp32_path}")
+            else:
+                raise FileNotFoundError(f"Модель не найдена в {model_dir_path}")
 
             tokenizer_file = model_dir_path / "tokenizer.json"
             if not tokenizer_file.exists():
@@ -645,24 +673,40 @@ class RemoteEmbedder(IEmbedder):
             core = ov.Core()
             model = core.read_model(str(model_file))
 
-            # Dynamic batch shape — не работает с этой моделью
+            # Static reshape [1, 128] — для batch=1 (индивидуальные чанки)
+            # Dynamic shapes вызывают kernel cache miss на Ryzen.
             for inp in model.inputs:
-                model.reshape({inp.any_name: [1, self._max_embed_tokens]})
+                model.reshape({inp.any_name: [1, 128]})
 
-            # Компиляция для throughput (LATENCY быстрее для batch=1)
+            # LATENCY — оптимально для batch=1 (12 ch/s на Ryzen 5600).
+            # THROUGHPUT + streams создаёт overhead без выгоды для batch=1.
             compiled = core.compile_model(model, "CPU", config={
                 "PERFORMANCE_HINT": "LATENCY",
-                "INFERENCE_NUM_THREADS": "0",  # 0 = все ядра
+                "INFERENCE_NUM_THREADS": "0",
             })
             self._ov_compiled = compiled
             self._ov_infer_request = compiled.create_infer_request()
-            self._ov_infer_lock = threading.Lock()  # thread-safe infer
+            self._ov_infer_lock = threading.Lock()
 
-            # Future-proof: проверяем есть ли token_type_ids в модели
-            # Для E5-base/BGE — НЕ подаём (убивает скорость в 60x)
-            # Если другая модель требует — подадим zeros (см. embed_batch)
-            # См. commit 28fc9b8, AGENT_DIARY [02:30] Post-Mortem.
-            self._ov_has_token_type_ids = False
+            # Pre-bind token_type_ids = zeros в памяти C++ (один раз).
+            # INT8 модель имеет 3 входа, но tt всегда нули (код не использует.
+            # Token Type Embeddings = 0 для всех токенов).
+            # Это устраняет overhead на передачу tt из Python и Dynamic Shapes.
+            try:
+                tt_tensor = ov.Tensor(np.zeros((1, 128), dtype=np.int64))
+                self._ov_infer_request.set_tensor("token_type_ids", tt_tensor)
+            except Exception:
+                pass  # FP32 модель без tt входа — ок
+            self._ov_has_tt_bound = True  # tt pre-bound, не передаём из Python
+
+            # Auto-detect: INT8 (model_quantized.onnx) имеет 3 входа и требует
+            # token_type_ids. FP32 (model.onnx) имеет 2 входа и не требует.
+            # Подача tt для INT8 даёт 11-15 ch/s, без tt → batch=0 → нули.
+            # См. commit 0665a4b (Restore INT8), ЭКСПЕРИМЕНТ 2026-07-17.
+            self._ov_has_token_type_ids = any(
+                "token_type_ids" in inp.get_names()
+                for inp in model.inputs
+            )
             self._onnx_input_names = [
                 inp.any_name for inp in model.inputs
                 if inp.any_name != "token_type_ids"
@@ -781,6 +825,7 @@ class RemoteEmbedder(IEmbedder):
             try:
                 self._onnx_last_used = time.time()
                 import numpy as np
+                
 
                 def _ensure_prefix(text: str, is_query: bool) -> str:
                     for prefix in ("query: ", "passage: "):
@@ -814,18 +859,20 @@ class RemoteEmbedder(IEmbedder):
                         dtype=np.int64,
                     )
 
+                # Lock защищает .infer() — OpenVINO InferRequest не thread-safe.
+                # (см. стресс-тест: без лока 2+ потока → "Infer Request is busy")
                 with self._ov_infer_lock:
-                    # INT8 модель НЕ умеет batch > 1 (Multiply shape mismatch),
-                    # поэтому эмбеддим по 1 тексту за раз.
-                    # Без token_type_ids (см. _ov_has_token_type_ids=False).
                     for idx_in, i in enumerate(valid_indices):
                         feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
-                        if getattr(self, '_ov_has_token_type_ids', False) and tt_all is not None:
-                            feed["token_type_ids"] = tt_all[idx_in:idx_in+1]
-                        outputs = self._ov_infer_request.infer(feed)
-                        out_key = list(outputs.keys())[0]
-                        out_data = outputs[out_key]
+                        # token_type_ids pre-bound как zeros в _init_openvino.
+                        output = self._ov_infer_request.infer(feed)
+                        out_key = list(output.keys())[0]
+                        out_data = output[out_key]
                         if out_data.shape[0] == 0:
+                            logger.warning(
+                                "OpenVINO batch=0 на чанке %d — race condition? "
+                                "Вектор будет нулевым.", idx_in
+                            )
                             continue
                         token_emb = out_data[0]
                         mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
@@ -836,49 +883,9 @@ class RemoteEmbedder(IEmbedder):
                 return results
 
             except Exception as ov_err:
-                logger.warning(f"OpenVINO path error: {ov_err}, fallback")
-                # ─── Recovery: сбрасываем и перезагружаем OpenVINO ───
-                # Re-entry guard не даст _init_openvino перезагрузиться,
-                # пока _ov_compiled не None. См. INC: embedder stuck
-                # after reindex (ov_compiled=True, onnx_session=False).
-                # НО: "Infer Request is busy" — race condition (indexer + search
-                # параллельно). Не сбрасываем _ov_compiled, а просто падаем
-                # в ONNX Runtime fallback ниже.
-                err_str = str(ov_err).lower()
-                if "busy" in err_str:
-                    logger.warning("OpenVINO infer занят (multi-thread) → ONNX fallback")
-                else:
-                    with self._mode_lock:
-                        self.mode = "unknown"
-                    self._ov_compiled = None
-                    self._ov_infer_request = None
-                    # Пытаемся перезагрузить OpenVINO (re-entry guard снят)
-                    self._init_onnx()
-                if getattr(self, '_ov_compiled', None) is not None:
-                    # ─── Восстанавливаем mode (был сброшен в unknown) ───
-                    # Иначе health report видит embedder_status=unknown
-                    # и помечает эмбеддер как недоступный.
-                    with self._mode_lock:
-                        if self.mode == "unknown":
-                            self.mode = "onnx"
-                    # Повторная попытка OpenVINO с перезагруженной моделью
-                    logger.info("OpenVINO recovery: модель перезагружена, mode=onnx восстановлен")
-                    for idx_in2, i2 in enumerate(valid_indices):
-                        feed = {"input_ids": ids_all[idx_in2:idx_in2+1], "attention_mask": mask_all[idx_in2:idx_in2+1]}
-                        try:
-                            outputs2 = self._ov_infer_request.infer(feed)
-                            out_key2 = list(outputs2.keys())[0]
-                            out_data2 = outputs2[out_key2]
-                            if out_data2.shape[0] == 0:
-                                continue
-                            token_emb2 = out_data2[0]
-                            mask_exp2 = np.expand_dims(mask_all[idx_in2], -1).astype(float)
-                            sum_emb2 = np.sum(token_emb2 * mask_exp2, 0)
-                            sum_mask2 = np.clip(np.sum(mask_exp2, 0), a_min=1e-9, a_max=None)
-                            results[i2] = (sum_emb2 / sum_mask2).tolist()
-                        except Exception:
-                            continue
-                    return results
+                logger.warning(f"OpenVINO infer error: {ov_err}, fallback to ONNX")
+                # _ov_compiled и _ov_infer_request НЕ сбрасываем —
+                # перезагрузка только усугубит при временном сбое.
                 # fall through to ONNX Runtime
 
         # ═══ Локальный ONNX (E5-base, fallback) ═══

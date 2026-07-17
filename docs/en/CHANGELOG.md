@@ -6,9 +6,8 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **59 tools** = 42 core + 14 intel + 3 diagnostic
-> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals (56/57) from before
-> the intel-layer grew to 14 tools. `MSCODEBASE_MCP_TOOLS=""` shows all 59; by default only 12 are visible.
+> **Tool count (current):** the live server registers **37 tools** = 19 core + 12 intel + 6 diagnostic
+> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all 37; by default only 12 are visible.
 
 ## [3.2.3] — 2026-07-14 — MMR diversification + Auto Intent + Synonyms + subprocess-free ADR
 

@@ -3,7 +3,7 @@
 > Choose your method: **Auto** (install.py), **Manual** (ONNX + GGUF), or **LM Studio** (legacy fallback)
 
 > **Provider reality (2026-07-12):** The **embedder runs in-process** via
-> **ONNX E5-base INT8 / OpenVINO INT8** (`intfloat/multilingual-e5-base`, 768-dim, ~350 ch/s
+> **ONNX multilingual-e5-small-int8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s
 > on Windows CPU). `install.py` downloads this automatically. The **reranker** is a separate
 > `llama-server.exe` process serving the `bge-reranker-v2-m3` GGUF model. `LM Studio` is only
 > an optional fallback if the local ONNX model is unavailable.
@@ -21,7 +21,7 @@ python install.py
 **What happens:**
 1. Detects Windows/macOS/Linux, AVX2/AVX512, Vulkan GPU
 2. Downloads `llama-server.exe` (or binary for your platform) — used for the **reranker**
-3. Downloads **E5-base v2 ONNX** (`intfloat/multilingual-e5-base`, ~265 MB) — **embedding model (in-process)**
+3. Downloads **multilingual-e5-small-int8** (~113 MB) — **embedding model (in-process)**
 4. Downloads **bge-reranker-v2-m3 GGUF** (`BAAI/bge-reranker-v2-m3`, ~544 MB) — **reranker model**
 5. Starts the reranker llama-server process on port `:8081`
 
@@ -44,7 +44,7 @@ python install.py
 
 **Embedding model (E5-base v2 ONNX, required — in-process):**
 ```bash
-python scripts/download_model.py --model intfloat/multilingual-e5-base
+python scripts/download_model.py --model intfloat/multilingual-e5-small-int8
 # → .codebase_models/onnx/e5-base-v2/model_quantized.onnx (INT8)
 ```
 
@@ -101,8 +101,8 @@ See [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md) for detailed setup.
 EMBEDDING_PROVIDER=e5_onnx
 
 # ONNX model slug (downloaded by install.py)
-#   e5-base-v2  → intfloat/multilingual-e5-base (768-dim, INT8)
-ONNX_MODEL=e5-base-v2
+#   multilingual-e5-small-int8  → intfloat/multilingual-e5-small-int8 (384-dim, INT8)
+ONNX_MODEL=multilingual-e5-small-int8
 
 # Reranker GGUF model served by llama-server on :8081
 RERANKER_MODEL=bge-reranker-v2-m3

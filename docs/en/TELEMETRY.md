@@ -185,7 +185,7 @@ required for semantic search:
 
 | Stage | Engine | Model | Notes |
 |-------|--------|-------|-------|
-| Embedding | ONNX INT8 / OpenVINO INT8 (in-process) | `intfloat/multilingual-e5-base` (768-dim) | ~350 ch/s on Windows CPU. File: `model_quantized.onnx`. LM Studio is a **fallback provider only**. |
+| Embedding | ONNX INT8 / OpenVINO INT8 (in-process) | `multilingual-e5-small-int8` (384-dim) | ~37 ch/s on Windows CPU. File: `model_quantized.onnx`. LM Studio is a **fallback provider only**. |
 | Reranker | llama.cpp (`llama-server.exe`, separate process, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Loaded by `step_gguf` in `install.py`. |
 | LLM (RAG, optional) | reserved | — | Not required for search. |
 
@@ -255,13 +255,13 @@ Accumulated JSON files can be loaded into any BI system:
 
 ## 📊 Live Tool Audit (2026-07-12)
 
-Full load test: **all 59 registered tools** called live through the real MCP server.
+Full load test: **all 37 registered tools** called live through the real MCP server.
 
 ### Tool surface
-- **33 tools total** = 16 core + 14 intel + 3 diagnostic (per server startup log).
+- **37 tools total** = 19 core + 12 intel + 6 diagnostic (per server startup log).
 - **Default filter**: only **12 tools** are visible unless `MSCODEBASE_MCP_TOOLS` is set.
-  Set `MSCODEBASE_MCP_TOOLS=""` to show all 59. Set a comma list to show a subset.
-- ~19 tools return live data; ~36 are hidden by the default filter (by design, NOT a bug).
+  Set `MSCODEBASE_MCP_TOOLS=""` to show all 37. Set a comma list to show a subset.
+- ~19 tools return live data; ~18 are hidden by the default filter (by design, NOT a bug).
 
 ### Per-tool latency (live run)
 

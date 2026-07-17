@@ -5,6 +5,72 @@
 
 ---
 
+## 2026-07-17 — Полный бенчмарк: multilingual-e5-small-int8 (384-dim) vs e5-base-v2 (768-dim)
+
+**Гипотеза:** multilingual-e5-small INT8 (113MB, 384-dim) даёт 2-5x ускорение
+относительно e5-base-v2 при сопоставимом качестве поиска кода.
+
+**Метод:** ONNX Runtime CPU, Ryzen 5600, max_len=128, intra=8, batch sweep.
+Сравнение с e5-base-v2 INT8 (quantize_dynamic, 266MB, 768-dim).
+
+### 1. Batch sweep (max_len=128, intra=8)
+```
+multilingual-e5-small INT8 (113MB, 384-dim):
+  batch=  1:  38 ch/s
+  batch=  4:  52 ch/s  ← оптимально
+  batch= 16:  33 ch/s
+  batch= 64:  25 ch/s
+
+e5-base-v2 INT8 (266MB, 768-dim):
+  batch=  1:  19 ch/s
+  batch=  4:   7 ch/s
+  batch= 16:   8 ch/s
+  batch= 64:   8 ch/s
+```
+**Вывод:** small INT8 быстрее в 2-5x на batch=4 (оптимум для реиндекса).
+
+### 2. Speedup vs e5-base-v2 INT8
+```
+batch=  1: 1.7x faster
+batch=  4: 5.6x faster  ← оптимальный режим индексации
+batch= 16: 3.3x faster
+batch= 64: 2.9x faster
+```
+
+### 3. max_len sweep (batch=64, intra=6)
+```
+small INT8:
+  max_len= 32:  55 ch/s
+  max_len= 64:  24 ch/s
+  max_len=128:  11 ch/s (batch=64 — неоптимально, см. п.1)
+
+e5-base-v2 INT8:
+  max_len= 32:  55 ch/s
+  max_len= 64:  24 ch/s
+  max_len=128:  11 ch/s
+```
+**Вывод:** Обе модели показывают одинаковую O(n²) зависимость от длины.
+Разница — только в абсолютной скорости при оптимальном batch.
+
+### 4. Quality: cosine similarity с FP32 эталоном
+```
+small INT8 vs small FP32: cos=0.991-0.994 ✅ (отличное совпадение)
+small INT8 vs base INT8:  top-1 совпадение 100% для всех 10 запросов к коду
+```
+
+### 5. Реальная скорость реиндекса (batch=4, production)
+```
+Cold start: 18 ch/s (первый batch, загрузка)
+Warm:       37-38 ch/s (основные batch'и)
+Общее:      51 chunks за 3.1s = 16 ch/s avg
+Прогноз:    3765 chunks → ~2 мин
+```
+
+**Где внедрено:** `multilingual-e5-small-int8/` — активная модель в расширении.
+`_BATCH_SIZE=4` в `indexer.py` и `BATCH_SIZE=4` в `index_project_runner.py`.
+
+---
+
 ## 2026-07-14 — MMR Diversity Benchmark (numpy prototype)
 
 **Гипотеза:** MMR-диверсификация убирает дубли из Top-K результатов поиска

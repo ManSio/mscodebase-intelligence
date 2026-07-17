@@ -70,7 +70,7 @@ class IndexProjectRunner:
             logger.warning(f"Path not safe: {project_path}")
             return 0
 
-        BATCH_SIZE = 64
+        BATCH_SIZE = 4       # см. benchmark: batch=4 даёт 52 ch/s для small INT8
 
         # Сканирование файлов
         all_files: list = []
@@ -254,8 +254,9 @@ class IndexProjectRunner:
         # IVF index
         if self.table and self.table.count_rows() > 1000:
             try:
-                self.table.optimize(compaction=True)
-                time.sleep(2)
+                # LanceDB new API: optimize без compaction
+                self.table.optimize()
+                time.sleep(1)
                 _row_count = self.table.count_rows()
                 logger.info(f"Creating index ({_row_count} chunks)...")
                 if _row_count > 0:
@@ -272,7 +273,7 @@ class IndexProjectRunner:
                     )
                     logger.info("IVF_FLAT index created")
             except Exception as e:
-                logger.error(f"Index creation failed: {e}")
+                logger.warning(f"Index optimize/create failed (non-critical): {e}")
 
         final_stats = get_status() if get_status else {}
         if progress_callback:

@@ -342,12 +342,12 @@ flowchart LR
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 59 (42 core + 14 intel + 3 diagnostic) |
+| **MCP tools** | 37 (19 core + 12 intel + 6 diagnostic) |
 | **Services in DI** | 15 |
 | **Tests** | 396 |
 | **Languages** | 3 (EN, RU, ZH) |
 | **Schema fields** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Embedding dim** | 768 (E5-base INT8, in-process) |
+| **Embedding dim** | 384 (E5-small INT8, in-process) |
 | **Reranker** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct (optional, mode=ask only) |
 | **Vector DB** | LanceDB v2 |

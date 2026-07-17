@@ -433,16 +433,26 @@ class ProjectIntelligenceLayer:
                     "llama_rerank_ram": ProjectIntelligenceLayer._get_ram_by_port("8081"),
                     "total_ram_mb": ProjectIntelligenceLayer._get_total_ram(),
                 },
-                "model_info": {
-                    "provider": _active_provider,
-                    "model": "e5-base-v2",
-                    "dimension": 768,
-                },
+                "model_info": self._get_embedder_model_info(),
                 "_debug": str(type(active_indexer)),
             }
         except Exception as e:
             logger.error(f"Ошибка получения статуса: {e}")
             return {"status": "error", "detail": str(e)}
+
+    def _get_embedder_model_info(self) -> dict:
+        """Get real model info from embedder (not hardcoded)."""
+        try:
+            from src.providers.embedder.remote_embedder import RemoteEmbedder
+            emb = RemoteEmbedder()
+            info = emb.get_model_info()
+            return {
+                "provider": info.get("provider", "unknown"),
+                "model": info.get("model", "unknown"),
+                "dimension": info.get("dimension", 0),
+            }
+        except Exception:
+            return {"provider": "unknown", "model": "unknown", "dimension": 0}
 
     # -----------------------------------------------------------------
     # БЛОК Reindex (Фоновая переиндексация)

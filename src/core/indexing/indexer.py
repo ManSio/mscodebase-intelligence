@@ -21,7 +21,7 @@ logger = logging.getLogger("mscodebase_server.indexer")
 
 # Размер батча для кросс-файлового эмбеддинга.
 # E5-base/BGE-M3 обрабатывают 64 текста почти за то же время, что и 1.
-_BATCH_SIZE = 64
+_BATCH_SIZE = 4       # Оптимум для small INT8: batch=4 даёт 52 ch/s (vs 25 при 64)
 
 
 def _generate_unique_db_path(project_path: Path) -> Path:

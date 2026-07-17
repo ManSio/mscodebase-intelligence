@@ -1,5 +1,80 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-17 20:00] — SWITCH TO multilingual-e5-small-int8 + batch optimization
+
+**Симптом:** После исправления INT8 модели (cos=1.0) скорость оставалась 18 ch/s,
+хотя бенчмарки small INT8 показывали 41-52 ch/s.
+
+**Root Cause:**
+1. `indexer.py` `_BATCH_SIZE=64` — неоптимально для small INT8 (batch=4 даёт 52 ch/s, batch=64 → 25 ch/s)
+2. `index_project_runner.py` `BATCH_SIZE=64` — второй независимый батч с тем же значением
+3. `intelligence/layer.py` — хардкод `dimension: 768` вместо реального значения из embedder'а
+4. `remote_embedder.py` — `embedding_dim` не обновлялся из модели (всегда 768 из env)
+
+**Что сделано:**
+1. Загружена `keisuke-miyako/multilingual-e5-small-onnx-int8` (113MB, INT8, 384-dim, vocab=250002)
+2. `_BATCH_SIZE` 64→4 в `indexer.py` и `index_project_runner.py`
+3. Авто-определение `embedding_dim` в `_detect_model_dir()` — модель сама сообщает размерность
+4. `_get_embedder_model_info()` — реальные данные из embedder'а вместо хардкода
+5. `LanceTable.optimize(compaction=True)` → `optimize()` (deprecated arg)
+6. `install.py` — поддержка `MSCODEBASE_INSTALL_AUTO=y` для беззвучной установки
+7. Очищены все копии старой сломанной `e5-base-v2-int8` (расширение, проект, кэш)
+
+**Benchmark (multilingual-e5-small-int8, max_len=128, ONNX CPU, Ryzen 5600):**
+```
+batch=1: 38 ch/s
+batch=4: 52 ch/s ← оптимально
+batch=16: 33 ch/s
+batch=64: 25 ch/s
+
+Реальный реиндекс (batch=4): 37 ch/s (cold start: 18 ch/s, warm: 38-37-36 ch/s)
+3765 chunks → ~2 мин
+```
+
+**Финальное состояние моделей:**
+```
+.codebase_models/onnx/
+├── multilingual-e5-small-int8/  — 113MB, INT8, 384-dim, vocab=250002 ✅ АКТИВНА
+├── multilingual-e5-small/       — 448MB, FP32, 384-dim (reference)
+├── e5-base-v2-int8-BACKUP/      — 266MB, INT8 (на случай отката)
+├── e5-base-v2/                  — 266MB, FP32, 768-dim (reference)
+└── reranker-bge-reranker-v2-m3/ — 544MB (reranker)
+```
+
+**Files:** `src/providers/embedder/remote_embedder.py`, `src/core/indexing/indexer.py`,
+`src/core/indexing/index_project_runner.py`, `src/core/intelligence/layer.py`, `install.py`
+**Status:** ✅
+
+## [2026-07-17 19:00] — FULL INVESTIGATION: INT8 broken vocab, requantization, cleanup
+
+**Симптом:** search_code(mode=fast) возвращал мусор. INT8 модель не совпадала с FP32 (cos≈0).
+
+**Root Cause:** `e5-base-v2-int8/model_quantized.onnx` был сквантизирован ИЗ НЕВЕРНОЙ БАЗОВОЙ МОДЕЛИ:
+- vocab=30522 (BERT-uncased) вместо 250002 (intfloat/e5-base-v2)
+- Cosine similarity INT8 vs FP32 = -0.03 (ортогональные векторы)
+- Все эмбеддинги — мусор, маскировалось BM25 в RRF
+
+**Что сделано:**
+1. Проведены 6+ прямых замеров: INT8 vs FP32, сравнение vocab, batch speed
+2. `scripts/nncf_requantize.py` исправлен — копирует метаданные из `e5-base-v2`, а не из сломанного `-int8`
+3. Запущен quantize_dynamic от правильной FP32 → cos=1.0000 с эталоном
+4. Очистка моделей:
+   - `e5-base-v2-int8` (старый, 105MB, broken) — удалён
+   - `e5-base-v2-int8-ov` (NNCF, cos≈0) — удалён
+   - `e5-base-v2-int8-hf` (keisuke-miyako, тоже 30522) — удалён
+   - `e5-base-v2-int8-nncf` — переименован в `e5-base-v2-int8`
+5. Финальный замер скорости: max_len=32→55ch/s, 64→24ch/s, 128→11ch/s
+
+**Проверены все готовые INT8 модели на HF:** ни одна не имеет vocab=250002.
+
+**Guard:**
+1. При скачивании INT8 модели — проверять vocab_size (должен быть 250002)
+2. После requant — проверять cosine similarity vs FP32 (должен быть >0.99)
+3. Не доверять "340 ch/s" — замерять при реальном max_length=128
+
+**Files:** `scripts/nncf_requantize.py`, `.codebase_models/onnx/`
+**Status:** ✅
+
 ## [2026-07-16 21:50] — Fix: MCP server crash при старте (path с \n)
 
 **Симптом:** MCP-сервер падал через 2 сек после запуска, 120MB RAM

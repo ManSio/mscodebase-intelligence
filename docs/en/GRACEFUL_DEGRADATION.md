@@ -8,7 +8,7 @@ MSCodeBase never crashes completely. Instead, it **degrades gracefully** through
 maintaining basic functionality even when external services fail.
 
 > **Provider reality (2026-07-12):** The embedding provider runs **in-process** via
-> **ONNX INT8 / OpenVINO INT8** (`intfloat/multilingual-e5-base`, 768-dim, ~350 ch/s on
+> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s on
 > Windows CPU). This is the **default and primary** path — no external server required for
 > semantic search. `LM Studio` is only an **optional fallback** if the local ONNX/OpenVINO
 > model is unavailable. The **reranker** runs as a separate `llama-server.exe` process
@@ -19,7 +19,7 @@ stateDiagram-v2
     [*] --> L1_ONNX: Default startup (in-process)
 
     state L1_ONNX[Level 1: ONNX/OpenVINO INT8 (in-process)]
-        L1_ONNX: E5-base embedder (768-dim)
+        L1_ONNX: E5-small embedder (384-dim)
         L1_ONNX: BM25 + Dense + Reranker (llama.cpp)
         L1_ONNX: ~300ms-3s latency
     end
@@ -115,14 +115,14 @@ class RemoteEmbedder:
         _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
         if _provider in ("e5_onnx", "auto", ""):
             self._init_onnx()
-            # OpenVINO INT8 has priority (~350 ch/s on Windows CPU)
+            # OpenVINO INT8 has priority (~37 ch/s on Windows CPU)
             if getattr(self, "_ov_compiled", None) is not None:
                 self.mode = "onnx"
 ```
 
 | Component | Status |
 |-----------|:------:|
-| ONNX/OpenVINO E5-base | ✅ In-process (768-dim, INT8) |
+| ONNX/OpenVINO E5-small | ✅ In-process (384-dim, INT8) |
 | BM25 index | ✅ Built |
 | Reranker (llama.cpp) | ✅ Available (`:8081`) |
 | mode=ask | ⚠️ Optional (needs LLM profile) |

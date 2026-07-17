@@ -91,7 +91,7 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-1. Register 16 core tools + 14 intel_* tools + 3 diagnostic = 33 total
+1. Register 19 core tools + 12 intel_* tools + 6 diagnostic = 37 total
 2. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
@@ -149,7 +149,7 @@ Key modules:
 | `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM edge benchmark & analysis** | parser, graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `llama_runner.py` | Lifecycle manager for llama-server.exe (reranker only) | download, launch, stop |
-| `remote_embedder.py` | ONNX E5-base INT8 / OpenVINO INT8 (in-process, primary) + LM Studio / Ollama (legacy fallback) | config |
+| `remote_embedder.py` | ONNX multilingual-e5-small INT8 (384-dim) / OpenVINO INT8 (in-process, primary) + LM Studio / Ollama (legacy fallback) | config |
 | `parser.py` | Tree-sitter AST | — |
 | `file_guard.py` | .gitignore + extension filter | config |
 
@@ -208,16 +208,16 @@ Key modules:
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.5 Embedder: E5-base ONNX (in-process)
+### 2.5 Embedder: E5-small ONNX (in-process)
 
-The MCP server now uses E5-base-v2 via ONNX Runtime (CPU, in-process) as its primary embedder:
+The MCP server now uses multilingual-e5-small via ONNX Runtime (CPU, in-process) as its primary embedder:
 
-- **Model**: `intfloat/e5-base-v2` (768-dim)
+- **Model**: `intfloat/multilingual-e5-small` (384-dim)
 - **Runtime**: ONNX (CPU, no GPU required)
 - **Architecture**: in-process — no external HTTP server
-- **Performance**: ~360 i/s (was 18 i/s with BGE-M3)
+- **Performance**: ~37 ch/s (was 18 i/s with BGE-M3)
 - **RAM**: ~265 MB (was 285 MB + VRAM)
-- **Config**: `EMBEDDING_DIMENSION=768`, `EMBEDDING_PROVIDER=e5_onnx`
+- **Config**: `EMBEDDING_DIMENSION=384`, `EMBEDDING_PROVIDER=e5_onnx`
 
 The reranker still runs via llama-server (1 process, not 2).
 
@@ -291,11 +291,11 @@ def register_all_tools(mcp, services):
         # Lifecycle (3)
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +14 intel_* tools + 3 diagnostic inline
-    # Total: 36 registered (19 core + 14 intel + 3 diag)
+    # +12 intel_* tools + 6 diagnostic inline
+    # Total: 37 registered (19 core + 12 intel + 6 diag)
 ```
 
-**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 36.
+**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 37.
 
 ### 4.2 All Tools by Group
 
@@ -311,7 +311,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (14) | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
 | **Diagnostic** (3) | inline in `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline |
 
-> **Total:** 36 registered (19 core + 14 intel + 3 diag). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 37 registered (19 core + 12 intel + 6 diag). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 
