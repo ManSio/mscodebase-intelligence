@@ -399,7 +399,7 @@ def step_copy(lines, lang):
     marker_dst = ZED_EXT_DIR / "__mscodebase_ext__.marker"
     marker_src = PROJECT_ROOT / "__mscodebase_ext__.marker"
     if marker_src.exists():
-        marker_dst.write_text(marker_src.read_text(), encoding="utf-8")
+        marker_dst.write_text(marker_src.read_text(encoding="utf-8"), encoding="utf-8")
         lines.append((C.GRN, f"  ✓ marker created"))
     else:
         marker_dst.write_text("# MSCodeBase Extension Marker\n", encoding="utf-8")
@@ -471,7 +471,7 @@ def step_pip(lines, lang):
     req = ZED_EXT_DIR / "requirements.txt"
     if not req.exists():
         raise FileNotFoundError(f"requirements.txt not found at {req}")
-    n = len(req.read_text().splitlines())
+    n = len(req.read_text(encoding="utf-8").splitlines())
     # Fix ghosts before pip
     g = _fix_ghosts()
     if g:
