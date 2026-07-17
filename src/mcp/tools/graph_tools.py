@@ -155,6 +155,8 @@ class GraphQueryTool(MCPTool):
             return await self._execute_related(target, kwargs)
         elif action == "flow":
             return await self._execute_flow(target, kwargs)
+        elif action == "drift":
+            return await self._execute_arch_drift(target)
         else:
             # По умолчанию — GraphRAG (action="query")
             return await self._execute_query(query_type or "impact", target, kwargs)
@@ -430,7 +432,118 @@ class GraphQueryTool(MCPTool):
             },
         }
 
+    async def _execute_arch_drift(self, file_path: str = "") -> dict:
+        """Architecture Drift Detector: ищет структурные аномалии импортов.
 
+        Анализирует PropertyGraph на паттерны, которые указывают
+        на дрейф архитектуры:
+
+        1. **Chain imports** (A->B->C, но A мог бы ->C напрямую):
+           Признак shim/re-export прослойки.
+        2. **Circular imports** (A->B->A):
+           Циклические зависимости между модулями.
+        3. **Hub modules**:
+           Модули, которые импортируют всё подряд (признак god-object).
+
+        Returns:
+            dict с найденными аномалиями.
+        """
+        import sqlite3
+        from pathlib import Path
+
+        # Находим PropertyGraph
+        indexer = self.resolve_indexer()
+        pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
+        if not pg:
+            return {
+                "status": "error",
+                "action": "drift",
+                "message": "PropertyGraph not available. Run reindex first.",
+            }
+
+        db_path = pg._db_path if hasattr(pg, '_db_path') else \
+                  Path(getattr(pg, 'path', ''))
+        if not db_path or not Path(str(db_path)).exists():
+            return {
+                "status": "error",
+                "action": "drift",
+                "message": "PropertyGraph DB not found.",
+            }
+
+        conn = sqlite3.connect(str(db_path))
+        result = {
+            "status": "ok",
+            "action": "drift",
+            "anomalies": {},
+        }
+
+        # 1. Chain imports (A->B->C, no direct A->C)
+        chain = conn.execute("""
+            SELECT a.name, b.name, c.name
+            FROM edges e1
+            JOIN edges e2 ON e1.target_id = e2.source_id AND e2.type = 'IMPORTS'
+            JOIN nodes a ON e1.source_id = a.id
+            JOIN nodes b ON e1.target_id = b.id
+            JOIN nodes c ON e2.target_id = c.id
+            WHERE e1.type = 'IMPORTS'
+              AND a.name <> c.name
+              AND NOT EXISTS (
+                SELECT 1 FROM edges e3
+                WHERE e3.source_id = a.id AND e3.target_id = c.id
+                  AND e3.type = 'IMPORTS'
+              )
+            ORDER BY a.name
+            LIMIT 30
+        """).fetchall()
+
+        result["anomalies"]["chain_imports"] = {
+            "count": len(chain),
+            "description": "A->B->C chain where A could import C directly. Possible shim/re-export.",
+            "patterns": [
+                {"from": r[0], "via": r[1], "to": r[2]}
+                for r in chain[:20]
+            ],
+        }
+
+        # 2. Hub modules (modules that import many others)
+        hub = conn.execute("""
+            SELECT n.name, COUNT(*) as import_count
+            FROM edges e
+            JOIN nodes n ON e.source_id = n.id
+            WHERE e.type = 'IMPORTS'
+            GROUP BY n.id
+            HAVING import_count > 10
+            ORDER BY import_count DESC
+            LIMIT 10
+        """).fetchall()
+
+        result["anomalies"]["hub_modules"] = {
+            "count": len(hub),
+            "description": "Modules with >10 imports. May indicate god-object or poor modularization.",
+            "hubs": [{"module": r[0], "imports": r[1]} for r in hub],
+        }
+
+        # 3. Circular imports (A->B->A)
+        circular = conn.execute("""
+            SELECT DISTINCT a.name, b.name
+            FROM edges e1
+            JOIN edges e2 ON e1.source_id = e2.target_id
+              AND e1.target_id = e2.source_id
+            JOIN nodes a ON e1.source_id = a.id
+            JOIN nodes b ON e1.target_id = b.id
+            WHERE e1.type = 'IMPORTS' AND e2.type = 'IMPORTS'
+              AND a.name < b.name
+            LIMIT 20
+        """).fetchall()
+
+        result["anomalies"]["circular_imports"] = {
+            "count": len(circular),
+            "description": "Mutual imports between modules. Can cause initialization issues.",
+            "cycles": [{"a": r[0], "b": r[1]} for r in circular],
+        }
+
+        conn.close()
+        return result
 
 
 __all__ = [
