@@ -6,9 +6,26 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **37 инструментов** = 19 core + 12 intel + 6 diagnostic
-> (см. лог старта `src/mcp/server.py`). Старые записи ниже ссылаются на ранние totals (56/57) до того,
-> как intel-layer вырос до 14 инструментов. `MSCODEBASE_MCP_TOOLS=""` показывает все 59; по умолчанию — 12.
+> **Количество инструментов (текущее):** живой сервер регистрирует **38+ инструментов** = 20 core + 12 intel + 6 diagnostic
+> `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
+
+## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
+
+### Добавлено
+- 🔬 **Explainability Layer** — `search_code(query, explain=True)` показыват per-chunk разбор
+  всех этапов поиска: BM25, Dense, RRF, MMR, Bucket, Co-change, Reranker.
+- 🏛️ **Architecture Drift Detector** — `graph_query(action="drift")` ищет chain/hub/circular аномалии импортов.
+- ✅ **Claim Verifier** — `graph_query(action="verify", target='{"subject":..., "predicate":...}')`
+  проверяет утверждения агента против `PropertyGraph` + `SymbolIndex` + AST.
+- 🌐 **IMPORTS edges в PropertyGraph** — 788 рёбер, 20 языков (Python, Rust, TS, Go, Java, C#...)
+
+### Изменено
+- `engine.py`: +tracer хуки на всех 7 этапах поискового пайплайна
+- `graph_query`: +6 action: query, cypher, related, flow, drift, verify
+
+### Исправлено
+- PropertyGraph содержал 0 IMPORTS-рёбер при 3500+ других — теперь 788
+- Indexer._parse_file_only (дубликат pipeline) не содержал extract_imports
 
 ## [3.2.3] — 2026-07-14 — MMR диверсификация + Auto Intent + Синонимы + ADR без subprocess
 

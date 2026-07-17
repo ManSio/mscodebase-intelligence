@@ -6,9 +6,26 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
-> **工具数量（当前）:** 实时服务器注册 **37 个工具** = 19 core + 12 intel + 6 diagnostic
-> （见 `src/mcp/server.py` 启动日志）。以下旧条目引用了早期总数（56/57），当时 intel 层尚未增长到 14 个工具。
-> `MSCODEBASE_MCP_TOOLS=""` 显示全部 59 个；默认仅显示 12 个。
+> **工具数量（当前）:** 实时服务器注册 **38+ 个工具** = 20 core + 12 intel + 6 diagnostic
+> `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
+
+## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
+
+### 新增
+- 🔬 **Explainability Layer** — `search_code(query, explain=True)` 显示每个 chunk 的评分分解：
+  BM25、Dense、RRF、MMR、Bucket、Co-change、Reranker。
+- 🏛️ **Architecture Drift Detector** — `graph_query(action="drift")` 检测链式/中心/循环导入异常。
+- ✅ **Claim Verifier** — `graph_query(action="verify", target='{"subject":..., "predicate":...}')`
+  验证 agent 声明与 PropertyGraph + SymbolIndex + AST。
+- 🌐 **IMPORTS 边** — 788 条边，支持 20 种语言。
+
+### 变更
+- `engine.py`: 所有 7 个搜索阶段添加 tracer 钩子
+- `graph_query`: 6 个动作：query, cypher, related, flow, drift, verify
+
+### 修复
+- PropertyGraph 在 3500+ 条边中缺少 IMPORT 边 — 现在已修复
+- Indexer._parse_file_only 缺少 import 提取
 
 ## [3.2.3] — 2026-07-14 — MMR 多样化 + 自动意图 + 同义词 + 无子进程 ADR
 
