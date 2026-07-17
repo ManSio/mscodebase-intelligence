@@ -377,6 +377,10 @@ class Indexer(IndexerTableMixin):
                         if assignments:
                             with self._symbol_index_lock:
                                 self._symbol_index.add_assignments(str(full_path), assignments)
+                        imports = self.parser.extract_imports(full_path)
+                        if imports:
+                            with self._symbol_index_lock:
+                                self._symbol_index.add_imports(str(full_path), imports)
                 except Exception as ast_err:
                     logger.warning(f"⚠️ AST-чанкинг не удался для {rel_path_str}: {ast_err}")
                     chunk_texts = []
