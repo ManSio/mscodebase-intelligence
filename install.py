@@ -194,6 +194,24 @@ def _box(title, inner, color=C.CYN):
     sys.stdout.flush()
 
 
+def _line(status: str, title: str, detail: str = "", color=C.GRN):
+    """Однострочный статус шага (вместо _box).
+
+    Формат: {status} [{n}/N] title ............... detail
+    Использует \r для обновления на месте (если терминал поддерживает).
+    """
+    w = BOX_W - 6
+    clean_title = re.sub(r"\033\[[0-9;]*m", "", title)
+    clean_detail = re.sub(r"\033\[[0-9;]*m", "", detail)
+    # Жмём: статус + пробел + тайтл + точки + деталь
+    dots = max(2, w - len(clean_title) - len(clean_detail) - 4)
+    sys.stdout.write(
+        f"\r  {color}{status}{C.R} {title} "
+        f"{C.D}{'.' * dots}{C.R} {detail}   "
+    )
+    sys.stdout.flush()
+
+
 def _prog(pct, detail=""):
     w = BOX_W - 4
     fill = max(0, min(w, int(w * pct / 100)))
@@ -407,13 +425,18 @@ def step_copy(lines, lang):
 
 
 def _is_up_to_date(src: Path, dst: Path) -> bool:
-    """Проверяет, синхронизирован ли файл (по mtime и размеру)."""
+    """Проверяет, синхронизирован ли файл (по mtime и размеру).
+
+    ВАЖНО: строгое меньше (<), не меньше-равно (<=).
+    Иначе ручной cp в расширение «замораживает» файл — install.py
+    перестаёт его обновлять, потому что mtime в dst >= mtime в src.
+    """
     if not dst.exists():
         return False
     try:
         s_st = src.stat()
         d_st = dst.stat()
-        return s_st.st_mtime <= d_st.st_mtime and s_st.st_size == d_st.st_size
+        return s_st.st_mtime < d_st.st_mtime and s_st.st_size == d_st.st_size
     except:
         return False
 
@@ -689,20 +712,10 @@ def step_models(lines, lang):
             f"? Download {len(need_download)} models ({total_mb} MB total)? (Y/n)",
         )
     )
-    # Автоответ: если есть --yes или YN env — не ждать ввода
-    _auto = os.getenv("YN", "").strip().lower()
-    if _auto:
-        ch = _auto
-    else:
-        if os.getenv("MSCODEBASE_INSTALL_AUTO"):
-            ch = "y"
-        else:
-            try:
-                ch = input(f"  {C.B}> {C.R}").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                ch = "n"
-    if ch not in ("", "y", "yes"):
-        lines.append((C.D, "  Skipped — models will be handled by step_copy"))
+    # Авто-скачивание: как uv/nvm — не спрашиваем, просто качаем.
+    # --skip-models / --no-models пропускает загрузку.
+    if "--skip-models" in sys.argv or "--no-models" in sys.argv:
+        lines.append((C.D, "  Skipped (--skip-models)"))
         return
 
     _run(f'"{sys.executable}" -m pip install huggingface-hub -q', timeout=60)
@@ -867,6 +880,15 @@ def main():
     # Sort steps by index
     STEPS.sort(key=lambda x: x[0])
 
+    # --sync-only: только step_copy, без подтверждений, без остальных шагов
+    sync_only = "--sync-only" in sys.argv or "--sync" in sys.argv
+    if sync_only:
+        print("🔁 Sync-only mode: copying files...")
+        step_copy([], lang)
+        _record_install_meta()
+        print(f"✅ Sync done. Restart Zed to apply.")
+        return
+
     # Welcome
     _box(
         "",
@@ -889,19 +911,41 @@ def main():
         max_retries = 2
         step_status = "ok"
 
-        for attempt in range(max_retries + 1):
+        # COMPACT MODE (default): single-line steps вместо _box
+        compact = "--verbose" not in sys.argv and "-v" not in sys.argv
+
+        # --yes: auto-retry (skip) без подтверждений, fail fast
+        _yes = "--yes" in sys.argv or "-y" in sys.argv
+
+        for attempt in range(0 if _yes else max_retries + 1):
             try:
                 fn(lines, lang)
-                _box(label, lines, C.GRN)
+                if compact:
+                    first_line = lines[0][1] if lines else ""
+                    _line("\u2713", label, first_line, C.GRN)
+                    sys.stdout.write("\n")
+                else:
+                    _box(label, lines, C.GRN)
                 ok_count += 1
                 break
             except Exception as e:
                 err_msg = str(e).split("\n")[0][:60]
+                if _yes:
+                    # CI-режим: первая ошибка → abort
+                    lines.append((C.RED, f"\u2718 {err_msg}"))
+                    _line("\u2718", label, err_msg, C.RED)
+                    sys.stdout.write("\n")
+                    step_status = "fail"
+                    break
+
                 if attempt < max_retries:
-                    lines.append((C.YEL, f"⚠ {err_msg}"))
-                    _box(label, lines, C.YEL)
+                    lines.append((C.YEL, f"\u26a0 {err_msg}"))
+                    if compact:
+                        _line("\u26a0", label, err_msg, C.YEL)
+                    else:
+                        _box(label, lines, C.YEL)
                     ch = (
-                        input(f"  {C.B}[r]etry / [s]kip / [c]ancel{C.R}: ")
+                        input(f"\n  {C.B}[r]etry / [s]kip / [c]ancel{C.R}: ")
                         .strip()
                         .lower()
                     )
@@ -910,19 +954,22 @@ def main():
                         step_status = "skip"
                         break
                     elif ch == "c":
-                        print(f"\n  {C.RED}Aborted.{C.R}")
+                        sys.stdout.write(f"\n  {C.RED}Aborted.{C.R}\n")
                         return
-                    # else: retry
                 else:
-                    lines.append((C.RED, f"✘ {err_msg}"))
-                    _box(label, lines, C.RED)
-                    ch = input(f"  {C.B}[s]kip / [c]ancel{C.R}: ").strip().lower()
+                    lines.append((C.RED, f"\u2718 {err_msg}"))
+                    if compact:
+                        _line("\u2718", label, err_msg, C.RED)
+                        sys.stdout.write("\n")
+                    else:
+                        _box(label, lines, C.RED)
+                    ch = input(f"\n  {C.B}[s]kip / [c]ancel{C.R}: ").strip().lower()
                     if ch == "s":
                         lines.append((C.YEL, f"  {_tr('skip', lang)}"))
                         step_status = "skip"
                         break
                     else:
-                        print(f"\n  {C.RED}Aborted.{C.R}")
+                        sys.stdout.write(f"\n  {C.RED}Aborted.{C.R}\n")
                         return
         else:
             step_status = "fail"  # inner for completed without break

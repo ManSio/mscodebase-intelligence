@@ -373,33 +373,57 @@ class SymbolIndex:
 
     def search_symbols(self, query: str, top_k: int = 10) -> List[SymbolRef]:
         """
-        Поиск символов по имени (частичное совпадение).
-        Возвращает плоский список SymbolRef (определения + использования),
-        отсортированный по популярности символа.
+        Поиск символов по имени с токен-ориентированным скорингом.
+
+        Token-aware scoring решает проблему substring-совпадений:
+        - Запрос `embed_batch` НЕ ранжирует `embed_batch_async` выше `embed_batch`
+        - Точное совпадение (EXACT) всегда в приоритете
+        - Совпадение по всем токенам (ALL_TOKENS) — второй приоритет
+        - Частичное совпадение токенов (PARTIAL_TOKENS) — третий
+        - Обычное substring — четвёртый
+
+        Returns:
+            Плоский список SymbolRef (определения + использования),
+            отсортированный по качеству совпадения → популярности.
         """
         query_lower = query.lower()
-        scored: List[Tuple[int, str]] = []
+        # Токенизируем запрос: split по '_', фильтруем пустые
+        query_tokens = {t for t in query_lower.split("_") if t}
+
+        scored: List[Tuple[int, int, str]] = []  # (match_type, unique_users, name)
 
         with self._lock:
             # Ищем в _definitions
             for name in self._definitions:
-                if query_lower in name.lower():
-                    refs = self._references.get(name, [])
-                    unique_users = len(set(r.file_path for r in refs))
-                    scored.append((unique_users, name))
+                name_lower = name.lower()
+                if query_lower not in name_lower:
+                    continue
+                match_type = self._match_symbol_name(query_lower, name_lower, query_tokens)
+                if match_type < 0:
+                    continue
+                refs = self._references.get(name, [])
+                unique_users = len(set(r.file_path for r in refs))
+                scored.append((match_type, unique_users, name))
 
             # Также ищем в _references (символы, которые используются, но не определены)
             for name in self._references:
-                if query_lower in name.lower() and name not in self._definitions:
-                    refs = self._references.get(name, [])
-                    unique_users = len(set(r.file_path for r in refs))
-                    scored.append((unique_users // 2, name))  # ниже приоритет
+                if name in self._definitions:
+                    continue
+                name_lower = name.lower()
+                if query_lower not in name_lower:
+                    continue
+                match_type = self._match_symbol_name(query_lower, name_lower, query_tokens)
+                if match_type < 0:
+                    continue
+                refs = self._references.get(name, [])
+                unique_users = len(set(r.file_path for r in refs))
+                scored.append((match_type, unique_users // 2, name))  # ниже приоритет
 
-        # Сортируем по популярности
-        scored.sort(key=lambda x: -x[0])
+        # Сортируем: match_type (высший = лучше), потом популярность
+        scored.sort(key=lambda x: (-x[0], -x[1]))
 
         results: List[SymbolRef] = []
-        for _, name in scored[:top_k]:
+        for _, _, name in scored[:top_k]:
             with self._lock:
                 defs = self._definitions.get(name, [])
                 refs = self._references.get(name, [])
@@ -407,6 +431,51 @@ class SymbolIndex:
             results.extend(refs)
 
         return results
+
+    @staticmethod
+    def _match_symbol_name(query_lower: str, name_lower: str, query_tokens: Set[str]) -> int:
+        """Определяет качество совпадения имени символа с запросом.
+
+        Иерархия скоринга (больше = лучше):
+          100 — EXACT (полное совпадение строк)
+           85 — PREFIX (имя начинается с запроса + подчёркивания)
+           70 — ALL_TOKENS (все токены запроса есть в имени, но не exact/prefix)
+           50 — PARTIAL_TOKENS (хотя бы один токен совпал)
+           10 — SUBSTRING (только substring-совпадение, fallback)
+
+        Examples:
+            query="embed_batch",  name="embed_batch"        → 100 (EXACT)
+            query="embed_batch",  name="embed_batch_async"  →  70 (ALL_TOKENS)
+            query="batch",        name="batch_process"      →  85 (PREFIX)
+            query="batch",        name="embed_batch"        →  70 (ALL_TOKENS)
+            query="embed",        name="pre_embed_filter"   →  85 (PREFIX)
+        """
+        if query_lower == name_lower:
+            return 100  # EXACT
+
+        # Prefix check: имя начинается с запроса + '_'
+        # Например query="batch" и name="batch_process" → да
+        if name_lower.startswith(query_lower + "_"):
+            return 85  # PREFIX
+
+        if not query_tokens:
+            return 10  # нет токенов — минимальный балл
+
+        # Токенизируем имя символа
+        name_tokens = {t for t in name_lower.split("_") if t}
+        if not name_tokens:
+            return 10
+
+        # Все токены запроса присутствуют в имени
+        if query_tokens.issubset(name_tokens):
+            return 70  # ALL_TOKENS
+
+        # Частичное пересечение токенов
+        if query_tokens & name_tokens:
+            return 50  # PARTIAL_TOKENS
+
+        # Только substring-совпадение
+        return 10
 
     # --- Граф вызовов (Call Graph) ---
 
