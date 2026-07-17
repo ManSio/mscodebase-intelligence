@@ -329,11 +329,11 @@ class Indexer(IndexerTableMixin):
             if not content.strip():
                 return None
 
-            # Очистка PropertyGraph
+            # Очистка PropertyGraph через SymbolIndexAdapter (с нормализацией пути)
             if hasattr(self._symbol_index, "graph"):
                 pg = self._symbol_index.graph
                 if pg:
-                    pg.remove_file(rel_path_str.replace("\\", "/"))
+                    self._symbol_index.remove_file(str(full_path))
 
             # AST-чанкинг + Breadcrumbs (как в _index_single_file)
             chunk_texts: List[str] = []

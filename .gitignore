@@ -95,6 +95,7 @@ TESTING.md
 stress_*.py
 stress_*.log
 test_*.py
+!tests/test_*.py
 tmp_*.py
 reindex_clean.py
 ram_monitor.log
