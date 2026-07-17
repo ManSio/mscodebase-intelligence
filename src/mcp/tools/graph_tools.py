@@ -687,24 +687,33 @@ class GraphQueryTool(MCPTool):
         return _unverifiable(f"No call info for '{subject}'", "calls")
 
     async def _v_defined_in(self, pg, adapter, subject: str, obj: str) -> dict:
-        nodes = pg.find_nodes(name_pattern=subject, limit=5)
-        if not nodes:
-            try:
-                si = self.resolve_symbol_index()
-                defs = si.find_definitions(subject) or []
-                if defs:
-                    files = list(set(d.file_path for d in defs))
-                    if obj and any(obj in f for f in files):
-                        return _confirmed(f"{subject} defined in {files[0]}", [{"file": files[0], "line": defs[0].line}], "defined_in")
-                    return _confirmed(f"{subject} defined in: {', '.join(files[:3])}", [{"file": f} for f in files[:3]], "defined_in")
-            except Exception:
-                pass
-            return _unverifiable(f"Symbol '{subject}' not found", "defined_in")
-        node = nodes[0]
-        fp = node.file_path or ""
-        if fp:
-            return _confirmed(f"{subject} defined in {fp}" + (f" (not {obj})" if obj and obj not in fp else ""), [{"file": fp, "line": node.properties.get("line", 0)}], "defined_in")
-        return _unverifiable(f"File for '{subject}' not found", "defined_in")
+        nodes = pg.find_nodes(name_pattern=subject, limit=10)
+        # Skip placeholder nodes (empty file_path = __extern__)
+        real_nodes = [n for n in nodes if n.file_path]
+        if real_nodes:
+            node = real_nodes[0]
+            fp = node.file_path
+            match = obj and obj in fp
+            return _confirmed(
+                f"{subject} defined in {fp}" + ("" if not obj else " " + ("" if match else f"(not {obj})")),
+                [{"file": fp, "line": node.properties.get("line", 0)}],
+                "defined_in",
+            )
+        if nodes:
+            # All nodes are placeholders or externals
+            return _unverifiable(f"'{subject}' exists but no file location found (maybe external/placeholder)", "defined_in")
+        # Fallback: SymbolIndex
+        try:
+            si = self.resolve_symbol_index()
+            defs = si.find_definitions(subject) or []
+            if defs:
+                files = list(set(d.file_path for d in defs))
+                if obj and any(obj in f for f in files):
+                    return _confirmed(f"{subject} defined in {files[0]}", [{"file": files[0], "line": defs[0].line}], "defined_in")
+                return _confirmed(f"{subject} defined in: {', '.join(files[:3])}", [{"file": f} for f in files[:3]], "defined_in")
+        except Exception:
+            pass
+        return _unverifiable(f"Symbol '{subject}' not found", "defined_in")
 
     async def _v_imports(self, pg, subject: str, obj: str) -> dict:
         nodes = pg.find_nodes(name_pattern=subject, limit=5)
