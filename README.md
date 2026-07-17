@@ -340,11 +340,12 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 | Mode | Latency | Best For |
 |:-----|:--------|:---------|
-| `search_code(query, mode="fast")` | ~300ms | Simple keyword / exact name |
-| `search_code(query, mode="quality")` | ~1200ms | Semantic search with reranker |
+| `search_code(query, mode="fast")` | ~80-500ms | Simple keyword / exact name |
+| `search_code(query, mode="quality")` | ~250-2000ms | Semantic search with reranker |
 | `search_code(query, mode="deep")` | ~2-5s | Complex research across modules |
-| `search_code(query, mode="context")` | ~500ms | Find similar code by fragment |
-| `cross_repo_search(query @repo)` | ~500ms-2s | Cross-project search |
+| `search_code(query, mode="context")` | ~200-800ms | Find similar code by fragment |
+| `get_symbol_info(query)` | ~200-1500ms | Symbol definition + call graph |
+| `impact_analysis(symbol)` | ~1-5s | Change impact analysis |
 
 ### Environment Variables
 

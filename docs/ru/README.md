@@ -331,11 +331,12 @@ MCP Инструменты (59 всего)
 
 | Режим | Задержка | Лучше всего для |
 |:------|:---------|:----------------|
-| `search_code(query, mode="fast")` | ~300ms | Простой ключевой слова / точное имя |
-| `search_code(query, mode="quality")` | ~1200ms | Семантический поиск с реранкером |
+| `search_code(query, mode="fast")` | ~80-500ms | Простой ключевой слова / точное имя |
+| `search_code(query, mode="quality")` | ~250-2000ms | Семантический поиск с реранкером |
 | `search_code(query, mode="deep")` | ~2-5s | Сложное исследование по модулям |
-| `search_code(query, mode="context")` | ~500ms | Поиск похожего кода по фрагменту |
-| `cross_repo_search(query @repo)` | ~500ms-2s | Кросс-проектный поиск |
+| `search_code(query, mode="context")` | ~200-800ms | Поиск похожего кода по фрагменту |
+| `get_symbol_info(query)` | ~200-1500ms | Определение символа + граф вызовов |
+| `impact_analysis(symbol)` | ~1-5s | Анализ влияния изменений |
 
 ### Переменные окружения
 
