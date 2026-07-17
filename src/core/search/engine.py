@@ -13,7 +13,8 @@ from src.config.settings import (
     get_config,
 )
 from src.core.interfaces.searcher import ISearcher
-from src.providers.reranker.multi_provider import MultiProviderReranker, SearchResultReranker
+from src.providers.reranker.multi_provider import MultiProviderReranker
+from src.providers.reranker.search_result_reranker import SearchResultReranker
 from src.utils.i18n import _
 
 # ── Extracted sub-modules ──────────────────────────────────────
