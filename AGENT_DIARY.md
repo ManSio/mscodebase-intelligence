@@ -1,5 +1,17 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-17 23:00] — СЕССИЯ ЗАКРЫТА: Explainability + IMPORTS + Drift Detector
+
+**Что сделано за сессию (5.5ч):**
+1. **R&D**: Исследовано 35+ файлов, 5 прототипов, сравнение с 15 внешними инструментами
+2. **Explainability Layer**: SearchTracer + ChunkTrace (357 строк). `search_code(explain=True)`
+3. **PropertyGraph IMPORTS**: 0→788 рёбер. IMPORT_NODE_MAP для 20 языков
+4. **Architecture Drift Detector**: `graph_query(action="drift")` — chain/hub/circular detection
+5. **Критический баг найден**: Indexer._parse_file_only — дубликат логики, не содержал extract_imports
+
+**Коммиты:** 012da96, 142761d, 460518c, f03204f, 5058196
+**Статус:** ✅ Сессия закрыта
+
 ## [2026-07-17 20:00] — SWITCH TO multilingual-e5-small-int8 + batch optimization
 
 **Симптом:** После исправления INT8 модели (cos=1.0) скорость оставалась 18 ch/s,

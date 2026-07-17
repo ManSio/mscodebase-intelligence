@@ -134,3 +134,26 @@ structured output и streaming.
 - `.gitignore` — добавлен `.agent_task_state.md`
 
 **Статус:** ✅ Закрыто (commit 5aeb723, pushed to main)
+
+## 2026-07-17 — Сессия закрыта: Explainability + IMPORTS + Drift Detector
+
+**Итог сессии (17:30–23:00 UTC+3):**
+
+| Компонент | Статус | Коммит |
+|-----------|--------|--------|
+| R&D 4 идей, 5 прототипов, сравнение с 15 инструментами | ✅ | — |
+| Explainability Layer (SearchTracer + ChunkTrace) | ✅ | `012da96` |
+| PropertyGraph IMPORTS (0→788 рёбер, 20 языков) | ✅ | `142761d` |
+| Architecture Drift Detector (graph_query action=drift) | ✅ | `f03204f` |
+| Fallback path fix для Drift Detector | ✅ | `5058196` |
+
+**Финальное состояние PropertyGraph:**
+- 4473 nodes, 5733 edges
+- 788 IMPORTS (было 0), 1072 CALLS, 1405 DEFINES, 2468 ASSIGNED_FROM
+
+**Финальное состояние индекса:**
+- 3820 chunks, 263 files, 2605 symbols
+
+**Всего:** 5 коммитов, ~800 строк кода, 8 файлов изменено/создано.
+
+**Статус:** ✅ Сессия закрыта
