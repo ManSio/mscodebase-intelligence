@@ -193,6 +193,7 @@ class SearchCodeTool(MCPTool):
         limit: int = 6,
         filter_layer: Optional[str] = None,
         intent_hint: str = "auto",
+        explain: bool = False,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         from src.core.error_handler import record_tool_result
@@ -230,6 +231,7 @@ class SearchCodeTool(MCPTool):
                 limit=effective_limit,
                 layer=filter_layer,
                 intent_hint=intent_hint,
+                explain=explain,
             )
             if isinstance(raw, str):
                 result_str = stale_banner + project_header + "\n" + raw
@@ -238,6 +240,40 @@ class SearchCodeTool(MCPTool):
                 result_str = stale_banner + self._format_results(
                     raw, mode, project_header=project_header
                 )
+                # Append explain trace if requested
+                if explain and isinstance(raw, dict):
+                    trace_data = raw.get("trace")
+                    if trace_data:
+                        from src.core.search.trace import SearchTracer
+                        _dummy_tracer = SearchTracer(query, enabled=True)
+                        # Reconstruct tracer from dict for markdown formatting
+                        # For simplicity, build markdown inline:
+                        lines = ["\n---\n### 🔍 Explain Trace\n"]
+                        chunks = trace_data.get("chunks", [])
+                        timing = trace_data.get("stage_timing_ms", {})
+                        if timing:
+                            lines.append("**Stage timing:**\n")
+                            for stage, ms in sorted(timing.items()):
+                                lines.append(f"  • `{stage}`: {ms:.0f}ms\n")
+                        for ct in chunks[:effective_limit]:
+                            f = ct.get("file_path", "?")
+                            pos = ct.get("final_position", "?")
+                            score = ct.get("final_score", "N/A")
+                            lines.append(f"\n**#{pos}** `{f}` score={score:.6f}\n")
+                            if "bm25_rank" in ct:
+                                lines.append(f"  • BM25 rank={ct['bm25_rank']} -> RRF={ct.get('bm25_rrf', 'N/A')}\n")
+                            if "dense_rank" in ct:
+                                lines.append(f"  • Dense rank={ct['dense_rank']} -> RRF={ct.get('dense_rrf', 'N/A')}\n")
+                            if "mmr_similarity_penalty" in ct:
+                                sel = "✓" if ct.get("mmr_selected") else "—"
+                                lines.append(f"  • MMR penalty={ct['mmr_similarity_penalty']:.4f} [{sel}]\n")
+                            if "bucket_weight" in ct and ct["bucket_weight"] != 1.0:
+                                lines.append(f"  • Bucket weight={ct['bucket_weight']} (ext={ct.get('bucket_ext','')})\n")
+                            if "co_change_boost" in ct and ct["co_change_boost"] != 1.0:
+                                lines.append(f"  • Co-change boost x{ct['co_change_boost']}\n")
+                            if ct.get("reranker_applied"):
+                                lines.append(f"  • Reranker: {ct.get('reranker_score_before','N/A')} -> {ct.get('reranker_score_after','N/A')}\n")
+                        result_str += "".join(lines)
 
         elif mode == "deep":
             raw = None  # deep_search возвращает str
@@ -272,6 +308,7 @@ class SearchCodeTool(MCPTool):
                     limit=effective_limit,
                     layer=filter_layer,
                     intent_hint=intent_hint,
+                    explain=explain,
                 )
                 if isinstance(raw, str):
                     result_str = stale_banner + project_header + "\n" + raw

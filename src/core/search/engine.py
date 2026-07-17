@@ -27,6 +27,7 @@ from .scoring import (
     auto_detect_intent,
     reciprocal_rank_fusion,
 )
+from .trace import SearchTracer
 from .utils import (
     _expand_query,
     _extract_key_terms,
@@ -231,6 +232,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         before: Optional[str] = None,
         layer: Optional[str] = None,
         intent_hint: str = "auto",
+        tracer: Optional[SearchTracer] = None,
     ) -> List[dict]:
         """Гибридный поиск: комбинирует BM25 (sparse) и векторный (dense) поиск.
 
@@ -255,14 +257,14 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
                 future = pool.submit(
                     asyncio.run,
                     self.hybrid_search_async(
-                        query, limit, use_rrf, expand, since, before, layer, intent_hint
+                        query, limit, use_rrf, expand, since, before, layer, intent_hint, tracer
                     ),
                 )
                 return future.result(timeout=30)
         else:
             return asyncio.run(
                 self.hybrid_search_async(
-                    query, limit, use_rrf, expand, since, before, layer, intent_hint
+                    query, limit, use_rrf, expand, since, before, layer, intent_hint, tracer
                 )
             )
 
@@ -276,6 +278,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         before: Optional[str] = None,
         layer: Optional[str] = None,
         intent_hint: str = "auto",
+        tracer: Optional[SearchTracer] = None,
     ) -> List[dict]:
         """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
 
@@ -320,9 +323,15 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         all_dense_results = []
         query_vector = None  # для MMR
 
+        # ── Tracer: query expansion ──
+        if tracer:
+            tracer.record_query_expansion(query_variants)
+
         for variant in query_variants:
             # BM25 поиск (sparse) — пост-фильтрация по layer
             bm25_results = await self._bm25_search_async(variant, limit=raw_limit)
+            if tracer:
+                tracer.record_bm25_batch(bm25_results)
             if layer:
                 bm25_results = [
                     r
@@ -361,6 +370,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
                         all_dense_results = [
                             r for r in dense_results if "error" not in r
                         ]
+                    if tracer:
+                        tracer.record_dense_batch(all_dense_results)
                 except Exception as e:
                     logger.warning(f"Не удалось выполнить dense поиск: {e}")
 
@@ -377,6 +388,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             rrf_results = reciprocal_rank_fusion(
                 unique_bm25, all_dense_results, raw_limit
             )
+            if tracer:
+                tracer.record_rrf(rrf_results)
         else:
             reranked = self._reranker.rerank_results(
                 query, unique_bm25, all_dense_results, limit=raw_limit
@@ -393,12 +406,15 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             ]
 
         # === v3.2.1: MMR diversification (убирает дубли, сохраняя релевантность) ===
+        _mmr_before = list(rrf_results) if tracer else None
         rrf_results = apply_mmr_diversity(
             rrf_results,
             query_vector=query_vector,
             lambda_param=0.6,
             top_k=limit * 2,
         )
+        if tracer and _mmr_before:
+            tracer.record_mmr(_mmr_before, rrf_results, lambda_param=0.6)
 
         # === v3.2.1 B1: Auto-detect intent ===
         if intent_hint == "auto":
@@ -408,9 +424,23 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
 
         # === Multi-Bucket RAG: Soft Weighting + Cut to limit ===
         rrf_results = apply_bucket_weights(rrf_results, intent_hint)
+        if tracer:
+            tracer.record_bucket(rrf_results, intent_hint)
 
         # === v3.0: Co-change boost (git coupling) ===
+        _cc_before = dict(rrf_results) if tracer else None
         rrf_results = self._apply_co_change_boost(rrf_results)
+        if tracer and _cc_before:
+            _boosts = {}
+            for ch in rrf_results:
+                key = f"{ch.get('metadata', {}).get('file', '?')}:{ch.get('metadata', {}).get('chunk_index', '?')}"
+                before = _cc_before.get(id(ch), {}).get("final_score", 0) or 0
+                after = ch.get("final_score", 0) or 0
+                if before > 0:
+                    _boosts[key] = after / before
+                else:
+                    _boosts[key] = 1.0
+            tracer.record_co_change(rrf_results, _boosts)
 
         # Сортируем и обрезаем (чистый Python, на 30 элементах — микросекунды)
         rrf_results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
@@ -418,11 +448,16 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
+        _pre_rerank = list(pre_rerank_results) if tracer else None
         final_results = await self._apply_multi_reranker_async(
             query, pre_rerank_results, limit
         )
+        if tracer and _pre_rerank:
+            tracer.record_reranker(_pre_rerank, final_results)
 
         # Фильтрация по времени (since/before) — чистый Python
+        if tracer:
+            tracer.record_final(final_results)
         return _filter_by_time(final_results, since=since, before=before)
 
     # === mode=ask: генерация ответа через phi-4 ===
@@ -575,6 +610,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         limit: int = 5,
         layer: Optional[str] = None,
         intent_hint: str = "auto",
+        explain: bool = False,
     ) -> Dict:
         """Поиск с выбором режима (fast/quality/deep).
 
@@ -602,6 +638,9 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         timing = {}
         cache_hit = False
 
+        # ── Tracer for explainability ──
+        tracer = SearchTracer(query, enabled=explain) if explain else None
+
         # Проверяем кэш (изолируем по режиму, запросу, лимиту, слою и intent)
         cache_key = f"{mode}:{query}:{limit}:{layer or ''}:{intent_hint}"
         if cache_key in self._cache:
@@ -617,6 +656,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
                 if self._multi_reranker
                 else "cached",
                 "rerank_timing": getattr(self, "_last_rerank_timing", {}),
+                "trace": tracer.to_dict() if tracer else None,
             }
 
         results = []
@@ -645,7 +685,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             # DEEP: quality + graph context
             t1 = time.perf_counter()
             results = self.hybrid_search(
-                query, limit=limit, layer=layer, intent_hint=intent_hint
+                query, limit=limit, layer=layer, intent_hint=intent_hint, tracer=tracer
             )
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
@@ -658,7 +698,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             # QUALITY (default): hybrid with rerank
             t1 = time.perf_counter()
             results = self.hybrid_search(
-                query, limit=limit, layer=layer, intent_hint=intent_hint
+                query, limit=limit, layer=layer, intent_hint=intent_hint, tracer=tracer
             )
             timing["search_ms"] = (time.perf_counter() - t1) * 1000
 
@@ -669,12 +709,17 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
 
         timing["total_ms"] = (time.perf_counter() - t0) * 1000
 
-        # Сохраняем в кэш
-        if len(self._cache) >= self._cache_max_size:
-            # Удаляем самый старый
-            oldest_key = next(iter(self._cache))
-            del self._cache[oldest_key]
-        self._cache[cache_key] = results
+        # Сохраняем в кэш (без tracer чтобы не кэшировать explain-данные)
+        if not explain:
+            if len(self._cache) >= self._cache_max_size:
+                oldest_key = next(iter(self._cache))
+                del self._cache[oldest_key]
+            self._cache[cache_key] = results
+
+        # Добавляем trace в результат
+        trace_dict = tracer.to_dict() if tracer else None
+        if tracer:
+            tracer.record_stage_timing("total_ms", timing.get("total_ms", 0))
 
         return {
             "results": results,
@@ -685,6 +730,7 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             if self._multi_reranker
             else "no-reranker",
             "rerank_timing": getattr(self, "_last_rerank_timing", {}),
+            "trace": trace_dict,
         }
 
     def context_search(self, selected_code: str, limit: int = 5) -> str:
