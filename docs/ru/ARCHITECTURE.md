@@ -144,7 +144,7 @@ class SearchCodeTool(MCPTool):
 | `cypher_engine.py` **(новое v3.0)** | **Cypher→SQL для PropertyGraph** | graph |
 | `route_extractor.py` **(новое v3.0)** | **HTTP Route детекция** | graph |
 | `multi_signal_scorer.py` **(новое v3.0)** | **Мульти-сигнальное ранжирование (4 сигнала)** | graph |
-| `dataflow_experiment.py` **(новое v3.2)** | **Бенчмарк ASSIGNED_FROM** | parser |
+| `dataflow_experiment.py` **(новое v3.2)** | **Бенчмарк ASSIGNED_FROM, IMPORTS** | parser |
 | `intelligence_layer.py` | 14 intel_* инструментов | indexer, searcher, symbol_index |
 | `llama_runner.py` | Менеджер lifecycle для llama-server.exe (только реранкер) | download, launch, stop |
 | `remote_embedder.py` | ONNX E5-base / LM Studio / Ollama (legacy) | config |
@@ -162,7 +162,7 @@ class SearchCodeTool(MCPTool):
 │     Parse cache: повторный вызов для того же файла — без парсинга │
 │                                                                  │
 │  2. Conditional Flow                                             │
-│     ASSIGNED_FROM рёбра содержат condition_path                  │
+│     ASSIGNED_FROM, IMPORTS рёбра содержат condition_path                  │
 │     → ["if_statement", "for_statement", "try", "except"]         │
 │     Отслеживает вложенность if/for/while/try                     │
 │                                                                  │

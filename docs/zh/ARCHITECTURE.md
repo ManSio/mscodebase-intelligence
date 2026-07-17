@@ -145,7 +145,7 @@ class SearchCodeTool(MCPTool):
 | `cypher_engine.py` **(新增 v3.0)** | **Cypher→SQL 引擎** | graph |
 | `route_extractor.py` **(新增 v3.0)** | **HTTP 路由检测** | graph |
 | `multi_signal_scorer.py` **(新增 v3.0)** | **多信号搜索评分（4个信号）** | graph |
-| `dataflow_experiment.py` **(新增 v3.2)** | **ASSIGNED_FROM 基准测试** | parser |
+| `dataflow_experiment.py` **(新增 v3.2)** | **ASSIGNED_FROM, IMPORTS 基准测试** | parser |
 | `intelligence_layer.py` | 14个intel_*工具 | indexer, searcher, symbol_index |
 | `llama_runner.py` | llama-server.exe生命周期管理器 | download, launch, stop |
 | `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
@@ -163,7 +163,7 @@ class SearchCodeTool(MCPTool):
 │     Parse cache: 同一文件重复调用时跳过解析                       │
 │                                                                  │
 │  2. Conditional Flow                                             │
-│     ASSIGNED_FROM 边包含可选的 condition_path 属性                │
+│     ASSIGNED_FROM, IMPORTS 边包含可选的 condition_path 属性                │
 │     → ["if_statement", "for_statement", "try", "except"]         │
 │     追踪 if/for/while/try/except 嵌套层级                         │
 │                                                                  │

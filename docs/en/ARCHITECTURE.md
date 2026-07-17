@@ -146,7 +146,7 @@ Key modules:
 | `cypher_engine.py` **(new v3.0)** | **Cypher→SQL engine for PropertyGraph** | graph |
 | `route_extractor.py` **(new v3.0)** | **HTTP route detection (Flask, FastAPI, Django, Express, Next.js)** | graph |
 | `multi_signal_scorer.py` **(new v3.0)** | **Multi-signal search scoring (4 signals)** | graph |
-| `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM edge benchmark & analysis** | parser, graph |
+| `dataflow_experiment.py` **(new v3.2)** | **ASSIGNED_FROM, IMPORTS (20 languages, 788 edges) edge benchmark & analysis** | parser, graph |
 | `intelligence_layer.py` | 14 intel_* tools | indexer, searcher, symbol_index |
 | `llama_runner.py` | Lifecycle manager for llama-server.exe (reranker only) | download, launch, stop |
 | `remote_embedder.py` | ONNX multilingual-e5-small INT8 (384-dim) / OpenVINO INT8 (in-process, primary) + LM Studio / Ollama (legacy fallback) | config |
@@ -163,7 +163,7 @@ Key modules:
 │  nodes(id, name, label, qualified_name, file, properties)│
 │  edges(id, src, dst, type, weight, properties)           │
 │  — 15 node labels (File, Function, Class, Variable, ...)  │
-│  — 28 edge types (CALLS, DEFINES, ASSIGNED_FROM, ...)    │
+│  — 28 edge types (CALLS, DEFINES, ASSIGNED_FROM, IMPORTS (20 languages, 788 edges), ...)    │
 └─────────────────────────────────────────────────────────┘
          │
          ▼
@@ -185,7 +185,7 @@ Key modules:
 │     Parse cache avoids re-parsing for same file                   │
 │                                                                  │
 │  2. Conditional Flow                                              │
-│     ASSIGNED_FROM edges have optional condition_path property     │
+│     ASSIGNED_FROM, IMPORTS (20 languages, 788 edges) edges have optional condition_path property     │
 │     → ["if_statement", "for_statement", "while", "try", "except"] │
 │     Tracks if/for/while/try/except nesting                        │
 │                                                                  │
@@ -193,7 +193,7 @@ Key modules:
 │     Tracking works within function bodies only                    │
 │     Cross-function (a = f(x) → inside f) NOT tracked (explicit)   │
 │                                                                  │
-│  4. 16 languages for ASSIGNED_FROM                                │
+│  4. 16 languages for ASSIGNED_FROM, IMPORTS (20 languages, 788 edges)                                │
 │     Python, Rust, TypeScript, TSX, Go, JavaScript, Java, C#,     │
 │     Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart                │
 │                                                                  │
