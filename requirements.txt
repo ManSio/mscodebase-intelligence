@@ -32,7 +32,7 @@ pandas>=2.0.0
 #    В рантайме не используется (reranker через httpx).
 #    Нужен только scripts/download_model.py для экспорта ONNX.
 onnxruntime>=1.17.0
-transformers>=4.36.0,<4.56.0
+transformers>=4.36.0,<5.15.0
 tokenizers>=0.15.0
 
 # OpenVINO (INT8 эмбеддинги, ~350 ch/s)
