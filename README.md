@@ -16,7 +16,7 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-59-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-14*
+*Last updated: 2026-07-17*
 
 </div>
 
@@ -58,12 +58,15 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 | 🏥 **Self-diagnosis + self-healing** | ✅ | ❌ |
 | 🔎 **Cross-repo search** | ✅ | ❌ |
 | 🤖 **RAG answer generation** (mode=ask) | ✅ | ❌ |
+| 🔬 **Search explainability** (per-stage score trace) | ✅ | ❌ |
+| 🏛️ **Architecture drift detection** (chain/circular/hub) | ✅ | ❌ |
+| ✅ **Claim verification** (agent fact-checking vs code) | ✅ | ❌ |
 | ✏️ **Inline autocomplete** | ❌ | ✅ |
 | 🏷️ **Inlay hints** | ❌ | ✅ |
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **37 MCP tools**.
+MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **40+ MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 

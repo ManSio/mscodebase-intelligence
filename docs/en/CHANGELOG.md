@@ -6,8 +6,39 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **37 tools** = 19 core + 12 intel + 6 diagnostic
-> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all 37; by default only 12 are visible.
+> **Tool count (current):** the live server registers **40+ tools** = 20 core + 12 intel + 6 diagnostic + 2 new
+> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
+
+## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
+
+### Added
+- 🔬 **Explainability Layer** — `search_code(query, explain=True)` показыват per-chunk breakdown
+  всех этапов пайплайна: BM25, Dense, RRF, MMR, Bucket, Co-change, Reranker.
+  Каждый чанк содержит: rank, score, формулу, штраф MMR, bucket weight, co-change boost.
+  Zero-cost disable: при explain=False оверхед отсутствует.
+- 🏛️ **Architecture Drift Detector** — `graph_query(action="drift")` анализирует PropertyGraph:
+  - Chain imports (A->B->C, no direct A->C) — shim/re-export detection
+  - Hub modules (>10 imports) — god-object indicator
+  - Circular imports (A->B->A) — mutual dependency detection
+- ✅ **Claim Verifier** — `verify_claim(claim={...})` проверяет утверждения агента против кода:
+  - `calls` — проверка по CALLS-рёбрам PropertyGraph
+  - `defined_in` — поиск определения через SymbolIndex
+  - `handles_error` — поиск try/except в AST
+  - `imports` — проверка по IMPORTS-рёбрам
+  - `defines`, `implements`, `inherits` — иерархические связи
+  - Вердикт: confirmed / contradicted / unverifiable + строки кода
+- 🌐 **IMPORTS edges in PropertyGraph** — парсер извлекает импорты для 20 языков
+  (Python, Rust, TS/TSX, Go, JS, Java, C#, Ruby, PHP, Kotlin, Swift,
+   C/C++, Scala, Dart, Bash) и создаёт IMPORTS-рёбра File→Module.
+
+### Changed
+- `engine.py`: +tracer hook на всех 7 этапах поискового пайплайна
+- `indexer.py` + `index_pipeline.py`: +extract_imports + add_imports
+- `graph_query`: новый action="drift"
+
+### Fixed
+- PropertyGraph содержал 0 IMPORTS-рёбер при 3500+ других — теперь 788
+- Indexer._parse_file_only (дубликат pipeline) не содержал import extraction
 
 ## [3.2.3] — 2026-07-14 — MMR diversification + Auto Intent + Synonyms + subprocess-free ADR
 
