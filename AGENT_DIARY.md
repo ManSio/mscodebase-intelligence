@@ -8,8 +8,10 @@
 3. **PropertyGraph IMPORTS**: 0→788 рёбер. IMPORT_NODE_MAP для 20 языков
 4. **Architecture Drift Detector**: `graph_query(action="drift")` — chain/hub/circular detection
 5. **Критический баг найден**: Indexer._parse_file_only — дубликат логики, не содержал extract_imports
+6. **Claim Verifier**: `verify_claim(claim={...})` — 7 predicates, проверка против SymbolIndex + PG + AST
+7. **Docs**: README, CHANGELOG v3.3.0
 
-**Коммиты:** 012da96, 142761d, 460518c, f03204f, 5058196
+**Коммиты:** 012da96, 142761d, 460518c, f03204f, 5058196, a415e18
 **Статус:** ✅ Сессия закрыта
 
 ## [2026-07-17 20:00] — SWITCH TO multilingual-e5-small-int8 + batch optimization
