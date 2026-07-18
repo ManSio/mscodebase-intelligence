@@ -707,13 +707,16 @@ class RemoteEmbedder(IEmbedder):
             except Exception:
                 pass  # FP32 модель без tt входа — ок
 
-            # Callback для AsyncInferQueue: сохраняет результат в self._ov_results.
-            # Вызывается из потока OpenVINO (с GIL). userdata = original_index (int).
-            self._ov_results: dict[int, np.ndarray] = {}
-
+            # Callback для AsyncInferQueue: сохраняет результат в ЛОКАЛЬНЫЙ dict вызова.
+            # Вызывается из потока OpenVINO (с GIL).
+            # userdata = (original_index, local_results_dict) — полная изоляция вызовов,
+            # никакого shared mutable state между конкурентными embed_batch().
+            # (Fix: race condition audit 2026-07-18 — self._ov_results был общим на процесс,
+            # concurrent вызовы с одинаковыми userdata=0..N перезаписывали друг друга.)
             def _ov_callback(request, userdata):
+                idx, local_results = userdata
                 out_tensor = request.get_output_tensor(0)
-                self._ov_results[userdata] = out_tensor.data[0].copy()
+                local_results[idx] = out_tensor.data[0].copy()
 
             self._ov_async_queue.set_callback(_ov_callback)
 
@@ -875,21 +878,23 @@ class RemoteEmbedder(IEmbedder):
 
                 # AsyncInferQueue: параллельный инференс (см. P0-3 architecture review).
                 # Пул из N InferRequest, thread-safe start_async/wait_all.
-                self._ov_results.clear()
+                # Локальный dict для результатов этого вызова — изоляция от concurrent вызовов.
+                # userdata = (index, local_results) — callback пишет только сюда.
+                local_results: dict[int, np.ndarray] = {}
                 for idx_in, i in enumerate(valid_indices):
                     feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
-                    self._ov_async_queue.start_async(feed, i)
+                    self._ov_async_queue.start_async(feed, (i, local_results))
                 self._ov_async_queue.wait_all()
 
                 # Собираем результаты и mean-pool
                 for idx_in, i in enumerate(valid_indices):
-                    if i not in self._ov_results:
+                    if i not in local_results:
                         logger.warning(
                             "OpenVINO async: чанк %d (index %d) не вернулся — "
                             "вектор будет нулевым.", idx_in, i
                         )
                         continue
-                    token_emb = self._ov_results[i]
+                    token_emb = local_results[i]
                     mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
                     sum_emb = np.sum(token_emb * mask_exp, 0)
                     sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
