@@ -159,7 +159,8 @@ class SearchCodeTool(MCPTool):
 │                                                                  │
 │  1. Unified Walker — _walk_file()                                │
 │     ОДИН Tree-sitter parse + ОДИН обход → вызовы + присваивания  │
-│     Parse cache: повторный вызов для того же файла — без парсинга │
+│     Parse cache: путь + хэш контента (защита от устаревшего AST  │
+│     при повторной индексации — фикс v3.3.2)                      │
 │                                                                  │
 │  2. Conditional Flow                                             │
 │     ASSIGNED_FROM, IMPORTS рёбра содержат condition_path                  │

@@ -160,7 +160,8 @@ class SearchCodeTool(MCPTool):
 │                                                                  │
 │  1. Unified Walker — _walk_file()                                │
 │     一次 Tree-sitter 解析 + 一次遍历 → 调用 + 赋值                │
-│     Parse cache: 同一文件重复调用时跳过解析                       │
+│     Parse cache: 路径 + 内容哈希（防止修改文件后 AST 过期        │
+│     — v3.3.2 修复）                                              │
 │                                                                  │
 │  2. Conditional Flow                                             │
 │     ASSIGNED_FROM, IMPORTS 边包含可选的 condition_path 属性                │

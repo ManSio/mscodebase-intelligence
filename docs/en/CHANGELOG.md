@@ -9,6 +9,19 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **36 tools** = 20 core + 12 intel + 6 diagnostic
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
 
+## [3.3.2] — 2026-07-18 — AST cache fix + §5.16 subprocess safety
+
+### Fixed
+- 🐛 **AST cache staleness** — `CodeParser._walk_file()` cached AST by path only. Modified file with same path returned stale `extract_calls()` data, causing PropertyGraph to get incorrect CALLS edges. Fix: compare `code == self._cache_code` in addition to path.
+- 🛡️ **§5.16 Windows subprocess** — added `creationflags=CREATE_NO_WINDOW` to daemon-thread Popen calls. Prevents console window flash + handle conflicts.
+
+### Added
+- 🧪 **Regression tests** — `tests/test_ast_cache_invalidation.py` (5 tests: single-file rename, consumer rename, sequential renames, cache reuse, PropertyGraph ghost-node check).
+- 📊 **Chunk-level cache verification** — live data confirms 97.7% of chunks protected, 95.4% skip rate on file edits.
+
+### Documentation
+- Updated `DEV_DIARY.md`, `KNOWN_ISSUES.md`, `EXPERIMENTS_LOG.md`.
+
 ## [3.3.1] — 2026-07-18 — LanceDB corruption recovery + Search stability
 
 ### Fixed

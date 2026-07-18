@@ -182,7 +182,8 @@ Key modules:
 │                                                                  │
 │  1. Unified Walker — _walk_file()                                │
 │     ONE Tree-sitter parse + ONE walk → calls + assignments        │
-│     Parse cache avoids re-parsing for same file                   │
+│     Parse cache: path + content hash (avoids stale AST on        │
+│     re-index of modified file — v3.3.2 fix)                      │
 │                                                                  │
 │  2. Conditional Flow                                              │
 │     ASSIGNED_FROM, IMPORTS (20 languages, 788 edges) edges have optional condition_path property     │

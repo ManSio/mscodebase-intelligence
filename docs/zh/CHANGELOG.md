@@ -9,6 +9,19 @@
 > **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.2] — 2026-07-18 — AST 缓存修复 + §5.16 子进程安全
+
+### 修复
+- 🐛 **AST 缓存过期** — `CodeParser._walk_file()` 仅按路径缓存 AST。修改同名文件时 `extract_calls()` 返回旧数据，导致 PropertyGraph 获得错误的 CALLS 边。修复：额外比较 `code == self._cache_code`。
+- 🛡️ **§5.16 Windows 子进程** — 在 daemon 线程的 Popen 调用中添加 `creationflags=CREATE_NO_WINDOW`。防止控制台窗口闪烁和句柄冲突。
+
+### 新增
+- 🧪 **回归测试** — `tests/test_ast_cache_invalidation.py`（5 个测试：单文件重命名、调用者重命名、连续编辑、缓存复用、PropertyGraph ghost 节点检查）。
+- 📊 **Chunk-level 缓存验证** — 实时数据确认 97.7% 的块受保护，95.4% 的跳过率。
+
+### 文档
+- 更新 `DEV_DIARY.md`、`KNOWN_ISSUES.md`、`EXPERIMENTS_LOG.md`。
+
 ## [3.3.1] — 2026-07-18 — LanceDB 损坏恢复 + 搜索稳定性
 
 ### 修复

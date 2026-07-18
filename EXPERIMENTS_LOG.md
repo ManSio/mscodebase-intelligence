@@ -330,3 +330,90 @@ ALL SANDBOX TESTS PASSED.
 
 **Риск:** LanceDB не поддерживает add-column без recreate таблицы -> нужен
 миграционный шаг (_safe_recreate_table уже есть в db_manager.py).
+
+---
+
+## 2026-07-18: Chunk-level cache — Live verification
+
+**Context:** Sandbox benchmark showed 95.4% skip rate (AST-aware chunking).
+This experiment verified the implementation in production data.
+
+**Method:** Direct LanceDB query on live index (3792 chunks, 260 files).
+
+### Results
+
+| Metric | Value |
+|--------|-------|
+| Total chunks | 3792 |
+| With chunk_hash | 3705 (97.7%) |
+| Without chunk_hash | 87 (2.3%, legacy) |
+| Embedding dim | 384 ✅ |
+| Files at 100% cache | 255/260 |
+| Files with partial cache | 5/260 |
+
+### Pipeline chain verified end-to-end
+1. `db_manager.py` — schema has `chunk_hash` column ✅
+2. `db_writer.py` — stores `chunk_hash` in each record ✅
+3. `index_pipeline.py` — queries known vectors by `file_path`, skips `embed_batch` for cached ✅
+
+### Benchmark (AST-aware chunking, 30 large files)
+
+| Edit ratio | File-level re-embed | Chunk-level re-embed | Savings |
+|------------|--------------------|--------------------|---------|
+| 1% | 1314 (100%) | 60 (4.6%) | **95.4%** |
+| 5% | 1258 (100%) | 58 (4.6%) | **95.4%** |
+
+### Sliding-window vs AST-aware comparison
+
+| Chunking mode | Skip rate (5% edit) | Why |
+|---------------|--------------------|-----|
+| Sliding window | 12% | Position shift breaks hash matching |
+| AST-aware (tree-sitter) | **95.4%** | Stable syntactic units survive edits |
+
+**Conclusion:** Chunk-level cache is fully operational. 97.7% of chunks protected. ~700ms saved per file save.
+
+---
+
+## 2026-07-18: AST cache invalidation bug — Discovery & Fix
+
+**Context:** Ghost-node cross-file dependency test revealed stale CALLS edges.
+
+**Method:** Created producer.py (defines `calc_data`) + consumer.py (calls `calc_data`).
+Renamed to `process_data` in consumer.py only, re-indexed, checked PropertyGraph.
+
+### Bug
+`CodeParser._walk_file()` cached AST by `file_path` only. Modified file with same path → cache hit → stale data. `extract_calls()` returned old callee names.
+
+### Fix
+```python
+# Before (broken)
+if file_path == self._cache_path:
+    code = self._cache_code
+    tree = self._cache_tree
+
+# After (fixed)
+try:
+    with open(file_path, "rb") as f:
+        code = f.read()
+except Exception:
+    return [], []
+if not code.strip():
+    return [], []
+if file_path == self._cache_path and code == self._cache_code:
+    tree = self._cache_tree
+else:
+    tree = self.parsers[ext].parse(code)
+    self._cache_path = file_path
+    self._cache_code = code
+    self._cache_tree = tree
+```
+
+### Why NOT mtime
+- NTFS mtime unreliable (antivirus, WSL, shutil.copy)
+- Content comparison is ground truth
+- File read is <1ms overhead (not worth optimizing)
+
+### Regression tests
+`tests/test_ast_cache_invalidation.py` — 5 tests, all passed in 0.43s.
+
+**Conclusion:** PropertyGraph now gets correct CALLS edges on every re-index.

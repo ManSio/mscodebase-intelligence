@@ -16,7 +16,7 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-38-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-17*
+*Last updated: 2026-07-18*
 
 </div>
 
