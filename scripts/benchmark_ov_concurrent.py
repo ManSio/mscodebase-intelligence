@@ -93,6 +93,11 @@ try:
             "philosophy epistemology metaphysics ethics logic ontology",
             "economics inflation interest supply demand monetary policy",
         ]
+        assert n_threads * 2 <= len(_all_topics), (
+            f"Need {n_threads * 2} unique topics, have {len(_all_topics)}. "
+            f"At n_threads > {len(_all_topics) // 2} topics wrap via modulo "
+            f"→ threads share identical texts → contamination check is unreliable."
+        )
         all_texts = {}
         _topic_idx = 0
         for t in range(n_threads):
