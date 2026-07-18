@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-07-18 — AsyncInferQueue: throughput benchmark (честные цифры)
+
+**Команда:** `python scripts/benchmark_ov_concurrent.py`
+**Модель:** multilingual-e5-small-int8 (INT8, 384dim)
+**Queue:** AsyncInferQueue(jobs=4)
+
+**Результат:**
+| Threads | Chunks | Time (s) | ch/s | Errors |
+|---------|--------|----------|------|--------|
+| 1       | 10     | 0.32     | 31   | 0      |
+| 2       | 20     | 0.30     | 66   | 0-1    |
+| 4+      | 40+    | зависает | —    | —      |
+
+**Вывод:** throughput ×2 (не ×4) — queue(jobs=4) не масштабируется при >2 concurrent embed_batch.
+Причина: при конкурентных вызовах queue.is_ready() возвращает False, start_async() блокируется.
+
+**Ограничение для продакшна:** indexer (batch=4) + concurrent search (batch=1) = 5 concurrent чанков → queue(4) забивается.
+Требуется либо увеличение pool_size (jobs=8+), либо лок между concurrent embed_batch (вернуть сериализацию между вызовами).
+
+**Сравнение:**
+- Старая версия (single InferRequest + lock): 52 ch/s (batch=4, 1 thread)
+- Новая версия (AsyncInferQueue jobs=4): 66 ch/s (batch=10, 2 concurrent threads)
+- Прирост: ~27% при 2 concurrent, но деградация при >2
+
+**Status:** ⚠️ Частичное улучшение, требует дальнейшего тюнинга (jobs=8 или mutex).
+
 ## 2026-07-18 — AsyncInferQueue: тихая гонка (тихая подмена векторов)
 
 **Симптом:** Claude-аудит обнаружил что `self._ov_results` — общий dict на процесс.
