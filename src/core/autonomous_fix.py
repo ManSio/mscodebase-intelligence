@@ -11,6 +11,7 @@ Autonomous Fix Loop — автоматическое исправление ош
 
 import asyncio
 import logging
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -60,7 +61,7 @@ class AutonomousFixLoop:
 
     async def run_tests(self, test_path: Optional[str] = None) -> Dict:
         """Запускает тесты и возвращает результат."""
-        cmd = ["python", "-m", "pytest", "--tb=short", "-q", "--maxfail=3"]
+        cmd = [sys.executable, "-m", "pytest", "--tb=short", "-q", "--maxfail=3"]
         if test_path:
             cmd.append(test_path)
         else:
