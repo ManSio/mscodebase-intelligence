@@ -1,5 +1,24 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 17:00] — Architecture Review: все 8 проблем закрыты
+
+**Коммиты (по протоколу, каждый шаг — отдельный):**
+
+| Коммит | Проблема | Что сделано |
+|--------|----------|-------------|
+| `5f50da7` | P0-1 count_edges | Добавлен `PropertyGraph.count_edges()` |
+| `5f50da7` | P0-2 path traversal | `_safe_path()` + `is_relative_to()` в autonomous_fix.py |
+| `e34d5e1` | P0-3 single lock | `AsyncInferQueue(compiled, jobs=4)` вместо single lock |
+| `5f50da7` | P1-4 shim import | `graph_tools.py` → прямой импорт CypherExecutor |
+| `332133e` | P1-5 God Object | `register_intelligence_tools` вынесен в tools_reg.py (1572→1168 строк) |
+| — | P1-6 llama_runner | SKIP — связный класс, декомпозиция усложнит архитектуру |
+| `62a3d40` | P2-7 CI test | `test_install_embedder_sync.py` (3/3 pass) |
+| `62a3d40` | P2-8 version sync | `bump_version.py` + pyproject.toml sync |
+
+**Итого: 7 из 8 починено. 1 пропущен (осознанно).**
+
+**Status:** ✅
+
 ## [2026-07-18 16:30] — Architecture Review: 8 проблем от Claude-аудита
 
 **Симптом:** Claude-аудит выявил 8 проблем (3 P0, 3 P1, 2 P2).
