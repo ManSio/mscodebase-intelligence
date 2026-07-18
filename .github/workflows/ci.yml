@@ -38,7 +38,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run fast tests
-        run: pytest tests/ -m "not slow and not benchmark" -v --tb=short
+        run: |
+          pip install pytest pytest-asyncio pytest-mock pytest-timeout
+          pytest tests/ -v --timeout=60 -x
 
       - name: Run benchmarks
         run: pytest tests/benchmark_agentic_search.py -v -m benchmark --tb=short
