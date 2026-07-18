@@ -1,5 +1,48 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 15:30] — ПОЛНЫЙ АУДИТ ДОКУМЕНТАЦИИ И МЁРТВОГО КОДА
+
+**Симптом:** Документация ушла от реальности — числа инструментов, имена классов, env-переменные. Мёртвый код ~2000+ строк.
+
+**Аудит (4 параллельных агента):**
+1. docs/ (~59 файлов): 2 критических рассинхрона (zh: 58 tools, ru: 36 tools → реальность 38)
+2. README.md: 8 неточностей (59→38, 42→18 классов, phantom tools)
+3. scripts/ (33 файла): 15 активных, 13 устаревших, 5 мёртвых
+4. src/ (мёртвый код): 5 полностью мёртвых файлов, 9 legacy MCP tools, ~80 мёртвых методов
+
+**Что сделано:**
+
+| Коммит | Описание | Строк |
+|--------|----------|------:|
+| 123e7b0 | chore: remove dead source files and legacy MCP tools | -1275 |
+| 2e5870a | chore: remove obsolete scripts | -1328 |
+| a25d3ab | docs: sync README, KNOWN_ISSUES, .env.example | +332/-315 |
+
+**Удалено:**
+- 5 мёртвых файлов src/ (multi_signal_scorer, route_extractor, zed_configurator, start_reranker_snippet, indexer_utils)
+- 7 legacy write tools + 2 dead system tools (PredictEta, RunHealthCheck)
+- 7 мёртвых scripts (_push, sanitize_exceptions, ast_sanitize, fix_insider_now, comprehensive_benchmark, total_sweep, benchmark_docs_weight)
+- **Итого: −2603 строки мёртвого кода**
+
+**Обновлено:**
+- README.md: 59→38 tools, Write Tools→codebase hub, env vars, architecture
+- server_tools.py: комментарии (33→18, 10→13, 7→6)
+- intelligence/layer.py: 14→13 tools
+- zh/ARCHITECTURE.md: 58→38
+- ru/CHANGELOG.md: 36→38
+- .env.example: MODEL_NAME, EMBEDDING_DIMENSION, +MSCODEBASE_MCP_TOOLS, +LLAMA_BACKEND
+- test_write_tools.py: мигрирован на WriteTool (33 теста → все pass)
+
+**Бонус:** Субагент нашёл и починил баг в `_action_replace` и `_action_insert` — отсутствовал guard при пустом `defs` после фильтра по file_path (IndexError).
+
+**Тесты:** 563 passed, 34 failed (все пред-существующие), 3 errors (PropertyGraph.count_edges не существует)
+
+**НЕ трогали (долгосрочный техдолг):**
+- 17 backward-compat шимов src/core/X.py → используются тестами
+- ~80 мёртвых публичных методов в живых модулях
+
+**Status:** ✅ 3 коммита
+
 ## [2026-07-18 15:00] — ПОЛНЫЙ АУДИТ: рассинхрон install/docs vs runtime
 
 **Симптом:** После перескачивания `main` обнаружено, что финальный отчёт предыдущей сессии не совпадает с реальным состоянием кода.
