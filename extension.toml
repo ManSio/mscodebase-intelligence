@@ -1,0 +1,25 @@
+id = "mscodebase-intelligence"
+name = "MSCodeBase Intelligence"
+version = "3.2.3"
+schema_version = 1
+description = "Semantic codebase intelligence with Multi-Bucket RAG, contextual retrieval, and system profiles"
+repository = "https://github.com/ManSio/mscodebase-intelligence"
+authors = ["ManSio <mansio0602@gmail.com>"]
+themes = []
+icon_themes = []
+languages = []
+capabilities = ["context_servers"]
+
+[grammars]
+
+[language_servers]
+
+# MCP Context Server — регистрируем здесь, а не в settings.json.
+# Установка из marketplace → один клик, без ручной настройки.
+# Перед первым запуском: python install.py (создаёт venv + скачивает модели).
+[context_servers.mscodebase-intelligence]
+command = "venv\\Scripts\\python.exe"
+args = ["-u", "-m", "src.main"]
+env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT"}
+
+[slash_commands]

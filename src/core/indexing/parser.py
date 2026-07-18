@@ -1,0 +1,1319 @@
+"""
+Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback.
+"""
+
+import hashlib
+import json
+import logging
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+from src.core.extensions import PARSE_EXTENSIONS
+
+__all__ = [
+    "CodeParser",
+]
+logger = logging.getLogger(__name__)
+
+
+class CodeParser:
+    """Парсит код и разбивает на семантически значимые чанки (функции, методы)."""
+
+    SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS
+
+    # Узлы, которые мы извлекаем как чанки
+    TARGET_NODES = {
+        "function_definition",          # Python, Rust, C/C++, Dart
+        "method_definition",            # Python class method
+        "function_item",                # Rust fn
+        "impl_item",                    # Rust impl
+        "method_declaration",           # Java, C#
+        "function_declaration",         # Go, Swift, Kotlin, C, C++
+    }
+
+    # Узлы вызовов функций — для построения графа вызовов
+    CALL_NODES = {
+        "call_expression",  # Python, JS, Go, Rust
+        "call",  # Альтернативные грамматики
+        "function_invocation",  # Java
+        "invocation_expression",  # Java (method invocation)
+        "macro_invocation",  # Rust macros!
+    }
+
+    # Типы узлов, которые мы считаем "идентификаторами" при поиске вызовов
+    CALL_IDENTIFIER_TYPES = {
+        "identifier",
+        "type_identifier",
+        "field_expression",  # obj.method()
+        "scoped_identifier",  # module::func()
+    }
+
+    # Узлы-контейнеры, чьи имена мы запоминаем для контекста
+    CONTAINER_NODES = {
+        "class_definition",
+        "struct_item",
+        "impl_item",
+        "class_declaration",
+        "interface_declaration",
+    }
+
+    # Настройки Fallback-чанкера и защиты от гигантских функций
+    MAX_CHUNK_CHARS = (
+        1800  # Максимальный размер семантического чанка в символах (≤512 токенов E5-base)
+    )
+    FALLBACK_CHUNK_LINES = 56  # ≈420 токенов для Python кода (с запасом под E5-base 512)
+    FALLBACK_OVERLAP_LINES = 16  # 25% перекрытие
+
+    def __init__(self):
+        self.parsers = {}
+        self._init_tree_sitter()
+        # Parse cache: исключает повторный parse когда extract_calls
+        # и extract_assignments вызываются подряд для одного файла.
+        # (indexer: parse_file→extract_calls, затем extract_assignments)
+        self._cache_path: Optional[Path] = None
+        self._cache_code: Optional[bytes] = None
+        self._cache_tree = None
+        self._cache_ext: Optional[str] = None
+
+    def _init_tree_sitter(self):
+        """Инициализирует Tree-sitter парсеры с поддержкой разных версий API."""
+        try:
+            from tree_sitter import Language, Parser
+
+            # Python
+            try:
+                import tree_sitter_python as tspython
+
+                parser = Parser()
+                # Поддержка старого и нового API tree-sitter-python
+                if hasattr(tspython, "LANGUAGE"):
+                    parser.language = Language(tspython.LANGUAGE)  # type: ignore[attr-defined]
+                else:
+                    parser.language = Language(tspython.language())
+                self.parsers[".py"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Python недоступен.")
+
+            # Rust
+            try:
+                import tree_sitter_rust as tsrust
+
+                parser = Parser()
+                parser.language = Language(tsrust.language())
+                self.parsers[".rs"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Rust недоступен.")
+
+            # TypeScript / TSX
+            try:
+                import tree_sitter_typescript as tstypescript
+
+                parser_ts = Parser()
+                parser_ts.language = Language(tstypescript.language_typescript())
+                self.parsers[".ts"] = parser_ts
+
+                parser_tsx = Parser()
+                parser_tsx.language = Language(tstypescript.language_tsx())
+                self.parsers[".tsx"] = parser_tsx
+            except ImportError:
+                logger.debug("Tree-sitter TypeScript недоступен.")
+
+            # Go
+            try:
+                import tree_sitter_go as tsgo
+
+                parser = Parser()
+                parser.language = Language(tsgo.language())
+                self.parsers[".go"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Go недоступен.")
+
+            # JavaScript
+            try:
+                import tree_sitter_javascript as tsjs
+
+                parser = Parser()
+                parser.language = Language(tsjs.language())
+                self.parsers[".js"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter JavaScript недоступен.")
+
+            # Java
+            try:
+                import tree_sitter_java as tsjava
+
+                parser = Parser()
+                parser.language = Language(tsjava.language())
+                self.parsers[".java"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Java недоступен.")
+
+            # C#
+            try:
+                import tree_sitter_c_sharp as tscs
+
+                parser = Parser()
+                parser.language = Language(tscs.language())
+                self.parsers[".cs"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C# недоступен.")
+
+            # Ruby
+            try:
+                import tree_sitter_ruby as tsrb
+
+                parser = Parser()
+                parser.language = Language(tsrb.language())
+                self.parsers[".rb"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Ruby недоступен.")
+
+            # PHP
+            try:
+                import tree_sitter_php as tsphp
+
+                parser = Parser()
+                # PHP grammar: может быть language_php() или LANGUAGE
+                if hasattr(tsphp, "language_php"):
+                    parser.language = Language(tsphp.language_php())
+                elif hasattr(tsphp, "language"):
+                    parser.language = Language(tsphp.language())
+                elif hasattr(tsphp, "LANGUAGE"):
+                    parser.language = Language(tsphp.LANGUAGE)  # type: ignore[attr-defined]
+                self.parsers[".php"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter PHP недоступен.")
+
+            # Kotlin
+            try:
+                import tree_sitter_kotlin as tskt
+
+                parser = Parser()
+                parser.language = Language(tskt.language())
+                self.parsers[".kt"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Kotlin недоступен.")
+
+            # Swift
+            try:
+                import tree_sitter_swift as tssw
+
+                parser = Parser()
+                parser.language = Language(tssw.language())
+                self.parsers[".swift"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Swift недоступен.")
+
+            # C
+            try:
+                import tree_sitter_c as tsc
+
+                parser = Parser()
+                parser.language = Language(tsc.language())
+                self.parsers[".c"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C недоступен.")
+
+            # C++
+            try:
+                import tree_sitter_cpp as tscpp
+
+                parser = Parser()
+                parser.language = Language(tscpp.language())
+                self.parsers[".cpp"] = parser
+                self.parsers[".cxx"] = parser
+                self.parsers[".hpp"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter C++ недоступен.")
+
+            # Scala
+            try:
+                import tree_sitter_scala as tssc
+
+                parser = Parser()
+                parser.language = Language(tssc.language())
+                self.parsers[".scala"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Scala недоступен.")
+
+            # Dart
+            try:
+                import tree_sitter_dart as tsdart
+
+                parser = Parser()
+                parser.language = Language(tsdart.language())
+                self.parsers[".dart"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Dart недоступен.")
+
+            # Bash
+            try:
+                import tree_sitter_bash as tsbash
+
+                parser = Parser()
+                parser.language = Language(tsbash.language())
+                self.parsers[".sh"] = parser
+                self.parsers[".bash"] = parser
+            except ImportError:
+                logger.debug("Tree-sitter Bash недоступен.")
+
+            # SQL, YAML, TOML, HTML, CSS, HCL — парсеры для контекста
+            # (ASSIGNED_FROM для них не применим)
+            _context_parsers = {
+                "sql": ("tree_sitter_sql", ".sql"),
+                "yaml": ("tree_sitter_yaml", ".yaml", ".yml"),
+                "toml": ("tree_sitter_toml", ".toml"),
+                "html": ("tree_sitter_html", ".html", ".htm"),
+                "css": ("tree_sitter_css", ".css"),
+                "hcl": ("tree_sitter_hcl", ".hcl", ".tf", ".tfvars"),
+            }
+            for lang_name, (mod_name, *exts) in _context_parsers.items():
+                try:
+                    mod = __import__(mod_name)
+                    p = Parser()
+                    if hasattr(mod, "LANGUAGE"):
+                        p.language = Language(mod.LANGUAGE)
+                    elif hasattr(mod, "language"):
+                        p.language = Language(mod.language())
+                    else:
+                        logger.debug(f"Tree-sitter {lang_name}: unknown API.")
+                        continue
+                    for ext in exts:
+                        self.parsers[ext] = p
+                except ImportError:
+                    logger.debug(f"Tree-sitter {lang_name} недоступен.")
+
+            logger.info(f"✅ Tree-sitter готов для: {list(self.parsers.keys())}")
+
+        except ImportError as e:
+            logger.warning(f"⚠️ Модуль Tree-sitter не установлен: {e}")
+
+    def parse_file(self, file_path: Path) -> tuple:
+        """Главный метод парсинга файла. Возвращает (chunks, symbols)."""
+        ext = file_path.suffix.lower()
+
+        if ext not in self.SUPPORTED_EXTENSIONS:
+            return [], []
+
+        if ext == ".md":
+            chunks, symbols = self._parse_markdown(file_path)
+        elif ext in self.parsers:
+            try:
+                chunks, symbols = self._parse_with_tree_sitter(file_path, ext)
+                if not chunks:
+                    chunks, symbols = self._fallback_line_chunking(file_path)
+            except Exception as e:
+                logger.warning(
+                    f"Ошибка Tree-sitter для {file_path}, используем fallback: {e}"
+                )
+                chunks, symbols = self._fallback_line_chunking(file_path)
+        else:
+            chunks, symbols = self._fallback_line_chunking(file_path)
+
+        # v3.0: добавляем callees в metadata каждого чанка
+        if chunks:
+            try:
+                calls = self.extract_calls(file_path)
+                if calls:
+                    callees_json = json.dumps(list(set(c["callee"] for c in calls)))
+                    for ch in chunks:
+                        ch["callees"] = callees_json
+            except Exception as _e:
+                logger.warning("exception", exc_info=True)
+                pass
+        return chunks, symbols
+
+    def _parse_with_tree_sitter(self, file_path: Path, ext: str) -> tuple:
+        """Парсинг через AST с сохранением контекста и извлечением символов.
+        Возвращает (chunks, symbols).
+        """
+        parser = self.parsers[ext]
+
+        try:
+            with open(file_path, "rb") as f:
+                code = f.read()
+        except Exception as e:
+            logger.warning(f"Ошибка чтения файла {file_path}: {e}")
+            return [], []
+
+        if not code.strip():
+            return [], []
+
+        tree = parser.parse(code)
+        chunks = []
+        symbols = []
+
+        # Запускаем обход
+        self._walk_node(
+            tree.root_node, code, file_path, chunks, symbols, parent_context=""
+        )
+
+        if not chunks:
+            return self._fallback_line_chunking(file_path)
+
+        return chunks, symbols
+
+    def _walk_node(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        chunks: List,
+        symbols: List,
+        parent_context: str,
+    ):
+        """Рекурсивно обходит AST. Извлекает функции и символы.
+
+        Ключевая оптимизация токенов: чанк = только сигнатура + 3 строки тела,
+        полное тело сохраняется отдельно для релевантности при поиске.
+        """
+        current_context = parent_context
+
+        # 1. Извлекаем контекст (имя класса/структуры)
+        if node.type in self.CONTAINER_NODES:
+            name_node = self._find_child_by_type(
+                node, "identifier"
+            ) or self._find_child_by_type(node, "type_identifier")
+            if name_node:
+                class_name = code[name_node.start_byte : name_node.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+                current_context = (
+                    f"{parent_context}.{class_name}" if parent_context else class_name
+                )
+
+        # 2. Если это целевой узел (функция/метод)
+        if node.type in self.TARGET_NODES:
+            text = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            if text.strip():
+                # v2.6.0: Contextual prefix с путём файла
+                rel_path = str(file_path)
+                if current_context:
+                    prefix = f"// File: {rel_path} | Context: {current_context}\n"
+                else:
+                    prefix = f"// File: {rel_path}\n"
+
+                # Извлекаем имя функции/метода для SymbolIndex
+                name_node = self._find_child_by_type(
+                    node, "identifier"
+                ) or self._find_child_by_type(node, "name")
+                symbol_name = ""
+                if name_node:
+                    symbol_name = code[
+                        name_node.start_byte : name_node.end_byte
+                    ].decode("utf-8", errors="ignore")
+                    full_symbol = (
+                        f"{current_context}.{symbol_name}"
+                        if current_context
+                        else symbol_name
+                    )
+                    symbols.append(
+                        {
+                            "name": full_symbol,
+                            "line": node.start_point[0],
+                            "kind": node.type,
+                        }
+                    )
+
+                # ТОКЕН-ЭФФЕКТИВНЫЙ ЧАНК:
+                # Сигнатура (первая строка) + короткий превью тела
+                lines = text.splitlines(keepends=True)
+                signature = lines[0] if lines else text
+                body_preview = "".join(lines[1:4]) if len(lines) > 1 else ""
+
+                compact_text = signature + body_preview
+                if len(compact_text) > self.MAX_CHUNK_CHARS:
+                    logger.warning(
+                        "Chunk compact_text truncated: %d -> %d chars "
+                        "(E5-base limit) file=%s symbol=%s",
+                        len(compact_text), self.MAX_CHUNK_CHARS,
+                        file_path, symbol_name,
+                    )
+                    compact_text = compact_text[: self.MAX_CHUNK_CHARS] + "\n..."
+
+                # Защита от гигантских функций (>512 токенов E5-base)
+                if len(text) > self.MAX_CHUNK_CHARS:
+                    logger.warning(
+                        "Giant function chunked: %d chars file=%s symbol=%s",
+                        len(text), file_path, symbol_name,
+                    )
+                    start_offset = node.start_point[0]
+                    sub_chunks = self._chunk_giant_text(
+                        lines,
+                        str(file_path),
+                        start_offset,
+                        prefix,
+                        current_context,
+                        symbol_name,
+                    )
+                    for sc in sub_chunks:
+                        sc["symbol_name"] = symbol_name
+                    chunks.extend(sub_chunks)
+                else:
+                    meta = self._build_chunk_metadata(
+                        str(file_path), symbol_name, node.type, current_context
+                    )
+                    chunks.append(
+                        {
+                            "text": prefix + text,
+                            "text_compact": prefix + compact_text,
+                            "file": str(file_path),
+                            "start_line": node.start_point[0],
+                            "end_line": node.end_point[0],
+                            "type": node.type,
+                            "context": current_context,
+                            "symbol_name": symbol_name,
+                            # Metadata (MCompassRAG + SproutRAG)
+                            "layer": meta["layer"],
+                            "module_name": meta["module_name"],
+                            "hierarchy_level": meta["hierarchy_level"],
+                            "is_public": meta["is_public"],
+                            "symbol_type": meta["symbol_type"],
+                            "parent_id": meta["parent_id"],
+                        }
+                    )
+
+        # 3. Идем глубже в детей
+        for child in node.children:
+            self._walk_node(child, code, file_path, chunks, symbols, current_context)
+
+    def _find_child_by_type(self, node, node_type: str):
+        """Утилита для поиска дочернего узла по типу."""
+        for child in node.children:
+            if child.type == node_type:
+                return child
+        return None
+
+    @staticmethod
+    def _build_chunk_metadata(
+        file_path: str,
+        symbol_name: str = "",
+        node_type: str = "",
+        context: str = "",
+    ) -> Dict[str, Any]:
+        """Строит метаданные чанка: архитектурный слой, модуль,
+        уровень иерархии, публичность, parent_id.
+
+        Args:
+            file_path: Абсолютный или относительный путь к файлу.
+            symbol_name: Имя символа (функции/метода).
+            node_type: Тип узла AST (function_definition, method_definition, ...).
+            context: Контекст — имя класса/структуры (если есть).
+
+        Returns:
+            Словарь с полями: layer, module_name, hierarchy_level,
+            is_public, symbol_type, parent_id.
+        """
+        # Нормализация пути для детекции слоя
+        path_lower = str(file_path).lower().replace("\\", "/")
+
+        # --- Layer detection (MCompassRAG-style) ---
+        if "/tests/" in path_lower:
+            layer = "tests"
+        elif "/src/core/" in path_lower:
+            layer = "core"
+        elif "/src/mcp/tools/" in path_lower:
+            layer = "mcp_tools"
+        elif "/src/mcp/" in path_lower:
+            layer = "mcp"
+        elif "/src/utils/" in path_lower:
+            layer = "utils"
+        elif "/docs/" in path_lower:
+            layer = "docs"
+        elif "/.agents/" in path_lower:
+            layer = "agents"
+        elif "/scripts/" in path_lower:
+            layer = "scripts"
+        elif "/.github/" in path_lower:
+            layer = "ci"
+        else:
+            layer = "root"
+
+        # --- Module name: из src/core/parser.py → core.parser ---
+        m = re.search(r"(?:src|tests|scripts|docs)/(.+\.\w+)$", path_lower)
+        if m:
+            # Обрезаем расширение файла
+            module_raw = m.group(1)
+            dot_idx = module_raw.rfind(".")
+            if dot_idx > 0:
+                module_raw = module_raw[:dot_idx]
+            module_name = module_raw.replace("/", ".")
+        else:
+            module_name = path_lower.replace("/", ".").strip(".")
+
+        # --- is_public: символ не начинается с '_' ---
+        is_public = bool(symbol_name) and not symbol_name.startswith("_")
+
+        # --- hierarchy_level (SproutRAG-style) ---
+        hierarchy_map = {
+            "function_definition": "function",
+            "function_item": "function",
+            "function_declaration": "function",
+            "method_definition": "method",
+            "method_declaration": "method",
+            "class_definition": "class",
+            "impl_item": "impl",
+            "fallback_lines": "lines",
+            "giant_function_part": "function_part",
+            "markdown_section": "section",
+        }
+        hierarchy_level = hierarchy_map.get(node_type, "other")
+
+        # --- parent_id: детерминированный хеш родителя ---
+        if context and hierarchy_level in ("method", "function"):
+            # Метод внутри класса → parent = класс
+            parent_key = f"{file_path}::{context}"
+            parent_id = hashlib.md5(parent_key.encode()).hexdigest()
+        elif hierarchy_level == "function_part" and symbol_name:
+            # Часть гигантской функции → parent = функция
+            parent_key = f"{file_path}::{context}::{symbol_name}"
+            parent_id = hashlib.md5(parent_key.encode()).hexdigest()
+        elif hierarchy_level in ("function", "method"):
+            # Функция верхнего уровня → parent = модуль
+            parent_id = hashlib.md5(f"{file_path}".encode()).hexdigest()
+        else:
+            parent_id = ""
+
+        return {
+            "layer": layer,
+            "module_name": module_name,
+            "hierarchy_level": hierarchy_level,
+            "is_public": is_public,
+            "symbol_type": node_type,
+            "parent_id": parent_id,
+        }
+
+    # ── Unified AST Walker (один parse → два результата) ──
+
+    # Узлы импортов для разных языков — для построения IMPORTS-рёбер
+    IMPORT_NODE_MAP = {
+        ".py": {"import_statement", "import_from_statement"},
+        ".rs": {"use_declaration"},
+        ".ts": {"import_statement", "import_declaration"},
+        ".tsx": {"import_statement", "import_declaration"},
+        ".go": {"import_declaration"},
+        ".js": {"import_statement", "import_declaration"},
+        ".java": {"import_declaration"},
+        ".cs": {"using_directive"},
+        ".rb": {"require", "include"},
+        ".php": {"include_expression", "require_expression"},
+        ".kt": {"import_declaration"},
+        ".swift": {"import_declaration"},
+        ".c": {"include_statement", "import_declaration"},
+        ".cpp": {"include_statement", "import_declaration"},
+        ".cxx": {"include_statement", "import_declaration"},
+        ".hpp": {"include_statement", "import_declaration"},
+        ".scala": {"import"},
+        ".dart": {"import_declaration", "export_declaration"},
+        ".sh": {"source_statement"},
+        ".bash": {"source_statement"},
+    }
+
+    # Типы assignment-узлов для разных языков (мультиязычность)
+    ASSIGNMENT_NODE_MAP = {
+        ".py": {"assignment", "augmented_assignment"},
+        ".rs": {"let_declaration", "assignment_expression"},
+        ".ts": {"variable_declarator", "assignment_expression"},
+        ".tsx": {"variable_declarator", "assignment_expression"},
+        ".go": {"short_var_declaration", "assignment_statement",
+                  "var_spec", "send_statement"},
+        ".js": {"variable_declarator", "assignment_expression"},
+        ".java": {"variable_declarator", "assignment_expression"},
+        ".cs": {"variable_declarator", "assignment_expression"},
+        ".rb": {"assignment", "op_assignment"},
+        ".php": {"assignment_expression", "variable_declarator"},
+        ".kt": {"property_declaration"},
+        ".swift": {"property_declaration"},
+        ".c": {"init_declarator"},
+        ".cpp": {"init_declarator"},
+        ".cxx": {"init_declarator"},
+        ".hpp": {"init_declarator"},
+        ".scala": {"val_definition", "var_definition"},
+        ".dart": {"initialized_variable_definition",
+                    "local_variable_declaration"},
+        # Bash, SQL, YAML, TOML, HTML, CSS, HCL — без ASSIGNED_FROM
+        # (Bash: RHS после = — отдельный узел, не поле;
+        #  SQL/конфиги: не имеют переменных-присваиваний)
+        # (языки запросов/конфигурации, не имеют переменных-присваиваний)
+    }
+
+    # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
+    CONDITIONAL_NODES = {
+        "if_statement", "else_clause",
+        "for_statement", "while_statement",
+        "with_statement", "try_statement",
+        "except_clause", "match_statement", "case_clause",
+    }
+
+    def _walk_file(self, file_path: Path):
+        """Единый обход AST: один parse, один walk, три результата.
+
+        Returns:
+            (calls, assignments, imports) — кортеж из трёх списков.
+        """
+        ext = file_path.suffix.lower()
+        if ext not in self.parsers or ext == ".md":
+            return [], [], []
+
+        # Cache hit: если тот же файл, используем закешированное дерево
+        if file_path == self._cache_path:
+            code = self._cache_code
+            tree = self._cache_tree
+        else:
+            try:
+                with open(file_path, "rb") as f:
+                    code = f.read()
+            except Exception:
+                return [], []
+            if not code.strip():
+                return [], []
+            tree = self.parsers[ext].parse(code)
+            self._cache_path = file_path
+            self._cache_code = code
+            self._cache_tree = tree
+            self._cache_ext = ext
+
+        calls = []
+        self._extract_calls_recursive(
+            tree.root_node, code, file_path, calls, current_function=""
+        )
+        assignments = []
+        assignment_types = self.ASSIGNMENT_NODE_MAP.get(ext, set())
+        self._extract_assignments_recursive(
+            tree.root_node, code, file_path, assignments,
+            current_function="", assigned=None,
+            condition_path=None, assignment_types=assignment_types,
+        )
+        imports = []
+        import_types = self.IMPORT_NODE_MAP.get(ext, set())
+        if import_types:
+            self._extract_imports_recursive(
+                tree.root_node, code, file_path, imports,
+                import_types=import_types,
+            )
+        return calls, assignments, imports
+
+    def extract_calls(self, file_path: Path) -> List[Dict]:
+        """Извлекает все вызовы функций из файла для построения графа вызовов.
+
+        Использует _walk_file — один Tree-sitter parse на файл
+        независимо от того, сколько раз вызван (кеш на 1 файл).
+
+        Returns:
+            [{"caller": ..., "callee": ..., "line": ..., "file": ...}, ...]
+        """
+        calls, _, _ = self._walk_file(file_path)
+        return calls
+
+    def _extract_calls_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        calls: List[Dict],
+        current_function: str,
+    ):
+        """Рекурсивно извлекает вызовы функций из AST.
+
+        Args:
+            node: Текущий узел AST
+            code: Исходный код файла
+            file_path: Путь к файлу
+            calls: Накопитель результатов
+            current_function: Имя текущей функции (контекст вызова)
+        """
+        # Обновляем контекст текущей функции
+        if node.type in self.TARGET_NODES:
+            name_node = self._find_child_by_type(
+                node, "identifier"
+            ) or self._find_child_by_type(node, "name")
+            if name_node:
+                current_function = code[
+                    name_node.start_byte : name_node.end_byte
+                ].decode("utf-8", errors="ignore")
+
+        # Если это узел вызова — извлекаем имя вызываемой функции
+        if node.type in self.CALL_NODES:
+            callee_name = self._extract_callee_name(node, code)
+            if callee_name and current_function:
+                calls.append(
+                    {
+                        "caller": current_function,
+                        "callee": callee_name,
+                        "line": node.start_point[0],
+                        "file": str(file_path),
+                    }
+                )
+
+        # Рекурсивно обходим детей
+        for child in node.children:
+            self._extract_calls_recursive(
+                child, code, file_path, calls, current_function
+            )
+
+    def _extract_callee_name(self, call_node, code: bytes) -> str:
+        """Извлекает имя вызываемой функции из узла вызова.
+
+        Поддерживает:
+        - Простые вызовы: func() → "func"
+        - Методы объектов: obj.method() → "method"
+        - Цепочки: a.b.c() → "c"
+        - Scoped: module::func() → "func"
+        """
+        # Ищем идентификатор среди прямых детей
+        for child in call_node.children:
+            if child.type in self.CALL_IDENTIFIER_TYPES:
+                name = code[child.start_byte : child.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+                # Для field_expression (obj.method) берём последнюю часть
+                if child.type == "field_expression":
+                    # field_expression: obj.field → ищем identifier внутри
+                    for subchild in child.children:
+                        if subchild.type == "identifier":
+                            return code[subchild.start_byte : subchild.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
+                        elif subchild.type == "property_identifier":
+                            return code[subchild.start_byte : subchild.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
+                # Для scoped_identifier (module::func) берём последний сегмент
+                elif child.type == "scoped_identifier":
+                    parts = name.split("::")
+                    return parts[-1] if parts else name
+                else:
+                    return name
+        return ""
+
+    # ── Assignment tracking for ASSIGNED_FROM edges ────────────
+
+    def extract_assignments(self, file_path: Path) -> List[Dict]:
+        """Извлекает ASSIGNED_FROM связи между переменными внутри функций.
+
+        Использует _walk_file — один Tree-sitter parse на файл
+        независимо от того, сколько раз вызван (кеш на 1 файл).
+
+        Returns:
+            [{"target": ..., "source": ..., "line": ..., "file": ..., "function": ...}, ...]
+        """
+        _, assignments, _ = self._walk_file(file_path)
+        return assignments
+
+    # ── Import extraction for IMPORTS edges ────────────────
+
+    def extract_imports(self, file_path: Path) -> List[Dict]:
+        """Извлекает импорты из файла для построения IMPORTS-рёбер.
+
+        Использует _walk_file — один Tree-sitter parse на файл.
+
+        Returns:
+            [{"source_module": ..., "target_module": ..., "line": ..., "file": ...}, ...]
+            source_module = имя файла, который импортирует
+            target_module = имя импортируемого модуля/пакета
+        """
+        _, _, imports = self._walk_file(file_path)
+        return imports
+
+    def _extract_imports_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        imports: List[Dict],
+        import_types: set,
+    ):
+        """Рекурсивно обходит AST, извлекая импорты.
+
+        Args:
+            node: Текущий узел AST
+            code: Исходный код файла
+            file_path: Путь к файлу
+            imports: Накопитель результатов
+            import_types: Множество типов узлов импорта для этого языка
+        """
+        if node.type in import_types:
+            # Извлекаем текст импорта (всё строковое содержимое узла)
+            import_text = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            if import_text.strip():
+                # Для разных языков импорт выглядит по-разному,
+                # но нас интересует имя модуля/пакета.
+                # Извлекаем первое имя после ключевого слова import/use.
+                module_name = self._extract_import_target(node, code)
+                if module_name:
+                    imports.append(
+                        {
+                            "source_file": str(file_path),
+                            "target_module": module_name,
+                            "line": node.start_point[0],
+                            "text": import_text.strip(),
+                        }
+                    )
+
+        for child in node.children:
+            self._extract_imports_recursive(
+                child, code, file_path, imports, import_types
+            )
+
+    @staticmethod
+    def _extract_import_target(import_node, code: bytes) -> str:
+        """Извлекает имя импортируемого модуля из узла импорта.
+
+        Ищет:
+        - Python: import X / from X import Y → X
+        - Rust: use X::Y → X
+        - Go: import "X" → X
+        - JS/TS: import X from 'Y' → Y / import 'Y' → Y
+        - C/C++: #include "X" / #include <X> → X
+        - Java/C#: import X.Y.Z → X
+        - Ruby: require 'X' → X
+        """
+        # Пробуем найти строковое содержимое (имя модуля в кавычках)
+        text = code[import_node.start_byte : import_node.end_byte].decode(
+            "utf-8", errors="ignore"
+        )
+
+        # Ищем строку в кавычках: import "os" / require 'x' / from "x"
+        import re
+        quote_match = re.search(r'["\']([^"\']+)["\']', text)
+        if quote_match:
+            return quote_match.group(1).split("/")[0].split(".")[0]
+
+        # Для Python/Rust/Java: ищем первый identifier после import/use
+        # import os → os, use std::io → std, import java.util.List → java
+        words = text.split()
+        for i, w in enumerate(words):
+            if w.lower() in ("import", "from", "use", "require", "include"):
+                if i + 1 < len(words):
+                    candidate = words[i + 1]
+                    # Отбрасываем скобки, точки с запятой
+                    candidate = candidate.strip("();,")
+                    if candidate and not candidate.startswith("#"):
+                        # Берём первую часть (пакет, не подмодуль)
+                        return candidate.split(".")[0].split("::")[0]
+
+        # Fallback: первый не-keyword identifier
+        _punctuation = "();," + chr(39) + chr(34)  # ();,'"
+        for w in words:
+            w_clean = w.strip(_punctuation)
+            if not w_clean:
+                continue
+            if w_clean and w_clean[0].isalpha() and w_clean.lower() not in (
+                "import", "from", "use", "require", "include",
+                "as", "pub", "crate", "self", "super",
+            ):
+                return w_clean.split(".")[0].split("::")[0]
+
+        return text.split()[0] if text else ""
+
+    def _extract_assignments_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        assignments: List[Dict],
+        current_function: str,
+        assigned: Optional[Set[str]] = None,
+        condition_path: Optional[List[str]] = None,
+        assignment_types: Optional[Set[str]] = None,
+        scope_id: Optional[str] = None,
+    ):
+        """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
+
+        Использует scope stack: при входе в функцию пушит новый set(),
+        при выходе — merge обратно. Корректно обрабатывает вложенные функции.
+
+        Args:
+            assigned: set[str] — имена уже присвоенных переменных
+                      в текущем function scope. None → корневой scope.
+            condition_path: list[str] — стек условных блоков (if/for/while)
+                            для отслеживания контекста присваивания.
+            assignment_types: set[str] — типы assignment-узлов для языка.
+                              None → Python ("assignment", "augmented_assignment").
+            scope_id: str — идентификатор scope (файл::функция::строка).
+                      None для глобального scope.
+        """
+        if assignment_types is None:
+            assignment_types = {"assignment", "augmented_assignment"}
+        if assigned is None:
+            assigned = set()
+        if condition_path is None:
+            condition_path = []
+
+        # ── Управление стеком условных блоков ──
+        pushed_conditional = False
+        if node.type in self.CONDITIONAL_NODES:
+            condition_path.append(node.type)
+            pushed_conditional = True
+
+        # ── Обнаружение входа в функцию → push scope ──
+        pushed_scope = False
+        if node.type in self.TARGET_NODES:
+            name_node = (
+                self._find_child_by_type(node, "identifier")
+                or self._find_child_by_type(node, "name")
+            )
+            if name_node:
+                current_function = code[
+                    name_node.start_byte : name_node.end_byte
+                ].decode("utf-8", errors="ignore")
+            # Вычисляем scope_id: file_path::function_name::line
+            file_str = str(file_path).replace("::", "/")
+            line = node.start_point[0] if hasattr(node, "start_point") else 0
+            scope_id = f"{file_str}::{current_function}:{line}"
+            # Push: сохраняем родительский scope, создаём свежий для тела функции
+            parent_assigned = assigned
+            assigned = set()
+            pushed_scope = True
+
+        # ── Присваивание: x = <rhs> (язык-независимое) ──
+        if node.type in assignment_types:
+            # Поле для левой части: Python→left, Rust→pattern, TS→name
+            left = (
+                node.child_by_field_name("left")
+                or node.child_by_field_name("pattern")
+                or node.child_by_field_name("name")
+            )
+            right = (
+                node.child_by_field_name("right")
+                or node.child_by_field_name("value")
+                or node.child_by_field_name("initializer")
+            )
+            # Если right не найден по полю — ищем ребёнка после '=' (C# fallback)
+            if right is None:
+                for i, child in enumerate(node.children):
+                    if child.type == "=" and i + 1 < len(node.children):
+                        right = node.children[i + 1]
+                        break
+            # Извлекаем имя переменной из left (может быть identifier
+            # или expression_list для Go/Java множественных присваиваний)
+            left_name = None
+            if left:
+                if left.type in ("identifier", "pattern", "simple_identifier"):
+                    left_name = code[left.start_byte : left.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    )
+                elif left.type == "expression_list":
+                    # Берём первый identifier из списка (x, y := ...)
+                    for child in left.children:
+                        if child.type == "identifier":
+                            left_name = code[child.start_byte : child.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
+                            break
+            else:
+                # Fallback: ищем первый identifier среди детей (Go var_spec, Kotlin)
+                for child in node.children:
+                    if child.type == "identifier":
+                        left_name = code[child.start_byte : child.end_byte].decode(
+                            "utf-8", errors="ignore"
+                        )
+                        break
+                    # Kotlin: property_declaration → variable_declaration → identifier
+                    if child.type == "variable_declaration":
+                        for sub in child.children:
+                            if sub.type == "identifier":
+                                left_name = code[sub.start_byte : sub.end_byte].decode(
+                                    "utf-8", errors="ignore"
+                                )
+                                break
+                        if left_name:
+                            break
+            # Для right принимаем identifier/simple_identifier/expression_list
+            if left_name and right:
+                # Убеждаемся что right — это не служебное слово
+                self._process_rhs_for_assign(
+                    target=left_name,
+                    right=right,
+                    code=code,
+                    assigned=assigned,
+                    assignments=assignments,
+                    file_path=file_path,
+                    line=node.start_point[0],
+                    function=current_function,
+                    condition_path=list(condition_path),
+                    scope_id=scope_id,
+                )
+
+        # ── Рекурсивный обход детей ──
+        for child in node.children:
+            self._extract_assignments_recursive(
+                child,
+                code,
+                file_path,
+                assignments,
+                current_function,
+                assigned,
+                condition_path,
+                assignment_types,
+                scope_id,
+            )
+
+        # ── Восстановление родительского scope при выходе из функции ──
+        if pushed_scope:
+            parent_assigned.update(assigned)
+
+        # ── Pop стека условных блоков ──
+        if pushed_conditional:
+            condition_path.pop()
+
+    def _process_rhs_for_assign(
+        self,
+        target: str,
+        right,
+        code: bytes,
+        assigned: Set[str],
+        assignments: List[Dict],
+        file_path: Path,
+        line: int,
+        function: str,
+        condition_path: Optional[List[str]] = None,
+        scope_id: Optional[str] = None,
+    ):
+        """Обрабатывает правую часть присваивания.
+
+        Собирает identifier-ссылки в RHS, проверяет каждую против
+        assigned set, создаёт ASSIGNED_FROM связи. Target всегда
+        добавляется в assigned для последующего отслеживания.
+
+        Если присваивание происходит внутри условного блока (if/for/while),
+        condition_path содержит стек этих блоков.
+        scope_id — уникальный ID scope (файл::функция::строка).
+        """
+        ref_names = self._get_names_from_node(right, code)
+        for ref in ref_names:
+            if ref in assigned:
+                entry = {
+                    "target": target,
+                    "source": ref,
+                    "line": line,
+                    "file": str(file_path),
+                    "function": function,
+                }
+                if condition_path:
+                    entry["condition_path"] = condition_path
+                if scope_id:
+                    entry["scope_id"] = scope_id
+                assignments.append(entry)
+
+        # Target всегда помечается как assigned для chain-отслеживания
+        assigned.add(target)
+
+    def _get_names_from_node(self, node, code: bytes) -> List[str]:
+        """Извлекает все identifier имена из поддерева узла.
+
+        Собирает ТОЛЬКО identifier (не type_identifier),
+        чтобы не путать с именами типов (int, str, List).
+        Не заходит в function_definition/class_definition —
+        их внутренние идентификаторы не относятся к текущему контексту.
+        """
+        names = []
+        if node.type in ("identifier", "simple_identifier"):
+            name = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            names.append(name)
+        # Не заходим в вложенные определения — их идентификаторы
+        # относятся к внутреннему scope
+        if node.type not in ("function_definition", "class_definition"):
+            for child in node.children:
+                names.extend(self._get_names_from_node(child, code))
+        return names
+
+    def _chunk_giant_text(
+        self,
+        lines: List[str],
+        file_path: str,
+        start_line_offset: int,
+        prefix: str,
+        context: str,
+        symbol_name: str = "",
+    ) -> List[Dict]:
+        """Разбивает слишком большой кусок кода (например, огромную функцию) на части.
+        Каждая часть = токен-эффективное preview."""
+        chunks = []
+        step = self.FALLBACK_CHUNK_LINES - self.FALLBACK_OVERLAP_LINES
+        for i in range(0, len(lines), step):
+            chunk_lines = lines[i : i + self.FALLBACK_CHUNK_LINES]
+            text = "".join(chunk_lines).strip()
+            if text:
+                part_num = i // step + 1
+                compact = text[:500] + "\n..." if len(text) > 500 else text
+                # Метаданные для части гигантской функции
+                meta = self._build_chunk_metadata(
+                    str(file_path),
+                    symbol_name=symbol_name,
+                    node_type="giant_function_part",
+                    context=context,
+                )
+                chunks.append(
+                    {
+                        "text": f"{prefix}// [Part {part_num}]\n{text}",
+                        "text_compact": f"{prefix}// [Part {part_num}]\n{compact}",
+                        "file": file_path,
+                        "start_line": start_line_offset + i,
+                        "end_line": start_line_offset + i + len(chunk_lines) - 1,
+                        "type": "giant_function_part",
+                        "context": context,
+                        "symbol_name": "",
+                        # Metadata
+                        "layer": meta["layer"],
+                        "module_name": meta["module_name"],
+                        "hierarchy_level": meta["hierarchy_level"],
+                        "is_public": meta["is_public"],
+                        "symbol_type": meta["symbol_type"],
+                        "parent_id": meta["parent_id"],
+                    }
+                )
+        return chunks
+
+    def _fallback_line_chunking(self, file_path: Path) -> tuple:
+        """Безопасный Fallback: нарезка по строкам с перекрытием (overlap).
+        Возвращает (chunks, symbols)."""
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.warning(f"Ошибка чтения {file_path}: {e}")
+            return [], []
+
+        if not lines:
+            return [], []
+
+        chunks = []
+        file_path_str = str(file_path)
+        # v2.6.0: Contextual prefix для fallback-чанков
+        fb_prefix = f"// File: {file_path_str}\n"
+        # Единые метаданные для всех строк этого файла
+        fallback_meta = self._build_chunk_metadata(
+            file_path_str, symbol_name="", node_type="fallback_lines", context=""
+        )
+        for i in range(
+            0, len(lines), self.FALLBACK_CHUNK_LINES - self.FALLBACK_OVERLAP_LINES
+        ):
+            chunk_lines = lines[i : i + self.FALLBACK_CHUNK_LINES]
+            text = "".join(chunk_lines).strip()
+            if text:
+                compact = text[:500] + "\n..." if len(text) > 500 else text
+                chunks.append(
+                    {
+                        "text": fb_prefix + text,
+                        "text_compact": fb_prefix + compact,
+                        "file": file_path_str,
+                        "start_line": i,
+                        "end_line": i + len(chunk_lines) - 1,
+                        "type": "fallback_lines",
+                        "context": "",
+                        "symbol_name": "",
+                        # Metadata
+                        "layer": fallback_meta["layer"],
+                        "module_name": fallback_meta["module_name"],
+                        "hierarchy_level": fallback_meta["hierarchy_level"],
+                        "is_public": fallback_meta["is_public"],
+                        "symbol_type": fallback_meta["symbol_type"],
+                        "parent_id": fallback_meta["parent_id"],
+                    }
+                )
+        return chunks, []
+
+    def _parse_markdown(self, file_path: Path) -> tuple:
+        """Улучшенный парсинг Markdown с защитой блоков кода.
+        Возвращает (chunks, symbols)."""
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            return [], []
+
+        if not content.strip():
+            return [], []
+
+        chunks = []
+        current_section = []
+        current_header = ""
+        current_start = 0
+        in_code_block = False
+        file_path_str = str(file_path)
+        # Единые метаданные для всех секций md-файла
+        md_meta = self._build_chunk_metadata(
+            file_path_str, symbol_name="", node_type="markdown_section", context=""
+        )
+
+        for i, line in enumerate(content.splitlines()):
+            stripped = line.strip()
+
+            # Отслеживаем, находимся ли мы внутри блока кода
+            if stripped.startswith("```"):
+                in_code_block = not in_code_block
+
+            # Разбиваем секции только если символ `#` вне блока кода
+            if not in_code_block and stripped.startswith("#"):
+                # Сохраняем предыдущий блок
+                if current_section:
+                    text = "\n".join(current_section).strip()
+                    if text:
+                        compact = text[:500] + "\n..." if len(text) > 500 else text
+                        # v2.6.0: Contextual prefix для .md
+                        md_prefix = (
+                            f"From {file_path_str}, section '{current_header}':\n"
+                        )
+                        chunks.append(
+                            {
+                                "text": md_prefix
+                                + f"{current_header}\n\n{text}".strip(),
+                                "text_compact": md_prefix
+                                + f"{current_header}\n\n{compact}".strip(),
+                                "file": file_path_str,
+                                "start_line": current_start,
+                                "end_line": i - 1,
+                                "type": "markdown_section",
+                                "context": "",
+                                "symbol_name": "",
+                                # Metadata
+                                "layer": md_meta["layer"],
+                                "module_name": md_meta["module_name"],
+                                "hierarchy_level": md_meta["hierarchy_level"],
+                                "is_public": md_meta["is_public"],
+                                "symbol_type": md_meta["symbol_type"],
+                                "parent_id": md_meta["parent_id"],
+                            }
+                        )
+                current_header = stripped
+                current_section = []
+                current_start = i
+            else:
+                current_section.append(line)
+
+        # Сохраняем последний блок
+        if current_section:
+            text = "\n".join(current_section).strip()
+            if text:
+                compact = text[:500] + "\n..." if len(text) > 500 else text
+                md_prefix = f"From {file_path_str}, section '{current_header}':\n"
+                chunks.append(
+                    {
+                        "text": md_prefix + f"{current_header}\n\n{text}".strip(),
+                        "text_compact": md_prefix
+                        + f"{current_header}\n\n{compact}".strip(),
+                        "file": file_path_str,
+                        "start_line": current_start,
+                        "end_line": len(content.splitlines()) - 1,
+                        "type": "markdown_section",
+                        "context": "",
+                        "symbol_name": "",
+                        # Metadata
+                        "layer": md_meta["layer"],
+                        "module_name": md_meta["module_name"],
+                        "hierarchy_level": md_meta["hierarchy_level"],
+                        "is_public": md_meta["is_public"],
+                        "symbol_type": md_meta["symbol_type"],
+                        "parent_id": md_meta["parent_id"],
+                    }
+                )
+
+        return chunks, []

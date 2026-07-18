@@ -1,0 +1,3 @@
+# MSCodeBase Extension Marker
+# Этот файл указывает на корень расширения MSCodeBase Intelligence.
+# Используется main.py для определения PROJECT_ROOT.

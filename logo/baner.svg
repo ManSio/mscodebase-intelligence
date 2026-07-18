@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500">
+  <rect width="1200" height="500" fill="#0D1117"/>
+  <path d="M0 0 L1200 0 L1200 495 L0 495 Z" fill="#0D1117" stroke="#2EA043" stroke-width="5" opacity="0.4"/>
+
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#8B949E"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#58A6FF"/>
+      <stop offset="50%" stop-color="#56d364"/>
+      <stop offset="100%" stop-color="#2EA043"/>
+    </linearGradient>
+    <radialGradient id="g3" cx="25%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#2EA043" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0D1117" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="300" cy="250" r="280" fill="url(#g3)"/>
+
+  <g stroke="#161B22" stroke-width="1.5">
+    <line x1="0" y1="125" x2="1200" y2="125"/>
+    <line x1="0" y1="250" x2="1200" y2="250"/>
+    <line x1="0" y1="375" x2="1200" y2="375"/>
+    <line x1="300" y1="0" x2="300" y2="500"/>
+    <line x1="600" y1="0" x2="600" y2="500"/>
+    <line x1="900" y1="0" x2="900" y2="500"/>
+  </g>
+
+  <g fill="none" stroke="url(#g2)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" transform="translate(60, 0)">
+    <path d="M 140 360 L 140 140 L 260 250 L 380 140 L 380 360" />
+  </g>
+
+  <g transform="translate(60, 0)">
+    <circle cx="140" cy="140" r="12" fill="#58A6FF"/>
+    <circle cx="380" cy="140" r="12" fill="#58A6FF"/>
+    <circle cx="260" cy="250" r="16" fill="#56d364"/>
+    <circle cx="140" cy="360" r="10" fill="#238636"/>
+    <circle cx="380" cy="360" r="10" fill="#238636"/>
+  </g>
+
+  <text x="540" y="200" fill="url(#g1)" font-family="sans-serif" font-weight="800" font-size="76" letter-spacing="2">MSCodeBase</text>
+
+  <text x="545" y="250" fill="#56d364" font-family="monospace" font-weight="500" font-size="22" letter-spacing="4">LOCAL MCP INTELLIGENCE LAYER</text>
+
+  <g transform="translate(545, 300)">
+    <rect width="165" height="36" rx="8" fill="#1f241f" stroke="#238636" stroke-width="1"/>
+    <circle cx="16" cy="18" r="5" fill="#56d364"/>
+    <text x="30" y="23" fill="#56d364" font-family="sans-serif" font-size="13" font-weight="700">DEADLOCK-FREE</text>
+
+    <rect x="180" width="160" height="36" rx="8" fill="#21262D" stroke="#30363D" stroke-width="1"/>
+    <text x="194" y="23" fill="#8B949E" font-family="sans-serif" font-size="13" font-weight="700">GRAPH:</text>
+    <text x="254" y="23" fill="#58A6FF" font-family="monospace" font-size="13" font-weight="700">LANCE WORKER</text>
+
+    <rect x="355" width="135" height="36" rx="8" fill="#21262D" stroke="#30363D" stroke-width="1"/>
+    <text x="369" y="23" fill="#8B949E" font-family="sans-serif" font-size="13" font-weight="700">CORE:</text>
+    <text x="419" y="23" fill="#FFFFFF" font-family="monospace" font-size="13" font-weight="700">ASYNCIO</text>
+  </g>
+
+  <rect x="545" y="365" width="490" height="2" fill="#21262D"/>
+  <text x="545" y="395" fill="#8B949E" font-family="monospace" font-size="14">Target Client: Zed Editor</text>
+</svg>

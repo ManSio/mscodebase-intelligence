@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mscodebase-intelligence"
+version = "3.2.3"
+description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 + vector search with 43 analysis tools. Multi-window with per-project Indexer registry."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "ManSio"}]
+requires-python = ">=3.10"
+keywords = ["zed", "mcp", "code-search", "embeddings", "ai", "lancedb", "semantic-search", "zed-extension"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Indexing",
+    "Environment :: Plugins",
+]
+dependencies = [
+    # MCP Protocol
+    "mcp>=1.0.0",
+    # LSP Protocol
+    "pygls>=2.0.0",
+    "lsprotocol>=24.0.0",
+    # Vector DB & Embeddings
+    "lancedb>=0.12.0",
+    "pyarrow>=14.0.0",  # + pyarrow.compute для to_arrow
+    "huggingface_hub>=0.20.0",
+    "numpy>=1.24.0",
+    # Code parsing (Tree-sitter)
+    "tree-sitter>=0.21.0",
+    "tree-sitter-python>=0.21.0",
+    "tree-sitter-rust>=0.21.0",
+    "tree-sitter-typescript>=0.21.0",
+    "tree-sitter-javascript>=0.21.0",
+    "tree-sitter-go>=0.21.0",
+    # Search & Utils
+    "pathspec>=0.14.0",
+    "httpx>=0.24.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.0.0",
+    "python-dateutil>=2.8.0",
+    # ONNX Embedder
+    "onnxruntime>=1.17.0",
+    "openvino>=2026.0.0",
+    # Reranker (transformers-based)
+    "transformers>=4.36.0,<5.15.0",
+    "tokenizers>=0.15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black",
+    "isort",
+]
+
+[project.urls]
+Homepage = "https://github.com/ManSio/mscodebase-intelligence"
+Repository = "https://github.com/ManSio/mscodebase-intelligence"
+Issues = "https://github.com/ManSio/mscodebase-intelligence/issues"
+Documentation = "https://github.com/ManSio/mscodebase-intelligence/blob/main/README.md"
+
+[project.scripts]
+mscodebase = "src.main:main"
+mscodebase-mcp = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "scripts*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.md", "*.bat", "*.cfg"]
+"src" = ["*.json", "*.txt", "*.cfg"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "asyncio: marks tests as asyncio tests",
+    "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
+]
+norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index", ".codebase_indices"]
+addopts = "-v --tb=short"

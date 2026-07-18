@@ -1,0 +1,132 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+.venv/Scripts/
+.venv/Lib/
+.venv/share/
+.venv/pyvenv.cfg
+ENV/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+.zed/
+*.sublime-*
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Project data — всё, что генерируется при работе
+.codebase_index/
+.codebase_indices/
+.codebase_models/
+*.db
+*.sqlite3
+
+# ── Исключаем внутренние векторные базы LM‑Studio ─────────────────────
+codebase_chunks.lance
+codebase_chunks/
+*.lance
+*.lance_versions/
+
+# Runtime state
+.model_server.refcount
+.model_server.port
+crash_debug.log
+Agent Panel
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+*.url
+*.tmp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+crash_debug.log
+mcp_debug.log
+*.trace
+
+# Windows reserved names
+nul
+
+# Agent diary — internal tracking
+
+
+# Large model files and platform binaries — НЕ ЗАГРУЖАТЬ В GITHUB!
+models/
+.hf_cache/
+llama/
+llama_vulkan/
+*.gguf
+
+# Benchmark artifacts
+.cache/
+
+# Temporary session files — not for publishing
+FIX_SUMMARY.md
+ANALYSIS_REPORT.md
+TESTING.md
+
+# Stress / benchmark artifacts (root level)
+stress_*.py
+stress_*.log
+test_*.py
+!tests/test_*.py
+tmp_*.py
+reindex_clean.py
+ram_monitor.log
+llama_*_stderr.log
+Agent Panel
+
+# Static analysis cache
+.ruff_cache/
+.mypy_cache/
+.mypy/
+.typeshed/
+
+# Dev-specific scripts (hardcoded paths)
+run_tests.py
+run_tests.bat
+
+# Debug artifacts
+test_output.txt
+*.sock
+*.pid
+__manifest/
+codebase_chunks.lance/
+.index_guard.json
+target/
+.mscodebase/telemetry/
+llama_msvc/
+.mscodebase/
+.codebase/graph.db-shm
+.codebase/graph.db-wal
+.dev
+.agent_task_state.md
+mcp_stdout.log
+tmp_*
+benchmark_results.json
