@@ -43,6 +43,44 @@ project_root_resolved = str(PROJECT_ROOT.resolve())
 if project_root_resolved not in [str(Path(p).resolve()) for p in sys.path]:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
+def _start_contradiction_ledger() -> None:
+    """Фоновая проверка AGENT_DIARY.md против реального кода при старте.
+
+    Не блокирует старт сервера — запускается в отдельном потоке.
+    Результат (расхождения) логируется; при расхождениях сервер
+    продолжает работу, но предупреждает в логах (сигнал проверить
+    дневник на устаревшие "✅ done").
+    """
+    try:
+        import threading
+
+        def _run():
+            try:
+                import scripts.verify_diary as vd
+                res = vd.run_contradiction_ledger(PROJECT_ROOT)
+                if res["ok"]:
+                    logger.info(
+                        f"✅ Contradiction Ledger: все утверждения из AGENT_DIARY.md "
+                        f"верифицированы ({res['claims']} claims, {res['commits']} commits)"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Contradiction Ledger: {len(res['discrepancies'])} расхождений "
+                        f"в AGENT_DIARY.md:"
+                    )
+                    for d in res["discrepancies"][:10]:
+                        logger.warning(f"   → {d}")
+            except Exception as _e:
+                logger.warning(f"Contradiction Ledger не запустился: {_e}")
+
+        t = threading.Thread(target=_run, name="contradiction-ledger", daemon=True)
+        t.start()
+        logger.info("🔍 Contradiction Ledger запущен в фоне (проверка AGENT_DIARY.md)")
+    except Exception as _e:
+        logger.warning(f"Не удалось запустить Contradiction Ledger: {_e}")
+
+
 # ⚠️ Критично: при запуске через `python -m src.main` пакет `src` уже загружен
 # из CWD (проекта). Даже если мы поменяли sys.path, Python не перезагружает
 # уже загруженный пакет. Принудительно переключаем src на расширение.
@@ -177,6 +215,11 @@ def main():
 
         # Запуск MCP сервера
         from src.mcp.server import run_server
+
+        # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
+        # Запускаем в фоне, чтобы не блокировать старт сервера (stdio).
+        # Логика: сверяет "✅ done" из дневника с реальным кодом/коммитами.
+        _start_contradiction_ledger()
 
         logger.info("Запуск MCP сервера...")
         # run_server сам создаёт event loop и запускает stdio

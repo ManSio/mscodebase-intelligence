@@ -7,8 +7,10 @@ Contradiction Ledger — сверяет "✅"-утверждения из AGENT_
 
 Usage:
     python scripts/verify_diary.py
+    from src.scripts.verify_diary import run_contradiction_ledger
 
 Returns exit code 0 if all claims verified, 1 if discrepancies found.
+Can also be imported: run_contradiction_ledger() -> dict with 'discrepancies'.
 """
 import sys
 if sys.stdout.encoding != 'utf-8':
@@ -17,67 +19,73 @@ if sys.stdout.encoding != 'utf-8':
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
-try:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
-    DIARY_PATH = PROJECT_ROOT / "AGENT_DIARY.md"
 
-    if not DIARY_PATH.exists():
-        print(f"❌ AGENT_DIARY.md not found at {DIARY_PATH}")
-        sys.exit(1)
+def run_contradiction_ledger(project_root: Optional[Path] = None) -> Dict[str, object]:
+    """Verify AGENT_DIARY.md claims against real codebase.
 
-    diary_text = DIARY_PATH.read_text(encoding='utf-8')
+    Returns dict: {
+        'ok': bool,           # True if no discrepancies
+        'discrepancies': list,
+        'claims': int,
+        'commits': int,
+    }
+    Does NOT call sys.exit (safe to import from MCP server).
+    """
+    project_root = project_root or Path(__file__).resolve().parent.parent
+    diary_path = project_root / "AGENT_DIARY.md"
+    result: Dict[str, object] = {
+        "ok": True,
+        "discrepancies": [],
+        "claims": 0,
+        "commits": 0,
+    }
+    if not diary_path.exists():
+        result["discrepancies"].append(f"AGENT_DIARY.md not found at {diary_path}")
+        result["ok"] = False
+        return result
+
+    diary_text = diary_path.read_text(encoding='utf-8')
 
     # ─── Extract claims ───────────────────────────────────────
-    # Pattern: "✅ <description>" or "**<something>** ✅" or "| ✅ |"
-    # We look for lines containing ✅ and try to extract verifiable facts.
     claims = []
-
-    # Pattern 1: "✅ реализовано X" or "✅ Fixed: X"
     for m in re.finditer(r'✅\s*(?:Fixed|реализовано|Closed|done|исправлено|Ready)[:\s-]*(.+?)(?:\n|$)', diary_text):
-        claims.append(('diary_claim', m.group(1).strip()))
-
-    # Pattern 2: Table rows with ✅
+        claims.append(m.group(1).strip())
     for m in re.finditer(r'\|\s*✅\s*(?:Fixed|Closed)\s*\|\s*(.+?)\s*\|', diary_text):
-        claims.append(('table_claim', m.group(1).strip()))
+        claims.append(m.group(1).strip())
 
-    # Pattern 3: Commit hashes mentioned in diary
     commit_hashes = set()
     for m in re.finditer(r'`([a-f0-9]{7,8})`', diary_text):
         commit_hashes.add(m.group(1))
 
-    # ─── Verify commit hashes ─────────────────────────────────
-    print(f"{'='*70}")
-    print(f"Contradiction Ledger — verifying AGENT_DIARY.md claims")
-    print(f"Diary: {DIARY_PATH}")
-    print(f"Claims found: {len(claims)} diary claims, {len(commit_hashes)} commits")
-    print(f"{'='*70}\n")
-
-    discrepancies = []
+    result['claims'] = len(claims)
+    result['commits'] = len(commit_hashes)
+    discrepancies: List[str] = []
 
     # Check commits
-    print("📋 Checking commit hashes...")
     for h in sorted(commit_hashes):
         try:
-            result = subprocess.run(
+            # DEVNULL вместо capture_output — daemon thread-safe на Windows
+            # (capture_output вызывает deadlock pipe в daemon threads)
+            proc = subprocess.Popen(
                 ['git', 'cat-file', '-t', h],
-                capture_output=True, text=True, timeout=5,
-                cwd=str(PROJECT_ROOT)
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                cwd=str(project_root),
             )
-            if result.returncode != 0:
-                discrepancies.append(f"Commit `{h}` not found in repo")
-                print(f"  ❌ `{h}` — NOT FOUND")
-            else:
-                print(f"  ✅ `{h}` — exists")
+            try:
+                stdout, _ = proc.communicate(timeout=5)
+                if proc.returncode != 0:
+                    discrepancies.append(f"Commit `{h}` not found in repo")
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                discrepancies.append(f"Commit `{h}`: git timeout")
         except Exception as e:
             discrepancies.append(f"Commit `{h}`: git error: {e}")
-            print(f"  ⚠️ `{h}` — error: {e}")
 
-    # ─── Verify specific architecture claims (the ones that matter) ──
-    print("\n📋 Checking architecture claims from diary...")
-
-    embedder_path = PROJECT_ROOT / "src/providers/embedder/remote_embedder.py"
+    # ─── Verify architecture claims ──
+    embedder_path = project_root / "src/providers/embedder/remote_embedder.py"
     if embedder_path.exists():
         content = embedder_path.read_text(encoding='utf-8')
         checks = {
@@ -87,45 +95,52 @@ try:
             'local_results': 'Per-call local dict exists',
         }
         for pattern, desc in checks.items():
-            if pattern in content:
-                print(f"  ✅ {desc}")
-            else:
+            if pattern not in content:
                 discrepancies.append(f"Missing: {desc} in remote_embedder.py")
-                print(f"  ❌ {desc} — MISSING")
 
-    bench_path = PROJECT_ROOT / "scripts/benchmark_ov_concurrent.py"
+    bench_path = project_root / "scripts/benchmark_ov_concurrent.py"
     if bench_path.exists():
-        bench_content = bench_path.read_text(encoding='utf-8')
-        if 'expected_pair' in bench_content:
-            print(f"  ✅ benchmark_ov_concurrent.py — argmax self-match check exists")
-        else:
-            print(f"  ⚠️ benchmark_ov_concurrent.py — no argmax check found")
+        if 'expected_pair' not in bench_path.read_text(encoding='utf-8'):
+            discrepancies.append("benchmark_ov_concurrent.py — no argmax check found")
 
-    test_path = PROJECT_ROOT / "tests/test_ov_concurrent_embed.py"
+    test_path = project_root / "tests/test_ov_concurrent_embed.py"
     if test_path.exists():
-        test_content = test_path.read_text(encoding='utf-8')
-        if '_ov_call_lock' in test_content:
-            print(f"  ✅ test_ov_concurrent_embed.py — _ov_call_lock in mock setup")
-        else:
+        if '_ov_call_lock' not in test_path.read_text(encoding='utf-8'):
             discrepancies.append("_ov_call_lock missing in test_ov_concurrent_embed.py")
-            print(f"  ❌ test_ov_concurrent_embed.py — _ov_call_lock MISSING")
 
-    # ─── Report ────────────────────────────────────────────────
-    print(f"\n{'='*70}")
-    if discrepancies:
-        print(f"❌ LEDGER: {len(discrepancies)} DISCREPANCIES FOUND")
-        for d in discrepancies:
+    result['discrepancies'] = discrepancies
+    result['ok'] = len(discrepancies) == 0
+    return result
+
+
+def _cli_main() -> int:
+    """CLI entry point (preserves original behavior with sys.exit)."""
+    project_root = Path(__file__).resolve().parent.parent
+    print(f"{'='*70}")
+    print(f"Contradiction Ledger — verifying AGENT_DIARY.md claims")
+    print(f"Diary: {project_root / 'AGENT_DIARY.md'}")
+    res = run_contradiction_ledger(project_root)
+    print(f"Claims found: {res['claims']} diary claims, {res['commits']} commits")
+    print(f"{'='*70}\n")
+
+    if res['discrepancies']:
+        print(f"❌ LEDGER: {len(res['discrepancies'])} DISCREPANCIES FOUND")
+        for d in res['discrepancies']:
             print(f"  → {d}")
         print(f"\n⚠️  AGENT_DIARY.md claims do NOT match actual codebase.")
         print(f"   These may be: unpushed commits, deleted code, renamed symbols,")
         print(f"   or diary entries that were never committed.")
-        sys.exit(1)
+        return 1
     else:
         print(f"✅ LEDGER: ALL CLAIMS VERIFIED")
         print(f"   AGENT_DIARY.md is consistent with actual codebase.")
-        sys.exit(0)
+        return 0
 
-except Exception:
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+
+if __name__ == "__main__":
+    try:
+        sys.exit(_cli_main())
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

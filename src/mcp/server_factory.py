@@ -193,11 +193,14 @@ def create_mcp_server():
                 break
         project_root = _found or Path(_pr_str.split("\n")[0].strip()).resolve()
         logger.warning(f"  -> sanitized: {project_root}")
-    _default_project_root = project_root  # noqa: F811
+    # FIX: обновляем модульный атрибут напрямую (from...import создаёт локальную копию)
+    import src.mcp.server as _srv
+    _srv._default_project_root = project_root
+    _srv._services_cache = None  # будет заполнен ниже
 
     from src.core.di_container import create_service_collection
     services = create_service_collection(project_root)
-    _services_cache = services  # noqa: F811
+    _srv._services_cache = services
 
     locale = os.environ.get("MSCODEBASE_LOCALE", "")
     if not locale:
@@ -409,6 +412,9 @@ def run_server(original_stdout=None):
         # Всегда запускаем reranker (не зависит от провайдера эмбеддинга)
         _start_llama_sync()
 
+        # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
+        _start_contradiction_ledger_background()
+
         if original_stdout:
             sys.stdout = original_stdout
         asyncio.run(mcp.run_stdio_async())
@@ -418,6 +424,86 @@ def run_server(original_stdout=None):
         logger.critical(f"Критический сбой: {e}", exc_info=True)
     finally:
         _shutdown_services()
+
+
+def _start_contradiction_ledger_background() -> None:
+    """Фоновая проверка AGENT_DIARY.md против реального кода при старте MCP.
+
+    Не блокирует старт сервера (stdio). Результат логируется:
+    - ok=True: все "✅ done" из дневника верифицированы
+    - ok=False: расхождения (устаревший диари, незапушенный коммит и т.п.)
+
+    Ждёт 2s перед первым resolve — даёт SQLite bridge инициализироваться.
+    """
+    try:
+        import threading
+        from pathlib import Path
+
+        def _run():
+            try:
+                import time as _time
+                import scripts.verify_diary as vd
+                # Ждём 2s — bridge/SQLite могут не быть готовы при冷 старте.
+                # Этот паттерн повторяет _start_delayed_bridge_recheck.
+                _time.sleep(2)
+                _proj = _resolve_ledger_project_root()
+                if _proj is None:
+                    logger.warning("Contradiction Ledger: project_root не найден (resolve вернул None)")
+                    return
+                logger.info(f"Contradiction Ledger: project_root = {_proj}")
+                # Guard: не проверяем сам расширение
+                try:
+                    from src.mcp.server import _ext_root
+                    if _proj.resolve() == _ext_root.resolve():
+                        logger.warning(f"Contradiction Ledger: project_root == ext_root ({_proj}), пропускаю")
+                        return
+                except Exception:
+                    pass
+                logger.info("Contradiction Ledger: calling run_contradiction_ledger()...")
+                res = vd.run_contradiction_ledger(_proj)
+                logger.info(f"Contradiction Ledger: result received, ok={res['ok']}, claims={res['claims']}")
+                if res["ok"]:
+                    logger.info(
+                        f"✅ Contradiction Ledger: утверждения AGENT_DIARY.md "
+                        f"верифицированы ({res['claims']} claims, {res['commits']} commits)"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Contradiction Ledger: {len(res['discrepancies'])} расхождений "
+                        f"в AGENT_DIARY.md:"
+                    )
+                    for d in res["discrepancies"][:10]:
+                        logger.warning(f"   → {d}")
+            except Exception as _e:
+                logger.warning(f"Contradiction Ledger не запустился: {_e}")
+
+        t = threading.Thread(target=_run, name="contradiction-ledger", daemon=True)
+        t.start()
+        logger.info("🔍 Contradiction Ledger запущен в фоне (ожидание 2s для bridge init)")
+    except Exception as _e:
+        logger.warning(f"Не удалось запустить Contradiction Ledger: {_e}")
+
+
+def _resolve_ledger_project_root():
+    """Возвращает путь к проекту пользователя (где лежит AGENT_DIARY.md).
+
+    Использует resolve_project_root() из server.py — единственный надёжный
+    резолвер (SQLite bridge + env + fallback). _default_project_root в
+    server_factory.py — ЛОКАЛЬНАЯ переменная (баг F811), не обновляет модуль.
+    
+    Ранее использовал самодельный резолвер, который падал из-за:
+    - пустого registry при старте
+    - literal string '$ZED_WORKTREE_ROOT' в env (не раскрыта shell'ом)
+    - ext_root guard блокировал fallback на CWD
+    """
+    try:
+        from src.mcp.server import resolve_project_root, _ext_root
+        p = resolve_project_root()
+        if p and p.resolve() != _ext_root.resolve():
+            return p
+    except Exception as _e:
+        logger.debug(f"resolve_project_root failed for ledger: {_e}")
+    return None
 
 
 def _start_llama_sync():

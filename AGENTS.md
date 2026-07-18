@@ -99,7 +99,7 @@ Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
 | Индекс / chunks | — | `get_index_status` |
 | Логи / ошибки | cat terminal | `get_logs`, `intel_predict_root_cause` |
 | Здоровье системы | — | `get_health_report`, `debug_runtime_passport` |
-| Git история | git log | `get_commit_history`, `get_file_history` |
+| Git история | git log | `git(action="log")`, `git(action="history")` |
 | Рисковые файлы | — | `intel_get_hotspots` |
 | Data flow переменной | grep | `get_variable_flow` |
 | AST-паттерн | grep | `structural_search` |
@@ -120,7 +120,7 @@ Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
 - ❌ `grep` вместо `search_code` (если chunks > 0)
 - ❌ `Read` целых файлов вместо `read_live_file` / `get_symbol_info`
 - ❌ `Glob` для поиска символов вместо `search_code(mode="fast")`
-- ❌ `Shell: git log` вместо `get_commit_history`
+- ❌ `Shell: git log` вместо `git(action="log")`
 - ❌ Угадывать номера строк — сначала MCP, потом read точечно
 
 ### Демонстрация правильной сессии (только MCP)
@@ -270,7 +270,7 @@ intel_get_runtime_status      ──>   get_index_status / watcher     grep (exa
 intel_trigger_reindex         ──>   notify_change                  grep (fallback)
 intel_code_topology           ──>   get_symbol_info / structural   grep
 intel_predict_root_cause      ──>   get_logs / get_health_report   terminal cat
-intel_get_project_memory      ──>   get_commit_history / file_hist (no analog)
+intel_get_project_memory      ──>   git(action="log") / git(action="history") (no analog)
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
@@ -303,8 +303,8 @@ Inline/Diagnostic: `debug_runtime_passport`, `intel_get_project_context`, `intel
 `get_repo_rank`, `get_hotspots`, `get_bug_correlation`, `get_related_files`,
 `graph_query`, `get_index_status`, `get_index_progress`, `get_index_timeline`,
 `index_health`, `index_project_dir`, `notify_change`, `watcher_status`,
-`get_logs`, `get_health_report`, `run_health_check`, `get_commit_history`,
-`get_file_history`, `get_branch_info`, `generate_chunk_summaries`,
+`get_logs`, `get_health_report`, `run_health_check`, `git(action="log")`,
+`git(action="history")`, `git(action="branch")`, `generate_chunk_summaries`,
 `scan_changes`, `find_similar_bugs`, `predict_eta`, `verify_action`,
 `get_task_status`, `submit_background_task`, `read_live_file`,
 `structural_search`.
@@ -382,6 +382,12 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 - NO stubs, TODOs, or placeholders. Every change = production-ready.
 - NO debug prints to stdout (breaks JSON-RPC parser).
 - NO investigating a hypothesis after two consecutive observations confirm the same fact.
+
+### Windows subprocess (§5.16)
+- **NEVER** use `subprocess.run(capture_output=True)` in daemon threads — pipe buffer deadlock on Windows.
+- **ALWAYS** use `subprocess.Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate(timeout=N)`.
+- Root cause: MCP server redirects `sys.stdout` (JSON-RPC), `capture_output` pipes conflict with OS descriptors → `git` blocks on write, Python waits for `git` → deadlock.
+- Applies to any background thread calling external processes (git, python, npm, etc.).
 
 ## 7. SELF-CHECK BEFORE COMPLETING
 

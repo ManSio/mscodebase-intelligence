@@ -232,7 +232,11 @@ class GraphQueryTool(MCPTool):
                 "tests": tests or [],
             }
 
-        return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}"}
+        known_types = "impact|feature|deps|tests"
+        hint = f"""
+Available query_type: {known_types}
+Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
+        return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}. {hint}"}
 
     async def _execute_cypher(
         self, query: str, kwargs: Optional[Dict[str, Any]] = None

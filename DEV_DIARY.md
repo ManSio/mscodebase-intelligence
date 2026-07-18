@@ -382,3 +382,47 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
   No 'Embedder not ready' error after fix.
 
 **Guard:** sandbox/embedder_idle_test/test_idle_reload.py
+
+---
+
+## 2026-07-18 - BUGFIX: Contradiction Ledger —三层根因分析与修复
+
+**Симптом:** Ledger thread starts but never logs result (no ✅ or ⚠️). Three layered root causes.
+
+**Root Cause 1:** `_resolve_ledger_project_root()` used broken self-made resolver — registry empty at startup, `PROJECT_PATH` env var = literal string `$ZED_WORKTREE_ROOT` (unexpanded by shell).
+
+**Root Cause 2:** `_default_project_root` in `server_factory.py` was local variable (`from X import Y` + `Y = val` creates local shadow, never updates module-level `server._default_project_root`).
+
+**Root Cause 3:** `subprocess.run(capture_output=True)` deadlock in daemon thread on Windows — `sys.stdout` redirected by MCP JSON-RPC, `git` writes to pipe that nobody reads, buffer fills, deadlock.
+
+**Fix:**
+1. `_resolve_ledger_project_root()` → `resolve_project_root()` from `server.py` (SQLite bridge)
+2. `create_mcp_server()` uses `import src.mcp.server as _srv; _srv._default_project_root = ...`
+3. `scripts/verify_diary.py` → `subprocess.Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate()`
+
+**Verified:** Isolation test (daemon thread + Popen): `ok=True, claims=9, commits=13`
+
+**Guard:** `tests/test_contradiction_ledger.py`
+
+---
+
+## 2026-07-18 - BEST PRACTICE: Windows subprocess deadlock in daemon threads (§5.16)
+
+**Rule:** NEVER use `subprocess.run(capture_output=True)` in daemon threads on Windows. ALWAYS use `Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate(timeout=N)`.
+
+**Root cause:** MCP server redirects `sys.stdout` (JSON-RPC), `capture_output` pipes conflict with OS descriptors → `git` blocks on write, Python waits for `git` → deadlock.
+
+**Added to:** Global AGENTS.md §5.16, Project AGENTS.md Environment section.
+
+---
+
+## 2026-07-18 - AUDIT: MCP tool quality issues
+
+**Findings:**
+1. `get_commit_history` doesn't exist as separate tool — wrapped in `git(action="log")`. AGENTS.md was wrong.
+2. `graph_query` — `query_type="cypher"` must be `action="cypher"` (UX improvement: added hint to error message)
+3. `intel_get_hotspots` returns "No data" — correct (only 10 commits in repo, <3 changes per file)
+4. `get_symbol_info("embedding_dim")` → 0 usages — known limitation (tree-sitter tracks function calls, not variable references)
+5. `_default_project_root` in `server_factory.py` — module-level never updated (F811 shadow bug)
+
+**Fixed:** AGENTS.md (project + global), graph_tools.py error message, server_factory.py module attribute update.

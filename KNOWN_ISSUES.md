@@ -42,3 +42,39 @@
 **Status:** ✅ FIXED — verified by `tests/test_install_embedder_sync.py`
 
 **Guard:** `tests/test_install_embedder_sync.py`
+
+---
+
+## 2026-07-18 — Windows subprocess deadlock in daemon threads
+
+**Symptom:** `subprocess.run(capture_output=True)` hangs indefinitely when called from a daemon thread in MCP server.
+
+**Root Cause:** Windows pipe buffer deadlock — `sys.stdout` is redirected by MCP server (to JSON-RPC), and `capture_output=True` creates pipes that conflict with the redirected descriptors. `git` writes to a pipe that nobody reads, buffer fills, `git` blocks, `subprocess.run` waits for `git` → deadlock.
+
+**Fix:** Use `subprocess.Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate(timeout=N)` instead. `communicate()` drains both pipes in parallel, preventing buffer overflow.
+
+**Status:** ✅ FIXED — verified in daemon thread isolation
+
+**Guard:** `scripts/verify_diary.py` (Contradiction Ledger)
+
+**Best Practice (§5.16):** In Windows daemon threads with redirected stdout/stderr, NEVER use `subprocess.run(capture_output=True)`. Always use `Popen` + `communicate()`.
+
+---
+
+## 2026-07-18 — Contradiction Ledger: project_root never resolves
+
+**Symptom:** Ledger thread starts but never logs result (no ✅ or ⚠️).
+
+**Root Cause:** Three layered bugs:
+1. `_resolve_ledger_project_root()` used broken self-made resolver (empty registry + literal `$ZED_WORKTREE_ROOT` in env)
+2. `_default_project_root` in `server_factory.py` was local variable (F811 shadow), never updated module-level in `server.py`
+3. `subprocess.run` deadlock in daemon thread (see above)
+
+**Fix:**
+1. `_resolve_ledger_project_root()` → `resolve_project_root()` from `server.py` (SQLite bridge)
+2. `create_mcp_server()` now uses `import src.mcp.server as _srv; _srv._default_project_root = ...` to properly set module attribute
+3. `Popen` + `communicate()` for git calls
+
+**Status:** ✅ FIXED — verified in isolation, pending Zed restart for full integration test
+
+**Guard:** `tests/test_contradiction_ledger.py`
