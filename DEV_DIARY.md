@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-18 — Полный аудит документации и мёртвого кода
+
+**Симптом:** Документация врала (59 tools → реальность 38), 2603 строки мёртвого кода,
+env-переменные не совпадали с settings.py, переводы zh/ru рассинхронизированы.
+
+**Root Cause:** Быстрые итерации без обновления документации. При консолидации
+write tools в `codebase(action=...)` hub — README не обновлён. При смене модели
+17.07 — install.py не обновлён. Legacy tools оставлены "на всякий случай".
+
+**Что сделано:**
+- Удалено 5 мёртвых файлов src/ (~1020 строк)
+- Удалено 9 legacy MCP tools (7 write + 2 system)
+- Удалено 7 мёртвых scripts (~1328 строк)
+- README.md: 59→38 tools, env vars, architecture diagram
+- server_tools.py + intelligence/layer.py: комментарии исправлены
+- .env.example: синхронизирован с settings.py (+MSCODEBASE_MCP_TOOLS, +LLAMA_BACKEND)
+- zh/ARCHITECTURE.md: 58→38, ru/CHANGELOG.md: 36→38
+- test_write_tools.py: мигрирован на WriteTool (33 теста, +bonus bugfix)
+
+**Коммиты:** 123e7b0, 2e5870a, a25d3ab, ffd0e27
+**Guard:** При изменении числа tools — обновлять README, AGENTS.md, переводы, server_tools.py комментарии.
+**Осталось (техдолг):** 17 backward-compat шимов src/core/X.py, ~80 мёртвых методов в живых модулях.
+
+---
+
 ## 2026-07-17 — Phase 2: PropertyGraph IMPORTS (Idea 1 blocker) устранён
 
 **Контекст:** В PropertyGraph было 0 IMPORTS-рёбер при 3517 других рёбрах.
@@ -180,3 +205,21 @@ structured output и streaming.
 **Всего:** 7+ файлов изменено, все 36 инструментов работают.
 
 **Статус:** ✅ Сессия закрыта
+
+---
+
+## 2026-07-18 — Тесты WriteTool + баг-фикс filter_mismatch
+
+**Задача:** Переписать `tests/test_write_tools.py` под `WriteTool` (вместо удалённых legacy-классов).
+
+**Сделано:**
+- 6 фикстур (`rename_tool`, `move_tool` и т.д.) → 1 фикстура `write_tool`.
+- 6 классов тестов переименованы: `TestWriteToolRename`, `TestWriteToolMove`, `TestWriteToolSafeDelete`, `TestWriteToolReplace`, `TestWriteToolInsertBefore`, `TestWriteToolInsertAfter`.
+- `execute.__wrapped__` / `execute` → прямые вызовы `_action_*`.
+- Все 33 теста проходят.
+
+**Найден и починен баг:** `_action_replace` и `_action_insert` падали с `IndexError` при `file_path`, который не содержит символ (пустой `defs` после фильтрации). Добавлены guard-проверки (как уже были в `_action_move` / `_action_safe_delete`).
+
+**Изменённые файлы:**
+- `tests/test_write_tools.py` — полная переделка
+- `src/mcp/tools/write_tools.py` — guard для `_action_replace` (L258) и `_action_insert` (L315)
