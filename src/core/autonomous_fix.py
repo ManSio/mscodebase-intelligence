@@ -158,14 +158,12 @@ class AutonomousFixLoop:
             return False
 
     def revert_fix(self, file_path: str, original_code: str) -> bool:
-        """Откатывает исправление."""
+        """Откатывает исправление — записывает original_code обратно."""
         try:
             full_path = self.project_path / file_path
             if not full_path.exists():
                 return False
-
-            full_path.read_text(encoding="utf-8")
-            # This is simplified - in practice need to track exact changes
+            full_path.write_text(original_code, encoding="utf-8")
             return True
         except Exception as e:
             logger.error(f"Failed to revert fix in {file_path}: {e}")
