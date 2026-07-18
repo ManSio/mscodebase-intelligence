@@ -73,6 +73,7 @@ def register_all_tools(mcp, services):
         ImpactAnalysisTool,
         SearchCodeTool,
     )
+    from src.mcp.tools.doc_tools import StaleDetectorTool
     # Список всех инструментов для регистрации
     tool_classes = [
         # Search (3)
@@ -100,6 +101,8 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
         VerifyActionTool,
+        # Doc tools (1)
+        StaleDetectorTool,
     ]
 
     # Spoke: execute_cript — только если явно включён
