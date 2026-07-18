@@ -178,13 +178,13 @@ Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-
 | **[docs/en/INSTALL.md](docs/en/INSTALL.md)** | Installation, setup, uninstall | Users | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md)** | Clean Architecture, Layers, DI | Developers | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE_DEEP.md](docs/en/ARCHITECTURE_DEEP.md)** | Deep architecture: pipeline, lifecycle, comparison | Architects | 🇬🇧 🇷🇺 🇨🇳 |
-| **[docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md)** | Search pipeline: BM25 → RRF → Reranker | Developers | 🇬🇧 |
-| **[docs/en/GRACEFUL_DEGRADATION.md](docs/en/GRACEFUL_DEGRADATION.md)** | 5 levels of graceful degradation (llama.cpp → ONNX → BM25) | DevOps | 🇬🇧 |
+| **[docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md)** | Search pipeline: BM25 → RRF → Reranker | Developers | 🇬🇧 🇷🇺 🇨🇳 |
+| **[docs/en/GRACEFUL_DEGRADATION.md](docs/en/GRACEFUL_DEGRADATION.md)** | 5 levels of graceful degradation (llama.cpp → ONNX → BM25) | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ARCHITECTURE_LAYERS.md](docs/en/ARCHITECTURE_LAYERS.md)** | 10 runtime layers | Architects | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/FAQ.md](docs/en/FAQ.md)** | Frequently Asked Questions | All | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/TELEMETRY.md](docs/en/TELEMETRY.md)** | Metrics, ETA, data collection | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/investigations/ONNX_SESSION_REPORT.md](docs/en/investigations/ONNX_SESSION_REPORT.md)** | Full ONNX migration, 7 fixes, benchmarks | Support | 🇬🇧 |
-| **[docs/en/investigations/LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)** | LSP on Windows investigation (WONTFIX) | Support | 🇬🇧 🇨🇳 |
+| **[docs/en/investigations/LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md)** | LSP on Windows investigation (WONTFIX) | Support | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md)** | Windows specifics, Restricted Mode | Windows users | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/CHANGELOG.md](docs/en/CHANGELOG.md)** | Version history | All | 🇬🇧 🇷🇺 🇨🇳 |
 | **[docs/en/CONTRIBUTING.md](docs/en/CONTRIBUTING.md)** | How to contribute, PRs | Contributors | 🇬🇧 🇷🇺 🇨🇳 |
@@ -192,7 +192,7 @@ Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-
 | **[AGENTS.md](AGENTS.md)** | AI Agent system rules | AI Agent | 🇬🇧 |
 | **[SECURITY.md](SECURITY.md)** | Security policy, reporting vulnerabilities | Security | 🇬🇧 |
 | **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** | Community standards | Contributors | 🇬🇧 |
-
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | How to contribute (root-level) | Contributors | 🇬🇧 |
 | **[docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)** | Known issues & technical debt registry | All | 🇬🇧 |
 
 All documents are cross-referenced. Available in 3 languages: English, Русский, 中文.
@@ -241,6 +241,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_hotspots(project_root)` | Hotspots — files with high bug rate |
 | `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
+| `get_repo_map(project_root)` | Project map: file tree + key symbols |
 | `get_related_files(project_root, path)` | Files related via co-change / bug correlation |
 | `graph_query(action, target)` | Graph queries: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
@@ -288,6 +289,8 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `intel_get_hotspots()` | Top-5 files with highest bug load |
 | `intel_predict_root_cause(error)` | Predict root cause from logs + history |
 | `intel_get_telemetry(days)` | Per-tool telemetry, resource usage, LLM stats |
+| `intel_auto_collect_adrs(max_commits)` | Auto-generate ADRs from commit history |
+| `intel_reset_index()` | Delete and rebuild index from scratch |
 
 > `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — see Diagnostic Tools below.
 
@@ -411,50 +414,48 @@ Expected: `{"status":"ok"}`.
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # MCP server entry point (~194 lines)
-│   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
+│   ├── main.py                     # MCP server entry point (~194 lines)
 │   ├── mcp/
-│   │   ├── server.py             # MCP server creation (~597 lines)
-│   │   ├── server_factory.py     # DI setup + server lifecycle
-│   │   ├── server_tools.py       # Tool registration (18 core + 13 intel + 6 inline)
-│   └── tools/                    # 12 files, 18 core tools
-│   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
-│   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
-│   │       ├── git_tools.py      # get_branch_info, get_commit_history
-│   │       ├── system_tools.py   # get_index_status, watcher_status, read_live_file
-│   │       ├── analysis_tools.py # structural_search, get_repo_map, scan_changes
-│   │       ├── graph_tools.py    # cross_repo_search, graph_query, get_related_files
-│   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
-│   │       └── lifecycle_tools.py      # submit_background_task, verify_action
-│   ├── core/
-│   │   ├── di_container.py       # ★ DI Container (16 services, ServiceCollection)
-│   │   ├── error_handler.py      # ★ error_boundary + ToolError
-│   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
-│   │   ├── indexer.py            # LanceDB vector storage
-│   │   ├── searcher.py           # Hybrid search (BM25 + Dense + RRF)
-│   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
-│   │   ├── intelligence_layer.py # intel_* tools (13 high-level)
+│   │   ├── server.py               # MCP server creation (~597 lines)
+│   │   ├── server_factory.py       # DI setup + server lifecycle (~478 lines)
+│   │   ├── server_tools.py         # Tool registration + 6 inline tools (~607 lines)
+│   │   └── tools/                  # 11 modules + base class
+│   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
+│   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis
+│   │       ├── indexing_tools.py   # notify_change, index_project_dir, index_health
+│   │       ├── git_tools.py        # get_branch_info, get_commit_history, get_file_history
+│   │       ├── system_tools.py     # get_index_status, get_health_report, read_live_file, get_logs
+│   │       ├── analysis_tools.py   # structural_search, get_repo_map, get_repo_rank, scan_changes
+│   │       ├── graph_tools.py      # cross_repo_search, cross_project_deps, graph_query
+│   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots, find_similar_bugs
+│   │       ├── lifecycle_tools.py  # submit_background_task, get_task_status, verify_action
+│   │       ├── meta_tools.py       # IndexTool, GitTool, SystemTool (spoke tools for codebase hub)
+│   │       └── write_tools.py      # WriteTool (rename, move, delete, replace, insert)
+│   ├── core/                       # Business logic + backward-compat shims
+│   │   ├── di_container.py         # ★ DI Container (18 services, ServiceCollection)
+│   │   ├── error_handler.py        # error_boundary decorator + ToolError
+│   │   ├── rate_limiter.py         # SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
+│   │   ├── graph.py                # PropertyGraph (42 edge types)
+│   │   ├── structural_search.py    # 13 AST patterns (Tree-sitter)
+│   │   ├── lsp_client.py           # Thin LSP client (pyright JSON-RPC 2.0)
+│   │   ├── intelligence_layer.py   # Shim → core/intelligence/layer.py
+│   │   ├── indexing/               # 18 files: indexer, parser, symbol_index, file_guard, ...
+│   │   ├── search/                 # 18 files: engine (Searcher), scoring, bm25, cypher_*, ...
+│   │   └── intelligence/           # 5 files: layer (intel_* tools), jobs, health, context, store
 │   ├── providers/
 │   │   ├── embedder/
-│   │   │   └── remote_embedder.py  # ONNX e5-small INT8 (in-process) + LM Studio / Ollama fallback
-│   │   └── reranker/
-│   │       ├── llama_runner.py   # llama.cpp lifecycle manager ★
-│   │       └── reranker.py       # Multi-Provider Reranker (HTTP to providers)
-│   │   ├── parser.py             # Tree-sitter AST
-│   │   ├── health_report.py      # Self-diagnosis engine
-│   │   ├── lsp_client.py          # Thin LSP client (pyright JSON-RPC 2.0)
-│   │   ├── modification_guard.py  # @modification_guard decorator (ack + TTL)
-│   │   └── ...
-│   └── utils/
-│       ├── paths.py              # SafePathManager, to_win_long_path
-│       └── zed_config.py         # Auto-configure Zed settings
+│   │   │   └── remote_embedder.py  # ONNX e5-small INT8 + LM Studio/Ollama fallback
+│   │   └── reranker/               # llama_runner, multi_provider, search_result_reranker, scoring
+│   ├── config/
+│   │   └── settings.py             # All configuration via os.getenv (Single Source of Truth)
+│   └── utils/                      # paths, i18n, ui_formatter, zed_config
 ├── docs/
-│   ├── en/               # English docs
-│   ├── ru/               # Russian docs
-│   └── zh/               # Chinese docs
-├── tests/                        # 605 tests (pytest)
-├── .agents/skills/               # Skills for AI agent
-├── install.py                    # Installer
+│   ├── en/                         # English docs
+│   ├── ru/                         # Russian docs
+│   └── zh/                         # Chinese docs
+├── scripts/                        # CLI utilities (install, sync, benchmark, audit)
+├── tests/                          # 605 tests (pytest)
+├── install.py                      # Installer (3 languages: en/ru/zh)
 └── README.md
 ```
 

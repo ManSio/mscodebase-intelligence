@@ -12,11 +12,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-605%20passing-brightgreen)](../../tests/)
 
-[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-59-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
+[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-38-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
-*Последнее обновление: 2026-07-17*
+*Последнее обновление: 2026-07-18*
 
 </div>
 
@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 37 инструментов для AI-ассистента          │  │
+│  │  · 38 инструментов для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP: только для rename (гибридный режим)
 
-MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **59 MCP-инструментов**.
+MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **38 MCP-инструментов**.
 
 Отдельный LSP-сервер (`src/lsp_main.py`) был экспериментальным и **не работает в Zed** — см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md).
 
@@ -94,6 +94,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | **C++** | ✅ | ✅ | ✅ |
 | **Scala** | ✅ | ✅ | ✅ |
 | **Dart** | ✅ | ✅ | ✅ |
+| **Shell/Bash** | ✅ | ❌ | ❌ |
 
 ## ✨ Возможности
 
@@ -111,10 +112,10 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-🧪 **Чистая архитектура** | DI-контейнер (15+ сервисов), 37 инструментов (19 core + 12 intel + 6 diag), 494+ теста |
+🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 38 инструментов (19 core + 12 intel + 7 diag), 605+ тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 42 типа рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
-| ✏️ **Write Tools** | 6 инструментов: rename/move/delete/replace символов с preview/apply + `@modification_guard` |
+| ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename без пере-эмбеддинга (50ms против 5s) |
 | ⚙️ **SYSTEM_PROFILE** | `light` (синхронный) / `server` (асинхронный с phi-4) |
 
@@ -135,19 +136,19 @@ python install.py
 **install.py выполняет:**
 1. Копирует 39+ файлов исходников в директорию расширения
 2. Устанавливает Python-зависимости
-3. Скачивает llama-server.exe (reranker) + модель E5-base-v2 (ONNX, CPU)
+3. Скачивает llama-server.exe (reranker) + модель multilingual-e5-small (ONNX, CPU)
 4. Настраивает MCP в settings.json Zed
 
 См. также: [AI_INSTALLATION_PROMPT.md](../../AI_INSTALLATION_PROMPT.md), [INSTALL.md](INSTALL.md)
 
 ### Провайдеры
 
-MCP использует E5-base-v2 (ONNX, CPU, in-process) для эмбеддингов и llama-server для реранкера:
+MCP использует multilingual-e5-small (ONNX, CPU, in-process) для эмбеддингов и llama-server для реранкера:
 
 ```
-E5-base ONNX (CPU, in-process) → llama-server reranker
-   ~265 MB RAM                 ~1.0 GB RAM
-   360 i/s                     1 процесс
+multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
+   ~0.5 GB RAM                 ~1.0 GB RAM
+   ~52 ch/s                     1 процесс
 ```
 
 Бенчмарки: [../../docs/research/2026-07-10-final-benchmark.md](../../docs/research/2026-07-10-final-benchmark.md)
@@ -182,7 +183,7 @@ E5-base ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-MCP Инструменты (59 всего)
+MCP Инструменты (38 всего)
 
 ### Основной поиск
 
@@ -247,17 +248,19 @@ MCP Инструменты (59 всего)
 | `get_task_status(task_id)` | Статус фоновой задачи |
 | `verify_action(action_type)` | Верификация: `file_write` / `git_commit` / `git_push` / `index_sync` |
 
-### Write Tools (7)
+### Write Tools — `codebase(action=...)`
 
-| Инструмент | Когда использовать |
-|------------|-------------------|
-| `rename_symbol(old, new, apply)` | Переименование символа во всех файлах (preview/apply, проверка коллизий) |
-| `move_symbol(symbol, to_file, apply)` | Перемещение символа в другой файл (preview/apply, обновление импортов) |
-| `safe_delete(symbol, force, apply)` | Безопасное удаление с проверкой ссылок (force mode) |
-| `replace_symbol(symbol, new_code, apply)` | Замена тела функции/класса (preview/apply) |
-| `insert_before_symbol(anchor, new_code, apply)` | Вставка кода перед anchor-символом (preview/apply) |
-| `insert_after_symbol(anchor, new_code, apply)` | Вставка кода после тела anchor (preview/apply) |
-| `ack_impact(file_path)` | Подтверждение влияния для modification guard |
+Единый хаб модификации кода. Все операции через один инструмент с параметром `action`:
+
+| action | Описание |
+|--------|----------|
+| `rename` | Переименование символа во всех файлах (preview/apply, проверка коллизий) |
+| `move` | Перемещение символа в другой файл (preview/apply, обновление импортов) |
+| `delete` | Безопасное удаление с проверкой ссылок (force mode) |
+| `replace` | Замена тела функции/класса (preview/apply) |
+| `insert_before` | Вставка кода перед anchor-символом (preview/apply) |
+| `insert_after` | Вставка кода после тела anchor (preview/apply) |
+| `ack_impact` | Подтверждение влияния для modification guard |
 
 ### Интеллектуальный слой (intel_*) — 14 высокоуровневых инструментов
 
@@ -294,11 +297,11 @@ MCP Инструменты (59 всего)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~220 строк)                         │
-│            src/mcp/server.py — только регистрация                │
+│                   MCP Server (~600 строк)                         │
+│            server.py + server_tools.py + server_factory.py — регистрация и маршрутизация                │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              DI Container (15 сервисов)                    │   │
+│  │              DI Container (18 сервисов)                    │   │
 │  │  src/core/di_container.py — ServiceCollection              │   │
 │  │                                                           │   │
 │  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
@@ -323,7 +326,7 @@ MCP Инструменты (59 всего)
 │         ▼
 │  ┌─────────────────┐     ┌───────────────────┐
 │  │  RemoteEmbedder  │     │  LanceDB v2       │
-│  │  (ONNX E5-base,  │     │  (Vector DB)       │
+│  │  (ONNX multilingual-e5-small,  │     │  (Vector DB)       │
 │  │   CPU, in-process)│     │  BM25 + Vector    │
 │  └─────────────────┘     └───────────────────┘
 ```
@@ -389,10 +392,10 @@ python -c "import urllib.request; print(urllib.request.urlopen('http://localhost
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # Точка входа MCP-сервера (~220 строк)
+│   ├── main.py                   # Точка входа MCP-сервера (~600 строк)
 │   ├── lsp_main.py               # LSP-сервер (на DI, для индексации при didSave)
 │   ├── mcp/
-│   │   ├── server.py             # DI-маршрутизация — только импорты + регистрация
+│   │   ├── server.py + server_tools.py + server_factory.py  # DI-маршрутизация (~600 строк)
 │   │   └── tools/                # 10 файлов, 33 инструмента на классах
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
@@ -403,7 +406,7 @@ mscodebase-intelligence/
 │   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
 │   │       └── lifecycle_tools.py      # submit_background_task, verify_action
 │   ├── core/
-│   │   ├── di_container.py       # ★ DI-контейнер (15 сервисов, ServiceCollection)
+│   │   ├── di_container.py       # ★ DI-контейнер (18 сервисов, ServiceCollection)
 │   │   ├── error_handler.py      # ★ error_boundary + ToolError
 │   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
 │   │   ├── indexer.py            # Векторное хранилище LanceDB
@@ -411,7 +414,7 @@ mscodebase-intelligence/
 │   │   ├── symbol_index.py       # Граф вызовов (BFS, анализ влияния)
 │   │   ├── intelligence_layer.py # Инструменты intel_* (14 высокоуровневых)
 │   │   ├── llama_runner.py       # ★ Менеджер жизненного цикла llama-server (reranker)
-│   ├── remote_embedder.py    # ONNX/OpenVINO E5-base (in-process) + LM Studio / Ollama fallback
+│   ├── remote_embedder.py    # ONNX/OpenVINO multilingual-e5-small (in-process) + LM Studio / Ollama fallback
 │   │   ├── reranker.py           # Мульти-провайдерный реранкер (HTTP к провайдерам)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Движок самодиагностики
@@ -423,7 +426,7 @@ mscodebase-intelligence/
 │   ├── en/               # Документация на английском
 │   ├── ru/               # Документация на русском
 │   └── zh/               # Документация на китайском
-├── tests/                        # 494 теста (pytest)
+├── tests/                        # 605 тестов (pytest)
 ├── .agents/skills/               # Навыки для AI-агента
 ├── install.py                    # Установщик
 └── README.md
