@@ -327,54 +327,6 @@ class GetHealthReportTool(MCPTool):
         return result
 
 
-class PredictEtaTool(MCPTool):
-    """predict_eta — предсказание времени выполнения операции."""
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="predict_eta")
-
-    @error_boundary("predict_eta", timeout_ms=3000)
-    async def execute(
-        self, operation: str, items: int = 1, kwargs: Optional[Dict[str, Any]] = None
-    ) -> dict:
-        from src.core.eta_predictor import get_predictor
-
-        predictor = get_predictor()
-        est = predictor.estimate(operation, items)
-        return {
-            "status": "ok",
-            "operation": operation,
-            "items": items,
-            "estimated_seconds": est.get("estimated_seconds", 0),
-            "tokens_estimate": est.get("tokens_estimate", 0),
-            "confidence": est.get("confidence", "low"),
-        }
-
-
-class RunHealthCheckTool(MCPTool):
-    """run_health_check — полная проверка здоровья проекта."""
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="run_health_check")
-
-    @error_boundary("run_health_check", timeout_ms=30000)
-    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
-        from src.core.autonomous_fix import AutonomousFixLoop
-
-        fix_loop = AutonomousFixLoop(self.resolve_indexer().project_path)
-        health = await fix_loop.health_check()
-
-        return {
-            "status": "ok",
-            "timestamp": health.get("timestamp", ""),
-            "tests": health.get("tests", {}),
-            "git_status": health.get("git_status", {}),
-            "overall": health.get("overall", "unknown"),
-            "message": f"✅ Health check: {health.get('overall', 'done')}. "
-            f"💡 *Следующая проверка: не ранее чем через 5 минут.*",
-        }
-
-
 class ReadLiveFileTool(MCPTool):
     """read_live_file — чтение файла из памяти LSP (включая несохранённые изменения).
 
@@ -444,7 +396,5 @@ __all__ = [
     "WatcherStatusTool",
     "GetLogsTool",
     "GetHealthReportTool",
-    "PredictEtaTool",
-    "RunHealthCheckTool",
     "ReadLiveFileTool",
 ]

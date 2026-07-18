@@ -256,6 +256,9 @@ class WriteTool(MCPTool):
             target = Path(file_path).resolve().as_posix()
             defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
 
+        if not defs:
+            return f"🚫 **Error:** Symbol '{symbol}' not found in specified file."
+
         source_def = defs[0]
         source_file = source_def.file_path
         abs_path = Path(source_file).resolve()
@@ -312,6 +315,9 @@ class WriteTool(MCPTool):
         if file_path:
             target = Path(file_path).resolve().as_posix()
             defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
+
+        if not defs:
+            return f"🚫 **Error:** Symbol '{anchor_symbol}' not found in specified file."
 
         source_def = defs[0]
         source_file = source_def.file_path
@@ -597,90 +603,4 @@ class WriteTool(MCPTool):
         return {"status": "applied" if not errors else "partial", "message": f"Moved '{symbol}' to {target_file}. Updated {len(set(modified))} files.", "files_modified": list(set(modified)), "errors": errors if errors else None}
 
 
-# ─── Оригинальные классы (для обратной совместимости импортов) ───
-
-
-class RenameSymbolTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="rename_symbol_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("rename_symbol", timeout_ms=30000)
-    async def execute(self, old_name="", new_name="", file_path="", apply=False, allow_collision=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer', '_lsp_client', '_get_lsp_client'):
-            if hasattr(self, a):
-                setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_rename(old_name=old_name, new_name=new_name, file_path=file_path, apply=apply, allow_collision=allow_collision)
-
-
-class AckImpactTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="ack_impact_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("ack_impact", timeout_ms=5000)
-    async def execute(self, file_path="", symbol="", **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_ack(**{**kw, "file_path": file_path, "symbol": symbol})
-
-
-class MoveSymbolTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="move_symbol_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("move_symbol", timeout_ms=30000)
-    async def execute(self, symbol="", to_file="", file_path="", apply=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_move(symbol=symbol, to_file=to_file, file_path=file_path, apply=apply)
-
-
-class SafeDeleteTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="safe_delete_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("safe_delete", timeout_ms=20000)
-    async def execute(self, symbol="", file_path="", force=False, apply=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_safe_delete(symbol=symbol, file_path=file_path, force=force, apply=apply)
-
-
-class ReplaceSymbolTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="replace_symbol_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("replace_symbol", timeout_ms=30000)
-    async def execute(self, symbol="", new_code="", file_path="", apply=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_replace(symbol=symbol, new_code=new_code, file_path=file_path, apply=apply)
-
-
-class InsertBeforeSymbolTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="insert_before_symbol_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("insert_before_symbol", timeout_ms=15000)
-    async def execute(self, anchor_symbol="", new_code="", file_path="", apply=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_insert_before(**{**kw, "anchor_symbol": anchor_symbol, "new_code": new_code, "file_path": file_path, "apply": apply})
-
-
-class InsertAfterSymbolTool(MCPTool):
-    def __init__(self, services):
-        super().__init__(services, tool_name="insert_after_symbol_legacy")
-        self._wrapped = WriteTool(services)
-    @error_boundary("insert_after_symbol", timeout_ms=15000)
-    async def execute(self, anchor_symbol="", new_code="", file_path="", apply=False, **kw):
-        for a in ('require_ready_project', 'resolve_symbol_index', 'resolve_indexer'):
-            if hasattr(self, a): setattr(self._wrapped, a, getattr(self, a))
-        return await self._wrapped._action_insert_after(**{**kw, "anchor_symbol": anchor_symbol, "new_code": new_code, "file_path": file_path, "apply": apply})
-
-
-__all__ = [
-    "WriteTool",
-    "RenameSymbolTool", "AckImpactTool", "MoveSymbolTool",
-    "SafeDeleteTool", "ReplaceSymbolTool",
-    "InsertBeforeSymbolTool", "InsertAfterSymbolTool",
-]
+__all__ = ["WriteTool"]
