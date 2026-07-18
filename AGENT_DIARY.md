@@ -18,7 +18,20 @@
 **Тесты:** 4/4 ov_concurrent_embed, 33/33 write_tools
 **Коммит:** 7566d4a7 (pushed to main)
 **Incident:** INC-6DF5
-**verified_from_clean_state:** no (⚠️ требует внешней проверки по §7.6)
+**verified_from_clean_state:** ✅ yes — чистый клон `git clone /tmp/mscodebase-verify-xxx` + `pytest` (37/37) + `benchmark_ov_concurrent.py` (5 threads, 0 deadlock, 0 errors, 0 contamination, 30-34 ch/s). HEAD: `8f4a2806`.
+
+## [2026-07-18 19:10] — Contamination check rewrite + verified_from_clean_state
+
+**Симптом:** Старый contamination-check сравнивал intra-thread (разные темы) vs
+cross-thread (одна тема с разным префиксом) — измерял тематическое сходство,
+а не контаминацию. Порог 0.5→0.98 был подгонкой.
+
+**Fix:** Переписан на argmax self-match: уникальные темы ×2 копии, ближайший
+сосед = дубликат из того же потока. Guard: `assert n_threads * 2 <= 10`.
+
+**Результат:** 5 threads, 0 contamination, 30-34 ch/s.
+**Коммиты:** `a959f863` (rewrite), `8f4a2806` (assert guard).
+**verified_from_clean_state:** ✅ yes — чистый клон `8f4a2806`: 37/37 tests, benchmark PASS.
 
 ## [2026-07-18 18:00] — AsyncInferQueue throughput benchmark (DoD §7.5)
 
