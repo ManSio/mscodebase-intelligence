@@ -103,7 +103,13 @@ def _get_zed_config_base() -> Path:
 
 
 def get_zed_db_path() -> Path:
-    """Путь к SQLite базе данных Zed (workspaces, multi_workspace_state)."""
+    """Путь к SQLite базе данных Zed (workspaces, multi_workspace_state).
+
+    ⚠️ ВНИМАНИЕ: Это недокументированная внутренняя БД Zed.
+    Схема может измениться в любой версии без предупреждения.
+    Используется ТОЛЬКО для диагностики (check_lsp_health.py).
+    Не вызывать из production-кода.
+    """
     return _get_zed_data_base() / "db" / "0-stable" / "db.sqlite"
 
 
