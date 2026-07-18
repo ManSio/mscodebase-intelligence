@@ -116,7 +116,7 @@ MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/cor
 | ✏️ **Write Tools** | 6 个工具：rename/move/delete/replace 符号，支持预览/应用 + `@modification_guard` |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
 | ⚙️ **SYSTEM_PROFILE** | `light`（同步）/ `server`（异步，带 phi-4） |
-| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 3,337 条边（81% 有条件）。 |
+| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 42 种边类型。 |
 
 ---
 

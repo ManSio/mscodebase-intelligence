@@ -7,6 +7,7 @@ server_tools.py — Регистрация MCP-инструментов.
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
 - _register_inline_tools() — 6 inline @mcp.tool (debug_runtime_passport, ...)
 - Всего: 18 + 13 + 6 = 37 инструментов (+ 1 optional execute_script = 38)
+- DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
 from __future__ import annotations

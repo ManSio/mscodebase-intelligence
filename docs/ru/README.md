@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
 🧪 **Чистая архитектура** | DI-контейнер (15+ сервисов), 37 инструментов (19 core + 12 intel + 6 diag), 494+ теста |
-| 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 3,337 рёбер на MSCodeBase (81% условных). |
+| 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 42 типа рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | 6 инструментов: rename/move/delete/replace символов с preview/apply + `@modification_guard` |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename без пере-эмбеддинга (50ms против 5s) |
