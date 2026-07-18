@@ -426,3 +426,44 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 5. `_default_project_root` in `server_factory.py` — module-level never updated (F811 shadow bug)
 
 **Fixed:** AGENTS.md (project + global), graph_tools.py error message, server_factory.py module attribute update.
+
+---
+
+## 2026-07-18 - BUG FIX: AST cache invalidation in CodeParser._walk_file()
+
+**Symptom:** After renaming a function, PropertyGraph kept stale CALLS edges pointing to the old name. `extract_calls()` returned outdated AST data on re-index.
+
+**Root Cause:** `_walk_file()` cached AST by `file_path` only. When the same file was modified and re-indexed, the cache hit on path match, returning stale tree. `parse_file()`/`_parse_with_tree_sitter()` read the file fresh but never updated `_walk_file()`'s cache variables.
+
+**Fix:** Changed cache check from `file_path == self._cache_path` to `file_path == self._cache_path and code == self._cache_code`. File is always read ("<1ms overhead), but AST is only re-parsed when content actually changes.
+
+**Why NOT mtime:** NTFS mtime can be wrong (antivirus, WSL, shutil.copy). Content comparison is ground truth. File read is <1ms, not worth optimizing.
+
+**Impact:** PropertyGraph now gets correct CALLS edges on every re-index. Prevents "information garbage" accumulation in dependency graph.
+
+**Guard:** `tests/test_ast_cache_invalidation.py` (5 tests: single-file rename, consumer rename, sequential renames A->B->C, same-content cache reuse, full PropertyGraph consistency with ghost-node check)
+
+**Verified from clean state:** `pytest tests/test_ast_cache_invalidation.py -v` → 5/5 passed in 0.43s
+
+---
+
+## 2026-07-18 - VERIFIED: Chunk-level cache working end-to-end
+
+**Finding:** Chunk-level cache was already fully implemented in `index_pipeline.py`. Verified live data:
+- 3792 total chunks, 3705 (97.7%) with `chunk_hash`
+- 255/260 files at 100% cache coverage
+- Schema has `chunk_hash` column, db_writer stores it, index_pipeline queries and skips embed_batch for cached chunks
+
+**Benchmark (AST-aware chunking):** 95.4% skip rate on 1-5% file edits. Saves ~700ms per file save (CPU embedder).
+
+**Remaining:** 87 chunks (5 files) without `chunk_hash` — legacy from before feature was added. Auto-fixed on next re-index.
+
+---
+
+## 2026-07-18 - BUG FOUND: Ghost nodes test revealed AST cache staleness
+
+**How found:** Cross-file dependency test (producer.py defines func, consumer.py calls it). After renaming in consumer only, PropertyGraph still showed `run_pipeline --[CALLS]--> calc_data` instead of `process_data`.
+
+**Deduction chain:** Test showed wrong edges → suspected AST cache → added debug logging → confirmed `extract_calls()` returns stale data when file content changed but path unchanged → found `_walk_file()` only compares path → fixed with content comparison.
+
+**Lesson:** Ghost-node cross-file tests are effective at catching indexing bugs that single-file tests miss.

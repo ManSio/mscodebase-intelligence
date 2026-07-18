@@ -78,3 +78,19 @@
 **Status:** ✅ FIXED — verified in isolation, pending Zed restart for full integration test
 
 **Guard:** `tests/test_contradiction_ledger.py`
+
+---
+
+## 2026-07-18 — AST cache staleness: extract_calls returns stale CALLS edges
+
+**Symptom:** After renaming a function, PropertyGraph kept old CALLS edges pointing to the old name.
+
+**Root Cause:** `CodeParser._walk_file()` cached AST by `file_path` only. Same file after modification → cache hit → stale data.
+
+**Fix:** `src/core/indexing/parser.py` — cache check changed to `file_path == self._cache_path and code == self._cache_code`.
+
+**Status:** ✅ FIXED — verified via cross-file ghost-node test + 5 regression tests (all passed)
+
+**Guard:** `tests/test_ast_cache_invalidation.py`
+
+**Note:** mtime-based validation was considered but rejected — content comparison is ground truth, file read is <1ms.
