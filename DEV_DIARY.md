@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-18 — Architecture Review: 8 проблем (Claude-аудит)
+
+**Симптом:** Claude-аудит выявил 8 проблем в коде — от P0 (крашит конструктор) до P2 (рассинхрон версий).
+
+**Что починено (6 из 8):**
+- **P0 count_edges**: `PropertyGraph` не имел `count_edges()`, а `indexer.py:123` вызывал его. → Добавил метод.
+- **P0 path traversal**: `autonomous_fix.apply_fix()` принимал любой `file_path` без проверки выхода за `project_root`. → `_safe_path()` + `is_relative_to()`.
+- **P1 shim import**: `graph_tools.py` импортировал `CypherExecutor` через flat shim. → Прямой импорт из `src.core.search.cypher_engine`.
+- **P2 version**: `pyproject.toml` 3.2.3 vs CHANGELOG 3.3.1. → Синхронизировал.
+- **P2 CI test**: `test_install_embedder_sync.py` — 3 теста, гарантируют что install.py и remote_embedder.py согласны.
+- **P2 bump_version.py**: Скрипт для атомарного обновления версии в pyproject.toml + 3 CHANGELOG.
+
+**Не починено (требует архитектурного решения — см. план ниже):**
+- P0 single lock: `remote_embedder.py` — один `_ov_infer_request` + `threading.Lock`. Потолок throughput.
+- P1 God Objects: `layer.py` (1572 строк), `llama_runner.py` (1515 строк).
+
+**Коммиты:** 5f50da7, 62a3d40
+**Тесты:** `test_integration.py` 3 errors → 0. `test_install_embedder_sync.py` 3/3 pass.
+
+---
+
 ## 2026-07-18 — Глубокий аудит документации (итерация 2)
 
 **Симптом:** После первого аудита остались 20+ ошибок в README: Project Structure (12 багов),

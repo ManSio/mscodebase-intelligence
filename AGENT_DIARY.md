@@ -1,5 +1,33 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 16:30] — Architecture Review: 8 проблем от Claude-аудита
+
+**Симптом:** Claude-аудит выявил 8 проблем (3 P0, 3 P1, 2 P2).
+
+**Что сделано:**
+
+| P | Проблема | Коммит | Статус |
+|---|----------|--------|--------|
+| P0 | `PropertyGraph.count_edges()` отсутствует → AttributeError в indexer.py:123 | 5f50da7 | ✅ Fixed |
+| P0 | `autonomous_fix.py` path traversal — нет guard | 5f50da7 | ✅ Fixed |
+| P1 | `graph_tools.py` импорт через shim `src.core.cypher_engine` | 5f50da7 | ✅ Fixed |
+| P2 | `pyproject.toml` version 3.2.3 vs CHANGELOG 3.3.1 | 5f50da7 | ✅ Fixed |
+| P2 | CI-тест: install.py ↔ remote_embedder.py model sync | 62a3d40 | ✅ Added |
+| P2 | `bump_version.py` — единая точка обновления версии | 62a3d40 | ✅ Added |
+
+**НЕ сделано (требуют архитектурного решения):**
+
+| P | Проблема | Статус | Рекомендация |
+|---|----------|--------|-------------|
+| P0 | Single lock в `remote_embedder.py` — архитектурный потолок | ⏳ План | Вариант A: `ov.AsyncInferQueue` или B: пул InferRequest + Queue |
+| P1 | `intelligence/layer.py` — 1572 строки (God Object) | ⏳ План | Декомпозиция: explainability.py, drift_detector.py, claim_verifier.py |
+| P1 | `reranker/llama_runner.py` — 1515 строк | ⏳ План | Декомпозиция: llama_lifecycle.py, llama_install.py (частично есть) |
+
+**Коммиты:** 5f50da7 (P0+P1 fixes), 62a3d40 (P2 infra)
+**Guard:** После `count_edges` — test_integration.py: 3 errors → 0 errors.
+
+**Status:** ✅ 6/8 починено
+
 ## [2026-07-18 16:00] — ГЛУБОКИЙ АУДИТ: каждая строка README через grep (итерация 2)
 
 **Симптом:** После первого аудита остались ошибки: Project Structure (12 багов),
