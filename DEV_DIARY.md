@@ -307,3 +307,22 @@ structured output и streaming.
 **Изменённые файлы:**
 - `tests/test_write_tools.py` — полная переделка
 - `src/mcp/tools/write_tools.py` — guard для `_action_replace` (L258) и `_action_insert` (L315)
+
+---
+
+## 2026-07-18 - FIX: intel_get_runtime_status showed 768dim instead of 384dim
+
+**Symptom:** intel_get_runtime_status showed ONNX (768dim), but real model is multilingual-e5-small-int8 (384dim). MCP logs confirmed embedding_dim=384, but UI formatter overrode with default.
+
+**Root Cause:** ui_formatter.py (line 206-208) looked for model_info inside provider_status. But intel_get_runtime_status returns model_info at top level of data (layer.py line 435). Result: _info = {}, _dim = 768 (default).
+
+**Fix:** ui_formatter.py now reads model_info from data (top level):
+_info = data.get("model_info", {}) or {}
+
+**Verified from clean state:**
+- Command: restart MCP + intel_get_runtime_status
+- Result: multilingual-e5-small-int8 (384dim) OK
+- Model loaded: llama-server.exe (510 MB RAM)
+- Index: 3765 chunks (not 0)
+
+**Guard:** added test tests/test_ui_formatter_dim.py - verifies format_runtime_status shows real dimension from model_info.

@@ -203,9 +203,12 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     elif provider == "onnx":
         llm_led = "🟢" if onnx_status == "loaded_and_ready" else "🟡"
         # Пытаемся определить реальную модель
-        _info = ps.get("model_info", {})
-        _model_name = _info.get("model", "") if isinstance(_info, dict) else ""
-        _dim = _info.get("dimension", 768) if isinstance(_info, dict) else 768
+        # FIX: model_info находится на верхнем уровне data, а не в provider_status
+        _info = data.get("model_info", {}) or {}
+        if not isinstance(_info, dict):
+            _info = {}
+        _model_name = _info.get("model", "")
+        _dim = _info.get("dimension", 768)
         if _model_name:
             llm_name = f"{_model_name} ({_dim}dim)"
         else:
