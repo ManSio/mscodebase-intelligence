@@ -688,19 +688,34 @@ class RemoteEmbedder(IEmbedder):
                 "INFERENCE_NUM_THREADS": "0",
             })
             self._ov_compiled = compiled
-            self._ov_infer_request = compiled.create_infer_request()
-            self._ov_infer_lock = threading.Lock()
 
-            # Pre-bind token_type_ids = zeros в памяти C++ (один раз).
-            # INT8 модель имеет 3 входа, но tt всегда нули (код не использует.
+            # AsyncInferQueue — пул из N параллельных InferRequest.
+            # Убирает bottleneck single-lock (см. P0-3 architecture review).
+            _ov_pool_size = int(os.getenv("OV_INFER_POOL_SIZE", "4"))
+            self._ov_async_queue = ov.AsyncInferQueue(compiled, jobs=_ov_pool_size)
+
+            # Pre-bind token_type_ids = zeros в памяти C++ для ВСЕХ request в пуле.
+            # INT8 модель имеет 3 входа, но tt всегда нули (код не использует —
             # Token Type Embeddings = 0 для всех токенов).
             # Это устраняет overhead на передачу tt из Python и Dynamic Shapes.
+            self._ov_has_tt_bound = False
             try:
                 tt_tensor = ov.Tensor(np.zeros((1, 128), dtype=np.int64))
-                self._ov_infer_request.set_tensor("token_type_ids", tt_tensor)
+                for _req in self._ov_async_queue:
+                    _req.set_tensor("token_type_ids", tt_tensor)
+                self._ov_has_tt_bound = True
             except Exception:
                 pass  # FP32 модель без tt входа — ок
-            self._ov_has_tt_bound = True  # tt pre-bound, не передаём из Python
+
+            # Callback для AsyncInferQueue: сохраняет результат в self._ov_results.
+            # Вызывается из потока OpenVINO (с GIL). userdata = original_index (int).
+            self._ov_results: dict[int, np.ndarray] = {}
+
+            def _ov_callback(request, userdata):
+                out_tensor = request.get_output_tensor(0)
+                self._ov_results[userdata] = out_tensor.data[0].copy()
+
+            self._ov_async_queue.set_callback(_ov_callback)
 
             # Auto-detect: INT8 (model_quantized.onnx) имеет 3 входа и требует
             # token_type_ids. FP32 (model.onnx) имеет 2 входа и не требует.
@@ -858,32 +873,33 @@ class RemoteEmbedder(IEmbedder):
                 if _ov_has_tt:
                     pass  # token_type_ids pre-bound нулями в _init_openvino (строки 695-703)
 
-                # Lock защищает .infer() — OpenVINO InferRequest не thread-safe.
-                # (см. стресс-тест: без лока 2+ потока → "Infer Request is busy")
-                with self._ov_infer_lock:
-                    for idx_in, i in enumerate(valid_indices):
-                        feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
-                        # token_type_ids pre-bound как zeros в _init_openvino.
-                        output = self._ov_infer_request.infer(feed)
-                        out_key = list(output.keys())[0]
-                        out_data = output[out_key]
-                        if out_data.shape[0] == 0:
-                            logger.warning(
-                                "OpenVINO batch=0 на чанке %d — race condition? "
-                                "Вектор будет нулевым.", idx_in
-                            )
-                            continue
-                        token_emb = out_data[0]
-                        mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
-                        sum_emb = np.sum(token_emb * mask_exp, 0)
-                        sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
-                        results[i] = (sum_emb / sum_mask).tolist()
+                # AsyncInferQueue: параллельный инференс (см. P0-3 architecture review).
+                # Пул из N InferRequest, thread-safe start_async/wait_all.
+                self._ov_results.clear()
+                for idx_in, i in enumerate(valid_indices):
+                    feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
+                    self._ov_async_queue.start_async(feed, i)
+                self._ov_async_queue.wait_all()
+
+                # Собираем результаты и mean-pool
+                for idx_in, i in enumerate(valid_indices):
+                    if i not in self._ov_results:
+                        logger.warning(
+                            "OpenVINO async: чанк %d (index %d) не вернулся — "
+                            "вектор будет нулевым.", idx_in, i
+                        )
+                        continue
+                    token_emb = self._ov_results[i]
+                    mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
+                    sum_emb = np.sum(token_emb * mask_exp, 0)
+                    sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
+                    results[i] = (sum_emb / sum_mask).tolist()
 
                 return results
 
             except Exception as ov_err:
                 logger.warning(f"OpenVINO infer error: {ov_err}, fallback to ONNX")
-                # _ov_compiled и _ov_infer_request НЕ сбрасываем —
+                # _ov_compiled и _ov_async_queue НЕ сбрасываем —
                 # перезагрузка только усугубит при временном сбое.
                 # fall through to ONNX Runtime
 
@@ -893,7 +909,7 @@ class RemoteEmbedder(IEmbedder):
             self._init_onnx()
             # После _init_onnx мог загрузиться OpenVINO (через _init_openvino)
             # Перезапускаем embed с обновлённым current_mode
-            if getattr(self, '_ov_compiled', None) is not None and self._ov_infer_request is not None:
+            if getattr(self, '_ov_compiled', None) is not None and self._ov_async_queue is not None:
                 with self._mode_lock:
                     self.mode = "onnx"
                 return self.embed_batch(texts, is_query=is_query)
