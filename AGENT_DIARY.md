@@ -1,5 +1,30 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 17:30] — AsyncInferQueue race condition: фикс + тест на смешение векторов
+
+**Симптом:** Claude-аудит нашёл новую гонку в AsyncInferQueue (коммит e34d5e1):
+`self._ov_results` — общий dict на весь процесс, concurrent embed_batch() перезаписывают
+вектора друг друга. Не нули (shape[0]==0), а **тихая подмена** — чанк получает
+синтаксически корректный, ненулевой вектор, принадлежащий чужому фрагменту кода.
+
+**Root Cause:** Callback писал в `self._ov_results[userdata]` где userdata=0..N-1 —
+числовые индексы, пересекающиеся между вызовами.
+
+**Fix:** `userdata = (index, local_results_dict)` — каждый embed_batch() создаёт
+свой локальный dict, callback пишет только в него. Ноль shared mutable state.
+Никакого лока не нужно — полная изоляция вызовов.
+
+**Тест:** `test_ov_concurrent_embed.py` (4 теста):
+1. Single call sanity
+2. 5 concurrent threads — no cross-contamination
+3. Cosine similarity: свои вектора ближе чужих
+4. 100 rapid sequential calls — no state leak
+
+**Коммит:** a97f0ff — fix + test (4/4 PASSED)
+**Regression test:** test_ov_concurrent_embed.py — CI guard против этой гонки
+
+**Status:** ✅
+
 ## [2026-07-18 17:00] — Architecture Review: все 8 проблем закрыты
 
 **Коммиты (по протоколу, каждый шаг — отдельный):**
