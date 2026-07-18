@@ -146,7 +146,7 @@ python install.py --skip-models
 **install.py does:**
 1. Copies 39+ source files to the extension directory
 2. Installs Python dependencies
-3. Downloads llama-server.exe + GGUF reranker model (bge-reranker-v2-m3). The embedder (E5-base INT8) is an ONNX/OpenVINO model downloaded separately.
+3. Downloads llama-server.exe + GGUF reranker model (bge-reranker-v2-m3). The embedder (multilingual-e5-small INT8) is an ONNX model downloaded separately.
 4. Configures MCP in Zed's settings.json
 
 See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTALL.md](docs/en/INSTALL.md)
@@ -156,14 +156,14 @@ See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTA
 MCP auto-selects the best available provider:
 
 ```
-ONNX/OpenVINO INT8 (in-process) → llama.cpp GGUF (GPU) → LM Studio (if running) → BM25 only
-   ~1.0 GB RAM                  ~1.7 GB RAM (2× llama-server)   ~6 GB RAM          no embeddings
-   E5-base embedder             reranker (bge-reranker-v2-m3)     external API
+ONNX INT8 (in-process)         → llama.cpp GGUF (GPU) → LM Studio (if running) → BM25 only
+   ~0.5 GB RAM                    ~1.7 GB RAM (2× llama-server)   ~6 GB RAM          no embeddings
+   e5-small embedder (384dim)     reranker (bge-reranker-v2-m3)     external API
 ```
 
-> Embedding runs **in-process** via ONNX/OpenVINO E5-base INT8 (~350 ch/s on Windows CPU).
+> Embedding runs **in-process** via ONNX Runtime e5-small INT8 (~52 ch/s on Windows CPU).
 > The reranker runs as a separate `llama-server.exe` process serving the BGE-M3 GGUF model.
-> LM Studio is only an optional fallback provider if the local ONNX/OpenVINO model is unavailable.
+> LM Studio is only an optional fallback provider if the local ONNX model is unavailable.
 
 Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-10-final-benchmark.md)
 
@@ -409,12 +409,13 @@ Expected: `{"status":"ok"}`.
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # MCP server entry point (~220 lines)
+│   ├── main.py                   # MCP server entry point (~194 lines)
 │   ├── lsp_main.py               # LSP server (DI-based, for didSave indexing)
 │   ├── mcp/
-│   │   ├── server.py             # DI routing — only imports + registration
-│   │   ├── write_tools.py        # rename/move/delete/replace/insert symbols
-│   └── tools/                 # 11 files, 19 core tools
+│   │   ├── server.py             # MCP server creation (~597 lines)
+│   │   ├── server_factory.py     # DI setup + server lifecycle
+│   │   ├── server_tools.py       # Tool registration (18 core + 13 intel + 6 inline)
+│   └── tools/                    # 12 files, 18 core tools
 │   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
 │   │       ├── git_tools.py      # get_branch_info, get_commit_history
@@ -424,16 +425,19 @@ mscodebase-intelligence/
 │   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
 │   │       └── lifecycle_tools.py      # submit_background_task, verify_action
 │   ├── core/
-│   │   ├── di_container.py       # ★ DI Container (15 services, ServiceCollection)
+│   │   ├── di_container.py       # ★ DI Container (16 services, ServiceCollection)
 │   │   ├── error_handler.py      # ★ error_boundary + ToolError
 │   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
 │   │   ├── indexer.py            # LanceDB vector storage
 │   │   ├── searcher.py           # Hybrid search (BM25 + Dense + RRF)
 │   │   ├── symbol_index.py       # Call Graph (BFS, impact analysis)
-│   │   ├── intelligence_layer.py # intel_* tools (14 high-level)
-│   │   ├── llama_runner.py       # llama.cpp lifecycle manager ★
-│   ├── remote_embedder.py    # ONNX/OpenVINO E5-base (in-process) + LM Studio / Ollama fallback
-│   │   ├── reranker.py           # Multi-Provider Reranker (HTTP to providers)
+│   │   ├── intelligence_layer.py # intel_* tools (13 high-level)
+│   ├── providers/
+│   │   ├── embedder/
+│   │   │   └── remote_embedder.py  # ONNX e5-small INT8 (in-process) + LM Studio / Ollama fallback
+│   │   └── reranker/
+│   │       ├── llama_runner.py   # llama.cpp lifecycle manager ★
+│   │       └── reranker.py       # Multi-Provider Reranker (HTTP to providers)
 │   │   ├── parser.py             # Tree-sitter AST
 │   │   ├── health_report.py      # Self-diagnosis engine
 │   │   ├── lsp_client.py          # Thin LSP client (pyright JSON-RPC 2.0)
@@ -446,7 +450,7 @@ mscodebase-intelligence/
 │   ├── en/               # English docs
 │   ├── ru/               # Russian docs
 │   └── zh/               # Chinese docs
-├── tests/                        # 494 tests (pytest)
+├── tests/                        # 605 tests (pytest)
 ├── .agents/skills/               # Skills for AI agent
 ├── install.py                    # Installer
 └── README.md
