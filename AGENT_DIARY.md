@@ -1,5 +1,22 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 23:30] — Stale Detector: doc drift detection (DEV EXP.md §9 Шаг Б)
+
+**Что сделано:** Создан `tools/stale_detector/` — инструмент обнаружения устаревшей
+документации. Сравнивает версии в markdown с `pyproject.toml` (single source of truth).
+
+**Результат首次 запуска на реальных docs:**
+- 83 doc-файла просканировано
+- 23 docs с реальным дрейфом версий
+- 35 instances version drift (actual 3.3.1 vs claims 3.0.0-3.2.3)
+- False positive rate: 0% (после фильтрации config-ом)
+
+**Конфиг исключений:** `stale_config.json` — exclude CHANGELOG, research, IP-адреса.
+**Форматы вывода:** human-readable + JSON (для CI).
+
+**verified_from_clean_state:** ✅ yes — `python tools/stale_detector/stale_check.py`
+→ 23 docs drift, 35 instances, exit code 1.
+
 ## [2026-07-18 23:00] — verify_diary.py: Ledger-проверка diary ↔ reality (DEV EXP.md §9)
 
 **Что сделано:** Расширен `scripts/verify_diary.py` — добавлена §7.7 проверка

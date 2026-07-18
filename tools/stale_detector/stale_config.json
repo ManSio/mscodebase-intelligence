@@ -1,0 +1,33 @@
+{
+  "exclude_files": [
+    "AGENT_DIARY.md",
+    "DEV_DIARY.md",
+    "EXPERIMENTS_LOG.md",
+    "CHANGELOG.md"
+  ],
+  "exclude_dirs": [
+    "research",
+    "investigations",
+    "sandbox",
+    "__pycache__",
+    ".git",
+    "node_modules"
+  ],
+  "version_exclude_patterns": [
+    "127\\.0\\.0",           
+    "^20\\d{2}\\.\\d+",      
+    "^0\\.\\d{2,}\\.",       
+    "^1\\.(9|10)\\.\\d+",    
+    "^2\\.\\d+\\.\\d+",     
+    "^0\\.0\\."            
+  ],
+  "version_ignore_files": [
+    "docs/en/SECURITY.md",
+    "docs/en/INSTALL.md",
+    "docs/en/SYSTEM_REQUIREMENTS.md"
+  ],
+  "severity_overrides": {
+    "docs/ru/*": "warn",
+    "docs/zh/*": "warn"
+  }
+}
