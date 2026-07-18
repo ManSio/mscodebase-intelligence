@@ -5,8 +5,8 @@ server_tools.py — Регистрация MCP-инструментов.
 Содержит:
 - register_all_tools() — регистрация 18 core-инструментов + codebase hub + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
-- _register_inline_tools() — 6 inline @mcp.tool (debug_runtime_passport, ...)
-- Всего: 18 + 13 + 6 = 37 инструментов (+ 1 optional execute_script = 38)
+- _register_inline_tools() — 7 inline @mcp.tool (debug_runtime_passport, ..., refresh_db_connection)
+- Всего: 18 + 13 + 7 = 38 инструментов (+ 1 optional execute_script = 39)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -143,6 +143,8 @@ def register_all_tools(mcp, services):
             # Diagnostic
             "diagnostics", "debug_runtime_passport",
             "get_runtime_counters", "intel_execution_timeline",
+            # Doc tools
+            "stale_detector",
         }
         _show_all = False
 
@@ -203,12 +205,12 @@ def register_all_tools(mcp, services):
     # ─── Intelligence Layer (13 инструментов) ──────
     _register_intelligence_tools(mcp, services)
 
-    # ─── Inline diagnostic tools (6 шт) ────────────
+    # ─── Inline diagnostic tools (7 шт) ────────────
     _register_inline_tools(mcp, services)
 
     total_core = len(tool_classes)
     total_intel = 13
-    total_inline = 6
+    total_inline = 7
     logger.info(
         f"✅ Все инструменты зарегистрированы "
         f"({total_core} core + {total_intel} intel + {total_inline} inline = "
@@ -251,15 +253,15 @@ def _register_intelligence_tools(mcp, services):
 
 
 # ══════════════════════════════════════════════════════════
-# Inline diagnostic tools (6 шт)
+# Inline diagnostic tools (7 шт)
 # ══════════════════════════════════════════════════════════
 
 
 def _register_inline_tools(mcp, services):
-    """Регистрирует 6 inline-инструментов, определённых прямо в server_tools.py.
+    """Регистрирует 7 inline-инструментов, определённых прямо в server_tools.py.
 
     debug_runtime_passport, intel_get_project_context, intel_explain_project_state,
-    get_runtime_counters, intel_tool_health, intel_execution_timeline.
+    get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection.
     """
     # ─── 1. debug_runtime_passport ─────────────────
     @mcp.tool("debug_runtime_passport")
@@ -568,6 +570,30 @@ def _register_inline_tools(mcp, services):
             )
 
         return "\n".join(lines)
+
+    # ─── 7. refresh_db_connection ─────────────────
+    @mcp.tool("refresh_db_connection")
+    async def refresh_db_connection() -> str:
+        """Сбрасывает handle БД и переподключается к LanceDB.
+
+        Вызывать после внешних миграций (drop_table, add_columns)
+        или когда таблица повреждена. Не требует перезапуска MCP.
+        """
+        try:
+            registry = services.get_service("ProjectIndexerRegistry")
+            if registry is None:
+                return "❌ ProjectIndexerRegistry not available"
+            indexer = registry.get_indexer_for_project()
+            if indexer is None:
+                return "❌ No active indexer"
+            db_manager = getattr(indexer, 'db_manager', None)
+            if db_manager is None:
+                return "❌ db_manager not found on indexer"
+            db_manager.reset_connection()
+            count = db_manager.table.count_rows() if db_manager.table else 0
+            return f"✅ DB connection refreshed. Table: {db_manager.table_name} ({count} rows)"
+        except Exception as e:
+            return f"❌ refresh_db_connection failed: {e}"
 
     logger.info("  🔧 Inline diagnostic tools registered (7 tools)")
 

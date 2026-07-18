@@ -6,7 +6,7 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **38 инструментов** = 18 core + 13 intel + 6 inline + 1 optional
+> **Количество инструментов (текущее):** живой сервер регистрирует **39 инструментов** = 18 core + 13 intel + 7 inline + 1 optional
 > `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
 
 ## [3.3.2] — 2026-07-18 — Фикс AST-кэша + §5.16 безопасные subprocess
@@ -660,7 +660,7 @@
 ### 🏗 Переписывание архитектуры
 - **DI Container:** `ServiceCollection` с Constructor Injection (15 services)
 - **server.py:** 3,100 → **220 строк** (-93%). God Object устранён.
-- **37 инструментов** разделены на 10 предметных файлов в `src/mcp/tools/`
+- **38 инструментов** разделены на 10 предметных файлов в `src/mcp/tools/`
 - **error_boundary** decorator: унифицированные JSON-ответы, реальный `asyncio.wait_for` timeout
 - **DebounceBatch:** BM25 реиндексация через 500ms debounce (не на каждый файл)
 - **SlidingWindowRateLimiter:** защита от VFS-петель (10 req/sec max)
@@ -684,7 +684,7 @@
 - Всего: **325 тестов**
 
 ### 📚 Документация
-- README полностью переписан: 37 инструментов, Clean Architecture с DI
+- README полностью переписан: 38 инструментов, Clean Architecture с DI
 - `docs/ARCHITECTURE.md` — новая схема с DI Container + tool files
 - CONTRIBUTING.md — обновлён под новый архитектурный стиль
 - AGENT_DIARY.md — 5 записей (все фазы рефакторинга)

@@ -111,7 +111,14 @@ def format_search_code(
         file = _val(r.get("file_path", r.get("file", "")), "—")
         line = r.get("start_line", r.get("line", "—"))
         layer = _val(r.get("layer"), "—")
-        snippet = r.get("text", r.get("snippet", ""))[:300]
+        snippet = r.get("text", r.get("snippet", ""))
+        # Smart truncation: up to 2000 chars, try to end at a clean line
+        if len(snippet) > 2000:
+            cut = snippet[:2000]
+            last_newline = cut.rfind("\n")
+            if last_newline > 1500:  # at least 75% of budget used
+                cut = cut[:last_newline]
+            snippet = cut + "\n... [truncated]"
         result += f"{i}. 📄 **{file}** (line {line}, {layer})\n"
         # Graph context: callers
         callers = r.get("callers")

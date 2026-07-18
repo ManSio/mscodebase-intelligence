@@ -93,9 +93,10 @@ class IndexerTableMixin:
         ]
         bool_columns = ["is_public"]
         float_columns = ["health_score"]
+        int_columns = ["start_line", "end_line"]
         missing = [
             c
-            for c in string_columns + bool_columns + float_columns
+            for c in string_columns + bool_columns + float_columns + int_columns
             if c not in existing_fields
         ]
         if not missing:
@@ -133,6 +134,16 @@ class IndexerTableMixin:
                 except Exception as e:
                     logger.debug(f"add_columns(health_score) не сработал: {e}")
                     all_ok = False
+            # start_line/end_line: используем SQL-выражения (LanceDB 0.34+)
+            for col in int_columns:
+                if col not in existing_fields:
+                    try:
+                        self.table.add_columns({col: f"CAST(0 AS INT)"})
+                        logger.info(f"📦 Миграция: добавлена колонка {col}")
+                    except Exception as e:
+                        logger.debug(f"add_columns({col}) не сработал: {e}")
+                        all_ok = False
+                        break
             if all_ok:
                 logger.info("📦 Миграция metadata через add_columns завершена")
                 return
@@ -160,6 +171,9 @@ class IndexerTableMixin:
                 old_df["is_public"] = False
             if "health_score" not in old_df.columns:
                 old_df["health_score"] = 0.0
+            for col in int_columns:
+                if col not in old_df.columns:
+                    old_df[col] = 0
 
             # chunk_hash: вычисляем из text (content-addressed),
             # чтобы cache заработал на существующем индексе без полной переиндексации

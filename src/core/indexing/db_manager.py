@@ -94,6 +94,8 @@ class LanceDBManager:
                 pa.field("health_score", pa.float64()),
                 pa.field("health_band", pa.string()),
                 pa.field("chunk_hash", pa.string()),
+                pa.field("start_line", pa.int32()),
+                pa.field("end_line", pa.int32()),
             ]
         )
 
@@ -286,6 +288,54 @@ class LanceDBManager:
         # Warmup new cache
         self._warmup_cache()
         logger.info(f"Switched to DB: {new_db_path}")
+
+    def reset_connection(self) -> None:
+        """Сбрасывает handle БД и переподключается.
+
+        Вызывать после внешних миграций (drop_table, add_columns)
+        или когда таблица повреждена. Не требует перезапуска MCP.
+        """
+        logger.info("🔄 DB Connection reset: переподключение к LanceDB...")
+
+        # 1. Закрываем старое подключение
+        try:
+            if self.db is not None:
+                self.db.close()
+        except Exception:
+            pass
+
+        # 2. Переподключаемся
+        self.db = lancedb.connect(self._lancedb_connect_path)
+
+        # 3. Сбрасываем async
+        self._async_db = None
+        self._async_table = None
+
+        # 4. Открываем/пересоздаём таблицу
+        try:
+            self.table = self._open_or_create_table(self.schema)
+        except Exception as e:
+            logger.error(f"❌ reset_connection: таблица не восстановлена: {e}")
+            raise
+
+        # 5. Синхронизируем writer если есть callback
+        if hasattr(self, '_on_recreate') and self._on_recreate:
+            try:
+                self._on_recreate(self.table)
+            except Exception:
+                pass
+
+        # 6. Пересоздаём IndexGuard
+        try:
+            self._index_guard = IndexGuard(self.db_path, self.project_path)
+        except Exception:
+            pass
+
+        # 7. Прогрев кэша
+        self._warmup_cache()
+
+        count = self.table.count_rows() if self.table else 0
+        logger.info(f"✅ DB Connection reset: таблица {self.table_name} ({count} rows)")
 
     # ══════════════════════════════════════════════════════════
     # Migration helpers (from IndexerTableMixin)

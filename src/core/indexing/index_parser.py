@@ -125,6 +125,8 @@ class IndexParser:
                                     "symbol_type": c.get("symbol_type", c.get("type", "")),
                                     "parent_id": c.get("parent_id", ""),
                                     "callees": c.get("callees", ""),
+                                    "start_line": c.get("start_line", 0),
+                                    "end_line": c.get("end_line", 0),
                                 })
                     # Сохраняем AST-результат для SymbolIndex (без повторного парсинга)
                     _ast_symbols_cache = (ast_chunks, symbols)

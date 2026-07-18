@@ -49,6 +49,7 @@ class SearchResultReranker:
             key = self._create_result_key(result)
             results_map[key] = {
                 "text": result["text"],
+                "text_full": result.get("text_full", result["text"]),
                 "metadata": result["metadata"],
                 "bm25_score": 1.0 - (i / len(bm25_results)) if bm25_results else 0,
                 "dense_score": 0.0,
@@ -63,6 +64,7 @@ class SearchResultReranker:
             else:
                 results_map[key] = {
                     "text": result["text"],
+                    "text_full": result.get("text_full", result["text"]),
                     "metadata": result["metadata"],
                     "bm25_score": 0.0,
                     "dense_score": 1.0 - (i / len(dense_results)),

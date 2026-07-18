@@ -101,6 +101,8 @@ class LanceDBWriter:
                 "health_score": health.get("score", 0.0),
                 "health_band": health.get("band", ""),
                 "chunk_hash": chunk_hashes[i] if i < len(chunk_hashes) else "",
+                "start_line": meta.get("start_line", 0),
+                "end_line": meta.get("end_line", 0),
             })
 
         # Atomic write: delete old + add new

@@ -778,9 +778,16 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             for i, res in enumerate(unique_results, 1):
                 # Используем text_full если есть (полный код функции), иначе text
                 code_text = res.get("text_full") or res["text"]
+                # Smart truncation: up to 2000 chars
+                if len(code_text) > 2000:
+                    cut = code_text[:2000]
+                    last_nl = cut.rfind("\n")
+                    if last_nl > 1500:
+                        cut = cut[:last_nl]
+                    code_text = cut + "\n... [truncated]"
                 output.append(
-                    f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}]\n"
-                    f"```\n{code_text[:500]}\n```\n"
+                    f"{i}. 📄 {res['metadata']['file']} [Chunk #{res['metadata']['chunk_index']}]\n"
+                    f"```\n{code_text}\n```\n"
                     f"{'-' * 60}\n"
                 )
             return "".join(output)
