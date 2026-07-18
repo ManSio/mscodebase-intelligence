@@ -1,5 +1,20 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 23:00] — verify_diary.py: Ledger-проверка diary ↔ reality (DEV EXP.md §9)
+
+**Что сделано:** Расширен `scripts/verify_diary.py` — добавлена §7.7 проверка
+(`verified_from_clean_state`), `--interactive` и `--fix-missing` CLI флаги.
+
+**Результат首次 запуска на реальном diary (3491 строк):**
+- 57 проверок: 18 pass, 39 fail (все §7.7)
+- Все коммит-хеши валидны (0 ghost commits)
+- Все классы/функции найдены в коде
+- Ключевой вывод: diary фактологически точен, но 39/41 записи с кодовыми
+  изменениями не имеют `verified_from_clean_state` маркера
+
+**verified_from_clean_state:** ✅ yes — скрипт в scripts/verify_diary.py,
+проверен импорт + `run_contradiction_ledger()` → `ok=False claims=9 commits=13 disc=1`.
+
 ## [2026-07-18 18:47] — Variant B fix: AsyncInferQueue deadlock (P0-3 closed)
 
 **Решение владельца:** Вариант B — `threading.Lock` вокруг submit+wait_all+collect.

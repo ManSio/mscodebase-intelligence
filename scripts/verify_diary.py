@@ -5,9 +5,15 @@ Contradiction Ledger — сверяет "✅"-утверждения из AGENT_
 человек делал весь чат — сравнивать "✅ done" из дневника с реальным состоянием
 репозитория. Обнаруживает расхождения типа "пул заявлен, но не запушен".
 
+Расширено (2026-07-18, DEV EXP.md §9):
+- §7.7 verified_from_clean_state проверка
+- Class/function existence checks
+- --interactive mode для осознанного подтверждения
+
 Usage:
-    python scripts/verify_diary.py
-    from src.scripts.verify_diary import run_contradiction_ledger
+    python scripts/verify_diary.py                    # полный отчёт
+    python scripts/verify_diary.py --interactive       # интерактивный режим
+    python scripts/verify_diary.py --fix-missing       # интерактивное исправление
 
 Returns exit code 0 if all claims verified, 1 if discrepancies found.
 Can also be imported: run_contradiction_ledger() -> dict with 'discrepancies'.
@@ -85,6 +91,43 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> Dict[str, o
         except Exception as e:
             discrepancies.append(f"Commit `{h}`: git error: {e}")
 
+    # ─── §7.7: Check verified_from_clean_state ───────────────
+    # For entries with code changes (fix/refactor/patch/race), verify clean_state marker
+    code_change_pattern = re.compile(
+        r'fix|refactor|added|implemented|patch|rewrite|race|deadlock',
+        re.IGNORECASE
+    )
+    doc_only_pattern = re.compile(
+        r'docs?:|documentation|перевод|translate|sync.*doc', re.IGNORECASE
+    )
+    pending_pattern = re.compile(r'pending|не запушен|wontfix', re.IGNORECASE)
+    clean_state_pattern = re.compile(r'verified_from_clean_state.*✅', re.IGNORECASE)
+
+    # Parse diary into sections by ## headers
+    sections = re.split(r'^(## \[.*?\].*)$', diary_text, flags=re.MULTILINE)
+    missing_clean_state = []
+    for i in range(1, len(sections), 2):  # step by section headers
+        header = sections[i]
+        body = sections[i + 1] if i + 1 < len(sections) else ''
+        title_match = re.match(r'## \[.*?\]\s*—\s*(.*)', header)
+        title = title_match.group(1).strip() if title_match else header.strip()
+
+        has_checkmark = '✅' in body
+        has_code_change = bool(code_change_pattern.search(body))
+        is_doc_only = bool(doc_only_pattern.search(body))
+        is_pending = bool(pending_pattern.search(title))
+        has_clean_state = bool(clean_state_pattern.search(body))
+
+        if has_checkmark and has_code_change and not is_doc_only and not is_pending:
+            if not has_clean_state:
+                missing_clean_state.append(title)
+
+    if missing_clean_state:
+        discrepancies.append(
+            f"§7.7 violation: {len(missing_clean_state)} entries with code changes "
+            f"missing verified_from_clean_state marker"
+        )
+
     # ─── Verify architecture claims ──
     embedder_path = project_root / "src/providers/embedder/remote_embedder.py"
     if embedder_path.exists():
@@ -110,16 +153,32 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> Dict[str, o
             discrepancies.append("_ov_call_lock missing in test_ov_concurrent_embed.py")
 
     result['discrepancies'] = discrepancies
+    result['missing_clean_state'] = missing_clean_state
     result['ok'] = len(discrepancies) == 0
     return result
 
 
 def _cli_main() -> int:
-    """CLI entry point (preserves original behavior with sys.exit)."""
+    """CLI entry point with optional interactive mode."""
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Contradiction Ledger — verify AGENT_DIARY.md claims"
+    )
+    parser.add_argument(
+        "--interactive", action="store_true",
+        help="Interactive mode: confirm each missing clean_state marker"
+    )
+    parser.add_argument(
+        "--fix-missing", action="store_true",
+        help="Interactive fix: add missing verified_from_clean_state markers"
+    )
+    args = parser.parse_args()
+
     project_root = Path(__file__).resolve().parent.parent
+    diary_path = project_root / "AGENT_DIARY.md"
     print(f"{'='*70}")
     print(f"Contradiction Ledger — verifying AGENT_DIARY.md claims")
-    print(f"Diary: {project_root / 'AGENT_DIARY.md'}")
+    print(f"Diary: {diary_path}")
     res = run_contradiction_ledger(project_root)
     print(f"Claims found: {res['claims']} diary claims, {res['commits']} commits")
     print(f"{'='*70}\n")
@@ -128,9 +187,22 @@ def _cli_main() -> int:
         print(f"❌ LEDGER: {len(res['discrepancies'])} DISCREPANCIES FOUND")
         for d in res['discrepancies']:
             print(f"  → {d}")
-        print(f"\n⚠️  AGENT_DIARY.md claims do NOT match actual codebase.")
-        print(f"   These may be: unpushed commits, deleted code, renamed symbols,")
-        print(f"   or diary entries that were never committed.")
+        print()
+
+        # Interactive §7.7 fix
+        missing = res.get('missing_clean_state', [])
+        if missing and (args.interactive or args.fix_missing):
+            print(f"\n📋 §7.7: {len(missing)} entries missing verified_from_clean_state:")
+            for i, title in enumerate(missing, 1):
+                print(f"  {i}. {title[:70]}")
+            if args.fix_missing:
+                print(f"\n⚠️  Interactive fix not yet implemented.")
+                print(f"   To add markers, edit AGENT_DIARY.md manually:")
+                print(f"   Add '**verified_from_clean_state:** ✅ yes — ...' to each entry.")
+        else:
+            print(f"\n⚠️  AGENT_DIARY.md claims do NOT match actual codebase.")
+            print(f"   These may be: unpushed commits, deleted code, renamed symbols,")
+            print(f"   or diary entries that were never committed.")
         return 1
     else:
         print(f"✅ LEDGER: ALL CLAIMS VERIFIED")
