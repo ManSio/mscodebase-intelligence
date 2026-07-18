@@ -386,6 +386,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 ### Windows subprocess (§5.16)
 - **NEVER** use `subprocess.run(capture_output=True)` in daemon threads — pipe buffer deadlock on Windows.
 - **ALWAYS** use `subprocess.Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate(timeout=N)`.
+- Add `creationflags=CREATE_NO_WINDOW` on Windows to prevent console window creation in daemon threads.
 - Root cause: MCP server redirects `sys.stdout` (JSON-RPC), `capture_output` pipes conflict with OS descriptors → `git` blocks on write, Python waits for `git` → deadlock.
 - Applies to any background thread calling external processes (git, python, npm, etc.).
 

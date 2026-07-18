@@ -72,6 +72,7 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> Dict[str, o
                 ['git', 'cat-file', '-t', h],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 cwd=str(project_root),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
             )
             try:
                 stdout, _ = proc.communicate(timeout=5)
