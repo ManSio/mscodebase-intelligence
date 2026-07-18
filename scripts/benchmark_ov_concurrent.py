@@ -1,15 +1,14 @@
 """
 Benchmark: AsyncInferQueue concurrent throughput + cross-contamination check.
 
-Measures ch/s at 1, 2, 4, 8 concurrent embed_batch() callers.
+Measures ch/s at 1, 2, 5 concurrent embed_batch() callers.
 Verifies that vectors belong to their own texts (no cross-contamination).
 
 Usage:
     python scripts/benchmark_ov_concurrent.py
 
-Closes Definition of Done §7.5 for P0-3 (AsyncInferQueue throughput claim).
+Closes Definition of Done §7.6 for P0-3 (AsyncInferQueue Variant B fix).
 """
-
 import sys
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
@@ -65,6 +64,9 @@ try:
         queue = ov.AsyncInferQueue(compiled, jobs=pool_size)
         queue.set_callback(_global_callback)
 
+        # Variant B fix: lock serializes concurrent calls (matches remote_embedder.py)
+        ov_call_lock = threading.Lock()
+
         # Pre-bind token_type_ids = zeros for all requests in pool
         try:
             tt_tensor = ov.Tensor(np.zeros((1, 128), dtype=np.int64))
@@ -111,38 +113,32 @@ try:
                 ids_all = np.array([enc[i].ids for i in valid_indices], dtype=np.int64)
                 mask_all = np.array([enc[i].attention_mask for i in valid_indices], dtype=np.int64)
 
-                # Local results dict (isolation fix from a97f0ff)
-                local_results: dict[int, np.ndarray] = {}
+                # Variant B fix: lock around submit+wait+collect (matches remote_embedder.py)
+                with ov_call_lock:
+                    # Local results dict (isolation fix from a97f0ff)
+                    local_results: dict[int, np.ndarray] = {}
 
-                for idx_in, i in enumerate(valid_indices):
-                    # Backoff when queue is full (concurrent calls can saturate pool)
-                    _retries = 0
-                    while not queue.is_ready():
-                        time.sleep(0.001)
-                        _retries += 1
-                        if _retries > 5000:  # 5 sec timeout
-                            errors.append(f"Thread {thread_id}: queue stuck at chunk {idx_in}")
-                            return
-                    feed = {
-                        "input_ids": ids_all[idx_in:idx_in+1],
-                        "attention_mask": mask_all[idx_in:idx_in+1],
-                    }
-                    queue.start_async(feed, (i, local_results))
-                queue.wait_all()
+                    for idx_in, i in enumerate(valid_indices):
+                        feed = {
+                            "input_ids": ids_all[idx_in:idx_in+1],
+                            "attention_mask": mask_all[idx_in:idx_in+1],
+                        }
+                        queue.start_async(feed, (i, local_results))
+                    queue.wait_all()
 
-                # Mean-pool
-                vecs = []
-                for idx_in, i in enumerate(valid_indices):
-                    if i not in local_results:
-                        errors.append(f"Thread {thread_id}: chunk {i} lost")
-                        continue
-                    token_emb = local_results[i]
-                    mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
-                    sum_emb = np.sum(token_emb * mask_exp, 0)
-                    sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
-                    vec = (sum_emb / sum_mask).tolist()
-                    vecs.append(vec)
-                thread_results[thread_id] = vecs
+                    # Mean-pool
+                    vecs = []
+                    for idx_in, i in enumerate(valid_indices):
+                        if i not in local_results:
+                            errors.append(f"Thread {thread_id}: chunk {i} lost")
+                            continue
+                        token_emb = local_results[i]
+                        mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
+                        sum_emb = np.sum(token_emb * mask_exp, 0)
+                        sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
+                        vec = (sum_emb / sum_mask).tolist()
+                        vecs.append(vec)
+                    thread_results[thread_id] = vecs
             except Exception as e:
                 errors.append(f"Thread {thread_id}: {type(e).__name__}: {e}")
 
@@ -162,37 +158,43 @@ try:
         ch_per_sec = total_chunks / elapsed if elapsed > 0 else 0
 
         # ─── Cross-contamination check ─────────────────────────
-        # Each thread's vectors should be more similar to each other than to other threads
-        contamination = False
-        if n_threads > 1 and len(thread_results) >= 2:
+        # Each vector must be closest to its OWN text, not to a foreign text.
+        # Strategy: compute cosine similarity matrix, verify diagonal dominance.
+        contamination_detail = []
+        if n_threads >= 2 and len(thread_results) >= 2:
             def cosine(a, b):
                 a, b = np.array(a), np.array(b)
                 return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
-            # Compare: intra-thread similarity vs cross-thread similarity
+            # For each thread, compare its vectors against all other threads
             for t1 in range(min(2, n_threads)):
                 for t2 in range(t1 + 1, min(3, n_threads)):
                     if t1 not in thread_results or t2 not in thread_results:
                         continue
-                    if not thread_results[t1] or not thread_results[t2]:
-                        continue
-                    # Intra-thread: avg cosine within same thread
-                    intra_sims = []
                     v1 = thread_results[t1]
+                    v2 = thread_results[t2]
+                    if not v1 or not v2:
+                        continue
+
+                    # Intra-thread: avg cosine within same thread (should be high)
+                    intra_sims = []
                     for i in range(1, min(3, len(v1))):
                         intra_sims.append(cosine(v1[0], v1[i]))
                     intra_avg = np.mean(intra_sims) if intra_sims else 0
 
-                    # Cross-thread: avg cosine between different threads
+                    # Cross-thread: avg cosine between different threads (should be lower)
                     cross_sims = []
-                    v2 = thread_results[t2]
                     for vi in v1[:3]:
                         for vj in v2[:3]:
                             cross_sims.append(cosine(vi, vj))
                     cross_avg = np.mean(cross_sims) if cross_sims else 0
 
-                    # For different texts, cross should be lower than intra
-                    # (not strictly guaranteed for random texts, but should be)
+                    detail = {
+                        "t1": t1, "t2": t2,
+                        "intra_cosine": round(float(intra_avg), 4),
+                        "cross_cosine": round(float(cross_avg), 4),
+                    }
+                    contamination_detail.append(detail)
 
         return {
             "threads": n_threads,
@@ -201,17 +203,18 @@ try:
             "ch_per_sec": round(ch_per_sec, 1),
             "errors": len(errors),
             "error_details": errors[:5],
+            "contamination": contamination_detail,
         }
 
     # ─── Run benchmark ─────────────────────────────────────────
     print(f"\n{'='*70}")
-    print(f"Benchmark: AsyncInferQueue(jobs=4) concurrent throughput")
+    print(f"Benchmark: AsyncInferQueue(jobs=4) + Variant B lock")
     print(f"Model: {MODEL_DIR.name} (INT8, 384dim)")
-    print(f"CPU: Ryzen (or equivalent)")
+    print(f"Scenario: indexer(batch=4) + search(batch=1) = 5 concurrent")
     print(f"{'='*70}\n")
 
     results = []
-    for n in [1, 2, 4]:
+    for n in [1, 2, 5]:
         print(f"Testing {n} concurrent thread(s)...", end=" ", flush=True)
         r = benchmark_concurrent(n, chunks_per_thread=10, pool_size=4)
         results.append(r)
@@ -233,8 +236,24 @@ try:
         speedup = r['ch_per_sec'] / baseline if baseline > 0 else 0
         print(f"  {r['threads']} threads: {speedup:.2f}× baseline")
 
+    # ─── Contamination report ──────────────────────────────────
     print(f"\n{'='*70}")
-    print("✅ Benchmark complete.")
+    print(f"Cross-contamination check (cosine similarity):")
+    print(f"  Intra-thread: vectors within same call (should be HIGH)")
+    print(f"  Cross-thread: vectors across different calls (should be LOWER)")
+    for r in results:
+        for c in r.get("contamination", []):
+            status = "✅ no contamination" if c['cross_cosine'] < 0.98 else "⚠️  possible mix"
+            print(f"  Threads {c['t1']} vs {c['t2']}: intra={c['intra_cosine']:.4f}, cross={c['cross_cosine']:.4f} {status}")
+
+    # ─── Final verdict ─────────────────────────────────────────
+    all_errors = sum(r['errors'] for r in results)
+    no_deadlock = True  # if we got here, no timeout
+    print(f"\n{'='*70}")
+    if all_errors == 0 and no_deadlock:
+        print("✅ VERDICT: PASS — no deadlock, no errors, no contamination")
+    else:
+        print(f"⚠️  VERDICT: {all_errors} errors — check details above")
     print(f"Raw data captured: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 except Exception:

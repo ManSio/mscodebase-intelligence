@@ -98,6 +98,7 @@ def _make_embedder_with_fake_queue(texts_per_call=5):
     embedder._ov_compiled = MagicMock()
     embedder._ov_async_queue = FakeAsyncInferQueue(jobs=4, latency_ms=3)
     embedder._ov_has_token_type_ids = False
+    embedder._ov_call_lock = threading.Lock()  # Variant B fix (P0-3)
 
     # Wire callback (same pattern as _init_openvino)
     def _ov_callback(request, userdata):

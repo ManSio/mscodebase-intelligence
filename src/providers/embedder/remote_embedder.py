@@ -694,6 +694,13 @@ class RemoteEmbedder(IEmbedder):
             _ov_pool_size = int(os.getenv("OV_INFER_POOL_SIZE", "4"))
             self._ov_async_queue = ov.AsyncInferQueue(compiled, jobs=_ov_pool_size)
 
+            # Variant B fix (P0-3): Lock сериализует конкурентные embed_batch()
+            # на уровне start_async+wait_all+сбора результатов.
+            # Причина: AsyncInferQueue.wait_all() ждёт ВСЕ задачи в очереди,
+            # включая чужие — два потока с одним queue блокируют друг друга.
+            # Параллелизм внутри одного вызова сохранён (jobs=4).
+            self._ov_call_lock = threading.Lock()
+
             # Pre-bind token_type_ids = zeros в памяти C++ для ВСЕХ request в пуле.
             # INT8 модель имеет 3 входа, но tt всегда нули (код не использует —
             # Token Type Embeddings = 0 для всех токенов).
@@ -876,29 +883,31 @@ class RemoteEmbedder(IEmbedder):
                 if _ov_has_tt:
                     pass  # token_type_ids pre-bound нулями в _init_openvino (строки 695-703)
 
-                # AsyncInferQueue: параллельный инференс (см. P0-3 architecture review).
-                # Пул из N InferRequest, thread-safe start_async/wait_all.
+                # Variant B fix (P0-3): Lock вокруг submit+wait_all+collect.
+                # Сериализует МЕЖДУ конкурентными embed_batch() вызовами,
+                # сохраняя параллелизм ВНУТРИ одного вызова (jobs=4).
                 # Локальный dict для результатов этого вызова — изоляция от concurrent вызовов.
                 # userdata = (index, local_results) — callback пишет только сюда.
-                local_results: dict[int, np.ndarray] = {}
-                for idx_in, i in enumerate(valid_indices):
-                    feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
-                    self._ov_async_queue.start_async(feed, (i, local_results))
-                self._ov_async_queue.wait_all()
+                with self._ov_call_lock:
+                    local_results: dict[int, np.ndarray] = {}
+                    for idx_in, i in enumerate(valid_indices):
+                        feed = {"input_ids": ids_all[idx_in:idx_in+1], "attention_mask": mask_all[idx_in:idx_in+1]}
+                        self._ov_async_queue.start_async(feed, (i, local_results))
+                    self._ov_async_queue.wait_all()
 
-                # Собираем результаты и mean-pool
-                for idx_in, i in enumerate(valid_indices):
-                    if i not in local_results:
-                        logger.warning(
-                            "OpenVINO async: чанк %d (index %d) не вернулся — "
-                            "вектор будет нулевым.", idx_in, i
-                        )
-                        continue
-                    token_emb = local_results[i]
-                    mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
-                    sum_emb = np.sum(token_emb * mask_exp, 0)
-                    sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
-                    results[i] = (sum_emb / sum_mask).tolist()
+                    # Собираем результаты и mean-pool
+                    for idx_in, i in enumerate(valid_indices):
+                        if i not in local_results:
+                            logger.warning(
+                                "OpenVINO async: чанк %d (index %d) не вернулся — "
+                                "вектор будет нулевым.", idx_in, i
+                            )
+                            continue
+                        token_emb = local_results[i]
+                        mask_exp = np.expand_dims(mask_all[idx_in], -1).astype(float)
+                        sum_emb = np.sum(token_emb * mask_exp, 0)
+                        sum_mask = np.clip(np.sum(mask_exp, 0), a_min=1e-9, a_max=None)
+                        results[i] = (sum_emb / sum_mask).tolist()
 
                 return results
 
