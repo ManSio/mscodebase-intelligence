@@ -68,6 +68,10 @@ def _get_max_chunk_preview_len() -> int:
 
 # Регулярка для извлечения JSON-массива scores из ответа
 _SCORES_JSON_RE = re.compile(r'\{\s*"scores"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
+
+# Минимальный скор реранкера для фильтрации низкокачественных чанков
+# Chunk'и со скором ниже этого значения отсекаются из финальных результатов
+MIN_RERANK_SCORE = 0.3
 # Извлечение отдельных объектов {"index": N, "score": F}
 _SCORE_ITEM_RE = re.compile(
     r'\{\s*"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*\}'
@@ -648,6 +652,14 @@ class MultiProviderReranker(IReranker):
                     self.last_timing["model"] = f"failed: {e}"
 
         self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
+
+        # Фильтр низкорелевантных чанков (мусор — JSON локали, битые fallback)
+        _filtered = [
+            c for c in chunks[:top_n]
+            if c.get("reranker_score", 1.0) >= MIN_RERANK_SCORE
+        ]
+        if _filtered:
+            return _filtered
         return chunks[:top_n]
 
     async def _check_llm_available(self, provider: str) -> bool:
