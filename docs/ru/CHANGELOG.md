@@ -6,8 +6,20 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **38+ инструментов** = 20 core + 12 intel + 6 diagnostic
+> **Количество инструментов (текущее):** живой сервер регистрирует **36 инструментов** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
+
+## [3.3.1] — 2026-07-18 — Восстановление LanceDB + Стабильность поиска
+
+### Исправлено
+- 🔧 **Восстановление LanceDB** — исправлен stale-кэш в `get_status()`;
+  `_safe_recreate_table` теперь синхронизируется через callback для предотвращения race conditions.
+- 🐛 **`search_code(explain=True)`** — исправлен `dict(rrf_results)` ValueError
+  и `EdgeType` NameError в explain trace.
+- 🧹 **`search_tools.py`** — удалены избыточные `// File:` строки из результатов;
+  безопасное форматирование float в explain trace (больше нет `0.0000000001`).
+- 🛡️ **Стабильность индекса** — `get_status()` всегда вызывает `count_rows()` (без stale-кэша);
+  `optimize()` и `create_index()` разделены для надёжности автоиндексации.
 
 ## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
 

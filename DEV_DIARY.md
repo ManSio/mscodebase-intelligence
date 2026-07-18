@@ -157,3 +157,26 @@ structured output и streaming.
 **Всего:** 5 коммитов, ~800 строк кода, 8 файлов изменено/создано.
 
 **Статус:** ✅ Сессия закрыта
+
+---
+
+## 2026-07-18 — Сессия закрыта: LanceDB corruption recovery + Search stability
+
+**Итог сессии — Полное расследование и исправление повреждений LanceDB:**
+
+| Компонент | Статус |
+|-----------|--------|
+| 5 root causes найдено и исправлено | ✅ |
+| `index_status.py` — stale cache fix, `count_rows()` всегда live | ✅ |
+| `db_writer.py` — callback-синхронизация `_safe_recreate_table` | ✅ |
+| `indexer.py` + `engine.py` — `optimize()` и `create_index()` разделены | ✅ |
+| `search_tools.py` — убраны `// File:`, безопасный float format | ✅ |
+| `graph_tools.py` — исправлен `EdgeType` NameError | ✅ |
+| `server_factory.py` — исправлен `dict(rrf_results)` ValueError | ✅ |
+
+**Финальное состояние индекса:**
+- 3853 chunks, 265 files, 36 tools working
+
+**Всего:** 7+ файлов изменено, все 36 инструментов работают.
+
+**Статус:** ✅ Сессия закрыта

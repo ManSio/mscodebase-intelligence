@@ -6,8 +6,20 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
-> **工具数量（当前）:** 实时服务器注册 **38+ 个工具** = 20 core + 12 intel + 6 diagnostic
+> **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
+
+## [3.3.1] — 2026-07-18 — LanceDB 损坏恢复 + 搜索稳定性
+
+### 修复
+- 🔧 **LanceDB 损坏恢复** — 修复 `get_status()` 中的陈旧缓存；
+  `_safe_recreate_table` 现在通过回调同步以防止竞态条件。
+- 🐛 **`search_code(explain=True)`** — 修复 explain 追踪中的 `dict(rrf_results)` ValueError
+  和 `EdgeType` NameError。
+- 🧹 **`search_tools.py`** — 从结果中删除多余的 `// File:` 行；
+  在 explain 追踪中安全格式化浮点数（不再有 `0.0000000001` 分数）。
+- 🛡️ **索引稳定性** — `get_status()` 始终调用 `count_rows()`（无陈旧缓存）；
+  `optimize()` 和 `create_index()` 分离以提高自动索引可靠性。
 
 ## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
 

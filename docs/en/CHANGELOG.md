@@ -6,8 +6,20 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **40+ tools** = 20 core + 12 intel + 6 diagnostic + 2 new
+> **Tool count (current):** the live server registers **36 tools** = 20 core + 12 intel + 6 diagnostic
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
+
+## [3.3.1] — 2026-07-18 — LanceDB corruption recovery + Search stability
+
+### Fixed
+- 🔧 **LanceDB corruption recovery** — stale cache fix in `get_status()`;
+  `_safe_recreate_table` now syncs via callback to prevent race conditions.
+- 🐛 **`search_code(explain=True)`** — fixed `dict(rrf_results)` ValueError
+  and `EdgeType` NameError in explain trace.
+- 🧹 **`search_tools.py`** — removed redundant `// File:` lines from results;
+  safe float formatting in explain trace (no more `0.0000000001` scores).
+- 🛡️ **Index stability** — `get_status()` always calls `count_rows()` (no stale cache);
+  `optimize()` and `create_index()` separated for auto-index reliability.
 
 ## [3.3.0] — 2026-07-17 — Explainability + Architecture Drift + Claim Verifier
 
