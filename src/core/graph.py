@@ -539,6 +539,18 @@ class PropertyGraph:
                 row = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()
             return row[0]
 
+    def count_edges(self, edge_type: Optional[str] = None) -> int:
+        """Количество рёбер (опционально по типу)."""
+        with self._lock:
+            conn = self._get_conn()
+            if edge_type:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM edges WHERE type = ?", (edge_type,)
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT COUNT(*) FROM edges").fetchone()
+            return row[0]
+
     # ── Edge CRUD ──────────────────────────────────────────
 
     def add_edge(

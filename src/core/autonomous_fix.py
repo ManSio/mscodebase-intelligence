@@ -139,10 +139,21 @@ class AutonomousFixLoop:
 
         return failures
 
+    def _safe_path(self, file_path: str) -> Path:
+        """Resolves file_path within project_path, raises on path traversal."""
+        resolved = (self.project_path / file_path).resolve()
+        project_root = self.project_path.resolve()
+        if not resolved.is_relative_to(project_root):
+            raise ValueError(
+                f"Path traversal blocked: {file_path!r} resolves to "
+                f"{resolved}, which is outside {project_root}"
+            )
+        return resolved
+
     def apply_fix(self, file_path: str, old_code: str, new_code: str) -> bool:
         """Применяет исправление к файлу."""
         try:
-            full_path = self.project_path / file_path
+            full_path = self._safe_path(file_path)
             if not full_path.exists():
                 return False
 
@@ -160,7 +171,7 @@ class AutonomousFixLoop:
     def revert_fix(self, file_path: str, original_code: str) -> bool:
         """Откатывает исправление — записывает original_code обратно."""
         try:
-            full_path = self.project_path / file_path
+            full_path = self._safe_path(file_path)
             if not full_path.exists():
                 return False
             full_path.write_text(original_code, encoding="utf-8")
@@ -174,7 +185,11 @@ class AutonomousFixLoop:
         t_start = time.perf_counter()
         result = FixResult(success=False)
 
-        full_path = self.project_path / file_path
+        try:
+            full_path = self._safe_path(file_path)
+        except ValueError as e:
+            result.final_status = str(e)
+            return result
         if not full_path.exists():
             result.final_status = f"File not found: {file_path}"
             return result

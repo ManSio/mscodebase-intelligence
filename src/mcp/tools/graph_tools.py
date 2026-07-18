@@ -238,7 +238,7 @@ class GraphQueryTool(MCPTool):
         self, query: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
         """Cypher-like запрос к PropertyGraph."""
-        from src.core.cypher_engine import CypherExecutor
+        from src.core.search.cypher_engine import CypherExecutor
         from src.core.graph import PropertyGraph
 
         limit = (kwargs or {}).get("limit", 50)
