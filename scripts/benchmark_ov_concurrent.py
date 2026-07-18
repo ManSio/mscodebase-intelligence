@@ -75,23 +75,32 @@ try:
         except Exception:
             pass  # model without tt input
 
-        # ─── Test texts (unique per thread for contamination check) ──
-        # Each thread gets texts with a unique prefix so vectors are distinguishable
+        # ─── Test texts: UNIQUE non-overlapping topics per thread ──
+        # Each thread gets 2 copies of 2 unique topics (4 chunks total).
+        # No topic appears in more than one thread.
+        # Contamination check: for each vector, nearest neighbor across ALL
+        # vectors must be the duplicate of the same topic from the same thread.
+        # If nearest neighbor is from a different thread → contamination.
+        _all_topics = [
+            "python async def class import typing decorator",
+            "database sql postgresql transaction commit rollback",
+            "banana mango cherry apple grape fruit smoothie",
+            "quantum physics relativity entropy thermodynamics energy",
+            "docker kubernetes microservices deployment helm terraform",
+            "neural network gradient descent backpropagation pytorch",
+            "cybersecurity encryption firewall intrusion detection zero-trust",
+            "astronomy galaxy nebula pulsar blackhole exoplanet",
+            "philosophy epistemology metaphysics ethics logic ontology",
+            "economics inflation interest supply demand monetary policy",
+        ]
         all_texts = {}
+        _topic_idx = 0
         for t in range(n_threads):
-            prefix = f"thread_{t:02d}_"
-            texts = [
-                f"{prefix}python def class import async await",
-                f"{prefix}database connection pool transaction commit",
-                f"{prefix}banana mango cherry apple grape fruit",
-                f"{prefix}quantum physics relativity entropy energy",
-                f"{prefix}architecture microservices docker kubernetes",
-                f"{prefix}neural network gradient descent backpropagation",
-                f"{prefix}cybersecurity encryption firewall intrusion",
-                f"{prefix}astronomy galaxy nebula pulsar blackhole",
-                f"{prefix}philosophy epistemology metaphysics ethics logic",
-                f"{prefix}economics inflation interest supply demand",
-            ][:chunks_per_thread]
+            # Each thread gets 2 unique topics, each repeated twice = 4 chunks
+            t1 = _all_topics[_topic_idx % len(_all_topics)]
+            t2 = _all_topics[(_topic_idx + 1) % len(_all_topics)]
+            _topic_idx += 2
+            texts = [t1, t1, t2, t2]  # 2 copies of each — known pairs for self-match
             all_texts[t] = texts
 
         # ─── Results storage ───────────────────────────────────
@@ -157,44 +166,50 @@ try:
 
         ch_per_sec = total_chunks / elapsed if elapsed > 0 else 0
 
-        # ─── Cross-contamination check ─────────────────────────
-        # Each vector must be closest to its OWN text, not to a foreign text.
-        # Strategy: compute cosine similarity matrix, verify diagonal dominance.
-        contamination_detail = []
+        # ─── Cross-contamination check: argmax self-match ──────
+        # Each thread has 2 copies of 2 unique topics (4 chunks).
+        # For each vector, find its nearest neighbor across ALL vectors.
+        # Nearest neighbor must be the duplicate of the SAME topic
+        # from the SAME thread (known by position: [t1,t1,t2,t2]).
+        # If nearest neighbor is from a different thread → contamination.
+        contamination_errors = []
         if n_threads >= 2 and len(thread_results) >= 2:
             def cosine(a, b):
                 a, b = np.array(a), np.array(b)
                 return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
-            # For each thread, compare its vectors against all other threads
-            for t1 in range(min(2, n_threads)):
-                for t2 in range(t1 + 1, min(3, n_threads)):
-                    if t1 not in thread_results or t2 not in thread_results:
+            # Flatten: each vector tagged with (thread_id, local_idx)
+            all_vecs: list[tuple[int, int, np.ndarray]] = []
+            for tid, vecs in thread_results.items():
+                for lidx, v in enumerate(vecs):
+                    all_vecs.append((tid, lidx, np.array(v)))
+
+            # Known pairs: within each thread, indices [0,1] are same topic,
+            # [2,3] are same topic. Map: (tid, 0)↔(tid, 1), (tid, 2)↔(tid, 3)
+            def expected_pair(tid, lidx):
+                if lidx in (0, 1):
+                    return (tid, 1 - lidx)  # 0↔1
+                return (tid, 5 - lidx)       # 2↔3
+
+            for i, (tid_a, lidx_a, vec_a) in enumerate(all_vecs):
+                # Find nearest neighbor (excluding self)
+                best_sim = -1.0
+                best_match = None
+                for j, (tid_b, lidx_b, vec_b) in enumerate(all_vecs):
+                    if i == j:
                         continue
-                    v1 = thread_results[t1]
-                    v2 = thread_results[t2]
-                    if not v1 or not v2:
-                        continue
+                    sim = cosine(vec_a, vec_b)
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_match = (tid_b, lidx_b)
 
-                    # Intra-thread: avg cosine within same thread (should be high)
-                    intra_sims = []
-                    for i in range(1, min(3, len(v1))):
-                        intra_sims.append(cosine(v1[0], v1[i]))
-                    intra_avg = np.mean(intra_sims) if intra_sims else 0
-
-                    # Cross-thread: avg cosine between different threads (should be lower)
-                    cross_sims = []
-                    for vi in v1[:3]:
-                        for vj in v2[:3]:
-                            cross_sims.append(cosine(vi, vj))
-                    cross_avg = np.mean(cross_sims) if cross_sims else 0
-
-                    detail = {
-                        "t1": t1, "t2": t2,
-                        "intra_cosine": round(float(intra_avg), 4),
-                        "cross_cosine": round(float(cross_avg), 4),
-                    }
-                    contamination_detail.append(detail)
+                expected = expected_pair(tid_a, lidx_a)
+                if best_match != expected:
+                    contamination_errors.append(
+                        f"Vector (thread={tid_a}, idx={lidx_a}) "
+                        f"nearest={best_match} (cos={best_sim:.4f}), "
+                        f"expected={expected}"
+                    )
 
         return {
             "threads": n_threads,
@@ -203,7 +218,8 @@ try:
             "ch_per_sec": round(ch_per_sec, 1),
             "errors": len(errors),
             "error_details": errors[:5],
-            "contamination": contamination_detail,
+            "contamination_errors": len(contamination_errors),
+            "contamination_detail": contamination_errors[:5],
         }
 
     # ─── Run benchmark ─────────────────────────────────────────
@@ -238,20 +254,29 @@ try:
 
     # ─── Contamination report ──────────────────────────────────
     print(f"\n{'='*70}")
-    print(f"Cross-contamination check (cosine similarity):")
-    print(f"  Intra-thread: vectors within same call (should be HIGH)")
-    print(f"  Cross-thread: vectors across different calls (should be LOWER)")
+    print(f"Cross-contamination check: argmax self-match")
+    print(f"  Method: each thread has 2 unique topics x2 copies each.")
+    print(f"  For each vector, nearest neighbor = its duplicate in same thread.")
+    print(f"  If nearest is from different thread → contamination.")
+    total_contam = 0
     for r in results:
-        for c in r.get("contamination", []):
-            status = "✅ no contamination" if c['cross_cosine'] < 0.98 else "⚠️  possible mix"
-            print(f"  Threads {c['t1']} vs {c['t2']}: intra={c['intra_cosine']:.4f}, cross={c['cross_cosine']:.4f} {status}")
+        ce = r.get("contamination_errors", 0)
+        total_contam += ce
+        if ce == 0:
+            print(f"  {r['threads']} threads: ✅ 0 contamination errors")
+        else:
+            print(f"  {r['threads']} threads: ❌ {ce} contamination errors")
+            for detail in r.get("contamination_detail", []):
+                print(f"    → {detail}")
 
     # ─── Final verdict ─────────────────────────────────────────
     all_errors = sum(r['errors'] for r in results)
     no_deadlock = True  # if we got here, no timeout
     print(f"\n{'='*70}")
-    if all_errors == 0 and no_deadlock:
+    if all_errors == 0 and no_deadlock and total_contam == 0:
         print("✅ VERDICT: PASS — no deadlock, no errors, no contamination")
+    elif all_errors == 0 and no_deadlock:
+        print(f"⚠️  VERDICT: {total_contam} contamination errors — vectors may be mixed")
     else:
         print(f"⚠️  VERDICT: {all_errors} errors — check details above")
     print(f"Raw data captured: {time.strftime('%Y-%m-%d %H:%M:%S')}")
