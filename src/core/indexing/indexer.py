@@ -132,6 +132,7 @@ class Indexer(IndexerTableMixin):
             symbol_index=self._symbol_index,
             symbol_index_lock=self._symbol_index_lock,
             project_path=self.project_path,
+            table=self.table,  # для chunk-level кэша
         )
 
         # ─── IndexStatusReporter

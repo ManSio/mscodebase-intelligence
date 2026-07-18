@@ -40,6 +40,7 @@ class LanceDBWriter:
         escaped_path = parsed.get("escaped_path", rel_path_str)
         existing_hash = parsed.get("existing_hash")
         chunk_texts = parsed["chunk_texts"]
+        chunk_hashes = parsed.get("chunk_hashes", [])
         chunk_texts_full = parsed.get("chunk_texts_full", [])
         chunk_metadatas = parsed.get("chunk_metadatas", [])
         health = parsed.get("health", {})
@@ -99,6 +100,7 @@ class LanceDBWriter:
                 "callees": meta.get("callees", ""),
                 "health_score": health.get("score", 0.0),
                 "health_band": health.get("band", ""),
+                "chunk_hash": chunk_hashes[i] if i < len(chunk_hashes) else "",
             })
 
         # Atomic write: delete old + add new

@@ -89,6 +89,7 @@ class IndexerTableMixin:
             "parent_id",
             "callees",
             "health_band",
+            "chunk_hash",
         ]
         bool_columns = ["is_public"]
         float_columns = ["health_score"]
@@ -105,12 +106,14 @@ class IndexerTableMixin:
         )
 
         # Стратегия 1: add_columns (для LanceDB < 0.33)
+        # В LanceDB 0.34+ add_columns принимает pa.field, не строку и не {name: type}.
+        import pyarrow as pa
         if hasattr(self.table, "add_columns"):
             all_ok = True
             for col in string_columns:
                 if col not in existing_fields:
                     try:
-                        self.table.add_columns({col: "string"})
+                        self.table.add_columns(pa.field(col, pa.string()))
                         logger.info(f"📦 Миграция: добавлена колонка {col}")
                     except Exception as e:
                         logger.debug(f"add_columns({col}) не сработал: {e}")
@@ -118,16 +121,14 @@ class IndexerTableMixin:
                         break
             if all_ok and "is_public" not in existing_fields:
                 try:
-                    self.table.add_columns({"is_public": "bool"})
+                    self.table.add_columns(pa.field("is_public", pa.bool_()))
                     logger.info("📦 Миграция: добавлена колонка is_public")
                 except Exception as e:
                     logger.debug(f"add_columns(is_public) не сработал: {e}")
                     all_ok = False
             if all_ok and "health_score" not in existing_fields:
                 try:
-                    # ВАЖНО: health_score — float64, передаём строку типа, а не значение
-                    # В LanceDB 0.33+ add_columns принимает {name: type_str}
-                    self.table.add_columns({"health_score": "float64"})
+                    self.table.add_columns(pa.field("health_score", pa.float64()))
                     logger.info("📦 Миграция: добавлена колонка health_score")
                 except Exception as e:
                     logger.debug(f"add_columns(health_score) не сработал: {e}")
@@ -160,6 +161,21 @@ class IndexerTableMixin:
             if "health_score" not in old_df.columns:
                 old_df["health_score"] = 0.0
 
+            # chunk_hash: вычисляем из text (content-addressed),
+            # чтобы cache заработал на существующем индексе без полной переиндексации
+            import hashlib
+
+            def _calc_chunk_hash(t: str) -> str:
+                return "ch:" + hashlib.sha256(str(t).encode("utf-8")).hexdigest()[:32]
+
+            if "chunk_hash" not in old_df.columns:
+                old_df["chunk_hash"] = old_df["text"].apply(_calc_chunk_hash)
+            else:
+                # Заполняем пустые значения (на случай частичной миграции)
+                old_df["chunk_hash"] = old_df["chunk_hash"].apply(
+                    lambda v: _calc_chunk_hash(old_df["text"]) if not v else v
+                )
+
             # Пересоздаём таблицу с полной схемой
             self.db.drop_table(self.table_name)
             self.table = self.db.create_table(self.table_name, schema=self.schema)
@@ -187,6 +203,7 @@ class IndexerTableMixin:
                     "callees": str(row.get("callees", "")),
                     "health_score": float(row.get("health_score", 0.0)),
                     "health_band": str(row.get("health_band", "")),
+                    "chunk_hash": str(row.get("chunk_hash", "")),
                 }
                 records.append(record)
 

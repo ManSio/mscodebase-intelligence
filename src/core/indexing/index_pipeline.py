@@ -39,6 +39,7 @@ class IndexPipeline:
         symbol_index,
         symbol_index_lock,
         project_path: Path,
+        table=None,
     ):
         self.embedder = embedder
         self.parser = parser
@@ -46,6 +47,9 @@ class IndexPipeline:
         self._symbol_index = symbol_index
         self._symbol_index_lock = symbol_index_lock
         self.project_path = project_path
+        # Опциональная ссылка на LanceDB table для chunk-level кэша.
+        # Если None — кэш отключён (embed_batch всегда вызывается).
+        self._table = table
 
     def process_file(
         self,
@@ -105,10 +109,61 @@ class IndexPipeline:
         chunk_texts = parsed.get("chunk_texts", [])
         if not chunk_texts:
             return None
-        embeddings = self.embedder.embed_batch(chunk_texts)
-        gc.collect()
-        if not embeddings or any(len(e) == 0 for e in embeddings):
-            logger.warning(f"Empty embeddings for {rel_path_str}. Skipping.")
+
+        # ─── Chunk-level content-addressed cache ───────────
+        # Вычисляем chunk_hash для каждого чанка. Если хэш уже есть в БД,
+        # переиспользуем сохранённый вектор (skip embed_batch).
+        # Это даёт ~95% экономии повторных эмбеддингов при правке 1 функции
+        # (подтверждено бенчмарком в sandbox/chunk_hash_exp/).
+        import hashlib
+
+        chunk_hashes = []
+        for t in chunk_texts:
+            h = "ch:" + hashlib.sha256(t.encode("utf-8")).hexdigest()[:32]
+            chunk_hashes.append(h)
+
+        # Загружаем известные векторы из БД (если table доступен)
+        known_vectors: dict = {}
+        if self._table is not None:
+            try:
+                _existing = (
+                    self._table.search()
+                    .where(f"file_path = '{rel_path_str}'", prefilter=True)
+                    .select(["chunk_hash", "vector"])
+                    .to_pandas()
+                )
+                if not _existing.empty and "chunk_hash" in _existing.columns:
+                    for _, _row in _existing.iterrows():
+                        _ch = str(_row.get("chunk_hash", ""))
+                        if _ch:
+                            known_vectors[_ch] = _row["vector"]
+            except Exception as _cache_err:
+                logger.debug(f"Chunk cache load failed: {_cache_err}")
+
+        # Разделяем на новые (нужен embed) и кэшированные (вектор из БД)
+        texts_to_embed = []
+        embed_idx_map = []  # индекс в chunk_texts -> позиция в texts_to_embed
+        cached_vectors = [None] * len(chunk_texts)
+        for i, (t, h) in enumerate(zip(chunk_texts, chunk_hashes)):
+            if h in known_vectors:
+                cached_vectors[i] = known_vectors[h]
+            else:
+                texts_to_embed.append(t)
+                embed_idx_map.append(i)
+
+        # Эмбеддим только новые чанки
+        if texts_to_embed:
+            new_embeddings = self.embedder.embed_batch(texts_to_embed)
+            gc.collect()
+            if not new_embeddings or any(len(e) == 0 for e in new_embeddings):
+                logger.warning(f"Empty embeddings for {rel_path_str}. Skipping.")
+                return None
+            for pos, vec_idx in enumerate(embed_idx_map):
+                cached_vectors[vec_idx] = new_embeddings[pos]
+
+        embeddings = cached_vectors
+        if any(v is None for v in embeddings):
+            logger.warning(f"Chunk cache gap for {rel_path_str}. Skipping.")
             return None
 
         return {
@@ -117,6 +172,7 @@ class IndexPipeline:
             "chunk_texts": parsed["chunk_texts"],
             "chunk_texts_full": parsed.get("chunk_texts_full", []),
             "chunk_metadatas": parsed.get("chunk_metadatas", []),
+            "chunk_hashes": chunk_hashes,
             "health": parsed.get("health", {"score": 0.0, "band": ""}),
             "source": source,
             "embeddings": embeddings,

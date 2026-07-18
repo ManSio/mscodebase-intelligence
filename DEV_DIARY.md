@@ -326,3 +326,59 @@ _info = data.get("model_info", {}) or {}
 - Index: 3765 chunks (not 0)
 
 **Guard:** added test tests/test_ui_formatter_dim.py - verifies format_runtime_status shows real dimension from model_info.
+
+---
+
+## 2026-07-18 - FEATURE: Chunk-level content-addressed cache (skip re-embedding)
+
+**Цель:** Экономить ~95% повторных эмбеддингов при правке 1 функции в файле.
+По умолчанию file-level md5 -> весь файл переэмбеддится. Заменено на per-chunk sha256.
+
+**Эксперимент (песочница):** benchmark_chunk_cache.py + test_chunk_cache.py + test_real_path.py
+- Sliding window: 44.7% saved (наивный чанкер смещается)
+- AST-aware: 95.6% saved (как в проде)
+- Real-path test (LanceDBManager + IndexPipeline): 2 embeds -> 0 (re-run) -> 1 (edit 1 fn)
+
+**Реализация (5 файлов):**
+- db_manager.py: добавлена колонка chunk_hash в схему
+- indexer_table.py: миграция chunk_hash (add_columns с pa.field для LanceDB 0.34)
+- index_pipeline.py: SKIP-ЛОГИКА - chunk_hash до embed_batch, переиспользует вектор из БД
+- db_writer.py: запись chunk_hash в record
+- indexer.py: передача table в IndexPipeline
+
+**Bug при миграции:** LanceDB 0.34 add_columns требует pa.field, не строку.
+Исправлено: self.table.add_columns(pa.field(col, pa.string())).
+
+**Backfill:** scripts/backfill_chunk_hash.py заполнил 3789/3789 chunk_hash для
+существующего индекса (иначе cache никогда не сработал бы на старых данных).
+
+**Verified from clean state:**
+- MCP перезапущен, schema имеет chunk_hash
+- Backfill: 3789/3789 заполнено
+- Real-path test: ALL PASSED (2->0->1 embeds)
+- Живой индекс: cache сработает при следующей правке файла
+  (проверка на живом индексе заблокирована embedder idle-timeout - отдельный баг)
+
+**Guard:** sandbox/chunk_hash_exp/test_real_path.py (real LanceDB, temp dir)
+
+---
+
+## 2026-07-18 - FIX: Embedder idle-timeout aborting indexing
+
+**Symptom:** Incremental indexing failed with 'Embedder not ready. Indexing aborted.'
+after ONNX model was unloaded by idle-timeout (5 min).
+
+**Root Cause:** index_project_runner.py:165 checks is_ready() BEFORE indexing.
+is_ready() returned False when _onnx_session was None (unloaded). But embed_batch()
+itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
+
+**Fix:** is_ready() now lazy-reloads ONNX session if mode==onnx and session is None:
+- Calls _init_onnx() on idle-unload, returns True if reload succeeds
+- Returns False on reload failure (safe abort, unchanged behavior)
+
+**Verified from clean state:**
+- Sandbox test: test_idle_reload.py (lazy reload + safe failure) ALL PASSED
+- Live: model unloaded at 20:34:44, indexing at 20:35:50 COMPLETED (87/87)
+  No 'Embedder not ready' error after fix.
+
+**Guard:** sandbox/embedder_idle_test/test_idle_reload.py

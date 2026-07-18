@@ -93,6 +93,7 @@ class LanceDBManager:
                 pa.field("callees", pa.string()),
                 pa.field("health_score", pa.float64()),
                 pa.field("health_band", pa.string()),
+                pa.field("chunk_hash", pa.string()),
             ]
         )
 

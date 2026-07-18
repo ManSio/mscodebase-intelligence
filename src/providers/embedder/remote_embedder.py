@@ -1035,14 +1035,32 @@ class RemoteEmbedder(IEmbedder):
         return res[0] if res else []
 
     def is_ready(self) -> bool:
-        """Проверка готовности эмбеддера к работе."""
+        """Проверка готовности эмбеддера к работе.
+
+        Ленивая: если ONNX-режим и сессия выгружена по idle-timeout,
+        пытается перезагрузить модель (embed_batch всё равно это делает,
+        но index_project_runner проверяет is_ready() до старта).
+        """
         with self._mode_lock:
             if self.mode in ("unknown", "fallback"):
                 return False
             if self.mode == "onnx":
                 # Если ONNX_PROVIDERS=openvino — ждём именно OpenVINO
                 if os.getenv("ONNX_PROVIDERS", "").lower() == "openvino":
+                    if getattr(self, '_ov_compiled', None) is None:
+                        try:
+                            self._init_onnx()
+                        except Exception as _e:
+                            logger.debug(f"is_ready: ONNX reload failed: {_e}")
+                            return False
                     return getattr(self, '_ov_compiled', None) is not None
+                # Ленивая перезагрузка при idle-timeout выгрузке
+                if self._onnx_session is None:
+                    try:
+                        self._init_onnx()
+                    except Exception as _e:
+                        logger.debug(f"is_ready: ONNX reload failed: {_e}")
+                        return False
                 return self._onnx_session is not None
             return self.mode in ("lm_studio", "llama_cpp", "ollama")
 
