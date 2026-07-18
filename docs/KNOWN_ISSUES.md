@@ -6,6 +6,19 @@
 
 ---
 
+## Recently Fixed (2026-07-18) — P0-3 AsyncInferQueue deadlock
+
+| ID | Компонент | Симптом | Корень | Статус |
+|----|-----------|---------|--------|--------|
+| INC-6DF5 | remote_embedder / OpenVINO | AsyncInferQueue deadlock при 4+ concurrent embed_batch() вызовах. indexer(batch=4) + search(batch=1) = 5 concurrent → зависание. | `wait_all()` ждёт ВСЕ задачи в очереди (включая чужие). Два потока с одним queue блокируют друг друга через `wait_all()`. | ✅ Fixed: Variant B — `threading.Lock` вокруг submit+wait_all+collect. Сериализует МЕЖДУ вызовами, сохраняет параллелизм ВНУТРИ (jobs=4). Benchmark: 5 threads, 0 deadlock, 0 errors, 32-33 ch/s. |
+
+**Guards (добавлены):**
+1. Per-call local dict (a97f0ff) — defense in depth: если лок уберут, данные не смешаются.
+2. `test_ov_concurrent_embed.py` (4 теста) — проверяет изоляцию вызовов и отсутствие cross-contamination.
+3. `benchmark_ov_concurrent.py` — 5 concurrent threads + cosine similarity check.
+
+---
+
 ## Recently Fixed (2026-07-17) — НЕ повторять, уже закрыто
 
 | ID | Компонент | Симптом | Корень | Статус |
@@ -77,4 +90,4 @@
 
 ---
 
-*Последнее обновление: 2026-07-18*
+*Последнее обновление: 2026-07-18 18:47*

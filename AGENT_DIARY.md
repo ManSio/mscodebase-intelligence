@@ -1,5 +1,25 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 18:47] — Variant B fix: AsyncInferQueue deadlock (P0-3 closed)
+
+**Решение владельца:** Вариант B — `threading.Lock` вокруг submit+wait_all+collect.
+
+**Fix:**
+- `remote_embedder.py`: `self._ov_call_lock = threading.Lock()` в `_init_openvino`,
+  `with self._ov_call_lock:` вокруг submit+wait_all+collect в `embed_batch`.
+- Сериализует МЕЖДУ конкурентными вызовами, сохраняет параллелизм ВНУТРИ одного вызова (jobs=4).
+- Per-call local dict (a97f0ff) остаётся как defense in depth.
+
+**Бенчмарк:** `python scripts/benchmark_ov_concurrent.py` (обновлён: 5 threads, cosine check)
+- 1 thread: 31.3 ch/s, 2 threads: 33.0 ch/s, 5 threads: 32.9 ch/s
+- 0 deadlock, 0 errors, no cross-contamination
+- Ожидаемо: throughput не масштабируется с потоками (lock сериализует между вызовами)
+
+**Тесты:** 4/4 ov_concurrent_embed, 33/33 write_tools
+**Коммит:** 7566d4a7 (pushed to main)
+**Incident:** INC-6DF5
+**verified_from_clean_state:** no (⚠️ требует внешней проверки по §7.6)
+
 ## [2026-07-18 18:00] — AsyncInferQueue throughput benchmark (DoD §7.5)
 
 **Симптом:** Ранее заявлено "throughput ×4" без замера. Нарушение §7.5 (числа без команды+вывода).
