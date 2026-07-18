@@ -248,10 +248,10 @@ class LanceDBManager:
         """
         # Sync close
         if hasattr(self, 'db') and self.db is not None:
-            try:
-                self.db.close()
-            except Exception:
-                pass
+                    try:
+                        self.db.close()
+                    except Exception as _close_err:
+                        logger.debug(f"DB close warning: {_close_err}")
 
         # Normalize new path
         raw_path = str(new_db_path.resolve())
@@ -282,8 +282,8 @@ class LanceDBManager:
             )
             try:
                 self.table = self.db.open_table(self.table_name)
-            except Exception:
-                pass
+            except Exception as _open_err:
+                logger.warning(f"Table re-open after switch failed: {_open_err}")
 
         # Warmup new cache
         self._warmup_cache()
@@ -301,8 +301,8 @@ class LanceDBManager:
         try:
             if self.db is not None:
                 self.db.close()
-        except Exception:
-            pass
+        except Exception as _reset_close_err:
+            logger.debug(f"reset_connection: DB close warning: {_reset_close_err}")
 
         # 2. Переподключаемся
         self.db = lancedb.connect(self._lancedb_connect_path)
@@ -322,14 +322,14 @@ class LanceDBManager:
         if hasattr(self, '_on_recreate') and self._on_recreate:
             try:
                 self._on_recreate(self.table)
-            except Exception:
-                pass
+            except Exception as _cb_err:
+                logger.debug(f"reset_connection: on_recreate callback failed: {_cb_err}")
 
         # 6. Пересоздаём IndexGuard
         try:
             self._index_guard = IndexGuard(self.db_path, self.project_path)
-        except Exception:
-            pass
+        except Exception as _ig_err:
+            logger.debug(f"reset_connection: IndexGuard rebuild failed: {_ig_err}")
 
         # 7. Прогрев кэша
         self._warmup_cache()

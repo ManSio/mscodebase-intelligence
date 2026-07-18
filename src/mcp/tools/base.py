@@ -66,14 +66,15 @@ def resolve_indexer_for_intel(
     from src.mcp.server import resolve_project_root as _rpr
 
     # 1. explicit project_root (highest priority) — bypass fallback, guard всё ещё
-    #    активен на уровне resolve_indexer_for_request ниже.
-    if explicit_project_root and explicit_project_root.strip():
-        target = Path(explicit_project_root).resolve()
-    else:
-        try:
-            target = _rpr()
-        except Exception:
-            target = services.resolve(ProjectRootKey)
+        #    активен на уровне resolve_indexer_for_request ниже.
+        if explicit_project_root and explicit_project_root.strip():
+            target = Path(explicit_project_root).resolve()
+        else:
+            try:
+                target = _rpr()
+            except Exception as _rpr_err:
+                logger.debug(f"resolve_project_root fallback: {_rpr_err}")
+                target = services.resolve(ProjectRootKey)
 
     # 2. Если target — self-indexing, ищем первый non-self-indexing в registry.
     if _is_self_index_path(target):
@@ -154,19 +155,20 @@ def resolve_indexer_for_request(
         Indexer (singleton per project_path, из ProjectIndexerRegistry).
 
     Raises:
-        ToolError: если target — self-indexing path. Error содержит
-            hint и safe alternatives (открыть правильный проект).
-    """
-    from src.core.di_container import ProjectRootKey
-    from src.mcp.server import resolve_project_root as _rpr
+            ToolError: если target — self-indexing path. Error содержит
+                hint и safe alternatives (открыть правильный проект).
+        """
+        from src.core.di_container import ProjectRootKey
+        from src.mcp.server import resolve_project_root as _rpr
 
-    if explicit_project_root and explicit_project_root.strip():
-        target = Path(explicit_project_root).resolve()
-    else:
-        try:
-            target = _rpr()
-        except Exception:
-            target = services.resolve(ProjectRootKey)
+        if explicit_project_root and explicit_project_root.strip():
+            target = Path(explicit_project_root).resolve()
+        else:
+            try:
+                target = _rpr()
+            except Exception as _rpr_err2:
+                logger.debug(f"resolve_project_root fallback: {_rpr_err2}")
+                target = services.resolve(ProjectRootKey)
 
     # Self-indexing guard (INC-6BCB-v3)
     if _is_self_index_path(target):
@@ -295,7 +297,8 @@ class MCPTool(ABC):
         try:
             from src.core.di_container import ProjectRootKey
             return self._services.resolve(ProjectRootKey)
-        except Exception:
+        except Exception as _prk_err:
+            logger.debug(f"ProjectRootKey resolve failed: {_prk_err}")
             return None
 
     def _safe_resolve_indexer(self, explicit_project_root: Optional[str] = None) -> Any:
@@ -461,7 +464,8 @@ class MCPTool(ABC):
             indexer = self.resolve_indexer(explicit_project_root)
             path = indexer.project_path
             return f"{prefix}{path}"
-        except Exception:
+        except Exception as _idx_err:
+            logger.debug(f"Indexer unavailable for project path: {_idx_err}")
             return f"{prefix}<unknown — indexer unavailable>"
 
     def _project_metadata(

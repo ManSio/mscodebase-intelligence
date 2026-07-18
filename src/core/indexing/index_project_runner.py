@@ -280,8 +280,8 @@ class IndexProjectRunner:
                             idx_name = getattr(idx, "name", None)
                             if idx_name:
                                 self.table.drop_index(idx_name)
-                    except Exception:
-                        pass
+                    except Exception as _drop_err:
+                        logger.debug(f"Drop old index (non-critical): {_drop_err}")
                     # Create IVF_FLAT index (LanceDB 0.33+ config-based API)
                     try:
                         self.table.create_index(

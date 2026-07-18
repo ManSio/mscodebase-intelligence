@@ -427,8 +427,8 @@ class Indexer(IndexerTableMixin):
                 )
                 if not existing_df.empty:
                     existing_hash = str(existing_df["file_hash"].iloc[0])
-            except Exception:
-                pass
+            except Exception as _cache_err:
+                logger.debug(f"Chunk cache check failed for {rel_path_str}: {_cache_err}")
 
             if existing_hash == current_hash:
                 return False  # Файл не изменился, пропускаем

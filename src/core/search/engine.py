@@ -115,7 +115,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             try:
                 if self.indexer.table.count_rows() == 0:
                     return []
-            except Exception:
+            except Exception as _count_err:
+                logger.debug(f"count_rows failed (empty index assumed): {_count_err}")
                 return []
 
             search_obj = self.indexer.table.search(
@@ -193,7 +194,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             try:
                 if self.indexer.table.count_rows() == 0:
                     return []
-            except Exception:
+            except Exception as _count_err2:
+                logger.debug(f"count_rows failed (empty index assumed): {_count_err2}")
                 return []
 
             df = (
@@ -827,7 +829,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
                 # Пробуем достать через indexer.searcher.symbol_index
                 try:
                     si = getattr(self.indexer, "symbol_index", None)
-                except Exception:
+                except Exception as _si_err:
+                    logger.debug(f"symbol_index fallback failed: {_si_err}")
                     si = None
 
             if si is None or not hasattr(si, "find_references"):

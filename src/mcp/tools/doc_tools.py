@@ -106,7 +106,8 @@ class StaleDetectorTool(MCPTool):
 
             try:
                 text = md_file.read_text(encoding="utf-8")
-            except Exception:
+            except Exception as _read_err:
+                logger.debug(f"Skip unreadable {md_file.name}: {_read_err}")
                 continue
 
             mtime = datetime.fromtimestamp(md_file.stat().st_mtime)
