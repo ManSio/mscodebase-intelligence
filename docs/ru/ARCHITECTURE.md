@@ -248,8 +248,8 @@ def register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
         # Hub: codebase (write/index/git/notify — мультиплексирован по action)
         CodebaseTool,
-        # Spoke: E2B песочница
-        ExecuteScriptTool,
+        # Spoke: host-based execution (отключён по умолчанию)
+        # ExecuteScriptTool (регистрируется только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true)
         # Analysis (5)
         StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
         ScanChangesTool, GenerateChunkSummariesTool,
@@ -260,12 +260,13 @@ def register_all_tools(mcp, services):
         # Lifecycle (3)
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +14 intel_* инструментов + 3 diagnostic inline
-    # Всего: 36 зарегистрировано (19 core + 14 intel + 3 diag)
+    # +12 intel_* инструментов + 6 diagnostic inline
+    # Всего: 37 зарегистрировано (19 core + 12 intel + 6 diag)
+    # execute_script отключён по умолчанию (feature flag MSCODEBASE_EXECUTE_SCRIPT_ENABLED)
 ```
 
 **Фильтр видимости:** По умолчанию видимо ~16 инструментов.
-`MSCODEBASE_MCP_TOOLS=""` — показать все 36.
+`MSCODEBASE_MCP_TOOLS=""` — показать все 37.
 
 ### 4.2 Все инструменты по группам
 

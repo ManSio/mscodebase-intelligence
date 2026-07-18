@@ -1,7 +1,9 @@
 # Project Agent Rules — MSCodeBase Hybrid Architecture (37 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 12 Intel Layer + 19 Core MCP + 6 Inline/Diagnostic + 2 Hub&Spoke (codebase + E2B)
+> Optimized for the hybrid model: 12 Intel Layer + 19 Core MCP + 6 Inline/Diagnostic + 2 Hub&Spoke (codebase + execute_script\*)
+
+> \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
 
 ## 0. FIRST STEP IN ANY SESSION
 
