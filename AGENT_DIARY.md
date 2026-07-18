@@ -1,5 +1,26 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 18:00] — AsyncInferQueue throughput benchmark (DoD §7.5)
+
+**Симптом:** Ранее заявлено "throughput ×4" без замера. Нарушение §7.5 (числа без команды+вывода).
+
+**Бенчмарк:** `python scripts/benchmark_ov_concurrent.py`
+**Результат:**
+- 1 thread: 31 ch/s (baseline)
+- 2 threads: 66 ch/s (×2.1)
+- 4+ threads: **зависает** (queue saturation)
+
+**Вывод:** throughput ×2 (не ×4). AsyncInferQueue(jobs=4) не масштабируется при >2 concurrent embed_batch.
+**Production impact:** indexer (batch=4) + concurrent search = 5 concurrent → deadlock.
+
+**Требуется решение владельца (3 варианта):**
+A. Увеличить pool_size до jobs=8 (простая правка, но может не помочь при >4 concurrent)
+B. Вернуть mutex между concurrent embed_batch (сериализация между вызовами, параллелизм внутри)
+C. Оставить как есть (jobs=4, ×2 при 2 concurrent) — осознанный компромисс
+
+**Коммит:** pending
+**Status:** ⏳ Ожидает решения владельца
+
 ## [2026-07-18 17:30] — AsyncInferQueue race condition: фикс + тест на смешение векторов
 
 **Симптом:** Claude-аудит нашёл новую гонку в AsyncInferQueue (коммит e34d5e1):
