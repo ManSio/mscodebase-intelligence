@@ -495,20 +495,29 @@ def _patch_dll_imports(dll_dir: Path) -> int:
 # Если проверка не проходит — бинарник не будет установлен.
 # win-cpu-x64 + win-vulkan-x64: посчитаны 2026-07-11 для b9940.
 LLAMA_BIN_SHA256 = {
+    # Windows — хэши проверены
     "win-cpu-x64": "d5d7248c7aacaeb0c8f15311acb0f1081874aa7a5de55843702e9e2394a05788",
     "win-vulkan-x64": "036835f0adb53b5d48444ab9adb7c29fff898be6fa74f7f9fc15f674ea38b153",
-    "macos-arm64": "",  # вычислить: hashlib.sha256(open('llama-...tar.gz','rb').read()).hexdigest()
-    "macos-x64": "",
-    "ubuntu-x64": "",
+    # macOS/Linux — TODO: вычислить и добавить хэши перед установкой на этих платформах
+    "macos-arm64": None,
+    "macos-x64": None,
+    "ubuntu-x64": None,
 }
 
 
 def _verify_archive_sha256(archive_path: Path, tag: str) -> bool:
-    """Проверяет SHA256 скачанного архива, если хэш известен."""
+    """Проверяет SHA256 скачанного архива.
+
+    Если хэш для платформы не задан — установка блокируется (fail closed).
+    Безопасность: неизвестный бинарник НЕ запускаем.
+    """
     expected = LLAMA_BIN_SHA256.get(tag)
     if not expected:
-        logger.warning(f"⚠️ SHA256 для {tag} не задан, пропускаем проверку")
-        return True
+        logger.error(
+            f"🚫 SHA256 для {tag} не задан в LLAMA_BIN_SHA256. "
+            f"Установка заблокирована. Вычислите хэш и добавьте в словарь."
+        )
+        return False
     try:
         actual = hashlib.sha256(archive_path.read_bytes()).hexdigest()
         if actual == expected:
