@@ -428,9 +428,9 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             tracer.record_bucket(rrf_results, intent_hint)
 
         # === v3.0: Co-change boost (git coupling) ===
-        # Копируем список результатов перед модификацией (deep copy не нужен — каждый dict
-        # будет заново сериализован в tracer). Без dict() — это список dict, не пара ключ-значение.
-        _cc_before = [dict(r) for r in rrf_results] if tracer else None
+        # Копируем результаты перед модификацией для Co-change boost.
+        # Используем id()-индекс для быстрого поиска (chunk может быть изменён _apply_co_change_boost).
+        _cc_before = {id(r): dict(r) for r in rrf_results} if tracer else None
         rrf_results = self._apply_co_change_boost(rrf_results)
         if tracer and _cc_before:
             _boosts = {}

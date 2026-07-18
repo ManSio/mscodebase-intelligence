@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
@@ -636,7 +637,6 @@ class GraphQueryTool(MCPTool):
         if not db_path or not Path(str(db_path)).exists():
             return _unverifiable("PropertyGraph not available", predicate)
 
-        from src.core.graph import EdgeType, NodeLabel, PropertyGraph
         from src.core.search.graph_adapter import SymbolIndexAdapter
 
         pg = PropertyGraph(db_path)

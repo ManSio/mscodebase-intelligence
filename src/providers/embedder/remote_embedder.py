@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import httpx
-
 import numpy as np
 
 from src.config.settings import get_config
@@ -854,12 +853,8 @@ class RemoteEmbedder(IEmbedder):
                 # INT8 model_quantized.onnx подаёт token_type_ids только если
                 # модель реально имеет этот вход.
                 _ov_has_tt = getattr(self, "_ov_has_token_type_ids", False)
-                tt_all = None
                 if _ov_has_tt:
-                    tt_all = np.array(
-                        [getattr(enc[i], "type_ids", None) or [0] * len(enc[i].ids) for i in valid_indices],
-                        dtype=np.int64,
-                    )
+                    pass  # token_type_ids pre-bound в C++ (см. _bind_tt_if_needed)
 
                 # Lock защищает .infer() — OpenVINO InferRequest не thread-safe.
                 # (см. стресс-тест: без лока 2+ потока → "Infer Request is busy")

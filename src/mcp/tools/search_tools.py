@@ -255,24 +255,37 @@ class SearchCodeTool(MCPTool):
                             lines.append("**Stage timing:**\n")
                             for stage, ms in sorted(timing.items()):
                                 lines.append(f"  • `{stage}`: {ms:.0f}ms\n")
+                        def _safe_float(v, default=0.0):
+                            try: return float(v)
+                            except (TypeError, ValueError): return default
                         for ct in chunks[:effective_limit]:
                             f = ct.get("file_path", "?")
                             pos = ct.get("final_position", "?")
-                            score = ct.get("final_score", "N/A")
-                            lines.append(f"\n**#{pos}** `{f}` score={score:.6f}\n")
+                            score_raw = ct.get("final_score", "N/A")
+                            try:
+                                score = float(score_raw)
+                                score_str = f"{score:.6f}"
+                            except (TypeError, ValueError):
+                                score_str = str(score_raw)
+                            lines.append(f"\n**#{pos}** `{f}` score={score_str}\n")
                             if "bm25_rank" in ct:
-                                lines.append(f"  • BM25 rank={ct['bm25_rank']} -> RRF={ct.get('bm25_rrf', 'N/A')}\n")
+                                brrf = ct.get('bm25_rrf', 'N/A')
+                                lines.append(f"  • BM25 rank={ct['bm25_rank']} -> RRF={brrf}\n")
                             if "dense_rank" in ct:
-                                lines.append(f"  • Dense rank={ct['dense_rank']} -> RRF={ct.get('dense_rrf', 'N/A')}\n")
+                                drrf = ct.get('dense_rrf', 'N/A')
+                                lines.append(f"  • Dense rank={ct['dense_rank']} -> RRF={drrf}\n")
                             if "mmr_similarity_penalty" in ct:
                                 sel = "✓" if ct.get("mmr_selected") else "—"
-                                lines.append(f"  • MMR penalty={ct['mmr_similarity_penalty']:.4f} [{sel}]\n")
+                                mpen = _safe_float(ct['mmr_similarity_penalty'])
+                                lines.append(f"  • MMR penalty={mpen:.4f} [{sel}]\n")
                             if "bucket_weight" in ct and ct["bucket_weight"] != 1.0:
                                 lines.append(f"  • Bucket weight={ct['bucket_weight']} (ext={ct.get('bucket_ext','')})\n")
                             if "co_change_boost" in ct and ct["co_change_boost"] != 1.0:
                                 lines.append(f"  • Co-change boost x{ct['co_change_boost']}\n")
                             if ct.get("reranker_applied"):
-                                lines.append(f"  • Reranker: {ct.get('reranker_score_before','N/A')} -> {ct.get('reranker_score_after','N/A')}\n")
+                                bf = ct.get('reranker_score_before','N/A')
+                                af = ct.get('reranker_score_after','N/A')
+                                lines.append(f"  • Reranker: {bf} -> {af}\n")
                         result_str += "".join(lines)
 
         elif mode == "deep":
@@ -421,10 +434,17 @@ class SearchCodeTool(MCPTool):
         ui_items = []
         for r in results:
             meta = r.get("metadata", {})
+            # Убираем избыточный // File: из текста чанка — путь уже есть в заголовке
+            raw_text = r.get("text_full", r.get("text", ""))
+            clean_lines = [
+                ln for ln in raw_text.split("\n")
+                if not ln.startswith("// File:") and not ln.startswith("// File :")
+            ]
+            clean_text = "\n".join(clean_lines).strip()
             item = {
                 "file_path": meta.get("file", r.get("file_path", "")),
                 "start_line": meta.get("start_line", meta.get("chunk_index", "")),
-                "text": r.get("text_full", r.get("text", "")),
+                "text": clean_text,
                 "layer": meta.get("layer", ""),
                 "score": r.get("final_score", r.get("score", 0)),
             }
