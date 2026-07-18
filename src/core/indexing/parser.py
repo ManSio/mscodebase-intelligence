@@ -658,18 +658,21 @@ class CodeParser:
         if ext not in self.parsers or ext == ".md":
             return [], [], []
 
-        # Cache hit: если тот же файл, используем закешированное дерево
-        if file_path == self._cache_path:
-            code = self._cache_code
+        # Cache hit: тот же файл И то же содержимое.
+        # (раньше проверялся только путь — из-за этого extract_calls
+        #  отдавал устаревший AST при повторной индексации того же файла,
+        #  т.к. parse_file()/_parse_with_tree_sitter() не обновляют кэш)
+        try:
+            with open(file_path, "rb") as f:
+                code = f.read()
+        except Exception:
+            return [], []
+        if not code.strip():
+            return [], []
+
+        if file_path == self._cache_path and code == self._cache_code:
             tree = self._cache_tree
         else:
-            try:
-                with open(file_path, "rb") as f:
-                    code = f.read()
-            except Exception:
-                return [], []
-            if not code.strip():
-                return [], []
             tree = self.parsers[ext].parse(code)
             self._cache_path = file_path
             self._cache_code = code
