@@ -580,10 +580,8 @@ def _register_inline_tools(mcp, services):
         или когда таблица повреждена. Не требует перезапуска MCP.
         """
         try:
-            registry = services.get_service("ProjectIndexerRegistry")
-            if registry is None:
-                return "❌ ProjectIndexerRegistry not available"
-            indexer = registry.get_indexer_for_project()
+            from src.mcp.tools.base import resolve_indexer_for_request
+            indexer = resolve_indexer_for_request(services)
             if indexer is None:
                 return "❌ No active indexer"
             db_manager = getattr(indexer, 'db_manager', None)

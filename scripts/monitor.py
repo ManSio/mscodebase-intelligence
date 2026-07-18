@@ -1,178 +1,418 @@
 """
-Мониторинг индексации — все фазы с ETA.
+Мониторинг индексации — все фазы с точным расчётом.
 Запуск: python scripts/monitor.py (в отдельном терминале)
+
+v2: fixed avg, IVF progress, weighted speed, per-phase stats.
 """
 import sys
 import os
 import time
 import re
 from pathlib import Path
+from collections import deque
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Импортируем единое имя лог-файла из log_manager (Single Source of Truth)
+# Единое имя лог-файла (Single Source of Truth)
 try:
     from src.core.log_manager import get_main_log_path
     LOG_FILE = get_main_log_path()
 except ImportError:
-    # Fallback для автономного запуска без импорта src
     LOG_DIR = Path(os.environ.get(
         "LOG_DIR",
         r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs"
     ))
     LOG_FILE = LOG_DIR / "mscodebase-intelligence.log"
 
-last_done = 0
-last_time = time.time()
-speeds = []
-phase = "⏳ Ожидание"
+# ─── Состояние ────────────────────────────────────────────
+PHASE_LOADING = "⏳ Загрузка..."
+PHASE_PARSING = "📂 Парсинг"
+PHASE_PARSED  = "📂 Парсинг готов"
+PHASE_EMBED   = "🧠 Эмбеддинг"
+PHASE_EMBEDDED = "⚙️  Эмбеддинг готов"
+PHASE_WRITING = "💾 Запись в БД"
+PHASE_IVF     = "🏗️  IVF индекс"
+PHASE_DONE    = "✅ Завершено"
+
+# ─── Скорость: EMA (Exponential Moving Average) ───────────
+# α=0.3 — последние измерения权重 весомее, но не мгновенно
+EMA_ALPHA = 0.3
+recent_ema = 0.0       # EMA скорость (ch/s)
+ema_initialized = False
+
+# Текущая фаза и счётчики
+phase = PHASE_LOADING
+total_chunks = 0
+done_chunks = 0
+phase_start_time = time.time()
+
+# Пер-фазовые метрики
+phase_metrics = {}  # {phase_name: {count, elapsed, speed}}
+
+# Счётчики для DB write
+db_files_written = 0
+db_chunks_written = 0
+
+# Счётчики для IVF
+ivf_started = False
+
+# Таймер
+monitor_start = time.time()
+last_log_offset = 0  # позиция в файле для инкрементального чтения
 
 
-def grep_log(pattern, n=20):
+def read_log_incremental():
+    """Читает только новые строки из лога (быстро, без перечитывания всего файла)."""
+    global last_log_offset
     if not LOG_FILE.exists():
         return []
-    with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
-        lines = f.readlines()
-    res = []
-    for l in reversed(lines):
-        if re.search(pattern, l):
-            res.append(l)
-            if len(res) >= n:
-                break
-    return list(reversed(res))
+    new_lines = []
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
+            f.seek(last_log_offset)
+            for line in f:
+                new_lines.append(line.rstrip('\n'))
+            last_log_offset = f.tell()
+    except Exception:
+        pass
+    return new_lines
 
+
+def read_log_tail(n=50):
+    """Читает последние N строк лога (для начальной загрузки)."""
+    if not LOG_FILE.exists():
+        return []
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+        return [l.rstrip('\n') for l in lines[-n:]]
+    except Exception:
+        return []
+
+
+# ─── Парсеры строк лога ──────────────────────────────────
 
 def parse_embed(line):
+    """[embed] 3844/3857 batch=4ch/0.1s=40ch/s avg=20ch/s elapsed=194s"""
     m = re.search(
         r'\[embed\]\s+(\d+)/(\d+)\s+batch=\d+ch/[\d.]+s=(\d+)ch/s\s+avg=(\d+)ch/s\s+elapsed=(\d+)s',
         line
     )
-    return m.groups() if m else None
+    if m:
+        return {
+            'done': int(m.group(1)),
+            'total': int(m.group(2)),
+            'inst': int(m.group(3)),
+            'avg_log': int(m.group(4)),
+            'elapsed': int(m.group(5)),
+        }
+    return None
 
 
-def parse_parse(line):
+def parse_total_chunks(line):
+    """Total chunks: 3857, batch_size=4"""
+    m = re.search(r'Total chunks:\s*(\d+)', line)
+    return int(m.group(1)) if m else None
+
+
+def parse_found_files(line):
+    """Found 264 files"""
     m = re.search(r'Found\s+(\d+)\s+files', line)
-    return m.groups() if m else None
+    return int(m.group(1)) if m else None
 
 
-def parse_write(line):
+def parse_db_write(line):
+    """Записано в БД: src\core\foo.py (12 чанков)"""
     m = re.search(r'Записано в БД:.*\((\d+)\s+чанков\)', line)
-    return m.groups() if m else None
+    return int(m.group(1)) if m else None
 
+
+def parse_creating_index(line):
+    """Creating index (23071 chunks)..."""
+    m = re.search(r'Creating index \((\d+) chunks\)', line)
+    return int(m.group(1)) if m else None
+
+
+def parse_ivf_done(line):
+    """IVF_FLAT index created"""
+    return 'IVF_FLAT index created' in line
+
+
+def parse_indexing_complete(line):
+    """Indexing complete: 100 new/changed, 0 removed, total 3857 chunks"""
+    m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
+    return int(m.group(1)) if m else None
+
+
+def parse_embed_complete(line):
+    """Embed complete: 3857 in 194.3s (20 ch/s)"""
+    if not isinstance(line, str):
+        return None
+    m = re.search(r'Embed complete:\s*(\d+)\s+in\s+([\d.]+)s\s*\((\d+)\s+ch/s\)', line)
+    if m:
+        return {
+            'total': int(m.group(1)),
+            'elapsed': float(m.group(2)),
+            'speed': int(m.group(3)),
+        }
+    return None
+
+
+# ─── EMA скорость ─────────────────────────────────────────
+
+def update_ema(new_speed):
+    """Обновляет EMA скорость. Чем больше α, тем быстрее реагирует."""
+    global recent_ema, ema_initialized
+    if not ema_initialized:
+        recent_ema = new_speed
+        ema_initialized = True
+    else:
+        recent_ema = EMA_ALPHA * new_speed + (1 - EMA_ALPHA) * recent_ema
+
+
+# ─── Отображение ─────────────────────────────────────────
+
+def fmt_time(seconds):
+    if seconds < 60:
+        return f"{seconds:.0f}с"
+    elif seconds < 3600:
+        return f"{seconds/60:.1f}мин"
+    else:
+        return f"{seconds/3600:.1f}ч"
+
+
+def fmt_eta(remaining, speed):
+    if speed < 0.1:
+        return "∞"
+    eta = remaining / speed
+    return fmt_time(eta)
+
+
+def bar(done, total, width=30):
+    filled = int(width * done / max(total, 1))
+    return "█" * filled + "░" * (width - filled)
+
+
+def render():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    now = time.time()
+    total_elapsed = now - monitor_start
+
+    print("📊 МОНИТОР ИНДЕКСАЦИИ v2")
+    print("─" * 60)
+    print(f"  Фаза: {phase}")
+    print(f"  Время: {fmt_time(total_elapsed)}")
+    print()
+
+    # Парсинг
+    if phase in (PHASE_LOADING, PHASE_PARSING, PHASE_PARSED):
+        files_found = phase_metrics.get('parse_files', 0)
+        if files_found:
+            print(f"  📂 Файлов найдено: {files_found}")
+        else:
+            print("  📂 Сканирование файлов...")
+        print()
+
+    # Эмбеддинг
+    if total_chunks > 0 and phase in (PHASE_EMBED, PHASE_WRITING, PHASE_IVF, PHASE_DONE):
+        pct = done_chunks / total_chunks * 100
+        print(f"  🧠 Эмбеддинг: {bar(done_chunks, total_chunks)} {pct:.0f}%")
+        print(f"     {done_chunks}/{total_chunks} ({total_chunks - done_chunks} осталось)")
+
+        # Три скорости: instant (из лога), EMA (взвешенная), log avg (с сервера)
+        embed_metrics = phase_metrics.get('embed', {})
+        inst = embed_metrics.get('last_inst', 0)
+        avg_log = embed_metrics.get('last_avg_log', 0)
+
+        print(f"     Мгновенная: {inst} ch/s | EMA: {recent_ema:.0f} ch/s | Сервер avg: {avg_log} ch/s")
+        print(f"     ETA: {fmt_eta(total_chunks - done_chunks, recent_ema)}")
+        print()
+
+    # Запись в БД
+    if phase in (PHASE_WRITING, PHASE_IVF, PHASE_DONE) and db_files_written > 0:
+        print(f"  💾 Записано в БД: {db_files_written} файлов ({db_chunks_written} чанков)")
+        print()
+
+    # IVF индекс
+    if phase in (PHASE_IVF, PHASE_DONE):
+        ivf_chunks = phase_metrics.get('ivf_chunks', 0)
+        if ivf_chunks:
+            print(f"  🏗️  IVF: индексация {ivf_chunks} чанков...")
+        else:
+            print("  🏗️  IVF: построение индекса...")
+        print()
+
+    # Завершено
+    if phase == PHASE_DONE:
+        embed_metrics = phase_metrics.get('embed', {})
+        embed_elapsed = embed_metrics.get('elapsed', 0)
+        embed_speed = embed_metrics.get('final_speed', 0)
+        print(f"  ✅ Всего чанков: {total_chunks}")
+        if embed_speed:
+            print(f"  ✅ Эмбеддинг: {embed_elapsed:.0f}с ({embed_speed} ch/s)")
+        print(f"  ✅ Записей в БД: {db_files_written} файлов, {db_chunks_written} чанков")
+        print(f"  ✅ Общее время: {fmt_time(total_elapsed)}")
+        print()
+        print("  🎉 Индексация завершена!")
+        print("─" * 60)
+        return True
+
+    # Тренд
+    if ema_initialized and done_chunks > 0:
+        remaining = total_chunks - done_chunks
+        print(f"  Тренд: {'⬆️' if recent_ema > (avg_log or 1) else '➡️'} "
+              f"(EMA vs лог avg)")
+        print()
+
+    print("─" * 60)
+    print("  Ctrl+C для выхода | Обновление 5с")
+    return False
+
+
+# ─── Main loop ────────────────────────────────────────────
 
 os.system('cls' if os.name == 'nt' else 'clear')
-print("📊 МОНИТОР ИНДЕКСАЦИИ (все фазы)")
+print("📊 МОНИТОР ИНДЕКСАЦИИ v2")
 print("─" * 60)
-print("  Запущен в фоне. Обновление каждые 5с.")
+print("  Инициализация... чтение лога")
 print("─" * 60)
 
-total_est = 0  # известное общее кол-во чанков (после Parse complete)
+# Начальная загрузка — последние 100 строк
+initial_lines = read_log_tail(100)
+# Обрабатываем начальные данные
+for line in initial_lines:
+    if parse_found_files(line):
+        phase_metrics['parse_files'] = parse_found_files(line)
+
+    tc = parse_total_chunks(line)
+    if tc:
+        total_chunks = tc
+
+    embed = parse_embed(line)
+    if embed:
+        done_chunks = embed['done']
+        total_chunks = embed['total']
+        phase_metrics.setdefault('embed', {})
+        phase_metrics['embed']['last_inst'] = embed['inst']
+        phase_metrics['embed']['last_avg_log'] = embed['avg_log']
+        phase_metrics['embed']['elapsed'] = embed['elapsed']
+        update_ema(embed['inst'])
+
+    if parse_db_write(line):
+        db_files_written += 1
+        db_chunks_written += parse_db_write(line)
+
+    if parse_creating_index(line):
+        phase_metrics['ivf_chunks'] = parse_creating_index(line)
+        ivf_started = True
+
+    if parse_ivf_done(line):
+        phase = PHASE_DONE
+
+    ec = parse_embed_complete(line)
+    if ec:
+        phase_metrics['embed']['final_speed'] = ec['speed']
+        phase_metrics['embed']['elapsed'] = ec['elapsed']
+
+    ic = parse_indexing_complete(line)
+    if ic:
+        total_chunks = ic
+        phase = PHASE_DONE
+
+# Определяем начальную фазу
+if phase == PHASE_LOADING:
+    if total_chunks > 0:
+        phase = PHASE_EMBED
+    elif phase_metrics.get('parse_files'):
+        phase = PHASE_PARSED
+
+last_done = done_chunks
+last_time = time.time()
 
 try:
     while True:
-        try:
-            logs = grep_log(
-                r'\[embed\]|Found.*files|Parse complete.*files changed|Total chunks|'
-                r'Записано в БД|Indexing complete|Embed complete|Creating index|IVF_FLAT',
-                10
-            )
-        except Exception:
-            logs = []
+        time.sleep(5)
 
-        # Определяем фазу
-        all_text = '\n'.join(logs)
-        if "Indexing complete" in all_text:
-            phase = "✅ Завершено"
-        elif "Creating index" in all_text or "IVF_FLAT" in all_text:
-            phase = "🏗️  IVF индекс"
-        elif "Записано в БД" in all_text:
-            phase = "💾 Запись в БД"
-        elif "Embed complete" in all_text:
-            phase = "⚙️  Эмбеддинг готов"
-        elif parse_embed(logs[-1]) if logs else None:
-            phase = "🧠 Эмбеддинг"
-        elif "Total chunks" in all_text:
-            phase = "⚙️  Запуск эмбеддинга"
-        elif "Parse complete" in all_text:
-            phase = "📂 Парсинг готов"
-        elif "Found" in all_text:
-            phase = "📂 Парсинг"
-        else:
-            phase = "⏳ Загрузка..."
+        # Инкрементальное чтение — только новые строки
+        new_lines = read_log_incremental()
 
-        # Данные
-        embed_data = None
-        for l in reversed(logs):
-            p = parse_embed(l)
-            if p:
-                embed_data = p
-                break
+        # Обрабатываем новые строки
+        for line in new_lines:
+            # Парсинг файлов
+            ff = parse_found_files(line)
+            if ff:
+                phase_metrics['parse_files'] = ff
+                if phase == PHASE_LOADING:
+                    phase = PHASE_PARSING
 
-        # Total chunks
-        for l in logs:
-            m = re.search(r'Total chunks:\s*(\d+)', l)
-            if m:
-                total_est = int(m.group(1))
+            # Total chunks
+            tc = parse_total_chunks(line)
+            if tc:
+                total_chunks = tc
+                if phase in (PHASE_LOADING, PHASE_PARSING, PHASE_PARSED):
+                    phase = PHASE_PARSED
 
-        # Последняя embed строка
-        done, total, inst, avg, elapsed = 0, total_est or 0, 0, 0, 0
-        if embed_data:
-            done, total, inst, avg, elapsed = map(int, embed_data)
+            # Embed progress
+            embed = parse_embed(line)
+            if embed:
+                done_chunks = embed['done']
+                total_chunks = embed['total']
+                phase_metrics.setdefault('embed', {})
+                phase_metrics['embed']['last_inst'] = embed['inst']
+                phase_metrics['embed']['last_avg_log'] = embed['avg_log']
+                phase_metrics['embed']['elapsed'] = embed['elapsed']
 
-        # ETA
-        now = time.time()
-        if done and total and done != last_done and last_done > 0:
-            dt = now - last_time
-            if dt > 1:
-                s = (done - last_done) / dt
-                speeds.append(s)
-                if len(speeds) > 10:
-                    speeds.pop(0)
-        last_done = done
-        last_time = now
+                # EMA: обновляем только если прошло достаточно времени
+                now = time.time()
+                dt = now - last_time
+                if dt > 0.5 and done_chunks != last_done:
+                    instant_speed = (done_chunks - last_done) / dt
+                    update_ema(instant_speed)
+                    last_done = done_chunks
+                    last_time = now
 
-        recent_speed = sum(speeds) / len(speeds) if speeds else inst
-        remaining = max(1, (total - done)) if total else 0
-        eta = remaining / max(recent_speed, 0.1) if recent_speed else 0
-        eta_fmt = f"{eta:.0f}с ({eta/60:.1f}мин)" if eta < 3600 else f"{eta/60:.0f}мин"
+                if phase not in (PHASE_WRITING, PHASE_IVF, PHASE_DONE):
+                    phase = PHASE_EMBED
 
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print("📊 МОНИТОР ИНДЕКСАЦИИ")
-        print("─" * 60)
-        print(f"  Фаза: {phase}")
+            # Embed complete
+            ec = parse_embed_complete(line)
+            if ec:
+                phase_metrics['embed']['final_speed'] = ec['speed']
+                phase_metrics['embed']['elapsed'] = ec['elapsed']
+                if phase == PHASE_EMBED:
+                    phase = PHASE_EMBEDDED
 
-        if total:
-            pct = done / total * 100
-            bar_len = 30
-            filled = int(bar_len * done / max(total, 1))
-            bar = "█" * filled + "░" * (bar_len - filled)
-            print(f"  Чанки: {bar} {pct:.0f}%")
-            print(f"  {done}/{total} ({total - done} осталось)")
-            print(f"  Скорость: {inst} ch/s | Средняя: {avg} ch/s | Посл.10с: {recent_speed:.0f} ch/s")
-            print(f"  ETA: {eta_fmt} | Прошло: {elapsed}с")
-        else:
-            # Фаза парсинга — ищем количество файлов
-            for l in logs:
-                m = re.search(r'Found\s+(\d+)\s+files', l)
-                if m:
-                    print(f"  Файлов: {m.group(1)}")
-                    break
-            print("   (прогресс появится при Total chunks)")
+            # DB write
+            cw = parse_db_write(line)
+            if cw:
+                db_files_written += 1
+                db_chunks_written += cw
+                if phase in (PHASE_EMBEDDED, PHASE_WRITING):
+                    phase = PHASE_WRITING
 
-        # Тренд
-        if len(speeds) >= 3:
-            t = speeds[-1] - speeds[0]
-            trend = "⬆️" if t > 3 else ("⬇️" if t < -3 else "➡️")
-            print(f"  Тренд: {trend} (вариация: {t:.0f} ch/s)")
+            # IVF start
+            ic = parse_creating_index(line)
+            if ic:
+                phase_metrics['ivf_chunks'] = ic
+                ivf_started = True
+                if phase in (PHASE_WRITING, PHASE_EMBEDDED):
+                    phase = PHASE_IVF
 
-        print("─" * 60)
-        print("  Ctrl+C для выхода | Обновление 5с")
+            # IVF done
+            if parse_ivf_done(line):
+                phase = PHASE_DONE
 
-        if "Завершено" in phase:
-            print("\n  ✅ Индексация завершена!")
+            # Indexing complete
+            ic2 = parse_indexing_complete(line)
+            if ic2:
+                total_chunks = ic2
+                phase = PHASE_DONE
+
+        # Рендер
+        done = render()
+        if done:
             break
 
-        time.sleep(5)
 except KeyboardInterrupt:
     print("\nОстановлен")
