@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Импортируем модули ядра и глобальные настройки
-from src.core.indexer import Indexer
+from src.core.indexing.indexer import Indexer
 from src.core.indexing.symbol_index import SymbolIndex
 from src.core.search.engine import Searcher
 

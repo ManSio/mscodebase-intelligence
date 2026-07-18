@@ -65,6 +65,7 @@
 | TD-002 | LanceDB IVF | ~~IVF_PQ не строился (0 vectors)~~ — **ИСПРАВЛЕНО (INC-58EA)**. После перезапуска Zed reindex даст реальные векторы + рабочий IVF. | Closed |
 | TD-003 | Symbol count | ~~Рассинхрон symbols после reindex~~ — **ИСПРАВЛЕНО (INC-9573)**. | Closed |
 | TD-004 | Job lifecycle | ~~Зависание Finalizing~~ — **ИСПРАВЛЕНО (INC-0AA6)**. | Closed |
+| TD-005 | llama_runner.py | **Осознанный техдолг:** 1515 строк, один связный класс `LlamaRunner` (lifecycle + inference + watchdog + reranker). Декомпозиция через миксины ухудшит архитектуру — класс целостный, разделение создаст искусственные границы. Решение: не резать, зафиксировано 2026-07-18. | Low (осознанный) |
 | CI | Testing | Нет полного прогона тестов с lancedb/tree-sitter в GitHub Actions — создан `.github/workflows/test.yml` | High |
 
 ---
