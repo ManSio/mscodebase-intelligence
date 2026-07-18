@@ -107,7 +107,7 @@ class MultiProjectSearcher:
     def __init__(self, embedder, project_registry: Optional[ProjectRegistry] = None):
         self.embedder = embedder
         self.registry = project_registry or ProjectRegistry()
-        self._db_cache: Dict[str, lancedb.LanceDB] = {}  # path_str → db connection
+        self._db_cache: Dict[str, "lancedb.LanceDBConnection"] = {}  # path_str → db connection
 
     def _get_project_table(self, project_path: Path):
         """Получает таблицу LanceDB для проекта (с кэшированием)."""

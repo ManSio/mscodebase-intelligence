@@ -400,4 +400,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 6. Did I log the incident in project memory? (`intel_log_incident`)
 7. Did I check `diagnostics`?
 8. Did I run `python -m pytest tests/ -k write_tools -v` before committing?
-9. All correct? → **TASK VERIFIED**
+9. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
+   - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
+   - Результат вставляется в `[🏁 ИТОГ]` как `verified_from_clean_state: <output>`
+10. All correct? → **TASK VERIFIED**
