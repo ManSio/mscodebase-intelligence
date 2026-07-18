@@ -12,9 +12,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-605%20total-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-59-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-38-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-07-17*
 
@@ -43,7 +43,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 37 tools for AI assistant                 │
+│  │  · 38 tools for AI assistant                 │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **40+ MCP tools**.
+MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **38 MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
@@ -100,7 +100,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 14 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 13 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -110,9 +110,9 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (15+ services), 37 tools (19 core + 12 intel + 6 diag), 494+ tests |
+| 🧪 **Clean Architecture** | DI Container (16 services), 38 tools (18 core + 13 intel + 6 inline + 1 optional), 605+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
-| ✏️ **Write Tools** | 6 write tools + 1 graph query (`query_graph`) with Cypher engine |
+| ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
 | 🔗 **Data Flow Graph** | `ASSIGNED_FROM` edges track variable assignments. Unified Walker + Conditional Flow (if/for/while/try). 3,337 edges on MSCodeBase (81% conditional). |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
@@ -197,7 +197,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (59 total)
+## 🔧 MCP Tools (38 total)
 
 ### Core Search
 
@@ -229,12 +229,8 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | Tool | When to Use |
 |------|-------------|
 | `get_health_report()` | **Full self-diagnosis:** index, embedder, logs, synchronization |
-| `watcher_status()` | Component status: embedder mode, indexing, health |
 | `get_logs(project_root)` | Latest errors and warnings from project logs |
-| `get_repo_map(project_root)` | Project map: file tree + key symbols |
 | `read_live_file(path)` | Read file from LSP memory (including unsaved changes) |
-| `predict_eta(operation)` | Predict operation duration based on history |
-| `run_health_check()` | Full project health check (tests + git + index) |
 
 ### Analytics
 
@@ -244,8 +240,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
 | `get_related_files(project_root, path)` | Files related via co-change / bug correlation |
-| `graph_query(query_type, target)` | Knowledge graph queries: `impact` / `feature` / `deps` / `tests` |
-| `query_graph(query)` **(new v3.2)** | Cypher-like graph queries: `MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'main' RETURN g.name` |
+| `graph_query(action, target)` | Graph queries: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
 
 ### Git & History
@@ -264,19 +259,19 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_task_status(task_id)` | Background task status |
 | `verify_action(action_type)` | Verification: `file_write` / `git_commit` / `git_push` / `index_sync` |
 
-### Write Tools (7)
+### Write Tools — `codebase(action=...)`
 
-| Tool | When to Use |
-|------|-------------|
-| `rename_symbol(old, new, apply)` | Rename symbol across all files (preview/apply, collision check) |
-| `move_symbol(symbol, to_file, apply)` | Move symbol to another file (preview/apply, import updates) |
-| `safe_delete(symbol, force, apply)` | Safe delete with reference check (force mode) |
-| `replace_symbol(symbol, new_code, apply)` | Replace function/class body (preview/apply) |
-| `insert_before_symbol(anchor, new_code, apply)` | Insert code before anchor symbol (preview/apply) |
-| `insert_after_symbol(anchor, new_code, apply)` | Insert code after anchor's body (preview/apply) |
-| `ack_impact(file_path)` | Acknowledge impact for modification guard |
+| Action | When to Use |
+|--------|-------------|
+| `codebase(action="rename", old, new, apply)` | Rename symbol across all files (preview/apply, collision check) |
+| `codebase(action="move", symbol, to_file, apply)` | Move symbol to another file (preview/apply, import updates) |
+| `codebase(action="safe_delete", symbol, force, apply)` | Safe delete with reference check (force mode) |
+| `codebase(action="replace", symbol, new_code, apply)` | Replace function/class body (preview/apply) |
+| `codebase(action="insert_before", anchor, new_code, apply)` | Insert code before anchor symbol (preview/apply) |
+| `codebase(action="insert_after", anchor, new_code, apply)` | Insert code after anchor's body (preview/apply) |
+| `codebase(action="ack_impact", file_path)` | Acknowledge impact for modification guard |
 
-### Intelligence Layer (intel_*) — 14 High-Level Tools
+### Intelligence Layer (intel_*) — 13 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -291,17 +286,19 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `intel_get_hotspots()` | Top-5 files with highest bug load |
 | `intel_predict_root_cause(error)` | Predict root cause from logs + history |
 | `intel_get_telemetry(days)` | Per-tool telemetry, resource usage, LLM stats |
-| `intel_tool_health()` | Tool success rates, latency, confidence |
-| `intel_explain_project_state(root)` | Human-readable project state diagnosis |
-| `intel_get_project_context(root)` | Single snapshot: state, index, health, memory |
 
-### Diagnostic Tools (3)
+> `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — see Diagnostic Tools below.
+
+### Diagnostic Tools (6)
 
 | Tool | What it does |
 |------|-------------|
 | `debug_runtime_passport()` | Process passport: RUN_ID, PID, build info |
 | `get_runtime_counters()` | Runtime counters: calls, blocks, warnings |
 | `intel_execution_timeline(limit)` | Recent action timeline with durations |
+| `intel_get_project_context(root)` | Single snapshot: state, index, health, memory |
+| `intel_explain_project_state(root)` | Human-readable project state diagnosis |
+| `intel_tool_health()` | Tool success rates, latency, confidence |
 
 ---
 
@@ -311,11 +308,11 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~220 lines)                        │
-│            src/mcp/server.py — registration only                │
+│                   MCP Server (~600 lines)                         │
+│            src/mcp/server.py + server_tools.py + server_factory.py │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              DI Container (15 services)                   │   │
+│  │              DI Container (16 services)                   │   │
 │  │  src/core/di_container.py — ServiceCollection              │   │
 │  │                                                           │   │
 │  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
@@ -328,19 +325,19 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  42 Tool Classes   │  │  14 intel_* tools + 3 diag      │  │
-│  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
-│  │  One class per tool  │  │  error_boundary decorator          │
-│  │  Constructor Inj.   │  │  JSON status/message/detail        │  │
-│  │  Constructor Inj.   │  │  asyncio.wait_for(timeout)        │  │
+│  │  18 Tool Classes   │  │  13 intel_* + 6 inline tools    │  │
+│  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
+│  │  + codebase hub     │  │  server_tools.py (inline)          │  │
+│  │  Constructor Inj.   │  │  error_boundary decorator          │
+│  │  1 execute_script   │  │  asyncio.wait_for(timeout)        │  │
 │  └────────────────────┘  └────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
          │
          ▼
 ┌─────────────────┐     ┌───────────────────┐
 │  RemoteEmbedder  │     │  LanceDB v2       │
-│  (ONNX/OpenVINO   │     │  (Vector DB)       │
-│   E5-base INT8,    │     │  BM25 + Vector    │
+│  (ONNX Runtime     │     │  (Vector DB)       │
+│   e5-small INT8,    │     │  BM25 + Vector    │
 │   in-process;      │     │                    │
 │   LM Studio/Ollama │     │                    │
 │   fallback)        │     │                    │
@@ -364,11 +361,15 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API endpoint |
+| `LM_STUDIO_HOST` | `localhost` | LM Studio hostname |
 | `LM_STUDIO_PORT` | `1234` | LM Studio port |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
+| `OLLAMA_HOST` | `localhost` | Ollama hostname |
+| `OLLAMA_PORT` | `11434` | Ollama port |
+| `EMBEDDING_MODEL` | `qwen3-embedding` | Default embedding model name |
 | `LOG_LEVEL` | `INFO` | Logging verbosity level |
-| `ZED_WINDOWS_QUIRKS.md` | *(see file)* | Windows-specific instructions |
+| `MSCODEBASE_MCP_TOOLS` | *(default set)* | Comma-separated list of visible tools (e.g. `search_code,codebase`) |
+| `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Enable `execute_script` tool (RCE risk) |
+| `LLAMA_BACKEND` | `auto` | Reranker backend: `auto` / `msvc` (CPU) / `vulkan` (GPU) |
 
 ---
 

@@ -537,7 +537,7 @@ class RemoteEmbedder(IEmbedder):
 
         # ═══════════════════════════════════════════════════════════════
         # OpenVINO INT8 (рекомендуемый режим для Windows)
-        # Даёт 250-350 ch/s на E5-base INT8 (против 7-8 ch/s у ONNX)
+        # Даёт 37-52 ch/s на multilingual-e5-small INT8 (против 7-8 ch/s у ONNX)
         # ═══════════════════════════════════════════════════════════════
         # Загружаем OpenVINO только если явно указан провайдер.
         # Если _ov_compiled уже есть — не перезагружаем (re-entry guard).
@@ -585,7 +585,7 @@ class RemoteEmbedder(IEmbedder):
                     providers.insert(0, "DmlExecutionProvider")
 
             # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
-            # INT8 — штатный путь (~350 ch/s), FP32 — fallback.
+            # INT8 — штатный путь (~52 ch/s), FP32 — fallback.
             # Синхронно с _init_openvino.
             _model_dir_path = Path(self.local_model_dir)
             _int8_path = _model_dir_path / "model_quantized.onnx"
@@ -632,11 +632,11 @@ class RemoteEmbedder(IEmbedder):
     def _init_openvino(self):
         """Инициализация OpenVINO с INT8 моделью.
 
-        Даёт 250-350 ch/s на E5-base INT8 (Windows CPU).
+        Даёт 37-52 ch/s на multilingual-e5-small INT8 (Windows CPU).
         Ключевые оптимизации:
         - max_length=128 (Padding Trap fix)
         - dynamic batch shape
-        - БЕЗ token_type_ids (иначе 6 ch/s вместо 350)
+        - token_type_ids pre-bound нулями (для INT8 моделей с 3 входами)
         """
         # Re-entry guard: уже загружено
         if getattr(self, '_ov_compiled', None) is not None:
@@ -647,7 +647,7 @@ class RemoteEmbedder(IEmbedder):
             from tokenizers import Tokenizer
 
             # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
-            # INT8 — штатный путь (~350 ch/s), FP32 — fallback.
+            # INT8 — штатный путь (~52 ch/s), FP32 — fallback.
             # ORIGINAL from commit 0665a4b (Restore INT8).
             model_dir_path = Path(self.local_model_dir)
             int8_path = model_dir_path / "model_quantized.onnx"
@@ -856,7 +856,7 @@ class RemoteEmbedder(IEmbedder):
                 # модель реально имеет этот вход.
                 _ov_has_tt = getattr(self, "_ov_has_token_type_ids", False)
                 if _ov_has_tt:
-                    pass  # token_type_ids pre-bound в C++ (см. _bind_tt_if_needed)
+                    pass  # token_type_ids pre-bound нулями в _init_openvino (строки 695-703)
 
                 # Lock защищает .infer() — OpenVINO InferRequest не thread-safe.
                 # (см. стресс-тест: без лока 2+ потока → "Infer Request is busy")

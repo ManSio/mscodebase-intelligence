@@ -3,9 +3,10 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- _register_all_tools() — регистрация 33 core-инструментов
-- _register_system_prompt() — системный промпт для AI
-- 7 inline @mcp.tool функций (debug_runtime_passport, intel_get_project_context, ...)
+- register_all_tools() — регистрация 18 core-инструментов + codebase hub + execute_script
+- _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
+- _register_inline_tools() — 6 inline @mcp.tool (debug_runtime_passport, ...)
+- Всего: 18 + 13 + 6 = 37 инструментов (+ 1 optional execute_script = 38)
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from typing import Any
 logger = logging.getLogger("mscodebase_server.tools")
 
 # ══════════════════════════════════════════════════════════
-# Регистрация core-инструментов (36 шт)
+# Регистрация core-инструментов (18 шт + execute_script optional)
 # ══════════════════════════════════════════════════════════
 
 
@@ -195,19 +196,19 @@ def register_all_tools(mcp, services):
     else:
         logger.info(f"✅ Все {registered} инструментов зарегистрированы")
 
-    # ─── Intelligence Layer (10 инструментов) ──────
+    # ─── Intelligence Layer (13 инструментов) ──────
     _register_intelligence_tools(mcp, services)
 
     # ─── Inline diagnostic tools (6 шт) ────────────
     _register_inline_tools(mcp, services)
 
     total_core = len(tool_classes)
-    total_intel = 12
-    total_diag = 6
+    total_intel = 13
+    total_inline = 6
     logger.info(
         f"✅ Все инструменты зарегистрированы "
-        f"({total_core} core + {total_intel} intel + {total_diag} diagnostic = "
-        f"{total_core + total_intel + total_diag} total)"
+        f"({total_core} core + {total_intel} intel + {total_inline} inline = "
+        f"{total_core + total_intel + total_inline} total)"
     )
 
 
@@ -217,7 +218,7 @@ def register_all_tools(mcp, services):
 
 
 def _register_intelligence_tools(mcp, services):
-    """Регистрирует 14 инструментов Intelligence Layer.
+    """Регистрирует 13 инструментов Intelligence Layer.
 
     Multi-window (INC-6BCB-v2): Indexer/Searcher/SymbolIndex больше НЕ
     зарегистрированы как singleton. Используем resolve_indexer_for_request()
@@ -240,20 +241,21 @@ def _register_intelligence_tools(mcp, services):
             services=services,
         )
         register_intelligence_tools(mcp, intel_layer)
-        logger.info("  🧠 Intel tools registered (14 tools)")
+        logger.info("  🧠 Intel tools registered (13 tools)")
     except Exception as e:
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 
 
 # ══════════════════════════════════════════════════════════
-# Inline diagnostic tools (7 шт)
+# Inline diagnostic tools (6 шт)
 # ══════════════════════════════════════════════════════════
 
 
 def _register_inline_tools(mcp, services):
-    """Регистрирует 6 инструментов, определённых прямо в server.py.
+    """Регистрирует 6 inline-инструментов, определённых прямо в server_tools.py.
 
-    Перенесены сюда при декомпозиции server.py (Фаза 2, Шаг 1).
+    debug_runtime_passport, intel_get_project_context, intel_explain_project_state,
+    get_runtime_counters, intel_tool_health, intel_execution_timeline.
     """
     # ─── 1. debug_runtime_passport ─────────────────
     @mcp.tool("debug_runtime_passport")

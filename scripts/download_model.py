@@ -44,6 +44,15 @@ MODEL_REGISTRY = {
         "size_mb": 100,
         "quality": "good",
     },
+    "keisuke-miyako/multilingual-e5-small-onnx-int8": {
+        "dim": 384,
+        "type": "embedding",
+        "size_mb": 113,
+        "quality": "good",
+        "int8": True,
+        "onnx": "keisuke-miyako/multilingual-e5-small-onnx-int8",
+        "onnx_file": "model_quantized.onnx",
+    },
     # Reranker models
     "BAAI/bge-reranker-v2-m3": {
         "dim": 1024,
@@ -87,9 +96,14 @@ def _download_prequantized(model_name: str, model_dir: Path, onnx_path: Path) ->
     if not info or "onnx" not in info:
         return False
 
-    if onnx_path.exists():
+    is_int8 = info.get("int8", False)
+    # For INT8 models, target is model_quantized.onnx; for FP32, model.onnx
+    target_name = "model_quantized.onnx" if is_int8 else "model.onnx"
+    target_path = model_dir / target_name
+
+    if target_path.exists():
         logger.info(
-            f"   ✅ ONNX already exists: {onnx_path.stat().st_size / 1024 / 1024:.0f} MB"
+            f"   ✅ ONNX already exists: {target_path.stat().st_size / 1024 / 1024:.0f} MB"
         )
         return True
 
@@ -107,10 +121,22 @@ def _download_prequantized(model_name: str, model_dir: Path, onnx_path: Path) ->
             local_dir_use_symlinks=False,
         )
         final = Path(dl)
-        if final.name != "model.onnx":
-            final.rename(onnx_path)
-        sz = onnx_path.stat().st_size / 1024 / 1024
-        logger.info(f"   ✅ Pre-quantized ONNX: {onnx_path} ({sz:.0f} MB)")
+        if final.name != target_name:
+            final.rename(target_path)
+
+        # For INT8 models, also download config files needed by OpenVINO/ONNX
+        if is_int8:
+            for extra in ["config.json", "ort_config.json"]:
+                try:
+                    hf_hub_download(
+                        repo_id=onnx_repo, filename=extra,
+                        local_dir=str(model_dir), local_dir_use_symlinks=False,
+                    )
+                except Exception:
+                    pass  # optional files
+
+        sz = target_path.stat().st_size / 1024 / 1024
+        logger.info(f"   ✅ Pre-quantized ONNX: {target_path} ({sz:.0f} MB)")
         return True
     except Exception as e:
         logger.warning(f"   ⚠️ Pre-quantized download failed: {e}")
@@ -141,10 +167,12 @@ def download_onnx_model(
     if not force and _download_prequantized(model_name, model_dir, onnx_path):
         return
 
-    # Step 2: Check existing ONNX
-    if onnx_path.exists() and not force:
+    # Step 2: Check existing ONNX (model.onnx or model_quantized.onnx for INT8)
+    int8_path = onnx_dir / subdir / "model_quantized.onnx"
+    if not force and (onnx_path.exists() or int8_path.exists()):
+        existing = onnx_path if onnx_path.exists() else int8_path
         logger.info(
-            f"✅ ONNX already exists: {onnx_path} ({onnx_path.stat().st_size / 1024 / 1024:.0f} MB)"
+            f"✅ ONNX already exists: {existing} ({existing.stat().st_size / 1024 / 1024:.0f} MB)"
         )
         return
 

@@ -1,5 +1,40 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 15:00] — ПОЛНЫЙ АУДИТ: рассинхрон install/docs vs runtime
+
+**Симптом:** После перескачивания `main` обнаружено, что финальный отчёт предыдущей сессии не совпадает с реальным состоянием кода.
+
+**Найдено 5 проблем:**
+
+1. **Пул InferRequest отсутствует** — заявлено "✅ Пул InferRequest (4 шт)", в коде — lock + single request.
+   *Вердикт:* Осознанный откат к простоте. Пул не нужен. Отчёт был неточным.
+
+2. **Устаревшие цифры скорости** — докстринг `_init_openvino` обещал "250-350 ch/s",
+   реальная скорость с multilingual-e5-small-int8 = 37-52 ch/s.
+   *Fix:* Обновлены комментарии на строках 540, 588, 635, 650.
+
+3. **Фантомный комментарий `_bind_tt_if_needed`** — `pass` на строке 859 ссылался
+   на несуществующую функцию. Функция была удалена при рефакторинге, комментарий остался.
+   *Fix:* Заменён на актуальную ссылку (строки 695-703 _init_openvino).
+
+4. **install.py ставил НЕ ТУ модель** — slug `e5-base-v2-int8` + HF `intfloat/multilingual-e5-base` (768dim, 265MB).
+   Рантайм использует `multilingual-e5-small-int8` (384dim, 113MB).
+   *Fix:* Slug → `multilingual-e5-small-int8`, HF → `keisuke-miyako/multilingual-e5-small-onnx-int8`.
+   Добавлен `"int8": True` флаг в download_model.py для корректного сохранения `model_quantized.onnx`.
+
+5. **KNOWN_ISSUES.md не обновлялся с 12.07** — 5 дней интенсивной работы (13-17 июля)
+   не отражены. Единственный источник правды был AGENT_DIARY.md.
+   *Fix:* Полная синхронизация — 6 новых записей, секция Current Model Stack, 5 Guards.
+
+**Изменённые файлы:**
+- `src/providers/embedder/remote_embedder.py` — докстринги, фантомный комментарий
+- `install.py` — маппинг модели, UI-тексты
+- `scripts/download_model.py` — INT8 поддержка, новая модель в registry
+- `docs/KNOWN_ISSUES.md` — полная синхронизация
+- `AGENT_DIARY.md` — эта запись
+
+**Status:** ✅
+
 ## [2026-07-17 23:00] — СЕССИЯ ЗАКРЫТА: Explainability + IMPORTS + Drift Detector
 
 **Что сделано за сессию (5.5ч):**

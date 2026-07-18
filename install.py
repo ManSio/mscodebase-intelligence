@@ -94,9 +94,9 @@ LANG = {
         "zh": "开始编码！",
     },
     "dl_ask": {
-            "en": "Download ONNX models (e5-base ~265 MB + reranker ~544 MB)? (Y/n)",
-            "ru": "Скачать ONNX модели (e5-base ~265 МБ + реранкер ~544 МБ)? (Y/n)",
-            "zh": "下载ONNX模型(e5-base ~265 MB + 排序 ~544 MB)？(Y/n)",
+            "en": "Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)",
+            "ru": "Скачать ONNX модели (e5-small-int8 ~113 МБ + реранкер ~544 МБ)? (Y/n)",
+            "zh": "下载ONNX模型(e5-small-int8 ~113 MB + 排序 ~544 MB)？(Y/n)",
         },
     "models_ok": {
         "en": "ONNX models installed",
@@ -104,9 +104,9 @@ LANG = {
         "zh": "ONNX模型已安装",
     },
     "dl_1": {
-        "en": "Embedding: e5-base-v2 (multilingual, 768dim)",
-        "ru": "Эмбеддер: e5-base-v2 (multilingual, 768dim)",
-        "zh": "嵌入模型：e5-base-v2 (多语言, 768维)",
+        "en": "Embedding: multilingual-e5-small-int8 (multilingual, 384dim, ~113 MB)",
+        "ru": "Эмбеддер: multilingual-e5-small-int8 (multilingual, 384dim, ~113 МБ)",
+        "zh": "嵌入模型：multilingual-e5-small-int8 (多语言, 384维, ~113 MB)",
     },
     "dl_2": {
         "en": "Reranker: bge-reranker-v2-m3 (~550 MB)",
@@ -631,7 +631,7 @@ def step_gguf(lines, lang):
 
 @_step(8)
 def step_models(lines, lang):
-    """Download ONNX models: e5-base-v2 (embedder) + bge-reranker-v2-m3 (reranker).
+    """Download ONNX models: multilingual-e5-small-int8 (embedder) + bge-reranker-v2-m3 (reranker).
 
     Checks:
       1. ZED_EXT_DIR  (where MCP server runs)
@@ -643,7 +643,7 @@ def step_models(lines, lang):
     SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
 
     models = {
-        "e5-base-v2-int8": ("intfloat/multilingual-e5-base", "embedding", 109),
+        "multilingual-e5-small-int8": ("keisuke-miyako/multilingual-e5-small-onnx-int8", "embedding", 113),
         "reranker-bge-reranker-v2-m3": ("BAAI/bge-reranker-v2-m3", "reranker", 544),
     }
 

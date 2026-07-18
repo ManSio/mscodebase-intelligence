@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional
 
 # Импортируем модули ядра и глобальные настройки
 from src.core.indexer import Indexer
-from src.core.indexing.parser import CodeParser
 from src.core.indexing.symbol_index import SymbolIndex
 from src.core.search.engine import Searcher
 
@@ -1166,7 +1165,7 @@ class ProjectIntelligenceLayer:
 
 def register_intelligence_tools(mcp_app, intel_layer: ProjectIntelligenceLayer):
     """
-    Регистрирует все инструменты Intelligence Layer в MCP сервере.
+    Регистрирует 13 инструментов Intelligence Layer в MCP сервере.
 
     Вызывайте эту функцию при инициализации MCP-сервера в src/mcp/server.py.
     Инструменты агрегируют функциональность для уменьшения количества вызовов.
