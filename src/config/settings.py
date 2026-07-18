@@ -169,6 +169,10 @@ class PerformanceConfig:
     # Async settings
     max_async_workers: int = int(os.getenv("MAX_ASYNC_WORKERS", "10"))
 
+    # ONNX Server (HTTP subprocess)
+    onnx_server_host: str = os.getenv("ONNX_SERVER_HOST", "127.0.0.1")
+    onnx_server_port: int = int(os.getenv("ONNX_SERVER_PORT", "1235"))
+
     # Retry logic
     max_retries: int = int(os.getenv("MAX_RETRIES", "3"))
     retry_delay: float = float(os.getenv("RETRY_DELAY", "1.0"))

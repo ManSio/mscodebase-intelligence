@@ -46,8 +46,9 @@ class RemoteEmbedder(IEmbedder):
         self.embedding_dim = config.embedding.embedding_dimension
 
         # ONNX Server (общий для всех проектов, через HTTP)
-        self.onnx_server_port = int(os.getenv("ONNX_SERVER_PORT", "1235"))
-        self.onnx_server_host = os.getenv("ONNX_SERVER_HOST", "127.0.0.1")
+        perf_cfg = config.performance
+        self.onnx_server_host = perf_cfg.onnx_server_host
+        self.onnx_server_port = perf_cfg.onnx_server_port
         self.onnx_server_url = (
             f"http://{self.onnx_server_host}:{self.onnx_server_port}/v1/embeddings"
         )

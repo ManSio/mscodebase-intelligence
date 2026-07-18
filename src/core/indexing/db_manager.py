@@ -133,8 +133,8 @@ class LanceDBManager:
                         _vt = _t.value_type
                         if hasattr(_vt, 'get_field'):
                             stored_dim = _vt.get_field("item").type.list_size
-                except Exception:
-                    pass
+                except Exception as _dim_err:
+                    logger.debug(f"Не удалось определить размерность вектора: {_dim_err}")
                 if stored_dim and stored_dim != self.embedding_dim:
                     logger.warning(
                         f"Dimension mismatch: index={stored_dim}, "

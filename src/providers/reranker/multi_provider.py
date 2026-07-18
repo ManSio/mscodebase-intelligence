@@ -186,9 +186,10 @@ class MultiProviderReranker(IReranker):
         Модель загружена в onnx_server.py (подпроцесс), НЕ в MCP-процессе.
         Это сохраняет ~545 MB RSS в основном процессе MCP.
         """
-        import os
-        onnx_host = os.getenv("ONNX_SERVER_HOST", "127.0.0.1")
-        onnx_port = int(os.getenv("ONNX_SERVER_PORT", "1235"))
+        from src.config.settings import get_config
+        _cfg = get_config().performance
+        onnx_host = _cfg.onnx_server_host
+        onnx_port = _cfg.onnx_server_port
         base = f"http://{onnx_host}:{onnx_port}"
 
         try:
