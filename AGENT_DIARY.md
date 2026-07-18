@@ -1,5 +1,44 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-18 16:00] — ГЛУБОКИЙ АУДИТ: каждая строка README через grep (итерация 2)
+
+**Симптом:** После первого аудита остались ошибки: Project Structure (12 багов),
+3 пропущенных tools, 3 бага в Documentation Map, переводы ru/zh рассинхронизированы.
+
+**Что сделано (5 параллельных аудитов):**
+
+1. **Project Structure** — полная переделка:
+   - Убран `lsp_main.py` (не существует)
+   - `di_container.py`: 16 → 18 services
+   - `parser.py`, `health_report.py`, `lsp_client.py`, `modification_guard.py`
+     перенесены из `providers/` в `core/` (ошибка дерева)
+   - Убран `reranker.py` из `providers/reranker/` (не существует)
+   - Добавлены `src/config/`, полный `src/utils/`, `core/` подпапки
+   - Добавлен `scripts/`
+
+2. **MCP Tools** — 3 пропущенных инструмента добавлены:
+   - `get_repo_map` (Analytics)
+   - `intel_auto_collect_adrs` (Intelligence Layer)
+   - `intel_reset_index` (Intelligence Layer)
+   - Также: 10 spoke-tools показаны в README как standalone —
+     это архитектурное решение (Hub & Spoke), не баг
+
+3. **Documentation Map** — 3 бага языков:
+   - SEARCH_PIPELINE.md: 🇬🇧 → 🇬🇧 🇷🇺 🇨🇳
+   - GRACEFUL_DEGRADATION.md: 🇬🇧 → 🇬🇧 🇷🇺 🇨🇳
+   - LSP_WONTFIX.md: 🇬🇧 🇨🇳 → 🇬🇧 🇷🇺 🇨🇳
+   - Добавлен CONTRIBUTING.md (root)
+
+4. **Переводы ru/zh** — полная синхронизация (21 + 28 замен):
+   - 59 → 38 tools, E5-base → e5-small INT8
+   - 15 → 18 services, 494 → 605 tests
+   - server.py ~220 → ~600 lines, Write Tools → codebase hub
+   - Добавлены Shell/Bash в Languages
+
+**Коммит:** 02a79ef — 3 files, +127/−117
+
+**Status:** ✅
+
 ## [2026-07-18 15:30] — ПОЛНЫЙ АУДИТ ДОКУМЕНТАЦИИ И МЁРТВОГО КОДА
 
 **Симптом:** Документация ушла от реальности — числа инструментов, имена классов, env-переменные. Мёртвый код ~2000+ строк.
