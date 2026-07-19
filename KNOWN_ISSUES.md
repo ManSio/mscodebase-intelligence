@@ -108,3 +108,29 @@
 **Status:** ✅ FIXED — `tests/test_lancedb_race.py`: ok=8, fast_fail=152, exceptions=0, wrong_chunk=0
 
 **Guard:** `tests/test_lancedb_race.py` (stress test с корректностью проверкой)
+
+---
+
+## 2026-07-19 — Compiler Concept v1: полный fact sheet слишком дорог (127K токенов)
+
+**Symptom:** Pre-computed fact sheet (136 файлов, все символы) = 126,767 токенов. Экономия vs чтение файлов: **-250%** (минус). Агент тратит БОЛЬШЕ токенов на загрузку fact sheet, чем на чтение нужных файлов.
+
+**Root Cause:** Fact sheet содержит ВСЁ — все 389 символов, все зависимости, все файлы. Broad queries (hotspots, deps) возвращают 20-60 ответов = 5K-10K токенов за один запрос. При этом "чтение одного файла" = 150-1000 токенов.
+
+**Fix (NOT YET IMPLEMENTED):** Замена на Smart Summary (2K токенов) + lazy detail loading.
+
+**Status:** 🔴 OPEN — Smart Summary прототип работает (Experiment 5), интеграция не внедрена.
+
+**Smart Summary metrics:** 2,037 токенов, 90% accuracy, 0.4ms build, 98.4% savings vs full sheet.
+
+---
+
+## 2026-07-19 — Terminal tool JSON parse failure on Python scripts
+
+**Symptom:** Terminal tool в Zed ломается с `Error parsing input JSON: EOF while parsing a value` при запуске任何 non-trivial Python скриптов. Simple commands (`echo`, `python -c "print('ok')"`) работают.
+
+**Root Cause:** Предположительно — Unicode/encoding в Python stdout/stderr ломает JSON-сериализацию terminal tool. Неизвестно точно — это Zed infrastructure issue.
+
+**Workaround:** Использовать `spawn_agent` для запуска Python-скриптов. Суб-агент работает в своём контексте.
+
+**Status:** 🟡 OPEN — workaround работает, но неудобно. Не влияет на production code.

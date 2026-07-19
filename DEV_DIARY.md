@@ -544,3 +544,68 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 **Результат теста:** `ok=8, fast_fail=152, exceptions=0, wrong_chunk=0` — race исправлен, guard сработал 152 раза.
 
 **Урок (AGENTS.md §5.13):** замена одного thread-safety механизма другим создает новую поверхность для гонки (общий словарь результатов, общий correlation id). Каждая замена требует стресс-теста на корректность данных, а не только отсутствия исключений.
+
+---
+
+## 2026-07-19 - RESEARCH: 5 экспериментов — Smart Summary breakthrough
+
+**Контекст:** Инженерный аудит для определения архитектурного направления. 5 экспериментов с реальными данными на MSCodeBase (136 файлов, 40K строк).
+
+### Результаты экспериментов
+
+**Experiment 1: FTS5 3-Index vs Keyword Search**
+- FTS5 и Keyword имеют 10% пересечение результатов → дополняют друг друга
+- Внедрено в Session 1: `fts5_index.py`, `fts5_mixin.py`, `engine.py`
+
+**Experiment 2: Tree-sitter vs Python AST**
+- AST точнее для Python (docstrings, type hints), Tree-sitter лучше для мультиязычности
+- Вывод: AST для Python, Tree-sitter для остального
+
+**Experiment 3: Compiler Concept (Full Fact Sheet) — ❌ FAILED**
+- Полный fact sheet: 126,767 токенов (136 файлов, все символы, все зависимости)
+- Точность: 100% (10/10 запросов)
+- Экономия токенов: **-250%** (ФАКТ ДОРОЖЕ файлов!)
+- Root cause: fact sheet содержит ВСЁ, broad queries (hotspots, deps) возвращают 20-60 ответов = massive payload
+- Вывод: Полный fact sheet НЕ работает как замена чтению файлов
+
+**Experiment 4: PageRank File Importance**
+- `runtime_coordinator.py` — самый важный файл (score 0.667, 43 in-degree)
+- Top 10% файлов (13) = 47.6% экономии токенов
+- Top 20% файлов (27) = **-2%** (хуже полного! потому что важные = большие)
+- Вывод: PageRank хорош для PRIORITIZATION, не для REDUCTION
+
+**Experiment 5: Smart Summary — 🎯 BREAKTHROUGH**
+- Compact summary: **2,037 токенов** (vs 126,767 полный)
+- Точность: **90%** (9/10 запросов)
+- Build time: **0.4ms** (vs 337ms полного)
+- Экономия: **98.4%** vs полный fact sheet
+- Архитектура: Agent → Smart Summary (2K tokens) → Find file → Load detail on demand
+- Вывод: Tiered approach работает. Summary как "карта", detail on demand.
+
+### Что сделано
+1. Созданы скрипты экспериментов: `run_experiment_compiler_v2.py`, `run_experiment_pagerank.py`, `run_experiment_smart_summary.py`
+2. Результаты сохранены в `experiments/*_results.json`
+3. Результаты добавлены в `experiments/deep_research_log.md`
+
+### Урок (критично)
+**"Полный fact sheet" — ловушка оптимизации.** Чем больше данных предвычисляешь, тем дороже их загружать в контекст. Правильный подход: **маленькая "карта" (2K tokens) + ленивая загрузка деталей**. Это как GPS: показывает маршрут, а не все улицы города.
+
+### Verification: Эксперименты запускались изолированно через spawn_agent, результаты в JSON-файлах.
+
+---
+
+## 2026-07-19 - RESEARCH: GitHub проекты — конкурентный анализ
+
+**Контекст:** Изучение топовых open-source проектов с похожей архитектурой (code intelligence, search, indexing).
+
+**Проекты проанализированы:**
+1. **srclight/srclight** (52★) — Tree-sitter based code intelligence
+2. **Cranot/roam-code** (500★) — Code navigation with CSR sparse PageRank
+3. **chunkhound** — Semantic code search с FTS5 + vector
+4. **repowise** — Codebase indexing с dependency tracking
+
+**Ключевые идеи заимствованы:**
+1. FTS5 3-index approach (srclight) → внедрено в `fts5_index.py`
+2. SerialDatabaseExecutor pattern (chunkhound) → threading guard в `db_manager.py`
+3. PageRank importance scoring (roam-code CSR algorithm) → протестировано
+4. Tiered fact sheet concept → Smart Summary breakthrough
