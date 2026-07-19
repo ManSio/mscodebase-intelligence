@@ -4140,6 +4140,45 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 
 ---
 
+## 2026-07-19 - MCP HEALTH CHECK & INDEX REBUILD
+
+**Context:** After graph.py fix and FTS5/Token Savings commits, ran comprehensive MCP tool audit.
+
+**Findings from 24-tool audit:**
+- ✅ All 12 Intel Layer tools working
+- ✅ Core search (`search_code`, `get_symbol_info`, `impact_analysis`, `graph_query`) working
+- ❌ 5 tools missing from `server.py`: `notify_change`, `read_live_file`, `ack_impact`, `get_logs`, `get_health_report`
+- ❌ `graph_query` action routing ignores `repo_map`/`hotspots` actions (falls back to `impact`)
+- ⚠️ `search_code(mode=quality)` returned 0 results initially — **root cause: corrupted index (27330 chunks vs 4263 expected)**
+
+**Root cause of chunk overcount:** LanceDB table had 31592 rows from stale fragments across 1936 manifest versions. File guard allows 366 indexable files, but fallback chunker (56 lines, 16 overlap) creates ~8-12 chunks/file for non-parseable files (.json, .yaml, .md, etc.). With ~366 files × ~8 chunks = ~2928 expected, but actual was 31592 due to duplicate/accumulated fragments from repeated reindexing without cleanup.
+
+**Fix applied:** Full reindex via `intel_trigger_reindex` — cleared all fragments, rebuilt clean index.
+
+**Post-fix verification:**
+- `intel_get_runtime_status`: 4263 chunks | 303 files | 5514 symbols ✅
+- `search_code(fast)`: 4 results with content ✅
+- `search_code(quality)`: 2 results with context ✅
+- `get_symbol_info`: FTS5Mixin, PropertyGraph, Searcher all found ✅
+- `intel_get_project_context`: correct counts ✅
+- Full test suite: 527 passed, 1 flaky (Windows temp file race) ✅
+
+**Pending from audit:**
+1. Implement `notify_change` in `src/mcp/server.py` (P0 - breaks edit→notify→reindex workflow)
+2. Implement `read_live_file` or document fallback (P1)
+3. Fix `graph_query` action routing for `repo_map`/`hotspots` (P1)
+4. Add missing tools to server.py or remove from AGENTS.md docs
+
+**Agent B pending (uncommitted):**
+- `src/core/intelligence/sarif_tool.py` — simplified to delegate to `graph.detect_dead_code_sarif()`
+- `tests/test_suppression_markers.py` — test for suppression markers (flaky on Windows)
+
+---
+
+## 2026-07-19 - BUGFIX: graph.py indentation — get_edge_stats nesting
+
+---
+
 ## 2026-07-19 - BUGFIX: graph.py indentation — get_edge_stats nesting
 
 **Проблема:** Метод `get_edge_stats` в `PropertyGraph` был вложен внутрь `get_node_stats` (8 пробелов вместо 4). В результате он не был виден как метод класса, и `test_edges_stored` падал с `AttributeError: 'PropertyGraph' object has no attribute 'get_edge_stats'`.
