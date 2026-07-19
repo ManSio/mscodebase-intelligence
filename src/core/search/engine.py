@@ -246,6 +246,17 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
             before: ISO datetime — только чанки проиндексированные до
             layer: Фильтрация по архитектурному слою (core/mcp/utils/tests/...)
         """
+        # Reindex-guard (AGENTS.md §5.13): если index_project рвёт self.db
+        # в executor-потоке, search fast-fail (пустой результат), а не падает
+        # с RuntimeError 'Not found' (паттерн chunkhound SerialDatabaseExecutor/guard).
+        if self.indexer is not None and hasattr(self.indexer, "db_manager"):
+            dbm = self.indexer.db_manager
+            if dbm is not None and getattr(dbm, "is_reindexing", lambda: False)():
+                logger.warning(
+                    "hybrid_search: reindex in progress, fast-fail (retry in a few seconds)"
+                )
+                return []
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

@@ -529,13 +529,17 @@ class ProjectIntelligenceLayer:
                         self.project_path,
                         _index_progress_callback,
                     )
+                    # Ставим reindex-guard ДО запуска executor-потока:
+                    # search должен fast-fail, пока index_project рвёт self.db
+                    if hasattr(self.indexer, "db_manager") and self.indexer.db_manager:
+                        self.indexer.db_manager.set_reindexing()
                     job.progress = 0.1
                     indexed_count = await future
 
                     # Сохраняем размер проекта (кол-во индексированных файлов)
                     job.project_size = indexed_count if indexed_count else None
 
-                    # Символьная индексация отключена — Tree-sitter зависает
+                    # Символическая индексация отключена — Tree-sitter зависает
                     # на C-уровне, asyncio.wait_for не прерывает поток.
                     job.progress = 0.8
 
@@ -556,6 +560,9 @@ class ProjectIntelligenceLayer:
                 job.ended_at = time.time()
                 logger.error(f"Ошибка фоновой индексации: {e}")
             finally:
+                # Снимаем reindex-guard (fast-fail для search) — ПОСЛЕ reindex
+                if hasattr(self.indexer, "db_manager") and self.indexer.db_manager:
+                    self.indexer.db_manager.clear_reindexing()
                 # Очищаем активный job_id, чтобы разрешить следующий reindex
                 self._reindex_job_id = None
                 self._reindex_task = None

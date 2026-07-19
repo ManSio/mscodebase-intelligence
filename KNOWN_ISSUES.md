@@ -94,3 +94,17 @@
 **Guard:** `tests/test_ast_cache_invalidation.py`
 
 **Note:** mtime-based validation was considered but rejected — content comparison is ground truth, file read is <1ms.
+
+---
+
+## 2026-07-19 — LanceDB race condition: search vs reindex concurrent access
+
+**Symptom:** `RuntimeError: lance error: Not found` при конкурентном `search_code` (event-loop поток) и `intel_trigger_reindex` (executor поток).
+
+**Root Cause:** Оба потока обращаются к `self.db` в `LanceDBManager` без синхронизации. `drop_table` во время `search` ломает файловую систему LanceDB.
+
+**Fix:** Паттерн из chunkhound `SerialDatabaseExecutor`: `threading.Lock` (`_write_lock`) сериализует write/reconnect, `threading.Event` (`_reindex_guard`) fast-fail для read во время reindex.
+
+**Status:** ✅ FIXED — `tests/test_lancedb_race.py`: ok=8, fast_fail=152, exceptions=0, wrong_chunk=0
+
+**Guard:** `tests/test_lancedb_race.py` (stress test с корректностью проверкой)
