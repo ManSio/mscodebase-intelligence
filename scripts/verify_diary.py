@@ -155,6 +155,29 @@ def check_commit_exists(commit_hash: str) -> bool:
         return False
 
 
+def gate_zero_full_suite() -> Tuple[bool, str]:
+    """Level-0: полный pytest tests/ без фильтров.
+
+    Если тест-сьют не проходит — ledger бессмысленен.
+    Возвращает (passed, output_snippet).
+    """
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/", "-q", "--tb=line", "--no-header"],
+            cwd=str(ROOT),
+            capture_output=True, text=True, timeout=120,
+        )
+        output = result.stdout.strip()
+        # Извлекаем итоговую строку
+        lines = [l for l in output.split("\n") if "passed" in l or "failed" in l]
+        summary = lines[-1] if lines else output[-200:]
+        return result.returncode == 0, summary
+    except subprocess.TimeoutExpired:
+        return False, "TIMEOUT: pytest tests/ > 120s"
+    except Exception as e:
+        return False, f"ERROR: {e}"
+
+
 def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tuple[int, int, List[str]]:
     """Запускает проверку всех записей. Возвращает (passed, failed, issues)."""
     passed = 0
@@ -234,6 +257,16 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
 def run_contradiction_ledger() -> dict:
     """Runs contradiction ledger check. Returns dict, never sys.exit.
     Used by MCP startup for safe import-time validation."""
+    # Gate-zero: full test suite first
+    gate_ok, gate_summary = gate_zero_full_suite()
+    if not gate_ok:
+        return {
+            "ok": False,
+            "discrepancies": 1,
+            "claims": 0,
+            "commits": 0,
+            "details": [f"🚨 GATE 0 FAILED: {gate_summary}"],
+        }
     entries = parse_diary()
     passed, failed, issues = run_verification(entries)
     return {
@@ -249,9 +282,23 @@ def main():
     parser = argparse.ArgumentParser(description="Verify AGENT_DIARY.md against codebase reality")
     parser.add_argument("--report-format", choices=["text", "json"], default="text")
     parser.add_argument("--fix-missing", action="store_true", help="Interactive fix missing verified markers")
+    parser.add_argument("--skip-gate-zero", action="store_true", help="Skip full test suite check")
     args = parser.parse_args()
 
     print("🔍 Ledger-проверка AGENT_DIARY.md...")
+
+    # Gate-zero: full test suite first
+    if not args.skip_gate_zero:
+        print("\n🚧 Gate-zero: полный pytest tests/...")
+        gate_ok, gate_summary = gate_zero_full_suite()
+        if gate_ok:
+            print(f"   ✅ {gate_summary}")
+        else:
+            print(f"   ❌ {gate_summary}")
+            print("   🚨 GATE 0 FAILED: ledger проверка блокирована.")
+            print("   Исправь тесты, затем запусти снова (--skip-gate-zero для обхода).")
+            sys.exit(1)
+
     entries = parse_diary()
     print(f"   Записей найдено: {len(entries)}")
 
