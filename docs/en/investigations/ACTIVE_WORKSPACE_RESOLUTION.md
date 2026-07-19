@@ -124,6 +124,11 @@ WHERE workspace_id = <active_workspace_id>;
 | `zed_config.py` | `system_prompt` плодил копии с битой кодировкой | Детект дубликатов по счётчику маркера |
 | `install.py` | Писал `mscodebase.semaphore` в корень settings.json | Удалено (Zed ругался на неизвестный ключ) |
 
+> **Note (2026-07-19):** The `agent.system_prompt` / `agent.tool_permissions`
+> injection in `zed_config.py` was later **removed entirely** — the MCP server
+> injects its own system prompt via `register_system_prompt(mcp)`. `patch_zed_settings`
+> now touches only `context_servers` + `context_servers_to_query` (merge-only, JSONC-safe).
+
 ### Документация
 
 | Файл | Что сделано |
