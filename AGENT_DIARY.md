@@ -4137,3 +4137,21 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 2. SerialDatabaseExecutor pattern (chunkhound) → threading guard в `db_manager.py`
 3. PageRank importance scoring (roam-code CSR algorithm) → протестировано
 4. Tiered fact sheet concept → Smart Summary breakthrough
+
+---
+
+## 2026-07-19 - BUGFIX: graph.py indentation — get_edge_stats nesting
+
+**Проблема:** Метод `get_edge_stats` в `PropertyGraph` был вложен внутрь `get_node_stats` (8 пробелов вместо 4). В результате он не был виден как метод класса, и `test_edges_stored` падал с `AttributeError: 'PropertyGraph' object has no attribute 'get_edge_stats'`.
+
+**Root cause:** Предыдущая сессия (fix_indent4.py) убрала лишние отступы у `detect_dead_code_sarif` и хелперов, но не заметила, что `get_edge_stats` тоже оказался на неправильном уровне вложенности.
+
+**Fix:** 2 строки — `def get_edge_stats` и docstring уменьшены с 8 до 4 пробелов отступа.
+
+**Результат:** 527 тестов проходят (было 526 + 2 failed → 527 + 1 failed). Единственный оставшийся fail — `test_suppression_markers` (ожидает 1 SARIF result, получает 3 — логика suppression, не связано с indentation).
+
+**Cleanup:** Удалены 6 скриптов `scripts/fix_indent*.py` и `scripts/fix_graph.py` — больше не нужны.
+
+**Agent B pending:** `src/core/intelligence/sarif_tool.py` (упрощён до delegation в `graph.detect_dead_code_sarif()`) и `tests/test_suppression_markers.py` — ожидают решения владельца о коммите.
+
+**Commit:** `26258a9f` — pushed to origin/main.
