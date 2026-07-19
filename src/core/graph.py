@@ -848,6 +848,40 @@ class PropertyGraph:
         ).fetchall()
         return [Node.from_row(r) for r in rows]
 
+    def detect_dead_code_sarif(self) -> dict:
+        """SARIF output для dead code (GitHub Code Scanning compatible).
+
+        Returns:
+            SARIF-совместимый dict с results для CI-гейта.
+        """
+        import datetime
+        dead_nodes = self.detect_dead_code()
+        results = []
+        for node in dead_nodes:
+            results.append({
+                "ruleId": "dead-code",
+                "level": "warning",
+                "message": {
+                    "text": f"Function '{node.name}' has no incoming calls (dead code)"
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": node.file_path or "unknown.py"},
+                        "region": {
+                            "startLine": node.properties.get("start_line", 1) if node.properties else 1,
+                        }
+                    }
+                }],
+            })
+        return {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {"driver": {"name": "mscodebase-deadcode", "version": "1.0.0"}},
+                "results": results,
+            }]
+        }
+
     def get_node_stats(self) -> Dict[str, int]:
         """Статистика по типам узлов."""
         with self._lock:
