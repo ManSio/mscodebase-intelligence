@@ -851,13 +851,20 @@ class PropertyGraph:
     def detect_dead_code_sarif(self) -> dict:
         """SARIF output для dead code (GitHub Code Scanning compatible).
 
+        Поддерживает suppression markers:
+        - # mscodebase-ignore-next-line (Python)
+        - // mscodebase-ignore-next-line (JS/TS, C/C++, Java, C#)
+
         Returns:
             SARIF-совместимый dict с results для CI-гейта.
         """
-        import datetime
         dead_nodes = self.detect_dead_code()
+        suppressed_lines = self._get_suppressed_lines()
         results = []
         for node in dead_nodes:
+            start_line = node.properties.get("start_line", 1) if node.properties else 1
+            if self._is_suppressed(start_line, node.file_path, suppressed_lines):
+                continue
             results.append({
                 "ruleId": "dead-code",
                 "level": "warning",
@@ -868,7 +875,7 @@ class PropertyGraph:
                     "physicalLocation": {
                         "artifactLocation": {"uri": node.file_path or "unknown.py"},
                         "region": {
-                            "startLine": node.properties.get("start_line", 1) if node.properties else 1,
+                            "startLine": start_line,
                         }
                     }
                 }],
@@ -881,6 +888,80 @@ class PropertyGraph:
                 "results": results,
             }]
         }
+
+    def _get_suppressed_lines(self) -> dict:
+        """Находит все строки с suppression markers."""
+        suppressed = {}
+        with self._lock:
+            conn = self._get_conn()
+            rows = conn.execute(
+                "SELECT DISTINCT file_path FROM nodes WHERE file_path != ''"
+            ).fetchall()
+            for row in rows:
+                file_path = row["file_path"]
+                if not file_path or not Path(file_path).exists():
+                    continue
+                suppressed[file_path] = self._parse_suppressions(file_path)
+        return suppressed
+
+    def _parse_suppressions(self, file_path: str) -> set:
+        """Парсит suppression markers через tree-sitter."""
+        suppressed = set()
+        try:
+            from src.core.indexing.parser import CodeParser
+            parser = CodeParser()
+            ext = Path(file_path).suffix.lower()
+            if ext not in parser.parsers:
+                return self._parse_suppressions_fallback(file_path)
+            tree = parser.parse_file(file_path)
+            lines = Path(file_path).read_text(encoding="utf-8").splitlines()
+            for node in self._walk_comments(tree, ext):
+                comment_line = node.start_point[0] + 1
+                comment_text = lines[node.start_point[0]]
+                if "mscodebase-ignore" in comment_text:
+                    suppressed.add(comment_line + 1)
+        except Exception:
+            return self._parse_suppressions_fallback(file_path)
+        return suppressed
+
+    def _walk_comments(self, tree, ext: str):
+        """Обходит AST и находит comment nodes."""
+        comments = []
+        comment_types = {
+            ".py": ["comment"],
+            ".js": ["comment", "line_comment", "block_comment"],
+            ".ts": ["comment", "line_comment", "block_comment"],
+            ".cpp": ["comment", "block_comment"],
+            ".c": ["comment", "block_comment"],
+            ".java": ["comment", "block_comment"],
+            ".cs": ["comment", "block_comment"],
+        }
+        target_types = comment_types.get(ext, ["comment"])
+        def walk(node):
+            if node.type in target_types:
+                comments.append(node)
+            for child in node.children:
+                walk(child)
+        walk(tree)
+        return comments
+
+    def _parse_suppressions_fallback(self, file_path: str) -> set:
+        """Fallback: простой поиск по строкам."""
+        suppressed = set()
+        try:
+            lines = Path(file_path).read_text(encoding="utf-8").splitlines()
+            for i, line in enumerate(lines):
+                if "mscodebase-ignore" in line:
+                    suppressed.add(i + 2)
+        except Exception:
+            pass
+        return suppressed
+
+    def _is_suppressed(self, line: int, file_path: str, suppressed: dict) -> bool:
+        """Проверяет suppression marker."""
+        if not file_path:
+            return False
+        return line in suppressed.get(file_path, set())
 
     def get_node_stats(self) -> Dict[str, int]:
         """Статистика по типам узлов."""
