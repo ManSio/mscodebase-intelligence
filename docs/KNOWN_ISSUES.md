@@ -1,3 +1,11 @@
+# ⚠️ ARCHIVED — см. KNOWN_ISSUES.md в корне проекта (единственный источник правды)
+
+> **docs/KNOWN_ISSUES.md ЗАМЕНЁН на KNOWN_ISSUES.md** (2026-07-19, §6.2 compliance).
+> Все записи перенесены в корневой KNOWN_ISSUES.md.
+> Этот файл оставлен только для обратной совместимости.
+> НЕ ДОБАВЛЯЙТЕ НОВЫЕ ЗАПИСИ СЮДА — пишите в KNOWN_ISSUES.md (корень).
+
+---
 # Known Issues & Technical Debt
 
 > **Part of MSCodeBase Intelligence** | v3.3.0

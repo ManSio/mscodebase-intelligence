@@ -134,3 +134,30 @@
 **Workaround:** Использовать `spawn_agent` для запуска Python-скриптов. Суб-агент работает в своём контексте.
 
 **Status:** 🟡 OPEN — workaround работает, но неудобно. Не влияет на production code.
+
+---
+
+# MERGED FROM docs/KNOWN_ISSUES.md (2026-07-19: eliminated split-brain per §6.2)
+
+---
+
+## Tech Debt (from Project Memory)
+
+| ID | Область | Описание | Приоритет |
+|----|---------|----------|-----------|
+| TD-001 | SymbolIndex | SymbolIndex реализован частично; CI не покрывает lance-based индекс. | Medium |
+| TD-005 | llama_runner.py | **Осознанный техдолг:** 1515 строк, один связный класс `LlamaRunner`. Декомпозиция через миксины ухудшит архитектуру. Решение: не резать, зафиксировано 2026-07-18. | Low (осознанный) |
+| CI | Testing | Нет полного прогона тестов с lancedb/tree-sitter в GitHub Actions | High |
+
+## Current Model Stack (2026-07-17)
+
+| Модель | Размер | Dim | Vocab | Скорость | Статус |
+|--------|--------|-----|-------|----------|--------|
+| `multilingual-e5-small-int8` | 113 MB | 384 | 250002 | 37-52 ch/s | ✅ Активна |
+| `reranker-bge-reranker-v2-m3` | 544 MB | 1024 | — | — | ✅ Активен |
+
+## 2026-07-19 — deprecated create_index() in test_lancedb_race.py
+
+**Status:** 🟡 OPEN — тесты проходят через deprecated path
+**Risk:** Низкий — deprecated API всё ещё работает, но при обновлении lancedb может сломаться.
+**Fix:** Переписать на `config=IvfPq(...)` при следующемtouches к файлу.
