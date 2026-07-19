@@ -67,7 +67,7 @@ class IndexGuard:
         except (ValueError, TypeError):
             self._expected_dim = 768
 
-    def check_and_repair(self, db: "lancedb.LanceDBConnection") -> Dict[str, any]:
+    def check_and_repair(self, db: "lancedb.DBConnection") -> Dict[str, any]:
         """Полная проверка и восстановление индекса.
 
         Returns:
@@ -212,7 +212,7 @@ class IndexGuard:
 
     def _migrate_table(
         self,
-        db: "lancedb.LanceDBConnection",
+        db: "lancedb.DBConnection",
         table: "lancedb.Table",
         existing_fields: Dict[str, pa.DataType],
     ) -> bool:
