@@ -142,9 +142,13 @@ class TestResolveIndexerSelfIndexGuard:
             resolve_indexer_for_request(services, explicit_project_root=str(zed_dir))
         assert "Self-indexing blocked" in str(exc_info.value)
 
-    def test_explicit_none_project_raises_tool_error(self):
+    def test_explicit_none_project_fallback(self, monkeypatch):
         """explicit_project_root = None → fallback к resolve_project_root() (не ошибка)."""
-        services = self._make_services(None)
+        fake_project = Path(r"C:\Users\fake\my-project")
+        services = self._make_services(fake_project)
+        monkeypatch.setattr(
+            "src.mcp.server.resolve_project_root", lambda: fake_project, raising=False
+        )
         result = resolve_indexer_for_request(services, explicit_project_root=None)
         assert result is not None  # успешный fallback к default проекту
 
