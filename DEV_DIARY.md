@@ -467,3 +467,29 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 **Deduction chain:** Test showed wrong edges → suspected AST cache → added debug logging → confirmed `extract_calls()` returns stale data when file content changed but path unchanged → found `_walk_file()` only compares path → fixed with content comparison.
 
 **Lesson:** Ghost-node cross-file tests are effective at catching indexing bugs that single-file tests miss.
+
+---
+
+## 2026-07-19 - ANALYSIS: 4 code-intelligence проекта (fallow, code-review-graph, chunkhound, repowise)
+
+**Цель:** вскрыть, что реально работает vs бутафория, что перенять в MSCodeBase.
+
+**Метод:** клонирование в `D:\analysis_sandbox` + 4 параллельных саб-агента (глубокое чтение исходников) + реальные прогоны CLI.
+
+**Ключевые выводы:**
+- Во всех 4 проектах ЯДРО — реальный код, НЕ заглушки. Бутафория — в маркетинговых заголовках (числа circular/завышены), не в пустых функциях.
+- **fallow** (Rust): dead-code/health/audit реально работают (прогон: 66 dead files, score 50/D). «Call resolution» — оверпромисинг (на деле import-graph). Fallow Runtime — закрытый платный слой.
+- **code-review-graph** (Py): граф/FTS5/incremental/30 tools реальны (прогон: 7 nodes/11 edges). «82x token reduction» / «recall 1.0» — circular upper bound (сами признают в README).
+- **chunkhound** (Py): parser/DuckDB/research реальны, НО `index` падает без embedding provider (нет regex-only режима). LanceDB-provider — write-only (антипаттерн). «Ollama local» — убран из кода.
+- **repowise** (Py+TS): code-health/graph/git/decisions реальны (прогон `init --index-only` без ключа: 3 files/5.4s). ROC AUC 0.74 — только во внешнем bench-репо. «−96% tokens» — метрика загрузки, не счёта при caching.
+
+**Что перенять (приоритеты):**
+- Tier 1: token-savings panel (CRG), `_meta` stale_warning (repowise), lean MCP-surface (CRG/repowise), exit 0/1/2 + SARIF (fallow), suppression markers (fallow).
+- Tier 2: incremental SHA-256 (CRG), edge confidence tiers (CRG), 3-tier call resolution (repowise), hybrid FTS+vector (CRG), cAST chunking (chunkhound).
+- Tier 3: code-health biomarkers (repowise), git hotspots+ownership (repowise), deterministic refactoring (repowise), ADR mining substring-gate (repowise), SA-IS dup (fallow), multi-repo daemon (CRG), boundary presets (fallow), citation engine (chunkhound).
+
+**Антипаттерны:** не копировать circular-метрики как заголовки; не портировать LanceDB-chunkhound (write-only); не тратить время на Fallow Runtime (closed); не делать MCP-subprocess-фасад (fallow) — у нас прямые вызовы.
+
+**Артефакт:** `docs/ANALYSIS_4_PROJECTS.md` (полный отчёт с экспериментальными данными).
+
+**Следующий шаг:** начать с Tier 1 (token-savings panel + stale_warning + lean-surface) — быстрые выигрыши с видимостью ценности.
