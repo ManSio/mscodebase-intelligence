@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-19 — Cohere embed-multilingual-v3.0: локально запустить НЕЛЬЗЯ (API-only)
+
+**Symptom:** Пользователь просил РЕАЛЬНЫЙ тест `embed-multilingual-v3.0` (INT8, 1024-dim)
+через llama.cpp/ONNX. Модели в проекте нет (ожидаемо).
+
+**Root Cause:** Cohere v3 embedding — **API-only**, веса (safetensors/bin/gguf) не
+публикуются. Репозиторий `CohereLabs/Cohere-embed-multilingual-v3.0` весит 22.2 MB
+и содержит только токенизатор. GGUF/ONNX-сборок в открытом доступе нет.
+
+**Fix / Status:** ⏳ OPEN — решение за владельцем:
+
+1. Тест КАЧЕСТВА именно Cohere v3 → нужен `COHERE_API_KEY` в `.env` (сейчас нет).
+2. Локальный аналог уже протестирован: `Bge-M3-568M-Q4_K_M.gguf` (1024-dim, мультиязычный)
+   через llama-server → DIM=1024, 17.4 txt/s CPU, кросс-язычная близость 0.95-0.99.
+   Готов к внедрению как embedder (требует `embedding_dimension` 384→1024 + полной
+   переиндексации LanceDB).
+
+**Guard:** `experiments/embed_bench_local.py` (воспроизводимый тест GGUF-инференса).
+
+---
+
 ## 2026-07-18 — intel_get_runtime_status: 768dim instead of 384dim
 
 **Symptom:** `intel_get_runtime_status` showed `ONNX (768dim)` instead of real `multilingual-e5-small-int8 (384dim)`.
@@ -66,11 +87,13 @@
 **Symptom:** Ledger thread starts but never logs result (no ✅ or ⚠️).
 
 **Root Cause:** Three layered bugs:
+
 1. `_resolve_ledger_project_root()` used broken self-made resolver (empty registry + literal `$ZED_WORKTREE_ROOT` in env)
 2. `_default_project_root` in `server_factory.py` was local variable (F811 shadow), never updated module-level in `server.py`
 3. `subprocess.run` deadlock in daemon thread (see above)
 
 **Fix:**
+
 1. `_resolve_ledger_project_root()` → `resolve_project_root()` from `server.py` (SQLite bridge)
 2. `create_mcp_server()` now uses `import src.mcp.server as _srv; _srv._default_project_root = ...` to properly set module attribute
 3. `Popen` + `communicate()` for git calls
@@ -143,18 +166,18 @@
 
 ## Tech Debt (from Project Memory)
 
-| ID | Область | Описание | Приоритет |
-|----|---------|----------|-----------|
-| TD-001 | SymbolIndex | SymbolIndex реализован частично; CI не покрывает lance-based индекс. | Medium |
+| ID     | Область         | Описание                                                                                                                                                            | Приоритет        |
+| ------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| TD-001 | SymbolIndex     | SymbolIndex реализован частично; CI не покрывает lance-based индекс.                                                                                                | Medium           |
 | TD-005 | llama_runner.py | **Осознанный техдолг:** 1515 строк, один связный класс `LlamaRunner`. Декомпозиция через миксины ухудшит архитектуру. Решение: не резать, зафиксировано 2026-07-18. | Low (осознанный) |
-| CI | Testing | Нет полного прогона тестов с lancedb/tree-sitter в GitHub Actions | High |
+| CI     | Testing         | Нет полного прогона тестов с lancedb/tree-sitter в GitHub Actions                                                                                                   | High             |
 
 ## Current Model Stack (2026-07-17)
 
-| Модель | Размер | Dim | Vocab | Скорость | Статус |
-|--------|--------|-----|-------|----------|--------|
-| `multilingual-e5-small-int8` | 113 MB | 384 | 250002 | 37-52 ch/s | ✅ Активна |
-| `reranker-bge-reranker-v2-m3` | 544 MB | 1024 | — | — | ✅ Активен |
+| Модель                        | Размер | Dim  | Vocab  | Скорость   | Статус     |
+| ----------------------------- | ------ | ---- | ------ | ---------- | ---------- |
+| `multilingual-e5-small-int8`  | 113 MB | 384  | 250002 | 37-52 ch/s | ✅ Активна |
+| `reranker-bge-reranker-v2-m3` | 544 MB | 1024 | —      | —          | ✅ Активен |
 
 ## 2026-07-19 — deprecated create_index() in test_lancedb_race.py
 
@@ -184,10 +207,13 @@
 
 ## 2026-07-19 — Missing MCP tools in server.py
 
-**Status:** 🟡 OPEN
-**Missing:** `notify_change`, `read_live_file`, `ack_impact`, `get_logs`, `get_health_report` — documented in AGENTS.md but not registered in `src/mcp/server.py`.
-**Impact:** `notify_change` is P0 — breaks edit→notify→reindex workflow. Others P1/P2.
-**Fix:** Implement in `server.py` or update AGENTS.md to remove undocumented tools.
+**Status:** ✅ FIXED — Variant B (standalone @mcp.tool registration)
+**Missing:** `notify_change`, `read_live_file`, `ack_impact`, `get_logs`, `get_health_report`.
+**Fix:** Зарегистрированы как самостоятельные `@mcp.tool()` в `src/mcp/server_tools.py`
+(`_register_inline_tools`), помимо существующих hub-мета-инструментов
+(`index`/`system`/`write`). Использован `.__wrapped__` для обхода двойного
+error_boundary (как в meta_tools.py). Теперь доступны напрямую и через hub.
+**Impact:** `notify_change` P0 — workflow edit→notify→reindex теперь доступен напрямую.
 
 ## 2026-07-19 — graph.py get_edge_stats indentation (FIXED)
 

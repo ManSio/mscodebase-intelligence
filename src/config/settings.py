@@ -51,6 +51,12 @@ class EmbeddingConfig:
     embedding_dimension: int = field(
         default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "768"))
     )
+    # Тумблер авто-запуска llama.cpp (embedder + reranker) при старте MCP.
+    # По умолчанию ВЫКЛЮЧЕН: ветка _start_llama_sync не заходит, порт 8080
+    # не поднимается. Включается явно через .env при необходимости.
+    llama_cpp_enabled: bool = (
+        os.getenv("LLAMA_CPP_ENABLED", "false").lower() == "true"
+    )
 
     # URL-ы вычисляются лениво (чтобы реагировать на изменения .env)
     def get_lm_studio_base_url(self) -> str:

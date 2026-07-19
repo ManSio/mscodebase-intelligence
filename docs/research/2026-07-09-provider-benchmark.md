@@ -201,6 +201,13 @@ json.dump(settings, f, indent=4)
 2. **Текст-хирургия**: при первой установке -- вставка JSON-блока перед последней `}` -- все `//` сохранены
 3. **JSON dump**: только если команда изменилась (комментарии уже потеряны)
 
+> **Status (2026-07-19):** The destructive cycle is fully resolved. `zed_config.py`
+> was rewritten to: (a) use a JSONC-tolerant parser that **aborts on parse error**
+> instead of falling back to `{}` and wiping the file; (b) perform **merge-only**
+> targeted text surgery touching only `context_servers` + `context_servers_to_query`,
+> preserving comments, other servers and user env; (c) drop the redundant `agent`
+> `system_prompt`/`tool_permissions` injection. See `docs/en/CHANGELOG.md` `[3.3.3]`.
+
 ---
 
 ## 5. llama.cpp: STATUS_ILLEGAL_INSTRUCTION на Zen 3

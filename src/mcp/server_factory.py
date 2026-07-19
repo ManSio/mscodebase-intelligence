@@ -507,14 +507,27 @@ def _resolve_ledger_project_root():
 
 
 def _start_llama_sync():
-    """Синхронный запуск llama.cpp при старте."""
+    """Синхронный запуск llama.cpp при старте.
+
+    Управляется тумблером LLAMA_CPP_ENABLED (config.py / .env).
+    По умолчанию выключен — embedder (порт 8080) не поднимается.
+    """
+    try:
+        from src.config.settings import get_config
+
+        if not get_config().embedding.llama_cpp_enabled:
+            logger.info("🦙 llama.cpp отключён (LLAMA_CPP_ENABLED=false). Пропускаю авто-запуск.")
+            return
+    except Exception as _cfg_err:
+        logger.warning(f"llama toggle check failed: {_cfg_err}")
+
     try:
         import httpx
 
+        from src.providers.reranker.llama_install import is_compatible
         from src.providers.reranker.llama_runner import (
             DEFAULT_EMBEDDING_MODEL,
             get_global_runner,
-            is_compatible,
         )
         runner = get_global_runner()
         model = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)

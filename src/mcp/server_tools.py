@@ -5,8 +5,8 @@ server_tools.py — Регистрация MCP-инструментов.
 Содержит:
 - register_all_tools() — регистрация 18 core-инструментов + codebase hub + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
-- _register_inline_tools() — 7 inline @mcp.tool (debug_runtime_passport, ..., refresh_db_connection)
-- Всего: 18 + 13 + 7 = 38 инструментов (+ 1 optional execute_script = 39)
+- _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, ..., refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
+- Всего: 18 + 13 + 12 = 43 инструмента (+ 1 optional execute_script = 44)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -18,7 +18,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("mscodebase_server.tools")
 
@@ -39,8 +39,7 @@ def register_all_tools(mcp, services):
     Вызывается из create_mcp_server().
     """
     _exec_script_enabled = (
-        os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower()
-        == "true"
+        os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower() == "true"
     )
     from src.mcp.tools.analysis_tools import (
         GenerateChunkSummariesTool,
@@ -53,6 +52,7 @@ def register_all_tools(mcp, services):
 
     if _exec_script_enabled:
         from src.mcp.tools.codebase_tool import ExecuteScriptTool
+    from src.mcp.tools.doc_tools import StaleDetectorTool
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
@@ -73,7 +73,7 @@ def register_all_tools(mcp, services):
         ImpactAnalysisTool,
         SearchCodeTool,
     )
-    from src.mcp.tools.doc_tools import StaleDetectorTool
+
     # Список всех инструментов для регистрации
     tool_classes = [
         # Search (3)
@@ -96,7 +96,6 @@ def register_all_tools(mcp, services):
         GetBugCorrelationTool,
         GetHotspotsTool,
         FindSimilarBugsTool,
-
         # Lifecycle (3)
         SubmitBackgroundTaskTool,
         GetTaskStatusTool,
@@ -114,8 +113,7 @@ def register_all_tools(mcp, services):
         )
     else:
         logger.info(
-            "🔒 ExecuteScriptTool отключён. Включить: "
-            "MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env"
+            "🔒 ExecuteScriptTool отключён. Включить: MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env"
         )
 
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
@@ -134,15 +132,21 @@ def register_all_tools(mcp, services):
             # execute_cript не в allowlist по умолчанию — регистрируется
             # только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
             # ML-native (не заменяются E2B)
-            "search_code", "get_symbol_info", "impact_analysis",
-            "intel_get_runtime_status", "intel_get_project_context",
-            "intel_get_project_memory", "intel_code_topology",
+            "search_code",
+            "get_symbol_info",
+            "impact_analysis",
+            "intel_get_runtime_status",
+            "intel_get_project_context",
+            "intel_get_project_memory",
+            "intel_code_topology",
             "intel_auto_collect_adrs",
             "graph_query",  # Фаза 2: мультиплексирует graph_query + cypher + related + flow
             "structural_search",
             # Diagnostic
-            "diagnostics", "debug_runtime_passport",
-            "get_runtime_counters", "intel_execution_timeline",
+            "diagnostics",
+            "debug_runtime_passport",
+            "get_runtime_counters",
+            "intel_execution_timeline",
             # Doc tools
             "stale_detector",
         }
@@ -170,9 +174,15 @@ def register_all_tools(mcp, services):
 
     _write_tool_names = {
         "codebase",
-        "rename_symbol", "move_symbol", "safe_delete",
-        "replace_symbol", "insert_before_symbol", "insert_after_symbol",
-        "ack_impact", "notify_change", "index_project_dir",
+        "rename_symbol",
+        "move_symbol",
+        "safe_delete",
+        "replace_symbol",
+        "insert_before_symbol",
+        "insert_after_symbol",
+        "ack_impact",
+        "notify_change",
+        "index_project_dir",
     }
 
     registered = 0
@@ -263,6 +273,7 @@ def _register_inline_tools(mcp, services):
     debug_runtime_passport, intel_get_project_context, intel_explain_project_state,
     get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection.
     """
+
     # ─── 1. debug_runtime_passport ─────────────────
     @mcp.tool("debug_runtime_passport")
     async def debug_runtime_passport() -> str:
@@ -336,9 +347,7 @@ def _register_inline_tools(mcp, services):
         if _bridge_err:
             result += f"• **Error:** `{_val(_bridge_err)}`\n"
         result += section("📦 Registry")
-        result += (
-            f"• **Paths:** {', '.join(_registry_paths) if _registry_paths else '—'}\n"
-        )
+        result += f"• **Paths:** {', '.join(_registry_paths) if _registry_paths else '—'}\n"
         result += f"• **Cached Projects:** `{_registry_state_info.get('cached_projects', 0)}`\n"
         result += f"• **Cache Hits:** `{_registry_state_info.get('cache_hits', 0)}`\n"
         result += f"• **Cache Misses:** `{_registry_state_info.get('cache_misses', 0)}`\n"
@@ -477,7 +486,9 @@ def _register_inline_tools(mcp, services):
         blocked_pct = round((1 - ready / max(calls, 1)) * 100, 1)
         result += _(
             "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n",
-            calls=calls, ready=ready, blocked=blocked_pct,
+            calls=calls,
+            ready=ready,
+            blocked=blocked_pct,
         )
         result += section(_("🚫 Блокировки"))
         for k, v in counters.items():
@@ -511,8 +522,12 @@ def _register_inline_tools(mcp, services):
         idle = get_global_idle_metrics()
         lines = [_("📊 **Tool Health**") + "\n"]
         lines.append(
-            _("⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}",
-              idle=idle["idle_pct"], active=idle["active_pct"], calls=idle["total_calls"])
+            _(
+                "⏱ Idle: {idle}% | Active: {active}% | Calls: {calls}",
+                idle=idle["idle_pct"],
+                active=idle["active_pct"],
+                calls=idle["total_calls"],
+            )
             + "\n"
         )
         lines.append("| Tool | Health | Calls | P50 | P95 | Repeat | Routes |")
@@ -581,10 +596,11 @@ def _register_inline_tools(mcp, services):
         """
         try:
             from src.mcp.tools.base import resolve_indexer_for_request
+
             indexer = resolve_indexer_for_request(services)
             if indexer is None:
                 return "❌ No active indexer"
-            db_manager = getattr(indexer, 'db_manager', None)
+            db_manager = getattr(indexer, "db_manager", None)
             if db_manager is None:
                 return "❌ db_manager not found on indexer"
             db_manager.reset_connection()
@@ -593,7 +609,94 @@ def _register_inline_tools(mcp, services):
         except Exception as e:
             return f"❌ refresh_db_connection failed: {e}"
 
-    logger.info("  🔧 Inline diagnostic tools registered (7 tools)")
+    # ─── 8. notify_change (standalone) ─────────────
+    @mcp.tool("notify_change")
+    async def notify_change(file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        """Обновляет индекс одного файла через LSP VFS или диск.
+
+        P0: замыкает workflow edit → notify → reindex. Доступен напрямую
+        (также работает через hub-инструмент index(action="notify")).
+
+        Args:
+            file_path: путь к файлу (абсолютный или относительно корня проекта).
+            kwargs: опциональные доп. параметры.
+        """
+        from src.mcp.tools.indexing_tools import NotifyChangeTool
+
+        tool = NotifyChangeTool(services)
+        return await NotifyChangeTool.execute.__wrapped__(tool, file_path=file_path, kwargs=kwargs)
+
+    # ─── 9. read_live_file (standalone) ────────────
+    @mcp.tool("read_live_file")
+    async def read_live_file(absolute_path: str = "", file_path: str = "") -> dict:
+        """Читает файл из памяти LSP (включая несохранённые изменения).
+
+        Доступен напрямую (также через system(action="read")).
+
+        Args:
+            absolute_path: абсолютный путь к файлу (Windows формат).
+            file_path: относительный путь от корня проекта.
+        """
+        from src.mcp.tools.system_tools import ReadLiveFileTool
+
+        tool = ReadLiveFileTool(services)
+        return await ReadLiveFileTool.execute.__wrapped__(
+            tool, absolute_path=absolute_path, file_path=file_path
+        )
+
+    # ─── 10. get_logs (standalone) ─────────────────
+    @mcp.tool("get_logs")
+    async def get_logs(project_root: str = "", kwargs: Optional[Dict[str, Any]] = None) -> dict:
+        """Возвращает последние ошибки и предупреждения из логов проекта.
+
+        Доступен напрямую (также через system(action="logs")).
+
+        Args:
+            project_root: путь к проекту (по умолчанию — текущий).
+            kwargs: опциональные доп. параметры.
+        """
+        from src.mcp.tools.system_tools import GetLogsTool
+
+        tool = GetLogsTool(services)
+        return await GetLogsTool.execute.__wrapped__(tool, project_root=project_root, kwargs=kwargs)
+
+    # ─── 11. get_health_report (standalone) ────────
+    @mcp.tool("get_health_report")
+    async def get_health_report(
+        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Полная диагностика системы: индекс, bridge, health, providers.
+
+        Доступен напрямую (также через system(action="health")).
+
+        Args:
+            project_root: путь к проекту (по умолчанию — текущий).
+            kwargs: опциональные доп. параметры.
+        """
+        from src.mcp.tools.system_tools import GetHealthReportTool
+
+        tool = GetHealthReportTool(services)
+        return await GetHealthReportTool.execute.__wrapped__(
+            tool, project_root=project_root, kwargs=kwargs
+        )
+
+    # ─── 12. ack_impact (standalone) ───────────────
+    @mcp.tool("ack_impact")
+    async def ack_impact(file_path: str) -> dict:
+        """Подтверждает осведомлённость о влиянии изменений в файле.
+
+        Вызывается после impact_analysis(). Открывает окно (TTL=600s),
+        в течение которого write-операции на файле разрешены.
+        Доступен напрямую (также через write(action="ack")).
+
+        Args:
+            file_path: путь к файлу, чьё влияние подтверждается.
+        """
+        from src.core.modification_guard import ack_impact as _ack_impact
+
+        return _ack_impact(file_path)
+
+    logger.info("  🔧 Inline diagnostic tools registered (12 tools)")
 
 
 # ══════════════════════════════════════════════════════════

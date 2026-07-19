@@ -122,6 +122,10 @@ WHERE workspace_id = <active_workspace_id>;
 | `zed_config.py` | `system_prompt` 创建带有损坏编码的副本 | 通过标记计数器检测重复 |
 | `install.py` | 将 `mscodebase.semaphore` 写入 settings.json 根目录 | 已删除（Zed 报错未知键） |
 
+> **注（2026-07-19）：** `zed_config.py` 中的 `agent.system_prompt` / `agent.tool_permissions`
+> 注入后来**已完全移除** —— MCP 服务器通过 `register_system_prompt(mcp)` 自行注入其 system prompt。
+> `patch_zed_settings` 现在只修改 `context_servers` + `context_servers_to_query`（仅合并，JSONC 安全）。
+
 ### 文档
 
 | 文件 | 完成的工作 |

@@ -9,6 +9,29 @@
 > **Количество инструментов (текущее):** живой сервер регистрирует **39 инструментов** = 18 core + 13 intel + 7 inline + 1 optional
 > `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
 
+## [3.3.4] — 2026-07-19 — Тумблер LLAMA_CPP_ENABLED + фикс импорта is_compatible
+
+### Исправлено
+- 🐛 **Сломанный импорт `is_compatible`.** `server_factory._start_llama_sync()` импортировал `is_compatible` из `src.providers.reranker.llama_runner`, хотя он определён в `llama_install.py`. Неудачный импорт тихо прерывал ветку авто-запуска llama.cpp (порт embedder 8080 не поднимался). Теперь импорт из правильного модуля.
+- 🎚️ **Тумблер `LLAMA_CPP_ENABLED` (протокол Тумблер).** Добавлен `llama_cpp_enabled` в `EmbeddingConfig` (`src/config/settings.py`), читается из `LLAMA_CPP_ENABLED`, **по умолчанию `false`**. `_start_llama_sync()` делает early-return при выключенном: `if not get_config().embedding.llama_cpp_enabled: return`. При включении всё ещё требует `is_compatible()` (бинарь есть) перед запуском.
+
+### Конфигурация
+- Новая переменная `LLAMA_CPP_ENABLED` (по умолчанию `false`). Добавить в `.env` / `.env.example` для включения авто-запуска embedder llama.cpp. Без хардкода — чистая конфигурация.
+
+> **Примечание:** `.env.example` не удалось поправить автоматически (private-files guard). Добавьте строку `# LLAMA_CPP_ENABLED=false  # авто-запуск embedder llama.cpp (по умолчанию выкл)` вручную.
+
+## [3.3.3] — 2026-07-19 — zed_config.py: безопасный merge (без стирания настроек)
+
+### Исправлено
+- 🛡️ **`src/utils/zed_config.py` — больше нет стирания settings.json.** `patch_zed_settings()` раньше делал `json.loads()` после удаления только `//`-комментов; trailing comma или блок `/* */` (оба валидны в JSONC Zed) приводили к `settings = {}` и **полной перезаписи файла**, уничтожая все настройки пользователя. Теперь — JSONC-толерантный парсер, при ошибке парсинга **abort вместо стирания**.
+- 🔒 **User-env сохраняется.** При обновлении запись сервера больше не заменяется целиком — `patch_zed_settings()` делает merge: авторитетные ключи (`PYTHONPATH`, `PROJECT_PATH`) устанавливаются, user-env (напр. `MSCODEBASE_ALLOW_SELF_INDEX`) сохраняется, `EMBEDDING_*` через `setdefault`.
+- 🧹 **Удалена лишняя инъекция `agent`.** `patch_zed_settings()` больше не force-ставит `agent.system_prompt` / `agent.tool_permissions` (MCP-сервер сам инжектит свой system prompt через `register_system_prompt(mcp)`). Конфиг пользователя не затирается.
+- 🩹 **Точечная текстовая хирургия.** Трогаются только `context_servers` + `context_servers_to_query`; другие серверы, комменты и настройки сохраняются как есть.
+- 📍 **Фикс путей.** macOS config теперь `~/Library/Application Support/Zed` первичный; удалены мёртвые параметры (`lsp_config`, `languages_config`, `project_path`); исправлен docstring модуля (неверный путь `extensions/installed/...`).
+
+### Тесты
+- `scripts/_verify_zed_config.py` (5 сценариев): idempotent на реальном файле, сохранение комментов + чужих серверов, сохранение user-env, abort на битом JSON, `remove_zed_settings` сохраняет чужие серверы. Diff против живого `settings.json` после `patch_zed_settings()` пуст (idempotent).
+
 ## [3.3.2] — 2026-07-18 — Фикс AST-кэша + §5.16 безопасные subprocess
 
 ### Исправлено

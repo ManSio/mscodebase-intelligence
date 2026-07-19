@@ -9,6 +9,29 @@
 > **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.4] — 2026-07-19 — 开关 LLAMA_CPP_ENABLED + 修复 is_compatible 导入
+
+### 修复
+- 🐛 **错误的 `is_compatible` 导入。** `server_factory._start_llama_sync()` 从 `src.providers.reranker.llama_runner` 导入 `is_compatible`，但它定义在 `llama_install.py` 中。导入失败会静默中断 llama.cpp 自动启动分支（embedder 端口 8080 不会启动）。现改为从正确模块导入。
+- 🎚️ **`LLAMA_CPP_ENABLED` 开关（Tumbler 协议）。** 在 `EmbeddingConfig`（`src/config/settings.py`）中新增 `llama_cpp_enabled`，读取 `LLAMA_CPP_ENABLED` 环境变量，**默认 `false`**。`_start_llama_sync()` 在关闭时提前返回：`if not get_config().embedding.llama_cpp_enabled: return`。启用时仍要求 `is_compatible()`（二进制存在）才会启动。
+
+### 配置
+- 新增环境变量 `LLAMA_CPP_ENABLED`（默认 `false`）。将其加入 `.env` / `.env.example` 可启用 llama.cpp embedder 自动启动。无硬编码值——纯配置。
+
+> **注：** 无法自动编辑 `.env.example`（private-files 保护）。请手动添加一行 `# LLAMA_CPP_ENABLED=false  # 自动启动 llama.cpp embedder（默认关闭）`.
+
+## [3.3.3] — 2026-07-19 — zed_config.py：安全合并（不再清空设置）
+
+### 修复
+- 🛡️ **`src/utils/zed_config.py` — 不再清空 settings.json。** `patch_zed_settings()` 之前在仅去除 `//` 注释后做 `json.loads()`；尾随逗号或 `/* */` 块（在 Zed 的 JSONC 中均合法）会导致回退到 `settings = {}` 并**覆盖整个文件**，销毁用户的其他设置。现在使用 JSONC 容错解析器，解析出错时**中止而非清空**.
+- 🔒 **保留用户 env。** 更新时不再整体替换服务器条目 —— `patch_zed_settings()` 进行合并：权威键（`PYTHONPATH`、`PROJECT_PATH`）被设置，用户添加的 env 变量（如 `MSCODEBASE_ALLOW_SELF_INDEX`）被保留，`EMBEDDING_*` 使用 `setdefault`.
+- 🧹 **移除多余的 `agent` 注入。** `patch_zed_settings()` 不再强制设置 `agent.system_prompt` / `agent.tool_permissions`（MCP 服务器已通过 `register_system_prompt(mcp)` 自行注入其 system prompt）。不再覆盖用户的 `agent` 配置。
+- 🩹 **精准文本手术。** 只修改 `context_servers` + `context_servers_to_query`；其他服务器、注释和设置逐字节保留。
+- 📍 **路径修复。** macOS 配置目录现在优先解析 `~/Library/Application Support/Zed`；移除无用参数（`lsp_config`、`languages_config`、`project_path`）；修正模块 docstring（之前指向错误的 `extensions/installed/...` 路径）。
+
+### 测试
+- `scripts/_verify_zed_config.py`（5 个场景）：真实文件幂等、保留注释 + 其他服务器、保留用户 env、损坏 JSON 时中止、`remove_zed_settings` 保留其他服务器。`patch_zed_settings()` 后对比真实 `settings.json` 的 diff 为空（幂等）。
+
 ## [3.3.2] — 2026-07-18 — AST 缓存修复 + §5.16 子进程安全
 
 ### 修复
