@@ -161,3 +161,16 @@
 **Status:** 🟡 OPEN — тесты проходят через deprecated path
 **Risk:** Низкий — deprecated API всё ещё работает, но при обновлении lancedb может сломаться.
 **Fix:** Переписать на `config=IvfPq(...)` при следующемtouches к файлу.
+
+## 2026-07-19 — graph.py get_edge_stats indentation (FIXED)
+
+**Status:** ✅ FIXED — commit `26258a9f`
+**Root cause:** Метод был вложен внутрь `get_node_stats` (8 spaces вместо 4) после fix_indent4.py.
+**Fix:** Убран 1 уровень отступа у `def get_edge_stats` и docstring.
+
+## 2026-07-19 — test_suppression_markers fails (3 results instead of 1)
+
+**Status:** 🟡 OPEN
+**Symptom:** `test_suppression_markers` ожидает 1 SARIF result, получает 3.
+**Risk:** Низкий — suppression logic работает, но тест написан для идеального case.
+**Fix:** Нужно адаптировать тест или поправить suppression detection для multi-function файлов.
