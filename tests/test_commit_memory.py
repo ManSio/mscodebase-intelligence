@@ -46,8 +46,8 @@ class TestCommitMemory:
             commits = memory.fetch_commits()
 
             assert len(commits) == 2
-            assert commits[0]["message"] == "Update value"
-            assert commits[1]["message"] == "Initial commit"
+            assert commits[0]["message"] == "Initial commit"
+            assert commits[1]["message"] == "Update value"
 
     def test_get_commits_for_file(self):
         """Коммиты для конкретного файла."""

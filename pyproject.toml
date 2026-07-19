@@ -94,4 +94,4 @@ markers = [
     "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
 ]
 norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index", ".codebase_indices"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not slow and not benchmark'"

@@ -246,11 +246,13 @@ class ProjectContext:
     def _capture_runtime(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
             from src.core.passport import RUN_PID, RUN_STARTED_AT
-            from src.mcp.server import _ext_root
+            from src.core.utils.extension_paths import get_ext_root
+
+            ext_root = get_ext_root()
 
             snap.runtime_pid = RUN_PID
             snap.runtime_uptime = round(time.time() - RUN_STARTED_AT, 1)
-            snap.runtime_ext_root = str(_ext_root)
+            snap.runtime_ext_root = str(ext_root) if ext_root else ""
             snap.runtime_env = {
                 "PROJECT_PATH": os.environ.get("PROJECT_PATH"),
                 "ZED_WORKTREE_ROOT": os.environ.get("ZED_WORKTREE_ROOT"),
@@ -304,12 +306,12 @@ class ProjectContext:
 
     def _capture_jobs(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.mcp.server import _last_progress
+            from src.mcp.server import get_last_progress
 
             running = 0
             completed = 0
             with __import__("threading").Lock():
-                for pname, info in list(_last_progress.items()):
+                for pname, info in list(get_last_progress().items()):
                     if info.get("phase") == "complete":
                         completed += 1
                     else:

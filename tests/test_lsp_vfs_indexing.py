@@ -14,6 +14,8 @@ import pytest
 
 from src.core.indexer import Indexer
 
+pytestmark = pytest.mark.slow
+
 
 class TestLSPVFSIndexing:
     """Тесты индексации из LSP VFS (память IDE) vs файловой системы."""

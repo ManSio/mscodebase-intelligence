@@ -231,6 +231,20 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
     print(f"\n✅ {DIARY} обновлён")
 
 
+def run_contradiction_ledger() -> dict:
+    """Runs contradiction ledger check. Returns dict, never sys.exit.
+    Used by MCP startup for safe import-time validation."""
+    entries = parse_diary()
+    passed, failed, issues = run_verification(entries)
+    return {
+        "ok": failed == 0,
+        "discrepancies": failed,
+        "claims": passed + failed,
+        "commits": sum(len(e.commits) for e in entries),
+        "details": issues,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify AGENT_DIARY.md against codebase reality")
     parser.add_argument("--report-format", choices=["text", "json"], default="text")

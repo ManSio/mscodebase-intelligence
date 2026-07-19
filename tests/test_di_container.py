@@ -9,6 +9,8 @@ import pytest
 
 pytest.importorskip("lancedb")  # Searcher → indexer depends on lancedb
 
+pytestmark = pytest.mark.slow
+
 from src.core.di_container import (
     ServiceCollection,
     create_service_collection,

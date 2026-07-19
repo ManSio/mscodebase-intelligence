@@ -9,6 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def temp_project():

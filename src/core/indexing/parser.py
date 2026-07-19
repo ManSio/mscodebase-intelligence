@@ -666,9 +666,9 @@ class CodeParser:
             with open(file_path, "rb") as f:
                 code = f.read()
         except Exception:
-            return [], []
+            return [], [], []
         if not code.strip():
-            return [], []
+            return [], [], []
 
         if file_path == self._cache_path and code == self._cache_code:
             tree = self._cache_tree

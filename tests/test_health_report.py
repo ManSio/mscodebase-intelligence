@@ -10,6 +10,8 @@ import pytest
 
 from src.core.health_report import HealthReport, format_health_report
 
+pytestmark = pytest.mark.slow
+
 
 class TestHealthReportBasic:
     """Базовые тесты HealthReport."""

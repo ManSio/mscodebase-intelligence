@@ -65,6 +65,21 @@ class CommitMemory:
         except Exception as e:
             logger.warning(f"Failed to save commit cache: {e}")
 
+    def _get_commit_files(self, commit_hash: str) -> List[str]:
+        """Получает список файлов изменённых в коммите через git diff-tree."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r", commit_hash],
+                cwd=str(self.project_path),
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip().split("\n")
+        except Exception:
+            pass
+        return []
+
     def fetch_commits(self, limit: int = 100) -> List[Dict]:
         """Получает историю коммитов из .git/logs/HEAD (без subprocess).
 
@@ -152,6 +167,9 @@ class CommitMemory:
                             if ts_part:
                                 date_str = ts_part[0]
 
+                # Получаем список файлов через git diff-tree
+                files = self._get_commit_files(new_hash)
+
                 commit = {
                     "hash": new_hash,
                     "author": author or 'unknown',
@@ -159,7 +177,7 @@ class CommitMemory:
                     "date": date_str or '',
                     "message": subject,
                     "body": body[:200] if body else '',
-                    "files": [],  # список файлов не парсим (сложно), но не критично
+                    "files": files,
                 }
                 commits.append(commit)
             except Exception:

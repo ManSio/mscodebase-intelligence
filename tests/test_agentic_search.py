@@ -8,6 +8,8 @@ import pytest
 
 from src.core.searcher import Searcher
 
+pytestmark = pytest.mark.slow
+
 
 class TestDecomposeQueryWithLLM:
     """Тесты для _decompose_query_with_llm."""

@@ -120,8 +120,8 @@ async def test_rerank_via_lm_studio_sorts_by_score(sample_chunks):
                         "embedding": [0.45, 0.893028, 0.0] * 341 + [0.0] * 1
                     },  # chunk 1 → cos=0.45
                     {
-                        "embedding": [0.10, 0.994987, 0.0] * 341 + [0.0] * 1
-                    },  # chunk 2 → cos=0.10
+                        "embedding": [0.35, 0.93675, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 2 → cos=0.35 (above MIN_RERANK_SCORE=0.3)
                 ]
             },
         )
@@ -136,7 +136,7 @@ async def test_rerank_via_lm_studio_sorts_by_score(sample_chunks):
     assert result[1]["metadata"]["file"] == "repo.py"
     assert result[1]["reranker_score"] == pytest.approx(0.45, abs=1e-3)
     assert result[2]["metadata"]["file"] == "utils.py"
-    assert result[2]["reranker_score"] == pytest.approx(0.10, abs=1e-3)
+    assert result[2]["reranker_score"] == pytest.approx(0.35, abs=1e-2)
 
 
 @pytest.mark.asyncio
@@ -199,8 +199,8 @@ async def test_rerank_via_ollama_sorts_by_score(sample_chunks):
                         "embedding": [0.50, 0.866025, 0.0] * 341 + [0.0] * 1
                     },  # chunk 1 → cos=0.50
                     {
-                        "embedding": [0.08, 0.996794, 0.0] * 341 + [0.0] * 1
-                    },  # chunk 2 → cos=0.08
+                        "embedding": [0.35, 0.93675, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 2 → cos=0.35 (above MIN_RERANK_SCORE=0.3)
                 ]
             },
         )
@@ -213,7 +213,7 @@ async def test_rerank_via_ollama_sorts_by_score(sample_chunks):
     assert result[0]["metadata"]["file"] == "auth.py"
     assert result[0]["reranker_score"] == pytest.approx(0.92, abs=1e-3)
     assert result[2]["metadata"]["file"] == "utils.py"
-    assert result[2]["reranker_score"] == pytest.approx(0.08, abs=1e-3)
+    assert result[2]["reranker_score"] == pytest.approx(0.35, abs=1e-2)
 
 
 @pytest.mark.asyncio
@@ -541,11 +541,11 @@ async def test_embedding_rerank_with_lm_studio(sample_chunks):
                         "embedding": [0.9, 0.1, 0.0] * 341 + [0.0] * 1
                     },  # chunk 0 — близко
                     {
-                        "embedding": [0.0, 1.0, 0.0] * 341 + [0.0] * 1
-                    },  # chunk 1 — далеко
+                        "embedding": [0.35, 0.93675, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 1 — medium relevance
                     {
-                        "embedding": [0.0, 0.0, 1.0] * 341 + [0.0] * 1
-                    },  # chunk 2 — далеко
+                        "embedding": [0.40, 0.91652, 0.0] * 341 + [0.0] * 1
+                    },  # chunk 2 — medium relevance
                 ]
             },
         )

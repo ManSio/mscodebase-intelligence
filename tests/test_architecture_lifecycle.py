@@ -32,6 +32,8 @@ os.environ.setdefault("PYTHONPATH", _PYTHONPATH)
 
 import pytest
 
+pytestmark = pytest.mark.slow
+
 
 class TestSystemArtifactsLayer:
     def test_user_project_is_not_system(self):

@@ -13,9 +13,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.verify_diary import run_contradiction_ledger
+
+pytestmark = pytest.mark.slow
 
 
 def test_returns_dict_not_exit():

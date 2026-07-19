@@ -163,12 +163,18 @@ def _check_source_extension_sync() -> Optional[str]:
         return None
 
 
-# ══════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════
 # Progress Tracking — для визуализации хода индексации
 # ══════════════════════════════════════════════════════════
 
 _last_progress: Dict[str, Any] = {}
 _progress_lock = threading.Lock()
+
+
+def get_last_progress() -> Dict[str, Any]:
+    """Thread-safe accessor for progress tracking (used by core.intelligence)."""
+    with _progress_lock:
+        return dict(_last_progress)
 
 
 def _create_progress_callback(project_name: str):

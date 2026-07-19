@@ -140,7 +140,7 @@ class ProjectIntelligenceLayer:
         if self._services is not None:
             try:
                 from src.core.di_container import ProjectIndexerRegistry
-                from src.mcp.tools.base import _is_self_index_path
+                from src.core.utils.self_index_guard import _is_self_index_path
 
                 registry = self._services.resolve(ProjectIndexerRegistry)
                 # Целенаправленный re-resolve по нормализованному пути проекта,
