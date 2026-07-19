@@ -20,6 +20,7 @@ from src.utils.i18n import _
 # ── Extracted sub-modules ──────────────────────────────────────
 from .agentic_search import AgenticSearchMixin
 from .bm25 import BM25Mixin
+from .fts5_mixin import FTS5Mixin
 from .scoring import (
     _apply_co_change_boost,
     apply_bucket_weights,
@@ -41,7 +42,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
+class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
     # Режимы поиска
@@ -55,6 +56,8 @@ class Searcher(BM25Mixin, ISearcher, AgenticSearchMixin):
         self._bm25: Optional[Dict[str, Dict[str, float]]] = None
         self._bm25_ids: List[str] = []
         self._bm25_lock = threading.Lock()
+        self._fts5 = None  # FTS5IndexManager (lazy)
+        self._fts5_lock = threading.Lock()
         self._bm25_df: Any = None
         self._tokenizer_re = re.compile(r"\W+")
         self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
