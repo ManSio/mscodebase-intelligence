@@ -25,22 +25,25 @@ classifiers = [
 ]
 dependencies = [
     # MCP Protocol
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2",  # upper bound: mcp 2.x меняет транспортный протокол
     # LSP Protocol
     "pygls>=2.0.0",
     "lsprotocol>=24.0.0",
     # Vector DB & Embeddings
-    "lancedb>=0.12.0,<0.35.0",
+    # Pinned: lancedb 0.x менял публичный API внутри минорных релизов
+    # (сломал тест-сьют 2026-07 через lancedb.LanceDB). Ребилд/бамп —
+    # только после проверки совместимости API + прогона verify_clean_state.
+    "lancedb==0.34.0",
     "pyarrow>=14.0.0",  # + pyarrow.compute для to_arrow
     "huggingface_hub>=0.20.0",
-    "numpy>=1.24.0",
+    "numpy>=1.24.0,<3",  # upper bound: numpy 3.x ломает ABI для pyarrow/onnxruntime
     # Code parsing (Tree-sitter)
-    "tree-sitter>=0.21.0",
-    "tree-sitter-python>=0.21.0",
-    "tree-sitter-rust>=0.21.0",
-    "tree-sitter-typescript>=0.21.0",
-    "tree-sitter-javascript>=0.21.0",
-    "tree-sitter-go>=0.21.0",
+    "tree-sitter>=0.21.0,<1",
+    "tree-sitter-python>=0.21.0,<1",
+    "tree-sitter-rust>=0.21.0,<1",
+    "tree-sitter-typescript>=0.21.0,<1",
+    "tree-sitter-javascript>=0.21.0,<1",
+    "tree-sitter-go>=0.21.0,<1",
     # Search & Utils
     "pathspec>=0.14.0",
     "httpx>=0.24.0",

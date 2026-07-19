@@ -510,3 +510,21 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 **Tier 1 обновлён:** добавлены пункты 0 (lockfile + clean-install CI gate — чинить сейчас, не требует исследования) и 1 (SerialDatabaseExecutor — устраняет наш race). Оба выше чужих идей, т.к. проблемы уже реальны.
 
 **Вывод:** наши две главные боли этой недели У КОНКУРЕНТОВ УЖЕ РЕШЕНЫ проверенными паттернами. Не нужно изобретать — перенять SerialDatabaseExecutor (chunkhound) + uv sync --locked (chunkhound) + upper bounds (repowise) + deny.toml (fallow).
+
+---
+
+## 2026-07-19 - IMPLEMENTED: Пункт 0 (deps hardening) — DONE
+
+**Контекст:** из анализа 4 проектов (Section 10.2) — наш `lancedb>=0.12.0` инцидент этой недели. У конкурентов (chunkhound `uv sync --locked`, repowise upper bounds) эта проблема решена. Внедрил аналог.
+
+**Что сделано:**
+1. **Exact-pin `lancedb==0.34.0`** в `pyproject.toml` + `requirements.txt` (rationale comment: 0.x менял API внутри минорных релизов, сломал тест-сьют 2026-07). Запинил НЕ нижнюю границу диапазона (`0.12.0`), а версию из рабочего extension-venv, на которой тесты проходят.
+2. **Валидация API перед пином** (урок от владельца): проверил `dir(lancedb)` для `0.12.0` (нет `Table` → сломал бы `index_guard.py:216`) и для `0.34.0` (есть `Table`, `DBConnection`, `connect`, `connect_async` → все True). Пин `0.34.0` корректен.
+3. **Upper bounds** на `mcp>=1.0.0,<2`, `tree-sitter*>=0.21.0,<1`, `numpy>=1.24.0,<3` (repowise стиль `>=,<next-major`).
+4. **`requirements-lock.txt`** сгенерирован (`pip freeze` из рабочего venv, 75 строк, `lancedb==0.34.0`). Как chunkhound `requirements-lock.txt`.
+5. **`verify_clean_state.sh`** — добавлен lockfile drift-gate (аналог `uv lock --check`): если pyproject exact pin != lock → CI падает. На Linux-CI ставит из lock, локально — по bounds.
+6. **`install.py`** не сломан — он ставит из `requirements.txt` (уже обновлён).
+
+**Урок (критично):** пинить версию без проверки API — та же ловушка, что и unbounded range, с другой стороны. Нижняя граница диапазона (`0.12.0`) НЕ равна «проверенной рабочей версии». Пин должен фиксировать версию, на которой реально тестировали текущий код. Проверка: `lancedb.DB` в нашем коде — только строковые аннотации/комментарии, не реальный вызов; реально дёргаем `connect/connect_async/DBConnection/Table` (все есть в 0.34.0).
+
+**Verification:** pyproject.toml валиден (tomllib), drift-gate локально прошёл (lancedb 0.34.0 == 0.34.0 OK; mcp/tree-sitter range → skip).
