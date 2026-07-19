@@ -493,3 +493,20 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 **Артефакт:** `docs/ANALYSIS_4_PROJECTS.md` (полный отчёт с экспериментальными данными).
 
 **Следующий шаг:** начать с Tier 1 (token-savings panel + stale_warning + lean-surface) — быстрые выигрыши с видимостью ценности.
+
+---
+
+## 2026-07-19 - ANALYSIS UPDATE: real-scale + наши боли (критика учтена)
+
+**Контекст:** владелец раскритиковал первый отчёт по 3 пунктам: (1) «0 TODO» повторяется как слабый сигнал, (2) прогоны на игрушечных репо (2-8 файлов), (3) не смотрели на наши реальные боли недели (race condition, сломанная установка `lancedb>=0.12.0`). Сделал продолжение.
+
+**Что добавлено в `docs/ANALYSIS_4_PROJECTS.md`:**
+- Дисклеймер после TL;DR: понижен вес «0 TODO/NotImplementedError» (отсутствие маркера ≠ отсутствие багов; единственное док-во — реальные прогоны).
+- **Section 9 (real-scale):** прогон CRG + repowise на клоне `mscodebase-intelligence` (133 py / 40k LOC). CRG: 17s, 2717 nodes/24943 edges. repowise: 38s, 3461 nodes/7516 edges, 16 hotspots, self-validated health (13/20 low-health files имели bug-fix, 4.73x baseline). Архитектурные заимствования (SQL-BFS, Leiden) теперь обоснованы реальным масштабом, не 11 edges.
+- **Section 10 (наши боли):** 2 сфокусированных саб-агента.
+  - 10.1 Concurrency: fallow (process isolation), CRG (WAL+busy_timeout+_cache_lock+model RLock), chunkhound (SerialDatabaseExecutor max_workers=1 + thread-local + Future-изоляция + compaction Event-guard), repowise (async session-per-call + RateLimiter). Перенять: SerialDatabaseExecutor + Future-изоляция вместо нашего `self._results` по request_id.
+  - 10.2 Deps: chunkhound победил (`uv sync --locked` + requirements-lock.txt), repowise (upper bounds `>=,<next-major`), fallow (deny.toml yanked=deny). Перенять: commit uv.lock + CI `--locked` gate + upper bounds на lancedb/mcp/tree-sitter*.
+
+**Tier 1 обновлён:** добавлены пункты 0 (lockfile + clean-install CI gate — чинить сейчас, не требует исследования) и 1 (SerialDatabaseExecutor — устраняет наш race). Оба выше чужих идей, т.к. проблемы уже реальны.
+
+**Вывод:** наши две главные боли этой недели У КОНКУРЕНТОВ УЖЕ РЕШЕНЫ проверенными паттернами. Не нужно изобретать — перенять SerialDatabaseExecutor (chunkhound) + uv sync --locked (chunkhound) + upper bounds (repowise) + deny.toml (fallow).
