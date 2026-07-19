@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Optional, Set
 
@@ -52,6 +53,14 @@ class LanceDBManager:
         self._async_db: Optional[Any] = None
         self._async_table: Optional[Any] = None
         self._async_db_lock = asyncio.Lock()
+
+        # ─── Thread-safety: межпотоковый race guard (AGENTS.md §5.13) ──
+        # search_code выполняется в event-loop потоке, index_project
+        # (reindex) — в executor-потоке (loop.run_in_executor). Они конкурируют
+        # за self.db. threading.Lock сериализует write/reconnect; Event — fast-fail
+        # для read во время reindex (паттерн chunkhound SerialDatabaseExecutor/guard).
+        self._write_lock = threading.Lock()
+        self._reindex_guard = threading.Event()  # set = reindex идёт, search fast-fail
 
         # Кэш состояния (для быстрого доступа без запросов к БД)
         self._cached_total_chunks = 0
@@ -294,48 +303,77 @@ class LanceDBManager:
 
         Вызывать после внешних миграций (drop_table, add_columns)
         или когда таблица повреждена. Не требует перезапуска MCP.
+
+        Thread-safe: сериализуется через _write_lock (межпотоковый race guard).
         """
-        logger.info("🔄 DB Connection reset: переподключение к LanceDB...")
+        with self._write_lock:
+            logger.info("🔄 DB Connection reset: переподключение к LanceDB...")
 
-        # 1. Закрываем старое подключение
-        try:
-            if self.db is not None:
-                self.db.close()
-        except Exception as _reset_close_err:
-            logger.debug(f"reset_connection: DB close warning: {_reset_close_err}")
-
-        # 2. Переподключаемся
-        self.db = lancedb.connect(self._lancedb_connect_path)
-
-        # 3. Сбрасываем async
-        self._async_db = None
-        self._async_table = None
-
-        # 4. Открываем/пересоздаём таблицу
-        try:
-            self.table = self._open_or_create_table(self.schema)
-        except Exception as e:
-            logger.error(f"❌ reset_connection: таблица не восстановлена: {e}")
-            raise
-
-        # 5. Синхронизируем writer если есть callback
-        if hasattr(self, '_on_recreate') and self._on_recreate:
+            # 1. Закрываем старое подключение
             try:
-                self._on_recreate(self.table)
-            except Exception as _cb_err:
-                logger.debug(f"reset_connection: on_recreate callback failed: {_cb_err}")
+                if self.db is not None:
+                    self.db.close()
+            except Exception as _reset_close_err:
+                logger.debug(f"reset_connection: DB close warning: {_reset_close_err}")
 
-        # 6. Пересоздаём IndexGuard
-        try:
-            self._index_guard = IndexGuard(self.db_path, self.project_path)
-        except Exception as _ig_err:
-            logger.debug(f"reset_connection: IndexGuard rebuild failed: {_ig_err}")
+            # 2. Переподключаемся
+            self.db = lancedb.connect(self._lancedb_connect_path)
 
-        # 7. Прогрев кэша
-        self._warmup_cache()
+            # 3. Сбрасываем async
+            self._async_db = None
+            self._async_table = None
+
+            # 4. Открываем/пересоздаём таблицу
+            try:
+                self.table = self._open_or_create_table(self.schema)
+            except Exception as e:
+                logger.error(f"❌ reset_connection: таблица не восстановлена: {e}")
+                raise
+
+            # 5. Синхронизируем writer если есть callback
+            if hasattr(self, '_on_recreate') and self._on_recreate:
+                try:
+                    self._on_recreate(self.table)
+                except Exception as _cb_err:
+                    logger.debug(f"reset_connection: on_recreate callback failed: {_cb_err}")
+
+            # 6. Пересоздаём IndexGuard
+            try:
+                self._index_guard = IndexGuard(self.db_path, self.project_path)
+            except Exception as _ig_err:
+                logger.debug(f"reset_connection: IndexGuard rebuild failed: {_ig_err}")
+
+            # 7. Прогрев кэша
+            self._warmup_cache()
 
         count = self.table.count_rows() if self.table else 0
         logger.info(f"✅ DB Connection reset: таблица {self.table_name} ({count} rows)")
+
+    # ══════════════════════════════════════════════════════════
+    # Reindex guard (fast-fail для search во время reindex)
+    # ══════════════════════════════════════════════════════════
+    def set_reindexing(self) -> None:
+        """Ставит guard: search должен fast-fail, пока идёт reindex.
+
+        Вызывается из trigger_async_reindex перед index_project.
+        """
+        self._reindex_guard.set()
+
+    def clear_reindexing(self) -> None:
+        """Снимает guard после завершения reindex."""
+        self._reindex_guard.clear()
+
+    def is_reindexing(self) -> bool:
+        """True, если reindex в процессе — search должен fast-fail."""
+        return self._reindex_guard.is_set()
+
+    def begin_write(self):
+        """Context manager: эксклюзивный доступ к write/reconnect.
+
+        Использовать в index_project / drop_table, чтобы search не читал
+        поломанный индекс (паттерн chunkhound SerialDatabaseExecutor).
+        """
+        return self._write_lock
 
     # ══════════════════════════════════════════════════════════
     # Migration helpers (from IndexerTableMixin)

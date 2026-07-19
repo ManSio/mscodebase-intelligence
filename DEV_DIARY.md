@@ -528,3 +528,19 @@ itself lazy-reloads via _init_onnx() — so the check was blocking valid work.
 **Урок (критично):** пинить версию без проверки API — та же ловушка, что и unbounded range, с другой стороны. Нижняя граница диапазона (`0.12.0`) НЕ равна «проверенной рабочей версии». Пин должен фиксировать версию, на которой реально тестировали текущий код. Проверка: `lancedb.DB` в нашем коде — только строковые аннотации/комментарии, не реальный вызов; реально дёргаем `connect/connect_async/DBConnection/Table` (все есть в 0.34.0).
 
 **Verification:** pyproject.toml валиден (tomllib), drift-gate локально прошёл (lancedb 0.34.0 == 0.34.0 OK; mcp/tree-sitter range → skip).
+
+---
+
+## 2026-07-19 - IMPLEMENTED: Пункт 1 (race condition fix) — DONE
+
+**Контекст:** из анализа 4 проектов (Section 8) — паттерн `SerialDatabaseExecutor` из chunkhound (threading.Lock + Event fast-fail) решает наш межпотоковый race между search_code (event-loop) и intel_trigger_reindex (executor).
+
+**Что сделано:**
+1. **`db_manager.py`** — добавлен `threading.Lock` (`_write_lock`) + `threading.Event` (`_reindex_guard`) + методы `set_reindexing()`/`clear_reindexing()`/`is_reindexing()`/`begin_write()`.
+2. **`layer.py`** — `set_reindexing()` вызывается перед `run_in_executor` в `_run_reindex_job`, `clear_reindexing()` в finally.
+3. **`engine.py`** — `hybrid_search()` проверяет `is_reindexing()` → fast-fail (пустой результат) вместо падения.
+4. **`tests/test_lancedb_race.py`** — стресс-тест с N=8 search + N=4 reindex воркерами, проверка корректности (не только "не упало").
+
+**Результат теста:** `ok=8, fast_fail=152, exceptions=0, wrong_chunk=0` — race исправлен, guard сработал 152 раза.
+
+**Урок (AGENTS.md §5.13):** замена одного thread-safety механизма другим создает новую поверхность для гонки (общий словарь результатов, общий correlation id). Каждая замена требует стресс-теста на корректность данных, а не только отсутствия исключений.
