@@ -16,6 +16,7 @@ from src.core.interfaces.searcher import ISearcher
 from src.providers.reranker.multi_provider import MultiProviderReranker
 from src.providers.reranker.search_result_reranker import SearchResultReranker
 from src.utils.i18n import _
+from .token_savings import calculate_token_savings
 
 # ── Extracted sub-modules ──────────────────────────────────────
 from .agentic_search import AgenticSearchMixin
@@ -476,6 +477,12 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Фильтрация по времени (since/before) — чистый Python
         if tracer:
             tracer.record_final(final_results)
+
+        # ── v3.3.2: Token Savings (CRG pattern) ───────────────────────────────
+        token_savings = calculate_token_savings(final_results)
+        for r in final_results:
+            r["_token_savings"] = token_savings
+
         return _filter_by_time(final_results, since=since, before=before)
 
     # === mode=ask: генерация ответа через phi-4 ===
