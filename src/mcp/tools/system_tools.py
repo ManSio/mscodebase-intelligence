@@ -225,12 +225,8 @@ class WatcherStatusTool(MCPTool):
         return result
 
     def _check_lsp_import(self) -> bool:
-        try:
-            from src.lsp_main import server as lsp_server
-
-            return lsp_server is not None
-        except Exception:
-            return False
+        # lsp_main удалён — LSP-мост больше не используется
+        return False
 
     def _check_lm_studio_models(self) -> dict:
         import httpx
@@ -328,65 +324,160 @@ class GetHealthReportTool(MCPTool):
 
 
 class ReadLiveFileTool(MCPTool):
-    """read_live_file — чтение файла из памяти LSP (включая несохранённые изменения).
+    """read_live_file — чтение файла с диска с поддержкой диапазона строк.
 
-    Пытается получить текст из LSP VFS (память редактора). Если файл не открыт —
-    читает с диска. Это позволяет AI-агенту видеть текущее состояние файла,
-    включая правки, которые ещё не сохранены на диск.
+    LSP-мост удалён из проекта — читаем только с диска.
+    Поддерживает:
+    - Частичное чтение (start_line / end_line)
+    - Preview без диапазона (первые 50 строк, truncated=true)
+    - Детект бинарных файлов (null-байты в первых 512 байтах)
+    - Path traversal guard (§5.12 AGENTS.md)
     """
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="read_live_file")
 
     @error_boundary("read_live_file", timeout_ms=3000)
-    async def execute(self, absolute_path: str = "", file_path: str = "") -> dict:
+    async def execute(
+        self,
+        absolute_path: str = "",
+        file_path: str = "",
+        start_line: int = 0,
+        end_line: int = 0,
+    ) -> dict:
         """
         Args:
-            absolute_path: Абсолютный путь к файлу (Windows формат)
-            file_path: Относительный путь от корня проекта
+            absolute_path: Абсолютный путь к файлу (Windows формат).
+            file_path: Относительный путь от корня проекта.
+            start_line: Первая строка (1-indexed, 0 = сначала).
+            end_line: Последняя строка (включительно, 0 = до конца).
         """
-        # Определяем полный путь
+        # ─── 1. Определяем полный путь с Path traversal guard (§5.12) ───
         if absolute_path:
             target = Path(absolute_path).resolve()
         elif file_path:
-            target = (self.resolve_indexer().project_path / file_path).resolve()
+            project_root = self.resolve_indexer().project_path
+            resolved = (project_root / file_path).resolve()
+            if not resolved.is_relative_to(project_root.resolve()):
+                return {
+                    "status": "error",
+                    "message": "Path traversal detected",
+                }
+            target = resolved
         else:
             return {"status": "error", "message": "Provide absolute_path or file_path"}
 
-        # Пробуем получить из памяти LSP (актуальная версия)
-        content = None
-        source = "disk"
+        if not target.exists():
+            return {"status": "error", "message": f"File not found: {target}"}
+
+        # ─── 2. Детект бинарных файлов ───
         try:
-            from src.lsp_main import server as lsp_server
+            with open(target, "rb") as f:
+                header = f.read(512)
+            if b"\x00" in header:
+                mime = _guess_mime(target)
+                return {
+                    "status": "error",
+                    "binary": True,
+                    "message": f"Binary file ({mime}): {target.name}",
+                    "path": str(target),
+                    "size": target.stat().st_size,
+                }
+        except Exception as e:
+            return {"status": "error", "message": f"Cannot read file header: {e}"}
 
-            if lsp_server and hasattr(lsp_server, "workspace"):
-                uri = f"file:///{str(target).replace(chr(92), '/')}"
-                doc = lsp_server.workspace.get_document(uri)
-                if doc and hasattr(doc, "source"):
-                    content = doc.source
-                    source = "lsp_vfs"
-                    logger.debug(f"read_live_file: from LSP VFS ({len(content)} chars)")
-        except Exception as _e:
-            logger.warning("exception", exc_info=True)
-            pass
-        # Fallback: читаем с диска
-        if content is None:
-            if not target.exists():
-                return {"status": "error", "message": f"File not found: {target}"}
+        # ─── 3. Читаем файл ───
+        encoding = "utf-8"
+        try:
+            content = target.read_text(encoding=encoding)
+        except UnicodeDecodeError:
+            # Fallback: пробуем chardet, иначе latin-1
             try:
-                content = target.read_text(encoding="utf-8")
-            except Exception as e:
-                return {"status": "error", "message": f"Cannot read file: {e}"}
+                import chardet
+                raw = target.read_bytes()
+                detected = chardet.detect(raw)
+                encoding = detected.get("encoding", "latin-1") or "latin-1"
+                content = raw.decode(encoding, errors="replace")
+            except ImportError:
+                encoding = "latin-1"
+                content = target.read_text(encoding=encoding, errors="replace")
+        except Exception as e:
+            return {"status": "error", "message": f"Cannot read file: {e}"}
 
-        lines = content.split(chr(10))
+        # ─── 4. Обрезаем по диапазону ───
+        lines = content.split("\n")
+        total_lines = len(lines)
+
+        has_range = bool(start_line) or bool(end_line)
+        if not has_range:
+            # Без диапазона — preview 50 строк
+            display_lines = lines[:50]
+            truncated = total_lines > 50
+        else:
+            # start_line: 0 = сначала, иначе 1-indexed
+            start_idx = 0 if start_line == 0 else max(0, start_line - 1)
+            # end_line: 0 = до конца, иначе включительно
+            end_idx = total_lines if end_line == 0 else min(total_lines, end_line)
+            if start_idx >= total_lines:
+                return {
+                    "status": "ok",
+                    "path": str(target),
+                    "source": "disk",
+                    "encoding": encoding,
+                    "total_lines": total_lines,
+                    "total_chars": len(content),
+                    "content": "",
+                    "warning": f"start_line={start_line} exceeds file length ({total_lines} lines)",
+                    "range": {"start": start_line, "end": end_line},
+                }
+            if start_idx >= end_idx:
+                return {
+                    "status": "ok",
+                    "path": str(target),
+                    "source": "disk",
+                    "encoding": encoding,
+                    "total_lines": total_lines,
+                    "total_chars": len(content),
+                    "content": "",
+                    "warning": f"start_line={start_line} > end_line={end_line}",
+                    "range": {"start": start_line, "end": end_line},
+                }
+            display_lines = lines[start_idx:end_idx]
+            truncated = end_idx < total_lines
+
+        result_content = "\n".join(display_lines)
         return {
             "status": "ok",
             "path": str(target),
-            "source": source,
-            "total_lines": len(lines),
+            "source": "disk",
+            "encoding": encoding,
+            "total_lines": total_lines,
             "total_chars": len(content),
-            "content": content,
+            "content": result_content,
+            "truncated": truncated,
         }
+
+
+def _guess_mime(path: Path) -> str:
+    """Простое определение MIME-типа по расширению."""
+    ext = path.suffix.lower()
+    mime_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".pdf": "application/pdf",
+        ".zip": "application/zip", ".gz": "application/gzip", ".tar": "application/x-tar",
+        ".exe": "application/x-msdownload", ".dll": "application/x-msdownload",
+        ".o": "application/x-object", ".so": "application/x-sharedlib",
+        ".pyc": "application/x-python-bytecode",
+        ".whl": "application/x-wheel+zip",
+        ".gguf": "application/x-gguf",
+        ".bin": "application/octet-stream",
+        ".db": "application/octet-stream", ".sqlite": "application/x-sqlite3",
+    }
+    return mime_map.get(ext, "application/octet-stream")
 
 
 __all__ = [

@@ -62,6 +62,13 @@ class LanceDBManager:
         self._write_lock = threading.Lock()
         self._reindex_guard = threading.Event()  # set = reindex идёт, search fast-fail
 
+        # ─── Single-writer PID lock (Layer 3 defense) ───
+        # Гарантирует, что только ОДИН worker-процесс пишет в БД.
+        # Второй процесс (launcher) будет ждать или работать read-only.
+        self._pid_lock_path = self.db_path / ".write_lock"
+        self._pid_lock_fd = None
+        self._acquire_pid_lock()
+
         # Кэш состояния (для быстрого доступа без запросов к БД)
         self._cached_total_chunks = 0
         self._cached_unique_files: Set[str] = set()
@@ -362,6 +369,133 @@ class LanceDBManager:
     def clear_reindexing(self) -> None:
         """Снимает guard после завершения reindex."""
         self._reindex_guard.clear()
+
+    # ══════════════════════════════════════════════════════════
+    # Single-writer PID lock (Layer 3 defense)
+    # ═════════════════════════════════════════════════════════
+    def _acquire_pid_lock(self) -> None:
+        """Acquire exclusive PID lock on the database directory.
+
+        Uses a lock file with PID + timestamp. Если lock занят живым PID —
+        сразу выходим (raise), не ждём 30 секунд. Дубли MCP должны умирать
+        быстро, чтобы не плодить 6 процессов на 30 секунд.
+        """
+        import os
+        import time
+        import json
+        from pathlib import Path
+
+        lock_path = self._pid_lock_path
+
+        try:
+            # Try to create lock file exclusively
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            self._pid_lock_fd = fd
+            lock_data = json.dumps({
+                "pid": os.getpid(),
+                "started": time.time(),
+                "role": "worker"
+            }).encode()
+            os.write(fd, lock_data)
+            os.fsync(fd)
+            logger.info(f"🔒 PID lock acquired: {lock_path} (pid={os.getpid()})")
+            return
+        except FileExistsError:
+            # Lock exists - check if holder is alive
+            try:
+                with open(lock_path, 'r') as f:
+                    data = json.load(f)
+                holder_pid = data.get('pid')
+                if holder_pid and self._is_pid_alive(holder_pid):
+                    # Дубликат — умираем сразу, без 30-секундных танцев
+                    logger.warning(f"PID lock held by alive pid={holder_pid}, exiting (duplicate MCP)")
+                    raise RuntimeError(
+                        f"PID lock already held by alive process {holder_pid}. "
+                        "Дубликат MCP — завершаюсь."
+                    )
+                else:
+                    # Stale lock (holder dead) — steal it
+                    logger.warning(f"Stealing stale PID lock from dead pid={holder_pid}")
+                    try:
+                        lock_path.unlink(missing_ok=True)
+                    except PermissionError:
+                        # Windows: файл занят живым процессом — некража
+                        raise RuntimeError(
+                            f"Cannot steal PID lock from pid={holder_pid}: file in use"
+                        )
+            except (json.JSONDecodeError, OSError):
+                # Corrupted lock file - remove and retry once
+                lock_path.unlink(missing_ok=True)
+                try:
+                    fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                    self._pid_lock_fd = fd
+                    lock_data = json.dumps({
+                        "pid": os.getpid(),
+                        "started": time.time(),
+                        "role": "worker"
+                    }).encode()
+                    os.write(fd, lock_data)
+                    os.fsync(fd)
+                    logger.info(f"🔒 PID lock acquired (after retry): {lock_path} (pid={os.getpid()})")
+                    return
+                except FileExistsError:
+                    raise RuntimeError("PID lock race: another process acquired lock during retry")
+        except Exception as e:
+            logger.error(f"PID lock error: {e}")
+            raise
+
+    def _is_pid_alive(self, pid: int) -> bool:
+        """Check if a PID is alive (cross-platform).
+
+        На Unix: os.kill(pid, 0) — signal 0, ProcessLookupError = dead.
+        На Windows: os.kill для чужих процессов кидает WinError 11 (OSError)
+        даже если процесс жив. Используем ctypes.OpenProcess.
+        """
+        import os
+        import sys
+
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                kernel32 = ctypes.windll.kernel32
+                # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — минимальные права
+                handle = kernel32.OpenProcess(0x1000, False, pid)
+                if handle:
+                    kernel32.CloseHandle(handle)
+                    return True
+                # ERROR_INVALID_PARAMETER (87) — процесс не существует
+                return False
+            except Exception:
+                # fallback: если ctypes недоступен, считаем живым (safe side)
+                return True
+
+        # Unix: os.kill(pid, 0)
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except OSError:
+            # PermissionError и др. — процесс существует, но недоступен
+            return True
+
+    def _release_pid_lock(self) -> None:
+        """Release the PID lock."""
+        if self._pid_lock_fd is not None:
+            try:
+                os.close(self._pid_lock_fd)
+            except Exception:
+                pass
+            self._pid_lock_fd = None
+        try:
+            self._pid_lock_path.unlink(missing_ok=True)
+            logger.info(f"🔓 PID lock released: {self._pid_lock_path}")
+        except Exception:
+            pass
+
+    def __del__(self):
+        """Ensure lock is released on object destruction."""
+        self._release_pid_lock()
 
     def is_reindexing(self) -> bool:
         """True, если reindex в процессе — search должен fast-fail."""

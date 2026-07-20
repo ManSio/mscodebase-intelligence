@@ -259,3 +259,101 @@ error_boundary (как в meta_tools.py). Теперь доступны напр
 **Symptom:** `test_suppression_markers` ожидает 1 SARIF result, получает 3.
 **Risk:** Низкий — suppression logic работает, но тест написан для идеального case.
 **Fix:** Нужно адаптировать тест или поправить suppression detection для multi-function файлов.
+
+---
+
+## 2026-07-20 — `from src.lsp_main import server` ModuleNotFoundError ×695 (FIXED)
+
+**Symptom:** `WatcherStatusTool._check_lsp_import()` и `ReadLiveFileTool.execute()` импортировали `src.lsp_main` при каждом вызове (каждые 20-30 сек). Лог: 695 ошибок `ModuleNotFoundError`. RAM росла +13-26 MB/мин.
+
+**Root Cause:** `src.lsp_main` удалён из кодовой базы, но код `system_tools.py` не обновлён.
+
+**Fix:** `_check_lsp_import()` → return False (без try/import). `ReadLiveFileTool` → читает только с диска, без LSP fallback.
+
+**Файлы:** `system_tools.py` (WatcherStatusTool._check_lsp_import, ReadLiveFileTool.execute)
+
+**Status:** ✅ FIXED — commit pending
+
+**Guard:** при следующем Reload Window ошибки исчезнут из лога
+
+---
+
+## 2026-07-20 — `get_logs` MCP всегда пустой (FIXED)
+
+**Symptom:** `get_logs()` возвращал "Logs clean — no errors" при 695+ реальных ошибках.
+
+**Root Cause:** `get_recent_errors()` искал `{project}.log` (MSCodeBase.log), реальный лог — `mscodebase-intelligence.log`.
+
+**Fix:** Заменить `f"{project_path.name}.log"` на `MAIN_LOG_FILE`.
+
+**Файлы:** `log_manager.py` (get_recent_errors)
+
+**Status:** ✅ FIXED
+
+---
+
+## 2026-07-20 — Contradiction Ledger TypeError: takes 0 positional arguments but 1 was given (FIXED)
+
+**Symptom:** `run_contradiction_ledger()` вызывался с `_proj` (project_root), но не принимал параметров.
+
+**Root Cause:** Сигнатура без `project_root` параметра, хотя `server_factory.py`/`main.py` передают `PROJECT_ROOT`.
+
+**Fix:** Добавить `project_root: Optional[Path] = None`. При переданном пути — переопределяет глобальные ROOT и DIARY.
+
+**Файлы:** `scripts/verify_diary.py`
+
+**Status:** ✅ FIXED
+
+---
+
+## 2026-07-20 — DEV_DIARY.md дублирует AGENT_DIARY.md (нарушение §4.7)
+
+**Symptom:** В проекте два дневника: `AGENT_DIARY.md` и `DEV_DIARY.md`. Оба содержат записи про Contradiction Ledger.
+
+**Root Cause:** Исторически сложилось два параллельных дневника.
+
+**Решение (§4.7):** Нужно смёрджить содержимое DEV_DIARY.md в AGENT_DIARY.md, DEV_DIARY.md сделать редиректом.
+
+**Status:** ⏳ OPEN — требует миграции
+
+---
+
+## 2026-07-20 — `search_code` quality mode: холодный старт Reranker (KNOWN)
+
+**Symptom:** Первый вызов `search_code(mode="quality")` после перезагрузки MCP падает с "Context server request timeout". Второй и последующие — работают (816ms).
+
+**Root Cause:** `ensure_reranker_started()` в `llama_runner.py` может пытаться СТАРТОВАТЬ llama-server с `--reranking` флагом, что занимает ~2-3s. `@error_boundary(timeout_ms=15000)` + sync `search_with_mode` + `asyncio.wait_for` не прерывает синхронный код.
+
+**Fix:** Прогрев reranker при старте MCP (уже есть `_start_llama_sync()`). Альтернатива: сделать `search_with_mode` async.
+
+**Status:** 🟡 OPEN — известная проблема, workaround: 2-й вызов работает
+
+---
+
+## 2026-07-20 — `error_boundary` sync_wrapper: run_until_complete внутри работающего loop (TECH DEBT)
+
+**Symptom:** `error_boundary` для синхронных функций (типа `search_with_mode`) использует `asyncio.get_event_loop().run_until_complete()` внутри уже работающего event loop — потенциальный RuntimeError.
+
+**Fix:** Заменить на `asyncio.to_thread()` в async-контексте.
+
+**Status:** 🔴 OPEN — может вызывать скрытые крахи
+
+---
+
+## Current Model Stack (2026-07-20)
+
+| Модель                        | Размер | Dim  | Скорость      | Место                 | Статус     |
+| ----------------------------- | ------ | ---- | ------------- | --------------------- | ---------- |
+| `multilingual-e5-small-int8`  | 113 MB | 384  | 37-52 ch/s    | ONNX внутри процесса  | ✅ Активна |
+| `reranker-bge-reranker-v2-m3` | 544 MB | 1024 | ~472ms/4docs  | llama-server (8081)   | ✅ Активен |
+
+## Process Architecture (зафиксировано 2026-07-20)
+
+| Процесс | Роль | Память | Путь |
+|---------|------|--------|------|
+| `venv\Scripts\python.exe` | **Launcher** (0.6MB всегда) | 0.6 MB | Расширение |
+| `C:\Python314\python.exe` | **MCP-worker** (реальный) | 200-2000 MB | Система |
+| `llama-server.exe` | **Reranker** | 60-900 MB | Порт 8081 |
+
+> Launcher (0.6MB) запускает `C:\Python314\python.exe -m src.main` через install.py.
+> Оба видны в Диспетчере задач под ОДНИМ узлом (parent-child).
