@@ -9,6 +9,21 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **36 tools** = 20 core + 12 intel + 6 diagnostic
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
 
+## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED enabled + reranker online
+
+### Changed
+- 🎚️ **`LLAMA_CPP_ENABLED=true`** — llama.cpp reranker теперь включён по умолчанию.
+  Реранкер (`bge-reranker-v2-m3`) поднимается на порту 8081, работает через `llama-server.exe`.
+- Исправлены три источника шума в логах (07-19):
+  1. **Bridge timeout** — `max_wait 0.5s → 2.0s`, warning → debug.
+  2. **GPU sampler** — проверка `shutil.which("nvidia-smi")` перед вызовом, тихий фоллбек.
+  3. **Disk I/O sampler** — тихий игнор `CalledProcessError`/`TimeoutExpired`/`FileNotFoundError` (PID race).
+
+### Verified
+- Model file: `models/Bge-M3-568M-Q4_K_M.gguf` ✅
+- Binaries: `llama_msvc/llama-server.exe` + `ggml*.dll` ✅
+- Reranker port 8081 должен подниматься при старте MCP.
+
 ## [3.3.4] — 2026-07-19 — LLAMA_CPP_ENABLED toggle + is_compatible import fix
 
 ### Fixed

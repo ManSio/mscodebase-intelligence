@@ -89,6 +89,59 @@ def reciprocal_rank_fusion(
     return results
 
 
+def reciprocal_rank_fusion_3way(
+    bm25_results: List[dict],
+    dense_results: List[dict],
+    fts5_results: List[dict],
+    limit: int = 5,
+    rrf_k: int = 60,
+) -> List[dict]:
+    """3-way RRF: объединяет BM25 + dense + FTS5.
+
+    FTS5 (full-text SQLite) даёт ~90% уникальных находок относительно BM25
+    (см. DEV_DIARY 2026-07-19, Experiment 1), поэтому он добавляется как
+    третий независимый источник рангов, а не смешивается с BM25/dense.
+
+    Результаты FTS5 не содержат dense-вектор, поэтому dense_score=0 для них.
+    """
+    scores: dict = {}
+    results_map: dict = {}
+
+    def _ingest(results, score_key):
+        for rank, result in enumerate(results, 1):
+            key = f"{result['metadata']['file']}:{result['metadata'].get('chunk_index', 0)}"
+            scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
+            if key not in results_map:
+                results_map[key] = {
+                    **result,
+                    "bm25_score": 0.0,
+                    "dense_score": 0.0,
+                    "fts5_score": 0.0,
+                }
+            results_map[key][score_key] = 1.0 / (rrf_k + rank)
+
+    _ingest(bm25_results, "bm25_score")
+    _ingest(dense_results, "dense_score")
+    _ingest(fts5_results, "fts5_score")
+
+    sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+
+    out = []
+    for key in sorted_keys:
+        result = results_map[key]
+        out.append(
+            {
+                "text": result["text"],
+                "metadata": result["metadata"],
+                "bm25_score": result["bm25_score"],
+                "dense_score": result["dense_score"],
+                "fts5_score": result.get("fts5_score", 0.0),
+                "final_score": scores[key],
+            }
+        )
+    return out
+
+
 def auto_detect_intent(query: str) -> str:
     """Авто-определение intent по тексту запроса (v3.2.1 B1).
 

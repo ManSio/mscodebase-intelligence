@@ -347,8 +347,31 @@ class Indexer(IndexerTableMixin):
                         if not existing_df.empty:
                             existing_hash = str(existing_df["file_hash"].iloc[0])
                 except Exception as _e:
-                    logger.warning("exception", exc_info=True)
-                    pass
+                    err_str = str(_e).lower()
+                    if "not found" in err_str or "lanceerror" in err_str:
+                        # Таблица повреждена (reindex в процессе) — self-heal
+                        logger.warning(
+                            "_parse_file_only: таблица повреждена, "
+                            "reset_connection и повторная попытка"
+                        )
+                        try:
+                            if hasattr(self, "db_manager") and self.db_manager is not None:
+                                self.db_manager.reset_connection()
+                                self.table = self.db_manager.table
+                                existing_df = (
+                                    self.table.search()
+                                    .where(f"file_path = '{escaped_path}'", prefilter=True)
+                                    .limit(1)
+                                    .to_pandas()
+                                )
+                                if not existing_df.empty:
+                                    existing_hash = str(existing_df["file_hash"].iloc[0])
+                        except Exception as _e2:
+                            logger.debug(f"_parse_file_only retry failed: {_e2}")
+                            pass
+                    else:
+                        logger.warning("exception", exc_info=True)
+                        pass
 
             # 2. Чистый парсинг через IndexParser
             parsed = self._index_parser.parse_file(
@@ -452,6 +475,18 @@ class Indexer(IndexerTableMixin):
                 self.table.delete(f"file_path = '{escaped_path}'")
                 self._write_file_records(parsed, parsed["embeddings"])
 
+            # ─── FTS5 incremental sync (А: не рассинхронизироваться с LanceDB) ───
+            # Только если FTS5 уже построен (иначе lazy-rebuild при поиске).
+            if self.searcher is not None and hasattr(self.searcher, "incremental_update_fts5"):
+                try:
+                    fts5_chunks = self._build_fts5_chunks_from_parsed(
+                        rel_path_str, parsed
+                    )
+                    if fts5_chunks:
+                        self.searcher.incremental_update_fts5(fts5_chunks)
+                except Exception as _fts5_err:
+                    logger.debug(f"FTS5 sync skipped for {rel_path_str}: {_fts5_err}")
+
             import gc
             gc.collect()
             return True
@@ -459,6 +494,35 @@ class Indexer(IndexerTableMixin):
         except Exception as e:
             logger.error(f"Index failed for {rel_path_str}: {e}")
             return False
+
+    def _build_fts5_chunks_from_parsed(
+        self, rel_path_str: str, parsed: dict
+    ) -> List[dict]:
+        """Собирает FTS5-совместимые чанки из результата IndexPipeline.process_file.
+
+        FTS5 ожидает: file_path, chunk_index, text, symbol_name, symbol_kind,
+        docstring, layer. symbol_name/kind/docstring извлекаются из текста
+        теми же хелперами, что и в FTS5Mixin._build_fts5_index.
+        """
+        from src.core.search.fts5_mixin import FTS5Mixin
+
+        texts = parsed.get("chunk_texts", [])
+        metas = parsed.get("chunk_metadatas", [])
+        chunks = []
+        for i, text in enumerate(texts):
+            meta = metas[i] if i < len(metas) else {}
+            symbol_name, symbol_kind = FTS5Mixin._extract_symbol_from_text(text)
+            docstring = FTS5Mixin._extract_docstring(text)
+            chunks.append({
+                "file_path": rel_path_str,
+                "chunk_index": i,
+                "text": text,
+                "symbol_name": symbol_name,
+                "symbol_kind": symbol_kind,
+                "docstring": docstring,
+                "layer": meta.get("layer", ""),
+            })
+        return chunks
 
     def move_chunks_metadata(self, old_path: str, new_path: str) -> int:
         """P0 Meta-patching: update file_path in LanceDB WITHOUT re-embedding.
@@ -548,7 +612,16 @@ class Indexer(IndexerTableMixin):
             except Exception as e:
                 logger.debug(f"BM25 reset failed: {e}")
 
-        # 4. Notify file guard
+        # 4. FTS5: удаляем старый путь (FTS5 перестроится lazy при поиске,
+        # т.к. move_chunks_metadata меняет file_path в LanceDB — source of truth)
+        if self.searcher is not None and hasattr(self.searcher, 'remove_from_fts5'):
+            try:
+                self.searcher.remove_from_fts5(old_path)
+                results["fts5"] = "old_path_removed"
+            except Exception as e:
+                logger.debug(f"FTS5 remove failed: {e}")
+
+        # 5. Notify file guard
         try:
             if hasattr(self.file_guard, 'notify_file_renamed'):
                 self.file_guard.notify_file_renamed(old_path, new_path)

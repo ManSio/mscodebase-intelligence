@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -57,32 +58,41 @@ class NotifyChangeTool(MCPTool):
         # Получаем контент из LSP VFS или с диска
         content, source = await self._get_content(rel_path)
 
-        # Индексируем один файл
-        success = indexer._index_single_file(
-            rel_path,
-            str(rel_path.relative_to(project_root)),
-            content=content,
-            source=source,
-        )
+        rel_path_str = str(rel_path.relative_to(project_root))
 
-        if success:
-            rel_path_str = str(rel_path.relative_to(project_root))
-            # Multi-window (INC-6BCB-v2): per-project batch.
-            batch = getattr(indexer, "bm25_batch", None)
-            if batch is not None:
-                await batch.add(rel_path_str)
-            elif indexer.searcher:
-                # Fallback: per-project batch не создан (например, Indexer
-                # был создан до фикса) — синхронный reindex.
-                indexer.searcher.reindex()
-            # INC-6BCB-v3: project header — пользователь видит ГДЕ индексирует.
-            return (
-                f"✅ Index updated: {rel_path_str} (source: {source})\n"
-                f"{self._project_header()}"
-            )
+        # ★ FIX (fire-and-forget, §5.16 / async): re-embed одного файла через
+        # ONNX CPU занимает ДОЛЬШЕ транспортного таймаута Zed -> прямой вызов
+        # (даже через to_thread) обрывается по таймауту транспорта, хотя
+        # операция идёт. Решение: НЕ ждём завершения, возвращаем "queued"
+        # сразу, а индексацию делаем в фоне (loop.create_task). Event loop
+        # не блокируется (to_thread внутри task), транспортный таймаут не срабатывает.
+        async def _background_index():
+            try:
+                await asyncio.to_thread(
+                    indexer._index_single_file,
+                    rel_path,
+                    rel_path_str,
+                    content=content,
+                    source=source,
+                )
+                batch = getattr(indexer, "bm25_batch", None)
+                if batch is not None:
+                    await batch.add(rel_path_str)
+                elif indexer.searcher:
+                    await asyncio.to_thread(indexer.searcher.reindex)
+                logger.info(f"📊 notify_change done (bg): {rel_path_str}")
+            except Exception as _e:
+                logger.warning(f"notify_change bg error for {rel_path_str}: {_e}")
 
+        try:
+            asyncio.get_event_loop().create_task(_background_index())
+        except RuntimeError:
+            # Нет running loop (не должно быть в MCP) — фоллбэк на прямой вызов
+            await _background_index()
+
+        # INC-6BCB-v3: project header — пользователь видит ГДЕ индексирует.
         return (
-            f"⏭️ No changes: {str(rel_path.relative_to(project_root))}\n"
+            f"✅ Queued for reindex: {rel_path_str} (source: {source})\n"
             f"{self._project_header()}"
         )
 

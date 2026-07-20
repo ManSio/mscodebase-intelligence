@@ -317,10 +317,10 @@ def read_active_project(max_wait: float = _MAX_WAIT_SEC) -> Optional[Path]:
             continue
 
     # Выход по таймауту
-    logger.warning(
-        f"[BRIDGE] Не удалось получить project_root от LSP за {max_wait}с. "
-        f"Ключ сессии: {_session_key()}"
-    )
+        logger.debug(
+            f"[BRIDGE] Не удалось получить project_root от LSP за {max_wait}с. "
+            f"Ключ сессии: {_session_key()}"
+        )
     return None
 
 
@@ -351,17 +351,15 @@ def cleanup_stale() -> None:
 # Интеграция с существующей _resolve_project_path
 # ──────────────────────────────────────────────
 
-def read_project_from_bridge(max_wait: float = 0.5) -> Optional[Path]:
+def read_project_from_bridge(max_wait: float = 2.0) -> Optional[Path]:
     """
     High-level API для _resolve_project_path в server.py.
 
     Выполняет предварительную очистку директории и пытается дождаться
     актуального пути к корню разрабатываемого проекта.
 
-    ВАЖНО (INC-6BCB): max_wait по умолчанию 0.5s (НЕ 10s), иначе
-    create_mcp_server() зависает на старте и Zed убивает процесс по
-    таймауту. LSP обычно стартует ДО MCP и записывает bridge почти
-    сразу, поэтому 0.5s достаточно. Если нужен больший — вызывающий
+    ВАЖНО (INC-6BCB): max_wait по умолчанию 2.0s (было 0.5s), чтобы LSP
+    успел стартовать при cold start. Если нужен меньший — вызывающий
     код может передать явно.
     """
     cleanup_stale()

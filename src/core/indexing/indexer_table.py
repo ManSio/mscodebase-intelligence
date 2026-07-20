@@ -308,6 +308,46 @@ class IndexerTableMixin:
     # Удаление записей из таблицы
     # ──────────────────────────────────────────────
 
+    def _safe_read_arrow(self, max_retries: int = 1):
+        """Безопасное чтение таблицы в Arrow с self-healing при 'Not found'.
+
+        Defense-in-depth (Слой 2): если таблица повреждена (битый manifest
+        после rmtree/частичного удаления БД), ловим LanceError/Not found,
+        вызываем reset_connection() (обновляет self.table) и повторяем.
+
+        Returns:
+            pyarrow.Table или None если восстановить не удалось.
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                if self.table is None:
+                    if not self._safe_recreate_table():
+                        return None
+                return self.table.to_arrow()
+            except Exception as e:
+                err_str = str(e).lower()
+                if ("not found" in err_str or "lanceerror" in err_str
+                        or "does not exist" in err_str or "no such" in err_str):
+                    logger.warning(
+                        f"_safe_read_arrow: таблица повреждена ({e}), "
+                        f"reset_connection (попытка {attempt+1})"
+                    )
+                    try:
+                        if hasattr(self, "db_manager") and self.db_manager is not None:
+                            self.db_manager.reset_connection()
+                            self.table = self.db_manager.table
+                        else:
+                            self._safe_recreate_table()
+                    except Exception as _rc_err:
+                        logger.error(f"_safe_read_arrow: reset не удался: {_rc_err}")
+                        return None
+                    continue  # retry с обновлённой self.table
+                else:
+                    # Не LanceError — пробрасываем как None (вызывающий решит)
+                    logger.debug(f"_safe_read_arrow: не-Lance ошибка: {e}")
+                    return None
+        return None
+
     def prune_deleted_files(self, active_files_on_disk: Set[str]) -> int:
         """Удаляет из базы данных файлы, которых больше нет на физическом диске.
 
@@ -333,7 +373,12 @@ class IndexerTableMixin:
             # Arrow-native: в 5-10x быстрее и в 3x меньше RAM чем to_pandas
             import pyarrow.compute as pc
 
-            tbl = self.table.to_arrow()
+            tbl = self._safe_read_arrow()
+            if tbl is None:
+                # Таблица повреждена/недоступна — reset_connection уже сделан
+                # в _safe_read_arrow. Пропускаем prune, чтобы не усугублять.
+                logger.warning("Pruning пропущен: таблица недоступна после reset")
+                return 0
             files_in_db = pc.unique(tbl["file_path"]).to_pylist()
             deleted_files = set(files_in_db) - active_files_on_disk
 
@@ -362,7 +407,21 @@ class IndexerTableMixin:
                     file_chunks = int(pc.sum(fp_mask).as_py() or 0)
                     total_deleted_chunks += file_chunks
 
-                    self.table.delete(f"file_path = '{escaped}'")
+                    try:
+                        self.table.delete(f"file_path = '{escaped}'")
+                    except Exception as _del_err:
+                        err_str = str(_del_err).lower()
+                        if "not found" in err_str or "lanceerror" in err_str:
+                            # Таблица сменилась под ногами — обновляем и retry
+                            if hasattr(self, "db_manager") and self.db_manager is not None:
+                                self.db_manager.reset_connection()
+                                self.table = self.db_manager.table
+                            try:
+                                self.table.delete(f"file_path = '{escaped}'")
+                            except Exception as _del_err2:
+                                logger.warning(f"Prune delete retry failed: {_del_err2}")
+                        else:
+                            logger.warning(f"Prune delete error: {_del_err}")
 
                     # Очистка PropertyGraph
                     if hasattr(self._symbol_index, "graph"):

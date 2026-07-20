@@ -475,6 +475,13 @@ class ResourceMonitor:
         # nvidia-smi
         try:
             import subprocess as _sp
+            import shutil
+            if not shutil.which("nvidia-smi"):
+                # Нет nvidia-smi в PATH — логируем один раз и отключаем
+                if not getattr(self, "_gpu_logged_missing", False):
+                    logger.debug("GPU metrics unavailable: nvidia-smi not in PATH")
+                    self._gpu_logged_missing = True
+                return self._gpu_cache
             out = _sp.check_output(
                 ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
                  "--format=csv,noheader,nounits"],
@@ -518,9 +525,12 @@ class ResourceMonitor:
                 # Оцениваем MB примерно (обычно 4KB на операцию)
                 result["read_mb"] = round(reads * 4 / 1024, 1)
                 result["write_mb"] = round(writes * 4 / 1024, 1)
-        except Exception as _e:
-            logger.warning("exception", exc_info=True)
+        except (_sp.CalledProcessError, _sp.TimeoutExpired, FileNotFoundError):
+            # Процесс умер или PowerShell недоступен — молча игнорируем
             pass
+        except Exception:
+            # Любая другая ошибка — логируем (редко)
+            logger.warning("exception", exc_info=True)
         self._disk_io_cache = {**result, "timestamp": now}
         return result
 

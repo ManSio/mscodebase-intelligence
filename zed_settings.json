@@ -1,0 +1,115 @@
+{
+  "agent_servers": {
+    "cursor": {
+      "default_config_options": {
+        "fast": false,
+        "model": "composer-2.5"
+      },
+      "type": "registry"
+    }
+  },
+  "disable_ai": false,
+  "context_server_timeout": 60,
+  "proxy": "",
+  "diff_view_style": "split",
+  "project_panel": {
+    "hide_gitignore": true
+  },
+  "git": {
+    "inline_blame": {
+      "enabled": true
+    }
+  },
+  "minimap": {
+    "show": "always"
+  },
+  "theme": {
+    "mode": "dark",
+    "light": "One Light",
+    "dark": "One Dark"
+  },
+  "base_keymap": "VSCode",
+  "language_models": {
+    "openai_compatible": {
+      "ZCode128.Ai": {
+        "api_url": "https://api.z.ai/api/paas/v4",
+        "available_models": [
+          {
+            "name": "glm-4.7-flash",
+            "max_tokens": 328000,
+            "max_output_tokens": 12000,
+            "max_completion_tokens": 228000
+          }
+        ]
+      },
+      "alibaba": {
+        "api_url": "https://ws-6lgwblro46mgxve4.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "available_models": [
+          { "name": "qwen3.7-max", "display_name": "Qwen 3.7 Max", "max_tokens": 1000000, "max_output_tokens": 32000 },
+          { "name": "qwen3.7-plus", "display_name": "Qwen 3.7 Plus", "max_tokens": 1000000, "max_output_tokens": 32000 },
+          { "name": "deepseek-v4-pro", "display_name": "DeepSeek V4 Pro", "max_tokens": 931072, "max_output_tokens": 16384 }
+        ]
+      },
+      "OpenCodeZenFree": {
+        "api_url": "https://opencode.ai/zen/v1",
+        "available_models": [
+          { "name": "opencode/deepseek-v4-flash-free", "max_tokens": 4096 },
+          { "name": "opencode/nemotron-3-ultra-free", "max_tokens": 4096 }
+        ]
+      }
+    }
+  },
+  "context_servers": {
+    "mscodebase-intelligence": {
+      "enabled": true,
+      "command": "C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe",
+      "args": [ "-u", "-m", "src.main" ],
+      "env": {
+        "PYTHONPATH": "C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence",
+        "PROJECT_PATH": "$ZED_WORKTREE_ROOT"
+      }
+    }
+  },
+  "agent": {
+    "sandbox_permissions": {
+      "network_hosts": [
+        "opencode.ai",
+        "zed.dev",
+        "github.com",
+        "raw.githubusercontent.com",
+        "api.github.com"
+      ]
+    },
+    "tool_permissions": {
+      "tools": {
+        "terminal": {
+          "default": "allow"
+        },
+        "mcp:mscodebase-intelligence:intel_get_runtime_status": {
+          "default": "allow"
+        },
+        "mcp:mscodebase-intelligence:search_code": {
+          "default": "allow"
+        },
+        "fetch": {
+          "default": "allow"
+        },
+        "mcp:mscodebase-intelligence:debug_runtime_passport": {
+          "default": "allow"
+        }
+      }
+    },
+    "sidebar_side": "left",
+    "auto_compact": {
+      "threshold": 90
+    },
+    "button": true,
+    "enabled": true,
+    "default_model": {
+      "effort": "low",
+      "enable_thinking": true,
+      "provider": "opencode",
+      "model": "free/nemotron-3-ultra-free"
+    }
+  }
+}

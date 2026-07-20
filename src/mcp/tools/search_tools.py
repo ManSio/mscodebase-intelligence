@@ -447,6 +447,9 @@ class SearchCodeTool(MCPTool):
                 "text": clean_text,
                 "layer": meta.get("layer", ""),
                 "score": r.get("final_score", r.get("score", 0)),
+                # ★ Источник результата: bm25 / dense / fts5_hybrid / None.
+                # Показывает, какой движок нашёл результат (AGENTS.md: видимость FTS5).
+                "source": meta.get("source", ""),
             }
             # Graph context enrich (callers from SymbolIndex)
             callers = meta.get("callers")

@@ -50,17 +50,44 @@ def register_intelligence_tools(mcp_app, intel_layer):
         """
         if mode == "full":
             try:
-                import shutil
-                # Удаляем только .codebase_indices (НЕ project_path!)
-                _targets = [
-                    intel_layer.project_path / '.codebase_indices',
-                ]
-                ext_root = __import__('os').environ.get('_ext_root', '')
-                if ext_root:
-                    _targets.append(__import__('pathlib').Path(ext_root) / '.codebase_indices')
-                for _t in _targets:
-                    if _t.exists() and _t.is_dir():
-                        shutil.rmtree(str(_t), ignore_errors=True)
+                # ── АТОМАРНАЯ очистка БД (фикс бага 'Not found' при full reindex) ──
+                # НЕ используем shutil.rmtree('.codebase_indices') — он физически
+                # удаляет файлы БД, пока worker-процесс держит self.table открытой
+                # (из __init__), превращая self.table в dangling -> 'lance error: Not found'
+                # при чтении (Pruning/optimize/search). rmtree с ignore_errors при
+                # залоченных файлах удаляет БД частично -> битый manifest.
+                # Вместо этого: drop_table + create_table ВНУТРИ процесса (LanceDB
+                # атомарно через lock-файлы) + reset_connection() (обновляет self.table).
+                _idx = getattr(intel_layer, "indexer", None)
+                _dbm = getattr(_idx, "db_manager", None) if _idx else None
+                if _dbm is not None and hasattr(_dbm, "reset_connection"):
+                    # Guard: запрещаем concurrent search читать БД во время очистки
+                    if hasattr(_dbm, "set_reindexing"):
+                        _dbm.set_reindexing()
+                    try:
+                        # 1. drop + recreate таблицу атомарно (через lock-файлы LanceDB)
+                        try:
+                            _dbm.db.drop_table(_dbm.table_name)
+                        except Exception:
+                            pass  # таблицы может не быть
+                        _dbm.db.create_table(
+                            _dbm.table_name, schema=_dbm.schema
+                        )
+                        # 2. ОБЯЗАТЕЛЬНО обновляем self.table во всех слоях
+                        _dbm.reset_connection()
+                    finally:
+                        if hasattr(_dbm, "clear_reindexing"):
+                            _dbm.clear_reindexing()
+                else:
+                    # Fallback: если db_manager недоступен — старый rmtree (редко)
+                    import shutil
+                    _targets = [intel_layer.project_path / '.codebase_indices']
+                    ext_root = __import__('os').environ.get('_ext_root', '')
+                    if ext_root:
+                        _targets.append(__import__('pathlib').Path(ext_root) / '.codebase_indices')
+                    for _t in _targets:
+                        if _t.exists() and _t.is_dir():
+                            shutil.rmtree(str(_t), ignore_errors=True)
             except Exception as e:
                 return f"⚠️ Ошибка при очистке БД: {e}"
         job_id = await intel_layer.trigger_async_reindex()

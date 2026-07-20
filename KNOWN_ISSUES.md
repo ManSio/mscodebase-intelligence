@@ -1,7 +1,30 @@
 # KNOWN ISSUES — MSCodeBase Intelligence
 
-> Синхронизируется из `DEV_DIARY.md` при каждом [🏁 ИТОГ].
+> Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
+
+---
+
+## 2026-07-20 — LanceDB `Not found` при full reindex (частый баг, БЛОКЕР)
+
+**Архитектура (зафиксировано):** MCP = ДВА связанных процесса, оба пишут в одну БД:
+1) `venv\Scripts\python.exe` (0.6MB launcher, всегда запущен) → 2) `C:\Python314\python.exe`
+(реальный worker: 600MB старт / 200MB idle / 1-2GB при индексации). В Диспетчере — под
+одним узлом (раскрыть → двое). Плюс `llama-server.exe` (reranker, 307→60MB, до 900MB).
+
+**Symptom:** `intel_trigger_reindex(mode="full")` часто падает, job висит в `Finalizing`,
+поиск пустой. Лог: `Pruning: lance error: Not found: .../codebase_chunks.lance/data/<hash>.lance`.
+
+**Root Cause:** `intel_trigger_reindex(full)` (tools_reg.py L51-65) делает
+`shutil.rmtree('.codebase_indices', ignore_errors=True)` ДО `trigger_async_reindex`, **вне guard**.
+rmtree рвёт `self.table` (открыта в `__init__`), а с `ignore_errors` удаляет БД частично →
+битый manifest → Pruning падает на `to_arrow()`. Guard ставится только ПОСЛЕ rmtree (layer.py L505).
+Песочница EXP1-9 гонку НЕ воспроизвела (LanceDB 0.34 гасит простые гонки), root cause доказан
+код-ревью.
+
+**Status:** 🔴 OPEN — требует фикса.
+**Fix (вариант А, рекомендую):** убрать `rmtree`; внутри worker делать `drop_table`+`create_table`
+(или `reset_connection()`+recreate) — атомарно через lock-файлы; плюс single-writer PID-lock на БД.
 
 ---
 

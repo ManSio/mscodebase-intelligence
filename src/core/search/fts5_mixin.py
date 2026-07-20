@@ -136,10 +136,15 @@ class FTS5Mixin:
     # ── Incremental update ────────────────────────────────────
 
     def incremental_update_fts5(self, new_chunks: List[dict]) -> None:
-        """Add new chunks to the FTS5 index incrementally."""
+        """Add new chunks to the FTS5 index incrementally.
+
+        ★ ВАЖНО: делаем incremental ТОЛЬКО если FTS5 уже построен
+        (self._fts5 is not None). Если индекс ещё не построен — НЕ делаем
+        full rebuild (это дорого и вызывалось бы на каждый notify_change).
+        FTS5 перестроится lazy при следующем поиске из LanceDB (source of truth).
+        """
         if self._fts5 is None:
-            # No index yet — full rebuild
-            self._build_fts5_index()
+            # FTS5 ещё не построен — пропускаем, перестроится при поиске
             return
 
         try:
@@ -166,13 +171,22 @@ class FTS5Mixin:
         """FTS5 hybrid search — returns results with RRF scores.
 
         This is the NEW tier that gets added to hybrid_search_async.
+        Results carry ``metadata.chunk_index`` (best-effort) so they merge
+        correctly via RRF with BM25/dense results keyed on file:chunk_index.
         """
         self._build_fts5_index()
         if self._fts5 is None or self._fts5.is_empty:
             return []
 
         try:
-            return self._fts5.hybrid_search_rrf(query, limit=limit)
+            raw = self._fts5.hybrid_search_rrf(query, limit=limit)
+            # Normalize metadata so RRF key (file:chunk_index) matches bm25/dense.
+            for r in raw:
+                meta = r.get("metadata", {})
+                if "chunk_index" not in meta:
+                    meta["chunk_index"] = 0
+                meta.setdefault("source", "fts5_hybrid")
+            return raw
         except Exception as e:
             logger.debug(f"FTS5 search error: {e}")
             return []
