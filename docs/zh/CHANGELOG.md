@@ -9,7 +9,22 @@
 > **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
-## [3.3.4] — 2026-07-19 — 开关 LLAMA_CPP_ENABLED + 修复 is_compatible 导入
+## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED 已启用 + 重排序器在线
+
+### 变更
+- 🎚️ **`LLAMA_CPP_ENABLED=true`** — llama.cpp 重排序器现默认启用。
+  重排序器 (`bge-reranker-v2-m3`) 在端口 8081 启动，通过 `llama-server.exe` 运行。
+- 修复了日志中的三个噪音源（07-19）：
+  1. **Bridge 超时** — `max_wait 0.5s → 2.0s`，warning → debug。
+  2. **GPU 采样器** — 调用前检查 `shutil.which("nvidia-smi")`，静默回退。
+  3. **Disk I/O 采样器** — 静默忽略 `CalledProcessError`/`TimeoutExpired`/`FileNotFoundError`（PID 竞态）。
+
+### 验证
+- 模型文件: `models/Bge-M3-568M-Q4_K_M.gguf` ✅
+- 二进制文件: `llama_msvc/llama-server.exe` + `ggml*.dll` ✅
+- 重排序器端口 8081 应在 MCP 启动时自动启动。
+
+## [3.3.4] — 2026-07-19 — LLAMA_CPP_ENABLED 开关 + is_compatible 导入修复
 
 ### 修复
 - 🐛 **错误的 `is_compatible` 导入。** `server_factory._start_llama_sync()` 从 `src.providers.reranker.llama_runner` 导入 `is_compatible`，但它定义在 `llama_install.py` 中。导入失败会静默中断 llama.cpp 自动启动分支（embedder 端口 8080 不会启动）。现改为从正确模块导入。

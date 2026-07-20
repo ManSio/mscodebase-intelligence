@@ -11,6 +11,10 @@ from typing import Optional
 def get_dead_code_sarif(project_root: Optional[str] = None) -> dict:
     """SARIF output для dead code (GitHub Code Scanning compatible).
 
+    Поддерживает suppression markers:
+    - # mscodebase-ignore-next-line (Python)
+    - // mscodebase-ignore-next-line (JS/TS, C/C++, Java, C#)
+
     Args:
         project_root: Путь к проекту (по умолчанию текущая директория)
 
@@ -26,33 +30,6 @@ def get_dead_code_sarif(project_root: Optional[str] = None) -> dict:
         from src.core.graph import PropertyGraph
 
         graph = PropertyGraph(root / ".codebase" / "graph.db")
-        dead_nodes = graph.detect_dead_code()
-
-        results = []
-        for node in dead_nodes:
-            results.append({
-                "ruleId": "dead-code",
-                "level": "warning",
-                "message": {
-                    "text": f"Function '{node.name}' has no incoming calls (dead code)"
-                },
-                "locations": [{
-                    "physicalLocation": {
-                        "artifactLocation": {"uri": node.file_path or "unknown.py"},
-                        "region": {
-                            "startLine": node.properties.get("start_line", 1) if node.properties else 1,
-                        }
-                    }
-                }],
-            })
-
-        return {
-            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-            "version": "2.1.0",
-            "runs": [{
-                "tool": {"driver": {"name": "mscodebase-deadcode", "version": "1.0.0"}},
-                "results": results,
-            }]
-        }
+        return graph.detect_dead_code_sarif()
     except Exception as e:
         return {"error": str(e)}

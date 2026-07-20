@@ -353,6 +353,7 @@ def _trigger_auto_index_if_empty(services):
             logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
             async def _auto():
                 try:
+                    logger.info("🚀 Auto-index: starting background indexing task")
                     # Ждём готовности рантайма (1.5s чтобы MCP успел стартовать)
                     await asyncio.sleep(1.5)
                     from src.mcp.server import _ext_root
@@ -362,14 +363,24 @@ def _trigger_auto_index_if_empty(services):
                     c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
                     logger.info(f"✅ Авто-индексация завершена: {c} файлов")
                 except Exception as e:
-                    logger.warning(f"Авто-индексация не выполнена: {e}")
+                    logger.warning(f"Авто-индексация не выполнена: {e}", exc_info=True)
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    asyncio.ensure_future(_auto())
+                    # Используем create_task (Python 3.7+) вместо ensure_future
+                    task = asyncio.create_task(_auto())
+                    logger.info("🚀 Auto-index: task created and scheduled")
                 else:
-                    # Если цикл ещё не запущен — используем create_task после старта
-                    loop.call_soon(lambda: asyncio.ensure_future(_auto()))
+                    # Если цикл ещё не запущен — планируем после старта
+                    def _schedule():
+                        try:
+                            loop2 = asyncio.get_event_loop()
+                            if loop2.is_running():
+                                asyncio.create_task(_auto())
+                                logger.info("🚀 Auto-index: delayed task created")
+                        except RuntimeError:
+                            pass
+                    loop.call_soon(_schedule)
             except RuntimeError:
                 logger.debug("Auto-index: event loop not available, retry at first request")
     except Exception as e:

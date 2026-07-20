@@ -111,6 +111,15 @@ def format_search_code(
         file = _val(r.get("file_path", r.get("file", "")), "—")
         line = r.get("start_line", r.get("line", "—"))
         layer = _val(r.get("layer"), "—")
+        # ★ Маркер источника: какой движок нашёл результат (FTS5/BM25/dense)
+        source = r.get("source", "")
+        src_badge = ""
+        if source == "fts5_hybrid":
+            src_badge = " 🔍`fts5`"
+        elif source == "bm25":
+            src_badge = " 🔤`bm25`"
+        elif source == "dense":
+            src_badge = " 🧠`dense`"
         snippet = r.get("text", r.get("snippet", ""))
         # Smart truncation: up to 2000 chars, try to end at a clean line
         if len(snippet) > 2000:
@@ -119,7 +128,7 @@ def format_search_code(
             if last_newline > 1500:  # at least 75% of budget used
                 cut = cut[:last_newline]
             snippet = cut + "\n... [truncated]"
-        result += f"{i}. 📄 **{file}** (line {line}, {layer})\n"
+        result += f"{i}. 📄 **{file}** (line {line}, {layer}){src_badge}\n"
         # Graph context: callers
         callers = r.get("callers")
         if callers and isinstance(callers, list):

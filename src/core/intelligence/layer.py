@@ -502,6 +502,14 @@ class ProjectIntelligenceLayer:
             job.progress = 0.0
 
             try:
+                # Guard (AGENTS.md §5.13 / chunkhound SerialDatabaseExecutor):
+                # запрещаем concurrent search читать БД во время переиндексации
+                # (включая фазу Finalizing: optimize()/create_index()), иначе
+                # LanceDB бросает 'Not found' на удаляемых .lance-файлах.
+                _dbm = getattr(self.indexer, "db_manager", None)
+                if _dbm is not None and hasattr(_dbm, "set_reindexing"):
+                    _dbm.set_reindexing()
+
                 # Симулируем прогресс для Zed UI
                 job.progress = 0.1
 
@@ -556,6 +564,11 @@ class ProjectIntelligenceLayer:
                 job.ended_at = time.time()
                 logger.error(f"Ошибка фоновой индексации: {e}")
             finally:
+                # Снимаем guard в любом случае (успех/ошибка/таймаут),
+                # чтобы search снова заработал после завершения reindex.
+                _dbm = getattr(self.indexer, "db_manager", None)
+                if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
+                    _dbm.clear_reindexing()
                 # Очищаем активный job_id, чтобы разрешить следующий reindex
                 self._reindex_job_id = None
                 self._reindex_task = None

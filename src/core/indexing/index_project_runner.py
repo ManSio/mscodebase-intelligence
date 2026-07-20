@@ -256,24 +256,53 @@ class IndexProjectRunner:
             _row_count = self.table.count_rows()
             if _row_count > 1000:
                 # Phase 1: optimize (with timeout protection for Windows)
-                try:
-                    _opt_ex = ThreadPoolExecutor(max_workers=1)
-                    try:
-                        _opt_ex.submit(self.table.optimize).result(timeout=300)
-                    finally:
-                        _opt_ex.shutdown(wait=False)
-                except Exception as e:
-                    logger.warning(f"Table optimize failed (non-critical, continuing): {e}")
+                # ВАЖНО: shutdown(wait=True) — дожидаемся РЕАЛЬНОГО завершения
+                # optimize() перед create_index(). Иначе (wait=False) фоновый
+                # optimize() может ещё физически удалять .lance-файлы, пока
+                # create_index() из той же функции их уже читает -> race
+                # 'Not found' (внутренняя гонка reindex-потока с самим собой).
+                # timeout=300 здесь — только сигнал залогировать предупреждение,
+                # НЕ реальная отмена: optimize() всё равно должен дойти до конца.
+                def _safe_optimize():
+                    for attempt in range(2):
+                        try:
+                            _opt_ex = ThreadPoolExecutor(max_workers=1)
+                            try:
+                                _opt_ex.submit(self.table.optimize).result(timeout=300)
+                            except Exception as _opt_to:
+                                logger.warning(
+                                    f"Table optimize exceeded 300s timeout "
+                                    f"(continuing to wait for completion): {_opt_to}"
+                                )
+                            finally:
+                                _opt_ex.shutdown(wait=True)
+                            return True
+                        except Exception as e:
+                            err_str = str(e).lower()
+                            if ("not found" in err_str or "lanceerror" in err_str
+                                    or "does not exist" in err_str or "no such" in err_str):
+                                logger.warning(
+                                    f"_safe_optimize: таблица повреждена ({e}), "
+                                    f"reset_connection и повторная попытка ({attempt+1}/2)"
+                                )
+                                try:
+                                    if hasattr(self, "db_manager") and self.db_manager is not None:
+                                        self.db_manager.reset_connection()
+                                        self.table = self.db_manager.table
+                                    else:
+                                        self._safe_recreate_table()
+                                except Exception as _rc_err:
+                                    logger.error(f"_safe_optimize: reset не удался: {_rc_err}")
+                                    return False
+                                continue
+                            else:
+                                logger.warning(f"Table optimize failed (non-critical, continuing): {e}")
+                                return False
+                    return False
 
-                # Circuit breaker: if rows dropped to 0 after optimize, skip index
-                _row_count = self.table.count_rows()
-                if _row_count == 0:
-                    logger.warning(
-                        "count_rows is 0 after optimize — "
-                        "skipping index creation"
-                    )
+                if not _safe_optimize():
+                    logger.warning("Optimize failed after retries, skipping index creation")
                 else:
-                    logger.info(f"Creating index ({_row_count} chunks)...")
                     # Drop existing indices
                     try:
                         for idx in self.table.list_indices():
@@ -283,21 +312,54 @@ class IndexProjectRunner:
                     except Exception as _drop_err:
                         logger.debug(f"Drop old index (non-critical): {_drop_err}")
                     # Create IVF_FLAT index (LanceDB 0.33+ config-based API)
-                    try:
-                        self.table.create_index(
-                            "vector",
-                            index_type="IVF_FLAT",
-                            metric="cosine",
-                            replace=True,
-                        )
-                        logger.info("IVF_FLAT index created")
-                    except TypeError:
-                        # Fallback to legacy positional API (< 0.33)
-                        self.table.create_index(
-                            metric="cosine", vector_column_name="vector",
-                            index_type="IVF_FLAT", replace=True,
-                        )
-                        logger.info("IVF_FLAT index created (legacy API)")
+                    def _safe_create_index():
+                        for attempt in range(2):
+                            try:
+                                self.table.create_index(
+                                    "vector",
+                                    index_type="IVF_FLAT",
+                                    metric="cosine",
+                                    replace=True,
+                                )
+                                logger.info("IVF_FLAT index created")
+                                return True
+                            except TypeError:
+                                # Fallback to legacy positional API (< 0.33)
+                                try:
+                                    self.table.create_index(
+                                        metric="cosine", vector_column_name="vector",
+                                        index_type="IVF_FLAT", replace=True,
+                                    )
+                                    logger.info("IVF_FLAT index created (legacy API)")
+                                    return True
+                                except Exception as _legacy_e:
+                                    logger.warning(f"Legacy create_index failed: {_legacy_e}")
+                                    raise
+                            except Exception as e:
+                                err_str = str(e).lower()
+                                if ("not found" in err_str or "lanceerror" in err_str
+                                        or "does not exist" in err_str or "no such" in err_str):
+                                    logger.warning(
+                                        f"_safe_create_index: таблица повреждена ({e}), "
+                                        f"reset_connection и повторная попытка ({attempt+1}/2)"
+                                    )
+                                    try:
+                                        if hasattr(self, "db_manager") and self.db_manager is not None:
+                                            self.db_manager.reset_connection()
+                                            self.table = self.db_manager.table
+                                        else:
+                                            self._safe_recreate_table()
+                                    except Exception as _rc_err:
+                                        logger.error(f"_safe_create_index: reset не удался: {_rc_err}")
+                                        return False
+                                    continue
+                                else:
+                                    logger.warning(f"create_index failed (non-critical): {e}")
+                                    return False
+                        return False
+
+                    if not _safe_create_index():
+                        logger.warning("create_index failed after retries")
 
         final_stats = get_status() if get_status else {}
         if progress_callback:

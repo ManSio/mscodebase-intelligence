@@ -28,6 +28,7 @@ from .scoring import (
     apply_mmr_diversity,
     auto_detect_intent,
     reciprocal_rank_fusion,
+    reciprocal_rank_fusion_3way,
 )
 from .trace import SearchTracer
 from .utils import (
@@ -338,6 +339,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Собираем результаты от всех вариантов
         all_bm25_results = []
         all_dense_results = []
+        all_fts5_results: List[dict] = []
         query_vector = None  # для MMR
 
         # ── Tracer: query expansion ──
@@ -392,7 +394,20 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 except Exception as e:
                     logger.warning(f"Не удалось выполнить dense поиск: {e}")
 
-        # Дедупликация BM25 результатов
+        # FTS5 (full-text) — параллельно, с защитой от таймаута.
+        # _fts5_search делает lazy build (to_pandas на весь индекс, ~0.5s на
+        # первом вызове). Чтобы не усугублять 15s-лимит search_code, оборачиваем
+        # в wait_for(2s): при превышении — degraded ([]), основной поиск жив.
+        try:
+            fts5_raw = await asyncio.wait_for(
+                self._fts5_search_async(query, limit=raw_limit * 2),
+                timeout=2.0,
+            )
+            all_fts5_results.extend(fts5_raw)
+        except asyncio.TimeoutError:
+            logger.warning("FTS5 search timed out (>2s), skipping FTS5 tier")
+        except Exception as e:
+            logger.debug(f"FTS5 search error: {e}")
         seen_keys = set()
         unique_bm25 = []
         for r in all_bm25_results:
@@ -402,8 +417,8 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 unique_bm25.append(r)
 
         if use_rrf:
-            rrf_results = reciprocal_rank_fusion(
-                unique_bm25, all_dense_results, raw_limit
+            rrf_results = reciprocal_rank_fusion_3way(
+                unique_bm25, all_dense_results, all_fts5_results, raw_limit
             )
             if tracer:
                 tracer.record_rrf(rrf_results)
@@ -689,7 +704,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         filter_expr = f"layer = '{layer}'" if layer else ""
 
         if mode == self.MODE_FAST:
-            # FAST: embed + vector only (без реранкера, но с bucketing)
+            # FAST: embed + vector + FTS5 (без реранкера, но с bucketing)
             t1 = time.perf_counter()
             query_vector = self.embedder.embed(query)
             timing["embed_ms"] = (time.perf_counter() - t1) * 1000
@@ -705,6 +720,18 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
             else:
                 results = []
+
+            # FTS5 (full-text) — синхронно (search_with_mode сам sync).
+            # В fast-mode нет reranker, поэтому FTS5-метка гарантированно видна.
+            # _fts5_search делает lazy build (~0.6s на первом вызове) — принимаем,
+            # т.к. search_with_mode и так блокирующий (вызывается через asyncio.run).
+            try:
+                fts5_raw = self._fts5_search(query, limit=limit * 2)
+                if fts5_raw:
+                    # Сливаем dense + fts5 через 3-way RRF (bm25 пуст в fast-mode)
+                    results = reciprocal_rank_fusion_3way([], results, fts5_raw, limit)
+            except Exception as e:
+                logger.debug(f"FTS5 search error in fast mode: {e}")
 
         elif mode == self.MODE_DEEP:
             # DEEP: quality + graph context

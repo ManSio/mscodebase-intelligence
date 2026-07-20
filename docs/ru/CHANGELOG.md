@@ -9,6 +9,21 @@
 > **Количество инструментов (текущее):** живой сервер регистрирует **39 инструментов** = 18 core + 13 intel + 7 inline + 1 optional
 > `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
 
+## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED включён + реранкер онлайн
+
+### Изменено
+- 🎚️ **`LLAMA_CPP_ENABLED=true`** — llama.cpp реранкер теперь включён по умолчанию.
+  Реранкер (`bge-reranker-v2-m3`) поднимается на порту 8081, работает через `llama-server.exe`.
+- Исправлены три источника шума в логах (07-19):
+  1. **Bridge timeout** — `max_wait 0.5s → 2.0s`, warning → debug.
+  2. **GPU sampler** — проверка `shutil.which("nvidia-smi")` перед вызовом, тихий фоллбек.
+  3. **Disk I/O sampler** — тихий игнор `CalledProcessError`/`TimeoutExpired`/`FileNotFoundError` (PID race).
+
+### Проверено
+- Model file: `models/Bge-M3-568M-Q4_K_M.gguf` ✅
+- Binaries: `llama_msvc/llama-server.exe` + `ggml*.dll` ✅
+- Реранкер порт 8081 должен подниматься при старте MCP.
+
 ## [3.3.4] — 2026-07-19 — Тумблер LLAMA_CPP_ENABLED + фикс импорта is_compatible
 
 ### Исправлено

@@ -1,5 +1,226 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-20 19:55] — АРХИТЕКТУРА MCP: ДВА связанных процесса + ROOT CAUSE `Not found`
+
+**ВАЖНО (зафиксировано от пользователя, больше не путать!):**
+MCP запускается КАК ДВА связанных процесса (parent-child), оба пишут в ОДНУ LanceDB:
+1. `C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\venv\Scripts\python.exe`
+   — launcher, 0.6MB EXE (размер не меняется никогда), ВСЕГДА запущен одновременно.
+2. `C:\Python314\python.exe` — РЕАЛЬНЫЙ MCP-worker: ~600MB на старте, ~200MB в простое,
+   1-2GB ПОД НАГРУЗКОЙ (индексация). Запускается ВМЕСТО venv-python для работы.
+Оба видны в Диспетчере задач под ОДНИМ узлом (раскрыть -> двое). Parent-child связь.
+3. `llama-server.exe` — reranker BGE-M3, отдельный: 307MB старт -> 60MB idle, до 900MB.
+
+**ROOT CAUSE бага `lance error: Not found` при full reindex (исправлено понимание):**
+`intel_trigger_reindex(mode="full")` (tools_reg.py L51-65) делает
+`shutil.rmtree('.codebase_indices', ignore_errors=True)` ДО `trigger_async_reindex`, **ВНЕ guard**.
+- Guard (`set_reindexing`) ставится только внутри `_run_reindex_job` (layer.py L505), УЖЕ ПОСЛЕ rmtree.
+- rmtree физически удаляет файлы БД, пока worker-процесс держит `self.table` открытым
+  (открыт в `__init__` при старте) -> `self.table` становится dangling -> `Not found`
+  при чтении (Pruning `to_arrow()` / optimize / search).
+- rmtree с `ignore_errors=True` при залоченных файлах удаляет БД **частично** ->
+  остаётся **битый manifest** -> следующий reindex (после перезагрузки) падает на Pruning.
+
+**Почему песочница (EXP1-9) не воспроизвела:** LanceDB 0.34 в 1-2 процессах гасит простые
+гонки через lock-файлы; `rmtree` с ignore_errors молча пропускает залоченные файлы, оставляя
+битый manifest — это тонкое состояние, не ловится простым delete+read. Root cause доказан
+код-ревью (tools_reg.py + layer.py + db_manager.py), не изолированным бенчем.
+
+**РЕШЕНИЕ (варианты, §1.3):**
+- **А (рекомендую):** Убрать `rmtree` из full reindex. Внутри worker делать
+  `drop_table`+`create_table` (или `reset_connection()`+recreate) — LanceDB атомарно через
+  lock-файлы, не рвёт ссылки живого процесса. Плюс single-writer PID-lock на директорию БД.
+- **Б:** `rmtree` + обязательный `reset_connection()` после него (чтобы `self.table` обновилась).
+- **В:** убивать осиротевшие MCP при старте (дедуп по DB-пути).
+
+**РЕШЕНИЕ (вариант А, ПРИМЕНЕНО):** убрал `rmtree` из `intel_trigger_reindex(full)`
+(tools_reg.py L51-66). Теперь full reindex делает внутри процесса:
+`db.drop_table()` + `db.create_table(schema)` (атомарно через lock-файлы LanceDB)
++ обязательный `db_manager.reset_connection()` (обновляет dangling `self.table`).
+Guard `set_reindexing/clear_reindexing` оборачивает очистку. Fallback на rmtree
+только если `db_manager` недоступен. Скопировано в расширение (19:52).
+
+**Экспериментальное подтверждение (EXP10):** внутрипроцессный rmtree БД при живой
+`self.table` -> 20 ошибок `LanceError(IO): Object at location ... not found`.
+После `reset_connection()` (переоткрытие таблицы) -> `AFTER_RESET: OK`.
+=> Root cause доказан И воспроизведён, фикс проверен в песочнице.
+
+**Статус:** 🟡 FIX WRITTEN — требует проверки на живом MCP (Reload Window +
+`intel_trigger_reindex(full)` должен пройти без `Not found`).
+
+---
+
+## [2026-07-20 19:45] — ROOT CAUSE (черновик, заменён выше): LanceDB `Not found` при full reindex
+
+**Симптом (от пользователя):** `intel_trigger_reindex(mode="full")` часто падает,
+job висит в `Finalizing`, поиск возвращает пустышку. Лог:
+```
+Write complete: 305 files
+[ERROR] Ошибка при выполнении операции Pruning: lance error: Not found:
+  .../codebase_chunks.lance/data/0011100101111001110001117e8d414088b2530860d092b1e1.lance
+[WARNING] Table optimize failed (non-critical, continuing): lance error: Not found: ...
+```
+
+**Расследование (по протоколу §4 Post-Mortem + §1 Research→Experiment):**
+1. **Интернет:** LanceDB 0.34.0 (в venv расширения). GitHub-issue про `Not found`
+   при optimize/prune — restricted/не найдены; дока LanceDB по optimize 404
+   (URL устарел). `checkout_version` НЕ существует в 0.34 (API изменился).
+2. **Песочница (experiments/):**
+   - `sandbox_lancedb_race.py` EXP1-6 (optimize/compact/delete + чтение в 1 и 2
+     процессах) → **0 ошибок**. LanceDB 0.34 сериализует доступ к manifest
+     через lock-файлы. Простая гонка потоков НЕ воспроизводится.
+   - `sandbox_lancedb_multiproc.py` EXP7 (2 процесса, delete+optimize) → 0.
+   - `sandbox_lancedb_drop.py` EXP8 (drop_table+recreate + чтение) → 0.
+   - `sandbox_lancedb_rmtree.py` EXP9 (rmtree БД + чтение) → 0 (LanceDB держит
+     файлы через OS-handle, rmtree с ignore_errors молча пропускает залоченные).
+3. **Точный root cause (найден в коде):**
+   `intel_trigger_reindex(mode="full")` (tools_reg.py L51-65) делает
+   `shutil.rmtree('.codebase_indices', ignore_errors=True)` — **физически
+   удаляет ВСЮ LanceDB-директорию** ДО вызова `trigger_async_reindex`.
+   - Guard (`set_reindexing`) ставится ТОЛЬКО внутри `_run_reindex_job`
+     (layer.py L505-511), уже ПОСЛЕ rmtree, и только в ТЕКУЩЕМ процессе.
+   - **Второй MCP-процесс** (наблюдали PID 20920 + 19020 одновременно, оба
+     `src.main`, пишут в ОДНУ БД) НЕ видит guard и продолжает держать СТАРУЮ
+     таблицу → его `self.table` битая после rmtree → `Not found`.
+   - `rmtree` с `ignore_errors=True` при конкурентной записи второго процесса
+     удаляет БД **частично** → остаётся **битый manifest** → следующий reindex
+     (после перезагрузки) падает на Pruning (`to_arrow()` читает удалённый файл).
+   - `finally` (layer.py L566) снимает guard — ОК, но rmtree вне guard.
+
+**Вердикт:** Root cause = **два MCP-процесса пишут в одну БД + `rmtree` БД
+вне guard**. Не гонка потоков (LanceDB её гасит), а межпроцессная
+конкуренция + неатомарная очистка БД.
+
+**Решение (варианты, по протоколу §1.3):**
+- **А (рекомендую):** single-writer lock на директорию БД (PID-файл
+  `.codebase_indices/.write_lock`). При старте MCP — если lock чужой и жив →
+  завершить процесс (второй не нужен) ИЛИ работать read-only. `intel_trigger_reindex(full)`
+  должен: (1) дождаться снятия lock других, (2) поставить свой, (3) ТОЛЬКО
+  потом rmtree + recreate + `reset_connection()`.
+- **Б:** не `rmtree` всю директорию, а `drop_table`+`create_table` внутри
+  процесса (безопаснее, но не чинит битый manifest от второго процесса).
+- **В:** убивать осиротевшие MCP при старте (дедуп по DB-пути).
+
+**Эксперименты:** `experiments/sandbox_lancedb_*.py` (EXP1-9) — воспроизведение
+не удалось в песочнице (LanceDB 0.34 слишком устойчив к гонкам в 1-2 процессах
+без реального второго живого MCP). Root cause доказан АНАЛИЗОМ КОДА, не
+песочницей (это соответствует §1.6: гипотеза подтверждена код-ревью, не
+изолированным бенчем — помечено как «анализ, не воспроизведено в sandbox»).
+
+**Статус:** 🔴 OPEN — требует фикса (single-writer lock + атомарный reindex).
+
+---
+
+## [2026-07-20 18:20] — FTS5 visibility: маркер source + fast-mode integration
+
+**Проблема (от пользователя):** FTS5 работает, но в выдаче `search_code` не видно,
+что результат от FTS5. И вообще — что ещё не до конца подключено?
+
+**Что нашёл:**
+1. `format_search_code` НЕ выводил `metadata.source` — поле терялось при
+   конвертации в `ui_items` в `_format_results` (search_tools.py). Добавил
+   прокидывание `source` и бейдж: 🔍`fts5` / 🔤`bm25` / 🧠`dense`.
+2. `mode=fast` НЕ вызывал FTS5 вообще (шёл мимо `hybrid_search_async`). Добавил
+   FTS5-сбор в fast-ветку `search_with_mode` (синхронно, т.к. метод sync).
+   В fast-mode нет reranker -> FTS5-метка гарантированно видна.
+3. В `mode=quality/deep` FTS5 вызывается, НО reranker (BGE-M3) переранжирует и
+   часто оставляет только dense-результаты -> FTS5-метка редко видна там.
+   Это ожидаемо (semantic priority), не баг.
+
+**Доказательство качества (реальный замер):**
+- Прямой `_fts5_search('hybrid_search_async')` -> 6 результатов, все `src=fts5_hybrid`
+  (находит symbol в agentic_search.py, live_search_audit.py, benchmark_agentic_search.py).
+- `search_with_mode(mode='fast')` -> 6 результатов, 3 с `src=fts5_hybrid`.
+- Маркер 🔍`fts5` появляется в форматтере (тест test_search_code_fts5_marker: 2 passed).
+
+**Ещё НЕ до конца подключено (вынесено в KNOWN_ISSUES):**
+- `FTS5Mixin.incremental_update_fts5` и `remove_from_fts5` НИГДЕ не вызываются
+  при `notify_change` / `apply_file_move`. FTS5-индекс строится lazy из LanceDB
+  при первом поиске, но при изменении/удалении файла НЕ обновляется -> рассинхрон
+  (FTS5 может искать по удалённым данным). Нужно хукать в Indexer-фабрику.
+- `notify_change` частично исправлен (loop unblocked via to_thread), но сама
+  операция re-embed > транспортного таймаута Zed -> нужен fire-and-forget.
+
+**verified_from_clean_state:** ⚠️ не clone. Локально: 13 тестов passed (fts5 +
+marker + notify + searcher_hardening); живой MCP (PID 16888) перезагружен с
+обновлённым engine.py -> можно дёргать search_code mode=fast и видеть 🔍`fts5`.
+
+**Статус:** ✅ (FTS5 видим + в fast-mode), ⚠️ (incremental/remove FTS5 не подключены).
+
+## [2026-07-20 18:05] — notify_change: root cause таймаута (blocking event loop)
+
+**Симптом:** `notify_change` возвращал «Context server request timeout»; при
+повторных вызовах весь MCP переставал отвечать даже на `debug_runtime_passport`.
+
+**Root Cause (§5.16 / async):** `NotifyChangeTool.execute` вызывал синхронный
+`indexer._index_single_file()` напрямую в async-функции. Тот внутри делает
+embed (ONNX, CPU-bound) + LanceDB write — блокирует event loop MCP-сервера.
+Пока loop заблокирован, сервер не отвечает на транспорт Zed -> таймаут.
+Вторично: fallback `indexer.searcher.reindex()` тоже синхронный (блокирует).
+
+**Fix:** оба вызова обёрнуты в `asyncio.to_thread` (как BM25/dense в
+`hybrid_search_async`). Loop больше не блокируется — `debug_runtime_passport`
+отвечает даже во время индексации. Добавлен `import asyncio`.
+
+**Остаточная проблема (НЕ закрыта):** сама операция re-embed одного файла
+через ONNX CPU занимает дольше, чем транспортный таймаут Zed -> `notify_change`
+всё ещё обрывается по таймауту транспорта, хотя операция идёт в фоне (loop жив).
+Нужно: либо fire-and-forget (вернуть "queued"), либо увеличить транспортный
+таймаут Zed, либо ускорить embed. Scope creep — вынесено в KNOWN_ISSUES.
+
+**Тесты:** `tests/test_notify_change_nonblocking.py` (2 tests) — доказывают,
+что `execute` не блокирует loop (параллельный sleep не задерживается) и
+`_index_single_file` вызывается ровно 1 раз через to_thread. PASS.
+`scripts/verify_notify_change_nonblocking.py` — попытка e2e, НО виснет на
+импорте `src.mcp.server` (тянет весь сервер) -> не показателен, удалять.
+
+**verified_from_clean_state:** ⚠️ не clone. Локально: unit-тест PASS; живой MCP
+(PID 17004) отвечает на passport во время индексации (loop не заблокирован).
+Реальный e2e ответ notify_change не проверен (транспортный таймаут Zed > времени embed).
+
+**Статус:** ✅ (loop unblocked), ⚠️ (transport timeout остаётся, требует решения).
+
+## [2026-07-20 12:00] — FTS5 integrated into hybrid_search_async (closes dead-code gap from Exp.1)
+
+**Контекст:** Эксперимент 1 (DEV_DIARY 2026-07-19) решил: FTS5 — дополнительный
+слой (10% overlap с BM25), «внедрено в engine.py». Но фактически `_fts5_search_async`
+был определён в `FTS5Mixin` и НИГДЕ не вызывался в `hybrid_search_async` → мёртвый код.
+Агент не видел ответ FTS5 через `search_code`.
+
+**Что сделано:**
+- `fts5_mixin.py`: `_fts5_search` теперь нормализует `metadata.chunk_index`
+  (default 0) и проставляет `source="fts5_hybrid"`, чтобы ключ RRF
+  (`file:chunk_index`) совпал с bm25/dense.
+- `scoring.py`: добавлен `reciprocal_rank_fusion_3way` (bm25 + dense + fts5),
+  обратно-совместимый с `reciprocal_rank_fusion`.
+- `engine.py`: `hybrid_search_async` собирает FTS5 параллельно и сливает через
+  3-way RRF. **Защита от таймаута:** FTS5-search обёрнут в `asyncio.wait_for(2.0)` —
+  при превышении возвращается `[]` (degraded), основной поиск жив (не усугубляет
+  15s-лимит `search_code`).
+
+**Замеры этапа А (search_code timeout diagnosis), real index (4309 chunks):**
+- dense (LanceDB): 25 ms ✅
+- bm25 (in-mem): 462 ms ⚠️
+- ensure_reranker (1-й вызов, llama.cpp :8081): 1838 ms ⚠️
+- apply_reranker: 1702 ms ⚠️
+- fts5_build (to_pandas на весь индекс): 580 ms ⚠️ one-time, до кэша
+- fts5_search: 8.5 ms ✅
+- e2e quality (до интеграции): 4809 ms ✅ (в рамках 15s)
+- e2e quality (после интеграции FTS5): 4538 ms ✅ (не выросло)
+
+**Вывод по таймауту:** в норме `search_code` укладывается в 15s. Таймаут вылетает
+когда reranker (:8081) висит (health-check не отвечает, но сокет есть) или при
+mode=auto+agentic (LLM-вызовы >15s). FTS5-build НЕ усугубляет таймаут благодаря
+2s-guard + lazy build.
+
+**Тесты:** `tests/test_fts5_integration.py` (4 tests): FTS5 в выдаче,
+корректность (нет перемешивания), timeout-guard, 3-way RRF. Все PASS.
+
+**verified_from_clean_state:** ⚠️ не clone — venv-прогон `pytest tests/test_fts5_integration.py`
+→ 4 passed; e2e замер через scripts/benchmark_search_stages.py.
+
+**Статус:** ✅ (локально). Требует перезагрузки Zed для применения в редакторе.
+
 ## [2026-07-18 23:30] — Stale Detector: doc drift detection (DEV EXP.md §9 Шаг Б)
 
 **Что сделано:** Создан `tools/stale_detector/` — инструмент обнаружения устаревшей
@@ -4647,3 +4868,17 @@ en~ru 0.9946  en~zh 0.9926  en~fr 0.9892  en~de 0.9526  en~code 0.9412
 Решение за владельцем — см. KNOWN_ISSUES.
 
 **Status:** ✅ эксперимент проведён, сырой вывод зафиксирован в EXPERIMENTS_LOG.md.
+
+## [2026-07-19 23:25] — LLAMA_CPP_ENABLED=true + reranker online
+
+**Что сделано:** включён llama.cpp reranker (`bge-reranker-v2-m3`) через тумблер `LLAMA_CPP_ENABLED=true` (в `.env`).
+- Порт 8081 (reranker) теперь поднимается при старте MCP.
+- Модель `models/Bge-M3-568M-Q4_K_M.gguf` ✅, бинари `llama_msvc/llama-server.exe` ✅.
+- Параллельно зачищены 3 источника шума в логах (07-19):
+  1. Bridge timeout: `max_wait 0.5s → 2.0s`, warning → debug.
+  2. GPU sampler: `shutil.which("nvidia-smi")` check, тихий фоллбек.
+  3. Disk I/O sampler: тихий игнор `CalledProcessError`/`TimeoutExpired`/`FileNotFoundError` (PID race).
+
+**verified_from_clean_state:** ⚠️ не clone — конфиг в `.env`, файлы синхронизированы в расширение.
+
+**Статус:** ✅ (требует перезагрузки Zed для применения reranker).
