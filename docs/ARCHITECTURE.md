@@ -141,14 +141,52 @@ Query
 
 ### 4. LanceDB Manager (`src/core/indexing/db_manager.py`)
 
-**Thread Safety (Critical):**
+**3-Layer Defense (Triad Protection):**
+```
+Layer 1 (fast-fail): _reindex_guard (Event)
+  → search fast-fails во время reindex
+  → set_reindexing() / clear_reindexing()
+
+Layer 2 (thread-safety): _write_lock (Lock)
+  → сериализует write/reconnect между потоками одного процесса
+  → begin_write() — context manager
+
+Layer 3 (process isolation): _pid_lock (файловый lock с PID)
+  → атомарный lock-файл .write_lock в директории БД
+  → ТОЛЬКО ОДИН worker-процесс пишет в БД
+  → Stale lock detection + auto-steal (если holder мёртв)
+  → Lock released в __del__
+
+Пример потоков данных:
+  trigger_async_reindex() (layer.py)
+    ├─ set_reindexing()  → Layer 1 guard включён
+    ├─ run_in_executor → index_project()
+    │    └─ IndexProjectRunner.run()
+    │         ├─ begin_write()  → Layer 2 write lock
+    │         ├─ парсинг + эмбеддинг
+    │         ├─ запись в БД
+    │         └─ _safe_ivf_index() → self-healing на Not Found
+    └─ clear_reindexing() → Layer 1 guard выключен
+
+PID-lock (Layer 3) захвачен в __init__ и держится всё время жизни Indexer.
+```
+
 ```python
-_write_lock = threading.Lock()           # Serializes write/reconnect
-_reindex_guard = threading.Event()       # Search fast-fails during reindex
+_write_lock = threading.Lock()           # Layer 2: Serializes write/reconnect
+_reindex_guard = threading.Event()       # Layer 1: Search fast-fails during reindex
+_pid_lock_path = self.db_path / ".write_lock"  # Layer 3: Process isolation
 
 def set_reindexing(self):   self._reindex_guard.set()
 def clear_reindexing(self): self._reindex_guard.clear()
+def begin_write(self):      return self._write_lock
+def is_reindexing(self):    return self._reindex_guard.is_set()
 ```
+
+**Self-Healing:**
+- `_reset_table_if_not_found()` — при Not Found: reset_connection + retry (до 2 попыток)
+- `_safe_optimize()` — optimize с self-healing
+- `_safe_create_index()` — create_index с self-healing
+- `reset_connection()` — под lock, thread-safe, восстанавливает таблицу
 
 **Connection Management:**
 - `reset_connection()` — closes DB, reconnects, reopens table, rebuilds IndexGuard
@@ -241,18 +279,20 @@ Format → UI items with 🔍fts5 / 🔤bm25 / 🧠dense badges
 
 ### 1. LanceDB `Not found` during Finalizing
 
-**Root Cause:** `intel_trigger_reindex(full)` used `shutil.rmtree('.codebase_indices')` while worker process held `self.table` open → dangling reference → `lance error: Not found` on Pruning/optimize.
+**Root Cause:** `intel_trigger_reindex(full)` used `shutil.rmtree('.codebase_indices')` while worker process held `self.table` open → dangling reference → `lance error: Not found` on Pruning/optimize. Также: два MCP-процесса (launcher + worker) писали в одну БД без блокировки → race condition.
 
-**Fix (3-layer defense):**
+**Fix (3-layer defense + PID-lock):**
 1. **tools_reg.py**: Atomic `drop_table` + `create_table` + `reset_connection()` instead of `rmtree`
 2. **indexer_table.py**: `_safe_read_arrow()` catches `Not found`/`LanceError` → `reset_connection()` + retry
 3. **index_project_runner.py**: `_safe_optimize()` + `_safe_create_index()` with reset+retry on `Not found`
+4. **db_manager.py**: PID-lock на директорию БД (Layer 3) — атомарный lock-файл с PID. Второй процесс ждёт или падает.
+5. **server_factory.py**: Auto-index обёрнут в set_reindexing/clear_reindexing guard.
 
 ### 2. Auto-Index Silent Failure
 
-**Root Cause:** `_auto()` task created via `ensure_future` in non-running loop; no logging; `FileGuard`/`embedder.is_ready()` could block silently.
+**Root Cause:** `_auto()` task created via `ensure_future` in non-running loop; no logging; `FileGuard`/`embedder.is_ready()` could block silently; no `set_reindexing()` guard перед вызовом.
 
-**Fix:** `server_factory.py` — `asyncio.create_task()` + explicit logging (`🚀 Auto-index: task created`, `starting background indexing task`, `completed`).
+**Fix:** `server_factory.py` — `asyncio.create_task()` + explicit logging (`🚀 Auto-index: task created`, `starting background indexing task`, `completed`). + Guard: `set_reindexing()` перед `index_project()`, `clear_reindexing()` в finally.
 
 ### 3. FTS5 Visibility
 
@@ -282,6 +322,30 @@ Models:        <ext>\models\ (ONNX) + <ext>\llama_msvc\ (reranker)
 ```
 
 ---
+
+## IndexProjectRunner with Self-Healing
+
+`IndexProjectRunner` (`src/core/indexing/index_project_runner.py`) — оркестратор полной индексации.
+
+**Ключевые изменения (v3):**
+- Использует `db_manager.begin_write()` для сериализации записи (Layer 2)
+- `_reset_table_if_not_found()` — self-healing при Not Found: reset_connection + retry
+- `_safe_prune()` — prune с self-healing
+- `_safe_ivf_index()` — optimize + create_index с self-healing
+- PID-lock (Layer 3) захвачен в `db_manager.__init__()`, не дублируется в runner
+
+**Поток индексации:**
+```
+Indexer.index_project()
+  └─ IndexProjectRunner.run()
+       ├─ begin_write() (Layer 2 lock)
+       ├─ Phase 1: Parallel Parse (ThreadPoolExecutor, 4 workers)
+       ├─ Phase 2: Sort + Batch Embed (batch=4, EMA speed tracking)
+       ├─ Phase 3: Write Results (с self-healing on Not Found)
+       ├─ _safe_prune() (с self-healing on Not Found)
+       ├─ BM25 reindex
+       └─ _safe_ivf_index() (optimize + create_index, self-healing)
+```
 
 ## Testing
 

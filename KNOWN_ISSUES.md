@@ -5,26 +5,35 @@
 
 ---
 
-## 2026-07-20 — LanceDB `Not found` при full reindex (частый баг, БЛОКЕР)
+## 2026-07-20 — LanceDB `Not found` при full reindex (частый баг, ИСПРАВЛЕН)
 
 **Архитектура (зафиксировано):** MCP = ДВА связанных процесса, оба пишут в одну БД:
 1) `venv\Scripts\python.exe` (0.6MB launcher, всегда запущен) → 2) `C:\Python314\python.exe`
 (реальный worker: 600MB старт / 200MB idle / 1-2GB при индексации). В Диспетчере — под
 одним узлом (раскрыть → двое). Плюс `llama-server.exe` (reranker, 307→60MB, до 900MB).
 
-**Symptom:** `intel_trigger_reindex(mode="full")` часто падает, job висит в `Finalizing`,
+**Symptom (было):** `intel_trigger_reindex(mode="full")` часто падал, job висел в `Finalizing`,
 поиск пустой. Лог: `Pruning: lance error: Not found: .../codebase_chunks.lance/data/<hash>.lance`.
 
-**Root Cause:** `intel_trigger_reindex(full)` (tools_reg.py L51-65) делает
-`shutil.rmtree('.codebase_indices', ignore_errors=True)` ДО `trigger_async_reindex`, **вне guard**.
-rmtree рвёт `self.table` (открыта в `__init__`), а с `ignore_errors` удаляет БД частично →
-битый manifest → Pruning падает на `to_arrow()`. Guard ставится только ПОСЛЕ rmtree (layer.py L505).
-Песочница EXP1-9 гонку НЕ воспроизвела (LanceDB 0.34 гасит простые гонки), root cause доказан
-код-ревью.
+**Root Cause:**
+1. `shutil.rmtree('.codebase_indices')` вне guard — рвал `self.table` во втором процессе
+2. Два MCP-процесса писали в одну БД без блокировки → race condition
+3. Auto-index не ставил `set_reindexing()` guard
 
-**Status:** 🔴 OPEN — требует фикса.
-**Fix (вариант А, рекомендую):** убрать `rmtree`; внутри worker делать `drop_table`+`create_table`
-(или `reset_connection()`+recreate) — атомарно через lock-файлы; плюс single-writer PID-lock на БД.
+**Fix (3-layer defense + PID-lock):**
+- **Layer 1:** `_reindex_guard` (Event) — search fast-fail при reindex
+- **Layer 2:** `_write_lock` (Lock) — сериализация write/reconnect между потоками
+- **Layer 3:** `_pid_lock` (файловый lock с PID) — только один worker пишет в БД
+- **Self-healing:** `_reset_table_if_not_found()` — reset_connection + retry при Not Found
+- **Auto-index guard:** `set_reindexing()` перед `index_project()`, `clear_reindexing()` в finally
+
+**Файлы:**
+- `db_manager.py`: PID-lock (Layer 3), write lock (Layer 2), reindex guard (Layer 1)
+- `index_project_runner.py`: self-healing, begin_write(), _safe_ivf_index()
+- `server_factory.py`: auto-index guard set/clear
+- `tools_reg.py`: atomic drop+create вместо rmtree
+
+**Status:** ✅ FIXED — код внедрён. Требует перезагрузки Zed.
 
 ---
 
