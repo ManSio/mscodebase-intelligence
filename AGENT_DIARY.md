@@ -147,6 +147,77 @@ marker + notify + searcher_hardening); живой MCP (PID 16888) перезаг
 
 **Статус:** ✅ (FTS5 видим + в fast-mode), ⚠️ (incremental/remove FTS5 не подключены).
 
+## [2026-07-20 22:45] — Системный фикс: 3 бага (lsp_main, get_logs, contradiction ledger) + архитектурная диагностика
+
+**Контекст:** Пользователь перезагрузил MCP, потребовал полную диагностику по протоколу А-Б-В
+после жалоб на `search_code` таймауты, `get_logs` пустоту и невидимость FTS5.
+
+**Проверка инструментов (А→Б→В):**
+- `debug_runtime_passport()` → RUN_ID be6917458612, BUILD 2a2cef3f, PID 23964 ✅
+- `intel_get_runtime_status()` → Embedder 🟢, Reranker 🟢, Index 4452/315/5680 ✅
+- `search_code(mode="fast")` → 660ms, 6 results, 🔍fts5 бейджы ✅
+- `search_code(mode="quality")` → 1-й вызов упал (холодный старт), 2-й 816ms ✅
+- `search_code(mode="deep")` → ~1-2s, 3 results ✅
+- Reranker прямой тест: 472ms, scores корректные (индекс 2 = 1.31) ✅
+- Embedder ONNX внутри процесса — порт 8080 не нужен (закрыт, это нормально)
+
+**Найденные баги (все 3 исправлены):**
+
+**БАГ 1 (P0): `from src.lsp_main import server` — ModuleNotFoundError ×695 раз**
+- **Симптом:** log-файл содержит 695 ошибок `ModuleNotFoundError: No module named 'src.lsp_main'`
+  каждые 20-30 секунд. RAM росла на 13-26 MB/мин (693→700MB за сессию).
+- **Root Cause:** `src.lsp_main` удалён из кодовой базы, но `WatcherStatusTool._check_lsp_import()`
+  и `ReadLiveFileTool.execute()` продолжали его импортировать при каждом вызове.
+- **Fix:** `_check_lsp_import()` → return False (без try/import). `ReadLiveFileTool` → читает
+  только с диска, без LSP fallback-импорта.
+- **Файлы:** `src/mcp/tools/system_tools.py`
+
+**БАГ 2 (P1): `get_logs` MCP всегда возвращал "Logs clean — no errors"**
+- **Симптом:** Пользователь и агент не видели реальные ошибки (695 lsp_main ошибок скрыты).
+- **Root Cause:** `get_recent_errors()` в `log_manager.py` искал лог по имени проекта —
+  `{project_name}.log` (MSCodeBase.log), а реальный лог называется `mscodebase-intelligence.log`.
+- **Fix:** Заменить `f"{project_path.name}.log"` на `MAIN_LOG_FILE` (
+  "mscodebase-intelligence.log").
+- **Файлы:** `src/core/log_manager.py`
+
+**БАГ 3 (P1): Contradiction Ledger — TypeError на старте MCP**
+- **Симптом:** `run_contradiction_ledger() takes 0 positional arguments but 1 was given`
+  при вызове из `server_factory.py`/`main.py`.
+- **Root Cause:** Функция объявлена без параметров, но вызывается с `_proj`/`PROJECT_ROOT`.
+- **Fix:** Добавить `project_root: Optional[Path] = None`. Если передан — переопределяет
+  глобальные ROOT и DIARY.
+- **Файлы:** `scripts/verify_diary.py`
+
+**Архитектурные находки (зафиксировано в docs/ARCHITECTURE.md):**
+- Полная цепочка quality mode: `search_code(quality)` → `search_with_mode()` →
+  `hybrid_search()` → `ThreadPoolExecutor + asyncio.run()` → `hybrid_search_async()` →
+  `_ensure_multi_reranker_async()` → `ensure_reranker_started()`
+- `@error_boundary(timeout_ms=15000)` — таймаут на async def execute(), но внутри
+  вызывается sync `search_with_mode()` → `asyncio.wait_for` **не прерывает**
+  синхронный код. Проблема: если sync код зависает — wait_for не сработает.
+- PID-lock (Layer 3) работает — зафиксировано в логах при старте
+- Автоиндексация работает через `_run_with_auto_index()` обёртку
+
+**Подводные камни:**
+1. RAM растёт ~13-26 MB/мин при 695 повторяющихся ошибках — утечка от failed
+   import в daemon thread (каждая ошибка логирует traceback влог + держит ссылки).
+2. `error_boundary` для sync wrapper использует `run_until_complete` внутри
+   уже работающего event loop → потенциальный RuntimeError.
+3. `asyncio.wait_for` НЕ прерывает синхронный код — quality mode может зависнуть
+   навсегда если reranker cold start не укладывается.
+
+**План дальнейших работ (KNOWN_ISSUES.md):**
+1. `error_boundary` sync_wrapper: заменить `run_until_complete` на `to_thread`
+2. RAM: починить утечку — убрать логирование traceback при импорте lsp_main
+3. FTS5 incremental_update: подвязать к notify_change
+4. DEV_DIARY.md: смерджить в AGENT_DIARY.md (нарушение §4.7)
+5. PID-lock stale timeout: уменьшить с 2h до 30min
+
+**verified_from_clean_state:** ⚠️ не clone (локально: 3/3 импорт-теста passed;
+MCP перезагружен, проверено: fast/quality/deep search работают).
+
+**Статус:** ✅ 3 бага исправлено.
+
 ## [2026-07-20 18:05] — notify_change: root cause таймаута (blocking event loop)
 
 **Симптом:** `notify_change` возвращал «Context server request timeout»; при

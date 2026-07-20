@@ -228,7 +228,8 @@ def get_recent_errors(project_path: Path, limit: int = 20) -> list[dict]:
         Список словарей с полями: timestamp, level, module, message
     """
     log_dir = get_log_dir(project_path)
-    log_file = log_dir / f"{project_path.name}.log"
+    # Используем единый основной лог-файл, а не per-project лог
+    log_file = log_dir / MAIN_LOG_FILE
 
     if not log_file.exists():
         return []

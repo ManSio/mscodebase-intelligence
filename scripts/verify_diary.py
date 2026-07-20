@@ -254,28 +254,48 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
     print(f"\n✅ {DIARY} обновлён")
 
 
-def run_contradiction_ledger() -> dict:
+def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
     """Runs contradiction ledger check. Returns dict, never sys.exit.
-    Used by MCP startup for safe import-time validation."""
-    # Gate-zero: full test suite first
-    gate_ok, gate_summary = gate_zero_full_suite()
-    if not gate_ok:
+    Used by MCP startup for safe import-time validation.
+
+    Args:
+        project_root: опциональный путь к проекту (если не указан — использует ROOT).
+    """
+    global ROOT
+    def run_contradiction_ledger(project_root: Optional[str] = None, skip_gate_zero: bool = True) -> dict:
+        """API для вызова из MCP-сервера.
+
+        Args:
+            project_root: путь к проекту.
+            skip_gate_zero: True (по умолч.) — не гонять pytest tests/,
+                            False — полная проверка (как в CLI main()).
+        """
+        if project_root is not None:
+            ROOT = Path(project_root).resolve()
+            # Обновляем DIARY для нового ROOT
+            global DIARY
+            DIARY = ROOT / "AGENT_DIARY.md"
+        # Gate-zero: full test suite — ТОЛЬКО для CLI, не для старта сервера.
+        # На сервере pytest tests/ создаёт лишние процессы на 120 секунд.
+        if not skip_gate_zero:
+            gate_ok, gate_summary = gate_zero_full_suite()
+            if not gate_ok:
+                return {
+                    "ok": False,
+                    "discrepancies": 1,
+                    "claims": 0,
+                    "commits": 0,
+                    "details": [f"🚨 GATE 0 FAILED: {gate_summary}"],
+                }
+        entries = parse_diary()
+        passed, failed, issues = run_verification(entries)
         return {
-            "ok": False,
-            "discrepancies": 1,
-            "claims": 0,
-            "commits": 0,
-            "details": [f"🚨 GATE 0 FAILED: {gate_summary}"],
+            "ok": failed == 0,
+            "discrepancies": failed,
+            "claims": passed + failed,
+            "commits": sum(len(e.commits) for e in entries),
+            "details": issues,
         }
-    entries = parse_diary()
-    passed, failed, issues = run_verification(entries)
-    return {
-        "ok": failed == 0,
-        "discrepancies": failed,
-        "claims": passed + failed,
-        "commits": sum(len(e.commits) for e in entries),
-        "details": issues,
-    }
 
 
 def main():

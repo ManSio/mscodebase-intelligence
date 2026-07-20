@@ -628,7 +628,12 @@ def _register_inline_tools(mcp, services):
 
     # ─── 9. read_live_file (standalone) ────────────
     @mcp.tool("read_live_file")
-    async def read_live_file(absolute_path: str = "", file_path: str = "") -> dict:
+    async def read_live_file(
+        absolute_path: str = "",
+        file_path: str = "",
+        start_line: int = 0,
+        end_line: int = 0,
+    ) -> dict:
         """Читает файл из памяти LSP (включая несохранённые изменения).
 
         Доступен напрямую (также через system(action="read")).
@@ -636,12 +641,18 @@ def _register_inline_tools(mcp, services):
         Args:
             absolute_path: абсолютный путь к файлу (Windows формат).
             file_path: относительный путь от корня проекта.
+            start_line: первая строка (1-indexed). 0 = с начала.
+            end_line: последняя строка (включительно). 0 = до конца.
         """
         from src.mcp.tools.system_tools import ReadLiveFileTool
 
         tool = ReadLiveFileTool(services)
         return await ReadLiveFileTool.execute.__wrapped__(
-            tool, absolute_path=absolute_path, file_path=file_path
+            tool,
+            absolute_path=absolute_path,
+            file_path=file_path,
+            start_line=start_line,
+            end_line=end_line,
         )
 
     # ─── 10. get_logs (standalone) ─────────────────

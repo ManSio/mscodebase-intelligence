@@ -413,4 +413,239 @@ cp src/core/search/engine.py /c/Users/misha/AppData/Local/Zed/extensions/mscodeb
 
 ---
 
-*Generated: 2026-07-20 | Version: 9301b950*
+## Startup Sequence (MCP Boot)
+
+```
+Zed IDE → launch extension
+    │
+    ▼
+install.py (initial setup — if first run)
+    ├─ pip install → venv
+    ├─ download ONNX models
+    ├─ download GGUF models (bge-m3, reranker)
+    └─ download llama-server.exe binary
+    │
+    ▼
+venv\Scripts\python.exe -m src.main (Launcher, 0.6MB)
+    │
+    └─ spawns C:\Python314\python.exe (Worker, 600MB+)
+         │
+         ├─ 1. PID-lock acquire (Layer 3 — файловый lock)
+         ├─ 2. LanceDB open/create table
+         ├─ 3. llama-server --embedding (bge-m3 GGUF), port 8080
+         ├─ 4. llama-server --reranking (BGE-reranker GGUF), port 8081
+         ├─ 5. Auto-index (if index empty — fire-and-forget)
+         ├─ 6. Contradiction Ledger (background verify diary)
+         ├─ 7. Watchdog (RAM monitor каждые 30s)
+         └─ 8. MCP ready — ждёт JSON-RPC на stdio
+```
+
+### 3 Known Cold-Start Issues
+
+| Issue | Component | Why | Workaround |
+|-------|-----------|-----|------------|
+| 1st `search_code(quality)` timeout | Reranker cold start | `ensure_reranker_started()` может пытаться запустить llama-server | 2-й вызов работает (прогрето) |
+| `error_boundary` sync wrapper | `@error_boundary` decorator | `asyncio.wait_for` не прерывает sync код (search_with_mode) | Быстрый 1-й вызов успевает |
+| BGE-M3 GGUF "не найдена" ×691 | `llama_runner._start_sync()` | Авто-паддинг работает, но модель проверяется до завершения скачивания | Сервер стартует нормально через 2.2s |
+
+## Process Architecture (2026-07-20)
+
+### Два связанных Python-процесса
+
+| Процесс | Исполняемый файл | Память | Роль |
+|---------|-----------------|--------|------|
+| **Launcher** | `venv\Scripts\python.exe` | 0.6 MB (никогда не меняется) | Держит venv, spawns worker |
+| **Worker** | `C:\Python314\python.exe` | 200 MB idle → 2 GB indexing | Реальный MCP-сервер |
+| **Reranker** | `llama-server.exe` | 60 MB idle → 900 MB | BGE-M3 reranker, порт 8081 |
+
+Оба Python-процесса видны в Диспетчере задач под ОДНИМ узлом (parent-child).
+Launcher запускает Worker через `C:\Python314\python.exe -m src.main`.
+
+### Утечка памяти (RAM Growth)
+
+**Симптом:** RAM растёт 13-26 MB/мин (693→700MB за сессию).
+
+**Основная причина (2026-07-20):** `from src.lsp_main import server` вызывался каждые 20-30 секунд →
+ModuleNotFoundError → traceback логируется → держит ссылки в лог-файле и памяти.
+
+**Исправлено:** `_check_lsp_import()` → return False (без импорта).
+
+## Search Pipeline: Quality Mode Failure Analysis
+
+### Проблема: `search_code(mode="quality")` → "Context server request timeout"
+
+**Цепочка вызова:**
+```
+search_code(quality) MCP call
+  │ timeout_ms=15000 (@error_boundary)
+  ▼
+SearchCodeTool.execute() [async]
+  ▼
+self.resolve_searcher().search_with_mode(mode="quality") [sync!]
+  ▼  (sync вызов внутри async — блокирует поток)
+hybrid_search() [sync]
+  ├─ asyncio.get_running_loop() → loop.is_running() → True
+  ├─ ThreadPoolExecutor(max_workers=1)
+  │    └─ asyncio.run(hybrid_search_async(...))
+  │         ├─ embed (ONNX CPU)
+  │         ├─ BM25 search
+  │         ├─ FTS5 search (timeout=2s guard)
+  │         ├─ 3-way RRF
+  │         ├─ MMR diversity
+  │         └─ _ensure_multi_reranker_async()
+  │              └─ ensure_reranker_started()
+  │                   ├─ is_reranker_alive()? (порт 8081)
+  │                   ├─ crash loop detection (>3/5min → block 10min)
+  │                   └─ start_reranker() (если мёртв: ~30s)
+  └─ future.result(timeout=30)
+```
+
+**Причина таймаута:** `asyncio.wait_for` (в `error_boundary`) НЕ может прервать
+синхронный код `search_with_mode()`. Если внутри `hybrid_search` происходит
+долгая операция (cold start reranker = 10-30s), `wait_for` не срабатывает
+до завершения sync кода, и весь MCP зависает на 15s.
+
+**Фиксация:** `error_boundary` sync_wrapper использует `run_until_complete()`
+внутри уже работающего event loop — потенциальный RuntimeError (§9 trap).
+
+## System Tools: Fixed Issues (2026-07-20)
+
+### 1. `from src.lsp_main import server` (ModuleNotFoundError ×695)
+
+**Было:** `WatcherStatusTool._check_lsp_import()` и `ReadLiveFileTool.execute()`
+импортировали `src.lsp_main` при каждом вызове. Модуль удалён из кодовой базы.
+
+**Стало:** `_check_lsp_import()` → return False без импорта. `ReadLiveFileTool` →
+читает только с диска (без LSP fallback).
+
+### 2. `get_logs` всегда пустой
+
+**Было:** `get_recent_errors()` искал `{project}.log` (MSCodeBase.log).
+Реальный лог — `mscodebase-intelligence.log`.
+
+**Стало:** `get_recent_errors()` → использует `MAIN_LOG_FILE`.
+
+### 3. Contradiction Ledger TypeError
+
+**Было:** `run_contradiction_ledger()` без параметров, вызывался с `project_root`.
+
+**Стало:** `run_contradiction_ledger(project_root: Optional[Path] = None)`.
+
+## C4 Diagram
+
+### Level 1: Context
+```
+┌─────────┐     JSON-RPC/stdin     ┌──────────────────────┐
+│ Zed IDE ├───────────────────────►│  MSCodeBase MCP      │
+│ (Agent) │◄──────────────────────┤  Server (Python)      │
+└─────────┘     JSON-RPC/stdout   └──────────┬───────────┘
+                                              │
+                    ┌─────────────────────────┼──────────────┐
+                    ▼                         ▼              ▼
+           ┌──────────────┐       ┌────────────────┐  ┌──────────┐
+           │ LanceDB v2   │       │ llama-server   │  │ ONNX RT  │
+           │ (vector +    │       │ (reranker)      │  │ (embed)  │
+           │  FTS5 sync)  │       │ port 8081       │  │ in-proc  │
+           └──────────────┘       └────────────────┘  └──────────┘
+```
+
+### Level 2: Container (Process View)
+```
+┌─────────────────────────────────────────────────────────┐
+│              MSCodeBase MCP Server Process               │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │                  Launcher (0.6MB)                  │   │
+│  │     venv\Scripts\python.exe -m src.main            │   │
+│  └────────────────────┬─────────────────────────────┘   │
+│                       │ spawn                           │
+│                       ▼                                 │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │            MCP Worker (200-2000MB)                │   │
+│  │     C:\Python314\python.exe                       │   │
+│  │                                                    │   │
+│  │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐     │   │
+│  │  │ Intel  │ │  Core  │ │  DI    │ │ Runtime│     │   │
+│  │  │ Layer  │ │  Tools │ │  Tools │ │ Coord. │     │   │
+│  │  └────────┘ └────────┘ └────────┘ └────────┘     │   │
+│  │                                                    │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐          │   │
+│  │  │ Indexer  │ │ Searcher │ │ Symbol   │          │   │
+│  │  │ (LanceDB)│ │ (Hybrid) │ │ Index    │          │   │
+│  │  └──────────┘ └──────────┘ └──────────┘          │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+              ┌────────────────────────────┐
+              │   llama-server (60-900MB)  │
+              │   BGE-M3 reranker          │
+              │   port 8081                │
+              └────────────────────────────┘
+```
+
+### Level 3: Component (Search Pipeline)
+```
+search_code(query, mode)
+  │
+  ▼
+┌─────────────────────────────────────────┐
+│          SearchCodeTool (MCP)            │
+│  @error_boundary(timeout_ms=15000)       │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│          Searcher.search_with_mode()     │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐  │
+│  │ Fast │ │Quality│ │ Deep │ │ Ask  │  │
+│  └──────┘ └──────┘ └──────┘ └──────┘  │
+└─────────────────┬───────────────────────┘
+                  │
+        ┌─────────┼─────────┐
+        ▼         ▼         ▼
+   ┌────────┐┌────────┐┌────────┐
+   │ BM25   ││ Dense  ││ FTS5   │
+   │(sparse)││(vector)││(text)  │
+   └────────┘└────────┘└────────┘
+        │         │         │
+        └────┬────┘─────────┘
+             ▼
+     ┌──────────────┐
+     │ 3-way RRF    │
+     │ (k=60)       │
+     └──────┬───────┘
+            ▼
+     ┌──────────────┐
+     │ MMR Diversity│
+     │ (λ=0.6)      │
+     └──────┬───────┘
+            ▼
+     ┌──────────────────┐
+     │ Multi-Provider   │
+     │ Reranker (BGE-M3)│ ←── порт 8081
+     └──────────────────┘
+```
+
+## Contradiction Ledger
+
+`scripts/verify_diary.py` — проверяет AGENT_DIARY.md против реальности кода.
+Запускается в фоновом потоке при старте MCP (`_start_contradiction_ledger_background`).
+
+**Проверяет:**
+- Функции/классы из дневника существуют в коде
+- Коммиты из дневника существуют в git
+- Маркер `verified_from_clean_state` проставлен
+
+**Gate-zero:** полный `pytest tests/` — если тесты не проходят, ledger выдаёт FAIL.
+
+## Key Files Reference (2026-07-20 update)
+
+| File | Purpose | Notes |
+|------|---------|-------|
+| `src/core/log_manager.py` | Централизованное логирование | `get_recent_errors` фикс 2026-07-20 |
+| `src/mcp/tools/system_tools.py` | System MCP tools | lsp_main удалён 2026-07-20 |
+| `scripts/verify_diary.py` | Contradiction Ledger | project_root param фикс 2026-07-20 |
+| `scripts/monitor.py` | Мониторинг индексации | v3 — lock/auto-index/Not Found |
+| `src/providers/reranker/llama_runner.py` | Llama lifecycle | 1516 строк, осознанный техдолг |
+
+*Generated: 2026-07-20 | Version: 2a2cef3f*
