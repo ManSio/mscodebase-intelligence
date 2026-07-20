@@ -3,6 +3,7 @@
 Запуск: python scripts/monitor.py (в отдельном терминале)
 
 v2: fixed avg, IVF progress, weighted speed, per-phase stats.
+v3: + lock status, Not Found counter, auto-index lifecycle.
 """
 import sys
 import os
@@ -36,7 +37,7 @@ PHASE_IVF     = "🏗️  IVF индекс"
 PHASE_DONE    = "✅ Завершено"
 
 # ─── Скорость: EMA (Exponential Moving Average) ───────────
-# α=0.3 — последние измерения权重 весомее, но не мгновенно
+# α=0.3 — последние измерения весомее, но не мгновенно
 EMA_ALPHA = 0.3
 recent_ema = 0.0       # EMA скорость (ch/s)
 ema_initialized = False
@@ -56,6 +57,11 @@ db_chunks_written = 0
 
 # Счётчики для IVF
 ivf_started = False
+
+# PID-lock статус
+lock_status = "🔒 Ожидание..."
+not_found_count = 0
+auto_index_status = "⏳"  # ⏳ idle / 🚀 running / ✅ done / ❌ failed
 
 # Таймер
 monitor_start = time.time()
@@ -145,6 +151,42 @@ def parse_indexing_complete(line):
     return int(m.group(1)) if m else None
 
 
+def parse_pid_lock(line):
+    """🔒 PID lock acquired / 🔓 PID lock released"""
+    if 'PID lock acquired' in line:
+        return 'acquired'
+    if 'PID lock released' in line:
+        return 'released'
+    if 'Stealing stale PID lock' in line:
+        return 'stale'
+    if 'PID lock timeout' in line:
+        return 'timeout'
+    return None
+
+
+def parse_not_found(line):
+    """Not found / lance error / does not exist"""
+    line_lower = line.lower()
+    if ('not found' in line_lower or 'lanceerror' in line_lower or
+            'does not exist' in line_lower or 'no such' in line_lower):
+        # Исключаем информационные строки из общего подсчёта
+        if 'reset_connection' in line_lower or 'retry' in line_lower:
+            return 'self_healed'
+        return 'found'
+    return None
+
+
+def parse_auto_index(line):
+    """Auto-index: starting / complete / failed"""
+    if 'Auto-index: starting background indexing task' in line:
+        return 'start'
+    if 'Авто-индексация завершена' in line:
+        return 'done'
+    if 'Авто-индексация не выполнена' in line:
+        return 'failed'
+    return None
+
+
 def parse_embed_complete(line):
     """Embed complete: 3857 in 194.3s (20 ch/s)"""
     if not isinstance(line, str):
@@ -194,6 +236,17 @@ def bar(done, total, width=30):
     return "█" * filled + "░" * (width - filled)
 
 
+def render_lock_emoji():
+    if 'acquired' in lock_status or '✅' in lock_status:
+        return '🔒'
+    elif 'stale' in lock_status:
+        return '⚠️'
+    elif 'timeout' in lock_status:
+        return '❌'
+    else:
+        return '🔓'
+
+
 def render():
     os.system('cls' if os.name == 'nt' else 'clear')
     now = time.time()
@@ -203,6 +256,13 @@ def render():
     print("─" * 60)
     print(f"  Фаза: {phase}")
     print(f"  Время: {fmt_time(total_elapsed)}")
+    print()
+
+    # PID-lock статус
+    print(f"  {render_lock_emoji()} Lock: {lock_status}")
+    if not_found_count > 0:
+        print(f"  🐛 Not Found: {not_found_count} (self-healed: {phase_metrics.get('self_healed', 0)})")
+    print(f"  🚀 Auto-index: {auto_index_status}")
     print()
 
     # Парсинг
@@ -398,6 +458,33 @@ try:
                 ivf_started = True
                 if phase in (PHASE_WRITING, PHASE_EMBEDDED):
                     phase = PHASE_IVF
+
+            # PID lock
+            lock = parse_pid_lock(line)
+            if lock == 'acquired':
+                lock_status = '✅ Acquired'
+            elif lock == 'released':
+                lock_status = '🔓 Released'
+            elif lock == 'stale':
+                lock_status = '⚠️ Stale (stolen)'
+            elif lock == 'timeout':
+                lock_status = '❌ Timeout'
+
+            # Not Found detection
+            nf = parse_not_found(line)
+            if nf == 'found':
+                not_found_count += 1
+            elif nf == 'self_healed':
+                phase_metrics['self_healed'] = phase_metrics.get('self_healed', 0) + 1
+
+            # Auto-index lifecycle
+            ai = parse_auto_index(line)
+            if ai == 'start':
+                auto_index_status = '🚀 running'
+            elif ai == 'done':
+                auto_index_status = '✅ done'
+            elif ai == 'failed':
+                auto_index_status = '❌ failed'
 
             # IVF done
             if parse_ivf_done(line):

@@ -4882,3 +4882,39 @@ en~ru 0.9946  en~zh 0.9926  en~fr 0.9892  en~de 0.9526  en~code 0.9412
 **verified_from_clean_state:** ⚠️ не clone — конфиг в `.env`, файлы синхронизированы в расширение.
 
 **Статус:** ✅ (требует перезагрузки Zed для применения reranker).
+
+## [2026-07-20 22:30] — PID-lock + self-healing + auto-index guard (Plane A→B complete)
+
+**Что сделано:**
+1. **IndexProjectRunner** — полный рефакторинг:
+   - Удалён дублирующийся lock (db_manager уже имеет PID-lock)
+   - Добавлен `db_manager` parameter для доступа к write lock / reset_connection
+   - `run()` обёрнут в `begin_write()` (Layer 2 thread-safety)
+   - `_reset_table_if_not_found()` — self-healing при Not Found (reset_connection + retry)
+   - `_safe_prune()` — prune с self-healing
+   - `_safe_ivf_index()` — optimize + create_index с self-healing
+
+2. **Auto-index guard** (`server_factory.py`):
+   - `_auto()` теперь вызывает `set_reindexing()` перед `index_project()`, `clear_reindexing()` в finally
+   - Раньше auto-index не ставил guard → search мог читать битую БД
+
+3. **Monitor (v3):**
+   - PID-lock статус (acquired/released/stale/timeout)
+   - Not Found счётчик + self-healed счётчик
+   - Auto-index lifecycle (start/done/failed)
+
+4. **ARCHITECTURE.md:**
+   - Добавлена секция "3-Layer Defense (Triad Protection)" в LanceDB Manager
+   - Добавлена секция "IndexProjectRunner with Self-Healing"
+   - Обновлён Critical Bugs Fixed (PID-lock + auto-index guard)
+
+**Root Cause Not Found (полное решение):**
+- Layer 1: `_reindex_guard` (Event) — search fast-fail при reindex
+- Layer 2: `_write_lock` (Lock) — сериализация write/reconnect
+- Layer 3: `_pid_lock` (файл с PID) — только один worker пишет в БД
+- Self-healing: reset_connection + retry при Not Found (до 2 попыток)
+
+**verified_from_clean_state:** ⚠️ не clone — изменения требуют перезагрузки Zed.
+Локально: `python -c "from src.core.indexing.index_project_runner import IndexProjectRunner; print('OK')"` — импорт успешен.
+
+**Статус:** ✅ (код + документация). Требует перезагрузки Zed для полной проверки.

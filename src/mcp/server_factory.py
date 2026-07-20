@@ -360,8 +360,18 @@ def _trigger_auto_index_if_empty(services):
                     if indexer.project_path.resolve() == _ext_root.resolve():
                         logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
                         return
-                    c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
-                    logger.info(f"✅ Авто-индексация завершена: {c} файлов")
+
+                    # Guard (AGENTS.md §5.13): запрещаем concurrent search
+                    # читать БД во время переиндексации
+                    _dbm = getattr(indexer, "db_manager", None)
+                    if _dbm is not None and hasattr(_dbm, "set_reindexing"):
+                        _dbm.set_reindexing()
+                    try:
+                        c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
+                        logger.info(f"✅ Авто-индексация завершена: {c} файлов")
+                    finally:
+                        if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
+                            _dbm.clear_reindexing()
                 except Exception as e:
                     logger.warning(f"Авто-индексация не выполнена: {e}", exc_info=True)
             try:
