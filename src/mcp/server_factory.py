@@ -246,7 +246,8 @@ def create_mcp_server():
     _register_notification_broker(mcp, services)
     _register_extension_handlers(mcp, services)
     start_heartbeat_monitor(mcp)
-    _trigger_auto_index_if_empty(services)
+    # Auto-index НЕ вызываем здесь — event loop ещё не запущен.
+    # Вызов будет в run_server() после asyncio.run().
     _start_delayed_bridge_recheck(services)
 
     return mcp
@@ -438,13 +439,70 @@ def run_server(original_stdout=None):
 
         if original_stdout:
             sys.stdout = original_stdout
-        asyncio.run(mcp.run_stdio_async())
+
+        # Запускаем MCP внутри async-функции, где event loop уже работает
+        async def _run_with_auto_index():
+            from src.mcp.server import _services_cache
+            # Auto-index — event loop УЖЕ запущен -> create_task сработает
+            if _services_cache is not None:
+                asyncio.create_task(_delayed_auto_index(_services_cache))
+            await mcp.run_stdio_async()
+
+        asyncio.run(_run_with_auto_index())
     except KeyboardInterrupt:
         logger.info("Сервер остановлен пользователем.")
     except Exception as e:
         logger.critical(f"Критический сбой: {e}", exc_info=True)
     finally:
         _shutdown_services()
+
+
+async def _delayed_auto_index(services):
+    """Запускает автоиндексацию с задержкой после старта сервера.
+
+    Вызывается из run_server() после asyncio.run(), когда event loop УЖЕ запущен.
+    """
+    try:
+        from src.mcp.tools.base import resolve_indexer_for_request
+        indexer = resolve_indexer_for_request(services)
+        if indexer is None:
+            return
+
+        from src.mcp.server import _ext_root
+        try:
+            if indexer.project_path.resolve() == _ext_root.resolve():
+                logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
+                return
+        except Exception:
+            pass
+
+        status = indexer.get_status()
+        if status.get("total_chunks", 0) > 0:
+            logger.info(f"⏸ Auto-index: индекс не пуст ({status.get('total_chunks', 0)} чанков), пропускаем")
+            return
+
+        # Ждём готовности рантайма
+        await asyncio.sleep(1.5)
+
+        from src.mcp.server import _ext_root
+        if indexer.project_path.resolve() == _ext_root.resolve():
+            logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
+            return
+
+        logger.info("🚀 Auto-index: starting background indexing task")
+
+        # Guard (AGENTS.md §5.13): запрещаем concurrent search
+        _dbm = getattr(indexer, "db_manager", None)
+        if _dbm is not None and hasattr(_dbm, "set_reindexing"):
+            _dbm.set_reindexing()
+        try:
+            c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
+            logger.info(f"✅ Auto-index: completed ({c} files)")
+        finally:
+            if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
+                _dbm.clear_reindexing()
+    except Exception as e:
+        logger.warning(f"Auto-index: {e}", exc_info=True)
 
 
 def _start_contradiction_ledger_background() -> None:
