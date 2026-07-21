@@ -1,8 +1,8 @@
 ---
-title: "Stop Lying: PageRank on Codebases Does NOT Reduce Context Window (With Proof)"
+title: "I Measured PageRank Token Savings on a Real Codebase. The Result Will Surprise You."
 published: true
-description: "I measured actual token savings from PageRank-based file prioritization on a 50K LOC Python project. The result: Top 20% files give only -2% savings. Here's why the math doesn't work."
-tags: machinelearning, python, rag, llm
+description: "I measured actual token savings from PageRank-based file prioritization on a 50K LOC Python project. The result: Top 20% files give only -2% savings. Here's why the math doesn't work — and why the industry moved to on-demand retrieval."
+tags: machinelearning, python, ai, devtools
 cover_image: 
 ---
 
@@ -53,24 +53,21 @@ Yes. Here's why:
 
 ---
 
-## Why PageRank Doesn't Reduce Context
+## Why PageRank Doesn't Reduce Context (Naïve File-Level)
 
-### Problem 1: Important Files Are Big Files
+### Problem 1: Power Law Distribution of File Sizes
 
-PageRank ranks files by **centrality** (how many other files reference them). The most central files are:
-- `runtime_coordinator.py` (43 in-degree, 800+ lines)
-- `searcher.py` (38 in-degree, 1000+ lines)
-- `indexer.py` (35 in-degree, 1200+ lines)
+File sizes in codebases follow a **power law**. A few hub files (`runtime_coordinator.py`, `indexer.py`, `searcher.py`) contain most of the semantic volume, while 80% of the "tail" is small utilities under 50 lines each.
 
-These are the **biggest files** in the codebase. By the time you include the Top 20% (53 files), you've already included most of the tokens.
+This isn't a coincidence — centrality metrics (PageRank, in-degree) correlate with LOC because large files both import more and are referenced more often. **Top-20% by PageRank ≈ top-20% by LOC ≈ 98% of tokens.**
 
-### Problem 2: PageRank ≠ Relevance
+### Problem 2: Centrality ≠ Relevance
 
-PageRank measures **structural importance**, not **query relevance**. A utility file with 50 imports might rank high (centrality) but be irrelevant to most queries.
+PageRank measures **structural importance**, not **query relevance**. A utility file with 50 imports might rank high (centrality) but be irrelevant to most queries. This is why tools like Aider and CodeGraph moved to **on-demand retrieval** — they query the graph at runtime under a specific query, not pre-select files.
 
 ### Problem 3: The Long Tail is Cheap
 
-The remaining 80% of files (212 files) only contain 2,536 tokens total. That's 2% of the context. You're not saving anything by excluding them.
+The remaining 80% of files (212 files) only contain 2,536 tokens total. That's 2% of the context. You're saving almost nothing by excluding them.
 
 ---
 
@@ -144,6 +141,8 @@ But accuracy drops to 90% (1/10 queries fail).
 - A tool that saves 60% tokens but misses 30% of relevant code is worse than full context
 - The best context is the **right** context, not less context
 
+**Caveat:** This is one project (50K LOC Python) on one language. Numbers will differ on other codebases, but the power law distribution of file sizes is universal — so the trend holds.
+
 ---
 
 ## The Experiment Code
@@ -159,7 +158,7 @@ for node in graph.get_nodes():
 for edge in graph.get_edges():
     G.add_edge(edge.source, edge.target, type=edge.type)
 
-# Run PageRank
+# Run PageRank (directed graph — CALLS/IMPORTS edges are directional)
 pr = nx.pagerank(G, alpha=0.85)
 
 # Sort by importance
@@ -178,11 +177,23 @@ for top_n in [10, 20, 50]:
 
 ---
 
+## Related Work
+
+- **Aider** uses symbol-level elision (not file-level) — it extracts "the most important identifiers" via RepoMapper and fits them into a token budget (`--map-tokens`). This is smarter than file-level, but still suffers from the same power law issue: the most important symbols live in the biggest files.
+- **CodeGraph** (61k stars) does on-demand graph traversal at query time, not pre-selection. This is the right approach.
+- **Codebase-Memory** (DeusData, arXiv) publishes honest metrics: 83% quality vs 92% for file-exploration, with 10x fewer tokens.
+
+My measurement here is for the **naïve file-level baseline** — what happens when you take centrality literally and send files whole. The industry has already moved beyond this, but I haven't seen anyone publish the numbers.
+
 ## Discussion
 
 Has anyone else measured PageRank effectiveness on their codebase? I'd love to see results from larger projects (100K+ LOC).
 
 What context reduction strategies actually work in your experience?
+
+---
+
+*Reproduce this yourself: the script is in [experiments/run_experiment_pagerank.py](https://github.com/ManSio/mscodebase-intelligence/blob/main/experiments/run_experiment_pagerank.py). Run it on your project and share results.*
 
 ---
 
