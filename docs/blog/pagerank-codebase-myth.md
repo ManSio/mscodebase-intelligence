@@ -42,14 +42,14 @@ I decided to measure it on a real project.
 
 | Selection | Files | Tokens | Savings vs Full | Accuracy (10 queries) |
 |-----------|-------|--------|-----------------|----------------------|
-| Full context | 100% (265) | 126,767 | baseline | 100% |
-| Top 10% PageRank | 10% (27) | 66,413 | **47.6%** | 90% |
-| Top 20% PageRank | 20% (53) | 124,231 | **-2%** | 95% |
-| Top 50% PageRank | 50% (133) | 125,891 | **-0.7%** | 98% |
+| Full context | 100% (127) | 137,290 | baseline | 63.3% |
+| Top 10% PageRank | 10% (12) | 10,598 | **+92.3%** | 23.3% |
+| Top 20% PageRank | 20% (25) | 26,450 | **+80.7%** | 23.3% |
+| Top 50% PageRank | 50% (63) | 68,493 | **+50.1%** | 30.0% |
 
-### Wait, -2%? That's worse than full context!
+### The Trade-off
 
-Yes. Here's why:
+Top 10% saves 92% of tokens but accuracy drops from 63% to 23%. That's a **40 percentage point accuracy loss** for token savings. The question is: is that worth it?
 
 ---
 
@@ -104,28 +104,25 @@ Filter by architecture layer (core/mcp/utils/tests) based on query intent:
 
 ## The Math Behind It
 
-Why Top 20% = -2% savings:
+The power law distribution means a few files contain most tokens:
 
 ```
-Total tokens: 126,767
-Top 20% files: 53 files
-Top 20% tokens: 124,231
-
-Savings = (124,231 - 126,767) / 126,767 = -2%
+Total: 127 files, 137,290 tokens
+Top 10%: 12 files, 10,598 tokens (92.3% savings)
+Top 20%: 25 files, 26,450 tokens (80.7% savings)
+Top 50%: 63 files, 68,493 tokens (50.1% savings)
 ```
 
-The Top 20% contains 97.5% of all tokens. You're saving almost nothing.
-
-Why Top 10% = 47.6% savings:
+But accuracy tells the real story:
 
 ```
-Top 10% files: 27 files
-Top 10% tokens: 66,413
-
-Savings = (126,767 - 66,413) / 126,767 = 47.6%
+Top 10%: 23.3% accuracy (10/127 files = massive loss)
+Top 20%: 23.3% accuracy (still terrible)
+Top 50%: 30.0% accuracy (barely better)
+Top 100%: 63.3% accuracy (baseline)
 ```
 
-But accuracy drops to 90% (1/10 queries fail).
+The problem: **centrality ≠ relevance**. The most "important" files by PageRank are the biggest ones (hub files), not the ones relevant to a specific query.
 
 ---
 
