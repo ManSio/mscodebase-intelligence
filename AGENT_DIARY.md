@@ -1,5 +1,32 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-21 22:30] — DocSync: полноценный en/ru/zh documentation audit и переводы
+
+**Что сделано:**
+1. **DocSyncEngine** (`src/core/doc_sync_engine.py`) — async rename hook для авто-обновления .md при переименовании символов. Покрывает en/ru/zh.
+2. **DocLLMVerifier** (`src/core/doc_llm_verifier.py`) — опциональная LLM-проверка дрифта (LM Studio).
+3. **rename hook** в `write_tools.py` — авто-фикс .md при Symbol rename (все 3 языка).
+4. **English docs audit**: ARCHITECTURE.md (65 дрифтов → 0), CONTRIBUTING.md (полностью переписан под v3.3.9), FAQ.md (intel_get_runtime_status), TELEMETRY.md (правильные model/tool counts), ZED_WINDOWS_QUIRKS.md (tool names).
+5. **Russian docs sync**: 15/15 файлов переписаны с en-оригиналов. Консистентный глоссарий (эмбеддер/реранкер/чанк/провайдер).
+6. **Chinese docs sync**: 15/15 файлов переписаны с en-оригиналов. Консистентный глоссарий (嵌入器/重排序器/块/提供者).
+7. **Root docs/ARCHITECTURE.md**: фикс `create_table`, `metadata.source`, удалён русский текст.
+
+**Итого инструментов:** 42 (18 core + 13 intel + 7 inline + 3 dev + 1 optional)
+**Тесты:** 565+ passed, 0 failed
+**Документов синхронизировано:** 45 (15 en + 15 ru + 15 zh)
+
+**Definition of Done (§7):**
+- ✅ Структура en/ru/zh идентична (заголовки, разделы, порядок)
+- ✅ Code blocks, имена инструментов, пути, URL не переведены
+- ✅ Глоссарий соблюдён в ru (эмбеддер/реранкер) и zh (嵌入器/重排序器)
+- ✅ CHANGELOG не затронут
+- ✅ KNOWN_ISSUES.md синхронизирован
+- ⚠️ verified_from_clean_state: не применимо (только docs, без runtime-изменений)
+
+**Коммит:** 95a322d6 (51 files, +3405/−1672)
+
+---
+
 ## [2026-07-21 18:30] — Dev tools: generate_docs, bump_version, install_git_hooks registered
 
 **Что сделано:**
