@@ -861,7 +861,10 @@ class RemoteEmbedder(IEmbedder):
 
             # AsyncInferQueue — пул из N параллельных InferRequest.
             # Убирает bottleneck single-lock (см. P0-3 architecture review).
-            _ov_pool_size = int(os.getenv("OV_INFER_POOL_SIZE", "4"))
+            # Увеличено с 4 до 8: при >2 concurrent embed_batch() старый pool_size=4
+            # создавал очередь, где wait_all() ждёт чужие задачи. 8 — компромисс
+            # между параллелизмом и footprint (8 InferRequest × 500MB ≈ стабильно).
+            _ov_pool_size = int(os.getenv("OV_INFER_POOL_SIZE", "8"))
             self._ov_async_queue = ov.AsyncInferQueue(compiled, jobs=_ov_pool_size)
 
             # Variant B fix (P0-3): Lock сериализует конкурентные embed_batch()
