@@ -95,7 +95,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | **C++** | ✅ | ✅ | ✅ |
 | **Scala** | ✅ | ✅ | ✅ |
 | **Dart** | ✅ | ✅ | ✅ |
-| **Shell / Bash** | ✅ | ✅ | ❌ (грамматика без RHS-field) |
+| **Shell / Bash** | ✅ | ✅ | ❌ (grammar without RHS-field) |
 | **SQL** | ✅ (context) | ❌ | ❌ |
 | **YAML** | ✅ (context) | ❌ | ❌ |
 | **TOML** | ✅ (context) | ❌ | ❌ |
