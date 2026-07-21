@@ -31,7 +31,7 @@ def main():
 
     # ── 2. CodeParser + SafePathManager + IndexParser ─────────
     print("🔧 Init CodeParser + IndexParser...")
-    from src.core.parser import CodeParser
+    from src.core.indexing.parser import CodeParser
     code_parser = CodeParser()
 
     from src.utils.paths import SafePathManager

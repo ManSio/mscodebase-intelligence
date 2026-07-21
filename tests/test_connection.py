@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 
-from src.core.file_guard import FileGuard
+from src.core.indexing.file_guard import FileGuard
 from src.core.di_container import create_service_collection, ProjectRootKey
-from src.core.project_indexer_registry import (
+from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
     get_global_registry,
     reset_global_registry,

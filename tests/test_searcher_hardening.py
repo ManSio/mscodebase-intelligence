@@ -11,8 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.searcher import Searcher
-from src.core.config import get_config
+from src.core.search.engine import Searcher
+from src.config.settings import get_config
 
 
 # ─────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ async def test_hybrid_search_async_empty_query():
 @pytest.mark.asyncio
 async def test_hybrid_search_async_raw_limit_safe_for_small_limit():
     """raw_limit не обрезает результаты до пустого списка при limit=0/1."""
-    from src.core.config import get_config
+    from src.config.settings import get_config
 
     overfetch = get_config().performance.overfetch_factor
 

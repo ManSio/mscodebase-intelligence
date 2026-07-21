@@ -78,7 +78,7 @@ def collect_project_stats() -> dict:
     result = {}
     try:
         from src.core.di_container import create_service_collection, IndexerFactoryKey
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
         from src.mcp.server import resolve_project_root, reset_project_root_cache
 
         reset_project_root_cache()
@@ -117,14 +117,14 @@ def build_snapshot() -> dict:
 
     # Resource monitor (RAM/CPU)
     try:
-        from src.core.resource_monitor import get_global_resource_monitor
+        from src.core.indexing.resource_monitor import get_global_resource_monitor
         snapshot["resources"] = get_global_resource_monitor().get_summary()
     except Exception:
         snapshot["resources"] = {"error": "unavailable"}
 
     # LLM ping + model info
     try:
-        from src.core.remote_embedder import RemoteEmbedder
+        from src.providers.embedder.remote_embedder import RemoteEmbedder
         _emb = RemoteEmbedder()
         _t0 = time.time()
         _emb.embed("ping")

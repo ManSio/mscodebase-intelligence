@@ -38,6 +38,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: Check version consistency
+        run: python scripts/bump_version.py --check
+
       - name: Full test suite (no filters)
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark'
         timeout-minutes: 10

@@ -17,9 +17,9 @@ from typing import List
 
 import pytest
 
-from src.core.parser import CodeParser
+from src.core.indexing.parser import CodeParser
 from src.core.graph import PropertyGraph, EdgeType, NodeLabel
-from src.core.graph_adapter import SymbolIndexAdapter
+from src.core.search.graph_adapter import SymbolIndexAdapter
 
 
 # ═══════════════════════════════════════════════════════════════

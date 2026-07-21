@@ -158,7 +158,7 @@ class TestIndexerProgressCallback:
 
     def test_indexer_accepts_callback(self):
         """Indexer принимает progress_callback параметр."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
         from pathlib import Path
 
         indexer = Indexer(
@@ -175,7 +175,7 @@ class TestIndexerProgressCallback:
 
     def test_callback_is_optional(self):
         """progress_callback опциональный."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
         from pathlib import Path
 
         indexer = Indexer(

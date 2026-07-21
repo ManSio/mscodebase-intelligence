@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-from src.core.intelligence_layer import JobHistoryStore
+from src.core.intelligence.layer import JobHistoryStore
 
 
 @pytest.fixture

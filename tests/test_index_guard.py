@@ -10,7 +10,7 @@ import pytest
 lancedb = pytest.importorskip("lancedb")
 import pyarrow as pa
 
-from src.core.index_guard import IndexGuard, quick_health_check
+from src.core.indexing.index_guard import IndexGuard, quick_health_check
 
 
 class TestIndexGuard:

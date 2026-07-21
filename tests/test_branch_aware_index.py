@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.core.branch_aware_index import BranchAwareIndex
+from src.core.search.branch_aware_index import BranchAwareIndex
 
 
 class TestBranchAwareIndex:

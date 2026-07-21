@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.core.cross_project_deps import (
+from src.core.search.cross_project_deps import (
     CrossProjectDependencyGraph,
     get_cross_project_deps,
 )

@@ -26,7 +26,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from src.core.parser import CodeParser
+from src.core.indexing.parser import CodeParser
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("dataflow_exp")

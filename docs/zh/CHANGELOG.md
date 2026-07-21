@@ -6,10 +6,10 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
-> **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
+> **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
-## [3.3.6] — 2026-07-21 — 审计修复: 12个错误 + 10个测试 + CI + verify_diary
+## [3.3.9] — 2026-07-21 — DocSync 引擎 + en/ru/zh 完整审计
 
 ### 修复
 - 🔴 **CRITICAL (B1)**: `graph.py` — temp_db.unlink() 在 stat() 之前 → FileNotFoundError

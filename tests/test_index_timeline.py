@@ -13,7 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.searcher import _filter_by_time, _parse_iso_datetime
+from src.core.search.engine import _filter_by_time
+from src.core.search.utils import _parse_iso_datetime
 
 
 # ─── Фикстуры ───────────────────────────────────────────────────────────────
@@ -184,25 +185,25 @@ class TestSearcherTimeFilter:
 
     def test_search_has_since_param(self):
         """Метод search принимает since."""
-        from src.core.searcher import Searcher
-        import inspect
-        sig = inspect.signature(Searcher.search)
+            from src.core.search.engine import Searcher
+            import inspect
+            sig = inspect.signature(Searcher.search)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
     def test_hybrid_search_has_since_param(self):
         """Метод hybrid_search принимает since."""
-        from src.core.searcher import Searcher
-        import inspect
-        sig = inspect.signature(Searcher.hybrid_search)
+            from src.core.search.engine import Searcher
+            import inspect
+            sig = inspect.signature(Searcher.hybrid_search)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
     def test_hybrid_search_async_has_since_param(self):
         """Метод hybrid_search_async принимает since."""
-        from src.core.searcher import Searcher
-        import inspect
-        sig = inspect.signature(Searcher.hybrid_search_async)
+            from src.core.search.engine import Searcher
+            import inspect
+            sig = inspect.signature(Searcher.hybrid_search_async)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 

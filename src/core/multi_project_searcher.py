@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import lancedb
 
-from src.core.indexer import _generate_unique_db_path
+from src.core.indexing.indexer import _generate_unique_db_path
 
 logger = logging.getLogger(__name__)
 from src.utils.i18n import _

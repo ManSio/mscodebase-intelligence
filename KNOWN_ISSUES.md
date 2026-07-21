@@ -1319,3 +1319,47 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 1. `intel_auto_collect_adrs` ник...
 - **Статус:** автоматически синхронизировано
 
+---
+
+## 2026-07-18 — P0-3 AsyncInferQueue deadlock (INC-6DF5)
+
+- **Источник:** docs/KNOWN_ISSUES.md (перенесено при слиянии)
+- **Симптом:** AsyncInferQueue deadlock при 4+ concurrent embed_batch() вызовах.
+- **Fix:** Variant B — threading.Lock вокруг submit+wait_all+collect.
+- **Статус:** ✅ Fixed
+
+## 2026-07-17 — INT8 model broken vocab (INC-VOCAB)
+- **Симптом:** Cosine similarity INT8 vs FP32 = -0.03. Vocab 30522 вместо 250002.
+- **Fix:** Смена на multilingual-e5-small-int8 (384dim).
+- **Статус:** ✅ Fixed
+
+## 2026-07-17 — Batch size (INC-BATCH)
+- **Fix:** _BATCH_SIZE 64→4. Статус: ✅ Fixed
+
+## 2026-07-17 — Хардкод 768-dim (INC-DIM)
+- **Fix:** Авто-определение _lightweight_onnx_dim(). Статус: ✅ Fixed
+
+## 2026-07-17 — InferRequest race (INC-RACE)
+- **Fix:** Lock + single InferRequest. Статус: ✅ Fixed
+
+## 2026-07-17 — Докстринг скорости (INC-DOCS)
+- **Fix:** Комментарии обновлены. Статус: ✅ Fixed
+
+## 2026-07-17 — install.py модель (INC-INSTALL)
+- **Fix:** slug → multilingual-e5-small-int8. Статус: ✅ Fixed
+
+---
+
+## 2026-07-21 — God Objects продолжают расти (осознанный техдолг)
+
+- **Источник:** Полный системный проход
+- **Проблема:** 12 файлов >800 строк. layer.py (1197), engine.py (1083), graph_tools.py (>800), llama_runner.py (1515). Рост за неделю: -2 строк layer.py, +38 engine.py. Протокол §2.4 требует фиксации как осознанного техдолга.
+- **Статус:** ⚠️ Осознанный техдолг. Декомпозиция не обязательна немедленно, но зафиксировано.
+- **Дата пересмотра:** 2026-08-21 (через месяц)
+
+## 2026-07-21 — TODO: llama_install.py SHA-256 хэши для macOS/Linux
+
+- **Источник:** Полный системный проход
+- **Проблема:**  — TODO про SHA-256 хэши для macOS/Linux, только Windows реализовано.
+- **Статус:** ⚠️ Известно, не критично (Windows — основная платформа).
+
