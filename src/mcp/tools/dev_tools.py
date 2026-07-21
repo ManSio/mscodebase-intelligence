@@ -17,10 +17,10 @@ def register_dev_tools(mcp_app) -> None:
 
     @mcp_app.tool("generate_docs")
     async def generate_docs(project_root: str) -> str:
-        """Генерирует Markdown-документацию из PropertyGraph для любого проекта.
+        """DEPRECATED — используй auto_update_docs.
 
-        Сохраняет результат в файл docs/generated/MODULE_INDEX.md
-        (не возвращает огромный Markdown в чат, чтобы не тормозить Zed).
+        Генерирует Markdown-документацию из PropertyGraph для любого проекта.
+        Сохраняет результат в файл docs/generated/MODULE_INDEX.md.
 
         Args:
             project_root: Абсолютный путь к корню проекта.

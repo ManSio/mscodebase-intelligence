@@ -748,12 +748,25 @@ You operate under a strict deterministic execution matrix...
 - CONTEXT BUDGET: maximum 50 lines per read_file call.
 - NEVER ingest entire files.
 
-## 3. ERROR HANDLING
+## 3. DOCUMENTATION (living docs, auto-updated)
+- **`docs/generated/MODULE_INDEX.md`** — полная карта символов/callers/callees
+  Читать ПЕРЕД архитектурными изменениями. Обновляется автоматически.
+- **`auto_update_docs(project_root, action)`** — принудительное обновление
+  Вызывать ПОСЛЕ любых изменений кода, если docs могли устареть.
+- **Триггеры автодокументации:**
+  • После реиндекса — сама обновляется (дёргать не надо)
+  • Idle >5s — проверяет и обновляет
+  • Pre-commit — verify_diary + stale_detector + generate_docs
+- **`bump_version(project_root, part)`** — обновление версии + CHANGELOG
+  Вызывать с `dry_run=true` сначала, потом без dry_run.
+- **`generate_docs(project_root)`** — генерирует MODULE_INDEX.md (DEPRECATED, используй auto_update_docs)
+
+## 4. ERROR HANDLING
 - If MCP tool returns error → pivot, don't retry same params
 - Use get_logs for diagnostics
 - Report exact error signatures
 
-## 4. PATH PROTOCOL
+## 5. PATH PROTOCOL
 - Native Windows paths (backslashes) for MCP tools
 - Relative paths for notify_change (from project root)
 - Absolute paths for project_root params
