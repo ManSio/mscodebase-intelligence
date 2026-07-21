@@ -20,8 +20,8 @@ MSCodeBase Intelligence is a hybrid code intelligence system combining:
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                    MCP Server (src/mcp/server.py)                 │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐               │  │
-│  │  │ Intel Layer │  │ Core Tools  │  │ Inline/Diag │  39 tools     │  │
-│  │  │  (12 tools) │  │  (19 tools) │  │  (8 tools)  │               │  │
+│  │  │ Intel Layer │  │ Core Tools  │  │ Inline/Diag │  42 tools     │
+│  │  │  (13 tools) │  │  (18 tools) │  │  (7 tools)  │               │  │
 │  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘               │  │
 │  └─────────┼────────────────┼────────────────┼──────────────────────┘  │
 │            │                │                │                         │
