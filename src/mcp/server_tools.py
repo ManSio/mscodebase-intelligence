@@ -219,14 +219,14 @@ def register_all_tools(mcp, services):
     # ─── Inline diagnostic tools (7 шт) ────────────
     _register_inline_tools(mcp, services)
 
-    # ─── Dev tools (3 шт: generate_docs, bump_version, install_git_hooks) ───
+    # ─── Dev tools (4 шт: generate_docs, bump_version, auto_update_docs, install_git_hooks) ───
     from src.mcp.tools.dev_tools import register_dev_tools
     register_dev_tools(mcp)
 
     total_core = len(tool_classes)
     total_intel = 13
     total_inline = 7
-    total_dev = 3
+    total_dev = 4
     logger.info(
         f"✅ Все инструменты зарегистрированы "
         f"({total_core} core + {total_intel} intel + {total_inline} inline + {total_dev} dev = "

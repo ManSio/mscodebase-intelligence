@@ -205,7 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (38 total)
+## 🔧 MCP Tools (42 total)
 
 ### Core Search
 
@@ -300,7 +300,16 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 > `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — see Diagnostic Tools below.
 
-### Diagnostic Tools (6)
+### Dev Tools (4)
+
+| Tool | What it does |
+|------|-------------|
+| `generate_docs(project_root)` | Generate Markdown docs from PropertyGraph (DEPRECATED — use auto_update_docs) |
+| `bump_version(project_root, part, dry_run)` | Bump project version + update CHANGELOG |
+| `auto_update_docs(project_root, action)` | Auto-update documentation: update/check |
+| `install_git_hooks(project_root, action)` | Install pre-commit hooks: install/uninstall/status |
+
+### Diagnostic Tools (7)
 
 | Tool | What it does |
 |------|-------------|
@@ -310,6 +319,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `intel_get_project_context(root)` | Single snapshot: state, index, health, memory |
 | `intel_explain_project_state(root)` | Human-readable project state diagnosis |
 | `intel_tool_health()` | Tool success rates, latency, confidence |
+| `refresh_db_connection()` | Reset database handle and reconnect |
 
 ---
 
