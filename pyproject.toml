@@ -49,7 +49,7 @@ dependencies = [
         "tree-sitter-c-sharp>=0.23.0,<1",
         "tree-sitter-ruby>=0.23.0,<1",
         "tree-sitter-php>=0.24.0,<1",
-        "tree-sitter-kotlin>=1.1.0,<1",
+        "tree-sitter-kotlin>=1.1.0,<2",
         "tree-sitter-swift>=0.7.0,<1",
         "tree-sitter-c>=0.24.0,<1",
         "tree-sitter-cpp>=0.23.0,<1",
@@ -62,7 +62,7 @@ dependencies = [
         "tree-sitter-toml>=0.7.0,<1",
         "tree-sitter-html>=0.23.0,<1",
         "tree-sitter-css>=0.25.0,<1",
-        "tree-sitter-hcl>=1.2.0,<1",  # HCL/Terraform
+        "tree-sitter-hcl>=1.2.0,<2",  # HCL/Terraform
     # Search & Utils
     "pathspec>=0.14.0",
     "httpx>=0.24.0",
