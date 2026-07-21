@@ -449,6 +449,21 @@ class WriteTool(MCPTool):
 
         result = await self._apply_changes(changes)
         si.rename_symbol(old_name, new_name)
+
+        # DocSync: авто-обновление .md файлов после переименования
+        try:
+            from src.core.doc_sync_engine import DocSyncEngine
+            from src.config.settings import get_project_path
+            project_root = get_project_path()
+            if project_root:
+                engine = DocSyncEngine(project_root)
+                report = engine.apply_rename(old_name, new_name)
+                if report.auto_fixed > 0:
+                    logger.info("📝 DocSync: auto-fixed %d references in docs (%s → %s)",
+                                report.auto_fixed, old_name, new_name)
+        except Exception as e:
+            logger.warning("DocSync rename hook failed: %s", e)
+
         return {"status": "applied", "message": f"Renamed '{old_name}' -> '{new_name}' in {len(result.get('files', []))} files.", "changes_applied": len(changes), "files": result.get("files", []), "errors": result.get("errors")}
 
     async def _apply_changes(self, changes: List[Dict]) -> Dict[str, Any]:

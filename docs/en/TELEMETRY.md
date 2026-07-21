@@ -228,7 +228,7 @@ Accumulated JSON files can be loaded into any BI system:
 | `fast` | `class MultiProviderReranker` | **315ms** | `reranker.py` code | 0/5 ✅ |
 | `fast` | `TaskQueue` | 374ms | `task_queue.py` code | 0/6 ✅ |
 | `fast` | `def can_execute` | 363ms | `runtime_coordinator.py` code | 0/6 ✅ |
-| `quality` | `memory leak gc objects` | **426ms** | AGENT_DIARY.md + `intelligence_layer.py` code | 0/5 ✅ |
+| `quality` | `memory leak gc objects` | **426ms** | AGENT_DIARY.md + `intelligence/layer.py` code | 0/5 ✅ |
 | `quality` | `dependency injection` | 486ms | CHANGELOG.md docs | 0/5 ✅ |
 | `quality` | `RuntimeCoordinator bridge` | 1567ms | AGENTS.md architecture | 0/5 ✅ |
 | `deep` | `почему MCP не отвечает` | **~3s** | `docs/ru/FAQ.md` Russian docs | 0/5 ✅ |

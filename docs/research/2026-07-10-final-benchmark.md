@@ -20,10 +20,10 @@
 | Tool | Calls | Avg ms | Errors |
 |------|-------|--------|--------|
 | `search_code` | 7 | 1,974 | 0 |
-| `get_index_status` | 1 | 16 | 0 |
+| `intel_get_runtime_status` | 1 | 16 | 0 |
 | `get_health_report` | 1 | 23,225 | 0 |
 | `get_symbol_info` | 1 | 1,336 | 0 |
-| `get_commit_history` | 1 | 1 | 0 |
+| `git(action=log)` | 1 | 1 | 0 |
 
 ---
 

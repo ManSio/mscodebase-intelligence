@@ -72,10 +72,10 @@
 
 | 文档 | 描述 |
 |----------|-------------|
-| [README.md](../../README.md) | 主文档，所有文档的导览 |
+| [README.md](../README.md) | 主文档，所有文档的导览 |
 | [TELEMETRY.md](TELEMETRY.md) | 本文档 |
-| [CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
-| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | 已知问题，含 RAM 画像（KI-002） |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史 |
+| [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) | 已知问题，含 RAM 画像（KI-002） |
 
 ## 使用方法
 
@@ -119,12 +119,12 @@ python scripts/collect_telemetry.py --history 7
 | 指标 | 说明 |
 |--------|---------------|
 | `state` | 当前项目状态（READY/INDEXING/FAILED） |
-| `index_chunks` | LanceDB 中的块数 |
+| `index_chunks` | LanceDB 中的块（chunk）数 |
 | `index_files` | 已索引的文件数 |
 | `index_symbols` | 已识别的 Tree-sitter 符号数 |
 | `index_latency_ms` | 获取索引状态的时间 |
 
-### 护照
+### 护照（Passport）
 
 | 指标 | 说明 |
 |--------|---------------|
@@ -146,13 +146,17 @@ python scripts/collect_telemetry.py --history 7
 - **History**：最近快照（日期 / chunks / files / RAM / LLM ping）
 
 ### `intel_execution_timeline`
-最近调用表：`Time | Tool | ms | Status | Route | Confidence | Results`。显示实时会话中每个工具的真实延迟。
+最近调用表：`Time | Tool | ms | Status | Route | Confidence | Results`。
+显示实时会话中每个工具的真实延迟。
 
 ### `get_runtime_counters`
-`Checks` / `Ready` / `Blocked`（%）、`Blocks`、`Warnings`、`Performance.Wait`。
+- `Checks` / `Ready` / `Blocked`（%）
+- `Blocks`（被阻止的调用列表）
+- `Warnings`, `Performance.Wait`
 
 ### `debug_runtime_passport`
-扩展护照：`RUN_ID`、`BUILD_ID`、`PID`、`Uptime`、`CWD`、`Ext Root`、`Bridge State`、`Registry`、`Env`。
+扩展护照：`RUN_ID`、`BUILD_ID`、`PID`、`Uptime`、`CWD`、`Ext Root`、
+`Bridge State`、`Registry`（路径、缓存项目、命中/未命中）、`Env`（PROJECT_PATH, PYTHONPATH）。
 
 ### `intel_tool_health`
 每工具健康面板：成功率、延迟、置信度、路由。
@@ -168,6 +172,7 @@ python scripts/collect_telemetry.py --history 7
 | rename_symbol | 1 | 2624 | ✅（预览） |
 | get_health_report | 1 | 21618 | ✅（重量级：日志扫描） |
 
+> `get_health_report` 约 21 秒 — 正常，它会扫描日志并构建完整报告。
 > MCP 服务器空闲 RAM ~1GB，负载峰值 ~2.8GB（非泄漏，见 KNOWN_ISSUES KI-002）。
 
 ---
@@ -177,14 +182,15 @@ python scripts/collect_telemetry.py --history 7
 嵌入/重排序流水线是 **本地且进程内** 的 — 语义搜索不需要外部 LLM 服务器：
 
 | 阶段 | 引擎 | 模型 | 说明 |
-|------|------|------|------|
-| 嵌入 | ONNX INT8 / OpenVINO INT8（进程内） | `intfloat/multilingual-e5-base`（768 维） | Windows CPU 上 ~350 ch/s。文件：`model_quantized.onnx`。LM Studio 仅是 **fallback 提供方**。 |
+|-------|--------|-------|-------|
+| 嵌入 | ONNX INT8 / OpenVINO INT8（进程内） | `multilingual-e5-small-int8`（384 维） | Windows CPU 上 ~37 ch/s。文件：`model_quantized.onnx`。LM Studio 仅是 **回退（fallback）提供者（provider）**。 |
 | 重排序 | llama.cpp（`llama-server.exe`，独立进程，`:8081`） | `BAAI/bge-reranker-v2-m3`（GGUF Q4_K_M） | 由 `install.py` 的 `step_gguf` 加载。 |
 | LLM（RAG，可选） | 保留 | — | 搜索不需要。 |
 
-> ⚠️ **文档漂移已修复（2026-07-12）**：旧遥测文档将 "LM Studio bge-m3 / phi-4-mini"
-> 描述为嵌入提供方。这 **已过时** — 嵌入已进程内迁移到 ONNX/OpenVINO E5-base INT8
-> （见 CHANGELOG 3.2.1）。LM Studio 仅作为本地 ONNX/OpenVINO 模型不可用时的可选 fallback。
+> ⚠️ **文档漂移已修复（2026-07-12）**：旧遥测文档将 "LM Studio
+> bge-m3 / phi-4-mini" 描述为嵌入提供者（provider）。这 **已过时** — 嵌入已
+> 进程内迁移到 ONNX/OpenVINO E5-base INT8（见 CHANGELOG 3.2.1）。LM Studio
+> 仅作为本地 ONNX/OpenVINO 模型不可用时的可选回退（fallback）。
 
 ---
 
@@ -193,7 +199,7 @@ python scripts/collect_telemetry.py --history 7
 积累的 JSON 文件可以加载到任何 BI 系统中：
 
 - **Excel** — 通过 Power Query 导入 JSON
-- **Grafana** — 如果您添加提供这些文件的 HTTP 服务器
+- **Grafana** — 如果您添加提供（serve）这些文件的 HTTP 服务器
 - **Python/matplotlib** — `python scripts/collect_telemetry.py --history 30`
 
 ## 正常值参考
@@ -209,7 +215,7 @@ python scripts/collect_telemetry.py --history 7
 | MCP RAM（空闲） | ~1.0 GB | > 2.0 GB 空闲持续 |
 | MCP RAM（负载峰值） | < 3.0 GB 瞬时 | 持续 > 3.0 GB |
 
-## 📊 压力测试结果（2026-07-07）
+## 📊 搜索压力测试（2026-07-07）
 
 17 次 `search_code` 调用 — **0 错误，0 超时，P@5=1.00**
 
@@ -220,16 +226,16 @@ python scripts/collect_telemetry.py --history 7
 | `fast` | `class MultiProviderReranker` | **315ms** | `reranker.py` 代码 | 0/5 ✅ |
 | `fast` | `TaskQueue` | 374ms | `task_queue.py` 代码 | 0/6 ✅ |
 | `fast` | `def can_execute` | 363ms | `runtime_coordinator.py` 代码 | 0/6 ✅ |
-| `quality` | `memory leak gc objects` | **426ms** | AGENT_DIARY.md + `intelligence_layer.py` 代码 | 0/5 ✅ |
+| `quality` | `memory leak gc objects` | **426ms** | AGENT_DIARY.md + `intelligence/layer.py` 代码 | 0/5 ✅ |
 | `quality` | `dependency injection` | 486ms | CHANGELOG.md 文档 | 0/5 ✅ |
 | `quality` | `RuntimeCoordinator bridge` | 1567ms | AGENTS.md 架构 | 0/5 ✅ |
 | `deep` | `почему MCP не отвечает` | **~3s** | `docs/ru/FAQ.md` 俄语文档 | 0/5 ✅ |
 | `deep` | `мульти-оконность` | ~5.3s | `docs/ru/ARCHITECTURE.md` | 0/5 ✅ |
 
-### 流水线延迟（5 个块，`quality` 模式）
+### 流水线延迟（5 个块（chunk），`quality` 模式）
 
 | 阶段 | 引擎 | 时间 |
-|-------|-------|------|
+|-------|--------|------|
 | 向量搜索 | LanceDB | ~300ms |
 | 重排序 | bge-reranker-v2-m3（余弦相似度） | ~200ms |
 | **总计** | | **~500ms** |
@@ -247,13 +253,13 @@ python scripts/collect_telemetry.py --history 7
 
 ## 📊 实时工具审计（2026-07-12）
 
-完整负载测试：**所有 59 个注册工具** 通过真实 MCP 服务器实时调用。
+完整负载测试：**所有 37 个注册工具** 通过真实 MCP 服务器实时调用。
 
 ### 工具面
-- **共 59 个工具** = 42 core + 14 intel + 3 diagnostic（按服务器启动日志）。
+- **共 37 个工具** = 19 个核心 + 12 个 intel + 6 个诊断（按服务器启动日志）。
 - **默认过滤器**：除非设置 `MSCODEBASE_MCP_TOOLS`，否则仅显示 **12 个工具**。
-  设置 `MSCODEBASE_MCP_TOOLS=""` 显示全部 59 个。逗号列表显示子集。
-- ~19 个工具返回实时数据；~36 个被默认过滤器隐藏（按设计，非 bug）。
+  设置 `MSCODEBASE_MCP_TOOLS=""` 显示全部 37 个。逗号列表显示子集。
+- ~19 个工具返回实时数据；~18 个被默认过滤器隐藏（按设计，非 bug）。
 
 ### 每工具延迟（实时运行）
 
@@ -268,15 +274,15 @@ python scripts/collect_telemetry.py --history 7
 | get_health_report | 1 | 21618 | ✅（重量级：日志扫描） |
 
 ### 审计中发现并修复的 bug（见 KNOWN_ISSUES / CHANGELOG 3.2.1）
-- **INC-58EA** — IVF 索引 "0 vectors"：`_init_onnx` 加载了 `model.onnx`，但磁盘文件是
-  `model_quantized.onnx` → embedder 返回零 → 所有向量 norm 为 0.0 → KMeans 失败。
+- **INC-58EA** — IVF 索引 "0 vectors"：`_init_onnx` 加载了 `model.onnx`，但磁盘上的文件是
+  `model_quantized.onnx` → 嵌入器（embedder）返回零 → 所有向量 norm 为 0.0 → KMeans 失败。
   修复：`_init_onnx` 现在优先使用 `model_quantized.onnx`（同 `_init_openvino`）。
 - **INC-9573** — `intel_get_runtime_status` 显示 `symbol_index_count: 0`，而
   `get_health_report` 显示 `3197`。修复：使用实时 `get_symbol_count()` + 磁盘重载。
-- **INC-0AA6** — job 卡在 80% "Finalizing"：`await future_symbols`（Tree-sitter 符号索引）
-  无超时。修复：`asyncio.wait_for(..., timeout=120)` 优雅完成 job。
+- **INC-0AA6** — 任务卡在 80% "Finalizing"：`await future_symbols`（Tree-sitter 符号索引）
+  无超时。修复：`asyncio.wait_for(..., timeout=120)` 优雅完成任务。
 
 ### RAM 画像（通过 `psutil` 测量）
-- 空闲 MCP ~1.0 GB，重索引峰值 ~1.1 GB，负载下瞬时 2.8 GB。
-- 确认 **非泄漏**：2.8 GB 瞬时来自孤儿 benchmark 进程（`PID 15620`），已终止；
-  steady-state RSS 回到 ~1.0 GB。
+- 空闲 MCP ~1.0 GB，重新索引峰值 ~1.1 GB，负载下瞬时 2.8 GB。
+- 确认 **非泄漏**：2.8 GB 瞬时来自孤儿 benchmark 子进程（`PID 15620`），已终止；
+  稳态 RSS 回到 ~1.0 GB。

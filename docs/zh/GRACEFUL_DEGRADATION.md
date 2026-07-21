@@ -1,4 +1,4 @@
-# 优雅降级 — 系统弹性指南
+# 优雅降级（Graceful Degradation）— 系统弹性指南
 
 > **MSCodeBase Intelligence 的一部分** | v3.2.1
 
@@ -7,10 +7,10 @@
 MSCodeBase 永远不会完全崩溃。相反，它通过 **6 个级别优雅降级**，
 即使外部服务失败也能保持基本功能。
 
-> **提供方现实（2026-07-12）：** 嵌入提供方 **进程内** 运行，通过
-> **ONNX INT8 / OpenVINO INT8**（`intfloat/multilingual-e5-base`，768 维，Windows CPU 上 ~350 ch/s）。
+> **提供者（provider）现状（2026-07-12）：** 嵌入提供者（provider）通过 **ONNX INT8 / OpenVINO INT8**
+> **进程内** 运行（`multilingual-e5-small-int8`，384 维，Windows CPU 上 ~37 ch/s）。
 > 这是 **默认且主要** 的路径 — 语义搜索不需要外部服务器。`LM Studio` 仅是
-> **可选 fallback**，当本地 ONNX/OpenVINO 模型不可用时。**重排序器** 作为独立
+> **可选的回退（fallback）**，当本地 ONNX/OpenVINO 模型不可用时。**重排序器（reranker）** 作为独立
 > `llama-server.exe` 进程运行，提供 `bge-reranker-v2-m3` GGUF 模型（端口 `:8081`）。
 
 ```mermaid
@@ -18,13 +18,13 @@ stateDiagram-v2
     [*] --> L1_ONNX: 默认启动（进程内）
 
     state L1_ONNX[级别 1: ONNX/OpenVINO INT8（进程内）]
-        L1_ONNX: E5-base 嵌入器（768 维）
+        L1_ONNX: E5-small 嵌入器（384 维）
         L1_ONNX: BM25 + Dense + Reranker（llama.cpp）
         L1_ONNX: ~300ms-3s 延迟
     end
 
-    L1_ONNX --> L2_GGUF: 有 GPU，偏好 llama.cpp
-    L1_ONNX --> L3_LM: ONNX 模型缺失 → LM Studio fallback
+    L1_ONNX --> L2_GGUF: 有 GPU，偏好 llama.cpp 嵌入
+    L1_ONNX --> L3_LM: ONNX 模型缺失 → LM Studio 回退（fallback）
 
     state L2_GGUF[级别 2: llama.cpp GGUF（GPU）]
         L2_GGUF: GGUF 嵌入 + 重排序（Vulkan GPU）
@@ -44,7 +44,7 @@ stateDiagram-v2
 
     state L4_BM25[级别 4: 仅 BM25]
         L4_BM25: 仅关键词搜索
-        L4_BM25: SymbolIndex + FTS5 fallback
+        L4_BM25: SymbolIndex + FTS5 回退（fallback）
         L4_BM25: 无向量搜索
     end
 
@@ -58,6 +58,8 @@ stateDiagram-v2
 ```
 
 ### 横切层（始终可用）
+
+以下各层 **独立于** 上述搜索级别：
 
 ```mermaid
 stateDiagram-v2
@@ -92,8 +94,8 @@ stateDiagram-v2
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
 
-    state ALL_TOOLS[可见: 59 个工具]
-        ALL_TOOLS: 全部 59 个 MCP 工具（42 core + 14 intel + 3 diag）
+    state ALL_TOOLS[可见: 37 个工具]
+        ALL_TOOLS: 全部 37 个 MCP 工具可用（19 core + 12 intel + 6 diag）
     end
 
     state CUSTOM_TOOLS[自定义选择]
@@ -106,22 +108,22 @@ stateDiagram-v2
 ### 级别 1: ONNX/OpenVINO INT8（默认，进程内）
 
 ```python
-# 默认提供方路径（EMBEDDING_PROVIDER=e5_onnx）
+# 默认提供者路径（EMBEDDING_PROVIDER=e5_onnx）
 class RemoteEmbedder:
     def _init_provider_async(self):
         _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
         if _provider in ("e5_onnx", "auto", ""):
             self._init_onnx()
-            # OpenVINO INT8 优先（Windows CPU 上 ~350 ch/s）
+            # OpenVINO INT8 优先（Windows CPU 上 ~37 ch/s）
             if getattr(self, "_ov_compiled", None) is not None:
                 self.mode = "onnx"
 ```
 
 | 组件 | 状态 |
 |-----------|:------:|
-| ONNX/OpenVINO E5-base | ✅ 进程内（768 维，INT8） |
+| ONNX/OpenVINO E5-small | ✅ 进程内（384 维，INT8） |
 | BM25 索引 | ✅ 已构建 |
-| Reranker（llama.cpp） | ✅ 可用（`:8081`） |
+| 重排序器（reranker）（llama.cpp） | ✅ 可用（`:8081`） |
 | mode=ask | ⚠️ 可选（需要 LLM profile） |
 | **延迟** | **300ms-3s** |
 | **质量** | **最佳**（无外部依赖） |
@@ -130,18 +132,18 @@ class RemoteEmbedder:
 
 ### 级别 2: llama.cpp GGUF（GPU，可选）
 
-如果用户有 Vulkan GPU 并偏好 GGUF 嵌入，`llama-server.exe` 可提供嵌入。这是加速路径，非默认。
+如果用户有 Vulkan GPU 并偏好 GGUF 嵌入，`llama-server.exe` 可提供嵌入器（embedder）。这是加速路径，非默认。
 
 | 组件 | 状态 |
 |-----------|:------:|
-| llama.cpp embed（GPU） | ✅ 可用 |
+| llama.cpp 嵌入（GPU） | ✅ 可用 |
 | BM25 索引 | ✅ 已构建 |
-| Reranker | ✅ 可用 |
+| 重排序器（reranker） | ✅ 可用 |
 | mode=ask | ⚠️ 可选 |
 | **延迟** | **286ms-3s** |
 | **质量** | **最佳** |
 
-### 级别 3: LM Studio（远程，可选 fallback）
+### 级别 3: LM Studio（远程，可选回退 fallback）
 
 ```python
 # 仅当本地 ONNX/OpenVINO 模型不可用时到达
@@ -157,7 +159,7 @@ class RemoteEmbedder:
 |-----------|:------:|
 | LM Studio | ✅ 在线（若运行） |
 | ONNX 模型 | ❌ 缺失 |
-| Reranker | ✅ 可用（通过 LM Studio） |
+| 重排序器（reranker） | ✅ 可用（通过 LM Studio） |
 | mode=ask | ✅ 可用 |
 | **延迟** | **300ms-5s**（网络） |
 | **质量** | **良好** |
@@ -187,7 +189,7 @@ class Searcher:
 | ONNX 模型 | ❌ 缺失 |
 | LM Studio | ❌ 离线 |
 | BM25 索引 | ✅ 可用 |
-| Reranker | ❌ 不可用 |
+| 重排序器（reranker） | ❌ 不可用 |
 | mode=ask | ❌ 不可用 |
 | **延迟** | **50ms-300ms** |
 | **质量** | **基础**（仅关键词） |
@@ -199,18 +201,18 @@ class Searcher:
 | ONNX 模型 | ❌ 缺失 |
 | BM25 索引 | ❌ 不可用 |
 | SymbolIndex | ✅ 可用 |
-| Reranker | ❌ 不可用 |
+| 重排序器（reranker） | ❌ 不可用 |
 | mode=ask | ❌ 不可用 |
 | **延迟** | **<50ms** |
 | **质量** | **仅 AST 符号**（无语义搜索） |
 
-### 级别 6: Fallback（首次运行）
+### 级别 6: 回退（Fallback）（首次运行）
 
 | 组件 | 状态 |
 |-----------|:------:|
 | ONNX 模型 | ❌ 不可用 |
 | BM25 索引 | ❌ 空 |
-| Reranker | ❌ 不可用 |
+| 重排序器（reranker） | ❌ 不可用 |
 | mode=ask | ❌ 不可用 |
 | **延迟** | N/A |
 | **质量** | **无**（等待索引） |

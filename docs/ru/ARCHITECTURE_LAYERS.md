@@ -18,7 +18,7 @@
  Layer 10: AI Agent         — ответ пользователю
 ```
 
-> **v3.0:** Слой 8 (Graph) добавлен между Passport и Intel. PropertyGraph
+> **v3.0 change:** Слой 8 (Graph) добавлен между Passport и Intel. PropertyGraph
 > хранит типизированные узлы (15 меток) и рёбра (27 типов) в `.codebase/graph.db` (SQLite WAL+mmap).
 
 ---
@@ -132,7 +132,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
          `intel_explain_project_state`, `intel_predict_root_cause`
 **Не знает:** про низкоуровневые детали.
 
-Аггрегирует данные из нижних слоёв в готовые ответы.
+Агрегирует данные из нижних слоёв в готовые ответы.
 
 ---
 
@@ -148,7 +148,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
 
 | Документ | Описание |
 |----------|----------|
-| [README.md](../../README.md) | Основная документация, карта всех доков |
+| [README.md](../README.md) | Основная документация, карта всех доков |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Архитектура проекта, DI, слои |
 | [TELEMETRY.md](TELEMETRY.md) | Метрики и телеметрия |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |

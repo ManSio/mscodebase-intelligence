@@ -363,6 +363,46 @@ class AutoDocUpdater:
 
     _EXCLUDE_DIRS = {".git", "__pycache__", "venv", ".venv", "node_modules", ".codebase_indices"}
 
+    # Паттерны для пропуска: не являются code-символами
+    _EXCLUDE_PATTERNS = {
+        # ENV переменные (UPPER_CASE с подчёркиваниями, иногда с точками)
+        r'^[A-Z][A-Z0-9_]{2,}(\.[A-Z][A-Z0-9_]*)*$',
+        # SQL таблицы/поля (заканчиваются на _fts, _idx и т.д.)
+        r'^[a-z_]+_fts$',
+        r'^[a-z_]+_idx$',
+        r'^[a-z_]+_table$',
+        # Файловые пути (содержат / или \ или {})
+        r'.*[\\/{].*',
+        r'.*\{[a-z_]+\}.*',
+        # Файлы с расширениями (.py, .log, .md, .json, .exe, .dll)
+        r'.*\.(py|log|md|json|exe|dll|bat|txt|yml|yaml|toml|cfg|env|gguf|onnx)$',
+        # Декораторы (@something)
+        r'^@[a-zA-Z_][a-zA-Z0-9_.]*$',
+        # GitHub-style user/repo references
+        r'^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$',
+        # Версии (semver, X.Y.Z)
+        r'^\d+\.\d+(\.\d+)?[a-zA-Z0-9]*$',
+        # Порты (8080, 8081)
+        r'^\d{4,5}$',
+        # Символы с точкой: если начинаются с модуля вне проекта (asyncio, lancedb)
+    }
+
+    # Известные внешние библиотеки/модули — их символы не в нашем src/
+    _EXTERNAL_MODULES = {
+        'asyncio', 'json', 'os', 'sys', 're', 'math', 'time', 'datetime',
+        'pathlib', 'typing', 'collections', 'functools', 'itertools',
+        'logging', 'subprocess', 'threading', 'multiprocessing',
+        'hashlib', 'uuid', 'tempfile', 'shutil', 'glob', 'argparse',
+        'dataclasses', 'abc', 'enum', 'io', 'textwrap', 'contextlib',
+        'inspect', 'traceback', 'pickle', 'socket', 'http', 'urllib',
+        'queue', 'copy', 'random', 'statistics', 'base64', 'struct',
+        'platform', 'ctypes', 'importlib', 'pkgutil', 'warnings',
+        'signal', 'weakref', 'types', 'bisect', 'heapq', 'pprint',
+        # Внешние зависимости проекта
+        'lancedb', 'onnxruntime', 'httpx', 'fastmcp', 'pydantic',
+        'pyarrow', 'numpy', 'tree_sitter', 'lz4', 'zstandard', 'pytest',
+    }
+
     _STDLIB_SYMBOLS = {
         # Python builtins
         "abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes",
@@ -382,6 +422,16 @@ class AutoDocUpdater:
         "relative_to", "with_suffix", "with_name", "parent", "name",
         "stem", "suffix", "cwd", "home", "stat", "lstat", "chmod",
         "joinpath", "samefile", "absolute", "as_posix", "as_uri",
+        # Common asyncio functions used in docs
+        "ensure_future", "create_task", "gather", "wait", "run",
+        "run_coroutine_threadsafe", "get_event_loop", "get_running_loop",
+        "new_event_loop", "set_event_loop", "all_tasks", "current_task",
+        "shield", "sleep", "wait_for", "timeout",
+        # Common lancedb classes used in docs
+        "LanceError", "LanceTable", "LanceDataset",
+        # Common pathlib functions used in docs
+        "Path", "PurePath", "PurePosixPath", "PureWindowsPath",
+        "PosixPath", "WindowsPath",
     }
 
     def _build_symbol_set(self, root: Path) -> Set[str]:
@@ -624,9 +674,20 @@ class AutoDocUpdater:
     def _is_reference_valid(self, ref_name: str, symbols: Set[str]) -> bool:
         """Проверяет, существует ли референс в множестве символов.
 
-        Для dot-ссылок (Module.method, Class.method) проверяет
-        каждую часть отдельно.
+        Пропускает:
+        - stdlib/builtin имена
+        - Внешние библиотеки (lancedb, onnxruntime, asyncio...)
+        - ENV переменные (UPPER_CASE)
+        - SQL таблицы/поля (_fts, _idx)
+        - Файловые пути, декораторы, версии
+        - Dot-ссылки: если первый компонент — внешний модуль
         """
+        # Пропускаем по паттернам
+        import re
+        for pattern in self._EXCLUDE_PATTERNS:
+            if re.match(pattern, ref_name):
+                return True
+
         # Пропускаем stdlib/builtin имена
         if ref_name.lower() in self._STDLIB_SYMBOLS:
             return True
@@ -636,13 +697,15 @@ class AutoDocUpdater:
             return True
 
         # Пропускаем self.x / cls.x — атрибуты экземпляра/класса
-        # (self.table, self.config, cls.cache — не являются статическими символами)
         if ref_name.startswith("self.") or ref_name.startswith("cls."):
             return True
 
-        # Декомпозиция dot-ссылки: Module.method → проверяем method, потом Module
+        # Dot-ссылки: Module.attr — проверяем первый сегмент
         if "." in ref_name:
             parts = ref_name.split(".")
+            # Если первый компонент — внешний модуль → пропускаем
+            if parts[0].lower() in self._EXTERNAL_MODULES:
+                return True
             # Проверяем каждый FQN уровень
             for i in range(len(parts), 0, -1):
                 fqn = ".".join(parts[:i])

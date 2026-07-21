@@ -2,77 +2,88 @@
 
 [🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](ARCHITECTURE_DEEP.md) • [🇨🇳 中文](../zh/ARCHITECTURE_DEEP.md)
 
-> **Версия:** v3.0.0 | **Последнее обновление:** 2026-07-11
-
-> **Примечание:** Полный перевод architecture diagrams на русский язык
-> требует обновления mermaid-диаграмм. См. английскую версию для актуальных схем.
+> **Версия:** v3.2.0 | **Последнее обновление:** 2026-07-12
 
 ```mermaid
 flowchart TD
     User[User / AI Agent] --> MCP[MCP Server\n37 tools]
-    MCP --> DI[DI Container\n18 services]
+    MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
+    DI --> Graph[PropertyGraph\nSQLite graph]
     DI --> Intel[Intelligence Layer]
     DI --> Health[Health & Diagnostics]
     
-    Search --> BM25[BM25 Sparse\nkeyword search]
-    Search --> Dense[LanceDB Dense\nvector search]
-    Search --> RRF[RRF Fusion\nreciprocal rank fusion]
-    Search --> Rerank[Cross-encoder\nbge-reranker-v2-m3]
-    Search --> Bucket[Multi-Bucket RAG\ncode/docs weighting]
-    Search --> CoChange[Co-change boost\ngit coupling]
+    Search --> BM25[BM25 Sparse]
+    Search --> Dense[LanceDB Dense]
+    Search --> RRF[RRF Fusion]
+    Search --> MultiSig[MultiSignalScorer\n4 signals]
+    Search --> Rerank[Cross-encoder]
     
-    Intel --> Topology[Code Topology\ncall graph]
-    Intel --> Memory[Project Memory\nADR / debt / issues]
-    Intel --> RCA[Root Cause Analysis\nerror prediction]
+    Graph --> Cypher[CypherEngine\nMATCH/RETURN]
+    Graph --> Route[RouteExtractor\nHTTP routes]
+    Graph --> Dead[Dead Code Detection]
+    Graph --> Topology[Code Topology\ncall graph via SQL]
     
-    Health --> Report[Health Report\nfull diagnostics]
-    Health --> Guard[Index Guard\nself-recovery]
+    Intel --> Memory[Project Memory]
+    Intel --> RCA[Root Cause Analysis]
+    
+    Health --> Report[Health Report]
+    Health --> Guard[Index Guard]
 ```
 
 ---
 
 ## 1. Архитектурные слои
 
-Система разделена на 10 runtime-слоёв, от нижнего (инфраструктура) до верхнего (пользовательские инструменты).
+Система разделена на 11 runtime-слоёв, от нижнего (инфраструктура) до верхнего (пользовательские инструменты).
 
 ```mermaid
 flowchart LR
-    subgraph "Layer 10 — MCP Tools"
+    subgraph "Layer 11 — MCP Tools"
         T1[search_code]
-        T2[get_symbol_info]
+        T2[query_graph\nCypher]
         T3[impact_analysis]
         T4[intel_*]
     end
-    subgraph "Layer 9 — Error Boundary"
-        EB[@error_boundary\ntimeout + retry]
+    subgraph "Layer 10 — Error Boundary"
+        EB[@error_boundary]
     end
-    subgraph "Layer 8 — Intelligence"
-        IL[intel_predict_root_cause\nintel_code_topology\nintel_get_project_memory]
+    subgraph "Layer 9 — Intelligence"
+        IL[intel_predict_root_cause\nintel_code_topology]
     end
-    subgraph "Layer 7 — Search"
-        SH[hybrid_search_async\nRRF + reranker + buckets]
+    subgraph "Layer 8 — Search + MultiSignal"
+        SH[hybrid_search_async\nRRF + MultiSignalScorer]
     end
-    subgraph "Layer 6 — Index"
-        IX[Indexer\nLanceDB + BM25 + SymbolIndex]
+    subgraph "Layer 7 — Index"
+        IX[Indexer\nLanceDB + BM25]
+    end
+    subgraph "Layer 6.5 — Data Flow (v3.2)"
+        DF[ASSIGNED_FROM edges\nTree-sitter scope walk]
+    end
+    subgraph "Layer 6 — Graph (v3.0)"
+        PG[PropertyGraph\nSQLite WAL + mmap]
+        CY[CypherEngine\nMATCH→SQL]
+        RE[RouteExtractor]
     end
     subgraph "Layer 5 — Embeddings"
-        EM[RemoteEmbedder\nllama.cpp GGUF / LM Studio / ONNX]
+        EM[RemoteEmbedder\nllama.cpp / LM Studio]
     end
     subgraph "Layer 4 — Parsing"
-        PS[Tree-sitter AST\nParser + SymbolIndex]
+        PS[Tree-sitter AST\nParser + SymbolIndexAdapter]
     end
     subgraph "Layer 3 — Storage"
-        ST[LanceDB v2\nper-project isolation]
+        ST[LanceDB v2 + SQLite\ngraph.db]
     end
     subgraph "Layer 2 — Rate Limiting"
-        RL[CircuitBreaker\nDebounceBatch\nSlidingWindow]
+        RL[CircuitBreaker\nDebounceBatch]
     end
     subgraph "Layer 1 — DI Container"
-        DI[ServiceCollection\n15 singletons + factories]
+        DI[ServiceCollection\n18 services]
     end
-    T1 --> EB --> IL --> SH --> IX --> EM --> PS --> ST --> RL --> DI
+    T1 --> EB --> IL --> SH --> IX --> PG --> EM --> PS --> ST --> RL --> DI
+    PG --> CY
+    PG --> RE
 ```
 
 ---
@@ -288,7 +299,7 @@ erDiagram
 | **Инкрементальный индекс** | MD5 + DebounceBatch | - | - | - |
 | **Самовосстановление** | IndexGuard | - | - | - |
 | **Проектная память** | ADR / debt / issues | - | - | - |
-| **Реренкер** | bge-reranker-v2-m3 | - | - | - |
+| **Реранкер** | bge-reranker-v2-m3 | - | - | - |
 | **Co-change** | Матрица git coupling | - | - | - |
 | **Здоровье** | Полная диагностика | - | - | - |
 | **Документация** | **3 языка** | 1 | 1 | 1 |
@@ -302,7 +313,7 @@ erDiagram
 |---------|:---------------:|:----------------:|
 | `mode=ask` (phi-4) | ❌ Заблокирован | ✅ Доступен |
 | Асинхронный поиск | ✅ | ✅ |
-| Реренкер | ✅ | ✅ |
+| Реранкер | ✅ | ✅ |
 | Использование RAM | ~150 MB | ~300 MB (с phi-4) |
 | Время запуска | ~1s | ~3s |
 | Сценарий | Ежедневная разработка | Глубокий анализ |
@@ -313,9 +324,9 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["Уровень 1: llama.cpp GGUF\nGPU эмбеддинги + reranker\n280ms-3s"] -->|offline| L2
-    L2["Уровень 2: ONNX Runtime\nТолько CPU эмбеддинги\nМедленнее"] -->|missing| L3
-    L3["Уровень 3: LM Studio\nВнешний API\n300ms-5s"] -->|offline| L4
+    L1["Уровень 1: ONNX/OpenVINO INT8\nin-process эмбеддинги + llama.cpp reranker\n300ms-3s"] -->|offline| L2
+    L2["Уровень 2: llama.cpp GGUF\nGPU эмбеддинги (опционально)\n286ms-3s"] -->|offline| L3
+    L3["Уровень 3: LM Studio\nВнешний API (fallback)\n300ms-5s"] -->|offline| L4
     L4["Уровень 4: Только BM25\nКлючевой поиск\nБез семантики"] -->|index missing| L5
     L5["Уровень 5: Fallback\nСоздание индекса\nПервый запуск"]
 ```
@@ -329,13 +340,13 @@ flowchart LR
 | Метрика | Значение |
 |---------|---------|
 | **Режимы поиска** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP инструменты** | 59 (42 core + 14 intel + 3 diagnostic) |
+| **MCP инструменты** | 37 (19 core + 12 intel + 6 diagnostic) |
 | **Сервисы в DI** | 15 |
 | **Тесты** | 396 |
 | **Языки** | 3 (EN, RU, ZH) |
 | **Поля схемы** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Размерность эмбеддинга** | 768 (E5-base INT8, in-process) |
-| **Реренкер** | bge-reranker-v2-m3 |
-| **LLM** | phi-4-mini-instruct |
+| **Размерность эмбеддинга** | 384 (E5-small INT8, in-process) |
+| **Реранкер** | bge-reranker-v2-m3 |
+| **LLM** | phi-4-mini-instruct (опционально, только mode=ask) |
 | **Векторная БД** | LanceDB v2 |
 | **Парсер** | Tree-sitter |

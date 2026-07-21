@@ -13,11 +13,11 @@
 ## 🎯 Что это за проект
 
 **MSCodeBase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
-Работает полностью локально: LanceDB (векторный индекс) + ONNX E5-base INT8 (эмбеддинги in-process) + llama.cpp GGUF (только реренкер) + OpenVINO INT8 (опционально).
+Работает полностью локально: LanceDB (векторный индекс) + ONNX E5-base INT8 (эмбеддинги in-process) + llama.cpp GGUF (только реранкер) + OpenVINO INT8 (опционально).
 
 **Ключевые цифры:**
-- 59 MCP-инструментов (42 core + 14 intel + 3 diagnostic) — включая `query_graph` (Cypher engine)
-- 11 файлов инструментов, 18 сервисов в DI-контейнере
+- 37 MCP-инструментов (42 core + 12 intel + 3 diagnostic) — включая `query_graph` (Cypher engine)
+- 11 файлов инструментов, 16 сервисов в DI-контейнере
 - Индекс: ~3000 чанков, ~170 файлов, ~1550 символов
 - **PropertyGraph**: SQLite граф (15 типов узлов, 27 типов рёбер) в `.codebase/graph.db`
 
@@ -70,7 +70,7 @@ conn.execute("""
 
 | Компонент | Причина | Статус |
 |-----------|--------|--------|
-| **LSP-сервер** (`lsp_main.py`) | Zed не регистрирует кастомные имена LSP (нужен Rust/WASM) | **WONTFIX** |
+| **LSP-сервер** (`lsp_main.py`) | Отдельный LSP — Zed не регистрирует кастомные имена LSP. LSP _клиент_ для rename (`lsp_client.py`) работает нормально | **WONTFIX** (только standalone) |
 | **авто-перезапуск MCP** | Нет хука в Zed для перезапуска упавшего context_server | **WONTFIX** |
 | **`ZED_WORKTREE_ROOT`** | Не устанавливается на Windows (баг Zed #36019) | **Workaround через SQLite** |
 
@@ -106,7 +106,7 @@ JSON-файлы. **Исправление:** `asyncio.Lock` в `IntelligenceStor
 ## 🗄️ Где что хранится
 
 | Данные | Путь |
-|------|------|
+|--------|------|
 | Векторный индекс | `<проект>/.codebase_indices/lancedb_v2/` |
 | Память проекта (ADR, issues) | `<проект>/.codebase_indices/intelligence/` |
 | Логи | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
@@ -117,7 +117,7 @@ JSON-файлы. **Исправление:** `asyncio.Lock` в `IntelligenceStor
 ## 📁 Ключевые файлы
 
 | Файл | Что делает |
-|------|-------------|
+|------|------------|
 | `src/mcp/server.py` | `resolve_project_root()`, регистрация всех 37 инструментов |
 | `src/mcp/tools/base.py` | `MCPTool` (базовый класс), `resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 сервисов, `ProjectIndexerRegistry` |
@@ -136,7 +136,7 @@ JSON-файлы. **Исправление:** `asyncio.Lock` в `IntelligenceStor
 2. **Перезапуск MCP** — только File → Quit (не `window: reload`, не kill)
 3. **Git subprocess** — `GIT_ASKPASS=echo`, `CREATE_NO_WINDOW`, таймауты
 4. **LanceDB на Windows** — mmap-файлы не освобождаются до `_safe_close()` + `gc.collect()`
-5. **Пути** — MCP: `src\core\file.py`, terminal: `src/core/file.py`
+5. **Пути** — MCP: `src\core\file_guard.py`, terminal: `src/core/file_guard.py`
 
 ---
 

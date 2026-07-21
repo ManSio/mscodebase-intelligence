@@ -315,8 +315,8 @@ Zed ─→ MCP Server (56 tools) ──→ search_code()
 | Category | Count | Tool Names |
 |----------|:-----:|------------|
 | **Search** | 6 | `search_code` (5 modes), `cross_repo_search`, `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `structural_search` |
-| **Index** | 5 | `get_index_status`, `get_index_progress`, `index_health`, `index_project_dir`, `notify_change` |
-| **System** | 6 | `get_health_report`, `get_logs`, `run_health_check`, `get_commit_history`, `get_file_history`, `get_branch_info` |
+| **Index** | 5 | `intel_get_runtime_status`, `get_index_progress`, `index_health`, `index_project_dir`, `notify_change` |
+| **System** | 6 | `get_health_report`, `get_logs`, `run_health_check`, `git(action=log)`, `get_file_history`, `get_branch_info` |
 | **Graph** | 2 | `graph_query`, `get_related_files` |
 | **Repo** | 3 | `get_repo_map`, `get_repo_rank`, `get_hotspots` |
 | **Bug** | 3 | `get_bug_correlation`, `find_similar_bugs`, `predict_eta` |

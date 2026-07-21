@@ -41,7 +41,7 @@
 | `notify_change` | 1 | 0 | 3577 | 3577 | 3577 | 3577 |
 | `get_symbol_info` | 1 | 0 | 1530 | 1530 | 1530 | 1530 |
 | `impact_analysis` | 1 | 0 | 1558 | 1558 | 1558 | 1558 |
-| `get_index_status` | 2 | 0 | 240 | 240 | 240 | 240 |
+| `intel_get_runtime_status` | 2 | 0 | 240 | 240 | 240 | 240 |
 | `get_index_progress` | 1 | 0 | 214 | 214 | 214 | 214 |
 | `structural_search` | 1 | 0 | 34 | 34 | 34 | 34 |
 | `ack_impact` | 1 | 0 | 1 ⚡ | 1 | 1 | 1 |

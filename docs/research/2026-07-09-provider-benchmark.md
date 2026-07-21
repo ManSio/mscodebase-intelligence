@@ -121,7 +121,7 @@ Total: 4.7 GB                 Total: 1.9 GB
 - ONNX сервер не стартует (порт 1235 CLOSED)
 - В логах: "connection refused, fallback to local ONNX"
 - Все инструменты таймаутят
-- `get_index_status` показывает 127 чанков вместо 2561
+- `intel_get_runtime_status` показывает 127 чанков вместо 2561
 
 ### 3.2 Root Cause
 
