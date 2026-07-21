@@ -4,8 +4,8 @@
 
 # MSCodeBase Intelligence — Архитектура
 
-> **Версия:** 3.2.0  
-> **Последнее обновление:** 2026-07-12  
+> **Версия:** 3.3.9
+> **Последнее обновление:** 2026-07-21
 > **Архитектура:** 4-слойная архитектура + PropertyGraph + Data Flow Layer с Multi-Window Registry
 
 ---
@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (19 core + 12 intel + 6 diagnostic = 37 всего)](#4-tool-layer)
+4. [Слой инструментов (18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 всего)](#4-tool-layer)
 5. [Обработка ошибок](#5-error-handling)
 6. [Rate Limiting и отказоустойчивость](#6-rate-limiting--resilience)
 7. [Поток данных: Запрос → Ответ](#7-data-flow)
@@ -33,7 +33,7 @@
 │                                                                  │
 │  Слой 1: main.py / lsp_main.py  (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (19 core инструментов)      │
+│  Слой 3: mcp/tools/*.py         (18 core + 7 inline + 3 dev)│
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
