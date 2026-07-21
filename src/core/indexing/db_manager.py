@@ -387,6 +387,9 @@ class LanceDBManager:
 
         lock_path = self._pid_lock_path
 
+        # Убеждаемся, что parent dir существует (LanceDB может не создать его до первого connect)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+
         try:
             # Try to create lock file exclusively
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)

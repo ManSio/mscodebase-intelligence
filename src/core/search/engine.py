@@ -254,13 +254,24 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Reindex-guard (AGENTS.md §5.13): если index_project рвёт self.db
         # в executor-потоке, search fast-fail (пустой результат), а не падает
         # с RuntimeError 'Not found' (паттерн chunkhound SerialDatabaseExecutor/guard).
+        # Reindex-guard (AGENTS.md §5.13): если index_project рвёт self.db
+        # в executor-потоке, search fast-fail (пустой результат), а не падает
+        # с RuntimeError 'Not found' (паттерн chunkhound SerialDatabaseExecutor/guard).
+        # B4/B12: callable check вместо getattr safe-default — если is_reindexing
+        # переименовали/убрали, мы узнаем об этом, а не молча теряем fast-fail.
         if self.indexer is not None and hasattr(self.indexer, "db_manager"):
             dbm = self.indexer.db_manager
-            if dbm is not None and getattr(dbm, "is_reindexing", lambda: False)():
-                logger.warning(
-                    "hybrid_search: reindex in progress, fast-fail (retry in a few seconds)"
-                )
-                return []
+            if dbm is not None:
+                reindexing = getattr(dbm, "is_reindexing", None)
+                if callable(reindexing) and reindexing():
+                    logger.warning(
+                        "hybrid_search: reindex in progress, fast-fail (retry in a few seconds)"
+                    )
+                    return []
+                elif not callable(reindexing) and reindexing is not None:
+                    logger.error(
+                        "db_manager.is_reindexing is NOT callable — fast-fail DISABLED"
+                    )
 
         try:
             loop = asyncio.get_running_loop()

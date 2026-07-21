@@ -138,6 +138,10 @@ def scan_doc(doc_path: Path, project_root: Path, actual_version: str,
     except Exception:
         return None
 
+    # B8: skip archived files — проверяем первые 500 символов на маркер ARCHIVED
+    if "ARCHIVED" in text[:500].upper():
+        return None
+
     mtime = datetime.fromtimestamp(doc_path.stat().st_mtime)
     hits = []
     lines = text.split("\n")

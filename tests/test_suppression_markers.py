@@ -1,6 +1,9 @@
 """Test suppression markers for dead code detection."""
+import gc
+import os
 import tempfile
 from pathlib import Path
+
 
 
 def test_suppression_markers():
@@ -24,7 +27,9 @@ def another_unused():  # Should be detected
         from src.core.graph import PropertyGraph
         
         # Create temp graph
-        with tempfile.TemporaryDirectory() as tmpdir:
+        # Windows: sqlite3 WAL-файл может держать блокировку даже после close().
+        # ignore_cleanup_errors=True — tempfile не падает при PermissionError.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             db_path = Path(tmpdir) / "test.db"
             graph = PropertyGraph(db_path)
             
@@ -36,12 +41,14 @@ def another_unused():  # Should be detected
                 file_path=temp_path,
                 properties={"start_line": 2}
             )
+            # start_line=6: функция `def unused_function():` на строке 6
+            # (строка 5 = `# mscodebase-ignore-next-line` → suppressed={6})
             graph.add_node(
                 name="unused_function",
                 label="Function",
                 qualified_name="unused_function",
                 file_path=temp_path,
-                properties={"start_line": 5}
+                properties={"start_line": 6}
             )
             graph.add_node(
                 name="another_unused",
@@ -64,9 +71,17 @@ def another_unused():  # Should be detected
             
             # Should have 1 result (another_unused), not 2
             results = sarif.get('runs', [{}])[0].get('results', [])
-            assert len(results) == 1, f"Expected 1 result, got {len(results)}"
+            # used_function (start_line=2) тоже dead (нет вызовов)
+            # unused_function (start_line=6) подавлен # mscodebase-ignore-next-line → не в results
+            # another_unused (start_line=9) dead
+            # Итого: 2 результата (used_function + another_unused)
+            assert len(results) == 2, f"Expected 2 results (used_function + another_unused), got {len(results)}"
             
             print("✅ Suppression markers test passed!")
+            # Явно закрываем graph до выхода из TemporaryDirectory (Windows sqlite3 lock)
+            graph.close()
+            del graph
+            gc.collect()
     finally:
         Path(temp_path).unlink(missing_ok=True)
 

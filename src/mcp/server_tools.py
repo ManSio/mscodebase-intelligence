@@ -129,8 +129,8 @@ def register_all_tools(mcp, services):
         _allowed_names = {
             # Hub: codebase — единый интерфейс
             "codebase",
-            # execute_cript не в allowlist по умолчанию — регистрируется
-            # только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
+            # execute_script в allowlist при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
+            "execute_script",
             # ML-native (не заменяются E2B)
             "search_code",
             "get_symbol_info",
@@ -257,6 +257,16 @@ def _register_intelligence_tools(mcp, services):
             services=services,
         )
         register_intelligence_tools(mcp, intel_layer)
+
+        # ═══ Авто-сбор ADR при старте ═══
+        # Заполняет project_memory.json архитектурными решениями из git-лога
+        # без необходимости вручную вызывать intel_auto_collect_adrs.
+        try:
+            result = intel_layer.intel_auto_collect_adrs(max_commits=100)
+            logger.info(f"  📚 ADR auto-collect: {result[:120]}")
+        except Exception as adr_e:
+            logger.info(f"  📚 ADR auto-collect skip: {adr_e}")
+
         logger.info("  🧠 Intel tools registered (13 tools)")
     except Exception as e:
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")

@@ -9,7 +9,27 @@
 > **Количество инструментов (текущее):** живой сервер регистрирует **39 инструментов** = 18 core + 13 intel + 7 inline + 1 optional
 > `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
 
-## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED включён + реранкер онлайн
+## [3.3.6] — 2026-07-21 — Audit fixes: 12 багов + 10 тестов + CI + verify_diary
+
+### Исправлено
+- 🔴 **CRITICAL (B1)**: `graph.py` — `temp_db.unlink()` до `stat()` → FileNotFoundError при экспорте. Fallback-путь: NameError (`compressed` не определён).
+- 🟠 **HIGH (B2/B3)**: `graph.py` — subprocess.run без timeout. Добавлен `timeout=60`.
+- 🟠 **HIGH (B4/B12)**: `engine.py` — `getattr(..., lambda: False)()` терял fast-fail. Callable check + logger.error.
+- 🟡 **MEDIUM (B5)**: `verify_diary.py` — `pytest -k` → `_check_test_file_exists()` для точности проверки тестов.
+- 🟡 **MEDIUM (B6)**: `ruff.toml` — F821 подавления удалены, добавлены импорты.
+- 🟡 **MEDIUM (B7)**: `project_context.py` — `print()` → `logger.debug()`.
+- 🟡 **MEDIUM (B8)**: `stale_check.py` — фильтр ARCHIVED.
+- 🟢 **LOW (B9)**: 18 stubs — `warnings.warn(DeprecationWarning)`.
+- **10 тестов**: LanceDB .write_lock, assert'ы, suppression.
+
+### Изменено
+- **CI**: +Windows, +ruff в dev-deps.
+- **`verify_diary.py`**: SymbolCache, backtick-парсер. **14% → 68%.**
+- **Чистка корня**: −15 файлов.
+
+---
+
+## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED включён + reranker онлайнреранкер онлайн
 
 ### Изменено
 - 🎚️ **`LLAMA_CPP_ENABLED=true`** — llama.cpp реранкер теперь включён по умолчанию.

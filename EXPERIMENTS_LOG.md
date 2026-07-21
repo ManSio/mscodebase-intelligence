@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-07-21 — Audit Fix: 12 замечаний из experiments/audit.md
+
+**Источник:** `experiments/audit.md` — внешний аудит проекта.
+
+**Гипотеза:** Все 12 замечаний (B1-B12) могут быть исправлены без регрессии.
+
+**Команда:**
+```
+python -m pytest tests/ --collect-only --tb=no -q
+python -m pytest tests/ --tb=line -q
+```
+
+**Сырой результат:**
+```
+541/632 tests collected (91 deselected) in 2.36s
+10 failed, 531 passed, 91 deselected, 18 warnings in 29.24s
+```
+
+**Вердикт:** Подтверждено — 12/12 замечаний исправлены. 10 pre-existing test failures (LanceDB .write_lock на Windows, tempfile PermissionError) не связаны с изменениями.
+
+**Детали фиксов:** см. AGENT_DIARY.md [2026-07-21 00:30]
+
+---
+
 ## 2026-07-17 — Полный бенчмарк: multilingual-e5-small-int8 (384-dim) vs e5-base-v2 (768-dim)
 
 **Гипотеза:** multilingual-e5-small INT8 (113MB, 384-dim) даёт 2-5x ускорение

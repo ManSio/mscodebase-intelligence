@@ -12,8 +12,8 @@ ignore = ["E501", "F405", "E701"]
 "src/core/intelligence/layer.py" = ["E402"]
 "src/core/multi_project_searcher.py" = ["E402"]
 "src/mcp/server.py" = ["E402"]
-# Легаси-долг: F821 (undefined name) — будет починено при рефакторинге
-"src/core/search/cypher_sql.py" = ["F821"]
-"src/core/search/composition_adapter.py" = ["F821"]
-"src/mcp/tools/graph_tools.py" = ["F821"]
-"src/core/start_reranker_snippet.py" = ["F821"]
+# F821 подавления сняты — добавлены явные импорты (см. audit B6 fix):
+#   src/core/search/cypher_sql.py: +List, Tuple
+#   src/core/search/composition_adapter.py: +Dict, List, Node, SymbolRef
+#   src/mcp/tools/graph_tools.py: проверено — все имена определены
+#   src/core/start_reranker_snippet.py: файл не существует, удалён
