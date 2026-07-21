@@ -9,6 +9,20 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **36 tools** = 20 core + 12 intel + 6 diagnostic
 > (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
 
+## [3.3.7] — 2026-07-21 — Docs sync: 24 языка, CI badge, PARSE_EXTENSIONS, pyproject.toml
+
+### Changed
+- **README.md**: языки исправлены с 18→24 (добавлены SQL, YAML, TOML, HTML, CSS, HCL). Badge тестов: `605` → `553 passed`. CI badge добавлен. Tools count: `39` → `43`.
+- **`extensions.py`**: `PARSE_EXTENSIONS` синхронизирован с реальностью — с 8 до 30 расширений (все 23 языка).
+- **`pyproject.toml`**: tree-sitter зависимости расширены с 5 до 22 пакетов (все языки, которые реально инициализируются в `CodeParser._init_tree_sitter()`).
+- **удалён `experiments/DEV_EXP.md`**: реализованные идеи (Contradiction Ledger, verify_diary, stale_detector dirty flag, gate на статус, dedline на shims) убраны из файла-идей.
+- **`experiments/audit.md`**: секция B1-B12 и эксперименты удалены — зафиксированы, закрыты.
+
+### Fixed
+- `PARSE_EXTENSIONS` больше не блокирует индексацию Java, C#, Ruby, PHP, Kotlin, Swift, C/C++, Scala, Dart, Bash, SQL, YAML, TOML, HTML, CSS, HCL.
+
+---
+
 ## [3.3.6] — 2026-07-21 — Audit fixes: 12 багов + 10 тестов + CI + verify_diary
 
 ### Fixed

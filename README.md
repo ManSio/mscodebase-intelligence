@@ -12,11 +12,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-605%20total-brightgreen)](tests/)
+[![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-553%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-38-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-07-18*
+*Last updated: 2026-07-21*
 
 </div>
 
@@ -43,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 39 tools for AI assistant                 │  │
+│  │  · 43 tools for AI assistant                 │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -94,8 +95,13 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | **C++** | ✅ | ✅ | ✅ |
 | **Scala** | ✅ | ✅ | ✅ |
 | **Dart** | ✅ | ✅ | ✅ |
-| **Shell** | ✅ | ⚪ | ⚪ |
-| **Bash** | ✅ | ⚪ | ⚪ |
+| **Shell / Bash** | ✅ | ✅ | ❌ (грамматика без RHS-field) |
+| **SQL** | ✅ (context) | ❌ | ❌ |
+| **YAML** | ✅ (context) | ❌ | ❌ |
+| **TOML** | ✅ (context) | ❌ | ❌ |
+| **HTML** | ✅ (context) | ❌ | ❌ |
+| **CSS** | ✅ (context) | ❌ | ❌ |
+| **HCL / Terraform** | ✅ (context) | ❌ | ❌ |
 
 ## ✨ Features
 
@@ -112,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 39 tools (18 core + 13 intel + 7 inline + 1 optional), 605+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 43 tools (18 core + 13 intel + 12 inline), 553+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |

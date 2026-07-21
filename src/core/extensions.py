@@ -19,7 +19,17 @@ __all__ = [
 # ── Языки с семантическим парсингом (tree-sitter) ─────────────────────────
 # Используется в parser.py для AST-чанкинга.
 PARSE_EXTENSIONS: frozenset[str] = frozenset({
-    ".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go", ".md",
+    # Core languages (полный граф: chunking + calls + data flow + imports)
+    ".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go",
+    ".java", ".cs", ".rb", ".php", ".kt", ".swift",
+    ".c", ".cpp", ".cxx", ".hpp", ".scala", ".dart",
+    # Shell (calls + imports, без data flow)
+    ".sh", ".bash",
+    # Context-языки (только AST-парсинг и чанкинг)
+    ".sql", ".yaml", ".yml", ".toml", ".html", ".htm", ".css",
+    ".hcl", ".tf", ".tfvars",
+    # Markdown
+    ".md",
 })
 
 # ── Все расширения, которые индексируем ───────────────────────────────────
