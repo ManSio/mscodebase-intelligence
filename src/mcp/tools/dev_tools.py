@@ -95,7 +95,9 @@ def register_dev_tools(mcp_app) -> None:
 
         Args:
             project_root: Абсолютный путь к корню проекта.
-            action: 'update' (полное обновление), 'check' (проверить устаревание).
+            action: 'update' (полное обновление),
+                    'check' (проверить устаревание),
+                    'verify' (проверить code-референсы в .md).
 
         Returns:
             Отчёт об обновлении или статус.
@@ -106,6 +108,8 @@ def register_dev_tools(mcp_app) -> None:
             updater = AutoDocUpdater()
             if action == "check":
                 result = updater.check_staleness(project_root)
+            elif action == "verify":
+                result = updater.verify_references(project_root)
             else:
                 result = updater.update_all(project_root)
             logger.info("auto_update_docs: %s (%s)", action, project_root)
