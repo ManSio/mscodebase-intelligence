@@ -35,6 +35,7 @@ from src.core.error_handler import IndexNotReadyError, ToolError
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
 )
+from src.core.utils.self_index_guard import _is_self_index_path
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +96,6 @@ def resolve_indexer_for_intel(
     factory = services.resolve(IndexerFactoryKey)
     return registry.get_indexer(target, factory=factory)
 
-
-from src.core.utils.self_index_guard import _is_self_index_path
 
 def resolve_indexer_for_request(
     services: ServiceCollection,

@@ -130,7 +130,7 @@ class LanceDBWriter:
 
     def _safe_recreate_table(self):
         """Fallback: удалить и пересоздать таблицу при потере.
-        
+
         После пересоздания обновляет self.table на актуальный объект
         и вызывает on_recreate callback (если есть) для синхронизации
         ссылок в Indexer и IndexProjectRunner.
@@ -153,7 +153,7 @@ class LanceDBWriter:
 
     def set_on_recreate_callback(self, callback):
         """Устанавливает callback, который вызывается после пересоздания таблицы.
-        
+
         Позволяет Indexer/IndexProjectRunner синхронизировать свою ссылку self.table
         с новым объектом таблицы после _safe_recreate_table().
         """

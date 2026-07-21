@@ -2,11 +2,9 @@
 Тесты для Semantic Commit Memory.
 """
 
-import tempfile
 import subprocess
+import tempfile
 from pathlib import Path
-
-import pytest
 
 from src.core.commit_memory import CommitMemory
 

@@ -29,8 +29,9 @@ def register_dev_tools(mcp_app) -> None:
             Сводка: сколько файлов обработано + путь к файлу.
         """
         try:
-            from src.core.doc_generator import DocGenerator
             from pathlib import Path
+
+            from src.core.doc_generator import DocGenerator
 
             dg = DocGenerator()
             root = Path(project_root).resolve()

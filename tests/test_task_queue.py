@@ -3,8 +3,9 @@
 """
 
 import asyncio
-import pytest
 import time
+
+import pytest
 
 from src.core.task_queue import TaskQueue, TaskStatus
 

@@ -1,9 +1,8 @@
 """Tests: Shadow Canary — верификация нового embedder'а до переключения."""
 
 import json
-import hashlib
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 def _make_fake_embedding(dim=384):
@@ -25,7 +24,8 @@ class TestShadowCanary:
         ]
         embedder.embed_batch.return_value = [_make_fake_embedding() for _ in range(4)]
 
-        good_fn = lambda texts: [_make_fake_embedding() for _ in texts]
+        def good_fn(texts):
+            return [_make_fake_embedding() for _ in texts]
         result = RemoteEmbedder._shadow_compare(embedder, good_fn, "good_model")
         assert result is True, "Хорошая модель должна проходить canary"
 
@@ -46,7 +46,8 @@ class TestShadowCanary:
         ]
 
         # Новый провайдер: нулевые векторы (симуляция сломанной модели)
-        bad_fn = lambda texts: [[0.0] * 384 for _ in texts]
+        def bad_fn(texts):
+            return [[0.0] * 384 for _ in texts]
         result = RemoteEmbedder._shadow_compare(embedder, bad_fn, "bad_model")
         assert result is False, "Плохая модель должна блокироваться canary"
 
@@ -56,7 +57,8 @@ class TestShadowCanary:
 
         embedder = MagicMock(spec=RemoteEmbedder)
         embedder._canary_pairs = []
-        fn = lambda texts: [[1.0] * 384 for _ in texts]
+        def fn(texts):
+            return [[1.0] * 384 for _ in texts]
         result = RemoteEmbedder._shadow_compare(embedder, fn, "any")
         assert result is True, "Пустой canary = доверие"
 

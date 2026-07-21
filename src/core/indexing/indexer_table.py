@@ -138,7 +138,7 @@ class IndexerTableMixin:
             for col in int_columns:
                 if col not in existing_fields:
                     try:
-                        self.table.add_columns({col: f"CAST(0 AS INT)"})
+                        self.table.add_columns({col: "CAST(0 AS INT)"})
                         logger.info(f"📦 Миграция: добавлена колонка {col}")
                     except Exception as e:
                         logger.debug(f"add_columns({col}) не сработал: {e}")

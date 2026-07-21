@@ -1,8 +1,6 @@
 """Тесты для JobHistoryStore — адаптивный ETA на основе истории индексаций."""
 
-import time
 from pathlib import Path
-from unittest import mock
 
 import pytest
 

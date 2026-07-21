@@ -15,7 +15,7 @@
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-565%2B passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-48-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-0-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-07-21*
 
@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 13 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 0 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |

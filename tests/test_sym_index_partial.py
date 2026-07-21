@@ -9,10 +9,10 @@
 3. После re-index (remove + add) консистентность сохраняется
 """
 
-import gc
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -198,7 +198,7 @@ class TestSymIndexPartial:
         ])
 
         # os_path_join — external, не определён в проекте
-        defs = adapter.find_definitions("os_path_join")
+        adapter.find_definitions("os_path_join")
         # Должен вернуть пусто или placeholder (но не crash)
         refs = adapter.find_references("os_path_join")
         assert len(refs) >= 1, (

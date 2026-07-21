@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from src.core.graph import PropertyGraph
-from src.core.indexing.indexer import Indexer, _generate_unique_db_path
 from src.core.indexing.file_guard import FileGuard
+from src.core.indexing.indexer import Indexer, _generate_unique_db_path
 from src.core.indexing.parser import CodeParser
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,

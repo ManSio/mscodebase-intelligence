@@ -8,7 +8,7 @@ Branch-Aware Index — управление индексами для разны
 import logging
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 __all__ = [
     "BranchAwareIndex",

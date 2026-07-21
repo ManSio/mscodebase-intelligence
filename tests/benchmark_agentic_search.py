@@ -17,7 +17,6 @@ import pytest
 
 from src.core.search.engine import Searcher
 
-
 # ─── Fixtures ───────────────────────────────────────────────────────────────
 
 
@@ -302,7 +301,7 @@ class TestBenchmarkCallGraphOverhead:
 
         # Benchmark WITH symbol_index (real _analyze_subquery_relations)
         # Need to mock SymbolIndex methods used by _analyze_subquery_relations
-        with patch.object(searcher, '_analyze_subquery_relations', wraps=searcher._analyze_subquery_relations) as wrapped_analyze:
+        with patch.object(searcher, '_analyze_subquery_relations', wraps=searcher._analyze_subquery_relations):
             # Setup symbol_index mock to return realistic data (build_call_graph API)
             mock_symbol_index = MagicMock()
             mock_symbol_index.get_symbols_in_file.return_value = ["auth", "check_permissions"]

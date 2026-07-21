@@ -4,9 +4,6 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 from src.core.search.branch_aware_index import BranchAwareIndex
 

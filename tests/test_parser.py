@@ -46,7 +46,7 @@ class World:
     assert len(func_chunks) >= 1, "Должна быть найдена функция"
 
     # Проверяем, что есть класс (если парсер поддерживает)
-    class_chunks = [c for c in chunks if c.get("type") == "class_definition"]
+    [c for c in chunks if c.get("type") == "class_definition"]
 
 
 def test_parser_empty_file(temp_file):

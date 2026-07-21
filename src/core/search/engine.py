@@ -16,7 +16,6 @@ from src.core.interfaces.searcher import ISearcher
 from src.providers.reranker.multi_provider import MultiProviderReranker
 from src.providers.reranker.search_result_reranker import SearchResultReranker
 from src.utils.i18n import _
-from .token_savings import calculate_token_savings
 
 # ── Extracted sub-modules ──────────────────────────────────────
 from .agentic_search import AgenticSearchMixin
@@ -30,6 +29,7 @@ from .scoring import (
     reciprocal_rank_fusion,
     reciprocal_rank_fusion_3way,
 )
+from .token_savings import calculate_token_savings
 from .trace import SearchTracer
 from .utils import (
     _expand_query,

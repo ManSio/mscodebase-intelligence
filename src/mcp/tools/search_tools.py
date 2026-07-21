@@ -180,13 +180,15 @@ def _is_complex_query(query: str) -> bool:
 
 
 def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
-    """Fallback to grep when index is empty/corrupted."""
+    """Fallback to grep when index is empty/corrupted. Uses keyword-based search."""
     import pathlib as _pl
-    import os as _os
-    
+
     root = _pl.Path(__file__).resolve().parent.parent.parent.parent
     results = []
-    
+
+    # Split query into keywords for flexible matching
+    keywords = [w.lower() for w in query.split() if len(w) > 2]
+
     try:
         for ext in ("*.py", "*.md", "*.txt", "*.js", "*.ts"):
             for f in root.rglob(ext):
@@ -197,7 +199,9 @@ def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
                 try:
                     text = f.read_text(encoding="utf-8", errors="ignore")
                     for i, line in enumerate(text.split("\n"), 1):
-                        if query.lower() in line.lower():
+                        line_lower = line.lower()
+                        # Match if ANY keyword is found in the line (OR matching)
+                        if any(kw in line_lower for kw in keywords):
                             rel = f.relative_to(root)
                             results.append(f"{rel}:{i}: {line.strip()[:80]}")
                             if len(results) >= 20:
@@ -208,13 +212,14 @@ def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
                     break
             if len(results) >= 20:
                 break
-        
+
         if results:
             formatted = "\n".join(f"  {r}" for r in results)
             return f"\n🔍 **Grep fallback** (index empty/corrupted, {len(results)} results):\n{formatted}"
         return ""
     except Exception:
         return ""
+
 
 
 class SearchCodeTool(MCPTool):

@@ -6,9 +6,7 @@
 2. incremental_update_fts5 НЕ делает full rebuild, если FTS5 ещё не построен.
 3. apply_file_move вызывает searcher.remove_from_fts5(old_path).
 """
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from src.core.indexing.indexer import Indexer
 

@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,7 +18,6 @@ import pytest
 
 from src.core.error_handler import ToolError
 from src.mcp.tools.base import (
-    MCPTool,
     _is_self_index_path,
     resolve_indexer_for_request,
 )
@@ -121,7 +119,6 @@ class TestResolveIndexerSelfIndexGuard:
         (который зависит от CWD/bridge/env). Прямой путь через kwargs — это
         контракт: пользователь вызвал tool с project_root=<свой проект>.
         """
-        from src.mcp import server as server_mod
 
         # _ext_root = D:\Project\MSCodeBase (real). Используем путь,
         # который ЗАВЕДОМО не равен ext_root и не Zed install.
@@ -134,7 +131,6 @@ class TestResolveIndexerSelfIndexGuard:
 
     def test_explicit_zed_install_raises_tool_error(self):
         """explicit_project_root = Zed install dir → ToolError."""
-        from src.mcp import server as server_mod
 
         zed_dir = Path(r"D:\AI\Zed")
         services = self._make_services(zed_dir)

@@ -452,8 +452,8 @@ class WriteTool(MCPTool):
 
         # DocSync: авто-обновление .md файлов после переименования
         try:
-            from src.core.doc_sync_engine import DocSyncEngine
             from src.config.settings import get_project_path
+            from src.core.doc_sync_engine import DocSyncEngine
             project_root = get_project_path()
             if project_root:
                 engine = DocSyncEngine(project_root)

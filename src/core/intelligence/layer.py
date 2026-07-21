@@ -625,14 +625,15 @@ class ProjectIntelligenceLayer:
         return _("Incident {incident_id} stored.", incident_id=incident_id)
 
     async def intel_analyze_incident(self, error_message: str) -> Dict[str, Any]:
-        """Находит аналогичные инциденты по тексту ошибки."""
+        """Анализ инцидента: ищет похожие в истории + search_code как fallback."""
         incidents = self.store.load_incidents()
         matches = []
+
+        # 1. Search incident store (existing logic)
         for inc in incidents:
             symptom = inc.get("symptom", "")
             root_cause = inc.get("root_cause", "")
             fix = inc.get("fix", "")
-            # Простой поиск по ключевым словам
             keywords = set(error_message.lower().split())
             symptom_words = set(symptom.lower().split())
             overlap = keywords & symptom_words
@@ -644,18 +645,41 @@ class ProjectIntelligenceLayer:
                         "root_cause": root_cause,
                         "fix": fix,
                         "match_score": len(overlap) / max(len(keywords), 1),
+                        "source": "incident_store",
                     }
                 )
+
+        # 2. If no good matches, use search_code as fallback
+        if not matches or (matches and matches[0]["match_score"] < 0.3):
+            try:
+                from src.mcp.tools.search_tools import _grep_fallback
+                search_results = _grep_fallback(error_message)
+                if search_results:
+                    # Extract relevant code snippets
+                    lines = search_results.strip().split("\n")[:5]
+                    for line in lines:
+                        if ":" in line:
+                            parts = line.split(":", 2)
+                            if len(parts) >= 3:
+                                matches.append(
+                                    {
+                                        "incident_id": f"code_{hash(line) % 10000}",
+                                        "symptom": parts[2][:200],
+                                        "root_cause": f"Found in code: {parts[0]}:{parts[1]}",
+                                        "fix": "See code reference above",
+                                        "match_score": 0.5,
+                                        "source": "search_code",
+                                    }
+                                )
+            except Exception:
+                pass  # search_code not available
+
         matches.sort(key=lambda x: x["match_score"], reverse=True)
         return {
             "error_message": error_message,
             "matches_found": len(matches),
-            "similar_incidents": matches[:3],
+            "similar_incidents": matches[:5],
         }
-
-    # -----------------------------------------------------------------
-    # БЛОК 4. Project Memory (Архитектурная память)
-    # -----------------------------------------------------------------
 
     async def intel_get_project_memory(self) -> Dict[str, List[Dict]]:
         """Получить полную карту памяти проекта."""

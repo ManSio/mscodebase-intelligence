@@ -474,8 +474,8 @@ class ResourceMonitor:
         result = {"util_pct": None, "ram_mb": None, "temp_c": None}
         # nvidia-smi
         try:
-            import subprocess as _sp
             import shutil
+            import subprocess as _sp
             if not shutil.which("nvidia-smi"):
                 # Нет nvidia-smi в PATH — логируем один раз и отключаем
                 if not getattr(self, "_gpu_logged_missing", False):

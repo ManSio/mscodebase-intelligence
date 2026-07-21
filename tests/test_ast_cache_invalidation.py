@@ -17,9 +17,9 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
-from typing import List, Set
+
+import pytest
 
 from src.core.indexing.parser import CodeParser
 
@@ -64,7 +64,7 @@ class TestASTCacheInvalidation:
         extract_calls must return process_data, not calc_data."""
         # Initial parse
         calls_before = code_parser.extract_calls(tmp_producer)
-        callees_before = {c["callee"] for c in calls_before}
+        {c["callee"] for c in calls_before}
         # producer.py defines calc_data but doesn't call anything externally
         # so callees_before may be empty — that's fine, we test the next step
 
@@ -78,7 +78,7 @@ class TestASTCacheInvalidation:
 
         # Re-parse: must see new function name
         calls_after = code_parser.extract_calls(tmp_producer)
-        callees_after = {c["callee"] for c in calls_after}
+        {c["callee"] for c in calls_after}
 
         # The function definition is parsed, not a call, but the point is
         # that the AST is fresh. Let's test extract_calls on a file that

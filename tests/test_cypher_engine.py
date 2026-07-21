@@ -8,24 +8,19 @@ Phase 4: OPTIONAL MATCH (LEFT JOIN) — correctness bug fix
 Phase 5: Error handling and edge cases
 """
 
-import tempfile
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import pytest
 
+from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.search.cypher_engine import (
     CypherExecutor,
     CypherLexer,
     CypherParser,
     CypherToSQL,
     Query,
-    Token,
     TokenType,
     query_graph,
 )
-from src.core.graph import EdgeType, NodeLabel, PropertyGraph
-
 
 # ════════════════════════════════════════════════════════════
 # Fixtures

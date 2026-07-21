@@ -16,9 +16,8 @@ from typing import Any, Dict, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import ToolError, error_boundary
 from src.core.rate_limiter import SlidingWindowRateLimiter
-from src.mcp.tools.base import MCPTool
-
 from src.mcp.server import _ext_root
+from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.indexing_tools")
 

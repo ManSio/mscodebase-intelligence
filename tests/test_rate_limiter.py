@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import time
 
 import pytest
 
 from src.core.rate_limiter import (
-    SlidingWindowRateLimiter,
+    CircuitBreaker,
     DebounceBatch,
     DebounceConfig,
-    CircuitBreaker,
+    SlidingWindowRateLimiter,
 )
-
 
 # ══════════════════════════════════════════════════════════
 # SlidingWindowRateLimiter

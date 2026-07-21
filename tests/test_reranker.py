@@ -16,7 +16,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from src.providers.reranker.multi_provider import MultiProviderReranker
 
@@ -403,7 +402,7 @@ def test_chunk_text_truncation_unit():
     # В промпте текст должен быть усечён
     # Исходный текст 2000 символов, в промпте — только первые 800
     lines = prompt.split("\n")
-    chunk_line = [l for l in lines if l.startswith("[0]")][0]
+    chunk_line = [line for line in lines if line.startswith("[0]")][0]
     # Длина строки чанка: "[0] " + 800 символов
     assert len(chunk_line) <= 805, f"Chunk line too long: {len(chunk_line)}"
     # Убедимся что весь 2000-символьный текст НЕ в промпте

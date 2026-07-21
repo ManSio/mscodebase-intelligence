@@ -6,10 +6,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pytest
-
-from src.core.commit_memory import CommitMemory
 from src.core.bug_correlation import BugCorrelation
+from src.core.commit_memory import CommitMemory
 
 
 class TestBugCorrelation:

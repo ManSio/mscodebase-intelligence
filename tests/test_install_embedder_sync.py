@@ -6,7 +6,6 @@ Prevents regression of INC-INSTALL (2026-07-18): install.py was
 downloading e5-base-v2-int8 while runtime expected multilingual-e5-small-int8.
 """
 
-import pytest
 
 
 class TestInstallEmbedderSync:

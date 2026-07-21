@@ -2,7 +2,6 @@
 Тесты для Index Guard — самовосстановление индекса.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -76,7 +75,7 @@ class TestIndexGuard:
     def test_missing_table(self, tmp_path):
         """Отсутствующая таблица — нужен reindex."""
         db_path = tmp_path / "test.db"
-        db = lancedb.connect(str(db_path))
+        lancedb.connect(str(db_path))
 
         health = quick_health_check(db_path)
         assert health["healthy"] is False

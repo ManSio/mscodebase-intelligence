@@ -1,8 +1,6 @@
 """Unit-тесты для ResourceMonitor (multi-window, INC-6BCB)."""
 from __future__ import annotations
 
-import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -46,7 +44,7 @@ class TestResourceMonitor:
         assert m_low.is_under_pressure(hard=True)
 
     def test_throttle_delay_scaling(self):
-        m = ResourceMonitor(
+        ResourceMonitor(
             ram_soft_mb=100,
             ram_hard_mb=200,
             cpu_soft_percent=50.0,
@@ -89,7 +87,8 @@ class TestProjectIndexerRegistry:
 
     def test_singleton_per_path(self):
         from src.core.indexing.project_indexer_registry import (
-            ProjectIndexerRegistry, reset_global_registry,
+            ProjectIndexerRegistry,
+            reset_global_registry,
         )
         reset_global_registry()
 

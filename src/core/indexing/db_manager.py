@@ -380,10 +380,9 @@ class LanceDBManager:
         сразу выходим (raise), не ждём 30 секунд. Дубли MCP должны умирать
         быстро, чтобы не плодить 6 процессов на 30 секунд.
         """
+        import json
         import os
         import time
-        import json
-        from pathlib import Path
 
         lock_path = self._pid_lock_path
 
@@ -486,6 +485,7 @@ class LanceDBManager:
         """Release the PID lock."""
         if self._pid_lock_fd is not None:
             try:
+                import os
                 os.close(self._pid_lock_fd)
             except Exception:
                 pass

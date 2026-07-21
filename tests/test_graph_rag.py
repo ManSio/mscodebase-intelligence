@@ -2,10 +2,7 @@
 Тесты для GraphRAG Query Engine.
 """
 
-import tempfile
-from pathlib import Path
 
-import pytest
 
 from src.core.graph_rag import GraphRAGQueryEngine
 

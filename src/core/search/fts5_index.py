@@ -17,7 +17,7 @@ import logging
 import re
 import sqlite3
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 __all__ = ["FTS5IndexManager"]
 logger = logging.getLogger(__name__)

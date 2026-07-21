@@ -242,8 +242,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         self, query: str, kwargs: Optional[Dict[str, Any]] = None
     ) -> dict:
         """Cypher-like запрос к PropertyGraph."""
-        from src.core.search.cypher_engine import CypherExecutor
         from src.core.graph import PropertyGraph
+        from src.core.search.cypher_engine import CypherExecutor
 
         limit = (kwargs or {}).get("limit", 50)
         if not query:

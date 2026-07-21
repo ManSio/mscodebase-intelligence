@@ -9,12 +9,10 @@
 "индексирует" (мок с искусственной задержкой).
 """
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from src.mcp.tools.indexing_tools import NotifyChangeTool
 from src.core.di_container import ServiceCollection
+from src.mcp.tools.indexing_tools import NotifyChangeTool
 
 
 def _make_tool(slow_index_seconds: float = 0.3):

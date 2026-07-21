@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,8 @@ from typing import Any, Dict, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.mcp.tools.base import MCPTool
+
+logger = logging.getLogger(__name__)
 
 
 class StaleDetectorTool(MCPTool):
@@ -43,7 +46,7 @@ class StaleDetectorTool(MCPTool):
         )
 
         lines = [
-            f"Stale Detector — Doc Drift Report",
+            "Stale Detector — Doc Drift Report",
             f"Actual version: {actual_version}",
             f"Docs with drift: {len(results)}",
             f"Total drift instances: {total_hits} ({errors} errors)",
