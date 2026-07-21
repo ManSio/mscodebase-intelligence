@@ -48,8 +48,8 @@ def isolated_indexer(tmp_path, temp_project):
     project_path через file_path.relative_to(self.project_path) — иначе
     "File not in project" и 0 чанков (см. INC-6BCB / test_integration).
     """
-    from src.core.file_guard import FileGuard
-    from src.core.indexer import Indexer
+    from src.core.indexing.file_guard import FileGuard
+    from src.core.indexing.indexer import Indexer
 
     db_dir = tmp_path / "isolated_lancedb"
 
@@ -79,7 +79,7 @@ def isolated_indexer(tmp_path, temp_project):
 @pytest.mark.integration
 def test_full_indexing_pipeline(temp_project, isolated_indexer):
     """Тест полного цикла индексации."""
-    from src.core.searcher import Searcher
+    from src.core.search.engine import Searcher
 
     indexer = isolated_indexer
     searcher = Searcher(indexer, indexer.embedder)

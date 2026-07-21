@@ -15,17 +15,17 @@ from src.core.di_container import (
     ServiceCollection,
     create_service_collection,
 )
-from src.core.file_guard import FileGuard
-from src.core.indexer import Indexer
+from src.core.indexing.file_guard import FileGuard
+from src.core.indexing.indexer import Indexer
 from src.core.multi_project_searcher import MultiProjectSearcher, ProjectRegistry
-from src.core.parser import CodeParser
+from src.core.indexing.parser import CodeParser
 from src.core.rate_limiter import (
     CircuitBreaker,
     SlidingWindowRateLimiter,
 )
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.searcher import Searcher
-from src.core.symbol_index import SymbolIndex
+from src.providers.embedder.remote_embedder import RemoteEmbedder
+from src.core.search.engine import Searcher
+from src.core.indexing.symbol_index import SymbolIndex
 
 # ══════════════════════════════════════════════════════════
 # ServiceCollection
@@ -155,7 +155,7 @@ class TestCreateServiceCollection:
         project_root.mkdir()
         services = create_service_collection(project_root)
 
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
         from src.mcp.tools.base import resolve_indexer_for_request
 
         indexer = resolve_indexer_for_request(

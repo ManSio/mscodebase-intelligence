@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.indexer import Indexer
+from src.core.indexing.indexer import Indexer
 
 pytestmark = pytest.mark.slow
 
@@ -277,7 +277,7 @@ class TestSummaryGeneration:
 
     def test_summary_with_mock_summarizer(self):
         """Суммари генерируется через ChunkSummarizer."""
-        from src.core.chunk_summarizer import ChunkSummarizer
+        from src.core.indexing.chunk_summarizer import ChunkSummarizer
 
         mock_summarizer = MagicMock(spec=ChunkSummarizer)
         mock_summarizer.summarize_chunk.return_value = "Function that returns a value"

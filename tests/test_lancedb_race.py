@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from lancedb.index import IvfPq
+
 from src.core.indexing.db_manager import LanceDBManager
 
 
@@ -94,14 +96,7 @@ def _seed_chunks(mgr: LanceDBManager, n: int = 50) -> list[dict]:
     mgr.table.add(records)
     # IVF index для vector search (как делает реальный pipeline)
     try:
-        mgr.table.create_index(
-            "vector", index_type="IVF_FLAT", metric="cosine", replace=True
-        )
-    except TypeError:
-        mgr.table.create_index(
-            metric="cosine", vector_column_name="vector",
-            index_type="IVF_FLAT", replace=True,
-        )
+        mgr.table.create_index("vector", config=IvfPq(distance_type="l2"))
     except Exception as e:
         print(f"  [warn] IVF index create failed: {e}")
     return chunks

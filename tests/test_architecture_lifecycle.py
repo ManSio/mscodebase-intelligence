@@ -115,7 +115,7 @@ class TestProjectContextLayer:
     @pytest.mark.asyncio
     async def test_context_capture_has_all_fields(self):
         from src.core.di_container import create_service_collection
-        from src.core.project_context import ProjectContext
+        from src.core.intelligence.project_context import ProjectContext
         services = create_service_collection(_HERE)
         ctx = ProjectContext(_HERE, services)
         snap = await ctx.capture()
@@ -128,7 +128,7 @@ class TestProjectContextLayer:
     @pytest.mark.asyncio
     async def test_context_reads_bridge(self):
         from src.core.di_container import create_service_collection
-        from src.core.project_context import ProjectContext
+        from src.core.intelligence.project_context import ProjectContext
         services = create_service_collection(_HERE)
         ctx = ProjectContext(_HERE, services)
         snap = await ctx.capture()
@@ -138,7 +138,7 @@ class TestProjectContextLayer:
     @pytest.mark.asyncio
     async def test_context_does_not_mutate(self):
         from src.core.di_container import create_service_collection
-        from src.core.project_context import ProjectContext
+        from src.core.intelligence.project_context import ProjectContext
         services = create_service_collection(_HERE)
         ctx = ProjectContext(_HERE, services)
         snap1 = await ctx.capture()

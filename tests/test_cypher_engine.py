@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-from src.core.cypher_engine import (
+from src.core.search.cypher_engine import (
     CypherExecutor,
     CypherLexer,
     CypherParser,

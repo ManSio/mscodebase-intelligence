@@ -563,13 +563,13 @@ def step_pip(lines, lang):
 @_step(6)
 def step_llama(lines, lang):
     """Скачивает llama-server с GitHub и синхронизирует в ZED_EXT_DIR."""
-    from src.core.llama_runner import (
-        is_installed,
-        download_llama_binary,
-        LLAMA_VERSION,
-        _get_llama_dir,
-        _IS_INSIDER,
-    )
+    from src.providers.reranker.llama_runner import (
+            is_installed,
+            download_llama_binary,
+            LLAMA_VERSION,
+            _get_llama_dir,
+            _IS_INSIDER,
+        )
 
     bin_name = "llama-server.exe" if IS_WINDOWS else "llama-server"
     zed_llama_dir = ZED_EXT_DIR / "llama_msvc"
@@ -613,7 +613,7 @@ def step_llama(lines, lang):
 @_step(7)
 def step_gguf(lines, lang):
     """Скачивает GGUF модель реранкера (bge-reranker-v2-m3)."""
-    from src.core.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
+    from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
     all_ok = True
     zed_models_dir = ZED_EXT_DIR / "models"

@@ -107,7 +107,7 @@ def init_components(project_root: Path, workspace_uri: str = ""):
     # Multi-window (INC-6BCB-v2): batch теперь создаётся per-project внутри
     # _create_indexer_for_path() и доступен как indexer.bm25_batch.
     from src.core.di_container import ProjectRootKey
-    from src.core.project_indexer_registry import ProjectIndexerRegistry
+    from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
     factory = _get_factory(services)
@@ -157,7 +157,7 @@ def _execute_file_indexing(
         return
 
     from src.core.di_container import ProjectRootKey
-    from src.core.project_indexer_registry import ProjectIndexerRegistry
+    from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
     factory = _get_factory(services)
@@ -229,7 +229,7 @@ def _process_watched_changes(changes, services=None):
     # Per-workspace indexer (multi-window). Берём default project_root
     # сервисов как fallback.
     from src.core.di_container import ProjectRootKey
-    from src.core.project_indexer_registry import ProjectIndexerRegistry
+    from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
     registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
     factory = _get_factory(services)

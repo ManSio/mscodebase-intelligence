@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.searcher import Searcher
+from src.core.search.engine import Searcher
 
 
 # ─── Fixtures ───────────────────────────────────────────────────────────────

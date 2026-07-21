@@ -18,7 +18,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from src.core.reranker import MultiProviderReranker
+from src.providers.reranker.multi_provider import MultiProviderReranker
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -579,7 +579,7 @@ async def test_embedding_rerank_fallback_on_error(sample_chunks):
 
 def test_cosine_similarity_identical_vectors():
     """Cosine similarity одинаковых векторов = 1.0."""
-    from src.core.reranker import MultiProviderReranker
+    from src.providers.reranker.multi_provider import MultiProviderReranker
 
     vec = [1.0, 2.0, 3.0]
     result = MultiProviderReranker._cosine_similarity(vec, vec)
@@ -588,7 +588,7 @@ def test_cosine_similarity_identical_vectors():
 
 def test_cosine_similarity_orthogonal_vectors():
     """Cosine similarity ортогональных векторов = 0.0."""
-    from src.core.reranker import MultiProviderReranker
+    from src.providers.reranker.multi_provider import MultiProviderReranker
 
     vec_a = [1.0, 0.0]
     vec_b = [0.0, 1.0]
@@ -598,7 +598,7 @@ def test_cosine_similarity_orthogonal_vectors():
 
 def test_cosine_similarity_empty_vectors():
     """Cosine similarity пустых векторов = 0.0."""
-    from src.core.reranker import MultiProviderReranker
+    from src.providers.reranker.multi_provider import MultiProviderReranker
 
     assert MultiProviderReranker._cosine_similarity([], []) == 0.0
     assert MultiProviderReranker._cosine_similarity([1.0], []) == 0.0

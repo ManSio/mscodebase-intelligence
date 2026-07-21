@@ -91,7 +91,42 @@ def set_version(new_version: str) -> None:
         print(f"  ✅ {changelog.parent.name}/{changelog.name} → header added")
 
 
+def check_version() -> None:
+    """Check all version sources match. Exit 1 on mismatch."""
+    from_pyproject = get_current_version()
+
+    # Extract version from CHANGELOGs (first ## [X.Y.Z] header)
+    errors = []
+    for changelog in CHANGELOGS:
+        if not changelog.exists():
+            errors.append(f"  {changelog.parent.name}/{changelog.name} — not found")
+            continue
+        text = changelog.read_text(encoding="utf-8")
+        m = re.search(r'^## \[(\d+\.\d+\.\d+)\]', text, re.MULTILINE)
+        if m:
+            ch_ver = m.group(1)
+            if ch_ver != from_pyproject:
+                errors.append(
+                    f"  {changelog.parent.name}/{changelog.name}: {ch_ver} "
+                    f"≠ pyproject: {from_pyproject}"
+                )
+        else:
+            errors.append(f"  {changelog.parent.name}/{changelog.name} — no version header found")
+
+    if errors:
+        print("❌ Version mismatch(es):")
+        for e in errors:
+            print(e)
+        sys.exit(1)
+    else:
+        print(f"✅ All version sources match: {from_pyproject}")
+
+
 def main():
+    if "--check" in sys.argv:
+        check_version()
+        return
+
     if "--show" in sys.argv or "-s" in sys.argv:
         print(get_current_version())
         return

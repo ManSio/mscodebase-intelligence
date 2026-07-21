@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.health_report import HealthReport, format_health_report
+from src.core.intelligence.health import HealthReport, format_health_report
 
 pytestmark = pytest.mark.slow
 

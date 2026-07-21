@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from src.core.resource_monitor import (
+from src.core.indexing.resource_monitor import (
     ResourceMonitor,
     ResourceSnapshot,
     get_global_resource_monitor,
@@ -88,7 +88,7 @@ class TestProjectIndexerRegistry:
     """ProjectIndexerRegistry: per-project cache с LRU + ResourceMonitor."""
 
     def test_singleton_per_path(self):
-        from src.core.project_indexer_registry import (
+        from src.core.indexing.project_indexer_registry import (
             ProjectIndexerRegistry, reset_global_registry,
         )
         reset_global_registry()
@@ -103,7 +103,7 @@ class TestProjectIndexerRegistry:
             assert i1 is i2, "Должен вернуть тот же Indexer (singleton per path)"
 
     def test_lru_eviction(self):
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
         with tempfile.TemporaryDirectory() as tmp:
             projects = [Path(tmp) / f"P{i}" for i in range(3)]
@@ -122,7 +122,7 @@ class TestProjectIndexerRegistry:
                 f"Должна быть 1 eviction, got {stats['evictions']}"
 
     def test_pressure_eviction(self):
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
         # Monitor с заведомо маленьким порогом → всегда pressure.
         monitor = ResourceMonitor(ram_soft_mb=1, ram_hard_mb=1)
@@ -142,7 +142,7 @@ class TestProjectIndexerRegistry:
                 f"Должен быть pressure-evict, got {stats['evictions_for_pressure']}"
 
     def test_evict_explicit(self):
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "P1"
@@ -155,7 +155,7 @@ class TestProjectIndexerRegistry:
             assert len(reg.get_all_paths()) == 0
 
     def test_stats_track_hits_misses(self):
-        from src.core.project_indexer_registry import ProjectIndexerRegistry
+        from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
 
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "P1"

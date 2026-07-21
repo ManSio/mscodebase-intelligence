@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.searcher import Searcher
+from src.core.search.engine import Searcher
 from src.core.search.scoring import reciprocal_rank_fusion_3way
 from src.core.search.fts5_index import FTS5IndexManager
 

@@ -31,8 +31,8 @@ def mock_indexer():
         file_guard: MagicMock
         table: MagicMock
     """
-    from src.core.indexer import Indexer
-    from src.core.symbol_index import SymbolIndex
+    from src.core.indexing.indexer import Indexer
+    from src.core.indexing.symbol_index import SymbolIndex
 
     indexer = MagicMock(spec=Indexer)
 
@@ -61,7 +61,7 @@ def indexer_for_test():
     This fixture is used when we want to call the *real*
     move_chunks_metadata implementation while mocking the LanceDB table.
     """
-    from src.core.indexer import Indexer
+    from src.core.indexing.indexer import Indexer
 
     indexer = MagicMock(spec=Indexer)
     indexer.table = MagicMock()
@@ -79,7 +79,7 @@ def indexer_for_test():
 @pytest.fixture
 def symbol_index():
     """SymbolIndex seeded with test data for remap_file verification."""
-    from src.core.symbol_index import SymbolIndex
+    from src.core.indexing.symbol_index import SymbolIndex
 
     si = SymbolIndex()
     si.add_definitions("old/file.py", [
@@ -100,7 +100,7 @@ class TestMoveChunksMetadata:
 
     def test_returns_zero_for_nonexistent_path(self, indexer_for_test):
         """move_chunks_metadata returns 0 if old path not in table."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         # Empty DataFrame → no chunks found
         indexer_for_test.table.search.return_value \
@@ -119,7 +119,7 @@ class TestMoveChunksMetadata:
 
     def test_updates_file_path_in_lancedb(self, indexer_for_test):
         """After move, chunks are found under new path, not old."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["old/file.py", "old/file.py"],
@@ -152,7 +152,7 @@ class TestMoveChunksMetadata:
 
     def test_updates_module_name(self, indexer_for_test):
         """module_name is recalculated from new path via _infer_module_name."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["old/file.py"],
@@ -176,7 +176,7 @@ class TestMoveChunksMetadata:
 
     def test_updates_layer(self, indexer_for_test):
         """layer metadata is recalculated from new path via _infer_layer."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["old/file.py"],
@@ -200,7 +200,7 @@ class TestMoveChunksMetadata:
 
     def test_invalidates_cache(self, indexer_for_test):
         """_cached_total_chunks set to None and old path removed after move."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["old/file.py"],
@@ -223,7 +223,7 @@ class TestMoveChunksMetadata:
 
     def test_handles_same_path(self, indexer_for_test):
         """Same old and new path → returns 0 (no-op)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         result = Indexer.move_chunks_metadata(
             indexer_for_test, "file.py", "file.py",
@@ -236,7 +236,7 @@ class TestMoveChunksMetadata:
 
     def test_handles_windows_backslashes(self, indexer_for_test):
         """Backslashes normalized to forward slashes before SQL filter."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["old/file.py"],
@@ -270,7 +270,7 @@ class TestMoveChunksMetadata:
 
     def test_handles_single_quotes_in_path(self, indexer_for_test):
         """Single quotes in path are properly escaped for SQL safety."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         df = pd.DataFrame({
             "file_path": ["john's/file.py"],
@@ -310,7 +310,7 @@ class TestApplyFileMove:
 
     def test_calls_move_chunks_metadata(self, mock_indexer):
         """apply_file_move delegates to move_chunks_metadata."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         result = Indexer.apply_file_move(mock_indexer, "old.py", "new.py")
 
@@ -322,7 +322,7 @@ class TestApplyFileMove:
 
     def test_calls_symbol_index_remap(self, mock_indexer):
         """apply_file_move calls SymbolIndex.remap_file and moves defs."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         # Seed a definition so we can observe the remap
         si = mock_indexer._symbol_index
@@ -340,7 +340,7 @@ class TestApplyFileMove:
 
     def test_invalidates_bm25(self, mock_indexer):
         """apply_file_move resets BM25 cache via searcher._reset_bm25."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         Indexer.apply_file_move(mock_indexer, "old.py", "new.py")
 
@@ -348,7 +348,7 @@ class TestApplyFileMove:
 
     def test_returns_chunk_count(self, mock_indexer):
         """Result dict includes chunks_moved and symbol_updates."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         result = Indexer.apply_file_move(mock_indexer, "old.py", "new.py")
 
@@ -359,7 +359,7 @@ class TestApplyFileMove:
     def test_handles_missing_searcher(self, mock_indexer):
         """apply_file_move works gracefully when searcher is None."""
         mock_indexer.searcher = None
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         result = Indexer.apply_file_move(mock_indexer, "old.py", "new.py")
 
@@ -370,7 +370,7 @@ class TestApplyFileMove:
         """apply_file_move works when file_guard lacks notify_file_renamed."""
         # Remove the method so hasattr returns False
         del mock_indexer.file_guard.notify_file_renamed
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         result = Indexer.apply_file_move(mock_indexer, "old.py", "new.py")
 
@@ -386,98 +386,98 @@ class TestInferMetadata:
 
     def test_module_name_src_core(self):
         """src/core/foo.py → 'core.foo'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "src/core/foo.py")
         assert name == "core.foo"
 
     def test_module_name_mcp_tools(self):
         """src/mcp/tools/bar.py → 'mcp.tools.bar'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "src/mcp/tools/bar.py")
         assert name == "mcp.tools.bar"
 
     def test_module_name_root_level(self):
         """README.md → 'README' (single component, no package prefix)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "README.md")
         assert name == "README"
 
     def test_module_name_app_prefix(self):
         """app/models/user.py → 'models.user' (app is a skip_dir)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "app/models/user.py")
         assert name == "models.user"
 
     def test_module_name_lib_prefix(self):
         """lib/utils/helpers.py → 'utils.helpers' """
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "lib/utils/helpers.py")
         assert name == "utils.helpers"
 
     def test_module_name_without_skip_dir(self):
         """core/indexer.py → 'indexer' (no skip_dir match → first dir skipped)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         name = Indexer._infer_module_name(None, "core/indexer.py")
         assert name == "indexer"
 
     def test_layer_core(self):
         """src/core/foo.py → 'core'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "src/core/foo.py")
         assert layer == "core"
 
     def test_layer_mcp_tools(self):
         """src/mcp/tools/bar.py → 'mcp_tools'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "src/mcp/tools/bar.py")
         assert layer == "mcp_tools"
 
     def test_layer_mcp_no_tools(self):
         """src/mcp/handler.py → 'mcp' (tools not in path)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "src/mcp/handler.py")
         assert layer == "mcp"
 
     def test_layer_tests(self):
         """tests/test_foo.py → 'tests'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "tests/test_foo.py")
         assert layer == "tests"
 
     def test_layer_utils(self):
         """src/utils/helpers.py → 'utils'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "src/utils/helpers.py")
         assert layer == "utils"
 
     def test_layer_docs(self):
         """docs/index.md → 'docs'"""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "docs/index.md")
         assert layer == "docs"
 
     def test_layer_root(self):
         """README.md → 'root' (no known layer detected)."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "README.md")
         assert layer == "root"
 
     def test_layer_windows_backslashes(self):
         """Windows-style paths are normalised before layer detection."""
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
 
         layer = Indexer._infer_layer(None, "src\\core\\foo.py")
         assert layer == "core"

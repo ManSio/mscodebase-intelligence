@@ -24,7 +24,7 @@ from src.mcp.tools.write_tools import WriteTool
 
 def _build_index_for_file(file_path, extra_defs=None, add_refs=True):
     """Create a SymbolIndex with definitions pointing at a real file."""
-    from src.core.symbol_index import SymbolIndex
+    from src.core.indexing.symbol_index import SymbolIndex
 
     si = SymbolIndex()
     defs = [
@@ -104,7 +104,7 @@ def mock_services():
 @pytest.fixture
 def symbol_index():
     """Populated SymbolIndex with test symbols (paths may not exist)."""
-    from src.core.symbol_index import SymbolIndex
+    from src.core.indexing.symbol_index import SymbolIndex
 
     si = SymbolIndex()
     si.add_definitions("/tmp/test_module.py", [
@@ -389,7 +389,7 @@ class TestWriteToolSafeDelete:
     @pytest.mark.asyncio
     async def test_denies_if_references_exist(self, mock_services):
         """safe_delete denies deletion if symbol has usages elsewhere."""
-        from src.core.symbol_index import SymbolIndex, SymbolRef
+        from src.core.indexing.symbol_index import SymbolIndex, SymbolRef
 
         si = SymbolIndex()
         si.add_definitions("/tmp/mod.py", [
@@ -427,7 +427,7 @@ class TestWriteToolSafeDelete:
     @pytest.mark.asyncio
     async def test_allows_with_force(self, mock_services):
         """force=True bypasses reference check."""
-        from src.core.symbol_index import SymbolIndex, SymbolRef
+        from src.core.indexing.symbol_index import SymbolIndex, SymbolRef
 
         si = SymbolIndex()
         si.add_definitions("/tmp/mod.py", [
@@ -490,7 +490,7 @@ class TestWriteToolSafeDelete:
     @pytest.mark.asyncio
     async def test_apply_deletes_from_file(self, mock_services, tmp_path):
         """Apply deletion removes definition lines from the file."""
-        from src.core.symbol_index import SymbolIndex
+        from src.core.indexing.symbol_index import SymbolIndex
 
         py_file = tmp_path / "mod.py"
         py_file.write_text(

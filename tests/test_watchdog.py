@@ -2,7 +2,7 @@
 
 import time
 
-from src.core.indexer import Indexer
+from src.core.indexing.indexer import Indexer
 
 
 def _make_indexer():

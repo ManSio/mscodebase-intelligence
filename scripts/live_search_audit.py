@@ -45,13 +45,13 @@ os.environ["PROJECT_PATH"] = str(PROJECT_ROOT)
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S", stream=sys.stderr)
 
-from src.core.config import get_config
-from src.core.file_guard import FileGuard
-from src.core.remote_embedder import RemoteEmbedder
-from src.core.indexer import Indexer, _generate_unique_db_path
-from src.core.searcher import Searcher
+from src.config.settings import get_config
+from src.core.indexing.file_guard import FileGuard
+from src.providers.embedder.remote_embedder import RemoteEmbedder
+from src.core.indexing.indexer import Indexer, _generate_unique_db_path
+from src.core.search.engine import Searcher
 from src.core.di_container import create_service_collection
-from src.core.reranker import MultiProviderReranker
+from src.providers.reranker.multi_provider import MultiProviderReranker
 
 
 def build_wired_stack(project_root: Path):
@@ -60,9 +60,9 @@ def build_wired_stack(project_root: Path):
     embedder = services.resolve(RemoteEmbedder)
     db_path = _generate_unique_db_path(project_root)
     file_guard = FileGuard(project_root)
-    from src.core.parser import CodeParser
-    parser = CodeParser()
-    from src.core.symbol_index import SymbolIndex
+    from src.core.indexing.parser import CodeParser
+        parser = CodeParser()
+        from src.core.indexing.symbol_index import SymbolIndex
     symbol_index = SymbolIndex()
     indexer = Indexer(
         db_path=db_path,

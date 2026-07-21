@@ -21,10 +21,10 @@ def temp_file():
 
 def test_parser_python(temp_file):
     """Тест парсинга Python кода."""
-    from src.core.parser import CodeParser
+    from src.core.indexing.parser import CodeParser
 
     code = '''
-def hello():
+    def hello():
     """Приветствие."""
     print("Hello")
 
@@ -51,7 +51,7 @@ class World:
 
 def test_parser_empty_file(temp_file):
     """Тест парсинга пустого файла."""
-    from src.core.parser import CodeParser
+    from src.core.indexing.parser import CodeParser
 
     temp_file.write_text("")
 
@@ -64,7 +64,7 @@ def test_parser_empty_file(temp_file):
 
 def test_parser_markdown(temp_file):
     """Тест парсинга Markdown."""
-    from src.core.parser import CodeParser
+    from src.core.indexing.parser import CodeParser
 
     md_file = temp_file.with_suffix(".md")
     md_file.write_text(
@@ -82,7 +82,7 @@ def test_parser_markdown(temp_file):
 
 def test_parser_unsupported_extension(temp_file):
     """Тест неподдерживаемого расширения."""
-    from src.core.parser import CodeParser
+    from src.core.indexing.parser import CodeParser
 
     bin_file = temp_file.with_suffix(".bin")
     bin_file.write_text("binary content", encoding="utf-8")

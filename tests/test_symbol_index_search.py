@@ -9,7 +9,7 @@
 - Обратная совместимость с существующими вызовами
 """
 
-from src.core.symbol_index import SymbolIndex
+from src.core.indexing.symbol_index import SymbolIndex
 
 
 def _prep_index() -> SymbolIndex:

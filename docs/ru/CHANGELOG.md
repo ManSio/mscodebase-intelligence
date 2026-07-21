@@ -6,9 +6,9 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **41 инструмент** = 18 core + 13 intel + 7 inline + 3 dev
+> **Количество инструментов (текущее):** живой сервер регистрирует **48 инструментов** = 19 core + 13 intel + 12 inline + 4 dev
 
-## [3.3.8] — 2026-07-21 — Dev tools: generate_docs, bump_version, install_git_hooks
+## [3.3.9] — 2026-07-21 — DocSync engine + en/ru/zh полный аудит
 
 ### Добавлено
 - **`src/core/git_hooks_installer.py`**: новый модуль — установка pre-commit хуков (verify_diary + stale_detector + generate_docs) в любой проект.
