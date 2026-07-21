@@ -19,7 +19,7 @@ def _make_indexer(project_path):
     """Create an Indexer in a temp dir and return (indexer, db_path)."""
     from src.core.indexing.indexer import Indexer
 
-        db_path = project_path / ".codebase_indices" / "test.db"
+    db_path = project_path / ".codebase_indices" / "test.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     embedder_mock = MagicMock()
