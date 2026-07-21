@@ -557,6 +557,15 @@ class ProjectIntelligenceLayer:
                     duration = (job.ended_at or time.time()) - job.started_at
                     self.job_history.append_record(job.project_size, duration)
 
+                # 🔄 Авто-обновление документации после реиндекса
+                try:
+                    from src.core.auto_doc_updater import AutoDocUpdater
+                    updater = AutoDocUpdater()
+                    doc_result = updater.update_all(str(self.project_path))
+                    logger.info("Auto-doc after reindex:\n%s", doc_result)
+                except Exception as doc_e:
+                    logger.warning("Auto-doc after reindex failed: %s", doc_e)
+
             except Exception as e:
                 logger.warning(f"Exception suppressed at layer.py: {e}")
                 job.status = "failed"

@@ -89,6 +89,31 @@ def register_dev_tools(mcp_app) -> None:
             logger.error(f"bump_version failed: {e}")
             return f"Error: {e}"
 
+    @mcp_app.tool("auto_update_docs")
+    async def auto_update_docs(project_root: str, action: str = "update") -> str:
+        """Автоматическое обновление документации проекта.
+
+        Args:
+            project_root: Абсолютный путь к корню проекта.
+            action: 'update' (полное обновление), 'check' (проверить устаревание).
+
+        Returns:
+            Отчёт об обновлении или статус.
+        """
+        try:
+            from src.core.auto_doc_updater import AutoDocUpdater
+
+            updater = AutoDocUpdater()
+            if action == "check":
+                result = updater.check_staleness(project_root)
+            else:
+                result = updater.update_all(project_root)
+            logger.info("auto_update_docs: %s (%s)", action, project_root)
+            return result
+        except Exception as e:
+            logger.error(f"auto_update_docs failed: {e}")
+            return f"Error: {e}"
+
     @mcp_app.tool("install_git_hooks")
     async def install_git_hooks(
         project_root: str, action: str = "install"
