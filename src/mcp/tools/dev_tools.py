@@ -19,22 +19,47 @@ def register_dev_tools(mcp_app) -> None:
     async def generate_docs(project_root: str) -> str:
         """Генерирует Markdown-документацию из PropertyGraph для любого проекта.
 
+        Сохраняет результат в файл docs/generated/MODULE_INDEX.md
+        (не возвращает огромный Markdown в чат, чтобы не тормозить Zed).
+
         Args:
             project_root: Абсолютный путь к корню проекта.
 
         Returns:
-            Markdown-строка или путь к сохранённому файлу.
+            Сводка: сколько файлов обработано + путь к файлу.
         """
         try:
             from src.core.doc_generator import DocGenerator
+            from pathlib import Path
 
             dg = DocGenerator()
-            md = dg.generate(project_root)
+            root = Path(project_root).resolve()
+            output_dir = str(root / "docs" / "generated")
+            filepath = dg.generate(project_root, output_dir=output_dir)
+
+            # Статистика из сохранённого файла
+            saved = Path(filepath)
+            if saved.exists():
+                text = saved.read_text(encoding="utf-8")
+                lines = text.count("\n")
+                files_count = text.count("## ")
+                size_kb = len(text.encode("utf-8")) / 1024
+            else:
+                lines = files_count = 0
+                size_kb = 0.0
+
             logger.info(
-                "generate_docs: %d chars for %s",
-                len(md), project_root,
+                "generate_docs: %.1f KB, %d files, saved to %s",
+                size_kb, files_count, filepath,
             )
-            return md
+            return (
+                f"✅ Документация сгенерирована\n"
+                f"📄 Файлов с символами: {files_count}\n"
+                f"📏 Строк: {lines}\n"
+                f"💾 Размер: {size_kb:.0f} KB\n"
+                f"📁 Сохранено: {filepath}\n"
+                f"\n💡 Откройте файл в Zed, чтобы посмотреть без тормозов."
+            )
         except Exception as e:
             logger.error(f"generate_docs failed: {e}")
             return f"Error: {e}"
