@@ -33,8 +33,8 @@ It runs **fully offline** on your machine — no cloud, no data egress, no API c
 | `multilingual-e5-base` INT8/FP32 | Embedding (768-dim) | Vector semantic search | 105 MB / 266 MB |
 | `bge-reranker-v2-m3` (ONNX) | Cross-encoder | Result reranking | 544 MB |
 
-> **E5-base ONNX** — основной эмбеддер, запускается в процессе MCP без внешних зависимостей.
-> BGE-M3 реранкер — ONNX-модель через onnx_server.py (порт 1235) или llama.cpp (порт 8081).
+> **E5-base ONNX** — primary embedder, runs in the MCP process with no external dependencies.
+> BGE-M3 reranker — ONNX model via onnx_server.py (port 1235) or llama.cpp (port 8081).
 
 ### Models for LM Studio (Fallback only)
 
@@ -43,8 +43,8 @@ It runs **fully offline** on your machine — no cloud, no data egress, no API c
 | `text-embedding-bge-m3` | Embedding (1024-dim) | Fallback vector search | ~2.2 GB |
 | `bge-reranker-v2-m3` | Cross-encoder | Fallback reranking | ~1.1 GB |
 
-> LM Studio используется **только если ONNX/OpenVINO модель недоступна**.
-> По умолчанию LM Studio — fallback.
+> LM Studio is used **only if ONNX/OpenVINO model is unavailable**.
+> By default, LM Studio is a fallback.
 
 ### Alternative: llama.cpp GGUF (Recommended for Reranker)
 
@@ -206,8 +206,8 @@ LM Studio / Ollama not running. Vector search will be unavailable.
 
 ### Embedded model returns wrong dimension
 ```
-LM Studio вернул пустой список embeddings.
-Проверьте что модель 'text-embedding-bge-m3' поддерживает embeddings.
+LM Studio returned an empty embeddings list.
+Verify that the 'text-embedding-bge-m3' model supports embeddings.
 ```
 - Ensure you loaded the `text-embedding-bge-m3` model (not `phi-4` for embeddings)
 - Check that `EMBEDDING_DIMENSION=1024` matches your model
@@ -220,7 +220,7 @@ LM Studio вернул пустой список embeddings.
 
 ### phi-4 not responding (mode=ask)
 ```
-mode=ask заблокирован в light profile
+mode=ask is blocked in light profile
 ```
 - Set `SYSTEM_PROFILE=server` in `.env`
 - Ensure `phi-4-mini-instruct` is loaded in LM Studio

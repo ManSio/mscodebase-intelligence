@@ -107,20 +107,20 @@ async def dense_search(query_vector: list, limit: int) -> list:
 
 ### 4. RRF Fusion (Reciprocal Rank Fusion)
 
-> ⚠️ **Важно:** Ранги считаются **раздельно** для каждого канала, начиная с 1.
-> Объединённый `enumerate(bm25 + dense)` дал бы неверные скоры.
+> ⚠️ **Important:** Ranks are computed **separately** for each channel, starting from 1.
+> A combined `enumerate(bm25 + dense)` would produce incorrect scores.
 
 ```python
 def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
     """Merge BM25 + dense results using RRF formula.
     
-    Ранги считаются отдельно для каждого канала (начиная с 1),
-    как того требует математически корректная RRF.
+    Ranks are computed separately for each channel (starting from 1),
+    as required by the mathematically correct RRF formula.
     """
     scores = {}
     results_map = {}
     
-    # BM25 ранги (отдельный enumerate с start=1)
+    # BM25 ranks (separate enumerate with start=1)
     for rank, doc in enumerate(bm25, 1):
         key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
@@ -133,7 +133,7 @@ def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
         else:
             results_map[key]["bm25_score"] = 1.0 / (k + rank)
     
-    # Dense ранги (отдельный enumerate с start=1)
+    # Dense ranks (separate enumerate with start=1)
     for rank, doc in enumerate(dense, 1):
         key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)

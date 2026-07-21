@@ -68,16 +68,16 @@ python install.py --sync
 python install.py --yes
 ```
 
-### Автоматическая установка
+### Automatic Installation
 
-Начиная с v2.7.0, `install.py` автоматически:
+Starting from v2.7.0, `install.py` automatically:
 
-1. **Скачивает llama-server.exe** под вашу платформу (Windows/macOS/Linux, x64/ARM64)
-2. **Скачивает GGUF-модели**: `bge-m3-Q4_K_M` (417 MB) для эмбеддингов и `bge-reranker-v2-m3-Q4_K_M` (418 MB) для реранкинга
-3. **Запускает llama-server** при старте MCP — никаких внешних сервисов не требуется
-4. **Освобождает до 5.3× RAM** по сравнению с LM Studio (227 MB vs 1200 MB)
+1. **Downloads llama-server.exe** for your platform (Windows/macOS/Linux, x64/ARM64)
+2. **Downloads GGUF models**: `bge-m3-Q4_K_M` (417 MB) for embeddings and `bge-reranker-v2-m3-Q4_K_M` (418 MB) for reranking
+3. **Starts llama-server** on MCP startup — no external services required
+4. **Frees up to 5.3× RAM** compared to LM Studio (227 MB vs 1200 MB)
 
-Весь процесс полностью автоматический. Никаких дополнительных действий от пользователя не требуется.
+The entire process is fully automatic. No additional user action required.
 
 ### Step 2: Restart Zed
 
