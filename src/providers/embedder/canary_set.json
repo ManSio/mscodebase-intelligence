@@ -1,0 +1,89 @@
+{
+  "_meta": {
+    "description": "Canary set для Shadow Canary — эталонные пары запрос→правильный чанк",
+    "created": "2026-07-21",
+    "source": "mscodebase-intelligence codebase"
+  },
+  "pairs": [
+    {
+      "query": "hybrid search function",
+      "expected_chunk": "async def hybrid_search_async"
+    },
+    {
+      "query": "reindex with lock guard",
+      "expected_chunk": "def set_reindexing"
+    },
+    {
+      "query": "embed text batch",
+      "expected_chunk": "def embed_batch"
+    },
+    {
+      "query": "add file to index",
+      "expected_chunk": "def index_file"
+    },
+    {
+      "query": "check file hash",
+      "expected_chunk": "def _calculate_file_hash"
+    },
+    {
+      "query": "lance db connection",
+      "expected_chunk": "def _acquire_pid_lock"
+    },
+    {
+      "query": "tree sitter parser init",
+      "expected_chunk": "def _init_tree_sitter"
+    },
+    {
+      "query": "parse file and chunk",
+      "expected_chunk": "def parse_file"
+    },
+    {
+      "query": "extract function calls from ast",
+      "expected_chunk": "def extract_calls"
+    },
+    {
+      "query": "search code with reranker",
+      "expected_chunk": "async def rerank"
+    },
+    {
+      "query": "get runtime status",
+      "expected_chunk": "def get_status"
+    },
+    {
+      "query": "circuit breaker call",
+      "expected_chunk": "def call"
+    },
+    {
+      "query": "write records to lancedb",
+      "expected_chunk": "def write_records"
+    },
+    {
+      "query": "notify file change",
+      "expected_chunk": "def notify_change"
+    },
+    {
+      "query": "reindex project guard",
+      "expected_chunk": "def _reindex_guard"
+    },
+    {
+      "query": "parse file with tree sitter",
+      "expected_chunk": "def _parse_with_tree_sitter"
+    },
+    {
+      "query": "walk ast node",
+      "expected_chunk": "def _walk_node"
+    },
+    {
+      "query": "extract imports from file",
+      "expected_chunk": "def extract_imports"
+    },
+    {
+      "query": "check ollama availability",
+      "expected_chunk": "def _check_ollama"
+    },
+    {
+      "query": "switch embedding provider",
+      "expected_chunk": "def _init_provider_async"
+    }
+  ]
+}

@@ -85,6 +85,105 @@ class RemoteEmbedder(IEmbedder):
         self.local_model_dir = self._onnx_search_paths[0]
         self._detect_model_dir()
 
+        # ── Shadow Canary: эталонные пары запрос→чанк ──────────
+        self._canary_pairs: List[dict] = []
+        self._load_canary_set()
+
+    def _load_canary_set(self):
+        """Загружает canary-набор из canary_set.json."""
+        import json
+
+        paths = [
+            Path(__file__).resolve().parent / "canary_set.json",
+            self.ext_root / "src" / "providers" / "embedder" / "canary_set.json",
+        ]
+        for cp in paths:
+            if cp.exists():
+                try:
+                    data = json.loads(cp.read_text(encoding="utf-8"))
+                    self._canary_pairs = data.get("pairs", [])
+                    logger.info(f"🐦 Shadow Canary: {len(self._canary_pairs)} pairs loaded from {cp.name}")
+                except Exception as e:
+                    logger.warning(f"🐦 Canary load failed: {e}")
+                return
+        logger.info("🐦 Shadow Canary: no canary_set.json found (disabled)")
+
+    def _shadow_compare(self, new_embed_fn, new_name: str) -> bool:
+        """Shadow Canary: сравнивает качество эмбеддинга до и после смены провайдера.
+
+        Args:
+            new_embed_fn: callable(texts) -> List[List[float]] — эмбеддер нового провайдера.
+            new_name: имя нового провайдера (для лога).
+
+        Returns:
+            True если новый провайдер не хуже старого (можно переключать).
+            False если качество упало (отказ от переключения).
+        """
+        if not self._canary_pairs:
+            return True  # нет canary — доверяем
+
+        import numpy as np
+
+        def _cos_sim(a, b):
+            dot = sum(x * y for x, y in zip(a, b))
+            na = sum(x * x for x in a) ** 0.5
+            nb = sum(x * x for x in b) ** 0.5
+            return dot / (na * nb) if na and nb else 0.0
+
+        # Прогоняем через текущий провайдер (базлайн)
+        old_queries = [p["query"] for p in self._canary_pairs]
+        old_chunks = [p["expected_chunk"] for p in self._canary_pairs]
+
+        try:
+            old_q_vecs = self.embed_batch(old_queries, is_query=True)
+            old_c_vecs = self.embed_batch(old_chunks, is_query=False)
+        except Exception as e:
+            logger.warning(f"🐦 Shadow baseline failed: {e}")
+            return True
+
+        if not old_q_vecs or not old_c_vecs:
+            return True
+
+        old_sims = [_cos_sim(q, c) for q, c in zip(old_q_vecs, old_c_vecs)]
+        old_mean = sum(old_sims) / len(old_sims) if old_sims else 0.0
+
+        # Прогоняем через новый провайдер
+        try:
+            new_q_vecs = new_embed_fn(old_queries)
+            new_c_vecs = new_embed_fn(old_chunks)
+        except Exception as e:
+            logger.warning(f"🐦 Shadow {new_name} failed: {e}")
+            return False
+
+        if not new_q_vecs or not new_c_vecs:
+            logger.warning(f"🐦 Shadow {new_name}: empty response")
+            return False
+
+        new_sims = [_cos_sim(q, c) for q, c in zip(new_q_vecs, new_c_vecs)]
+        new_mean = sum(new_sims) / len(new_sims) if new_sims else 0.0
+
+        # Сравнение с tolerance 10%
+        threshold = old_mean * 0.9
+        degraded = sum(1 for n in new_sims if n < threshold)
+        degraded_ratio = degraded / len(new_sims) if new_sims else 1.0
+
+        logger.info(
+            f"🐦 Shadow Canary: {new_name} vs baseline | "
+            f"old_mean={old_mean:.4f} new_mean={new_mean:.4f} "
+            f"degraded={degraded}/{len(new_sims)} ({degraded_ratio:.0%})"
+        )
+
+        if degraded_ratio > 0.3:
+            logger.warning(
+                f"🐦 Shadow Canary: ❌ {new_name} quality degraded "
+                f"({degraded_ratio:.0%} pairs worse than baseline). "
+                f"Switch BLOCKED."
+            )
+            return False
+
+        logger.info(f"🐦 Shadow Canary: ✅ {new_name} passed (degraded {degraded_ratio:.0%})")
+        return True
+
     def _detect_model_dir(self):
         """Find the first available ONNX model in .codebase_models/onnx/*/model.onnx
         Checks multiple locations: ext_root, project_root, shared cache.
@@ -434,6 +533,59 @@ class RemoteEmbedder(IEmbedder):
         except Exception:
             return False
 
+    # ── Shadow Canary: API-вызовы для нового провайдера (до смены mode) ──
+
+    def _call_lm_studio_api(self, texts):
+        """Временный эмбеддинг через LM Studio (для shadow canary)."""
+        import json
+        try:
+            r = self._sync_client.post(
+                self.lm_studio_url,
+                json={"input": texts, "model": self._model_name},
+                timeout=10.0,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                return [d["embedding"] for d in data["data"]]
+        except Exception:
+            pass
+        return []
+
+    def _call_ollama_api(self, texts):
+        """Временный эмбеддинг через Ollama (для shadow canary)."""
+        import json
+        config = get_config()
+        try:
+            results = []
+            for t in texts:
+                r = self._sync_client.post(
+                    config.embedding.ollama_embeddings_url,
+                    json={"model": config.embedding.ollama_model, "prompt": t},
+                    timeout=10.0,
+                )
+                if r.status_code == 200:
+                    results.append(r.json().get("embedding", []))
+                else:
+                    return []
+            return results
+        except Exception:
+            return []
+
+    def _call_llama_cpp_api(self, texts):
+        """Временный эмбеддинг через llama.cpp (для shadow canary)."""
+        import json
+        try:
+            r = self._sync_client.post(
+                self.llama_cpp_url,
+                json={"input": texts},
+                timeout=10.0,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                return [d["embedding"] for d in data["data"]]
+        except Exception:
+            return []
+
     def _provider_scanner_loop(self):
         """Фоновый поток: периодически проверяет, появился ли внешний провайдер.
 
@@ -481,6 +633,12 @@ class RemoteEmbedder(IEmbedder):
                 # current == "onnx" или "fallback" — ищем внешний провайдер
                 # Используем _raw, чтобы CircuitBreaker не кэшировал недоступный сервер
                 if self._check_lm_studio_raw():
+                    if not self._shadow_compare(
+                        lambda texts: self._call_lm_studio_api(texts),
+                        "lm_studio",
+                    ):
+                        logger.warning("🐦 Shadow Canary: LM Studio rejected. Continue scanning.")
+                        continue
                     with self._mode_lock:
                         self.mode = "lm_studio"
                     logger.info(
@@ -489,6 +647,12 @@ class RemoteEmbedder(IEmbedder):
                     )
                     return  # Успешное подключение — завершаем поток
                 elif self._check_ollama():
+                    if not self._shadow_compare(
+                        lambda texts: self._call_ollama_api(texts),
+                        "ollama",
+                    ):
+                        logger.warning("🐦 Shadow Canary: Ollama rejected. Continue scanning.")
+                        continue
                     with self._mode_lock:
                         self.mode = "ollama"
                     logger.info(
@@ -497,6 +661,12 @@ class RemoteEmbedder(IEmbedder):
                     )
                     return
                 elif self._check_llama_cpp():
+                    if not self._shadow_compare(
+                        lambda texts: self._call_llama_cpp_api(texts),
+                        "llama_cpp",
+                    ):
+                        logger.warning("🐦 Shadow Canary: llama.cpp rejected. Continue scanning.")
+                        continue
                     with self._mode_lock:
                         self.mode = "llama_cpp"
                     logger.info(
