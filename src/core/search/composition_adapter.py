@@ -6,7 +6,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
+
+# Forward references for type annotations
+from src.core.graph import Node as _Node  # noqa: F401 — used in type annotation
+from src.core.search.graph_adapter import SymbolRef as _SymbolRef  # noqa: F401 — used in type annotation
 
 from src.core.graph import PropertyGraph
 from src.core.search.graph_adapter import SymbolIndexAdapter

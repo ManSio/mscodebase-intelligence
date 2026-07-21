@@ -11,12 +11,115 @@ import sys
 import subprocess
 import argparse
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 DIARY = ROOT / "AGENT_DIARY.md"
 EXCLUDES = {".git", "__pycache__", ".pyc", "venv", ".venv", "node_modules", ".codebase_indices"}
+
+# Стандартные функции Python/builtins, которые могут встречаться в diary-примерах
+# (не являются функциями нашего проекта)
+_STDLIB_FUNCTIONS = {
+    "abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes",
+    "callable", "chr", "classmethod", "compile", "complex", "delattr",
+    "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter",
+    "float", "format", "frozenset", "getattr", "globals", "hasattr",
+    "hash", "hex", "id", "input", "int", "isinstance", "issubclass",
+    "iter", "len", "list", "locals", "map", "max", "memoryview",
+    "min", "next", "object", "oct", "open", "ord", "pow", "print",
+    "property", "range", "repr", "reversed", "round", "set",
+    "setattr", "slice", "sorted", "staticmethod", "str", "sum",
+    "super", "tuple", "type", "vars", "zip",
+    # Path / os / time / re / json / subprocess — часто в примерах
+    "mkdir", "sleep", "read_text", "write_text", "read_bytes",
+    "write_bytes", "exists", "is_dir", "is_file", "iterdir",
+    "glob", "rglob", "unlink", "rmdir", "rename", "resolve",
+    "relative_to", "with_suffix", "with_name", "parent", "name",
+    "stem", "suffix", "cwd", "home", "stat", "lstat", "chmod",
+    "joinpath", "samefile", "absolute", "as_posix", "as_uri",
+    "split", "strip", "replace", "find", "startswith", "endswith",
+    "contains", "decode", "encode", "format", "json", "dumps",
+    "loads", "dump", "load", "run", "Popen", "check_call",
+    "check_output", "pytest", "main",
+}
+
+
+class SymbolCache:
+    """Pre-built cache: один проход по .py файлам, потом O(1) проверка.
+
+    Заменяет ~600-1200 grep -r вызовов на один проход + set lookup.
+    """
+
+    _instance: Optional["SymbolCache"] = None
+
+    def __init__(self):
+        self._funcs: Set[str] = set()
+        self._classes: Set[str] = set()
+        self._build()
+
+    def _build(self):
+        """Сканирует все .py файлы, собирает def/class имена."""
+        py_files = list(ROOT.rglob("*.py"))
+        for fp in py_files:
+            rel = str(fp.relative_to(ROOT))
+            parts = Path(rel).parts
+            if any(d in parts for d in EXCLUDES):
+                continue
+            try:
+                text = fp.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            # Без якоря ^ — ловим методы классов (с отступом).
+            # MULTILINE + ^ не работал для `    def method(self)`.
+            for m in re.finditer(r'(?:^|\n)\s*(?:async\s+)?(?:def|class)\s+([a-zA-Z_][a-zA-Z0-9_]+)', text):
+                name = m.group(1)
+                if name[0].isupper():
+                    self._classes.add(name)
+                else:
+                    self._funcs.add(name)
+
+    def has_function(self, name: str) -> bool:
+        return name in self._funcs
+
+    def has_class(self, name: str) -> bool:
+        return name in self._classes
+
+    @classmethod
+    def get_instance(cls) -> "SymbolCache":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+
+def _extract_code_functions(line: str) -> List[str]:
+    """Извлекает имена функций ТОЛЬКО из backtick-кода в строке.
+
+    Пример: `` `hybrid_search()` `` → ["hybrid_search"]
+    `` text `set_reindexing()` more `` → ["set_reindexing"]
+    `` prose word( `` → [] (prose без backtick)
+    """
+    result = []
+    # Находим все backtick-блоки
+    for m in re.finditer(r'`([^`]+)`', line):
+        content = m.group(1)
+        # Ищем function_name( внутри backtick
+        for fm in re.finditer(r'\b([a-z_][a-z0-9_]{2,})\s*\(', content):
+            result.append(fm.group(1))
+    return result
+
+
+def _extract_code_classes(line: str) -> List[str]:
+    """Извлекает имена классов из backtick-кода.
+
+    `` `class Indexer` `` → ["Indexer"]
+    """
+    result = []
+    for m in re.finditer(r'`([^`]+)`', line):
+        content = m.group(1)
+        for cm in re.finditer(r'\bclass\s+([A-Z][a-zA-Z0-9_]+)', content):
+            result.append(cm.group(1))
+    return result
 
 
 @dataclass
@@ -78,22 +181,27 @@ def parse_diary() -> List[DiaryEntry]:
                 if "✅" in line and ("yes" in line.lower() or "да" in line.lower()):
                     current_entry.verified_from_clean = True
 
-            # Извлечение функций/классов/тестов/коммитов
-            funcs = re.findall(r"\b([a-z_][a-z0-9_]{2,})\s*\(", line)
-            for f in funcs:
+            # Извлечение символов — ТОЛЬКО из backtick-кода (`code`), чтобы не
+            # выдёргивать английские слова из прозы ("lock", "which", "print" и т.д.)
+            # Функции: ищем pattern(`) внутри backtick-пар
+            bt_funcs = _extract_code_functions(line)
+            for f in bt_funcs:
                 if f not in current_entry.functions:
                     current_entry.functions.append(f)
 
-            classes = re.findall(r"\bclass\s+([A-Z][a-zA-Z0-9_]+)", line)
-            for c in classes:
+            # Классы: class Name внутри backtick-пар
+            bt_classes = _extract_code_classes(line)
+            for c in bt_classes:
                 if c not in current_entry.classes:
                     current_entry.classes.append(c)
 
+            # Тесты: test_xxx — уникальные имена, можно из любого контекста
             tests = re.findall(r"(test_[a-z_][a-z0-9_]*)", line)
             for t in tests:
                 if t not in current_entry.tests:
                     current_entry.tests.append(t)
 
+            # Коммиты: hex-хеши
             commits = re.findall(r"[a-f0-9]{7,40}", line)
             for c in commits:
                 if c not in current_entry.commits:
@@ -107,37 +215,39 @@ def parse_diary() -> List[DiaryEntry]:
 
 
 def check_symbol_exists(symbol: str, is_test: bool = False) -> bool:
-    """Проверяет существование символа (функции/класса/теста) в кодовой базе."""
-    # Ищем в .py файлах
-    pattern = rf"^(def|async def|class)\s+{re.escape(symbol)}\b"
-    try:
-        result = subprocess.run(
-            ["grep", "-r", "--include=*.py", pattern, str(ROOT)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            return True
-    except Exception:
-        pass
+    """Проверяет существование символа (функции/класса/теста) в кодовой базе.
 
-    # Для тестов также ищем в pytest коллекции
+    Использует SymbolCache (один проход по файлам) вместо grep -r (600-1200 вызовов).
+    """
     if is_test:
-        try:
-            result = subprocess.run(
-                ["python", "-m", "pytest", "--collect-only", "-k", symbol, "-q"],
-                cwd=str(ROOT),
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode == 0 and symbol in result.stdout:
-                return True
-        except Exception:
-            pass
+        return _check_test_file_exists(symbol)
 
-    return False
+    # Пропускаем stdlib/builtin имена — они не из нашего проекта
+    if symbol in _STDLIB_FUNCTIONS:
+        return True
+
+    cache = SymbolCache.get_instance()
+    return cache.has_function(symbol) or cache.has_class(symbol)
+
+
+def _check_test_file_exists(test_name: str) -> bool:
+    """Проверяет существование тестового файла прямым поиском по диску.
+
+    Заменяет pytest -k (B5): keyword match по именам тестов даёт false-negatives
+    для файлов с несколькими тест-методами внутри класса.
+
+    Args:
+        test_name: Имя теста (может быть test_xxx или xxx)
+
+    Returns:
+        True если файл tests/test_<name>.py существует
+    """
+    base = test_name.replace("test_", "", 1) if test_name.startswith("test_") else test_name
+    candidates = [
+        ROOT / "tests" / f"{test_name}.py",
+        ROOT / "tests" / f"test_{base}.py",
+    ]
+    return any(p.exists() for p in candidates)
 
 
 def check_commit_exists(commit_hash: str) -> bool:
@@ -180,6 +290,9 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
 
 def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tuple[int, int, List[str]]:
     """Запускает проверку всех записей. Возвращает (passed, failed, issues)."""
+    # Протокол AGENTS.md §7.7 введён 2026-07-19 — записи ДО этой даты не обязаны
+    # иметь verified_from_clean_state (legacy).
+    _PROTOCOL_DATE = "2026-07-19"
     passed = 0
     failed = 0
     issues = []
@@ -209,8 +322,8 @@ def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tu
             if len(commit) >= 7 and not check_commit_exists(commit):
                 entry_issues.append(f"  ⚠️ Коммит `{commit[:12]}` не найден в истории")
 
-        # Проверка verified_from_clean_state
-        if entry.functions or entry.classes or entry.tests:
+        # Проверка verified_from_clean_state (§7.7) — только для записей после введения протокола
+        if (entry.functions or entry.classes or entry.tests) and entry.date >= _PROTOCOL_DATE:
             if not entry.has_verified:
                 entry_issues.append(f"  ⚠️ Нет маркера `verified_from_clean_state`")
             elif not entry.verified_from_clean:

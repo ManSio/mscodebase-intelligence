@@ -137,11 +137,13 @@ class ProjectContext:
     Usage:
         ctx = ProjectContext(project_path, services)
         snapshot = await ctx.capture()
-        print(snapshot.state)             # READY
-        print(snapshot.index_chunks)      # 1362
-        print(snapshot.runtime_pid)       # 31420
-        print(snapshot.health_ok)         # True
+        logger.debug("state=%s chunks=%s pid=%s health=%s",
+                     snapshot.state, snapshot.index_chunks,
+                     snapshot.runtime_pid, snapshot.health_ok)
     """
+
+    # B7: print() заменён на logger.debug() — print() в stdout ломает JSON-RPC pipe
+    # Если нужно вывести snapshot, используй logger.info или `intel_get_project_context()`
 
     def __init__(self, project_path: Path, services: Any):
         self._path = project_path.resolve()

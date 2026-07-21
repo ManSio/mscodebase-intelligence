@@ -1148,6 +1148,9 @@ class PropertyGraph:
             self._init_schema()
             conn.commit()
 
+        # Сохраняем размер ДО unlink (B1: FileNotFoundError fix)
+        temp_size = temp_db.stat().st_size
+
         # zstd-сжатие
         try:
             import zstandard
@@ -1155,18 +1158,22 @@ class PropertyGraph:
             with open(temp_db, "rb") as fin:
                 data = fin.read()
             compressed = zstandard.compress(data, compression_level)
+            compressed_size = len(compressed)
             output_path.write_bytes(compressed)
         except ImportError:
-            # fallback: system zstd
+            # fallback: system zstd пишет в output_path напрямую
             subprocess.run(
                 [sys.executable, "-m", "zstandard", f"-{compression_level}",
                  str(temp_db), "-o", str(output_path)],
                 check=True,
+                capture_output=True,
+                timeout=60,  # B2: timeout на зависший subprocess
             )
+            compressed_size = output_path.stat().st_size
 
         temp_db.unlink()
-        logger.info(f"Graph exported: {temp_db.stat().st_size / 1024:.0f} KB -> "
-                    f"{output_path} ({len(compressed) / 1024:.0f} KB zstd)")
+        logger.info(f"Graph exported: {temp_size / 1024:.0f} KB -> "
+                    f"{output_path} ({compressed_size / 1024:.0f} KB zstd)")
         return output_path
 
     def import_compressed(self, input_path: Path) -> int:
@@ -1196,6 +1203,7 @@ class PropertyGraph:
             result = subprocess.run(
                 [sys.executable, "-m", "zstandard", "-d", str(input_path)],
                 capture_output=True,
+                timeout=60,  # B3: timeout на зависший subprocess
             )
             decompressed = result.stdout
 

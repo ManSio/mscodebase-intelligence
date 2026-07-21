@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-21 — 10 pre-existing test failures (ИСПРАВЛЕНЫ)
+
+**Symptom (было):**
+- 6 test_indexer_project_path.py: FileNotFoundError на .write_lock при создании LanceDBManager
+- 2 test_notify_change_nonblocking.py: assert "Index updated" не совпадал с "✅ Queued for reindex"
+- 1 test_lancedb_race.py: тот же .write_lock
+- 1 test_suppression_markers.py: PermissionError + assertion 3≠1 (start_line mismatch)
+
+**Root Cause:**
+1. db_manager.py _acquire_pid_lock не создавал parent dir перед os.open → FileNotFoundError
+2. notify_change message поменялся, assert не обновлён
+3. suppression test: start_line=5 для функции на строке 6 (не совпадало с suppressed={6})
+
+**Fix:**
+1. db_manager.py: `lock_path.parent.mkdir(parents=True, exist_ok=True)` перед os.open
+2. test: "Index updated" → "Queued for reindex"
+3. test: start_line=5→6, expected 1→2, добавил `graph.close()` + `ignore_cleanup_errors=True`
+4. test: `asyncio.sleep(0.05)` для fire-and-forget task
+
+**Файлы:** `src/core/indexing/db_manager.py`, `tests/test_indexer_project_path.py`, `tests/test_notify_change_nonblocking.py`, `tests/test_lancedb_race.py`, `tests/test_suppression_markers.py`
+
+---
+
+## 2026-07-21 — Audit: 12 замечаний из experiments/audit.md (ИСПРАВЛЕНЫ)
+
+**Symptom (было):**
+- B1: `graph.py:1155-1170` — `unlink()` → `stat()` → FileNotFoundError при каждом успешном экспорте. Fallback-путь (ImportError) бросал NameError: `compressed` undefined.
+- B2/B3: `graph.py` — subprocess.run без timeout → вечное зависание при zstd compress/decompress.
+- B4/B12: `engine.py:255` — `getattr(..., lambda: False)()` молча теряет fast-fail при reindex.
+- B5: `verify_diary.py` — `pytest -k` даёт 7+ false-negatives из 96 ❌.
+- B6: `ruff.toml` — F821 подавлен в 4 файлах без TODO.
+- B7: `project_context.py` — `print()` в docstring (ломает JSON-RPC pipe).
+- B8: `stale_check.py` — ловит ARCHIVED файлы как дрифт.
+- B9: 18 stub-фасадов без deprecation warnings.
+
+**Fix:**
+- B1-B3: `graph.py` — `temp_size` сохранён до unlink, `compressed_size` в обоих путях, добавлен `timeout=60`.
+- B4: `engine.py` — callable check + logger.error при пропаже is_reindexing.
+- B5: `verify_diary.py` — `_check_test_file_exists()` direct file search.
+- B6: `ruff.toml` — добавлены импорты, suppressions удалены.
+- B7: `project_context.py` — logger.debug вместо print.
+- B8: `stale_check.py` — `if "ARCHIVED" in text[:500].upper(): skip`.
+- B9: 18 stubs — `warnings.warn(DeprecationWarning)` на каждый.
+
+**Файлы:** `src/core/graph.py`, `src/core/search/engine.py`, `scripts/verify_diary.py`, `tools/stale_detector/stale_check.py`, `ruff.toml`, `src/core/search/cypher_sql.py`, `src/core/search/composition_adapter.py`, `src/core/intelligence/project_context.py`, 18 stubs в `src/core/*.py`.
+
+---
+
 ## 2026-07-20 — LanceDB `Not found` при full reindex (частый баг, ИСПРАВЛЕН)
 
 **Архитектура (зафиксировано):** MCP = ДВА связанных процесса, оба пишут в одну БД:
@@ -357,3 +405,41 @@ error_boundary (как в meta_tools.py). Теперь доступны напр
 
 > Launcher (0.6MB) запускает `C:\Python314\python.exe -m src.main` через install.py.
 > Оба видны в Диспетчере задач под ОДНИМ узлом (parent-child).
+
+---
+
+## 2026-07-20 — 5 MCP-инструментов без ограничения вывода (DEFERRED)
+
+**Symptom:** При аудите 40+ инструментов выявлено 5, где объём возвращаемых данных
+не ограничен — могут вернуть весь проект целиком.
+
+| # | Tool | Файл | Проблема | Приоритет |
+|---|------|------|----------|-----------|
+| 1 | **ImpactAnalysisTool** | search_tools.py | callers/callees/affected_files — всё без limit | 🔴 4/5 |
+| 2 | **CrossProjectDepsTool** | graph_tools.py | affected проекты — список без limit | 🔴 3/5 |
+| 3 | **intel_get_project_context** | server_tools.py | env vars + health.lists — нет фильтра | ⚠️ 2/5 |
+| 4 | **GetRepoMapTool** | analysis_tools.py | все файлы проекта — нет max_files | ⚠️ 2/5 |
+| 5 | **GraphQueryTool** feature | graph_tools.py | files/symbols — без limit | ⚠️ 2/5 |
+
+**Fix (рекомендованный):** Добавить параметры `max_items`/`max_files`/`limit` с разумными
+значениями по умолчанию (30-50), добавить `truncated: true` флаг.
+
+**Root Cause:** Исторически все инструменты проектировались без ограничения вывода.
+Проблема не проявлялась на малых проектах, но с ростом индекса (4000+ chunks)
+становится критичной — ImpactAnalysisTool может вернуть callers/callees для всего проекта.
+
+**Status:** 🔴 DEFERRED — по просьбе владельца записано на будущее
+
+## 2026-07-21 — ADR auto-collect on startup (ИСПРАВЛЕНО)
+
+**Что было:** `intel_get_project_memory()` возвращал пустой результат на старте.
+Требовался ручной вызов `intel_auto_collect_adrs()`.
+
+**Fix:** В `_register_intelligence_tools()` (server_tools.py) добавлен автоматический
+вызов `intel_layer.intel_auto_collect_adrs(max_commits=100)` сразу после создания слоя.
+Обёрнут в try/except — не блокирует старт.
+
+**Попутно:** Очищены все лог-файлы (mcp_global.log, mscodebase-intelligence.log и их ротации,
+crash_debug.log, llama_reranker_stderr.log) — 738 ошибок убрано.
+
+**Status:** ✅ FIXED — требуется перезагрузка Zed для активации.

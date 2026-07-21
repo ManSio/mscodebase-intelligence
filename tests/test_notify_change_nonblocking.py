@@ -69,7 +69,7 @@ async def test_notify_change_does_not_block_event_loop():
 
     # sleep не должен быть заблокирован тормозящим indexer (допуск x3)
     assert sleep_elapsed < 0.2, f"event loop blocked: sleep took {sleep_elapsed:.2f}s"
-    assert "Index updated" in exec_result
+    assert "Queued for reindex" in exec_result
 
 
 async def test_notify_change_uses_to_thread():
@@ -83,5 +83,8 @@ async def test_notify_change_uses_to_thread():
     tool._get_content = _fake_content
 
     result = await tool.execute(file_path="src/core/search/engine.py")
+    # _index_single_file вызывается в fire-and-forget task (create_task).
+    # Ждём немного чтобы background task успел стартануть
+    await asyncio.sleep(0.05)
     assert indexer._index_single_file.call_count == 1
-    assert "Index updated" in result
+    assert "Queued for reindex" in result

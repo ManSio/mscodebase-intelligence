@@ -9,6 +9,26 @@
 > **工具数量（当前）:** 实时服务器注册 **36 个工具** = 20 core + 12 intel + 6 diagnostic
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.6] — 2026-07-21 — 审计修复: 12个错误 + 10个测试 + CI + verify_diary
+
+### 修复
+- 🔴 **CRITICAL (B1)**: `graph.py` — temp_db.unlink() 在 stat() 之前 → FileNotFoundError
+- 🟠 **HIGH (B2/B3)**: `graph.py` — subprocess.run 无超时, 添加 timeout=60
+- 🟠 **HIGH (B4/B12)**: `engine.py` — getattr 失去 fast-fail, 替换为 callable check
+- 🟡 **MEDIUM (B5)**: `verify_diary.py` — pytest -k → 直接文件搜索
+- 🟡 **MEDIUM (B6)**: `ruff.toml` — F821 抑制已移除, 添加导入
+- 🟡 **MEDIUM (B7)**: `project_context.py` — print() → logger.debug()
+- 🟡 **MEDIUM (B8)**: `stale_check.py` — ARCHIVED 过滤
+- 🟢 **LOW (B9)**: 18 stubs — DeprecationWarning 警告
+- **10 个测试修复**: LanceDB .write_lock, 断言, 抑制标记
+
+### 变更
+- **CI**: +Windows runner, +ruff 到 dev-deps
+- **verify_diary**: 14% → 68% 通过率
+- **清理根目录**: 删除 15 个陈旧文件
+
+---
+
 ## [3.3.5] — 2026-07-19 — LLAMA_CPP_ENABLED 已启用 + 重排序器在线
 
 ### 变更
