@@ -190,7 +190,7 @@ What context reduction strategies actually work in your experience?
 
 ---
 
-*Reproduce this yourself: the script is in [experiments/run_experiment_pagerank.py](https://github.com/ManSio/mscodebase-intelligence/blob/main/experiments/run_experiment_pagerank.py). Run it on your project and share results.*
+*Reproduce this yourself: the script is in [experiments/run_experiment_pagerank.py](https://github.com/ManSio/mscodebase-intelligence/blob/main/scripts/run_experiment_pagerank.py). Run it on your project and share results.*
 
 ---
 
