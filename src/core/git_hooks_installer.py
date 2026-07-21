@@ -231,4 +231,3 @@ class GitHooksInstaller:
             pass
 
         return None
-"""
