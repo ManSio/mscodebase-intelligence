@@ -100,7 +100,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **14 файлов: 18 core-инструментов + 7 inline + 3 dev + 1 optional (Hub & Spoke: codebase + execute_script + 17 нативных).**
+`src/mcp/tools/*.py` — **14 файлов: 19 core (18 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 нативных).**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -277,11 +277,11 @@ def register_all_tools(mcp, services):
         # Lifecycle (3)
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +13 intel_* инструментов + 7 inline diagnostic + 3 dev + 1 optional
-    # Всего: 42 зарегистрировано (18 core + 13 intel + 7 inline + 3 dev + 1 optional)
+    # +13 intel_* инструментов + 12 inline diagnostic + 4 dev
+    # Всего: 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev)
 ```
 
-**Фильтр видимости инструментов:** По умолчанию видимо ~16 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 42.
+**Фильтр видимости инструментов:** По умолчанию видимо ~16 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 48.
 
 ### 4.2 Все инструменты по группам
 
@@ -301,9 +301,9 @@ def register_all_tools(mcp, services):
 | **Meta** (1) | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **Система** (1) | `system_tools.py` | read_live_file, get_health_report, get_logs |
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
-| **Diagnostic inline** (7) | `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline, get_health_report, get_logs, read_live_file, stale_detector |
+| **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Всего:** 42 зарегистрировано (18 core + 13 intel + 7 inline + 3 dev + 1 optional). По умолчанию видимо: ~16. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+> **Всего:** 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~16. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Обработка ошибок
 

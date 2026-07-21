@@ -15,7 +15,7 @@
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-565%2B passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#-mcp-tools-0-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-48-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-07-21*
 
@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 0 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 13 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 42 tools (18 core + 13 intel + 7 inline + 3 dev + 1 optional), 565+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 48 tools (19 core + 13 intel + 12 inline + 4 dev), 565+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -205,7 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (42 total)
+## 🔧 MCP Tools (48 total)
 
 ### Core Search
 

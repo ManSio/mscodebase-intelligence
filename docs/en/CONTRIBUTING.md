@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP server registration (~220 lines)
 │   ├── server_factory.py # Server factory + DI setup
-│   ├── server_tools.py  # Tool registration (42 tools total)
-│   └── tools/           # 14 files, 18 core + 13 intel + 7 inline + 3 dev + 1 optional
+│   ├── server_tools.py  # Tool registration (48 tools total)
+│   └── tools/           # 14 files, 19 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Tools are registered in `src/mcp/server_tools.py` via `register_all_tools()`.
 Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 
-### Tool categories (42 total):
+### Tool categories (48 total):
 
 | Category | Count | Key tools |
 |----------|-------|-----------|
@@ -186,8 +186,7 @@ Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 | **Meta** | 1 | index status, health reports |
 | **Intelligence** | 13 | `intel_get_runtime_status`, `intel_trigger_reindex`, etc. |
 | **Dev** | 3 | `generate_docs`, `bump_version`, `install_git_hooks` |
-| **Diagnostic inline** | 7 | `debug_runtime_passport`, `get_runtime_counters`, etc. |
-| **Optional** | 1 | `execute_script(code)` (E2B sandbox) |
+| **Diagnostic inline** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
 
 ### Steps to add a new tool:
 

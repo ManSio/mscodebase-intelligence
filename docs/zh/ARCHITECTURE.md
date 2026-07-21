@@ -98,7 +98,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **14 个文件：18 个核心工具 + 7 个内联 + 3 个开发 + 1 个可选（Hub & Spoke：codebase + execute_script + 17 个原生）。**
+`src/mcp/tools/*.py` — **14 个文件：19 个核心 (18 + codebase hub) + 12 个内联 + 4 个开发（Hub & Spoke：codebase + execute_script + 17 个原生）。**
 
 每个工具：
 - 继承自 `MCPTool`（ABC）
@@ -275,11 +275,11 @@ def register_all_tools(mcp, services):
         # 生命周期（3 个）
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +13 个 intel_* 工具 + 7 个内联诊断 + 3 个开发 + 1 个可选
-    # 总计：42 个已注册（18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选）
+    # +13 个 intel_* 工具 + 12 个内联诊断 + 4 个开发
+    # 总计：48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）
 ```
 
-**工具可见性过滤器：** 默认显示 ~16 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 42 个。
+**工具可见性过滤器：** 默认显示 ~16 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 48 个。
 
 ### 4.2 按组分组的全部工具
 
@@ -299,9 +299,9 @@ def register_all_tools(mcp, services):
 | **元**（1 个） | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **系统**（1 个） | `system_tools.py` | read_live_file, get_health_report, get_logs |
 | **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
-| **诊断内联**（7 个） | `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline, get_health_report, get_logs, read_live_file, stale_detector |
+| **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **总计：** 42 个已注册（18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选）。默认可见：~16 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）。默认可见：~16 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
 ---
 

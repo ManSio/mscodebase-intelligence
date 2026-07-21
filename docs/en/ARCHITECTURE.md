@@ -98,7 +98,7 @@ Responsibilities:
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **14 files: 18 core tools + 7 inline + 3 dev + 1 optional (Hub & Spoke: codebase + execute_script + 17 native).**
+`src/mcp/tools/*.py` — **14 files: 19 core (18 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 native).**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -275,11 +275,11 @@ def register_all_tools(mcp, services):
         # Lifecycle (3)
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +13 intel_* tools + 7 inline diagnostic + 3 dev + 1 optional
-    # Total: 42 registered (18 core + 13 intel + 7 inline + 3 dev + 1 optional)
+    # +13 intel_* tools + 12 inline diagnostic + 4 dev
+    # Total: 48 registered (19 core + 13 intel + 12 inline + 4 dev)
 ```
 
-**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 42.
+**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 48.
 
 ### 4.2 All Tools by Group
 
@@ -299,9 +299,9 @@ def register_all_tools(mcp, services):
 | **Meta** (1) | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **System** (1) | `system_tools.py` | read_live_file, get_health_report, get_logs |
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
-| **Diagnostic inline** (7) | `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline, get_health_report, get_logs, read_live_file, stale_detector |
+| **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Total:** 42 registered (18 core + 13 intel + 7 inline + 3 dev + 1 optional). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 48 registered (19 core + 13 intel + 12 inline + 4 dev). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

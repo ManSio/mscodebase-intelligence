@@ -3,11 +3,11 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- register_all_tools() — регистрация 18 core-инструментов + codebase hub + execute_script
+- register_all_tools() — регистрация 19 core-инструментов (18 core + 1 codebase hub) + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
-- _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, ..., refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
-- dev_tools: generate_docs, bump_version, install_git_hooks (3)
-- Всего: 18 + 13 + 7 + 3 = 41 инструмент (+ 1 optional execute_script = 42)
+- _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
+- dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
+- Всего: 19 + 13 + 12 + 4 = 48 инструментов (+ 1 optional execute_script = 49)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -225,7 +225,7 @@ def register_all_tools(mcp, services):
 
     total_core = len(tool_classes)
     total_intel = 13
-    total_inline = 7
+    total_inline = 12
     total_dev = 4
     logger.info(
         f"✅ Все инструменты зарегистрированы "
@@ -284,10 +284,11 @@ def _register_intelligence_tools(mcp, services):
 
 
 def _register_inline_tools(mcp, services):
-    """Регистрирует 7 inline-инструментов, определённых прямо в server_tools.py.
+    """Регистрирует 12 inline-инструментов, определённых прямо в server_tools.py.
 
     debug_runtime_passport, intel_get_project_context, intel_explain_project_state,
-    get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection.
+    get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection,
+    notify_change, read_live_file, get_logs, get_health_report, ack_impact.
     """
 
     # ─── 1. debug_runtime_passport ─────────────────
