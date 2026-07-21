@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本:** 3.2.0  
-> **最后更新:** 2026-07-12  
-> **架构:** 4层架构 + PropertyGraph + Data Flow Layer 带多窗口注册表
+> **版本:** 3.3.9  
+> **最后更新:** 2026-07-21  
+> **架构:** 4层架构 + PropertyGraph + Data Flow Layer 带多窗口注册表 + AutoDoc 自动文档
 
 ---
 
@@ -33,7 +33,7 @@
 │                                                                  │
 │  第1层: main.py / lsp_main.py  (入口点，极简)                      │
 │  第2层: mcp/server.py          (DI路由，工具注册)                   │
-│  第3层: mcp/tools/*.py         (40个基于类的工具)                   │
+│  第3层: mcp/tools/*.py         (42个工具: 18 core + 7 inline + 3 dev)│
 │  第4层: core/*.py              (纯业务逻辑)                        │
 └──────────────────────────────────────────────────────────────────┘
 ```

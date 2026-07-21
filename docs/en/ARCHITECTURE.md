@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 3.2.0  
-> **Last updated:** 2026-07-12  
-> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry
+> **Version:** 3.3.9  
+> **Last updated:** 2026-07-21  
+> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry + AutoDoc Living Documentation
 
 ---
 
@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (19 core + 12 intel + 6 diagnostic = 37 total)](#4-tool-layer)
+4. [Tool Layer (18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (19 core tools)           │
+│  Layer 3: mcp/tools/*.py         (18 core + 7 inline + 3 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -98,7 +98,7 @@ Responsibilities:
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **12 files, 19 core tools (Hub & Spoke: codebase + execute_script + 17 native).**
+`src/mcp/tools/*.py` — **15 files, 18 core tools + 7 inline + 3 dev (Hub & Spoke: codebase + execute_script + 17 native).**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
