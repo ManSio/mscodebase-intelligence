@@ -118,15 +118,15 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 43 tools (18 core + 13 intel + 12 inline), 553+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 42 tools (18 core + 13 intel + 7 inline + 3 dev + 1 optional), 565+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
 | 🔗 **Data Flow Graph** | `ASSIGNED_FROM` edges track variable assignments. Unified Walker + Conditional Flow (if/for/while/try). 42 edge types in PropertyGraph. |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
-| 🎯 **MMR Diversification** | Maximal Marginal Relevance (λ=0.6) после RRF — убирает дубли, сохраняя релевантность. 0.3ms на 50 docs. |
-| 🧠 **Auto Intent Detection** | Keyword-based автоопределение code/docs по тексту запроса. Не требует ручного `intent_hint`. |
-| 📖 **Extended Synonyms** | 39 групп синонимов (auth↔login, function↔method, cache↔buffer и др.) — закрывает разрыв между терминологией пользователя и кодом. |
+| 🎯 **MMR Diversification** | Maximal Marginal Relevance (λ=0.6) after RRF — removes duplicates while preserving relevance. 0.3ms for 50 docs. |
+| 🧠 **Auto Intent Detection** | Keyword-based auto-detection of code/docs intent from query text. No manual `intent_hint` required. |
+| 📖 **Extended Synonyms** | 39 synonym groups (auth↔login, function↔method, cache↔buffer, etc.) — bridges the gap between user terminology and code. |
 
 ---
 
