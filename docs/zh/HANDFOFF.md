@@ -12,7 +12,7 @@
 完全本地运行：LanceDB（向量索引）+ ONNX E5-base INT8（进程内嵌入）+ llama.cpp GGUF（仅重排序器（reranker））+ OpenVINO INT8（可选）。
 
 **关键数字：**
-- 42 个 MCP 工具（18 core + 13 intel + 7 inline + 3 dev + 1 optional）— 包括 `query_graph`（Cypher 引擎）
+- 48 个 MCP 工具（19 core + 13 intel + 12 inline + 4 dev）— 包括 `query_graph`（Cypher 引擎）
 - 11 个工具文件，DI 容器中的 16 个服务
 - 索引：约 3000 个块（chunk），约 170 个文件，约 1550 个符号
 - **PropertyGraph**：SQLite 图（15 种节点类型，27 种边类型），位于 `.codebase/graph.db`
@@ -58,7 +58,7 @@ conn.execute("""
 | **延迟解析活动索引器** | 如果 LSP 尚未写入桥接文件 — 选择第一个活动工作区 |
 | **两阶段重新索引** | `intel_trigger_reindex` → job_id → `intel_get_job_status`（反垃圾邮件） |
 | **异步锁用于文件 IO** | 保护对内存 JSON 文件的并发写入 |
-| **ui_formatter** | 所有 42 个工具的统一 Markdown 风格（无原始 JSON） |
+| **ui_formatter** | 所有 48 个工具的统一 Markdown 风格（无原始 JSON） |
 
 ---
 
@@ -114,7 +114,7 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 
 | 文件 | 功能 |
 |------|-------------|
-| `src/mcp/server.py` | `resolve_project_root()`，所有 42 个工具的注册 |
+| `src/mcp/server.py` | `resolve_project_root()`，所有 48 个工具的注册 |
 | `src/mcp/tools/base.py` | `MCPTool`（基类），`resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 16 个服务，`ProjectIndexerRegistry` |
 | `src/core/intelligence_layer.py` | 13 个 intel 工具，`ProjectIntelligenceLayer` |

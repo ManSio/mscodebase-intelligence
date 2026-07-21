@@ -27,8 +27,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP 服务器注册（约 220 行）
 │   ├── server_factory.py # 服务器工厂 + DI 设置
-│   ├── server_tools.py  # 工具注册（共 42 个工具）
-│   └── tools/           # 14 个文件，18 个核心 + 13 个 intel + 7 个内联 + 3 个开发 + 1 个可选
+│   ├── server_tools.py  # 工具注册（共 48 个工具）
+│   └── tools/           # 14 个文件，19 个核心 + 13 个 intel + 12 个内联 + 4 个开发
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -164,7 +164,7 @@ pytest tests/ --tb=long -v
 工具在 `src/mcp/server_tools.py` 中通过 `register_all_tools()` 注册。
 每个工具是 `src/mcp/tools/*.py` 中的一个类，继承自 `MCPTool`。
 
-### 工具类别（共 42 个）：
+### 工具类别（共 48 个）：
 
 | 类别 | 数量 | 主要工具 |
 |----------|-------|-----------|
@@ -182,8 +182,7 @@ pytest tests/ --tb=long -v
 | **元** | 1 | 索引状态，健康报告 |
 | **Intelligence** | 13 | `intel_get_runtime_status`, `intel_trigger_reindex` 等 |
 | **开发** | 3 | `generate_docs`, `bump_version`, `install_git_hooks` |
-| **诊断内联** | 7 | `debug_runtime_passport`, `get_runtime_counters` 等 |
-| **可选** | 1 | `execute_script(code)`（E2B 沙箱） |
+| **诊断内联** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
 
 ### 添加新工具的步骤：
 

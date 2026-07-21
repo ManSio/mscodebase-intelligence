@@ -16,7 +16,7 @@
 Runs fully locally: LanceDB (vector index) + ONNX E5-base INT8 (in-process embeddings) + llama.cpp GGUF (reranker only) + OpenVINO INT8 (optional).
 
 **Key numbers:**
-- 42 MCP tools (18 core + 13 intel + 7 inline + 3 dev + 1 optional) — including `query_graph` (Cypher engine)
+- 48 MCP tools (19 core + 13 intel + 12 inline + 4 dev) — including `query_graph` (Cypher engine)
 - 11 tool files, 16 services in the DI container
 - Index: ~3000 chunks, ~170 files, ~1550 symbols
 - **PropertyGraph**: SQLite graph (15 node types, 27 edge types) in `.codebase/graph.db`
@@ -62,7 +62,7 @@ conn.execute("""
 | **late-resolve active indexer** | If LSP hasn't written the bridge file yet — pick up the first live workspace |
 | **Two-phase reindex** | `intel_trigger_reindex` → job_id → `intel_get_job_status` (anti-spam) |
 | **asyncio.Lock for File IO** | Race protection for concurrent writes to memory JSON files |
-| **ui_formatter** | Unified Markdown style for all 42 tools (no raw JSON) |
+| **ui_formatter** | Unified Markdown style for all 48 tools (no raw JSON) |
 
 ---
 
@@ -118,7 +118,7 @@ JSON files. **Fix:** `asyncio.Lock` in `IntelligenceStore`.
 
 | File | What it does |
 |------|-------------|
-| `src/mcp/server.py` | `resolve_project_root()`, registration of all 42 tools |
+| `src/mcp/server.py` | `resolve_project_root()`, registration of all 48 tools |
 | `src/mcp/tools/base.py` | `MCPTool` (base class), `resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 16 services, `ProjectIndexerRegistry` |
 | `src/core/intelligence_layer.py` | 13 intel tools, `ProjectIntelligenceLayer` |
