@@ -535,7 +535,14 @@ class ResourceMonitor:
         return result
 
     # ─── Crash detection через файловый heartbeat ────────
-    _CRASH_LOG = Path.home() / ".mscodebase_crash_log.json"
+    def _get_crash_log_path(self):
+        """Get crash log path safely - returns None if home dir unavailable."""
+        try:
+            return Path.home() / ".mscodebase_crash_log.json"
+        except (RuntimeError, OSError):
+            return None
+
+    _CRASH_LOG = property(lambda self: self._get_crash_log_path())
 
     def _write_crash_log(self):
         """Пишет текущий RAM в crash-лог каждые 5 секунд.
@@ -564,7 +571,10 @@ class ResourceMonitor:
         Если последняя сессия закончилась с RAM >1500MB → краш.
         Если лог свежий (<60 сек) и другой PID → был перезапуск.
         """
-        log_path = Path.home() / ".mscodebase_crash_log.json"
+        try:
+            log_path = Path.home() / ".mscodebase_crash_log.json"
+        except (RuntimeError, OSError):
+            return None
         if not log_path.exists():
             return None
         try:

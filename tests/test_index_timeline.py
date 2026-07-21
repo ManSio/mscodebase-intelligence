@@ -185,25 +185,25 @@ class TestSearcherTimeFilter:
 
     def test_search_has_since_param(self):
         """Метод search принимает since."""
-            from src.core.search.engine import Searcher
-            import inspect
-            sig = inspect.signature(Searcher.search)
+        from src.core.search.engine import Searcher
+        import inspect
+        sig = inspect.signature(Searcher.search)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
-    def test_hybrid_search_has_since_param(self):
-        """Метод hybrid_search принимает since."""
-            from src.core.search.engine import Searcher
-            import inspect
-            sig = inspect.signature(Searcher.hybrid_search)
+    def test_hybrid_search_async_has_since_param(self):
+        """????? hybrid_search_async ????????? since."""
+        from src.core.search.engine import Searcher
+        import inspect
+        sig = inspect.signature(Searcher.hybrid_search_async)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
     def test_hybrid_search_async_has_since_param(self):
         """Метод hybrid_search_async принимает since."""
-            from src.core.search.engine import Searcher
-            import inspect
-            sig = inspect.signature(Searcher.hybrid_search_async)
+        from src.core.search.engine import Searcher
+        import inspect
+        sig = inspect.signature(Searcher.hybrid_search_async)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
