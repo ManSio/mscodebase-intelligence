@@ -14,6 +14,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional, Set, Tuple
 
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 ROOT = Path(__file__).resolve().parent.parent
 DIARY = ROOT / "AGENT_DIARY.md"
 EXCLUDES = {".git", "__pycache__", ".pyc", "venv", ".venv", "node_modules", ".codebase_indices"}
@@ -42,6 +45,26 @@ _STDLIB_FUNCTIONS = {
     "contains", "decode", "encode", "format", "json", "dumps",
     "loads", "dump", "load", "run", "Popen", "check_call",
     "check_output", "pytest", "main",
+    # Common Python stdlib / methods — часто в diary-примерах как `obj.method()`
+    "add_columns", "box_close", "box_fail", "box_ok", "box_step",
+    "communicate", "connect", "count_rows", "cpp",
+    "create_index", "create_table", "create_subprocess_exec",
+    "debug", "decompress", "drop_table",
+    "predict_eta", "run_health_check",
+    "from_pretrained",
+    "getdefaultlocale", "get_inputs", "get_objects", "getrusage",
+    "is_relative_to",
+    "kill",
+    "optimize",
+    "reindexing", "rmtree", "run_in_executor",
+    "safe_close",
+    "terminate", "threads", "time",
+    "to_arrow", "to_pandas", "to_thread",
+    "tool", "upper",
+    "wait", "wait_for", "warn", "warning", "where", "which",
+    "verify_claim",
+    # MCP tool registration names — пойманы через @mcp.tool() regex выше
+    "registered",
 }
 
 
@@ -78,6 +101,14 @@ class SymbolCache:
                     self._classes.add(name)
                 else:
                     self._funcs.add(name)
+            # MCP tool names: @mcp.tool("name") или @mcp_app.tool("name")
+            # В diary упоминается intel_trigger_reindex, но def — trigger_reindex
+            for m in re.finditer(r'@\w+\.tool\("([a-z_][a-z0-9_]+)"\)', text):
+                self._funcs.add(m.group(1))
+            # Class-based MCP tools: tool_name="graph_query" в super().__init__()
+            # Эти имена — публичные MCP-инструменты, не Python-функции
+            for m in re.finditer(r'tool_name="([a-z_][a-z0-9_]+)"', text):
+                self._funcs.add(m.group(1))
 
     def has_function(self, name: str) -> bool:
         return name in self._funcs
@@ -176,7 +207,7 @@ def parse_diary() -> List[DiaryEntry]:
             current_entry.content += line + "\n"
 
             # Проверка маркеров
-            if "verified_from_clean_state" in line.lower():
+            if "verified_from_clean_state" in line.lower() or "verified from clean state" in line.lower():
                 current_entry.has_verified = True
                 if "✅" in line and ("yes" in line.lower() or "да" in line.lower()):
                     current_entry.verified_from_clean = True
@@ -198,6 +229,9 @@ def parse_diary() -> List[DiaryEntry]:
             # Тесты: test_xxx — уникальные имена, можно из любого контекста
             tests = re.findall(r"(test_[a-z_][a-z0-9_]*)", line)
             for t in tests:
+                # Фильтр: test__ (двойное подчёркивание) — regex артефакт
+                if "__" in t:
+                    continue
                 if t not in current_entry.tests:
                     current_entry.tests.append(t)
 
