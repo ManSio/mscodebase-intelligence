@@ -287,4 +287,3 @@ class AutoDocUpdater:
         known_path.write_text(new_text, encoding="utf-8")
         logger.info("KNOWN_ISSUES.md: добавлено %d записей", len(new_entries))
         return True
-"""
