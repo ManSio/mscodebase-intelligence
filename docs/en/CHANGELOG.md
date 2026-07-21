@@ -6,8 +6,27 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **36 tools** = 20 core + 12 intel + 6 diagnostic
-> (see `src/mcp/server.py` startup log). Older entries below reference earlier totals. `MSCODEBASE_MCP_TOOLS=""` shows all; by default only 12 are visible.
+> **Tool count (current):** the live server registers **41 tools** = 18 core + 13 intel + 7 inline + 3 dev
+> (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
+
+## [3.3.8] — 2026-07-21 — Dev tools: generate_docs, bump_version, install_git_hooks
+
+### Added
+- **`src/core/git_hooks_installer.py`**: новый модуль для установки pre-commit хуков (verify_diary + stale_detector + generate_docs) в любой проект.
+- **`src/mcp/tools/dev_tools.py`**: 3 новых MCP-инструмента:
+  - `generate_docs(project_root)` — генерация Markdown-документации из PropertyGraph
+  - `bump_version(project_root, part, dry_run)` — бамп версии pyproject.toml + CHANGELOG
+  - `install_git_hooks(project_root, action)` — установка/удаление/статус pre-commit хуков
+- **`src/mcp/server_tools.py`**: регистрация dev_tools (+3 инструмента) в `register_all_tools()`.
+
+### Changed
+- **Tool count**: 38 → 41 (18 core + 13 intel + 7 inline + 3 dev)
+- **`src/mcp/server_tools.py`**: docstring обновлён (Inline tools: 12→7, +3 dev)
+
+### Tests
+- **565 passed, 0 failed** (91 deselected) — полный pytest
+
+---
 
 ## [3.3.7] — 2026-07-21 — Docs sync: 24 языка, CI badge, PARSE_EXTENSIONS, pyproject.toml
 

@@ -3,6 +3,13 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-21 — Dev tools не были зарегистрированы в MCP (FIXED)
+
+- **Что было:** `dev_tools.py` существовал с `register_dev_tools()`, но не вызывался из `server_tools.py::register_all_tools()` — generate_docs, bump_version, install_git_hooks были недоступны MCP-клиенту.
+- **Статус:** ✅ Исправлено — добавлен import + вызов `register_dev_tools(mcp)` в `server_tools.py:221-223`.
+- **Fix:** 3 файла изменены: `server_tools.py`, `dev_tools.py`, создан `git_hooks_installer.py`.
+- **Тесты:** 565 passed.
+
 ---
 
 ## 2026-07-21 — 10 pre-existing test failures (ИСПРАВЛЕНЫ)

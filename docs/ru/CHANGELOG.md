@@ -6,8 +6,32 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **39 инструментов** = 18 core + 13 intel + 7 inline + 1 optional
-> `MSCODEBASE_MCP_TOOLS=""` показывает все; по умолчанию — 12.
+> **Количество инструментов (текущее):** живой сервер регистрирует **41 инструмент** = 18 core + 13 intel + 7 inline + 3 dev
+
+## [3.3.8] — 2026-07-21 — Dev tools: generate_docs, bump_version, install_git_hooks
+
+### Добавлено
+- **`src/core/git_hooks_installer.py`**: новый модуль — установка pre-commit хуков (verify_diary + stale_detector + generate_docs) в любой проект.
+- **`src/mcp/tools/dev_tools.py`**: 3 новых MCP-инструмента:
+  - `generate_docs(project_root)` — генерация Markdown-документации из PropertyGraph
+  - `bump_version(project_root, part, dry_run)` — бамп версии pyproject.toml + CHANGELOG
+  - `install_git_hooks(project_root, action)` — установка/удаление/статус pre-commit хуков
+- **`src/mcp/server_tools.py`**: регистрация dev_tools в `register_all_tools()`.
+
+### Изменено
+- **Количество инструментов**: 38 → 41 (18 core + 13 intel + 7 inline + 3 dev)
+
+### Тесты
+- **565 passed, 0 failed** (91 deselected)
+
+---
+
+## [3.3.7] — 2026-07-21 — Docs sync: 24 языка, CI badge, PARSE_EXTENSIONS, pyproject.toml
+
+### Изменено
+- ...
+
+---
 
 ## [3.3.6] — 2026-07-21 — Audit fixes: 12 багов + 10 тестов + CI + verify_diary
 

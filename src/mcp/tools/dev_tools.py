@@ -63,3 +63,33 @@ def register_dev_tools(mcp_app) -> None:
         except Exception as e:
             logger.error(f"bump_version failed: {e}")
             return f"Error: {e}"
+
+    @mcp_app.tool("install_git_hooks")
+    async def install_git_hooks(
+        project_root: str, action: str = "install"
+    ) -> str:
+        """Устанавливает/удаляет/проверяет pre-commit хуки MSCodeBase в проекте.
+
+        Args:
+            project_root: Абсолютный путь к корню проекта.
+            action: 'install' (по умолч.), 'uninstall', 'status'.
+
+        Returns:
+            Результат операции.
+        """
+        try:
+            from src.core.git_hooks_installer import GitHooksInstaller
+
+            installer = GitHooksInstaller()
+            if action == "uninstall":
+                result = installer.uninstall(project_root)
+            elif action == "status":
+                result = installer.check_status(project_root)
+            else:
+                result = installer.install(project_root)
+
+            logger.info("install_git_hooks: %s (%s)", action, project_root)
+            return result
+        except Exception as e:
+            logger.error(f"install_git_hooks failed: {e}")
+            return f"Error: {e}"
