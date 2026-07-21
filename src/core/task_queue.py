@@ -365,6 +365,23 @@ def _check_index_health():
     logger.debug("[Idle] check_index_health")
 
 
+def _update_docs_if_stale():
+    """Проверяет и обновляет документацию, если устарела (preemptible)."""
+    try:
+        from src.core.auto_doc_updater import AutoDocUpdater
+
+        updater = AutoDocUpdater()
+        status = updater.check_staleness(".")
+        if "⚠️" in status:
+            logger.info("[Idle] docs stale, updating...")
+            result = updater.update_all(".")
+            logger.info("[Idle] docs updated:\n%s", result)
+        else:
+            logger.debug("[Idle] docs fresh")
+    except Exception as e:
+        logger.debug("[Idle] _update_docs_if_stale skipped: %s", e)
+
+
 def idle_tick():
     """Вызывается из record_tool_call() после каждого инструмента.
 
@@ -397,6 +414,7 @@ def idle_tick():
     # Уровень 1: >5s простоя — быстрые задачи
     if idle_sec > 5:
         queue.submit_sync("check_index_health", _check_index_health)
+        queue.submit_sync("update_docs", _update_docs_if_stale)
         _LAST_IDLE_TASK_AT = now
 
     # Уровень 2: >30s простоя — улучшение summaries (маленькими батчами)

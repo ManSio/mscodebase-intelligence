@@ -9,6 +9,26 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **41 tools** = 18 core + 13 intel + 7 inline + 3 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.9] — 2026-07-21 — AutoDoc: авто-обновление документации после реиндекса
+
+### Added
+- **`src/core/auto_doc_updater.py`**: автоматическое обновление документации:
+  - `docs/generated/MODULE_INDEX.md` — после каждого реиндекса
+  - `README.md` — tool count, test count, языки из реального кода
+  - `KNOWN_ISSUES.md` — синхронизация из AGENT_DIARY.md
+- **`src/core/intelligence/layer.py`**: после `job.status = "completed"` вызывается `AutoDocUpdater.update_all()`
+- **`src/core/task_queue.py`**: `_update_docs_if_stale()` проверяет docs при idle >5s
+- **`src/mcp/tools/dev_tools.py`**: MCP-инструмент `auto_update_docs(project_root, action)` (update/check)
+
+### Changed
+- **Tool count**: 41 → 42 (+1 dev tool: auto_update_docs)
+- Документация обновляется автоматически, без участия пользователя
+
+### Tests
+- **565 passed, 0 failed** (91 deselected)
+
+---
+
 ## [3.3.8] — 2026-07-21 — Dev tools: generate_docs, bump_version, install_git_hooks
 
 ### Added
