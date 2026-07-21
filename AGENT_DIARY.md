@@ -1,5 +1,29 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-21 08:30] — СЕССИЯ ЗАКРЫТА: audit полный цикл + internet research + финал
+
+**Итог сессии:**
+
+| Этап | Задача | Статус |
+|------|--------|--------|
+| 1 | 12 багов B1-B12 из experiments/audit.md | ✅ Исправлено |
+| 2 | 10 pre-existing test failures | ✅ 541 passed, 0 failed |
+| 3 | Чистка корня репозитория | ✅ −15 файлов |
+| 4 | verify_diary 14%→68% | ✅ SymbolCache + backtick-парсер |
+| 5 | GitHub Actions CI | ✅ +Windows, +ruff |
+| 6 | CHANGELOG + commit + push | ✅ `47c9035f` |
+| 7 | Internet research (openvino, lancedb) | ✅ Deps valid, audit частично ошибался |
+| 8 | Дубликаты docs/ | ✅ Уже заархивированы |
+
+**Internet research findings:**
+- `openvino>=2026.0.0` **существует** на PyPI (2026.0.0 релиз 2026-02-23). Текущий latest: `2026.2.1`.
+  Аудит ошибался, утверждая обратное. Зависимость валидна.
+- `lancedb==0.34.0` — latest на PyPI (релиз 2026-07-02). Строгий пин оправдан.
+
+**Определение Done:** §7 — все пункты пройдены, кроме verify_clean_state.sh (Linux-only CI).
+
+---
+
 ## [2026-07-21 08:05] — GitHub Actions CI + verify_diary 14%→68% + pyproject.toml fix
 
 **Что сделано:**
