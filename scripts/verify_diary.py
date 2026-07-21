@@ -6,12 +6,12 @@ verify_diary.py — Ledger-проверка AGENT_DIARY.md против реал
   python scripts/verify_diary.py --report-format=json  # JSON для CI
   python scripts/verify_diary.py --fix-missing        # интерактивное добавление маркеров
 """
-import re
-import sys
-import subprocess
 import argparse
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
 from typing import List, Optional, Set, Tuple
 
 if sys.stdout.encoding != 'utf-8':
@@ -50,7 +50,7 @@ _STDLIB_FUNCTIONS = {
     "communicate", "connect", "count_rows", "cpp",
     "create_index", "create_table", "create_subprocess_exec",
     "debug", "decompress", "drop_table",
-    "predict_eta", "run_health_check",
+    "predict_eta", "reconfigure", "run_health_check",
     "from_pretrained",
     "getdefaultlocale", "get_inputs", "get_objects", "getrusage",
     "is_relative_to",
@@ -179,7 +179,6 @@ def parse_diary() -> List[DiaryEntry]:
 
     entries = []
     current_entry = None
-    in_code_block = False
 
     for i, line in enumerate(lines):
         # Начало записи: ## [YYYY-MM-DD HH:MM] — Title
@@ -359,9 +358,9 @@ def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tu
         # Проверка verified_from_clean_state (§7.7) — только для записей после введения протокола
         if (entry.functions or entry.classes or entry.tests) and entry.date >= _PROTOCOL_DATE:
             if not entry.has_verified:
-                entry_issues.append(f"  ⚠️ Нет маркера `verified_from_clean_state`")
+                entry_issues.append("  ⚠️ Нет маркера `verified_from_clean_state`")
             elif not entry.verified_from_clean:
-                entry_issues.append(f"  ⚠️ Маркер есть, но не подтверждён (`❌` или нет `yes/да`)")
+                entry_issues.append("  ⚠️ Маркер есть, но не подтверждён (`❌` или нет `yes/да`)")
 
         if entry_issues:
             failed += 1
