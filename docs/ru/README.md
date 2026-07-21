@@ -12,11 +12,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-605%20passing-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-565%2B%20passed-brightgreen)](../../tests/)
 
-[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-38-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
+[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-42-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
-*Последнее обновление: 2026-07-18*
+*Последнее обновление: 2026-07-21*
 
 </div>
 
@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 38 инструментов для AI-ассистента          │  │
+│  │  · 42 инструмента для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP: только для rename (гибридный режим)
 
-MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **38 MCP-инструментов**.
+MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **42 MCP-инструмента**.
 
 Отдельный LSP-сервер (`src/lsp_main.py`) был экспериментальным и **не работает в Zed** — см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md).
 
@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 38 инструментов (19 core + 12 intel + 7 diag), 605+ тестов |
+🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 42 инструмента (18 core + 13 intel + 7 inline + 3 dev + 1 optional), 565+ тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 42 типа рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
@@ -183,7 +183,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-MCP Инструменты (38 всего)
+MCP Инструменты (42 всего)
 
 ### Основной поиск
 
