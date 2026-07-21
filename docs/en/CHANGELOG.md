@@ -216,7 +216,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Default MCP tools set расширен **15→24** инструмента:
   `get_logs`, `read_live_file`, `intel_code_topology`, `intel_auto_collect_adrs`,
-  `get_commit_history`, `get_file_history`, `get_variable_flow`, `graph_query`,
+  `git(action=log)`, `get_file_history`, `get_variable_flow`, `graph_query`,
   `structural_search`.
 - `src/core/commit_memory.py` — полная переписка на файловое I/O.
 - `src/mcp/tools/graph_tools.py` — исправлен баг с `services`.
@@ -261,7 +261,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - 🔧 **ONNX model loading**: `_init_onnx` теперь грузит `model_quantized.onnx` (INT8) сначала, затем `model.onnx` (как `_init_openvino`). Ранее искал `model.onnx` → сессия падала, embedder возвращал нули.
 - 🔧 **Zero-vector poisoning**: `index_project` больше НЕ подменяет векторы нулями при сбое embedder — индексация прерывается с `RuntimeError`. Ранее молча писал нули → семантический поиск был нефункционален, а IVF-индекс не строился (`KMeans cannot train 1 centroids with 0 vectors`).
-- 🔧 **Symbol count desync (INC-9573)**: `intel_get_runtime_status` теперь использует живой `get_symbol_count()` + диск-reload (как рабочий `get_index_status`). Устранён рассинхрон 0 vs 3221.
+- 🔧 **Symbol count desync (INC-9573)**: `intel_get_runtime_status` теперь использует живой `get_symbol_count()` + диск-reload (как рабочий `intel_get_runtime_status`). Устранён рассинхрон 0 vs 3221.
 - 🔧 **Job hang at 80% Finalizing (INC-0AA6)**: символьная индексация Tree-sitter теперь под `asyncio.wait_for(timeout=120)` с graceful-завершением job'а.
 
 ### Verified
@@ -697,7 +697,7 @@ All notable changes to this project will be documented in this file.
 - **`search_code`** output начинается с `📂 Project: <path>`.
 - **`index_project_dir`** output содержит `📂 Project: <path>` в финале.
 - **`notify_change`** output содержит `📂 Project: <path>` после обновления.
-- **`get_index_status`** output начинается с `📂 Project: <path>`.
+- **`intel_get_runtime_status`** output начинается с `📂 Project: <path>`.
 - **`index_health`** output содержит `project_path`, `db_path`,
   `total_chunks` в JSON-ответе.
 

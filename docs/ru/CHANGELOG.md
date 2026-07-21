@@ -548,7 +548,7 @@
 - **`search_code`** output начинается с `📂 Project: <path>`.
 - **`index_project_dir`** output содержит `📂 Project: <path>` в финале.
 - **`notify_change`** output содержит `📂 Project: <path>` после обновления.
-- **`get_index_status`** output начинается с `📂 Project: <path>`.
+- **`intel_get_runtime_status`** output начинается с `📂 Project: <path>`.
 - **`index_health`** output содержит `project_path`, `db_path`,
   `total_chunks` в JSON-ответе.
 

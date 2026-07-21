@@ -4,28 +4,28 @@
 
 ## Обзор
 
-MSCodeBase никогда не падает полностью. Вместо этого он **деградирует graceful-образом** через 6 уровней,
+MSCodeBase никогда не падает полностью. Вместо этого он **плавно деградирует** через 6 уровней,
 сохраняя базовую функциональность даже при отказе внешних сервисов.
 
-> **Реальность провайдеров (2026-07-12):** эмбеддер работает **in-process** через
-> **ONNX INT8 / OpenVINO INT8** (`intfloat/multilingual-e5-base`, 768-dim, ~350 ch/s на
+> **Реальность провайдеров (2026-07-12):** Провайдер эмбеддингов работает **in-process** через
+> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s на
 > Windows CPU). Это **основной и дефолтный** путь — внешний сервер для семантического поиска
 > не требуется. `LM Studio` — лишь **опциональный fallback**, если локальная ONNX/OpenVINO
-> модель недоступна. **Реренкер** работает как отдельный процесс `llama-server.exe`
-> (модель `bge-reranker-v2-m3` GGUF, порт `:8081`).
+> модель недоступна. **Реранкер** работает как отдельный процесс `llama-server.exe`,
+> обслуживающий GGUF-модель `bge-reranker-v2-m3` (порт `:8081`).
 
 ```mermaid
 stateDiagram-v2
     [*] --> L1_ONNX: Старт по умолчанию (in-process)
 
     state L1_ONNX[Уровень 1: ONNX/OpenVINO INT8 (in-process)]
-        L1_ONNX: E5-base эмбеддер (768-dim)
+        L1_ONNX: E5-small эмбеддер (384-dim)
         L1_ONNX: BM25 + Dense + Reranker (llama.cpp)
         L1_ONNX: ~300ms-3s задержка
     end
 
-    L1_ONNX --> L2_GGUF: Есть GPU, предпочитаем llama.cpp
-    L1_ONNX --> L3_LM: ONNX модель нет → LM Studio fallback
+    L1_ONNX --> L2_GGUF: Есть GPU, предпочитаем llama.cpp embed
+    L1_ONNX --> L3_LM: ONNX модель отсутствует → LM Studio fallback
 
     state L2_GGUF[Уровень 2: llama.cpp GGUF (GPU)]
         L2_GGUF: GGUF эмбеддер + реранкер (Vulkan GPU)
@@ -60,6 +60,8 @@ stateDiagram-v2
 
 ### Cross-cutting слои (всегда доступны)
 
+Эти слои **независимы** от уровня поиска выше:
+
 ```mermaid
 stateDiagram-v2
     [*] --> LSP_ACTIVE: basedpyright доступен
@@ -93,8 +95,8 @@ stateDiagram-v2
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
 
-    state ALL_TOOLS[Видимо: 33 инструментов]
-        ALL_TOOLS: Все 33 MCP-инструментов (19 core + 12 intel + 6 diag)
+    state ALL_TOOLS[Видимо: 37 инструментов]
+        ALL_TOOLS: Все 37 MCP-инструментов (19 core + 12 intel + 6 diag)
     end
 
     state CUSTOM_TOOLS[Пользовательский выбор]
@@ -113,14 +115,14 @@ class RemoteEmbedder:
         _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
         if _provider in ("e5_onnx", "auto", ""):
             self._init_onnx()
-            # OpenVINO INT8 имеет приоритет (~350 ch/s на Windows CPU)
+            # OpenVINO INT8 имеет приоритет (~37 ch/s на Windows CPU)
             if getattr(self, "_ov_compiled", None) is not None:
                 self.mode = "onnx"
 ```
 
 | Компонент | Статус |
 |-----------|:------:|
-| ONNX/OpenVINO E5-base | ✅ In-process (768-dim, INT8) |
+| ONNX/OpenVINO E5-small | ✅ In-process (384-dim, INT8) |
 | BM25 index | ✅ Построен |
 | Reranker (llama.cpp) | ✅ Доступен (`:8081`) |
 | mode=ask | ⚠️ Опционально (нужен LLM profile) |
@@ -132,7 +134,7 @@ class RemoteEmbedder:
 ### Уровень 2: llama.cpp GGUF (GPU, опционально)
 
 Если у пользователя есть Vulkan-GPU и он предпочитает GGUF-эмбеддинг, `llama-server.exe`
-может отдавать эмбеддинг. Это путь ускорения, не дефолт.
+может обслуживать эмбеддер. Это путь ускорения, не дефолт.
 
 | Компонент | Статус |
 |-----------|:------:|

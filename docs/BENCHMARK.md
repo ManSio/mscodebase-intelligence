@@ -321,10 +321,10 @@ The bigger the codebase, the more MSCodeBase saves.
 | Категория | Инструменты | Статус |
 |-----------|-------------|--------|
 | Intel (11) | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`, `intel_get_project_memory` ✅, `intel_analyze_incident`, `intel_predict_root_cause`, `intel_code_topology`, `intel_get_hotspots`, `intel_get_telemetry`, `intel_tool_health`, `intel_get_project_context` | ✅ работают |
-| Core/Search (5) | `search_code`, `get_symbol_info`, `impact_analysis`, `get_index_status`, `get_health_report` | ✅ работают |
+| Core/Search (5) | `search_code`, `get_symbol_info`, `impact_analysis`, `intel_get_runtime_status`, `get_health_report` | ✅ работают |
 | Write (2) | `rename_symbol`, `replace_symbol` | ✅ работают (preview) |
 | Diagnostic (3) | `debug_runtime_passport`, `get_runtime_counters`, `intel_execution_timeline` | ✅ работают |
-| Отфильтрованы `MSCODEBASE_MCP_TOOLS=default` | `get_variable_flow`, `cross_repo_search`, `cross_project_deps`, `get_repo_map`, `get_repo_rank`, `get_bug_correlation`, `get_related_files`, `graph_query`, `get_index_progress`, `get_index_timeline`, `index_health`, `watcher_status`, `get_logs`, `run_health_check`, `get_commit_history`, `get_file_history`, `get_branch_info`, `generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `predict_eta`, `verify_action`, `get_task_status`, `submit_background_task`, `read_live_file`, `structural_search`, `move_symbol`, `safe_delete`, `insert_before_symbol`, `insert_after_symbol`, `ack_impact`, `intel_auto_collect_adrs`* | ⚠️ не зарегистрированы в default-режиме |
+| Отфильтрованы `MSCODEBASE_MCP_TOOLS=default` | `get_variable_flow`, `cross_repo_search`, `cross_project_deps`, `get_repo_map`, `get_repo_rank`, `get_bug_correlation`, `get_related_files`, `graph_query`, `get_index_progress`, `get_index_timeline`, `index_health`, `watcher_status`, `get_logs`, `run_health_check`, `git(action=log)`, `get_file_history`, `get_branch_info`, `generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `predict_eta`, `verify_action`, `get_task_status`, `submit_background_task`, `read_live_file`, `structural_search`, `move_symbol`, `safe_delete`, `insert_before_symbol`, `insert_after_symbol`, `ack_impact`, `intel_auto_collect_adrs`* | ⚠️ не зарегистрированы в default-режиме |
 
 > *`intel_auto_collect_adrs` — зарегистрирован, но падает с таймаутом транспорта (блокирующий git-вызов в event loop, даже при `max_commits=5`). Требует fix.
 
@@ -345,7 +345,7 @@ The bigger the codebase, the more MSCodeBase saves.
 | ID | Дефект | Статус |
 |----|--------|--------|
 | INC-58EA | ONNX грузил `model.onnx` (файл `model_quantized.onnx`) → нулевые векторы → IVF-индекс не строился | ✅ Fixed |
-| INC-9573 | `intel_get_runtime_status` показывал 0 symbols (рассинхрон с `get_index_status`) | ✅ Fixed |
+| INC-9573 | `intel_get_runtime_status` показывал 0 symbols (рассинхрон с `intel_get_runtime_status`) | ✅ Fixed |
 | INC-0AA6 | Job зависал на 80% Finalizing (Tree-sitter без таймаута) | ✅ Fixed |
 
 ### Память (RSS MCP-сервера)

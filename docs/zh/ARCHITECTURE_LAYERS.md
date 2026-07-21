@@ -18,6 +18,9 @@
  Layer 10: AI Agent         — 给用户什么回答？
 ```
 
+> **v3.0 变更：** 第 8 层（Graph）已添加到 Passport 和 Intel 之间。PropertyGraph
+> 在 `.codebase/graph.db`（SQLite WAL+mmap）中存储类型化节点（15 种标签）和边（27 种类型）。
+
 ---
 
 ## 第 0 层 — Filesystem
@@ -38,9 +41,9 @@
 1. **Directory Guard** — `.mscodebase/`, `.codebase_indices/`, `.git/`, `node_modules/`
 2. **Artifact Guard** — `chunk_summaries.json`, `incidents.json`, `project_memory.json`
 3. **Feedback Guard** — 由索引器自身创建的文件
-4. **Embedding Guard** — 在 embedding 之前的最终检查
+4. **Embedding Guard** — embedding 之前的最终检查
 
-**规则：** `.mscodebase/` 或 `.codebase_indices/` 内的任何文件 = 不索引。
+**规则：** `.mscodebase/` 或 `.codebase_indices/` 内的任何文件 = 不被索引。
 
 ---
 
@@ -129,7 +132,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result。
          `intel_explain_project_state`, `intel_predict_root_cause`
 **不了解：** 底层细节。
 
-聚合来自下层的数��以生成现成的答案。
+聚合来自下层的数据以生成现成的答案。
 
 ---
 
@@ -145,7 +148,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result。
 
 | 文档 | 描述 |
 |----------|----------|
-| [README.md](../../README.md) | 主文档，所有文档的导览 |
-| [ARCHITECTURE.md](../en/ARCHITECTURE.md) | 项目架构，DI，分层 |
+| [README.md](../README.md) | 主文档，所有文档的导览 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 项目架构，DI，分层 |
 | [TELEMETRY.md](TELEMETRY.md) | 指标与遥测 |
-| [CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史 |

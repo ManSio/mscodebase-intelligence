@@ -20,14 +20,14 @@
 
 | Операция | MCP (ms) | IDE-Native (ms) | Разница |
 |----------|---------|-----------------|---------|
-| Поиск/чтение файла | 0.8 (`read_live_file`) | 0.3 (`read_file`) | MCP медленнее ×2.7 |
+| Поиск/чтение файла | 0.8 (`read_live_file`) | 0.3 (`read_live_file`) | MCP медленнее ×2.7 |
 | Поиск по смыслу | 4095 (`search_code`) | 138 (`grep`) | MCP медленнее ×30 |
 | Инфо о символе | 1005 (`get_symbol_info`) | 21 (`grep`) | MCP медленнее ×48 |
-| Git log | 24 (`get_commit_history`) | 49 (`git log`) | **MCP быстрее ×2** |
+| Git log | 24 (`git(action=log)`) | 49 (`git log`) | **MCP быстрее ×2** |
 | Health report | 3780 (`get_health_report`) | 91 (проверка портов) | MCP медленнее ×42 |
 | Структурный поиск | 6832 (`structural_search`) | 38 (Python os.walk) | MCP медленнее ×180 |
 | Поиск bare except | — (нет инструмента) | 91 (`grep except:`) | MCP не умеет |
-| Индекс состояния | 521 (`get_index_status`) | ~50 (wc -l) | MCP медленнее ×10 |
+| Индекс состояния | 521 (`intel_get_runtime_status`) | ~50 (wc -l) | MCP медленнее ×10 |
 | **Итого (8 операций)** | **~15 800 ms** | **~424 ms** | **MCP медленнее ×37** |
 
 > **Важно:** MCP делает семантический поиск (эмбеддинги + вектора), grep — только regex.

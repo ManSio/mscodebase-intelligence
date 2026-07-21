@@ -4,7 +4,7 @@
 
 # Контрибьюция — MSCodeBase Intelligence
 
-Гайд для контрибьюторов. Версия проекта: **3.2.0** (Polyglot Graph Engine).
+> **Версия:** 3.3.9 — DocSync Edition
 
 ---
 
@@ -19,10 +19,7 @@ pip install -r requirements.txt
 pip install -e "."
 ```
 
-Требования: Python 3.10+, LM Studio (опционально, для эмбеддингов).
-
-> 💡 v3.2.0 использует **llama.cpp** как основной провайдер эмбеддингов (авто-установка
-> через `install.py`). LM Studio — fallback.
+Требования: Python 3.10+, Windows (основная) или Linux (экспериментально).
 
 ---
 
@@ -31,49 +28,68 @@ pip install -e "."
 ```
 src/
 ├── main.py              # Точка входа (минимальная)
-├── lsp_main.py          # LSP handler (DI через ServiceCollection)
 ├── mcp/
-│   ├── server.py        # ~220 строк — только регистрация инструментов
-│   ├── write_tools.py   # 6 write tools
-│   └── tools/           # 11 файлов, 16 core + 14 intel + 3 diag
+│   ├── server.py        # Регистрация MCP-сервера (~220 строк)
+│   ├── server_factory.py # Фабрика сервера + DI setup
+│   ├── server_tools.py  # Регистрация инструментов (всего 42)
+│   └── tools/           # 14 файлов, 18 core + 13 intel + 7 inline + 3 dev + 1 опц.
 │       ├── base.py          # MCPTool ABC
-│       ├── search_tools.py  # search_code (+ deprecated smart_search etc.)
-│       ├── graph_tools.py   # query_graph + Cypher query engine
-│       ├── indexing_tools.py# index management
-│       ├── git_tools.py     # git integration
-│       ├── system_tools.py  # 9 system/health tools
-│       ├── analysis_tools.py# impact_analysis, structural_search и др.
-│       └── write_tools.py   # rename/move/delete/replace/insert
-├── core/                # Бизнес-логика (без MCP-зависимостей)
-│   ├── di_container.py  # ServiceCollection (15+ services)
+│       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
+│       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
+│       ├── write_tools.py   # write(action={rename,move,delete,replace,insert,impact})
+│       ├── graph_tools.py   # graph_query, cross_repo_search, cross_project_deps
+│       ├── indexing_tools.py# управление индексом
+│       ├── git_tools.py     # git(action={log,history,branch})
+│       ├── doc_tools.py     # generate_docs, bump_version, auto_update_docs, install_git_hooks
+│       ├── dev_tools.py     # dev-инструменты
+│       ├── system_tools.py  # system/health инструменты
+│       ├── analysis_tools.py# structural_search, scan_changes и др.
+│       ├── investigation_tools.py # bug_correlation, hotspots и др.
+│       ├── lifecycle_tools.py# фоновые задачи, верификация
+│       └── meta_tools.py    # статус индекса, health-отчёты
+├── core/                # Чистая бизнес-логика (БЕЗ импортов MCP)
+│   ├── di_container.py  # ServiceCollection (15+ сервисов)
 │   ├── error_handler.py # error_boundary + ToolError
-│   ├── rate_limiter.py  # DebounceBatch + CircuitBreaker
-│   ├── indexer.py       # LanceDB vector storage
-│   ├── searcher.py      # Hybrid search (BM25 + Dense + RRF)
-│   ├── parser.py        # Tree-sitter AST + ASSIGNED_FROM extraction
+│   ├── rate_limiter.py  # SlidingWindowRateLimiter + CircuitBreaker
+│   ├── runtime_coordinator.py # ExecutionVerdict + can_execute()
 │   ├── graph.py         # PropertyGraph (SQLite WAL) — nodes/edges
-│   ├── graph_adapter.py # SymbolIndexAdapter wrapping PropertyGraph
-│   ├── cypher_engine.py # MATCH→SQL engine
-│   ├── route_extractor.py# HTTP route detection (Flask/FastAPI/Django/Express)
-│   ├── multi_signal_scorer.py# 4-signal search scoring
-│   ├── dataflow_experiment.py# ASSIGNED_FROM benchmarks
-│   ├── intelligence_layer.py  # 14 intel_* tools
-│   ├── llama_runner.py   # llama-server.exe lifecycle
-│   ├── remote_embedder.py# LM Studio / llama.cpp / Ollama / ONNX
-│   ├── file_guard.py     # .gitignore + extension filter
-│   └── ...
+│   ├── doc_sync_engine.py # Авто-синхронизация доков с кодом (rename hook)
+│   ├── search/
+│   │   ├── engine.py    # Гибридный поиск (BM25 + Dense + FTS5 + RRF)
+│   │   ├── fts5_mixin.py# FTS5 полнотекстовый поиск
+│   │   ├── graph_adapter.py # PropertyGraph → SymbolIndex
+│   │   ├── cypher_engine.py # Cypher→SQL
+│   │   └── scoring.py   # RRF + MMR diversity
+│   ├── indexing/
+│   │   ├── indexer.py   # LanceDB векторное хранилище
+│   │   ├── db_manager.py# Жизненный цикл LanceDB (PID-lock)
+│   │   ├── parser.py    # Tree-sitter AST (16 языков)
+│   │   ├── file_guard.py# .gitignore + фильтр расширений
+│   │   ├── symbol_index.py # Граф вызовов (BFS, PageRank)
+│   │   └── watchdog.py  # Вотчер изменений файлов
+│   └── intelligence/
+│       ├── layer.py     # 13 intel_* инструментов
+│       ├── project_context.py # Снэпшот состояния проекта
+│       ├── health.py    # Проверки здоровья системы
+│       └── tools_reg.py # Регистрация Intel-инструментов
+├── providers/
+│   ├── embedder/
+│   │   └── remote_embedder.py # ONNX E5-small + LM Studio/Ollama
+│   └── reranker/
+│       ├── llama_runner.py   # Жизненный цикл llama-server.exe
+│       ├── multi_provider.py # Мульти-провайдерный реранкинг
+│       └── search_result_reranker.py # Реранкинг результатов
 └── utils/
+    ├── i18n.py          # Интернационализация
     ├── paths.py         # SafePathManager
-    └── zed_config.py    # ZedSettings
+    └── zed_config.py    # Управление настройками Zed
 ```
 
 **Ключевые принципы:**
 1. Все инструменты — отдельные классы с Constructor Injection (через `MCPTool`)
 2. Каждый инструмент задекорирован `@error_boundary` (JSON + таймаут)
-3. Единственное место создания зависимостей — `create_service_collection()`
-4. LSP и MCP используют один DI контейнер (нет дублирования)
-
-**Важно:** при разработке MCP-инструментов основной файл — `src/mcp/server.py` (функция `create_mcp_server()`). `src/hybrid_server.py` — точка входа, которая запускает LSP и MCP вместе.
+3. Единый DI-контейнер — `create_service_collection()` в `di_container.py`
+4. Слой Core имеет НОЛЬ импортов MCP
 
 ---
 
@@ -81,9 +97,9 @@ src/
 
 - **Форматтер**: Black (длина строки 88)
 - **Порядок импортов**: isort
-- **Type hints**: обязательны для публичных API
+- **Type hints**: обязательны для всех публичных API
 - **Логирование**: `logging.getLogger(__name__)` — никогда `print()` в production-коде
-- **Async**: используйте `async/await` для I/O-операций; тяжёлые дисковые операции — через `asyncio.to_thread()`
+- **Async**: используйте `async/await` для I/O; тяжёлые дисковые операции → `asyncio.to_thread()`
 
 ```powershell
 # Проверка форматирования
@@ -99,13 +115,13 @@ isort src/
 
 ## 4. Запуск тестов
 
-В проекте **494 теста** в директории `tests/`. Запуск через `pytest` с маркерами.
+В проекте **565+ тестов** в `tests/`.
 
 ```powershell
 # Полный набор
 pytest tests/ -v
 
-# Только быстрые тесты (без slow и integration)
+# Только быстрые тесты (без slow/integration/benchmark)
 pytest tests/ -v -m "not slow and not integration and not benchmark"
 
 # По маркеру
@@ -114,46 +130,26 @@ pytest tests/ -v -m integration
 pytest tests/ -v -m benchmark
 
 # По модулю
-pytest tests/test_searcher.py -v
+pytest tests/test_engine.py -v
 pytest tests/test_parser.py -v
-pytest tests/test_cross_repo_search.py -v
 
 # С покрытием
 pytest tests/ --cov=src --cov-report=term-missing
-
-# Конкретный тест
-pytest tests/test_searcher.py::TestSearcher::test_basic_search -v
 ```
 
 **Маркеры** (определены в `pyproject.toml`):
 - `slow` — медленные тесты
-- `integration` — интеграционные тесты (требуют LM Studio)
+- `integration` — интеграционные тесты (требуют LanceDB)
 - `benchmark` — бенчмарки производительности
 - `asyncio` — async-тесты
 
-Все тесты должны проходить перед созданием PR.
-
-### Структура тестов
-
-| Файл | Тестов | Тип | Что покрывает |
-|------|--------|-----|--------------|
-| `test_agentic_search.py` | 20 | unit, async | Агентный поиск: маршрутизация, уточнение запросов |
-| `test_reranker.py` | 27 | unit, async | Рерайкнер: ранжирование, веса, edge cases |
-| `test_symbol_index_call_graph.py` | 22 | unit | Граф вызовов: построение, обход, циклические зависимости |
-| `test_cross_repo_search.py` | 21 | unit | Кросс-репозиторийный поиск: слияние результатов |
-| `test_deep_search.py` | 15 | unit | Глубокий поиск: итерации, уточнение, стоп-условия |
-| `test_index_progress.py` | 11 | unit | Прогресс индексации: статусы, переходы состояний |
-| `test_indexer_project_path.py` | 6 | unit | Пути индексатора: нормализация, валидация |
-| `test_parser.py` | 4 | unit | Парсер: AST-извлечение, синтаксические ошибки |
-| `test_integration.py` | 3 | integration | Интеграция с реальной LanceDB |
-| `benchmark_agentic_search.py` | 6 | benchmark | Производительность агентного поиска |
-
 ### Категории тестов
 
-- **Unit (129 тестов)** — не требуют внешних сервисов, время < 5 сек
-- **Integration (3 теста)** — требуют LanceDB, маркированы `@pytest.mark.integration`
-- **Benchmark (6 тестов)** — замеры latency/throughput, не в обычном прогоне
-- **Async** — `test_agentic_search.py` и `test_reranker.py` используют `pytest-asyncio`
+| Категория | Количество | Описание |
+|----------|-------|-------------|
+| Unit | 550+ | Без внешних сервисов, <5с каждый |
+| Integration | 3 | Требуют LanceDB, маркированы `@pytest.mark.integration` |
+| Benchmark | 6 | Замеры latency/throughput |
 
 ### CI-пайплайн
 
@@ -165,36 +161,46 @@ pytest tests/ -m "not integration and not benchmark" --tb=short -q
 pytest tests/ --tb=long -v
 ```
 
-Требования к CI: Python 3.10+, `pytest`, `pytest-asyncio`, `pytest-cov`.
-
 ---
 
 ## 5. Добавление новых MCP-инструментов
 
-Все 34 MCP-инструмента определены в `src/mcp/server.py` внутри функции `create_mcp_server()`.
+Инструменты регистрируются в `src/mcp/server_tools.py` через `register_all_tools()`.
+Каждый инструмент — класс в `src/mcp/tools/*.py`, наследующий от `MCPTool`.
 
-### Основные инструменты:
+### Категории инструментов (всего 42):
 
-| Категория | Инструменты |
-|-----------|-------------|
-| **Поиск** | `search_code(query, mode)`, `structural_search`, `cross_repo_search`, `cross_project_deps` |
-| **Индекс** | `get_index_status`, `get_index_progress`, `get_index_timeline`, `index_project_dir`, `notify_change`, `index_health` |
-| **Символы** | `get_symbol_info`, `impact_analysis`, `get_repo_map`, `get_repo_rank` |
-| **Система** | `get_health_report`, `watcher_status`, `get_logs`, `generate_chunk_summaries` |
-| **Аналитика** | `get_hotspots`, `get_bug_correlation`, `get_related_files`, `graph_query` |
-| **Git** | `get_commit_history`, `get_file_history`, `get_branch_info` |
-| **Фон** | `submit_background_task`, `get_task_status` |
-
-> 🔄 `smart_search`, `deep_search`, `context_search` — deprecated, используйте `search_code(query, mode=...)`
+| Категория | Количество | Ключевые инструменты |
+|----------|-------|-----------|
+| **Search** | 3 | `search_code`, `get_symbol_info`, `impact_analysis` |
+| **Codebase** | 1 | `codebase(action=rename/move/delete/...)` |
+| **Write** | 1 | `write(action=rename/move/delete/replace/insert)` |
+| **Analysis** | 5 | `structural_search`, `get_repo_map`, `scan_changes` и др. |
+| **Graph** | 3 | `graph_query`, `cross_repo_search`, `cross_project_deps` |
+| **Git** | 1 | `git(action=log/history/branch)` |
+| **Indexing** | 1 | `get_index_status`, `notify_change`, `watcher_status` |
+| **Docs** | 1 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
+| **Investigation** | 3 | `get_bug_correlation`, `get_hotspots`, `find_similar_bugs` |
+| **Lifecycle** | 3 | `submit_background_task`, `get_task_status`, `verify_action` |
+| **System** | 1 | `read_live_file`, `get_health_report`, `get_logs` |
+| **Meta** | 1 | статус индекса, health-отчёты |
+| **Intelligence** | 13 | `intel_get_runtime_status`, `intel_trigger_reindex` и др. |
+| **Dev** | 3 | `generate_docs`, `bump_version`, `install_git_hooks` |
+| **Diagnostic inline** | 7 | `debug_runtime_passport`, `get_runtime_counters` и др. |
+| **Optional** | 1 | `execute_script(code)` (E2B sandbox) |
 
 ### Шаги для добавления нового инструмента:
 
-1. **Реализуйте функцию** в `src/mcp/server.py` внутри `create_mcp_server()`:
+1. **Создайте класс** в `src/mcp/tools/<category>.py`:
 
 ```python
-@mcp.tool()
-def my_new_tool(param: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-    """Описание инструмента для AI-агента.
+from src.core.di_container import ServiceCollection
+from src.mcp.tools.base import MCPTool
+from src.core.error_handler import error_boundary
+
+
+class MyNewTool(MCPTool):
+    """Описание для AI-агента.
 
     ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
     - Сценарий использования 1
@@ -202,68 +208,55 @@ def my_new_tool(param: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
 
     Args:
         param: Описание параметра
-
-    Returns:
-        Описание возвращаемого значения
     """
-    _debug_log("my_new_tool", param)
-    try:
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="my_new_tool")
+
+    @error_boundary("my_new_tool", timeout_ms=15000)
+    async def execute(self, param: str, **kwargs) -> dict:
         # Реализация
-        return f"✅ Результат: {param}"
-    except Exception as e:
-        logger.error(f"Ошибка my_new_tool: {e}", exc_info=True)
-        return f"❌ Ошибка: {e}"
+        return {"status": "ok", "result": param}
 ```
 
-2. **Добавьте `_debug_log()`** — это маркерная запись в `mcp_debug.log` для отладки живости сервера.
-
-3. **Обработайте ошибки** — никогда не бросайте исключение наружу. Верните строку с `❌`.
-
-4. **Добавьте тест** в `tests/test_<module>.py`:
+2. **Зарегистрируйте** в `src/mcp/server_tools.py`:
 
 ```python
-def test_my_new_tool():
-    from src.mcp.server import create_mcp_server
-    mcp = create_mcp_server()
-    # Тест логики
+from src.mcp.tools.my_module import MyNewTool
+
+def register_all_tools(mcp, services):
+    tool_classes = [
+        ...
+        MyNewTool,
+    ]
+    for cls in tool_classes:
+        tool = cls(services)
+        mcp.tool()(tool.execute)
 ```
 
-5. **Обновите документацию**:
-   - [../../README.md](../../README.md) — секция "Tools" → обновите категорию и описание
-   - [../../ARCHITECTURE.md](../../ARCHITECTURE.md) — добавьте описание инструмента
-   - [../../CHANGELOG.md](../../CHANGELOG.md) — добавьте запись
+3. **Добавьте тесты** в `tests/test_<module>.py`.
 
-6. **Проверьте форматирование**:
+4. **Обновите документацию**:
+   - `README.md` — секция Tools
+   - `ARCHITECTURE.md` — если изменилась архитектура
+   - `CHANGELOG.md` — добавьте запись
+
+5. **Запустите проверку**:
 
 ```powershell
-black src/mcp/server.py
-isort src/mcp/server.py
-pytest tests/ -v
+python -m pytest tests/ -q --tb=short
+auto_update_docs(action="verify")
 ```
 
 ---
 
 ## 6. Добавление новых модулей ядра
 
-Ядро находится в `src/core/`. Существующие модули:
+Модули ядра находятся в `src/core/`. Импорты MCP запрещены.
 
-| Модуль | Назначение |
-|---|---|
-| `indexer.py` | Индексация файлов в LanceDB |
-| `searcher.py` | Семантический поиск + agentic search |
-| `parser.py` | Парсинг кода (Tree-sitter) |
-| `reranker.py` | Мульти-провайдерный реранкинг |
-| `symbol_index.py` | Индекс символов + Call Graph |
-| `structural_search.py` | AST-паттерны |
-| `multi_project_searcher.py` | Cross-repo поиск |
-| `file_guard.py` | Фильтрация файлов (.gitignore) |
-| `gitignore_parser.py` | Парсинг .gitignore |
-| `log_manager.py` | Файловое логирование |
-| `remote_embedder.py` | Клиент LM Studio / Ollama / ONNX |
+### Шаги:
 
-### Шаги для добавления нового модуля:
-
-1. **Создайте файл** в `src/core/my_module.py`:
+1. **Создайте файл** в соответствующей поддиректории `src/core/`:
 
 ```python
 """Модуль для ..."""
@@ -282,73 +275,58 @@ class MyModule:
         ...
 ```
 
-2. **Импортируйте и подключите** в `src/mcp/server.py`:
+2. **Зарегистрируйте в DI** в `src/core/di_container.py`:
 
 ```python
-from src.core.my_module import MyModule
-
-# Внутри create_mcp_server():
-my_module = MyModule(...)
+services.add_singleton(MyModule, MyModule(...))
 ```
 
-3. **Добавьте тест** в `tests/test_my_module.py`:
+3. **Добавьте тесты** в `tests/test_my_module.py`.
+
+4. **Обновите ARCHITECTURE.md**.
+
+5. **Запустите DocSync** для проверки соответствия документации:
 
 ```python
-import pytest
-from src.core.my_module import MyModule
-
-class TestMyModule:
-    def test_basic(self):
-        module = MyModule()
-        result = module.do_something()
-        assert result is not None
+from src.core.doc_sync_engine import DocSyncEngine
+engine = DocSyncEngine(project_root)
+report = engine.sync_all()
 ```
-
-4. **Обновите [../../ARCHITECTURE.md](../../ARCHITECTURE.md)** — добавьте модуль в диаграмму компонентов.
 
 ---
 
 ## 7. Commit Messages
 
-Формат Conventional Commits: `type(scope): description`
+Conventional Commits: `type(scope): description`
 
-**Типы:**
-- `feat` — новая функциональность
-- `fix` — исправление бага
-- `docs` — документация
-- `test` — добавление/исправление тестов
-- `refactor` — рефакторинг без изменения поведения
-- `perf` — улучшение производительности
-- `chore` — обслуживание (зависимости, конфигурация)
+**Типы:** `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`
 
-**Scopes:** `searcher`, `indexer`, `parser`, `reranker`, `mcp`, `lsp`, `core`, `tests`, `docs`
+**Scopes:** `search`, `indexer`, `parser`, `mcp`, `core`, `tests`, `docs`, `doc_sync`
 
 **Примеры:**
 ```
-feat(searcher): add BM25 hybrid search implementation
-fix(indexer): handle empty embeddings from LM Studio
-docs: update README with architecture diagram
-test(cross-repo): add @-mention parsing tests
-refactor(mcp): extract debug logging to shared utility
-perf(symbol_index): cache call graph results
+feat(search): add FTS5 full-text search to hybrid pipeline
+fix(indexer): handle LanceDB Not found during reindex
+docs: update ARCHITECTURE.md with DocSync engine
+refactor(doc_sync): clean up suggestion logic
 ```
 
 ---
 
 ## 8. Процесс PR
 
-### Чек-лист перед созданием PR:
+### Чек-лист:
 
 - [ ] Ветка создана от `development` (не `main`)
 - [ ] `pytest tests/ -v` — все тесты проходят
-- [ ] `black --check src/` — форматирование соответствует
-- [ ] `isort --check-only src/` — импорты отсортированы
+- [ ] `black --check src/` — форматирование OK
 - [ ] Type hints на всех публичных функциях
-- [ ] Нет `print()` в production-коде (только `logging`)
+- [ ] Нет `print()` в production-коде (используйте `logging`)
 - [ ] Новые инструменты/модули покрыты тестами
-- [ ] [../../CHANGELOG.md](../../CHANGELOG.md) обновлён
-- [ ] [../../README.md](../../README.md) обновлён (если изменился публичный API)
-- [ ] [../../ARCHITECTURE.md](../../ARCHITECTURE.md) обновлён (если изменилась архитектура)
+- [ ] `CHANGELOG.md` обновлён
+- [ ] `README.md` обновлён (если изменился публичный API)
+- [ ] `ARCHITECTURE.md` обновлён (если изменилась архитектура)
+- [ ] DocSync проверка: `auto_update_docs(action="verify")`
 
 ### Описание PR должно содержать:
 
@@ -357,13 +335,6 @@ perf(symbol_index): cache call graph results
 3. **Как протестировано** — какие тесты добавлены/прогнаны
 4. **Breaking changes** — если есть, явно указать
 
-### Процесс:
-
-1. Создайте PR в GitHub
-2. Дождитесь review
-3. Исправьте замечания
-4. Merge в `development` (не в `main` напрямую)
-
 ---
 
 ## 9. Версионирование
@@ -371,22 +342,22 @@ perf(symbol_index): cache call graph results
 SemVer: MAJOR.MINOR.PATCH
 
 - **MAJOR** — несовместимые изменения API
-- **MINOR** — новые инструменты/возможности (обратно совместимые)
+- **MINOR** — новые инструменты/функции (обратно совместимые)
 - **PATCH** — багфиксы
 
-Текущая версия в `pyproject.toml`: `1.2.0`
+Текущая версия в `pyproject.toml`: `3.3.9`
 
 ---
 
-## 10. Troubleshooting для контрибьюторов
+## 10. Troubleshooting
 
 | Проблема | Решение |
-|---|---|
-| `ModuleNotFoundError: No module named 'src'` | Убедитесь что запускаете из корня проекта |
-| `mcp` импортируется из `src/mcp/` вместо библиотеки | Проверьте `sys.path` — `src/` должен быть добавлен ПОСЛЕ импорта mcp |
-| Тесты падают с ошибкой эмбеддинга | Нормально для fallback-режима; для полного тестирования запустите LM Studio |
-| `WinError 5` при запуске | Используйте `src/hybrid_server.py` (один процесс вместо двух) |
+|---------|----------|
+| `ModuleNotFoundError: No module named 'src'` | Запускайте из корня проекта |
+| Тесты падают с ошибкой эмбеддинга | Нормально для fallback-режима; запустите с LM Studio для полного тестирования |
+| MCP-сервер таймаутит при первом вызове | Холодный старт реранкера — второй вызов работает |
+| DocSync сообщает о ложных расхождениях | Запустите `auto_update_docs(action="verify")` для текущего состояния |
 
 ---
 
-*Последнее обновление: 2026-07-05*
+*Последнее обновление: 2026-07-21 | DocSync Edition*

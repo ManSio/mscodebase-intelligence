@@ -282,7 +282,7 @@ Format → UI items with 🔍fts5 / 🔤bm25 / 🧠dense badges
 **Root Cause:** `intel_trigger_reindex(full)` used `shutil.rmtree('.codebase_indices')` while worker process held `self.table` open → dangling reference → `lance error: Not found` on Pruning/optimize. Также: два MCP-процесса (launcher + worker) писали в одну БД без блокировки → race condition.
 
 **Fix (3-layer defense + PID-lock):**
-1. **tools_reg.py**: Atomic `drop_table` + `create_table` + `reset_connection()` instead of `rmtree`
+1. **tools_reg.py**: Atomic `drop_table` + `_create_tables` + `reset_connection()` instead of `rmtree`
 2. **indexer_table.py**: `_safe_read_arrow()` catches `Not found`/`LanceError` → `reset_connection()` + retry
 3. **index_project_runner.py**: `_safe_optimize()` + `_safe_create_index()` with reset+retry on `Not found`
 4. **db_manager.py**: PID-lock на директорию БД (Layer 3) — атомарный lock-файл с PID. Второй процесс ждёт или падает.

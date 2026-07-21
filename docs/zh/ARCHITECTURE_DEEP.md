@@ -2,81 +2,93 @@
 
 [🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](ARCHITECTURE_DEEP.md)
 
-> **版本:** v3.0.0 | **最后更新:** 2026-07-11
-
-> **注意:** 架构图的完整翻译需要更新 mermaid 图。请参阅英文版本获取最新图表。
+> **版本：** v3.2.0 | **最后更新：** 2026-07-12
 
 ```mermaid
 flowchart TD
     User[User / AI Agent] --> MCP[MCP Server\n37 tools]
-    MCP --> DI[DI Container\n18 services]
+    MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
+    DI --> Graph[PropertyGraph\nSQLite graph]
     DI --> Intel[Intelligence Layer]
     DI --> Health[Health & Diagnostics]
     
-    Search --> BM25[BM25 Sparse\nkeyword search]
-    Search --> Dense[LanceDB Dense\nvector search]
-    Search --> RRF[RRF Fusion\nreciprocal rank fusion]
-    Search --> Rerank[Cross-encoder\nbge-reranker-v2-m3]
-    Search --> Bucket[Multi-Bucket RAG\ncode/docs weighting]
-    Search --> CoChange[Co-change boost\ngit coupling]
+    Search --> BM25[BM25 Sparse]
+    Search --> Dense[LanceDB Dense]
+    Search --> RRF[RRF Fusion]
+    Search --> MultiSig[MultiSignalScorer\n4 signals]
+    Search --> Rerank[Cross-encoder]
     
-    Intel --> Topology[Code Topology\ncall graph]
-    Intel --> Memory[Project Memory\nADR / debt / issues]
-    Intel --> RCA[Root Cause Analysis\nerror prediction]
+    Graph --> Cypher[CypherEngine\nMATCH/RETURN]
+    Graph --> Route[RouteExtractor\nHTTP routes]
+    Graph --> Dead[Dead Code Detection]
+    Graph --> Topology[Code Topology\ncall graph via SQL]
     
-    Health --> Report[Health Report\nfull diagnostics]
-    Health --> Guard[Index Guard\nself-recovery]
+    Intel --> Memory[Project Memory]
+    Intel --> RCA[Root Cause Analysis]
+    
+    Health --> Report[Health Report]
+    Health --> Guard[Index Guard]
 ```
 
 ---
 
 ## 1. 架构层
 
-系统分为10个运行时层，从最低级（基础设施）到最高级（面向用户的工具）。
+系统分为 10 个运行时层，从最低级（基础设施）到最高级（面向用户的工具）。
 
 ```mermaid
 flowchart LR
-    subgraph "第10层 — MCP工具"
+    subgraph "第 11 层 — MCP 工具"
         T1[search_code]
-        T2[get_symbol_info]
+        T2[query_graph\nCypher]
         T3[impact_analysis]
         T4[intel_*]
     end
-    subgraph "第9层 — 错误边界"
-        EB[@error_boundary\ntimeout + retry]
+    subgraph "第 10 层 — 错误边界"
+        EB[@error_boundary]
     end
-    subgraph "第8层 — 智能层"
-        IL[intel_predict_root_cause\nintel_code_topology\nintel_get_project_memory]
+    subgraph "第 9 层 — 智能层"
+        IL[intel_predict_root_cause\nintel_code_topology]
     end
-    subgraph "第7层 — 搜索"
-        SH[hybrid_search_async\nRRF + reranker + buckets]
+    subgraph "第 8 层 — 搜索 + MultiSignal"
+        SH[hybrid_search_async\nRRF + MultiSignalScorer]
     end
-    subgraph "第6层 — 索引"
-        IX[Indexer\nLanceDB + BM25 + SymbolIndex]
+    subgraph "第 7 层 — 索引"
+        IX[Indexer\nLanceDB + BM25]
     end
-    subgraph "第5层 — 嵌入"
-        EM[RemoteEmbedder\nllama.cpp GGUF / LM Studio / ONNX]
+    subgraph "第 6.5 层 — 数据流（v3.2）"
+        DF[ASSIGNED_FROM edges\nTree-sitter scope walk]
     end
-    subgraph "第4层 — 解析"
-        PS[Tree-sitter AST\nParser + SymbolIndex]
+    subgraph "第 6 层 — 图（v3.0）"
+        PG[PropertyGraph\nSQLite WAL + mmap]
+        CY[CypherEngine\nMATCH→SQL]
+        RE[RouteExtractor]
     end
-    subgraph "第3层 — 存储"
-        ST[LanceDB v2\nper-project isolation]
+    subgraph "第 5 层 — 嵌入"
+        EM[RemoteEmbedder\nllama.cpp / LM Studio]
     end
-    subgraph "第2层 — 速率限制"
-        RL[CircuitBreaker\nDebounceBatch\nSlidingWindow]
+    subgraph "第 4 层 — 解析"
+        PS[Tree-sitter AST\nParser + SymbolIndexAdapter]
     end
-    subgraph "第1层 — DI容器"
-        DI[ServiceCollection\n15 singletons + factories]
+    subgraph "第 3 层 — 存储"
+        ST[LanceDB v2 + SQLite\ngraph.db]
     end
-    T1 --> EB --> IL --> SH --> IX --> EM --> PS --> ST --> RL --> DI
+    subgraph "第 2 层 — 速率限制"
+        RL[CircuitBreaker\nDebounceBatch]
+    end
+    subgraph "第 1 层 — DI 容器"
+        DI[ServiceCollection\n18 services]
+    end
+    T1 --> EB --> IL --> SH --> IX --> PG --> EM --> PS --> ST --> RL --> DI
+    PG --> CY
+    PG --> RE
 ```
 
 ---
 
-## 2. 搜索管道 — 完整流程
+## 2. 搜索流水线 — 完整流程
 
 ```mermaid
 sequenceDiagram
@@ -94,41 +106,41 @@ sequenceDiagram
     MCP->>EB: @error_boundary(timeout=10000)
     EB->>ST: execute(query, mode, intent_hint)
     
-    par BM25搜索
+    par BM25 搜索
         ST->>S: bm25_search_async(query)
         S->>I: table.search().where(...)
-        I-->>S: BM25结果（稀疏）
+        I-->>S: BM25 results (sparse)
     and 稠密搜索
-        ST->>S: 嵌入查询向量
+        ST->>S: embed query vector
         S->>E: embed_batch_async([query])
-        E-->>S: 查询向量（768维）
+        E-->>S: query vector (768-dim)
         S->>DB: search(vector, limit=raw_limit)
-        DB-->>S: 稠密结果
+        DB-->>S: dense results
     end
     
-    S->>S: RRF融合（k=60）
-    S->>S: 桶加权（code/docs）
-    S->>S: 共变更增强（git耦合）
+    S->>S: RRF Fusion (k=60)
+    S->>S: Bucket Weighting (code/docs)
+    S->>S: Co-change Boost (git coupling)
     
-    opt reranker可用
+    opt reranker 可用
         S->>R: rerank(query, candidates, top_n=5)
-        R-->>S: 重排序分数
+        R-->>S: reranked scores
     end
     
-    S-->>EB: 排序结果
-    EB-->>MCP: 格式化响应
-    MCP-->>User: 带文件路径的搜索结果
+    S-->>EB: sorted results
+    EB-->>MCP: formatted response
+    MCP-->>User: search results with file paths
 ```
 
 ### 模式性能
 
-| 模式 | 管道 | 延迟 | 用例 |
+| 模式 | 流水线（pipeline） | 延迟 | 用例 |
 |------|----------|---------|----------|
-| `fast` | 仅BM25 | ~300ms | 精确符号查找 |
+| `fast` | 仅 BM25 | ~300ms | 精确符号查找 |
 | `quality` | BM25 + Dense + RRF + Reranker | ~1200ms | 架构问题 |
 | `deep` | 递归图扩展 | 2-5s | 复杂调查 |
 | `context` | 代码片段相似度 | ~500ms | 查找相似代码 |
-| `ask` | 搜索 → phi-4生成 | 5-15s | RAG问答 |
+| `ask` | 搜索 → phi-4 生成 | 5-15s | RAG 问答 |
 
 ---
 
@@ -136,12 +148,12 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Start[Agent调用工具] --> Resolve[DI容器解析服务]
+    Start[Agent 调用工具] --> Resolve[DI 容器解析服务]
     Resolve --> Guard{RuntimeCoordinator\ncan_execute?}
     Guard -->|blocked| Error[返回错误\n带恢复提示]
-    Guard -->|ready| Boundary[error_boundary包裹调用\n带超时 + 重试]
+    Guard -->|ready| Boundary[error_boundary 包裹调用\n带超时 + 重试]
     
-    Boundary --> Execute[Tool.execute 参数]
+    Boundary --> Execute[Tool.execute params]
     Execute --> LMEnd{llama.cpp / LM Studio\navailable?}
     
     LMEnd -->|yes| LLAMA[RemoteEmbedder\nllama.cpp GGUF (GPU)]
@@ -152,7 +164,7 @@ flowchart TD
     ONNX --> Result
     
     Result --> Telemetry[record_tool_call\nmetrics + latency]
-    Telemetry --> Done[响应给Agent]
+    Telemetry --> Done[响应给 Agent]
     
     Boundary -->|timeout| Retry{还有\n重试次数?}
     Retry -->|yes| Execute
@@ -173,27 +185,27 @@ sequenceDiagram
     participant LM as LM Studio
     participant DB as LanceDB
 
-    Zed->>MCP: 启动上下文服务器
+    Zed->>MCP: Start context server
     MCP->>DI: create_service_collection()
-    DI->>DI: 注册15个服务
+    DI->>DI: Register 15 services
     
     par 启动序列
-        DI->>IX: 创建Indexer
+        DI->>IX: Create Indexer
         IX->>DB: open_table / create_table
-        DB-->>IX: 表句柄
+        DB-->>IX: table handle
         IX->>IX: _warmup_status()
-        IX-->>DI: Indexer就绪
+        IX-->>DI: Indexer ready
     and
-        DI->>EM: 创建RemoteEmbedder
-        EM->>EM: _init_provider_async() [后台]
+        DI->>EM: Create RemoteEmbedder
+        EM->>EM: _init_provider_async() [background]
         EM->>LM: check /v1/models
         LM-->>EM: available (bge-m3, phi-4)
-        EM-->>DI: Embedder就绪
+        EM-->>DI: Embedder ready
     end
     
-    DI-->>MCP: 容器就绪
-    MCP->>MCP: 注册50个工具
-    MCP-->>Zed: 服务器就绪（已宣布PID）
+    DI-->>MCP: Container ready
+    MCP->>MCP: Register 37 tools
+    MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: 总启动时间：~2-5秒（异步嵌入器初始化）
 ```
@@ -204,7 +216,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    subgraph "Intel工具"
+    subgraph "Intel 工具"
         RTS[intel_get_runtime_status]
         CT[intel_code_topology]
         PM[intel_get_project_memory]
@@ -286,10 +298,10 @@ erDiagram
 | **增量索引** | MD5 + DebounceBatch | - | - | - |
 | **自恢复** | IndexGuard | - | - | - |
 | **项目记忆** | ADR / debt / issues | - | - | - |
-| **重排序器** | bge-reranker-v2-m3 | - | - | - |
-| **共变更** | Git耦合矩阵 | - | - | - |
+| **重排序器（reranker）** | bge-reranker-v2-m3 | - | - | - |
+| **共变更** | Git 耦合矩阵 | - | - | - |
 | **健康检查** | 完整诊断 | - | - | - |
-| **文档** | **3种语言** | 1 | 1 | 1 |
+| **文档** | **3 种语言** | 1 | 1 | 1 |
 | **许可证** | MIT | Dual | MIT | - |
 
 ---
@@ -300,9 +312,9 @@ erDiagram
 |---------|:---------------:|:----------------:|
 | `mode=ask` (phi-4) | ❌ 阻止 | ✅ 可用 |
 | 异步搜索 | ✅ | ✅ |
-| 重排序器 | ✅ | ✅ |
-| RAM使用 | ~150 MB | ~300 MB（含phi-4） |
-| 启动时间 | ~1秒 | ~3秒 |
+| 重排序器（reranker） | ✅ | ✅ |
+| RAM 使用 | ~150 MB | ~300 MB（含 phi-4） |
+| 启动时间 | ~1s | ~3s |
 | 使用场景 | 日常编码 | 深入分析 |
 
 ---
@@ -311,14 +323,14 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["级别 1: llama.cpp GGUF\nGPU embeddings + reranker\n280ms-3s"] -->|offline| L2
-    L2["级别 2: ONNX Runtime\nCPU embeddings only\nSlower"] -->|missing| L3
-    L3["级别 3: LM Studio\nExternal API\n300ms-5s"] -->|offline| L4
-    L4["级别 4: BM25 only\nKeyword search\nNo semantic"] -->|index missing| L5
-    L5["级别 5: Fallback\nCreate index\nFirst run"]
+    L1["级别 1: ONNX/OpenVINO INT8\n进程内嵌入 + llama.cpp 重排序器\n300ms-3s"] -->|离线| L2
+    L2["级别 2: llama.cpp GGUF\nGPU 嵌入（可选）\n286ms-3s"] -->|离线| L3
+    L3["级别 3: LM Studio\n外部 API（回退 fallback）\n300ms-5s"] -->|离线| L4
+    L4["级别 4: 仅 BM25\n关键词搜索\n无语义"] -->|索引缺失| L5
+    L5["级别 5: 回退（fallback）\n创建索引\n首次运行"]
 ```
 
-**自动恢复：** 系统默认运行 ONNX/OpenVINO E5-base（进程内），并持续扫描可选的 llama.cpp GGUF GPU 嵌入器，然后是 LM Studio/Ollama 作为 fallback。当更高级别变为可用时，自动切换 — 无需重启。
+**自动恢复：** 系统默认运行 ONNX/OpenVINO E5-base（进程内），并持续扫描可选的 llama.cpp GGUF GPU 嵌入器（embedder），然后是 LM Studio/Ollama 作为回退（fallback）。当更高级别变为可用时，自动切换 — 无需重启。
 
 ---
 
@@ -327,13 +339,13 @@ flowchart LR
 | 指标 | 值 |
 |--------|-------|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP工具** | 33（16个核心 + 14个intel + 3个诊断） |
-| **DI中的服务** | 15 |
-| **测试** | 501 |
+| **MCP 工具** | 37（19 个核心 + 12 个 intel + 6 个诊断） |
+| **DI 中的服务** | 15 |
+| **测试** | 396 |
 | **语言** | 3（EN, RU, ZH） |
 | **模式字段** | 19（chunk: 9 + metadata: 6 + v3.0: 4） |
-| **嵌入维度** | 768（E5-base INT8，进程内） |
-| **重排序器** | bge-reranker-v2-m3 |
+| **嵌入维度** | 384（E5-small INT8，进程内） |
+| **重排序器（reranker）** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct（可选，仅 mode=ask） |
 | **向量数据库** | LanceDB v2 |
 | **解析器** | Tree-sitter |

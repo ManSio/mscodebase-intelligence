@@ -4,7 +4,7 @@
 
 ## Обзор
 
-Поисковый пайплайн — ядро MSCodeBase. Он объединяет **4 этапа поиска** для нахождения наиболее релевантного контекста кода.
+Поисковый пайплайн — ядро MSCodeBase. Он объединяет **4 этапа поиска + MultiSignalScorer** для нахождения наиболее релевантного контекста кода.
 
 ```mermaid
 flowchart TD
@@ -26,9 +26,17 @@ flowchart TD
     BM25 --> RRF[RRF Fusion\nk=60]
     DENSE --> RRF
     
-    RRF --> BUCKET[Multi-Bucket RAG\nsoft weighting]
-    BUCKET --> CO[Co-change boost\ngit coupling]
-    CO --> GRAPH[Graph expand\ncallees from AST]
+    RRF --> MULTI[MultiSignalScorer v3.0]
+    MULTI --> BUCKET[Multi-Bucket RAG]
+    
+    subgraph MULTI[MultiSignalScorer — 4 signals]
+        API[api_signature\nJaccard symbol match]
+        DIFF[graph_diffusion\nPageRank centrality]
+        MOD[module_proximity\nhierarchy closeness]
+        CO2[cochange_boost\ngit coupling]
+    end
+    
+    BUCKET --> GRAPH[Graph expand\ncallees from AST]
     GRAPH --> RERANK[Cross-encoder\nbge-reranker-v2-m3]
     
     RERANK --> CUT[Cut to limit]
@@ -65,7 +73,7 @@ def expand_query(query: str, max_expansions: int = 3) -> list[str]:
 
 - **Назначение:** Точное совпадение по ключевым словам — находит код, содержащий конкретные термины
 - **Индекс:** Инкрементальный, строится из чанков LanceDB, хранится как `Dict[doc_id, Dict[term, tf-idf]]`
-- **Обновление:** DebounceBatch (500ms) при изменениях файлов, полная перестройка при реиндексации
+- **Обновление:** DebounceBatch (500ms) при изменениях файлов, полная перестройка при переиндексации
 - **Производительность:** O(log N) на запрос
 
 ```mermaid
@@ -85,7 +93,7 @@ flowchart LR
 ### 3. Плотный поиск (векторный, LanceDB)
 
 - **Назначение:** Семантическая близость — находит концептуально связанный код
-- **Модель:** `multilingual-e5-base` (intfloat, 768-dim)
+- **Модель:** `multilingual-e5-small-int8` (384-dim)
 - **Провайдер:** ONNX INT8 in-process (primary) / LM Studio (fallback)
 - **Индекс:** LanceDB v2 с IVF-PQ квантизацией
 

@@ -21,7 +21,7 @@
 | **磁盘** | 500 MB（含模型 — 最高 2 GB） |
 | **Zed IDE** | 最新版本 |
 | **LM Studio**（可选） | 用于通过 embedding 进行向量搜索 |
-| **llama.cpp**（自动安装） | 通过 GGUF 模型内置的 embedder/reranker |
+| **llama.cpp**（自动安装） | 通过 GGUF 模型内置的嵌入器（embedder）/重排序器（reranker） |
 
 ---
 
@@ -52,12 +52,12 @@ python install.py
 **可用选项：**
 
 | 标志 | 说明 |
-|------|------|
-| *(无标志)* | 完整安装：复制文件 + 依赖项 + 模型 |
-| `--sync` | **快速同步** — 仅复制更改的文件 |
-| `--yes` / `-y` | **CI 模式** — 无提示，首次出错即退出 |
-| `--skip-models` | 跳过模型下载 |
-| `--verbose` / `-v` | 完整框式 UI |
+|------|-------------|
+| *(无标志)* | 完整安装：复制文件 + 依赖项 + 模型（紧凑 UI） |
+| `--sync` | **快速同步** — 仅复制更改的文件，无其他步骤 |
+| `--yes` / `-y` | **CI 模式** — 跳过所有提示，出错即快速退出 |
+| `--skip-models` | 安装时跳过模型下载（已有模型） |
+| `--verbose` / `-v` | 完整框式 UI（替代紧凑单行模式） |
 | `--quiet` / `-q` | 仅显示错误，无进度条 |
 
 ```bash
@@ -73,9 +73,9 @@ python install.py --yes
 从 v2.7.0 开始，`install.py` 将自动：
 
 1. **下载 llama-server.exe** 适配您的平台（Windows/macOS/Linux，x64/ARM64）
-2. **下载 GGUF 模型**：用于 embedding 的 `bge-m3-Q4_K_M`（417 MB）和用于重排序的 `bge-reranker-v2-m3-Q4_K_M`（418 MB）
+2. **下载 GGUF 模型**：用于嵌入的 `bge-m3-Q4_K_M`（417 MB）和用于重排序的 `bge-reranker-v2-m3-Q4_K_M`（418 MB）
 3. **在 MCP 启动时运行 llama-server** — 无需任何外部服务
-4. **相比 LM Studio 节省高达 5.3 倍内存**（227 MB vs 1200 MB）
+4. **相比 LM Studio 节省高达 5.3× 内存**（227 MB vs 1200 MB）
 
 整个过程完全自动化。用户无需任何额外操作。
 
@@ -181,7 +181,7 @@ uninstall.bat
 | **工具无响应** | MCP 服务器未运行 | File → Quit → 重新打开项目。日志：`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
 | **项目错误** | SQLite 选择了另一个工作区 | 关闭所有 Zed 窗口，只打开所需项目 |
 | **0 个块** | 索引为空 | `intel_trigger_reindex()` — 等待 1-5 分钟 |
-| **llama.cpp 离线** | Embedder 未启动 | 检查 `intel_get_runtime_status()`。日志：`扩展目录` + `.codebase_indices/logs/` |
+| **llama.cpp 离线** | 嵌入器（embedder）未启动 | 检查 `intel_get_runtime_status()`。日志：`扩展目录` + `.codebase_indices/logs/` |
 | **LM Studio 离线** | 仅当使用 LM Studio 时 | 启动 LM Studio，检查端口 1234 |
 | **settings.json 警告** | 过时的键（`lsp`，`mscodebase`） | 运行 `python install.py` — 它将清理 |
 | **ModuleNotFoundError** | PYTHONPATH 未指向扩展 | `python install.py` — 自动修复 |
@@ -210,7 +210,7 @@ pytest
 python install.py
 ```
 
-详情：**[CONTRIBUTING.md](../../CONTRIBUTING.md)**
+详情：**[CONTRIBUTING.md](../en/CONTRIBUTING.md)**
 
 ---
 
@@ -224,4 +224,4 @@ python install.py
 | [TELEMETRY.md](TELEMETRY.md) | 指标，ETA，数据收集 |
 | [LSP_WONTFIX.md](../en/investigations/LSP_WONTFIX.md) | 为什么 LSP 在 Windows 上无法工作 |
 | [CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
-| [CONTRIBUTING.md](../../CONTRIBUTING.md) | 开发，测试，PR |
+| [CONTRIBUTING.md](../en/CONTRIBUTING.md) | 开发，测试，PR |

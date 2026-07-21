@@ -34,7 +34,7 @@
 
 | 版本 | 支持状态 |
 |---------|---------|
-| 3.2.x | ✅ 当前（混合 LSP+MCP） |
+| 3.2.x | ✅ 当前版本（混合 LSP+MCP） |
 | 2.x | ⚠️ 仅关键补丁 |
 | < 2.0 | ❌ 否 |
 
@@ -47,7 +47,7 @@
 从 2.0.0 版本开始，MSCodeBase Intelligence 使用结合语言服务器协议（LSP）和模型上下文协议（MCP）的混合架构：
 
 - **LSP 服务器**：通过 Tree-sitter 处理代码解析，向编辑器提供符号
-- **MCP 服务器**：提供语义搜索、embeddings 和 AI 代理交互
+- **MCP 服务器**：提供语义搜索、嵌入（embedding）和 AI 代理交互
 - **交互方式**：两个组件均在本地工作，通过 stdio/SSE 交换数据
 
 ### 哪些数据会离开本机
@@ -56,12 +56,12 @@
 
 | 组件 | 数据 | 发送至 |
 |-----------|------|---------|
-| LanceDB | 向量索引，代码块 | 本地（`.codebase_indices/`） |
+| LanceDB | 向量索引，代码块（chunk） | 本地（`.codebase_indices/`） |
 | Tree-sitter | AST 解析 | 本地，进程内存中 |
 | SafePathManager | 路径验证 | 本地，无网络 |
 | MCP 工具 | 搜索/分析请求 | 本地，stdio/SSE |
 
-**唯一的例外**：如果配置了 LM Studio 或 Ollama 集成来生成 embeddings — 请求**仅**发送到本地端点（LM Studio 为 `localhost:1234`，Ollama 为 `localhost:11434`）。不使用云 API。
+**唯一的例外**：如果配置了 LM Studio 或 Ollama 集成来生成嵌入（embedding）— 请求**仅**发送到本地端点（LM Studio 为 `localhost:1234`，Ollama 为 `localhost:11434`）。不使用云 API。
 
 ### 输入保护
 
@@ -93,8 +93,8 @@
 |------|-------------|------------|
 | LSP 服务器可通过网络访问 | 如果在 SSE 模式下运行，可能被外部访问 | 默认：stdio；SSE 仅在 `localhost` 上 |
 | MCP 工具接受任意输入 | 恶意代理可能传入无效数据 | 每个工具进行验证 |
-| 通过 embeddings 泄露代码 | 代码被发送到 LM Studio 进行索引 | 仅本地 LM Studio；不支持云服务 |
-| 索引期间的竞态条件 | 并发写入 LanceDB | 块版本控制，原子更新 |
+| 通过嵌入（embedding）泄露代码 | 代码被发送到 LM Studio 进行索引 | 仅本地 LM Studio；不支持云服务 |
+| 索引期间的竞态条件 | 并发写入 LanceDB | 块（chunk）版本控制，原子更新 |
 
 ### 部署建议
 
@@ -118,8 +118,8 @@
 |------------|---------|---------------|
 | LanceDB | 向量数据库 | 本地存储，无网络访问 |
 | Tree-sitter | 代码解析 | 沙箱化，无任意代码执行 |
-| LM Studio SDK | Embeddings | 仅本地端点 |
-| Ollama SDK | 备选 embeddings | 仅本地端点 |
+| LM Studio SDK | 嵌入（embedding） | 仅本地端点 |
+| Ollama SDK | 备选嵌入（embedding） | 仅本地端点 |
 
 ---
 

@@ -44,9 +44,9 @@ Track progress via `intel_get_job_status(<job_id>)`.
 **Causes:**
 - Empty index → see above
 - Embedder not running → `intel_get_runtime_status()` shows "offline"
-- Wrong project → check `get_index_status()` output
+- Wrong project → check `intel_get_runtime_status()` output
 
-### `get_index_status()` shows wrong project
+### `intel_get_runtime_status()` shows wrong project
 
 **Cause:** Project resolution via SQLite — if multiple projects are open in Zed,
 it may pick the wrong one. Especially on Windows where `ZED_WORKTREE_ROOT` is unset.

@@ -1,7 +1,3 @@
-<img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
-
-# MSCodeBase Intelligence — 架构与开发经验
-
 [🇬🇧 English](../en/HANDFOFF.md) • [🇷🇺 Русский](../ru/HANDFOFF.md) • [🇨🇳 中文](HANDFOFF.md)
 
 > 这是一份给加入项目的开发者的文档。
@@ -13,12 +9,13 @@
 ## 🎯 项目简介
 
 **MSCodeBase Intelligence** — 用于 Zed IDE 中语义代码搜索的 MCP 服务器。
-完全本地运行：LanceDB（向量索引）+ ONNX E5-base INT8（进程内嵌入）+ llama.cpp GGUF（仅重排序器）+ OpenVINO INT8（可选）。
+完全本地运行：LanceDB（向量索引）+ ONNX E5-base INT8（进程内嵌入）+ llama.cpp GGUF（仅重排序器（reranker））+ OpenVINO INT8（可选）。
 
-**关键数字:**
-- 57 个 MCP 工具（40 核心 + 14 intel + 3 诊断）
-- 10 个工具文件，DI 容器中的 15 个服务
-- 索引：约 3000 个块，约 170 个文件，约 1350 个符号
+**关键数字：**
+- 37 个 MCP 工具（19 core + 12 intel + 6 diagnostic）— 包括 `query_graph`（Cypher 引擎）
+- 11 个工具文件，DI 容器中的 16 个服务
+- 索引：约 3000 个块（chunk），约 170 个文件，约 1550 个符号
+- **PropertyGraph**：SQLite 图（15 种节点类型，27 种边类型），位于 `.codebase/graph.db`
 
 ---
 
@@ -57,11 +54,11 @@ conn.execute("""
 
 | 决策 | 动机 |
 |----------|-----------|
-| **DI 容器（ServiceCollection）** | 18 个服务，延迟解析，每个项目注册表 + PropertyGraph |
+| **DI 容器（ServiceCollection）** | 16 个服务，延迟解析，每个项目注册表 + PropertyGraph |
 | **延迟解析活动索引器** | 如果 LSP 尚未写入桥接文件 — 选择第一个活动工作区 |
 | **两阶段重新索引** | `intel_trigger_reindex` → job_id → `intel_get_job_status`（反垃圾邮件） |
 | **异步锁用于文件 IO** | 保护对内存 JSON 文件的并发写入 |
-| **ui_formatter** | 所有 57 个工具的统一 Markdown 风格（无原始 JSON） |
+| **ui_formatter** | 所有 37 个工具的统一 Markdown 风格（无原始 JSON） |
 
 ---
 
@@ -69,7 +66,7 @@ conn.execute("""
 
 | 组件 | 原因 | 状态 |
 |-----------|--------|--------|
-| **LSP 服务器**（`lsp_main.py`） | Zed 不注册自定义 LSP 名称（需要 Rust/WASM） | **WONTFIX** |
+| **LSP 服务器**（`lsp_main.py`） | 独立 LSP — Zed 不注册自定义 LSP 名称。用于重命名的 LSP *客户端*（`lsp_client.py`）工作正常 | **WONTFIX**（仅独立） |
 | **自动重启 MCP** | Zed 中没有重启崩溃的 context_server 的钩子 | **WONTFIX** |
 | **`ZED_WORKTREE_ROOT`** | 在 Windows 上未设置（Zed 错误 #36019） | **通过 SQLite 解决** |
 
@@ -117,10 +114,10 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 
 | 文件 | 功能 |
 |------|-------------|
-| `src/mcp/server.py` | `resolve_project_root()`，所有 50 个工具的注册 |
+| `src/mcp/server.py` | `resolve_project_root()`，所有 37 个工具的注册 |
 | `src/mcp/tools/base.py` | `MCPTool`（基类），`resolve_indexer_for_request()` |
 | `src/core/di_container.py` | 15 个服务，`ProjectIndexerRegistry` |
-| `src/core/intelligence_layer.py` | 14 个 intel 工具，`ProjectIntelligenceLayer` |
+| `src/core/intelligence_layer.py` | 12 个 intel 工具，`ProjectIntelligenceLayer` |
 | `src/core/indexer.py` | LanceDB，向量化，索引 |
 | `src/core/searcher.py` | BM25 + Dense + RRF 混合搜索 |
 | `src/utils/ui_formatter.py` | 所有工具的统一 Markdown 格式 |
@@ -135,7 +132,7 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 2. **MCP 重启** — 仅 File → Quit（不是 `window: reload`，不是 kill）
 3. **Git 子进程** — `GIT_ASKPASS=echo`，`CREATE_NO_WINDOW`，超时
 4. **Windows 上的 LanceDB** — mmap 文件直到 `_safe_close()` + `gc.collect()` 才释放
-5. **路径** — MCP：`src\core\file.py`，终端：`src/core/file.py`
+5. **路径** — MCP：`src\core\file_guard.py`，终端：`src/core/file_guard.py`
 
 ---
 
@@ -143,9 +140,9 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 
 | 文档 | 关于 |
 |----------|-------|
-| [INSTALL.md](INSTALL.md) | 用户安装指南 |
-| [ARCHITECTURE.md](../en/ARCHITECTURE.md) | 完整架构（10 层） |
-| [ZED_WINDOWS_QUIRKS.md](../en/ZED_WINDOWS_QUIRKS.md) | Windows 特殊说明 |
-| [LSP_WONTFIX.md](../en/investigations/LSP_WONTFIX.md) | 为什么 LSP 无法工作 |
-| [ACTIVE_WORKSPACE_RESOLUTION.md](../en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md) | SQLite active_workspace |
-| [../../AGENTS.md](../../AGENTS.md) | Zed 中 AI 代理的规则 |
+| `INSTALL.md` | 用户安装指南 |
+| `ARCHITECTURE.md` | 完整架构（10 层） |
+| `ZED_WINDOWS_QUIRKS.md` | Windows 特殊说明 |
+| `investigations/LSP_WONTFIX.md` | 为什么 LSP 无法工作 |
+| `investigations/ACTIVE_WORKSPACE_RESOLUTION.md` | SQLite active_workspace |
+| `../../AGENTS.md` | Zed 中 AI 代理的规则 |

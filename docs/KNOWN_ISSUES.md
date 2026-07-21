@@ -52,7 +52,7 @@
 | ID | Компонент | Симптом | Корень | Статус |
 |----|-----------|---------|--------|--------|
 | INC-58EA | indexer / remote_embedder / LanceDB | IVF_PQ/IVF_FLAT индекс не строился: "KMeans cannot train 1 centroids with 0 vectors". Все 3365 векторов были нулевыми (norm=0.0). | 1) `_init_onnx` грузил `model.onnx`, но файл — `model_quantized.onnx` → ONNX-сессия падала. 2) `index_project` при сбое embedder молча подменял векторы нулями → отравлял индекс. | ✅ Fixed |
-| INC-9573 | intelligence_layer / symbol count | `intel_get_runtime_status` показывал `symbol_index_count: 0` после reindex, хотя `get_index_status` — 3221. | `_resolve_symbol_count` читал кэш через `get_stats()["total_symbols"]`; рабочий `get_index_status` использует живой `get_symbol_count()`. | ✅ Fixed |
+| INC-9573 | intelligence_layer / symbol count | `intel_get_runtime_status` показывал `symbol_index_count: 0` после reindex, хотя `intel_get_runtime_status` — 3221. | `_resolve_symbol_count` читал кэш через `get_stats()["total_symbols"]`; рабочий `intel_get_runtime_status` использует живой `get_symbol_count()`. | ✅ Fixed |
 | INC-0AA6 | intelligence_layer / job lifecycle | Job зависал на 80% Finalizing ~40с (символьная индексация Tree-sitter без таймаута). | `await future_symbols` без `asyncio.wait_for`. Добавлен таймаут 120с с graceful-завершением. | ✅ Fixed |
 
 ---

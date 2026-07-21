@@ -4,9 +4,9 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本:** 3.3.9  
-> **最后更新:** 2026-07-21  
-> **架构:** 4层架构 + PropertyGraph + Data Flow Layer 带多窗口注册表 + AutoDoc 自动文档
+> **版本：** 3.3.9  
+> **最后更新：** 2026-07-21  
+> **架构：** 4 层架构 + 图原生 PropertyGraph 层 + 数据流层（入口点 → MCP 服务器/DI → 工具类 → 核心业务逻辑 → PropertyGraph → 数据流）带多窗口注册表 + DocSync
 
 ---
 
@@ -14,14 +14,16 @@
 
 1. [核心原则](#1-核心原则)
 2. [分层架构](#2-分层架构)
-3. [DI容器（ServiceCollection）](#3-di容器)
-4. [工具层（18个基于类 + 13个intel + 6个inline + 1个可选 = 共38个）](#4-工具层)
-5. [错误处理](#5-错误处理)
-6. [速率限制与弹性](#6-速率限制与弹性)
-7. [数据流：请求 → 响应](#7-数据流)
-8. [Windows特定事项](#8-windows特定事项)
-9. [多窗口注册表（v2.3+）](#9-多窗口注册表v23)
-10. [测试策略](#10-测试策略)
+3. [DI 容器（ServiceCollection）](#3-di-容器)
+4. [工具层（18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选 = 42 个）](#4-工具层)
+5. [PropertyGraph 层（v3.0）](#5-propertygraph-层-v30)
+6. [Cypher 查询引擎（v3.0）](#6-cypher-查询引擎-v30)
+7. [错误处理](#7-错误处理)
+8. [速率限制与弹性](#8-速率限制与弹性)
+9. [数据流：请求 → 响应](#9-数据流)
+10. [Windows 特定处理](#10-windows-特定处理)
+11. [多窗口注册表（v2.3+）](#11-多窗口注册表-v23)
+12. [测试策略](#12-测试策略)
 
 ---
 
@@ -31,18 +33,18 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │              四层架构                                              │
 │                                                                  │
-│  第1层: main.py / lsp_main.py  (入口点，极简)                      │
-│  第2层: mcp/server.py          (DI路由，工具注册)                   │
-│  第3层: mcp/tools/*.py         (42个工具: 18 core + 7 inline + 3 dev)│
-│  第4层: core/*.py              (纯业务逻辑)                        │
+│  第 1 层: main.py / lsp_main.py  （入口点，最简）                   │
+│  第 2 层: mcp/server.py          （DI 路由，工具注册）              │
+│  第 3 层: mcp/tools/*.py         （18 核心 + 7 内联 + 3 开发）      │
+│  第 4 层: core/*.py              （纯业务逻辑）                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**关键规则:**
-- **核心层没有MCP导入。** 它是带有业务逻辑的纯Python。
-- **工具层永不创建依赖。** 所有依赖来自DI。
-- **server.py仅负责注册** — 不含逻辑、格式化、try/except。
-- **依赖向下流动：** 主程序 ← 服务器 ← 工具 ← 核心。
+**关键规则：**
+- **核心层没有 MCP 导入。** 它是纯 Python 业务逻辑。
+- **工具层从不创建依赖。** 一切来自 DI。
+- **server.py 仅注册** — 没有逻辑，没有格式化，没有 try/except。
+- **依赖关系向下流动：** Main ← Server ← Tools ← Core。
 
 ---
 
@@ -51,58 +53,57 @@
 ### 2.0 十层运行时架构（v2.4）
 
 ```
- 第0层: Filesystem                  — 磁盘上有哪些文件？
- 第1层: SystemArtifacts             — 这是系统路径吗？
- 第2层: Bridge (LSP→MCP)           — LSP报告了哪个项目？
- 第3层: Registry (IndexerRegistry)  — 哪个Indexer属于该项目？
- 第4层: StateMachine (ProjectState) — 项目处于什么状态？
- 第5层: RuntimeCoordinator          — 能否执行请求？
- 第6层: ProjectContext              — 项目当前状况如何？
- 第7层: Passport                    — 当前运行的是哪个进程？
- 第8层: Intel Layer                 — 如何处理信息？
- 第9层: MCP Tools / AI Agent        — 回复用户
+ Layer 0: Filesystem                  — 磁盘上有哪些文件？
+ Layer 1: SystemArtifacts             — 这是系统路径吗？
+ Layer 2: Bridge (LSP→MCP)           — LSP 报告了哪个项目？
+ Layer 3: Registry (IndexerRegistry)  — 哪个 Indexer 拥有此项目？
+ Layer 4: StateMachine (ProjectState) — 项目处于什么状态？
+ Layer 5: RuntimeCoordinator          — 可以执行此请求吗？
+ Layer 6: ProjectContext              — 项目当前的状态如何？
+ Layer 7: Passport                    — 当前运行的是哪个进程？
+ Layer 8: Intel Layer                 — 如何处理这些信息？
+ Layer 9: MCP Tools / AI Agent        — 给用户的回答
 ```
 
-**数据流:**
+**数据流：**
 ```
 Filesystem → SystemArtifacts → Bridge → Registry → StateMachine
                                                           ↓
 MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 ```
 
-**关键规则：** 工具不能直接访问 Registry、Bridge 或 Passport。
-所有访问必须通过 `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`。
+**关键规则：** 工具不直接访问 Registry、Bridge 或 Passport。
+一切通过 `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`。
 
 ### 2.1 入口点
 
 | 文件 | 协议 | 用途 |
-|------|------|------|
-| `src/main.py` | MCP STDIO | Zed Chat中的AI助手 |
-| `src/lsp_main.py` | LSP STDIO | 通过Zed的didSave/didChange进行索引 |
+|------|----------|---------|
+| `src/main.py` | MCP STDIO | Zed Chat 中的 AI 助手 |
+| `src/lsp_main.py` *（已删除）* | LSP STDIO | 已被 LSP 客户端 `src/core/lsp_client.py` 替代 |
 
-两者使用相同的 `create_service_collection()` 工厂。
+两者都使用相同的 `create_service_collection()` 工厂。
 
-### 2.2 MCP服务器
+### 2.2 MCP 服务器
 
-`src/mcp/server.py` — **约220行**（重构前为3,100行）。
+| `src/mcp/server.py` | **~220 行**（重构前为 3,100 行）。
 
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
-2. 创建DI容器（`create_service_collection()`）
-3. 注册16个core工具 + 14个intel工具 + 3个诊断工具 = 33个总计
-4. 注册系统提示词（mscodebase-rules）
-4. 注册系统提示词（mscodebase-rules）
+2. 创建 DI 容器（`create_service_collection()`）
+3. 注册 18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选 = 42 个工具
+4. 注册系统提示（mscodebase-rules）
 
-**此处不包含业务逻辑。** 每个工具都从 `mcp/tools/` 导入。
+**此处没有业务逻辑。** 每个工具都是从 `mcp/tools/` 导入的。
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **12个文件，19个核心工具（Hub & Spoke：codebase + execute_script + 17个原生）。**
+`src/mcp/tools/*.py` — **14 个文件：18 个核心工具 + 7 个内联 + 3 个开发 + 1 个可选（Hub & Spoke：codebase + execute_script + 17 个原生）。**
 
 每个工具：
-- 继承自 `MCPTool`（抽象基类）
-- 通过构造函数接收依赖（构造函数注入）
-- 有且只有一个入口点：`async def execute(**kwargs) -> dict`
+- 继承自 `MCPTool`（ABC）
+- 通过构造函数接收依赖项（构造函数注入）
+- 有且仅有一个入口点：`async def execute(**kwargs) -> dict`
 - 使用 `@error_boundary(tool_name, timeout_ms)` 装饰
 
 ```python
@@ -122,77 +123,93 @@ class SearchCodeTool(MCPTool):
         limit: int = 6,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        self.require_index()  # 检查索引是否就绪
-        # ... 逻辑
+        self.require_index()  # 检查索引就绪状态
+        # ... 搜索逻辑
 ```
 
 ### 2.4 核心层
 
-`src/core/*.py` — **30个纯业务逻辑文件。**
+`src/core/*.py` — **30 个纯业务逻辑文件。**
 
 关键模块：
 
-| 模块 | 用途 | 依赖 |
-|------|------|------|
-| `di_container.py` | DI容器（15个服务） | — |
-| `error_handler.py` | ToolError + error_boundary | — |
-| `rate_limiter.py` | DebounceBatch + CircuitBreaker | — |
-| `indexer.py` | LanceDB向量存储 | embedder, file_guard, parser |
-| `searcher.py` | 混合搜索（BM25 + Dense + RRF） | indexer, embedder |
-| `symbol_index.py` | 调用图（BFS, PageRank） | parser |
-| `graph.py` **(新增 v3.0)** | **PropertyGraph — SQLite 属性图** | — |
-| `graph_adapter.py` **(新增 v3.0)** | **SymbolIndexAdapter 包装 PropertyGraph** | graph, symbol_index |
-| `cypher_engine.py` **(新增 v3.0)** | **Cypher→SQL 引擎** | graph |
-| `route_extractor.py` **(新增 v3.0)** | **HTTP 路由检测** | graph |
-| `multi_signal_scorer.py` **(新增 v3.0)** | **多信号搜索评分（4个信号）** | graph |
-| `dataflow_experiment.py` **(新增 v3.2)** | **ASSIGNED_FROM, IMPORTS 基准测试** | parser |
-| `intelligence_layer.py` | 14个intel_*工具 | indexer, searcher, symbol_index |
-| `llama_runner.py` | llama-server.exe生命周期管理器 | download, launch, stop |
-| `remote_embedder.py` | LM Studio / llama.cpp / Ollama / ONNX | config |
-| `parser.py` | Tree-sitter AST | — |
-| `file_guard.py` | .gitignore + 扩展名过滤器 | config |
+| 模块 | 路径 | 用途 |
+|--------|------|---------|
+| `di_container.py` | `src/core/di_container.py` | DI 容器（15+ 服务） |
+| `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
+| `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
+| `engine.py` | `src/core/search/engine.py` | 混合搜索（BM25 + Dense + FTS5 + RRF） |
+| `graph.py` | `src/core/graph.py` | PropertyGraph — SQLite 属性图 |
+| `graph_adapter.py` | `src/core/search/graph_adapter.py` | 包装 PropertyGraph 的 SymbolIndexAdapter |
+| `cypher_engine.py` | `src/core/search/cypher_engine.py` | PropertyGraph 的 Cypher→SQL 引擎 |
+| `indexer.py` | `src/core/indexing/indexer.py` | LanceDB 向量存储 + 索引化流水线 |
+| `symbol_index.py` | `src/core/indexing/symbol_index.py` | 调用图（BFS, PageRank） |
+| `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST 解析器（16 种语言） |
+| `file_guard.py` | `src/core/indexing/file_guard.py` | .gitignore + 扩展过滤器 |
+| `db_manager.py` | `src/core/indexing/db_manager.py` | LanceDB 表生命周期（PID 锁，重新索引守卫） |
+| `fts5_mixin.py` | `src/core/search/fts5_mixin.py` | FTS5 全文搜索 mixin |
+| `scoring.py` | `src/core/search/scoring.py` | RRF + MMR 多样性评分 |
+| `layer.py` | `src/core/intelligence/layer.py` | Intel 层（13 个 intel_* 工具） |
+| `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
+| `project_context.py` | `src/core/intelligence/project_context.py` | 项目状态快照 |
+| `llama_runner.py` | `src/providers/reranker/llama_runner.py` | llama-server.exe（重排序器）生命周期 |
+| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | ONNX E5-small INT8 嵌入器 + LM Studio/Ollama 回退 |
+| `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | 自动同步文档与代码（重命名钩子） |
 
-### 2.5 Data Flow Layer (v3.2.0)
+### 2.5 搜索引擎（v3.3）
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Data Flow Layer                                                 │
-│                                                                  │
-│  1. Unified Walker — _walk_file()                                │
-│     一次 Tree-sitter 解析 + 一次遍历 → 调用 + 赋值                │
-│     Parse cache: 路径 + 内容哈希（防止修改文件后 AST 过期        │
-│     — v3.3.2 修复）                                              │
-│                                                                  │
-│  2. Conditional Flow                                             │
-│     ASSIGNED_FROM, IMPORTS 边包含可选的 condition_path 属性                │
-│     → ["if_statement", "for_statement", "try", "except"]         │
-│     追踪 if/for/while/try/except 嵌套层级                         │
-│                                                                  │
-│  3. 仅限函数内部                                                 │
-│     追踪仅在函数体内部工作                                        │
-│     跨函数数据流不追踪（已知限制）                                 │
-│                                                                  │
-│  4. 目前仅 Python                                                │
-│     Rust/TS 解析器已存在，但赋值节点类型不同                      │
-│                                                                  │
-│  5. src/core 中 30 个文件                                        │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│   搜索流水线（engine.py）                                  │
+│                                                          │
+│   query_str → embed() → BM25 → FTS5 → 3-way RRF → MMR  │
+│                        ↕                                │
+│   MultiSignalScorer: api_signature, graph_diffusion,     │
+│   module_proximity, cochange_boost                       │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│   PropertyGraph（graph.py）                               │
+│   SQLite（WAL + mmap），节点/边，JSON 属性                 │
+│   — 15 个节点标签（File, Function, Class, Variable...）  │
+│   — 27 种边类型（CALLS, DEFINES, ASSIGNED_FROM, ...）    │
+│   — Cypher 查询引擎（MATCH→SQL）                         │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│   数据流层（v3.2.0）                                      │
+│                                                          │
+│   1. 统一 Walker — 一次 Tree-sitter 解析 → 调用 +         │
+│      赋值。带内容哈希的解析缓存。                          │
+│   2. 条件流 — ASSIGNED_FROM 边具有                        │
+│      condition_path（if/for/while/try/except）            │
+│   3. 仅过程内 — 在函数体内部                              │
+│   4. 16 种语言：Python, Rust, TS, TSX, Go, JS,           │
+│      Java, C#, Ruby, PHP, Kotlin, Swift, C, C++,        │
+│      Scala, Dart                                        │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 2.6 提供者优先级
+### 2.6 嵌入器（Embedder）：E5-small ONNX（进程内）
 
-MCP服务器自动检测最佳可用的嵌入提供者：
+MCP 服务器现在使用 multilingual-e5-small 通过 ONNX Runtime（CPU，进程内）作为其主要嵌入器（embedder）：
 
-1. **ONNX/OpenVINO INT8（进程内）** — 默认且主要，无需外部服务器（E5-base，768维，~350 ch/s）
-2. **llama.cpp GGUF（GPU）** — 可选加速，通过 `install.py` 自动安装
-3. **LM Studio** — 可选 fallback，需要外部服务器
-4. **Ollama / remote ONNX** — 自定义设置
+- **模型：** `intfloat/multilingual-e5-small`（384 维）
+- **运行时：** ONNX（CPU，不需要 GPU）
+- **架构：** 进程内 — 无需外部 HTTP 服务器
+- **性能：** ~37 ch/s（之前使用 BGE-M3 为 18 i/s）
+- **RAM：** ~265 MB（之前为 285 MB + VRAM）
+- **配置：** `EMBEDDING_DIMENSION=384`，`EMBEDDING_PROVIDER=e5_onnx`
 
-优先级在启动时评估。ONNX/OpenVINO 相比 LM Studio 提供约 5.3 倍的 RAM 减少（~265 MB 对比 ~1200 MB）。
+重排序器（reranker）仍然通过 llama-server 运行（1 个进程，不是 2 个）。
+
+传统的回退（fallback）提供者（provider）（LM Studio、Ollama、远程 ONNX）仍然可通过 `remote_embedder.py` 用于自定义配置。
 
 ---
 
-## 3. DI容器
+## 3. DI 容器
 
 ### 3.1 ServiceCollection
 
@@ -204,17 +221,17 @@ services = ServiceCollection()
 # 注册单例：
 services.add_singleton(Indexer, indexer_instance)
 
-# 注册懒加载工厂：
+# 注册懒工厂：
 services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
 
 # 解析：
-indexer = services.resolve(Indexer)  # 每次返回同一实例
+indexer = services.resolve(Indexer)  # 每次都是同一个实例
 ```
 
-### 3.2 已注册服务（15个）
+### 3.2 已注册服务（15 个）
 
-| # | 服务 | 类型 | 创建方式 |
-|---|------|------|----------|
+| # | 服务 | 类型 | 创建者 |
+|---|---------|------|------------|
 | 1 | Path (project_root) | 单例 | 显式 |
 | 2 | Path (db_path) | 单例 | `_generate_unique_db_path()` |
 | 3 | CodeParser | 单例 | `CodeParser()` |
@@ -226,7 +243,7 @@ indexer = services.resolve(Indexer)  # 每次返回同一实例
 | 9 | ProjectRegistry | 单例 | `ProjectRegistry()` |
 | 10 | MultiProjectSearcher | 单例 | `MultiProjectSearcher(embedder, registry)` |
 | 11 | ResourceMonitor | 单例 | `get_global_resource_monitor()` |
-| 12 | ResourceMonitorKey | 单例 | `ResourceMonitor` (共享) |
+| 12 | ResourceMonitorKey | 单例 | `ResourceMonitor`（共享） |
 | 13 | ProjectIndexerRegistry | 单例 | `ProjectIndexerRegistry(max_cached=5)` |
 | 14 | NotificationBroker | 单例 | `NotificationBroker()` |
 | 15 | IndexerFactoryKey | 工厂 | `_create_indexer_for_path` |
@@ -242,50 +259,109 @@ indexer = services.resolve(Indexer)  # 每次返回同一实例
 ```python
 def register_all_tools(mcp, services):
     tool_classes = [
-        # Search (3)
+        # 搜索（3 个）
         SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
-        # Hub: codebase (write/index/git/notify — 通过action复用)
+        # Hub: codebase（按 action 多路复用 — write/index/git/notify）
         CodebaseTool,
-        # Spoke: E2B沙箱
+        # Spoke: E2B 沙箱
         ExecuteScriptTool,
-        # Analysis (5)
+        # 分析（5 个）
         StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
         ScanChangesTool, GenerateChunkSummariesTool,
-        # Graph (3 — 第二阶段: graph_query复用cypher + related + flow)
+        # 图（3 个 — Phase 2: graph_query 多路复用 cypher + related + flow）
         CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
-        # Investigation (3)
+        # 调查（3 个）
         GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
-        # Lifecycle (3)
+        # 生命周期（3 个）
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
-    # +14 个intel工具 + 3 个诊断工具
-    # 总计: 36 个注册 (19 core + 14 intel + 3 diag)
+    # +13 个 intel_* 工具 + 7 个内联诊断 + 3 个开发 + 1 个可选
+    # 总计：42 个已注册（18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选）
 ```
 
-**可见性过滤器:** 默认 ~16 个工具可见。设置 `MSCODEBASE_MCP_TOOLS=""` 显示全部 36 个。
+**工具可见性过滤器：** 默认显示 ~16 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 42 个。
 
 ### 4.2 按组分组的全部工具
 
 | 组 | 文件 | 工具 |
 |-------|------|-------|
-| **搜索**（3） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **Hub: codebase**（1） | `codebase_tool.py` | codebase(action={rename,move,delete,replace,insert,notify,index,git,branch,...}) |
-| **Spoke: E2B**（1） | `codebase_tool.py` | execute_script(code) |
-| **分析**（5） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **图**（3） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query(action={query,cypher,related,flow}) |
-| **调查**（3） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
-| **生命周期**（3） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **智能层**（14） | `intelligence_layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
-| **Diagnostic**（3） | `server_tools.py` 内联 | debug_runtime_passport, get_runtime_counters, intel_execution_timeline |
+| **搜索**（3 个） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
+| **Hub: codebase**（1 个） | `codebase_tool.py` | codebase(action=rename/move/delete/replace/insert/notify/index/git) |
+| **Spoke: E2B**（1 个） | `codebase_tool.py` | execute_script(code) |
+| **分析**（5 个） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
+| **图**（3 个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query |
+| **调查**（3 个） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
+| **生命周期**（3 个） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **写入**（1 个） | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
+| **索引**（1 个） | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
+| **Git**（1 个） | `git_tools.py` | git(action={log,history,branch}) |
+| **文档**（1 个） | `doc_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
+| **元**（1 个） | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
+| **系统**（1 个） | `system_tools.py` | read_live_file, get_health_report, get_logs |
+| **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **诊断内联**（7 个） | `server_tools.py` | debug_runtime_passport, get_runtime_counters, intel_execution_timeline, get_health_report, get_logs, read_live_file, stale_detector |
 
-> **总计:** 36 个注册 (19 core + 14 intel + 3 diag)。
-> **默认可见:** ~16。显示全部: `MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 42 个已注册（18 核心 + 13 intel + 7 内联 + 3 开发 + 1 可选）。默认可见：~16 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
-## 5. 错误处理
+---
 
-### 5.1 error_boundary 装饰器
+## 5. PropertyGraph 层（v3.0）
 
-每个工具都用 `@error_boundary` 包裹：
+PropertyGraph 是系统的语义骨干，在 `.codebase/graph.db` 中存储：
+
+| 组件 | 文件 | 用途 |
+|-----------|------|---------|
+| **PropertyGraph** | `src/core/graph.py` | SQLite（WAL + mmap），15 个节点标签，27 种边类型 |
+| **SymbolIndexAdapter** | `src/core/search/graph_adapter.py` | 将 PropertyGraph 包装为只读 SymbolIndex |
+| **CypherEngine** | `src/core/search/cypher_engine.py` | Cypher → SQL 转换（MATCH→JOIN, RETURN→SELECT） |
+| **RouteExtractor** | `src/core/graph.py` | 从 AST 中提取 HTTP 路由 |
+
+**支持的图谱操作：**
+
+| 操作 | Cypher 示例 | 用途 |
+|-----------|-------------|---------|
+| 调用者 | `MATCH (c)-[:CALLS]->(f) WHERE f.name='func' RETURN c` | "谁调用了 func？" |
+| 被调用者 | `MATCH (f)-[:CALLS]->(c) WHERE f.name='func' RETURN c` | "func 调用了谁？" |
+| 定义者 | `MATCH (c)-[:DEFINES]->(f) WHERE f.name='func' RETURN c` | "func 在哪里定义的？" |
+| 赋值来源 | `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name='x' RETURN s` | "x 从哪里来？" |
+| 数据流图 | `MATCH (s)-[*1..3]->(t) WHERE ...` | 多跳数据流追踪 |
+| 拓扑 | `intel_code_topology(symbol)` | 架构调用图 |
+
+---
+
+## 6. Cypher 查询引擎（v3.0）
+
+`CypherEngine` 将 Cypher AST 转换为 SQL 查询：
+
+**支持的 Cypher 模式：**
+
+| 模式 | SQL 等效 | 示例 |
+|---------|-------------|---------|
+| `MATCH (n)` | `SELECT * FROM nodes` | 所有节点 |
+| `WHERE n.prop = val` | `WHERE json_extract(...) = val` | 属性过滤 |
+| `MATCH (a)-[e]->(b)` | `JOIN edges ON a.id=e.source AND b.id=e.target` | 边遍历 |
+| `RETURN n.name, n.kind` | `SELECT json_extract(...)` | 投影 |
+| `LIMIT 10` | `LIMIT 10` | 分页 |
+
+**用法：**
+
+```python
+engine = CypherEngine(graph_db_path)
+
+# 原始查询
+rows = engine.query("MATCH (f:Function) WHERE f.name='parse' RETURN f.name, f.file_path")
+
+# 通过 graph_query 工具
+tool_result = graph_query(query="MATCH (f)-[:CALLS]->(g) RETURN f.name, g.name", limit=20)
+```
+
+---
+
+## 7. 错误处理
+
+### 7.1 error_boundary 装饰器
+
+每个工具都使用 `@error_boundary` 包装：
 
 ```python
 @error_boundary("tool_name", timeout_ms=15000, max_retries=1)
@@ -294,48 +370,48 @@ async def execute(self, **kwargs) -> dict:
 ```
 
 它保证：
-1. **真实超时** — 通过 `asyncio.wait_for(timeout_ms / 1000.0)`
-2. **统一JSON格式** — 始终返回：`{"status": "ok"|"error"|"timeout"|"warning", "message": "...", "detail": "...", "latency_ms": 123}`
-3. **受控错误**（`ToolError`）→ 直接返回，不重试
+1. **真实超时** 通过 `asyncio.wait_for(timeout_ms / 1000.0)`
+2. **统一 JSON** 始终为：`{"status": "ok"|"error"|"timeout"|"warning", "message": "...", "detail": "...", "latency_ms": 123}`
+3. **受控错误**（`ToolError`）→ 原样返回，不重试
 4. **意外错误** → 记录完整回溯，返回 `"status": "error"`
 5. **超时重试** — 可通过 `max_retries` 配置
 
-### 5.2 ToolError 层次结构
+### 7.2 ToolError 层次结构
 
 ```python
-ToolError          # 基础：status, message, detail, recoverable
-├── IndexNotReadyError  # 索引为空（warning, recoverable）
-└── RateLimitError      # 超出速率限制（warning, recoverable）
+ToolError          # 基类：status, message, detail, recoverable
+├── IndexNotReadyError  # 索引为空（警告，可恢复）
+└── RateLimitError      # 速率限制超出（警告，可恢复）
 ```
 
 ---
 
-## 6. 速率限制与弹性
+## 8. 速率限制与弹性
 
-### 6.1 SlidingWindowRateLimiter
+### 8.1 SlidingWindowRateLimiter
 
 ```python
-limiter = SlidingWindowRateLimiter()  # asyncio.Lock 保证线程安全
+limiter = SlidingWindowRateLimiter()  # asyncio.Lock 用于线程安全
 
 ok = await limiter.acquire("notify_change", max_per_sec=10.0)
 if not ok:
     raise RateLimitError(detail="Too many notify_change calls")
 ```
 
-### 6.2 DebounceBatch
+### 8.2 DebounceBatch
 
-替代每次文件变更时立即调用 `searcher.reindex()`：
+替代每次文件更改时立即调用 `searcher.reindex()`：
 
 ```python
 batch = DebounceBatch(callback=searcher.reindex, config=DebounceConfig(
-    debounce_ms=500,    # 最后一个事件后500ms
-    max_batch_size=100, # 或积累100个文件时立即触发
+    debounce_ms=500,    # 最后一个事件后 500ms
+    max_batch_size=100, # 或在 100 个文件时立即刷新
     max_wait_ms=5000,   # 防止无限防抖
 ))
-await batch.add("file.py")  # BM25将在500ms后重建（或积累100个文件时）
+await batch.add("file.py")  # BM25 在 500ms 后（或在 100 个文件时）重建
 ```
 
-### 6.3 CircuitBreaker
+### 8.3 CircuitBreaker
 
 ```python
 cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0, name="lm_studio")
@@ -344,37 +420,38 @@ result = await cb.call(
     lambda: embedder.embed_batch(texts),
     fallback={"status": "fallback", "message": "LM Studio unavailable"}
 )
-# 状态：CLOSED → OPEN（5次失败）→ HALF_OPEN（30秒后）→ CLOSED（成功）
+# 状态：CLOSED → OPEN（5 次失败）→ HALF_OPEN（30 秒后）→ CLOSED（成功时）
 ```
 
 ---
 
-## 7. 数据流
+## 9. 数据流
 
 ```
 Zed AI Agent
     │
     ▼
-MCP Tool Call (e.g., search_code("find indexer"))
+MCP 工具调用（例如 search_code("find indexer")）
     │
     ▼
-error_boundary decorator
-    ├── 超时检查 (asyncio.wait_for)
-    ├── 速率限制检查 (SlidingWindowRateLimiter)
+error_boundary 装饰器
+    ├── 超时检查（asyncio.wait_for）
+    ├── 速率限制检查（SlidingWindowRateLimiter）
     └── 工具执行
             │
             ▼
     MCPTool.execute(**kwargs)
         │
-        ├── self.require_index()  → 如果为空则抛出 IndexNotReadyError
+        ├── self.require_index()  → 如果为空则 IndexNotReadyError
         ├── services.resolve(Searcher)
-        ├── searcher.search(query)
+        ├── engine.hybrid_search(query)
         │       │
         │       ▼
-        │   core/searcher.py
-        │       ├── BM25搜索（内存中TF-IDF）
-        │       ├── 向量搜索（LanceDB + ONNX E5-base，进程内）
-        │       └── RRF融合 + 重排序
+        │   core/search/engine.py
+        │       ├── BM25 搜索（内存 TF-IDF）
+        │       ├── 向量搜索（LanceDB + ONNX E5-small，进程内）
+        │       ├── FTS5 搜索（SQLite FTS5，trigram+porter）
+        │       └── 3 路 RRF 融合 + MMR 多样性
         │
         └── return {"status": "ok", "results": [...]}
                 │
@@ -382,88 +459,87 @@ error_boundary decorator
         error_boundary → {"status": "ok", ...latency_ms}
                 │
                 ▼
-        Zed Chat（格式化JSON响应）
-    ```
+        Zed Chat（格式化的 JSON 响应）
+```
 
-    ---
+---
 
-    ## 8. 元数据增强（v2.4.4+）
+## 10. Metadata Enrichment（v2.4.4+）
 
-    ### 8.1 语义指南针（MCompassRAG风格）
+### 10.1 Chunk Metadata
 
-    每个LanceDB中的块包含6个元数据字段，用于确定性
-    过滤和多粒度检索：
+每个存储在 LanceDB 中的块（chunk）包含 6 个元数据字段，用于确定性
+过滤和多粒度检索：
 
-    | 字段 | 类型 | 示例 | 用途 |
-    |------|------|------|------|
-    | `layer` | string | `"core"` | 架构层：core/mcp/utils/tests/... |
-    | `module_name` | string | `"core.parser"` | 从文件路径推导的模块逻辑名 |
-    | `hierarchy_level` | string | `"method"` | 层次：function/method/class/impl/lines |
-    | `is_public` | bool | `true` | 公开/私有（`_`前缀） |
-    | `symbol_type` | string | `"method_definition"` | AST节点类型 |
-    | `parent_id` | string | md5哈希 | 父元素的确定性哈希 |
+| 字段 | 类型 | 示例 | 用途 |
+|-------|------|---------|---------|
+| `layer` | string | `"core"` | 架构层：core/mcp/utils/tests/... |
+| `module_name` | string | `"core.parser"` | 从文件路径派生的逻辑模块名 |
+| `hierarchy_level` | string | `"method"` | 层级：function/method/class/impl/lines |
+| `is_public` | bool | `true` | 公开/私有（以 `_` 开头） |
+| `symbol_type` | string | `"method_definition"` | AST 节点类型 |
+| `parent_id` | string | md5 哈希 | 确定性父哈希 |
 
-    层检测 — 自动根据文件路径确定：
+层检测 — 自动，按文件路径：
 
-    | 路径 | layer |
-    |------|-------|
-    | `src/core/*` | `core` |
-    | `src/mcp/tools/*` | `mcp_tools` |
-    | `src/mcp/*` | `mcp` |
-    | `src/utils/*` | `utils` |
-    | `tests/*` | `tests` |
-    | `docs/*` | `docs` |
-    | `.agents/*` | `agents` |
-    | `scripts/*` | `scripts` |
-    | `.github/*` | `ci` |
-    | 其他 | `root` |
+| 路径 | layer |
+|------|-------|
+| `src/core/*` | `core` |
+| `src/mcp/tools/*` | `mcp_tools` |
+| `src/mcp/*` | `mcp` |
+| `src/utils/*` | `utils` |
+| `tests/*` | `tests` |
+| `docs/*` | `docs` |
+| `.agents/*` | `agents` |
+| `scripts/*` | `scripts` |
+| `.github/*` | `ci` |
+| 其他 | `root` |
 
-    ### 8.2 扁平树层次结构（SproutRAG风格）
+### 10.2 扁平树层次结构（SproutRAG 风格）
 
-    `parent_id` — 确定性md5哈希：
+`parent_id` — 确定性 md5 哈希：
 
-    - **对于方法：** `md5(file_path + "::" + class_name)` — parent = 类
-    - **对于函数：** `md5(file_path)` — parent = 模块
-    - **对于巨型函数的一部分：** `md5(file_path + "::" + symbol_name)` — parent = 函数
+- **对于方法：** `md5(file_path + "::" + class_name)` — 父级 = 类
+- **对于函数：** `md5(file_path)` — 父级 = 模块
+- **对于巨型函数部分：** `md5(file_path + "::" + symbol_name)` — 父级 = 函数
 
-    允许无需图数据库即可进行多粒度检索：
-    - 查找类的所有函数 → `get_chunks_by_parent_id("md5_hash")`
-    - 上溯到模块 → 按parent_id聚合
+无需图数据库即可实现多粒度检索：
+- 查找类的所有方法 → `get_chunks_by_parent_id("md5_hash")`
+- 向上导航到模块 → 按 parent_id 聚合
 
-    ### 8.3 search_code 中的层过滤
+### 10.3 search_code 中的层过滤
 
-    ```python
-    # 仅 core 层
-    search_code(query="DI container", filter_layer="core")
+```python
+# 仅核心层
+search_code(query="DI container", filter_layer="core")
 
-    # 仅 tests
-    search_code(query="test_parser", filter_layer="tests")
+# 仅测试
+search_code(query="test_parser", filter_layer="tests")
 
-    # 无过滤器（所有层，和之前一样）
-    search_code(query="parser")
-    ```
+# 无过滤（所有层，与之前一样）
+search_code(query="parser")
+```
 
-    过滤在LanceDB层面使用 `.where(prefilter=True)` — 向量
-    搜索只扫描目标层的块。BM25从metadata中按layer进行后过滤。
+层过滤在 LanceDB 级别通过 `.where(prefilter=True)` 工作 — 向量搜索仅搜索指定层的块（chunk）。BM25 从元数据中按层进行后过滤。
 
-    ---
+---
 
-    ## 9. Windows特定事项
+## 10. Windows 特定处理
 
-### 8.1 路径解析
+### 10.1 路径解析
 
-`PROJECT_PATH` 可能包含 `$ZED_WORKTREE_ROOT` 字面字符串（Zed在Windows上未解析环境变量）。
-解决方案：`resolve_project_root()` 检查7种回退策略：
+`PROJECT_PATH` 可能包含 `$ZED_WORKTREE_ROOT` 字面字符串（Zed 在 Windows 上未解析环境变量）。
+解决方案：`resolve_project_root()` 检查 7 种回退（fallback）策略：
 
 1. 提供的参数
-2. LSP→MCP桥接（来自知道 `root_uri` 的LSP的临时文件）
-3. `PROJECT_PATH` 环境变量（如果不是 `$ZED` 则解析）
-4. `ext_root` — 如果它是git仓库
+2. LSP→MCP 桥接器（bridge）（来自 LSP 的临时文件，后者知道 `root_uri`）
+3. `PROJECT_PATH` 环境变量（如果不是 `$ZED` 则已解析）
+4. 如果 `ext_root` 是 git 仓库
 5. `ZED_WORKTREE_ROOT` 环境变量
-6. CWD（来自Zed `settings.json`）
-7. `ext_root` 作为最终回退
+6. CWD（来自 Zed `settings.json`）
+7. `ext_root` 作为最终回退（fallback）
 
-### 8.2 Git子进程安全
+### 10.2 Git 子进程安全
 
 ```python
 env["GIT_TERMINAL_PROMPT"] = "0"    # 无交互式提示
@@ -472,29 +548,29 @@ env["GIT_PAGER"] = "cat"            # 无分页器
 creationflags = subprocess.CREATE_NO_WINDOW  # 无控制台窗口
 ```
 
-### 8.3 长路径支持
+### 10.3 长路径支持
 
-SafePathManager 对超过260个字符的路径使用 `to_win_long_path()`（添加 `\\?\` 前缀）。
+SafePathManager 对超过 260 个字符的路径使用 `to_win_long_path()`（在前面加上 `\\?\`）。
 
 ---
 
-## 9. 多窗口注册表（v2.3+）
+## 11. 多窗口注册表（v2.3+）
 
-v2.3+ 支持**在Zed中同时打开多个项目**。
-以前DI持有单例 `Indexer` — 切换窗口时状态会损坏
+v2.3+ 支持 **同时在 Zed 中打开多个项目**。
+以前 DI 持有一个单例 `Indexer` — 切换窗口时，状态会损坏
 （一个 `file_guard`，一个 `db_path`，共享的 `SymbolIndex`）。
 
-### 9.1 `ProjectIndexerRegistry`
+### 11.1 `ProjectIndexerRegistry`
 
-`src/core/project_indexer_registry.py` — 线程安全的 `Indexer` 注册表：
+`src/core/indexing/project_indexer_registry.py` — 线程安全的 `Indexer` 对象注册表：
 
 ```python
 registry = ProjectIndexerRegistry(
-    max_cached=5,                      # LRU限制（5个项目 = 1-2.5GB RAM）
+    max_cached=5,                      # LRU 限制（5 个项目 = 1-2.5GB RAM）
     resource_monitor=get_global_resource_monitor(),  # 自适应节流
 )
 
-# 按项目的懒加载工厂：
+# 每个项目通过工厂懒创建：
 def _create_indexer(p: Path) -> Indexer:
     return Indexer(
         db_path=_generate_unique_db_path(p),
@@ -507,27 +583,25 @@ services.add_singleton(IndexerFactoryKey, _create_indexer)
 indexer = registry.get_indexer(project_path, factory=_create_indexer)
 ```
 
-**保证:**
+**保证：**
 - **隔离性：** 每个窗口获得自己的 `FileGuard`/`SymbolIndex`/`db_path`。
-- **LRU：** 打开第6个项目时，最旧的 `Indexer` 被淘汰。
-- **压力驱逐：** RAM > 1GB 或 CPU > 85% 时 — 在创建新 `Indexer` **之前**
-  强制驱逐（防止OOM）。
-- **清理：** `_safe_close()` 清空 LanceDB 连接 + `gc.collect()`
-  （用于Windows mmap句柄）。
+- **LRU：** 当第 6 个项目打开时，最旧的 `Indexer` 被驱逐。
+- **压力驱逐：** 当 RAM > 1GB 或 CPU > 85% 时 — 在创建新的 `Indexer` **之前**强制驱逐（防止 OOM）。
+- **清理：** `_safe_close()` 重置 LanceDB 连接 + `gc.collect()`（用于 Windows mmap 句柄）。
 
-### 9.2 `ResourceMonitor`
+### 11.2 `ResourceMonitor`
 
-`src/core/resource_monitor.py` — 仅使用stdlib的监控（无 `psutil`）：
+`src/core/indexing/resource_monitor.py` — 仅使用标准库的监控（无 `psutil`）：
 
 | 平台 | 方法 |
-|------|------|
+|-----------|-------|
 | POSIX | `resource.getrusage(RUSAGE_SELF).ru_maxrss` |
 | Windows | `psapi.GetProcessMemoryInfo` 通过 `ctypes` |
 | CPU | `resource.getrusage` utime+stime 增量 / 挂钟时间 |
 
-**阈值:**
-- 软阈值：768MB / 75% CPU → 节流索引（文件间延迟0.1s）
-- 硬阈值：1024MB / 85% CPU → 强制驱逐 + 0.5-2s 延迟
+**阈值：**
+- 软阈值：768MB / 75% CPU → 节流索引（文件间延迟 0.1s）
+- 硬阈值：1024MB / 85% CPU → 压力驱逐 + 0.5-2s 延迟
 
 ```python
 monitor = get_global_resource_monitor()
@@ -535,12 +609,12 @@ snap = monitor.sample()  # ResourceSnapshot (rss_mb, cpu_percent, threads)
 
 if monitor.is_under_pressure():
     delay = monitor.suggest_throttle_delay_sec()
-    time.sleep(delay)  # 在 Indexer.index_project 的文件之间
+    time.sleep(delay)  # 在 Indexer.index_project 中文件之间
 ```
 
-### 9.3 LSP 按工作区 DI
+### 11.3 LSP 按工作区 DI
 
-`src/lsp_main.py` 存储**按工作区**的DI容器：
+`src/lsp_main.py` 存储 **按工作区** 的 DI 容器：
 
 ```python
 _services_per_workspace: dict[str, ServiceCollection] = {}
@@ -551,16 +625,15 @@ async def on_initialize(ls, params):
     ls._workspace_uri = params.root_uri
     ls._project_root = project_root
     init_components(project_root, workspace_uri=params.root_uri)
-    # → 为窗口创建隔离的DI容器
+    # → 为一个窗口创建隔离的 DI 容器
 ```
 
-LSP处理器（`did_open`/`did_change`/`did_save`/`did_close`/
-`didChangeWatchedFiles`）获取 `ls._workspace_uri` 并通过注册表
-解析正确的 `Indexer`。
+LSP 处理程序（`did_open`/`did_change`/`did_save`/`did_close`/
+`didChangeWatchedFiles`）接收 `ls._workspace_uri` 并通过注册表解析正确的 `Indexer`。
 
-### 9.4 MCP `resolve_indexer_for_request`
+### 11.4 MCP `resolve_indexer_for_request`
 
-`src/mcp/tools/base.py` — 获取按项目 Indexer 的单一入口：
+`src/mcp/tools/base.py` — 按项目 Indexer 的单一入口点：
 
 ```python
 def resolve_indexer_for_request(services, explicit_project_root=None):
@@ -574,13 +647,13 @@ class MCPTool:
         return resolve_indexer_for_request(self._services, project_root)
 ```
 
-**所有MCP工具** 应使用 `self.resolve_indexer(...)`
+**所有 MCP 工具** 必须使用 `self.resolve_indexer(...)`
 而不是 `self._services.resolve(Indexer)` — 后者不再有效
-（Indexer不是单例）。
+（Indexer 不是单例）。
 
-### 9.5 HealthReport `_check_resources`
+### 11.5 HealthReport `_check_resources`
 
-`src/core/health_report.py` — 添加了方法：
+`src/core/code_health.py` — 新增方法：
 
 ```python
 def _check_resources(self):
@@ -595,23 +668,23 @@ def _check_resources(self):
 
 ---
 
-## 10. 测试策略
+## 12. 测试策略
 
 ```
 tests/
-├── test_error_handler.py     # 18个测试 — ToolError, error_boundary
-├── test_rate_limiter.py      # 21个测试 — SlidingWindow, DebounceBatch, CircuitBreaker
-├── test_di_container.py      # 13个测试 — ServiceCollection, 15个服务
-├── test_resource_monitor.py  # 11个测试 — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
-├── test_parser.py            # 4个测试 — Tree-sitter解析
-├── test_execution_contract.py# 10个测试 — verify_action
-├── test_task_queue.py        # 6个测试 — 后台任务队列
-├── test_branch_aware_index.py# 8个测试 — get_branch_info
-├── test_symbol_index_call_graph.py  # 8个测试 — 调用图
-├── ...（另外20个测试文件）
+├── test_error_handler.py     # 18 个测试 — ToolError, error_boundary
+├── test_rate_limiter.py      # 21 个测试 — SlidingWindow, DebounceBatch, CircuitBreaker
+├── test_di_container.py      # 13 个测试 — ServiceCollection, 15 services
+├── test_resource_monitor.py  # 11 个测试 — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
+├── test_parser.py            # 4 个测试 — Tree-sitter 解析
+├── test_execution_contract.py# 10 个测试 — verify_action
+├── test_task_queue.py        # 6 个测试 — 后台任务队列
+├── test_branch_aware_index.py# 8 个测试 — get_branch_info
+├── test_symbol_index_call_graph.py  # 8 个测试 — 调用图
+├── ...（还有 20 多个测试文件）
 ```
 
-**总计：396个测试。**
+**总计：396 个测试。**
 
 运行：
 ```bash
@@ -623,33 +696,34 @@ pytest tests/ -m "not integration and not benchmark"
 ## 快速参考
 
 | 命令 | 描述 |
-|------|------|
-| `python -m src.main` | 运行MCP服务器（STDIO） |
+|---------|-------------|
+| `python -m src.main` | 运行 MCP 服务器（STDIO） |
 | `pytest tests/` | 运行所有测试 |
-| `pytest tests/test_di_container.py -v` | 仅运行DI容器测试 |
+| `pytest tests/test_di_container.py -v` | 仅运行 DI 容器测试 |
 | `python -c "from src.mcp.server import create_mcp_server; mcp = create_mcp_server()"` | 验证服务器加载 |
 
 ---
 
-## 11. 架构不变规则
+## 13. 架构不变规则
 
-这些规则在任何新PR中**不得**被违反。
+以下规则在任何新的 PR 中不得被违反。
 
 ```
-1. 工具不能直接访问 Registry。
-2. 工具不能直接读取 Bridge。
-3. 工具只能通过 RuntimeCoordinator 工作。
-4. RuntimeCoordinator 不知道 Search / Indexer / Memory。
+1. 工具不直接访问 Registry。
+2. 工具不直接读取 Bridge。
+3. 工具仅通过 RuntimeCoordinator 工作。
+4. RuntimeCoordinator 不了解 Search / Indexer / Memory。
 5. ProjectContext 是不可变快照（不启动操作）。
-6. 所有系统文件仅通过 SystemArtifacts 确定。
+6. 所有系统文件仅通过 SystemArtifacts 定义。
 7. 索引器从不索引系统工件。
-8. 任何项目路径都通过统一的 resolver（resolve_project_root）。
-9. 所有 Intel 工具使用 ProjectContext（而非低级API）。
-10. 任何新的运行时组件必须只有一个职责。
+8. 任何项目路径都通过单一解析器（resolve_project_root）。
+9. 所有 Intel 工具使用 ProjectContext（而非低级 API）。
+10. 任何新的运行时组件必须具有单一职责。
 11. 核心层没有 MCP 导入。
-12. 工具不创建依赖 — 所有依赖通过 DI。
-13. server.py 负责注册 — 不包含业务逻辑。
+12. 工具不创建依赖 — 一切通过 DI。
+13. server.py 仅注册 — 不包含业务逻辑。
 ```
 
-**代码审查检查点：** 任何PR必须回答「它扩展了哪个现有层？」。
-如果答案是「没有，我创建了新的 Manager/Services/Provider」— 这是需要停下来思考的信号。
+**代码审查检查：** 每个 PR 必须回答问题
+"此扩展属于哪个现有层？"。如果答案是"没有，我创建了一个
+新的 Manager/Services/Provider" — 这是停下来重新考虑的理由。

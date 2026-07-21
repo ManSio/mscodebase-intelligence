@@ -1,10 +1,10 @@
-# 搜索流水线 — 完整技术参考
+# 搜索流水线（pipeline）— 完整技术参考
 
 > **MSCodeBase Intelligence 的一部分** | v3.0.0
 
 ## 概述
 
-搜索流水线是 MSCodeBase 的核心。它结合了 **4 个检索阶段**来查找最相关的代码上下文。
+搜索流水线（pipeline）是 MSCodeBase 的核心。它结合了 **4 个检索阶段 + MultiSignalScorer** 来查找最相关的代码上下文。
 
 ```mermaid
 flowchart TD
@@ -26,9 +26,17 @@ flowchart TD
     BM25 --> RRF[RRF Fusion\nk=60]
     DENSE --> RRF
     
-    RRF --> BUCKET[Multi-Bucket RAG\nsoft weighting]
-    BUCKET --> CO[Co-change boost\ngit coupling]
-    CO --> GRAPH[Graph expand\ncallees from AST]
+    RRF --> MULTI[MultiSignalScorer v3.0]
+    MULTI --> BUCKET[Multi-Bucket RAG]
+    
+    subgraph MULTI[MultiSignalScorer — 4 signals]
+        API[api_signature\nJaccard symbol match]
+        DIFF[graph_diffusion\nPageRank centrality]
+        MOD[module_proximity\nhierarchy closeness]
+        CO2[cochange_boost\ngit coupling]
+    end
+    
+    BUCKET --> GRAPH[Graph expand\ncallees from AST]
     GRAPH --> RERANK[Cross-encoder\nbge-reranker-v2-m3]
     
     RERANK --> CUT[Cut to limit]
@@ -64,7 +72,7 @@ def expand_query(query: str, max_expansions: int = 3) -> list[str]:
 ### 2. BM25 搜索（稀疏）
 
 - **目的：** 精确关键词匹配 — 查找包含特定术语的代码
-- **索引：** 增量构建，基于 LanceDB 块，存储为 `Dict[doc_id, Dict[term, tf-idf]]`
+- **索引：** 增量构建，基于 LanceDB 块（chunk），存储为 `Dict[doc_id, Dict[term, tf-idf]]`
 - **更新：** DebounceBatch（500ms）在文件更改时，完全重建则在重新索引时
 - **性能：** O(log N) 每查询
 
@@ -85,8 +93,8 @@ flowchart LR
 ### 3. 稠密搜索（向量，LanceDB）
 
 - **目的：** 语义相似度 — 查找概念相关的代码
-- **模型：** `multilingual-e5-base`（intfloat，768 维）
-- **提供商：** ONNX INT8 进程内（主要）/ LM Studio（回退）
+- **模型：** `multilingual-e5-small-int8`（384 维）
+- **提供者（provider）：** ONNX INT8 进程内（主要）/ LM Studio（回退 fallback）
 - **索引：** 带 IVF-PQ 量化的 LanceDB v2
 
 ```python
@@ -106,13 +114,13 @@ async def dense_search(query_vector: list, limit: int) -> list:
 def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
     """Merge BM25 + dense results using RRF formula.
     
-    Ranks are counted separately for each channel (starting from 1),
-    as required by mathematically correct RRF.
+    Ранги считаются отдельно для каждого канала (начиная с 1),
+    как того требует математически корректная RRF.
     """
     scores = {}
     results_map = {}
     
-    # BM25 ranks (separate enumerate with start=1)
+    # BM25 ранги (отдельный enumerate с start=1)
     for rank, doc in enumerate(bm25, 1):
         key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
@@ -125,7 +133,7 @@ def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
         else:
             results_map[key]["bm25_score"] = 1.0 / (k + rank)
     
-    # Dense ranks (separate enumerate with start=1)
+    # Dense ранги (отдельный enumerate с start=1)
     for rank, doc in enumerate(dense, 1):
         key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
@@ -189,15 +197,15 @@ def apply_co_change_boost(chunks: list) -> list:
     return chunks
 ```
 
-### 7. 交叉编码器重排序
+### 7. 交叉编码器重排序（Cross-encoder Reranker）
 
 **模型：** `bge-reranker-v2-m3`（通过 LM Studio / Ollama）
 
-> **注意：** 重排序器可视化假设使用 LM Studio（GPU）。使用 ONNX Runtime 回退时，重排序器通过 ONNX Runtime（CPU）使用相同的 `bge-reranker-v2-m3` 模型，吞吐量降低。
+> **注意：** 重排序器（reranker）的可视化假设使用 LM Studio（GPU）。使用 ONNX Runtime 回退（fallback）时，重排序器通过 ONNX Runtime（CPU）使用相同的 `bge-reranker-v2-m3` 模型，吞吐量降低。
 
-- 独立评估每个（查询，块）对 — **比向量余弦更准确**
+- 独立评估每个（查询，块（chunk））对 — **比向量余弦更准确**
 - 仅对前 30 个候选进行重排序（由 `MAX_RERANKER_INPUT` 控制）
-- 如果 LM Studio 不可用，优雅回退
+- 如果 LM Studio 不可用，优雅降级
 
 ```python
 async def rerank(query: str, candidates: list, top_n: int = 5) -> list:
@@ -263,7 +271,7 @@ sequenceDiagram
 | RRF 融合 | <1ms | ~1350ms |
 | 桶加权 | <1ms | ~1350ms |
 | 协同变更提升 | ~50ms | ~1400ms |
-| 重排序器（5 个候选） | ~1200ms | ~2600ms |
+| 重排序器（reranker）（5 个候选） | ~1200ms | ~2600ms |
 | **总计（质量模式）** | **~5600ms** | |
 | **总计（快速模式，仅 BM25）** | **~2300ms** | |
 | **总计（深度模式，递归）** | **2-5s** | |

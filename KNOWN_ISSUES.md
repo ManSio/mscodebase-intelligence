@@ -479,3 +479,843 @@ error_boundary (как в meta_tools.py). Теперь доступны напр
 crash_debug.log, llama_reranker_stderr.log) — 738 ошибок убрано.
 
 **Status:** ✅ FIXED — требуется перезагрузка Zed для активации.
+
+## 2026-07-21 17:30 — АУДИТ ФИНАЛ: audit.md очищен от B1-B12 + эксперименты 553 passed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. **audit.md обновлён:** секция багов B1-B12 заменена на статус "✅ Все исправлены" с таблицей фиксов
+2. **Эксперименты проведены:** 5 экспериментов по валидации всех B1-B12
+   - Expe...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-21 17:00 — ФИНАЛ: verify_diary 89% + B10/B11 closed + SymbolCache MCP tools + 3 commits push
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. **SymbolCache расширен:** парсинг `tool_name="..."` для class-based MCP tools (graph_query, get_symbol_info, codebase, git и др.)
+2. **Stdlib stoplist дополнен:** `tool`, `warning`...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-21 08:30 — СЕССИЯ ЗАКРЫТА: audit полный цикл + internet research + финал
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Итог сессии:**
+
+| Этап | Задача | Статус |
+|------|--------|--------|
+| 1 | 12 багов B1-B12 из experiments/audit.md | ✅ Исправлено |
+| 2 | 10 pre-existing test failures | ✅ 541 passed, 0 failed |
+| ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-21 07:55 — Чистка корня репозитория (audit recommendation)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+
+| Действие | Файл | Результат |
+|----------|------|-----------|
+| 🗑️ Удалён | `nul`, `results.sarif`, `temp_settings.json`, `zed_settings.json` | Stale артефакты |
+| 🗑️ Удалён | `cra...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-21 00:30 — AUDIT FIX: 12 замечаний из experiments/audit.md (B1-B12)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Источник:** `experiments/audit.md` — полный разбор + сравнение с аналогами.
+
+**Что сделано (по приоритетам):**
+
+### 🔴 CRITICAL / HIGH (B1-B4) — runtime-баги
+
+| # | Файл | Суть | Фикс |
+|---|------|-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-20 19:55 — АРХИТЕКТУРА MCP: ДВА связанных процесса + ROOT CAUSE `Not found`
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **ВАЖНО (зафиксировано от пользователя, больше не путать!):**
+MCP запускается КАК ДВА связанных процесса (parent-child), оба пишут в ОДНУ LanceDB:
+1. `C:\Users\misha\AppData\Local\Zed\extensions\mscod...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-20 18:20 — FTS5 visibility: маркер source + fast-mode integration
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Проблема (от пользователя):** FTS5 работает, но в выдаче `search_code` не видно,
+что результат от FTS5. И вообще — что ещё не до конца подключено?
+
+**Что нашёл:**
+1. `format_search_code` НЕ выводил ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-20 22:45 — Системный фикс: 3 бага (lsp_main, get_logs, contradiction ledger) + архитектурная диагностика
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Контекст:** Пользователь перезагрузил MCP, потребовал полную диагностику по протоколу А-Б-В
+после жалоб на `search_code` таймауты, `get_logs` пустоту и невидимость FTS5.
+
+**Проверка инструментов (А→...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-20 18:05 — notify_change: root cause таймаута (blocking event loop)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** `notify_change` возвращал «Context server request timeout»; при
+повторных вызовах весь MCP переставал отвечать даже на `debug_runtime_passport`.
+
+**Root Cause (§5.16 / async):** `NotifyCh...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 23:00 — verify_diary.py: Ledger-проверка diary ↔ reality (DEV EXP.md §9)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:** Расширен `scripts/verify_diary.py` — добавлена §7.7 проверка
+(`verified_from_clean_state`), `--interactive` и `--fix-missing` CLI флаги.
+
+**Результат首次 запуска на реальном diary (3491...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-19 21:30 — Variant B: 5 MCP tools as standalone @mcp.tool() (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:** Зарегистрировал 5 инструментов как самостоятельные `@mcp.tool()`
+в `src/mcp/server_tools.py` (`_register_inline_tools`), помимо существующих
+hub-мета-инструментов (`index`/`system`/`w...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-19 22:10 — zed_config.py: безопасная перезапись (merge-only)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Проблема (до):** `patch_zed_settings` делал `json.loads` после срезки `//`
+комментов. При trailing comma / `/* */` блоке (валидный JSONC в Zed) парсер
+падал → `settings = {}` → **полная перезапись ф...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-19 22:25 — Docs: обновлены под zed_config.py safe-merge
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:** проверил docs на старые/неверные пути конфигурации.
+- `extensions/installed/...`, `ZED_CONFIG_DIR`, `~/Library/Application Support/Zed`
+  (как неверный), `~/.zed` — в docs НЕ найдены ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-19 22:40 — LLAMA_CPP_ENABLED toggle + is_compatible fix
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Контекст:** пользователь сказал llama.cpp embedder «пока отключён» —
+нужен тумблер по протоколу §2 (Tumbler). Попутно нашёлся баг: `is_compatible`
+импортировался из `llama_runner.py`, хотя определён...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 19:10 — Contamination check rewrite + verified_from_clean_state
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** Старый contamination-check сравнивал intra-thread (разные темы) vs
+cross-thread (одна тема с разным префиксом) — измерял тематическое сходство,
+а не контаминацию. Порог 0.5→0.98 был подго...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 17:30 — AsyncInferQueue race condition: фикс + тест на смешение векторов
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** Claude-аудит нашёл новую гонку в AsyncInferQueue (коммит e34d5e1):
+`self._ov_results` — общий dict на весь процесс, concurrent embed_batch() перезаписывают
+вектора друг друга. Не нули (sh...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 17:00 — Architecture Review: все 8 проблем закрыты
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Коммиты (по протоколу, каждый шаг — отдельный):**
+
+| Коммит    | Проблема            | Что сделано                                                            |
+| --------- | ------------------- | --...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 16:30 — Architecture Review: 8 проблем от Claude-аудита
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** Claude-аудит выявил 8 проблем (3 P0, 3 P1, 2 P2).
+
+**Что сделано:**
+
+| P   | Проблема                                                                    | Коммит  | Статус   |
+| --- | ---...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 16:00 — ГЛУБОКИЙ АУДИТ: каждая строка README через grep (итерация 2)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** После первого аудита остались ошибки: Project Structure (12 багов),
+3 пропущенных tools, 3 бага в Documentation Map, переводы ru/zh рассинхронизированы.
+
+**Что сделано (5 параллельных ауд...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 15:30 — ПОЛНЫЙ АУДИТ ДОКУМЕНТАЦИИ И МЁРТВОГО КОДА
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** Документация ушла от реальности — числа инструментов, имена классов, env-переменные. Мёртвый код ~2000+ строк.
+
+**Аудит (4 параллельных агента):**
+
+1. docs/ (~59 файлов): 2 критических ра...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-18 15:00 — ПОЛНЫЙ АУДИТ: рассинхрон install/docs vs runtime
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** После перескачивания `main` обнаружено, что финальный отчёт предыдущей сессии не совпадает с реальным состоянием кода.
+
+**Найдено 5 проблем:**
+
+1. **Пул InferRequest отсутствует** — заявл...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-17 23:00 — СЕССИЯ ЗАКРЫТА: Explainability + IMPORTS + Drift Detector
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано за сессию (5.5ч):**
+
+1. **R&D**: Исследовано 35+ файлов, 5 прототипов, сравнение с 15 внешними инструментами
+2. **Explainability Layer**: SearchTracer + ChunkTrace (357 строк). `search_c...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-17 20:00 — SWITCH TO multilingual-e5-small-int8 + batch optimization
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** После исправления INT8 модели (cos=1.0) скорость оставалась 18 ch/s,
+хотя бенчмарки small INT8 показывали 41-52 ch/s.
+
+**Root Cause:**
+
+1. `indexer.py` `_BATCH_SIZE=64` — неоптимально для...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-17 19:00 — FULL INVESTIGATION: INT8 broken vocab, requantization, cleanup
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** search_code(mode=fast) возвращал мусор. INT8 модель не совпадала с FP32 (cos≈0).
+
+**Root Cause:** `e5-base-v2-int8/model_quantized.onnx` был сквантизирован ИЗ НЕВЕРНОЙ БАЗОВОЙ МОДЕЛИ:
+
+- ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-16 21:50 — Fix: MCP server crash при старте (path с \n)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** MCP-сервер падал через 2 сек после запуска, 120MB RAM
+
+**Root Cause:** В SQLite БД Zed поле `paths` содержит 2 пути через `\n`:
+
+- `C:\Users\misha\Downloads\Project Remaining Tasks Review...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-16 22:00 — Fix llama_runner.py: 8 bare except
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** #2 hotspot — 10 bugs (score 0.50)
+
+**Что сделано:**
+
+- **8 bare except** — `logger.warning("exception", exc_info=True)` заменены на
+  контекстные сообщения (`f"stop kill: {_e}"`, `f"JobOb...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-16 22:15 — Fix intelligence/layer.py: 15 bare except + architecture test
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** #3 hotspot — 9 bugs (score 0.50)
+
+**Что сделано:**
+
+- **15 bare except** — `logger.warning("Exception suppressed at layer.py")` заменены на
+  контекстные `f"Exception suppressed at layer....
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-16 21:45 — Операция «Чистка remote_embedder.py»: 12 багов
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** `remote_embedder.py` — #1 hotspot с 13 bugs (score 0.50).
+
+### Найденные баги
+
+#### 🔴 Race Conditions (2 шт) — mode без _mode_lock
+
+1. `_init_onnx` L664: `self.mode = "fallback"` без блок...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-16 21:15 — Фаза 2 завершена: Группировка Graph-тулов
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+
+### 1. graph_query → единый мультиплексированный инструмент
+
+Смержены 4 тула в один `graph_query(action=...)`:
+
+| Было                                | Стало                         ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-14 22:42 — Архитектурный аудит MCP vs IDE-Native + фикс bare except
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+
+### 1. Сравнительный аудит MCP vs IDE-Native
+
+- Запущен **двойной аудит**: Агент A (MCP) vs Агент B (grep/read_file/terminal)
+- Замерены тайминги 8 операций, RAM, качество, полнота о...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-14 22:00 — FINAL: intel_auto_collect_adrs + MMR + Auto Intent + Synonyms
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+
+### 1. intel_auto_collect_adrs — больше НИКОГДА не упадёт
+
+- **subprocess полностью удалён.** Читаем `.git/logs/HEAD` + `.git/objects/X/XXXXX` через `open()` + `zlib.decompress()`.
+-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-14 18:40 — Fix intel_auto_collect_adrs: UnicodeDecodeError на русской Windows
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** `intel_auto_collect_adrs` падал с "Context server request timeout"
+при каждом вызове. HEAD-фикс (asyncio.to_thread) не помогал.
+
+**Root Cause:** `subprocess.run(..., text=True)` на русско...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 02:30 — Post-Mortem: FP32-priority regression + INT8 revert
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** После коммита `e7c61dc` скорость эмбеддинга упала с ~350 до ~9 ch/s.
+`search_code(mode='fast')` возвращал `extension.toml`/`lsp_client.py` (score 0.0).
+
+**Root Cause (первопричина):** Я (...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 19:30 — Fix: MAX_CHUNK_CHARS 2000→1800 + truncation logging + move experiment
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** E5-base имеет лимит 512 токенов, но `MAX_CHUNK_CHARS = 2000` позволяет чанкам до ~650 токенов. Также: обрезка чанков происходит молча (без логирования), и экспериментальный файл лежит в п...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 18:00 — Fix OPTIONAL MATCH silent data corruption + IS NULL bug + 47 tests
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** v3.2.0 Cypher Engine имеет 3 критических бага:
+
+1. `OPTIONAL MATCH` полностью игнорируется в `translate()` — SQL генерирует только INNER JOIN, теряя данные
+2. `WHERE v IS NULL/IS NOT NULL...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 23:40 — Close All Open Items: stale docs fix + async ADR + index recovery + terminal diagnosis
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** После docs-sync сессии (21:40) остались 4 открытых пункта:
+
+1. MCP index 0 chunks (не подтверждён живой рантайм)
+2. `intel_auto_collect_adrs` таймаут (blocking subprocess in async)
+3. Sta...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 20:00 — Fix: symbol_index_count 0 vs 3197 (timing race)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** `intel_get_runtime_status` показывал `symbol_index_count: 0`, а `get_health_report` — `symbols: 3197` для одного проекта. Рассинхрон диагностики.
+
+**Root Cause:** `_resolve_symbol_count()...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 19:55 — Fix: Watchdog "56 лет простоя" ложная critical при idle
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** `indexer.py:84` инициализировал `_watchdog_heartbeat = 0.0` (эпоха Unix 1970).
+При idle `watchdog_status()` считал `age = time.time() - 0.0 ≈ 1.7e9 сек ≈ 56 лет`
+→ `alive=False` → health_...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 — Producer-Consumer indexing + contextual chunks + thread safety
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+1. Индексация в 1 поток — 16% CPU, ~8 чанков/с (было 16.6%)
+2. Hardcoded 1024-dim в schema/padding — при E5-base (768) тихо ломал поиск
+3. Shared state без блокировок — race condition пр...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 — Post-migration hardening: 3 bug fixes + docs sync
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** После миграции на E5-base ONNX:
+
+1. Reranker статус всегда 🔴 offline — баг `_find_pid()` (UnicodeDecodeError в netstat -ano)
+2. E5 prefix double-adding при повторном вызове
+3. Hardcoded п...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 — Великий Рефакторинг: BGE-M3 → E5-base ONNX
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** BGE-M3 через llama-server: нестабилен, 2 процесса, 18 i/s, 285 MB + VRAM.
+E5-base ONNX: 265 MB CPU, 360 i/s, стабилен, 0 VRAM.
+
+**Solution:**
+
+1. Скачан E5-base ONNX INT8 (265 MB) из Hugg...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-13 — Session Close: Full audit, hardening, demo
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Сессия закрытия — проверено всё от установщика до финального коммита.
+
+**Summary (3 commits, 32 files changed):**
+
+**Commit 1** (`f0c4f09`):
+
+- New MCP tool `get_variable_flow(name, scope...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 23:00 — Threads.db Research + edit_prediction 403 verdict
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Исследовать threads.db (39MB) для долговременной памяти и ошибку edit_prediction 403
+
+**Findings:**
+
+### threads.db — формат полностью расшифрован
+
+- SQLite: `CREATE TABLE threads (id, su...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 22:30 — Docs: Synchronize ALL docs for v3.0 (write tools, LSP, meta-patching)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** 10 documentation files out of sync after Phases 1-3, P0 meta-patching, and bug fix.
+
+**Solution:** Updated all 10 files:
+
+- README.md (en/ru/zh): 50→56 tools, added Write Tools section/ta...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 17:30 — Fix: 3 production bugs (commit 48c2b28)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Stale indexer reference, fd leak in llama_runner, lazy Path imports.
+
+**Solution:**
+
+- `_resolve_active_indexer` — `registry.get_indexer(target)` с нормализованным путём
+- `llama_runner.p...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 14:30 — Docs: Перевод 3 документов en → zh
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Нужно перевести 3 файла документации с английского/русского на китайский язык.
+
+**Solution:**
+
+- `docs/en/CONTRIBUTING.md` → `docs/zh/CONTRIBUTING.md` — перевод правил для контрибьюторов
+...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 09:30 — Investigation: Почему ZED упал — Root Cause Analysis (OOM)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Zed Editor периодически падает (crash/restart). Пользователь запросил расследование.
+
+**Investigation Findings:**
+
+1. **Primary cause: OOM (Out of Memory)** — память Zed неоднократно дост...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 12:00 — Fix: документация испорчена — 7 проблем на главной странице
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- `docs/KNOWN_ISSUES.md` не существовал — битая ссылка на главной странице и в переводах
+- `intel_execution_timeline()` дублировалась в Intel Layer (14) и Diagnostic (3)
+- В перечислении...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 17:00 — Close all open items: remove Rust/WASM, clean KNOWN_ISSUES.md
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** все открытые пункты из KNOWN_ISSUES.md требовали закрытия.
+
+**Solution:**
+
+- Rust/WASM draft: директория extension/ удалена, комменты из extension.toml убраны
+- LSP WONTFIX: убран из KNOW...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 12:15 — Hotfix: README.md был на русском вместо английского
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- Корневой README.md был перезаписан русским текстом в коммите v2.7.1 (bd46143)
+- Клик по "🇬🇧 English" вёл на тот же русский файл (самоссылка)
+- Русский язык в секциях: Quick Start, Trou...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 08:00 — Docs: синхронизированы китайские переводы (9 файлов)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- docs/zh/* (14 файлов) отставали от en-версий
+- ARCHITECTURE.md: v2.4.4 вместо v2.7.0
+- HANDFOFF.md: ~1600 chunks, LM Studio primary вместо llama.cpp
+- CHANGELOG.md: без v2.7.1+
+- FAQ.m...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 10:15 — Fix: get_status показывал 1 files | 1 symbols вместо реальных
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- `get_index_status()` показывал Files: 1 при реальных 170+ файлах
+- `intel_get_runtime_status()` показывал Symbols: 1 (читал total_files вместо symbol_index_count)
+
+**Root cause:**
+
+1. ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 02:30 — Docs audit: 7 файлов исправлено, 28 отмечено в KNOWNS_ISSUES.md
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- Claude review выявил расхождения docs vs code
+- HANDFOFF: "~1600 chunks" — актуально ~3000
+- ARCHITECTURE: версия 2.4.4 — актуально 2.7.0
+- GRACEFUL_DEGRADATION: нет llama.cpp (4 уровн...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 02:15 — Fix: Полный аудит документации (61 файл)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- Claude review выявил расхождения docs vs code
+- HANDFOFF: "~1600 chunks" — актуально ~3000
+- ARCHITECTURE: версия 2.4.4 — актуально 2.7.0
+- GRACEFUL_DEGRADATION: нет llama.cpp (4 уровн...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 01:45 — Fix: SQL ORDER BY + RRF docs → KNOWNS_ISSUES.md
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- Claude review нашел 2 бага: SQL query без ORDER BY (multi-window race), RRF псевдокод с неверным enumerate
+- 61 markdown-файл документации — часть не синхронизирована с кодом
+
+**Soluti...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 23:55 — Fix: Insider CRT API Set — патч PE-импортов api-ms-win-crt → ucrtbase
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+На Windows Insider (build >= 26000, niki_v2) Microsoft удалила виртуальные
+API Set DLL (api-ms-win-crt-*). Все MSVC-сборки llama.cpp (включая Vulkan
+Clang build, где llama-server-impl.dll...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 23:40 — Fix: Windows Insider → Vulkan/Clang сборка (статический CRT)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+Даже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал
+с STATUS_DLL_NOT_FOUND. MSVC-сборка требует CRT API Set, которых нет на Insider.
+
+**Root cause:**
+На Windows Insider ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 23:15 — Fix: llama.cpp не синхронизируется в папку расширения Zed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+`step_llama()` и `step_gguf()` в install.py скачивают бинарник и GGUF модели
+в `_get_ext_dir()` (= PROJECT_ROOT), но НЕ копируют их в ZED_EXT_DIR.
+MCP-сервер запускается из папки расширен...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 22:58 — Fix: llama.cpp не стартует на Windows Insider (STATUS_DLL_NOT_FOUND)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+После загрузки MCP-сервера llama.cpp процессы (embed + reranker) не запускались.
+`embedder_mode: unknown`, `embedder_available: ✗`.
+В логах: `llama.cpp не найден за 30с`.
+
+**Root cause:**...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 15:50 — Final Stress Test: All 33 tools verified, Qwen3 + BGE-M3 confirmed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Финальная верификация производительности и стабильности MCP-сервера
+после перехода на Qwen3-Embedding (ctx=1024) + BGE-M3 reranker через llama.cpp.
+
+**Results (7 search_code calls, 0 erro...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-10 08:20 — Fix: Critical race condition in llama_cpp embed_batch + intel_get_runtime_status
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** `embed_batch` всегда возвращал нулевые векторы в режиме `llama_cpp`.
+`intel_get_runtime_status` показывал `onnx` даже когда llama.cpp работал.
+
+**Root Cause:**
+
+1. `remote_embedder.py:651...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-09 21:20 — Feature: Добавлен IVF_PQ индекс в LanceDB для ускорения поиска
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Поиск по векторным индексам работает O(N) — полный перебор всех чанков.
+
+**Solution:**
+
+- Добавлен шаг 4 в `index_project()`: создание IVF_PQ индекса после завершения индексации
+- Индекс ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-09 23:30 — install.py: Qwen3 добавлен, resume баг починен
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** install.py качал BGE-M3 вместо Qwen3.
+hf_hub_download(resume=True) не работает с huggingface_hub v1.20.1.
+
+**Fix:**
+
+- install.py step_gguf: qwen3-embedding → bge-m3 → reranker (приоритет...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-09 21:00 — Investigation: Полный аудит MCP, RAM, llama.cpp, Zed 1.10.0
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Комплексный запрос пользователя:
+
+1. Проверить все MCP инструменты (таймауты)
+2. Почему RAM выросла с 300MB до 1GB+
+3. Вернуть reranking
+4. Проанализировать Zed 1.10.0
+5. Почему не работа...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-08 23:00 — Fix: ONNX model paths, shared cache, installer reliability
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Models existed at PROJECT_ROOT (543+544 MB) but were NOT copied to
+ZED_EXT_DIR where MCP server searches for them. Embedder and reranker had no
+fallback paths. Installer step_models didn'...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-07 23:45 — Fix: B1/B2/B3 peripheral bugs from forensic log analysis
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Анализ 16k строк логов выявил 3 редких бага:
+
+- B1: `UnboundLocalError: raw` в SearchCodeTool (raw не assigned в deep/context/ask/auto)
+- B2: `TypeError: object of type 'int' has no len()...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-07 22:00 — Fix: paranoid audit of search engine v2.6.0
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** Проведён комплексный аудит поискового движка после ввода
+Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые баги,
+которые 391 юнит-тест не ловили.
+
+**Critical bugs found:**
+
+1. ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-06 23:00 — Refactor: Полный pipeline реранкинга + телеметрия + memory safety
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:**
+
+- Реренкер вызывал LLM или embedding, не в цепочке
+- LM Studio перезагрузка не отслеживалась
+- Нет per-stage замеров времени
+- Телеметрия не видела какая модель использовалась
+
+**Solutio...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-06 19:00 — Fix: Translate Russian _() templates to English in search_tools.py and analysis_tools.py
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Problem:** `_(f"...")` pattern (f-string inside i18n) and Russian text in `_()` template strings — defeats i18n purpose.
+
+**Solution:**
+
+- `search_tools.py`: 8 calls fixed — translated templates to ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-05 — UI Formatter: единый стиль вывода
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** Все 43 MCP-инструмента переведены на единый Markdown-формат через `ui_formatter.py`.
+
+- Убран сырой JSON из intel_* инструментов
+- Убран JSON-блок из `_format_success_response`
+- `debug_runtime_passpo...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-05 — DebounceBatch deadlock (критический баг)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Проблема:** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.
+**Причина:** `await self._flush()` вызывался внутри `threading.Lock`.
+`threading.Lock` не reentrant — второй захват блокир...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-05 — Определение проекта на Windows (ключевое открытие)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** `ZED_WORKTREE_ROOT` и `current_dir` не работают на Windows (баг Zed #36019).
+**Решение:** читать `active_workspace_id` из SQLite `scoped_kv_store`.
+Приоритет 0 в `resolve_project_root()`. Работает на ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-05 — LSP расследование (WONTFIX)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** Исследованы исходники Zed, найдена первопричина: `mscodebase-lsp` не регистрируется
+в `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать
+новый LSP — только override пути для ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-04 — Аудит и чистка проекта
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** - Найдено 19 архитектурных проблем (2 critical, 8 high, 7 medium, 1 low + 7 architectural)
+- Удалено 6 позиций мусора: hybrid_server.py, backup-файлы, пустые директории
+- Обновлены Skills в `.agents/s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-19 23:25 — LLAMA_CPP_ENABLED=true + reranker online
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:** включён llama.cpp reranker (`bge-reranker-v2-m3`) через тумблер `LLAMA_CPP_ENABLED=true` (в `.env`).
+- Порт 8081 (reranker) теперь поднимается при старте MCP.
+- Модель `models/Bge-M3-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-20 22:30 — PID-lock + self-healing + auto-index guard (Plane A→B complete)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. **IndexProjectRunner** — полный рефакторинг:
+   - Удалён дублирующийся lock (db_manager уже имеет PID-lock)
+   - Добавлен `db_manager` parameter для доступа к write lock / reset_co...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-21 00:15 — ADR auto-collect on startup + log cleanup
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Симптом:** `intel_get_project_memory()` возвращал пустой результат на старте,
+хотя в git-логе есть архитектурные решения. Логи содержали 738 ошибок.
+
+**Root Cause:**
+1. `intel_auto_collect_adrs` ник...
+- **Статус:** автоматически синхронизировано
+

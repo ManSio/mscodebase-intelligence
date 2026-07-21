@@ -571,7 +571,7 @@
 - **`search_code`** 输出以 `📂 Project: <path>` 开头。
 - **`index_project_dir`** 输出末尾包含 `📂 Project: <path>`。
 - **`notify_change`** 输出在更新后包含 `📂 Project: <path>`。
-- **`get_index_status`** 输出以 `📂 Project: <path>` 开头。
+- **`intel_get_runtime_status`** 输出以 `📂 Project: <path>` 开头。
 - **`index_health`** 输出在JSON响应中包含 `project_path`、`db_path`、
   `total_chunks`。
 

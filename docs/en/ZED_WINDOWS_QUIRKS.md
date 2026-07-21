@@ -97,7 +97,7 @@ The MCP server determines the current project in the following order:
 
 **Problem:** All MCP tools (except `intel_*`) work with **a single project** —
 the one that `resolve_project_root()` selected as default. If you have several
-windows open with different projects, `get_index_status()` will show the default project's index,
+windows open with different projects, `intel_get_runtime_status()` will show the default project's index,
 not the window you're currently in.
 
 **Why:** The MCP server is a single process for all Zed windows.
@@ -107,7 +107,7 @@ on Windows it's always `<unset>`.
 
 **Workaround:**
 - For `intel_*` tools: they find the first non-self-indexing project on their own
-- For `get_index_status`: close extra windows, keep only the desired project
+- For `intel_get_runtime_status`: close extra windows, keep only the desired project
 - For `search_code`: pass an explicit `project_root` (if the tool supports it)
 
 ---
@@ -247,7 +247,7 @@ This strips UNC prefixes.
 |---------|---------|---------|
 | MCP doesn't know the project | Logs: `resolve_project_root: fallback to ext_root` | `intel_get_runtime_status` |
 | LSP doesn't start | Logs: `BRIDGE: NO JSON FILES` | See "LSP doesn't start in Zed 1.9.0" section below |
-| Index is empty | Status: 0 chunks | `get_index_status` |
+| Index is empty | Status: 0 chunks | `intel_get_runtime_status` |
 | Tools not ready | Status: UNINITIALIZED | Open a file in the project |
 | Database is locked | Logs: `database is locked` | Close other windows with the project |
 
