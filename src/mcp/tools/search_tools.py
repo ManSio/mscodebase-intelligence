@@ -179,6 +179,44 @@ def _is_complex_query(query: str) -> bool:
 # ══════════════════════════════════════════════════════════
 
 
+def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
+    """Fallback to grep when index is empty/corrupted."""
+    import pathlib as _pl
+    import os as _os
+    
+    root = _pl.Path(__file__).resolve().parent.parent.parent.parent
+    results = []
+    
+    try:
+        for ext in ("*.py", "*.md", "*.txt", "*.js", "*.ts"):
+            for f in root.rglob(ext):
+                # Skip .git, __pycache__, node_modules
+                parts = f.parts
+                if any(p.startswith(".") or p == "__pycache__" or p == "node_modules" for p in parts):
+                    continue
+                try:
+                    text = f.read_text(encoding="utf-8", errors="ignore")
+                    for i, line in enumerate(text.split("\n"), 1):
+                        if query.lower() in line.lower():
+                            rel = f.relative_to(root)
+                            results.append(f"{rel}:{i}: {line.strip()[:80]}")
+                            if len(results) >= 20:
+                                break
+                except Exception:
+                    continue
+                if len(results) >= 20:
+                    break
+            if len(results) >= 20:
+                break
+        
+        if results:
+            formatted = "\n".join(f"  {r}" for r in results)
+            return f"\n🔍 **Grep fallback** (index empty/corrupted, {len(results)} results):\n{formatted}"
+        return ""
+    except Exception:
+        return ""
+
+
 class SearchCodeTool(MCPTool):
     """search_code — семантический поиск по коду (vector + BM25 + agentic)."""
 
@@ -361,6 +399,14 @@ class SearchCodeTool(MCPTool):
                 )
 
         # Обогащаем телеметрию
+        # Grep fallback when index is empty/corrupted
+        if results_count == 0:
+            grep_results = _grep_fallback(query, filter_layer)
+            if grep_results:
+                result_str = stale_banner + project_header + "\n" + grep_results
+                results_count = 1
+                mode = "grep_fallback"
+
         confidence = 0.85 if results_count > 0 else 0.3
         detail = f"{results_count} results, mode={mode}"
         if filter_layer:
