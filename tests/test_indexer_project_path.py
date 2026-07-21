@@ -12,7 +12,8 @@ from unittest.mock import MagicMock
 import pytest
 
 _TEST_DIM = 768
-_vec = lambda: [0.1] * _TEST_DIM
+def _vec():
+    return [0.1] * _TEST_DIM
 
 
 def _make_indexer(project_path):

@@ -5,8 +5,8 @@
 (AGENTS.md: видимость FTS5). Раньше metadata.source терялся при
 конвертации в ui_items -> маркер не показывался.
 """
-from src.utils.ui_formatter import format_search_code
 from src.mcp.tools.search_tools import SearchCodeTool
+from src.utils.ui_formatter import format_search_code
 
 
 def _ui_items_with_sources():

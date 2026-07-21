@@ -16,10 +16,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set
 
 import httpx
 
@@ -270,7 +269,7 @@ Return empty list if no issues found.
                     data = r.json()
                     content = (data.get("choices", [{}])[0].get("message", {}).get("content", "")
                                or data.get("message", {}).get("content", ""))
-                    
+
                     # Парсим JSON из ответа
                     try:
                         # Ищем JSON в ответе
@@ -303,10 +302,10 @@ Return empty list if no issues found.
 
         for section in sections:
             # Проверяем числовые утверждения
-            for m in re.finditer(r'(\d+)\s+(tool|file|module|function|class)', 
+            for m in re.finditer(r'(\d+)\s+(tool|file|module|function|class)',
                                 section.content, re.IGNORECASE):
-                claimed_num = int(m.group(1))
-                context = section.content[max(0, m.start()-50):m.end()+50]
+                int(m.group(1))
+                section.content[max(0, m.start()-50):m.end()+50]
                 discrepancies.append(LLMDiscrepancy(
                     file=section.file,
                     section=section.title,

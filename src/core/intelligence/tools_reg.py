@@ -227,6 +227,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
         # Парсим прогресс чанков из последнего embed лога
         try:
             import re
+
             from src.core.log_manager import get_main_log_path
             _log_path = get_main_log_path()
             if _log_path.exists():

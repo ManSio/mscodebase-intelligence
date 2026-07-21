@@ -10,7 +10,6 @@ Fix: each embed_batch() uses a local dict passed via userdata=(index, dict),
 so concurrent calls are fully isolated.
 """
 
-import asyncio
 import threading
 import time
 from unittest.mock import MagicMock, patch

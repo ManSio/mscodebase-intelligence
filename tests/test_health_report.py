@@ -4,7 +4,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -302,7 +302,7 @@ class TestExecutionContract:
             result = report.run_full_diagnostic()
 
             # Должно быть предупреждение о git
-            git_warnings = [w for w in result["warnings"] if w.get("component") == "execution_contract"]
+            [w for w in result["warnings"] if w.get("component") == "execution_contract"]
             # Git может быть не инициализирован — это OK
             assert isinstance(result, dict)
 

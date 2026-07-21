@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import logging
 import re
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -218,12 +217,12 @@ class DocSyncEngine:
             lines.append("")
             lines.append("🤖 Needs LLM (can't auto-fix):")
             llm_actions = [a for a in report.actions if not a.auto_applied and a.reason == "broken_ref"]
-            
+
             # Группируем по файлам
             by_file: Dict[str, List[SyncAction]] = {}
             for a in llm_actions:
                 by_file.setdefault(a.file, []).append(a)
-            
+
             for file_path, actions in sorted(by_file.items()):
                 refs = ", ".join(f"`{a.old_text}`" for a in actions[:10])
                 if len(actions) > 10:

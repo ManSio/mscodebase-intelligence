@@ -16,7 +16,6 @@
 import ast
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent.parent
@@ -54,14 +53,14 @@ class TestSystemArtifactsLayer:
 
 class TestProjectResolutionLayer:
     def test_project_root_resolves(self):
-        from src.mcp.server import resolve_project_root, reset_project_root_cache
+        from src.mcp.server import reset_project_root_cache, resolve_project_root
         reset_project_root_cache()
         pr = resolve_project_root()
         assert pr is not None
         assert pr.exists()
 
     def test_registry_creates_indexer(self):
-        from src.core.di_container import create_service_collection, IndexerFactoryKey
+        from src.core.di_container import IndexerFactoryKey, create_service_collection
         services = create_service_collection(_HERE)
         factory = services.resolve(IndexerFactoryKey)
         indexer = factory(_HERE)
@@ -73,7 +72,7 @@ class TestProjectResolutionLayer:
 class TestReadinessLayer:
     @pytest.mark.asyncio
     async def test_coordinator_accepts_project(self):
-        from src.core.di_container import create_service_collection, IndexerFactoryKey
+        from src.core.di_container import IndexerFactoryKey, create_service_collection
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
         from src.core.runtime_coordinator import RuntimeCoordinator
         services = create_service_collection(_HERE)
@@ -96,7 +95,7 @@ class TestReadinessLayer:
 
     @pytest.mark.asyncio
     async def test_verdict_has_all_fields(self):
-        from src.core.di_container import create_service_collection, IndexerFactoryKey
+        from src.core.di_container import IndexerFactoryKey, create_service_collection
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
         from src.core.runtime_coordinator import RuntimeCoordinator
         services = create_service_collection(_HERE)

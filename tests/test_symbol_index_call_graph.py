@@ -13,13 +13,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.core.indexing.parser import CodeParser
-from src.core.indexing.symbol_index import SymbolIndex, SymbolRef
-
+from src.core.indexing.symbol_index import SymbolIndex
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 

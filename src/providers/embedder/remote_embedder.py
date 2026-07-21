@@ -122,7 +122,6 @@ class RemoteEmbedder(IEmbedder):
         if not self._canary_pairs:
             return True  # нет canary — доверяем
 
-        import numpy as np
 
         def _cos_sim(a, b):
             dot = sum(x * y for x, y in zip(a, b))
@@ -537,7 +536,6 @@ class RemoteEmbedder(IEmbedder):
 
     def _call_lm_studio_api(self, texts):
         """Временный эмбеддинг через LM Studio (для shadow canary)."""
-        import json
         try:
             r = self._sync_client.post(
                 self.lm_studio_url,
@@ -553,7 +551,6 @@ class RemoteEmbedder(IEmbedder):
 
     def _call_ollama_api(self, texts):
         """Временный эмбеддинг через Ollama (для shadow canary)."""
-        import json
         config = get_config()
         try:
             results = []
@@ -573,7 +570,6 @@ class RemoteEmbedder(IEmbedder):
 
     def _call_llama_cpp_api(self, texts):
         """Временный эмбеддинг через llama.cpp (для shadow canary)."""
-        import json
         try:
             r = self._sync_client.post(
                 self.llama_cpp_url,
@@ -1026,7 +1022,7 @@ class RemoteEmbedder(IEmbedder):
             try:
                 self._onnx_last_used = time.time()
                 import numpy as np
-                
+
 
                 def _ensure_prefix(text: str, is_query: bool) -> str:
                     for prefix in ("query: ", "passage: "):

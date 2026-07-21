@@ -4,10 +4,7 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.core.search.engine import Searcher
-
 
 
 def _make_result(file_path: str, chunk_index: int, text: str, score: float = 0.5) -> dict:

@@ -281,7 +281,7 @@ class TestRecordToolCall:
     """record_tool_call — запись метрик вызова инструмента."""
 
     def test_record_basic(self):
-        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        from src.core.error_handler import _TOOL_METRICS, _TOOL_METRICS_LOCK, record_tool_call
         with _TOOL_METRICS_LOCK:
             _TOOL_METRICS.clear()
         record_tool_call("test_tool", 100, True)
@@ -292,7 +292,7 @@ class TestRecordToolCall:
         assert stats["errors"] == 0
 
     def test_record_multiple_calls(self):
-        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        from src.core.error_handler import _TOOL_METRICS, _TOOL_METRICS_LOCK, record_tool_call
         with _TOOL_METRICS_LOCK:
             _TOOL_METRICS.clear()
         for i in range(5):
@@ -304,7 +304,7 @@ class TestRecordToolCall:
 
     def test_record_with_route_increments(self):
         """Проверяет, что route счётчик инкрементится (+1, а не -1)."""
-        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        from src.core.error_handler import _TOOL_METRICS, _TOOL_METRICS_LOCK, record_tool_call
         with _TOOL_METRICS_LOCK:
             _TOOL_METRICS.clear()
         record_tool_call("route_tool", 10, True, route="fast")
@@ -317,7 +317,7 @@ class TestRecordToolCall:
 
     def test_rolling_average_confidence(self):
         """Проверяет скользящее среднее confidence (prev + (conf - prev) / calls)."""
-        from src.core.error_handler import record_tool_call, _TOOL_METRICS, _TOOL_METRICS_LOCK
+        from src.core.error_handler import _TOOL_METRICS, _TOOL_METRICS_LOCK, record_tool_call
         with _TOOL_METRICS_LOCK:
             _TOOL_METRICS.clear()
         record_tool_call("avg_tool", 10, True, confidence=1.0)
@@ -360,7 +360,9 @@ class TestGetIdleMetrics:
     def test_idle_plus_active(self):
         """Проверяет total_ms = total_idle + active_ms (+ а не *)."""
         from src.core.error_handler import (
-            get_global_idle_metrics, _TOOL_METRICS, _TOOL_METRICS_LOCK
+            _TOOL_METRICS,
+            _TOOL_METRICS_LOCK,
+            get_global_idle_metrics,
         )
         with _TOOL_METRICS_LOCK:
             _TOOL_METRICS.clear()

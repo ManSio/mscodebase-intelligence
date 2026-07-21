@@ -2,7 +2,7 @@
 Тесты для RepoRank — PageRank на графе вызовов.
 """
 
-from src.core.indexing.symbol_index import SymbolRef, SymbolIndex
+from src.core.indexing.symbol_index import SymbolIndex
 
 
 class TestRepoRank:

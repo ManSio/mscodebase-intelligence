@@ -8,11 +8,10 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 
+from src.core.di_container import ProjectRootKey, create_service_collection
 from src.core.indexing.file_guard import FileGuard
-from src.core.di_container import create_service_collection, ProjectRootKey
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
-    get_global_registry,
     reset_global_registry,
 )
 from src.mcp.tools.base import resolve_indexer_for_request

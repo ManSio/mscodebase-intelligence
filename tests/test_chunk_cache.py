@@ -19,7 +19,7 @@ class _MockEmbedder:
 
 def test_chunk_cache_basic():
     """Chunk-level cache: unchanged chunks skip embed."""
-    embedder = _MockEmbedder()
+    _MockEmbedder()
     old_texts = ["chunk_a", "chunk_b", "chunk_c"]
 
     # Первый проход — все чанки новые → 1 вызов embed_batch
@@ -45,7 +45,7 @@ def test_chunk_cache_basic():
 
 def test_chunk_cache_invalidation():
     """Chunk-level cache: changed chunks get new hash → re-embed."""
-    embedder = _MockEmbedder()
+    _MockEmbedder()
 
     old = ["def foo(): return 1", "def bar(): return 2"]
     old_hashes = [

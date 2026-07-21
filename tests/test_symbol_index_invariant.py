@@ -11,9 +11,8 @@
 """
 
 import gc
-import pytest
-from src.core.indexing.symbol_index import SymbolIndex
 
+from src.core.indexing.symbol_index import SymbolIndex
 
 # ─── Helper: типовой вывод парсера ─────────────────────────────
 
@@ -113,7 +112,7 @@ class TestDefinitionsReferencesConsistency:
 
         defs = idx.find_definitions("nonexistent_func")
         assert len(defs) == 0, (
-            f"nonexistent_func не должен иметь определений"
+            "nonexistent_func не должен иметь определений"
         )
 
     # ─── Инвариант: после remove_file + re-add ────────────

@@ -2,10 +2,7 @@
 Тесты для Execution Contract — верификация действий агента.
 """
 
-import tempfile
-from pathlib import Path
 
-import pytest
 
 from src.core.execution_contract import ExecutionContract, format_verification_report
 

@@ -2,16 +2,13 @@
 Тесты для Cross-project Dependency Graph.
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 
+from src.core.multi_project_searcher import ProjectRegistry
 from src.core.search.cross_project_deps import (
     CrossProjectDependencyGraph,
     get_cross_project_deps,
 )
-from src.core.multi_project_searcher import ProjectRegistry
 
 
 class TestCrossProjectDependencyGraphInit:

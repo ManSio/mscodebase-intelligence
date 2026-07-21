@@ -139,3 +139,4 @@ DEV_EXP.md
 # Экспериментальные артефакты — не пушить
 experiments
 !.gitkeep
+docs/generated/MODULE_INDEX.md

@@ -8,13 +8,11 @@
 4. 3-way RRF корректно объединяет bm25 + dense + fts5 (ключи file:chunk_index).
 """
 import asyncio
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from src.core.search.engine import Searcher
-from src.core.search.scoring import reciprocal_rank_fusion_3way
 from src.core.search.fts5_index import FTS5IndexManager
+from src.core.search.scoring import reciprocal_rank_fusion_3way
 
 
 def _make_searcher_with_fts5(chunks):

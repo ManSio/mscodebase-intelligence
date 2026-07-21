@@ -1,10 +1,8 @@
 """Тесты для временной шкалы индексации и фильтрации по времени."""
 
 import sys
-import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,7 +13,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.core.search.engine import _filter_by_time
 from src.core.search.utils import _parse_iso_datetime
-
 
 # ─── Фикстуры ───────────────────────────────────────────────────────────────
 
@@ -185,24 +182,18 @@ class TestSearcherTimeFilter:
 
     def test_search_has_since_param(self):
         """Метод search принимает since."""
-        from src.core.search.engine import Searcher
         import inspect
+
+        from src.core.search.engine import Searcher
         sig = inspect.signature(Searcher.search)
         assert "since" in sig.parameters
         assert "before" in sig.parameters
 
     def test_hybrid_search_async_has_since_param(self):
-        """????? hybrid_search_async ????????? since."""
-        from src.core.search.engine import Searcher
-        import inspect
-        sig = inspect.signature(Searcher.hybrid_search_async)
-        assert "since" in sig.parameters
-        assert "before" in sig.parameters
-
-    def test_hybrid_search_async_has_since_param(self):
         """Метод hybrid_search_async принимает since."""
-        from src.core.search.engine import Searcher
         import inspect
+
+        from src.core.search.engine import Searcher
         sig = inspect.signature(Searcher.hybrid_search_async)
         assert "since" in sig.parameters
         assert "before" in sig.parameters

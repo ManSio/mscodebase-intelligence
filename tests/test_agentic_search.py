@@ -134,7 +134,6 @@ class TestAgenticCodeSearch:
 
     def test_simple_query_uses_hybrid_search(self):
         """Простой запрос использует обычный hybrid_search."""
-        import asyncio
         indexer = MagicMock()
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)

@@ -16,7 +16,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-
 # ────────────────────────────────────────────────────────────
 # Per-chunk trace entry
 # ────────────────────────────────────────────────────────────

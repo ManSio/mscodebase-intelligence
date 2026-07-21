@@ -11,9 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.search.engine import Searcher
 from src.config.settings import get_config
-
+from src.core.search.engine import Searcher
 
 # ─────────────────────────────────────────────────────────────
 # _apply_bucket_weights

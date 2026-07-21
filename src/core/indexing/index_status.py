@@ -36,7 +36,7 @@ class IndexStatusReporter:
 
     def get_status(self) -> Dict[str, Any]:
         """Возвращает статистику базы данных.
-        
+
         Всегда сверяет кэш с реальным count_rows() — stale cache
         не должен показывать данные, которых нет в таблице.
         """

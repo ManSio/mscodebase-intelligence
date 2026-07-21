@@ -155,10 +155,8 @@ def create_mcp_server():
     # Lazy импорты из server.py (избегаем циклической зависимости)
     from src.mcp.server import (
         _check_source_extension_sync,
-        _default_project_root,
         _ext_root,
         _log_run_passport,
-        _services_cache,
         resolve_project_root,
     )
     from src.mcp.server_tools import register_all_tools, register_system_prompt
@@ -231,7 +229,7 @@ def create_mcp_server():
             loop.create_task(get_task_queue().start())
         except RuntimeError:
             # Нет event loop — create_mcp_server вызван синхронно ДО asyncio.run().
-            # task_queue запустится автоматически при старте event loop через 
+            # task_queue запустится автоматически при старте event loop через
             # asyncio.run(mcp.run_stdio_async()).
             pass
     except Exception as _e:
@@ -379,7 +377,7 @@ def _trigger_auto_index_if_empty(services):
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # Используем create_task (Python 3.7+) вместо ensure_future
-                    task = asyncio.create_task(_auto())
+                    asyncio.create_task(_auto())
                     logger.info("🚀 Auto-index: task created and scheduled")
                 else:
                     # Если цикл ещё не запущен — планируем после старта
@@ -516,11 +514,11 @@ def _start_contradiction_ledger_background() -> None:
     """
     try:
         import threading
-        from pathlib import Path
 
         def _run():
             try:
                 import time as _time
+
                 import scripts.verify_diary as vd
                 # Ждём 2s — bridge/SQLite могут не быть готовы при冷 старте.
                 # Этот паттерн повторяет _start_delayed_bridge_recheck.
@@ -569,14 +567,14 @@ def _resolve_ledger_project_root():
     Использует resolve_project_root() из server.py — единственный надёжный
     резолвер (SQLite bridge + env + fallback). _default_project_root в
     server_factory.py — ЛОКАЛЬНАЯ переменная (баг F811), не обновляет модуль.
-    
+
     Ранее использовал самодельный резолвер, который падал из-за:
     - пустого registry при старте
     - literal string '$ZED_WORKTREE_ROOT' в env (не раскрыта shell'ом)
     - ext_root guard блокировал fallback на CWD
     """
     try:
-        from src.mcp.server import resolve_project_root, _ext_root
+        from src.mcp.server import _ext_root, resolve_project_root
         p = resolve_project_root()
         if p and p.resolve() != _ext_root.resolve():
             return p

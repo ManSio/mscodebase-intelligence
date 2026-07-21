@@ -1,8 +1,6 @@
 """Tests: VersionManager — bump, consistency check."""
 
-import json
 from pathlib import Path
-from unittest.mock import patch
 
 
 class TestVersionManager:
@@ -18,7 +16,7 @@ class TestVersionManager:
         """Проверяет консистентность версий во всех файлах."""
         from src.core.version_manager import VersionManager
         root = Path(__file__).resolve().parent.parent
-        drifts = VersionManager().check_consistency(str(root))
+        VersionManager().check_consistency(str(root))
         # Может быть дрифт (CHANGELOG может содержать старые версии)
         # Но pyproject.toml — единый источник
         # drifts может включать pyproject.toml если в нём есть старые версии

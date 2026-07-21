@@ -23,11 +23,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from lancedb.index import IvfPq
 
 from src.core.indexing.db_manager import LanceDBManager
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -195,7 +193,7 @@ async def test_lancedb_race_concurrent_search_and_reindex(tmp_db_root):
     ok = [r for r in results if r[0] == "ok"]
     fast_fail = [r for r in results if r[0] == "fast_fail"]
 
-    print(f"\n=== RACE TEST RESULTS ===")
+    print("\n=== RACE TEST RESULTS ===")
     print(f"  ok={len(ok)}  fast_fail={len(fast_fail)}  exceptions={len(exceptions)}  wrong_chunk={len(wrong)}")
     for e in exceptions[:5]:
         print(f"  EXCEPTION: {e[2]}: {e[3]}")

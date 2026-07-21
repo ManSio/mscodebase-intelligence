@@ -10,8 +10,7 @@ Usage:
 
 import asyncio
 import logging
-import threading
-from typing import Any, Dict, List, Optional
+from typing import List
 
 from .fts5_index import FTS5IndexManager
 

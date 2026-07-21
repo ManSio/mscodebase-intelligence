@@ -3,9 +3,7 @@
 """
 
 import time
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 class TestProgressCallback:
@@ -158,8 +156,9 @@ class TestIndexerProgressCallback:
 
     def test_indexer_accepts_callback(self):
         """Indexer принимает progress_callback параметр."""
-        from src.core.indexing.indexer import Indexer
         from pathlib import Path
+
+        from src.core.indexing.indexer import Indexer
 
         indexer = Indexer(
             Path("/tmp/test.db"),
@@ -175,8 +174,9 @@ class TestIndexerProgressCallback:
 
     def test_callback_is_optional(self):
         """progress_callback опциональный."""
-        from src.core.indexing.indexer import Indexer
         from pathlib import Path
+
+        from src.core.indexing.indexer import Indexer
 
         indexer = Indexer(
             Path("/tmp/test.db"),
@@ -196,7 +196,7 @@ class TestProgressLockThreadSafety:
 
     def test_lock_protects_concurrent_access(self):
         """Lock защищает от concurrent access."""
-        from src.mcp.server import _progress_lock, _last_progress
+        from src.mcp.server import _last_progress, _progress_lock
 
         errors = []
 
