@@ -2,7 +2,7 @@
 title: "The Silent Vector Contamination Bug: Why Your Concurrent Embeddings Might Be Lying to You"
 published: true
 description: "How a subtle race condition in async inference queues returned syntactically valid embeddings for the wrong inputs — and how to catch it with a cosine contamination test."
-tags: machinelearning, python, rag, openvino, embeddings
+tags: machinelearning, python, rag, openvino
 cover_image: 
 ---
 
