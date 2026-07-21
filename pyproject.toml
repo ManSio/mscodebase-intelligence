@@ -37,13 +37,32 @@ dependencies = [
     "pyarrow>=14.0.0",  # + pyarrow.compute для to_arrow
     "huggingface_hub>=0.20.0",
     "numpy>=1.24.0,<3",  # upper bound: numpy 3.x ломает ABI для pyarrow/onnxruntime
-    # Code parsing (Tree-sitter)
-    "tree-sitter>=0.21.0,<1",
-    "tree-sitter-python>=0.21.0,<1",
-    "tree-sitter-rust>=0.21.0,<1",
-    "tree-sitter-typescript>=0.21.0,<1",
-    "tree-sitter-javascript>=0.21.0,<1",
-    "tree-sitter-go>=0.21.0,<1",
+    # Code parsing (Tree-sitter) — 23 пакета для 23 языков
+        # Core: полный граф (chunking + calls + data flow + imports)
+        "tree-sitter>=0.21.0,<1",
+        "tree-sitter-python>=0.21.0,<1",
+        "tree-sitter-rust>=0.21.0,<1",
+        "tree-sitter-typescript>=0.21.0,<1",  # .ts/.tsx
+        "tree-sitter-javascript>=0.21.0,<1",  # .js/.jsx
+        "tree-sitter-go>=0.21.0,<1",
+        "tree-sitter-java>=0.23.0",
+        "tree-sitter-c-sharp>=0.23.0",
+        "tree-sitter-ruby>=0.23.0",
+        "tree-sitter-php>=0.24.0",
+        "tree-sitter-kotlin>=1.1.0",
+        "tree-sitter-swift>=0.7.0",
+        "tree-sitter-c>=0.24.0",
+        "tree-sitter-cpp>=0.23.0",
+        "tree-sitter-scala>=0.26.0",
+        "tree-sitter-dart>=0.1.0",
+        "tree-sitter-bash>=0.25.0",  # shell, без data flow
+        # Context-языки (только AST-парсинг и чанкинг)
+        "tree-sitter-sql>=0.3.0",
+        "tree-sitter-yaml>=0.7.0",
+        "tree-sitter-toml>=0.7.0",
+        "tree-sitter-html>=0.23.0",
+        "tree-sitter-css>=0.25.0",
+        "tree-sitter-hcl>=1.2.0",  # HCL/Terraform
     # Search & Utils
     "pathspec>=0.14.0",
     "httpx>=0.24.0",
