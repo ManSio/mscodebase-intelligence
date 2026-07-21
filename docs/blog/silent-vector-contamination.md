@@ -79,6 +79,8 @@ async def test_async_embedder_no_cross_contamination(embedder):
     }
 
     # 2. Sequential baseline (ground truth)
+    # IMPORTANT: baseline must use clean synchronous infer(), NOT AsyncInferQueue
+    # even with jobs=1, to avoid contamination in the baseline itself
     baseline_vectors = {}
     for key, text in samples.items():
         baseline_vectors[key] = await embedder.embed_single_sync(text)
@@ -142,7 +144,7 @@ def _callback(request, userdata):
     local_dict[index] = request.get_tensor().data
 ```
 
-Each `embed_batch` call now creates its own isolated dictionary. The callback writes to the call-specific dict, not a shared global. No locks needed — complete isolation by design.
+Since OpenVINO's Python API allows passing any Python object as `userdata` (unlike C++ where it's typically `void*`), we can bundle the index and a call-specific dictionary together. Each `embed_batch` call creates its own isolated dictionary. The callback writes to the call-specific dict, not a shared global. No locks needed — complete isolation by design.
 
 ---
 
@@ -155,6 +157,8 @@ Each `embed_batch` call now creates its own isolated dictionary. The callback wr
 3. **Write cross-contamination tests.** If you use async inference queues or multi-threading for vector generation, verify that Vector X actually belongs to Input X under concurrent load.
 
 4. **Cosine similarity is your friend.** A simple similarity check between concurrent outputs and sequential baselines catches contamination that no other test detects.
+
+5. **This applies to ONNX Runtime and TensorRT too.** If you share state across requests in `onnxruntime.InferenceSession.Run()` or TensorRT async wrappers, the same silent contamination can occur. The fix is the same: isolate output containers per request.
 
 ---
 
