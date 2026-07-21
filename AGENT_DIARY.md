@@ -1,5 +1,27 @@
 # AGENT DIARY — MSCodeBase Intelligence
 
+## [2026-07-21 18:30] — Dev tools: generate_docs, bump_version, install_git_hooks registered
+
+**Что сделано:**
+1. **`src/core/git_hooks_installer.py`** создан — установка pre-commit хуков (verify_diary + stale_detector + generate_docs) в любой проект
+2. **`src/mcp/tools/dev_tools.py`** — добавлен `install_git_hooks(project_root, action)`
+3. **`src/mcp/server_tools.py`** — добавлен вызов `register_dev_tools(mcp)`, +3 инструмента
+4. **Документация обновлена**: CHANGELOG v3.3.8, docstring server_tools.py (41 tool), README (косвенно)
+
+**Итого инструментов:** 41 (18 core + 13 intel + 7 inline + 3 dev)
+**Тесты:** 565 passed, 0 failed, 91 deselected
+
+**Definition of Done (§7):**
+- ✅ Чистая проверка: полный pytest 565 passed
+- ✅ Тест реального пути: через импорт в server_tools.py (compile-time проверка)
+- ✅ Concurrency: не затрагивалась
+- ✅ Grep-развёртка: не требуется (новые файлы, не переименования)
+- ✅ Числа: 565 passed — команда `python -m pytest tests/ -q --tb=short`
+- ✅ CHANGELOG: v3.3.8 добавлен
+- ⚠️ verified_from_clean_state: не применимо (Windows, нет scripts/verify_clean_state.sh)
+
+---
+
 ## [2026-07-21 17:30] — АУДИТ ФИНАЛ: audit.md очищен от B1-B12 + эксперименты 553 passed
 
 **Что сделано:**

@@ -6,7 +6,8 @@ server_tools.py — Регистрация MCP-инструментов.
 - register_all_tools() — регистрация 18 core-инструментов + codebase hub + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
 - _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, ..., refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
-- Всего: 18 + 13 + 12 = 43 инструмента (+ 1 optional execute_script = 44)
+- dev_tools: generate_docs, bump_version, install_git_hooks (3)
+- Всего: 18 + 13 + 7 + 3 = 41 инструмент (+ 1 optional execute_script = 42)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -218,13 +219,18 @@ def register_all_tools(mcp, services):
     # ─── Inline diagnostic tools (7 шт) ────────────
     _register_inline_tools(mcp, services)
 
+    # ─── Dev tools (3 шт: generate_docs, bump_version, install_git_hooks) ───
+    from src.mcp.tools.dev_tools import register_dev_tools
+    register_dev_tools(mcp)
+
     total_core = len(tool_classes)
     total_intel = 13
     total_inline = 7
+    total_dev = 3
     logger.info(
         f"✅ Все инструменты зарегистрированы "
-        f"({total_core} core + {total_intel} intel + {total_inline} inline = "
-        f"{total_core + total_intel + total_inline} total)"
+        f"({total_core} core + {total_intel} intel + {total_inline} inline + {total_dev} dev = "
+        f"{total_core + total_intel + total_inline + total_dev} total)"
     )
 
 
