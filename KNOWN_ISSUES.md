@@ -1428,3 +1428,19 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Fix:** `src/core/intelligence/layer.py` — 1 метод, `ruff.toml` — per-file-ignore.
 - **Тесты:** 519 passed.
 - **Техдолг:** 532 других broad excepts в codebase — постепенная очистка (P2).
+
+## 2026-07-22 — P2-12: MODE_HYBRID dead code в composition_adapter.py (OPEN)
+
+- **Что было:** `composition_adapter.py` поддерживает `MODE_HYBRID` (L55-91) с полями `_definitions`, `_references`, `_file_to_symbols`. DI-контейнер (`di_container.py:189`) всегда создаёт `MODE_PURE` — hybrid-ветка никогда не выполняется.
+- **Статус:** ⏳ Отложено — удаление требует координации с `graph_adapter_pure.py` и `graph_adapter.py` (убедиться, что MODE_PURE покрывает все кейсы).
+- **Deadline:** следующий minor release.
+- **Guard:** удаление только после добавления тестов на `SymbolIndexAdapter(mode=MODE_PURE)` с полным покрытием.
+
+---
+
+## 2026-07-22 — P2-16: 532 broad except Exception в codebase (OPEN)
+
+- **Что было:** Массовые `except Exception` в `layer.py` (~20), `engine.py` (~5), `db_manager.py`, `lsp_client.py` и др. маскируют программные ошибки под "graceful degradation". Одно конкретное `(ImportError, Exception)` уже исправлено (см. выше), но 532 других remain.
+- **Статус:** ⏳ Отложено — массовый fix рискует регрессией. Требует per-file scoping: для каждой функции определить, какие исключения реальны, а какие — баги.
+- **Guard:** после каждого сужения except — полный прогон тестов. Включить `BLE001` (blind-except) в ruff.toml.
+- **Deadline:** постепенно, в течение 3 minor releases.
