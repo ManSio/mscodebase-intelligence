@@ -323,77 +323,7 @@ def _register_extension_handlers(mcp, services):
         logger.warning(f"Extension handlers: {e}")
 
 
-def _trigger_auto_index_if_empty(services):
-    import asyncio
-    try:
-        from src.mcp.tools.base import resolve_indexer_for_request
-        try:
-            indexer = resolve_indexer_for_request(services)
-        except Exception:
-            return
 
-        from src.mcp.server import _ext_root
-        try:
-            if indexer.project_path.resolve() == _ext_root.resolve():
-                logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
-                return
-        except Exception as _e:
-            logger.warning("exception", exc_info=True)
-            pass
-        status = indexer.get_status()
-        if status.get("total_chunks", 0) == 0:
-            # Ждём готовности эмбеддера (максимум 30с)
-            embedder = getattr(indexer, 'embedder', None)
-            if embedder and hasattr(embedder, 'is_ready'):
-                for _ in range(30):
-                    if embedder.is_ready():
-                        break
-                    time.sleep(1)
-            logger.info("🔄 Индекс пуст — запускаю фоновую индексацию...")
-            async def _auto():
-                try:
-                    logger.info("🚀 Auto-index: starting background indexing task")
-                    # Ждём готовности рантайма (1.5s чтобы MCP успел стартовать)
-                    await asyncio.sleep(1.5)
-                    from src.mcp.server import _ext_root
-                    if indexer.project_path.resolve() == _ext_root.resolve():
-                        logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
-                        return
-
-                    # Guard (AGENTS.md §5.13): запрещаем concurrent search
-                    # читать БД во время переиндексации
-                    _dbm = getattr(indexer, "db_manager", None)
-                    if _dbm is not None and hasattr(_dbm, "set_reindexing"):
-                        _dbm.set_reindexing()
-                    try:
-                        c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
-                        logger.info(f"✅ Авто-индексация завершена: {c} файлов")
-                    finally:
-                        if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
-                            _dbm.clear_reindexing()
-                except Exception as e:
-                    logger.warning(f"Авто-индексация не выполнена: {e}", exc_info=True)
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Используем create_task (Python 3.7+) вместо ensure_future
-                    asyncio.create_task(_auto())
-                    logger.info("🚀 Auto-index: task created and scheduled")
-                else:
-                    # Если цикл ещё не запущен — планируем после старта
-                    def _schedule():
-                        try:
-                            loop2 = asyncio.get_event_loop()
-                            if loop2.is_running():
-                                asyncio.create_task(_auto())
-                                logger.info("🚀 Auto-index: delayed task created")
-                        except RuntimeError:
-                            pass
-                    loop.call_soon(_schedule)
-            except RuntimeError:
-                logger.debug("Auto-index: event loop not available, retry at first request")
-    except Exception as e:
-        logger.debug(f"Авто-индексация: {e}")
 
 
 def _start_delayed_bridge_recheck(services):

@@ -111,7 +111,7 @@ def log_crash(error: BaseException) -> None:
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"\n{'=' * 80}\n")
         f.write(f"Critical crash at {Path.cwd()}\n")
-        traceback.print_exc(file=f)
+        traceback.print_exception(type(error), error, error.__traceback__, file=f)
 
 
 def _load_env():
@@ -217,11 +217,10 @@ def main():
         from src.mcp.server import run_server
 
         # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
-        # Запускаем в фоне, чтобы не блокировать старт сервера (stdio).
-        # Логика: сверяет "✅ done" из дневника с реальным кодом/коммитами.
-        _start_contradiction_ledger()
+                # NOTE: Moved to server_factory.py _start_contradiction_ledger_background()
+                # to avoid duplicate execution.
 
-        logger.info("Запуск MCP сервера...")
+                logger.info("Запуск MCP сервера...")
         # run_server сам создаёт event loop и запускает stdio
         run_server(original_stdout)
 

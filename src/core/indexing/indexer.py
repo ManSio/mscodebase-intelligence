@@ -437,7 +437,7 @@ class Indexer(IndexerTableMixin):
                     raw_data = f.read()
                 content = raw_data.decode("utf-8", errors="replace")
 
-            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+            current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
             escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
             # Проверка хэша — файл не изменился?
@@ -489,7 +489,14 @@ class Indexer(IndexerTableMixin):
                     logger.debug(f"FTS5 sync skipped for {rel_path_str}: {_fts5_err}")
 
             import gc
-            gc.collect()
+            # Collect garbage only periodically (every 50 files) to avoid
+            # performance hit from 1000+ gc.collect() calls during large indexing.
+            # Full GC runs automatically via index_project_runner after embedding.
+            if not hasattr(self, '_gc_counter'):
+                self._gc_counter = 0
+            self._gc_counter += 1
+            if self._gc_counter % 50 == 0:
+                gc.collect()
             return True
 
         except Exception as e:

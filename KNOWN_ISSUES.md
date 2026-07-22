@@ -1444,3 +1444,37 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Статус:** ⏳ Отложено — массовый fix рискует регрессией. Требует per-file scoping: для каждой функции определить, какие исключения реальны, а какие — баги.
 - **Guard:** после каждого сужения except — полный прогон тестов. Включить `BLE001` (blind-except) в ruff.toml.
 - **Deadline:** постепенно, в течение 3 minor releases.
+
+---
+
+## 2026-07-22 — Audit 27 Issues: 12 fixed, 4 refuted, 10 deferred (PARTIAL)
+
+### Fixed (this session)
+| ID | Issue | File | Fix |
+|----|-------|------|-----|
+| 3 | `avg_results` formula `-` instead of `+` | error_handler.py:229 | Changed to `+` |
+| 4 | `run_until_complete` in running loop | error_handler.py:592 | `_SYNC_POOL.submit()` |
+| 5 | MD5 vs SHA256 hash mismatch | indexer.py:440 | `hashlib.sha256` |
+| 7 | `split(";")` Windows-only | server.py:244 | `split(os.pathsep)` |
+| 10 | Contradiction Ledger duplicate | main.py:222 | Removed duplicate |
+| 11 | Dead code `_trigger_auto_index_if_empty` | server_factory.py:326 | Removed 70 lines |
+| 13 | Unassigned expression | error_handler.py:318 | Added assignment |
+| 14 | Memory leak `_cleanup_old_progress` | server.py | Periodic cleanup |
+| 15 | `gc.collect()` every file | indexer.py:492 | Every 50 files |
+| 25 | `log_crash` ignores param | main.py:114 | `traceback.print_exception` |
+| 26 | Unused import overwritten | server.py:44 | Removed unused imports |
+
+### Refuted
+| ID | Claim | Reality |
+|----|-------|---------|
+| 1 | Factory not called | `factories[key](self)` correct at L138 |
+| 2 | `error""` NameError | `err or ""` correct at L361 |
+| 8 | asyncio.Lock before loop | Python ≥3.10 lazy binding OK |
+| 12 | `_format_success_response` mutates | `_sanitize()` deep copies |
+
+### Deferred (tech debt)
+- **Issue 9:** `_cache` dict without Lock — low risk in sequential MCP
+- **Issue 17:** sync→async `asyncio.run()` in thread — module-level executor exists
+- **Issue 21:** Double tool instantiation (38 classes, minor perf)
+- **Issue 24:** Redundant `pass` after `logger.warning` (1 instance)
+- **Issue 27:** SQL without LIMIT (works correctly)

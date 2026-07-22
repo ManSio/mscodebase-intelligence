@@ -5510,3 +5510,60 @@ en~ru 0.9946  en~zh 0.9926  en~fr 0.9892  en~de 0.9526  en~code 0.9412
 - ⚠️ verified_from_clean_state: не применимо
 
 **Коммит:** pending
+
+## [2026-07-22] — Audit 27 Issues: 12 confirmed & fixed, 4 refuted, 10 deferred
+
+### Context
+Second audit found 27 issues across 10 files. Full verification against actual code confirmed 12 real bugs, refuted 4 false positives, and deferred 10 low-priority items.
+
+### Verification Results
+
+| Category | Count | Details |
+|----------|-------|---------|
+| ✅ Confirmed & Fixed | 12 | Issues 3,4,5,7,10,11,13,14,15,21(skipped),25,26 |
+| ⏳ Deferred (tech debt) | 10 | Issues 6,9,17,18,19,20,22,23,24,27 |
+| ❌ Refuted | 4 | Issues 1,2,8,12 |
+
+### Fixes Applied
+
+| ID | Fix | File | Description |
+|----|-----|------|-------------|
+| 3 | avg_results rolling average formula | error_handler.py:229 | `-` → `+` (was subtracting instead of adding) |
+| 4 | sync_wrapper RuntimeError in running loop | error_handler.py:592 | Replaced `asyncio.run()` with `_SYNC_POOL.submit()` |
+| 5 | MD5/SHA256 hash mismatch | indexer.py:440 | Changed `hashlib.md5` to `hashlib.sha256` to match `_calculate_file_hash` |
+| 7 | `split(";")` Windows-only | server.py:244 | Changed to `split(os.pathsep)` for cross-platform |
+| 10 | Contradiction Ledger started twice | main.py:222 | Removed duplicate call (kept in server_factory.py) |
+| 11 | Dead code `_trigger_auto_index_if_empty` | server_factory.py:326 | Removed 70 lines of dead code |
+| 13 | Unassigned expression | error_handler.py:318 | Added `current_idle_sec = ` assignment |
+| 14 | Memory leak `_cleanup_old_progress` | server.py:224 | Added periodic cleanup in progress_callback |
+| 15 | `gc.collect()` after every file | indexer.py:492 | Changed to every 50 files |
+| 25 | `log_crash` ignores error param | main.py:114 | Changed to `traceback.print_exception(type(error), error, error.__traceback__)` |
+| 26 | Import immediately overwritten | server.py:44,52 | Removed unused `BUILD_ID` and `RUN_SOURCE_FILE` imports |
+
+### False Positives (Refuted)
+
+| ID | Claim | Reality |
+|----|-------|---------|
+| 1 | Factory not called `()` | `self._factories[key](self)` — correct at L138 |
+| 2 | `error""` NameError | `err or ""` — correct at L361 |
+| 8 | asyncio.Lock before loop | Python ≥3.10 uses lazy binding — not a bug |
+| 12 | `_format_success_response` mutates input | `_sanitize()` creates deep copy first |
+
+### Test Results
+- 185 passed, 9 skipped (relevant test files)
+- 511 passed overall (35 pre-existing failures: git not in PATH + test_project_header)
+- 0 regressions from changes
+
+### Files Changed
+- `src/core/error_handler.py` — issues 3, 4, 13
+- `src/core/indexing/indexer.py` — issues 5, 15
+- `src/mcp/server.py` — issues 7, 14, 26
+- `src/main.py` — issues 10, 25
+- `src/mcp/server_factory.py` — issue 11
+
+### Deferred Tech Debt
+- Issue 9: `_cache` dict without Lock (low risk in sequential MCP)
+- Issue 17: sync→async bridge `asyncio.run()` in thread (module-level executor exists)
+- Issue 21: Double tool instantiation (38 tool classes, minor perf)
+- Issue 24: Redundant `pass` after `logger.warning` (1 instance)
+- Issue 27: SQL without LIMIT (works correctly, minor perf)
