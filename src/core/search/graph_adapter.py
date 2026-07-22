@@ -19,6 +19,7 @@ Graph Adapters — обратная совместимость между Proper
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from collections import defaultdict
 from pathlib import Path
@@ -66,7 +67,7 @@ class SymbolIndexAdapter(PureGraphMixin):
         self._file_to_symbols: Dict[str, Set[str]] = {}
         self._file_to_defs: Dict[str, Set[str]] = {}
         self._file_to_calls: Dict[str, Set[str]] = {}
-        self._id_pattern = __import__("re").compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+        self._id_pattern = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
 
     @property
     def graph(self) -> PropertyGraph:

@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 total)](#4-tool-layer)
+4. [Tool Layer (19 core + 13 intel + 12 inline + 4 dev = 48 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (18 core + 7 inline + 3 dev)│
+│  Layer 3: mcp/tools/*.py         (19 core + 12 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,7 +91,7 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 total
+3. Register 19 core + 13 intel + 12 inline + 4 dev = 48 total
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
@@ -141,7 +141,7 @@ Key modules:
 | `engine.py` | `src/core/search/engine.py` | Hybrid search (BM25 + Dense + FTS5 + RRF) |
 | `graph.py` | `src/core/graph.py` | PropertyGraph — SQLite property graph |
 | `graph_adapter.py` | `src/core/search/graph_adapter.py` | SymbolIndexAdapter wrapping PropertyGraph |
-| `cypher_engine.py` | `src/core/search/cypher_engine.py` | Cypher→SQL engine for PropertyGraph |
+| `cypher_engine.py` | `src/core/search/cypher_engine.py` | Cypher→SQL facade (facade over cypher_ast/lexer/parser/sql/executor) |
 | `indexer.py` | `src/core/indexing/indexer.py` | LanceDB vector storage + indexing pipeline |
 | `symbol_index.py` | `src/core/indexing/symbol_index.py` | Call Graph (BFS, PageRank) |
 | `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST parser (16 languages) |

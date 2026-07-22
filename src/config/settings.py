@@ -57,6 +57,12 @@ class EmbeddingConfig:
     llama_cpp_enabled: bool = (
         os.getenv("LLAMA_CPP_ENABLED", "false").lower() == "true"
     )
+    llama_cpp_port: int = field(
+        default_factory=lambda: int(os.getenv("LLAMA_CPP_PORT", "8080"))
+    )
+    reranker_port: int = field(
+        default_factory=lambda: int(os.getenv("RERANKER_PORT", "8081"))
+    )
 
     # URL-ы вычисляются лениво (чтобы реагировать на изменения .env)
     def get_lm_studio_base_url(self) -> str:

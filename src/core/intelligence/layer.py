@@ -154,10 +154,7 @@ class ProjectIntelligenceLayer:
                         logger.warning(f"Exception suppressed at layer.py: {_e}")
                         pass
                 # Self-indexing — ищем первый non-self-indexing (multi-window fallback)
-                with registry._meta_lock:
-                    for p, idx in registry._indexers.items():
-                        if not _is_self_index_path(p):
-                            return idx
+                return registry.find_first_non_self_indexing(target)
             except Exception as e:
                 logger.warning(f"Exception suppressed at layer.py: {e}")
 
@@ -341,7 +338,7 @@ class ProjectIntelligenceLayer:
             return 0.0
 
     @staticmethod
-    def _find_pid(name: str, port: str) -> int:
+    def _find_pid(port: str) -> int:
         """Ищет PID процесса по порту (через netstat, без shell)."""
         try:
             port_int = int(port)
@@ -360,7 +357,7 @@ class ProjectIntelligenceLayer:
 
     @staticmethod
     def _get_ram_by_port(port: str) -> int:
-        pid = ProjectIntelligenceLayer._find_pid('', port)
+        pid = ProjectIntelligenceLayer._find_pid(port)
         if pid:
             return ProjectIntelligenceLayer._get_process_ram(pid)
         return 0
@@ -368,7 +365,13 @@ class ProjectIntelligenceLayer:
     @staticmethod
     def _get_total_ram() -> int:
         total = ProjectIntelligenceLayer._get_process_ram(os.getpid())
-        for port in ['8080', '8081']:
+        try:
+            from src.config.settings import get_config
+            cfg = get_config()
+            ports = [str(cfg.embedding.llama_cpp_port), str(cfg.embedding.reranker_port)]
+        except Exception:
+            ports = ['8080', '8081']
+        for port in ports:
             total += ProjectIntelligenceLayer._get_ram_by_port(port)
         return total
 
@@ -405,6 +408,14 @@ class ProjectIntelligenceLayer:
 
             # Реальный опрос провайдеров вместо хардкода
             _lm_online = False
+            try:
+                from src.config.settings import get_config as _get_cfg
+                _cfg = _get_cfg()
+                _llama_port_str = str(_cfg.embedding.llama_cpp_port)
+                _reranker_port_str = str(_cfg.embedding.reranker_port)
+            except Exception:
+                _llama_port_str = "8080"
+                _reranker_port_str = "8081"
             _llama_online = False
             # Динамическое сканирование ONNX модели (как в _detect_model_dir RemoteEmbedder)
             _search_paths = [
@@ -436,7 +447,7 @@ class ProjectIntelligenceLayer:
                 # Проверяем llama.cpp (Qwen3 на порту 8080)
                 _s2 = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
                 _s2.settimeout(0.5)
-                _llama_port = int(os.getenv("LLAMA_CPP_PORT", "8080"))
+                _llama_port = int(_llama_port_str)
                 if _s2.connect_ex(("127.0.0.1", _llama_port)) == 0:
                     _llama_online = True
                 _s2.close()
@@ -490,9 +501,9 @@ class ProjectIntelligenceLayer:
                     "process_pid": os.getpid(),
                     "async_loop_tasks": len(asyncio.all_tasks()),
                     "process_ram_mb": ProjectIntelligenceLayer._get_process_ram(os.getpid()),
-                    "llama_qwen_pid": ProjectIntelligenceLayer._find_pid("llama-server.exe", "8080"),
-                    "llama_qwen_ram": ProjectIntelligenceLayer._get_ram_by_port("8080"),
-                    "llama_rerank_ram": ProjectIntelligenceLayer._get_ram_by_port("8081"),
+                    "llama_qwen_pid": ProjectIntelligenceLayer._find_pid(_llama_port_str),
+                    "llama_qwen_ram": ProjectIntelligenceLayer._get_ram_by_port(_llama_port_str),
+                    "llama_rerank_ram": ProjectIntelligenceLayer._get_ram_by_port(_reranker_port_str),
                     "total_ram_mb": ProjectIntelligenceLayer._get_total_ram(),
                 },
                 "model_info": self._get_embedder_model_info(),

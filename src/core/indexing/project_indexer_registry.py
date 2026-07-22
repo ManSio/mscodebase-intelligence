@@ -212,6 +212,20 @@ class ProjectIndexerRegistry:
         with self._meta_lock:
             return list(self._indexers.keys())
 
+    def find_first_non_self_indexing(self, self_index_path: Optional[Path] = None) -> Optional[Any]:
+        """Возвращает первый Indexer, не являющийся self-indexing.
+
+        Используется multi-window fallback в ProjectIntelligenceLayer:
+        если текущий проект — self-indexing (LSP bridge не успел записать),
+        ищем Indexer из другого окна.
+        """
+        with self._meta_lock:
+            for p, idx in self._indexers.items():
+                if self_index_path is not None and p.resolve() == self_index_path.resolve():
+                    continue
+                return idx
+        return None
+
     def evict(self, project_path: Path) -> bool:
         """Явно удаляет Indexer для проекта (например, при закрытии окна)."""
         p = Path(project_path).resolve()

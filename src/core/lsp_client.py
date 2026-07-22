@@ -305,7 +305,12 @@ class LspClient:
         return result
 
     def _handle_crash(self):
-        """Reset internal state so next call triggers auto-restart."""
+        """Reset internal state so next call triggers auto-restart.
+
+        Terminates the OS process before nullifying to prevent zombie
+        processes (P2-14 fix). On Windows, terminate() calls
+        TerminateProcess() which is synchronous.
+        """
         if self._stopped:
             return
         self._started = False
@@ -313,6 +318,14 @@ class LspClient:
             if task is not None:
                 task.cancel()
         self._reader_task = self._stderr_task = None
+        # Terminate OS process before dropping reference (prevents zombie)
+        if self._process is not None and self._process.returncode is None:
+            try:
+                self._process.terminate()
+            except ProcessLookupError:
+                pass
+            except Exception:
+                logger.debug("LSP _handle_crash: terminate() failed", exc_info=True)
         self._process = None
         for f in self._pending.values():
             if not f.done():
