@@ -14,6 +14,7 @@ from src.config.settings import (
     MAX_RERANKER_INPUT,
     get_config,
 )
+from src.core.indexing.indexer_table import IndexerTableMixin
 from src.core.interfaces.searcher import ISearcher
 from src.providers.reranker.multi_provider import MultiProviderReranker
 from src.providers.reranker.search_result_reranker import SearchResultReranker
@@ -88,6 +89,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # ── Multi-level cache ──
         self._cache: Dict[str, List[dict]] = {}
         self._cache_max_size = 500  # было 100
+        self._cache_lock = threading.Lock()
         self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()  # deterministic hash -> vector, LRU
         self._embedding_cache_max = 1000  # ~1MB для 768d векторов
         self._embedding_cache_lock = threading.Lock()
@@ -100,7 +102,8 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         Безопасно для многократного вызова.
         """
-        self._cache.clear()
+        with self._cache_lock:
+            self._cache.clear()
         with self._embedding_cache_lock:
             self._embedding_cache.clear()
         with self._reranker_cache_lock:
@@ -223,7 +226,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
             df = (
                 self.indexer.table.search()
-                .where(f"parent_id = '{parent_id}'", prefilter=True)
+                .where(f"parent_id = '{IndexerTableMixin._escape_sql_value(parent_id)}'", prefilter=True)
                 .limit(limit)
                 .to_pandas()
             )
@@ -711,21 +714,22 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         # Проверяем кэш (изолируем по режиму, запросу, лимиту, слою и intent)
         cache_key = f"{mode}:{query}:{limit}:{layer or ''}:{intent_hint}"
-        if cache_key in self._cache:
-            results = self._cache[cache_key]
-            cache_hit = True
-            timing["total_ms"] = (time.perf_counter() - t0) * 1000
-            return {
-                "results": results,
-                "mode": mode,
-                "timing_ms": timing,
-                "cache_hit": cache_hit,
-                "model_info": self._multi_reranker.model_info
-                if self._multi_reranker
-                else "cached",
-                "rerank_timing": getattr(self, "_last_rerank_timing", {}),
-                "trace": tracer.to_dict() if tracer else None,
-            }
+        with self._cache_lock:
+            if cache_key in self._cache:
+                results = self._cache[cache_key]
+                cache_hit = True
+                timing["total_ms"] = (time.perf_counter() - t0) * 1000
+                return {
+                    "results": results,
+                    "mode": mode,
+                    "timing_ms": timing,
+                    "cache_hit": cache_hit,
+                    "model_info": self._multi_reranker.model_info
+                    if self._multi_reranker
+                    else "cached",
+                    "rerank_timing": getattr(self, "_last_rerank_timing", {}),
+                    "trace": tracer.to_dict() if tracer else None,
+                }
 
         results = []
 
@@ -791,10 +795,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         # Сохраняем в кэш (без tracer чтобы не кэшировать explain-данные)
         if not explain:
-            if len(self._cache) >= self._cache_max_size:
-                oldest_key = next(iter(self._cache))
-                del self._cache[oldest_key]
-            self._cache[cache_key] = results
+            with self._cache_lock:
+                if len(self._cache) >= self._cache_max_size:
+                    oldest_key = next(iter(self._cache))
+                    del self._cache[oldest_key]
+                self._cache[cache_key] = results
 
         # Добавляем trace в результат
         trace_dict = tracer.to_dict() if tracer else None

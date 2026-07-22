@@ -22,6 +22,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.core.indexing.indexer_table import IndexerTableMixin
+
 __all__ = [
     "IndexPipeline",
 ]
@@ -128,7 +130,7 @@ class IndexPipeline:
             try:
                 _existing = (
                     self._table.search()
-                    .where(f"file_path = '{rel_path_str}'", prefilter=True)
+                    .where(f"file_path = '{IndexerTableMixin._escape_sql_value(rel_path_str)}'", prefilter=True)
                     .select(["chunk_hash", "vector"])
                     .to_pandas()
                 )

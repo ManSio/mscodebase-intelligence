@@ -546,8 +546,8 @@ class Indexer(IndexerTableMixin):
             Number of chunks moved
         """
         # Sanitize paths for LanceDB SQL filter
-        safe_old = old_path.replace("\\", "/").replace("'", "''")
-        safe_new = new_path.replace("\\", "/").replace("'", "''")
+        safe_old = IndexerTableMixin._escape_sql_value(old_path.replace(chr(92), "/"))
+        safe_new = IndexerTableMixin._escape_sql_value(new_path.replace(chr(92), "/"))
 
         if safe_old == safe_new:
             return 0
