@@ -32,16 +32,10 @@ logger = logging.getLogger("mscodebase_server")
 
 
 from src.core.passport import (
-    BUILD_ID as _BUILD_ID,
-)
-from src.core.passport import (
     RUN_ID as _RUN_ID,
 )
 from src.core.passport import (
     RUN_PID as _RUN_PID,
-)
-from src.core.passport import (
-    RUN_SOURCE_FILE as _RUN_SOURCE_FILE,
 )
 from src.core.passport import (
     RUN_STARTED_AT as _RUN_STARTED_AT,
@@ -206,6 +200,9 @@ def _create_progress_callback(project_name: str):
             }
             with _progress_lock:
                 _last_progress[project_name] = progress_info
+                # Periodic cleanup of stale entries (every 100 progress updates)
+                if len(_last_progress) > 10:
+                    _cleanup_old_progress()
 
             if done % 10 == 0 or phase in (
                 "complete",
@@ -241,7 +238,7 @@ _ext_root: Path
 # а __file__ может указывать на исходники при dev-запуске).
 _pythonpath = os.environ.get("PYTHONPATH", "")
 if _pythonpath:
-    _ext_root = Path(_pythonpath.split(";")[0]).resolve()
+    _ext_root = Path(_pythonpath.split(os.pathsep)[0]).resolve()
 else:
     _ext_root = Path(__file__).resolve().parent.parent.parent
 

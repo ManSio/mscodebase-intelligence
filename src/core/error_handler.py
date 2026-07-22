@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import concurrent.futures
 import functools
 import inspect
 import json
@@ -53,6 +54,9 @@ _TOOL_METRICS: dict = {}
 """Счётчики вызовов инструментов. Ключ — имя инструмента, значение — dict с calls, errors, min_ms, max_ms, total_ms, last_call, route, avg_confidence, avg_results."""
 
 _TOOL_METRICS_LOCK = threading.Lock()
+_SYNC_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=4, thread_name_prefix="error_boundary"
+)
 
 # Execution Timeline: кольцевой буфер последних N вызовов (имплиситный success signal)
 _TIMELINE: list = []
@@ -226,7 +230,7 @@ def record_tool_call(
             entry["avg_confidence"] = prev + (confidence - prev) / calls
         if results_count is not None:
             prev = entry.get("avg_results", 0.0)
-            entry["avg_results"] = prev - (results_count - prev) / calls
+            entry["avg_results"] = prev + (results_count - prev) / calls
 
         # Execution timeline (кольцевой буфер)
         _TIMELINE.append(
@@ -315,7 +319,7 @@ def get_global_idle_metrics() -> dict:
     with _TOOL_METRICS_LOCK:
         total_idle = sum(e.get("idle_ms", 0) for e in _TOOL_METRICS.values())
         total_calls = sum(e.get("calls", 0) for e in _TOOL_METRICS.values())
-        time.time() - _LAST_CALL_AT + (total_idle / 1000)
+        current_idle_sec = time.time() - _LAST_CALL_AT + (total_idle / 1000)
         active_ms = sum(e.get("total_ms", 0) for e in _TOOL_METRICS.values())
         total_ms = total_idle + active_ms
         return {
@@ -582,18 +586,14 @@ def error_boundary(
             start_time = time.perf_counter()
             try:
                 if timeout_ms:
-                    # Для синхронных функций используем run_in_executor + wait_for
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Мы внутри async контекста — используем to_thread
-                        async def _run():
-                            return await asyncio.to_thread(func, *args, **kwargs)
-
-                        result = asyncio.get_event_loop().run_until_complete(
-                            asyncio.wait_for(_run(), timeout=timeout_ms / 1000.0)
-                        )
-                    else:
-                        result = func(*args, **kwargs)
+                                    # Для синхронных функций используем ThreadPoolExecutor + timeout
+                                    loop = asyncio.get_event_loop()
+                                    if loop.is_running():
+                                        # Мы внутри async контекста — submit в пул с timeout
+                                        future = _SYNC_POOL.submit(func, *args, **kwargs)
+                                        result = future.result(timeout=timeout_ms / 1000.0)
+                                    else:
+                                        result = func(*args, **kwargs)
                 else:
                     result = func(*args, **kwargs)
 
