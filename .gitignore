@@ -152,14 +152,8 @@ experiments/_*.sh
 experiments/evaluation_output.txt
 experiments/evaluation_results.json
 experiments/incident_dataset*.json
-experiments/test_*.py
 experiments/compiler_concept*.py
 experiments/compiler_concept*.json
-experiments/treesitter_parser.py
-experiments/fts5_search.py
-experiments/mmr_prototype.py
-experiments/embed_bench_local.py
-experiments/evaluate_root_cause.py
 experiments/pagerank_out.txt
 docs/generated/MODULE_INDEX.md
 .local/state/gh/device-id
