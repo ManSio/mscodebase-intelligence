@@ -4,7 +4,7 @@
       "query": "where is hybrid_search defined",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -12,7 +12,7 @@
       "query": "Searcher class implementation",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -20,7 +20,7 @@
       "query": "DebounceBatch class",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -28,7 +28,7 @@
       "query": "RuntimeCoordinator",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -36,7 +36,7 @@
       "query": "ProjectContext snapshot",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -44,7 +44,7 @@
       "query": "LspClient process management",
       "gold": "src/core/lsp_client.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -52,7 +52,7 @@
       "query": "ModificationGuard decorator",
       "gold": "src/core/modification_guard.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -60,7 +60,7 @@
       "query": "SymbolIndex class",
       "gold": "src/core/indexing/symbol_index.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -68,7 +68,7 @@
       "query": "GraphAdapterPure",
       "gold": "src/core/search/graph_adapter_pure.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -76,7 +76,7 @@
       "query": "ErrorBoundary implementation",
       "gold": "src/core/error_handler.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -84,7 +84,7 @@
       "query": "FTS5Mixin search",
       "gold": "src/core/search/fts5_mixin.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -92,7 +92,7 @@
       "query": "BM25 scoring algorithm",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -100,15 +100,15 @@
       "query": "Reranker inference",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "EmbeddingCache",
-      "gold": "src/core/intelligence/engine.py",
+      "gold": "src/core/intelligence/layer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -116,7 +116,7 @@
       "query": "ProjectIndexerRegistry",
       "gold": "src/core/indexing/project_indexer_registry.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -124,7 +124,7 @@
       "query": "how does the search pipeline work",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -132,7 +132,7 @@
       "query": "how is the index built",
       "gold": "src/core/indexing/indexer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -140,23 +140,23 @@
       "query": "how does the rate limiter work",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "how does the watchdog monitor health",
-      "gold": "src/core/resource_monitor.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "gold": "src/core/indexing/resource_monitor.py",
+      "verdict": "SUFFICIENT",
+      "tokens": 65685,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "how does error handling work",
       "gold": "src/core/error_handler.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -164,15 +164,15 @@
       "query": "how does the MCP server start",
       "gold": "src/mcp/server.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
     {
       "query": "how does file watching work",
-      "gold": "src/core/indexing/watcher.py",
+      "gold": "src/core/indexing/watchdog.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -180,7 +180,7 @@
       "query": "how does the installer work",
       "gold": "install.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -188,7 +188,7 @@
       "query": "how does i18n work",
       "gold": "src/utils/i18n.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -196,7 +196,7 @@
       "query": "how does the sandbox execute code",
       "gold": "src/core/sandbox/executor.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -204,7 +204,7 @@
       "query": "who calls hybrid_search",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -212,7 +212,7 @@
       "query": "who uses LanceDB",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -220,7 +220,7 @@
       "query": "who imports the config",
       "gold": "src/config/settings.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -228,7 +228,7 @@
       "query": "who calls the reranker",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -236,7 +236,7 @@
       "query": "who uses asyncio locks",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -244,23 +244,23 @@
       "query": "who calls embedding_cache",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "who uses the watchdog",
-      "gold": "src/core/resource_monitor.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "gold": "src/core/indexing/resource_monitor.py",
+      "verdict": "SUFFICIENT",
+      "tokens": 65685,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "who calls notify_change",
       "gold": "src/core/indexing/indexer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -268,7 +268,7 @@
       "query": "who imports error_handler",
       "gold": "src/core/error_handler.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -276,7 +276,7 @@
       "query": "who calls search_code",
       "gold": "src/mcp/tools/search_tools.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -284,7 +284,7 @@
       "query": "what are the main layers of the project",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -292,7 +292,7 @@
       "query": "what is the entry point",
       "gold": "src/mcp/server.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -300,7 +300,7 @@
       "query": "what files are in core",
       "gold": "src/core/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -308,7 +308,7 @@
       "query": "what is the dependency graph",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -316,15 +316,15 @@
       "query": "what are the hotspots",
       "gold": "src/core/intelligence/layer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "what tests exist",
-      "gold": "tests/test_search_code.py",
+      "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -332,7 +332,7 @@
       "query": "what is the project structure",
       "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -340,7 +340,7 @@
       "query": "what are the external dependencies",
       "gold": "src/mcp/server.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
@@ -348,15 +348,15 @@
       "query": "what database is used",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "what models are loaded",
-      "gold": "src/providers/embedder.py",
+      "gold": "src/providers/embedder/remote_embedder.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -364,7 +364,7 @@
       "query": "where could a race condition happen",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -372,7 +372,7 @@
       "query": "where is memory managed",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -380,15 +380,15 @@
       "query": "where are timeouts configured",
       "gold": "src/config/settings.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": true
     },
     {
       "query": "where is logging configured",
-      "gold": "src/utils/logger.py",
+      "gold": "src/core/log_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     },
@@ -396,7 +396,7 @@
       "query": "where are SQL queries built",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69694,
+      "tokens": 65685,
       "files_selected": 25,
       "in_selection": false
     }
@@ -405,48 +405,48 @@
     {
       "query": "where is hybrid_search defined",
       "gold": "src/core/search/engine.py",
-      "verdict": "SUFFICIENT",
-      "tokens": 67934,
+      "verdict": "INSUFFICIENT",
+      "tokens": 67092,
       "files_selected": 25,
-      "in_selection": true
+      "in_selection": false
     },
     {
       "query": "Searcher class implementation",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 58531,
+      "tokens": 50097,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "DebounceBatch class",
       "gold": "src/core/rate_limiter.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 69830,
+      "verdict": "SUFFICIENT",
+      "tokens": 69645,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "RuntimeCoordinator",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 60825,
+      "tokens": 64297,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "ProjectContext snapshot",
       "gold": "src/core/runtime_coordinator.py",
-      "verdict": "SUFFICIENT",
-      "tokens": 69505,
+      "verdict": "INSUFFICIENT",
+      "tokens": 59267,
       "files_selected": 25,
-      "in_selection": true
+      "in_selection": false
     },
     {
       "query": "LspClient process management",
       "gold": "src/core/lsp_client.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 64230,
+      "tokens": 68518,
       "files_selected": 25,
       "in_selection": false
     },
@@ -454,7 +454,7 @@
       "query": "ModificationGuard decorator",
       "gold": "src/core/modification_guard.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68677,
+      "tokens": 68852,
       "files_selected": 25,
       "in_selection": false
     },
@@ -462,7 +462,7 @@
       "query": "SymbolIndex class",
       "gold": "src/core/indexing/symbol_index.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69912,
+      "tokens": 66987,
       "files_selected": 25,
       "in_selection": false
     },
@@ -470,23 +470,23 @@
       "query": "GraphAdapterPure",
       "gold": "src/core/search/graph_adapter_pure.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68477,
+      "tokens": 66830,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "ErrorBoundary implementation",
       "gold": "src/core/error_handler.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 63154,
+      "verdict": "SUFFICIENT",
+      "tokens": 67843,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "FTS5Mixin search",
       "gold": "src/core/search/fts5_mixin.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 64472,
+      "tokens": 67888,
       "files_selected": 25,
       "in_selection": false
     },
@@ -494,7 +494,7 @@
       "query": "BM25 scoring algorithm",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68810,
+      "tokens": 67206,
       "files_selected": 25,
       "in_selection": false
     },
@@ -502,15 +502,15 @@
       "query": "Reranker inference",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68200,
+      "tokens": 69282,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "EmbeddingCache",
-      "gold": "src/core/intelligence/engine.py",
+      "gold": "src/core/intelligence/layer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68382,
+      "tokens": 67915,
       "files_selected": 25,
       "in_selection": false
     },
@@ -518,7 +518,7 @@
       "query": "ProjectIndexerRegistry",
       "gold": "src/core/indexing/project_indexer_registry.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67452,
+      "tokens": 66411,
       "files_selected": 25,
       "in_selection": false
     },
@@ -526,7 +526,7 @@
       "query": "how does the search pipeline work",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 65645,
+      "tokens": 69297,
       "files_selected": 25,
       "in_selection": false
     },
@@ -534,7 +534,7 @@
       "query": "how is the index built",
       "gold": "src/core/indexing/indexer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 55870,
+      "tokens": 66365,
       "files_selected": 25,
       "in_selection": false
     },
@@ -542,15 +542,15 @@
       "query": "how does the rate limiter work",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 60635,
+      "tokens": 66852,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "how does the watchdog monitor health",
-      "gold": "src/core/resource_monitor.py",
+      "gold": "src/core/indexing/resource_monitor.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 64963,
+      "tokens": 69913,
       "files_selected": 25,
       "in_selection": false
     },
@@ -558,23 +558,23 @@
       "query": "how does error handling work",
       "gold": "src/core/error_handler.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 50935,
+      "tokens": 66294,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "how does the MCP server start",
       "gold": "src/mcp/server.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 56711,
+      "verdict": "SUFFICIENT",
+      "tokens": 66441,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "how does file watching work",
-      "gold": "src/core/indexing/watcher.py",
+      "gold": "src/core/indexing/watchdog.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 65195,
+      "tokens": 69603,
       "files_selected": 25,
       "in_selection": false
     },
@@ -582,7 +582,7 @@
       "query": "how does the installer work",
       "gold": "install.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 66663,
+      "tokens": 66285,
       "files_selected": 25,
       "in_selection": false
     },
@@ -590,7 +590,7 @@
       "query": "how does i18n work",
       "gold": "src/utils/i18n.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 61611,
+      "tokens": 68804,
       "files_selected": 25,
       "in_selection": false
     },
@@ -598,7 +598,7 @@
       "query": "how does the sandbox execute code",
       "gold": "src/core/sandbox/executor.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68000,
+      "tokens": 63513,
       "files_selected": 25,
       "in_selection": false
     },
@@ -606,7 +606,7 @@
       "query": "who calls hybrid_search",
       "gold": "src/core/search/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68774,
+      "tokens": 65849,
       "files_selected": 25,
       "in_selection": false
     },
@@ -614,23 +614,23 @@
       "query": "who uses LanceDB",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 65472,
+      "tokens": 67876,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "who imports the config",
       "gold": "src/config/settings.py",
-      "verdict": "SUFFICIENT",
-      "tokens": 66164,
+      "verdict": "INSUFFICIENT",
+      "tokens": 58148,
       "files_selected": 25,
-      "in_selection": true
+      "in_selection": false
     },
     {
       "query": "who calls the reranker",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 60370,
+      "tokens": 64822,
       "files_selected": 25,
       "in_selection": false
     },
@@ -638,7 +638,7 @@
       "query": "who uses asyncio locks",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 58349,
+      "tokens": 69760,
       "files_selected": 25,
       "in_selection": false
     },
@@ -646,55 +646,55 @@
       "query": "who calls embedding_cache",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67638,
+      "tokens": 65833,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "who uses the watchdog",
-      "gold": "src/core/resource_monitor.py",
+      "gold": "src/core/indexing/resource_monitor.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 66573,
+      "tokens": 69367,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "who calls notify_change",
       "gold": "src/core/indexing/indexer.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 68087,
+      "verdict": "SUFFICIENT",
+      "tokens": 63767,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "who imports error_handler",
       "gold": "src/core/error_handler.py",
-      "verdict": "SUFFICIENT",
-      "tokens": 67851,
+      "verdict": "INSUFFICIENT",
+      "tokens": 68217,
       "files_selected": 25,
-      "in_selection": true
+      "in_selection": false
     },
     {
       "query": "who calls search_code",
       "gold": "src/mcp/tools/search_tools.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67181,
+      "tokens": 68244,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "what are the main layers of the project",
       "gold": "src/core/runtime_coordinator.py",
-      "verdict": "SUFFICIENT",
-      "tokens": 68642,
+      "verdict": "INSUFFICIENT",
+      "tokens": 63061,
       "files_selected": 25,
-      "in_selection": true
+      "in_selection": false
     },
     {
       "query": "what is the entry point",
       "gold": "src/mcp/server.py",
       "verdict": "SUFFICIENT",
-      "tokens": 65959,
+      "tokens": 63753,
       "files_selected": 25,
       "in_selection": true
     },
@@ -702,7 +702,7 @@
       "query": "what files are in core",
       "gold": "src/core/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68626,
+      "tokens": 68277,
       "files_selected": 25,
       "in_selection": false
     },
@@ -710,7 +710,7 @@
       "query": "what is the dependency graph",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68333,
+      "tokens": 65591,
       "files_selected": 25,
       "in_selection": false
     },
@@ -718,15 +718,15 @@
       "query": "what are the hotspots",
       "gold": "src/core/intelligence/layer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 65948,
+      "tokens": 67954,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "what tests exist",
-      "gold": "tests/test_search_code.py",
+      "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68187,
+      "tokens": 68918,
       "files_selected": 25,
       "in_selection": false
     },
@@ -734,7 +734,7 @@
       "query": "what is the project structure",
       "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69316,
+      "tokens": 66600,
       "files_selected": 25,
       "in_selection": false
     },
@@ -742,7 +742,7 @@
       "query": "what are the external dependencies",
       "gold": "src/mcp/server.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67936,
+      "tokens": 60986,
       "files_selected": 25,
       "in_selection": false
     },
@@ -750,15 +750,15 @@
       "query": "what database is used",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69771,
+      "tokens": 62768,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "what models are loaded",
-      "gold": "src/providers/embedder.py",
+      "gold": "src/providers/embedder/remote_embedder.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 66747,
+      "tokens": 69072,
       "files_selected": 25,
       "in_selection": false
     },
@@ -766,7 +766,7 @@
       "query": "where could a race condition happen",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69094,
+      "tokens": 66419,
       "files_selected": 25,
       "in_selection": false
     },
@@ -774,7 +774,7 @@
       "query": "where is memory managed",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 63923,
+      "tokens": 62218,
       "files_selected": 25,
       "in_selection": false
     },
@@ -782,23 +782,23 @@
       "query": "where are timeouts configured",
       "gold": "src/config/settings.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 55353,
+      "tokens": 56647,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "where is logging configured",
-      "gold": "src/utils/logger.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 66514,
+      "gold": "src/core/log_manager.py",
+      "verdict": "SUFFICIENT",
+      "tokens": 69961,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "where are SQL queries built",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68359,
+      "tokens": 68892,
       "files_selected": 25,
       "in_selection": false
     }
@@ -808,7 +808,7 @@
       "query": "where is hybrid_search defined",
       "gold": "src/core/search/engine.py",
       "verdict": "SUFFICIENT",
-      "tokens": 68898,
+      "tokens": 69927,
       "files_selected": 25,
       "in_selection": true
     },
@@ -816,7 +816,7 @@
       "query": "Searcher class implementation",
       "gold": "src/core/search/engine.py",
       "verdict": "SUFFICIENT",
-      "tokens": 67493,
+      "tokens": 66015,
       "files_selected": 25,
       "in_selection": true
     },
@@ -824,7 +824,7 @@
       "query": "DebounceBatch class",
       "gold": "src/core/rate_limiter.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69940,
+      "tokens": 65429,
       "files_selected": 25,
       "in_selection": true
     },
@@ -848,7 +848,7 @@
       "query": "LspClient process management",
       "gold": "src/core/lsp_client.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69018,
+      "tokens": 69437,
       "files_selected": 25,
       "in_selection": true
     },
@@ -864,7 +864,7 @@
       "query": "SymbolIndex class",
       "gold": "src/core/indexing/symbol_index.py",
       "verdict": "SUFFICIENT",
-      "tokens": 66159,
+      "tokens": 59185,
       "files_selected": 25,
       "in_selection": true
     },
@@ -888,7 +888,7 @@
       "query": "FTS5Mixin search",
       "gold": "src/core/search/fts5_mixin.py",
       "verdict": "SUFFICIENT",
-      "tokens": 65481,
+      "tokens": 69499,
       "files_selected": 25,
       "in_selection": true
     },
@@ -896,7 +896,7 @@
       "query": "BM25 scoring algorithm",
       "gold": "src/core/search/engine.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69937,
+      "tokens": 59285,
       "files_selected": 22,
       "in_selection": true
     },
@@ -904,13 +904,13 @@
       "query": "Reranker inference",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 63131,
+      "tokens": 67362,
       "files_selected": 20,
       "in_selection": false
     },
     {
       "query": "EmbeddingCache",
-      "gold": "src/core/intelligence/engine.py",
+      "gold": "src/core/intelligence/layer.py",
       "verdict": "INSUFFICIENT",
       "tokens": 0,
       "files_selected": 0,
@@ -928,7 +928,7 @@
       "query": "how does the search pipeline work",
       "gold": "src/core/search/engine.py",
       "verdict": "SUFFICIENT",
-      "tokens": 59729,
+      "tokens": 67148,
       "files_selected": 25,
       "in_selection": true
     },
@@ -936,7 +936,7 @@
       "query": "how is the index built",
       "gold": "src/core/indexing/indexer.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 63014,
+      "tokens": 64344,
       "files_selected": 25,
       "in_selection": false
     },
@@ -944,23 +944,23 @@
       "query": "how does the rate limiter work",
       "gold": "src/core/rate_limiter.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67515,
+      "tokens": 68505,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "how does the watchdog monitor health",
-      "gold": "src/core/resource_monitor.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 64716,
+      "gold": "src/core/indexing/resource_monitor.py",
+      "verdict": "SUFFICIENT",
+      "tokens": 69504,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "how does error handling work",
       "gold": "src/core/error_handler.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69476,
+      "tokens": 69237,
       "files_selected": 25,
       "in_selection": true
     },
@@ -968,15 +968,15 @@
       "query": "how does the MCP server start",
       "gold": "src/mcp/server.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68200,
+      "tokens": 68946,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "how does file watching work",
-      "gold": "src/core/indexing/watcher.py",
+      "gold": "src/core/indexing/watchdog.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 64431,
+      "tokens": 69829,
       "files_selected": 25,
       "in_selection": false
     },
@@ -984,7 +984,7 @@
       "query": "how does the installer work",
       "gold": "install.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 61474,
+      "tokens": 68668,
       "files_selected": 25,
       "in_selection": false
     },
@@ -992,7 +992,7 @@
       "query": "how does i18n work",
       "gold": "src/utils/i18n.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 61819,
+      "tokens": 65293,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1000,7 +1000,7 @@
       "query": "how does the sandbox execute code",
       "gold": "src/core/sandbox/executor.py",
       "verdict": "SUFFICIENT",
-      "tokens": 68243,
+      "tokens": 69614,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1008,7 +1008,7 @@
       "query": "who calls hybrid_search",
       "gold": "src/core/search/engine.py",
       "verdict": "SUFFICIENT",
-      "tokens": 69898,
+      "tokens": 64555,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1016,7 +1016,7 @@
       "query": "who uses LanceDB",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "SUFFICIENT",
-      "tokens": 67736,
+      "tokens": 66448,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1024,7 +1024,7 @@
       "query": "who imports the config",
       "gold": "src/config/settings.py",
       "verdict": "SUFFICIENT",
-      "tokens": 68902,
+      "tokens": 62171,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1032,7 +1032,7 @@
       "query": "who calls the reranker",
       "gold": "src/providers/reranker.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68467,
+      "tokens": 60043,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1040,7 +1040,7 @@
       "query": "who uses asyncio locks",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69084,
+      "tokens": 68981,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1048,15 +1048,15 @@
       "query": "who calls embedding_cache",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 66279,
+      "tokens": 66522,
       "files_selected": 25,
       "in_selection": false
     },
     {
       "query": "who uses the watchdog",
-      "gold": "src/core/resource_monitor.py",
+      "gold": "src/core/indexing/resource_monitor.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 64908,
+      "tokens": 65679,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1064,7 +1064,7 @@
       "query": "who calls notify_change",
       "gold": "src/core/indexing/indexer.py",
       "verdict": "SUFFICIENT",
-      "tokens": 60226,
+      "tokens": 64614,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1072,7 +1072,7 @@
       "query": "who imports error_handler",
       "gold": "src/core/error_handler.py",
       "verdict": "SUFFICIENT",
-      "tokens": 59268,
+      "tokens": 61575,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1080,7 +1080,7 @@
       "query": "who calls search_code",
       "gold": "src/mcp/tools/search_tools.py",
       "verdict": "SUFFICIENT",
-      "tokens": 62667,
+      "tokens": 65412,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1088,7 +1088,7 @@
       "query": "what are the main layers of the project",
       "gold": "src/core/runtime_coordinator.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 63993,
+      "tokens": 68971,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1096,7 +1096,7 @@
       "query": "what is the entry point",
       "gold": "src/mcp/server.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69796,
+      "tokens": 67962,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1104,7 +1104,7 @@
       "query": "what files are in core",
       "gold": "src/core/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 66981,
+      "tokens": 67701,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1112,7 +1112,7 @@
       "query": "what is the dependency graph",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 60407,
+      "tokens": 59627,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1120,15 +1120,15 @@
       "query": "what are the hotspots",
       "gold": "src/core/intelligence/layer.py",
       "verdict": "SUFFICIENT",
-      "tokens": 64947,
+      "tokens": 60294,
       "files_selected": 25,
       "in_selection": true
     },
     {
       "query": "what tests exist",
-      "gold": "tests/test_search_code.py",
+      "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 67219,
+      "tokens": 65505,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1136,7 +1136,7 @@
       "query": "what is the project structure",
       "gold": "src/__init__.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68535,
+      "tokens": 67913,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1144,7 +1144,7 @@
       "query": "what are the external dependencies",
       "gold": "src/mcp/server.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69460,
+      "tokens": 58283,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1152,23 +1152,23 @@
       "query": "what database is used",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "SUFFICIENT",
-      "tokens": 67189,
+      "tokens": 64673,
       "files_selected": 25,
       "in_selection": true
     },
     {
       "query": "what models are loaded",
-      "gold": "src/providers/embedder.py",
-      "verdict": "INSUFFICIENT",
-      "tokens": 69125,
+      "gold": "src/providers/embedder/remote_embedder.py",
+      "verdict": "SUFFICIENT",
+      "tokens": 68780,
       "files_selected": 25,
-      "in_selection": false
+      "in_selection": true
     },
     {
       "query": "where could a race condition happen",
       "gold": "src/core/rate_limiter.py",
       "verdict": "SUFFICIENT",
-      "tokens": 59078,
+      "tokens": 65448,
       "files_selected": 25,
       "in_selection": true
     },
@@ -1176,7 +1176,7 @@
       "query": "where is memory managed",
       "gold": "src/core/intelligence/engine.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 69818,
+      "tokens": 64089,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1184,15 +1184,15 @@
       "query": "where are timeouts configured",
       "gold": "src/config/settings.py",
       "verdict": "SUFFICIENT",
-      "tokens": 66628,
+      "tokens": 67502,
       "files_selected": 25,
       "in_selection": true
     },
     {
       "query": "where is logging configured",
-      "gold": "src/utils/logger.py",
+      "gold": "src/core/log_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 68024,
+      "tokens": 65984,
       "files_selected": 25,
       "in_selection": false
     },
@@ -1200,7 +1200,7 @@
       "query": "where are SQL queries built",
       "gold": "src/core/indexing/db_manager.py",
       "verdict": "INSUFFICIENT",
-      "tokens": 63879,
+      "tokens": 68036,
       "files_selected": 25,
       "in_selection": false
     }
