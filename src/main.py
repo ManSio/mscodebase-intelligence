@@ -42,8 +42,6 @@ if cwd != PROJECT_ROOT:
 project_root_resolved = str(PROJECT_ROOT.resolve())
 if project_root_resolved not in [str(Path(p).resolve()) for p in sys.path]:
     sys.path.insert(0, str(PROJECT_ROOT))
-
-
 def _start_contradiction_ledger() -> None:
     """Фоновая проверка AGENT_DIARY.md против реального кода при старте.
 
@@ -79,30 +77,6 @@ def _start_contradiction_ledger() -> None:
         logger.info("🔍 Contradiction Ledger запущен в фоне (проверка AGENT_DIARY.md)")
     except Exception as _e:
         logger.warning(f"Не удалось запустить Contradiction Ledger: {_e}")
-
-
-# ⚠️ Критично: при запуске через `python -m src.main` пакет `src` уже загружен
-# из CWD (проекта). Даже если мы поменяли sys.path, Python не перезагружает
-# уже загруженный пакет. Принудительно переключаем src на расширение.
-try:
-    _src_pkg = sys.modules.get("src")
-    if _src_pkg and hasattr(_src_pkg, "__path__"):
-        _new_src_path = str(PROJECT_ROOT / "src")
-        if _src_pkg.__path__[0] != _new_src_path:
-            _old_path = _src_pkg.__path__[0]
-            _src_pkg.__path__ = [_new_src_path]
-            # Удаляем src.mcp.* — они будут перезагружены с новым __path__
-            # (src.core.* уже загружен в setup_logging — не трогаем)
-            for _mod_name in list(sys.modules.keys()):
-                if _mod_name.startswith("src.mcp"):
-                    del sys.modules[_mod_name]
-except Exception as _e:
-    logger.warning("exception", exc_info=True)
-    pass
-# После удаления src/ из sys.path модули src.* всё ещё доступны
-# через PROJECT_ROOT, но import mcp теперь правильно идёт в site-packages.
-
-
 def log_crash(error: BaseException) -> None:
     """Записывает критический сбой в файл, чтобы Zed мог перезапустить сервер."""
     import traceback
@@ -112,8 +86,6 @@ def log_crash(error: BaseException) -> None:
         f.write(f"\n{'=' * 80}\n")
         f.write(f"Critical crash at {Path.cwd()}\n")
         traceback.print_exception(type(error), error, error.__traceback__, file=f)
-
-
 def _load_env():
     """Загружает .env файл из корня проекта."""
     try:
@@ -123,8 +95,6 @@ def _load_env():
             load_dotenv(env_path)
     except ImportError:
         pass  # python-dotenv не установлен — используем системные env
-
-
 def setup_logging():
     """Настраивает логирование и перенаправляет stdout в stderr.
     Возвращает (original_stdout, logger).
@@ -155,8 +125,6 @@ def setup_logging():
         pass  # Файловое логирование опционально
 
     return original_stdout
-
-
 def main():
     """Главная функция запуска MCP-сервера."""
     original_stdout = setup_logging()
@@ -217,10 +185,10 @@ def main():
         from src.mcp.server import run_server
 
         # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
-                # NOTE: Moved to server_factory.py _start_contradiction_ledger_background()
-                # to avoid duplicate execution.
+        # NOTE: Moved to server_factory.py _start_contradiction_ledger_background()
+        # to avoid duplicate execution.
 
-                logger.info("Запуск MCP сервера...")
+        logger.info("Запуск MCP сервера...")
         # run_server сам создаёт event loop и запускает stdio
         run_server(original_stdout)
 
@@ -230,7 +198,5 @@ def main():
         log_crash(e)
         logger.error(f"❌ Критическая ошибка сервера: {e}", exc_info=True)
         sys.exit(1)
-
-
 if __name__ == "__main__":
     main()
