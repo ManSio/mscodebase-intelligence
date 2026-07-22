@@ -53,7 +53,7 @@ ALLOWED_MODULES: frozenset[str] = frozenset({
     # Date / time
     "datetime", "time", "zoneinfo",
     # IO / paths (read-only)
-    "io", "pathlib", "glob", "fnmatch",
+    "io", "glob", "fnmatch",
     # Networking (parse only, no sockets)
     "urllib.parse", "urllib.request", "email.utils",
     # Debug / inspection
@@ -86,6 +86,15 @@ _DANGEROUS_AST_NODES: frozenset[type] = frozenset({
     ast.Delete,      # Can delete variables
 })
 
+# Blocked built-in names (catches dynamic import/eval bypass attempts)
+BLOCKED_NAMES: frozenset[str] = frozenset({
+    "getattr", "setattr", "delattr",
+    "globals", "locals", "vars",
+    "__import__", "eval", "exec",
+    "compile", "breakpoint",
+    "input",  # blocks interactive input
+})
+
 # ── Limits ─────────────────────────────────────────────────────
 
 MAX_EXECUTION_TIME_S = 120
@@ -105,11 +114,24 @@ def _get_audit_log_path() -> Path:
     return _AUDIT_LOG
 
 
+_MAX_AUDIT_SIZE = 5 * 1024 * 1024  # 5MB
+
+
 def _audit_log(entry: Dict[str, Any]) -> None:
-    """Append execution record to audit log (JSONL format)."""
+    """Append execution record to audit log (JSONL format).
+
+    Rotates when log exceeds 5MB (renames to .old.jsonl).
+    """
     try:
         entry["timestamp"] = datetime.now(timezone.utc).isoformat()
         log_path = _get_audit_log_path()
+        # Rotate if too large
+        if log_path.exists() and log_path.stat().st_size > _MAX_AUDIT_SIZE:
+            old_path = log_path.with_suffix(".old.jsonl")
+            try:
+                log_path.rename(old_path)
+            except OSError:
+                pass  # If rename fails, continue appending
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
@@ -208,6 +230,14 @@ def validate_code(code: str) -> list[str]:
                     pattern=f".{node.attr}",
                 )
 
+        # Block dangerous built-in names (catches dynamic getattr/import bypass)
+        elif isinstance(node, ast.Name):
+            if node.id in BLOCKED_NAMES:
+                raise SandboxViolation(
+                    f"Blocked name: {node.id}",
+                    pattern=node.id,
+                )
+
     return warnings
 
 
@@ -256,6 +286,13 @@ def execute_sandboxed(
         "truncated": False,
         "violation": None,
     }
+
+    # ── CRITICAL warning when sandbox is disabled ──
+    if mode == SANDBOX_MODE_OFF:
+        logger.critical(
+            "SANDBOX DISABLED — code execution without isolation",
+            extra={"tool": "execute_script", "mode": "off"},
+        )
 
     # ── Validation (strict mode only) ──
     if mode == SANDBOX_MODE_STRICT:

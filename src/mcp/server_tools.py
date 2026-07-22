@@ -159,9 +159,13 @@ def register_all_tools(mcp, services):
     else:
         _before = len(tool_classes)
         _filtered_classes = []
+        # Cache tool names to avoid double instantiation.
+        # Each class is instantiated once for name lookup, then once for registration.
+        _name_cache: dict = {}
         for _cls in tool_classes:
-            _inst = _cls(services)
-            _name = _inst.name
+            if _cls not in _name_cache:
+                _name_cache[_cls] = _cls(services).name
+            _name = _name_cache[_cls]
             if _name not in _allowed_names:
                 logger.debug(f"  🔇 Tool hidden: {_name}")
                 continue

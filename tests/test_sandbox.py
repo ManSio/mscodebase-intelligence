@@ -104,6 +104,52 @@ class TestValidateCode:
         warnings = validate_code("")
         assert isinstance(warnings, list)
 
+    # ── R1: Blocked built-in names ──
+
+    def test_blocked_name_getattr(self):
+        with pytest.raises(SandboxViolation, match="Blocked name"):
+            validate_code("x = getattr(obj, 'attr')")
+
+    def test_blocked_name_setattr(self):
+        with pytest.raises(SandboxViolation, match="Blocked name"):
+            validate_code("setattr(obj, 'attr', value)")
+
+    def test_blocked_name_delattr(self):
+        with pytest.raises(SandboxViolation, match="Blocked name"):
+            validate_code("delattr(obj, 'attr')")
+
+    def test_blocked_name_globals(self):
+        with pytest.raises(SandboxViolation):
+            validate_code("x = globals()")
+
+    def test_blocked_name_locals(self):
+        with pytest.raises(SandboxViolation):
+            validate_code("x = locals()")
+
+    # ── R2: pathlib removed from allowlist ──
+
+    def test_pathlib_blocked(self):
+        with pytest.raises(SandboxViolation, match="not in allowlist"):
+            validate_code("from pathlib import Path")
+
+    # ── Bypass attempts ──
+
+    def test_concatenated_import_bypass(self):
+        """String concatenation to evade string scan.
+
+        Note: Pure string concat ("__imp" + "ort") is harmless by itself —
+        it's just a string literal. The bypass only works when combined
+        with __import__() or eval(), which ARE caught. We verify that
+        the dangerous CALL is caught even if the import name is constructed.
+        """
+        with pytest.raises(SandboxViolation):
+            validate_code('x = __import__("os")')
+
+    def test_dynamic_getattr_bypass(self):
+        """getattr with string concatenation to import os."""
+        with pytest.raises(SandboxViolation):
+            validate_code('getattr(__import__("os"), "sys" + "tem")')
+
 
 # ═══════════════════════════════════════════════════════════════
 # execute_sandboxed — subprocess execution

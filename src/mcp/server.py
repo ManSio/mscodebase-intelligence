@@ -153,7 +153,8 @@ def _check_source_extension_sync() -> Optional[str]:
                     f"для синхронизации расширения."
                 )
         return None
-    except Exception:
+    except Exception as _git_err:
+        logger.debug(f"Git version check failed: {_git_err}")
         return None
 
 
@@ -300,7 +301,8 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
             try:
                 _sqlite_conn.execute("SELECT 1")  # проверка живости
                 return _sqlite_conn
-            except Exception:
+            except Exception as _alive_err:
+                logger.debug(f"SQLite connection stale: {_alive_err}")
                 _sqlite_conn = None  # умерло, создадим новое
 
         # открываем новое
@@ -317,7 +319,8 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
                 _sqlite_schema_checked = True
             _sqlite_conn_time = now
             return _sqlite_conn
-        except Exception:
+        except Exception as _conn_err:
+            logger.debug(f"SQLite connection failed: {_conn_err}")
             _sqlite_conn = None
             return None
 
@@ -370,9 +373,9 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
                 f"Игнорирую — self-indexing guard."
             )
             return True
-    except Exception:
+    except Exception as _bridge_err:
         # Если lsp_project_bridge недоступен — не блокируем (fail-open)
-        pass
+        logger.debug(f"LSP bridge check failed (fail-open): {_bridge_err}")
     return False
 
 
@@ -482,8 +485,8 @@ def resolve_project_root(provided: str = "") -> Path:
                                     f"resolve_project_root: active_workspace_id={_active_id} → {_path}"
                                 )
                                 return _path.resolve()
-                except Exception:
-                    pass
+                except Exception as _ws_err:
+                    logger.debug(f"resolve_project_root: workspace parse failed: {_ws_err}")
     except Exception as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 

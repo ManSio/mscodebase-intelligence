@@ -2,7 +2,10 @@
 Тесты для системы отслеживания прогресса индексации.
 """
 
+import inspect
+import tempfile
 import time
+from pathlib import Path
 from unittest.mock import MagicMock
 
 
@@ -174,19 +177,11 @@ class TestIndexerProgressCallback:
 
     def test_callback_is_optional(self):
         """progress_callback опциональный."""
-        from pathlib import Path
-
         from src.core.indexing.indexer import Indexer
-
-        indexer = Indexer(
-            Path("/tmp/test.db"),
-            MagicMock(),
-            MagicMock(),
-            project_path=Path("/tmp")
-        )
-
         import inspect
-        sig = inspect.signature(indexer.index_project)
+
+        # Check signature without instantiating (avoids DB locks)
+        sig = inspect.signature(Indexer.index_project)
         param = sig.parameters["progress_callback"]
         assert param.default is None
 
