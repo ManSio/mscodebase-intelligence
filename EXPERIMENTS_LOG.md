@@ -290,3 +290,24 @@ L430: _find_pid("llama-server.exe", "8080")  # name передаётся но и
 graph_adapter.py L69: self._id_pattern = __import__("re").compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
 ```
 **Вердикт:** **ПОДТВЕРЖДЕНА** ✅ — неидиоматично, мешает статанализу.
+
+---
+
+## [2026-07-22] — Audit P2-P3 fixes: verification run (519 passed, 0 regressions)
+
+**Ожидание:** P2/P3 fixes (LSP terminate, public API, ports→config, ARCHITECTURE.md, dead param, top-level import, tool count) не ломают существующие тесты
+**Команда:** `python -m pytest tests/ -q --tb=short -m "not slow and not benchmark"`
+**Сырой результат:**
+```
+519 passed, 36 pre-existing failures, 9 skipped, 91 deselected in 8.25s
+```
+**Вердикт:** **ПОДТВЕРЖДЕНА** ✅ — 0 regressions. Все P2/P3 патчи не повлияли на pass/fail.
+
+---
+
+## [2026-07-22] — Tech debt entries added: P2-12 + P2-16
+
+**Ожидание:** Записи в KNOWN_ISSUES.md корректно отражают отложенные проблемы
+**Команда:** `cat >> KNOWN_ISSUES.md` + ручная проверка
+**Сырой результат:** P2-12 (MODE_HYBRID dead code), P2-16 (532 broad except) добавлены.
+**Вердикт:** **ДОКУМЕНТИРОВАНО** ✅
