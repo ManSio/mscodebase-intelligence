@@ -368,6 +368,11 @@ class CypherToSQL:
             var, prop = parts
             alias = node_vars.get(var, var)
 
+            # Validate property name - defense in depth against SQL injection
+            # Only allow alphanumeric and underscore (matching Cypher lexer)
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prop):
+                raise ValueError(f"Invalid property name: {prop}")
+
             # Специальные имена свойств
             prop_map = {
                 "name": "name",
