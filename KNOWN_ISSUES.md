@@ -1478,3 +1478,20 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Issue 21:** Double tool instantiation (38 classes, minor perf)
 - **Issue 24:** Redundant `pass` after `logger.warning` (1 instance)
 - **Issue 27:** SQL without LIMIT (works correctly)
+
+---
+
+## 2026-07-22 — Wave 1+2: SQL injection, cache lock, recreate_table sync (FIXED)
+
+### #22 SQL-инъекция в LanceDB (FIXED)
+- **Что было:** LanceDB (DataFusion SQL) не поддерживает параметризованные запросы. Значения `parent_id`, `file_path`, `file_hash` подставлялись в `.where()` без экранирования.
+- **Статус:** ✅ Исправлено — `_escape_sql_value()` во всех 7 точках.
+- **Fix:** `src/core/indexing/indexer_table.py` — новый staticmethod; `indexer.py`, `engine.py`, `index_pipeline.py`, `file_move_manager.py` — все `.where()` вызовы экранированы.
+
+### #9 Race condition в _cache dict (FIXED)
+- **Что было:** `self._cache` (Dict) без Lock — при конкурентных MCP-запросах возможен `RuntimeError: dictionary changed size during iteration`.
+- **Статус:** ✅ Исправлено — `threading.Lock` добавлен, все доступы под lock.
+
+### #6 _safe_recreate_table без sync ссылок (FIXED)
+- **Что было:** После пересоздания таблицы ссылки в `_status_reporter`, `_freshness_checker`, `_file_move_manager`, `_project_runner` оставались stale.
+- **Статус:** ✅ Исправлено — вызов `_sync_table_ref()` через `hasattr` проверку.

@@ -248,6 +248,13 @@ class ExecuteScriptTool(MCPTool):
     ) -> str:
         """Execute Python code in a sandboxed environment.
 
+        Security layers:
+        1. AST validation — blocks dangerous patterns before execution
+        2. Module allowlist — only safe stdlib modules permitted
+        3. Subprocess isolation — code runs in separate process with restricted env
+        4. Timeout enforcement — kills long-running code
+        5. Audit logging — every execution logged
+
         Args:
             code: Python code to execute
             timeout: Max execution time in seconds (5-120)
@@ -269,81 +276,42 @@ class ExecuteScriptTool(MCPTool):
 
         timeout = max(5, min(timeout, 120))
         project_root = str(Path.cwd())
-        t0 = time.perf_counter()
 
-        # Windows: не показывать окно cmd
-        startupinfo = None
-        creationflags = 0
-        if sys.platform == "win32":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            creationflags = subprocess.CREATE_NO_WINDOW
+        # Determine sandbox mode from env
+        from src.core.sandbox.executor import (
+            execute_sandboxed,
+            SANDBOX_MODE_STRICT,
+            SANDBOX_MODE_PERMISSIVE,
+        )
+        sandbox_mode = os.environ.get(
+            "MSCODEBASE_SANDBOX_MODE", SANDBOX_MODE_STRICT
+        )
 
-        with tempfile.TemporaryDirectory(prefix="mscx_exec_") as tmp_dir:
-            env = self._build_env(project_root)
-            env["TEMP_DIR"] = tmp_dir
-            env["TMP"] = tmp_dir
+        # Parse args string into list
+        arg_list = args.split() if args else []
 
-            timed_out = False
-            exit_code = 0
-            stdout_text = ""
-            stderr_text = ""
+        # Execute in sandbox
+        result = await asyncio.to_thread(
+            execute_sandboxed,
+            code=code,
+            timeout=timeout,
+            project_root=project_root,
+            mode=sandbox_mode,
+            args=arg_list,
+        )
 
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    sys.executable, "-c", code,
-                    stdin=asyncio.subprocess.DEVNULL,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=env,
-                    cwd=tmp_dir,
-                    startupinfo=startupinfo,
-                    creationflags=creationflags,
-                    close_fds=True,
-                )
+        # Format for display
+        raw = {
+            "stdout": self._truncate(result.get("stdout", ""), self._STDOUT_LIMIT, "stdout"),
+            "stderr": self._truncate(result.get("stderr", ""), self._STDERR_LIMIT, "stderr"),
+            "exit_code": result.get("exit_code", 1),
+            "duration_ms": result.get("duration_ms", 0),
+            "truncated": result.get("truncated", False),
+            "timed_out": result.get("timed_out", False),
+        }
+        if result.get("timed_out"):
+            raw["timeout_s"] = timeout
+        if result.get("violation"):
+            raw["stderr"] = f"🔒 Sandbox violation: {result['violation']}\n{raw['stderr']}"
 
-                try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                        proc.communicate(), timeout=timeout
-                    )
-                except asyncio.TimeoutError:
-                    timed_out = True
-                    await self._graceful_shutdown(proc)
-                    exit_code = -1
-
-                if not timed_out:
-                    stdout_text = (stdout_bytes or b"").decode("utf-8", errors="replace")
-                    stderr_text = (stderr_bytes or b"").decode("utf-8", errors="replace")
-                    exit_code = proc.returncode or 0
-
-            except Exception as e:
-                duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-                return json.dumps({
-                    "stdout": "",
-                    "stderr": str(e),
-                    "exit_code": 1,
-                    "duration_ms": duration_ms,
-                    "truncated": False,
-                    "timed_out": False,
-                })
-
-            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-
-            stdout_truncated = len(stdout_text) > self._STDOUT_LIMIT
-            stderr_truncated = len(stderr_text) > self._STDERR_LIMIT
-            stdout_shown = self._truncate(stdout_text, self._STDOUT_LIMIT, "stdout")
-            stderr_shown = self._truncate(stderr_text, self._STDERR_LIMIT, "stderr")
-
-            raw = {
-                "stdout": stdout_shown,
-                "stderr": stderr_shown,
-                "exit_code": exit_code,
-                "duration_ms": duration_ms,
-                "truncated": stdout_truncated or stderr_truncated,
-                "timed_out": timed_out,
-            }
-            if timed_out:
-                raw["timeout_s"] = timeout
-
-            return self._format_result(raw)
+        return self._format_result(raw)
