@@ -456,9 +456,11 @@ def resolve_project_root(provided: str = "") -> Path:
             _cur.execute(
                 "SELECT key, value FROM scoped_kv_store "
                 "WHERE namespace = 'multi_workspace_state' "
-                "ORDER BY rowid DESC"
+                "ORDER BY rowid DESC "
+                "LIMIT 1"
             )
-            for _row in _cur.fetchall():
+            _row = _cur.fetchone()
+            if _row:
                 try:
                     _state = _json.loads(_row[1])
                     _active_id = _state.get("active_workspace_id")
@@ -481,7 +483,7 @@ def resolve_project_root(provided: str = "") -> Path:
                                 )
                                 return _path.resolve()
                 except Exception:
-                    continue
+                    pass
     except Exception as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 

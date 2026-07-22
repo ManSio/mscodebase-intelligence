@@ -5567,3 +5567,32 @@ Second audit found 27 issues across 10 files. Full verification against actual c
 - Issue 21: Double tool instantiation (38 tool classes, minor perf)
 - Issue 24: Redundant `pass` after `logger.warning` (1 instance)
 - Issue 27: SQL without LIMIT (works correctly, minor perf)
+
+## [2026-07-22] — Wave 1+2: SQL injection, cache lock, recreate_table sync
+
+### Fixes Applied
+
+| ID | Fix | File | Description |
+|----|-----|------|-------------|
+| #22 | SQL injection prevention | indexer_table.py, indexer.py, engine.py, index_pipeline.py, file_move_manager.py | Added `_escape_sql_value()` static method; applied to all unescaped `.where()` calls |
+| #9 | Cache thread-safety | engine.py | Added `_cache_lock` (threading.Lock) to `_cache` dict access |
+| #6 | Recreate table sync | indexer_table.py | `_safe_recreate_table` now calls `_sync_table_ref()` via `hasattr` check |
+
+### SQL Injection Details
+- **Vector**: LanceDB uses DataFusion SQL; no parameterized queries; user-controlled values (`parent_id`, `file_path`, `file_hash`) interpolated directly into `.where()` clauses
+- **Fix**: `_escape_sql_value()` escapes `'` → `''`, `\` → `\`, removes NULL bytes
+- **Coverage**: All 7 `.where(f"...")` calls in `src/core/indexing/` and `src/core/search/` now escaped
+
+### Test Results
+- 511 passed, 35 pre-existing failures, 0 regressions
+- `test_searcher_hardening::test_search_with_mode_cache_includes_layer_and_intent` — was broken by cache lock (return inside `with` block), fixed by restructuring
+
+### Commits
+- `de46f310` — `fix(security+cache): SQL injection prevention, cache thread-safety, recreate_table sync` → pushed
+
+### Remaining Deferred
+- #23: RCE sandbox for ExecuteScriptTool (1-3 days, separate task)
+- #17: sync/async chaos (architectural, quarterly)
+- #18-20: DI/circular imports/global state (architectural, quarterly)
+- #24: Broad except cleanup (gradual)
+- #27: SQL LIMIT (trivial, 1 line + test)
