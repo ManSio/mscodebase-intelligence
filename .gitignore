@@ -137,7 +137,29 @@ scripts/update_zed_models.py
 # Dev notes — не для publish
 DEV_EXP.md
 # Экспериментальные артефакты — не пушить
-experiments
-!.gitkeep
+experiments/__pycache__/
+experiments/*_results.json
+experiments/*_results.csv
+experiments/*_results.txt
+experiments/audit.md
+experiments/deep_research_log.md
+experiments/github_research_log.md
+experiments/sandbox_*.py
+experiments/_*.py
+experiments/_*.txt
+experiments/_*.bat
+experiments/_*.sh
+experiments/evaluation_output.txt
+experiments/evaluation_results.json
+experiments/incident_dataset*.json
+experiments/test_*.py
+experiments/compiler_concept*.py
+experiments/compiler_concept*.json
+experiments/treesitter_parser.py
+experiments/fts5_search.py
+experiments/mmr_prototype.py
+experiments/embed_bench_local.py
+experiments/evaluate_root_cause.py
+experiments/pagerank_out.txt
 docs/generated/MODULE_INDEX.md
 .local/state/gh/device-id
