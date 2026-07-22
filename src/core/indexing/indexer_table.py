@@ -29,9 +29,35 @@ class IndexerTableMixin:
         """Экранирует file_path для безопасного использования в where/delete запросах LanceDB.
         LanceDB не поддерживает параметризованные запросы, поэтому экранируем вручную.
         """
-        # Экранируем одинарные кавычки (удвоением) и обратные слеши
-        escaped = file_path.replace("'", "''")
-        return escaped
+        return self._escape_sql_value(file_path)
+
+    @staticmethod
+    def _escape_sql_value(value: str) -> str:
+        """Экранирует строковое значение для безопасной подстановки в SQL WHERE-клаузу.
+
+        LanceDB (DataFusion SQL) не поддерживает параметризованные запросы,
+        поэтому все пользовательские значения экранируются вручную.
+
+        Защита:
+        - Одинарные кавычки → удвоение (SQL-стандарт)
+        - Обратные слеши → удвоение (DataFusion escape)
+        - NULL-байты → удаление (защита от truncation-атак)
+
+        Args:
+            value: строковое значение для экранирования.
+
+        Returns:
+            Экранированное значение безопасное для вставки в WHERE '...'.
+        """
+        if not isinstance(value, str):
+            value = str(value)
+        # Удаляем NULL-байты (защита от truncation)
+        value = value.replace("\x00", "")
+        # Экранируем обратные слеши (DataFusion использует их как escape)
+        value = value.replace("\\", "\\\\")
+        # Экранируем одинарные кавычки (стандарт SQL)
+        value = value.replace("'", "''")
+        return value
 
     # ──────────────────────────────────────────────
     # Миграция схемы
@@ -240,6 +266,8 @@ class IndexerTableMixin:
 
         Используется когда таблица повреждена, сброшена извне или
         migration не удался. Сбрасывает кэши и обновляет self.table.
+        Вызывает _sync_table_ref() (если есть) для синхронизации ссылок
+        во всех компонентах.
 
         Returns:
             True если таблица создана, False при ошибке.
@@ -266,6 +294,14 @@ class IndexerTableMixin:
                     self.searcher.reindex()
                 except Exception:
                     pass
+
+            # Синхронизируем ссылки в дочерних компонентах (Indexer._sync_table_ref)
+            if hasattr(self, "_sync_table_ref") and callable(self._sync_table_ref):
+                try:
+                    self._sync_table_ref(self.table)
+                except Exception as sync_err:
+                    logger.warning(f"_sync_table_ref failed after recreate: {sync_err}")
+
             logger.info(f"📦 Таблица {self.table_name} пересоздана с полной схемой")
             return True
         except Exception as e:
