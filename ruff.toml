@@ -9,7 +9,7 @@ ignore = ["E501", "F405", "E701"]
 "__init__.py" = ["F401", "F403", "F405"]
 "src/core/*.py" = ["F403"]
 "tests/*.py" = ["E402"]
-"src/core/intelligence/layer.py" = ["E402"]
+"src/core/intelligence/layer.py" = ["E402", "BLE001"]  # 24 broad excepts — gradual cleanup
 "src/core/multi_project_searcher.py" = ["E402"]
 "src/mcp/server.py" = ["E402"]
 # F821 подавления сняты — добавлены явные импорты (см. audit B6 fix):

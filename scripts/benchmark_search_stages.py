@@ -54,7 +54,7 @@ def build_wired_stack(project_root: Path):
     db_path = _generate_unique_db_path(project_root)
     file_guard = FileGuard(project_root)
     from src.core.indexing.parser import CodeParser
-        from src.core.indexing.symbol_index import SymbolIndex
+    from src.core.indexing.symbol_index import SymbolIndex
     parser = CodeParser()
     symbol_index = SymbolIndex()
     indexer = Indexer(

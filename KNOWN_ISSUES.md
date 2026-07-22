@@ -1373,3 +1373,58 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 1. **Version d...
 - **Статус:** автоматически синхронизировано
 
+
+---
+
+## 2026-07-22 — wmic удалён в Win11 25H2 → RAM=0 (FIXED)
+
+- **Что было:** `_get_process_ram()` вызывал `wmic process where processid=... get WorkingSetSize`. wmic.exe удалён в Windows 11 25H2 (KB5067470). На актуальной Windows все вызовы падали в except → возвращали 0. `intel_get_runtime_status` и `get_health_report` отдавали RAM=0 для всех процессов.
+- **Статус:** ✅ Исправлено — замена на `ctypes.windll.psapi.GetProcessMemoryInfo` + `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`. Паттерн из `resource_monitor.py::_get_rss_windows()`.
+- **Fix:** `src/core/intelligence/layer.py` — метод `_get_process_ram` переписан (~50 строк ctypes).
+- **Тесты:** 519 passed, `_get_process_ram(os.getpid()) = 47 MB` (было 0).
+
+---
+
+## 2026-07-22 — asyncio.Event между loop'ами в ProjectIndexerRegistry (FIXED)
+
+- **Что было:** `_ready_events` хранил `asyncio.Event`, привязанный к loop. `set_state()` вызывается из фоновых потоков без running loop → RuntimeError или зависание waiter.
+- **Статус:** ✅ Исправлено — замена на `threading.Event` + `asyncio.to_thread(ev.wait, timeout)`.
+- **Fix:** `src/core/indexing/project_indexer_registry.py` — 3 правки.
+- **Тесты:** 519 passed, кросс-поточный тест PASS.
+
+---
+
+## 2026-07-22 — Embedding cache thrash: clear() вместо LRU (FIXED)
+
+- **Что было:** `_embedding_cache` (Dict, max=1000) при переполнении вызывал `clear()` — сброс 1000 векторов → повторный embed → пики латентности каждые ~1000 уникальных запросов.
+- **Статус:** ✅ Исправлено — `OrderedDict` + `popitem(last=False)` (LRU eviction). Кэш реранкера аналогично.
+- **Fix:** `src/core/search/engine.py` — import OrderedDict, init, 2 cache-блока.
+- **Тесты:** 519 passed, LRU-тест PASS.
+
+---
+
+## 2026-07-22 — hash() недетерминирован для ключей кэша (FIXED)
+
+- **Что было:** `_embedding_cache` и `_reranker_cache` использовали `hash()` — недетерминирован между процессами (PYTHONHASHSEED). Кэш-промахи после рестарта, теоретические коллизии.
+- **Статус:** ✅ Исправлено — `hashlib.blake2b(digest_size=8)` через `_cache_key()`. Детерминировано, быстрее md5.
+- **Fix:** `src/core/search/engine.py` — функция `_cache_key`, 2 замены ключей, тип ключа int→str.
+- **Тесты:** 519 passed, кросс-процесс детерминизм PASS.
+
+---
+
+## 2026-07-22 — sync→async bridge: per-call ThreadPoolExecutor (FIXED)
+
+- **Что было:** `hybrid_search` и `_apply_multi_reranker` каждый раз создавали `ThreadPoolExecutor(max_workers=1)` + `asyncio.run()` — расточительно, O(N) потоков при массовых вызовах.
+- **Статус:** ✅ Исправлено — module-level `_sync_executor = ThreadPoolExecutor(max_workers=2)`, оба bridge используют его.
+- **Fix:** `src/core/search/engine.py` — import + executor + 2 замены.
+- **Тесты:** 519 passed.
+
+---
+
+## 2026-07-22 — except (ImportError, Exception) маскирует баги (FIXED)
+
+- **Что было:** `_get_process_cpu` использовал `except (ImportError, Exception)` — эквивалент `except Exception`, ImportError никогда не ловился отдельно.
+- **Статус:** ✅ Исправлено — два отдельных `except ImportError` + `except Exception` с noqa: BLE001.
+- **Fix:** `src/core/intelligence/layer.py` — 1 метод, `ruff.toml` — per-file-ignore.
+- **Тесты:** 519 passed.
+- **Техдолг:** 532 других broad excepts в codebase — постепенная очистка (P2).

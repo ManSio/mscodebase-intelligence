@@ -9,6 +9,7 @@
 3. После re-index (remove + add) консистентность сохраняется
 """
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -20,7 +21,8 @@ def pg():
     """PropertyGraph с временной SQLite БД."""
     from src.core.graph import PropertyGraph
 
-    tmp = tempfile.mktemp(suffix=".db")
+    fd, tmp = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
     graph = PropertyGraph(tmp)
     _ = graph._get_conn()  # форсируем инициализацию SQLite
     yield graph

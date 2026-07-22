@@ -23,6 +23,10 @@ import sys
 from datetime import date
 from pathlib import Path
 
+# Encoding safety for Windows (cp1252 cannot encode Unicode emoji)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 CHANGELOGS = [

@@ -80,7 +80,8 @@ class CodebaseTool(MCPTool):
                 f"❌ Unknown action `{action}`. "
                 f"Available: {', '.join(action_map)}"
             )
-        return await handler(**locals())
+        kw = {k: v for k, v in locals().items() if k not in ('self', 'handler', 'action_map')}
+        return await handler(**kw)
 
     async def _action_write(self, **kw) -> str:
         """Write operations — делегирует в SymbolWriteTool."""
