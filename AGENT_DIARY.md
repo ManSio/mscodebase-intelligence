@@ -1,3 +1,26 @@
+
+## [2026-07-22 21:10] — Audit fixes P2-P3: tool count reconciliation (commit 5a522ead)
+
+### What was done
+Second batch of audit fixes from the 20-item comprehensive audit:
+
+| ID | Fix | File | Commit |
+|----|-----|------|--------|
+| P2-14 | LSP _handle_crash: terminate() before null (zombie prevention) | lsp_client.py | 5a522ead |
+| P2-13 | find_first_non_self_indexing() public API | project_indexer_registry.py | 5a522ead |
+| P2-15 | Hardcoded ports 8080/8081 -> EmbeddingConfig | settings.py + layer.py | 5a522ead |
+| P2-10 | ARCHITECTURE.md cypher_engine facade | docs/en/ARCHITECTURE.md | 5a522ead |
+| P3-17 | Remove dead param 'name' from _find_pid | layer.py | 5a522ead |
+| P3-18 | __import__("re") -> top-level import re | graph_adapter.py | 5a522ead |
+| Docs | Tool count 48=19+13+12+4 consistent across README, ARCHITECTURE, server_tools | 3 files | 5a522ead |
+
+### Verification
+- 519 passed, 0 regressions (36 pre-existing failures in test_project_header + test_relation_extractor)
+- Git: both commits on origin/main (b39ef455 P0-P1 + CodeQL, 5a522ead P2-P3 + docs)
+
+### Remaining deferred items
+- P2-12: MODE_HYBRID dead code removal (composition_adapter.py default, risky)
+- P2-16: 532 broad excepts (documented as tech debt in KNOWN_ISSUES.md)
 # AGENT DIARY — MSCodeBase Intelligence
 
 ## [2026-07-21 22:30] — DocSync: полноценный en/ru/zh documentation audit и переводы
