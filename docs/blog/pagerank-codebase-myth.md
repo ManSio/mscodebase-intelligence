@@ -39,14 +39,14 @@ cover_image:
 
 | Method | Hit@Gold | SUFFICIENT | Avg Tokens |
 |--------|----------|------------|------------|
-| RAG (BM25) | **46%** | 23/50 | 60,116 |
-| PageRank | **32%** | 16/50 | 69,694 |
+| RAG (BM25) | **50%** | 25/50 | 59,972 |
+| PageRank | **36%** | 18/50 | 65,685 |
 | Random | 12% | 6/50 | 65,476 |
 
 ### Key Numbers
 
-- **RAG is 46% Hit@Gold** — nearly half the queries hit the exact right file
-- **PageRank dense: 32%** — +14pp over random, +14pp over sparse
+- **RAG is 50% Hit@Gold** — half the queries hit the exact right file
+- **PageRank dense: 36%** — +24pp over random, +18pp over sparse
 - **Random: 12%** — strong baseline because common keywords appear everywhere
 - **Token savings are similar** across methods (~60-70K tokens), but RAG does it slightly cheaper
 
@@ -107,9 +107,9 @@ You cannot use a static map of global importance to answer specific, localized q
 |----------------|---------|-----|
 | "Top 20% = -2% savings" | +72% savings | Sparse graph artifact |
 | "Smart Summary = 90% accuracy" | 26% accuracy | 10 easy queries ≠ 50 real queries |
-| "PageRank doesn't work" | 32% Hit@Gold | Works, but modest (+14pp over random) |
+| "PageRank doesn't work" | 36% Hit@Gold | Works, but modest (+24pp over random) |
 | "centrality ≠ relevance" | ρ=0.39 (moderate) | Graph density helps decouple rank from file size |
-| "PageRank beats RAG" | **False** | RAG 46%, PageRank 32% |
+| "PageRank beats RAG" | **False** | RAG 50%, PageRank 36% |
 
 **PageRank works as a ranking signal** — it's 14pp better than random. But **it's not a retrieval system**. RAG's query-awareness makes it 14pp better than PageRank.
 
@@ -138,8 +138,8 @@ Total: 129 files, ~406K tokens
 Top 20% budget: ~25 files, ~70K tokens
 
 Hit@Gold (E2E metric):
-  RAG (BM25):      46% (23/50)
-  PageRank (dense): 32% (16/50)  ← +14pp over random
+  RAG (BM25):      50% (25/50)
+  PageRank (dense): 36% (18/50)  ← +24pp over random
   PageRank (sparse): 18% (9/50)
   Random:          12% (6/50)
 
