@@ -16,11 +16,11 @@ echo -e "${YELLOW}=== VERIFY CLEAN STATE ===${NC}"
 echo "Temp dir: $TMPDIR"
 
 echo "Cloning $REPO_URL ..."
-git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" -q 2>&1
+git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" 2>&1
 cd "$TMPDIR/repo"
 
 echo "Creating venv..."
-python3 -m venv venv -q
+python3 -m venv venv
 
 # --- Lockfile drift gate (аналог uv lock --check) ---
 # Если requirements-lock.txt не синхронизирован с pyproject.toml,

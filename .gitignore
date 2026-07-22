@@ -140,3 +140,4 @@ DEV_EXP.md
 experiments
 !.gitkeep
 docs/generated/MODULE_INDEX.md
+.local/state/gh/device-id

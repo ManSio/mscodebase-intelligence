@@ -1,9 +1,11 @@
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
 import re
 import threading
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -38,10 +40,26 @@ from .utils import (
     _filter_by_time,
 )
 
+# Shared executor for sync→async bridge (avoids per-call ThreadPoolExecutor + asyncio.run)
+import concurrent.futures
+_sync_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="search_sync"
+)
+
 __all__ = [
     "Searcher",
 ]
 logger = logging.getLogger(__name__)
+
+
+def _cache_key(*parts: str) -> str:
+    """Deterministic cache key via blake2b (stable across processes).
+
+    hashlib.blake2b is faster than md5 and avoids PYTHONHASHSEED
+    randomization that makes built-in hash() non-deterministic.
+    """
+    return hashlib.blake2b(":".join(parts).encode(), digest_size=8
+    ).hexdigest()
 
 
 class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
@@ -70,10 +88,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # ── Multi-level cache ──
         self._cache: Dict[str, List[dict]] = {}
         self._cache_max_size = 500  # было 100
-        self._embedding_cache: Dict[int, List[float]] = {}  # hash(query) -> vector
+        self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()  # deterministic hash -> vector, LRU
         self._embedding_cache_max = 1000  # ~1MB для 768d векторов
         self._embedding_cache_lock = threading.Lock()
-        self._reranker_cache: Dict[str, List[dict]] = {}  # hash(query+chunks) -> scores
+        self._reranker_cache: OrderedDict[str, List[dict]] = OrderedDict()  # LRU
         self._reranker_cache_max = 200
         self._reranker_cache_lock = threading.Lock()
 
@@ -280,16 +298,13 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         if loop and loop.is_running():
             # Уже внутри event loop — запускаем в отдельном потоке
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    self.hybrid_search_async(
-                        query, limit, use_rrf, expand, since, before, layer, intent_hint, tracer
-                    ),
-                )
-                return future.result(timeout=30)
+            future = _sync_executor.submit(
+                asyncio.run,
+                self.hybrid_search_async(
+                    query, limit, use_rrf, expand, since, before, layer, intent_hint, tracer
+                ),
+            )
+            return future.result(timeout=30)
         else:
             return asyncio.run(
                 self.hybrid_search_async(
@@ -375,9 +390,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             if variant == query and not all_dense_results:
                 try:
                     # ── Embedding cache ──
-                    query_hash = hash(variant)
+                    query_hash = _cache_key(variant)
                     with self._embedding_cache_lock:
                         cached_vector = self._embedding_cache.get(query_hash)
+                        if cached_vector is not None:
+                            self._embedding_cache.move_to_end(query_hash)
 
                     if cached_vector is not None:
                         query_vector = cached_vector
@@ -392,7 +409,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                         if query_vector:
                             with self._embedding_cache_lock:
                                 if len(self._embedding_cache) >= self._embedding_cache_max:
-                                    self._embedding_cache.clear()
+                                    self._embedding_cache.popitem(last=False)  # evict oldest
                                 self._embedding_cache[query_hash] = query_vector
                         dense_results = await self._vector_search_async(
                             query_vector, limit=raw_limit, filter_expr=filter_expr
@@ -1016,14 +1033,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             loop = None
 
         if loop and loop.is_running():
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    self._apply_multi_reranker_async(query, rrf_results, top_n),
-                )
-                return future.result(timeout=35)
+            future = _sync_executor.submit(
+                asyncio.run,
+                self._apply_multi_reranker_async(query, rrf_results, top_n),
+            )
+            return future.result(timeout=35)
         else:
             return asyncio.run(
                 self._apply_multi_reranker_async(query, rrf_results, top_n)
@@ -1046,7 +1060,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             f"{r.get('metadata', {}).get('file', '')}:{r.get('metadata', {}).get('chunk_index', '')}"
             for r in rrf_results[:top_n]
         )
-        cache_key = f"{hash(query)}:{hash(chunk_keys)}:{top_n}"
+        cache_key = _cache_key(query, chunk_keys, str(top_n))
 
         with self._reranker_cache_lock:
             cached = self._reranker_cache.get(cache_key)
@@ -1065,7 +1079,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             # Сохраняем в кэш
             with self._reranker_cache_lock:
                 if len(self._reranker_cache) >= self._reranker_cache_max:
-                    self._reranker_cache.clear()
+                    self._reranker_cache.popitem(last=False)  # evict oldest
                 self._reranker_cache[cache_key] = results
             return results
         except Exception as e:

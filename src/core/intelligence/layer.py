@@ -182,6 +182,7 @@ class ProjectIntelligenceLayer:
         result = {
             "symbol": symbol_name,
             "latency_ms": 0,
+            "definitions": [],
             "call_graph": {"incoming_callers": [], "outgoing_callees": []},
             "references_count": 0,
             "definitions_count": 0,
@@ -200,7 +201,7 @@ class ProjectIntelligenceLayer:
                 result["definitions_count"] = len(defs)
                 for d in defs:
                     if hasattr(d, "file_path") and hasattr(d, "line"):
-                        result["call_graph"]["outgoing_callees"].append(
+                        result["definitions"].append(
                             {
                                 "symbol": getattr(d, "symbol", symbol_name),
                                 "file": d.file_path,
@@ -236,14 +237,18 @@ class ProjectIntelligenceLayer:
                         for c in callees
                     ]
 
-            result["references_count"] = len(result["call_graph"]["incoming_callers"])
+            result["references_count"] = (
+                len(result["call_graph"]["incoming_callers"])
+                + len(result["call_graph"]["outgoing_callees"])
+            )
 
-            # Статический анализ
+            # Статический анализ: мёртвый код — только если нет ни входящих,
+            # ни исходящих вызовов, но есть определение.
             if result["references_count"] == 0 and result["definitions_count"] > 0:
                 result["static_analysis"] = {
                     "potential_dead_code": True,
                     "has_definition": True,
-                    "suggestion": "Символ определён но не используется",
+                    "suggestion": "Символ определён но не вызывается (ни входящих, ни исходящих)",
                 }
 
         except Exception as e:
@@ -258,23 +263,81 @@ class ProjectIntelligenceLayer:
 
     @staticmethod
     def _get_process_ram(pid: int) -> int:
-        try:
-            out = subprocess.check_output(
-                ["wmic", "process", "where", f"processid={pid}",
-                 "get", "WorkingSetSize", "/format:value"],
-                timeout=3
-            ).decode("utf-8", errors="replace")
-            return int(out.split('=')[1].strip()) // (1024*1024)
-        except (OSError, subprocess.TimeoutExpired,
-                subprocess.CalledProcessError, ValueError, IndexError):
+        """RSS процесса в MB через Windows API (psapi.dll / kernel32).
+
+        Замена wmic (удалён в Win11 25H2 KB5067470).
+        Использует GetProcessMemoryInfo — тот же паттерн что в
+        resource_monitor.py::_get_rss_windows(), адаптированный для
+        внешних PID через OpenProcess.
+        """
+        if os.name != "nt":
             return 0
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ("cb", wintypes.DWORD),
+                    ("PageFaultCount", wintypes.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(counters)
+
+            if pid == os.getpid():
+                handle = ctypes.windll.kernel32.GetCurrentProcess()
+                own_process = True
+            else:
+                handle = ctypes.windll.kernel32.OpenProcess(
+                    PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+                )
+                own_process = False
+                if not handle:
+                    return 0
+
+            try:
+                try:
+                    psapi = ctypes.WinDLL("psapi.dll", use_last_error=True)
+                    _gpmi = psapi.GetProcessMemoryInfo
+                    _gpmi.argtypes = [
+                        wintypes.HANDLE,
+                        ctypes.POINTER(PROCESS_MEMORY_COUNTERS),
+                        wintypes.DWORD,
+                    ]
+                    _gpmi.restype = wintypes.BOOL
+                    if _gpmi(handle, ctypes.byref(counters), counters.cb):
+                        return counters.WorkingSetSize // (1024 * 1024)
+                except Exception:
+                    pass
+                if ctypes.windll.kernel32.GetProcessMemoryInfo(
+                    handle, ctypes.byref(counters), counters.cb,
+                ):
+                    return counters.WorkingSetSize // (1024 * 1024)
+            finally:
+                if not own_process:
+                    ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            pass
+        return 0
 
     @staticmethod
     def _get_process_cpu(pid: int) -> float:
         try:
             import psutil
             return psutil.Process(pid).cpu_percent(interval=0.1)
-        except (ImportError, Exception):
+        except ImportError:
+            return 0.0
+        except Exception:  # noqa: BLE001 — psutil.NoSuchProcess, AccessDenied, etc.
             return 0.0
 
     @staticmethod

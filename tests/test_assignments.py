@@ -11,6 +11,7 @@ Tests cover:
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import List
@@ -33,7 +34,9 @@ def parser():
 @pytest.fixture
 def pg():
     """Temporary PropertyGraph for testing."""
-    db_path = Path(tempfile.mktemp(suffix=".db"))
+    fd, db_path_str = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db_path = Path(db_path_str)
     graph = PropertyGraph(db_path)
     yield graph
     graph.close()
@@ -46,8 +49,19 @@ def adapter(pg):
 
 
 def _write_py(code: str) -> Path:
-    f = Path(tempfile.mktemp(suffix=".py"))
+    fd, path = tempfile.mkstemp(suffix=".py")
+    os.close(fd)
+    f = Path(path)
     f.write_text(code, encoding="utf-8")
+    return f
+
+
+def _write_file(data: bytes, suffix: str) -> Path:
+    """Securely create a temp file with the given content."""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    f = Path(path)
+    f.write_bytes(data)
     return f
 
 
@@ -419,8 +433,7 @@ class TestMultiLanguage:
     let x = src;
     let y = x;
 }"""
-        f = Path(tempfile.mktemp(suffix=".rs"))
-        f.write_bytes(code)
+        f = _write_file(code, ".rs")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -434,8 +447,7 @@ class TestMultiLanguage:
     let y = src;
     let mut x = y;
 }"""
-        f = Path(tempfile.mktemp(suffix=".rs"))
-        f.write_bytes(code)
+        f = _write_file(code, ".rs")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -450,8 +462,7 @@ class TestMultiLanguage:
     let x = src;
     const y = x;
 }"""
-        f = Path(tempfile.mktemp(suffix=".ts"))
-        f.write_bytes(code)
+        f = _write_file(code, ".ts")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -466,8 +477,7 @@ class TestMultiLanguage:
     const result = data;
     return <div>{result}</div>;
 }"""
-        f = Path(tempfile.mktemp(suffix=".tsx"))
-        f.write_bytes(code)
+        f = _write_file(code, ".tsx")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -482,8 +492,7 @@ func main() {
     x := src
     y := x
 }'''
-        f = Path(tempfile.mktemp(suffix=".go"))
-        f.write_bytes(code)
+        f = _write_file(code, ".go")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -498,8 +507,7 @@ func main() {
     var x = src
     y := x
 }'''
-        f = Path(tempfile.mktemp(suffix=".go"))
-        f.write_bytes(code)
+        f = _write_file(code, ".go")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -513,8 +521,7 @@ func main() {
     let x = src;
     const y = x;
 }'''
-        f = Path(tempfile.mktemp(suffix=".js"))
-        f.write_bytes(code)
+        f = _write_file(code, ".js")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -530,8 +537,7 @@ func main() {
         int y = x;
     }
 }'''
-        f = Path(tempfile.mktemp(suffix=".java"))
-        f.write_bytes(code)
+        f = _write_file(code, ".java")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -547,8 +553,7 @@ func main() {
         int y = x;
     }
 }'''
-        f = Path(tempfile.mktemp(suffix=".cs"))
-        f.write_bytes(code)
+        f = _write_file(code, ".cs")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -562,8 +567,7 @@ func main() {
     x = src
     y = x
 end'''
-        f = Path(tempfile.mktemp(suffix=".rb"))
-        f.write_bytes(code)
+        f = _write_file(code, ".rb")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -576,8 +580,7 @@ end'''
     val x = src
     var y = x
 }'''
-        f = Path(tempfile.mktemp(suffix=".kt"))
-        f.write_bytes(code)
+        f = _write_file(code, ".kt")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -590,8 +593,7 @@ end'''
     let x = src
     var y = x
 }'''
-        f = Path(tempfile.mktemp(suffix=".swift"))
-        f.write_bytes(code)
+        f = _write_file(code, ".swift")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -604,8 +606,7 @@ end'''
     int x = src;
     int y = x;
 }'''
-        f = Path(tempfile.mktemp(suffix=".c"))
-        f.write_bytes(code)
+        f = _write_file(code, ".c")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -618,8 +619,7 @@ end'''
     int x = src;
     int y = x;
 }'''
-        f = Path(tempfile.mktemp(suffix=".cpp"))
-        f.write_bytes(code)
+        f = _write_file(code, ".cpp")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -632,8 +632,7 @@ end'''
     val x = src
     var y = x
 }'''
-        f = Path(tempfile.mktemp(suffix=".scala"))
-        f.write_bytes(code)
+        f = _write_file(code, ".scala")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)
@@ -646,8 +645,7 @@ end'''
     var x = src;
     var y = x;
 }'''
-        f = Path(tempfile.mktemp(suffix=".dart"))
-        f.write_bytes(code)
+        f = _write_file(code, ".dart")
         assign = parser.extract_assignments(f)
         f.unlink()
         edges = _edges_from(assign)

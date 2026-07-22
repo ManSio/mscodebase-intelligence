@@ -99,7 +99,7 @@ class ProjectIndexerRegistry:
         # Per-project state machine (INC-6BCB-v4: race-free readiness)
         # ══════════════════════════════════════════════════════════════
         self._states: Dict[Path, ProjectState] = {}
-        self._ready_events: Dict[Path, asyncio.Event] = {}
+        self._ready_events: Dict[Path, threading.Event] = {}
 
         self._stats = {
             "cache_hits": 0,
@@ -274,37 +274,31 @@ class ProjectIndexerRegistry:
     ) -> ProjectState:
         """Ожидает, пока проект не перейдёт в READY (или FAILED).
 
+        Uses threading.Event (not asyncio.Event) so set_state() can be
+        called from any thread (indexer, LSP bridge) without cross-loop
+        issues. wait() runs in a thread pool via asyncio.to_thread.
+
         Args:
             project_path: корень проекта.
             timeout: макс. время ожидания в секундах (по умолч. 5с).
 
         Returns:
             Финальное состояние: READY, FAILED, или текущее если timeout.
-
-        Используется MCP-инструментами перед выполнением:
-            state = await registry.wait_until_ready(path, timeout=3.0)
-            if state != ProjectState.READY:
-                raise ToolError("Проект ещё не готов. Повторите запрос.")
-
-        Это решает race condition: если пользователь переключился на
-        новый проект, а LSP ещё не успел записать bridge, инструмент
-        не возьмёт старый проект и не упадёт с 'project not found',
-        а дождётся готовности (или timeout → понятная ошибка).
         """
         p = Path(project_path).resolve()
-        ev: Optional[asyncio.Event] = None
+        ev: Optional[threading.Event] = None
         with self._meta_lock:
             current = self._states.get(p, ProjectState.UNINITIALIZED)
             if current in (ProjectState.READY, ProjectState.FAILED):
                 return current
             if p not in self._ready_events:
-                self._ready_events[p] = asyncio.Event()
+                self._ready_events[p] = threading.Event()
             ev = self._ready_events[p]
 
         if ev is not None:
             try:
-                await asyncio.wait_for(ev.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
+                await asyncio.to_thread(ev.wait, timeout)
+            except Exception:
                 logger.warning(
                     f"⏳ wait_until_ready({p.name}) timeout after {timeout}s"
                 )
