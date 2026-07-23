@@ -1495,3 +1495,18 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 ### #6 _safe_recreate_table без sync ссылок (FIXED)
 - **Что было:** После пересоздания таблицы ссылки в `_status_reporter`, `_freshness_checker`, `_file_move_manager`, `_project_runner` оставались stale.
 - **Статус:** ✅ Исправлено — вызов `_sync_table_ref()` через `hasattr` проверку.
+
+---
+
+## 2026-07-24 — Sandbox ALLOWED_MODULES inconsistency (TECH DEBT)
+
+### #28 ALLOWED_MODULES broader than _USER_ALLOWED
+- **Что было:** `ALLOWED_MODULES` (AST layer) содержит `multiprocessing`, `threading`, `http`, `socket`, `importlib`, `pickle`, `concurrent.futures`. `_USER_ALLOWED` (Layer 2 runtime) их НЕ содержит → Layer 2 блокирует на уровне import. Но ALLOWED_MODULES создаёт ложное ощущение безопасности.
+- **Статус:** ⏳ Deferred — активной дыры нет (Layer 2 закрывает), но диссонанс между слоями нужно устранить.
+- **Fix plan:** Синхронизировать ALLOWED_MODULES с _USER_ALLOWED или создать `ALLOWED_MODULES_STRICT` для subprocess. Deadline: следующий security audit.
+- **Guard:** Аудит-лог (sandbox_audit.jsonl) показывает 106 violations / 352 executes — Layer 2 работает.
+
+### #29 pickle в ALLOWED_MODULES
+- **Что было:** `pickle` в ALLOWED_MODULES (AST проходит), но не в _USER_ALLOWED (Layer 2 блокирует `import pickle` в subprocess). `pickle.loads()` может выполнить произвольный код через `__reduce__`.
+- **Статус:** ✅ Mitigated — Layer 2 блокирует. Но pickle лучше удалить из ALLOWED_MODULES явно.
+- **Guard:** Проверено live: `import pickle; pickle.loads(b"x")` → status=error (Layer 2 catches).

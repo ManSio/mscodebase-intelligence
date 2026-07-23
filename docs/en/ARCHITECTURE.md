@@ -263,7 +263,7 @@ def register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
         # Hub: codebase (write/index/git/notify — multiplexed by action)
         CodebaseTool,
-        # Spoke: E2B sandbox
+        # Spoke: AST Sandbox (3-layer: AST validation + runtime __import__ wrapper + subprocess isolation)
         ExecuteScriptTool,
         # Analysis (5)
         StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
@@ -287,7 +287,7 @@ def register_all_tools(mcp, services):
 |-------|------|-------|
 | **Search** (3) | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
 | **Hub: codebase** (1) | `codebase_tool.py` | codebase(action=rename/move/delete/replace/insert/notify/index/git) |
-| **Spoke: E2B** (1) | `codebase_tool.py` | execute_script(code) |
+| **Spoke: Sandbox** (1) | `codebase_tool.py` | execute_script(code) — AST + runtime import wrapper + subprocess isolation |
 | **Analysis** (5) | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
 | **Graph** (3) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query |
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |

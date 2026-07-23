@@ -216,7 +216,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `cross_repo_search(query @repo)` | Search across multiple projects (mono-repo) |
 | `cross_project_deps(action)` | Cross-project dependency graph: `graph` / `deps` / `cycles` / `impact` |
 | `get_symbol_info(query)` | Call Graph: callers, callees, impact files |
-| `execute_script(code, timeout, args)` | **Sandboxed Python execution.** TempDirectory isolation, PYTHONPATH=project, graceful shutdown. Returns structured `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
+| `execute_script(code, timeout, args)` | **Sandboxed Python execution (3-layer).** AST validation + runtime `__import__` wrapper + subprocess isolation. Audit-logged. Returns `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
 | `impact_analysis(symbol)` | Symbol change impact analysis (risk score, depth) |
 
 ### Index Management
