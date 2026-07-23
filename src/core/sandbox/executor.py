@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Allowed stdlib modules (explicit allowlist)
 ALLOWED_MODULES: frozenset[str] = frozenset({
     "math", "json", "re", "datetime", "collections", "hashlib",
-    "random", "statistics", "string", "textwrap", "itertools",
+    "time", "random", "statistics", "string", "textwrap", "itertools",
     "functools", "operator", "decimal", "fractions", "numbers",
     "typing", "dataclasses", "enum", "uuid", "base64", "binascii",
     "html", "urllib.parse", "urllib.request", "urllib.error",
@@ -300,6 +300,12 @@ def execute_sandboxed(
         try:
             validate_code(code)
         except SandboxViolation as e:
+            _audit_log({
+                "event": "violation",
+                "mode": mode,
+                "code_preview": code[:200],
+                "violation": str(e),
+            })
             return {
                 "status": "violation",
                 "stdout": "",
@@ -344,7 +350,10 @@ def execute_sandboxed(
         exit_code = proc.returncode
         timed_out = False
     except subprocess.TimeoutExpired:
-        proc.kill()
+        try:
+            proc.kill()
+        except OSError:
+            pass  # Process may have already exited between timeout and kill
         stdout, stderr = proc.communicate()
         exit_code = -1
         timed_out = True
