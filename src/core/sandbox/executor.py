@@ -336,9 +336,10 @@ def execute_sandboxed(
         creationflags = subprocess.CREATE_NO_WINDOW
 
     try:
-        # Binary mode to avoid pipe buffer deadlock on Windows (§5.16)
+        # Binary mode + stdin=DEVNULL to avoid pipe deadlock on Windows (§5.16)
         proc = subprocess.Popen(
             [sys.executable, "-c", script],
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=cwd,
