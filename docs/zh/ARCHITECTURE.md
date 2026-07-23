@@ -263,7 +263,7 @@ def register_all_tools(mcp, services):
         SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
         # Hub: codebase（按 action 多路复用 — write/index/git/notify）
         CodebaseTool,
-        # Spoke: E2B 沙箱
+        # Spoke: AST 沙箱（3 层：AST 验证 + 运行时 __import__ 包装器 + 子进程隔离）
         ExecuteScriptTool,
         # 分析（5 个）
         StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
@@ -287,7 +287,7 @@ def register_all_tools(mcp, services):
 |-------|------|-------|
 | **搜索**（3 个） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
 | **Hub: codebase**（1 个） | `codebase_tool.py` | codebase(action=rename/move/delete/replace/insert/notify/index/git) |
-| **Spoke: E2B**（1 个） | `codebase_tool.py` | execute_script(code) |
+| **Spoke: Sandbox**（1 个） | `codebase_tool.py` | execute_script(code) — AST + 运行时 import wrapper + 子进程隔离 |
 | **分析**（5 个） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
 | **图**（3 个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query |
 | **调查**（3 个） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |

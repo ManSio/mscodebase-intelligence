@@ -1,4 +1,13 @@
 
+## [2026-07-24 00:30] — P0 RCE Sandbox Live Validation: 11/11 vectors blocked
+**Status:** ✅ Confirmed
+**Root Cause:** execute_script had no sandbox isolation. Now 3-layer defense: AST validation + runtime __import__ wrapper + subprocess isolation.
+**Verification:** 34/34 tests pass. Live RCE test: os.system, subprocess, __import__, eval, exec, ctypes, importlib, pathlib, pickle, getattr bypass, __subclasses__ — all blocked. Audit log: 458 entries (352 execute + 106 violations).
+**Guard:** ALLOWED_MODULES is broader than _USER_ALLOWED (Layer 2 narrower). Consistency cleanup deferred to next session (KNOWN_ISSUES.md).
+**verified_from_clean_state:** ✅ yes (34/34 tests from fresh run)
+
+---
+
 ## [2026-07-22 21:10] — Audit fixes P2-P3: tool count reconciliation (commit 5a522ead)
 
 ### What was done

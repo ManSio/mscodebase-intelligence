@@ -11,7 +11,6 @@ Covers:
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -23,8 +22,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.sandbox.executor import (
-    ALLOWED_MODULES,
-    BLOCKED_STR_PATTERNS,
     SANDBOX_MODE_OFF,
     SANDBOX_MODE_PERMISSIVE,
     SANDBOX_MODE_STRICT,
@@ -32,7 +29,6 @@ from src.core.sandbox.executor import (
     execute_sandboxed,
     validate_code,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # validate_code — AST + string validation
@@ -279,7 +275,7 @@ class TestAuditLog:
             audit_file = Path(tempfile.mktemp(suffix=".jsonl"))
             mock_path.return_value = audit_file
             try:
-                result = execute_sandboxed(
+                execute_sandboxed(
                     code="print('test')",
                     timeout=10,
                     mode=SANDBOX_MODE_PERMISSIVE,
