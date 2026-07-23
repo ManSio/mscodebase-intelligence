@@ -171,16 +171,17 @@ class TestExecuteSandboxed:
 
     def test_math_result(self):
         result = execute_sandboxed(
-            code="result = 2 + 2",
+            code="print(2 + 2)",
             timeout=10,
             mode=SANDBOX_MODE_PERMISSIVE,
         )
         assert result["status"] == "ok"
         assert "4" in result["stdout"]
+        assert result["exit_code"] == 0
 
     def test_import_allowed_module(self):
         result = execute_sandboxed(
-            code="import math; result = math.pi",
+            code="import math; print(math.pi)",
             timeout=10,
             mode=SANDBOX_MODE_STRICT,
         )
