@@ -336,6 +336,7 @@ def execute_sandboxed(
         creationflags = subprocess.CREATE_NO_WINDOW
 
     try:
+        # Binary mode to avoid pipe buffer deadlock on Windows (§5.16)
         proc = subprocess.Popen(
             [sys.executable, "-c", script],
             stdout=subprocess.PIPE,
@@ -343,10 +344,10 @@ def execute_sandboxed(
             cwd=cwd,
             env=env,
             creationflags=creationflags,
-            text=True,
-            encoding="utf-8",
         )
-        stdout, stderr = proc.communicate(timeout=timeout)
+        raw_out, raw_err = proc.communicate(timeout=timeout)
+        stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
+        stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
         exit_code = proc.returncode
         timed_out = False
     except subprocess.TimeoutExpired:
@@ -354,7 +355,9 @@ def execute_sandboxed(
             proc.kill()
         except OSError:
             pass  # Process may have already exited between timeout and kill
-        stdout, stderr = proc.communicate()
+        raw_out, raw_err = proc.communicate()
+        stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
+        stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
         exit_code = -1
         timed_out = True
     except Exception as e:
