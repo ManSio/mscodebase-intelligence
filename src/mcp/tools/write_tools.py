@@ -75,6 +75,7 @@ class WriteTool(MCPTool):
         allow_collision: bool = False,
         force: bool = False,
         apply: bool = False,
+        impact_token: str = "",
     ) -> str:
         """Execute a write operation.
 
@@ -90,6 +91,7 @@ class WriteTool(MCPTool):
             allow_collision: Allow name collision (rename)
             force: Force delete with references (safe_delete)
             apply: Apply changes (False = preview only)
+            impact_token: HMAC token from guard DENY response (ack action only)
         """
 
         action_map = {
@@ -155,10 +157,18 @@ class WriteTool(MCPTool):
         from src.core.modification_guard import ack_impact as _ack
         target = kw["file_path"] or kw["symbol"]
         if not target:
-            return "🚫 **Error:** Provide either file_path or symbol."
-        result = _ack(target)
+            return "\u2757 **Error:** Provide either file_path or symbol."
+        impact_token = kw.get("impact_token", "")
+        if not impact_token:
+            return (
+                "\u2757 **Error:** `impact_token` is required. "
+                "Get it from the guard's DENY response or impact_analysis output."
+            )
+        result = _ack(target, impact_token)
+        if result["status"] == "denied":
+            return f"\u2757 **Denied:** {result['message']}"
         ttl = result.get("ttl_seconds", 600)
-        return f"✅ **Impact acknowledged** for `{target}` (TTL={ttl}s)"
+        return f"\u2705 **Impact acknowledged** for `{target}` (TTL={ttl}s)"
 
     async def _action_move(self, **kw):
         await self.require_ready_project()

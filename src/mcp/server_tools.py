@@ -714,7 +714,7 @@ def _register_inline_tools(mcp, services):
 
     # ─── 12. ack_impact (standalone) ───────────────
     @mcp.tool("ack_impact")
-    async def ack_impact(file_path: str) -> dict:
+    async def ack_impact(file_path: str, impact_token: str) -> dict:
         """Подтверждает осведомлённость о влиянии изменений в файле.
 
         Вызывается после impact_analysis(). Открывает окно (TTL=600s),
@@ -723,10 +723,11 @@ def _register_inline_tools(mcp, services):
 
         Args:
             file_path: путь к файлу, чьё влияние подтверждается.
+            impact_token: HMAC-токен из ответа impact_analysis или guard DENY.
         """
         from src.core.modification_guard import ack_impact as _ack_impact
 
-        return _ack_impact(file_path)
+        return _ack_impact(file_path, impact_token)
 
     logger.info("  🔧 Inline diagnostic tools registered (12 tools)")
 
