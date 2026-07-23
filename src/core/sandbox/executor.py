@@ -115,10 +115,56 @@ BLOCKED_NAMES: frozenset[str] = frozenset({
     "__setattr__", "__delattr__",
 })
 
-# ── Limits ───────────────────────────────────────────────────────
+# ── Limits ───────────────────────────────────────────────────
 
 MAX_EXECUTION_TIME_S = 120
 MAX_OUTPUT_BYTES = 1_000_000  # 1MB
+
+
+# ── Layer 2: Runtime isolation preamble ──
+# Prepended to user scripts in subprocess.
+# Catches what AST misses: importlib.import_module(), runtime introspection.
+RUNTIME_ISOLATION_PREAMBLE = (
+    'import sys as _sys, builtins as _builtins, importlib.abc as _abc\n'
+    '\n'
+    # Whitelist — only these module roots are importable at runtime
+    # Subset of ALLOWED_MODULES; blocks importlib, os, subprocess, socket, etc.
+    '_SANDBOX_ALLOWED = frozenset({\n'
+    '    "__main__",\n'
+    '    "math", "json", "re", "datetime", "collections", "hashlib",\n'
+    '    "time", "random", "statistics", "string", "textwrap", "itertools",\n'
+    '    "functools", "operator", "decimal", "fractions", "numbers",\n'
+    '    "typing", "dataclasses", "enum", "uuid", "base64", "binascii",\n'
+    '    "html", "csv", "copy", "pprint", "reprlib", "weakref", "types",\n'
+    '    "ast", "tokenize", "keyword", "abc", "contextlib", "heapq",\n'
+    '    "bisect", "array", "decimal", "fractions",\n'
+    '})\n'
+    '\n'
+    'class _SandboxFinder(_abc.MetaPathFinder):\n'
+    '    """Intercepts ALL import attempts. Only whitelisted roots pass."""\n'
+    '    def find_spec(self, fullname, path, target=None):\n'
+    '        root = fullname.split(".")[0]\n'
+    '        if root not in _SANDBOX_ALLOWED:\n'
+    '            raise ImportError(f"Sandbox blocked: {fullname}")\n'
+    '        return None\n'
+    '\n'
+    '_sys.meta_path.insert(0, _SandboxFinder())\n'
+    '\n'
+    # Remove dangerous builtins — defense-in-depth against introspection escapes
+    # Note: __import__ and getattr CANNOT be removed — Python's import
+    # machinery uses them internally. SandboxFinder blocks disallowed modules.
+    # Other dangerous builtins (exec, eval, compile, open, globals, etc.)
+    # are blocked by AST validation (Layer 1) and string patterns.
+    '_DANGEROUS = frozenset({\n'
+    '    "exec", "eval", "compile",\n'
+    '    "breakpoint", "input", "exit", "quit",\n'
+    '})\n'
+    '_bdict = _builtins.__dict__\n'
+    'for _n in list(_bdict.keys()):\n'
+    '    if _n in _DANGEROUS:\n'
+    '        del _bdict[_n]\n'
+    'del _n, _DANGEROUS, _bdict\n'
+)
 
 # ── Audit log ────────────────────────────────────────────────────
 
@@ -330,56 +376,61 @@ def execute_sandboxed(
     if args:
         script = f"import sys\nsys.argv = {args!r}\n" + code
 
-    # Windows-safe subprocess
-    creationflags = 0
-    if sys.platform == "win32":
-        creationflags = subprocess.CREATE_NO_WINDOW
+    # Layer 2: prepend runtime isolation preamble
+    if mode != SANDBOX_MODE_OFF:
+        script = RUNTIME_ISOLATION_PREAMBLE + script
 
-    # ── DIAGNOSTIC: log Popen params to identify hang source ──
-    logger.warning(
-        f"[SANDBOX-DIAG] python={sys.executable} flags={creationflags} "
-        f"cwd={cwd} stdin=DEVNULL timeout={timeout}s code_preview={code[:80]!r}"
-    )
-
+    # Write to temp file (avoids escaping issues with -c)
+    fd, script_path = tempfile.mkstemp(suffix=".py", dir=cwd)
     try:
-        # Binary mode + stdin=DEVNULL to avoid pipe deadlock on Windows (§5.16)
-        proc = subprocess.Popen(
-            [sys.executable, "-c", script],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=cwd,
-            env=env,
-            creationflags=creationflags,
-        )
-        logger.warning(f"[SANDBOX-DIAG] Popen created, pid={proc.pid}, starting communicate(timeout={timeout})")
-        raw_out, raw_err = proc.communicate(timeout=timeout)
-        logger.warning(f"[SANDBOX-DIAG] communicate returned: {len(raw_out or b'')} bytes out, {len(raw_err or b'')} bytes err")
-        stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
-        stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
-        exit_code = proc.returncode
-        timed_out = False
-    except subprocess.TimeoutExpired:
-        logger.warning(f"[SANDBOX-DIAG] TimeoutExpired after {time.perf_counter()-t0:.1f}s, killing pid={proc.pid}")
+        os.write(fd, script.encode("utf-8"))
+        os.close(fd)
+
+        # Windows-safe subprocess
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NO_WINDOW
+
         try:
-            proc.kill()
+            # Binary mode + stdin=DEVNULL to avoid pipe deadlock on Windows (§5.16)
+            proc = subprocess.Popen(
+                [sys.executable, script_path],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=cwd,
+                env=env,
+                creationflags=creationflags,
+            )
+            raw_out, raw_err = proc.communicate(timeout=timeout)
+            stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
+            stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
+            exit_code = proc.returncode
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            raw_out, raw_err = proc.communicate()
+            stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
+            stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
+            exit_code = -1
+            timed_out = True
+        except Exception as e:
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": f"Subprocess error: {e}",
+                "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
+                "exit_code": -1,
+                "timed_out": False,
+            }
+    finally:
+        try:
+            os.unlink(script_path)
         except OSError:
             pass
-        raw_out, raw_err = proc.communicate()
-        logger.warning(f"[SANDBOX-DIAG] post-kill communicate: {len(raw_out or b'')} bytes out")
-        stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
-        stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
-        exit_code = -1
-        timed_out = True
-    except Exception as e:
-        return {
-            "status": "error",
-            "stdout": "",
-            "stderr": f"Subprocess error: {e}",
-            "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
-            "exit_code": -1,
-            "timed_out": False,
-        }
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
