@@ -464,14 +464,6 @@ class RemoteEmbedder(IEmbedder):
                     logger.info("✅ OpenVINO INT8 запущен!")
                 return
 
-                if self._onnx_session:
-                    with self._mode_lock:
-                        self.mode = "onnx"
-                    logger.info("✅ E5-base ONNX запущен!")
-                    return
-                else:
-                    logger.warning("E5-base не загрузился")
-
             # ═══ LM Studio (fallback) ═══
             if self._check_lm_studio_raw():
                 with self._mode_lock:
@@ -499,7 +491,7 @@ class RemoteEmbedder(IEmbedder):
                 self.mode = "fallback"
             logger.error("❌ НЕ УДАЛОСЬ загрузить E5-base ONNX. Режим fallback.")
         except Exception as e:
-            logger.debug(f"_init_provider_async: {e}")
+            logger.warning(f"_init_provider_async failed, using safe default: {e}")
             with self._mode_lock:
                 self.mode = "onnx"  # safe default
 
