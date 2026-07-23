@@ -93,6 +93,30 @@ BLOCKED_NAMES: frozenset[str] = frozenset({
     "__import__", "eval", "exec",
     "compile", "breakpoint",
     "input",  # blocks interactive input
+    # Additional bypass vectors
+    "__getattribute__", "__getattr__", "__setattr__", "__delattr__",
+    "__reduce__", "__reduce_ex__",
+    "__init_subclass__", "__class__",
+    "__subclasses__", "__bases__", "__mro__", "__globals__",
+    "__builtins__", "__code__", "__func__",
+    "__closure__", "__defaults__", "__kwdefaults__",
+    "__annotations__", "__dict__", "__module__",
+    "__qualname__", "__name__", "__doc__",
+    "__self__", "__func__", "__module__",
+    "__closure__", "__call__", "__getitem__",
+    "__setitem__", "__delitem__", "__iter__",
+    "__next__", "__enter__", "__exit__",
+    "__await__", "__aiter__", "__anext__",
+    "__bytes__", "__complex__", "__float__", "__int__",
+    "__index__", "__len__", "__length_hint__",
+    "__reversed__", "__contains__", "__eq__", "__ne__",
+    "__lt__", "__le__", "__gt__", "__ge__",
+    "__hash__", "__bool__", "__format__", "__dir__",
+    "__instancecheck__", "__subclasscheck__",
+    "__prepare__", "__new__", "__init__",
+    "__del__", "__delattr__", "__setattr__",
+    "__getattribute__", "__getattr__",
+    "__setattr__", "__delattr__",
 })
 
 # ── Limits ─────────────────────────────────────────────────────
