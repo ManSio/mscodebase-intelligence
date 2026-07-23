@@ -335,6 +335,12 @@ def execute_sandboxed(
     if sys.platform == "win32":
         creationflags = subprocess.CREATE_NO_WINDOW
 
+    # ── DIAGNOSTIC: log Popen params to identify hang source ──
+    logger.warning(
+        f"[SANDBOX-DIAG] python={sys.executable} flags={creationflags} "
+        f"cwd={cwd} stdin=DEVNULL timeout={timeout}s code_preview={code[:80]!r}"
+    )
+
     try:
         # Binary mode + stdin=DEVNULL to avoid pipe deadlock on Windows (§5.16)
         proc = subprocess.Popen(
@@ -346,17 +352,21 @@ def execute_sandboxed(
             env=env,
             creationflags=creationflags,
         )
+        logger.warning(f"[SANDBOX-DIAG] Popen created, pid={proc.pid}, starting communicate(timeout={timeout})")
         raw_out, raw_err = proc.communicate(timeout=timeout)
+        logger.warning(f"[SANDBOX-DIAG] communicate returned: {len(raw_out or b'')} bytes out, {len(raw_err or b'')} bytes err")
         stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
         stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
         exit_code = proc.returncode
         timed_out = False
     except subprocess.TimeoutExpired:
+        logger.warning(f"[SANDBOX-DIAG] TimeoutExpired after {time.perf_counter()-t0:.1f}s, killing pid={proc.pid}")
         try:
             proc.kill()
         except OSError:
-            pass  # Process may have already exited between timeout and kill
+            pass
         raw_out, raw_err = proc.communicate()
+        logger.warning(f"[SANDBOX-DIAG] post-kill communicate: {len(raw_out or b'')} bytes out")
         stdout = raw_out.decode("utf-8", errors="replace") if raw_out else ""
         stderr = raw_err.decode("utf-8", errors="replace") if raw_err else ""
         exit_code = -1
