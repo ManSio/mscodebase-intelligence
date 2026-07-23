@@ -46,6 +46,7 @@ def _get_pagerank_for_file(file_path: str, services) -> float:
     """Получает PageRank файла через get_repo_rank.
 
     Returns 0.0 если не удалось получить.
+    Raises RuntimeError if DI resolution fails (fail-closed).
     """
     try:
         # Используем MCP инструмент get_repo_rank (если доступен)
@@ -59,14 +60,17 @@ def _get_pagerank_for_file(file_path: str, services) -> float:
                 return rank.get("pagerank", 0.0)
             return float(rank or 0.0)
     except Exception as e:
-        logger.debug(f"[Guard] PageRank lookup failed: {e}")
-    return 0.0
+        # Fail-closed: if we can't determine PageRank, assume file is hot
+        # and require explicit ack. Log at WARNING so it's visible.
+        logger.warning(f"[Guard] PageRank lookup failed (fail-closed): {e}")
+        return 1.0  # Treat as maximum PageRank to force ack
 
 
 def _get_blast_radius_for_file(symbol: str, services) -> int:
     """Получает blast radius символа через impact_analysis.
 
     Returns 0 если не удалось получить.
+    Raises RuntimeError if DI resolution fails (fail-closed).
     """
     try:
         from src.core.di_container import ProjectIndexerRegistry
@@ -83,7 +87,9 @@ def _get_blast_radius_for_file(symbol: str, services) -> int:
                 tcal = len(impact.get("transitive_callees", []) or [])
                 return dc + tc + dcal + tcal
     except Exception as e:
-        logger.debug(f"[Guard] Blast radius lookup failed: {e}")
+        # Fail-closed: if we can't determine blast radius, assume it's large
+        logger.warning(f"[Guard] Blast radius lookup failed (fail-closed): {e}")
+        return 100  # Treat as maximum blast radius to force ack
     return 0
 
 

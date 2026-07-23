@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.core.indexing.symbol_index import SymbolIndex
+from src.core.modification_guard import modification_guard
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.write_tools")
@@ -57,6 +58,7 @@ class WriteTool(MCPTool):
         self._lsp_client = None
 
     @error_boundary("write", timeout_ms=30000)
+    @modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600.0)
     async def execute(
         self,
         action: str,
