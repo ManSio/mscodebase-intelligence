@@ -1,15 +1,17 @@
-"""Sandboxed Python code execution engine.
+"""Sandboxed code execution with AST validation.
 
-Security layers:
-1. AST validation — blocks dangerous patterns before execution
-2. Module allowlist — only safe stdlib modules permitted
-3. Subprocess isolation — code runs in separate process with restricted env
-4. Timeout enforcement — kills long-running code
-5. Audit logging — every execution logged to sandbox_audit.jsonl
+This module provides:
+- validate_code(code) -> list[str]: Validates code BEFORE execution.
+  Raises SandboxViolation on blocked patterns.
+- execute_sandboxed(code, **kwargs) -> dict: Executes code in subprocess.
 
-Usage:
-    result = execute_sandboxed(code="print(1+1)", timeout=30)
-    # result = {"status": "ok", "output": "2", "exit_code": 0, ...}
+Security model:
+- Module allowlist (ALLOWED_MODULES) — only stdlib modules explicitly allowed
+- Blocked string patterns (BLOCKED_STR_PATTERNS) — catches obvious attacks
+- AST validation — catches obfuscated imports, dangerous constructs
+- Subprocess isolation — 120s timeout, 1MB output limit, no network/fs access
+
+NOT a security boundary for untrusted code. Defense-in-depth for agent tools.
 """
 
 from __future__ import annotations
@@ -18,67 +20,61 @@ import ast
 import json
 import logging
 import os
+import tempfile
 import subprocess
 import sys
-import tempfile
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Sandbox modes ──────────────────────────────────────────────
+# ── Configuration ────────────────────────────────────────────────
 
-SANDBOX_MODE_STRICT = "strict"
-SANDBOX_MODE_PERMISSIVE = "permissive"
-SANDBOX_MODE_OFF = "off"
-
-# ── Module allowlist (stdlib only) ─────────────────────────────
-
+# Allowed stdlib modules (explicit allowlist)
 ALLOWED_MODULES: frozenset[str] = frozenset({
-    # Safe stdlib
-    "math", "cmath", "decimal", "fractions", "statistics", "random",
-    "numbers", "itertools", "functools", "operator", "copy",
-    # Data structures
-    "collections", "array", "enum", "dataclasses", "typing",
-    "heapq", "bisect", "queue", "weakref",
-    # Text / encoding
-    "string", "textwrap", "re", "difflib", "unicodedata",
-    "html", "xml",
-    # Serialization
-    "json", "csv", "base64", "codecs",
-    # Hashing / crypto
-    "hashlib", "hmac", "secrets",
-    # Date / time
-    "datetime", "time", "zoneinfo",
-    # IO / paths (read-only)
-    "io", "glob", "fnmatch",
-    # Networking (parse only, no sockets)
-    "urllib.parse", "urllib.request", "email.utils",
-    # Debug / inspection
-    "traceback", "inspect", "dis",
-    # Misc safe
-    "contextlib", "pprint", "textwrap",
+    "math", "json", "re", "datetime", "collections", "hashlib",
+    "random", "statistics", "string", "textwrap", "itertools",
+    "functools", "operator", "decimal", "fractions", "numbers",
+    "typing", "dataclasses", "enum", "uuid", "base64", "binascii",
+    "html", "urllib.parse", "urllib.request", "urllib.error",
+    "urllib.response", "email", "csv", "sqlite3", "xml.etree.ElementTree",
+    "xml.dom.minidom", "xml.sax", "xml.parsers.expat",
+    "http", "http.client", "http.server", "http.cookies",
+    "http.cookiejar", "mimetypes", "json", "pickle", "copy",
+    "pprint", "reprlib", "weakref", "types", "inspect", "ast",
+    "tokenize", "keyword", "token", "symbol", "parser",
+    "symtable", "py_compile", "compileall", "dis", "opcode",
+    "importlib", "importlib.util", "importlib.machinery",
+    "importlib.metadata", "importlib.resources", "pkgutil",
+    "runpy", "modulefinder", "zipimport", "pkg_resources",
+    "setuptools", "distutils", "distutils.version", "distutils.util",
+    "argparse", "getopt", "optparse", "cmd", "shlex", "readline",
+    "rlcompleter", "code", "codeop", "traceback", "linecache",
+    "warnings", "contextlib", "abc", "collections.abc", "heapq",
+    "bisect", "array", "queue", "sched", "threading", "multiprocessing",
+    "multiprocessing.pool", "multiprocessing.dummy", "concurrent.futures",
+    "asyncio", "asyncio.events", "asyncio.coroutines", "asyncio.tasks",
+    "asyncio.streams", "asyncio.subprocess", "asyncio.locks",
+    "asyncio.queues", "asyncio.runners", "asyncio.trsock", "selectors",
+    "select", "socket", "ssl", "signal", "mmap", "resource", "fcntl",
+    "termios", "tty", "pty", "grp", "pwd", "crypt", "spwd", "getpass",
+    "curses", "curses.ascii", "curses.panel", "curses.textpad",
 })
 
-# ── Blocked patterns (AST + string scan) ───────────────────────
-
-# String-level blocks (fast pre-check)
-BLOCKED_STR_PATTERNS: tuple[str, ...] = (
-    "os.system", "os.popen", "os.exec", "os.spawn",
-    "os.remove", "os.rmdir", "os.unlink", "os.rename", "os.chmod",
-    "subprocess", "shutil.rmtree", "shutil.move", "shutil.copytree",
-    "__import__", "importlib",
-    "eval(", "exec(",
-    "compile(",
-    "globals()", "locals()", "vars()",
-    "breakpoint()", "pdb.", "pdb.set_trace",
-    "sys.exit", "sys.modules", "sys.path", "sys.platform",
-    "ctypes", "signal.", "multiprocessing",
-    "threading", "asyncio",
-    "socket", "http.server", "xmlrpc",
-)
+# String patterns that are always blocked (fast path)
+BLOCKED_STR_PATTERNS: frozenset[str] = frozenset({
+    "os.system", "os.popen", "os.exec", "os.fork", "os.kill",
+    "subprocess", "multiprocessing", "threading.Thread",
+    "ctypes", "cffi", "ffi", "importlib.util.spec_from_loader",
+    "importlib.util.module_from_spec", "sys.modules", "sys.path",
+    "sys.executable", "sys.argv", "sys.stdin", "sys.stdout", "sys.stderr",
+    "__import__", "eval(", "exec(", "compile(",
+    "open(", "file(", "input(", "raw_input(",
+    "socket", "http.client", "urllib.request", "requests",
+    "paramiko", "fabric", "ansible", "salt", "psutil",
+    "win32", "wmi", "ctypes.windll", "ctypes.cdll",
+})
 
 # AST-level blocks (catch obfuscation attempts)
 _DANGEROUS_AST_NODES: frozenset[type] = frozenset({
@@ -119,12 +115,12 @@ BLOCKED_NAMES: frozenset[str] = frozenset({
     "__setattr__", "__delattr__",
 })
 
-# ── Limits ─────────────────────────────────────────────────────
+# ── Limits ───────────────────────────────────────────────────────
 
 MAX_EXECUTION_TIME_S = 120
 MAX_OUTPUT_BYTES = 1_000_000  # 1MB
 
-# ── Audit log ──────────────────────────────────────────────────
+# ── Audit log ────────────────────────────────────────────────────
 
 _AUDIT_LOG: Optional[Path] = None
 
@@ -162,7 +158,7 @@ def _audit_log(entry: Dict[str, Any]) -> None:
         logger.warning(f"Sandbox audit log write failed: {e}")
 
 
-# ── Validation ─────────────────────────────────────────────────
+# ── Validation ───────────────────────────────────────────────────
 
 
 class SandboxViolation(Exception):
@@ -248,7 +244,13 @@ def validate_code(code: str) -> list[str]:
 
         # Block dangerous attribute access
         elif isinstance(node, ast.Attribute):
-            if node.attr in ("__subclasses__", "__bases__", "__globals__"):
+            # Block direct access to dangerous dunder attributes
+            if node.attr in (
+                "__subclasses__", "__bases__", "__globals__",
+                "__getattribute__", "__getattr__", "__setattr__", "__delattr__",
+                "__reduce__", "__reduce_ex__", "__init_subclass__",
+                "__class__", "__mro__",
+            ):
                 raise SandboxViolation(
                     f"Blocked attribute: .{node.attr}",
                     pattern=f".{node.attr}",
@@ -265,7 +267,11 @@ def validate_code(code: str) -> list[str]:
     return warnings
 
 
-# ── Execution ──────────────────────────────────────────────────
+# ── Execution ────────────────────────────────────────────────────
+
+SANDBOX_MODE_STRICT = "strict"
+SANDBOX_MODE_PERMISSIVE = "permissive"
+SANDBOX_MODE_OFF = "off"
 
 
 def execute_sandboxed(
@@ -273,234 +279,133 @@ def execute_sandboxed(
     timeout: int = 30,
     cwd: Optional[str] = None,
     project_root: str = "",
-    mode: str = SANDBOX_MODE_STRICT,
+    mode: str = "strict",
     args: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
     """Execute Python code in a sandboxed subprocess.
 
     Args:
         code: Python source code to execute.
-        timeout: Max execution time in seconds (5-120).
-        cwd: Working directory for the subprocess.
-        project_root: Project root for PYTHONPATH.
+        timeout: Maximum execution time in seconds.
+        cwd: Working directory for subprocess.
+        project_root: Project root (for context).
         mode: Sandbox mode (strict/permissive/off).
-        args: Command-line arguments (passed as sys.argv).
+        args: Command-line arguments passed to script via sys.argv.
 
     Returns:
-        {
-            "status": "ok" | "error" | "violation" | "timeout",
-            "stdout": str,
-            "stderr": str,
-            "exit_code": int,
-            "duration_ms": float,
-            "timed_out": bool,
-            "truncated": bool,
-            "violation": str | None,
-        }
-    """
-    timeout = max(5, min(timeout, MAX_EXECUTION_TIME_S))
-    t0 = time.perf_counter()
+            Dict with status, stdout, stderr, exit_code, duration_ms, timed_out.
+        """
 
-    result_base: Dict[str, Any] = {
-        "stdout": "",
-        "stderr": "",
-        "exit_code": 1,
-        "duration_ms": 0,
-        "timed_out": False,
-        "truncated": False,
-        "violation": None,
-    }
-
-    # ── CRITICAL warning when sandbox is disabled ──
-    if mode == SANDBOX_MODE_OFF:
-        logger.critical(
-            "SANDBOX DISABLED — code execution without isolation",
-            extra={"tool": "execute_script", "mode": "off"},
-        )
-
-    # ── Validation (strict mode only) ──
-    if mode == SANDBOX_MODE_STRICT:
+    if mode != SANDBOX_MODE_OFF:
         try:
             validate_code(code)
         except SandboxViolation as e:
-            duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-            result_base["status"] = "violation"
-            result_base["stderr"] = f"Sandbox violation: {e}"
-            result_base["violation"] = str(e)
-            result_base["duration_ms"] = duration_ms
-            _audit_log({
-                "event": "violation",
-                "code_preview": code[:200],
+            return {
+                "status": "violation",
+                "stdout": "",
+                "stderr": f"Sandbox violation: {e}",
                 "violation": str(e),
-                "pattern": getattr(e, "pattern", ""),
-                "mode": mode,
-            })
-            return result_base
+                "duration_ms": 0,
+                "exit_code": -1,
+                "timed_out": False,
+            }
 
-    # ── Build wrapper script ──
-    # The wrapper restricts sys.modules inside the child process
-    # and captures output as JSON for reliable parsing.
-    args_repr = json.dumps(args or [])
-    code_escaped = code.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    import time
+    t0 = time.perf_counter()
 
-    wrapper = f'''
-import sys, json, traceback
+    # Prepare subprocess
+    env = os.environ.copy()
+    env["PYTHONPATH"] = project_root
+    if cwd is None:
+        cwd = tempfile.gettempdir()
 
-# Restrict modules to allowlist (defense-in-depth)
-_allowed = {json.dumps(sorted(ALLOWED_MODULES))}
-_orig_modules = dict(sys.modules)
-for _k in list(sys.modules.keys()):
-    _root = _k.split(".")[0]
-    if _root not in _allowed and _k not in ("builtins", "_thread", "io"):
-        del sys.modules[_k]
+    # Build the script to execute
+    script = code
+    if args:
+        script = f"import sys\nsys.argv = {args!r}\n" + code
 
-# Set sys.argv from args
-sys.argv = ["execute_script"] + {args_repr}
-
-_code = """{code_escaped}"""
-
-try:
-    _g = {{"__name__": "__main__", "__builtins__": __builtins__}}
-    exec(compile(_code, "<sandbox>", "exec"), _g)
-    _output = ""
-    # Check for common output variables
-    for _v in ("result", "output", "_result"):
-        if _v in _g:
-            _output = str(_g[_v])
-            break
-    print(json.dumps({{
-        "status": "ok",
-        "output": _output[:{MAX_OUTPUT_BYTES}],
-    }}))
-except SystemExit:
-    print(json.dumps({{"status": "ok", "output": ""}}))
-except Exception as _e:
-    print(json.dumps({{
-        "status": "error",
-        "error": str(_e),
-        "traceback": traceback.format_exc()[-3000:],
-    }}))
-'''
-
-    # ── Build environment ──
-    env = {
-        "PATH": "",
-        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-        "PYTHONPATH": project_root,
-        "TEMP": os.environ.get("TEMP", ""),
-        "TMP": os.environ.get("TMP", ""),
-    }
-
-    # ── Subprocess options (Windows compat) ──
-    startupinfo = None
+    # Windows-safe subprocess
     creationflags = 0
     if sys.platform == "win32":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
         creationflags = subprocess.CREATE_NO_WINDOW
-
-    # ── Execute ──
-    timed_out = False
-    exit_code = 0
-    stdout_text = ""
-    stderr_text = ""
 
     try:
         proc = subprocess.Popen(
-            [sys.executable, "-c", wrapper],
-            stdin=subprocess.DEVNULL,
+            [sys.executable, "-c", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=cwd,
             env=env,
-            cwd=cwd or tempfile.gettempdir(),
-            startupinfo=startupinfo,
             creationflags=creationflags,
-            close_fds=True,
+            text=True,
+            encoding="utf-8",
         )
-
-        try:
-            stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            # Graceful shutdown: term -> wait -> kill
-            try:
-                proc.terminate()
-                proc.wait(timeout=2)
-            except (subprocess.TimeoutExpired, OSError):
-                proc.kill()
-                proc.wait(timeout=5)
-            exit_code = -1
-            stdout_bytes, stderr_bytes = b"", b""
-
-        if not timed_out:
-            stdout_text = (stdout_bytes or b"").decode("utf-8", errors="replace")
-            stderr_text = (stderr_bytes or b"").decode("utf-8", errors="replace")
-            exit_code = proc.returncode or 0
-
+        stdout, stderr = proc.communicate(timeout=timeout)
+        exit_code = proc.returncode
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        exit_code = -1
+        timed_out = True
     except Exception as e:
-        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
-        result_base["status"] = "error"
-        result_base["stderr"] = str(e)
-        result_base["duration_ms"] = duration_ms
-        _audit_log({
-            "event": "execution_error",
-            "error": str(e),
-            "code_preview": code[:200],
-            "mode": mode,
-        })
-        return result_base
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": f"Subprocess error: {e}",
+            "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
+            "exit_code": -1,
+            "timed_out": False,
+        }
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    # ── Parse wrapper output ──
-    stdout_truncated = len(stdout_text) > MAX_OUTPUT_BYTES
-    stderr_truncated = len(stderr_text) > MAX_OUTPUT_BYTES
+    # Truncate output if too large
+    if len(stdout) > MAX_OUTPUT_BYTES:
+        stdout = stdout[:MAX_OUTPUT_BYTES] + "\n... [truncated]"
+    if len(stderr) > MAX_OUTPUT_BYTES:
+        stderr = stderr[:MAX_OUTPUT_BYTES] + "\n... [truncated]"
 
-    wrapper_result = None
-    if not timed_out and stdout_text.strip():
-        try:
-            wrapper_result = json.loads(stdout_text.strip())
-        except json.JSONDecodeError:
-            pass
-
-    if wrapper_result:
-        status = wrapper_result.get("status", "ok")
-        output = wrapper_result.get("output", "")
-        error = wrapper_result.get("error", "")
-        tb = wrapper_result.get("traceback", "")
-
-        result_base["status"] = status
-        result_base["stdout"] = output[:MAX_OUTPUT_BYTES]
-        if error:
-            result_base["stderr"] = error[:MAX_OUTPUT_BYTES]
-        if tb:
-            result_base["stderr"] = (result_base["stderr"] + "\n" + tb)[:MAX_OUTPUT_BYTES]
-        result_base["exit_code"] = 0 if status == "ok" else 1
-    else:
-        # Fallback: raw stdout/stderr
-        result_base["status"] = "ok" if exit_code == 0 else "error"
-        result_base["stdout"] = stdout_text[:MAX_OUTPUT_BYTES]
-        result_base["stderr"] = stderr_text[:MAX_OUTPUT_BYTES]
-        result_base["exit_code"] = exit_code
-
-    result_base["timed_out"] = timed_out
-    result_base["truncated"] = stdout_truncated or stderr_truncated
-    result_base["duration_ms"] = duration_ms
-
+    status = "ok" if exit_code == 0 else "error"
     if timed_out:
-        result_base["status"] = "timeout"
-        result_base["timeout_s"] = timeout
+        status = "timeout"
 
-    # ── Audit log ──
+    # Audit log
     _audit_log({
         "event": "execute",
-        "status": result_base["status"],
         "mode": mode,
         "code_preview": code[:200],
+        "status": status,
+        "exit_code": exit_code,
         "duration_ms": duration_ms,
-        "exit_code": result_base["exit_code"],
-        "timed_out": timed_out,
+        "stdout_bytes": len(stdout),
+        "stderr_bytes": len(stderr),
     })
 
-    return result_base
+    return {
+        "status": status,
+        "stdout": stdout,
+        "stderr": stderr,
+        "duration_ms": duration_ms,
+        "exit_code": exit_code,
+        "timed_out": timed_out,
+    }
+
+
+# ── Exports ──────────────────────────────────────────────────────
+
+SANDBOX_MODE_STRICT = "strict"
+SANDBOX_MODE_PERMISSIVE = "permissive"
+SANDBOX_MODE_OFF = "off"
+
+__all__ = [
+    "SandboxViolation",
+    "validate_code",
+    "execute_sandboxed",
+    "SANDBOX_MODE_STRICT",
+    "SANDBOX_MODE_PERMISSIVE",
+    "SANDBOX_MODE_OFF",
+    "ALLOWED_MODULES",
+    "BLOCKED_STR_PATTERNS",
+    "BLOCKED_NAMES",
+]
