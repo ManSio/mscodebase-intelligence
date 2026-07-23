@@ -27,12 +27,44 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
+
+
+# ────────────────────────────────────────────────────────────
+# Валидация JSON-path ключей (защита от SQL-инъекции в json_extract)
+# ────────────────────────────────────────────────────────────
+
+_PROPERTY_KEY_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+
+
+def _validate_property_key(key: str) -> str:
+    """Валидирует ключ JSON properties для безопасного использования в json_extract.
+
+    Допускает только алфавитно-цифровые ключи с подчёркиванием,
+    начинающиеся с буквы или подчёркивания. Это предотвращает
+    инъекции через property_key в json_extract(properties, '$...').
+
+    Args:
+        key: Ключ свойства для проверки.
+
+    Returns:
+        Валидный ключ.
+
+    Raises:
+        ValueError: Если ключ содержит недопустимые символы.
+    """
+    if not _PROPERTY_KEY_PATTERN.fullmatch(key):
+        raise ValueError(
+            f"Invalid property_key '{key}': must match ^[A-Za-z_][A-Za-z0-9_]*$ "
+            f"(letters, digits, underscore; cannot start with digit)"
+        )
+    return key
 
 
 # ────────────────────────────────────────────────────────────
@@ -441,6 +473,7 @@ class PropertyGraph:
             conditions.append("label = ?")
             params.append(label)
         if property_key and property_value:
+            _validate_property_key(property_key)
             conditions.append(f"json_extract(properties, '$.{property_key}') = ?")
             params.append(property_value)
         if name_pattern:
@@ -486,6 +519,7 @@ class PropertyGraph:
             conditions.append("e.type = ?")
             params.append(edge_type)
         if property_key and property_value:
+            _validate_property_key(property_key)
             conditions.append(f"json_extract(e.properties, '$.{property_key}') = ?")
             params.append(property_value)
 

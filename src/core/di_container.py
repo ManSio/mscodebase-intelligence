@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
@@ -145,33 +146,26 @@ class ServiceCollection:
             f"Available types: {list(self._instances.keys()) + list(self._factories.keys())}"
         )
 
-    def shutdown(self):
+    async def shutdown(self):
         """Закрывает все зарегистрированные сервисы, реализующие close().
 
         Вызывается при остановке MCP-сервера для корректного освобождения
         ресурсов (файловые дескрипторы, HTTP-сессии, tree-sitter runtime).
         """
         closed = 0
+
         for key, instance in self._instances.items():
             close_method = getattr(instance, "close", None)
             if callable(close_method):
                 try:
-                    if hasattr(close_method, "__await__"):
-                        import asyncio
-
-                        try:
-                            loop = asyncio.get_event_loop()
-                            if loop.is_running():
-                                loop.create_task(close_method())
-                            else:
-                                asyncio.run(close_method())
-                        except RuntimeError:
-                            asyncio.run(close_method())
+                    if asyncio.iscoroutinefunction(close_method):
+                        await close_method()
                     else:
                         close_method()
                     closed += 1
                 except Exception as e:
                     logger.debug(f"DI shutdown: {key.__name__}.close() error: {e}")
+
         logger.info(f"DI shutdown: {closed} services closed")
 
     def list_registered(self) -> List[type]:

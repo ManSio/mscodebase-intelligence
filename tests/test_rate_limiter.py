@@ -121,7 +121,7 @@ class TestDebounceBatch:
         assert await batch.add("file2.py") is True  # новый
         assert await batch.add("file1.py") is False  # уже есть
 
-        assert batch.pending_count == 2
+        assert await batch.pending_count() == 2
 
     @pytest.mark.asyncio
     async def test_flush_now_clears_and_calls_callback(self):
@@ -137,7 +137,7 @@ class TestDebounceBatch:
 
         await batch.flush_now()
 
-        assert batch.pending_count == 0
+        assert await batch.pending_count() == 0
         assert "file1.py" in collected
         assert "file2.py" in collected
 

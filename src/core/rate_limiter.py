@@ -94,15 +94,16 @@ class SlidingWindowRateLimiter:
         return False
 
     def get_stats(self, key: str) -> dict:
-        """Возвращает текущую статистику для ключа (без блокировки)."""
-        window = self._windows.get(key, [])
-        now = time.monotonic()
-        recent = [t for t in window if t > now - 1.0]
-        return {
-            "key": key,
-            "requests_last_sec": len(recent),
-            "total_tracked": len(window),
-        }
+        """Возвращает текущую статистику для ключа."""
+        with self._lock:
+            window = self._windows.get(key, [])
+            now = time.monotonic()
+            recent = [t for t in window if t > now - 1.0]
+            return {
+                "key": key,
+                "requests_last_sec": len(recent),
+                "total_tracked": len(window),
+            }
 
 
 # ══════════════════════════════════════════════════════════
@@ -132,11 +133,9 @@ class DebounceBatch:
         )
         await batch.add(path)
 
-    Lock: threading.Lock (не asyncio.Lock) — см. INC-53EC / REFC-03.
-    async API сохраняется; внутренний lock защищает set/files только от
-    конкурентных add() из разных thread-ов. Таймер остаётся asyncio.Task —
-    он работает в loop-е, в котором был создан; callback выполняется через
-    asyncio.to_thread() чтобы не блокировать loop.
+    Lock: asyncio.Lock — защищает set/files от конкурентных add() из разных task-ов.
+    Таймер работает в loop-е, в котором был создан; callback выполняется через
+    asyncio.to_thread() если sync, или await если async.
     """
 
     def __init__(
@@ -149,11 +148,11 @@ class DebounceBatch:
         self._files: Set[str] = set()
         self._timer: Optional[asyncio.Task] = None
         self._last_added_at = 0.0
-        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
+        self._lock = asyncio.Lock()  # asyncio.Lock для корректной работы в event loop
 
     async def add(self, file_path: str) -> bool:
         """Добавляет файл в батч. Возвращает True если файл новый."""
-        with self._lock:
+        async with self._lock:
             is_new = file_path not in self._files
             self._files.add(file_path)
             self._last_added_at = time.monotonic()
@@ -177,9 +176,9 @@ class DebounceBatch:
         Защита от зависания: если файлы добавляются непрерывно > max_wait_ms,
         сбрасываем принудительно.
 
-        ВАЖНО: НЕ вызывать await внутри with self._lock — threading.Lock
-        блокирует поток event loop, await под lock вызывает 100% дедлок
-        при попытке _flush() захватить тот же Lock (threading.Lock не reentrant).
+        ВАЖНО: НЕ вызывать await внутри with self._lock — asyncio.Lock
+        не блокирует поток, но _flush() также захватывает этот lock.
+        Правильный паттерн: решение о flush под lock, сам flush — вне lock.
         """
         try:
             while True:
@@ -189,7 +188,7 @@ class DebounceBatch:
                 should_flush = False
                 should_exit = False
 
-                with self._lock:
+                async with self._lock:
                     elapsed = time.monotonic() - self._last_added_at
                     elapsed_ms = elapsed * 1000
                     has_files = bool(self._files)
@@ -215,7 +214,7 @@ class DebounceBatch:
 
     async def _flush(self):
         """Сбрасывает накопленные файлы в callback."""
-        with self._lock:
+        async with self._lock:
             if not self._files:
                 return
             files = self._files.copy()
@@ -233,15 +232,14 @@ class DebounceBatch:
 
     async def flush_now(self):
         """Принудительный сброс (для graceful shutdown)."""
-        with self._lock:
+        async with self._lock:
             timer = self._timer
         if timer and not timer.done():
             timer.cancel()
         await self._flush()
 
-    @property
-    def pending_count(self) -> int:
-        with self._lock:
+    async def pending_count(self) -> int:
+        async with self._lock:
             return len(self._files)
 
 
@@ -287,7 +285,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.last_failure_time = 0.0
         self.last_state_change = time.monotonic()
-        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
+        self._lock = asyncio.Lock()  # asyncio.Lock для корректной работы в event loop
         self._on_state_change = on_state_change
         self._last_error: Optional[str] = None
 
@@ -312,7 +310,7 @@ class CircuitBreaker:
         """
         # Проверка: можно ли пробовать?
         old_state = self.state
-        with self._lock:
+        async with self._lock:
             if self.state == self.STATE_OPEN:
                 if time.monotonic() - self.last_failure_time > self.recovery_timeout:
                     logger.info(
@@ -339,7 +337,7 @@ class CircuitBreaker:
         try:
             result = await coro_factory()
 
-            with self._lock:
+            async with self._lock:
                 if self.state == self.STATE_HALF_OPEN:
                     logger.info(
                         f"Circuit breaker [{self.name}]: HALF_OPEN → CLOSED "
@@ -357,7 +355,7 @@ class CircuitBreaker:
 
         except Exception as e:
             self._last_error = str(e)
-            with self._lock:
+            async with self._lock:
                 self.failure_count += 1
                 self.success_count = 0
                 self.last_failure_time = time.monotonic()

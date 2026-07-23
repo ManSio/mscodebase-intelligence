@@ -5691,3 +5691,34 @@ Second audit found 27 issues across 10 files. Full verification against actual c
 - ✅ Numbers confirmed (commands + raw output in v5_results.json)
 - ✅ KNOWN_ISSUES.md synced (no new debt)
 - ✅ verified_from_clean_state: **yes** (scripts run from fresh clone)
+
+## [2026-07-23 20:45] — Security fix: Sandbox bypass + Modification Guard enabled
+
+### What was done
+Three critical security fixes from architectural review:
+
+| Issue | Fix | File | Lines |
+|-------|-----|------|-------|
+| **Sandbox bypass** — `obj.__getattribute__(obj, "__subclasses__")` passed validation | Added 10 dangerous dunder attrs to `ast.Attribute` check: `__getattribute__`, `__getattr__`, `__setattr__`, `__delattr__`, `__reduce__`, `__reduce_ex__`, `__init_subclass__`, `__class__`, `__mro__`, `__bases__` | `src/core/sandbox/executor.py` | 255-267 |
+| **Modification Guard not connected** — decorator existed but applied to 0 write tools | Applied `@modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600)` to `WriteTool.execute()` — now protects rename, move, safe_delete, replace, insert_before, insert_after | `src/mcp/tools/write_tools.py` | 70 |
+| **Fail-open in guard** — DI errors returned 0.0/0, silently allowing hot-file writes | Fail-closed: PageRank lookup failure → 1.0 (max), Blast radius failure → 100 (max); log at WARNING | `src/core/modification_guard.py` | 45-87 |
+
+### Verification
+- All 18 sandbox validation tests pass (bypass caught: `Blocked attribute: .__class__`, `. __getattribute__`, etc.)
+- All 13 modification_guard tests pass (deny/allow/TTL/cleanup)
+- All 33 write_tools tests pass (rename/move/safe_delete/replace/insert)
+- Full suite: 594 passed, 4 pre-existing Windows subprocess failures (unrelated)
+
+### Definition of Done (§7)
+- ✅ Чистая проверка: pytest tests/ — 594 passed (4 pre-existing Windows infra failures)
+- ✅ Тест реального пути: sandbox.validate_code() блокирует байпас
+- ✅ Concurrency note: modification_guard использует global _ack_registry — thread-safe через GIL, ack_impact() вызывается из одного потока MCP
+- ✅ Числа: 18+13+33 = 64 новых/подтверждённых тестов
+- ✅ KNOWN_ISSUES.md синхронизирован
+- ✅ verified_from_clean_state: ✅ yes — чистый клон + pytest (594 passed)
+
+### Files changed
+- `src/core/sandbox/executor.py` — extended ast.Attribute block list
+- `src/mcp/tools/write_tools.py` — added @modification_guard decorator
+- `src/core/modification_guard.py` — fail-closed behavior + WARNING logs
+
