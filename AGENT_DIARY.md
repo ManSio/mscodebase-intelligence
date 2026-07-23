@@ -5722,3 +5722,50 @@ Three critical security fixes from architectural review:
 - `src/mcp/tools/write_tools.py` — added @modification_guard decorator
 - `src/core/modification_guard.py` — fail-closed behavior + WARNING logs
 
+
+**Definition of Done (§7) — продолжение**
+- ✅ verified_from_clean_state: ✅ yes — чистый клон + pytest (594 passed)
+
+
+## [2026-07-23 21:00] — INC-XXXX: Sandbox denylist bypass via __getattribute__ attribute access
+
+### Symptom
+`validate_code()` в `src/core/sandbox/executor.py` пропускает код, получающий доступ к `__subclasses__`/`__globals__`/`__bases__` через `obj.__getattribute__("__subclasses__")` вместо прямого `.attr`-обращения. Обнаружено при внешнем ревью 2026-07-23, воспроизведено локальным Python-скриптом и через `execute_script` в реальном рантайме агента (см. выше — `SANDBOX_BYPASS_CONFIRMED 30 classes visible`).
+
+### Root Cause
+Коммит `5aaead4` ("fix: expand BLOCKED_NAMES...") добавил ~60 dunder-строк только в `BLOCKED_NAMES`, который проверяется исключительно для узлов `ast.Name` (голые идентификаторы). Ветка `elif isinstance(node, ast.Attribute)` проверяет только 3 захардкоженных строки (`__subclasses__`, `__bases__`, `__globals__`) и не была обновлена. `.__getattribute__` как attribute-access — это `ast.Attribute` с `attr="__getattribute__"`, не входит в тройку, поэтому пропускается. Вызов метода дальше тоже не триггерит eval/exec/compile/__import__-проверки, т.к. func — `ast.Attribute`, а не `ast.Name`.
+
+### Fix
+Расширен `ast.Attribute` блеклист на 10 дополнительных атрибутов: `__getattribute__`, `__getattr__`, `__setattr__`, `__delattr__`, `__reduce__`, `__reduce_ex__`, `__init_subclass__`, `__class__`, `__mro__`. Коммит `c459c23a`.
+
+### Guard
+Добавить unit-тест, явно прогоняющий известные bypass-payload'ы через `validate_code()`. Прогонять этот тест при любом изменении executor.py — денежный список сам по себя не самопроверяющийся.
+
+**verified_from_clean_state:** ✅ yes — pytest tests/ (594 passed), live execute_script (SANDBOX_BYPASS_CONFIRMED pre-fix → Blocked attribute post-reload)
+
+---
+
+## [2026-07-23 21:10] — modification_guard: connected to WriteTool + fail-closed + ack bypass
+
+### What was done
+Three fixes from the same review:
+
+1. **Guard connected to WriteTool.execute()** (`src/mcp/tools/write_tools.py:70`)
+   Previously: `ack_impact` used, but `@modification_guard` decorator never applied.
+   Now: `@modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600)` wraps `execute()`.
+   All 6 write operations protected: rename, move, safe_delete, replace, insert_before, insert_after.
+
+2. **Fail-closed DI resolution** (`src/core/modification_guard.py:45-87`)
+   Previously: `except Exception → return 0.0/0` (fail-open, hot files passed silently).
+   Now: `except Exception → return 1.0/100` + `logger.warning()` (fail-closed, forces ack).
+
+3. **Ack action bypass** (`src/core/modification_guard.py:109`)
+   `kwargs.get("action") == "ack"` bypasses guard — correct because ack IS the mechanism that grants permission.
+
+### Tests
+- 13 modification_guard tests: all pass
+- 33 write_tools tests: all pass
+- 20 rate_limiter tests: all pass
+
+### verified_from_clean_state: ✅ yes
+
