@@ -63,6 +63,13 @@ _STDLIB_FUNCTIONS = {
     "tool", "upper",
     "wait", "wait_for", "warn", "warning", "where", "which",
     "verify_claim",
+    # os / OrderedDict / hashlib / gc / traceback / sqlite3 methods
+    "getpid", "move_to_end", "popitem", "blake2b", "collect",
+    "fetchall", "fetchone", "print_exception",
+    # Python keywords that parser误 extracts from backtick code
+    "except",
+    # Common words in table cells that parser误 extracts as function calls
+    "fix", "feat",
     # MCP tool registration names — пойманы через @mcp.tool() regex выше
     "registered",
 }
@@ -234,9 +241,22 @@ def parse_diary() -> List[DiaryEntry]:
                 if t not in current_entry.tests:
                     current_entry.tests.append(t)
 
-            # Коммиты: hex-хеши
-            commits = re.findall(r"[a-f0-9]{7,40}", line)
-            for c in commits:
+            # Коммиты: hex-хеши (min 7, max 40, word-boundary)
+            # Исключаем false positives:
+            # - Windows error codes (0xC0000..., 0000...)
+            # - KB numbers (KB5067470 → 5067470)
+            # - LanceDB file names (001110010111...)
+            # - RUN_ID / cache keys (be6917458612, d47bee8235d9c14e)
+            # - Long repeating patterns (001110010111)
+            _COMMIT_EXCLUDE = {
+                'be6917458612', 'd47bee8235d9c14e', '001110010111',
+                '60d092b1e1', '0000135', 'c000001d', '5067470',
+            }
+            for c in re.findall(r'(?<![a-f0-9A-F])([a-f0-9]{7,40})(?![a-f0-9A-F])', line):
+                if c in _COMMIT_EXCLUDE:
+                    continue
+                if c.startswith('c0000') or c.startswith('0000'):
+                    continue
                 if c not in current_entry.commits:
                     current_entry.commits.append(c)
 
