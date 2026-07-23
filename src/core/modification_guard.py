@@ -9,7 +9,11 @@ Ack-система: после impact_analysis() пользователь пол
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import inspect
 import logging
+import os
 import time
 from functools import wraps
 from pathlib import Path
@@ -21,13 +25,51 @@ logger = logging.getLogger(__name__)
 # После вызова impact_analysis пользователь "подтверждает" осведомлённость
 _ack_registry: Dict[str, float] = {}
 _ACK_TTL: float = 600.0  # 600 секунд = 10 минут
+_ACK_SECRET = os.environ.get(
+    "MSCODEBASE_ACK_SECRET", "dev-secret-change-me"
+).encode()
 
 
-def ack_impact(file_path: str) -> Dict[str, Any]:
+def _file_fingerprint(file_path: str) -> str:
+    """Хэш mtime+size файла — токен привязан к конкретному состоянию."""
+    try:
+        p = Path(file_path)
+        stat = p.stat()
+        return f"{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        return "missing"
+
+
+def _make_ack_token(file_path: str) -> str:
+    """Генерирует HMAC-токен для файла. Токен привязан к текущему состоянию."""
+    normalized = _normalize_path(file_path)
+    fingerprint = _file_fingerprint(file_path)
+    msg = f"{normalized}:{fingerprint}".encode()
+    return hmac.new(_ACK_SECRET, msg, hashlib.sha256).hexdigest()[:32]
+
+
+def _verify_ack_token(file_path: str, token: str) -> bool:
+    """Проверяет, что токен валиден для текущего состояния файла."""
+    expected = _make_ack_token(file_path)
+    return hmac.compare_digest(expected, token)
+
+
+def ack_impact(file_path: str, impact_token: str) -> Dict[str, Any]:
     """Подтвердить осведомлённость о влиянии изменений в файле.
 
-    Вызывается пользователем или инструментом ack_impact после impact_analysis.
+    impact_token обязателен и должен быть получен из ответа impact_analysis
+    для ЭТОГО файла в его ТЕКУЩЕМ состоянии. Голый ack без токена больше
+    не принимается — иначе это ритуальный чек-бокс без содержания.
     """
+    if not _verify_ack_token(file_path, impact_token):
+        return {
+            "status": "denied",
+            "message": (
+                f"Invalid or stale impact_token for {file_path}. "
+                f"Call impact_analysis first and use the token from its response — "
+                f"a token is only valid for the file's current content."
+            ),
+        }
     normalized = _normalize_path(file_path)
     _ack_registry[normalized] = time.time()
     return {
@@ -115,9 +157,24 @@ def modification_guard(
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            # Определяем target file из kwargs
-            file_path = kwargs.get("file_path", "")
-            symbol = kwargs.get("symbol", kwargs.get("old_name", ""))
+            # Определяем target file — bind positional + keyword args via inspect
+            sig = inspect.signature(func)
+            try:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                bound.apply_defaults()
+                call_args = bound.arguments
+            except TypeError:
+                call_args = kwargs  # fallback
+
+            file_path = (
+                call_args.get("file_path", "") or kwargs.get("file_path", "")
+            )
+            symbol = (
+                call_args.get("symbol")
+                or call_args.get("old_name")
+                or kwargs.get("symbol", kwargs.get("old_name", ""))
+                or ""
+            )
 
             if not file_path and not symbol:
                 # Нет цели для проверки — пропускаем
@@ -160,14 +217,15 @@ def modification_guard(
             is_hot = pagerank >= pagerank_min or blast >= blast_min
 
             if is_hot:
+                token = _make_ack_token(target_path)
                 return {
                     "status": "denied",
                     "message": (
                         f"Modification guard: file is load-bearing.\n"
-                        f"  • PageRank: {pagerank:.3f} (threshold: {pagerank_min})\n"
-                        f"  • Blast radius: {blast} connections (threshold: {blast_min})\n\n"
-                        f"Call `ack_impact(file_path=\"{file_path or target_path}\")` "
-                        f"first to acknowledge impact and proceed."
+                        f"  \u2022 PageRank: {pagerank:.3f} (threshold: {pagerank_min})\n"
+                        f"  \u2022 Blast radius: {blast} connections (threshold: {blast_min})\n\n"
+                        f'Call `ack_impact(file_path="{file_path or target_path}", '
+                        f'impact_token="{token}")` to acknowledge impact and proceed.'
                     ),
                     "guard": {
                         "pagerank": round(pagerank, 3),
@@ -175,6 +233,7 @@ def modification_guard(
                         "blast_radius": blast,
                         "blast_threshold": blast_min,
                         "ack_required": True,
+                        "impact_token": token,
                     },
                 }
 
@@ -185,4 +244,10 @@ def modification_guard(
     return decorator
 
 
-__all__ = ["modification_guard", "ack_impact", "_ack_registry"]
+__all__ = [
+    "modification_guard",
+    "ack_impact",
+    "_ack_registry",
+    "_make_ack_token",
+    "_verify_ack_token",
+]
