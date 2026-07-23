@@ -578,7 +578,17 @@ def _shutdown_services():
     try:
         from src.mcp.server import _services_cache
         if _services_cache:
-            _services_cache.shutdown()
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # In running loop (e.g., HeartbeatService._shutdown) - can't await
+                    # Fire-and-forget is acceptable since process exits immediately after
+                    loop.create_task(_services_cache.shutdown())
+                else:
+                    asyncio.run(_services_cache.shutdown())
+            except RuntimeError:
+                asyncio.run(_services_cache.shutdown())
     except Exception as _e:
         logger.warning("exception", exc_info=True)
         pass
