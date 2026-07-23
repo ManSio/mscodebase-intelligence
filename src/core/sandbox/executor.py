@@ -125,45 +125,35 @@ MAX_OUTPUT_BYTES = 1_000_000  # 1MB
 # Prepended to user scripts in subprocess.
 # Catches what AST misses: importlib.import_module(), runtime introspection.
 RUNTIME_ISOLATION_PREAMBLE = (
-    'import sys as _sys, builtins as _builtins, importlib.abc as _abc\n'
+    'import sys as _sys, builtins as _builtins\n'
     '\n'
     # Whitelist — only these module roots are importable at runtime
-    # Subset of ALLOWED_MODULES; blocks importlib, os, subprocess, socket, etc.
-    '_SANDBOX_ALLOWED = frozenset({\n'
-    '    "__main__",\n'
+    # Blocks: os, subprocess, shutil, pathlib, socket, importlib, ctypes, etc.
+    # Allows: math, json, re, datetime, etc. + underscore-prefixed C internals
+    # Note: __import__ CANNOT be removed — Python import statement calls it.
+    # Relative imports (level>0) are always allowed — parent was validated.
+    '_USER_ALLOWED = frozenset({\n'
+    '    "__main__", "builtins",\n'
     '    "math", "json", "re", "datetime", "collections", "hashlib",\n'
     '    "time", "random", "statistics", "string", "textwrap", "itertools",\n'
     '    "functools", "operator", "decimal", "fractions", "numbers",\n'
     '    "typing", "dataclasses", "enum", "uuid", "base64", "binascii",\n'
     '    "html", "csv", "copy", "pprint", "reprlib", "weakref", "types",\n'
     '    "ast", "tokenize", "keyword", "abc", "contextlib", "heapq",\n'
-    '    "bisect", "array", "decimal", "fractions",\n'
+    '    "bisect", "array", "sys",\n'
     '})\n'
     '\n'
-    'class _SandboxFinder(_abc.MetaPathFinder):\n'
-    '    """Intercepts ALL import attempts. Only whitelisted roots pass."""\n'
-    '    def find_spec(self, fullname, path, target=None):\n'
-    '        root = fullname.split(".")[0]\n'
-    '        if root not in _SANDBOX_ALLOWED:\n'
-    '            raise ImportError(f"Sandbox blocked: {fullname}")\n'
-    '        return None\n'
-    '\n'
-    '_sys.meta_path.insert(0, _SandboxFinder())\n'
-    '\n'
-    # Remove dangerous builtins — defense-in-depth against introspection escapes
-    # Note: __import__ and getattr CANNOT be removed — Python's import
-    # machinery uses them internally. SandboxFinder blocks disallowed modules.
-    # Other dangerous builtins (exec, eval, compile, open, globals, etc.)
-    # are blocked by AST validation (Layer 1) and string patterns.
-    '_DANGEROUS = frozenset({\n'
-    '    "exec", "eval", "compile",\n'
-    '    "breakpoint", "input", "exit", "quit",\n'
-    '})\n'
-    '_bdict = _builtins.__dict__\n'
-    'for _n in list(_bdict.keys()):\n'
-    '    if _n in _DANGEROUS:\n'
-    '        del _bdict[_n]\n'
-    'del _n, _DANGEROUS, _bdict\n'
+    '_orig_import = _builtins.__import__\n'
+    'def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):\n'
+    '    if level > 0:\n'
+    '        return _orig_import(name, globals, locals, fromlist, level)\n'
+    '    root = name.split(".")[0]\n'
+    '    if root.startswith("_"):\n'
+    '        return _orig_import(name, globals, locals, fromlist, level)\n'
+    '    if root not in _USER_ALLOWED:\n'
+    '        raise ImportError(f"Sandbox blocked: {name}")\n'
+    '    return _orig_import(name, globals, locals, fromlist, level)\n'
+    '_builtins.__import__ = _safe_import\n'
 )
 
 # ── Audit log ────────────────────────────────────────────────────
