@@ -48,8 +48,10 @@ fi
 # Если платформа совпадает с lock — ставим из lock для битовой воспроизводимости.
 echo "Installing package + test deps..."
 if [ -f requirements-lock.txt ] && [ "$(uname -s)" = "Linux" ]; then
-    # На Linux-CI ставим из lock (платформо-совместимый снимок)
-    venv/bin/pip install -q -r requirements-lock.txt 2>&1 | tail -3
+    # На Linux-CI ставим из lock, фильтруя Windows-only пакеты
+    grep -viE "^(pywin32|wmi|pythoncom)=" requirements-lock.txt > /tmp/req_unix.txt
+    venv/bin/pip install -q -r /tmp/req_unix.txt 2>&1 | tail -3
+    rm -f /tmp/req_unix.txt
     venv/bin/pip install -q -e ".[dev]" --no-deps 2>&1 | tail -3
 else
     # Локально / не-Linux — резолвим по bounds (защищено exact pin lancedb)
