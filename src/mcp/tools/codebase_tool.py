@@ -80,10 +80,16 @@ class CodebaseTool(MCPTool):
                 f"❌ Unknown action `{action}`. "
                 f"Available: {', '.join(action_map)}"
             )
-        import inspect
-        sig = inspect.signature(handler)
-        valid_kwargs = {k: v for k, v in locals().items() if k in sig.parameters}
-        return await handler(**valid_kwargs)
+        # Explicit kwargs — avoids inspect.signature + locals() antipattern
+        # which fails for **kw methods (passes self, handler, action_map etc.)
+        _dispatch = {
+            "action": action, "old_name": old_name, "new_name": new_name,
+            "symbol": symbol, "to_file": to_file, "new_code": new_code,
+            "anchor_symbol": anchor_symbol, "path": path, "file_path": file_path,
+            "apply": apply, "force": force, "allow_collision": allow_collision,
+            "project_root": project_root, "max_count": max_count,
+        }
+        return await handler(**_dispatch)
 
     async def _action_write(self, **kw) -> str:
         """Write operations — делегирует в SymbolWriteTool."""
@@ -118,12 +124,12 @@ class CodebaseTool(MCPTool):
         )
 
     async def _action_git(self, **kw) -> str:
-        """Git operations — делегирует в GitTool."""
-        from src.mcp.tools.git_tools import GitTool
+        """Git operations — делегирует в GetCommitHistoryTool."""
+        from src.mcp.tools.git_tools import GetCommitHistoryTool
 
         path = kw.get("path", ".")
-        gt = GitTool(self._services)
-        return await gt.execute(action="log", path=path, max_count=kw.get("max_count", 10))
+        gt = GetCommitHistoryTool(self._services)
+        return await gt.execute(project_root=path, limit=kw.get("max_count", 10))
 
     async def _action_system(self, **kw) -> str:
         """System operations — делегирует в SystemTool."""

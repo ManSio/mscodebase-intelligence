@@ -24,7 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # Конфигурация
 DEFAULT_PORT = int(os.getenv("ONNX_PORT", "9876"))
-DEFAULT_MODEL = os.getenv("ONNX_MODEL", "bge-m3")
+DEFAULT_MODEL = os.getenv("ONNX_MODEL", "multilingual-e5-small-int8")
 IDLE_TIMEOUT = int(os.getenv("ONNX_IDLE_TIMEOUT", "600"))  # 10 минут
 
 last_request_time = time.time()

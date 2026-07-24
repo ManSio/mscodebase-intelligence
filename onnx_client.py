@@ -4,9 +4,10 @@ ONNX Client — Discover-or-Launch клиент для ONNX Singleton Server.
 Использует Windows Named Mutex для предотвращения гонки при запуске сервера.
 """
 
+import json
+import logging
 import os
 import sys
-import json
 import time
 import socket
 import subprocess
@@ -14,6 +15,8 @@ import urllib.request
 import threading
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger("mscodebase_server.onnx_client")
 
 
 class OnnxEmbedderClient:
@@ -29,7 +32,7 @@ class OnnxEmbedderClient:
     6. Если мутекс занят — ждёт пока другой процесс запустит сервер
     """
     
-    def __init__(self, port: int = 9876, model_name: str = "bge-m3"):
+    def __init__(self, port: int = 9876, model_name: str = "multilingual-e5-small-int8"):
         self.port = port
         self.model_name = model_name
         self.base_url = f"http://127.0.0.1:{port}"
@@ -91,7 +94,7 @@ class OnnxEmbedderClient:
             return True
             
         except Exception as e:
-            print(f"[ONNX Client] Mutex error: {e}", file=sys.stderr)
+            logger.warning(f"[ONNX Client] Mutex error: {e}")
             return True  # На всякий случай пробуем запустить
     
     def _release_launch_mutex(self):
@@ -109,24 +112,24 @@ class OnnxEmbedderClient:
         """Запускает onnx_server.py как detached процесс."""
         server_script = PROJECT_ROOT / "onnx_server.py"
         if not server_script.exists():
-            print(f"[ONNX Client] Server script not found: {server_script}", file=sys.stderr)
+            logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
         
         # Флаги для Windows: DETACHED_PROCESS | CREATE_NO_WINDOW
         creation_flags = 0
         if sys.platform == 'win32':
             creation_flags = 0x00000008 | 0x08000000  # DETACHED_PROCESS | CREATE_NO_WINDOW
-        
+
         env = os.environ.copy()
         env["ONNX_PORT"] = str(self.port)
         env["ONNX_IDLE_TIMEOUT"] = "600"
         env["PYTHONPATH"] = str(PROJECT_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
-        
+
         try:
             proc = subprocess.Popen(
-                [sys.executable, str(server_script), f"--port={self.port}"],
+                [sys.executable, str(server_script), f"--port={self.port}", f"--model={self.model_name}"],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=open(PROJECT_ROOT / "onnx_server_stderr.log", "a"),
                 stdin=subprocess.DEVNULL,
                 env=env,
                 creationflags=creation_flags,
@@ -134,10 +137,10 @@ class OnnxEmbedderClient:
             )
             self._server_pid = proc.pid
             self._server_started_by_us = True
-            print(f"[ONNX Client] Launched server PID={proc.pid}", file=sys.stderr)
+            logger.info(f"[ONNX Client] Launched server PID={proc.pid}")
             return True
         except Exception as e:
-            print(f"[ONNX Client] Failed to launch server: {e}", file=sys.stderr)
+            logger.error(f"[ONNX Client] Failed to launch server: {e}")
             return False
     
     def _wait_for_server(self, timeout: float = 30.0) -> bool:
@@ -167,7 +170,7 @@ class OnnxEmbedderClient:
             # Пытаемся захватить межпроцессный мутекс
             if not self._acquire_launch_mutex():
                 # Другой процесс запускает — ждём
-                print(f"[ONNX Client] Waiting for another process to start server...", file=sys.stderr)
+                logger.info("[ONNX Client] Waiting for another process to start server...")
                 return self._wait_for_server()
             
             # Мы владелец мутекса — запускаем сервер
@@ -238,7 +241,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 _client_instance: Optional[OnnxEmbedderClient] = None
 _client_lock_module = threading.Lock()
 
-def get_onnx_client(port: int = 9876, model_name: str = "bge-m3") -> OnnxEmbedderClient:
+def get_onnx_client(port: int = 9876, model_name: str = "multilingual-e5-small-int8") -> OnnxEmbedderClient:
     """Возвращает singleton клиент ONNX."""
     global _client_instance
     with _client_lock_module:

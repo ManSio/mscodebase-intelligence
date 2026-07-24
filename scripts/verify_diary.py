@@ -304,16 +304,21 @@ def _check_test_file_exists(test_name: str) -> bool:
 
 
 def check_commit_exists(commit_hash: str) -> bool:
-    """Проверяет наличие коммита в истории."""
+    """Проверяет наличие коммита в истории.
+
+    Uses Popen + communicate (§5.16 AGENTS.md): subprocess.run(capture_output=True)
+    causes pipe buffer deadlock on Windows in daemon threads.
+    """
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["git", "cat-file", "-t", commit_hash],
             cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            timeout=5,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
-        return result.returncode == 0
+        stdout, _ = proc.communicate(timeout=5)
+        return proc.returncode == 0
     except Exception:
         return False
 
@@ -325,16 +330,19 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
     Возвращает (passed, output_snippet).
     """
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [sys.executable, "-m", "pytest", "tests/", "-q", "--tb=line", "--no-header"],
             cwd=str(ROOT),
-            capture_output=True, text=True, timeout=120,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
-        output = result.stdout.strip()
+        stdout, _ = proc.communicate(timeout=120)
+        output = stdout.decode("utf-8", errors="replace").strip()
         # Извлекаем итоговую строку
         lines = [l for l in output.split("\n") if "passed" in l or "failed" in l]
         summary = lines[-1] if lines else output[-200:]
-        return result.returncode == 0, summary
+        return proc.returncode == 0, summary
     except subprocess.TimeoutExpired:
         return False, "TIMEOUT: pytest tests/ > 120s"
     except Exception as e:

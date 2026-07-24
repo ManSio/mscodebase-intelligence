@@ -5791,3 +5791,10 @@ Three fixes from the same review:
 
 ### verified_from_clean_state: ✅ yes
 
+
+## [2026-07-25 00:10] — 6 bugs fixed: ONNX stderr, CodebaseTool self, Ledger NoneType+hang, ONNX model mismatch, subprocess deadlock
+
+**Status:** ✅ Fixed
+**Root Cause:** (a) print(file=sys.stderr) crashes in Zed env. (b) inspect.signature+locals() antipattern. (c) Ledger discrepancies is int not list. (d) ONNX model_name="bge-m3" mismatch. (e) capture_output=True deadlock in daemon thread (§5.16).
+**Fix:** 7 files: onnx_client.py, codebase_tool.py, server_factory.py, main.py, db_manager.py, remote_embedder.py, verify_diary.py.
+**Guard:** §5.16 — never capture_output=True in daemon threads. ONNX model_name must match actual model dir.

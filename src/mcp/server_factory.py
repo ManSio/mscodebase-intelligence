@@ -471,6 +471,9 @@ def _start_contradiction_ledger_background() -> None:
                     pass
                 logger.info("Contradiction Ledger: calling run_contradiction_ledger()...")
                 res = vd.run_contradiction_ledger(_proj)
+                if res is None:
+                    logger.warning("Contradiction Ledger: run_contradiction_ledger() returned None (bridge not ready?)")
+                    return
                 logger.info(f"Contradiction Ledger: result received, ok={res['ok']}, claims={res['claims']}")
                 if res["ok"]:
                     logger.info(
@@ -478,11 +481,12 @@ def _start_contradiction_ledger_background() -> None:
                         f"верифицированы ({res['claims']} claims, {res['commits']} commits)"
                     )
                 else:
+                    details = res.get('details', [])
                     logger.warning(
-                        f"⚠️ Contradiction Ledger: {len(res['discrepancies'])} расхождений "
+                        f"⚠️ Contradiction Ledger: {res['discrepancies']} расхождений "
                         f"в AGENT_DIARY.md:"
                     )
-                    for d in res["discrepancies"][:10]:
+                    for d in details[:10]:
                         logger.warning(f"   → {d}")
             except Exception as _e:
                 logger.warning(f"Contradiction Ledger не запустился: {_e}")
