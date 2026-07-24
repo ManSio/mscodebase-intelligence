@@ -20,8 +20,9 @@ llama.cpp runner — автоматический lifecycle.
 
 Архитектура:
 
-  MCP process
+  MCP process (один на окно Zed)
 
+    ├── _InterProcessLock (Named Mutex + PID-файл) ← предотвращает гонку
     ├── LlamaRunner (менеджер подпроцесса)
 
     │   ├── llama-server --embedding (bge-m3 GGUF)
@@ -42,9 +43,12 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from ctypes import wintypes
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
@@ -157,11 +161,120 @@ def _popen_with_job(popen_args, **kwargs):
 
 
 
+class _InterProcessLock:
+    """Межпроцессный лок через Windows Named Mutex + PID-файл.
+
+    Решает TOCTOU гонку: когда N MCP-процессов (по одному на окно Zed)
+    одновременно проверяют порт и пытаются запустить llama-server.
+
+    Named Mutex — атомарная kernel-level блокировка.
+    PID-файл — вторая линия защиты + диагностика.
+    """
+
+    def __init__(self, name: str, lock_dir: Optional[Path] = None):
+        self._name = f"Global\\MSCodeBase_{name}"
+        self._pid_file = (lock_dir or Path(tempfile.gettempdir())) / f"mscodebase_{name}.pid"
+        self._mutex_handle = None
+        self._locked = False
+
+    def __enter__(self):
+        if sys.platform == 'win32':
+            # Windows Named Mutex — атомарный захват
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            self._mutex_handle = kernel32.CreateMutexW(None, True, self._name)
+            WAIT_MS = 10_000  # 10 сек таймаут
+            result = kernel32.WaitForSingleObject(self._mutex_handle, WAIT_MS)
+            if result not in (0, 128):  # 0=OWNED, 128=ABANDONED
+                logger.warning(
+                    f"🔒 Не удалось захватить межпроцессный лок '{self._name}' "
+                    f"за {WAIT_MS}ms (result={result}). llama-server уже запускается другим процессом."
+                )
+                kernel32.CloseHandle(self._mutex_handle)
+                self._mutex_handle = None
+                raise RuntimeError(f"InterProcessLock timeout: {self._name}")
+            self._locked = True
+
+        # PID-файл — вторая линия (диагностика + fallback)
+        self._pid_file.parent.mkdir(parents=True, exist_ok=True)
+        if self._pid_file.exists():
+            try:
+                old_pid = int(self._pid_file.read_text().strip())
+                # Проверяем, жив ли старый процесс
+                if self._is_pid_alive(old_pid):
+                    logger.warning(
+                        f"🔒 PID-файл '{self._pid_file.name}' указывает на живой PID {old_pid}. "
+                        f"llama-server уже запускается."
+                    )
+                    self._release()
+                    raise RuntimeError(
+                        f"llama-server already running (PID {old_pid}), "
+                        f"lock file: {self._pid_file}"
+                    )
+                else:
+                    logger.info(f"🧹 Старый PID {old_pid} мёртв — освобождаю лок")
+            except (ValueError, OSError):
+                pass  # битый PID-файл — перезаписываем
+
+        self._pid_file.write_text(str(os.getpid()))
+        return self
+
+    def __exit__(self, *args):
+        self._release()
+
+    def _release(self):
+        try:
+            if self._pid_file.exists():
+                try:
+                    stored_pid = int(self._pid_file.read_text().strip())
+                    # Удаляем PID-файл только если это наш PID
+                    if stored_pid == os.getpid():
+                        self._pid_file.unlink(missing_ok=True)
+                except (ValueError, OSError):
+                    self._pid_file.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        if self._mutex_handle is not None and sys.platform == 'win32':
+            try:
+                kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+                kernel32.ReleaseMutex(self._mutex_handle)
+                kernel32.CloseHandle(self._mutex_handle)
+            except Exception:
+                pass
+            self._mutex_handle = None
+        self._locked = False
+
+    @staticmethod
+    def _is_pid_alive(pid: int) -> bool:
+        """Проверяет, жив ли процесс по PID."""
+        if sys.platform == 'win32':
+            SYNCHRONIZE = 0x00100000
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+            if handle:
+                kernel32.CloseHandle(handle)
+                return True
+            return False
+        else:
+            try:
+                os.kill(pid, 0)
+                return True
+            except OSError:
+                return False
+
+
+# Lock-директория — в temp чтобы не засорять проект
+_LOCK_DIR = Path(tempfile.gettempdir()) / "mscodebase_locks"
+
+
+def _acquire_llama_lock(component: str) -> _InterProcessLock:
+    """Создаёт лок для компонента llama (embedder / reranker)."""
+    return _InterProcessLock(f"llama_{component}", lock_dir=_LOCK_DIR)
+
+
 class LlamaRunner:
 
     """Управляет жизненным циклом llama.cpp сервера.
-
-
 
     Использование:
 
@@ -174,8 +287,6 @@ class LlamaRunner:
         await runner.stop()
 
     """
-
-
 
     RERANK_PORT = int(os.getenv("LLAMA_CPP_RERANK_PORT", "8081"))
 
@@ -774,274 +885,192 @@ class LlamaRunner:
 
 
     def _start_sync(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
-
         """Синхронная версия start() — без asyncio, для вызова из run_server().
 
-
-
         На Insider: если CPU DLL пропали (Zed сбросил расширение) —
-
         автоматически качает и патчит бинарник.
 
+        Использует interprocess lock (Named Mutex + PID-файл) чтобы
+        предотвратить гонку когда N MCP-процессов (по одному на окно Zed)
+        одновременно пытаются запустить llama-server.
         """
-
         if self.is_alive() and self._model_key == model_key:
-
             return True
 
-
-
-        # Проверяем, не запущен ли уже llama-server на этом порту
-
+        # Быстрая проверка — если порт уже отвечает, не нужен лок
         if self._probe_port_sync(self._port):
-
             logger.info(f"🔌 llama-server уже запущен на порту {self._port}, подключаюсь")
-
             self._model_key = model_key
-
             return True
 
+        # ─── Interprocess lock: предотвращает гонку между MCP-процессами ───
+        try:
+            with _acquire_llama_lock("embedder") as lock:
+                # Double-check после захвата лока
+                if self._probe_port_sync(self._port):
+                    logger.info(f"🔌 llama-server уже запущен на порту {self._port} (другой процесс стартовал)")
+                    self._model_key = model_key
+                    return True
+                return self._spawn_embedder(model_key)
 
-
-        # На Insider: проверяем наличие CPU DLL и восстанавливаем если надо
-
-        if _IS_INSIDER and sys.platform == 'win32':
-
-            cpu_dll = _llama_bin().parent / 'ggml-cpu-haswell.dll'
-
-            if not cpu_dll.exists():
-
-                logger.warning('⚠️ CPU DLL не найдены — запускаю download_llama_binary()')
-
-                if download_llama_binary():
-
-                    logger.info('✅ llama.cpp восстановлен после авто-загрузки')
-
-                else:
-
-                    logger.error('❌ Не удалось восстановить llama.cpp')
-
-                    return False
-
-
-
-        gguf_path = _gguf_path(model_key)
-
-        if not gguf_path.exists():
-
-            logger.error(f"GGUF модель не найдена: {gguf_path}")
-
+        except RuntimeError as e:
+            # Не удалось захватить лок — другой процесс уже запускает
+            logger.info(f"⏭️ Пропускаю запуск embedder: {e}")
+            # Ждём пока другой процесс стартует
+            for _wait in range(30):
+                time.sleep(1)
+                if self._probe_port_sync(self._port):
+                    logger.info(f"🔌 llama-server появился на порту {self._port} после ожидания")
+                    self._model_key = model_key
+                    return True
+            logger.error(f"❌ llama-server не появился за 30s после захвата лока")
             return False
 
+    def _spawn_embedder(self, model_key: str) -> bool:
+        """Фактический запуск llama-server --embedding. Вызывается изнутри лока."""
+        # На Insider: проверяем наличие CPU DLL и восстанавливаем если надо
+        if _IS_INSIDER and sys.platform == 'win32':
+            cpu_dll = _llama_bin().parent / 'ggml-cpu-haswell.dll'
+            if not cpu_dll.exists():
+                logger.warning('⚠️ CPU DLL не найдены — запускаю download_llama_binary()')
+                if download_llama_binary():
+                    logger.info('✅ llama.cpp восстановлен после авто-загрузки')
+                else:
+                    logger.error('❌ Не удалось восстановить llama.cpp')
+                    return False
 
+        gguf_path = _gguf_path(model_key)
+        if not gguf_path.exists():
+            logger.error(f"GGUF модель не найдена: {gguf_path}")
+            return False
 
         flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
 
-
-
         try:
-
             self._process = _popen_with_job(
-
                 [
-
                     str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
-
                     "--host", self._host,
-
                     "--port", str(self._port),
-
                     "-m", str(gguf_path),
-
                     "-c", str(LLAMA_CTX_SIZE),
-
                     "--batch-size", "512",
-
                     "--ubatch-size", "512",
-
                     "--cache-type-k", str(LLAMA_CACHE_TYPE),
-
                     "--cache-type-v", str(LLAMA_CACHE_TYPE),
-
                     "--no-webui",
-
                     "-ngl", str(int(os.getenv("LLAMA_NGL","99"))) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else "0",
-
                                         *flags,
-
                                     ],
-
                                     stdout=subprocess.DEVNULL,
-
                                     stderr=(_embedder_log_fh := open(self._log_path(), 'a')),
-
                                     cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
-
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-
                 if sys.platform == "win32" else 0,
-
             )
-
             self._embedder_log_fh = _embedder_log_fh
-
             self._model_key = model_key
-
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
-
             return True
-
-
 
         except Exception as e:
-
             logger.error(f"Ошибка синхронного запуска llama.cpp: {e}")
-
             return False
-
-
 
     async def start_reranker(self) -> bool:
-
         """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).
 
-
-
         Сначала проверяет, отвечает ли порт /health — если да, используем
-
         существующий процесс. Иначе запускаем новый.
 
+        Использует interprocess lock (Named Mutex + PID-файл) чтобы
+        предотвратить гонку между MCP-процессами.
         """
-
         if self._reranker_process is not None:
-
             poll = self._reranker_process.poll()
-
             if poll is None:
-
                 return True  # уже работает
 
-
-
-        # Проверяем, не запущен ли уже reranker на этом порту
-
+        # Быстрая проверка — если порт уже отвечает, не нужен лок
         if await self._probe_port(self.RERANK_PORT):
-
             logger.info(f"🔌 Реренкер уже запущен на порту {self.RERANK_PORT}, подключаюсь")
-
             return True
 
+        # ─── Interprocess lock: предотвращает гонку между MCP-процессами ───
+        try:
+            with _acquire_llama_lock("reranker") as lock:
+                # Double-check после захвата лока
+                if await self._probe_port(self.RERANK_PORT):
+                    logger.info(f"🔌 Реренкер уже запущен на порту {self.RERANK_PORT} (другой процесс стартовал)")
+                    return True
+                return await self._spawn_reranker()
 
-
-        gguf_path = _gguf_path(DEFAULT_RERANKER_MODEL)
-
-        if not gguf_path.exists():
-
-            logger.error(f"Reranker GGUF не найден: {gguf_path}")
-
+        except RuntimeError as e:
+            # Не удалось захватить лок — другой процесс уже запускает
+            logger.info(f"⏭️ Пропускаю запуск reranker: {e}")
+            # Ждём пока другой процесс стартует
+            for _wait in range(30):
+                await asyncio.sleep(1)
+                if await self._probe_port(self.RERANK_PORT):
+                    logger.info(f"🔌 Reranker появился на порту {self.RERANK_PORT} после ожидания")
+                    return True
+            logger.error(f"❌ Reranker не появился за 30s после захвата лока")
             return False
 
-
+    async def _spawn_reranker(self) -> bool:
+        """Фактический запуск llama-server --reranking. Вызывается изнутри лока."""
+        gguf_path = _gguf_path(DEFAULT_RERANKER_MODEL)
+        if not gguf_path.exists():
+            logger.error(f"Reranker GGUF не найден: {gguf_path}")
+            return False
 
         self._ensure_port_free(self.RERANK_PORT)
 
-
-
         try:
-
             self._reranker_process = _popen_with_job(
-
                 [
-
                     str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
-
                     "--host", self._host,
-
                     "--port", str(self.RERANK_PORT),
-
                     "-m", str(gguf_path),
-
                     "-c", str(LLAMA_CTX_SIZE),     # 🔒 1024 = 573 MB для BGE-M3
-
                     "--batch-size", "512",
-
                     "--ubatch-size", "512",
-
                     "--cache-type-k", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
-
                     "--cache-type-v", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
-
                     "--no-webui",
-
                     "-ngl", str(int(os.getenv("LLAMA_NGL","99"))) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else "0",
-
                     "--reranking",
-
                 ],
-
                 stdout=subprocess.DEVNULL,
-
                 stderr=(_reranker_log_fh := open(self._reranker_log_path(), 'a')),
-
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
-
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-
                 if sys.platform == "win32" else 0,
-
             )
-
             self._reranker_log_fh = _reranker_log_fh
 
-
-
-
-
-
-
             # Ждём /health
-
             t0 = time.time()
-
             async with httpx.AsyncClient(timeout=2.0) as client:
-
                 for i in range(self._startup_timeout):
-
                     await asyncio.sleep(1)
-
                     try:
-
                         r = await client.get(f"http://{self._host}:{self.RERANK_PORT}/health")
-
                         if r.status_code == 200:
-
                             dt = time.time() - t0
-
                             logger.info(f"🚀 Reranker (BGE-M3) готов за {dt:.1f}s")
-
                             return True
-
                     except Exception as _e:
-
                         logger.debug(f"Reranker health check: {_e}")
-
                         pass
-
             logger.error(f"Reranker не стартовал за {self._startup_timeout}s")
-
             await self.stop_reranker()
-
             return False
-
-
 
         except Exception as e:
-
             logger.error(f"Ошибка запуска reranker: {e}")
-
             return False
-
-
 
     async def stop_reranker(self):
 

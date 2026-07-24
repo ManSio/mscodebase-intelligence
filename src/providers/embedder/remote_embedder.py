@@ -45,7 +45,7 @@ class RemoteEmbedder(IEmbedder):
         self._breaker = breaker
         self.embedding_dim = config.embedding.embedding_dimension
 
-        # ONNX Server (общий для всех проектов, через HTTP)
+        # ONNX Server (общий для всех проектов, через HTTP) — теперь через Singleton Client
         perf_cfg = config.performance
         self.onnx_server_host = perf_cfg.onnx_server_host
         self.onnx_server_port = perf_cfg.onnx_server_port
@@ -59,20 +59,20 @@ class RemoteEmbedder(IEmbedder):
             f"http://{self.llama_cpp_host}:{self.llama_cpp_port}/v1/embeddings"
         )
 
-        # ONNX session (ленивая инициализация, fallback если сервер недоступен)
-        self._onnx_session = None
-        self._tokenizer = None
-        # ONNX idle timeout: выгружать модель через N секунд бездействия
-        self._onnx_idle_timeout = 300  # 5 минут
-        self._onnx_last_used = 0.0
-        self._onnx_cleanup_task: Optional[threading.Thread] = None
-        self._onnx_cleanup_stop = threading.Event()
-        # Запускаем фоновый cleanup (проверка каждые 60 сек)
-        self._start_onnx_cleanup()
+        # ONNX Client (Singleton через onnx_client.py) — заменяет локальный _onnx_session
+        self._onnx_client = None
+        self._onnx_client_lock = threading.Lock()
+
+        # llama.cpp idle timeout
+        self._llama_idle_timeout = 300
+        self._llama_last_used = 0.0
+        self._llama_cleanup_task: Optional[threading.Thread] = None
+        self._llama_cleanup_stop = threading.Event()
+
         self.ext_root = get_extension_dir("mscodebase-intelligence")
-        # ONNX model: auto-detect directory from .codebase_models/onnx/
-        # First available: bge-m3 (1024), bge-base (768), bge-small (384), etc.
-        # ONNX model search paths (in priority order)
+        if not self.ext_root.exists():
+            # Test/fallback: try project root
+            self.ext_root = Path(__file__).resolve().parent.parent.parent
         self._onnx_search_paths = [
             self.ext_root / ".codebase_models" / "onnx",
             Path.home()
@@ -85,7 +85,7 @@ class RemoteEmbedder(IEmbedder):
         self.local_model_dir = self._onnx_search_paths[0]
         self._detect_model_dir()
 
-        # ── Shadow Canary: эталонные пары запрос→чанк ──────────
+        # Shadow Canary: эталонные пары запрос→чанк
         self._canary_pairs: List[dict] = []
         self._load_canary_set()
 
@@ -682,248 +682,38 @@ class RemoteEmbedder(IEmbedder):
             self._scanner_thread = None
 
     def _init_onnx(self):
-        """Отложенная сборка ONNX/OpenVINO сессии с оптимизациями."""
+        """Инициализация ONNX через Singleton Client (onnx_client.py).
+        
+        Локальный ONNX Runtime заменён на HTTP клиент к общему onnx_server.py.
+        Это экономит ~500MB RAM на проекте и избегает дублирования моделей.
+        """
         # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
             return
-        if self._onnx_session is not None:
-            self._onnx_last_used = time.time()
-            return
-
-        _provider = os.getenv("ONNX_PROVIDERS", "").lower()
-
-        # ═══════════════════════════════════════════════════════════════
-        # OpenVINO INT8 (рекомендуемый режим для Windows)
-        # Даёт 37-52 ch/s на multilingual-e5-small INT8 (против 7-8 ch/s у ONNX)
-        # ═══════════════════════════════════════════════════════════════
-        # Загружаем OpenVINO только если явно указан провайдер.
-        # Если _ov_compiled уже есть — не перезагружаем (re-entry guard).
-        if _provider == "openvino":
-            if getattr(self, '_ov_compiled', None) is None:
-                self._init_openvino()
-            else:
-                self._onnx_last_used = time.time()
-            # OpenVINO — штатный путь; ONNX Runtime fallback не нужен.
-            return
-
-        # ═══════════════════════════════════════════════════════════════
-        # ONNX Runtime (INT8, backup)
-        # Загружается ДАЖЕ если _ov_compiled уже есть (нужен как backup
-        # при "Infer Request is busy" race condition).
-        # ═══════════════════════════════════════════════════════════════
+        
+        # Пытаемся получить клиент ONNX Server
         try:
-            import onnxruntime as ort
-            from tokenizers import Tokenizer
-
-            logger.info(
-                f"⚙️ Инициализация локального ONNX ядра из папки: {self.local_model_dir}"
-            )
-            if not self.local_model_dir.exists():
-                raise FileNotFoundError(
-                    f"Локальные веса ONNX не найдены в {self.local_model_dir}. Запустите download_model.py"
-                )
-
-            tokenizer_file = self.local_model_dir / "tokenizer.json"
-            if not tokenizer_file.exists():
-                raise FileNotFoundError(f"tokenizer.json не найден в {self.local_model_dir}")
-            self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
-            self._max_embed_tokens = int(os.getenv("ONNX_MAX_LENGTH", "128"))
-            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=self._max_embed_tokens)
-            self._tokenizer.enable_truncation(max_length=self._max_embed_tokens)
-
-            # Определяем провайдеры ONNX:
-            if _provider == "cpu":
-                providers = ["CPUExecutionProvider"]
-            elif _provider == "dml":
-                providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
-            else:
-                providers = ["CPUExecutionProvider"]
-                if "DmlExecutionProvider" in ort.get_available_providers():
-                    providers.insert(0, "DmlExecutionProvider")
-
-            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
-            # INT8 — штатный путь (~52 ch/s), FP32 — fallback.
-            # Синхронно с _init_openvino.
-            _model_dir_path = Path(self.local_model_dir)
-            _int8_path = _model_dir_path / "model_quantized.onnx"
-            _fp32_path = _model_dir_path / "model.onnx"
-            if _int8_path.exists():
-                _onnx_model_file = _int8_path
-                logger.info(f"🔧 ONNX: загружаю INT8 модель {_int8_path}")
-            elif _fp32_path.exists():
-                _onnx_model_file = _fp32_path
-                logger.info(f"🔧 ONNX: загружаю FP32 модель {_fp32_path}")
-            else:
-                raise FileNotFoundError(f"Модель не найдена: INT8={_int8_path}, FP32={_fp32_path}")
-
-            import onnxruntime as _ort
-            opts = _ort.SessionOptions()
-            opts.enable_cpu_mem_arena = False
-            opts.enable_mem_pattern = False
-            opts.enable_mem_reuse = True
-            # BASIC — не фузит граф, сохраняет parallelism (см. эксперементы)
-            opts.graph_optimization_level = _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            # 8 потоков — оптимум для Ryzen 5600 (18 ch/s, batch=4)
-            opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", "8"))
-            opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", "1"))
-            opts.execution_mode = _ort.ExecutionMode.ORT_SEQUENTIAL
-
-            self._onnx_session = ort.InferenceSession(
-                str(_onnx_model_file),
-                sess_options=opts,
-                providers=providers,
-            )
-            self._onnx_infer_lock = threading.Lock()
-            self._onnx_input_names: List[str] = [
-                inp.name for inp in self._onnx_session.get_inputs()
-            ]
-            self._onnx_last_used = time.time()
-            logger.info(
-                f"✅ ONNX движок запущен. Входы модели: {self._onnx_input_names}"
-            )
+            with self._onnx_client_lock:
+                if self._onnx_client is None:
+                    from onnx_client import get_onnx_client
+                    self._onnx_client = get_onnx_client(port=9876, model_name="bge-m3")
+                
+                # Проверяем доступность сервера
+                if not self._onnx_client._is_server_running():
+                    # Пытаемся запустить (discover-or-launch)
+                    if not self._onnx_client.ensure_server_running():
+                        logger.warning("ONNX Server недоступен, переключаюсь на fallback")
+                        with self._mode_lock:
+                            self.mode = "fallback"
+                        return
+                
+                logger.info("✅ ONNX Client готов (подключён к Singleton Server)")
+                
         except Exception as e:
-            logger.error(f"❌ Ошибка сборки ONNX: {e}", exc_info=True)
+            logger.error(f"❌ Ошибка инициализации ONNX Client: {e}", exc_info=True)
             with self._mode_lock:
                 self.mode = "fallback"
-
-    def _init_openvino(self):
-        """Инициализация OpenVINO с INT8 моделью.
-
-        Даёт 37-52 ch/s на multilingual-e5-small INT8 (Windows CPU).
-        Ключевые оптимизации:
-        - max_length=128 (Padding Trap fix)
-        - dynamic batch shape
-        - token_type_ids pre-bound нулями (для INT8 моделей с 3 входами)
-        """
-        # Re-entry guard: уже загружено
-        if getattr(self, '_ov_compiled', None) is not None:
-            self._onnx_last_used = time.time()
-            return
-        try:
-            import openvino as ov
-            from tokenizers import Tokenizer
-
-            # Ищем INT8 модель (model_quantized.onnx) или FP32 (model.onnx).
-            # INT8 — штатный путь (~52 ch/s), FP32 — fallback.
-            # ORIGINAL from commit 0665a4b (Restore INT8).
-            model_dir_path = Path(self.local_model_dir)
-            int8_path = model_dir_path / "model_quantized.onnx"
-            fp32_path = model_dir_path / "model.onnx"
-
-            if int8_path.exists():
-                model_file = int8_path
-                logger.info(f"🔧 OpenVINO: загружаю INT8 модель {int8_path}")
-            elif fp32_path.exists():
-                model_file = fp32_path
-                logger.info(f"🔧 OpenVINO: FP32 fallback {fp32_path}")
-            else:
-                raise FileNotFoundError(f"Модель не найдена в {model_dir_path}")
-
-            tokenizer_file = model_dir_path / "tokenizer.json"
-            if not tokenizer_file.exists():
-                raise FileNotFoundError(f"tokenizer.json не найден в {model_dir_path}")
-
-            # Токенизатор
-            self._tokenizer = Tokenizer.from_file(str(tokenizer_file))
-            self._max_embed_tokens = int(os.getenv("ONNX_MAX_LENGTH", "128"))
-            self._tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=self._max_embed_tokens)
-            self._tokenizer.enable_truncation(max_length=self._max_embed_tokens)
-
-            # OpenVINO Core
-            core = ov.Core()
-            model = core.read_model(str(model_file))
-
-            # Static reshape [1, 128] — для batch=1 (индивидуальные чанки)
-            # Dynamic shapes вызывают kernel cache miss на Ryzen.
-            for inp in model.inputs:
-                model.reshape({inp.any_name: [1, 128]})
-
-            # LATENCY — оптимально для batch=1 (12 ch/s на Ryzen 5600).
-            # THROUGHPUT + streams создаёт overhead без выгоды для batch=1.
-            compiled = core.compile_model(model, "CPU", config={
-                "PERFORMANCE_HINT": "LATENCY",
-                "INFERENCE_NUM_THREADS": "0",
-            })
-            self._ov_compiled = compiled
-
-            # AsyncInferQueue — пул из N параллельных InferRequest.
-            # Убирает bottleneck single-lock (см. P0-3 architecture review).
-            # Увеличено с 4 до 8: при >2 concurrent embed_batch() старый pool_size=4
-            # создавал очередь, где wait_all() ждёт чужие задачи. 8 — компромисс
-            # между параллелизмом и footprint (8 InferRequest × 500MB ≈ стабильно).
-            _ov_pool_size = int(os.getenv("OV_INFER_POOL_SIZE", "8"))
-            self._ov_async_queue = ov.AsyncInferQueue(compiled, jobs=_ov_pool_size)
-
-            # Variant B fix (P0-3): Lock сериализует конкурентные embed_batch()
-            # на уровне start_async+wait_all+сбора результатов.
-            # Причина: AsyncInferQueue.wait_all() ждёт ВСЕ задачи в очереди,
-            # включая чужие — два потока с одним queue блокируют друг друга.
-            # Параллелизм внутри одного вызова сохранён (jobs=4).
-            self._ov_call_lock = threading.Lock()
-
-            # Pre-bind token_type_ids = zeros в памяти C++ для ВСЕХ request в пуле.
-            # INT8 модель имеет 3 входа, но tt всегда нули (код не использует —
-            # Token Type Embeddings = 0 для всех токенов).
-            # Это устраняет overhead на передачу tt из Python и Dynamic Shapes.
-            self._ov_has_tt_bound = False
-            try:
-                tt_tensor = ov.Tensor(np.zeros((1, 128), dtype=np.int64))
-                for _req in self._ov_async_queue:
-                    _req.set_tensor("token_type_ids", tt_tensor)
-                self._ov_has_tt_bound = True
-            except Exception:
-                pass  # FP32 модель без tt входа — ок
-
-            # Callback для AsyncInferQueue: сохраняет результат в ЛОКАЛЬНЫЙ dict вызова.
-            # Вызывается из потока OpenVINO (с GIL).
-            # userdata = (original_index, local_results_dict) — полная изоляция вызовов,
-            # никакого shared mutable state между конкурентными embed_batch().
-            # (Fix: race condition audit 2026-07-18 — self._ov_results был общим на процесс,
-            # concurrent вызовы с одинаковыми userdata=0..N перезаписывали друг друга.)
-            def _ov_callback(request, userdata):
-                idx, local_results = userdata
-                out_tensor = request.get_output_tensor(0)
-                local_results[idx] = out_tensor.data[0].copy()
-
-            self._ov_async_queue.set_callback(_ov_callback)
-
-            # Auto-detect: INT8 (model_quantized.onnx) имеет 3 входа и требует
-            # token_type_ids. FP32 (model.onnx) имеет 2 входа и не требует.
-            # Подача tt для INT8 даёт 11-15 ch/s, без tt → batch=0 → нули.
-            # См. commit 0665a4b (Restore INT8), ЭКСПЕРИМЕНТ 2026-07-17.
-            self._ov_has_token_type_ids = any(
-                "token_type_ids" in inp.get_names()
-                for inp in model.inputs
-            )
-            self._onnx_input_names = [
-                inp.any_name for inp in model.inputs
-                if inp.any_name != "token_type_ids"
-            ]
-            self._onnx_last_used = time.time()
-
-            sz_mb = model_file.stat().st_size / (1024 * 1024)
-            logger.info(
-                f"✅ OpenVINO INT8 запущен! ({sz_mb:.0f}MB, "
-                f"{self._max_embed_tokens}tok, "
-                f"token_type_ids={self._ov_has_token_type_ids})"
-            )
-
-        except Exception as e:
-            logger.error(f"❌ Ошибка инициализации OpenVINO: {e}", exc_info=True)
-            with self._mode_lock:
-                self.mode = "fallback"
-
-    def _unload_onnx(self):
-        """Выгружает ONNX модель из памяти для экономии RAM."""
-        if self._onnx_session is not None:
-            logger.info("🧹 Выгрузка ONNX модели (idle timeout)")
-            self._onnx_session = None
-            self._tokenizer = None
-            import gc
-
-            gc.collect()
-
     def _start_onnx_cleanup(self):
         """Фоновый поток: выгружает ONNX при долгом бездействии."""
 
@@ -1080,53 +870,34 @@ class RemoteEmbedder(IEmbedder):
 
         # ═══ Локальный ONNX (E5-base, fallback) ═══
         # Если _init_onnx загрузила OpenVINO — перезапускаем embed
+                # ═══ ONNX через Singleton Client (onnx_client.py) ═══
         if current_mode in ("unknown", "onnx"):
-            self._init_onnx()
-            # После _init_onnx мог загрузиться OpenVINO (через _init_openvino)
-            # Перезапускаем embed с обновлённым current_mode
-            if getattr(self, '_ov_compiled', None) is not None and self._ov_async_queue is not None:
-                with self._mode_lock:
-                    self.mode = "onnx"
-                return self.embed_batch(texts, is_query=is_query)
-            if self._onnx_session:
-                # ─── Восстанавливаем mode (был сброшен recovery) ───
-                with self._mode_lock:
-                    if self.mode == "unknown":
-                        self.mode = "onnx"
-                self._onnx_last_used = time.time()
-                import numpy as np
+            # Инициализируем ONNX Client (lazy, с автозапуском сервера)
+            if self._onnx_client is None:
+                self._init_onnx()
+            
+            if self._onnx_client is not None:
+                try:
+                    self._onnx_last_used = time.time()
+                    import numpy as np
 
-                def _ensure_prefix(text: str, is_query: bool) -> str:
-                    for prefix in ("query: ", "passage: "):
-                        if text.startswith(prefix):
-                            text = text[len(prefix):]
-                            break
-                    return f"{'query' if is_query else 'passage'}: {text}"
-                prefixed = [_ensure_prefix(t, is_query) for t in texts]
-                enc = self._tokenizer.encode_batch(prefixed, add_special_tokens=True)
-                ids = np.array([e.ids for e in enc], dtype=np.int64)
-                mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
-                inputs = {"input_ids": ids, "attention_mask": mask}
-                onnx_inputs = self._onnx_input_names if hasattr(self, '_onnx_input_names') else []
-                if "token_type_ids" in onnx_inputs:
-                    _type_ids = np.array(
-                        [getattr(e, "type_ids", None) or [0]*len(e.ids) for e in enc],
-                        dtype=np.int64,
-                    )
-                    inputs["token_type_ids"] = _type_ids
-                with self._onnx_infer_lock:
-                    outputs = self._onnx_session.run(None, inputs)
-                token_embeddings = outputs[0]
-                del outputs
-                if token_embeddings.shape[0] != len(texts):
-                    raise ValueError(f"Expected {len(texts)} embeddings, got {token_embeddings.shape[0]}")
-                input_mask_expanded = np.expand_dims(inputs["attention_mask"], -1).astype(float)
-                sum_embeddings = np.sum(token_embeddings * input_mask_expanded, 1)
-                sum_mask = np.clip(np.sum(input_mask_expanded, 1), a_min=1e-9, a_max=None)
-                _emb = (sum_embeddings / sum_mask)
-                _norm = np.linalg.norm(_emb, axis=1, keepdims=True)
-                _norm = np.where(_norm == 0, 1e-12, _norm)
-                return (_emb / _norm).tolist()
+                    def _ensure_prefix(text: str, is_query: bool) -> str:
+                        for prefix in ("query: ", "passage: "):
+                            if text.startswith(prefix):
+                                text = text[len(prefix):]
+                                break
+                        return f"{'query' if is_query else 'passage'}: {text}"
+
+                    prefixed = [_ensure_prefix(t, is_query) for t in texts]
+                    
+                    # Вызов ONNX Singleton Server через клиент (batched)
+                    vectors = self._onnx_client.embed_batch(prefixed)
+                    
+                    return vectors
+                    
+                except Exception as e:
+                    logger.warning(f"ONNX Client error: {e}, fallback to LM Studio")
+                    # fall through to LM Studio
 
         # ═══ Ни один провайдер не сработал — критическая ошибка ═══
         raise RuntimeError(
