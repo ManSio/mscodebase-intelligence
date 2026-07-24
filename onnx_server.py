@@ -1,0 +1,265 @@
+"""
+ONNX HTTP Server — Singleton сервис для эмбеддингов.
+
+Запускается on-demand (discover-or-launch pattern) через onnx_client.py.
+Самоуничтожается через IDLE_TIMEOUT секунд без запросов.
+
+Usage:
+    python onnx_server.py [--port PORT] [--model MODEL_NAME]
+"""
+import os
+import sys
+import json
+import time
+import threading
+import argparse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import List, Dict, Any, Optional
+
+from pathlib import Path
+
+# Добавляем корень проекта в sys.path для импортов
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Конфигурация
+DEFAULT_PORT = int(os.getenv("ONNX_PORT", "9876"))
+DEFAULT_MODEL = os.getenv("ONNX_MODEL", "bge-m3")
+IDLE_TIMEOUT = int(os.getenv("ONNX_IDLE_TIMEOUT", "600"))  # 10 минут
+
+last_request_time = time.time()
+_request_lock = threading.Lock()
+_shutdown_event = threading.Event()
+
+
+class OnnxHandler(BaseHTTPRequestHandler):
+    """HTTP handler для эмбеддинг API."""
+    
+    def do_GET(self):
+        if self.path == "/health":
+            self._send_json({"status": "ok", "model": getattr(self.server, 'model_name', 'unknown')})
+        elif self.path == "/ready":
+            ready = hasattr(self.server, 'session') and self.server.session is not None
+            self._send_json({"ready": ready})
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def do_POST(self):
+        global last_request_time
+        with _request_lock:
+            last_request_time = time.time()
+        
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length == 0:
+            self.send_response(400)
+            self.end_headers()
+            return
+        
+        raw_data = self.rfile.read(content_length)
+        try:
+            data = json.loads(raw_data.decode('utf-8'))
+        except json.JSONDecodeError:
+            self._send_json({"error": "Invalid JSON"}, 400)
+            return
+        
+        try:
+            if self.path == "/embed":
+                text = data.get("text", "")
+                if not text:
+                    self._send_json({"error": "Missing 'text' field"}, 400)
+                    return
+                vector = self._embed_single(text)
+                self._send_json({"vector": vector})
+                
+            elif self.path == "/embed_batch":
+                texts = data.get("texts", [])
+                if not texts or not isinstance(texts, list):
+                    self._send_json({"error": "Missing or invalid 'texts' list"}, 400)
+                    return
+                vectors = self._embed_batch(texts)
+                self._send_json({"vectors": vectors})
+                
+            else:
+                self.send_response(404)
+                self.end_headers()
+                
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+    
+    def _embed_single(self, text: str) -> List[float]:
+        """Эмбеддинг одного текста."""
+        session = self.server.session
+        tokenizer = self.server.tokenizer
+        input_names = self.server.input_names
+        max_length = self.server.max_length
+        
+        # Токенизация через tokenizers (как в RemoteEmbedder)
+        enc = tokenizer.encode(text, add_special_tokens=True)
+        # Padding/truncation до max_length
+        ids = enc.ids[:max_length]
+        if len(ids) < max_length:
+            ids = ids + [1] * (max_length - len(ids))  # pad_id = 1
+        
+        # Подготовка входов для ONNX
+        onnx_inputs = {name: np.array([ids], dtype=np.int64) for name in input_names}
+        
+        # Инференс
+        outputs = session.run(None, onnx_inputs)
+        
+        # Mean pooling (cls token или mean)
+        embeddings = outputs[0]  # (1, seq_len, hidden)
+        # Используем CLS токен (первый) или mean pooling
+        vector = embeddings[0, 0, :]  # CLS token
+        
+        # Нормализация
+        norm = np.linalg.norm(vector)
+        if norm > 0:
+            vector = vector / norm
+        
+        return vector.astype(np.float32).tolist()
+    
+    def _embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Батч эмбеддинг."""
+        session = self.server.session
+        tokenizer = self.server.tokenizer
+        input_names = self.server.input_names
+        max_length = self.server.max_length
+        
+        # Токенизация батча через tokenizers
+        encodings = tokenizer.encode_batch(texts, add_special_tokens=True)
+        
+        batch_ids = []
+        for enc in encodings:
+            ids = enc.ids[:max_length]
+            if len(ids) < max_length:
+                ids = ids + [1] * (max_length - len(ids))  # pad_id = 1
+            batch_ids.append(ids)
+        
+        batch_array = np.array(batch_ids, dtype=np.int64)
+        onnx_inputs = {name: batch_array for name in input_names}
+        
+        outputs = session.run(None, onnx_inputs)
+        embeddings = outputs[0]  # (batch, seq_len, hidden)
+        
+        # CLS pooling (первый токен)
+        vectors = embeddings[:, 0, :]
+        
+        # Нормализация
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        vectors = vectors / np.maximum(norms, 1e-12)
+        
+        return vectors.astype(np.float32).tolist()
+    
+    def _send_json(self, data: Dict[str, Any], status: int = 200):
+        response = json.dumps(data).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+    
+    def log_message(self, format, *args):
+        # Отключаем логи в stdout (важно для MCP stdio transport)
+        pass
+
+
+def load_model(model_name: str):
+    """Загружает ONNX модель и токенизатор."""
+    import onnxruntime as ort
+    from tokenizers import Tokenizer
+    
+    # Пути к модели
+    models_dir = PROJECT_ROOT / "models" / model_name
+    if not models_dir.exists():
+        # Fallback: .codebase_models
+        models_dir = PROJECT_ROOT / ".codebase_models" / "onnx" / model_name
+    
+    onnx_path = models_dir / "model_quantized.onnx"
+    if not onnx_path.exists():
+        onnx_path = models_dir / "model.onnx"
+    
+    tokenizer_path = models_dir / "tokenizer.json"
+    
+    if not onnx_path.exists():
+        raise FileNotFoundError(f"ONNX model not found: {onnx_path}")
+    if not tokenizer_path.exists():
+        raise FileNotFoundError(f"Tokenizer not found: {tokenizer_path}")
+    
+    # Загружаем токенизатор
+    tokenizer = Tokenizer.from_file(str(tokenizer_path))
+    tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=512)
+    tokenizer.enable_truncation(max_length=512)
+    
+    # Настройка ONNX Runtime
+    opts = ort.SessionOptions()
+    opts.enable_cpu_mem_arena = False
+    opts.enable_mem_pattern = False
+    opts.enable_mem_reuse = True
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    opts.intra_op_num_threads = int(os.getenv("ONNX_INTRA_THREADS", "8"))
+    opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", "1"))
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    
+    # Провайдеры
+    providers = ["CPUExecutionProvider"]
+    if "DmlExecutionProvider" in ort.get_available_providers():
+        providers.insert(0, "DmlExecutionProvider")
+    
+    session = ort.InferenceSession(str(onnx_path), sess_options=opts, providers=providers)
+    input_names = [inp.name for inp in session.get_inputs()]
+    
+    print(f"[ONNX Server] Model loaded: {onnx_path}")
+    print(f"[ONNX Server] Inputs: {input_names}")
+    print(f"[ONNX Server] Providers: {session.get_providers()}")
+    
+    return session, tokenizer, input_names
+
+
+def idle_killer():
+    """Фоновый поток: убивает сервер при бездействии."""
+    global last_request_time
+    while not _shutdown_event.is_set():
+        time.sleep(30)
+        with _request_lock:
+            if time.time() - last_request_time > IDLE_TIMEOUT:
+                print(f"[ONNX Server] Idle timeout ({IDLE_TIMEOUT}s), shutting down...")
+                _shutdown_event.set()
+                os._exit(0)
+
+
+def run_server(port: int, model_name: str):
+    """Запуск HTTP сервера."""
+    # Загружаем модель при старте
+    session, tokenizer, input_names = load_model(model_name)
+    
+    # Создаём сервер
+    server = HTTPServer(('127.0.0.1', port), OnnxHandler)
+    server.model_name = model_name
+    server.session = session
+    server.tokenizer = tokenizer
+    server.input_names = input_names
+    server.max_length = 512
+    
+    # Запускаем idle killer
+    threading.Thread(target=idle_killer, daemon=True).start()
+    
+    print(f"[ONNX Server] Running on http://127.0.0.1:{port}")
+    print(f"[ONNX Server] Idle timeout: {IDLE_TIMEOUT}s")
+    
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        print("[ONNX Server] Stopped")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="ONNX Embedding Server")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to listen on")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model name (directory in models/)")
+    args = parser.parse_args()
+    
+    run_server(args.port, args.model)

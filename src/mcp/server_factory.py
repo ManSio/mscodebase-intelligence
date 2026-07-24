@@ -268,7 +268,10 @@ def _register_notification_broker(mcp, services):
 
         async def _on_init(notification: InitializedNotification):
             try:
-                broker.attach_session(server.request_context.session)
+                if server.request_context is not None and hasattr(server.request_context, 'session'):
+                    broker.attach_session(server.request_context.session)
+                else:
+                    logger.debug("Broker: request_context или session не доступны (еще не инициализированы)")
             except LookupError:
                 logger.warning("Broker: request_context не доступен")
             except Exception as e:

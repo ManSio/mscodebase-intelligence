@@ -27,18 +27,125 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
+import sys
 import threading
+import time
+from contextlib import contextmanager
+from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
 
-# ────────────────────────────────────────────────────────────
-# Валидация JSON-path ключей (защита от SQL-инъекции в json_extract)
-# ────────────────────────────────────────────────────────────
+# ─── Cross-Process SQLite Locking (Windows Named Mutex) ────────────
+
+class _CrossProcessMutex:
+    """Named Mutex для межпроцессной синхронизации SQLite на Windows.
+
+    Решает проблему FOREIGN KEY constraint failed и database is locked
+    когда несколько MCP-процессов (окон Zed) пишут в один .codebase/graph.db.
+    """
+
+    def __init__(self, db_path: Path):
+        self._db_path = Path(db_path).resolve()
+        # Имя мутекса на основе пути к БД
+        self._mutex_name = f"Global\\MSCodeBase_GraphDB_{self._db_path.stem}_{hash(str(self._db_path)) & 0xFFFFFFFF:08x}"
+        self._mutex_handle = None
+        self._locked = False
+
+    def acquire(self, timeout_ms: int = 30000) -> bool:
+        """Захватывает мутекс. Возвращает True если успешно."""
+        if sys.platform != 'win32':
+            return True  # На Unix SQLite WAL справляется сам
+
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            
+            # Создаём или открываем Named Mutex
+            self._mutex_handle = kernel32.CreateMutexW(None, False, self._mutex_name)
+            if not self._mutex_handle:
+                return True  # Не смогли создать — идем без лока (fallback)
+
+            result = kernel32.WaitForSingleObject(self._mutex_handle, timeout_ms)
+            if result in (0, 128):  # WAIT_OBJECT_0 или WAIT_ABANDONED
+                self._locked = True
+                return True
+            else:
+                kernel32.CloseHandle(self._mutex_handle)
+                self._mutex_handle = None
+                return False
+        except Exception:
+            return True  # Fallback: не блокируем
+
+    def release(self):
+        """Освобождает мутекс."""
+        if self._locked and self._mutex_handle and sys.platform == 'win32':
+            try:
+                import ctypes
+                ctypes.windll.kernel32.ReleaseMutex(self._mutex_handle)
+                ctypes.windll.kernel32.CloseHandle(self._mutex_handle)
+            except Exception:
+                pass
+            self._mutex_handle = None
+            self._locked = False
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+
+
+@contextmanager
+def _cross_process_lock(db_path: Path, timeout_ms: int = 30000) -> Generator[None, None, None]:
+    """Контекстный менеджер для cross-process блокировки."""
+    mutex = _CrossProcessMutex(db_path)
+    acquired = mutex.acquire(timeout_ms)
+    if not acquired:
+        raise sqlite3.OperationalError(f"Could not acquire cross-process lock for {db_path} within {timeout_ms}ms")
+    try:
+        yield
+    finally:
+        mutex.release()
+
+
+# ─── Retry Decorator для SQLite OperationalError ──────────────────
+
+def _retry_on_locked(max_retries: int = 5, base_delay: float = 0.1):
+    """Декоратор: ретраит только sqlite3.OperationalError (database is locked).
+
+    НЕ ретраит IntegrityError (FOREIGN KEY constraint failed) —
+    это логическая ошибка, означающая что связанная нода удалена в другом процессе.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e).lower() or "locked" in str(e).lower():
+                        last_exception = e
+                        if attempt < max_retries - 1:
+                            time.sleep(base_delay * (attempt + 1))
+                            continue
+                    raise
+                except sqlite3.IntegrityError:
+                    # FOREIGN KEY constraint, UNIQUE constraint — НЕ ретраим
+                    raise
+            raise last_exception
+        return wrapper
+    return decorator
+
+
+# ─── Валидация JSON-path ключей ───────────────────────────────────
 
 _PROPERTY_KEY_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
@@ -250,15 +357,17 @@ class PropertyGraph:
     # ── Управление подключением ────────────────────────────
 
     def _get_conn(self):
-        """Ленивое открытие SQLite."""
+        """Ленивое открытие SQLite с настройками для multi-process."""
         if self._conn is None:
-            import sqlite3
-
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
+            # WAL mode — конкурентные чтения без блокировок
             self._conn.execute("PRAGMA journal_mode=WAL")
+            # Foreign keys enforcement
             self._conn.execute("PRAGMA foreign_keys=ON")
+            # Ждём до 30 сек если БД заблокирована другим процессом
+            self._conn.execute("PRAGMA busy_timeout=30000")
             self._conn.execute("PRAGMA cache_size=-64000")       # 64 MB page cache
             self._conn.execute("PRAGMA mmap_size=268435456")     # 256 MB mmap
             self._init_schema()
@@ -339,27 +448,34 @@ class PropertyGraph:
         qname = qualified_name or name
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute(
-                """INSERT INTO nodes (name, label, qualified_name, file_path, properties)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(qualified_name) DO UPDATE SET
-                       name=excluded.name,
-                       label=excluded.label,
-                       file_path=excluded.file_path,
-                       properties=excluded.properties""",
-                (name, label, qname, file_path, props_json),
-            )
-            conn.commit()
+        # Cross-process lock + retry для записи
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    conn.execute(
+                        """INSERT INTO nodes (name, label, qualified_name, file_path, properties)
+                           VALUES (?, ?, ?, ?, ?)
+                           ON CONFLICT(qualified_name) DO UPDATE SET
+                               name=excluded.name,
+                               label=excluded.label,
+                               file_path=excluded.file_path,
+                               properties=excluded.properties""",
+                        (name, label, qname, file_path, props_json),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
 
-            # Возвращаем созданную запись
-            row = conn.execute(
-                "SELECT id, name, label, qualified_name, file_path, properties "
-                "FROM nodes WHERE qualified_name = ?",
-                (qname,),
-            ).fetchone()
-            return Node.from_row(row)
+                # Возвращаем созданную запись
+                row = conn.execute(
+                    "SELECT id, name, label, qualified_name, file_path, properties "
+                    "FROM nodes WHERE qualified_name = ?",
+                    (qname,),
+                ).fetchone()
+                return Node.from_row(row)
 
     def get_node(self, qualified_name: str) -> Optional[Node]:
         """Получает узел по qualified_name."""
@@ -389,13 +505,20 @@ class PropertyGraph:
         Returns:
             True если узел был удалён
         """
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute(
-                "DELETE FROM nodes WHERE qualified_name = ?", (qualified_name,)
-            )
-            conn.commit()
-            return conn.total_changes > 0
+        # Cross-process lock + retry для записи
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    conn.execute(
+                        "DELETE FROM nodes WHERE qualified_name = ?", (qualified_name,)
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                return conn.total_changes > 0
 
     def find_nodes(
         self,
@@ -612,36 +735,43 @@ class PropertyGraph:
         """
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
-        with self._lock:
-            conn = self._get_conn()
+        # Cross-process lock + retry для записи
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    # Находим ID узлов (или создаём заглушки)
+                    source = conn.execute(
+                        "SELECT id FROM nodes WHERE qualified_name = ?", (source_qname,)
+                    ).fetchone()
+                    target = conn.execute(
+                        "SELECT id FROM nodes WHERE qualified_name = ?", (target_qname,)
+                    ).fetchone()
 
-            # Находим ID узлов (или создаём заглушки)
-            source = conn.execute(
-                "SELECT id FROM nodes WHERE qualified_name = ?", (source_qname,)
-            ).fetchone()
-            target = conn.execute(
-                "SELECT id FROM nodes WHERE qualified_name = ?", (target_qname,)
-            ).fetchone()
+                    if not source or not target:
+                        conn.rollback()
+                        return None
 
-            if not source or not target:
-                return None
+                    conn.execute(
+                        """INSERT INTO edges (source_id, target_id, type, weight, properties)
+                           VALUES (?, ?, ?, ?, ?)
+                           ON CONFLICT(source_id, target_id, type) DO UPDATE SET
+                               weight=excluded.weight,
+                               properties=excluded.properties""",
+                        (source[0], target[0], type, weight, props_json),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
 
-            conn.execute(
-                """INSERT INTO edges (source_id, target_id, type, weight, properties)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(source_id, target_id, type) DO UPDATE SET
-                       weight=excluded.weight,
-                       properties=excluded.properties""",
-                (source[0], target[0], type, weight, props_json),
-            )
-            conn.commit()
-
-            row = conn.execute(
-                "SELECT id, source_id, target_id, type, weight, properties "
-                "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
-                (source[0], target[0], type),
-            ).fetchone()
-            return Edge.from_row(row) if row else None
+                row = conn.execute(
+                    "SELECT id, source_id, target_id, type, weight, properties "
+                    "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
+                    (source[0], target[0], type),
+                ).fetchone()
+                return Edge.from_row(row) if row else None
 
     def add_edge_by_ids(
         self,
@@ -654,38 +784,52 @@ class PropertyGraph:
         """Добавляет ребро по ID узлов."""
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute(
-                """INSERT INTO edges (source_id, target_id, type, weight, properties)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(source_id, target_id, type) DO UPDATE SET
-                       weight=excluded.weight,
-                       properties=excluded.properties""",
-                (source_id, target_id, type, weight, props_json),
-            )
-            conn.commit()
+        # Cross-process lock + retry для записи
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    conn.execute(
+                        """INSERT INTO edges (source_id, target_id, type, weight, properties)
+                           VALUES (?, ?, ?, ?, ?)
+                           ON CONFLICT(source_id, target_id, type) DO UPDATE SET
+                               weight=excluded.weight,
+                               properties=excluded.properties""",
+                        (source_id, target_id, type, weight, props_json),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
 
-            row = conn.execute(
-                "SELECT id, source_id, target_id, type, weight, properties "
-                "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
-                (source_id, target_id, type),
-            ).fetchone()
-            return Edge.from_row(row) if row else None
+                row = conn.execute(
+                    "SELECT id, source_id, target_id, type, weight, properties "
+                    "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
+                    (source_id, target_id, type),
+                ).fetchone()
+                return Edge.from_row(row) if row else None
 
     def delete_edge(self, source_qname: str, target_qname: str, type: str) -> bool:
         """Удаляет ребро."""
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute(
-                """DELETE FROM edges WHERE source_id IN
-                       (SELECT id FROM nodes WHERE qualified_name = ?)
-                   AND target_id IN (SELECT id FROM nodes WHERE qualified_name = ?)
-                   AND type = ?""",
-                (source_qname, target_qname, type),
-            )
-            conn.commit()
-            return conn.total_changes > 0
+        # Cross-process lock + retry для записи
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    conn.execute(
+                        """DELETE FROM edges WHERE source_id IN
+                               (SELECT id FROM nodes WHERE qualified_name = ?)
+                           AND target_id IN (SELECT id FROM nodes WHERE qualified_name = ?)
+                           AND type = ?""",
+                        (source_qname, target_qname, type),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                return conn.total_changes > 0
 
     # ── Траверсал ──────────────────────────────────────────
 

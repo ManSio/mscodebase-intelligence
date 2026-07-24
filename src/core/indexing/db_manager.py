@@ -409,15 +409,22 @@ class LanceDBManager:
                     data = json.load(f)
                 holder_pid = data.get('pid')
                 if holder_pid and self._is_pid_alive(holder_pid):
-                    # Дубликат — умираем сразу, без 30-секундных танцев
-                    logger.warning(f"PID lock held by alive pid={holder_pid}, exiting (duplicate MCP)")
-                    raise RuntimeError(
-                        f"PID lock already held by alive process {holder_pid}. "
-                        "Дубликат MCP — завершаюсь."
-                    )
+                    # Lock held by alive process - wait instead of crashing
+                    logger.warning(f"PID lock held by alive pid={holder_pid}, waiting...")
+                    for _wait in range(30):  # wait up to 30 seconds
+                        time.sleep(1)
+                        if not self._is_pid_alive(holder_pid):
+                            logger.info(f"Previous process pid={holder_pid} exited, proceeding")
+                            break
+                        # Check if lock file was released
+                        if not lock_path.exists():
+                            break
+                    else:
+                        # Timeout - could not acquire lock
+                        logger.error(f"Timeout waiting for PID lock from pid={holder_pid}")
+                        # Fall through to try acquiring again (will fail if still held)
                 else:
                     # Stale lock (holder dead) — steal it
-                    logger.warning(f"Stealing stale PID lock from dead pid={holder_pid}")
                     try:
                         lock_path.unlink(missing_ok=True)
                     except PermissionError:
