@@ -63,11 +63,12 @@ def _start_contradiction_ledger() -> None:
                         f"верифицированы ({res['claims']} claims, {res['commits']} commits)"
                     )
                 else:
+                    details = res.get('details', [])
                     logger.warning(
-                        f"⚠️ Contradiction Ledger: {len(res['discrepancies'])} расхождений "
+                        f"⚠️ Contradiction Ledger: {res['discrepancies']} расхождений "
                         f"в AGENT_DIARY.md:"
                     )
-                    for d in res["discrepancies"][:10]:
+                    for d in details[:10]:
                         logger.warning(f"   → {d}")
             except Exception as _e:
                 logger.warning(f"Contradiction Ledger не запустился: {_e}")
