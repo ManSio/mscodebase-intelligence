@@ -13,6 +13,7 @@ import json
 import time
 import threading
 import argparse
+import numpy as np
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import List, Dict, Any, Optional
 
@@ -24,7 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # Конфигурация
 DEFAULT_PORT = int(os.getenv("ONNX_PORT", "9876"))
-DEFAULT_MODEL = os.getenv("ONNX_MODEL", "multilingual-e5-small-int8")
+DEFAULT_MODEL = os.getenv("ONNX_MODEL", "e5-base-v2")
 IDLE_TIMEOUT = int(os.getenv("ONNX_IDLE_TIMEOUT", "600"))  # 10 минут
 
 last_request_time = time.time()
@@ -69,6 +70,7 @@ class OnnxHandler(BaseHTTPRequestHandler):
                 if not text:
                     self._send_json({"error": "Missing 'text' field"}, 400)
                     return
+                print(f"[ONNX Server] Embedding: {text[:50]}", file=sys.stderr)
                 vector = self._embed_single(text)
                 self._send_json({"vector": vector})
                 
@@ -85,6 +87,9 @@ class OnnxHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 
         except Exception as e:
+            print(f"[ONNX Server] Error: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
             self._send_json({"error": str(e)}, 500)
     
     def _embed_single(self, text: str) -> List[float]:
@@ -98,26 +103,41 @@ class OnnxHandler(BaseHTTPRequestHandler):
         enc = tokenizer.encode(text, add_special_tokens=True)
         # Padding/truncation до max_length
         ids = enc.ids[:max_length]
+        attention_mask = enc.attention_mask[:max_length]
         if len(ids) < max_length:
-            ids = ids + [1] * (max_length - len(ids))  # pad_id = 1
+            pad_len = max_length - len(ids)
+            ids = ids + [1] * pad_len  # pad_id = 1
+            attention_mask = attention_mask + [0] * pad_len
         
         # Подготовка входов для ONNX
-        onnx_inputs = {name: np.array([ids], dtype=np.int64) for name in input_names}
+        onnx_inputs = {}
+        for name in input_names:
+            if name == "input_ids":
+                onnx_inputs[name] = np.array([ids], dtype=np.int64)
+            elif name == "attention_mask":
+                onnx_inputs[name] = np.array([attention_mask], dtype=np.int64)
+            else:
+                onnx_inputs[name] = np.array([ids], dtype=np.int64)
         
         # Инференс
         outputs = session.run(None, onnx_inputs)
         
-        # Mean pooling (cls token или mean)
+        # Mean pooling with attention mask (like remote_embedder)
         embeddings = outputs[0]  # (1, seq_len, hidden)
-        # Используем CLS токен (первый) или mean pooling
-        vector = embeddings[0, 0, :]  # CLS token
+        attention_mask_arr = onnx_inputs["attention_mask"]  # (1, seq_len)
+        
+        # Mean pooling
+        mask_expanded = np.expand_dims(attention_mask_arr, -1).astype(float)  # (1, seq_len, 1)
+        sum_emb = np.sum(embeddings * mask_expanded, axis=1)  # (1, hidden)
+        sum_mask = np.clip(np.sum(mask_expanded, axis=1), a_min=1e-9, a_max=None)  # (1, 1)
+        vector = sum_emb / sum_mask  # (1, hidden)
         
         # Нормализация
         norm = np.linalg.norm(vector)
         if norm > 0:
             vector = vector / norm
         
-        return vector.astype(np.float32).tolist()
+        return vector[0].astype(np.float32).tolist()
     
     def _embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Батч эмбеддинг."""
@@ -130,20 +150,38 @@ class OnnxHandler(BaseHTTPRequestHandler):
         encodings = tokenizer.encode_batch(texts, add_special_tokens=True)
         
         batch_ids = []
+        batch_masks = []
         for enc in encodings:
             ids = enc.ids[:max_length]
+            mask = enc.attention_mask[:max_length]
             if len(ids) < max_length:
-                ids = ids + [1] * (max_length - len(ids))  # pad_id = 1
+                pad_len = max_length - len(ids)
+                ids = ids + [1] * pad_len  # pad_id = 1
+                mask = mask + [0] * pad_len
             batch_ids.append(ids)
+            batch_masks.append(mask)
         
         batch_array = np.array(batch_ids, dtype=np.int64)
-        onnx_inputs = {name: batch_array for name in input_names}
+        mask_array = np.array(batch_masks, dtype=np.int64)
+        onnx_inputs = {}
+        for name in input_names:
+            if name == "input_ids":
+                onnx_inputs[name] = batch_array
+            elif name == "attention_mask":
+                onnx_inputs[name] = mask_array
+            else:
+                onnx_inputs[name] = batch_array
         
         outputs = session.run(None, onnx_inputs)
         embeddings = outputs[0]  # (batch, seq_len, hidden)
         
-        # CLS pooling (первый токен)
-        vectors = embeddings[:, 0, :]
+        # Mean pooling with attention mask (like remote_embedder)
+        attention_mask = onnx_inputs["attention_mask"]  # (batch, seq_len)
+        
+        mask_expanded = np.expand_dims(attention_mask, -1).astype(float)
+        sum_emb = np.sum(embeddings * mask_expanded, axis=1)
+        sum_mask = np.clip(np.sum(mask_expanded, axis=1), a_min=1e-9, a_max=None)
+        vectors = sum_emb / sum_mask
         
         # Нормализация
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
