@@ -977,7 +977,8 @@ class RemoteEmbedder(IEmbedder):
                     except Exception as _e:
                         logger.debug(f"is_ready: ONNX reload failed: {_e}")
                         return False
-                return self._onnx_client is not None
+                # Реальный health check, а не просто наличие объекта
+                return self._onnx_client._health_check()
             return self.mode in ("lm_studio", "llama_cpp", "ollama")
 
     async def warmup(self) -> bool:
