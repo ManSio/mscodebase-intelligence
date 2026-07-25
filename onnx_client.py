@@ -32,7 +32,7 @@ class OnnxEmbedderClient:
     6. Если мутекс занят — ждёт пока другой процесс запустит сервер
     """
     
-    def __init__(self, port: int = 9876, model_name: str = "multilingual-e5-small-int8"):
+    def __init__(self, port: int = 9876, model_name: str = "e5-base-v2"):
         self.port = port
         self.model_name = model_name
         self.base_url = f"http://127.0.0.1:{port}"
@@ -241,7 +241,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 _client_instance: Optional[OnnxEmbedderClient] = None
 _client_lock_module = threading.Lock()
 
-def get_onnx_client(port: int = 9876, model_name: str = "multilingual-e5-small-int8") -> OnnxEmbedderClient:
+def get_onnx_client(port: int = 9876, model_name: str = "multilingual-e5-base") -> OnnxEmbedderClient:
     """Возвращает singleton клиент ONNX."""
     global _client_instance
     with _client_lock_module:

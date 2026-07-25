@@ -697,7 +697,7 @@ class RemoteEmbedder(IEmbedder):
             with self._onnx_client_lock:
                 if self._onnx_client is None:
                     from onnx_client import get_onnx_client
-                    self._onnx_client = get_onnx_client(port=9876, model_name="multilingual-e5-small-int8")
+                    self._onnx_client = get_onnx_client(port=9876, model_name="e5-base-v2")
                 
                 # Проверяем доступность сервера
                 if not self._onnx_client._is_server_running():
