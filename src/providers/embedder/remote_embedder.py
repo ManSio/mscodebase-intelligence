@@ -356,7 +356,7 @@ class RemoteEmbedder(IEmbedder):
 
         logger.info("⏳ Фоновая предзагрузка ONNX модели (llama.cpp не найден за 60с)...")
         self._init_onnx()
-        if self._onnx_session:
+        if self._onnx_client is not None:
             logger.info("✅ ONNX модель предзагружена и готова к работе")
 
     def _check_lm_studio(self) -> bool:
@@ -424,7 +424,7 @@ class RemoteEmbedder(IEmbedder):
     def get_model_info(self) -> dict:
         """Возвращает информацию о текущей модели эмбеддера."""
         # Если ONNX загружен — показываем реальную модель
-        if self._onnx_session is not None:
+        if self._onnx_client is not None:
             model_name = getattr(self, "_model_name", "e5-base-v2")
         else:
             model_name = getattr(self, "_model_name", self.model_name)
@@ -447,11 +447,11 @@ class RemoteEmbedder(IEmbedder):
             # ═══════════════════════════════════════════════════════════════
             if _provider in ("cpu", ""):
                 self._init_onnx()
-                if self._onnx_session:
+                if self._onnx_client is not None:
                     with self._mode_lock:
                         self.mode = "onnx"
                         self._preferred_mode = "onnx"
-                    logger.info("✅ ONNX Runtime CPU запущен!")
+                    logger.info("✅ ONNX Client запущен!")
                     return
 
             # OpenVINO (по запросу, если ONNX_PROVIDERS=openvino)
@@ -481,7 +481,7 @@ class RemoteEmbedder(IEmbedder):
 
             # ═══ ONNX — последняя попытка ═══
             self._init_onnx()
-            if self._onnx_session:
+            if self._onnx_client is not None:
                 with self._mode_lock:
                     self.mode = "onnx"
                 logger.info("✅ E5-base ONNX (повторная попытка) — успех.")
@@ -714,22 +714,6 @@ class RemoteEmbedder(IEmbedder):
             logger.error(f"❌ Ошибка инициализации ONNX Client: {e}", exc_info=True)
             with self._mode_lock:
                 self.mode = "fallback"
-    def _start_onnx_cleanup(self):
-        """Фоновый поток: выгружает ONNX при долгом бездействии."""
-
-        def _cleanup_loop():
-            while not self._onnx_cleanup_stop.wait(60):
-                if self._onnx_session is not None:
-                    idle = time.time() - self._onnx_last_used
-                    if idle > self._onnx_idle_timeout:
-                        self._unload_onnx()
-
-        self._onnx_cleanup_task = threading.Thread(
-            target=_cleanup_loop,
-            name="mscodebase-onnx-cleanup",
-            daemon=True,
-        )
-        self._onnx_cleanup_task.start()
 
     def embed_batch(
         self, texts: List[str], is_query: bool = False
@@ -903,7 +887,7 @@ class RemoteEmbedder(IEmbedder):
         raise RuntimeError(
             f"Embedder failed: mode={current_mode}, "
             f"ov_compiled={getattr(self, '_ov_compiled', None) is not None}, "
-            f"onnx_session={self._onnx_session is not None}"
+            f"onnx_client={self._onnx_client is not None}"
         )
 
     def embed(self, text: str, is_query: bool = False) -> List[float]:
@@ -987,13 +971,13 @@ class RemoteEmbedder(IEmbedder):
                             return False
                     return getattr(self, '_ov_compiled', None) is not None
                 # Ленивая перезагрузка при idle-timeout выгрузке
-                if self._onnx_session is None:
+                if self._onnx_client is None:
                     try:
                         self._init_onnx()
                     except Exception as _e:
                         logger.debug(f"is_ready: ONNX reload failed: {_e}")
                         return False
-                return self._onnx_session is not None
+                return self._onnx_client is not None
             return self.mode in ("lm_studio", "llama_cpp", "ollama")
 
     async def warmup(self) -> bool:
