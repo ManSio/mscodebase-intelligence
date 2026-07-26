@@ -19,6 +19,7 @@ from __future__ import annotations
 import gc
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -66,6 +67,9 @@ class IndexProjectRunner:
         self._last_reported_progress = last_reported_progress
         self.db_manager = db_manager
         self._db_writer = db_writer
+        self._index_lock = threading.Lock()
+        self._cached_total_chunks = 0
+        self._cached_unique_files: set[str] = set()
 
     # ── Self-healing helpers ───────────────────────────────────────────
 

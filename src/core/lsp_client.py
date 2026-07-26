@@ -302,6 +302,12 @@ class LspClient:
             ],
         })
         self._send_notification("initialized", {})
+        # Write project_root to bridge for MCP project resolution
+        try:
+            from src.core.lsp_project_bridge import write_active_project
+            write_active_project(self.project_root)
+        except Exception as _e:
+            logger.warning(f"Bridge write failed: {_e}")
         return result
 
     def _handle_crash(self):

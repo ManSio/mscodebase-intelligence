@@ -100,6 +100,7 @@ class Indexer(IndexerTableMixin):
             embedder=embedder,
             project_path=self.project_path,
             embedding_dim=_dim,
+            table_write_lock=self._table_write_lock,
         )
         # Прокси для обратной совместимости
         self.db = self.db_manager.db
@@ -241,6 +242,9 @@ class Indexer(IndexerTableMixin):
             self._file_move_manager.table = new_table
         if hasattr(self, '_project_runner') and self._project_runner is not None:
             self._project_runner.table = new_table
+            # Also sync the runner's internal db_writer
+            if hasattr(self._project_runner, '_db_writer') and self._project_runner._db_writer is not None:
+                self._project_runner._db_writer.table = new_table
         logger.info("🔄 Table reference synced across all components")
 
     # ══════════════════════════════════════════════════════════

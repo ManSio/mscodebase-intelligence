@@ -883,7 +883,7 @@ class LlamaRunner:
 
                 stdout=subprocess.DEVNULL,
 
-                stderr=(_embedder_log_fh := open(self._log_path(), 'a')),
+                stderr=(_embedder_log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
 
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
 
@@ -989,7 +989,7 @@ class LlamaRunner:
                                         *flags,
                                     ],
                                     stdout=subprocess.DEVNULL,
-                                    stderr=(_embedder_log_fh := open(self._log_path(), 'a')),
+                                    stderr=(_embedder_log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
                                     cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
@@ -1070,7 +1070,7 @@ class LlamaRunner:
                     "--reranking",
                 ],
                 stdout=subprocess.DEVNULL,
-                stderr=(_reranker_log_fh := open(self._reranker_log_path(), 'a')),
+                stderr=(_reranker_log_fh := open(self._reranker_log_path(), 'ab')),  # binary mode
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
