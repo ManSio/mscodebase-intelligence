@@ -32,7 +32,7 @@ class OnnxEmbedderClient:
     6. Если мутекс занят — ждёт пока другой процесс запустит сервер
     """
     
-    def __init__(self, port: int = 9876, model_name: str = "e5-base-v2"):
+    def __init__(self, port: int = 9876, model_name: str = "multilingual-e5-small-int8"):
         self.port = port
         self.model_name = model_name
         self.base_url = f"http://127.0.0.1:{port}"

@@ -124,9 +124,9 @@ def _download_prequantized(model_name: str, model_dir: Path, onnx_path: Path) ->
         if final.name != target_name:
             final.rename(target_path)
 
-        # For INT8 models, also download config files needed by OpenVINO/ONNX
+        # For INT8 models, also download config + tokenizer files
         if is_int8:
-            for extra in ["config.json", "ort_config.json"]:
+            for extra in ["config.json", "ort_config.json", "tokenizer.json", "tokenizer_config.json"]:
                 try:
                     hf_hub_download(
                         repo_id=onnx_repo, filename=extra,
@@ -158,7 +158,7 @@ def download_onnx_model(
     )
 
     onnx_dir = output_dir / "onnx"
-    slug = model_name.split("/")[-1].replace(".", "-").lower()
+    slug = model_name.split("/")[-1].replace(".", "-").lower().replace("-onnx", "")
     subdir = f"reranker-{slug}" if model_type == "reranker" else slug
     model_dir = onnx_dir / subdir
     onnx_path = onnx_dir / subdir / "model.onnx"

@@ -58,6 +58,25 @@ class TestInstallEmbedderSync:
             "'keisuke-miyako/multilingual-e5-small-onnx-int8'"
         )
 
+    def test_download_model_slug_matches_install(self):
+        """download_model.py slug must match install.py slug (no -onnx suffix)."""
+        with open("scripts/download_model.py", encoding="utf-8") as f:
+            source = f.read()
+
+        # slug computation must strip -onnx to match install.py slug
+        assert "replace(\"-onnx\", \"\")" in source, (
+            "download_model.py must strip -onnx from slug to match install.py"
+        )
+
+    def test_download_model_has_tokenizer_download(self):
+        """download_model.py must download tokenizer.json for pre-quantized models."""
+        with open("scripts/download_model.py", encoding="utf-8") as f:
+            source = f.read()
+
+        assert "tokenizer.json" in source, (
+            "download_model.py must download tokenizer.json for pre-quantized models"
+        )
+
     def test_remote_embedder_prefers_int8(self):
         """remote_embedder._detect_model_dir() must prefer INT8 models."""
         with open("src/providers/embedder/remote_embedder.py", encoding="utf-8") as f:
