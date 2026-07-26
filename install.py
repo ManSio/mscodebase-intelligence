@@ -768,11 +768,12 @@ def step_db(lines, lang):
         import lancedb
 
         db = lancedb.connect(str(db_path))
-        tables = db.list_tables()
-        if tables:
-            t = db.open_table(tables[0])
+        response = db.list_tables()
+        table_names = response.tables if hasattr(response, 'tables') else list(response)
+        if table_names:
+            t = db.open_table(table_names[0])
             fields = [f.name for f in t.schema]
-            lines.append((C.GRN, f"✓ {len(tables)} table(s), {len(fields)} fields"))
+            lines.append((C.GRN, f"✓ {len(table_names)} table(s), {len(fields)} fields"))
         else:
             lines.append((C.D, "· Empty"))
     except Exception as e:
@@ -785,8 +786,6 @@ def step_zedcfg(lines, lang):
     if patch_zed_settings(
         cmd,
         mode="global",
-        lsp_config=None,
-        languages_config=None,
         install_path=str(ZED_EXT_DIR),
     ):
         lines.append((C.GRN, "✓ MCP configured"))

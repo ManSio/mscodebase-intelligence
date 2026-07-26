@@ -20,6 +20,7 @@ import ast
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,7 +38,7 @@ ALLOWED_MODULES: frozenset[str] = frozenset({
     "time", "random", "statistics", "string", "textwrap", "itertools",
     "functools", "operator", "decimal", "fractions", "numbers",
     "typing", "dataclasses", "enum", "uuid", "base64", "binascii",
-    "html", "urllib.parse", "urllib.request", "urllib.error",
+    "html", "urllib", "urllib.parse", "urllib.request", "urllib.error",
     "urllib.response", "email", "csv", "sqlite3", "xml.etree.ElementTree",
     "xml.dom.minidom", "xml.sax", "xml.parsers.expat",
     "http", "http.client", "http.server", "http.cookies",
@@ -71,7 +72,7 @@ BLOCKED_STR_PATTERNS: frozenset[str] = frozenset({
     "sys.executable", "sys.argv", "sys.stdin", "sys.stdout", "sys.stderr",
     "__import__", "eval(", "exec(", "compile(",
     "open(", "file(", "input(", "raw_input(",
-    "socket", "http.client", "urllib.request", "requests",
+    "http.client", "requests",
     "paramiko", "fabric", "ansible", "salt", "psutil",
     "win32", "wmi", "ctypes.windll", "ctypes.cdll",
 })
@@ -141,6 +142,7 @@ RUNTIME_ISOLATION_PREAMBLE = (
     '    "html", "csv", "copy", "pprint", "reprlib", "weakref", "types",\n'
     '    "ast", "tokenize", "keyword", "abc", "contextlib", "heapq",\n'
     '    "bisect", "array", "sys",\n'
+    '    "urllib", "urllib.request", "urllib.parse",\n'
     '})\n'
     '\n'
     '_orig_import = _builtins.__import__\n'
@@ -223,9 +225,11 @@ def validate_code(code: str) -> list[str]:
     """
     warnings: list[str] = []
 
-    # Layer 1: String scan
+    # Layer 1: String scan (regex with word-boundary to avoid false positives
+    # like 'urlopen(' matching 'open(')
     for pattern in BLOCKED_STR_PATTERNS:
-        if pattern in code:
+        regex = re.compile(r'(?<![a-zA-Z0-9_])' + re.escape(pattern))
+        if regex.search(code):
             raise SandboxViolation(
                 f"Blocked pattern: {pattern}",
                 pattern=pattern,

@@ -161,3 +161,4 @@ docs/generated/MODULE_INDEX.md
 # Agent temp scripts
 scripts/_diag_*.py
 scripts/_run_*.py
+.codebase/
