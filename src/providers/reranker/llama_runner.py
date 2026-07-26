@@ -301,7 +301,7 @@ class LlamaRunner:
     # Реранкер используется реже эмбеддера — держать постоянно нет смысла.
 
     RERANKER_IDLE_TIMEOUT = int(os.getenv("RERANKER_IDLE_TIMEOUT", "300"))
-    EMBEDDER_IDLE_TIMEOUT = int(os.getenv("EMBEDDER_IDLE_TIMEOUT", "600"))  # 10 min — embedder keeps warm for search
+    EMBEDDER_IDLE_TIMEOUT = int(os.getenv("EMBEDDER_IDLE_TIMEOUT", "120"))  # 2 min — auto-free RAM after indexing
 
 
 
@@ -892,8 +892,10 @@ class LlamaRunner:
             self._embedder_log_fh = _embedder_log_fh
 
             self._model_key = model_key
-
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
+
+            # Start watchdog for idle timeout monitoring
+            self._start_watchdog()
 
             return True
 
