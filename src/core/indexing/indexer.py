@@ -195,6 +195,7 @@ class Indexer(IndexerTableMixin):
             summarizer=self.summarizer,
             last_reported_progress=self._last_reported_progress,
             db_manager=self.db_manager,
+            db_writer=self._db_writer,
         )
 
         # ─── Load SymbolIndex from disk ─────────────────────

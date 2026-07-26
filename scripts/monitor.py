@@ -67,6 +67,9 @@ auto_index_status = "⏳"  # ⏳ idle / 🚀 running / ✅ done / ❌ failed
 monitor_start = time.time()
 last_log_offset = 0  # позиция в файле для инкрементального чтения
 
+# Run ID — отличает текущий запуск индексации от предыдущих
+current_run_id = None  # устанавливается при "Auto-index: starting"
+
 
 def read_log_incremental():
     """Читает только новые строки из лога (быстро, без перечитывания всего файла)."""
@@ -83,6 +86,28 @@ def read_log_incremental():
     except Exception:
         pass
     return new_lines
+
+
+def reset_run_state():
+    """Сбрасывает ВСЁ состояние при новом запуске индексации."""
+    global total_chunks, done_chunks, phase, phase_start_time
+    global db_files_written, db_chunks_written, ivf_started
+    global recent_ema, ema_initialized, not_found_count
+    global last_done, last_time, lock_status
+    total_chunks = 0
+    done_chunks = 0
+    phase = PHASE_LOADING
+    phase_start_time = time.time()
+    db_files_written = 0
+    db_chunks_written = 0
+    ivf_started = False
+    recent_ema = 0.0
+    ema_initialized = False
+    not_found_count = 0
+    last_done = 0
+    last_time = time.time()
+    lock_status = '🔒 Ожидание...'
+    phase_metrics.clear()
 
 
 def read_log_tail(n=50):
@@ -206,6 +231,8 @@ def parse_embed_complete(line):
 def update_ema(new_speed):
     """Обновляет EMA скорость. Чем больше α, тем быстрее реагирует."""
     global recent_ema, ema_initialized
+    if new_speed <= 0:
+        return  # не портим EMA нулевыми/отрицательными
     if not ema_initialized:
         recent_ema = new_speed
         ema_initialized = True
@@ -252,7 +279,7 @@ def render():
     now = time.time()
     total_elapsed = now - monitor_start
 
-    print("📊 МОНИТОР ИНДЕКСАЦИИ v2")
+    print("📊 МОНИТОР ИНДЕКСАЦИИ v3")
     print("─" * 60)
     print(f"  Фаза: {phase}")
     print(f"  Время: {fmt_time(total_elapsed)}")
@@ -275,7 +302,7 @@ def render():
         print()
 
     # Эмбеддинг
-    if total_chunks > 0 and phase in (PHASE_EMBED, PHASE_WRITING, PHASE_IVF, PHASE_DONE):
+    if total_chunks > 0 and phase in (PHASE_EMBED, PHASE_WRITING, PHASE_IVF):
         pct = done_chunks / total_chunks * 100
         print(f"  🧠 Эмбеддинг: {bar(done_chunks, total_chunks)} {pct:.0f}%")
         print(f"     {done_chunks}/{total_chunks} ({total_chunks - done_chunks} осталось)")
@@ -333,17 +360,42 @@ def render():
 # ─── Main loop ────────────────────────────────────────────
 
 os.system('cls' if os.name == 'nt' else 'clear')
-print("📊 МОНИТОР ИНДЕКСАЦИИ v2")
+print("📊 МОНИТОР ИНДЕКСАЦИИ v3")
 print("─" * 60)
 print("  Инициализация... чтение лога")
 print("─" * 60)
 
-# Начальная загрузка — последние 100 строк
-initial_lines = read_log_tail(100)
-# Обрабатываем начальные данные
+# Начальная загрузка — последние 200 строк
+initial_lines = read_log_tail(200)
+
+# Шаг 1: Находим последний Auto-index: starting — всё ДО него = старый запуск
+_last_auto_start_idx = -1
+for _i, line in enumerate(initial_lines):
+    if parse_auto_index(line) == 'start':
+        _last_auto_start_idx = _i
+
+if _last_auto_start_idx >= 0:
+    initial_lines = initial_lines[_last_auto_start_idx + 1:]
+    _found_complete = any(parse_indexing_complete(l) or parse_ivf_done(l) for l in initial_lines)
+    if _found_complete:
+        # Последний запуск уже завершился — начнём как будто ничего не идёт
+        phase = PHASE_LOADING
+
+# Шаг 2: Обрабатываем строки текущего запуска
 for line in initial_lines:
-    if parse_found_files(line):
-        phase_metrics['parse_files'] = parse_found_files(line)
+    # ★ Сброс при новом auto-index start
+    ai_init = parse_auto_index(line)
+    if ai_init == 'start':
+        reset_run_state()
+        auto_index_status = '🚀 running'
+    elif ai_init == 'done':
+        auto_index_status = '✅ done'
+    elif ai_init == 'failed':
+        auto_index_status = '❌ failed'
+
+    ff = parse_found_files(line)
+    if ff:
+        phase_metrics['parse_files'] = ff
 
     tc = parse_total_chunks(line)
     if tc:
@@ -359,12 +411,14 @@ for line in initial_lines:
         phase_metrics['embed']['elapsed'] = embed['elapsed']
         update_ema(embed['inst'])
 
-    if parse_db_write(line):
+    cw = parse_db_write(line)
+    if cw:
         db_files_written += 1
-        db_chunks_written += parse_db_write(line)
+        db_chunks_written += cw
 
-    if parse_creating_index(line):
-        phase_metrics['ivf_chunks'] = parse_creating_index(line)
+    ic = parse_creating_index(line)
+    if ic:
+        phase_metrics['ivf_chunks'] = ic
         ivf_started = True
 
     if parse_ivf_done(line):
@@ -372,12 +426,13 @@ for line in initial_lines:
 
     ec = parse_embed_complete(line)
     if ec:
+        phase_metrics.setdefault('embed', {})
         phase_metrics['embed']['final_speed'] = ec['speed']
         phase_metrics['embed']['elapsed'] = ec['elapsed']
 
-    ic = parse_indexing_complete(line)
-    if ic:
-        total_chunks = ic
+    ic2 = parse_indexing_complete(line)
+    if ic2:
+        total_chunks = ic2
         phase = PHASE_DONE
 
 # Определяем начальную фазу
@@ -399,6 +454,17 @@ try:
 
         # Обрабатываем новые строки
         for line in new_lines:
+            # ★ ПЕРВЫМ ДЕЛОМ: ловим Auto-index start → сброс всего
+            ai = parse_auto_index(line)
+            if ai == 'start':
+                reset_run_state()
+                current_run_id = time.time()  # noqa: F841 — глобальная
+                auto_index_status = '🚀 running'
+            elif ai == 'done':
+                auto_index_status = '✅ done'
+            elif ai == 'failed':
+                auto_index_status = '❌ failed'
+
             # Парсинг файлов
             ff = parse_found_files(line)
             if ff:
@@ -423,10 +489,10 @@ try:
                 phase_metrics['embed']['last_avg_log'] = embed['avg_log']
                 phase_metrics['embed']['elapsed'] = embed['elapsed']
 
-                # EMA: обновляем только если прошло достаточно времени
+                # EMA: только при росте done_chunks (защита от reset)
                 now = time.time()
                 dt = now - last_time
-                if dt > 0.5 and done_chunks != last_done:
+                if dt > 0.5 and done_chunks > last_done:
                     instant_speed = (done_chunks - last_done) / dt
                     update_ema(instant_speed)
                     last_done = done_chunks
@@ -438,6 +504,7 @@ try:
             # Embed complete
             ec = parse_embed_complete(line)
             if ec:
+                phase_metrics.setdefault('embed', {})
                 phase_metrics['embed']['final_speed'] = ec['speed']
                 phase_metrics['embed']['elapsed'] = ec['elapsed']
                 if phase == PHASE_EMBED:
@@ -477,22 +544,13 @@ try:
             elif nf == 'self_healed':
                 phase_metrics['self_healed'] = phase_metrics.get('self_healed', 0) + 1
 
-            # Auto-index lifecycle
-            ai = parse_auto_index(line)
-            if ai == 'start':
-                auto_index_status = '🚀 running'
-            elif ai == 'done':
-                auto_index_status = '✅ done'
-            elif ai == 'failed':
-                auto_index_status = '❌ failed'
-
             # IVF done
             if parse_ivf_done(line):
                 phase = PHASE_DONE
 
-            # Indexing complete
+            # Indexing complete — только если мы в активной фазе
             ic2 = parse_indexing_complete(line)
-            if ic2:
+            if ic2 and phase != PHASE_LOADING:
                 total_chunks = ic2
                 phase = PHASE_DONE
 
