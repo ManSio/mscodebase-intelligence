@@ -822,7 +822,7 @@ class LlamaRunner:
 
 
 
-        flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
+        flags = ["--embedding", "--pooling", GGUF_MODELS.get(model_key,{}).get("pooling","cls")] if model_key in GGUF_MODELS and model_key != DEFAULT_RERANKER_MODEL else ["--reranking"]
 
 
 
@@ -944,7 +944,7 @@ class LlamaRunner:
             logger.error(f"GGUF модель не найдена: {gguf_path}")
             return False
 
-        flags = ["--embedding"] if model_key in ("bge-m3", "qwen3-embedding") else ["--reranking"]
+        flags = ["--embedding", "--pooling", GGUF_MODELS.get(model_key,{}).get("pooling","cls")] if model_key in GGUF_MODELS and model_key != DEFAULT_RERANKER_MODEL else ["--reranking"]
 
         try:
             self._process = _popen_with_job(

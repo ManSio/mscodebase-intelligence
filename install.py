@@ -612,13 +612,13 @@ def step_llama(lines, lang):
 
 @_step(7)
 def step_gguf(lines, lang):
-    """Скачивает GGUF модель реранкера (bge-reranker-v2-m3)."""
+    """Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3."""
     from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
     all_ok = True
     zed_models_dir = ZED_EXT_DIR / "models"
 
-    for key in ["bge-reranker-v2-m3"]:
+    for key in ["multilingual-e5-small", "bge-reranker-v2-m3"]:
         fname = GGUF_MODELS[key]["file"]
         zed_gguf = zed_models_dir / fname
         if zed_gguf.exists():
@@ -654,7 +654,7 @@ def step_gguf(lines, lang):
             all_ok = False
 
     if all_ok:
-        lines.append((C.GRN, "✅ GGUF модель реранкера готова — llama.cpp работает"))
+        lines.append((C.GRN, "✅ GGUF модели готовы — llama.cpp embedder + reranker"))
 
 
 @_step(8)

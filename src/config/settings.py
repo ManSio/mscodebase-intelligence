@@ -46,10 +46,10 @@ class EmbeddingConfig:
         default_factory=lambda: int(os.getenv("OLLAMA_PORT", "11434"))
     )
     model_name: str = field(
-        default_factory=lambda: os.getenv("MODEL_NAME", "e5-base-v2")
+        default_factory=lambda: os.getenv("MODEL_NAME", "multilingual-e5-small-int8")
     )
     embedding_dimension: int = field(
-        default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "768"))
+        default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "384"))
     )
     # Тумблер авто-запуска llama.cpp (embedder + reranker) при старте MCP.
     # По умолчанию ВЫКЛЮЧЕН: ветка _start_llama_sync не заходит, порт 8080

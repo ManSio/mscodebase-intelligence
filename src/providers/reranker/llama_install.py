@@ -220,6 +220,14 @@ GGUF_MODELS = {
         "ctx_recommended": 1024,
         "sha256": "17c3e3f2eaabc6e321702b4a13680d042e72afc5d602f359f27a670c3e54718c",
     },
+    "multilingual-e5-small": {
+        "repo": "keisuke-miyako/multilingual-e5-small-gguf-q8_0",
+        "file": "multilingual-e5-small-Q8_0.gguf",
+        "size_mb": 126,
+        "dim": 384,
+        "ctx_recommended": 512,
+        "pooling": "mean",
+    },
     "bge-m3": {
         "repo": "lm-kit/bge-m3-gguf",
         "file": "bge-m3-Q4_K_M.gguf",
@@ -238,7 +246,7 @@ GGUF_MODELS = {
 # Модель по умолчанию (можно переопределить через EMEDDING_MODEL)
 # qwen3-embedding — лучшее качество (722 MB RAM, 2.4 чанка/с)
 # bge-m3 — в 5x быстрее индексация (692 MB RAM, 12 чанков/с)
-DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3")
+DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "multilingual-e5-small")
 DEFAULT_RERANKER_MODEL = "bge-reranker-v2-m3"
 
 # На Insider (build >= 26000): MSVC сборка не может загрузить api-ms-win-crt-* DLL

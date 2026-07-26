@@ -7,6 +7,7 @@ ONNX HTTP Server — Singleton сервис для эмбеддингов.
 Usage:
     python onnx_server.py [--port PORT] [--model MODEL_NAME]
 """
+import logging
 import os
 import sys
 import json
@@ -19,13 +20,15 @@ from typing import List, Dict, Any, Optional
 
 from pathlib import Path
 
+logger = logging.getLogger("mscodebase_server.onnx_server")
+
 # Добавляем корень проекта в sys.path для импортов
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Конфигурация
 DEFAULT_PORT = int(os.getenv("ONNX_PORT", "9876"))
-DEFAULT_MODEL = os.getenv("ONNX_MODEL", "e5-base-v2")
+DEFAULT_MODEL = os.getenv("ONNX_MODEL", "multilingual-e5-small-int8")
 IDLE_TIMEOUT = int(os.getenv("ONNX_IDLE_TIMEOUT", "600"))  # 10 минут
 
 last_request_time = time.time()
@@ -70,7 +73,7 @@ class OnnxHandler(BaseHTTPRequestHandler):
                 if not text:
                     self._send_json({"error": "Missing 'text' field"}, 400)
                     return
-                print(f"[ONNX Server] Embedding: {text[:50]}", file=sys.stderr)
+                logger.info(f"[ONNX Server] Embedding: {text[:50]}")
                 vector = self._embed_single(text)
                 self._send_json({"vector": vector})
                 
@@ -87,9 +90,7 @@ class OnnxHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 
         except Exception as e:
-            print(f"[ONNX Server] Error: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
+            logger.error(f"[ONNX Server] Error: {e}", exc_info=True)
             self._send_json({"error": str(e)}, 500)
     
     def _embed_single(self, text: str) -> List[float]:
@@ -110,14 +111,17 @@ class OnnxHandler(BaseHTTPRequestHandler):
             attention_mask = attention_mask + [0] * pad_len
         
         # Подготовка входов для ONNX
+        seq_len = len(ids)
         onnx_inputs = {}
         for name in input_names:
             if name == "input_ids":
                 onnx_inputs[name] = np.array([ids], dtype=np.int64)
             elif name == "attention_mask":
                 onnx_inputs[name] = np.array([attention_mask], dtype=np.int64)
+            elif name == "token_type_ids":
+                onnx_inputs[name] = np.zeros((1, seq_len), dtype=np.int64)
             else:
-                onnx_inputs[name] = np.array([ids], dtype=np.int64)
+                logger.warning(f"[ONNX Server] Unknown input: {name}, skipping")
         
         # Инференс
         outputs = session.run(None, onnx_inputs)
@@ -163,14 +167,18 @@ class OnnxHandler(BaseHTTPRequestHandler):
         
         batch_array = np.array(batch_ids, dtype=np.int64)
         mask_array = np.array(batch_masks, dtype=np.int64)
+        batch_size = len(batch_ids)
+        seq_len = batch_array.shape[1]
         onnx_inputs = {}
         for name in input_names:
             if name == "input_ids":
                 onnx_inputs[name] = batch_array
             elif name == "attention_mask":
                 onnx_inputs[name] = mask_array
+            elif name == "token_type_ids":
+                onnx_inputs[name] = np.zeros((batch_size, seq_len), dtype=np.int64)
             else:
-                onnx_inputs[name] = batch_array
+                logger.warning(f"[ONNX Server] Unknown input: {name}, skipping")
         
         outputs = session.run(None, onnx_inputs)
         embeddings = outputs[0]  # (batch, seq_len, hidden)
@@ -207,11 +215,25 @@ def load_model(model_name: str):
     import onnxruntime as ort
     from tokenizers import Tokenizer
     
-    # Пути к модели
-    models_dir = PROJECT_ROOT / "models" / model_name
-    if not models_dir.exists():
-        # Fallback: .codebase_models
-        models_dir = PROJECT_ROOT / ".codebase_models" / "onnx" / model_name
+    # Пути к модели (проверяем несколько вариантов)
+    search_paths = [
+        PROJECT_ROOT / "models" / model_name,
+        PROJECT_ROOT / ".codebase_models" / "onnx" / model_name,
+        Path.home() / ".cache" / "mscodebase" / "models" / ".codebase_models" / "onnx" / model_name,
+    ]
+    # Также проверяем в расширении Zed
+    ext_dir = Path(__file__).resolve().parent.parent / "mscodebase-intelligence"
+    if ext_dir.exists():
+        search_paths.insert(0, ext_dir / ".codebase_models" / "onnx" / model_name)
+    
+    models_dir = None
+    for p in search_paths:
+        if p.exists():
+            models_dir = p
+            break
+    
+    if models_dir is None:
+        raise FileNotFoundError(f"Model directory not found for: {model_name}")
     
     onnx_path = models_dir / "model_quantized.onnx"
     if not onnx_path.exists():
@@ -220,7 +242,7 @@ def load_model(model_name: str):
     tokenizer_path = models_dir / "tokenizer.json"
     
     if not onnx_path.exists():
-        raise FileNotFoundError(f"ONNX model not found: {onnx_path}")
+        raise FileNotFoundError(f"ONNX model not found: {onnx_path} in {models_dir}")
     if not tokenizer_path.exists():
         raise FileNotFoundError(f"Tokenizer not found: {tokenizer_path}")
     
@@ -247,9 +269,9 @@ def load_model(model_name: str):
     session = ort.InferenceSession(str(onnx_path), sess_options=opts, providers=providers)
     input_names = [inp.name for inp in session.get_inputs()]
     
-    print(f"[ONNX Server] Model loaded: {onnx_path}")
-    print(f"[ONNX Server] Inputs: {input_names}")
-    print(f"[ONNX Server] Providers: {session.get_providers()}")
+    logger.info(f"[ONNX Server] Model loaded: {onnx_path}")
+    logger.info(f"[ONNX Server] Inputs: {input_names}")
+    logger.info(f"[ONNX Server] Providers: {session.get_providers()}")
     
     return session, tokenizer, input_names
 
@@ -261,7 +283,7 @@ def idle_killer():
         time.sleep(30)
         with _request_lock:
             if time.time() - last_request_time > IDLE_TIMEOUT:
-                print(f"[ONNX Server] Idle timeout ({IDLE_TIMEOUT}s), shutting down...")
+                logger.info(f"[ONNX Server] Idle timeout ({IDLE_TIMEOUT}s), shutting down...")
                 _shutdown_event.set()
                 os._exit(0)
 
@@ -282,8 +304,8 @@ def run_server(port: int, model_name: str):
     # Запускаем idle killer
     threading.Thread(target=idle_killer, daemon=True).start()
     
-    print(f"[ONNX Server] Running on http://127.0.0.1:{port}")
-    print(f"[ONNX Server] Idle timeout: {IDLE_TIMEOUT}s")
+    logger.info(f"[ONNX Server] Running on http://127.0.0.1:{port}")
+    logger.info(f"[ONNX Server] Idle timeout: {IDLE_TIMEOUT}s")
     
     try:
         server.serve_forever()
@@ -291,7 +313,7 @@ def run_server(port: int, model_name: str):
         pass
     finally:
         server.server_close()
-        print("[ONNX Server] Stopped")
+        logger.info("[ONNX Server] Stopped")
 
 
 if __name__ == "__main__":
