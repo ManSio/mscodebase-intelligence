@@ -153,7 +153,17 @@ class LanceDBManager:
                         if hasattr(_vt, 'get_field'):
                             stored_dim = _vt.get_field("item").type.list_size
                 except Exception as _dim_err:
-                    logger.debug(f"Не удалось определить размерность вектора: {_dim_err}")
+                    logger.debug(f"Schema extraction failed: {_dim_err}")
+
+                # Fallback: read a sample row to get actual vector length
+                if not stored_dim:
+                    try:
+                        sample = table.limit(1).to_list()
+                        if sample and "vector" in sample[0]:
+                            stored_dim = len(sample[0]["vector"])
+                    except Exception:
+                        pass
+
                 if stored_dim and stored_dim != self.embedding_dim:
                     logger.warning(
                         f"Dimension mismatch: index={stored_dim}, "
