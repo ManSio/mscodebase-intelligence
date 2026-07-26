@@ -61,6 +61,8 @@ from src.providers.reranker.llama_install import (  # noqa: F401 — explicit co
     GGUF_MODELS,
     LLAMA_CACHE_TYPE,
     LLAMA_CTX_SIZE,
+    LLAMA_BATCH_SIZE,
+    LLAMA_UBATCH_SIZE,
     LLAMA_HOST,
     LLAMA_PORT,
     LLAMA_VERSION,
@@ -299,6 +301,7 @@ class LlamaRunner:
     # Реранкер используется реже эмбеддера — держать постоянно нет смысла.
 
     RERANKER_IDLE_TIMEOUT = int(os.getenv("RERANKER_IDLE_TIMEOUT", "300"))
+    EMBEDDER_IDLE_TIMEOUT = int(os.getenv("EMBEDDER_IDLE_TIMEOUT", "600"))  # 10 min — embedder keeps warm for search
 
 
 
@@ -321,6 +324,7 @@ class LlamaRunner:
         self._startup_timeout = 30
 
         self._last_reranker_use: float = 0.0  # timestamp последнего использования
+        self._last_embedder_use: float = 0.0  # timestamp последнего embed-запроса
 
         # ─── Crash loop detection ───
 
@@ -381,6 +385,23 @@ class LlamaRunner:
                     logger.info(f"🧹 Реренкер простаивает {idle:.0f}s > {self.RERANKER_IDLE_TIMEOUT}s — выгружаю")
 
                     self._unload_reranker()
+
+            # Idle-timeout embedder (free ~1.5GB RAM after indexing)
+            if self._process is not None and self._last_embedder_use > 0:
+                idle_e = time.time() - self._last_embedder_use
+                if idle_e > self.EMBEDDER_IDLE_TIMEOUT:
+                    logger.info(f"🧹 Embedder idle {idle_e:.0f}s > {self.EMBEDDER_IDLE_TIMEOUT}s — stopping (~1.5GB RAM)")
+                    try:
+                        self._process.terminate()
+                        self._process.wait(timeout=5)
+                    except Exception:
+                        try:
+                            self._process.kill()
+                        except Exception:
+                            pass
+                    self._process = None
+                    self._last_embedder_use = 0.0
+                    logger.info("✅ llama-server (embedder) stopped, RAM freed")
 
             # Проверка RAM per-process
 
@@ -842,9 +863,9 @@ class LlamaRunner:
 
                     "-c", str(LLAMA_CTX_SIZE),
 
-                    "--batch-size", "128",
+                    "--batch-size", str(LLAMA_BATCH_SIZE),
 
-                    "--ubatch-size", "128",
+                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
 
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
 
@@ -956,8 +977,8 @@ class LlamaRunner:
                     "--port", str(self._port),
                     "-m", str(gguf_path),
                     "-c", str(LLAMA_CTX_SIZE),
-                    "--batch-size", "128",
-                    "--ubatch-size", "128",
+                    "--batch-size", str(LLAMA_BATCH_SIZE),
+                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE),
                     "--cache-type-v", str(LLAMA_CACHE_TYPE),
@@ -1036,9 +1057,9 @@ class LlamaRunner:
                     "--host", self._host,
                     "--port", str(self.RERANK_PORT),
                     "-m", str(gguf_path),
-                    "-c", str(LLAMA_CTX_SIZE),     # 🔒 1024 = 573 MB для BGE-M3
-                    "--batch-size", "128",
-                    "--ubatch-size", "128",
+                    "-c", str(LLAMA_CTX_SIZE),
+                    "--batch-size", str(LLAMA_BATCH_SIZE),
+                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
                     "--cache-type-v", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша

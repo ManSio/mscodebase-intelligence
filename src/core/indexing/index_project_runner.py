@@ -51,6 +51,7 @@ class IndexProjectRunner:
         summarizer=None,
         last_reported_progress: int = -1,
         db_manager=None,
+        db_writer=None,
     ):
         self._parse_file_only = parse_file_only
         self._write_file_records = write_file_records
@@ -64,6 +65,7 @@ class IndexProjectRunner:
         self.summarizer = summarizer
         self._last_reported_progress = last_reported_progress
         self.db_manager = db_manager
+        self._db_writer = db_writer
 
     # ── Self-healing helpers ───────────────────────────────────────────
 
@@ -126,7 +128,7 @@ class IndexProjectRunner:
             logger.warning(f"Path not safe: {project_path}")
             return 0
 
-        BATCH_SIZE = 4       # см. benchmark: batch=4 даёт 52 ch/s для small INT8
+        BATCH_SIZE = 32      # benchmarked: batch=32 = 100ch/s sustained, 50/50 ok (2026-07-26)
 
         # Write operations сериализуются через db_manager.begin_write()
         # PID-lock уже захвачен в db_manager.__init__()
@@ -254,6 +256,8 @@ class IndexProjectRunner:
                 for i, flat_idx in enumerate(range(batch_start, batch_end)):
                     _all_embeddings[flat_idx] = embeddings[i]
 
+                # sleep removed — benchmarked: batch=32 sustained 100ch/s without pauses (2026-07-26)
+
                 if batch_start % (BATCH_SIZE * 5) == 0 or batch_end >= total_chunks:
                     elapsed = time.time() - _embed_t0
                     done = min(batch_end, total_chunks)
@@ -264,6 +268,8 @@ class IndexProjectRunner:
                         f"avg={speed:.0f}ch/s elapsed={elapsed:.0f}s"
                     )
                     _notify_progress(done, total_chunks, "embedding", "", 50, 40)
+                    if progress_callback:
+                        progress_callback("", done, total_chunks, "embedding")
                     if watchdog_heartbeat:
                         watchdog_heartbeat(f"embed:{done}/{total_chunks}")
                 gc.collect()
@@ -281,20 +287,52 @@ class IndexProjectRunner:
                 _file_embeddings[fp_idx]["vecs"].append(_all_embeddings[flat_idx])
 
             indexed_count = 0
-            for fp_idx, fdata in _file_embeddings.items():
-                for attempt in range(2):
+            if self._db_writer:
+                # Bulk write: prepare all records, then one lock cycle
+                _all_prepared = []
+                _prepared_map = []  # (fp_idx, record_count)
+                for fp_idx, fdata in _file_embeddings.items():
                     try:
-                        if self._write_file_records(fdata["parsed"], fdata["vecs"]):
-                            indexed_count += 1
-                        break  # успех — выходим из retry-цикла
+                        prepared = self._db_writer.prepare_records(
+                            fdata["parsed"], fdata["vecs"],
+                            summarizer=self.summarizer, enable_summaries=False,
+                        )
+                        if prepared[0]:  # has records
+                            _all_prepared.append(prepared)
+                            _prepared_map.append((fp_idx, len(prepared[0])))
                     except Exception as e:
-                        if attempt == 0 and self._reset_table_if_not_found(e, "write_file_records", attempt):
-                            continue
-                        logger.warning(f"Write error {fdata['parsed']['rel_path']} (attempt {attempt+1}/2): {e}")
-                        break
+                        logger.warning(f"Prepare error {fdata['parsed']['rel_path']}: {e}")
 
-                if watchdog_heartbeat:
-                    watchdog_heartbeat(f"write:{Path(fdata['parsed']['rel_path']).name}")
+                if _all_prepared:
+                    t_write = time.time()
+                    written = self._db_writer.bulk_write(_all_prepared)
+                    write_elapsed = time.time() - t_write
+                    indexed_count = len(_prepared_map)
+                    logger.info(f"Bulk write: {written} records from {indexed_count} files in {write_elapsed:.1f}s")
+
+                # Accounting (after bulk write)
+                for fp_idx, rec_count in _prepared_map:
+                    rel = _parsed_list[fp_idx]["parsed"]["rel_path"]
+                    with self._index_lock:
+                        self._cached_total_chunks += rec_count
+                        self._cached_unique_files.add(rel)
+                    if watchdog_heartbeat:
+                        watchdog_heartbeat(f"write:{Path(rel).name}")
+            else:
+                # Fallback: per-file write (original path)
+                for fp_idx, fdata in _file_embeddings.items():
+                    for attempt in range(2):
+                        try:
+                            if self._write_file_records(fdata["parsed"], fdata["vecs"]):
+                                indexed_count += 1
+                            break
+                        except Exception as e:
+                            if attempt == 0 and self._reset_table_if_not_found(e, "write_file_records", attempt):
+                                continue
+                            logger.warning(f"Write error {fdata['parsed']['rel_path']} (attempt {attempt+1}/2): {e}")
+                            break
+                    if watchdog_heartbeat:
+                        watchdog_heartbeat(f"write:{Path(fdata['parsed']['rel_path']).name}")
 
             logger.info(f"Write complete: {indexed_count} files")
             if progress_callback:

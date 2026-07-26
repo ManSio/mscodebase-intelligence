@@ -61,9 +61,19 @@ class LanceDBWriter:
             _norm_sq = sum(v*v for v in embeddings[i])
             if _norm_sq < 1e-9:
                 logger.warning(f"Zero vector for chunk {i} in {rel_path_str} "
-                              f"(text={repr(chunk_texts[i])[:100]}))")
-                # Не возвращаем [] — записываем как есть, чтобы индекс построился.
-                # Позже re-embed заменит нулевые векторы.
+                              f"(text={repr(chunk_texts[i])[:100]}) — skipping")
+                embeddings[i] = None  # помечаем для удаления
+
+        # Удаляем чанки с нулевыми векторами
+        non_zero = [(t, v, i) for i, (t, v) in enumerate(zip(chunk_texts, embeddings)) if v is not None]
+        if len(non_zero) < len(chunk_texts):
+            skipped = len(chunk_texts) - len(non_zero)
+            logger.warning(f"Skipped {skipped} zero-vector chunks in {rel_path_str}")
+            chunk_texts = [t for t, v, i in non_zero]
+            embeddings = [v for t, v, i in non_zero]
+            chunk_hashes = [chunk_hashes[i] for t, v, i in non_zero] if chunk_hashes else []
+            chunk_texts_full = [chunk_texts_full[i] for t, v, i in non_zero] if chunk_texts_full else []
+            chunk_metadatas = [chunk_metadatas[i] for t, v, i in non_zero] if chunk_metadatas else []
 
         for i in range(len(chunk_texts)):
             if i >= len(chunk_texts_full) or not chunk_texts_full[i]:
@@ -113,6 +123,10 @@ class LanceDBWriter:
                 except Exception as del_err:
                     logger.debug(f"delete failed: {del_err}")
 
+            if not data_records:
+                logger.warning(f"No records to write for {rel_path_str} (all zero-vectors)")
+                return []
+
             try:
                 self.table.add(data_records)
             except Exception as add_err:
@@ -158,3 +172,131 @@ class LanceDBWriter:
         с новым объектом таблицы после _safe_recreate_table().
         """
         self._on_recreate = callback
+
+    def prepare_records(
+        self,
+        parsed: Dict[str, Any],
+        embeddings: List[List[float]],
+        summarizer=None,
+        enable_summaries: bool = False,
+        parser=None,
+    ) -> tuple:
+        """Builds data_records WITHOUT writing to DB. Returns (records, escaped_path, existing_hash).
+
+        Used by bulk_write() to collect all records before a single batch insert.
+        """
+        rel_path_str = parsed["rel_path"]
+        current_hash = parsed["current_hash"]
+        escaped_path = parsed.get("escaped_path", rel_path_str)
+        existing_hash = parsed.get("existing_hash")
+        chunk_texts = parsed["chunk_texts"]
+        chunk_hashes = parsed.get("chunk_hashes", [])
+        chunk_texts_full = parsed.get("chunk_texts_full", [])
+        chunk_metadatas = parsed.get("chunk_metadatas", [])
+        health = parsed.get("health", {})
+        source = parsed.get("source", "filesystem")
+
+        if not embeddings or len(embeddings) != len(chunk_texts):
+            return ([], escaped_path, existing_hash)
+
+        _target_dim = self.embedder.embedding_dim or 768
+        for i, vec in enumerate(embeddings):
+            if len(vec) != _target_dim:
+                embeddings[i] = vec[:_target_dim] + [0.0] * (_target_dim - len(vec))
+            _norm_sq = sum(v * v for v in embeddings[i])
+            if _norm_sq < 1e-9:
+                embeddings[i] = None
+
+        non_zero = [(t, v, i) for i, (t, v) in enumerate(zip(chunk_texts, embeddings)) if v is not None]
+        if len(non_zero) < len(chunk_texts):
+            chunk_texts = [t for t, v, i in non_zero]
+            embeddings = [v for t, v, i in non_zero]
+            chunk_hashes = [chunk_hashes[i] for t, v, i in non_zero] if chunk_hashes else []
+            chunk_texts_full = [chunk_texts_full[i] for t, v, i in non_zero] if chunk_texts_full else []
+            chunk_metadatas = [chunk_metadatas[i] for t, v, i in non_zero] if chunk_metadatas else []
+
+        for i in range(len(chunk_texts)):
+            if i >= len(chunk_texts_full) or not chunk_texts_full[i]:
+                chunk_texts_full.append(chunk_texts[i])
+
+        data_records = []
+        for i, (chunk_text, chunk_vec) in enumerate(zip(chunk_texts, embeddings)):
+            full_text = chunk_texts_full[i] if i < len(chunk_texts_full) else chunk_text
+            summary = ""
+            if summarizer and enable_summaries:
+                symbol_name = ""
+                if parser and hasattr(parser, "_current_symbol"):
+                    symbol_name = getattr(parser, "_current_symbol", "")
+                summary = summarizer.summarize_chunk(chunk_text, symbol_name)
+
+            meta = chunk_metadatas[i] if i < len(chunk_metadatas) else {}
+            data_records.append({
+                "id": f"{hashlib.md5(rel_path_str.encode()).hexdigest()}_{i}",
+                "vector": chunk_vec,
+                "text": chunk_text,
+                "text_full": full_text,
+                "file_path": rel_path_str,
+                "file_hash": current_hash,
+                "chunk_index": i,
+                "source": source,
+                "indexed_at": datetime.now().isoformat(),
+                "summary": summary,
+                "layer": meta.get("layer", ""),
+                "module_name": meta.get("module_name", ""),
+                "hierarchy_level": meta.get("hierarchy_level", "other"),
+                "is_public": meta.get("is_public", False),
+                "symbol_type": meta.get("symbol_type", ""),
+                "parent_id": meta.get("parent_id", ""),
+                "callees": meta.get("callees", ""),
+                "health_score": health.get("score", 0.0),
+                "health_band": health.get("band", ""),
+                "chunk_hash": chunk_hashes[i] if i < len(chunk_hashes) else "",
+                "start_line": meta.get("start_line", 0),
+                "end_line": meta.get("end_line", 0),
+            })
+
+        return (data_records, escaped_path, existing_hash)
+
+    def bulk_write(self, all_prepared: list) -> int:
+        """Batch delete old + batch add new in a single lock cycle.
+
+        all_prepared: list of (data_records, escaped_path, existing_hash)
+        Returns: total records written.
+        """
+        if not all_prepared:
+            return 0
+
+        # Flatten
+        all_records = []
+        paths_to_delete = []
+        for records, escaped_path, existing_hash in all_prepared:
+            if existing_hash is not None:
+                paths_to_delete.append(escaped_path)
+            all_records.extend(records)
+
+        if not all_records:
+            return 0
+
+        with self._table_write_lock:
+            # Phase 1: batch delete (all stale file_paths)
+            for ep in paths_to_delete:
+                try:
+                    self.table.delete(f"file_path = '{ep}'")
+                except Exception:
+                    pass
+
+            # Phase 2: single bulk add
+            try:
+                self.table.add(all_records)
+            except Exception as add_err:
+                err_str = str(add_err).lower()
+                if "not found" in err_str or "does not exist" in err_str or "no such table" in err_str:
+                    logger.warning(f"Table not found, recreating: {add_err}")
+                    if self._safe_recreate_table():
+                        self.table.add(all_records)
+                    else:
+                        raise
+                else:
+                    raise
+
+        return len(all_records)
