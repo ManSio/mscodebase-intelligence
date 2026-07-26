@@ -6,7 +6,7 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **41 tools** = 18 core + 13 intel + 7 inline + 3 dev
+> **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
 ## [3.3.9] — 2026-07-21 — AutoDoc: авто-обновление документации после реиндекса

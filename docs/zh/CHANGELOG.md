@@ -765,7 +765,7 @@
 ### 🏗 架构重写
 - **DI容器：** 带构造函数注入的ServiceCollection（15个服务）
 - **server.py：** 3,100 → **220行**（-93%）。消除了上帝对象。
-- **37个工具**解耦到 `src/mcp/tools/` 中的10个领域特定文件
+- **48个工具**解耦到 `src/mcp/tools/` 中的10个领域特定文件
 - **error_boundary** 装饰器：统一JSON响应，真实的 `asyncio.wait_for` 超时
 - **DebounceBatch：** 通过500ms防抖的BM25重新索引（非每次文件变更）
 - **SlidingWindowRateLimiter：** 防止VFS循环（最多10 req/sec）
