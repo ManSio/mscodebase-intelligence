@@ -38,8 +38,8 @@ LLAMA_HOST = os.getenv("LLAMA_CPP_HOST", "127.0.0.1")
 # ubatch-size 128: физический батч для CPU
 # device none: CPU-only (работает и на MSVC, и на Clang сборках)
 LLAMA_CTX_SIZE = int(os.getenv("LLAMA_CTX_SIZE", "1024"))     # 1024 = ~500 MB RAM для Qwen3
-LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "512"))   # 256 токенов за проход (быстрая индексация)
-LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "512"))  # 64 микро-батч для CPU
+LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "128"))   # оптимально для BERT/small models (benchmarked)
+LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "128"))  # оптимально для BERT/small models (benchmarked)
 LLAMA_DEFRAG_THOLD = float(os.getenv("LLAMA_DEFRAG_THOLD", "0.3"))  # дефрагментация KV при 30%
 LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit, без потери качества)
 
