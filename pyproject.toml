@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mscodebase-intelligence"
 version = "3.3.9"
-description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 + vector search with 43 analysis tools. Multi-window with per-project Indexer registry."
+description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 + vector search with 48 analysis tools. Multi-window with per-project Indexer registry."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "ManSio"}]

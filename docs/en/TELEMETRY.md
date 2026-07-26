@@ -255,12 +255,12 @@ Accumulated JSON files can be loaded into any BI system:
 
 ## 📊 Live Tool Audit (2026-07-12)
 
-Full load test: **all 37 registered tools** called live through the real MCP server.
+Full load test: **all 48 registered tools** called live through the real MCP server.
 
 ### Tool surface
-- **37 tools total** = 19 core + 12 intel + 6 diagnostic (per server startup log).
+- **48 tools total** = 19 core + 12 intel + 6 diagnostic + 11 dev (per server startup log).
 - **Default filter**: only **12 tools** are visible unless `MSCODEBASE_MCP_TOOLS` is set.
-  Set `MSCODEBASE_MCP_TOOLS=""` to show all 37. Set a comma list to show a subset.
+  Set `MSCODEBASE_MCP_TOOLS=""` to show all 48. Set a comma list to show a subset.
 - ~19 tools return live data; ~18 are hidden by the default filter (by design, NOT a bug).
 
 ### Per-tool latency (live run)

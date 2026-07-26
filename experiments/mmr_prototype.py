@@ -84,7 +84,7 @@ def test_mmr_on_project():
         from src.core.config import settings
         from src.core.search.engine import Searcher
         from src.core.di_container import ServiceCollection
-        from src.core.indexer import Indexer
+        from src.core.indexing.indexer import Indexer
         from src.core.remote_embedder import RemoteEmbedder
     except ImportError as e:
         print(f"❌ Не могу импортировать модули MSCodeBase: {e}")

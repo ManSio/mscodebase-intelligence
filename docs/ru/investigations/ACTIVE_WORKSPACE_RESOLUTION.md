@@ -135,7 +135,7 @@ WHERE workspace_id = <active_workspace_id>;
 |------|------------|
 | `INSTALL.md` | Полный переписывание под реальность |
 | `README.md` | Добавлена карта документации, исправлены числа |
-| `ARCHITECTURE.md` | 37→33 tools, 307→391 tests |
+| `ARCHITECTURE.md` | 37→48 tools, 307→391 tests |
 | `ZED_WINDOWS_QUIRKS.md` | Множественные исправления, CWD, базы, multi-window |
 | `../../AGENTS.md` | Правило multi-window проверки |
 | `CONTRIBUTING.md` | ARCHITECTURE.md→architecture.md, ~12→10 files |

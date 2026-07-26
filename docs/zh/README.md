@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-565%2B%20passed-brightgreen)](../../tests/)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共42个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共48个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
 
 *最后更新：2026-07-21*
 
@@ -43,7 +43,7 @@
 │  │  · 调用图与影响分析                            │  │
 │  │  · 项目记忆（ADR、技术债务）                   │  │
 │  │  · 自诊断与自愈                                │  │
-│  │  · 为 AI 助手提供 42 个工具                    │  │
+│  │  · 为 AI 助手提供 48 个工具                    │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP：仅用于重命名（混合模式）
 
-MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **pyright-langserver** 以实现精确的跨文件重命名，超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **42 个 MCP 工具** 实现。
+MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **pyright-langserver** 以实现精确的跨文件重命名，超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **48 个 MCP 工具** 实现。
 
 独立的 LSP 服务器（`src/lsp_main.py`）是实验性组件，**在 Zed 中无法工作** — 参见 [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)。
 
@@ -113,12 +113,12 @@ MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/cor
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-🧪 **整洁架构** | DI 容器（18 个服务），42 个工具（18 core + 13 intel + 7 inline + 3 dev + 1 optional），565+ 测试 |
+🧪 **整洁架构** | DI 容器（18 个服务），48 个工具（18 core + 13 intel + 7 inline + 3 dev + 1 optional），565+ 测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
 | ⚙️ **SYSTEM_PROFILE** | `light`（同步）/ `server`（异步，带 phi-4） |
-| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 42 种边类型。 |
+| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 48 种边类型。 |
 
 ---
 
