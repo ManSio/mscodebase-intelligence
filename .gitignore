@@ -162,3 +162,17 @@ docs/generated/MODULE_INDEX.md
 scripts/_diag_*.py
 scripts/_run_*.py
 .codebase/
+
+# Temp benchmark/test files
+bench_out*.txt
+benchmark_batch.py
+db_info.txt
+install_output.txt
+run_embed_test.py
+run_install.py
+scripts/bench_embed.py
+scripts/quick_embed_test.py
+scripts/quick_embed_test_v2.py
+scripts/run_test_check.py
+test_result.txt
+*.log

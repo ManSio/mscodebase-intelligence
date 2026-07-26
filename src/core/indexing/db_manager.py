@@ -43,6 +43,7 @@ class LanceDBManager:
         embedder,
         project_path: Path,
         embedding_dim: int = 768,
+        table_write_lock: Optional[threading.Lock] = None,
     ):
         self.db_path = db_path
         self.embedder = embedder
@@ -54,12 +55,9 @@ class LanceDBManager:
         self._async_table: Optional[Any] = None
         self._async_db_lock = asyncio.Lock()
 
-        # ─── Thread-safety: межпотоковый race guard (AGENTS.md §5.13) ──
-        # search_code выполняется в event-loop потоке, index_project
-        # (reindex) — в executor-потоке (loop.run_in_executor). Они конкурируют
-        # за self.db. threading.Lock сериализует write/reconnect; Event — fast-fail
-        # для read во время reindex (паттерн chunkhound SerialDatabaseExecutor/guard).
-        self._write_lock = threading.Lock()
+        # ─── Thread-safety: используем переданный lock для сериализации write/reconnect
+        # Это гарантирует, что reset_connection и bulk_write не выполняются одновременно
+        self._write_lock = table_write_lock or threading.Lock()
         self._reindex_guard = threading.Event()  # set = reindex идёт, search fast-fail
 
         # ─── Single-writer PID lock (Layer 3 defense) ───
@@ -68,6 +66,8 @@ class LanceDBManager:
         self._pid_lock_path = self.db_path / ".write_lock"
         self._pid_lock_fd = None
         self._acquire_pid_lock()
+
+        self._on_recreate = None
 
         # Кэш состояния (для быстрого доступа без запросов к БД)
         self._cached_total_chunks = 0
@@ -362,6 +362,13 @@ class LanceDBManager:
 
             # 7. Прогрев кэша
             self._warmup_cache()
+
+    def set_on_recreate_callback(self, callback):
+        """Register callback to be called when table is recreated.
+
+        Called after reset_connection() reopens the table.
+        """
+        self._on_recreate = callback
 
         count = self.table.count_rows() if self.table else 0
         logger.info(f"✅ DB Connection reset: таблица {self.table_name} ({count} rows)")

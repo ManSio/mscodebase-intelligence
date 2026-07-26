@@ -355,13 +355,16 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
     ext_root-equality + is_zed_install_dir (Zed install markers
     специфичны, ложных срабатываний на обычных проектах не дают).
 
-    NOTE: эта функция НЕ блокирует `_ext_root` через тот же guard, что
-    и `base.py._is_self_index_path` — там блокировка строже (нужна
-    для теста `test_explicit_ext_root_raises_tool_error`, где
-    explicit_project_root == _ext_root должен бросать ToolError).
-    Здесь же мы используем это только как «если env var буквально
-    указывает на наш ext_root, отдать приоритет bridge / CWD».
+    IMPORTANT: когда source="ACTIVE_WORKSPACE" — это ЯВНО активное
+    окно Zed (multi_workspace_state.active_workspace_id). Пользователь
+    ЯВНО открыл этот проект в Zed, поэтому доверяем ему даже если это
+    _ext_root. Блокируем _ext_root только для автоматических fallback'ов
+    (PROJECT_PATH, CWD, ZED_WORKTREE_ROOT, ZED_DB).
     """
+    # ACTIVE_WORKSPACE — это явный выбор пользователя в Zed, доверяем
+    if source == "ACTIVE_WORKSPACE":
+        return False
+    
     if p == _ext_root:
         return True
     try:
@@ -411,12 +414,13 @@ def _resolve_env_project_root() -> Optional[Path]:
         if not resolved.exists() or not resolved.is_dir():
             return None
         # Self-indexing guard (см. INC-53EC / REFC-02): если PROJECT_PATH
-        # указывает на ext_root или Zed install — это либо ошибка
-        # пользователя, либо попытка индексировать установку.
-        if _reject_self_index_target(resolved, source="PROJECT_PATH"):
+        # Если пользователь ЯВНО задал PROJECT_PATH — доверяем ему,
+        # не блокируем self-indexing guard. Он знает, что делает.
+        # Только автоматический fallback (CWD/ext_root) блокируем.
+        if _reject_self_index_target(resolved, source="PROJECT_PATH") and not os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip() in ("1", "true", "yes"):
             logger.warning(
                 f"PROJECT_PATH указывает на self-indexing target ({resolved}). "
-                f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT."
+                f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT или MSCODEBASE_ALLOW_SELF_INDEX=1."
             )
             return None
         _env_project_root_cache = resolved
@@ -500,6 +504,12 @@ def resolve_project_root(provided: str = "") -> Path:
             return bridge_path
     except Exception as _e:
         logger.warning(f"Bridge read failed: {_e}")
+    # ─── 4. PROJECT_PATH из окружения (перед Zed DB — явный приоритет) ───
+    env_root = _resolve_env_project_root()
+    if env_root is not None:
+        logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")
+        return env_root
+
     # Fallback: Zed SQLite DB (через то же кэшированное соединение)
     try:
         _conn2 = _get_sqlite_connection()
