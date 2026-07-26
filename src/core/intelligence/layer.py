@@ -603,7 +603,12 @@ class ProjectIntelligenceLayer:
                     ):
                         if files_total > 0:
                             ratio = files_done / files_total
-                            job.progress = round(0.1 + ratio * 0.7, 2)
+                            if phase == "embedding":
+                                job.progress = round(0.5 + ratio * 0.3, 2)
+                            elif phase in ("parsing", "scanning"):
+                                job.progress = round(0.1 + ratio * 0.4, 2)
+                            else:
+                                job.progress = round(0.1 + ratio * 0.7, 2)
 
                     future = loop.run_in_executor(
                         None,

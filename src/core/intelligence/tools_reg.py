@@ -143,10 +143,22 @@ def register_intelligence_tools(mcp_app, intel_layer):
 
     @mcp_app.tool("intel_reset_index")
     async def reset_index() -> str:
-        """Полный сброс индекса: удалить LanceDB БД и запустить переиндексацию с нуля. Не требует перезагрузки."""
+        """Полный сброс индекса: удалить LanceDB БД и запустить переиндексацию с нуля. Не требует перезапуска."""
         try:
+            # 1. СНАЧАЛА закрываем handle БД (до удаления файлов)
+            _idx = getattr(intel_layer, "indexer", None)
+            _dbm = getattr(_idx, "db_manager", None) if _idx else None
+            if _dbm:
+                try:
+                    with _dbm._write_lock:
+                        if _dbm.db is not None:
+                            _dbm.db.close()
+                            _dbm.db = None
+                            _dbm.table = None
+                except Exception:
+                    pass
+            # 2. THEN удаляем директорию
             import shutil
-            # Удаляем только .codebase_indices (НЕ project_path!)
             _targets = [
                 intel_layer.project_path / '.codebase_indices',
             ]
@@ -158,14 +170,6 @@ def register_intelligence_tools(mcp_app, intel_layer):
                     shutil.rmtree(str(_t), ignore_errors=True)
         except Exception as e:
             return f"⚠️ Ошибка при удалении БД: {e}"
-        # Сбрасываем соединение с БД (чтобы не держать stale handle)
-        try:
-            _idx = getattr(intel_layer, "indexer", None)
-            _dbm = getattr(_idx, "db_manager", None) if _idx else None
-            if _dbm and hasattr(_dbm, "reset_connection"):
-                _dbm.reset_connection()
-        except Exception:
-            pass
         # Запускаем переиндексацию
         job_id = await intel_layer.trigger_async_reindex()
         await asyncio.sleep(2)

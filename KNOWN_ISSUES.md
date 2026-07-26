@@ -1510,3 +1510,138 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Что было:** `pickle` в ALLOWED_MODULES (AST проходит), но не в _USER_ALLOWED (Layer 2 блокирует `import pickle` в subprocess). `pickle.loads()` может выполнить произвольный код через `__reduce__`.
 - **Статус:** ✅ Mitigated — Layer 2 блокирует. Но pickle лучше удалить из ALLOWED_MODULES явно.
 - **Guard:** Проверено live: `import pickle; pickle.loads(b"x")` → status=error (Layer 2 catches).
+
+## 2026-07-22 21:10 — Audit fixes P2-P3: tool count reconciliation (commit 5a522ead)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** ### What was done
+Second batch of audit fixes from the 20-item comprehensive audit:
+
+| ID | Fix | File | Commit |
+|----|-----|------|--------|
+| P2-14 | LSP _handle_crash: terminate() before null (zom...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 21:45 — P0-2 FIX: wmic → ctypes GetProcessMemoryInfo
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. **`_get_process_ram(pid)`** в `src/core/intelligence/layer.py` — заменён вызов `wmic` (удалён в Win11 25H2 KB5067470) на `ctypes.windll.psapi.GetProcessMemoryInfo` с fallback на `k...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 22:15 — P1-3 FIX: asyncio.Event → threading.Event в ProjectIndexerRegistry
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. `asyncio.Event` в `_ready_events` заменён на `threading.Event` в `project_indexer_registry.py`.
+2. `set_state()` — `ev.set()` теперь безопасен из любого потока (threading.Event.set...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 22:30 — P1-6 FIX: Embedding cache Dict → OrderedDict LRU
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. `self._embedding_cache` и `self._reranker_cache` заменены с `Dict` на `OrderedDict` в `engine.py`.
+2. Cache HIT: добавлен `move_to_end(query_hash)` для LRU-порядка.
+3. Cache overfl...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 22:35 — P1-5: intel_code_topology — УЖЕ ИСПРАВЛЕНО
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:** Верификация показала что все 4 правки P1-5 уже применены (видно в `git diff`):
+1. `"definitions": []` добавлен в result (L185)
+2. Definitions добавляются в `result["definitions"]`, а ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 22:45 — P1-8 FIX: hash() → blake2b детерминированные ключи кэша
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. Добавлена функция `_cache_key(*parts: str) -> str` — `hashlib.blake2b(digest_size=8)` для детерминированных ключей.
+2. `hash(variant)` для `_embedding_cache` заменён на `_cache_key...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 22:55 — P1-7 FIX: sync→async bridge — shared executor
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. Добавлен module-level `_sync_executor = ThreadPoolExecutor(max_workers=2)` в `engine.py`.
+2. Оба sync→async bridge (`hybrid_search` и `_apply_multi_reranker`) теперь используют раз...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 23:10 — P1-4 FIX: except (ImportError, Exception) → разделение + ruff
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Что сделано:**
+1. `except (ImportError, Exception)` в `_get_process_cpu` заменён на два отдельных `except ImportError` и `except Exception` с `# noqa: BLE001`.
+2. Добавлен `per-file-ignore` для `lay...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 23:30 — Audit 27 Issues: 12 confirmed & fixed, 4 refuted, 10 deferred
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** ### Context
+Second audit found 27 issues across 10 files. Full verification against actual code confirmed 12 real bugs, refuted 4 false positives, and deferred 10 low-priority items.
+
+### Verification...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-22 23:30 — PageRank v5: full scientific study, corrected blog post
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Verified from clean state:** yes (git clone + venv + install + pytest passed — all 598 tests pass)
+
+
+**What was done:**
+1. **v2**: Sparse vs dense graph comparison — 197 vs 301 edges, PageRank works...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-23 20:45 — Security fix: Sandbox bypass + Modification Guard enabled
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** ### What was done
+Three critical security fixes from architectural review:
+
+| Issue | Fix | File | Lines |
+|-------|-----|------|-------|
+| **Sandbox bypass** — `obj.__getattribute__(obj, "__subclasse...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-23 21:00 — INC-XXXX: Sandbox denylist bypass via __getattribute__ attribute access
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** ### Symptom
+`validate_code()` в `src/core/sandbox/executor.py` пропускает код, получающий доступ к `__subclasses__`/`__globals__`/`__bases__` через `obj.__getattribute__("__subclasses__")` вместо прям...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-23 21:10 — modification_guard: connected to WriteTool + fail-closed + ack bypass
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** ### What was done
+Three fixes from the same review:
+
+1. **Guard connected to WriteTool.execute()** (`src/mcp/tools/write_tools.py:70`)
+   Previously: `ack_impact` used, but `@modification_guard` decor...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-25 00:10 — 6 bugs fixed: ONNX stderr, CodebaseTool self, Ledger NoneType+hang, ONNX model mismatch, subprocess deadlock
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** (a) print(file=sys.stderr) crashes in Zed env. (b) inspect.signature+locals() antipattern. (c) Ledger discrepancies is int not list. (d) ONNX model_name="bge-m3" mi...
+- **Статус:** автоматически синхронизировано
+
