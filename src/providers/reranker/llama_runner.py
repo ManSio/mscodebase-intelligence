@@ -842,9 +842,11 @@ class LlamaRunner:
 
                     "-c", str(LLAMA_CTX_SIZE),
 
-                    "--batch-size", "512",
+                    "--batch-size", "128",
 
-                    "--ubatch-size", "512",
+                    "--ubatch-size", "128",
+
+                    "--threads", os.getenv("LLAMA_THREADS", "10"),
 
                     "--cache-type-k", str(LLAMA_CACHE_TYPE),
 
@@ -954,8 +956,9 @@ class LlamaRunner:
                     "--port", str(self._port),
                     "-m", str(gguf_path),
                     "-c", str(LLAMA_CTX_SIZE),
-                    "--batch-size", "512",
-                    "--ubatch-size", "512",
+                    "--batch-size", "128",
+                    "--ubatch-size", "128",
+                    "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE),
                     "--cache-type-v", str(LLAMA_CACHE_TYPE),
                     "--no-webui",
@@ -1034,8 +1037,9 @@ class LlamaRunner:
                     "--port", str(self.RERANK_PORT),
                     "-m", str(gguf_path),
                     "-c", str(LLAMA_CTX_SIZE),     # 🔒 1024 = 573 MB для BGE-M3
-                    "--batch-size", "512",
-                    "--ubatch-size", "512",
+                    "--batch-size", "128",
+                    "--ubatch-size", "128",
+                    "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
                     "--cache-type-v", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
                     "--no-webui",
