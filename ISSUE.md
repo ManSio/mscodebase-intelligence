@@ -30,13 +30,13 @@
 
 ### P0-3: CI clean-state скрипл использует Windows-пути на Linux
 - **Файлы:** `.github/workflows/ci.yml:59`, `scripts/verify_clean_state.sh:53,55,58,62`
-- **Статус:** ✅ FIXED (verify_clean_state.sh)
+- **Статус:** ✅ FIXED (verify_clean_state.sh --no-clone)
 - **Детали:**
   - `verify_clean_state.sh` использовал `venv/Scripts/pip.exe` и `venv/Scripts/python.exe` — Windows-формат
   - CI job `clean-state` запускается на `ubuntu-latest` → `venv/Scripts/pip.exe` не существует → exit 127
   - Также `bash scripts/verify_clean_state.sh` в CI вызывает скрипт, который внутри делает `git clone` внешнего репозитория — ненадёжно в CI
 - **Фикс:** ✅ Заменены `venv/Scripts/pip.exe` → `venv/bin/pip`, `venv/Scripts/python.exe` → `venv/bin/python`
-- **Примечание:** `ci.yml` L59 вызывает `bash scripts/verify_clean_state.sh` — скрипт теперь использует POSIX-пути, но сам скрипт по-прежнему делает `git clone` внешнего репозитория. Это отдельная проблема (CI не должна клонировать сам себя). Оставлено на потом.
+- **Примечание:** ✅ закрыто — `verify_clean_state.sh` параметризован (`$1` = repo URL, default сохранён; флаг `--no-clone` пропускает clone и тестирует текущий каталог), CI вызывает `bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"` — тестируется тот SHA, который checkout-нул раннер. Self-clone убран, локальный ручной запуск без аргументов сохраняет прежний полный клон.
 
 ### P0-4: codebase_tool.py docstring противоречит коду (sandbox)
 - **Файл:** `src/mcp/tools/codebase_tool.py:148-164`

@@ -1,5 +1,16 @@
 ---
 
+## [2026-07-31] — P0-3 закрыт: CI больше не клонирует сам себя (--no-clone)
+
+**Status:** ✅ Fixed
+**Root Cause:** `scripts/verify_clean_state.sh` делал `git clone` hardcoded URL даже в CI, где раннер уже checkout-нул тот же SHA — тестировался внешний HEAD, а не проверяемый коммит (ISSUE.md P0-3, примечание «Оставлено на потом»).
+**Fix:** параметризация: `$1` = repo URL (default сохранён), флаг `--no-clone` пропускает clone и работает в текущем каталоге (`$GITHUB_WORKSPACE`); `ci.yml` → `bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"`, шаг переименован.
+**Guard:** локальный ручной запуск без аргументов = полный клон (прежнее поведение); ISSUE.md P0-3 → ✅; зеркальная запись: KNOWN_ISSUES.md:6-11.
+**Verification:** `bash -n` + yaml.safe_load ci.yml + локальный прогон `--no-clone` (не-Linux ветка, Windows).
+**verified_from_clean_state:** ⚠️ не проверено — Linux-lock-путь требует ubuntu-раннера (GH Actions).
+
+---
+
 ## [2026-07-31] — Остаток ISSUE.md закрыт: graph/db_manager/cypher/indexer/error_handler/layer + P0 git_hooks_installer
 
 **Status:** ✅ Fixed (ISSUE.md P1-1..P1-14, P2-14..P2-17, P3-1..P3-14 — все закрыты)
