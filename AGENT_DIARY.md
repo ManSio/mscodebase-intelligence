@@ -1,6 +1,14 @@
 ---
 
-## [2026-07-31] — Claude review верификация (7✅/1❌) + фиксы write_tools/zed_config/di/llama_runner
+## [2026-07-31] — Claude review вторая волна: A/B/C верифицированы (A закрыт, B/C REFUTED)
+
+**Status:** ✅ Closed (1 tech-debt accepted, 2 refuted)
+**Root Cause:** A — engine.py:304-316 `asyncio.run` в `_sync_executor.submit` (max_workers=2): starvation с `future.result(timeout=30)`, НЕ circular deadlock (воркеры не ждут друг друга); B — di_container.py:286-290 default-args capture уже применён, ветка `_factories` латентная; C — server.py:393-405 `_resolve_env_project_root` обрабатывает literal `$ZED_WORKTREE_ROOT`, резолв идёт через SQLite bridge (паспорт: PROJECT_PATH=literal).
+**Fix:** A — P2-6 закрыт как TECH DEBT (ACCEPTED): протокол запрещает 3+ параллельных MCP → max_workers=2 недостижим легитимно; persistent loop отложен. B/C — фикс не требуется.
+**Guard:** ISSUE.md P2-6 → TECH DEBT (ACCEPTED) + секция «вторая волна» (A/B/C, File:Line); KNOWN_ISSUES.md зеркально; доки Zed: $VAR-интерполяция в env MCP не документирована.
+**Verification:** pytest 610+ (см. ИТОГ); ruff clean; bump_version --check.
+
+---
 
 **Status:** ✅ Fixed
 **Root Cause:** ревью Claude — 8 находок; проверка по §1.14: 7 подтверждены по коду, 1 опровергнута (server.py `_env_project_root_cache` — env фиксирован при спавне процесса, reset есть в server_factory).
