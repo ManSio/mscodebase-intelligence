@@ -47,6 +47,16 @@
   - Администратор, читающий docstring, мог решить инструмент нельзя включать
 - **Фикс:** ✅ Docstring синхронизирован: указано что sandbox активен (`execute_sandboxed` + `SANDBOX_MODE_STRICT`), перечислены механизмы изоляции
 
+### P0-5: sandbox — несоответствие слоёв allowlist + утечка секретов в env (Qwen review F-1/F-4)
+- **Файлы:** `src/core/sandbox/executor.py:45-52,350`
+- **Статус:** ✅ FIXED (2026-07-31)
+- **Детали:**
+  - F-1: `ALLOWED_MODULES` содержал import-механику (`importlib*`, `pkgutil`, `runpy`, `modulefinder`, `zipimport`) — AST-валидация пропускала `import importlib`, runtime `_safe_import` блокировал (несоответствие слоёв). `importlib.import_module("os")` — RCE-вектор при расхождении runtime-слоя.
+  - F-4: `env = os.environ.copy()` — ВСЕ секреты родителя (API-ключи, токены) доступны sandbox-скрипту.
+  - F-2 (сопутствующий): `__build_class__` отсутствовал в `BLOCKED_NAMES`; F-3: `"sys"` в runtime-allowlist при AST-блокировке `import sys`.
+- **Фикс:** import-механика удалена из `ALLOWED_MODULES`; `__build_class__` добавлен в `BLOCKED_NAMES`; `"sys"` убран из `_USER_ALLOWED`; `_build_minimal_env()` (PATH="", SYSTEMROOT, SYSTEMDRIVE, TEMP/TMP, PYTHONPATH) вместо `os.environ.copy()`. +6 тестов в `tests/test_sandbox.py` (40 passed).
+- **Верификация:** Qwen review (2026-07-31): F-1/F-2/F-3/F-4 ✅ CONFIRMED, F-5 ❌ REFUTED (mkstemp уже 0600).
+
 ---
 
 ## P1 — Высокий приоритет (race conditions / data loss / crash)
@@ -142,6 +152,13 @@
 - **Детали:** `settings_path.write_text(new_content)` на Windows неатомарно (truncate + write). Zed читает settings.json при каждом focus — окно нулевого файла → пользователь получает пустой конфиг.
 - **Фикс:** общий хелпер `_atomic_write_text` (mkstemp в той же директории + fsync + os.replace), применён в `patch_zed_settings` и `remove_zed_settings`.
 - **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду.
+
+### P1-17: `CodeParser` — tree-sitter Parser не потокобезопасен при параллельном парсинге (Qwen review B-1)
+- **Файл:** `src/core/indexing/parser.py:69,331,671` (+ `index_project_runner.py:200-206`)
+- **Статус:** ✅ FIXED (2026-07-31 — thread-local parsers + кэш)
+- **Детали:** CodeParser — DI-singleton, а `IndexProjectRunner` парсит в `ThreadPoolExecutor(max_workers=4)`: все воркеры вызывают `self.parsers[ext].parse()` на ОДНОМ tree-sitter Parser (не reentrant, переиспользует cursor) + общий `_cache_*` (гоночный повтор дерева другого файла). Ошибка B-1 Qwen оказалась серьёзнее заявленного Medium — реальный race при каждой переиндексации.
+- **Фикс:** `_get_parser(ext)` — thread-local копии Parser'ов (Language иммутабелен, безопасно шарить); кэш дерева перенесён в `threading.local`. Обе точки `parse()` (L343, L693) переведены на `_get_parser`.
+- **Верификация:** Qwen review (2026-07-31): ✅ CONFIRMED (severity поднят Medium→High — race в пуле парсинга); `tests/test_assignments.py` + `test_symbol_index_call_graph.py` (105 passed).
 
 ---
 
@@ -260,6 +277,48 @@
 - **Детали:** `stderr=(_fh := open(self._log_path(), 'ab'))` — walrus внутри вызова `_popen_with_job`; при исключении `except` логировал, но НЕ закрывал fd. Паттерн в 3 местах (`start`, `_spawn_embedder`, `_spawn_reranker`).
 - **Фикс:** локальная `log_fh` (init `None` перед try — защита от NameError при отказе `open()`), walrus → `stderr=(log_fh := ...)`, присваивание `self._*_log_fh = log_fh` после успеха, закрытие в except. `stop()`/`stop_reranker()` уже закрывали fh на успешном пути.
 - **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду.
+
+### P2-21: `graph._CrossProcessMutex` — `hash()` рандомизирован per-process (Qwen review D-1)
+- **Файл:** `src/core/graph.py:55-60`
+- **Статус:** ✅ FIXED (2026-07-31 — blake2b)
+- **Детали:** `hash(str(path))` (PYTHONHASHSEED) → два MCP-процесса получали РАЗНЫЕ имена мутексов для одной БД → cross-process lock не работал на Windows multi-window.
+- **Фикс:** `hashlib.blake2b(str(path).encode(), digest_size=4).hexdigest()` (паттерн P1-8/engine cache).
+
+### P2-22: `graph.delete_node/delete_edge/import_compressed` — `conn.total_changes` cumulative (Qwen review C-5)
+- **Файл:** `src/core/graph.py:520,831,1475`
+- **Статус:** ✅ FIXED (2026-07-31 — `cursor.rowcount`)
+- **Детали:** `total_changes` — суммарно с момента открытия соединения: `delete_node` несуществующего узла возвращал True; `node_count` в логе импорта был завышен.
+- **Фикс:** `cur = conn.execute(...)` → `return cur.rowcount > 0`; `node_count = node_cur.rowcount`.
+
+### P2-23: `scoring.RRF` — нестабильная сортировка при равных скорах (Qwen review C-1)
+- **Файл:** `src/core/search/scoring.py:74,127`
+- **Статус:** ✅ FIXED (2026-07-31 — детерминированный tie-break)
+- **Детали:** `sorted(key=lambda k: scores[k], reverse=True)` — tie-break зависел от порядка вставки в dict.
+- **Фикс:** `key=lambda k: (-scores[k], k)` — вторичный ключ `file:chunk_index`.
+
+### P2-24: MMR до bucket/co-change — финальный sort отменял диверсификацию (Qwen review C-2)
+- **Файлы:** `src/core/search/engine.py:480-521`, `src/core/search/scoring.py:314-413`
+- **Статус:** ✅ FIXED (2026-07-31 — MMR после sort+cut, reorder-only)
+- **Детали:** MMR переупорядочивал + бустил скоры, но последующий `sort(final_score)` (после bucket weights и co-change boost) отменял MMR-порядок; искусственный boost ×1.08 искажал выдачу.
+- **Фикс:** MMR перенесён ПОСЛЕ sort+cut и перед reranker'ом (при отсутствии reranker'а MMR-порядок доживает до выдачи); убран блок мутации final_score (reorder-only).
+
+### P2-25: `graph.get_neighbors` — BFS без лимита узлов (Qwen review C-4)
+- **Файл:** `src/core/graph.py:842-887`
+- **Статус:** ✅ FIXED (2026-07-31 — `max_nodes=1000`)
+- **Детали:** на hub-файлах (1000+ рёбер) обход O(V+E) без ограничения.
+- **Фикс:** параметр `max_nodes: int = 1000`, обход прерывается при достижении (и на входе уровня, и в цикле рёбер).
+
+### P2-26: `graph._get_conn` — mmap_size 256MB (Qwen review D-6)
+- **Файл:** `src/core/graph.py:376`
+- **Статус:** ✅ FIXED (2026-07-31 — 64MB)
+- **Детали:** 256MB × 5 проектов (multi-window) = 1.25GB виртуальной памяти; на 32-bit Python — риск.
+- **Фикс:** `PRAGMA mmap_size=67108864` (64MB, вровень с page cache).
+
+### P2-27: `di_container` monkey-patching `embedder._breaker` (Qwen review B-6)
+- **Файлы:** `src/core/di_container.py:369-374`, `src/providers/embedder/remote_embedder.py:365`
+- **Статус:** ✅ FIXED (2026-07-31 — публичный `set_circuit_breaker`)
+- **Детали:** `if hasattr(embedder, "_breaker"): embedder._breaker = ...` — запись в приватный атрибут извне.
+- **Фикс:** метод `RemoteEmbedder.set_circuit_breaker(breaker)` + вызов через `getattr(embedder, "set_circuit_breaker", None)` с fallback.
 
 ---
 
@@ -389,3 +448,28 @@
 - ✅ A: engine.py `asyncio.run` в `_sync_executor` → P2-6, **закрыт как TECH DEBT (ACCEPTED)** с обоснованием (см. P2-6 статус)
 - ❌ B: di_container.py closure late-binding `_create_indexer_for_path` — REFUTED: default-args capture уже применён (L286-290), фабрика регистрируется через `add_singleton`, ветка `_factories` латентная (L140-142 комментарий); риск late binding = 0
 - ❌ C: zed_config.py `$ZED_WORKTREE_ROOT` в env — REFUTED: `server.py:_resolve_env_project_root` (L393-405) явно обрабатывает literal `raw.startswith("$")`; доки Zed не описывают `$VAR`-интерполяцию в env MCP; live-паспорт: PROJECT_PATH=literal, резолв работает через SQLite bridge (приоритет 0)
+
+## Qwen review верификация (2026-07-31)
+
+| ID | Вердикт | Куда записан | Доказательство |
+|----|---------|--------------|----------------|
+| F-1 | ✅ CONFIRMED | P0-5 | `executor.py:45-47` importlib* в ALLOWED_MODULES; runtime `_safe_import` блокирует (несоответствие слоёв) |
+| F-2 | ✅ CONFIRMED | P0-5 | `executor.py:86` — `__build_class__` отсутствовал |
+| F-3 | ✅ CONFIRMED | P0-5 | `executor.py:134` — `"sys"` в `_USER_ALLOWED` при AST-блокировке `import sys` |
+| F-4 | ✅ CONFIRMED | P0-5 | `executor.py:350` — `os.environ.copy()` → секреты в sandbox |
+| F-5 | ❌ REFUTED | — | `tempfile.mkstemp` уже создаёт файл с mode 0600 |
+| D-1 | ✅ CONFIRMED | P2-21 | `graph.py:55` — `hash()` (PYTHONHASHSEED) |
+| C-5 | ✅ CONFIRMED | P2-22 | `graph.py:520,831,1475` — `total_changes` cumulative |
+| E-1 | ❌ REFUTED | — | MCP жив (RUN_ID 4ad0072c3a68, PID 2064) из ext dir с относительным `command` — Zed резолвит относительно корня расширения |
+| Shutdown-race | ⏳ ACCEPTED | — | `server_factory.py:584-598` — guards уже есть (running loop → create_task, иначе asyncio.run); процесс завершается, worst case — закрытие клиентов best-effort |
+| C-2 | ✅ CONFIRMED | P2-24 | `engine.py:482-521` — sort после MMR отменял переупорядочивание |
+| C-1 | ✅ CONFIRMED | P2-23 | `scoring.py:74,127` — tie-break по вставке |
+| C-4 | ✅ CONFIRMED | P2-25 | `graph.py:864-885` — BFS без max_nodes |
+| D-6 | ✅ CONFIRMED | P2-26 | `graph.py:376` — mmap 256MB |
+| B-6 | ✅ CONFIRMED | P2-27 | `di_container.py:369-370` — hasattr + приватный атрибут |
+| E-7 | ❌ REFUTED | — | `server_factory.py:56-61` — `GetLastError() != 87` уже считает ACCESS_DENIED (5≠87) живым |
+| D-3 | ⏳ ACCEPTED (tech debt) | — | `_start_llama_sync` new_event_loop+set_event_loop выполняется до `asyncio.run()` и им же заменяется; утечка loop'а на старте — один раз, безвредно |
+| B-1 | ✅ CONFIRMED (severity ↑ High) | P1-17 | `parser.py:69,331,671` — общий Parser + общий `_cache_*` при пуле из 4 потоков |
+| DI resolve race | ❌ REFUTED | = P2-18 | `di_container.py:136` — `threading.Lock` уже добавлен (Claude review P1, закрыт P2-18) |
+
+**Итого:** 12 ✅ CONFIRMED (все закрыты фиксами), 4 ❌ REFUTED, 2 ⏳ ACCEPTED. Полный pytest 616 passed, 0 failed; ruff clean; bump_version 3.3.9.

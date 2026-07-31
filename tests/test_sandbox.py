@@ -128,6 +128,29 @@ class TestValidateCode:
         with pytest.raises(SandboxViolation, match="not in allowlist"):
             validate_code("from pathlib import Path")
 
+    # ── R3: import machinery removed from allowlist (F-1/Qwen) ──
+
+    def test_importlib_blocked(self):
+        """importlib was in ALLOWED_MODULES but blocked at runtime — AST
+        allowlist must match runtime _USER_ALLOWED (importlib.import_module
+        was an RCE vector)."""
+        with pytest.raises(SandboxViolation, match="not in allowlist"):
+            validate_code("import importlib")
+
+    def test_pkgutil_blocked(self):
+        with pytest.raises(SandboxViolation, match="not in allowlist"):
+            validate_code("import pkgutil")
+
+    def test_runpy_blocked(self):
+        with pytest.raises(SandboxViolation, match="not in allowlist"):
+            validate_code("import runpy")
+
+    # ── R4: __build_class__ blocked (F-2/Qwen) ──
+
+    def test_blocked_name_build_class(self):
+        with pytest.raises(SandboxViolation, match="Blocked name"):
+            validate_code("x = __build_class__(lambda: None, 'X', ())")
+
     # ── Bypass attempts ──
 
     def test_concatenated_import_bypass(self):
@@ -192,6 +215,32 @@ class TestExecuteSandboxed:
         )
         assert result["status"] == "violation"
         assert "not in allowlist" in result["stderr"]
+
+    def test_importlib_runtime_violation(self):
+        """importlib.import_module('os') must fail validation (F-1)."""
+        result = execute_sandboxed(
+            code="import importlib; importlib.import_module('os')",
+            timeout=10,
+            mode=SANDBOX_MODE_STRICT,
+        )
+        assert result["status"] == "violation"
+
+    def test_env_has_no_secrets(self):
+        """Minimal env: parent secrets never reach sandboxed subprocess (F-4)."""
+        with patch("subprocess.Popen") as mock_popen, \
+                patch.dict(
+                    "os.environ",
+                    {"SECRET_API_KEY": "hunter2", "SYSTEMROOT": "C:\\Windows"},
+                    clear=True,
+                ):
+            mock_proc = mock_popen.return_value
+            mock_proc.communicate.return_value = (b"ok", b"")
+            mock_proc.returncode = 0
+            execute_sandboxed("print('x')", timeout=5, mode=SANDBOX_MODE_PERMISSIVE)
+            env = mock_popen.call_args.kwargs["env"]
+        assert "SECRET_API_KEY" not in env
+        assert env["PATH"] == ""
+        assert env["SYSTEMROOT"] == "C:\\Windows"
 
     def test_timeout(self):
         result = execute_sandboxed(

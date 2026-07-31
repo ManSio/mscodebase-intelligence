@@ -362,6 +362,13 @@ class RemoteEmbedder(IEmbedder):
         if self._onnx_client is not None:
             logger.info("✅ ONNX модель предзагружена и готова к работе")
 
+    def set_circuit_breaker(self, breaker: Any) -> None:
+        """Публичный сеттер CircuitBreaker (B-6/Qwen).
+
+        Заменяет monkey-patching приватного атрибута `_breaker` из DI-контейнера.
+        """
+        self._breaker = breaker
+
     def _check_lm_studio(self) -> bool:
         """Быстрая проверка доступности порта LM Studio (переиспользует клиент).
 

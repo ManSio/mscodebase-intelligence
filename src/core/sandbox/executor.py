@@ -42,9 +42,11 @@ ALLOWED_MODULES: frozenset[str] = frozenset({
     "pprint", "reprlib", "weakref", "types", "inspect", "ast",
     "tokenize", "keyword", "token", "symbol", "parser",
     "symtable", "py_compile", "compileall", "dis", "opcode",
-    "importlib", "importlib.util", "importlib.machinery",
-    "importlib.metadata", "importlib.resources", "pkgutil",
-    "runpy", "modulefinder", "zipimport", "pkg_resources",
+    # Import-loading machinery removed: AST allowlist must match the runtime
+    # _USER_ALLOWED (which never allowed importlib/pkgutil/runpy/...).
+    # Leaving them here made validate_code pass while the subprocess raised
+    # ImportError — confusing, and importlib.import_module() was an RCE vector.
+    "pkg_resources",
     "setuptools", "distutils", "distutils.version", "distutils.util",
     "argparse", "getopt", "optparse", "cmd", "shlex", "readline",
     "rlcompleter", "code", "codeop", "traceback", "linecache",
@@ -81,7 +83,7 @@ BLOCKED_NAMES: frozenset[str] = frozenset({
     # Additional bypass vectors
     "__getattribute__", "__getattr__", "__setattr__", "__delattr__",
     "__reduce__", "__reduce_ex__",
-    "__init_subclass__", "__class__",
+    "__init_subclass__", "__class__", "__build_class__",
     "__subclasses__", "__bases__", "__mro__", "__globals__",
     "__builtins__", "__code__", "__func__",
     "__closure__", "__defaults__", "__kwdefaults__",
@@ -129,7 +131,7 @@ RUNTIME_ISOLATION_PREAMBLE = (
     '    "typing", "dataclasses", "enum", "uuid", "base64", "binascii",\n'
     '    "html", "csv", "pprint", "reprlib", "weakref", "types",\n'
     '    "ast", "tokenize", "keyword", "abc", "contextlib", "heapq",\n'
-    '    "bisect", "array", "sys",\n'
+    '    "bisect", "array",\n'
     '})\n'
     '\n'
     '_orig_import = _builtins.__import__\n'
@@ -301,6 +303,26 @@ SANDBOX_MODE_PERMISSIVE = "permissive"
 SANDBOX_MODE_OFF = "off"
 
 
+def _build_minimal_env(project_root: str) -> dict:
+    """Build a minimal environment for the sandboxed subprocess.
+
+    Deliberately does NOT copy os.environ — parent secrets (API keys,
+    tokens, credentials) must never reach sandboxed scripts. PATH=""
+    prevents the child from discovering system utilities (cmd.exe,
+    powershell.exe, curl.exe, ...). Defense-in-depth on top of the
+    module allowlist.
+    """
+    tmp = tempfile.gettempdir()
+    return {
+        "PATH": "",
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        "SYSTEMDRIVE": os.environ.get("SYSTEMDRIVE", ""),
+        "TEMP": os.environ.get("TEMP", tmp),
+        "TMP": os.environ.get("TMP", tmp),
+        "PYTHONPATH": project_root,
+    }
+
+
 def execute_sandboxed(
     code: str,
     timeout: int = 30,
@@ -347,8 +369,7 @@ def execute_sandboxed(
     t0 = time.perf_counter()
 
     # Prepare subprocess
-    env = os.environ.copy()
-    env["PYTHONPATH"] = project_root
+    env = _build_minimal_env(project_root)
     if cwd is None:
         cwd = tempfile.gettempdir()
 

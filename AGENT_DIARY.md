@@ -1,5 +1,16 @@
 ---
 
+## [2026-07-31] — Qwen review верификация: 12✅/4❌/2⏳ + P0-5 sandbox, P1-17 CodeParser race
+
+**Status:** ✅ Fixed (P0-5, P1-17, P2-21..P2-27 закрыты; 4 REFUTED, 2 ACCEPTED)
+**Root Cause:** sandbox — ALLOWED_MODULES шире runtime _USER_ALLOWED (importlib* — RCE-вектор при расхождении слоёв) + `os.environ.copy()` отдавал секреты родителя в subprocess; CodeParser — tree-sitter Parser НЕ потокобезопасен, а IndexProjectRunner парсит в пуле 4 потоков → race на каждом индексе; graph — `hash()` рандомизирован (мутекс не защищал cross-process), `total_changes` cumulative (delete несуществующего возвращал True); MMR до sort отменялся финальной сортировкой.
+**Fix:** executor.py — importlib*/pkgutil/runpy/modulefinder/zipimport убраны из ALLOWED_MODULES, `__build_class__` в BLOCKED_NAMES, "sys" из _USER_ALLOWED, `_build_minimal_env()` вместо os.environ.copy() (+6 тестов, 40/40); parser.py — thread-local Parser'ы + thread-local кэш дерева (P1-17); graph.py — blake2b мутекс (P2-21), cursor.rowcount (P2-22), max_nodes=1000 (P2-25), mmap 64MB (P2-26); scoring/engine — детерминированный RRF tie-break (P2-23), MMR после sort+cut reorder-only (P2-24); remote_embedder — публичный set_circuit_breaker (P2-27).
+**Guard:** ISSUE.md: P0-5, P1-17, P2-21..P2-27 + секция «Qwen review верификация» (16 пунктов, File:Line); REFUTED: F-5 (mkstemp 0600), E-1 (command резолвится от корня расширения — MCP жив), E-7 (ACCESS_DENIED уже жив), DI race (=P2-18, lock есть).
+**Verification:** 616 passed, 0 failed (было 610 +6 новых); ruff clean; bump_version --check ✅ (3.3.9); py_compile 8 файлов.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует network/ubuntu-раннер; эквивалент: полный pytest с чистого дерева.
+
+---
+
 ## [2026-07-31] — Claude review вторая волна: A/B/C верифицированы (A закрыт, B/C REFUTED)
 
 **Status:** ✅ Closed (1 tech-debt accepted, 2 refuted)

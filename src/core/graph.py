@@ -25,6 +25,7 @@ property graph с типизированными узлами и рёбрами.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -51,8 +52,12 @@ class _CrossProcessMutex:
 
     def __init__(self, db_path: Path):
         self._db_path = Path(db_path).resolve()
-        # Имя мутекса на основе пути к БД
-        self._mutex_name = f"Global\\MSCodeBase_GraphDB_{self._db_path.stem}_{hash(str(self._db_path)) & 0xFFFFFFFF:08x}"
+        # Имя мутекса на основе пути к БД.
+        # blake2b вместо hash() — hash() рандомизирован per-process
+        # (PYTHONHASHSEED): два MCP-процесса получили бы РАЗНЫЕ имена
+        # мутексов для одной БД → cross-process lock не работал бы.
+        digest = hashlib.blake2b(str(self._db_path).encode(), digest_size=4).hexdigest()
+        self._mutex_name = f"Global\\MSCodeBase_GraphDB_{self._db_path.stem}_{digest}"
         self._mutex_handle = None
         self._locked = False
 
@@ -368,7 +373,7 @@ class PropertyGraph:
             # Ждём до 30 сек если БД заблокирована другим процессом
             self._conn.execute("PRAGMA busy_timeout=30000")
             self._conn.execute("PRAGMA cache_size=-64000")       # 64 MB page cache
-            self._conn.execute("PRAGMA mmap_size=268435456")     # 256 MB mmap
+            self._conn.execute("PRAGMA mmap_size=67108864")      # 64 MB mmap (D-6/Qwen: было 256MB — 1.25GB виртуальной памяти на 5 проектов)
             self._init_schema()
         return self._conn
 
@@ -510,14 +515,16 @@ class PropertyGraph:
                 conn = self._get_conn()
                 conn.execute("BEGIN IMMEDIATE")
                 try:
-                    conn.execute(
+                    cur = conn.execute(
                         "DELETE FROM nodes WHERE qualified_name = ?", (qualified_name,)
                     )
                     conn.commit()
                 except Exception:
                     conn.rollback()
                     raise
-                return conn.total_changes > 0
+                # cursor.rowcount, а не conn.total_changes — total_changes
+                # cumulative с момента открытия соединения (C-5/Qwen)
+                return cur.rowcount > 0
 
     def find_nodes(
         self,
@@ -817,7 +824,7 @@ class PropertyGraph:
                 conn = self._get_conn()
                 conn.execute("BEGIN IMMEDIATE")
                 try:
-                    conn.execute(
+                    cur = conn.execute(
                         """DELETE FROM edges WHERE source_id IN
                                (SELECT id FROM nodes WHERE qualified_name = ?)
                            AND target_id IN (SELECT id FROM nodes WHERE qualified_name = ?)
@@ -828,7 +835,7 @@ class PropertyGraph:
                 except Exception:
                     conn.rollback()
                     raise
-                return conn.total_changes > 0
+                return cur.rowcount > 0
 
     # ── Траверсал ──────────────────────────────────────────
 
@@ -838,6 +845,7 @@ class PropertyGraph:
         edge_type: Optional[str] = None,
         direction: str = "outgoing",
         max_depth: int = 1,
+        max_nodes: int = 1000,
     ) -> List[Tuple[Node, Edge, int]]:
         """Обход графа от узла.
 
@@ -846,6 +854,8 @@ class PropertyGraph:
             edge_type: Фильтр по типу ребра (None = все типы)
             direction: 'outgoing' (из узла), 'incoming' (в узел), 'both'
             max_depth: Глубина обхода (1 = прямые соседи)
+            max_nodes: Лимит посещённых узлов — защита от hub-файлов
+                       с тысячами рёбер (C-4/Qwen); при достижении обход прерывается
 
         Returns:
             Список (соседний_узел, ребро, глубина)
@@ -859,14 +869,14 @@ class PropertyGraph:
         current_level: Set[int] = {node.id}
 
         for depth in range(max_depth):
-            if not current_level:
+            if not current_level or len(visited) >= max_nodes:
                 break
 
             next_level: Set[int] = set()
             for nid in current_level:
                 edges_data = self._get_edges_for_node(nid, edge_type, direction)
                 for edge_row, neighbor_id in edges_data:
-                    if neighbor_id in visited:
+                    if neighbor_id in visited or len(visited) >= max_nodes:
                         continue
                     visited.add(neighbor_id)
                     neighbor = self.get_node_by_id(neighbor_id)
@@ -1467,12 +1477,12 @@ class PropertyGraph:
                 conn.execute("BEGIN TRANSACTION")
                 try:
                     # Копируем узлы (IGNORE — не перезаписываем существующие)
-                    conn.execute("""
+                    node_cur = conn.execute("""
                         INSERT OR IGNORE INTO nodes (name, label, qualified_name, file_path, properties)
                         SELECT name, label, qualified_name, file_path, properties
                         FROM tmp.nodes
                     """)
-                    node_count = conn.total_changes
+                    node_count = node_cur.rowcount
 
                     # Копируем рёбра (IGNORE)
                     conn.execute("""
