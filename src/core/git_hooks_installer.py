@@ -20,8 +20,10 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Шаблон pre-commit хука — вызывает 3 скрипта через Python
+# Внимание: строка проходит через .format(installer_version=..., install_date=...),
+# поэтому внутренние фигурные скобки f-строк экранируются как {{ }}.
 PRE_COMMIT_HOOK = """#!/usr/bin/env python3
-"""
+\"\"\"
 MSCodeBase pre-commit hook — автоматическая проверка перед коммитом.
 
 Установлен: {installer_version}
@@ -31,18 +33,20 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 1. verify_diary — проверка AGENT_DIARY.md
 2. stale_detector — поиск устаревшей документации
 3. generate_docs — генерация документации
-"""
+\"\"\"
 
 import subprocess
 import sys
 from pathlib import Path
+
+
 def run_script(script_path: str, label: str) -> bool:
-    """Запускает скрипт и возвращает True если успешно."""
+    \"\"\"Запускает скрипт и возвращает True если успешно.\"\"\"
     project_root = Path(__file__).resolve().parent.parent.parent
     script = project_root / script_path
 
     if not script.exists():
-        print(f"  ⏭️  {label}: скрипт не найден ({script})")
+        print(f"  ⏭️  {{label}}: скрипт не найден ({{script}})")
         return True
 
     result = subprocess.run(
@@ -53,11 +57,13 @@ def run_script(script_path: str, label: str) -> bool:
         timeout=120,
     )
     if result.returncode != 0:
-        print(f"  ❌ {label}: FAILED")
+        print(f"  ❌ {{label}}: FAILED")
         print(result.stderr[:500])
         return False
-    print(f"  ✅ {label}: OK")
+    print(f"  ✅ {{label}}: OK")
     return True
+
+
 def main():
     print("🔍 MSCodeBase pre-commit checks:")
     all_ok = True
@@ -67,12 +73,15 @@ def main():
     all_ok &= run_script("scripts/generate_docs.py", "generate_docs")
 
     if not all_ok:
-        print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
+        print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
         sys.exit(1)
-    print("\n✅ All pre-commit checks passed.")
+    print("\\n✅ All pre-commit checks passed.")
     sys.exit(0)
+
+
 if __name__ == "__main__":
     main()
+"""
 class GitHooksInstaller:
     """Установка и удаление pre-commit хуков MSCodeBase.
 

@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — Остаток ISSUE.md (P1/P2/P3) закрыт; P0: git_hooks_installer.py SyntaxError (FIXED)
+
+**Symptom:** ISSUE.md фиксировал 26 открытых пунктов: P1-1/P1-2 (graph.py BFS memory + N+1), P1-3/4/5/13/14 (db_manager/indexer race + RLock + PID-lock), P1-6 (CypherExecutor без lock), P1-11 (future.cancel), P2-14/15/16/17, P3-1..6, P3-12; плюс найденный при верификации **P0**: `src/core/git_hooks_installer.py` — незакрытый тройной-квоте `PRE_COMMIT_HOOK` (SyntaxError: invalid character '—' с коммита 8f799dec) → `install_git_hooks` MCP-инструмент падал ImportError в рантайме; ruff не замечал файл (E999), pytest не импортировал (lazy-import).
+**Root Cause:** незавершённый «фикс» 8f799dec закрыл строку после shebang, оставив тело хука голым кодом на уровне модуля; PID-lock после 30с ожидания молча возвращался без захвата (писатель без блокировки); raise в remote_embedder использовал `_e` вне except-блока (NameError).
+**Fix:** git_hooks_installer — `PRE_COMMIT_HOOK` восстановлен единой строкой с `\"\"\"` и `{{}}`-экранированием (валидируется ast.parse после .format); graph.py — parent-pointer BFS + пакетная реконструкция, батч-lookup edges, try/finally temp-db, limit-параметр dead_code; db_manager/indexer — RLock, switch_db/_warmup_cache/read-секции/move_chunks под локом, PID-lock raise+retry; cypher — lock в execute, SQL из stats, `[*1..N]` → NotImplementedError; error_handler — deque, traceback из ответа; layer.py — blake2b ID, psutil/ss _find_pid, единый threading.Lock, git log packfile-fallback; engine — TTL 30с; server_tools — кэш экземпляров; ruff — BLE001 в select + legacy ignores; ci.yml — Py3.10 + checkout@v5.
+**Guard:** `ruff check src/ tests/` = 0; `grep hash(line)` = 0; `grep _sync_write_lock` = 0; `ast.parse(git_hooks_installer)` OK; `git log --oneline -1 -- src/core/git_hooks_installer.py` показывает fix в этом коммите.
+**Тесты:** 610 passed, 0 failed; verify_diary 20 ✅; test_move_chunks фикстура дополнена `_table_write_lock` (RLock).
+
+---
+
 ## 2026-07-31 — Flaky: gate-zero 1 failed — ENOSPC (C: 100%) (FIXED)
 
 **Symptom:** pre-commit hook (verify_diary gate-zero) дважды поймал `1 failed, 609 passed`; имя теста из `.pytest_cache/lastfailed` — `tests/test_commit_memory.py::TestCommitMemory::test_get_stats`; изолированный прогон дал `7 failed` с `OSError: [WinError 112] Недостаточно места на диске`.

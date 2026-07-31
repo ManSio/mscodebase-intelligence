@@ -363,6 +363,19 @@ class WriteTool(MCPTool):
                 indented.append(nl if i == 0 or not nl.strip() else " " * base_indent + nl)
             new_lines_list = indented
 
+        # P3-8 audit: синтаксис-валидация new_code перед записью (Python-файлы),
+        # чтобы пользователь не получил сломанный файл без предупреждения.
+        if source_file.endswith(".py"):
+            try:
+                import ast as _ast
+
+                _ast.parse(new_code)
+            except SyntaxError as _se:
+                return (
+                    f"🚫 **Error:** new_code содержит синтаксическую ошибку: {_se}. "
+                    f"Запись отменена — файл не изменён."
+                )
+
         lines[start_idx:end_idx] = new_lines_list
         abs_path.write_text("".join(lines), encoding="utf-8")
         await self._invalidate_lsp_cache(source_file)
@@ -690,11 +703,20 @@ class WriteTool(MCPTool):
                 text_lines = content.splitlines(True)
                 lines_to_remove.sort(reverse=True)
                 removed = 0
+                # P3-7 audit: удаляем строку только если она действительно содержит
+                # символ (защита от устаревших индексов после правок файла).
+                short_name = symbol.split(".")[-1]
                 for line_no in lines_to_remove:
                     idx = line_no - 1 - removed
                     if 0 <= idx < len(text_lines):
-                        del text_lines[idx]
-                        removed += 1
+                        if short_name in text_lines[idx]:
+                            del text_lines[idx]
+                            removed += 1
+                        else:
+                            errors.append(
+                                f"Line {line_no} in {file_path} no longer contains "
+                                f"'{short_name}' — skipped (stale index?)"
+                            )
                 abs_path.write_text("".join(text_lines), encoding="utf-8")
                 modified.add(file_path)
                 await self._invalidate_lsp_cache(file_path)

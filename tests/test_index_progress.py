@@ -3,7 +3,6 @@
 """
 
 import inspect
-import tempfile
 import time
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -159,7 +158,6 @@ class TestIndexerProgressCallback:
 
     def test_indexer_accepts_callback(self):
         """Indexer принимает progress_callback параметр."""
-        from pathlib import Path
 
         from src.core.indexing.indexer import Indexer
 
@@ -178,7 +176,6 @@ class TestIndexerProgressCallback:
     def test_callback_is_optional(self):
         """progress_callback опциональный."""
         from src.core.indexing.indexer import Indexer
-        import inspect
 
         # Check signature without instantiating (avoids DB locks)
         sig = inspect.signature(Indexer.index_project)

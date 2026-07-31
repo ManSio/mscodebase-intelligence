@@ -46,7 +46,6 @@ import sys
 import tempfile
 import threading
 import time
-from contextlib import contextmanager
 from ctypes import wintypes
 from pathlib import Path
 from typing import Any, Optional
@@ -59,12 +58,12 @@ from src.providers.reranker.llama_install import (  # noqa: F401 — explicit co
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_RERANKER_MODEL,
     GGUF_MODELS,
+    LLAMA_BATCH_SIZE,
     LLAMA_CACHE_TYPE,
     LLAMA_CTX_SIZE,
-    LLAMA_BATCH_SIZE,
-    LLAMA_UBATCH_SIZE,
     LLAMA_HOST,
     LLAMA_PORT,
+    LLAMA_UBATCH_SIZE,
     LLAMA_VERSION,
     _get_ext_dir,
     # Функции
@@ -930,7 +929,7 @@ class LlamaRunner:
 
         # ─── Interprocess lock: предотвращает гонку между MCP-процессами ───
         try:
-            with _acquire_llama_lock("embedder") as lock:
+            with _acquire_llama_lock("embedder"):
                 # Double-check после захвата лока
                 if self._probe_port_sync(self._port):
                     logger.info(f"🔌 llama-server уже запущен на порту {self._port} (другой процесс стартовал)")
@@ -948,7 +947,7 @@ class LlamaRunner:
                     logger.info(f"🔌 llama-server появился на порту {self._port} после ожидания")
                     self._model_key = model_key
                     return True
-            logger.error(f"❌ llama-server не появился за 30s после захвата лока")
+            logger.error("❌ llama-server не появился за 30s после захвата лока")
             return False
 
     def _spawn_embedder(self, model_key: str) -> bool:
@@ -1024,7 +1023,7 @@ class LlamaRunner:
 
         # ─── Interprocess lock: предотвращает гонку между MCP-процессами ───
         try:
-            with _acquire_llama_lock("reranker") as lock:
+            with _acquire_llama_lock("reranker"):
                 # Double-check после захвата лока
                 if await self._probe_port(self.RERANK_PORT):
                     logger.info(f"🔌 Реренкер уже запущен на порту {self.RERANK_PORT} (другой процесс стартовал)")
@@ -1040,7 +1039,7 @@ class LlamaRunner:
                 if await self._probe_port(self.RERANK_PORT):
                     logger.info(f"🔌 Reranker появился на порту {self.RERANK_PORT} после ожидания")
                     return True
-            logger.error(f"❌ Reranker не появился за 30s после захвата лока")
+            logger.error("❌ Reranker не появился за 30s после захвата лока")
             return False
 
     async def _spawn_reranker(self) -> bool:

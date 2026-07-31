@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import collections
 import concurrent.futures
 import functools
 import inspect
@@ -59,7 +60,8 @@ _SYNC_POOL = concurrent.futures.ThreadPoolExecutor(
 )
 
 # Execution Timeline: кольцевой буфер последних N вызовов (имплиситный success signal)
-_TIMELINE: list = []
+# P2-12 audit: deque(maxlen) вместо list + pop(0) — O(1) вместо O(n) под локом
+_TIMELINE: "collections.deque" = collections.deque(maxlen=50)
 _TIMELINE_MAX: int = 50
 
 # Repeat detection: какой инструмент вызывался последним (для repeat_search_ratio)
@@ -171,7 +173,7 @@ def record_tool_call(
                 "avg_confidence": 0.0,
                 "avg_results": 0.0,
                 "last_detail": "",
-                "latencies": [],  # все latency для P50/P95/P99
+                "latencies": collections.deque(maxlen=1000),  # все latency для P50/P95/P99
                 "idle_ms": 0,  # суммарный idle перед этим инструментом
                 "idle_calls": 0,  # сколько раз считали idle
                 "repeat_count": 0,  # сколько раз подряд вызывали этот же инструмент
@@ -190,7 +192,7 @@ def record_tool_call(
             entry["last_detail"] = detail
 
         # Safe setdefault for fields that may be missing from loaded old saves
-        entry.setdefault("latencies", [])
+        entry.setdefault("latencies", collections.deque(maxlen=1000))
         entry.setdefault("idle_ms", 0)
         entry.setdefault("idle_calls", 0)
         entry.setdefault("repeat_count", 0)
@@ -198,10 +200,8 @@ def record_tool_call(
         entry.setdefault("avg_confidence", 0.0)
         entry.setdefault("avg_results", 0.0)
 
-        # Track all latencies for percentiles (rolling 1000)
+        # Track all latencies for percentiles (rolling 1000, deque auto-trims)
         entry["latencies"].append(latency_ms)
-        if len(entry["latencies"]) > 1000:
-            entry["latencies"].pop(0)
 
         # Idle time: сколько прошло с последнего вызова (любого инструмента)
         now = time.time()
@@ -232,7 +232,7 @@ def record_tool_call(
             prev = entry.get("avg_results", 0.0)
             entry["avg_results"] = prev + (results_count - prev) / calls
 
-        # Execution timeline (кольцевой буфер)
+        # Execution timeline (кольцевой буфер, deque auto-trims)
         _TIMELINE.append(
             {
                 "time": time.strftime("%H:%M:%S"),
@@ -244,8 +244,6 @@ def record_tool_call(
                 "results": results_count,
             }
         )
-        if len(_TIMELINE) > _TIMELINE_MAX:
-            _TIMELINE.pop(0)
 
     # Periodic save (каждые N вызовов)
     _METRICS_SAVE_COUNTER += 1
@@ -319,7 +317,6 @@ def get_global_idle_metrics() -> dict:
     with _TOOL_METRICS_LOCK:
         total_idle = sum(e.get("idle_ms", 0) for e in _TOOL_METRICS.values())
         total_calls = sum(e.get("calls", 0) for e in _TOOL_METRICS.values())
-        current_idle_sec = time.time() - _LAST_CALL_AT + (total_idle / 1000)
         active_ms = sum(e.get("total_ms", 0) for e in _TOOL_METRICS.values())
         total_ms = total_idle + active_ms
         return {
@@ -570,7 +567,9 @@ def error_boundary(
                     return _format_error_response(
                         status="error",
                         message=str(e),
-                        detail=traceback.format_exc(limit=3),
+                        # P3-10 audit: traceback не попадает в MCP-ответ
+                        # (info leak: пути, имена модулей) — только в логи.
+                        detail=None,
                     )
 
             # Недостижимо, но на всякий случай
@@ -626,7 +625,8 @@ def error_boundary(
                 return _format_error_response(
                     status="error",
                     message=str(e),
-                    detail=traceback.format_exc(limit=3),
+                    # P3-10 audit: traceback не попадает в MCP-ответ (info leak)
+                    detail=None,
                 )
 
         if inspect.iscoroutinefunction(func):

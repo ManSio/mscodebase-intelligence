@@ -251,14 +251,14 @@ class CypherToSQL:
 
         joins.append(f"{join_type} nodes AS {node_vars[right_var]} ON {target_join}")
 
-        # Variable-length path: пока не поддерживается в SQL генерации
-        # Для [*1..3] используем обычный JOIN (single hop) — функционально
-        # корректно, без ошибок SQL. Полная поддержка multi-hop через CTE
-        # будет в следующей версии.
+        # P3-6 audit: variable-length paths [*1..3] НЕ поддерживаются SQL-генератором.
+        # Раньше молча давали single-hop (неверные результаты для *1..5) —
+        # теперь явная ошибка вместо тихого искажения семантики запроса.
         if path.rel.max_hops and path.rel.max_hops > 1:
-            logger.debug(
+            raise NotImplementedError(
                 f"Variable-length path [*{path.rel.min_hops}..{path.rel.max_hops}] "
-                f"использует single-hop (полная multi-hop поддержка в плане)"
+                f"пока не поддерживается SQL-генератором. "
+                f"Используйте single-hop запрос или ограничьте глубину до 1."
             )
 
     def _process_where(

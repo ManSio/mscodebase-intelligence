@@ -11,10 +11,6 @@ import asyncio
 import json
 import logging
 import os
-import subprocess
-import sys
-import tempfile
-import time
 from pathlib import Path
 
 from src.core.di_container import ServiceCollection
@@ -293,9 +289,8 @@ class ExecuteScriptTool(MCPTool):
 
         # Determine sandbox mode from env
         from src.core.sandbox.executor import (
-            execute_sandboxed,
             SANDBOX_MODE_STRICT,
-            SANDBOX_MODE_PERMISSIVE,
+            execute_sandboxed,
         )
         sandbox_mode = os.environ.get(
             "MSCODEBASE_SANDBOX_MODE", SANDBOX_MODE_STRICT

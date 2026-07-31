@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from contextlib import nullcontext as _nullcontext
 from pathlib import Path
 from typing import Any, Dict, Set
 
@@ -21,11 +22,14 @@ logger = logging.getLogger("mscodebase_server.index_status")
 class IndexStatusReporter:
     """Собирает статистику индекса: чанки, файлы, stale-проверка."""
 
-    def __init__(self, table, project_path: Path, file_guard, watchdog_callback):
+    def __init__(self, table, project_path: Path, file_guard, watchdog_callback,
+                 table_write_lock=None):
         self.table = table
         self.project_path = project_path
         self.file_guard = file_guard
         self._watchdog_callback = watchdog_callback
+        # P2-14 audit: lock для чтений таблицы (сериализация с reset_connection)
+        self._table_write_lock = table_write_lock
         self._cached_total_chunks = 0
         self._cached_unique_files: Set[str] = set()
 
@@ -41,34 +45,43 @@ class IndexStatusReporter:
         не должен показывать данные, которых нет в таблице.
         """
         try:
-            # Всегда FALLBACK к реальному count_rows, кэш — только оптимизация
-            total_chunks = 0
-            if self.table is not None:
-                try:
-                    total_chunks = self.table.count_rows()
-                except Exception:
-                    total_chunks = self._cached_total_chunks
-            self._cached_total_chunks = total_chunks
-
-            unique_files = self._cached_unique_files
-            unique_count = len(unique_files) if isinstance(unique_files, set) else 0
-
-            # Всегда обновляем unique_files из таблицы, если есть чанки
-            if total_chunks > 0 and self.table is not None:
-                _fp_series = None
-                for method_name, method in [
-                    ("to_lance", lambda: self.table.to_lance().to_pandas(columns=["file_path"])["file_path"]),
-                    ("search", lambda: self.table.search().select(["file_path"]).limit(total_chunks).to_pandas()["file_path"]),
-                    ("to_pandas", lambda: self.table.to_pandas(columns=["file_path"])["file_path"]),
-                ]:
+            # P2-14 audit: чтения count_rows/to_lance под _table_write_lock,
+            # чтобы get_status не читал таблицу в момент reset_connection
+            # (и не показывал неконсистентные total_chunks/unique_files).
+            _lock_ctx = (
+                self._table_write_lock
+                if self._table_write_lock is not None
+                else _nullcontext()
+            )
+            with _lock_ctx:
+                # Всегда FALLBACK к реальному count_rows, кэш — только оптимизация
+                total_chunks = 0
+                if self.table is not None:
                     try:
-                        _fp_series = method()
-                        break
+                        total_chunks = self.table.count_rows()
                     except Exception:
-                        continue
-                if _fp_series is not None and len(_fp_series) > 0:
-                    unique_count = _fp_series.nunique()
-                    self._cached_unique_files = set(_fp_series.unique())
+                        total_chunks = self._cached_total_chunks
+                self._cached_total_chunks = total_chunks
+
+                unique_files = self._cached_unique_files
+                unique_count = len(unique_files) if isinstance(unique_files, set) else 0
+
+                # Всегда обновляем unique_files из таблицы, если есть чанки
+                if total_chunks > 0 and self.table is not None:
+                    _fp_series = None
+                    for method_name, method in [
+                        ("to_lance", lambda: self.table.to_lance().to_pandas(columns=["file_path"])["file_path"]),
+                        ("search", lambda: self.table.search().select(["file_path"]).limit(total_chunks).to_pandas()["file_path"]),
+                        ("to_pandas", lambda: self.table.to_pandas(columns=["file_path"])["file_path"]),
+                    ]:
+                        try:
+                            _fp_series = method()
+                            break
+                        except Exception:
+                            continue
+                    if _fp_series is not None and len(_fp_series) > 0:
+                        unique_count = _fp_series.nunique()
+                        self._cached_unique_files = set(_fp_series.unique())
 
             # Stale scan
             stale_files, on_disk_files, missing_files = self._scan_stale(total_chunks, unique_count)

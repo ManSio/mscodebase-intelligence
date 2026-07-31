@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import httpx
-import numpy as np
 
 from src.config.settings import get_config
 from src.core.interfaces import IEmbedder
@@ -694,7 +693,7 @@ class RemoteEmbedder(IEmbedder):
 
     def _init_onnx(self):
         """Инициализация ONNX через Singleton Client (onnx_client.py).
-        
+
         Локальный ONNX Runtime заменён на HTTP клиент к общему onnx_server.py.
         Это экономит ~500MB RAM на проекте и избегает дублирования моделей.
         """
@@ -702,14 +701,14 @@ class RemoteEmbedder(IEmbedder):
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
             return
-        
+
         # Пытаемся получить клиент ONNX Server
         try:
             with self._onnx_client_lock:
                 if self._onnx_client is None:
                     from src.core.embedder.onnx_client import get_onnx_client
                     self._onnx_client = get_onnx_client(port=9876, model_name="multilingual-e5-small-int8")
-                
+
                 # Проверяем доступность сервера
                 if not self._onnx_client._is_server_running():
                     # Пытаемся запустить (discover-or-launch)
@@ -718,9 +717,9 @@ class RemoteEmbedder(IEmbedder):
                         with self._mode_lock:
                             self.mode = "fallback"
                         return
-                
+
                 logger.info("✅ ONNX Client готов (подключён к Singleton Server)")
-                
+
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации ONNX Client: {e}", exc_info=True)
             with self._mode_lock:
@@ -787,7 +786,9 @@ class RemoteEmbedder(IEmbedder):
                                 results[idx] = data[0]["embedding"]
                                 self._llama_last_used = time.time()
                                 try:
-                                    from src.providers.reranker.llama_runner import get_global_runner
+                                    from src.providers.reranker.llama_runner import (
+                                        get_global_runner,
+                                    )
                                     get_global_runner()._last_embedder_use = time.time()
                                 except Exception:
                                     pass
@@ -812,8 +813,12 @@ class RemoteEmbedder(IEmbedder):
                         return [item["embedding"] for item in data]
             except Exception as _e:
                 logger.warning(f"LM Studio embed error: {_e}")
+                # raise внутри except — _e валиден (вне блока он NameError)
+                raise RuntimeError(
+                    f"LM Studio embedding provider unavailable: {_e}"
+                ) from _e
             logger.warning("LM Studio не отвечает, возвращаю заглушки")
-            raise RuntimeError(f"LM Studio embedding provider unavailable: {_e}")
+            raise RuntimeError("LM Studio embedding provider unavailable")
 
         # ═══ ONNX-сервер ═══
         if current_mode == "onnx_server":
@@ -827,8 +832,11 @@ class RemoteEmbedder(IEmbedder):
                         return [item["embedding"] for item in data]
             except Exception as _e:
                 logger.warning(f"ONNX server embed error: {_e}")
+                raise RuntimeError(
+                    f"ONNX embedding provider unavailable: {_e}"
+                ) from _e
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
-            raise RuntimeError(f"ONNX embedding provider unavailable: {_e}")
+            raise RuntimeError("ONNX embedding provider unavailable")
 
         # ═══ OpenVINO (INT8, ~350 ch/s) ═══
         if current_mode in ("unknown", "onnx") and getattr(self, '_ov_compiled', None) is not None:
@@ -906,7 +914,7 @@ class RemoteEmbedder(IEmbedder):
             # Инициализируем ONNX Client (lazy, с автозапуском сервера)
             if self._onnx_client is None:
                 self._init_onnx()
-            
+
             if self._onnx_client is not None:
                 try:
                     self._onnx_last_used = time.time()
@@ -920,12 +928,12 @@ class RemoteEmbedder(IEmbedder):
                         return f"{'query' if is_query else 'passage'}: {text}"
 
                     prefixed = [_ensure_prefix(t, is_query) for t in texts]
-                    
+
                     # Вызов ONNX Singleton Server через клиент (batched)
                     vectors = self._onnx_client.embed_batch(prefixed)
-                    
+
                     return vectors
-                    
+
                 except Exception as e:
                     logger.warning(f"ONNX Client error: {e}, fallback to LM Studio")
                     # fall through to LM Studio

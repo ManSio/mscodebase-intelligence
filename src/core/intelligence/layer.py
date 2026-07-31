@@ -38,6 +38,26 @@ from src.core.intelligence.jobs import BackgroundJob, job_manager
 from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
 from src.utils.i18n import _
 
+
+class _AsyncLockAdapter:
+    """Адаптирует threading.Lock к async-контексту.
+
+    Один общий lock для sync- и async-методов: asyncio.Lock не защищает
+    от sync-доступа (P2-4 audit — смешанная синхронизация IntelligenceStore).
+    Захват через asyncio.to_thread, чтобы не блокировать event loop.
+    """
+
+    def __init__(self, lock: threading.Lock):
+        self._lock = lock
+
+    async def __aenter__(self):
+        await asyncio.to_thread(self._lock.acquire)
+        return self
+
+    async def __aexit__(self, *exc_info):
+        self._lock.release()
+        return False
+
 __all__ = [
     "ProjectIntelligenceLayer",
     "register_intelligence_tools",
@@ -124,8 +144,9 @@ class ProjectIntelligenceLayer:
             None  # Prevent GC from collecting background reindex
         )
         self._reindex_lock = asyncio.Lock()
-        self._write_lock = asyncio.Lock()  # защита от race при записи JSON
-        self._sync_write_lock = threading.Lock()  # для sync-методов (intel_auto_collect_adrs)
+        # Единый threading.Lock для sync+async записи в IntelligenceStore
+        # (asyncio.Lock не защищает от sync-доступа — см. P2-4 audit).
+        self._write_lock = threading.Lock()
 
     def _resolve_active_indexer(self) -> Any:
         """Динамически резолвит актуальный Indexer из реестра.
@@ -339,17 +360,56 @@ class ProjectIntelligenceLayer:
 
     @staticmethod
     def _find_pid(port: str) -> int:
-        """Ищет PID процесса по порту (через netstat, без shell)."""
+        """Ищет PID процесса по порту (cross-platform, без shell).
+
+        Порядок: psutil (единый API) → netstat (Windows) / ss (Linux).
+        """
         try:
             port_int = int(port)
-            out = subprocess.check_output(
-                ["netstat", "-ano"], timeout=3
-            ).decode("utf-8", errors="replace")
-            for line in out.splitlines():
-                if f":{port_int}" in line and "LISTENING" in line:
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        return int(parts[4])
+        except (ValueError, TypeError):
+            return 0
+
+        # 1. psutil — единый cross-platform путь (уже используется в _get_process_cpu)
+        try:
+            import psutil
+
+            for conn in psutil.net_connections(kind="tcp"):
+                if (
+                    conn.laddr
+                    and conn.laddr.port == port_int
+                    and conn.status == "LISTEN"
+                ):
+                    return conn.pid or 0
+            return 0
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # 2. Fallback: netstat -ano (Windows) / ss -ltnp (Linux)
+        import sys as _sys
+
+        try:
+            if _sys.platform == "win32":
+                out = subprocess.check_output(
+                    ["netstat", "-ano"], timeout=3
+                ).decode("utf-8", errors="replace")
+                for line in out.splitlines():
+                    if f":{port_int}" in line and "LISTENING" in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 5:
+                            return int(parts[4])
+            else:
+                out = subprocess.check_output(
+                    ["ss", "-ltnp"], timeout=3
+                ).decode("utf-8", errors="replace")
+                import re as _re
+
+                for line in out.splitlines():
+                    if f":{port_int}" in line and "LISTEN" in line:
+                        m = _re.search(r"pid=(\d+)", line)
+                        if m:
+                            return int(m.group(1))
         except (OSError, subprocess.TimeoutExpired,
                 subprocess.CalledProcessError, ValueError, IndexError):
             pass
@@ -685,7 +745,7 @@ class ProjectIntelligenceLayer:
         success: bool,
     ) -> str:
         """Фиксирует инцидент/баг в истории проекта."""
-        async with self._write_lock:
+        async with _AsyncLockAdapter(self._write_lock):
             incidents = self.store.load_incidents()
             incident_id = f"INC-{uuid.uuid4().hex[:4].upper()}"
 
@@ -740,9 +800,19 @@ class ProjectIntelligenceLayer:
                         if ":" in line:
                             parts = line.split(":", 2)
                             if len(parts) >= 3:
+                                import hashlib as _hashlib
+
+                                # Детерминированный ID: blake2b вместо hash()
+                                # (hash() рандомизирован через PYTHONHASHSEED)
+                                _digest = int(
+                                    _hashlib.blake2b(
+                                        line.encode("utf-8"), digest_size=8
+                                    ).hexdigest(),
+                                    16,
+                                )
                                 matches.append(
                                     {
-                                        "incident_id": f"code_{hash(line) % 10000}",
+                                        "incident_id": f"code_{_digest % 10000}",
                                         "symptom": parts[2][:200],
                                         "root_cause": f"Found in code: {parts[0]}:{parts[1]}",
                                         "fix": "See code reference above",
@@ -780,7 +850,7 @@ class ProjectIntelligenceLayer:
         except json.JSONDecodeError as e:
             return _("JSON parse error: {error}", error=e)
 
-        async with self._write_lock:
+        async with _AsyncLockAdapter(self._write_lock):
             nodes = self.store._load_json("project_memory.json")
         # Миграция старого формата (dict) в плоский список
         if isinstance(nodes, dict):
@@ -843,6 +913,46 @@ class ProjectIntelligenceLayer:
         # Парсим хеши коммитов из reflog
         commits: list[tuple[str, str, str]] = []  # (hash, subject, body)
         seen_hashes: set[str] = set()
+        def _read_commit_msg(hash_str: str):
+            """Читает (subject, body) коммита: loose-объект или git log (packfile-safe).
+
+            Loose-объекты отсутствуют после `git gc` (объекты упакованы в .pack) —
+            тогда читаем через `git log`, который сам распаковывает packfiles.
+            """
+            obj_path = git_dir / 'objects' / hash_str[:2] / hash_str[2:]
+            if obj_path.exists():
+                try:
+                    compressed = obj_path.read_bytes()
+                    raw = zlib.decompress(compressed)
+                    # raw = "commit <size>\0<content>" или "commit <size>\n<content>"
+                    if b'\x00' in raw:
+                        content = raw.split(b'\x00', 1)[1]
+                    else:
+                        # Формат: "commit <size>\n<headers>\n\n<message>"
+                        content = raw.split(b'\n', 1)[1] if b'\n' in raw else raw
+                    # Ищем двойной newline (конец заголовка, начало сообщения)
+                    header_end = content.find(b'\n\n')
+                    if header_end == -1:
+                        return None
+                    msg_raw = content[header_end + 2:].decode('utf-8', errors='replace')
+                    msg_lines = msg_raw.strip().split('\n')
+                    subject = msg_lines[0] if msg_lines else ''
+                    body = '\n'.join(msg_lines[1:]) if len(msg_lines) > 1 else ''
+                    return (subject, body[:500]) if subject else None
+                except Exception:
+                    return None
+            # Loose-объект отсутствует (packfile после git gc) — git log
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(self.project_path), "--no-pager", "log",
+                     "-1", "--format=%s%x00%b", hash_str],
+                    capture_output=True, text=True, timeout=10, check=True,
+                )
+                subject, _, body = result.stdout.partition('\x00')
+                return (subject.strip(), body.strip()[:500]) if subject.strip() else None
+            except Exception:
+                return None
+
         for line in recent:
             if not line.strip():
                 continue
@@ -856,32 +966,12 @@ class ProjectIntelligenceLayer:
                 continue
             seen_hashes.add(new_hash)
 
-            # Читаем объект коммита из .git/objects/
-            obj_path = git_dir / 'objects' / new_hash[:2] / new_hash[2:]
-            if not obj_path.exists():
+            commit_msg = _read_commit_msg(new_hash)
+            if commit_msg is None:
                 continue
-            try:
-                compressed = obj_path.read_bytes()
-                raw = zlib.decompress(compressed)
-                # raw = "commit <size>\0<content>" или "commit <size>\n<content>"
-                if b'\x00' in raw:
-                    content = raw.split(b'\x00', 1)[1]
-                else:
-                    # Формат: "commit <size>\n<headers>\n\n<message>"
-                    content = raw.split(b'\n', 1)[1] if b'\n' in raw else raw
-                # Ищем двойной newline (конец заголовка, начало сообщения)
-                header_end = content.find(b'\n\n')
-                if header_end == -1:
-                    continue
-                msg_raw = content[header_end + 2:].decode('utf-8', errors='replace')
-                msg_lines = msg_raw.strip().split('\n')
-                subject = msg_lines[0] if msg_lines else ''
-                body = '\n'.join(msg_lines[1:]) if len(msg_lines) > 1 else ''
-                if subject:
-                    commits.append((new_hash[:12], subject, body[:500]))
-            except Exception as _e:
-                logger.warning(f"Exception suppressed at layer.py: {_e}")
-                continue
+            subject, body = commit_msg
+            if subject:
+                commits.append((new_hash[:12], subject, body[:500]))
 
         if not commits:
             return f"За последние {max_commits} коммитов новых ADR не найдено."
@@ -946,8 +1036,8 @@ class ProjectIntelligenceLayer:
         if not new_adrs:
             return f"За последние {max_commits} коммитов новых ADR не найдено."
 
-        # Сохраняем новые ADR (sync lock — функция def, не async def)
-        with self._sync_write_lock:
+        # Сохраняем новые ADR (sync lock — общий threading.Lock для sync+async)
+        with self._write_lock:
             nodes = self.store._load_json('project_memory.json')
             if isinstance(nodes, dict):
                 nodes = []

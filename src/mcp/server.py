@@ -364,7 +364,7 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
     # ACTIVE_WORKSPACE — это явный выбор пользователя в Zed, доверяем
     if source == "ACTIVE_WORKSPACE":
         return False
-    
+
     if p == _ext_root:
         return True
     try:
@@ -417,7 +417,7 @@ def _resolve_env_project_root() -> Optional[Path]:
         # Если пользователь ЯВНО задал PROJECT_PATH — доверяем ему,
         # не блокируем self-indexing guard. Он знает, что делает.
         # Только автоматический fallback (CWD/ext_root) блокируем.
-        if _reject_self_index_target(resolved, source="PROJECT_PATH") and not os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip() in ("1", "true", "yes"):
+        if _reject_self_index_target(resolved, source="PROJECT_PATH") and os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip() not in ("1", "true", "yes"):
             logger.warning(
                 f"PROJECT_PATH указывает на self-indexing target ({resolved}). "
                 f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT или MSCODEBASE_ALLOW_SELF_INDEX=1."

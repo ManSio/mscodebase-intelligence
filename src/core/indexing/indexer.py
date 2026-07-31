@@ -73,7 +73,9 @@ class Indexer(IndexerTableMixin):
 
         import threading
         self._index_lock = threading.Lock()
-        self._table_write_lock = threading.Lock()
+        # P1-13 audit: RLock — read-секции (_index_single_file, _parse_file_only)
+        # захватывают тот же lock, что и write-секции (реентерабельность).
+        self._table_write_lock = threading.RLock()
         self._symbol_index_lock = threading.Lock()
 
         # IndexParser — чистый парсер без БД и SymbolIndex
@@ -143,6 +145,7 @@ class Indexer(IndexerTableMixin):
             project_path=self.project_path,
             file_guard=self.file_guard,
             watchdog_callback=self.watchdog_status,
+            table_write_lock=self._table_write_lock,
         )
         self._cached_total_chunks = self._status_reporter._cached_total_chunks
         self._cached_unique_files = self._status_reporter._cached_unique_files
@@ -344,14 +347,17 @@ class Indexer(IndexerTableMixin):
                 try:
                     if self.table is not None:
                         escaped_path = self._escape_file_path_for_lance(rel_path_str)
-                        existing_df = (
-                            self.table.search()
-                            .where(f"file_path = '{escaped_path}'", prefilter=True)
-                            .limit(1)
-                            .to_pandas()
-                        )
-                        if not existing_df.empty:
-                            existing_hash = str(existing_df["file_hash"].iloc[0])
+                        # P1-3 audit: чтение под _table_write_lock (RLock —
+                        # reset_connection ниже reentrant).
+                        with self._table_write_lock:
+                            existing_df = (
+                                self.table.search()
+                                .where(f"file_path = '{escaped_path}'", prefilter=True)
+                                .limit(1)
+                                .to_pandas()
+                            )
+                            if not existing_df.empty:
+                                existing_hash = str(existing_df["file_hash"].iloc[0])
                 except Exception as _e:
                     err_str = str(_e).lower()
                     if "not found" in err_str or "lanceerror" in err_str:
@@ -446,16 +452,19 @@ class Indexer(IndexerTableMixin):
             escaped_path = self._escape_file_path_for_lance(rel_path_str)
 
             # Проверка хэша — файл не изменился?
+            # P1-3 audit: чтение self.table под _table_write_lock, чтобы не
+            # поймать stale reference при параллельном reset_connection().
             existing_hash = None
             try:
-                existing_df = (
-                    self.table.search()
-                    .where(f"file_path = '{escaped_path}'", prefilter=True)
-                    .limit(1)
-                    .to_pandas()
-                )
-                if not existing_df.empty:
-                    existing_hash = str(existing_df["file_hash"].iloc[0])
+                with self._table_write_lock:
+                    existing_df = (
+                        self.table.search()
+                        .where(f"file_path = '{escaped_path}'", prefilter=True)
+                        .limit(1)
+                        .to_pandas()
+                    )
+                    if not existing_df.empty:
+                        existing_hash = str(existing_df["file_hash"].iloc[0])
             except Exception as _cache_err:
                 logger.debug(f"Chunk cache check failed for {rel_path_str}: {_cache_err}")
 
@@ -558,26 +567,30 @@ class Indexer(IndexerTableMixin):
             return 0
 
         try:
-            # 1. Read old chunks with vectors and metadata
-            old_df = self.table.search().where(f"file_path = '{safe_old}'").limit(10000).to_pandas()
+            # P1-5 audit: read→delete→add сериализуется через _table_write_lock
+            # (RLock — read и write секции используют один lock). Это исключает
+            # «чтение чужого половинчатого состояния» и stale table reference.
+            with self._table_write_lock:
+                # 1. Read old chunks with vectors and metadata
+                old_df = self.table.search().where(f"file_path = '{safe_old}'").limit(10000).to_pandas()
 
-            if old_df.empty:
-                logger.debug(f"move_chunks_metadata: no chunks found for {old_path}")
-                return 0
+                if old_df.empty:
+                    logger.debug(f"move_chunks_metadata: no chunks found for {old_path}")
+                    return 0
 
-            count = len(old_df)
+                count = len(old_df)
 
-            # 2. Delete old entries from vector index
-            self.table.delete(f"file_path = '{safe_old}'")
+                # 2. Delete old entries from vector index
+                self.table.delete(f"file_path = '{safe_old}'")
 
-            # 3. Mutate metadata
-            old_df['file_path'] = safe_new
-            old_df['module_name'] = self._infer_module_name(new_path)
-            old_df['layer'] = self._infer_layer(new_path)
-            old_df['indexed_at'] = datetime.now().isoformat()
+                # 3. Mutate metadata
+                old_df['file_path'] = safe_new
+                old_df['module_name'] = self._infer_module_name(new_path)
+                old_df['layer'] = self._infer_layer(new_path)
+                old_df['indexed_at'] = datetime.now().isoformat()
 
-            # 4. Re-insert same vectors with new metadata
-            self.table.add(old_df.to_dict('records'))
+                # 4. Re-insert same vectors with new metadata
+                self.table.add(old_df.to_dict('records'))
 
             # 5. Invalidate cache
             self._cached_total_chunks = None
