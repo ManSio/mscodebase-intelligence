@@ -153,19 +153,23 @@ def register_all_tools(mcp, services):
         }
         _show_all = False
 
+    # Cache экземпляров: каждая tool-класс инстанцируется ровно один раз,
+    # экземпляр переиспользуется и для фильтра по имени, и для регистрации.
+    _name_cache: dict = {}
+
     if _show_all:
         logger.info(f"📐 MCP Tools: все {len(tool_classes)} инструментов видимы")
         _filtered_classes = tool_classes
+        for _cls in _filtered_classes:
+            if _cls not in _name_cache:
+                _name_cache[_cls] = _cls(services)
     else:
         _before = len(tool_classes)
         _filtered_classes = []
-        # Cache tool names to avoid double instantiation.
-        # Each class is instantiated once for name lookup, then once for registration.
-        _name_cache: dict = {}
         for _cls in tool_classes:
             if _cls not in _name_cache:
-                _name_cache[_cls] = _cls(services).name
-            _name = _name_cache[_cls]
+                _name_cache[_cls] = _cls(services)
+            _name = _name_cache[_cls].name
             if _name not in _allowed_names:
                 logger.debug(f"  🔇 Tool hidden: {_name}")
                 continue
@@ -194,7 +198,7 @@ def register_all_tools(mcp, services):
     failed = []
     for tool_cls in _filtered_classes:
         try:
-            instance = tool_cls(services)
+            instance = _name_cache.get(tool_cls) or tool_cls(services)
             _name = instance.name
             _annotations = ToolAnnotations(
                 readOnlyHint=_name not in _write_tool_names,

@@ -62,10 +62,12 @@ class CypherExecutor:
             translator = CypherToSQL(self._graph)
             sql, sql_params = translator.translate(ast)
 
-            # 4. Execute
-            conn = self._graph._get_conn()
-            cursor = conn.execute(sql, sql_params)
-            rows = cursor.fetchall()
+            # 4. Execute (P1-6 audit: под _graph._lock, чтобы параллельный
+            # add_edge не дал sqlite3.OperationalError: database is locked)
+            with self._graph._lock:
+                conn = self._graph._get_conn()
+                cursor = conn.execute(sql, sql_params)
+                rows = cursor.fetchall()
 
             # 5. Format results
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
@@ -84,8 +86,8 @@ class CypherExecutor:
                 "stats": {
                     "elapsed_ms": round(elapsed, 1),
                     "rows": len(results),
-                    "sql": sql,
-                    "sql_params": sql_params,
+                    # P3-5 audit: SQL/params не попадают в MCP-ответ
+                    # (раскрывали внутреннюю структуру таблиц)
                 },
             }
 

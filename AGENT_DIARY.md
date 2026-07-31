@@ -1,5 +1,16 @@
 ---
 
+## [2026-07-31] — Остаток ISSUE.md закрыт: graph/db_manager/cypher/indexer/error_handler/layer + P0 git_hooks_installer
+
+**Status:** ✅ Fixed (ISSUE.md P1-1..P1-14, P2-14..P2-17, P3-1..P3-14 — все закрыты)
+**Root Cause:** остаточный долг аудита: BFS хранил полные пути (O(V×depth) память), batch_add_edges — N+1 запросов; switch_db/_warmup_cache/read-секции indexer без `_write_lock` (race с reset_connection); PID-lock после 30с таймаута МОЛЧА возвращался без лока; CypherExecutor.execute без `_graph._lock`; `_e` в raise вне except (NameError в remote_embedder); `git_hooks_installer.py` — сломанный тройной-квоте-шаблон (SyntaxError с 8f799dec).
+**Fix:** graph.py — parent-pointer BFS + пакетная реконструкция пути, батч-lookup в batch_add_edges, try/finally для temp-db, параметр limit в detect_dead_code; db_manager — RLock (P1-13), switch_db/_warmup_cache под локом, PID-lock: raise при таймауте + retry-loop; indexer — read-секции и move_chunks_metadata под `_table_write_lock`; cypher — execute под `_graph._lock`, SQL убран из stats, `[*1..N]` → явный NotImplementedError; error_handler — deque для _TIMELINE/latencies, traceback убран из MCP-ответа; layer.py — детерминированный blake2b ID, cross-platform _find_pid (psutil/ss), единый threading.Lock (async-адаптер), packfile-fallback через git log; server_tools — экземпляры кэшируются (P3-13); engine — TTL 30с в кэш; ruff: BLE001 включён + legacy per-file-ignores (664); ci.yml — Python 3.10 + checkout@v5.
+**Guard:** `python -m ruff check src/ tests/` → 0; grep `_sync_write_lock` → 0; `hash(line)` → 0; `netstat` в layer.py → только win32-fallback.
+**Verification:** 610 passed, 0 failed; ruff 0.15.16 clean; verify_diary 20 ✅ / 0 ❌; шаблон git-хука валидируется `ast.parse` после `.format()`.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует network/repo_url; эквивалент: полный pytest + ruff + verify_diary с чистого состояния пройдены.
+
+---
+
 ## [2026-07-31] — Flaky gate-zero: ENOSPC (C: 100%), не TOCTOU
 
 **Status:** ✅ Fixed (root cause найдена)

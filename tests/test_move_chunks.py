@@ -61,11 +61,15 @@ def indexer_for_test():
     move_chunks_metadata implementation while mocking the LanceDB table.
     """
     from src.core.indexing.indexer import Indexer
+    import threading
 
     indexer = MagicMock(spec=Indexer)
     indexer.table = MagicMock()
     indexer._cached_total_chunks = 10
     indexer._cached_unique_files = {"old/file.py"}
+    # P1-5/P1-13: move_chunks_metadata сериализуется через _table_write_lock
+    # (реальный Indexer.__init__ всегда создаёт его — RLock)
+    indexer._table_write_lock = threading.RLock()
 
     # Bind the real helper methods so that move_chunks_metadata
     # recalculates metadata correctly.

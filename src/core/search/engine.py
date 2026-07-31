@@ -1,12 +1,16 @@
 import asyncio
+
+# Shared executor for sync→async bridge (avoids per-call ThreadPoolExecutor + asyncio.run)
+import concurrent.futures
 import hashlib
 import inspect
 import json
 import logging
 import re
 import threading
+import time
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -41,8 +45,6 @@ from .utils import (
     _filter_by_time,
 )
 
-# Shared executor for sync→async bridge (avoids per-call ThreadPoolExecutor + asyncio.run)
-import concurrent.futures
 _sync_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=2, thread_name_prefix="search_sync"
 )
@@ -87,7 +89,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._multi_reranker_lock = asyncio.Lock()
 
         # ── Multi-level cache ──
-        self._cache: Dict[str, List[dict]] = {}
+        # P2-5 audit: entries хранят (timestamp, results) — TTL 30с, чтобы
+        # stale-результаты после reindex само-истекали (нет явной инвалидации
+        # из indexer).
+        self._cache_ttl_sec = 30.0
+        self._cache: Dict[str, Tuple[float, List[dict]]] = {}
         self._cache_max_size = 500  # было 100
         self._cache_lock = threading.Lock()
         self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()  # deterministic hash -> vector, LRU
@@ -677,15 +683,24 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         except Exception as e:
             return _("❌ Search engine error: {error}", error=str(e))
 
+    def invalidate_cache(self) -> None:
+        """Сбрасывает кэш результатов поиска (P2-5 audit).
+
+        Вызывать после reindex/переиндексации, чтобы поиск не возвращал
+        stale-данные. Дополнительно к TTL 30с.
+        """
+        with self._cache_lock:
+            self._cache.clear()
+
     def search_with_mode(
         self,
         query: str,
         mode: str = "quality",
-        limit: int = 5,
+        limit: int = 10,
         layer: Optional[str] = None,
-        intent_hint: str = "auto",
+        intent_hint: str = "",
         explain: bool = False,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Поиск с выбором режима (fast/quality/deep).
 
         Args:
@@ -706,7 +721,6 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 cache_hit: bool,
             }
         """
-        import time
 
         t0 = time.perf_counter()
         timing = {}
@@ -718,21 +732,25 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Проверяем кэш (изолируем по режиму, запросу, лимиту, слою и intent)
         cache_key = f"{mode}:{query}:{limit}:{layer or ''}:{intent_hint}"
         with self._cache_lock:
-            if cache_key in self._cache:
-                results = self._cache[cache_key]
-                cache_hit = True
-                timing["total_ms"] = (time.perf_counter() - t0) * 1000
-                return {
-                    "results": results,
-                    "mode": mode,
-                    "timing_ms": timing,
-                    "cache_hit": cache_hit,
-                    "model_info": self._multi_reranker.model_info
-                    if self._multi_reranker
-                    else "cached",
-                    "rerank_timing": getattr(self, "_last_rerank_timing", {}),
-                    "trace": tracer.to_dict() if tracer else None,
-                }
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                ts, results = cached
+                if time.monotonic() - ts <= self._cache_ttl_sec:
+                    cache_hit = True
+                    timing["total_ms"] = (time.perf_counter() - t0) * 1000
+                    return {
+                        "results": results,
+                        "mode": mode,
+                        "timing_ms": timing,
+                        "cache_hit": cache_hit,
+                        "model_info": self._multi_reranker.model_info
+                        if self._multi_reranker
+                        else "cached",
+                        "rerank_timing": getattr(self, "_last_rerank_timing", {}),
+                        "trace": tracer.to_dict() if tracer else None,
+                    }
+                # P2-5 audit: истёкший entry удаляем
+                del self._cache[cache_key]
 
         results = []
 
@@ -803,7 +821,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 if len(self._cache) >= self._cache_max_size:
                     oldest_key = next(iter(self._cache))
                     del self._cache[oldest_key]
-                self._cache[cache_key] = results
+                self._cache[cache_key] = (time.monotonic(), results)
 
         # Добавляем trace в результат
         trace_dict = tracer.to_dict() if tracer else None

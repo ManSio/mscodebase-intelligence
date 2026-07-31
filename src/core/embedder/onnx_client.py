@@ -7,12 +7,12 @@ ONNX Client — Discover-or-Launch клиент для ONNX Singleton Server.
 import json
 import logging
 import os
-import sys
-import time
 import socket
 import subprocess
-import urllib.request
+import sys
 import threading
+import time
+import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,7 +22,7 @@ logger = logging.getLogger("mscodebase_server.onnx_client")
 class OnnxEmbedderClient:
     """
     Клиент для ONNX Singleton Server.
-    
+
     Паттерн:
     1. Проверяет, запущен ли сервер на порту (health check)
     2. Если нет — пытается захватить Named Mutex
@@ -31,7 +31,7 @@ class OnnxEmbedderClient:
     5. Отдаёт мутекс
     6. Если мутекс занят — ждёт пока другой процесс запустит сервер
     """
-    
+
     def __init__(self, port: int = 9876, model_name: str = "multilingual-e5-small-int8"):
         self.port = port
         self.model_name = model_name
@@ -39,7 +39,7 @@ class OnnxEmbedderClient:
         self._mutex_name = f"Global\\MSCodeBase_OnnxServer_{model_name}"
         self._mutex_handle = None
         self._server_started_by_us = False
-        
+
     def _is_server_running(self) -> bool:
         """Быстрая проверка: отвечает ли сервер на /health."""
         try:
@@ -48,7 +48,7 @@ class OnnxEmbedderClient:
                 return s.connect_ex(("127.0.0.1", self.port)) == 0
         except Exception:
             return False
-    
+
     def _health_check(self) -> bool:
         """Полный health check через HTTP."""
         try:
@@ -58,7 +58,7 @@ class OnnxEmbedderClient:
                 return data.get("status") == "ok"
         except Exception:
             return False
-    
+
     def _acquire_launch_mutex(self) -> bool:
         """
         Пытается захватить Named Mutex для запуска сервера.
@@ -68,35 +68,35 @@ class OnnxEmbedderClient:
         if sys.platform != 'win32':
             # На Unix используем файловый лок (упрощённо)
             return True
-            
+
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
-            
+
             # CreateMutex с bInitialOwner=FALSE — не захватываем сразу
             self._mutex_handle = kernel32.CreateMutexW(None, False, self._mutex_name)
             last_error = kernel32.GetLastError()
-            
+
             # ERROR_ALREADY_EXISTS = 183 — мутекс уже есть
             if last_error == 183:
                 # Мутекс существует — другой процесс уже запускает сервер
                 kernel32.CloseHandle(self._mutex_handle)
                 self._mutex_handle = None
                 return False
-            
+
             # Мутекс создан нами, захватываем его
             result = kernel32.WaitForSingleObject(self._mutex_handle, 10000)  # 10 сек таймаут
             if result not in (0, 128):  # WAIT_OBJECT_0 = 0, WAIT_ABANDONED = 128
                 kernel32.CloseHandle(self._mutex_handle)
                 self._mutex_handle = None
                 return False
-                
+
             return True
-            
+
         except Exception as e:
             logger.warning(f"[ONNX Client] Mutex error: {e}")
             return True  # На всякий случай пробуем запустить
-    
+
     def _release_launch_mutex(self):
         """Освобождает мутекс запуска."""
         if self._mutex_handle and sys.platform == 'win32':
@@ -107,14 +107,14 @@ class OnnxEmbedderClient:
             except Exception:
                 pass
             self._mutex_handle = None
-    
+
     def _launch_server(self) -> bool:
         """Запускает onnx_server.py как detached процесс."""
         server_script = PROJECT_ROOT / "src" / "core" / "embedder" / "onnx_server.py"
         if not server_script.exists():
             logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
-        
+
         # Флаги для Windows: DETACHED_PROCESS | CREATE_NO_WINDOW
         creation_flags = 0
         if sys.platform == 'win32':
@@ -142,7 +142,7 @@ class OnnxEmbedderClient:
         except Exception as e:
             logger.error(f"[ONNX Client] Failed to launch server: {e}")
             return False
-    
+
     def _wait_for_server(self, timeout: float = 30.0) -> bool:
         """Ждёт готовности сервера."""
         start = time.time()
@@ -151,7 +151,7 @@ class OnnxEmbedderClient:
                 return True
             time.sleep(0.5)
         return False
-    
+
     def ensure_server_running(self) -> bool:
         """
         Гарантирует, что сервер запущен.
@@ -160,19 +160,19 @@ class OnnxEmbedderClient:
         # Быстрая проверка без лока
         if self._health_check():
             return True
-        
+
         # Межпоточный lock (на случай если несколько потоков одновременно вызывают)
         with _client_lock:
             # Double-check под локом
             if self._health_check():
                 return True
-            
+
             # Пытаемся захватить межпроцессный мутекс
             if not self._acquire_launch_mutex():
                 # Другой процесс запускает — ждём
                 logger.info("[ONNX Client] Waiting for another process to start server...")
                 return self._wait_for_server()
-            
+
             # Мы владелец мутекса — запускаем сервер
             try:
                 if not self._launch_server():
@@ -180,12 +180,12 @@ class OnnxEmbedderClient:
                 return self._wait_for_server()
             finally:
                 self._release_launch_mutex()
-    
+
     def embed(self, text: str) -> List[float]:
         """Эмбеддинг одного текста."""
         if not self.ensure_server_running():
             raise RuntimeError("ONNX server not available")
-        
+
         data = json.dumps({"text": text}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.base_url}/embed",
@@ -198,12 +198,12 @@ class OnnxEmbedderClient:
             if "error" in result:
                 raise RuntimeError(result["error"])
             return result["vector"]
-    
+
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Эмбеддинг батча текстов."""
         if not self.ensure_server_running():
             raise RuntimeError("ONNX server not available")
-        
+
         data = json.dumps({"texts": texts}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.base_url}/embed_batch",
@@ -216,13 +216,13 @@ class OnnxEmbedderClient:
             if "error" in result:
                 raise RuntimeError(result["error"])
             return result["vectors"]
-    
+
     def shutdown(self):
         """Явное завершение (для тестов)."""
         if self._server_started_by_us and hasattr(self, '_server_pid'):
             try:
                 if sys.platform == 'win32':
-                    subprocess.run(['taskkill', '/F', '/PID', str(self._server_pid)], 
+                    subprocess.run(['taskkill', '/F', '/PID', str(self._server_pid)],
                                  capture_output=True)
                 else:
                     os.kill(self._server_pid, 15)

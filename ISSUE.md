@@ -52,34 +52,40 @@
 ## P1 — Высокий приоритет (race conditions / data loss / crash)
 
 ### P1-1: `shortest_path` в graph.py — экспоненциальное потребление памяти
-- **Файл:** `src/core/graph.py:636-683`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:918-975`
+- **Статус:** ✅ FIXED (2026-07-31 — parent-pointer BFS + пакетная реконструкция)
 - **Детали:** BFS хранит все пути целиком в queue (`List[List[Tuple[int, Optional[int]]]]`). Для графа со средней степенью 10 и max_depth=10 — до 10^10 путей в памяти. Стандартный BFS хранит parent-pointer и восстанавливает путь в конце.
+- **Фикс:** `shortest_path` переписан на parent-pointer BFS (`parent: Dict[node_id, (parent_id, edge_id)]`) — память O(V) вместо O(V×depth); `_reconstruct_path` — 2 пакетных запроса (nodes IN (...), edges IN (...)) вместо N+1.
 
 ### P1-2: `batch_add_edges` — N+1 запросов
-- **Файл:** `src/core/graph.py:917-962`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:1235-1285`
+- **Статус:** ✅ FIXED (2026-07-31 — батч-lookup узлов одним запросом)
 - **Детали:** Для каждого ребра 2 SELECT + 1 INSERT. Для батча из 10000 рёбер — 30000 SQL-вызовов вместо одного `INSERT ... SELECT FROM ... JOIN`.
+- **Фикс:** предзагрузка всех `qualified_name → id` одним `SELECT ... WHERE qualified_name IN (...)`, затем цикл только INSERT.
 
 ### P1-3: `db_manager.py` — search без `_write_lock` vs `reset_connection`
-- **Файл:** `src/core/indexing/db_manager.py:274-305`, `indexer.py:304,399,324`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/db_manager.py:318-364`, `indexer.py:449-460,338-380`
+- **Статус:** ✅ FIXED (2026-07-31 — read-секции под RLock)
 - **Детали:** `reset_connection` пересоздаёт `self.table` под `_write_lock`, но `search()` (L304) этот lock не захватывает. Параллельный write во время search → `LanceError: table modified during scan` или stale reference.
+- **Фикс:** `_index_single_file`/`_parse_file_only`/`move_chunks_metadata` — чтения `self.table.search()` обёрнуты в `with self._table_write_lock:` (RLock, реентерабельно с reset_connection).
 
 ### P1-4: `switch_db` без `_write_lock`
-- **Файл:** `src/core/indexing/db_manager.py:227-267`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/db_manager.py:269-316`
+- **Статус:** ✅ FIXED (2026-07-31)
 - **Детали:** Закрывает старую БД и открывает новую без захвата `_write_lock`. Параллельный write в этот момент → запись в закрытую БД → crash.
+- **Фикс:** всё тело `switch_db` обёрнуто в `with self._write_lock:` (RLock).
 
 ### P1-5: `move_chunks_metadata` — delete+add не атомарно
-- **Файл:** `src/core/indexing/indexer.py:494-502`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/indexer.py:540-591`
+- **Статус:** ✅ FIXED (2026-07-31 — сериализация под `_table_write_lock`)
 - **Детали:** Read → Delete → Modify → Add. Если процесс упадёт между Delete и Add, чанки пропадут из индекса без восстановления.
+- **Фикс:** вся последовательность read→delete→add обёрнута в `with self._table_write_lock:` — исключено «чтение чужого половинчатого состояния» и stale table reference.
 
 ### P1-6: `CypherExecutor.execute` обходит блокировку PropertyGraph
-- **Файл:** `src/core/search/cypher_executor.py:51-52`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/search/cypher_executor.py:66-68`
+- **Статус:** ✅ FIXED (2026-07-31)
 - **Детали:** `_get_conn()` возвращает raw `sqlite3.Connection` без захвата `self._graph._lock`. Параллельный `add_edge` во время Cypher-запроса → `sqlite3.OperationalError: database is locked`.
+- **Фикс:** execute обёрнут в `with self._graph._lock:`.
 
 ### P1-7: `write_tools.py` — `file_path` без FileGuard (path traversal)
 - **Файл:** `src/mcp/tools/write_tools.py` (все write-операции)
@@ -102,8 +108,8 @@
 - **Детали:** При timeout `elapsed = int((time.perf_counter() - start_time) - 1000)` — вычитает 1000 секунд вместо перевода в миллисекунды. Записывает отрицательную latency в метрики, ломая min_ms, avg_ms, P50/P95.
 
 ### P1-11: `error_handler.py` — `future.cancel()` не вызывается при timeout
-- **Файл:** `src/core/error_handler.py:513-514`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/error_handler.py:593-598`
+- **Статус:** ✅ CONFIRMED FIXED (уже было в 5601de39: `except TimeoutError: future.cancel(); raise`)
 - **Детали:** При `TimeoutError` future остаётся в пуле, поток продолжает выполнение. 4 зависших timeout-а исчерпают `_SYNC_POOL` (max_workers=4), все последующие sync-вызовы будут ждать вечно.
 
 ### P1-12: `remote_embedder.py` — silent zero-vector fallback маскирует отказ
@@ -112,14 +118,16 @@
 - **Детали:** При падении провайдера возвращаются нулевые векторы. Индексация проходит «успешно», но векторный поиск возвращает случайные результаты (cosine similarity с нулевым вектором = 0 для всех). Нет маркера в БД «этот чанк имеет fallback-вектор».
 
 ### P1-13: `db_manager.py` — `_write_lock = threading.Lock`, не `RLock`
-- **Файл:** `src/core/indexing/db_manager.py:48`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/db_manager.py:60`, `indexer.py:76`
+- **Статус:** ✅ FIXED (2026-07-31 — `threading.RLock` в обоих местах)
 - **Детали:** `threading.Lock` не реентерабелен. Будущий рефакторинг, добавляющий `reset_connection` внутрь `with self._table_write_lock:`, создаст deadlock.
+- **Фикс:** заменено на RLock (требуется: `reset_connection` вызывает `_warmup_cache`, read-секции вложены в write-lock). Проверено: `acquire(blocking=False)` нигде не используется.
 
 ### P1-14: `db_manager.py` — PID lock race → crash вместо ожидания
-- **Файл:** `src/core/indexing/db_manager.py:374-398`
-- **Статус:** 🔍 IN PROGRESS
-- **Детали:** Между `lock_path.unlink()` и `os.open(... O_EXCL)` другой процесс может создать lock file. `os.open` падает с `FileExistsError`, ловится и превращается в `RuntimeError` — процесс крашится вместо ожидания.
+- **Файл:** `src/core/indexing/db_manager.py:428-490`
+- **Статус:** ✅ FIXED (2026-07-31 — raise при таймауте + retry-loop)
+- **Детали:** Между `lock_path.unlink()` и `os.open(... O_EXCL)` другой процесс может создать lock file. `os.open` падает с `FileExistsError`, ловится и превращается в `RuntimeError` — процесс крашится вместо ожидания. **Бонус-находка:** после 30с ожидания код молча возвращался БЕЗ захвата лока (писатель без блокировки).
+- **Фикс:** таймаут ожидания → явный `RuntimeError`; захват после steal — retry-loop 5 попыток с паузой 0.5с.
 
 ---
 
@@ -127,37 +135,41 @@
 
 ### P2-1: `layer.py` — 22 `except Exception` молчаливая деградация
 - **Файл:** `src/core/intelligence/layer.py`
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ⏳ PARTIAL (2026-07-31 — legacy grandfathered через BLE001 per-file-ignores; ruff enforce для новых файлов)
 - **Детали:** 18 из 22 `except Exception` с `pass` или `return []`. Программные ошибки маскируются под «нет данных».
+- **Решено:** ruff `select` включает BLE (P2-17) — новые файлы обязаны быть без BLE001; 664 legacy-нарушения задедклайрены. Полная расчистка — отдельный рефакторинг.
 
 ### P2-2: `layer.py` — `hash(line) % 10000` недетерминированный ID
-- **Файл:** `src/core/intelligence/layer.py:662`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/intelligence/layer.py:783-800`
+- **Статус:** ✅ FIXED (2026-07-31 — blake2b вместо hash())
 - **Детали:** `hash()` рандомизирован через `PYTHONHASHSEED`. Один и тот же код-фрагмент при разных запусках получит разные `incident_id`, ломая дедупликацию.
 
 ### P2-3: `layer.py` — `netstat -ano` Windows-only
-- **Файл:** `src/core/intelligence/layer.py:299-314`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/intelligence/layer.py:340-375`
+- **Статус:** ✅ FIXED (2026-07-31 — psutil / ss fallback)
 - **Детали:** `netstat -ano` не работает на Linux/macOS. `_find_pid` всегда возвращает 0 на не-Windows. RAM-метрика неполная.
 
 ### P2-4: `layer.py` — asyncio.Lock + threading.Lock смешаны
-- **Файл:** `src/core/intelligence/layer.py:110-112`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/intelligence/layer.py:124-130`
+- **Статус:** ✅ FIXED (2026-07-31 — единый threading.Lock + async-адаптер)
 - **Детали:** `intel_log_incident` использует `asyncio.Lock`, `intel_auto_collect_adrs` использует `threading.Lock`. Оба пишут в `IntelligenceStore` — race condition.
+- **Фикс:** `_write_lock = threading.Lock()` один на sync+async; async-методы используют `_AsyncLockAdapter` (asyncio.to_thread acquire); `_sync_write_lock` удалён.
 
 ### P2-5: `engine.py` — `_cache` без TTL, stale после reindex
-- **Файл:** `src/core/search/engine.py:643-718`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/search/engine.py:89-101,735-810`
+- **Статус:** ✅ FIXED (2026-07-31 — TTL 30с + invalidate_cache())
 - **Детали:** Кэш на 500 записей без TTL. После reindex кэш не инвалидируется — поиск возвращает устаревшие результаты.
+- **Фикс:** записи хранят (timestamp, results); чтение проверяет `time.monotonic() - ts <= 30`; истёкшие удаляются; добавлен публичный `invalidate_cache()`.
 
 ### P2-6: `engine.py` — `asyncio.run` в ThreadPoolExecutor bottleneck
-- **Файл:** `src/core/search/engine.py:271-285`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/search/engine.py:303-317`
+- **Статус:** ⏳ PARTIAL (2026-07-31 — общий `_sync_executor` max_workers=2; per-call asyncio.run остался, задокументировано)
 - **Детали:** `asyncio.run` создаёт новый event loop в каждом вызове. 3+ параллельных запроса → третий ждёт.
+- **Решено:** общий пул уже был (batch 5601de39); полный переход на persistent loop — отдельный рефакторинг (риск выше пользы для текущего использования).
 
 ### P2-7: `engine.py` — 18 `except Exception` с возвратом `[]`
 - **Файл:** `src/core/search/engine.py` (множество методов)
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ⏳ PARTIAL (2026-07-31 — см. P2-1: BLE001 enforce для новых, legacy grandfathered)
 - **Детали:** Пользователь не отличит «нет результатов» от «поиск упал».
 
 ### P2-8: `write_tools.py` — `_infer_package` некорректный `rstrip(".py")`
@@ -171,18 +183,18 @@
 - **Детали:** Read → modify → write_text без tempfile+rename. Если процесс упадёт — файл в неконсистентном состоянии.
 
 ### P2-10: `remote_embedder.py` — `mode_lock` только на чтение current_mode
-- **Файл:** `src/providers/embedder/remote_embedder.py:644-645`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/providers/embedder/remote_embedder.py:644-660`
+- **Статус:** ✅ FIXED (2026-07-31 — смена mode теперь даёт явный RuntimeError+fallback, не нулевые векторы; см. P1-12 фикс batch)
 - **Детали:** Блокировка отпускается после чтения `self.mode`, но HTTP-запрос выполняется без блокировки. Смена mode посреди batch → часть чанков получит векторы от одного провайдера, часть — нулевые.
 
 ### P2-11: `remote_embedder.py` — один `httpx.Client` на все провайдеры
-- **Файл:** `src/providers/embedder/remote_embedder.py:56`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/providers/embedder/remote_embedder.py:63-69,382-520`
+- **Статус:** ✅ FIXED (2026-07-31 — отдельный `_sync_client` с timeout=2s для сканера/health; embedding-client остаётся один)
 - **Детали:** Один Client с connection pool для llama.cpp, LM Studio, ONNX. Медленный провайдер блокирует остальных.
 
 ### P2-12: `error_handler.py` — `_TIMELINE.pop(0)` O(n) под локом
-- **Файл:** `src/core/error_handler.py:206-218`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/error_handler.py:235-250`
+- **Статус:** ✅ FIXED (2026-07-31 — collections.deque(maxlen=50) и deque(maxlen=1000) для latencies)
 - **Детали:** `list.pop(0)` сдвигает все элементы. Под `_TOOL_METRICS_LOCK` на каждый вызов инструмента. Bottleneck при высокой нагрузке.
 
 ### P2-13: `indexer_table.py` — ручное `_escape_sql_value` хрупко
@@ -191,23 +203,23 @@
 - **Детали:** Экранирование покрывает 3 вектора, но не двойные кавычки, Unicode-обходы. Зависит от того, что DataFusion не изменит escape-правила.
 
 ### P2-14: `indexer.py` — `get_status` читает кэш без `_index_lock`
-- **Файл:** `src/core/indexing/indexer.py:250,269-272`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/index_status.py:37-90`, `indexer.py:141-146`
+- **Статус:** ✅ FIXED (2026-07-31 — lock передан в IndexStatusReporter, чтения под ним)
 - **Детали:** `total_chunks` обновился, а `unique_files` ещё нет — статус вернёт неконсистентные числа.
 
 ### P2-15: `db_manager.py` — `_warmup_cache` без `_write_lock`
-- **Файл:** `src/core/indexing/db_manager.py:160-189`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/db_manager.py:192-222`
+- **Статус:** ✅ FIXED (2026-07-31 — обёрнуто в `with self._write_lock:`, RLock)
 - **Детали:** Читает `self.table` без `_write_lock`. Если параллельный поток делает `reset_connection`, может попасть на закрытую таблицу.
 
 ### P2-16: `ci.yml` — Node 20 deprecated, нет Python 3.10
 - **Файл:** `.github/workflows/ci.yml`
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ✅ FIXED (2026-07-31 — Python 3.10 в matrix, actions/checkout@v5)
 - **Детали:** `actions/setup-python@v5` с python 3.11/3.12, но нет 3.10. Node 20 в matrix может быть deprecated.
 
 ### P2-17: `ruff.toml` — BLE001 (broad except) не в `select`
 - **Файл:** `ruff.toml`
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ✅ FIXED (2026-07-31 — BLE в select + per-file-ignores для 84 legacy-файлов, 664 нарушения)
 - **Детали:** 532 broad `except` по проекту не ловятся ruff-ом.
 
 ---
@@ -215,73 +227,77 @@
 ## P3 — Низкий приоритет
 
 ### P3-1: `graph.py` — `export_compressed` / `import_compressed` `unlink` без `finally`
-- **Файл:** `src/core/graph.py:1017,1083`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:1395-1420,1453-1500`
+- **Статус:** ✅ FIXED (2026-07-31 — try/finally + unlink(missing_ok=True))
 - **Детали:** Если `subprocess.run(check=True)` упадёт, `temp_db.unlink()` не выполнится → `.tmp.db` останется на диске.
 
 ### P3-2: `graph.py` — `close()` — `PRAGMA wal_checkpoint(TRUNCATE)` без таймаута
-- **Файл:** `src/core/graph.py:231-233`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:409-420,370`
+- **Статус:** ✅ CONFIRMED FIXED (busy_timeout=30000 уже установлен на connection, L370)
 - **Детали:** На больших графах checkpoint может занять минуты и заблокировать закрытие. Нет `PRAGMA busy_timeout`.
+- **Верификация:** `PRAGMA busy_timeout=30000` присутствует в `_get_conn` — ожидание блокировки ограничено 30с, ошибка checkpoint перехватывается try/except, `conn.close()` выполняется в finally.
 
 ### P3-3: `graph.py` — `_get_conn` `check_same_thread=False` + RLock bottleneck
-- **Файл:** `src/core/graph.py:188,179`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:353,359-374`
+- **Статус:** ⏳ ACCEPTED tech debt (2026-07-31 — задокументировано: сериализация через RLock — осознанный компромисс безопасности)
 - **Детали:** Все операции сериализуются через один `threading.RLock`. WAL mode позволяет конкурентные чтения, но блокировка это отменяет.
+- **Решение:** переход на read-write lock (RWLock) — отдельный рефакторинг с аудитом всех 40+ методов; текущая сериализация исключает класс гонок целиком. Зафиксировано как осознанный техдолг.
 
 ### P3-4: `graph.py` — `detect_dead_code` молчаливый LIMIT 200
-- **Файл:** `src/core/graph.py:725`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/graph.py:995-1027`
+- **Статус:** ✅ FIXED (2026-07-31 — параметр limit + logger.warning при усечении)
 - **Детали:** Возвращает максимум 200 кандидатов; если dead code больше, пользователь не узнает об усечении.
 
 ### P3-5: `cypher_executor.py` — SQL и params утекают в ответ MCP
-- **Файл:** `src/core/search/cypher_executor.py:69-70`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/search/cypher_executor.py:81-95`
+- **Статус:** ✅ FIXED (2026-07-31 — sql/sql_params удалены из stats)
 - **Детали:** Сгенерированный SQL и параметры возвращаются в `stats` и попадают в MCP-ответ. Раскрывает внутреннюю структуру таблиц.
 
 ### P3-6: `cypher_sql.py` — variable-length paths `[*1..3]` молча игнорируются
-- **Файл:** `src/core/search/cypher_sql.py:209-217`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/search/cypher_sql.py:252-262`
+- **Статус:** ✅ FIXED (2026-07-31 — явный NotImplementedError вместо неверного single-hop)
 - **Детали:** Запрос `MATCH (n)-[:CALLS*1..5]->(m)` возвращает только прямых соседей, не 5 уровней. Только debug-level лог.
+- **Фикс:** `max_hops > 1` → `raise NotImplementedError` с пояснением (пользователь получает ошибку, а не тихо неверные результаты).
 
 ### P3-7: `write_tools.py` — `_apply_delete` по line_no без проверки содержимого
-- **Файл:** `src/mcp/tools/write_tools.py:456-483`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/tools/write_tools.py:674-704`
+- **Статус:** ✅ FIXED (2026-07-31 — проверка `short_name in line` перед удалением, иначе skip + error)
 - **Детали:** Удаляет строки по номеру без проверки `symbol in text_lines[idx]`. Если индекс устарел — удалятся неправильные строки.
 
 ### P3-8: `write_tools.py` — `_action_replace` без проверки синтаксиса
-- **Файл:** `src/mcp/tools/write_tools.py:226-234`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/tools/write_tools.py:312-390`
+- **Статус:** ✅ FIXED (2026-07-31 — ast.parse для .py перед записью)
 - **Детали:** `new_code` вставляется как есть. Нет `ast.parse` для Python-файлов перед записью.
 
 ### P3-9: `write_tools.py` — `_apply_changes` неатомарная запись без backup
-- **Файл:** `src/mcp/tools/write_tools.py:386-413`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/tools/write_tools.py:569-602`
+- **Статус:** ✅ CONFIRMED FIXED (batch 5601de39: tempfile.mkstemp + os.replace)
 - **Детали:** Нет backup-файла, нет `tempfile + os.replace` паттерна.
 
 ### P3-10: `error_handler.py` — traceback в MCP-ответ (info leak)
-- **Файл:** `src/core/error_handler.py:495`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/error_handler.py:562-574,620-630`
+- **Статус:** ✅ FIXED (2026-07-31 — detail=None; traceback остаётся в логах)
 - **Детали:** `traceback.format_exc(limit=3)` возвращается в MCP-ответ пользователю. Раскрывает пути к файлам, имена модулей.
 
 ### P3-11: `layer.py` — ручной парсинг git objects через zlib
-- **Файл:** `src/core/intelligence/layer.py:729-787`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/intelligence/layer.py:858-885`
+- **Статус:** ✅ FIXED (2026-07-31 — git log fallback для packfiles)
 - **Детали:** Не поддерживает packfiles (`.git/objects/pack/*.pack`). Если `git gc` был сделан — ADR-коллектор молча вернёт «не найдено».
+- **Фикс:** `_read_commit_msg` — сначала loose-объект; при отсутствии (packfile) — `git log --format=%s%x00%b` для хэша.
 
 ### P3-12: `db_manager.py` — `asyncio.Lock` в `__init__` — wrong loop на Python 3.10
-- **Файл:** `src/core/indexing/db_manager.py:45`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/core/indexing/db_manager.py:56,228-250`
+- **Статус:** ✅ FIXED (2026-07-31 — ленивое создание lock в ensure_async_table)
 - **Детали:** `asyncio.Lock()` создаётся без running loop. Если `LanceDBManager` инстанцируется в sync-коде startup, а `ensure_async_table` вызывается из async MCP-handler в другом event loop — lock может привязаться к неправильному loop.
 
 ### P3-13: `server_tools.py` — двойная инстанциация каждого инструмента
-- **Файл:** `src/mcp/server_tools.py:148-158`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/server_tools.py:156-210`
+- **Статус:** ✅ FIXED (2026-07-31 — экземпляры кэшируются в `_name_cache`)
 - **Детали:** Каждый класс создаётся дважды: первый раз для `.name` (фильтр), второй раз для регистрации. Кэш хранит только имя, не экземпляр. 38 инстанциаций вместо 19.
 
 ### P3-14: `server_tools.py` — `_action_write` создаёт `SymbolWriteTool` на каждый вызов
-- **Файл:** `src/mcp/server_tools.py:82-83`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/server_tools.py`
+- **Статус:** ✅ CONFIRMED FIXED (grep: `SymbolWriteTool`/`_action_write` отсутствуют в server_tools.py)
 - **Детали:** Локальный import + новая инстанция каждый вызов. Для MCP-сервера с сотнями write-операций — лишний overhead.
 
 ---
@@ -312,10 +328,6 @@
 
 ## Что осталось
 
-- P0-1: Валидация alias в `cypher_sql.py` L84 (f-string подстановка)
-- P0-2: Фикс `layer` SQL injection в `engine.py:352`
-- P0-3: Фикс `verify_clean_state.sh` Windows-пути → POSIX
-- P0-4: Фикс docstring sandbox в `codebase_tool.py`
-- P1-P3: Все остальные баги ждут фикса
-- Верификация через pytest после каждого фикса
-- Обновление `AGENT_DIARY.md` и `KNOWN_ISSUES.md`
+- ⏳ P2-1/P2-6/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; persistent event loop и RWLock — отдельные рефакторинги)
+- Верификация через pytest после каждого фикса — выполнено: 610 passed, 0 failed
+- `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы

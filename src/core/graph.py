@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import sqlite3
 import sys
@@ -65,7 +64,7 @@ class _CrossProcessMutex:
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
-            
+
             # Создаём или открываем Named Mutex
             self._mutex_handle = kernel32.CreateMutexW(None, False, self._mutex_name)
             if not self._mutex_handle:
@@ -937,21 +936,25 @@ class PropertyGraph:
 
         with self._lock:
             conn = self._get_conn()
+            # BFS с parent-pointer: память O(V) вместо O(V×depth).
+            # Каждый узел хранит только ссылку на предка (P1-1 audit —
+            # прежняя реализация хранила все полные пути в queue).
             visited: Set[int] = {source.id}
-            queue: List[List[Tuple[int, Optional[int]]]] = [[(source.id, None)]]
+            parent: Dict[int, Tuple[int, int]] = {}  # node_id -> (parent_node_id, edge_id)
+            frontier: List[int] = [source.id]
+            found: Optional[int] = None
 
             for _ in range(max_depth):
-                if not queue:
+                if not frontier:
                     break
-                next_queue: List[List[Tuple[int, Optional[int]]]] = []
+                next_frontier: List[int] = []
 
-                for path in queue:
-                    last_id = path[-1][0]
+                for node_id in frontier:
                     edges_sql = (
                         "SELECT id, source_id, target_id, type, weight, properties "
                         "FROM edges WHERE source_id = ?"
                     )
-                    params: List[Any] = [last_id]
+                    params: List[Any] = [node_id]
                     if edge_type:
                         edges_sql += " AND type = ?"
                         params.append(edge_type)
@@ -962,40 +965,83 @@ class PropertyGraph:
                         if neighbor_id in visited:
                             continue
                         visited.add(neighbor_id)
-
-                        new_path = path + [(neighbor_id, row["id"])]
+                        parent[neighbor_id] = (node_id, row["id"])
                         if neighbor_id == target.id:
-                            # Восстанавливаем полный путь
-                            return self._reconstruct_path(new_path)
+                            found = neighbor_id
+                            break
+                        next_frontier.append(neighbor_id)
+                    if found is not None:
+                        break
+                if found is not None:
+                    break
+                frontier = next_frontier
 
-                        next_queue.append(new_path)
+            if found is None:
+                return []  # Путь не найден
 
-                queue = next_queue
-
-            return []  # Путь не найден
+            # Восстанавливаем путь по parent-ссылкам (source → target)
+            path_ids: List[Tuple[int, Optional[int]]] = []
+            cur = found
+            while cur != source.id:
+                pnode, pedge = parent[cur]
+                path_ids.append((cur, pedge))
+                cur = pnode
+            path_ids.append((source.id, None))
+            path_ids.reverse()
+            return self._reconstruct_path(path_ids)
 
     def _reconstruct_path(
         self, path_ids: List[Tuple[int, Optional[int]]]
     ) -> List[Tuple[Node, Edge]]:
-        """Восстанавливает путь из ID в Node/Edge."""
+        """Восстанавливает путь из ID в Node/Edge (пакетными запросами).
+
+        P1-1 audit: вместо N+1 запросов (по одному на узел/ребро) делаем
+        два запроса: один для всех узлов, один для всех рёбер.
+        """
+        node_ids = [nid for nid, _ in path_ids]
+        edge_ids = [eid for _, eid in path_ids if eid is not None]
+
+        nodes_by_id: Dict[int, Node] = {}
+        edges_by_id: Dict[int, Edge] = {}
+        with self._lock:
+            conn = self._get_conn()
+            if node_ids:
+                placeholders = ",".join("?" for _ in node_ids)
+                rows = conn.execute(
+                    f"SELECT id, name, label, qualified_name, file_path, properties "
+                    f"FROM nodes WHERE id IN ({placeholders})",
+                    node_ids,
+                ).fetchall()
+                for r in rows:
+                    nodes_by_id[r[0]] = Node.from_row(r)
+            if edge_ids:
+                placeholders = ",".join("?" for _ in edge_ids)
+                rows = conn.execute(
+                    f"SELECT id, source_id, target_id, type, weight, properties "
+                    f"FROM edges WHERE id IN ({placeholders})",
+                    edge_ids,
+                ).fetchall()
+                for r in rows:
+                    edges_by_id[r[0]] = Edge.from_row(r)
+
         result = []
-        for i, (node_id, edge_id) in enumerate(path_ids):
-            node = self.get_node_by_id(node_id)
-            edge = None
-            if edge_id is not None:
-                conn = self._get_conn()
-                row = conn.execute("SELECT * FROM edges WHERE id = ?", (edge_id,)).fetchone()
-                if row:
-                    edge = Edge.from_row(row)
-            result.append((node, edge))
+        for node_id, edge_id in path_ids:
+            node = nodes_by_id.get(node_id)
+            edge = edges_by_id.get(edge_id) if edge_id is not None else None
+            if node is not None:
+                result.append((node, edge))
         return result
 
     # ── Аналитика ─────────────────────────────────────────
 
-    def detect_dead_code(self) -> List[Node]:
+    def detect_dead_code(self, limit: int = 200) -> List[Node]:
         """Находит функции/методы без входящих CALLS-рёбер.
 
         Исключает entry points (main, run, start, handle и т.д.)
+
+        Args:
+            limit: Максимум кандидатов (P3-4 audit: раньше был молчаливый
+                   LIMIT 200 — теперь параметризован и логирует усечение).
 
         Returns:
             Список узлов-кандидатов на dead code
@@ -1004,10 +1050,16 @@ class PropertyGraph:
 
         with self._lock:
             conn = self._get_conn()
-            return self._detect_dead_code_impl(conn, entry_points)
+            result = self._detect_dead_code_impl(conn, entry_points, limit=limit)
+            if len(result) >= limit:
+                logger.warning(
+                    f"detect_dead_code: достигнут лимит {limit} — "
+                    f"кандидатов больше, результат усечён (увеличьте limit)"
+                )
+            return result
 
     def _detect_dead_code_impl(
-        self, conn, entry_points: Set[str]
+        self, conn, entry_points: Set[str], limit: int = 200
     ) -> List[Node]:
         placeholders = ",".join("?" for _ in entry_points)
         rows = conn.execute(
@@ -1021,7 +1073,7 @@ class PropertyGraph:
                       AND e.type IN ('CALLS', 'ASYNC_CALLS')
                 )
                 ORDER BY n.file_path, n.name
-                LIMIT 200""",
+                LIMIT {int(limit)}""",
             tuple(entry_points),
         ).fetchall()
         return [Node.from_row(r) for r in rows]
@@ -1246,17 +1298,27 @@ class PropertyGraph:
             conn = self._get_conn()
             conn.execute("BEGIN TRANSACTION")
             try:
+                # P1-2 audit: батч-lookup всех узлов одним запросом
+                # вместо 2 SELECT на ребро (N+1 → 1 запрос).
+                qnames: Set[str] = set()
                 for e in edges:
-                    source = conn.execute(
-                        "SELECT id FROM nodes WHERE qualified_name = ?",
-                        (e["source_qname"],),
-                    ).fetchone()
-                    target = conn.execute(
-                        "SELECT id FROM nodes WHERE qualified_name = ?",
-                        (e["target_qname"],),
-                    ).fetchone()
+                    qnames.add(e.get("source_qname"))
+                    qnames.add(e.get("target_qname"))
+                id_by_qname: Dict[str, int] = {}
+                if qnames:
+                    placeholders = ",".join("?" for _ in qnames)
+                    for r in conn.execute(
+                        f"SELECT id, qualified_name FROM nodes "
+                        f"WHERE qualified_name IN ({placeholders})",
+                        list(qnames),
+                    ).fetchall():
+                        id_by_qname[r["qualified_name"]] = r["id"]
 
-                    if not source or not target:
+                for e in edges:
+                    source_id = id_by_qname.get(e.get("source_qname"))
+                    target_id = id_by_qname.get(e.get("target_qname"))
+
+                    if source_id is None or target_id is None:
                         logger.warning(
                             f"Skipping edge: node not found "
                             f"({e.get('source_qname')} -> {e.get('target_qname')})"
@@ -1270,8 +1332,8 @@ class PropertyGraph:
                            ON CONFLICT(source_id, target_id, type) DO UPDATE SET
                                weight=excluded.weight, properties=excluded.properties""",
                         (
-                            source[0],
-                            target[0],
+                            source_id,
+                            target_id,
                             e.get("type", EdgeType.CALLS),
                             e.get("weight", 1.0),
                             props_json,
@@ -1329,27 +1391,29 @@ class PropertyGraph:
         # Сохраняем размер ДО unlink (B1: FileNotFoundError fix)
         temp_size = temp_db.stat().st_size
 
-        # zstd-сжатие
+        # zstd-сжатие (P3-1 audit: temp_db удаляется в finally,
+        # чтобы не остался .tmp.db при падении compress/subprocess)
         try:
-            import zstandard
+            try:
+                import zstandard
 
-            with open(temp_db, "rb") as fin:
-                data = fin.read()
-            compressed = zstandard.compress(data, compression_level)
-            compressed_size = len(compressed)
-            output_path.write_bytes(compressed)
-        except ImportError:
-            # fallback: system zstd пишет в output_path напрямую
-            subprocess.run(
-                [sys.executable, "-m", "zstandard", f"-{compression_level}",
-                 str(temp_db), "-o", str(output_path)],
-                check=True,
-                capture_output=True,
-                timeout=60,  # B2: timeout на зависший subprocess
-            )
-            compressed_size = output_path.stat().st_size
-
-        temp_db.unlink()
+                with open(temp_db, "rb") as fin:
+                    data = fin.read()
+                compressed = zstandard.compress(data, compression_level)
+                compressed_size = len(compressed)
+                output_path.write_bytes(compressed)
+            except ImportError:
+                # fallback: system zstd пишет в output_path напрямую
+                subprocess.run(
+                    [sys.executable, "-m", "zstandard", f"-{compression_level}",
+                     str(temp_db), "-o", str(output_path)],
+                    check=True,
+                    capture_output=True,
+                    timeout=60,  # B2: timeout на зависший subprocess
+                )
+                compressed_size = output_path.stat().st_size
+        finally:
+            temp_db.unlink(missing_ok=True)
         logger.info(f"Graph exported: {temp_size / 1024:.0f} KB -> "
                     f"{output_path} ({compressed_size / 1024:.0f} KB zstd)")
         return output_path
@@ -1389,46 +1453,50 @@ class PropertyGraph:
             tmp_path = Path(tmp.name)
             tmp.write(decompressed)
 
-        # Загружаем во временную БД, мержим
+        # Загружаем во временную БД, мержим (P3-1 audit:
+        # tmp_path/src_conn закрываются в finally даже при ошибке merge)
         import sqlite3
 
-        src_conn = sqlite3.connect(str(tmp_path))
-        src_conn.row_factory = sqlite3.Row
+        src_conn = None
+        try:
+            src_conn = sqlite3.connect(str(tmp_path))
+            src_conn.row_factory = sqlite3.Row
 
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute("BEGIN TRANSACTION")
-            try:
-                # Копируем узлы (IGNORE — не перезаписываем существующие)
-                conn.execute("""
-                    INSERT OR IGNORE INTO nodes (name, label, qualified_name, file_path, properties)
-                    SELECT name, label, qualified_name, file_path, properties
-                    FROM tmp.nodes
-                """)
-                node_count = conn.total_changes
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN TRANSACTION")
+                try:
+                    # Копируем узлы (IGNORE — не перезаписываем существующие)
+                    conn.execute("""
+                        INSERT OR IGNORE INTO nodes (name, label, qualified_name, file_path, properties)
+                        SELECT name, label, qualified_name, file_path, properties
+                        FROM tmp.nodes
+                    """)
+                    node_count = conn.total_changes
 
-                # Копируем рёбра (IGNORE)
-                conn.execute("""
-                    INSERT OR IGNORE INTO edges (source_id, target_id, type, weight, properties)
-                    SELECT
-                        COALESCE(dst.id, src.id),
-                        COALESCE(dst2.id, src2.id),
-                        e.type, e.weight, e.properties
-                    FROM tmp.edges e
-                    LEFT JOIN nodes dst ON dst.qualified_name = (
-                        SELECT qualified_name FROM tmp.nodes WHERE id = e.source_id
-                    )
-                    LEFT JOIN nodes dst2 ON dst2.qualified_name = (
-                        SELECT qualified_name FROM tmp.nodes WHERE id = e.target_id
-                    )
-                """)
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-
-        src_conn.close()
-        tmp_path.unlink()
+                    # Копируем рёбра (IGNORE)
+                    conn.execute("""
+                        INSERT OR IGNORE INTO edges (source_id, target_id, type, weight, properties)
+                        SELECT
+                            COALESCE(dst.id, src.id),
+                            COALESCE(dst2.id, src2.id),
+                            e.type, e.weight, e.properties
+                        FROM tmp.edges e
+                        LEFT JOIN nodes dst ON dst.qualified_name = (
+                            SELECT qualified_name FROM tmp.nodes WHERE id = e.source_id
+                        )
+                        LEFT JOIN nodes dst2 ON dst2.qualified_name = (
+                            SELECT qualified_name FROM tmp.nodes WHERE id = e.target_id
+                        )
+                    """)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+        finally:
+            if src_conn is not None:
+                src_conn.close()
+            tmp_path.unlink(missing_ok=True)
 
         logger.info(f"Graph imported: {node_count} new nodes")
         return node_count

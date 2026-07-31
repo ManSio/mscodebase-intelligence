@@ -53,11 +53,16 @@ class LanceDBManager:
         # Async LanceDB (ленивая инициализация)
         self._async_db: Optional[Any] = None
         self._async_table: Optional[Any] = None
-        self._async_db_lock = asyncio.Lock()
+        # P3-12 audit: asyncio.Lock создаётся лениво при первом ensure_async_table
+        # (привязка к running loop на Python 3.10+ происходит в момент acquire,
+        # создание в __init__ из sync-кода даёт wrong-loop).
+        self._async_db_lock: Optional[asyncio.Lock] = None
 
         # ─── Thread-safety: используем переданный lock для сериализации write/reconnect
         # Это гарантирует, что reset_connection и bulk_write не выполняются одновременно
-        self._write_lock = table_write_lock or threading.Lock()
+        # P1-13 audit: RLock — reset_connection() вызывает _warmup_cache()
+        # из-под этого же лока (реентерабельность обязательна).
+        self._write_lock = table_write_lock or threading.RLock()
         self._reindex_guard = threading.Event()  # set = reindex идёт, search fast-fail
 
         # ─── Single-writer PID lock (Layer 3 defense) ───
@@ -190,35 +195,41 @@ class LanceDBManager:
         return table
 
     def _warmup_cache(self) -> None:
-        """Прогрев кэша чанков и уникальных файлов (без сканирования диска)."""
-        try:
-            if self.table is None:
-                return
-            count = self.table.count_rows()
-            self._cached_total_chunks = count
-            if count > 0:
-                logger.info(f"Cache warmup: {count} chunks")
-                for attempt in range(3):
-                    try:
-                        ds = self.table.to_lance()
-                        _fp_df = ds.to_pandas(columns=["file_path"])
-                        if not _fp_df.empty:
-                            self._cached_unique_files = set(_fp_df["file_path"].unique())
-                        break
-                    except Exception:
-                        if attempt == 0:
-                            continue
-                        break
-                logger.info(f"Cache warmup: {len(self._cached_unique_files)} files")
-            else:
-                logger.debug("Cache warmup: empty database (first run)")
-        except Exception as e:
-            err_str = str(e).lower()
-            if "not found" in err_str or "does not exist" in err_str:
-                logger.warning(f"Table not found during warmup: {e}")
-            else:
-                logger.debug(f"Cache warmup failed: {e}. Cache = 0.")
-            self._cached_total_chunks = 0
+        """Прогрев кэша чанков и уникальных файлов (без сканирования диска).
+
+        P2-15 audit: чтение self.table сериализуется через _write_lock,
+        чтобы не попасть на закрытую таблицу при параллельном reset_connection.
+        RLock позволяет вызов из-под уже захваченного лока (reset_connection).
+        """
+        with self._write_lock:
+            try:
+                if self.table is None:
+                    return
+                count = self.table.count_rows()
+                self._cached_total_chunks = count
+                if count > 0:
+                    logger.info(f"Cache warmup: {count} chunks")
+                    for attempt in range(3):
+                        try:
+                            ds = self.table.to_lance()
+                            _fp_df = ds.to_pandas(columns=["file_path"])
+                            if not _fp_df.empty:
+                                self._cached_unique_files = set(_fp_df["file_path"].unique())
+                            break
+                        except Exception:
+                            if attempt == 0:
+                                continue
+                            break
+                    logger.info(f"Cache warmup: {len(self._cached_unique_files)} files")
+                else:
+                    logger.debug("Cache warmup: empty database (first run)")
+            except Exception as e:
+                err_str = str(e).lower()
+                if "not found" in err_str or "does not exist" in err_str:
+                    logger.warning(f"Table not found during warmup: {e}")
+                else:
+                    logger.debug(f"Cache warmup failed: {e}. Cache = 0.")
+                self._cached_total_chunks = 0
 
     def close_sync(self):
         """Синхронное закрытие (для cleanup)."""
@@ -228,9 +239,13 @@ class LanceDBManager:
     async def ensure_async_table(self):
         """Гарантирует наличие асинхронного подключения к LanceDB.
 
-        Использует asyncio.Lock для thread-safe ленивой инициализации.
+        P3-12 audit: asyncio.Lock создаётся лениво в контексте вызывающего
+        event loop (привязка loop происходит при первом acquire) — создание
+        в __init__ из sync-кода давало wrong-loop на Python 3.10.
         Multi-window: при переключении проекта создаётся новая async-таблица.
         """
+        if self._async_db_lock is None:
+            self._async_db_lock = asyncio.Lock()
         async with self._async_db_lock:
             if self._async_table is not None:
                 return self._async_table
@@ -271,49 +286,53 @@ class LanceDBManager:
 
         Вызывается из Indexer.switch_project(). Закрывает старое
         подключение и открывает новое.
+
+        P1-4 audit: вся операция сериализуется через _write_lock,
+        чтобы параллельный write не попал в закрытую БД.
         """
-        # Sync close
-        if hasattr(self, 'db') and self.db is not None:
-                    try:
-                        self.db.close()
-                    except Exception as _close_err:
-                        logger.debug(f"DB close warning: {_close_err}")
+        with self._write_lock:
+            # Sync close
+            if hasattr(self, 'db') and self.db is not None:
+                try:
+                    self.db.close()
+                except Exception as _close_err:
+                    logger.debug(f"DB close warning: {_close_err}")
 
-        # Normalize new path
-        raw_path = str(new_db_path.resolve())
-        if raw_path.startswith("\\\\?\\"):
-            lancedb_path = raw_path[4:]
-        else:
-            lancedb_path = raw_path
+            # Normalize new path
+            raw_path = str(new_db_path.resolve())
+            if raw_path.startswith("\\\\?\\"):
+                lancedb_path = raw_path[4:]
+            else:
+                lancedb_path = raw_path
 
-        Path(to_win_long_path(new_db_path)).mkdir(parents=True, exist_ok=True)
-        self.db_path = new_db_path
-        self.db = lancedb.connect(lancedb_path)
-        self._lancedb_connect_path = lancedb_path
+            Path(to_win_long_path(new_db_path)).mkdir(parents=True, exist_ok=True)
+            self.db_path = new_db_path
+            self.db = lancedb.connect(lancedb_path)
+            self._lancedb_connect_path = lancedb_path
 
-        # Reset async
-        self._async_db = None
-        self._async_table = None
+            # Reset async
+            self._async_db = None
+            self._async_table = None
 
-        # Open/create table
-        self.table = self._open_or_create_table(self.schema)
+            # Open/create table
+            self.table = self._open_or_create_table(self.schema)
 
-        # Reset IndexGuard
-        self._index_guard = IndexGuard(self.db_path, self.project_path)
-        guard_report = self._index_guard.check_and_repair(self.db)
-        if guard_report["status"] != "ok":
-            logger.warning(
-                f"IndexGuard after switch: {guard_report['status']} — "
-                f"{', '.join(guard_report['actions_taken'])}"
-            )
-            try:
-                self.table = self.db.open_table(self.table_name)
-            except Exception as _open_err:
-                logger.warning(f"Table re-open after switch failed: {_open_err}")
+            # Reset IndexGuard
+            self._index_guard = IndexGuard(self.db_path, self.project_path)
+            guard_report = self._index_guard.check_and_repair(self.db)
+            if guard_report["status"] != "ok":
+                logger.warning(
+                    f"IndexGuard after switch: {guard_report['status']} — "
+                    f"{', '.join(guard_report['actions_taken'])}"
+                )
+                try:
+                    self.table = self.db.open_table(self.table_name)
+                except Exception as _open_err:
+                    logger.warning(f"Table re-open after switch failed: {_open_err}")
 
-        # Warmup new cache
-        self._warmup_cache()
-        logger.info(f"Switched to DB: {new_db_path}")
+            # Warmup new cache
+            self._warmup_cache()
+            logger.info(f"Switched to DB: {new_db_path}")
 
     def reset_connection(self) -> None:
         """Сбрасывает handle БД и переподключается.
@@ -420,38 +439,47 @@ class LanceDBManager:
             logger.info(f"🔒 PID lock acquired: {lock_path} (pid={os.getpid()})")
             return
         except FileExistsError:
-            # Lock exists - check if holder is alive
+            # Lock существует — читаем данные владельца
             try:
                 with open(lock_path, 'r') as f:
                     data = json.load(f)
                 holder_pid = data.get('pid')
-                if holder_pid and self._is_pid_alive(holder_pid):
-                    # Lock held by alive process - wait instead of crashing
-                    logger.warning(f"PID lock held by alive pid={holder_pid}, waiting...")
-                    for _wait in range(30):  # wait up to 30 seconds
-                        time.sleep(1)
-                        if not self._is_pid_alive(holder_pid):
-                            logger.info(f"Previous process pid={holder_pid} exited, proceeding")
-                            break
-                        # Check if lock file was released
-                        if not lock_path.exists():
-                            break
-                    else:
-                        # Timeout - could not acquire lock
-                        logger.error(f"Timeout waiting for PID lock from pid={holder_pid}")
-                        # Fall through to try acquiring again (will fail if still held)
-                else:
-                    # Stale lock (holder dead) — steal it
-                    try:
-                        lock_path.unlink(missing_ok=True)
-                    except PermissionError:
-                        # Windows: файл занят живым процессом — некража
-                        raise RuntimeError(
-                            f"Cannot steal PID lock from pid={holder_pid}: file in use"
-                        )
             except (json.JSONDecodeError, OSError):
-                # Corrupted lock file - remove and retry once
-                lock_path.unlink(missing_ok=True)
+                holder_pid = None  # битый/нечитаемый lock — трактуем как stale
+
+            if holder_pid and self._is_pid_alive(holder_pid):
+                # Lock занят живым процессом — ждём до 30 секунд
+                logger.warning(f"PID lock held by alive pid={holder_pid}, waiting...")
+                waited = 0
+                while waited < 30:
+                    time.sleep(1)
+                    waited += 1
+                    if not self._is_pid_alive(holder_pid):
+                        logger.info(f"Previous process pid={holder_pid} exited, proceeding")
+                        break
+                    if not lock_path.exists():
+                        break
+                else:
+                    # P1-14 audit: раньше молча падал вниз БЕЗ захвата лока
+                    # (писатель работал без блокировки). Теперь — явный крах.
+                    raise RuntimeError(
+                        f"PID lock still held by alive pid={holder_pid} "
+                        f"after 30s — другой процесс пишет в эту БД"
+                    )
+
+            # Holder мёртв / lock освобождён / lock битый — забираем lock
+            if lock_path.exists():
+                try:
+                    lock_path.unlink(missing_ok=True)
+                except PermissionError:
+                    # Windows: файл занят живым процессом — некража
+                    raise RuntimeError(
+                        f"Cannot steal PID lock from pid={holder_pid}: file in use"
+                    )
+
+            # Retry-loop на гонку: другой процесс может создать lock между
+            # unlink и os.open (P1-14 audit — раньше был один шанс и краш)
+            for _attempt in range(5):
                 try:
                     fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
                     self._pid_lock_fd = fd
@@ -465,7 +493,8 @@ class LanceDBManager:
                     logger.info(f"🔒 PID lock acquired (after retry): {lock_path} (pid={os.getpid()})")
                     return
                 except FileExistsError:
-                    raise RuntimeError("PID lock race: another process acquired lock during retry")
+                    time.sleep(0.5)
+            raise RuntimeError("PID lock race: another process acquired lock during retry")
         except Exception as e:
             logger.error(f"PID lock error: {e}")
             raise
