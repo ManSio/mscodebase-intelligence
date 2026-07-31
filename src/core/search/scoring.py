@@ -400,6 +400,7 @@ def apply_mmr_diversity(
 
     # Добавляем оставшиеся (те, что не прошли MMR) в порядке relevance
     remaining = [i for i in range(n) if i not in selected_order]
+    remaining.sort(key=lambda i: float(relevance[i]), reverse=True)
     final_order = selected_order + remaining
 
     # Пересортировываем chunks

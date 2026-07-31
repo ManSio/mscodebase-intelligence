@@ -1,5 +1,15 @@
 ---
 
+## [2026-07-31] — P0 deadlock реиндекса + z.ai review обработка (16 пунктов)
+
+**Status:** ✅ Fixed (P0 deadlock; z.ai: 3 CONFIRMED/1 partial/12 REFUTED)
+**Root Cause:** регрессия ac6e5ba0e P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 воркеры вызывали её БЕЗ `known_hashes` из ThreadPool, пока главный поток держал тот же RLock через `begin_write()` на весь run() → RLock не реентерабелен между потоками → вечный deadlock: индексация зависала (progress:0, current_file:""), все MCP-инструменты, читающие БД, таймаутили (get_status/count_rows под тем же lock).
+**Fix:** `index_project_runner.py` — bulk-загрузка known_hashes в главном потоке (RLock reentrant) + передача воркерам → они не ходят в БД под lock; + `invalidate_cache()` после reindex (LOGIC-5) и в `_index_single_file`; `scoring.py` MMR remaining по relevance (LOGIC-8); `file_move_manager.py` переписан (искал по file_hash вместо file_path + нетранзакционный delete→add, LOGIC-1/2/3 — орфанный, но опасен); `lsp_client.py` UNC (WIN-3/4); `server_factory.py` json.dumps (WIN-8); `graph.py` mutex warning (WIN-2); `error_handler.py` sanitize str(e) (SEC-4); `codebase_tool.py` env-валидация (SEC-5); тесты: test_index_runner_deadlock (3, валидирован — падает без фикса), test_lsp_uri_conversion (5+2 skip).
+**Guard:** 666 passed, 0 failed; ruff clean; py_compile 9 файлов; ISSUE.md «Что осталось» + секция z.ai review; KNOWN_ISSUES.md зеркально. REFUTED: LOGIC-4 (flush уже вне lock), WIN-1 (blake2b уже), SEC-1/2 (allowlist уже чистый), ARCH-1 (resolve уже под lock), LOGIC-7 (assign-as-method есть).
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest tests/ (666 passed) с рабочего дерева.
+
+---
+
 ## [2026-07-31] — G-1 закрыт: 5 stub-тестов (B11/P1-12) заменены на настоящие (52 теста)
 
 **Status:** ✅ Fixed

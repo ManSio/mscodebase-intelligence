@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — P0 deadlock реиндекса (регрессия ac6e5ba0e P1-3) + z.ai review (FIXED)
+
+**Symptom:** реиндекс завис навсегда (progress.json: progress=0, current_file="", 305 files), ВСЕ MCP-инструменты (intel_get_runtime_status, execution_timeline, counters) → «Context server request timeout»; CPU MCP-процесса замер (не цикл, а блокировка). Воспроизводилось оба запуска (21:29, 21:44).
+**Root Cause:** регрессия ac6e5ba0e (P1-3 «RLock migration», 2026-07-31 19:33) — `_parse_file_only` read-секция обёрнута в `with self._table_write_lock` (RLock), а Phase 1 Parallel Parse вызывает её из воркеров БЕЗ known_hashes, пока главный поток держит ТОТ ЖЕ RLock через `begin_write()` на весь `run()` → RLock реентерабелен только в одном потоке → вечный deadlock. RLock держится → любой `get_status()/count_rows()` под `_write_lock` (тот же объект) таймаутит.
+**Fix:** `src/core/indexing/index_project_runner.py` — bulk-загрузка `known_hashes` (1 запрос) в главном потоке (reentrant) + передача воркерам → они НЕ ходят в БД под lock; заодно +`searcher.invalidate_cache()` после reindex (LOGIC-5) и в `_index_single_file`. z.ai review (16): CONFIRMED 3 — LOGIC-1/2/3 (file_move_manager: file_hash→file_path, delete+add→read→delete→add под lock, _escape_sql_value), LOGIC-5, LOGIC-8 (MMR remaining по relevance), WIN-2/3/4/8, SEC-4/5 — починены; REFUTED 12 — LOGIC-4 (flush уже вне lock), WIN-1 (blake2b уже), SEC-1/2 (allowlist уже чистый), ARCH-1 (resolve уже под lock), LOGIC-7 (assign-as-method есть), WIN-5/6/7/9/10/11, TEST-3/4/5, ZED-1..9 (в основном OK).
+**Guard:** `tests/test_index_runner_deadlock.py` (3 теста, валидирован — падает без фикса: воркер получает known_hashes=None); `tests/test_lsp_uri_conversion.py` (5+2 skip, UNC WIN-3/4).
+**Тесты:** 666 passed, 0 failed (было 649); ruff clean; py_compile 9 файлов; bump_version --check ✅ (3.3.9).
+
+---
+
 ## 2026-07-31 — G-2 E2E MCP smoke-тест + I001 fix (test_move_chunks.py) (FIXED)
 
 **Symptom:** после G-1 оставались G-2 (E2E-тест без моков) и I001 (tests/test_move_chunks.py:63, несортированные импорты). Первый прогон E2E упал: `RuntimeError: Embedder failed: mode=onnx, ov_compiled=False, onnx_client=True` — фоновый init-поток RemoteEmbedder переключил mode с llama_cpp на onnx.

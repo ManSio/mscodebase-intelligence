@@ -23,7 +23,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Optional, Set
+from typing import Callable, Dict, Optional, Set
 
 __all__ = [
     "IndexProjectRunner",
@@ -168,6 +168,22 @@ class IndexProjectRunner:
             if progress_callback:
                 progress_callback("", 0, total_files, "scanning")
 
+            # P0-FIX (регрессия ac6e5ba0e P1-3): загружаем известные хэши ОДИН раз
+            # в главном потоке (RLock reentrant — безопасно под begin_write) и
+            # передаём воркерам. Без этого каждый воркер Phase 1 ходит в БД
+            # (self.table.search) под _table_write_lock — тот же RLock, что держит
+            # главный поток на весь run() → RLock не реентерабелен между потоками
+            # → вечный deadlock (индексация зависала, MCP-инструменты таймаутили).
+            known_hashes: Dict[str, str] = {}
+            if self.table is not None:
+                try:
+                    _kh_df = self.table.to_lance().to_pandas(columns=["file_path", "file_hash"])
+                    if not _kh_df.empty:
+                        known_hashes = dict(zip(_kh_df["file_path"], _kh_df["file_hash"]))
+                    logger.debug(f"known_hashes bulk load: {len(known_hashes)} files")
+                except Exception as _kh_err:
+                    logger.warning(f"known_hashes bulk load failed, parsing all files: {_kh_err}")
+
             def _notify_progress(done: int, total: int, phase: str, current: str,
                                   offset_pct: float = 0.0, span_pct: float = 100.0):
                 if not self._notification_broker:
@@ -190,7 +206,9 @@ class IndexProjectRunner:
                 _rel_path = str(_full_path.relative_to(project_path))
                 current_files_on_disk.add(_rel_path)
                 try:
-                    parsed = self._parse_file_only(_full_path, _rel_path, source="filesystem")
+                    parsed = self._parse_file_only(
+                        _full_path, _rel_path, source="filesystem", known_hashes=known_hashes
+                    )
                     if parsed is not None:
                         return {"parsed": parsed, "name": _fname, "rel": _rel_path}
                 except Exception as e:
@@ -366,6 +384,11 @@ class IndexProjectRunner:
                 if progress_callback:
                     progress_callback("", total_files, total_files, "rebuilding_bm25")
                 self.searcher.reindex()
+
+            # P2-5/LOGIC-5: сбрасываем кэш поиска (TTL 30с слишком долго
+            # для свежих данных — после reindex результаты stale до 30с).
+            if self.searcher is not None and hasattr(self.searcher, "invalidate_cache"):
+                self.searcher.invalidate_cache()
 
             # IVF index
             if self.table:

@@ -182,6 +182,7 @@ class Indexer(IndexerTableMixin):
         self._file_move_manager = FileMoveManager(
             table=self.table,
             searcher=self.searcher,
+            table_write_lock=self._table_write_lock,
         )
 
         # ─── IndexProjectRunner
@@ -489,6 +490,11 @@ class Indexer(IndexerTableMixin):
             with self._table_write_lock:
                 self.table.delete(f"file_path = '{escaped_path}'")
                 self._write_file_records(parsed, parsed["embeddings"])
+
+            # LOGIC-5: инвалидируем кэш поиска сразу после записи
+            # (TTL 30с слишком долго — stale-результаты после правки файла).
+            if self.searcher is not None and hasattr(self.searcher, "invalidate_cache"):
+                self.searcher.invalidate_cache()
 
             # ─── FTS5 incremental sync (А: не рассинхронизироваться с LanceDB) ───
             # Только если FTS5 уже построен (иначе lazy-rebuild при поиске).

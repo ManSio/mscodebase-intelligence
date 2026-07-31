@@ -430,8 +430,34 @@
 - ✅ **G-2 (2026-07-31): E2E MCP smoke-тест** — `tests/e2e/test_e2e_mcp_smoke.py`: реальный embedder (llama.cpp :8080) → реальная LanceDB (временная) → реальный поиск (fast, FTS5-fusion). Проверка входа→выхода: запрос `move_chunks_metadata` → чанк из `file_move_manager.py`. Требует живого MCP+embedder; в CI скипается (без `MSCODEBASE_E2E=1`). Команда: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`.
 - ⏳ P2-1/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; RWLock — отдельный рефакторинг)
 - ✅ P2-6: закрыт как TECH DEBT (ACCEPTED, 2026-07-31) — starvation, не deadlock; max_workers=2 недостижим легитимно (протокол запрещает 3+ параллельных MCP); persistent loop отложен намеренно
-- Верификация через pytest после каждого фикса — выполнено: 610 passed, 0 failed
+- ✅ **P0 deadlock реиндекса (2026-07-31, регрессия ac6e5ba0e P1-3)** — см. «z.ai review верификация»: bulk known_hashes в `index_project_runner.py` + тест test_index_runner_deadlock (валидирован)
+- Верификация через pytest после каждого фикса — выполнено: 666 passed, 0 failed
 - `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы
+
+## z.ai review верификация (2026-07-31)
+
+Проверено 16 пунктов код-ревью z.ai по §1.14: **3 ✅ CONFIRMED (починены), 1 ⏳ PARTIAL (орфанный код починен, продакшн-путь был чист), 12 ❌ REFUTED (уже исправлены ранее)**.
+
+| ID | Утверждение | File:Line | Статус | Вердикт / Фикс |
+|----|-------------|-----------|--------|----------------|
+| LOGIC-4 Blocker | `await self._flush()` внутри `with self._lock` → deadlock batch_full | rate_limiter.py:168-171 | ❌ REFUTED | flush уже ВНЕ lock (INC-53EC); _flush callback тоже вне lock (L234) |
+| WIN-1 High | `hash(str(db_path))` рандомизирован → mutex не работает | graph.py:59 | ❌ REFUTED | уже blake2b (a9d92e00 P2-21) |
+| LOGIC-1 High | move ищет по file_hash, не file_path | file_move_manager.py:37 | ⏳ PARTIAL | орфанный класс никем не вызывается (продакшн — Indexer.move_chunks_metadata, уже по file_path); сам класс ПОЧИНЕН |
+| LOGIC-2 High | delete+add нетранзакционен | file_move_manager.py:34-41 | ⏳ PARTIAL | то же; починено: read→delete→add под lock |
+| SEC-1 High | socket/ssl/http/multiprocessing в ALLOWED_MODULES | executor.py:36-46 | ❌ REFUTED | allowlist уже чистый (только stdlib) |
+| SEC-2 High | urllib.request в _USER_ALLOWED | executor.py:126-135 | ❌ REFUTED | отсутствует (Blocks: os/subprocess/socket/...) |
+| ARCH-1 High | resolve() не thread-safe | di_container.py:136 | ❌ REFUTED | уже `threading.Lock` (P2-18) |
+| WIN-3/4 High | UNC-пути в _path_to_uri/_uri_to_path | lsp_client.py:657-669 | ✅ CONFIRMED | `Path.as_uri()` + netloc-ветка; тест test_lsp_uri_conversion |
+| LOGIC-5 Med | cache TTL 30s без инвалидации | engine.py:96 | ✅ CONFIRMED | invalidate_cache() в runner + _index_single_file |
+| LOGIC-7 Low | _apply_co_change_boost не присвоен Searcher | engine.py:1121-1125 | ❌ REFUTED | assign-as-method есть |
+| LOGIC-8 Low | MMR remaining не по relevance | scoring.py:402 | ✅ CONFIRMED | `remaining.sort(key=relevance, reverse=True)` |
+| WIN-2 Med | mutex silent fallback | graph.py:75-76,86-87 | ✅ CONFIRMED | warning при CreateMutexW fail/exception |
+| WIN-8 Med | f-string JSON с str(e) | server_factory.py:308-319 | ✅ CONFIRMED | json.dumps + ensure_ascii=False |
+| SEC-4 Low | str(e) в MCP-ответе | error_handler.py:569,625 | ✅ CONFIRMED | _sanitize_error_message (пути → <path>, 200 симв.) |
+| SEC-5 Low | sandbox_mode env без валидации | codebase_tool.py:295 | ✅ CONFIRMED | fallback на strict при невалидном значении |
+| LOGIC-3 Med | ручное `replace("'","''")` | file_move_manager.py:21 | ⏳ PARTIAL | переведено на `_escape_sql_value` |
+| WIN-7 Low | md5[:8] коллизии | indexer.py:36 | ❌ ACCEPTED | смена на [:16] = смена имени БД = reindex (breaking, §1.11); отложено |
+| ARCH-6 Low | add_singleton(None) silent no-op | di_container.py:109 | ⏳ DEFERRED | все вызовы передают реальные инстансы; ValueError рискован |
 
 ## Claude review верификация (2026-07-31)
 

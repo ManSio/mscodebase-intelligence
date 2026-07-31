@@ -8,6 +8,32 @@
 
 > **Количество инструментов (текущее):** живой сервер регистрирует **48 инструментов** = 19 core + 13 intel + 12 inline + 4 dev
 
+## [3.3.9] — 2026-07-31 — P0 deadlock реиндекса + z.ai review (16 пунктов верифицированы)
+
+### Исправлено
+- **P0: deadlock реиндекса** (регрессия `ac6e5ba0e` P1-3): `IndexProjectRunner.run()` держал общий RLock (`begin_write`) на весь run(), а воркеры Phase 1 вызывали `_parse_file_only` без `known_hashes` → блокировались на том же RLock из другого потока (RLock не реентерабелен между потоками) → индексация зависала навсегда (`progress: 0`), все MCP-инструменты, читающие БД, таймаутили. Фикс: bulk-загрузка `known_hashes` в главном потоке (reentrant) + передача воркерам — они больше не ходят в БД под lock.
+- **`file_move_manager.py`** (LOGIC-1/2/3): поиск по `file_path` (было `file_hash` — дубликаты контента воровали чужой путь), read→delete→add в одном lock-цикле (было нетранзакционно), `_escape_sql_value` (было ручное `replace`).
+- **`lsp_client.py`** (WIN-3/4): UNC-пути через `Path.as_uri()` + netloc-ветка в `_uri_to_path`.
+- **`server_factory.py`** (WIN-8): `json.dumps` для JSON ошибок extension-handlers (был f-string с сырым `str(e)`).
+- **`error_handler.py`** (SEC-4): `_sanitize_error_message` — пути маскируются, лимит 200 символов в MCP-ответах.
+- **`codebase_tool.py`** (SEC-5): `MSCODEBASE_SANDBOX_MODE` валидируется, fallback на strict.
+- **`graph.py`** (WIN-2): warning при неудаче `CreateMutexW` (был тихий no-lock fallback).
+- **`scoring.py`** (LOGIC-8): MMR `remaining` сортируется по relevance (был порядок вставки).
+- **Инвалидация кэша** (LOGIC-5): `searcher.invalidate_cache()` после полного реиндекса и в `_index_single_file` (было только TTL 30с).
+
+### Добавлено
+- **`tests/test_index_runner_deadlock.py`**: 3 регрессионных теста — run() завершается (нет hang), воркеры получают `known_hashes` (не None), неизменённые файлы пропускаются. Валидирован: падает без фикса.
+- **`tests/test_lsp_uri_conversion.py`**: 5 тестов + 2 skip — Windows-диск, POSIX, UNC (WIN-3/4), round-trip.
+
+### Опровергнуто (уже исправлено в `a9d92e00`/ранее)
+- LOGIC-4 (flush уже вне lock), WIN-1 (blake2b mutex уже), SEC-1/2 (allowlist уже чистый), ARCH-1 (resolve уже под lock), LOGIC-7 (assign-as-method есть), WIN-5/6/7/9/10/11, TEST-3/4/5, ZED-1..9.
+
+### Тесты
+- Полный pytest: 666 passed, 0 failed (было 649) — +17 новых
+- ruff clean; py_compile 9 файлов; bump_version --check ✅ (3.3.9)
+
+---
+
 ## [3.3.9] — 2026-07-31 — Покрытие тестами: G-1 стабы → реальные тесты, G-2 E2E MCP smoke
 
 ### Добавлено

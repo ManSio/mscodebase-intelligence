@@ -289,12 +289,23 @@ class ExecuteScriptTool(MCPTool):
 
         # Determine sandbox mode from env
         from src.core.sandbox.executor import (
+            SANDBOX_MODE_OFF,
+            SANDBOX_MODE_PERMISSIVE,
             SANDBOX_MODE_STRICT,
             execute_sandboxed,
         )
         sandbox_mode = os.environ.get(
             "MSCODEBASE_SANDBOX_MODE", SANDBOX_MODE_STRICT
         )
+        # SEC-5: валидируем значение env — мусор не должен молча
+        # ломать песочницу (например, "none" вместо "off" → strict-ветка
+        # не выполнится, а режим будет не тем, что ожидалось).
+        if sandbox_mode not in (SANDBOX_MODE_STRICT, SANDBOX_MODE_PERMISSIVE, SANDBOX_MODE_OFF):
+            logger.warning(
+                f"MSCODEBASE_SANDBOX_MODE={sandbox_mode!r} невалиден, "
+                f"использую {SANDBOX_MODE_STRICT}"
+            )
+            sandbox_mode = SANDBOX_MODE_STRICT
 
         # Parse args string into list
         arg_list = args.split() if args else []

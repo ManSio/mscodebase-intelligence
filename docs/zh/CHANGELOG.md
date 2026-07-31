@@ -9,6 +9,32 @@
 > **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.9] — 2026-07-31 — P0 重新索引死锁修复 + z.ai 审查（16 项已验证）
+
+### 已修复
+- **P0：重新索引死锁**（`ac6e5ba0e` P1-3 回归）：`IndexProjectRunner.run()` 在整个 run() 期间持有共享 RLock（`begin_write`），而 Phase 1 解析工作线程在没有 `known_hashes` 的情况下调用 `_parse_file_only` → 从另一个线程阻塞在同一 RLock 上（RLock 不能跨线程重入）→ 索引无限挂起（`progress: 0`），所有读取数据库的 MCP 工具超时。修复：在主线程中批量加载 `known_hashes`（可重入）并传给工作线程 — 它们不再在锁下访问数据库。
+- **`file_move_manager.py`**（LOGIC-1/2/3）：按 `file_path` 搜索（原为 `file_hash` — 重复内容的文件会窃取彼此的路径），read→delete→add 在同一锁周期内（原为非事务性），`_escape_sql_value`（原为手动 `replace`）。
+- **`lsp_client.py`**（WIN-3/4）：UNC 路径通过 `Path.as_uri()` + `_uri_to_path` 中的 netloc 分支。
+- **`server_factory.py`**（WIN-8）：扩展处理器错误 JSON 使用 `json.dumps`（原为带原始 `str(e)` 的 f-string）。
+- **`error_handler.py`**（SEC-4）：`_sanitize_error_message` — 路径被掩码，MCP 错误响应限制 200 字符。
+- **`codebase_tool.py`**（SEC-5）：`MSCODEBASE_SANDBOX_MODE` 已验证，回退到 strict。
+- **`graph.py`**（WIN-2）：`CreateMutexW` 失败时发出警告（原为静默无锁回退）。
+- **`scoring.py`**（LOGIC-8）：MMR `remaining` 按相关性排序（原为插入顺序）。
+- **缓存失效**（LOGIC-5）：完整重新索引后及 `_index_single_file` 中调用 `searcher.invalidate_cache()`（原来只有 30 秒 TTL）。
+
+### 新增
+- **`tests/test_index_runner_deadlock.py`**：3 个回归测试 — run() 完成（无挂起）、工作线程收到 `known_hashes`（非 None）、未更改的文件被跳过。已验证：无修复时失败。
+- **`tests/test_lsp_uri_conversion.py`**：5 个测试 + 2 个平台跳过 — Windows 盘符、POSIX、UNC（WIN-3/4）、往返。
+
+### 已驳斥（已在 `a9d92e00`/更早修复）
+- LOGIC-4（flush 已在锁外）、WIN-1（blake2b mutex 已有）、SEC-1/2（allowlist 已干净）、ARCH-1（resolve 已加锁）、LOGIC-7（assign-as-method 存在）、WIN-5/6/7/9/10/11、TEST-3/4/5、ZED-1..9。
+
+### 测试
+- 完整 pytest：666 passed, 0 failed（原为 649）— +17 新增
+- ruff clean；py_compile 9 个文件；bump_version --check ✅ (3.3.9)
+
+---
+
 ## [3.3.9] — 2026-07-31 — 测试覆盖：G-1 桩测试 → 真实测试，G-2 E2E MCP 冒烟测试
 
 ### 新增
