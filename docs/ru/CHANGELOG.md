@@ -8,6 +8,21 @@
 
 > **Количество инструментов (текущее):** живой сервер регистрирует **48 инструментов** = 19 core + 13 intel + 12 inline + 4 dev
 
+## [3.3.9] — 2026-07-31 — Покрытие тестами: G-1 стабы → реальные тесты, G-2 E2E MCP smoke
+
+### Добавлено
+- **`tests/e2e/test_e2e_mcp_smoke.py`** (G-2): E2E MCP smoke-тест без моков — реальный llama.cpp embedder → временная изолированная LanceDB → реальные файлы проекта → `searcher.search_with_mode(mode="fast")`. Проверка входа→выхода: запрос `move_chunks_metadata` обязан вернуть чанк с `file_move_manager` в `metadata.file`. CI-safe: `skipif` без `MSCODEBASE_E2E=1`; запуск: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`.
+
+### Изменено
+- **G-1**: 5 stub-тестов (`test_file_exists.py`, `test_searcher.py`, `test_chunk_cache.py`, `test_idle_reload.py`, `test_real_path.py`) заменены реальным покрытием (52 теста).
+- **`tests/test_move_chunks.py`**: I001 — сортировка импортов (ruff --fix).
+
+### Тесты
+- Полный pytest: 649 passed, 11 skipped (91 deselected)
+- E2E (локально, `MSCODEBASE_E2E=1`): 2 passed
+
+---
+
 ## [3.3.9] — 2026-07-21 — DocSync engine + en/ru/zh полный аудит
 
 ### Добавлено

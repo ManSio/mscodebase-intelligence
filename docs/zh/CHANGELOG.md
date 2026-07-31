@@ -9,6 +9,21 @@
 > **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.9] — 2026-07-31 — 测试覆盖：G-1 桩测试 → 真实测试，G-2 E2E MCP 冒烟测试
+
+### 新增
+- **`tests/e2e/test_e2e_mcp_smoke.py`** (G-2): 无模拟的 E2E MCP 冒烟测试 — 真实 llama.cpp embedder → 临时隔离 LanceDB → 项目真实文件 → `searcher.search_with_mode(mode="fast")`。输入→输出校验：查询 `move_chunks_metadata` 必须返回 `metadata.file` 含 `file_move_manager` 的块。CI 安全：无 `MSCODEBASE_E2E=1` 时 skipif；运行：`MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`。
+
+### 变更
+- **G-1**: 5 个桩测试（`test_file_exists.py`、`test_searcher.py`、`test_chunk_cache.py`、`test_idle_reload.py`、`test_real_path.py`）替换为真实覆盖（52 个测试）。
+- **`tests/test_move_chunks.py`**: I001 — 导入排序（ruff --fix）。
+
+### 测试
+- 完整 pytest：649 passed, 11 skipped（91 deselected）
+- E2E（本地，`MSCODEBASE_E2E=1`）：2 passed
+
+---
+
 ## [3.3.9] — 2026-07-21 — DocSync 引擎 + en/ru/zh 完整审计
 
 ### 修复
