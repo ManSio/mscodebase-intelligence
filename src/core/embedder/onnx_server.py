@@ -23,7 +23,7 @@ from pathlib import Path
 logger = logging.getLogger("mscodebase_server.onnx_server")
 
 # Добавляем корень проекта в sys.path для импортов
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # project root
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Конфигурация

@@ -81,6 +81,11 @@ class CypherToSQL:
                 group_by.append(sql_col)
             # Всегда используем AS для консистентности имён колонок
             if item.alias:
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", item.alias):
+                    raise ValueError(
+                        f"Invalid alias: {item.alias!r}. "
+                        "Alias must be a valid SQL identifier."
+                    )
                 alias = f" AS {item.alias}"
             elif "." in item.expression:
                 # f.name → AS "f.name" для консистентности результата

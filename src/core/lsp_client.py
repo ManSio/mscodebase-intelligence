@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -95,7 +96,7 @@ class LspClient:
             except Exception as _e:
                 logger.warning("exception", exc_info=True)
                 pass
-            self._send_notification("exit", {})
+            await self._send_notification("exit", {})
         for task in (self._reader_task, self._stderr_task):
             if task is not None:
                 task.cancel()
@@ -143,7 +144,7 @@ class LspClient:
         content = self._read_file_content(abs_path)
         if content is None:
             return False
-        self._send_notification("textDocument/didOpen", {
+        await self._send_notification("textDocument/didOpen", {
             "textDocument": {
                 "uri": self._path_to_uri(abs_path),
                 "languageId": self._language_id(),
@@ -160,7 +161,7 @@ class LspClient:
         if abs_path not in self._open_files:
             return
         if self._started and self._process is not None:
-            self._send_notification("textDocument/didClose", {
+            await self._send_notification("textDocument/didClose", {
                 "textDocument": {"uri": self._path_to_uri(abs_path)},
             })
         self._open_files.discard(abs_path)
@@ -189,7 +190,13 @@ class LspClient:
             search_name = old_name or new_name
             col = self._find_symbol_column(file_path, line, search_name)
             if col < 0:
-                col = 0  # fallback
+                # Не используем col=0 как fallback — это переименует
+                # другой символ (первый в строке), а не целевой.
+                logger.warning(
+                    "rename_symbol: cannot locate '%s' on line %d — aborting",
+                    search_name, line,
+                )
+                return None
         try:
             return await self._send_request("textDocument/rename", {
                 "textDocument": {"uri": self._path_to_uri(file_path)},
@@ -301,7 +308,7 @@ class LspClient:
                 {"uri": root_uri, "name": self.project_root.name},
             ],
         })
-        self._send_notification("initialized", {})
+        await self._send_notification("initialized", {})
         # Write project_root to bridge for MCP project resolution
         try:
             from src.core.lsp_project_bridge import write_active_project
@@ -315,7 +322,8 @@ class LspClient:
 
         Terminates the OS process before nullifying to prevent zombie
         processes (P2-14 fix). On Windows, terminate() calls
-        TerminateProcess() which is synchronous.
+        TerminateProcess() which is synchronous. Reaping (wait()) is done
+        in a background task so we never leave a <defunct> process.
         """
         if self._stopped:
             return
@@ -324,19 +332,43 @@ class LspClient:
             if task is not None:
                 task.cancel()
         self._reader_task = self._stderr_task = None
-        # Terminate OS process before dropping reference (prevents zombie)
-        if self._process is not None and self._process.returncode is None:
-            try:
-                self._process.terminate()
-            except ProcessLookupError:
-                pass
-            except Exception:
-                logger.debug("LSP _handle_crash: terminate() failed", exc_info=True)
+        # Сохраняем ссылку на процесс и reap-им его в фоне (нужен event loop)
+        proc = self._process
         self._process = None
         for f in self._pending.values():
             if not f.done():
                 f.set_exception(RuntimeError("LSP crashed"))
         self._pending.clear()
+        if proc is not None and proc.returncode is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                loop.create_task(self._reap_process(proc))
+            else:
+                # Нет running loop — sync terminate как last resort
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+    async def _reap_process(self, proc):
+        """Terminate + wait() процесс, чтобы не оставить zombie (<defunct>)."""
+        try:
+            proc.terminate()
+            await asyncio.wait_for(proc.wait(), timeout=3.0)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+        except Exception:
+            try:
+                await proc.wait()
+            except Exception:
+                pass
 
     # ── Server discovery ──────────────────────────────────────────────────
 
@@ -362,14 +394,20 @@ class LspClient:
         # 2. Поиск в Zed LSP директориях (Zed управляет языковыми серверами сам!)
         # basedpyright в приоритете — community-форк с лучшим type checking
         # (см. ACP Registry docs/research/2026-07-11-zed-deep-dive.md)
+        if sys.platform == "win32":
+            zed_data = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed"
+        elif sys.platform == "darwin":
+            zed_data = Path.home() / "Library" / "Application Support" / "Zed"
+        else:  # Linux
+            zed_data = Path.home() / ".local" / "share" / "zed"
         lsp_dirs = []
         if self.language == "python":
             lsp_dirs.append(
-                Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / "basedpyright" / "node_modules" / ".bin"
+                zed_data / "languages" / "basedpyright" / "node_modules" / ".bin"
             )
         lsp_name = "pyright" if self.language == "python" else "typescript-language-server"
         lsp_dirs.append(
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Zed" / "languages" / lsp_name / "node_modules" / ".bin"
+            zed_data / "languages" / lsp_name / "node_modules" / ".bin"
         )
         for d in lsp_dirs:
             for cmd in candidates:
@@ -423,8 +461,12 @@ class LspClient:
             raise RuntimeError(f"LSP error ({method}): {e.get('message', '?')} [code={e.get('code', -1)}]")
         return response.get("result")
 
-    def _send_notification(self, method: str, params: dict):
-        """Fire-and-forget JSON-RPC 2.0 notification."""
+    async def _send_notification(self, method: str, params: dict):
+        """JSON-RPC 2.0 notification с flush-ем буфера (drain).
+
+        Без drain didOpen/didClose/exit могут застрять в буфере stdin
+        и не дойти до language server-а.
+        """
         if self._process is None or self._process.stdin is None:
             return
         try:
@@ -432,6 +474,7 @@ class LspClient:
                 {"jsonrpc": "2.0", "method": method, "params": params},
                 ensure_ascii=False, separators=(",", ":"),
             ))
+            await self._process.stdin.drain()
         except Exception as exc:
             logger.warning("notify '%s' failed: %s", method, exc)
 
@@ -457,9 +500,12 @@ class LspClient:
                 buf.extend(chunk)
                 while True:
                     resp, consumed = self._parse_one(buf)
+                    if consumed > 0:
+                        # Продвигаем буфер даже при resp is None
+                        # (malformed frame логируется и отбрасывается)
+                        buf = buf[consumed:]
                     if resp is None:
                         break
-                    buf = buf[consumed:]
                     resp_id = resp.get("id")
                     if resp_id is not None and resp_id in self._pending:
                         fut = self._pending.pop(resp_id)
@@ -494,7 +540,15 @@ class LspClient:
         try:
             return json.loads(buf[body_start:body_start + length]), body_start + length
         except json.JSONDecodeError:
-            return {}, body_start + length
+            # Не возвращаем пустой {} — иначе read loop молча потеряет байты
+            # и задиспатчит фантомный id=None. Логируем и скипаем фрейм:
+            # pending-запрос получит честный timeout вместо тихих данных.
+            logger.error(
+                "LSP: malformed JSON response (%d bytes) — frame dropped, "
+                "pending request will time out",
+                length,
+            )
+            return None, body_start + length
 
     async def _stderr_consumer(self):
         """Background: log stderr at debug level."""
@@ -570,9 +624,11 @@ class LspClient:
             lines = content.split("\n")
             if 0 <= line_0based < len(lines):
                 line_text = lines[line_0based]
-                idx = line_text.find(symbol_name)
-                if idx >= 0:
-                    return idx
+                # Word-boundary: ищем именно токен, а не подстроку
+                # (foo в foo_bar или в строковом литерале — не то же самое).
+                m = re.search(rf"\b{re.escape(symbol_name)}\b", line_text)
+                if m:
+                    return m.start()
         except Exception as _e:
             logger.warning("exception", exc_info=True)
             pass

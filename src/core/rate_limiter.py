@@ -99,10 +99,15 @@ class SlidingWindowRateLimiter:
             window = self._windows.get(key, [])
             now = time.monotonic()
             recent = [t for t in window if t > now - 1.0]
+            # Cleanup stale entries (older than 1 sec) periodically
+            if len(self._windows) > 100:
+                stale = [k for k, v in self._windows.items() if not v]
+                for k in stale:
+                    del self._windows[k]
             return {
                 "key": key,
                 "requests_last_sec": len(recent),
-                "total_tracked": len(window),
+                "total_tracked": len(recent),
             }
 
 
@@ -133,14 +138,15 @@ class DebounceBatch:
         )
         await batch.add(path)
 
-    Lock: asyncio.Lock — защищает set/files от конкурентных add() из разных task-ов.
+    Lock: threading.Lock (см. INC-53EC / REFC-03 — asyncio.Lock привязывается
+    к loop-у первого await и дедлочит в cross-loop сценариях LSP+MCP).
     Таймер работает в loop-е, в котором был создан; callback выполняется через
     asyncio.to_thread() если sync, или await если async.
     """
 
     def __init__(
         self,
-        callback: Callable[[Set[str]], None],
+        callback: Callable[[Set[str]], Any],
         config: Optional[DebounceConfig] = None,
     ):
         self._callback = callback
@@ -148,11 +154,11 @@ class DebounceBatch:
         self._files: Set[str] = set()
         self._timer: Optional[asyncio.Task] = None
         self._last_added_at = 0.0
-        self._lock = asyncio.Lock()  # asyncio.Lock для корректной работы в event loop
+        self._lock = threading.Lock()  # см. INC-53EC / REFC-03 — asyncio.Lock дедлочит в cross-loop сценариях
 
     async def add(self, file_path: str) -> bool:
         """Добавляет файл в батч. Возвращает True если файл новый."""
-        async with self._lock:
+        with self._lock:
             is_new = file_path not in self._files
             self._files.add(file_path)
             self._last_added_at = time.monotonic()
@@ -176,19 +182,14 @@ class DebounceBatch:
         Защита от зависания: если файлы добавляются непрерывно > max_wait_ms,
         сбрасываем принудительно.
 
-        ВАЖНО: НЕ вызывать await внутри with self._lock — asyncio.Lock
-        не блокирует поток, но _flush() также захватывает этот lock.
-        Правильный паттерн: решение о flush под lock, сам flush — вне lock.
+        Lock: threading.Lock — не блокирует event loop, не дедлочит.
         """
         try:
             while True:
                 await asyncio.sleep(self._config.debounce_ms / 1000)
-
-                # Решение о flush принимаем под lock, но сам flush — вне lock
                 should_flush = False
                 should_exit = False
-
-                async with self._lock:
+                with self._lock:
                     elapsed = time.monotonic() - self._last_added_at
                     elapsed_ms = elapsed * 1000
                     has_files = bool(self._files)
@@ -205,21 +206,27 @@ class DebounceBatch:
                 if should_flush:
                     await self._flush()
                 if should_exit:
+                    with self._lock:
+                        self._timer = None
                     return
 
         except asyncio.CancelledError:
-            logger.debug("Debounce timer cancelled, new timer will handle batch")
+            with self._lock:
+                self._timer = None
         except Exception as e:
             logger.error(f"Debounce timer error: {e}")
 
     async def _flush(self):
         """Сбрасывает накопленные файлы в callback."""
-        async with self._lock:
+        with self._lock:
             if not self._files:
                 return
             files = self._files.copy()
             self._files.clear()
-            self._timer = None
+            # Не очищаем self._timer здесь — _debounce_wait сама
+            # установит None после завершения flush, что предотвращает
+            # race condition с новым таймером между освобождением lock
+            # и захватом в _flush.
 
         logger.info(f"Debounce flushing {len(files)} files to callback")
         try:
@@ -232,14 +239,14 @@ class DebounceBatch:
 
     async def flush_now(self):
         """Принудительный сброс (для graceful shutdown)."""
-        async with self._lock:
+        with self._lock:
             timer = self._timer
         if timer and not timer.done():
             timer.cancel()
         await self._flush()
 
     async def pending_count(self) -> int:
-        async with self._lock:
+        with self._lock:
             return len(self._files)
 
 
@@ -285,7 +292,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.last_failure_time = 0.0
         self.last_state_change = time.monotonic()
-        self._lock = asyncio.Lock()  # asyncio.Lock для корректной работы в event loop
+        self._lock = threading.Lock()  # см. INC-53EC / REFC-03
         self._on_state_change = on_state_change
         self._last_error: Optional[str] = None
 
@@ -308,9 +315,9 @@ class CircuitBreaker:
             coro_factory: Асинхронная функция без аргументов
             fallback: Значение, возвращаемое при OPEN состоянии
         """
-        # Проверка: можно ли пробовать?
-        old_state = self.state
-        async with self._lock:
+        # Читаем state под lock — нельзя читать без синхронизации
+        with self._lock:
+            old_state = self.state
             if self.state == self.STATE_OPEN:
                 if time.monotonic() - self.last_failure_time > self.recovery_timeout:
                     logger.info(
@@ -328,16 +335,16 @@ class CircuitBreaker:
                         f"bypassing call ({remaining:.0f}s remaining)"
                     )
                     return fallback
+            current_state = self.state
 
-        if self.state != old_state:
-            await self._notify_state_change(old_state, self.state)
+        if current_state != old_state:
+            await self._notify_state_change(old_state, current_state)
 
-        # Выполняем вызов
-        old_state = self.state
+        # Выполняем вызов БЕЗ lock
         try:
             result = await coro_factory()
 
-            async with self._lock:
+            with self._lock:
                 if self.state == self.STATE_HALF_OPEN:
                     logger.info(
                         f"Circuit breaker [{self.name}]: HALF_OPEN → CLOSED "
@@ -347,30 +354,34 @@ class CircuitBreaker:
                     self.last_state_change = time.monotonic()
                 self.failure_count = 0
                 self.success_count += 1
+                new_state = self.state
+                self._last_error = None
 
-            if self.state != old_state:
-                await self._notify_state_change(old_state, self.state)
-
+            if new_state != old_state:
+                await self._notify_state_change(old_state, new_state)
             return result
 
         except Exception as e:
-            self._last_error = str(e)
-            async with self._lock:
+            with self._lock:
+                old = self.state
+                self._last_error = str(e)
                 self.failure_count += 1
                 self.success_count = 0
                 self.last_failure_time = time.monotonic()
 
                 if self.failure_count >= self.failure_threshold:
-                    old = self.state
                     logger.error(
                         f"Circuit breaker [{self.name}]: → OPEN "
                         f"({self.failure_count} consecutive failures): {e}"
                     )
                     self.state = self.STATE_OPEN
                     self.last_state_change = time.monotonic()
+                new_state = self.state
 
-                    if self.state != old:
-                        await self._notify_state_change(old, self.state)
+            # Уведомление ВЫНЕСЕНО из lock — await под threading.Lock
+            # заблокировал бы другие потоки на время callback-а.
+            if new_state != old:
+                await self._notify_state_change(old, new_state)
 
             if fallback is not None:
                 return fallback

@@ -527,7 +527,7 @@ def error_boundary(
 
                 except asyncio.TimeoutError as e:
                     last_error = e
-                    elapsed = int((time.perf_counter() - start_time) - 1000)
+                    elapsed = int((time.perf_counter() - start_time) * 1000)
                     logger.warning(
                         f"⏱ [{tool_name}] Timeout after {elapsed}ms "
                         f"(attempt {attempt + 1}/{max_retries + 1})"
@@ -586,14 +586,18 @@ def error_boundary(
             start_time = time.perf_counter()
             try:
                 if timeout_ms:
-                                    # Для синхронных функций используем ThreadPoolExecutor + timeout
-                                    loop = asyncio.get_event_loop()
-                                    if loop.is_running():
-                                        # Мы внутри async контекста — submit в пул с timeout
-                                        future = _SYNC_POOL.submit(func, *args, **kwargs)
-                                        result = future.result(timeout=timeout_ms / 1000.0)
-                                    else:
-                                        result = func(*args, **kwargs)
+                    # Для синхронных функций используем ThreadPoolExecutor + timeout
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Мы внутри async контекста — submit в пул с timeout
+                        future = _SYNC_POOL.submit(func, *args, **kwargs)
+                        try:
+                            result = future.result(timeout=timeout_ms / 1000.0)
+                        except TimeoutError:
+                            future.cancel()
+                            raise
+                    else:
+                        result = func(*args, **kwargs)
                 else:
                     result = func(*args, **kwargs)
 

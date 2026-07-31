@@ -60,6 +60,7 @@ _STDLIB_FUNCTIONS = {
     "safe_close",
     "terminate", "threads", "time",
     "to_arrow", "to_pandas", "to_thread",
+    "cancel", "fullmatch",
     "tool", "upper",
     "wait", "wait_for", "warn", "warning", "where", "which",
     "verify_claim",

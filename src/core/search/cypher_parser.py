@@ -424,7 +424,12 @@ class CypherParser:
         alias = None
         if self.peek() and self.peek().value.upper() == "AS":
             self.advance()
-            alias = self.advance().value
+            alias_token = self.advance()
+            if alias_token.type not in (TokenType.IDENTIFIER, TokenType.STRING):
+                raise SyntaxError(
+                    f"Invalid alias: {alias_token.value!r} (type={alias_token.type.name})"
+                )
+            alias = alias_token.value
         return ReturnItem(expression=expr, alias=alias)
 
     def _parse_order_items(self) -> List[OrderItem]:

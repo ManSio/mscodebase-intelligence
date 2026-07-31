@@ -3,6 +3,55 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — Flaky: gate-zero 1 failed — ENOSPC (C: 100%) (FIXED)
+
+**Symptom:** pre-commit hook (verify_diary gate-zero) дважды поймал `1 failed, 609 passed`; имя теста из `.pytest_cache/lastfailed` — `tests/test_commit_memory.py::TestCommitMemory::test_get_stats`; изолированный прогон дал `7 failed` с `OSError: [WinError 112] Недостаточно места на диске`.
+**Root Cause:** **C: диск заполнен на 100%** (`df -h /c` → 0 avail). `test_commit_memory.py` делает `git init`/`git commit` во временных директориях pytest (`C:\Users\misha\AppData\Local\Temp\tmp...`); при ENOSPC git падает с WinError 112, `capture_output=True` глотает stderr → тест падает как `assert 0 == 1`. TOCTOU-теория (`test_lancedb_race.py`) **опровергнута**: 3 изолированных + 6 полных прогонов pass. После освобождения C: (0 → 10G avail) — `8 passed`.
+**Fix:** освобождено место на C: + hardening `src/core/commit_memory.py`: `_CLEAN_GIT_ENV` (убирает GIT_* из env вложенных git-команд — git commit экспортирует GIT_DIR/GIT_INDEX_FILE/GIT_AUTHOR_* в hook-процессы, что ломает вложенный git). Хардненинг остаётся как защита от GIT_*-pollution.
+**Guard:** при повторном падении gate-zero — сначала `df -h /c` (ENOSPC-проверка), затем читать `.pytest_cache/lastfailed` ДО чистых прогонов; только потом искать код-регрессию.
+
+## 2026-07-31 — rate_limiter.py: threading.Lock-миграция завершена (FIXED)
+
+**Symptom:** `DebounceBatch`/`CircuitBreaker` использовали `asyncio.Lock` в cross-loop сценарии LSP+MCP (INC-53EC / REFC-03); при переводе `_lock` на `threading.Lock` остались 6 мест с `async with self._lock` → `AttributeError: __aenter__` в рантайме.
+**Root Cause:** неполная замена async-контекста после смены типа лока; плюс `CircuitBreaker.call` читал `self.state` вне лока (L339-343) и уведомление о переходе в OPEN никогда не срабатывало (`if self.state != old` всегда False).
+**Fix:** `rate_limiter.py` — все `async with self._lock` → `with self._lock`; уведомления вынесены из-под лока с захватом `new_state`/`current_state` под локом; `_flush` больше не обнуляет `_timer` (timer-leak race), `_debounce_wait` ставит `None` после flush; `get_stats` возвращает `total_tracked = len(recent)`.
+**Guard:** `grep -n "async with self._lock" src/core/rate_limiter.py` = 0 результатов.
+**Тесты:** `tests/test_rate_limiter.py` 20 passed.
+
+---
+
+## 2026-07-31 — lsp_client.py: zombie-процессы, lost notifications, malformed JSON (FIXED)
+
+**Symptom:** `_handle_crash` вызывал `terminate()` без `wait()` → zombie (<defunct>); `_send_notification` без `drain()` → didOpen/didClose/exit терялись в буфере; `_parse_one` на malformed JSON возвращал `{}` → тихая потеря байтов; `_find_server` полагался на `LOCALAPPDATA` (пуст на Linux); `rename_symbol` при `col<0` фолбэчился на `col=0` → переименовывал не тот символ.
+**Fix:** `_handle_crash` → фоновый `_reap_process` (terminate + wait_for 3s + kill fallback); `_send_notification` → async с `drain()` (все 4 вызова обновлены); `_parse_one` логирует и возвращает `(None, consumed)`, `_read_loop` продвигает буфер по `consumed>0`; `_find_server` — cross-platform (win/mac/linux); `rename_symbol` при ненайденном символе возвращает `None` + warning; `_find_symbol_column` — regex `\bname\b` вместо `str.find`.
+**Guard:** pending-запрос при malformed JSON получает честный timeout, а не тихие данные; тест-файла нет (нет test_lsp_client.py) — покрыто py_compile + интеграцией write_tools.
+
+---
+
+## 2026-07-31 — write_tools.py: дубль `__init__` + stale LSP content (FIXED)
+
+**Symptom:** два `__init__` (второй перекрывал первый → `_write_lock` терялся); после прямых `write_text` в обход LSP pyright держал stale content — последующий rename работал с устаревшими данными.
+**Fix:** `__init__` смёржены в один (оба атрибута инициализируются); добавлен `_invalidate_lsp_cache()` (close+open файла в LSP, только если LSP уже запущен — lazy-start не форсируется); вызывается после 6 точек записи: `_action_replace`, `_action_insert`, `_apply_changes`, `_apply_workspace_edit`, `_apply_delete`, `_apply_move`. Дополнительно: DocSync-хук в `_apply_fallback_rename` импортировал несуществующий `get_project_path` из `src/config/settings.py` (ImportError молча глотался) → заменён на `self.resolve_indexer().project_path`.
+**Тесты:** `tests/test_write_tools.py` не существует — покрыто py_compile + полным набором.
+
+---
+
+## 2026-07-31 — index_parser.py: encoding, overlap-маркер, code_health (FIXED)
+
+**Symptom:** `decode("utf-8", errors="replace")` без BOM/encoding detection → мусор для cp1251/Shift-JIS; overlap-чанки 1000/800 без маркера → near-duplicates в поиске; `chunk_texts_full = chunk_texts` в fallback → truncated context; `except Exception: pass` для code_health молчал.
+**Fix:** BOM (utf-8/utf-16) + fallback cp1251/latin-1; fallback-чанки получают `chunk_overlap: start > 0` в metadata и `chunk_texts_full` с окном 2000 символов; code_health логирует ImportError (debug) и ошибки (warning).
+**Тесты:** `tests/test_parser.py` 4 passed.
+
+---
+
+## 2026-07-31 — modification_guard.py: secret, per-project registry, fingerprint (FIXED)
+
+**Symptom (P0):** дефолтный `ACK_SECRET="dev-secret-change-me"` → полный bypass guard; глобальный `_ack_registry` → cross-project ack leak; fingerprint проверялся только при ack, не при write; `_get_blast_radius_for_file` вызывал `get_indexer()` без `project_path` → blast radius всегда 100; `_normalize_path` lower() на Linux → case collision; guard не видел параметры `path`/`name`.
+**Fix:** `secrets.token_urlsafe(32)` per-process (env уважается); `_ack_registry` = `{project_root: {normalized: (ts, fingerprint)}}`; fingerprint сверяется при write (файл изменился → ack недействителен); `project_path` передаётся в `get_indexer()`; `lower()` только на win32; guard собирает `file_path` из `path`/`target_file`, `symbol` из `name`.
+**Тесты:** `tests/test_modification_guard.py` обновлены под вложенную структуру — 23 passed.
+
+---
+
 ## 2026-07-21 — Dev tools не были зарегистрированы в MCP (FIXED)
 
 - **Что было:** `dev_tools.py` существовал с `register_dev_tools()`, но не вызывался из `server_tools.py::register_all_tools()` — generate_docs, bump_version, install_git_hooks были недоступны MCP-клиенту.
@@ -1645,3 +1694,59 @@ Three fixes from the same review:
 **Root Cause:** (a) print(file=sys.stderr) crashes in Zed env. (b) inspect.signature+locals() antipattern. (c) Ledger discrepancies is int not list. (d) ONNX model_name="bge-m3" mi...
 - **Статус:** автоматически синхронизировано
 
+
+## 2026-07-27 — Audit Round 4: P1/P2/P3 bugs from full subsystem audit
+
+**Status:** 🔍 IN PROGRESS — P1 fixes in progress
+
+**Source:** Full audit across 5 subsystems (graph.py, cypher stack, server_tools, intelligence/layer.py, write_tools.py, search/engine.py, error_handler.py, remote_embedder.py, indexer.py, db_manager.py)
+
+### P1 — Critical (fix before next release)
+
+| # | Subsystem | Bug | File:Line | Type |
+|---|-----------|-----|-----------|------|
+| 1 | search/engine.py | SQL injection via `layer` param (f-string) | engine.py:316, 661 | SQL injection |
+| 2 | write_tools.py | `file_path` without FileGuard — path traversal | write_tools.py:82-83 | path traversal |
+| 3 | write_tools.py | `new_name`/`symbol` not validated as identifier | write_tools.py:99-126 | code injection |
+| 4 | write_tools.py | `_uri_to_path` without project_path check | write_tools.py:450-455 | path traversal |
+| 5 | error_handler.py | `elapsed = ... - 1000` instead of `* 1000` | error_handler.py:454 | metric bug |
+| 6 | error_handler.py | `future.cancel()` not called on timeout | error_handler.py:513-514 | thread leak |
+| 7 | remote_embedder.py | silent zero-vector fallback masks provider failure | remote_embedder.py:717-718 | silent data corruption |
+| 8 | db_manager.py | `search()` without `_write_lock` vs `reset_connection()` | db_manager.py:304-307 | race → crash |
+| 9 | graph.py | `shortest_path` path explosion (BFS stores all paths) | graph.py:636-683 | OOM |
+| 10 | indexer.py | `move_chunks_metadata` delete+add not atomic | indexer.py:494-502 | data loss on crash |
+| 11 | cypher_executor.py | `_get_conn()` without lock | cypher_executor.py:51-52 | DB lock error |
+| 12 | test_searcher.py | stub with `assert True` | test_searcher.py:1 | QA bypass |
+
+### P2 — Important (fix within sprint)
+
+| # | Subsystem | Bug | File:Line | Type |
+|---|-----------|-----|-----------|------|
+| 13 | layer.py | 22 broad `except Exception` masks errors | layer.py:multiple | error masking |
+| 14 | layer.py | `hash(line) % 10000` nondeterministic IDs | layer.py:662 | id collision |
+| 15 | layer.py | `netstat -ano` Windows-only in cross-platform code | layer.py:299-314 | platform bug |
+| 16 | layer.py | asyncio.Lock + threading.Lock mixed for same data | layer.py:110-112 | race condition |
+| 17 | engine.py | `_cache` without TTL — stale after reindex | engine.py:643-718 | stale data |
+| 18 | engine.py | `asyncio.run` in ThreadPoolExecutor bottleneck | engine.py:273-284 | perf |
+| 19 | write_tools.py | `_infer_package` rstrip(".py") removes wrong chars | write_tools.py:307-310 | bug |
+| 20 | write_tools.py | non-atomic write without backup | write_tools.py:386-413 | data loss |
+| 21 | remote_embedder.py | `mode_lock` only on read, not during HTTP request | remote_embedder.py:644-645 | race |
+| 22 | error_handler.py | `_TIMELINE.pop(0)` O(n) under lock | error_handler.py:206-218 | perf |
+| 23 | db_manager.py | PID lock race → crash instead of retry | db_manager.py:374-398 | crash |
+| 24 | db_manager.py | `_write_lock = threading.Lock` not RLock | db_manager.py:48 | future deadlock |
+| 25 | indexer_table.py | `_escape_sql_value` manual escaping (fragile) | indexer_table.py:26-47 | fragile defense |
+| 26 | graph.py | `unlink()` without `finally` — temp file leak | graph.py:1017, 1083 | resource leak |
+| 27 | graph.py | `batch_add_edges` N+1 queries | graph.py:917-962 | perf |
+| 28 | ruff.toml | BLE001 not in select — 532 broad excepts | ruff.toml | lint gap |
+
+### P3 — Low priority
+
+| # | Subsystem | Bug | File:Line | Type |
+|---|-----------|-----|-----------|------|
+| 29 | cypher_sql.py | variable-length paths `[*1..3]` silently ignored | cypher_sql.py:209-217 | wrong result |
+| 30 | cypher_executor.py | SQL + params leaked in MCP response | cypher_executor.py:69-70 | info leak |
+| 31 | graph.py | `detect_dead_code` LIMIT 200 silent truncation | graph.py:725 | wrong result |
+| 32 | error_handler.py | traceback in MCP response | error_handler.py:495 | info leak |
+| 33 | layer.py | manual git object parsing (no packfile support) | layer.py:729-787 | incomplete |
+| 34 | write_tools.py | `_apply_delete` by line_no without content check | write_tools.py:456-483 | wrong deletion |
+| 35 | engine.py | 18 broad except returning [] | engine.py:multiple | error masking |

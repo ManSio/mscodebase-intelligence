@@ -26,6 +26,17 @@ __all__ = [
     "get_lm_studio_port",
     "get_ollama_port",
 ]
+def _is_llama_server_running() -> bool:
+    """Check if llama-server is already running on the default port."""
+    try:
+        import socket as _socket
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as _s:
+            _s.settimeout(0.5)
+            return _s.connect_ex(("127.0.0.1", 8080)) == 0
+    except Exception:
+        return False
+
+
 @dataclass
 class EmbeddingConfig:
     """Конфигурация для эмбеддингов (Qwen3, BGE-M3, LM Studio, Ollama, ONNX)"""
@@ -52,10 +63,15 @@ class EmbeddingConfig:
         default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "384"))
     )
     # Тумблер авто-запуска llama.cpp (embedder + reranker) при старте MCP.
-    # По умолчанию ВЫКЛЮЧЕН: ветка _start_llama_sync не заходит, порт 8080
-    # не поднимается. Включается явно через .env при необходимости.
+    # По умолчанию авто-определение: если llama-server уже запущен на порту 8080,
+    # включаем его автоматически. Иначе — выключаем.
+    # Явно задайте LLAMA_CPP_ENABLED=true или LLAMA_CPP_ENABLED=false в .env.
     llama_cpp_enabled: bool = (
-        os.getenv("LLAMA_CPP_ENABLED", "false").lower() == "true"
+        os.getenv("LLAMA_CPP_ENABLED", "").lower() == "true"
+        or (
+            os.getenv("LLAMA_CPP_ENABLED", "").lower() == ""
+            and _is_llama_server_running()
+        )
     )
     llama_cpp_port: int = field(
         default_factory=lambda: int(os.getenv("LLAMA_CPP_PORT", "8080"))

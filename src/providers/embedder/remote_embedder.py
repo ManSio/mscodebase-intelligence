@@ -497,7 +497,7 @@ class RemoteEmbedder(IEmbedder):
         except Exception as e:
             logger.warning(f"_init_provider_async failed, using safe default: {e}")
             with self._mode_lock:
-                self.mode = "onnx"  # safe default
+                self.mode = "fallback"  # safe default — don't pretend ONNX works
 
     def _check_ollama(self) -> bool:
         """Проверка доступности Ollama (переиспользует sync клиент)."""
@@ -584,8 +584,15 @@ class RemoteEmbedder(IEmbedder):
         Если LM Studio / Ollama запустились после старта Zed — автоматически
         переключается с ONNX на внешний API и завершает цикл (break).
         Повторный опрос после успешного подключения не производится.
+        Ограничение: максимум 20 итераций (≈20 мин), потом fallback.
         """
+        _max_iterations = 20
+        _iteration = 0
         while not self._scanner_stop.wait(_PROVIDER_SCAN_INTERVAL):
+            _iteration += 1
+            if _iteration > _max_iterations:
+                logger.info(f"Provider scanner reached {_max_iterations} iterations, stopping.")
+                break
             try:
                 # Если уже на LM Studio — проверяем что он ещё жив
                 with self._mode_lock:
@@ -700,7 +707,7 @@ class RemoteEmbedder(IEmbedder):
         try:
             with self._onnx_client_lock:
                 if self._onnx_client is None:
-                    from onnx_client import get_onnx_client
+                    from src.core.embedder.onnx_client import get_onnx_client
                     self._onnx_client = get_onnx_client(port=9876, model_name="multilingual-e5-small-int8")
                 
                 # Проверяем доступность сервера
@@ -790,7 +797,7 @@ class RemoteEmbedder(IEmbedder):
                         _retry_time.sleep(1)
                 if results[idx] is None:
                     logger.warning(f"Chunk {idx} failed all retries, zero vector")
-                    results[idx] = [0.0] * self.embedding_dim
+                    raise RuntimeError(f"Embedding failed for chunk {idx} after all retries")
             return results
 
         # ═══ LM Studio ═══
@@ -806,7 +813,7 @@ class RemoteEmbedder(IEmbedder):
             except Exception as _e:
                 logger.warning(f"LM Studio embed error: {_e}")
             logger.warning("LM Studio не отвечает, возвращаю заглушки")
-            return [[0.0] * self.embedding_dim for _ in texts]
+            raise RuntimeError(f"LM Studio embedding provider unavailable: {_e}")
 
         # ═══ ONNX-сервер ═══
         if current_mode == "onnx_server":
@@ -821,7 +828,7 @@ class RemoteEmbedder(IEmbedder):
             except Exception as _e:
                 logger.warning(f"ONNX server embed error: {_e}")
             logger.warning("ONNX-сервер не отвечает, возвращаю заглушки")
-            return [[0.0] * self.embedding_dim for _ in texts]
+            raise RuntimeError(f"ONNX embedding provider unavailable: {_e}")
 
         # ═══ OpenVINO (INT8, ~350 ch/s) ═══
         if current_mode in ("unknown", "onnx") and getattr(self, '_ov_compiled', None) is not None:

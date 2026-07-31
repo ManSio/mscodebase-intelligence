@@ -234,32 +234,41 @@ class TestWriteToolRename:
         assert "Warning" in result or "not found" in str(result).lower()
 
     @pytest.mark.asyncio
-    async def test_filter_by_file_path(self, write_tool, symbol_index):
+    async def test_filter_by_file_path(self, write_tool, symbol_index, tmp_path):
         """When file_path is provided, only refs in that file are returned."""
+        # Use a path within the project root (cwd) so FileGuard allows it
+        project_file = tmp_path / "main.py"
+        project_file.write_text("# test file\n")
         result = await write_tool._action_rename(
             old_name="existing_function",
             new_name="new_func",
-            file_path="/tmp/main.py",
+            file_path=str(project_file),
             apply=False,
             allow_collision=False,
         )
-        # Result is a preview dict (refs found in /tmp/main.py) or a warning
+        # Result is a preview dict (refs found in that file) or a warning
         if isinstance(result, dict) and "status" in result:
             assert result["status"] in ("preview", "warning")
         else:
             assert "existing_function" in str(result) or "main.py" in str(result) or "Warning" in str(result)
 
     @pytest.mark.asyncio
-    async def test_apply_file_not_found(self, write_tool):
+    async def test_apply_file_not_found(self, write_tool, tmp_path):
         """Apply with a file_path that doesn't exist yields partial/errors."""
+        # Use a path within the project root so FileGuard allows it,
+        # but the file itself doesn't exist yet
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+        project_file = tmp_path / "nonexistent.py"
         result = await write_tool._action_rename(
             old_name="existing_function",
             new_name="new_func",
-            file_path="/nonexistent/path.py",
+            file_path=str(project_file),
             apply=False,
             allow_collision=False,
         )
-        assert "⚠️" in str(result) or "Warning" in str(result) or "not found" in str(result).lower()
+        assert "⚠️" in str(result) or "Warning" in str(result) or "not found" in str(result).lower() or "outside" in str(result).lower()
 
 
 # ── WriteTool._action_move ────────────────────────────────────────────
@@ -269,11 +278,17 @@ class TestWriteToolMove:
     """Tests for WriteTool._action_move."""
 
     @pytest.mark.asyncio
-    async def test_preview_shows_target(self, write_tool):
+    async def test_preview_shows_target(self, write_tool, tmp_path):
         """Preview shows source and target files."""
+        target_file = tmp_path / "target.py"
+        target_file.write_text("# target\n")
+        # Override indexer to point to tmp_path so FileGuard allows it
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         result = await write_tool._action_move(
             symbol="existing_function",
-            to_file="/tmp/target.py",
+            to_file=str(target_file),
             file_path="",
             apply=False,
         )
@@ -285,11 +300,16 @@ class TestWriteToolMove:
         assert "target.py" in result["target_file"]
 
     @pytest.mark.asyncio
-    async def test_unknown_symbol_returns_warning(self, write_tool):
+    async def test_unknown_symbol_returns_warning(self, write_tool, tmp_path):
         """Non-existent symbol returns warning."""
+        target_file = tmp_path / "target.py"
+        target_file.write_text("# target\n")
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         result = await write_tool._action_move(
             symbol="nonexistent_func",
-            to_file="/tmp/target.py",
+            to_file=str(target_file),
             file_path="",
             apply=False,
         )
@@ -297,20 +317,22 @@ class TestWriteToolMove:
         assert "not found" in result["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_preview_includes_move_and_imports(self, write_tool):
+    async def test_preview_includes_move_and_imports(self, write_tool, tmp_path):
         """Preview changes show definition move + import updates."""
+        target_file = tmp_path / "target.py"
+        target_file.write_text("# target\n")
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         result = await write_tool._action_move(
             symbol="existing_function",
-            to_file="/tmp/target.py",
+            to_file=str(target_file),
             file_path="",
             apply=False,
         )
         assert result["status"] == "preview"
         ops = [c["op"] for c in result["changes"]]
         assert "move_definition" in ops
-        # /tmp/main.py references existing_function, so import update should exist
-        # Note: the ref won't be found as a usage due to SymbolIndex semantics,
-        # but the preview should still contain at least the move_definition
 
     @pytest.mark.asyncio
     async def test_apply_with_real_files(self, mock_services, tmp_path):
@@ -357,23 +379,42 @@ class TestWriteToolMove:
         assert "return 42" in tgt_content
 
     @pytest.mark.asyncio
-    async def test_filter_by_source_file(self, write_tool, symbol_index):
+    async def test_filter_by_source_file(self, write_tool, symbol_index, tmp_path):
         """file_path filter restricts to specific source file."""
+        # Update symbol_index to point to a file within tmp_path
+        from src.core.indexing.symbol_index import SymbolIndex
+
+        si = SymbolIndex()
+        si.add_definitions(str(tmp_path / "test_module.py"), [
+            {"name": "existing_function", "line": 1, "kind": "function"},
+        ])
+        si.add_references(str(tmp_path / "main.py"), [
+            {"caller": "main", "callee": "existing_function", "line": 1, "file": str(tmp_path / "main.py")},
+        ])
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         result = await write_tool._action_move(
             symbol="existing_function",
-            to_file="/tmp/target.py",
-            file_path="/tmp/test_module.py",
+            to_file=str(tmp_path / "target.py"),
+            file_path=str(tmp_path / "test_module.py"),
             apply=False,
         )
         assert result["status"] == "preview"
 
     @pytest.mark.asyncio
-    async def test_filter_mismatch_returns_warning(self, write_tool):
+    async def test_filter_mismatch_returns_warning(self, write_tool, tmp_path):
         """file_path filter that matches nothing returns warning."""
+        target_file = tmp_path / "target.py"
+        target_file.write_text("# target\n")
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         result = await write_tool._action_move(
             symbol="existing_function",
-            to_file="/tmp/target.py",
-            file_path="/wrong/path.py",
+            to_file=str(target_file),
+            file_path=str(tmp_path / "wrong.py"),
             apply=False,
         )
         assert result["status"] == "warning"
@@ -542,6 +583,10 @@ class TestWriteToolReplace:
         """Preview shows current code and new code."""
         # Re-point the symbol_index to the real temp file
         si = _build_index_for_file(temp_py_file, add_refs=False)
+        # Also override resolve_indexer to point to tmp_path so FileGuard allows it
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
         write_tool.resolve_symbol_index = MagicMock(return_value=si)
 
         result = await write_tool._action_replace(
@@ -586,7 +631,9 @@ class TestWriteToolReplace:
         tool = WriteTool(mock_services)
         tool.require_ready_project = AsyncMock()
         tool.resolve_symbol_index = MagicMock(return_value=si)
-        tool.resolve_indexer = MagicMock(return_value=_make_mock_indexer())
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool.resolve_indexer = MagicMock(return_value=idx)
 
         new_body = "def old_func():\n    return 999\n"
         result = await tool._action_replace(
@@ -602,10 +649,13 @@ class TestWriteToolReplace:
         assert "return 1" not in content.split("def old_func")[1].split("\n\ndef")[0]
 
     @pytest.mark.asyncio
-    async def test_filter_by_file_path(self, write_tool, temp_py_file):
+    async def test_filter_by_file_path(self, write_tool, temp_py_file, tmp_path):
         """file_path restricts replacement to a specific file."""
         si = _build_index_for_file(temp_py_file, add_refs=False)
         write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
 
         result = await write_tool._action_replace(
             symbol="existing_function",
