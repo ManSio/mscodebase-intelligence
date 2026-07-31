@@ -9,6 +9,21 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.9] — 2026-07-31 — Test coverage: G-1 stubs → real tests, G-2 E2E MCP smoke
+
+### Added
+- **`tests/e2e/test_e2e_mcp_smoke.py`** (G-2): E2E MCP smoke test without mocks — real llama.cpp embedder → temporary isolated LanceDB → real project files → `searcher.search_with_mode(mode="fast")`. Input→output check: query `move_chunks_metadata` must return a chunk with `file_move_manager` in `metadata.file`. CI-safe: `skipif` without `MSCODEBASE_E2E=1`; run: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`.
+
+### Changed
+- **G-1**: 5 stub tests (`test_file_exists.py`, `test_searcher.py`, `test_chunk_cache.py`, `test_idle_reload.py`, `test_real_path.py`) replaced with real coverage (52 tests).
+- **`tests/test_move_chunks.py`**: I001 — sorted imports (ruff --fix).
+
+### Tests
+- Full pytest: 649 passed, 11 skipped (91 deselected)
+- E2E (local, `MSCODEBASE_E2E=1`): 2 passed
+
+---
+
 ## [3.3.9] — 2026-07-21 — AutoDoc: авто-обновление документации после реиндекса
 
 ### Added

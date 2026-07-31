@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — G-2 E2E MCP smoke-тест + I001 fix (test_move_chunks.py) (FIXED)
+
+**Symptom:** после G-1 оставались G-2 (E2E-тест без моков) и I001 (tests/test_move_chunks.py:63, несортированные импорты). Первый прогон E2E упал: `RuntimeError: Embedder failed: mode=onnx, ov_compiled=False, onnx_client=True` — фоновый init-поток RemoteEmbedder переключил mode с llama_cpp на onnx.
+**Root Cause:** RemoteEmbedder.__init__ стартует 3 daemon-потока (init/scanner/preload); `_init_provider_async` не находит LM Studio → mode="onnx" → следующий embed идёт в ONNX-ветку, где onnx_client не может поднять сервер (путь скрипта резолвится в ext_root, а не в проект) → RuntimeError. В MCP-рантайме этого нет: server_factory фиксирует mode под _mode_lock.
+**Fix:** tests/e2e/test_e2e_mcp_smoke.py — реальный путь (llama.cpp :8080 → временная LanceDB → Searcher fast, FTS5-fusion); mode="llama_cpp" под _mode_lock после join(_init_thread, 15s) + _scanner_stop.set() (паттерн server_factory); assert входа→выхода: запрос `move_chunks_metadata` → чанк из file_move_manager.py. I001 — ruff check --fix.
+**Guard:** skipif без MSCODEBASE_E2E=1 (в CI/полном pytest не гоняется, нужны модели); команда запуска задокументирована в ISSUE.md.
+**Тесты:** E2E 2 passed (10.9s); полный pytest 649 passed, 11 skipped; ruff clean (tests/ + src/); bump_version --check ✅ (3.3.9).
+
+---
+
 ## 2026-07-31 — Qwen review: sandbox RCE-вектор (importlib+env), CodeParser race, graph/scoring fixes (FIXED)
 
 **Symptom:** ревью Qwen (49 пунктов) — Top-3: sandbox обходим через importlib (в allowlist) + __build_class__ → RCE при включённом флаге; `_shutdown_services` asyncio.run из atexit; PropertyGraph мутекс на hash(). Верификация по §1.14: 12 подтверждены, 4 опровергнуты, 2 accepted.

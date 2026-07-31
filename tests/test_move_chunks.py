@@ -60,8 +60,9 @@ def indexer_for_test():
     This fixture is used when we want to call the *real*
     move_chunks_metadata implementation while mocking the LanceDB table.
     """
-    from src.core.indexing.indexer import Indexer
     import threading
+
+    from src.core.indexing.indexer import Indexer
 
     indexer = MagicMock(spec=Indexer)
     indexer.table = MagicMock()

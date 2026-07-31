@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-565%2B%20passed-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-649%20passed-brightgreen)](../../tests/)
 
 [Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-42-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
@@ -426,7 +426,7 @@ mscodebase-intelligence/
 │   ├── en/               # Документация на английском
 │   ├── ru/               # Документация на русском
 │   └── zh/               # Документация на китайском
-├── tests/                        # 605 тестов (pytest)
+├── tests/                        # 649 тестов (pytest)
 ├── .agents/skills/               # Навыки для AI-агента
 ├── install.py                    # Установщик
 └── README.md

@@ -13,7 +13,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-519%808 passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-649%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-0-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 48 tools (19 core + 13 intel + 12 inline + 4 dev), 519+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 48 tools (19 core + 13 intel + 12 inline + 4 dev), 649+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -470,7 +470,7 @@ mscodebase-intelligence/
 │   ├── ru/                         # Russian docs
 │   └── zh/                         # Chinese docs
 ├── scripts/                        # CLI utilities (install, sync, benchmark, audit)
-├── tests/                          # 605 tests (pytest)
+├── tests/                          # 649 tests (pytest)
 ├── install.py                      # Installer (3 languages: en/ru/zh)
 └── README.md
 ```

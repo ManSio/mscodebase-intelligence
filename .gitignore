@@ -96,6 +96,7 @@ stress_*.py
 stress_*.log
 test_*.py
 !tests/test_*.py
+!tests/e2e/test_e2e_mcp_smoke.py
 tmp_*.py
 reindex_clean.py
 ram_monitor.log

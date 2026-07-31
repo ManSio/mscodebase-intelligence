@@ -427,6 +427,7 @@
 ## Что осталось
 
 - ✅ **G-1 (2026-07-31): 5 stub-тестов закрыты** — test_file_exists (FileGuard), test_searcher (Searcher sync-путь), test_chunk_cache (IndexPipeline.process_file), test_idle_reload (OnnxEmbedderClient), test_real_path (real-path резолюция). 52 теста вместо 10 stub; 658 passed; ruff clean; verify_diary 20/20.
+- ✅ **G-2 (2026-07-31): E2E MCP smoke-тест** — `tests/e2e/test_e2e_mcp_smoke.py`: реальный embedder (llama.cpp :8080) → реальная LanceDB (временная) → реальный поиск (fast, FTS5-fusion). Проверка входа→выхода: запрос `move_chunks_metadata` → чанк из `file_move_manager.py`. Требует живого MCP+embedder; в CI скипается (без `MSCODEBASE_E2E=1`). Команда: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`.
 - ⏳ P2-1/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; RWLock — отдельный рефакторинг)
 - ✅ P2-6: закрыт как TECH DEBT (ACCEPTED, 2026-07-31) — starvation, не deadlock; max_workers=2 недостижим легитимно (протокол запрещает 3+ параллельных MCP); persistent loop отложен намеренно
 - Верификация через pytest после каждого фикса — выполнено: 610 passed, 0 failed

@@ -11,6 +11,17 @@
 
 ---
 
+## [2026-07-31] — G-2 E2E MCP smoke-тест + I001 fix (test_move_chunks.py)
+
+**Status:** ✅ Fixed
+**Root Cause:** RemoteEmbedder.__init__ стартует 3 фоновых потока (init/scanner/preload); вне MCP-контекста `_init_provider_async` ставит mode="onnx" (LM Studio недоступен) → следующий embed падает (RuntimeError). I001 — несортированный import block (tests/test_move_chunks.py:63, было до G-1).
+**Fix:** tests/e2e/test_e2e_mcp_smoke.py — реальный embedder (llama.cpp :8080) + временная LanceDB + реальные файлы проекта; mode="llama_cpp" фиксируется под _mode_lock после join(_init_thread) + _scanner_stop.set() (как server_factory L559-560); проверка входа→выхода: `move_chunks_metadata` → file_move_manager.py. I001 — ruff check --fix.
+**Guard:** G-2 скипается без MSCODEBASE_E2E=1 (не ломает pytest tests/); команда: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`; ISSUE.md «Что осталось» G-2 → ✅.
+**Verification:** E2E 2 passed (реальный embed, 10.9s); полный pytest 649 passed, 11 skipped; ruff clean (tests/ + src/); bump_version --check ✅ (3.3.9).
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest tests/ (649 passed) с рабочего дерева.
+
+---
+
 ## [2026-07-31] — Qwen review верификация: 12✅/4❌/2⏳ + P0-5 sandbox, P1-17 CodeParser race
 
 **Status:** ✅ Fixed (P0-5, P1-17, P2-21..P2-27 закрыты; 4 REFUTED, 2 ACCEPTED)
