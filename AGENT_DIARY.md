@@ -1,5 +1,15 @@
 ---
 
+## [2026-07-31] — Claude review верификация (7✅/1❌) + фиксы write_tools/zed_config/di/llama_runner
+
+**Status:** ✅ Fixed
+**Root Cause:** ревью Claude — 8 находок; проверка по §1.14: 7 подтверждены по коду, 1 опровергнута (server.py `_env_project_root_cache` — env фиксирован при спавне процесса, reset есть в server_factory).
+**Fix:** write_tools.py — `_atomic_write` (mkstemp+fsync+os.replace) во всех 7 точках записи (P2-9, раньше атомарна была 1 из 7); zed_config.py — `_atomic_write_text` для patch/remove + хирургический `remove_zed_settings` через `_set_top_level` (комментарии JSONC вне управляемых ключей сохранены, P1-15/P1-16) + space-aware парсинг команды (P2-19); di_container.py — `threading.Lock` в `resolve` (P2-18); llama_runner.py — закрытие log_fh в except, 3 места (P2-20).
+**Guard:** ruff clean; py_compile OK; smoke: zed_config (комментарии+путь с пробелом), `_atomic_write`; ISSUE.md: P1-15/16, P2-18/19/20 добавлены, P2-8/P2-9 закрыты.
+**Verification:** 610 passed, 0 failed (37.6s); bump_version --check ✅ (3.3.9).
+
+---
+
 ## [2026-07-31] — P0-3 закрыт: CI больше не клонирует сам себя (--no-clone)
 
 **Status:** ✅ Fixed

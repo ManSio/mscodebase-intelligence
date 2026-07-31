@@ -832,6 +832,7 @@ class LlamaRunner:
 
 
 
+        log_fh = None
         gguf_path = _gguf_path(model_key)
 
         if not gguf_path.exists():
@@ -882,14 +883,13 @@ class LlamaRunner:
 
                 stdout=subprocess.DEVNULL,
 
-                stderr=(_embedder_log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
+                stderr=(log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
 
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
 
             )
 
-            self._embedder_log_fh = _embedder_log_fh
-
+            self._embedder_log_fh = log_fh
             self._model_key = model_key
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
 
@@ -901,9 +901,12 @@ class LlamaRunner:
 
 
         except Exception as e:
-
+            if log_fh is not None and not log_fh.closed:
+                try:
+                    log_fh.close()
+                except OSError:
+                    pass
             logger.error(f"Ошибка запуска llama.cpp: {e}")
-
             return False
 
 
@@ -963,6 +966,7 @@ class LlamaRunner:
                     logger.error('❌ Не удалось восстановить llama.cpp')
                     return False
 
+        log_fh = None
         gguf_path = _gguf_path(model_key)
         if not gguf_path.exists():
             logger.error(f"GGUF модель не найдена: {gguf_path}")
@@ -988,17 +992,22 @@ class LlamaRunner:
                                         *flags,
                                     ],
                                     stdout=subprocess.DEVNULL,
-                                    stderr=(_embedder_log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
+                                    stderr=(log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
                                     cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
             )
-            self._embedder_log_fh = _embedder_log_fh
+            self._embedder_log_fh = log_fh
             self._model_key = model_key
             logger.info(f"🚀 llama-server ({model_key}) синхронно запущен, PID={self._process.pid}")
             return True
 
         except Exception as e:
+            if log_fh is not None and not log_fh.closed:
+                try:
+                    log_fh.close()
+                except OSError:
+                    pass
             logger.error(f"Ошибка синхронного запуска llama.cpp: {e}")
             return False
 
@@ -1051,6 +1060,7 @@ class LlamaRunner:
 
         self._ensure_port_free(self.RERANK_PORT)
 
+        log_fh = None
         try:
             self._reranker_process = _popen_with_job(
                 [
@@ -1069,12 +1079,12 @@ class LlamaRunner:
                     "--reranking",
                 ],
                 stdout=subprocess.DEVNULL,
-                stderr=(_reranker_log_fh := open(self._reranker_log_path(), 'ab')),  # binary mode
+                stderr=(log_fh := open(self._reranker_log_path(), 'ab')),  # binary mode
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
                 if sys.platform == "win32" else 0,
             )
-            self._reranker_log_fh = _reranker_log_fh
+            self._reranker_log_fh = log_fh
 
             # Ждём /health
             t0 = time.time()
@@ -1095,6 +1105,11 @@ class LlamaRunner:
             return False
 
         except Exception as e:
+            if log_fh is not None and not log_fh.closed:
+                try:
+                    log_fh.close()
+                except OSError:
+                    pass
             logger.error(f"Ошибка запуска reranker: {e}")
             return False
 

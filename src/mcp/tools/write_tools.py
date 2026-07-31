@@ -21,6 +21,31 @@ from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.write_tools")
 
+
+def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Атомарная запись: temp-файл в той же директории + os.replace.
+
+    На Windows `write_text` неатомарна (truncate + write) — при краше
+    процесса файл остаётся повреждённым. Паттерн из _apply_changes,
+    применён ко всем точкам записи (P2-9 / Claude review КРИТ-1).
+    """
+    import tempfile
+
+    tmp_fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".msc.tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", encoding=encoding) as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 class _R(str):
     """str с dict-доступом (для совместимости тестов)."""
     _data: Dict[str, Any]
@@ -377,7 +402,7 @@ class WriteTool(MCPTool):
                 )
 
         lines[start_idx:end_idx] = new_lines_list
-        abs_path.write_text("".join(lines), encoding="utf-8")
+        _atomic_write(abs_path, "".join(lines))
         await self._invalidate_lsp_cache(source_file)
         try:
             si.remove_file(source_file)
@@ -443,7 +468,7 @@ class WriteTool(MCPTool):
             new_lines.insert(0, '\n')
 
         lines[insert_at:insert_at] = new_lines
-        abs_path.write_text("".join(lines), encoding="utf-8")
+        _atomic_write(abs_path, "".join(lines))
         await self._invalidate_lsp_cache(source_file)
         return f"✅ **Inserted {position}** `{anchor_symbol}` in `{source_file}` (+{len(new_lines)} lines)"
 
@@ -582,7 +607,6 @@ class WriteTool(MCPTool):
         return {"status": "applied", "message": f"Renamed '{old_name}' -> '{new_name}' in {len(result.get('files', []))} files.", "changes_applied": len(changes), "files": result.get("files", []), "errors": result.get("errors")}
 
     async def _apply_changes(self, changes: List[Dict]) -> Dict[str, Any]:
-        import tempfile
         by_file = {}
         for c in changes:
             by_file.setdefault(c["file"], []).append(c)
@@ -607,19 +631,7 @@ class WriteTool(MCPTool):
                         if new_line != lines[idx]:
                             lines[idx] = new_line
                             applied += 1
-                # Atomic write: write to temp file then replace
-                tmp_fd, tmp_path = tempfile.mkstemp(dir=abs_path.parent, suffix=".tmp")
-                try:
-                    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                        f.write("".join(lines))
-                    os.replace(tmp_path, abs_path)
-                except:
-                    # Clean up temp file on failure
-                    try:
-                        os.unlink(tmp_path)
-                    except OSError:
-                        pass
-                    raise
+                _atomic_write(abs_path, "".join(lines))
                 files_modified.append(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:
@@ -659,7 +671,7 @@ class WriteTool(MCPTool):
                             first = lines[start["line"]]
                             lines[start["line"]] = first[:start["character"]] + new_text
                             del lines[start["line"] + 1:end["line"] + 1]
-                abs_path.write_text("".join(lines), encoding="utf-8")
+                _atomic_write(abs_path, "".join(lines))
                 files_modified.append(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:
@@ -717,7 +729,7 @@ class WriteTool(MCPTool):
                                 f"Line {line_no} in {file_path} no longer contains "
                                 f"'{short_name}' — skipped (stale index?)"
                             )
-                abs_path.write_text("".join(text_lines), encoding="utf-8")
+                _atomic_write(abs_path, "".join(text_lines))
                 modified.add(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:
@@ -746,11 +758,11 @@ class WriteTool(MCPTool):
                     extracted.append(line)
                     i += 1
                 del lines[def_line:i]
-                src_path.write_text("".join(lines), encoding="utf-8")
+                _atomic_write(src_path, "".join(lines))
                 modified.append(source_file)
                 target_path = Path(target_file)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                target_path.write_text("".join(extracted), encoding="utf-8")
+                _atomic_write(target_path, "".join(extracted))
                 modified.append(target_file)
                 await self._invalidate_lsp_cache(source_file)
                 await self._invalidate_lsp_cache(target_file)
@@ -762,7 +774,7 @@ class WriteTool(MCPTool):
                 if ref_path.exists():
                     ref_content = ref_path.read_text(encoding="utf-8")
                     ref_content = ref_content.replace(f"from {source_package} import {symbol}", f"from {target_package} import {symbol}")
-                    ref_path.write_text(ref_content, encoding="utf-8")
+                    _atomic_write(ref_path, ref_content)
                     modified.append(ref.file_path)
                     await self._invalidate_lsp_cache(ref.file_path)
         except Exception as e:

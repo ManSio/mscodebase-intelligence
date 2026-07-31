@@ -36,6 +36,29 @@ logger = logging.getLogger(__name__)
 SERVER_NAME = "mscodebase-intelligence"
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Атомарная запись: temp-файл в той же директории + os.replace.
+
+    На Windows `write_text` неатомарна (truncate + write) — при краше
+    процесса settings.json остаётся повреждённым (КРИТ-3 Claude review).
+    """
+    import tempfile
+
+    tmp_fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".msc.tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 # ─────────────────────────────────────────────────────────────
 # Path resolution
 # ─────────────────────────────────────────────────────────────
@@ -293,12 +316,25 @@ def patch_zed_settings(
 
     logger.info(f"Настраиваю: {settings_path}")
 
-    parts = command.split(maxsplit=1)
-    if not parts:
+    tokens = command.split()
+    if not tokens:
         logger.error("Пустая команда.")
         return False
-    executable = parts[0]
-    args = parts[1].split() if len(parts) > 1 else []
+    # Путь к python может содержать пробелы (Windows: "C:\Users\John Doe\...").
+    # split() по пробелам обрезает путь — ищем самый длинный существующий
+    # файл-префикс; если его нет (команда из PATH, напр. "python") — берём
+    # первый токен целиком.
+    executable = tokens[0]
+    rest = tokens[1:]
+    candidate = Path(executable)
+    idx = 1
+    while not candidate.exists() and idx < len(tokens):
+        candidate = Path(" ".join(tokens[: idx + 1]))
+        idx += 1
+    if candidate.exists() and candidate.is_file():
+        executable = str(candidate)
+        rest = tokens[idx:]
+    args = rest
 
     ext_dir = Path(install_path).resolve() if install_path else get_extension_install_dir()
 
@@ -340,7 +376,7 @@ def patch_zed_settings(
         return False
 
     try:
-        settings_path.write_text(new_content, encoding="utf-8")
+        _atomic_write_text(settings_path, new_content)
     except OSError as e:
         logger.error(f"Ошибка записи {settings_path}: {e}")
         return False
@@ -352,8 +388,10 @@ def patch_zed_settings(
 def remove_zed_settings() -> bool:
     """Remove the MSCodeBase MCP server from Zed's settings.json (uninstall).
 
-    Preserves all other settings. Comments may be lost on rewrite (explicit
-    uninstall action) — but the file is never wiped on parse error.
+    Preserves all other settings. Uses the same targeted text surgery as
+    patch_zed_settings — JSONC comments outside the two managed keys stay
+    byte-for-byte (only the context_servers / context_servers_to_query
+    blocks are re-serialized). The file is never wiped on parse error.
     """
     config_dir = get_zed_config_dir()
     settings_path = config_dir / "settings.json"
@@ -371,26 +409,33 @@ def remove_zed_settings() -> bool:
         return False
 
     changed = False
+    new_content = original
 
+    # Распарсенные данные — только для решения ЧТО удалять; пишем через
+    # текстовую хирургию по исходнику, чтобы JSONC-комментарии вне
+    # управляемых ключей сохранились (контракт модуля, см. docstring).
     cs = settings.get("context_servers")
     if isinstance(cs, dict) and SERVER_NAME in cs:
-        del cs[SERVER_NAME]
+        new_cs = {k: v for k, v in cs.items() if k != SERVER_NAME}
+        new_content = _set_top_level(
+            new_content,
+            "context_servers",
+            json.dumps(new_cs, indent=4, ensure_ascii=False),
+        )
         changed = True
-        if not cs:
-            del settings["context_servers"]
 
     tq = settings.get("context_servers_to_query")
     if isinstance(tq, list) and SERVER_NAME in tq:
-        settings["context_servers_to_query"] = [s for s in tq if s != SERVER_NAME]
+        new_tq = [s for s in tq if s != SERVER_NAME]
+        new_content = _set_top_level(
+            new_content,
+            "context_servers_to_query",
+            json.dumps(new_tq, ensure_ascii=False),
+        )
         changed = True
-        if not settings["context_servers_to_query"]:
-            del settings["context_servers_to_query"]
 
     if changed:
-        settings_path.write_text(
-            json.dumps(settings, indent=4, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        _atomic_write_text(settings_path, new_content)
         logger.info(f"✅ Настройки MCP-сервера '{SERVER_NAME}' удалены.")
     else:
         logger.info("Настройки MCP-сервера не найдены.")

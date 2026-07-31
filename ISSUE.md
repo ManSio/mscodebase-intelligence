@@ -129,6 +129,20 @@
 - **Детали:** Между `lock_path.unlink()` и `os.open(... O_EXCL)` другой процесс может создать lock file. `os.open` падает с `FileExistsError`, ловится и превращается в `RuntimeError` — процесс крашится вместо ожидания. **Бонус-находка:** после 30с ожидания код молча возвращался БЕЗ захвата лока (писатель без блокировки).
 - **Фикс:** таймаут ожидания → явный `RuntimeError`; захват после steal — retry-loop 5 попыток с паузой 0.5с.
 
+### P1-15: `zed_config.remove_zed_settings` уничтожает JSONC-комментарии (КРИТ-2 Claude review)
+- **Файл:** `src/utils/zed_config.py:389-397`
+- **Статус:** ✅ FIXED (2026-07-31 — хирургическое удаление через `_set_top_level`)
+- **Детали:** `remove_zed_settings` парсил JSONC и сериализовал через `json.dumps` — ВСЕ комментарии пользователя в settings.json терялись. Модуль декларирует контракт «JSONC comments stay byte-for-byte» (docstring L15-16) — нарушение. Docstring функции документировал потерю как tradeoff, но фикс возможен тем же приёмом, что в `patch_zed_settings`.
+- **Фикс:** удаление через текстовую хирургию `_set_top_level` по обоим ключам (перезаписываются только управляемые блоки, комментарии вне их — byte-for-byte) + атомарная запись.
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду (json.dumps rewrite), severity понижена с P0 до P1 (документировано в docstring).
+
+### P1-16: `zed_config.patch_zed_settings` неатомарная запись (КРИТ-3 Claude review)
+- **Файл:** `src/utils/zed_config.py:343`
+- **Статус:** ✅ FIXED (2026-07-31 — `_atomic_write_text` temp+os.replace)
+- **Детали:** `settings_path.write_text(new_content)` на Windows неатомарно (truncate + write). Zed читает settings.json при каждом focus — окно нулевого файла → пользователь получает пустой конфиг.
+- **Фикс:** общий хелпер `_atomic_write_text` (mkstemp в той же директории + fsync + os.replace), применён в `patch_zed_settings` и `remove_zed_settings`.
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду.
+
 ---
 
 ## P2 — Средний приоритет
@@ -166,6 +180,7 @@
 - **Статус:** ⏳ PARTIAL (2026-07-31 — общий `_sync_executor` max_workers=2; per-call asyncio.run остался, задокументировано)
 - **Детали:** `asyncio.run` создаёт новый event loop в каждом вызове. 3+ параллельных запроса → третий ждёт.
 - **Решено:** общий пул уже был (batch 5601de39); полный переход на persistent loop — отдельный рефакторинг (риск выше пользы для текущего использования).
+- **Верификация (Claude review 2026-07-31):** ✅ CONFIRMED по коду (L308-316, max_workers=2) — starvation с таймаутом 30с, не circular deadlock; дубликат не создавался.
 
 ### P2-7: `engine.py` — 18 `except Exception` с возвратом `[]`
 - **Файл:** `src/core/search/engine.py` (множество методов)
@@ -174,13 +189,16 @@
 
 ### P2-8: `write_tools.py` — `_infer_package` некорректный `rstrip(".py")`
 - **Файл:** `src/mcp/tools/write_tools.py:307-310`
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ✅ FIXED (2026-07-31 — `p.stem` вместо rstrip)
 - **Детали:** `rstrip(".py")` удаляет любую комбинацию символов `.`, `p`, `y` с конца. `happy.py` → `ha`. Должно быть `p.stem`.
+- **Фикс:** `stem = p.stem` — статус был устаревшим (🔍 IN PROGRESS), фактически закрыт предыдущей сессией.
 
-### P2-9: `write_tools.py` — неатомарная запись без backup
-- **Файл:** `src/mcp/tools/write_tools.py:386-413`
-- **Статус:** 🔍 IN PROGRESS
-- **Детали:** Read → modify → write_text без tempfile+rename. Если процесс упадёт — файл в неконсистентном состоянии.
+### P2-9: `write_tools.py` — неатомарная запись без backup (КРИТ-1 Claude review)
+- **Файл:** `src/mcp/tools/write_tools.py` — 7 точек записи (было L386-413, факт.: `_action_replace` L380, `_action_insert` L446, `_apply_changes` L610, `_apply_workspace_edit` L662, `_apply_delete` L720, `_apply_move` L749/L753/L765)
+- **Статус:** ✅ FIXED (2026-07-31 — общий хелпер `_atomic_write`)
+- **Детали:** Read → modify → write_text без tempfile+rename. Если процесс упадёт — файл в неконсистентном состоянии. Scope расширен по Claude review (КРИТ-1): атомарный паттерн был только в `_apply_changes` (mkstemp+os.replace), остальные 6 точек писали напрямую.
+- **Фикс:** модульный `_atomic_write(path, content)` (mkstemp в той же директории + fsync + os.replace + cleanup при ошибке), применён во всех 7 точках (включая inline-блок `_apply_changes` — унифицирован).
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED (6 неатомарных точек + 1 атомарная); ruff clean; py_compile OK.
 
 ### P2-10: `remote_embedder.py` — `mode_lock` только на чтение current_mode
 - **Файл:** `src/providers/embedder/remote_embedder.py:644-660`
@@ -221,6 +239,27 @@
 - **Файл:** `ruff.toml`
 - **Статус:** ✅ FIXED (2026-07-31 — BLE в select + per-file-ignores для 84 legacy-файлов, 664 нарушения)
 - **Детали:** 532 broad `except` по проекту не ловятся ruff-ом.
+
+### P2-18: `ServiceCollection.resolve` — race при параллельном создании фабрики (Claude review P1)
+- **Файл:** `src/core/di_container.py:123-147`
+- **Статус:** ✅ FIXED (2026-07-31 — `threading.Lock` в resolve)
+- **Детали:** `resolve` без блокировки: чтение `_instances` → вызов factory → запись. Два параллельных resolve создадут два экземпляра (напр., два PropertyGraph на один WAL). Сейчас латентно: фабрики через `add_factory` не регистрируются (все — `add_singleton`), `create_service_collection` однопоточный.
+- **Фикс:** `threading.Lock` вокруг lookup + factory-вызов; при появлении фабрик с re-entrant resolve потребуется RLock (закомментировано в коде).
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED (severity P1→P2 — латентно).
+
+### P2-19: `zed_config` — `command.split()` ломается на путях с пробелами (Claude review P2)
+- **Файл:** `src/utils/zed_config.py:296-301`
+- **Статус:** ✅ FIXED (2026-07-31 — space-aware executable detection)
+- **Детали:** `split(maxsplit=1)` обрезает путь `C:\Users\John Doe\...\python.exe` до `C:\Users\John`. Реальный кейс: Windows-профили с пробелом. `install.py` передаёт `f"{PYTHON_EXE} -u -m src.main"` без кавычек.
+- **Фикс:** ищем самый длинный существующий файл-префикс как executable; если префикс не существует (команда из PATH, напр. "python") — первый токен целиком.
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду.
+
+### P2-20: `llama_runner` — stderr fd leak при исключении Popen (Claude review P2)
+- **Файл:** `src/providers/reranker/llama_runner.py:991-996` (+ `start` L885, `_spawn_reranker` L1072)
+- **Статус:** ✅ FIXED (2026-07-31 — закрытие fh в except, 3 места)
+- **Детали:** `stderr=(_fh := open(self._log_path(), 'ab'))` — walrus внутри вызова `_popen_with_job`; при исключении `except` логировал, но НЕ закрывал fd. Паттерн в 3 местах (`start`, `_spawn_embedder`, `_spawn_reranker`).
+- **Фикс:** локальная `log_fh` (init `None` перед try — защита от NameError при отказе `open()`), walrus → `stderr=(log_fh := ...)`, присваивание `self._*_log_fh = log_fh` после успеха, закрытие в except. `stop()`/`stop_reranker()` уже закрывали fh на успешном пути.
+- **Верификация:** Claude review (2026-07-31): ✅ CONFIRMED по коду.
 
 ---
 
@@ -331,3 +370,15 @@
 - ⏳ P2-1/P2-6/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; persistent event loop и RWLock — отдельные рефакторинги)
 - Верификация через pytest после каждого фикса — выполнено: 610 passed, 0 failed
 - `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы
+
+## Claude review верификация (2026-07-31)
+
+- Проверено 8 находок код-ревью: **7 ✅ CONFIRMED, 1 ❌ REFUTED**
+- ✅ КРИТ-1 (неатомарные записи write_tools) → P2-9 (scope расширен до 7 точек), закрыт
+- ✅ КРИТ-2 (remove_zed_settings комментарии) → P1-15, закрыт (severity P0→P1: документирован в docstring)
+- ✅ КРИТ-3 (patch_zed_settings неатомарна) → P1-16, закрыт
+- ✅ P1 di_container resolve race → P2-18, закрыт (severity P1→P2: латентно)
+- ✅ P1 engine.py asyncio.run → = существующий P2-6 (tech debt, дубликат не создавался)
+- ✅ P2 command.split пробелы → P2-19, закрыт
+- ✅ P2 llama_runner fd leak → P2-20, закрыт
+- ❌ P3 server.py `_env_project_root_cache` — REFUTED: env процесса фиксирован при спавне, `reset_project_root_cache()` вызывается из `server_factory.py` delayed bridge recheck, динамический путь идёт через LSP bridge, не через этот кэш
