@@ -177,10 +177,10 @@
 
 ### P2-6: `engine.py` — `asyncio.run` в ThreadPoolExecutor bottleneck
 - **Файл:** `src/core/search/engine.py:303-317`
-- **Статус:** ⏳ PARTIAL (2026-07-31 — общий `_sync_executor` max_workers=2; per-call asyncio.run остался, задокументировано)
+- **Статус:** ⏳ TECH DEBT (ACCEPTED, 2026-07-31) — закрыт как осознанный выбор владельцем-протоколом: НЕ deadlock, а starvation с `future.result(timeout=30)`; протокол проекта (§0.1 AGENTS.md) сам запрещает 3+ параллельных MCP-вызовов, поэтому max_workers=2 не достижимо легитимно; persistent loop — риск выше пользы
 - **Детали:** `asyncio.run` создаёт новый event loop в каждом вызове. 3+ параллельных запроса → третий ждёт.
 - **Решено:** общий пул уже был (batch 5601de39); полный переход на persistent loop — отдельный рефакторинг (риск выше пользы для текущего использования).
-- **Верификация (Claude review 2026-07-31):** ✅ CONFIRMED по коду (L308-316, max_workers=2) — starvation с таймаутом 30с, не circular deadlock; дубликат не создавался.
+- **Верификация (Claude review 2026-07-31, вторая волна):** ✅ CONFIRMED по коду (L308-316, max_workers=2, вызовы только `search_with_mode`/`search` из `SearchCodeTool.execute`) — starvation с таймаутом 30с, не circular deadlock; воркеры пула не ждут друг друга; дубликат не создавался; закрыт с обоснованием.
 
 ### P2-7: `engine.py` — 18 `except Exception` с возвратом `[]`
 - **Файл:** `src/core/search/engine.py` (множество методов)
@@ -367,7 +367,8 @@
 
 ## Что осталось
 
-- ⏳ P2-1/P2-6/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; persistent event loop и RWLock — отдельные рефакторинги)
+- ⏳ P2-1/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; RWLock — отдельный рефакторинг)
+- ✅ P2-6: закрыт как TECH DEBT (ACCEPTED, 2026-07-31) — starvation, не deadlock; max_workers=2 недостижим легитимно (протокол запрещает 3+ параллельных MCP); persistent loop отложен намеренно
 - Верификация через pytest после каждого фикса — выполнено: 610 passed, 0 failed
 - `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы
 
@@ -382,3 +383,9 @@
 - ✅ P2 command.split пробелы → P2-19, закрыт
 - ✅ P2 llama_runner fd leak → P2-20, закрыт
 - ❌ P3 server.py `_env_project_root_cache` — REFUTED: env процесса фиксирован при спавне, `reset_project_root_cache()` вызывается из `server_factory.py` delayed bridge recheck, динамический путь идёт через LSP bridge, не через этот кэш
+
+## Claude review верификация — вторая волна (2026-07-31)
+
+- ✅ A: engine.py `asyncio.run` в `_sync_executor` → P2-6, **закрыт как TECH DEBT (ACCEPTED)** с обоснованием (см. P2-6 статус)
+- ❌ B: di_container.py closure late-binding `_create_indexer_for_path` — REFUTED: default-args capture уже применён (L286-290), фабрика регистрируется через `add_singleton`, ветка `_factories` латентная (L140-142 комментарий); риск late binding = 0
+- ❌ C: zed_config.py `$ZED_WORKTREE_ROOT` в env — REFUTED: `server.py:_resolve_env_project_root` (L393-405) явно обрабатывает literal `raw.startswith("$")`; доки Zed не описывают `$VAR`-интерполяцию в env MCP; live-паспорт: PROJECT_PATH=literal, резолв работает через SQLite bridge (приоритет 0)

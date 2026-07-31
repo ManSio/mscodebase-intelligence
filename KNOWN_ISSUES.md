@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — Claude review вторая волна: A/B/C верифицированы (A закрыт, B/C REFUTED)
+
+**Symptom:** 3 находки Claude не были закрыты в прошлой сессии: A — `asyncio.run` в `_sync_executor.submit` (engine.py:304-316, max_workers=2) «потенциальный deadlock»; B — closure late-binding `_create_indexer_for_path` (di_container.py:284-338) «хрупко»; C — `$ZED_WORKTREE_ROOT` в env MCP-конфига на Windows («%VAR% vs $VAR»).
+**Root Cause:** A — starvation с `future.result(timeout=30)`, НЕ circular deadlock (воркеры пула не ждут друг друга); B — default-args capture уже применён (L286-290), ветка `_factories` латентная (L140-142); C — `server.py:_resolve_env_project_root` (L393-405) явно обрабатывает literal `raw.startswith("$")`, доки Zed не описывают $VAR-интерполяцию в env, live-паспорт подтвердил резолв через SQLite bridge.
+**Fix:** A — закрыт как TECH DEBT (ACCEPTED): протокол запрещает 3+ параллельных MCP, max_workers=2 недостижим легитимно; persistent loop отложен намеренно (риск выше пользы). B/C — фикс не требуется, REFUTED.
+**Guard:** ISSUE.md P2-6 → TECH DEBT (ACCEPTED); ISSUE.md секция «Claude review вторая волна» (A/B/C с File:Line); поиск по докам Zed (context-servers + environment-variables 404) — $VAR-интерполяция не документирована.
+**Тесты:** pytest 610+ (см. ИТОГ); ruff по изменённым файлам; bump_version --check.
+
+---
+
 ## 2026-07-31 — Claude review верификация: 7✅/1❌ + фиксы write_tools/zed_config/di/llama_runner (FIXED)
 
 **Symptom:** ревью Claude (КРИТ-1..3, P1-P3) — 8 находок; write_tools писал файлы неатомарно (6 из 7 точек), `remove_zed_settings` терял JSONC-комментарии, `patch_zed_settings` неатомарна на Windows, `ServiceCollection.resolve` без lock, `command.split()` ломался на пробелах, llama_runner не закрывал stderr-fh при исключении Popen.
