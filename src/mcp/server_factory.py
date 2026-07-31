@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import json
 import logging
 import os
 import sys
@@ -304,9 +305,11 @@ def _register_extension_handlers(mcp, services):
                 root = (params or {}).get("project_root", "") if isinstance(params, dict) else ""
                 idx = resolve_indexer_for_request(services, explicit_project_root=root or None)
                 count = await asyncio.to_thread(idx.index_project, idx.project_path)
-                return f'{{"status": "ok", "files": {count}}}'
+                return json.dumps({"status": "ok", "files": count})
             except Exception as e:
-                return f'{{"status": "error", "message": "{e}"}}'
+                # WIN-8: json.dumps вместо f-string — str(e) может содержать
+                # кавычки/переводы строк, ломающие JSON.
+                return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
 
         async def _clear_memory(params) -> str:
             try:
@@ -314,9 +317,9 @@ def _register_extension_handlers(mcp, services):
                 idx = resolve_indexer_for_request(services, explicit_project_root=root or None)
                 if hasattr(idx, "_symbol_index") and idx._symbol_index:
                     idx._symbol_index._definitions.clear()
-                return '{"status": "ok"}'
+                return json.dumps({"status": "ok"})
             except Exception as e:
-                return f'{{"status": "error", "message": "{e}"}}'
+                return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
 
         server.request_handlers["mscodebase/get_dashboard"] = _get_dashboard
         server.request_handlers["mscodebase/force_reindex"] = _force_reindex

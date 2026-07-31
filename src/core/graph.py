@@ -73,6 +73,11 @@ class _CrossProcessMutex:
             # Создаём или открываем Named Mutex
             self._mutex_handle = kernel32.CreateMutexW(None, False, self._mutex_name)
             if not self._mutex_handle:
+                # WIN-2: silent fallback маскировал поломку cross-process lock.
+                logger.warning(
+                    f"CreateMutexW failed (err={ctypes.get_last_error()}) — "
+                    f"cross-process lock НЕ активен для {self._mutex_name}"
+                )
                 return True  # Не смогли создать — идем без лока (fallback)
 
             result = kernel32.WaitForSingleObject(self._mutex_handle, timeout_ms)
@@ -83,7 +88,10 @@ class _CrossProcessMutex:
                 kernel32.CloseHandle(self._mutex_handle)
                 self._mutex_handle = None
                 return False
-        except Exception:
+        except Exception as _mutex_err:
+            logger.warning(
+                f"Cross-process mutex error ({_mutex_err}) — lock не активен"
+            )
             return True  # Fallback: не блокируем
 
     def release(self):

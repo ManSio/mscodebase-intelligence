@@ -470,6 +470,22 @@ def _format_error_response(
     return "\n".join(lines)
 
 
+def _sanitize_error_message(raw: str) -> str:
+    """Санитизация exception-сообщения для MCP-ответа (SEC-4).
+
+    - Убирает абсолютные пути (info leak: структура диска, имена пользователей)
+    - Обрезает до 200 символов (exception может содержать SQL/длинные данные)
+    """
+    if not raw:
+        return raw
+    import re as _re
+
+    _cleaned = _re.sub(r"[A-Za-z]:\\[^\s'\"`]+|\\\\[^\s'\"`]+", "<path>", raw)
+    if len(_cleaned) > 200:
+        _cleaned = _cleaned[:200] + "…"
+    return _cleaned
+
+
 def error_boundary(
     tool_name: str,
     max_retries: int = 0,
@@ -566,7 +582,7 @@ def error_boundary(
                     _notify_error(f"{tool_name}: {e}", severity="Error")
                     return _format_error_response(
                         status="error",
-                        message=str(e),
+                        message=_sanitize_error_message(str(e)),
                         # P3-10 audit: traceback не попадает в MCP-ответ
                         # (info leak: пути, имена модулей) — только в логи.
                         detail=None,
@@ -624,7 +640,7 @@ def error_boundary(
                 record_tool_call(tool_name, elapsed, success=False)
                 return _format_error_response(
                     status="error",
-                    message=str(e),
+                    message=_sanitize_error_message(str(e)),
                     # P3-10 audit: traceback не попадает в MCP-ответ (info leak)
                     detail=None,
                 )

@@ -656,14 +656,26 @@ class LspClient:
 
     @staticmethod
     def _path_to_uri(path: str) -> str:
-        abs_path = Path(path).resolve()
-        posix = abs_path.as_posix()
-        return "file:///" + posix.lstrip("/") if posix.startswith("/") else "file:///" + posix
+        """Конвертирует файловый путь в file:// URI (включая UNC-пути).
+
+        WIN-3: Path.as_uri() корректно обрабатывает UNC (двойной backslash
+        server + обратный слеш share, затем file → file://server/share/file)
+        и Windows-диски (C:\\x → file:///C:/x).
+        """
+        try:
+            return Path(path).resolve().as_uri()
+        except ValueError:
+            # Некорректный путь (например, относительный с несуществующим base)
+            abs_path = Path(path).resolve()
+            return abs_path.as_uri()
 
     @staticmethod
     def _uri_to_path(uri: str) -> str:
         parsed = urlparse(uri)
         raw = parsed.path
+        # WIN-4: UNC URI (file://server/share/file) — authority это сервер.
+        if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
+            return Path("//" + parsed.netloc + raw).resolve().as_posix()
         if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
             raw = raw[1:]
         return Path(raw).resolve().as_posix()

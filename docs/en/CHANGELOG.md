@@ -9,6 +9,32 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.9] — 2026-07-31 — P0 reindex deadlock fix + z.ai review (16 items verified)
+
+### Fixed
+- **P0: reindex deadlock** (regression from `ac6e5ba0e` P1-3): `IndexProjectRunner.run()` held the shared RLock (`begin_write`) for the whole run, while Phase 1 parse workers called `_parse_file_only` without `known_hashes` → they blocked on the same RLock from another thread (RLock is not re-entrant across threads) → indexing hung forever (`progress: 0`), all DB-reading MCP tools timed out. Fix: bulk-load `known_hashes` once in the main thread (re-entrant) and pass them to workers — they no longer touch the DB under lock.
+- **`file_move_manager.py`** (LOGIC-1/2/3): search by `file_path` (was `file_hash` — duplicate-content files stole each other's path), read→delete→add under one lock cycle (was non-transactional), `_escape_sql_value` (was manual `replace`).
+- **`lsp_client.py`** (WIN-3/4): UNC paths via `Path.as_uri()` + netloc branch in `_uri_to_path`.
+- **`server_factory.py`** (WIN-8): `json.dumps` for extension-handler error JSON (was f-string with raw `str(e)`).
+- **`error_handler.py`** (SEC-4): `_sanitize_error_message` — paths masked, 200-char cap in MCP error responses.
+- **`codebase_tool.py`** (SEC-5): `MSCODEBASE_SANDBOX_MODE` validated, fallback to strict.
+- **`graph.py`** (WIN-2): warning when `CreateMutexW` fails (was silent no-lock fallback).
+- **`scoring.py`** (LOGIC-8): MMR `remaining` sorted by relevance (was insertion order).
+- **Cache invalidation** (LOGIC-5): `searcher.invalidate_cache()` after full reindex and in `_index_single_file` (was TTL 30s only).
+
+### Added
+- **`tests/test_index_runner_deadlock.py`**: 3 regression tests — run() completes (no hang), workers receive `known_hashes` (not None), unchanged files skipped. Validated: fails without the fix.
+- **`tests/test_lsp_uri_conversion.py`**: 5 tests + 2 platform skips — Windows drive, POSIX, UNC (WIN-3/4), round-trip.
+
+### Refuted (already fixed in `a9d92e00`/earlier)
+- LOGIC-4 (flush already outside lock), WIN-1 (blake2b mutex already), SEC-1/2 (allowlist already clean), ARCH-1 (resolve already locked), LOGIC-7 (assign-as-method present), WIN-5/6/7/9/10/11, TEST-3/4/5, ZED-1..9.
+
+### Tests
+- Full pytest: 666 passed, 0 failed (was 649) — +17 new
+- ruff clean; py_compile 9 files; bump_version --check ✅ (3.3.9)
+
+---
+
 ## [3.3.9] — 2026-07-31 — Test coverage: G-1 stubs → real tests, G-2 E2E MCP smoke
 
 ### Added

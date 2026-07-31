@@ -9,39 +9,67 @@ __all__ = [
 logger = logging.getLogger("mscodebase_server.file_move")
 
 
+class _NullLock:
+    """No-op context manager — fallback, если table_write_lock не передан."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 class FileMoveManager:
     """Manages file rename across index layers (LanceDB meta-patching)."""
 
-    def __init__(self, table, searcher=None):
+    def __init__(self, table, searcher=None, table_write_lock=None):
         self.table = table
         self.searcher = searcher
+        self._table_write_lock = table_write_lock
 
     def move_chunks_metadata(self, old_path: str, new_path: str) -> int:
-        """Update file_path in LanceDB WITHOUT re-embedding."""
-        escaped_old = old_path.replace("'", "''")
+        """Update file_path in LanceDB WITHOUT re-embedding.
+
+        Параллельная реализация Indexer.move_chunks_metadata (P1-5):
+        - поиск по file_path (НЕ по file_hash — дубликаты контента получали
+          чужой file_path, регрессия LOGIC-1 z.ai-ревью)
+        - read → delete → add в одном lock-цикле (не транзакционный delete+add
+          терял чанки при сбое между ними, LOGIC-2)
+        - _escape_sql_value вместо ручного replace (LOGIC-3)
+        """
+        from src.core.indexing.indexer_table import IndexerTableMixin
+
+        safe_old = IndexerTableMixin._escape_sql_value(old_path.replace(chr(92), "/"))
+        safe_new = IndexerTableMixin._escape_sql_value(new_path.replace(chr(92), "/"))
+        if safe_old == safe_new:
+            return 0
+
+        lock_ctx = self._table_write_lock if self._table_write_lock is not None else _NullLock()
         try:
-            old_df = (
-                self.table.search()
-                .where(f"file_path = '{escaped_old}'", prefilter=True)
-                .limit(1)
-                .to_pandas()
-            )
-            if old_df.empty:
-                logger.debug(f"move: no chunks for {old_path}")
-                return 0
-            old_hash = str(old_df["file_hash"].iloc[0])
-            old_chunk_count = self.table.count_rows(filter=f"file_path = '{escaped_old}'")
-            self.table.delete(f"file_path = '{escaped_old}'")
-            logger.info(f"Deleted {old_chunk_count} chunks for {old_path}")
-            new_chunk_count = 0
-            rows = self.table.search().where(f"file_hash = '{old_hash.replace(chr(39), chr(39)*2)}'", prefilter=True).limit(old_chunk_count).to_pandas()
-            if not rows.empty:
-                for _, row in rows.iterrows():
-                    row["file_path"] = new_path
-                self.table.add(rows.to_dict("records"))
-                new_chunk_count = len(rows)
-            logger.info(f"Moved {new_chunk_count} chunks: {old_path} -> {new_path}")
-            return new_chunk_count
+            with lock_ctx:
+                # 1. Read old chunks (все метаданные + векторы)
+                old_df = (
+                    self.table.search()
+                    .where(f"file_path = '{safe_old}'", prefilter=True)
+                    .limit(10000)
+                    .to_pandas()
+                )
+                if old_df.empty:
+                    logger.debug(f"move: no chunks for {old_path}")
+                    return 0
+
+                count = len(old_df)
+                logger.info(f"Deleting {count} chunks for {old_path}")
+
+                # 2. Delete old entries
+                self.table.delete(f"file_path = '{safe_old}'")
+
+                # 3. Mutate metadata (тот же вектор — без re-embedding)
+                old_df["file_path"] = safe_new
+                self.table.add(old_df.to_dict("records"))
+
+            logger.info(f"Moved {count} chunks: {old_path} -> {new_path}")
+            return count
         except Exception as e:
             logger.error(f"move failed: {old_path} -> {new_path}: {e}")
             return 0
