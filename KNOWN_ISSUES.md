@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — Claude review верификация: 7✅/1❌ + фиксы write_tools/zed_config/di/llama_runner (FIXED)
+
+**Symptom:** ревью Claude (КРИТ-1..3, P1-P3) — 8 находок; write_tools писал файлы неатомарно (6 из 7 точек), `remove_zed_settings` терял JSONC-комментарии, `patch_zed_settings` неатомарна на Windows, `ServiceCollection.resolve` без lock, `command.split()` ломался на пробелах, llama_runner не закрывал stderr-fh при исключении Popen.
+**Root Cause:** защитные паттерны применялись точечно (атомарная запись была только в `_apply_changes`; `_set_top_level` — только в patch, не в remove; threading.Lock — не в resolve; walrus-fh — без закрытия в except).
+**Fix:** write_tools — `_atomic_write` (mkstemp+fsync+os.replace) во всех 7 точках (P2-9); zed_config — `_atomic_write_text` + хирургический remove через `_set_top_level` (P1-15/P1-16) + space-aware парсинг команды (P2-19); di_container — `threading.Lock` в resolve (P2-18); llama_runner — закрытие log_fh в except, 3 места (P2-20).
+**Guard:** ruff clean; smoke-тесты: zed_config (комментарии + путь с пробелом), `_atomic_write`; ISSUE.md P1-15/16, P2-18/19/20 добавлены, P2-8/P2-9 закрыты.
+**Тесты:** 610 passed, 0 failed (37.6s); bump_version --check ✅ (3.3.9).
+
+---
+
 ## 2026-07-31 — P0-3: CI self-clone убран (verify_clean_state.sh --no-clone) (FIXED)
 
 **Symptom:** job `clean-state` вызывал скрипт, который внутри делает `git clone` внешнего URL — тестировался чужой HEAD, а не checkout раннера (ISSUE.md P0-3, примечание «Оставлено на потом»).

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
@@ -96,6 +97,7 @@ class ServiceCollection:
     def __init__(self):
         self._instances: Dict[type, Any] = {}  # Уже созданные экземпляры
         self._factories: Dict[type, Callable] = {}  # Фабрики для ленивых синглтонов
+        self._lock = threading.Lock()  # защита resolve от параллельного создания (P2-18)
 
     def add_singleton(self, key: type, instance: Any = None):
         """Регистрирует синглтон (существующий экземпляр).
@@ -131,15 +133,20 @@ class ServiceCollection:
             KeyError: Если тип не зарегистрирован
         """
         # 1. Проверяем уже созданные экземпляры
-        if key in self._instances:
-            return self._instances[key]
+        with self._lock:
+            if key in self._instances:
+                return self._instances[key]
 
-        # 2. Проверяем фабрики
-        if key in self._factories:
-            instance = self._factories[key](self)
-            self._instances[key] = instance
-            logger.debug(f"DI resolved (lazy): {key.__name__}")
-            return instance
+            # 2. Проверяем фабрики. Lock гарантирует один экземпляр при
+            # параллельном resolve. В текущей кодовой базе фабрики через
+            # add_factory не регистрируются (все — add_singleton), поэтому
+            # re-entrant resolve невозможен; при появлении таких фабрик
+            # потребуется RLock.
+            if key in self._factories:
+                instance = self._factories[key](self)
+                self._instances[key] = instance
+                logger.debug(f"DI resolved (lazy): {key.__name__}")
+                return instance
 
         raise KeyError(
             f"Dependency '{key.__name__}' not registered in ServiceCollection. "
