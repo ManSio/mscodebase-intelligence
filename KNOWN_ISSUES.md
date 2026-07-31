@@ -174,17 +174,20 @@
 
 ---
 
-## 2026-07-21 — B11: 2 теста в AGENT_DIARY.md не существуют (FIXED)
+## 2026-07-21 — B11: 2 теста в AGENT_DIARY.md не существуют (FIXED 2026-07-31)
 
 **Symptom:** diary ссылается на `test_file_exists` и `test_searcher`, но файлы не существуют.
 
-**Fix:** Созданы файлы-stub:
+**Fix (первичный):** Созданы файлы-stub:
 - `tests/test_file_exists.py`
 - `tests/test_searcher.py`
 
-Каждый содержит `test_*_stub()` с `assert True`. TODO: написать полноценные тесты.
+Каждый содержал `test_*_stub()` с `assert True` — QA-bypass (P1-12).
 
-**Deadline:** следующий рефакторинг (minor release).
+**Fix (окончательный, 2026-07-31):** stub'ы заменены на настоящие тесты (52 шт., G-1 закрыт):
+- test_file_exists → FileGuard; test_searcher → Searcher; test_chunk_cache → IndexPipeline.process_file;
+- test_idle_reload → OnnxEmbedderClient; test_real_path → FileGuard.resolve + _generate_unique_db_path.
+- Verification: 658 passed (было 616 + 52 − 10 stub); ruff clean; verify_diary 20/20 ✅.
 
 ---
 
@@ -1766,7 +1769,7 @@ Three fixes from the same review:
 | 9 | graph.py | `shortest_path` path explosion (BFS stores all paths) | graph.py:636-683 | OOM |
 | 10 | indexer.py | `move_chunks_metadata` delete+add not atomic | indexer.py:494-502 | data loss on crash |
 | 11 | cypher_executor.py | `_get_conn()` without lock | cypher_executor.py:51-52 | DB lock error |
-| 12 | test_searcher.py | stub with `assert True` | test_searcher.py:1 | QA bypass |
+| 12 | test_searcher.py | ~~stub with `assert True`~~ → G-1 закрыт 2026-07-31: 5 stub-тестов заменены на 52 настоящих (658 passed) | tests/test_searcher.py | ~~QA bypass~~ ✅ FIXED |
 
 ### P2 — Important (fix within sprint)
 

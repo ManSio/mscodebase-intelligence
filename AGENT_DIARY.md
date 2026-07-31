@@ -1,5 +1,16 @@
 ---
 
+## [2026-07-31] — G-1 закрыт: 5 stub-тестов (B11/P1-12) заменены на настоящие (52 теста)
+
+**Status:** ✅ Fixed
+**Root Cause:** B11 (KNOWN_ISSUES.md:177-187) — verify_diary ссылался на несуществующие тесты; созданы stub'ы с `assert True` (test_file_exists, test_searcher, test_idle_reload, test_real_path, test_chunk_cache-пустой) — QA-bypass (P1-12).
+**Fix:** настоящие тесты: test_file_exists → FileGuard (существование/безопасность, 18); test_searcher → Searcher sync-путь (vector_search/search/search_with_mode/invalidate_cache, 11); test_chunk_cache → IndexPipeline.process_file с mock-embedder/table (кэш-хит, инвалидация, пустой файл, отключённый кэш, корректность векторов, 6); test_idle_reload → OnnxEmbedderClient (health, discover-or-launch, reload после idle, 8 потоков → 1 launch, 8); test_real_path → FileGuard.resolve + _generate_unique_db_path (9).
+**Guard:** ISSUE.md «Что осталось» G-1 → ✅; KNOWN_ISSUES.md B11 → ✅; тест с `assert True` без проверки логики = не закрытие (§1.14).
+**Verification:** 658 passed (было 616 + 52 − 10 stub); ruff clean (5 файлов); bump_version --check ✅ (3.3.9); verify_diary 20/20 ✅.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest tests/ (658 passed) с рабочего дерева.
+
+---
+
 ## [2026-07-31] — Qwen review верификация: 12✅/4❌/2⏳ + P0-5 sandbox, P1-17 CodeParser race
 
 **Status:** ✅ Fixed (P0-5, P1-17, P2-21..P2-27 закрыты; 4 REFUTED, 2 ACCEPTED)
