@@ -3,7 +3,15 @@
 # Вывод: EXIT_CODE + число passed/failed тестов
 set -uo pipefail
 
-REPO_URL="https://github.com/ManSio/mscodebase-intelligence"
+# $1 = repo URL (для ручного запуска с клоном), либо флаг --no-clone [repo URL]
+# --no-clone: работать в текущем каталоге (CI: $GITHUB_WORKSPACE = свежий checkout
+# раннера) — CI не должна клонировать сам себя (ISSUE.md P0-3).
+REPO_URL="${1:-https://github.com/ManSio/mscodebase-intelligence}"
+NO_CLONE=0
+if [ "${1:-}" = "--no-clone" ]; then
+    NO_CLONE=1
+    REPO_URL="${2:-}"
+fi
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -15,9 +23,13 @@ NC='\033[0m'
 echo -e "${YELLOW}=== VERIFY CLEAN STATE ===${NC}"
 echo "Temp dir: $TMPDIR"
 
-echo "Cloning $REPO_URL ..."
-git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" 2>&1
-cd "$TMPDIR/repo"
+if [ "$NO_CLONE" -eq 1 ]; then
+    echo "No-clone mode: verifying current directory"
+else
+    echo "Cloning $REPO_URL ..."
+    git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" 2>&1
+    cd "$TMPDIR/repo"
+fi
 
 echo "Creating venv..."
 python -m venv venv || { echo "venv creation failed, trying with ensurepip"; python -m venv --without-pip venv; source venv/bin/activate && python -m ensurepip; }

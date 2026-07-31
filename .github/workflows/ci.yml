@@ -57,6 +57,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Verify clean state (clone + install + full test)
-        run: bash scripts/verify_clean_state.sh
+      - name: Verify clean state (no self-clone)
+        run: bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"
         timeout-minutes: 15

@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — P0-3: CI self-clone убран (verify_clean_state.sh --no-clone) (FIXED)
+
+**Symptom:** job `clean-state` вызывал скрипт, который внутри делает `git clone` внешнего URL — тестировался чужой HEAD, а не checkout раннера (ISSUE.md P0-3, примечание «Оставлено на потом»).
+**Root Cause:** скрипт был single-mode: всегда клонировал hardcoded `https://github.com/ManSio/mscodebase-intelligence`.
+**Fix:** `$1` = repo URL (default сохранён); `--no-clone` работает в текущем каталоге (`$GITHUB_WORKSPACE`); `ci.yml` → `bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"`; шаг переименован (Verify clean state, без clone).
+**Guard:** локальный запуск без аргументов — прежний полный клон; ISSUE.md P0-3 статус → ✅ FIXED (--no-clone).
+**Тесты:** bash -n OK; yaml.safe_load OK; локальный прогон `--no-clone` — не-Linux ветка (Windows); полный pytest — см. ИТОГ.
+
+---
+
 ## 2026-07-31 — Остаток ISSUE.md (P1/P2/P3) закрыт; P0: git_hooks_installer.py SyntaxError (FIXED)
 
 **Symptom:** ISSUE.md фиксировал 26 открытых пунктов: P1-1/P1-2 (graph.py BFS memory + N+1), P1-3/4/5/13/14 (db_manager/indexer race + RLock + PID-lock), P1-6 (CypherExecutor без lock), P1-11 (future.cancel), P2-14/15/16/17, P3-1..6, P3-12; плюс найденный при верификации **P0**: `src/core/git_hooks_installer.py` — незакрытый тройной-квоте `PRE_COMMIT_HOOK` (SyntaxError: invalid character '—' с коммита 8f799dec) → `install_git_hooks` MCP-инструмент падал ImportError в рантайме; ruff не замечал файл (E999), pytest не импортировал (lazy-import).
