@@ -20,7 +20,14 @@ git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" 2>&1
 cd "$TMPDIR/repo"
 
 echo "Creating venv..."
-python -m venv venv
+python -m venv venv || { echo "venv creation failed, trying with ensurepip"; python -m venv --without-pip venv; source venv/bin/activate && python -m ensurepip; }
+
+# Ensure pip is available
+if [ ! -f venv/bin/pip ]; then
+    echo "pip not found in venv, running ensurepip..."
+    source venv/bin/activate
+    python -m ensurepip --default-pip
+fi
 
 # --- Lockfile drift gate (аналог uv lock --check) ---
 # Если requirements-lock.txt не синхронизирован с pyproject.toml,
@@ -50,16 +57,16 @@ echo "Installing package + test deps..."
 if [ -f requirements-lock.txt ] && [ "$(uname -s)" = "Linux" ]; then
     # На Linux-CI ставим из lock, фильтруя Windows-only пакеты
     grep -viE "^(pywin32|wmi|pythoncom)=" requirements-lock.txt > /tmp/req_unix.txt
-    venv/Scripts/pip.exe install -q -r /tmp/req_unix.txt 2>&1 | tail -3
+    venv/bin/pip install -q -r /tmp/req_unix.txt 2>&1 | tail -3
     rm -f /tmp/req_unix.txt
-    venv/Scripts/pip.exe install -q -e ".[dev]" --no-deps 2>&1 | tail -3
+    venv/bin/pip install -q -e ".[dev]" --no-deps 2>&1 | tail -3
 else
     # Локально / не-Linux — резолвим по bounds (защищено exact pin lancedb)
-    venv/Scripts/pip.exe install -q -e ".[dev]" 2>&1 | tail -3
+    venv/bin/pip install -q -e ".[dev]" 2>&1 | tail -3
 fi
 
 echo "Running full test suite (no filters)..."
-RESULT=$(venv/Scripts/python.exe -m pytest tests/ -q --tb=short 2>&1)
+RESULT=$(venv/bin/python -m pytest tests/ -q --tb=short 2>&1)
 EXIT_CODE=$?
 
 PASSED=$(echo "$RESULT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")

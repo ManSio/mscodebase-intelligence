@@ -68,6 +68,9 @@ class IndexProjectRunner:
         self.db_manager = db_manager
         self._db_writer = db_writer
         self._index_lock = threading.Lock()
+        # Sync table references after recreate (via on_recreate callback)
+        if self._db_writer is not None:
+            self._db_writer.set_on_recreate_callback(self._sync_table_ref)
         self._cached_total_chunks = 0
         self._cached_unique_files: set[str] = set()
 
@@ -98,9 +101,11 @@ class IndexProjectRunner:
         return True
 
     def _safe_recreate_table(self):
-        """Fallback: удалить и пересоздать таблицу когда db_manager нет."""
-        if not hasattr(self, '_write_file_records_from_table'):
-            return
+        """Fallback: пересоздать таблицу если она потеряна.
+
+        Используется при ошибках "Not found" в bulk_write.
+        Обновляет self.table на новый объект таблицы.
+        """
         try:
             schema = self.table.schema
             _db = getattr(self.table, '_db', None)
@@ -110,8 +115,15 @@ class IndexProjectRunner:
                 except Exception:
                     pass
                 self.table = _db.create_table("codebase_chunks", schema=schema)
+                logger.info("✅ Table recreated after Not Found error")
         except Exception as e:
             logger.error(f"Table recreate failed: {e}")
+
+    def _sync_table_ref(self, new_table):
+        """Sync table reference across all components after recreate."""
+        self.table = new_table
+        if hasattr(self, '_db_writer') and self._db_writer is not None:
+            self._db_writer.table = new_table
 
     def run(
         self,

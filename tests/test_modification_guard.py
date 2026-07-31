@@ -98,7 +98,8 @@ class TestAckImpact:
         token = fresh_guard._make_ack_token(str(test_file))
         fresh_guard.ack_impact(str(test_file), impact_token=token)
         normalized = fresh_guard._normalize_path(str(test_file))
-        assert normalized in fresh_guard._ack_registry
+        proj = fresh_guard._project_root_for_file(str(test_file))
+        assert normalized in fresh_guard._ack_registry[proj]
 
     def test_multiple_files_independent(self, fresh_guard, tmp_path):
         """Each ack call creates a separate registry entry."""
@@ -109,7 +110,8 @@ class TestAckImpact:
             tokens.append((str(f), fresh_guard._make_ack_token(str(f))))
         for path, token in tokens:
             fresh_guard.ack_impact(path, impact_token=token)
-        assert len(fresh_guard._ack_registry) == 3
+        total_entries = sum(len(v) for v in fresh_guard._ack_registry.values())
+        assert total_entries == 3
 
 
 # ── Tests: @modification_guard decorator ──────────────────────────────────
@@ -231,8 +233,10 @@ class TestModificationGuard:
         token = fresh_guard._make_ack_token(str(test_file))
         fresh_guard.ack_impact(str(test_file), impact_token=token)
         normalized = fresh_guard._normalize_path(str(test_file))
-        fresh_guard._ack_registry[normalized] = (
-            time.time() - _ACK_TTL - 10
+        proj = fresh_guard._project_root_for_file(str(test_file))
+        fresh_guard._ack_registry[proj][normalized] = (
+            time.time() - _ACK_TTL - 10,
+            fresh_guard._file_fingerprint(str(test_file)),
         )
 
         with (
@@ -273,8 +277,10 @@ class TestModificationGuard:
         token = fresh_guard._make_ack_token(str(test_file))
         fresh_guard.ack_impact(str(test_file), impact_token=token)
         normalized = fresh_guard._normalize_path(str(test_file))
-        fresh_guard._ack_registry[normalized] = (
-            time.time() - _ACK_TTL - 10
+        proj = fresh_guard._project_root_for_file(str(test_file))
+        fresh_guard._ack_registry[proj][normalized] = (
+            time.time() - _ACK_TTL - 10,
+            fresh_guard._file_fingerprint(str(test_file)),
         )
 
         with (
@@ -300,7 +306,9 @@ class TestModificationGuard:
             await tool.my_write(file_path=str(test_file), symbol="critical_func")
 
         # Expired entry should have been removed
-        assert normalized not in fresh_guard._ack_registry
+        assert all(
+            normalized not in v for v in fresh_guard._ack_registry.values()
+        )
 
     @pytest.mark.asyncio
     async def test_no_file_path_no_symbol_passes(self, fresh_guard, mock_tool):

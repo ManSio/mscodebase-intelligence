@@ -14,20 +14,26 @@ import hmac
 import inspect
 import logging
 import os
+import secrets
+import sys
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Ack registry: {file_path: timestamp}
-# После вызова impact_analysis пользователь "подтверждает" осведомлённость
-_ack_registry: Dict[str, float] = {}
+# Ack registry: {project_root: {normalized_path: (timestamp, fingerprint)}}
+# Per-project isolation prevents cross-project ack leaks.
+_ack_registry: Dict[str, Dict[str, tuple[float, str]]] = {}
 _ACK_TTL: float = 600.0  # 600 секунд = 10 минут
-_ACK_SECRET = os.environ.get(
-    "MSCODEBASE_ACK_SECRET", "dev-secret-change-me"
-).encode()
+
+# Per-process random secret — never use a default that an attacker can guess.
+# If env var is set, use it (for testing/compatibility); otherwise generate.
+_env_secret = os.environ.get("MSCODEBASE_ACK_SECRET")
+_ACK_SECRET = (
+    _env_secret.encode() if _env_secret else secrets.token_urlsafe(32).encode()
+)
 
 
 def _file_fingerprint(file_path: str) -> str:
@@ -70,8 +76,13 @@ def ack_impact(file_path: str, impact_token: str) -> Dict[str, Any]:
                 f"a token is only valid for the file's current content."
             ),
         }
+    project_root = _project_root_for_file(file_path)
     normalized = _normalize_path(file_path)
-    _ack_registry[normalized] = time.time()
+    fingerprint = _file_fingerprint(file_path)
+    # Store per-project: {project_root: {normalized_path: (timestamp, fingerprint)}}
+    if project_root not in _ack_registry:
+        _ack_registry[project_root] = {}
+    _ack_registry[project_root][normalized] = (time.time(), fingerprint)
     return {
         "status": "ok",
         "message": f"Impact acknowledged for {file_path}. Write operations allowed for {_ACK_TTL}s.",
@@ -80,8 +91,34 @@ def ack_impact(file_path: str, impact_token: str) -> Dict[str, Any]:
 
 
 def _normalize_path(path: str) -> str:
-    """Нормализует путь для единообразия ключей ack_registry."""
-    return Path(path).resolve().as_posix().lower()
+    """Нормализует путь для единообразия ключей ack_registry.
+
+    На Windows (case-insensitive FS) — lower(). На Unix (case-sensitive FS) — как есть.
+    """
+    resolved = Path(path).resolve().as_posix()
+    if sys.platform == "win32":
+        return resolved.lower()
+    return resolved
+
+
+def _project_root_for_file(file_path: str) -> str:
+    """Определяет project root для файла по его пути.
+
+    Используется для per-project изоляции ack registry.
+    """
+    resolved = Path(file_path).resolve()
+    # Ищем известные маркеры проекта
+    for marker in ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt"):
+        candidate = resolved
+        for _ in range(10):  # max 10 levels up
+            if (candidate / marker).exists():
+                return candidate.as_posix()
+            parent = candidate.parent
+            if parent == candidate:
+                break
+            candidate = parent
+    # Fallback: используем parent directory
+    return resolved.parent.as_posix()
 
 
 def _get_pagerank_for_file(file_path: str, services) -> float:
@@ -106,9 +143,10 @@ def _get_pagerank_for_file(file_path: str, services) -> float:
         # and require explicit ack. Log at WARNING so it's visible.
         logger.warning(f"[Guard] PageRank lookup failed (fail-closed): {e}")
         return 1.0  # Treat as maximum PageRank to force ack
+    return 0.0  # Файл не найден в репозитории — не горячий
 
 
-def _get_blast_radius_for_file(symbol: str, services) -> int:
+def _get_blast_radius_for_file(symbol: str, services, project_path: Optional[str] = None) -> int:
     """Получает blast radius символа через impact_analysis.
 
     Returns 0 если не удалось получить.
@@ -118,7 +156,11 @@ def _get_blast_radius_for_file(symbol: str, services) -> int:
         from src.core.di_container import ProjectIndexerRegistry
 
         registry = services.resolve(ProjectIndexerRegistry)
-        indexer = registry.get_indexer()
+        # Pass project_path to get_indexer() so blast radius is scoped correctly
+        if project_path:
+            indexer = registry.get_indexer(Path(project_path))
+        else:
+            indexer = registry.get_indexer()
         si = indexer.symbol_index if hasattr(indexer, "symbol_index") else None
         if si and hasattr(si, "get_impact_analysis"):
             impact = si.get_impact_analysis(symbol, depth=2)
@@ -167,11 +209,17 @@ def modification_guard(
                 call_args = kwargs  # fallback
 
             file_path = (
-                call_args.get("file_path", "") or kwargs.get("file_path", "")
+                call_args.get("file_path", "")
+                or call_args.get("path", "")
+                or call_args.get("target_file", "")
+                or kwargs.get("file_path", "")
+                or kwargs.get("path", "")
+                or ""
             )
             symbol = (
                 call_args.get("symbol")
                 or call_args.get("old_name")
+                or call_args.get("name", "")
                 or kwargs.get("symbol", kwargs.get("old_name", ""))
                 or ""
             )
@@ -200,19 +248,34 @@ def modification_guard(
             else:
                 target_path = ""
 
-            # Проверяем ack
-            if target_path and target_path in _ack_registry:
-                elapsed = time.time() - _ack_registry[target_path]
+            # Проверяем ack (per-project registry)
+            ack_project_root = _project_root_for_file(target_path) if target_path else ""
+            ack_entry = None
+            if ack_project_root and ack_project_root in _ack_registry:
+                ack_entry = _ack_registry[ack_project_root].get(target_path)
+            if ack_entry is not None:
+                ack_ts, stored_fingerprint = ack_entry
+                elapsed = time.time() - ack_ts
                 if elapsed < ack_ttl:
-                    # Ack актуален — разрешаем
-                    return await func(self, *args, **kwargs)
+                    # Verify fingerprint hasn't changed since ack
+                    current_fingerprint = _file_fingerprint(target_path) if target_path else ""
+                    if stored_fingerprint == current_fingerprint:
+                        # Ack актуален и файл не изменён — разрешаем
+                        return await func(self, *args, **kwargs)
+                    else:
+                        # Файл изменён после ack — ack недействителен
+                        del _ack_registry[ack_project_root][target_path]
+                        if not _ack_registry[ack_project_root]:
+                            del _ack_registry[ack_project_root]
                 else:
                     # Ack истёк — удаляем
-                    del _ack_registry[target_path]
+                    del _ack_registry[ack_project_root][target_path]
+                    if not _ack_registry[ack_project_root]:
+                        del _ack_registry[ack_project_root]
 
             # Получаем PageRank и blast radius
             pagerank = _get_pagerank_for_file(target_path, self._services) if target_path else 0.0
-            blast = _get_blast_radius_for_file(symbol, self._services) if symbol else 0
+            blast = _get_blast_radius_for_file(symbol, self._services, project_path=ack_project_root or None) if symbol else 0
 
             is_hot = pagerank >= pagerank_min or blast >= blast_min
 
@@ -250,4 +313,5 @@ __all__ = [
     "_ack_registry",
     "_make_ack_token",
     "_verify_ack_token",
+    "_project_root_for_file",
 ]

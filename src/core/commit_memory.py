@@ -13,6 +13,7 @@ Semantic Commit Memory — хранение и анализ истории из�
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -20,6 +21,11 @@ __all__ = [
     "CommitMemory",
 ]
 logger = logging.getLogger("commit_memory")
+
+# Git-hook окружение (git commit экспортирует GIT_DIR/GIT_INDEX_FILE/GIT_AUTHOR_*
+# и др. в hook-процессы) ломает вложенные git-команды: они начинают оперировать
+# НЕ тем репозиторием, на который указывает cwd. Санируем env для git-субпроцессов.
+_CLEAN_GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
 
 class CommitMemory:
@@ -73,6 +79,7 @@ class CommitMemory:
                 ["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r", commit_hash],
                 cwd=str(self.project_path),
                 capture_output=True, text=True, timeout=5,
+                env=_CLEAN_GIT_ENV,  # не наследуем GIT_* от hook-окружения
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip().split("\n")

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +23,8 @@ logger = logging.getLogger("mscodebase_server.write_tools")
 
 class _R(str):
     """str с dict-доступом (для совместимости тестов)."""
+    _data: Dict[str, Any]
+
     def __new__(cls, data):
         s = data.get('status', '')
         m = data.get('message', '')
@@ -48,14 +51,37 @@ class WriteTool(MCPTool):
     - "ack"        — acknowledge impact for modification guard
     - "move"       — move a symbol to another file (preview/apply)
     - "safe_delete" — delete a symbol with reference check (preview/apply)
-    - "replace"    — replace a symbol's body (preview/apply)
-    - "insert_before" — insert code before a symbol
-    - "insert_after"  — insert code after a symbol
+    - "replace"    — replace symbol body (preview/apply)
     """
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="write")
-        self._lsp_client = None
+        self._write_lock = asyncio.Lock()
+        self._lsp_client: Optional[Any] = None
+
+    def _validate_file_in_project(self, file_path: str) -> Optional[str]:
+        """Validate that file_path is within the project root.
+        Returns error message or None if valid."""
+        try:
+            project_root = Path(self.resolve_indexer().project_path).resolve()
+        except Exception:
+            return None  # Can't validate without indexer — let it proceed
+        resolved = Path(file_path).resolve()
+        try:
+            resolved.relative_to(project_root)
+        except ValueError:
+            return f"Path '{file_path}' is outside project root '{project_root}'"
+        return None
+
+    def _validate_identifier(self, name: str, context: str) -> Optional[str]:
+        """Validate that name is a valid Python/JS/TS identifier.
+        Returns error message or None if valid."""
+        if not name:
+            return None
+        import re
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name):
+            return f"Invalid {context} identifier: '{name}'. Must match [A-Za-z_][A-Za-z0-9_]*"
+        return None
 
     @error_boundary("write", timeout_ms=30000)
     @modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600.0)
@@ -122,9 +148,20 @@ class WriteTool(MCPTool):
         si = self.resolve_symbol_index()
         old_name = kw["old_name"]
         new_name = kw["new_name"]
-        file_path = kw["file_path"]
+        file_path = kw.get("file_path", "")
         apply = kw["apply"]
         allow_collision = kw["allow_collision"]
+
+        # Validate new_name is a valid identifier
+        id_error = self._validate_identifier(new_name, "rename target")
+        if id_error:
+            return _R({"status": "error", "message": id_error})
+
+        # Validate file_path is within project if provided
+        if file_path:
+            path_error = self._validate_file_in_project(file_path)
+            if path_error:
+                return _R({"status": "error", "message": path_error})
 
         if not old_name or not new_name:
             return _R({"status": "error", "message": "Provide old_name and new_name for rename."})
@@ -175,8 +212,18 @@ class WriteTool(MCPTool):
         si = self.resolve_symbol_index()
         symbol = kw["symbol"]
         to_file = kw["to_file"]
-        file_path = kw["file_path"]
+        file_path = kw.get("file_path", "")
         apply = kw["apply"]
+
+        # Validate symbol is a valid identifier
+        id_error = self._validate_identifier(symbol, "move target")
+        if id_error:
+            return _R({"status": "error", "message": id_error})
+
+        # Validate to_file is within project
+        path_error = self._validate_file_in_project(to_file)
+        if path_error:
+            return _R({"status": "error", "message": path_error})
 
         if not symbol or not to_file:
             return _R({"status": "error", "message": "Provide symbol and to_file for move."})
@@ -218,9 +265,20 @@ class WriteTool(MCPTool):
         await self.require_ready_project()
         si = self.resolve_symbol_index()
         symbol = kw["symbol"]
-        file_path = kw["file_path"]
+        file_path = kw.get("file_path", "")
         force = kw["force"]
         apply = kw["apply"]
+
+        # Validate symbol is a valid identifier
+        id_error = self._validate_identifier(symbol, "delete target")
+        if id_error:
+            return _R({"status": "error", "message": id_error})
+
+        # Validate file_path is within project if provided
+        if file_path:
+            path_error = self._validate_file_in_project(file_path)
+            if path_error:
+                return _R({"status": "error", "message": path_error})
 
         if not symbol:
             return {"status": "error", "message": "Provide symbol for safe_delete."}
@@ -254,8 +312,19 @@ class WriteTool(MCPTool):
         si = self.resolve_symbol_index()
         symbol = kw["symbol"]
         new_code = kw["new_code"]
-        file_path = kw["file_path"]
+        file_path = kw.get("file_path", "")
         apply = kw["apply"]
+
+        # Validate symbol is a valid identifier
+        id_error = self._validate_identifier(symbol, "replace target")
+        if id_error:
+            return _R({"status": "error", "message": id_error})
+
+        # Validate file_path is within project if provided
+        if file_path:
+            path_error = self._validate_file_in_project(file_path)
+            if path_error:
+                return _R({"status": "error", "message": path_error})
 
         if not symbol or not new_code:
             return "🚫 **Error:** Provide symbol and new_code for replace."
@@ -296,6 +365,7 @@ class WriteTool(MCPTool):
 
         lines[start_idx:end_idx] = new_lines_list
         abs_path.write_text("".join(lines), encoding="utf-8")
+        await self._invalidate_lsp_cache(source_file)
         try:
             si.remove_file(source_file)
         except Exception:
@@ -361,6 +431,7 @@ class WriteTool(MCPTool):
 
         lines[insert_at:insert_at] = new_lines
         abs_path.write_text("".join(lines), encoding="utf-8")
+        await self._invalidate_lsp_cache(source_file)
         return f"✅ **Inserted {position}** `{anchor_symbol}` in `{source_file}` (+{len(new_lines)} lines)"
 
     # ─── Вспомогательные методы ─────────────────────────
@@ -389,7 +460,10 @@ class WriteTool(MCPTool):
 
     def _infer_package(self, file_path: str) -> str:
         p = Path(file_path).resolve()
-        parts = p.as_posix().rstrip(".py").split("/")
+        stem = p.stem  # e.g. "foo.py" → "foo"
+        parts = list(p.parent.parts)
+        if stem:
+            parts.append(stem)
         return ".".join(pt for pt in parts if pt)
 
     def _find_body_end(self, lines: list, def_line: int) -> int:
@@ -411,7 +485,7 @@ class WriteTool(MCPTool):
 
     # ─── LSP rename helpers ────────────────────────────
 
-    def _get_lsp_client(self):
+    def _get_lsp_client(self) -> Optional[Any]:
         if self._lsp_client is None:
             try:
                 from src.core.lsp_client import LspClient
@@ -420,6 +494,23 @@ class WriteTool(MCPTool):
             except Exception:
                 self._lsp_client = False
         return self._lsp_client if self._lsp_client is not False else None
+
+    async def _invalidate_lsp_cache(self, file_path: str):
+        """Переоткрыть файл в LSP, чтобы language server не держал stale content.
+
+        После прямого write_text в обход LSP pyright продолжает работать со
+        старым содержимым файла. close+open заставляет его перечитать файл.
+        Ничего не делает, если LSP не запущен (lazy-start не форсируется).
+        """
+        lsp = self._get_lsp_client()
+        if lsp is None:
+            return
+        try:
+            if await lsp.is_ready():
+                await lsp.close_file(file_path)
+                await lsp.open_file(file_path)
+        except Exception as exc:
+            logger.debug("LSP cache invalidation failed for %s: %s", file_path, exc)
 
     async def _rename_with_lsp_fallback(self, old_name, new_name, defs, all_refs, apply, allow_collision, si):
         if not defs:
@@ -464,9 +555,8 @@ class WriteTool(MCPTool):
 
         # DocSync: авто-обновление .md файлов после переименования
         try:
-            from src.config.settings import get_project_path
             from src.core.doc_sync_engine import DocSyncEngine
-            project_root = get_project_path()
+            project_root = str(Path(self.resolve_indexer().project_path))
             if project_root:
                 engine = DocSyncEngine(project_root)
                 report = engine.apply_rename(old_name, new_name)
@@ -479,6 +569,7 @@ class WriteTool(MCPTool):
         return {"status": "applied", "message": f"Renamed '{old_name}' -> '{new_name}' in {len(result.get('files', []))} files.", "changes_applied": len(changes), "files": result.get("files", []), "errors": result.get("errors")}
 
     async def _apply_changes(self, changes: List[Dict]) -> Dict[str, Any]:
+        import tempfile
         by_file = {}
         for c in changes:
             by_file.setdefault(c["file"], []).append(c)
@@ -503,8 +594,21 @@ class WriteTool(MCPTool):
                         if new_line != lines[idx]:
                             lines[idx] = new_line
                             applied += 1
-                abs_path.write_text("".join(lines), encoding="utf-8")
+                # Atomic write: write to temp file then replace
+                tmp_fd, tmp_path = tempfile.mkstemp(dir=abs_path.parent, suffix=".tmp")
+                try:
+                    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                        f.write("".join(lines))
+                    os.replace(tmp_path, abs_path)
+                except:
+                    # Clean up temp file on failure
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                    raise
                 files_modified.append(file_path)
+                await self._invalidate_lsp_cache(file_path)
             except Exception as e:
                 errors.append(f"Error processing {file_path}: {e}")
 
@@ -544,6 +648,7 @@ class WriteTool(MCPTool):
                             del lines[start["line"] + 1:end["line"] + 1]
                 abs_path.write_text("".join(lines), encoding="utf-8")
                 files_modified.append(file_path)
+                await self._invalidate_lsp_cache(file_path)
             except Exception as e:
                 logger.warning(f"WorkspaceEdit apply error: {e}")
 
@@ -554,7 +659,17 @@ class WriteTool(MCPTool):
             return None
         from urllib.parse import unquote
         path = unquote(uri[7:])
-        return path[1:] if path.startswith("/") and len(path) > 2 and path[2] == ":" else path
+        result = path[1:] if path.startswith("/") and len(path) > 2 and path[2] == ":" else path
+        # Validate result is within project root
+        try:
+            project_root = Path(self.resolve_indexer().project_path).resolve()
+        except Exception:
+            return result
+        try:
+            Path(result).resolve().relative_to(project_root)
+        except ValueError:
+            return None
+        return result
 
     async def _apply_delete(self, symbol: str, defs: list, usages: list) -> dict:
         from collections import defaultdict
@@ -582,6 +697,7 @@ class WriteTool(MCPTool):
                         removed += 1
                 abs_path.write_text("".join(text_lines), encoding="utf-8")
                 modified.add(file_path)
+                await self._invalidate_lsp_cache(file_path)
             except Exception as e:
                 errors.append(f"Error processing {file_path}: {e}")
 
@@ -614,6 +730,8 @@ class WriteTool(MCPTool):
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text("".join(extracted), encoding="utf-8")
                 modified.append(target_file)
+                await self._invalidate_lsp_cache(source_file)
+                await self._invalidate_lsp_cache(target_file)
 
             for ref in all_refs:
                 if ref.file_path == source_file:
@@ -624,6 +742,7 @@ class WriteTool(MCPTool):
                     ref_content = ref_content.replace(f"from {source_package} import {symbol}", f"from {target_package} import {symbol}")
                     ref_path.write_text(ref_content, encoding="utf-8")
                     modified.append(ref.file_path)
+                    await self._invalidate_lsp_cache(ref.file_path)
         except Exception as e:
             errors.append(str(e))
 

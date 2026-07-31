@@ -110,7 +110,7 @@ class OnnxEmbedderClient:
     
     def _launch_server(self) -> bool:
         """Запускает onnx_server.py как detached процесс."""
-        server_script = PROJECT_ROOT / "onnx_server.py"
+        server_script = PROJECT_ROOT / "src" / "core" / "embedder" / "onnx_server.py"
         if not server_script.exists():
             logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
@@ -234,7 +234,7 @@ class OnnxEmbedderClient:
 _client_lock = threading.Lock()
 
 # Путь к корню проекта
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # project root
 
 # ─── Singleton accessor ────────────────────────────────────
 

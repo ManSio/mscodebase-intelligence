@@ -146,11 +146,17 @@ class CodebaseTool(MCPTool):
 
 
 class ExecuteScriptTool(MCPTool):
-    """Выполняет Python-код на хосте (host-based execution).
+    """Выполняет Python-код на хосте (host-based execution) в песочнице.
 
-    ⚠️ ВНИМАНИЕ: Изоляция (sandbox) ОТСУТСТВУЕТ.
-    Код выполняется с правами пользователя Zed, имеет полный доступ
-    к файловой системе, процессам и сети хоста.
+    Код выполняется через execute_sandboxed() с AST-валидацией,
+    allowlist безопасных модулей и изоляцией subprocess.
+    Режим песочницы определяется переменной MSCODEBASE_SANDBOX_MODE
+    (по умолчанию SANDBOX_MODE_STRICT).
+
+    ⚠️ ВНИМАНИЕ: Sandbox изолирует код от опасных операций
+    (импорт sys/os/subprocess, запись за пределы temp-dir и т.д.)
+    но НЕ обеспечивает полной изоляции от хоста. Код выполняется
+    с правами пользователя Zed.
 
     Инструмент ОТКЛЮЧЁН ПО УМОЛЧАНИЮ.
     Включение: MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env

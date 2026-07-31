@@ -38,11 +38,7 @@ ALLOWED_MODULES: frozenset[str] = frozenset({
     "time", "random", "statistics", "string", "textwrap", "itertools",
     "functools", "operator", "decimal", "fractions", "numbers",
     "typing", "dataclasses", "enum", "uuid", "base64", "binascii",
-    "html", "urllib", "urllib.parse", "urllib.request", "urllib.error",
-    "urllib.response", "email", "csv", "sqlite3", "xml.etree.ElementTree",
-    "xml.dom.minidom", "xml.sax", "xml.parsers.expat",
-    "http", "http.client", "http.server", "http.cookies",
-    "http.cookiejar", "mimetypes", "json", "pickle", "copy",
+    "html", "email", "csv",
     "pprint", "reprlib", "weakref", "types", "inspect", "ast",
     "tokenize", "keyword", "token", "symbol", "parser",
     "symtable", "py_compile", "compileall", "dis", "opcode",
@@ -53,14 +49,6 @@ ALLOWED_MODULES: frozenset[str] = frozenset({
     "argparse", "getopt", "optparse", "cmd", "shlex", "readline",
     "rlcompleter", "code", "codeop", "traceback", "linecache",
     "warnings", "contextlib", "abc", "collections.abc", "heapq",
-    "bisect", "array", "queue", "sched", "threading", "multiprocessing",
-    "multiprocessing.pool", "multiprocessing.dummy", "concurrent.futures",
-    "asyncio", "asyncio.events", "asyncio.coroutines", "asyncio.tasks",
-    "asyncio.streams", "asyncio.subprocess", "asyncio.locks",
-    "asyncio.queues", "asyncio.runners", "asyncio.trsock", "selectors",
-    "select", "socket", "ssl", "signal", "mmap", "resource", "fcntl",
-    "termios", "tty", "pty", "grp", "pwd", "crypt", "spwd", "getpass",
-    "curses", "curses.ascii", "curses.panel", "curses.textpad",
 })
 
 # String patterns that are always blocked (fast path)
@@ -74,7 +62,7 @@ BLOCKED_STR_PATTERNS: frozenset[str] = frozenset({
     "open(", "file(", "input(", "raw_input(",
     "http.client", "requests",
     "paramiko", "fabric", "ansible", "salt", "psutil",
-    "win32", "wmi", "ctypes.windll", "ctypes.cdll",
+    "win32", "wmi", "ctypes.windll", "ctypes.cdll", "copy",
 })
 
 # AST-level blocks (catch obfuscation attempts)
@@ -139,10 +127,9 @@ RUNTIME_ISOLATION_PREAMBLE = (
     '    "time", "random", "statistics", "string", "textwrap", "itertools",\n'
     '    "functools", "operator", "decimal", "fractions", "numbers",\n'
     '    "typing", "dataclasses", "enum", "uuid", "base64", "binascii",\n'
-    '    "html", "csv", "copy", "pprint", "reprlib", "weakref", "types",\n'
+    '    "html", "csv", "pprint", "reprlib", "weakref", "types",\n'
     '    "ast", "tokenize", "keyword", "abc", "contextlib", "heapq",\n'
     '    "bisect", "array", "sys",\n'
-    '    "urllib", "urllib.request", "urllib.parse",\n'
     '})\n'
     '\n'
     '_orig_import = _builtins.__import__\n'

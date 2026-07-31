@@ -65,7 +65,7 @@ class IndexParser:
             full_path: Абсолютный путь к файлу
             rel_path_str: Относительный путь (src/core/indexer.py)
             source: Источник ('filesystem' | 'lsp_vfs')
-            existing_hash: MD5 хэш предыдущей версии из БД (если известен).
+            existing_hash: SHA256 хэш предыдущей версии из БД (если известен).
                 Передаётся снаружи — парсер не ходит в БД.
 
         Returns:
@@ -83,9 +83,29 @@ class IndexParser:
             safe_read_path = self.path_manager.get_safe_path(full_path)
             with open(str(safe_read_path), "rb") as f:
                 raw_data = f.read()
-            content = raw_data.decode("utf-8", errors="replace")
 
-            current_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+            # Encoding detection: BOM → utf-8/utf-16; иначе utf-8 с
+            # fallback на распространённые однобайтовые кодировки (cp1251 и т.п.).
+            if raw_data.startswith(b"\xef\xbb\xbf"):
+                content = raw_data[3:].decode("utf-8", errors="replace")
+            elif raw_data.startswith(b"\xff\xfe") or raw_data.startswith(b"\xfe\xff"):
+                content = raw_data.decode("utf-16", errors="replace")
+            else:
+                try:
+                    content = raw_data.decode("utf-8")
+                except UnicodeDecodeError:
+                    content = None
+                    for enc in ("cp1251", "latin-1"):
+                        try:
+                            content = raw_data.decode(enc)
+                            logger.debug(f"File {rel_path_str} decoded as {enc}")
+                            break
+                        except UnicodeDecodeError:
+                            continue
+                    if content is None:
+                        content = raw_data.decode("utf-8", errors="replace")
+
+            current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
             # Хэш не изменился — пропускаем
             if existing_hash == current_hash:
@@ -140,15 +160,27 @@ class IndexParser:
             # Fallback: символьное деление если AST не дал чанков
             if not chunk_texts:
                 _fb_header = f"// Scope: fallback | {Path(rel_path_str).name}\n"
-                chunk_texts = [
-                    _fb_header + content[i : i + 1000]
-                    for i in range(0, len(content), 800)
-                ]
-                chunk_texts_full = chunk_texts
-                chunk_metadatas = [{
-                    "layer": "", "module_name": "", "hierarchy_level": "other",
-                    "is_public": False, "symbol_type": "", "parent_id": "", "callees": "",
-                } for _ in chunk_texts]
+                _step = 800
+                _chunk_size = 1000
+                _full_window = 2000  # wider window для context search
+                chunk_texts = []
+                chunk_texts_full = []
+                chunk_metadatas = []
+                for start in range(0, len(content), _step):
+                    chunk = content[start : start + _chunk_size]
+                    if not chunk.strip():
+                        continue
+                    chunk_texts.append(_fb_header + chunk)
+                    chunk_texts_full.append(
+                        _fb_header + content[start : start + _full_window]
+                    )
+                    chunk_metadatas.append({
+                        "layer": "", "module_name": "", "hierarchy_level": "other",
+                        "is_public": False, "symbol_type": "", "parent_id": "",
+                        "callees": "",
+                        # Маркер перекрытия: чанк — часть скользящего окна (1000/800)
+                        "chunk_overlap": start > 0,
+                    })
 
             if not chunk_texts:
                 return None
@@ -157,8 +189,10 @@ class IndexParser:
             try:
                 from src.core.code_health import score_file
                 health = score_file(rel_path_str, self.project_path)
-            except Exception:
-                pass
+            except ImportError:
+                logger.debug(f"code_health module not available for {rel_path_str}")
+            except Exception as e:
+                logger.warning(f"code_health scoring failed for {rel_path_str}: {e}")
 
             return {
                 "rel_path": rel_path_str,

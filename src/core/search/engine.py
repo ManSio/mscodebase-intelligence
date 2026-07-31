@@ -349,7 +349,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             return []
 
         # Строим filter_expr для LanceDB (если указан layer)
-        filter_expr = f"layer = '{layer}'" if layer else ""
+        # Экранируем layer через _escape_sql_value, т.к. LanceDB
+        # не поддерживает параметризованные запросы (см. indexer_table.py)
+        _esc = IndexerTableMixin._escape_sql_value(layer)
+        filter_expr = f"layer = '{_esc}'" if layer else ""
 
         # Query Expansion: генерируем варианты запроса
         if expand:
@@ -733,7 +736,8 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         results = []
 
-        filter_expr = f"layer = '{layer}'" if layer else ""
+        _esc = IndexerTableMixin._escape_sql_value(layer)
+        filter_expr = f"layer = '{_esc}'" if layer else ""
 
         if mode == self.MODE_FAST:
             # FAST: embed + vector + FTS5 (без реранкера, но с bucketing)

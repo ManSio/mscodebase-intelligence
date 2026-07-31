@@ -2,11 +2,22 @@
 Тесты для Semantic Commit Memory.
 """
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 from src.core.commit_memory import CommitMemory
+
+# Git-hook окружение (git commit экспортирует GIT_DIR/GIT_INDEX_FILE/... в hooks)
+# ломает вложенные git-команды в temp-репо: они оперируют НЕ тем репозиторием.
+# Санируем: убираем все GIT_* из env для git-субпроцессов (см. REFC-03).
+_CLEAN_GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
+def _git(args, cwd):
+    """Запускает git с чистым env (без унаследованных GIT_*)."""
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, env=_CLEAN_GIT_ENV)
 
 
 class TestCommitMemory:
@@ -14,15 +25,15 @@ class TestCommitMemory:
 
     def _init_git(self, path: Path):
         """Инициализирует git репозиторий."""
-        subprocess.run(["git", "init"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True)
+        _git(["init"], path)
+        _git(["config", "user.email", "test@test.com"], path)
+        _git(["config", "user.name", "Test"], path)
 
     def _create_commit(self, path: Path, content: str, message: str):
         """Создаёт коммит для файла test.py."""
         (path / "test.py").write_text(content)
-        subprocess.run(["git", "add", "."], cwd=path, capture_output=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=path, capture_output=True)
+        _git(["add", "."], path)
+        _git(["commit", "-m", message], path)
 
     def test_no_git_repo(self):
         """Без git — пустой результат."""
@@ -55,12 +66,12 @@ class TestCommitMemory:
 
             (tmp_path / "a.py").write_text("a = 1")
             (tmp_path / "b.py").write_text("b = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Add both files"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Add both files"], tmp_path)
 
             (tmp_path / "a.py").write_text("a = 2")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Update a.py"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Update a.py"], tmp_path)
 
             memory = CommitMemory(tmp_path)
             memory.fetch_commits()
@@ -78,12 +89,12 @@ class TestCommitMemory:
             self._init_git(tmp_path)
 
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "feat: add authentication"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "feat: add authentication"], tmp_path)
 
             (tmp_path / "test.py").write_text("x = 2")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "fix: resolve bug"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "fix: resolve bug"], tmp_path)
 
             memory = CommitMemory(tmp_path)
             memory.fetch_commits()
@@ -99,8 +110,8 @@ class TestCommitMemory:
             self._init_git(tmp_path)
 
             (tmp_path / "stable.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Add stable"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Add stable"], tmp_path)
 
             memory = CommitMemory(tmp_path)
             memory.fetch_commits()
@@ -117,8 +128,8 @@ class TestCommitMemory:
 
             (tmp_path / "a.py").write_text("a = 1")
             (tmp_path / "b.py").write_text("b = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Add both"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Add both"], tmp_path)
 
             memory = CommitMemory(tmp_path)
             memory.fetch_commits()
@@ -133,8 +144,8 @@ class TestCommitMemory:
             self._init_git(tmp_path)
 
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Initial"], tmp_path)
 
             memory = CommitMemory(tmp_path)
             stats = memory.get_stats()
@@ -149,8 +160,8 @@ class TestCommitMemory:
             self._init_git(tmp_path)
 
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            _git(["add", "."], tmp_path)
+            _git(["commit", "-m", "Initial"], tmp_path)
 
             # Первый инстанс
             memory1 = CommitMemory(tmp_path)
