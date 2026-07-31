@@ -477,17 +477,6 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 for res in reranked
             ]
 
-        # === v3.2.1: MMR diversification (убирает дубли, сохраняя релевантность) ===
-        _mmr_before = list(rrf_results) if tracer else None
-        rrf_results = apply_mmr_diversity(
-            rrf_results,
-            query_vector=query_vector,
-            lambda_param=0.6,
-            top_k=limit * 2,
-        )
-        if tracer and _mmr_before:
-            tracer.record_mmr(_mmr_before, rrf_results, lambda_param=0.6)
-
         # === v3.2.1 B1: Auto-detect intent ===
         if intent_hint == "auto":
             intent_hint = auto_detect_intent(query)
@@ -519,6 +508,20 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Сортируем и обрезаем (чистый Python, на 30 элементах — микросекунды)
         rrf_results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
         pre_rerank_results = rrf_results[:limit]
+
+        # === v3.2.1: MMR diversification (убирает дубли, сохраняя релевантность) ===
+        # v3.4 (C-2/Qwen): перемещено ПОСЛЕ sort+cut — раньше финальный sort
+        # по final_score отменял MMR-переупорядочивание. Теперь при отсутствии
+        # reranker'а MMR-порядок доживает до выдачи без искажения скоров.
+        _mmr_before = list(pre_rerank_results) if tracer else None
+        pre_rerank_results = apply_mmr_diversity(
+            pre_rerank_results,
+            query_vector=query_vector,
+            lambda_param=0.6,
+            top_k=limit,
+        )
+        if tracer and _mmr_before:
+            tracer.record_mmr(_mmr_before, pre_rerank_results, lambda_param=0.6)
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами

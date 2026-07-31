@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -68,13 +69,10 @@ class CodeParser:
     def __init__(self):
         self.parsers = {}
         self._init_tree_sitter()
-        # Parse cache: исключает повторный parse когда extract_calls
-        # и extract_assignments вызываются подряд для одного файла.
-        # (indexer: parse_file→extract_calls, затем extract_assignments)
-        self._cache_path: Optional[Path] = None
-        self._cache_code: Optional[bytes] = None
-        self._cache_tree = None
-        self._cache_ext: Optional[str] = None
+        # B-1/Qwen: Tree-sitter Parser НЕ потокобезопасен (parse() переиспользует
+        # внутренний cursor), а IndexProjectRunner парсит в пуле потоков (до 4).
+        # Thread-local копии Parser'ов + кэш — см. _get_parser().
+        self._local = threading.local()
 
     def _init_tree_sitter(self):
         """Инициализирует Tree-sitter парсеры с поддержкой разных версий API."""
@@ -324,11 +322,31 @@ class CodeParser:
                 pass
         return chunks, symbols
 
+    def _get_parser(self, ext: str):
+        """Возвращает потокобезопасный tree-sitter Parser для расширения.
+
+        Общий self.parsers[ext] использовать НЕЛЬЗЯ при параллельном парсинге
+        (B-1/Qwen): Parser.parse() переиспользует внутреннее состояние → race
+        и повреждённые деревья. Language объекты иммутабельны и безопасно
+        шарить между потоками — создаём thread-local Parser per-extension.
+        """
+        local_parsers = getattr(self._local, "parsers", None)
+        if local_parsers is None:
+            local_parsers = self._local.parsers = {}
+        parser = local_parsers.get(ext)
+        if parser is None:
+            from tree_sitter import Parser  # ленивый импорт, как в _init_tree_sitter
+
+            parser = Parser()
+            parser.language = self.parsers[ext].language
+            local_parsers[ext] = parser
+        return parser
+
     def _parse_with_tree_sitter(self, file_path: Path, ext: str) -> tuple:
         """Парсинг через AST с сохранением контекста и извлечением символов.
         Возвращает (chunks, symbols).
         """
-        parser = self.parsers[ext]
+        parser = self._get_parser(ext)
 
         try:
             with open(file_path, "rb") as f:
@@ -670,14 +688,15 @@ class CodeParser:
         if not code.strip():
             return [], [], []
 
-        if file_path == self._cache_path and code == self._cache_code:
-            tree = self._cache_tree
+        local = self._local
+        if file_path == getattr(local, "cache_path", None) and code == getattr(local, "cache_code", None):
+            tree = local.cache_tree
         else:
-            tree = self.parsers[ext].parse(code)
-            self._cache_path = file_path
-            self._cache_code = code
-            self._cache_tree = tree
-            self._cache_ext = ext
+            tree = self._get_parser(ext).parse(code)
+            local.cache_path = file_path
+            local.cache_code = code
+            local.cache_tree = tree
+            local.cache_ext = ext
 
         calls = []
         self._extract_calls_recursive(

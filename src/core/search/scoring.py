@@ -70,8 +70,9 @@ def reciprocal_rank_fusion(
         else:
             results_map[key]["dense_score"] = 1.0 / (rrf_k + rank)
 
-    # Сортировка по RRF скору
-    sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+    # Сортировка по RRF скору (детерминированный tie-break по ключу —
+    # иначе при равных скорах порядок зависит от вставки в dict, C-1/Qwen)
+    sorted_keys = sorted(scores.keys(), key=lambda k: (-scores[k], k))[:limit]
 
     results = []
     for key in sorted_keys:
@@ -124,7 +125,7 @@ def reciprocal_rank_fusion_3way(
     _ingest(dense_results, "dense_score")
     _ingest(fts5_results, "fts5_score")
 
-    sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit]
+    sorted_keys = sorted(scores.keys(), key=lambda k: (-scores[k], k))[:limit]
 
     out = []
     for key in sorted_keys:
@@ -319,17 +320,21 @@ def apply_mmr_diversity(
 ) -> List[dict]:
     """MMR-диверсификация: убирает дубли, сохраняя релевантность.
 
-    v3.2.1: Применяется после RRF, перед bucket weights.
-    Использует dense vectors из LanceDB для расчёта разнообразия.
+    v3.4: Применяется ПОСЛЕ sort+cut, перед опциональным reranker'ом.
+    Раньше (v3.2.1) стоял до bucket weights — финальный sort по final_score
+    отменял MMR-переупорядочивание, а искусственный boost скоров вводил
+    в заблуждение (C-2/Qwen). Теперь только переупорядочивает список,
+    НЕ модифицируя final_score.
 
     Args:
-        chunks: Результаты после RRF (с полем "vector" для dense-результатов)
+        chunks: Результаты после sort+cut (с полем "vector" для dense-результатов)
         query_vector: Вектор запроса (если None — MMR пропускается)
         lambda_param: Баланс (0=max diversity, 1=max relevance)
         top_k: Сколько результатов диверсифицировать (остальные — по relevance)
 
     Returns:
-        Тот же список с пересортированными final_score (in-place + return)
+        Тот же список, переупорядоченный по MMR (in-place + return).
+        final_score не изменяется.
     """
     if not chunks or query_vector is None or lambda_param >= 1.0:
         return chunks
@@ -399,14 +404,6 @@ def apply_mmr_diversity(
 
     # Пересортировываем chunks
     reordered = [chunks[i] for i in final_order]
-
-    # Обновляем final_score с учётом MMR
-    for pos, (i, orig_i) in enumerate(zip(range(n), final_order)):
-        if pos < len(selected_order):
-            # MMR-отобранные получают boost
-            reordered[pos]["final_score"] = chunks[orig_i].get("final_score", 0.0) * (
-                1.0 + (1 - lambda_param) * 0.2
-            )
 
     # Копируем обратно в исходный список (in-place)
     chunks[:] = reordered

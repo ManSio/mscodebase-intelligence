@@ -3,6 +3,16 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-07-31 — Qwen review: sandbox RCE-вектор (importlib+env), CodeParser race, graph/scoring fixes (FIXED)
+
+**Symptom:** ревью Qwen (49 пунктов) — Top-3: sandbox обходим через importlib (в allowlist) + __build_class__ → RCE при включённом флаге; `_shutdown_services` asyncio.run из atexit; PropertyGraph мутекс на hash(). Верификация по §1.14: 12 подтверждены, 4 опровергнуты, 2 accepted.
+**Root Cause:** несоответствие слоёв sandbox (AST разрешал importlib, runtime блокировал — RCE-вектор при ошибке runtime-слоя); `os.environ.copy()` → все секреты родителя в sandbox-subprocess; CodeParser singleton + ThreadPoolExecutor(4) → гонки на tree-sitter Parser и _cache; `hash()` per-process (PYTHONHASHSEED) → имена мутексов разные в окнах Zed; MMR до bucket/co-change отменялся финальным sort.
+**Fix:** executor.py — import-механика удалена из ALLOWED_MODULES, __build_class__ в BLOCKED_NAMES, sys убран из _USER_ALLOWED, _build_minimal_env (PATH="", SYSTEMROOT, TEMP/TMP, PYTHONPATH); parser.py — thread-local Parser'ы + кэш; graph.py — blake2b, rowcount, max_nodes=1000, mmap 64MB; scoring/engine — RRF tie-break, MMR после sort+cut; remote_embedder — set_circuit_breaker.
+**Guard:** ISSUE.md P0-5/P1-17/P2-21..P2-27 + секция «Qwen review верификация» (16 пунктов); REFUTED задокументированы (F-5, E-1, E-7, DI-race); ACCEPTED (shutdown-race, D-3).
+**Тесты:** 616 passed, 0 failed (40 sandbox); ruff clean; bump_version --check ✅ (3.3.9).
+
+---
+
 ## 2026-07-31 — Claude review вторая волна: A/B/C верифицированы (A закрыт, B/C REFUTED)
 
 **Symptom:** 3 находки Claude не были закрыты в прошлой сессии: A — `asyncio.run` в `_sync_executor.submit` (engine.py:304-316, max_workers=2) «потенциальный deadlock»; B — closure late-binding `_create_indexer_for_path` (di_container.py:284-338) «хрупко»; C — `$ZED_WORKTREE_ROOT` в env MCP-конфига на Windows («%VAR% vs $VAR»).

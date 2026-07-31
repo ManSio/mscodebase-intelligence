@@ -365,8 +365,12 @@ def create_service_collection(
     )
     services.add_singleton(CircuitBreaker, lm_studio_breaker)
 
-    # Подключаем CircuitBreaker к embedder-у (защита от каскадных сбоев LM Studio)
-    if hasattr(embedder, "_breaker"):
+    # Подключаем CircuitBreaker к embedder-у (защита от каскадных сбоев LM Studio).
+    # Через публичный setter (B-6/Qwen), не monkey-patching приватного атрибута.
+    setter = getattr(embedder, "set_circuit_breaker", None)
+    if callable(setter):
+        setter(lm_studio_breaker)
+    elif hasattr(embedder, "_breaker"):
         embedder._breaker = lm_studio_breaker
 
     # ══════════════════════════════════════════════════════
