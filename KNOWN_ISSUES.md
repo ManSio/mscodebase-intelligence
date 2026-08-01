@@ -3,6 +3,15 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+
+---
+
+## 2026-08-02 — Full-reindex падает: lance 'Not found' + 2 MCP-процесса + stale table refs (OPEN)
+
+**Symptom:** 3 подряд failed full-reindex (trigger_reindex full x2, reset_index): lance error 'Not found: codebase_chunks.lance/data/<fragment>.lance' на ~80% (фаза optimize/create_index, ~194-219s). Count чанков растёт на ~4701 за запуск: 4750→9451→14152 — таблица не очищается, дубликаты. Логи: 'known_hashes bulk load failed: Dataset at path', '_safe_read_arrow: таблица повреждена', 'Table optimize exceeded 300s timeout', 'Legacy create_index failed'.
+**Root Cause:** (1) Два MCP-процесса на одной БД с 23:47:00 (PID 4576 + PID 21616 зомби, 156ms CPU) — rmtree/drop частично блокируются залоченными файлами → таблица битая с момента старта. (2) db_manager.set_on_recreate_callback не вызывается нигде → reset_connection() не синхронизирует table-ссылки (Indexer/runner/writer) после drop+create → stale ghost-таблица.
+**Fix:** Требуется: закрыть 2-е окно Zed/Reload (убить зомби 21616 — агент не может kill MCP, §5.16) → intel_reset_index заново. Код-фикс (ждёт): привязать db_manager.set_on_recreate_callback → Indexer._sync_table_ref.
+**Status:** 🔴 OPEN — реиндекс не запускать до устранения двух процессов. Побочно: reset_index стирает .codebase_indices/intelligence (история инцидентов; INC-6C62 восстановлен вручную).
 ## 2026-08-01 — Contradiction Ledger: флапающий check_commit_exists (FIXED)
 
 **Symptom:** при старте MCP ledger логировал «Коммит X не найден в истории», хотя коммиты существуют (флапало: 22:02 — 1 расхождение, 22:37 — 2, 23:01/23:47 — 3 при одном и том же diary).

@@ -1,5 +1,15 @@
 ---
 
+---
+
+## [2026-08-02 00:26] — Реиндекс падает: lance 'Not found' (3 подряд) + 2 MCP-процесса + stale table refs
+
+**Status:** 🔴 Open — требуется действие владельца
+**Root Cause:** (1) 2 MCP-процесса на одной БД с 23:47:00 (PID 4576 активный + PID 21616 зомби, 156ms CPU, завис при старте) — rmtree/drop блокируются его залоченными файлами → таблица битая с момента старта. (2) db_manager.set_on_recreate_callback не имеет вызывающих → reset_connection() не синхронизирует table-ссылки (Indexer/runner/writer) после drop+create → stale ghost-таблица: 'known_hashes bulk load failed: Dataset at path'.
+**Fix:** НЕ исправлен. Путь: закрыть 2-е окно Zed/Reload (убить 21616; §5.16 — kill MCP запрещён агенту) → intel_reset_index заново. Код-фикс (ждёт): привязать db_manager.set_on_recreate_callback → Indexer._sync_table_ref.
+**Guard:** перед реиндексом проверять единственность python -m src.main (tasklist); reset_index стирает .codebase_indices/intelligence (инциденты теряются — INC-6C62 восстановлен вручную).
+**Счётчики:** 4750→9451→14152 чанков (дубликаты 3 запусков); фейлы: 3 запуска trigger_reindex full / reset_index (~80%, ~194-219s).
+
 ## [2026-08-01 23:55] — Contradiction Ledger: флапающий check_commit_exists + push v3.3.11 + верификация чанков
 
 **Status:** ✅ Fixed
