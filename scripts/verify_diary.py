@@ -333,19 +333,27 @@ def check_commit_exists(commit_hash: str) -> bool:
 
     Uses Popen + communicate (§5.16 AGENTS.md): subprocess.run(capture_output=True)
     causes pipe buffer deadlock on Windows in daemon threads.
+
+    Timeout 30s + одна retry-попытка: при старте MCP (auto-index, embedder,
+    reranker 499MB) git cat-file не укладывался в 5s (CPU/Defender contention)
+    → ложные «не найден» в Contradiction Ledger (флапало 22:02–23:47, 1→3
+    расхождения при одном и том же diary).
     """
-    try:
-        proc = subprocess.Popen(
-            ["git", "cat-file", "-t", commit_hash],
-            cwd=str(ROOT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
-        )
-        stdout, _ = proc.communicate(timeout=5)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    for _attempt in range(2):
+        try:
+            proc = subprocess.Popen(
+                ["git", "cat-file", "-t", commit_hash],
+                cwd=str(ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+            )
+            proc.communicate(timeout=30)
+            if proc.returncode == 0:
+                return True
+        except Exception:
+            pass  # таймаут/спавн-ошибка → одна retry-попытка, потом False
+    return False
 
 
 def gate_zero_full_suite() -> Tuple[bool, str]:
