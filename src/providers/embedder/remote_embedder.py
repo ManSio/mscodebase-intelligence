@@ -24,6 +24,13 @@ logger = logging.getLogger("mscodebase_server.embedder")
 # Интервал проверки доступности внешних API (секунды)
 _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
 
+# llama.cpp жёстко ограничивает вход контекстом обучения модели (n_ctx_train=512
+# для multilingual-e5-small). Усечение через HF-токенизатор НЕ гарантирует лимит
+# (разные BPE: замер 2026-08-01 — 512 HF-токенов -> до 526 llama-токенов на CJK).
+_LLAMA_MAX_TOKENS = 480          # безопасный запас под жёсткий потолок 512
+_LLAMA_FALLBACK_MAX_TOKENS = 448 # HF-fallback: запас поверх расхождения BPE
+_LLAMA_TOKENIZE_MIN_CHARS = 256  # короче — не проверяем (bounded даже ~2 ток/симв)
+
 
 class RemoteEmbedder(IEmbedder):
     def __init__(
@@ -97,7 +104,13 @@ class RemoteEmbedder(IEmbedder):
         self._load_canary_set()
 
     def _load_llama_tokenizer(self):
-        """Load tokenizer for llama.cpp truncation (max 512 tokens)."""
+        """Load HF tokenizer as a DEGRADED offline fallback for llama.cpp truncation.
+
+        Primary truncation uses llama.cpp's own /tokenize endpoint (native tokenizer,
+        guarantees the hard 512-token cap). The HF tokenizer is a different BPE and
+        can undershoot (measured: 512 HF tokens -> 526 llama tokens on CJK text),
+        so it is only used when /tokenize is unreachable, with a reduced limit.
+        """
         if self._llama_tokenizer is not None:
             return
         with self._llama_tokenizer_lock:
@@ -112,29 +125,89 @@ class RemoteEmbedder(IEmbedder):
                     logger.warning(f"Tokenizer not found at {tokenizer_path}, truncation disabled")
                     return
                 self._llama_tokenizer = Tokenizer.from_file(str(tokenizer_path))
-                # Enable truncation to 512 tokens
-                self._llama_tokenizer.enable_truncation(max_length=512)
-                logger.info("✅ llama.cpp tokenizer loaded for truncation (max 512 tokens)")
+                # 448 = margin under the 512-token hard cap (HF tokenizer undershoots vs llama)
+                self._llama_tokenizer.enable_truncation(max_length=_LLAMA_FALLBACK_MAX_TOKENS)
+                logger.info(
+                    f"✅ llama.cpp HF fallback tokenizer loaded (max {_LLAMA_FALLBACK_MAX_TOKENS} tokens)"
+                )
             except Exception as e:
                 logger.warning(f"Failed to load llama.cpp tokenizer: {e}")
                 self._llama_tokenizer = None
 
+    def _llama_token_count(self, text: str) -> int:
+        """Count tokens with llama.cpp's OWN tokenizer via /tokenize.
+
+        Returns -1 if the endpoint is unreachable (caller falls back to HF tokenizer).
+        """
+        client = getattr(self, "_http_client", None)
+        if client is None:
+            return -1
+        host = getattr(self, "llama_cpp_host", "127.0.0.1")
+        port = getattr(self, "llama_cpp_port", 8080)
+        try:
+            r = client.post(
+                f"http://{host}:{port}/tokenize",
+                json={"content": text, "add_special": False},
+                timeout=5.0,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                return int(data.get("count", len(data.get("tokens", []))))
+        except Exception:
+            pass
+        return -1
+
+    def _hf_fallback_truncate(self, text: str) -> str:
+        """Degraded offline truncation via HF tokenizer (no llama-server round-trip)."""
+        self._load_llama_tokenizer()
+        tok = self._llama_tokenizer
+        if tok is None:
+            return text
+        try:
+            enc = tok.encode(text, add_special_tokens=True)
+            return tok.decode(enc.ids, skip_special_tokens=True)
+        except Exception:
+            return text
+
     def _truncate_for_llama(self, texts: List[str]) -> List[str]:
-        """Truncate texts to 512 tokens for llama.cpp."""
+        """Guarantee every text tokenizes to <= _LLAMA_MAX_TOKENS llama tokens.
+
+        llama.cpp caps input at the model's n_ctx_train (512 for multilingual-e5-small).
+        HF-tokenizer truncation is NOT sufficient: the two tokenizers are different
+        BPEs (measured 2026-08-01: 512 HF tokens -> up to 526 llama tokens on
+        CJK-heavy text -> HTTP 400, reindex abort at ~4512/4666).
+
+        Strategy: count with the native /tokenize endpoint (guaranteed), cut the
+        char prefix proportionally and re-check until under the limit. Texts shorter
+        than _LLAMA_TOKENIZE_MIN_CHARS skip the round-trip (bounded even at ~2
+        tokens/char). Falls back to the HF tokenizer when /tokenize is unreachable.
+        """
         if not texts:
             return texts
-        self._load_llama_tokenizer()
-        if self._llama_tokenizer is None:
-            return texts
-        try:
-            # Encode with truncation
-            encoded = self._llama_tokenizer.encode_batch(texts, add_special_tokens=True)
-            # Decode back to text (truncated)
-            truncated = [self._llama_tokenizer.decode(e.ids, skip_special_tokens=True) for e in encoded]
-            return truncated
-        except Exception as e:
-            logger.warning(f"Truncation failed: {e}")
-            return texts
+        out: List[str] = []
+        for t in texts:
+            if len(t) <= _LLAMA_TOKENIZE_MIN_CHARS:
+                out.append(t)
+                continue
+            n = self._llama_token_count(t)
+            if n < 0:
+                # /tokenize unreachable — degraded offline truncation
+                out.append(self._hf_fallback_truncate(t))
+                continue
+            if n <= _LLAMA_MAX_TOKENS:
+                out.append(t)
+                continue
+            cut = t
+            for _ in range(4):
+                new_len = int(len(cut) * (_LLAMA_MAX_TOKENS / n) * 0.8)
+                if new_len >= len(cut) or new_len < 1:
+                    break
+                cut = cut[:new_len]
+                n = self._llama_token_count(cut)
+                if n <= _LLAMA_MAX_TOKENS:
+                    break
+            out.append(cut)
+        return out
 
     def _load_canary_set(self):
         """Загружает canary-набор из canary_set.json."""

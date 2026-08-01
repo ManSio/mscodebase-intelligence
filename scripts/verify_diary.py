@@ -10,7 +10,7 @@ import argparse
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
@@ -142,8 +142,10 @@ def _extract_code_functions(line: str) -> List[str]:
     # Находим все backtick-блоки
     for m in re.finditer(r'`([^`]+)`', line):
         content = m.group(1)
-        # Ищем function_name( внутри backtick
-        for fm in re.finditer(r'\b([a-z_][a-z0-9_]{2,})\s*\(', content):
+        # Ищем function_name( внутри backtick.
+        # Negative lookbehind (?<![\w.]) — НЕ выдёргиваем методы (os.environ.copy(),
+        # future.result()) как функции проекта (ложные ❌ в verify_diary).
+        for fm in re.finditer(r'(?<![\w.])([a-z_][a-z0-9_]{2,})\s*\(', content):
             result.append(fm.group(1))
     return result
 
@@ -170,10 +172,13 @@ class DiaryEntry:
     content: str
     has_verified: bool
     verified_from_clean: bool
-    functions: List[str]
-    classes: List[str]
-    tests: List[str]
-    commits: List[str]
+    # Причина честного отказа (§0.2: «⚠️ не проверено — <причина>» = валидный
+    # статус «не мог», в отличие от «не проверил» — тот fail).
+    clean_state_reason: str = ""
+    functions: List[str] = field(default_factory=list)
+    classes: List[str] = field(default_factory=list)
+    tests: List[str] = field(default_factory=list)
+    commits: List[str] = field(default_factory=list)
 
 
 def parse_diary() -> List[DiaryEntry]:
@@ -190,7 +195,13 @@ def parse_diary() -> List[DiaryEntry]:
 
     for i, line in enumerate(lines):
         # Начало записи: ## [YYYY-MM-DD HH:MM] — Title
-        m = re.match(r"^##\s*\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\]\s*[—-]\s*(.+)$", line)
+        # Время опционально: часть записей (например, 2026-07-31) пишется
+        # только с датой — без (?:\s+\d{2}:\d{2})? такие записи склеиваются
+        # с предыдущей, и их символы приписываются чужой записи (ложные ❌).
+        m = re.match(
+            r"^##\s*\[(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)\]\s*[—-]\s*(.+)$",
+            line,
+        )
         if m:
             if current_entry:
                 current_entry.line_end = i - 1
@@ -218,6 +229,12 @@ def parse_diary() -> List[DiaryEntry]:
                 current_entry.has_verified = True
                 if "✅" in line and ("yes" in line.lower() or "да" in line.lower()):
                     current_entry.verified_from_clean = True
+                # §0.2: «⚠️ не проверено — <причина>» — честная граница (не мог,
+                # а не не проверил). Извлекаем причину, чтобы verification не
+                # фейлил такие записи (причина обязана быть непустой).
+                m_reason = re.search(r"⚠️\s*не проверено\s*[—:—-]?\s*(.+)", line)
+                if m_reason:
+                    current_entry.clean_state_reason = m_reason.group(1).strip()[:200]
 
             # Извлечение символов — ТОЛЬКО из backtick-кода (`code`), чтобы не
             # выдёргивать английские слова из прозы ("lock", "which", "print" и т.д.)
@@ -234,7 +251,8 @@ def parse_diary() -> List[DiaryEntry]:
                     current_entry.classes.append(c)
 
             # Тесты: test_xxx — уникальные имена, можно из любого контекста
-            tests = re.findall(r"(test_[a-z_][a-z0-9_]*)", line)
+            # (?<![\w]) — граница слова: "pytest_cache" не должен давать test_cache.
+            tests = re.findall(r"(?<![\w])(test_[a-z_][a-z0-9_]*)", line)
             for t in tests:
                 # Фильтр: test__ (двойное подчёркивание) — regex артефакт
                 if "__" in t:
@@ -301,7 +319,13 @@ def _check_test_file_exists(test_name: str) -> bool:
         ROOT / "tests" / f"{test_name}.py",
         ROOT / "tests" / f"test_{base}.py",
     ]
-    return any(p.exists() for p in candidates)
+    if any(p.exists() for p in candidates):
+        return True
+    # Тесты могут лежать в подкаталогах tests/ (например, tests/e2e/test_e2e_mcp_smoke.py).
+    try:
+        return any((ROOT / "tests").rglob(f"{test_name}.py"))
+    except OSError:
+        return False
 
 
 def check_commit_exists(commit_hash: str) -> bool:
@@ -389,7 +413,11 @@ def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tu
             if not entry.has_verified:
                 entry_issues.append("  ⚠️ Нет маркера `verified_from_clean_state`")
             elif not entry.verified_from_clean:
-                entry_issues.append("  ⚠️ Маркер есть, но не подтверждён (`❌` или нет `yes/да`)")
+                if entry.clean_state_reason:
+                    # §0.2: «⚠️ не проверено — причина» — валидный статус (честная граница).
+                    pass
+                else:
+                    entry_issues.append("  ⚠️ Маркер есть, но не подтверждён (`❌` или нет `yes/да`)")
 
         if entry_issues:
             failed += 1

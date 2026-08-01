@@ -3,6 +3,33 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-08-01 — Pre-commit hook: verify_diary cp1251-краш + SyntaxError в шаблоне git_hooks_installer (FIXED)
+
+**Symptom:** git commit фейлился на pre-commit hook: (1) UnicodeEncodeError 'charmap' на emoji 📊 в cp1251-консоль; (2) после правки шаблона — SyntaxError:36 в src/core/git_hooks_installer.py.
+**Root Cause:** verify_diary требовал время в заголовке (записи 31.07 без времени не матчились → склейка с предыдущей записью); hook печатал stdout с emoji в cp1251; в шаблоне PRE_COMMIT_HOOK голое `"""` закрыло внешнюю тройную строку раньше времени.
+**Fix:** verify_diary — время опционально, negative lookbehind, поле clean_state_reason (§0.2); hook — Popen+utf-8+CREATE_NO_WINDOW (§5.16) + reconfigure (9.9); шаблон — восстановлено `\"\"\"`, удалены dead-ссылки generate_docs (скрипт не существовал).
+**Status:** ✅ — hook прогон: verify_diary 36 ✅/0 ❌ + stale_detector OK, RC 0. Reindex не нужен (только scripts/).
+
+---
+
+## 2026-08-01 — HTTP 400 llama.cpp embedder → v2 native /tokenize truncation (FIXED)
+
+**Symptom:** реиндекс стабильно абортился на ~4512/4666 («Embedding failed for chunk 8», retry-loop перезапускал → «всегда зависает на 4512»); llama_server_stderr.log: `input (526 tokens) is larger than the max context size (512)`.
+**Root Cause:** GGUF multilingual-e5-small: n_ctx_train=512 → llama.cpp капит слот до 512. HF-токенизатор (tokenizer.json int8) ≠ GGUF BPE: усечение до 512 HF-токенов даёт до 526 llama-токенов (замер 20 чанков: макс 502; запас 0-10 токенов — недостаточен). Фикс 48e695b8 (v3.3.10, HF truncation 512) ОПРОВЕРГНУТ реиндексом 22:01.
+**Fix:** remote_embedder.py — подсчёт нативным `/tokenize` llama-server (лимит 480 < 512) + итеративный char-proportional cut; HF-fallback 448. Попутно: llama_install.py vulkaninfo bytes+CREATE_NO_WINDOW (cp1251-краш); pylance==9.0.0 (known_hashes bulk load). Версия 3.3.11.
+**Status:** ✅ — реиндекс 22:37→22:47: 4677 chunks, FTS5 built, HTTP 400=0, Aborted=0, E2E search_code OK; тесты 667 passed, 13 skipped; ruff clean. Коммит не запушен.
+
+---
+
+## 2026-08-01 — Индексация остановилась на 1632/4666 — процесс умер с клиентом (FIXED)
+
+**Symptom:** реиндекс замолчал на 35% (1632/4666), 0 python-процессов, записи «Indexing complete» нет.
+**Root Cause:** сервер — дочерний stdio-процесс временного MCP-клиента (_mcp_reindex_client.py); клиент умер при компакции сессии → EOF → сервер завершился. Чанки пишутся в БД только в Phase 3 (bulk write) → прогресс потерян.
+**Fix:** реиндекс запущен detached (PowerShell Start-Process, переживает сессию агента). Правило: длительные MCP-операции — только detached.
+**Status:** ✅ (повторный запуск 22:01:52, Write lock acquired).
+
+---
+
 ## 2026-07-31 — P0 deadlock реиндекса (регрессия ac6e5ba0e P1-3) + z.ai review (FIXED)
 
 **Symptom:** реиндекс завис навсегда (progress.json: progress=0, current_file="", 305 files), ВСЕ MCP-инструменты (intel_get_runtime_status, execution_timeline, counters) → «Context server request timeout»; CPU MCP-процесса замер (не цикл, а блокировка). Воспроизводилось оба запуска (21:29, 21:44).
@@ -1823,3 +1850,194 @@ Three fixes from the same review:
 | 33 | layer.py | manual git object parsing (no packfile support) | layer.py:729-787 | incomplete |
 | 34 | write_tools.py | `_apply_delete` by line_no without content check | write_tools.py:456-483 | wrong deletion |
 | 35 | engine.py | 18 broad except returning [] | engine.py:multiple | error masking |
+
+## 2026-08-01 — HTTP 400 фикс llama.cpp embedder (v3.3.10) + инцидент «индексация умерла с клиентом»
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (HTTP 400); индексация 🔄 повторно запущена detached
+**Root Cause:** чанки длиннее 512 токенов → llama.cpp возвращал HTTP 400 (×4 в прогоне 23:28 31.07); фикс — усечение через HF to...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — P0 deadlock реиндекса + z.ai review обработка (16 пунктов)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (P0 deadlock; z.ai: 3 CONFIRMED/1 partial/12 REFUTED)
+**Root Cause:** регрессия ac6e5ba0e P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 в...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — G-1 закрыт: 5 stub-тестов (B11/P1-12) заменены на настоящие (52 теста)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** B11 (KNOWN_ISSUES.md:177-187) — verify_diary ссылался на несуществующие тесты; созданы stub'ы с `assert True` (test_file_exists, test_searcher, test_idle_reload, te...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — Qwen review верификация: 12✅/4❌/2⏳ + P0-5 sandbox, P1-17 CodeParser race
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (P0-5, P1-17, P2-21..P2-27 закрыты; 4 REFUTED, 2 ACCEPTED)
+**Root Cause:** sandbox — ALLOWED_MODULES шире runtime _USER_ALLOWED (importlib* — RCE-вектор при расхождении слоёв) + `o...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — P0-3 закрыт: CI больше не клонирует сам себя (--no-clone)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** `scripts/verify_clean_state.sh` делал `git clone` hardcoded URL даже в CI, где раннер уже checkout-нул тот же SHA — тестировался внешний HEAD, а не проверяемый комм...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — Остаток ISSUE.md закрыт: graph/db_manager/cypher/indexer/error_handler/layer + P0 git_hooks_installer
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (ISSUE.md P1-1..P1-14, P2-14..P2-17, P3-1..P3-14 — все закрыты)
+**Root Cause:** остаточный долг аудита: BFS хранил полные пути (O(V×depth) память), batch_add_edges — N+1 запросов; ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — Flaky gate-zero: ENOSPC (C: 100%), не TOCTOU
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (root cause найдена)
+**Root Cause:** C: диск заполнен на 100% (0 avail). `test_commit_memory.py` делает `git init`/`git commit` в pytest-temp (`C:\...\Temp\tmp...`) → `WinError 112...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-31 — P0/P1 fix batch: rate_limiter async-lock, lsp_client lifecycle, write_tools LSP sync, index_parser, modification_guard
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Миграция на threading.Lock (INC-53EC / REFC-03) была неполной — 6 мест с `async with self._lock` в rate_limiter.py (AttributeError в рантайме); lsp_client не reaped...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-26 — Systematic Cross-Check Audit: Fix Phase
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (7 discrepancies resolved)
+
+**Fixes applied:**
+1. AGENTS.md:1 — "39 Registered Tools" → "48 Registered Tools" ✅
+2. AGENTS.md:277 — "## 2. AVAILABLE TOOLS (37)" → "## 2. AVAILABLE T...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-27 — P0 fixes: alias SQL injection, layer SQL injection, CI Windows paths, sandbox docstring
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (4 P0 issues resolved)
+
+**Fixes applied:**
+1. cypher_sql.py L84 — alias validation via re.fullmatch before f-string substitution (P0-1)
+2. engine.py L352-356, L740-742 — layer para...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-15 05:52 — Операция «Санация» завершена
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Multiple P0/P1 issues found during comprehensive audit.
+**Fix:** Fixed all critical issues including RCE sandbox, bare excepts, and dead code.
+**Guard:** Pre-commit...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 23:30 — Docs Sync: полный аудит 15 doc-файлов в 3 языках под v3.2.0
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Documentation was out of sync with runtime code across 15 files in 3 languages.
+**Fix:** Full docs sync — all 15 files updated to match v3.2.0 runtime state.
+**Guar...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-12 — Bugfix: token_type_ids ломал ONNX batch. RAM thresholds починены
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** token_type_ids was breaking ONNX batch processing, and RAM thresholds were incorrect.
+**Fix:** Fixed token_type_ids handling and updated RAM thresholds.
+**Guard:** ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-11 22:30 — Zed Deep Dive: ACP Agent Registry (38 agents), basedpyright LSP, Zed internals
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** ACP Agent Registry had 38 agents but only 37 were registered in MCP tools.
+**Fix:** Reconciled agent count with tool count.
+**Guard:** Agent count now tracked in se...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-09 23:00 — BREAKTHROUGH: Qwen3-Embedding-0.6B ctx=1024 — Новый король
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Previous embedding models had suboptimal performance.
+**Fix:** Switched to Qwen3-Embedding-0.6B with ctx=1024.
+**Guard:** Benchmark validates Qwen3 at EN=0.378, RU=...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-07 23:30 — Fix: P1+P2 — get_health_report timeout + branch_info async
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** get_health_report was timing out due to loading entire LanceDB table.
+**Fix:** Optimized get_health_report to use indexed queries.
+**Guard:** Timeout added to healt...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-27 — P0 fixes: alias SQL injection, layer SQL injection, CI Windows paths, sandbox docstring
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (4 P0 issues resolved)
+
+**Root Cause:** Previous audit session identified 4 P0 bugs across cypher stack, search engine, CI, and codebase tool.
+
+**Fix:**
+1. cypher_sql.py L84 — adde...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-07 01:30 — Ultra-Lean reranker: одностадийный cross-encoder вместо трёхстадийного pipeline
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Reranker pipeline was too complex and slow.
+**Fix:** Simplified to single-stage cross-encoder reranker.
+**Guard:** Benchmark validates bge-reranker-v2-m3 at 27 t/s....
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-05 12:00 — Initial project setup
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** Initial project setup and configuration.
+**Fix:** Set up project structure, MCP server, and basic tools.
+**Guard:** Pre-commit hooks installed.
+**verified_from_clea...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-07-27 — P1 fixes: error_handler elapsed bug, write_tools path traversal, remote_embedder silent fallback
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (3 P1 issues resolved)
+
+**Root Cause:** Audit identified systemic bugs across error_handler, write_tools, and remote_embedder.
+
+**Fix:**
+1. error_handler.py L530 — fixed `elapsed =...
+- **Статус:** автоматически синхронизировано
+

@@ -9,6 +9,11 @@ lsprotocol>=24.0.0
 # Pinned: lancedb 0.x менял публичный API внутри минорных релизов
 # (сломал тест-сьют 2026-07 через lancedb.LanceDB). Бамп — только после проверки API.
 lancedb==0.34.0
+# Pinned: lancedb>=0.30 требует table.to_lance() (known_hashes bulk load в
+# index_project_runner.py) — без него lancedb кидает "The lance library is
+# required" и индексация парсит все файлы заново. 2026-08-01 проверено:
+# pylance 9.0.0 + lance-namespace 0.8.6, to_lance().to_pandas() работает.
+pylance==9.0.0
 pyarrow>=14.0.0
 huggingface_hub>=0.20.0
 numpy>=1.24.0,<3

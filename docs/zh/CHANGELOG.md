@@ -9,7 +9,22 @@
 > **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
-## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 修复（截断至 512 个 token）
+## [3.3.11] — 2026-08-01 — llama.cpp embedder HTTP 400：原生 /tokenize 截断（修复 3.3.10）
+
+### 修复
+- **llama.cpp embedder HTTP 400 — 3.3.10 修复不充分**（`remote_embedder.py`）：HF 分词器与 GGUF 分词器 BPE 不同——截断到 512 个 HF token 后 llama.cpp 仍数出最多 526 个（实测 20 个真实 chunk，zh CHANGELOG 最大 502）→ HTTP 400 → 重新索引在 ~4512/4677 中止，重试循环无限重启。修复：通过运行中 llama-server 的原生 `/tokenize` 端点计数（上限 480 < 硬上限 512，为服务器特殊 token 留余量）+ 按字符比例迭代截断（≤4 次）。离线回退：HF 分词器降为 448 上限。
+- **`llama_install.py` vulkaninfo 崩溃**：`subprocess.run(..., text=True)` 将 UTF-8 输出按 cp1251 解码 → reader 线程 `UnicodeDecodeError`。现在用 Popen + bytes + `CREATE_NO_WINDOW`（§5.16）。
+- **`known_hashes` 批量加载**：lancedb 0.34 的 `table.to_lance()` 需要单独 `lance` 绑定 → 添加 `pylance==9.0.0`（已验证 `to_lance().to_pandas()` 可用）。
+
+### 新增
+- **`tests/test_remote_embedder_truncation.py`**：+4 个 `httpx.MockTransport` 测试——短文本跳过 /tokenize、限内保留、超限截断至 ≤480（密集 CJK mock，1 token/字符）、无客户端时优雅回退（文件内 10/10）。
+
+### 测试
+- 完整 pytest：667 passed，13 skipped（91 slow/benchmark deselected）；ruff clean。重新索引 22:37→22:47：**4677 chunks、FTS5 built、HTTP 400=0、Aborted=0**，E2E search_code OK。
+
+---
+
+## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 修复（截断到 512 token）
 
 ### 已修复
 - **llama.cpp embedder 返回 HTTP 400**（`remote_embedder.py`）：超过模型最大序列长度（512 token）的块会让 llama.cpp 拒绝整个 embedding 批次 → 批次重试 → 逐条重试 → 零向量 → 索引中断（`Embedding failed for chunk N after all retries`）。修复：在 llama.cpp 调用（批次和逐条）之前，通过 HF tokenizer（`tokenizers`，来自 `.codebase_models/onnx/multilingual-e5-small-int8/tokenizer.json`）将输入截断到 512 token。优雅降级：若 `tokenizer.json` 缺失，则禁用截断（旧行为）并记录 warning，不会崩溃。

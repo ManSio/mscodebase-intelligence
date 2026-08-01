@@ -124,3 +124,93 @@ def test_double_load_is_idempotent(tmp_path):
         assert obj._llama_tokenizer is first, "повторный load не должен создавать новый"
     else:
         assert obj._llama_tokenizer is None
+
+
+# ─── /tokenize-based truncation (native llama tokenizer, гарантия лимита) ───
+# Фикс 2026-08-01: HF-токенизатор — другая BPE, 512 HF-токенов -> до 526 llama
+# токенов на CJK-тексте (HTTP 400, реиндекс абортился на ~4512/4666).
+# Гарантия достигается подсчётом через нативный /tokenize llama-server.
+import json
+
+import httpx
+
+MAX_NATIVE_TOKENS = 480  # _LLAMA_MAX_TOKENS из remote_embedder
+
+
+def _make_embedder_with_mock(tmp_path, handler):
+    obj = _make_embedder(tmp_path)
+    obj._http_client = httpx.Client(
+        transport=httpx.MockTransport(handler), timeout=5.0
+    )
+    obj.llama_cpp_host = "127.0.0.1"
+    obj.llama_cpp_port = 8080
+    return obj
+
+
+def test_short_texts_skip_tokenize_roundtrip(tmp_path):
+    """Тексты <= 256 символов не ходят в /tokenize (быстрый путь)."""
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(200, json={"tokens": [1], "count": 1})
+
+    obj = _make_embedder_with_mock(tmp_path, handler)
+    result = obj._truncate_for_llama(["short text", "x" * 100])
+
+    assert result == ["short text", "x" * 100]
+    assert calls == [], "короткие тексты не должны идти в /tokenize"
+
+
+def test_tokenize_keeps_text_under_limit(tmp_path):
+    """Счётчик <= 480 — текст возвращается без изменений."""
+    text = "你" * 300  # 300 токенов по моку
+
+    def handler(request):
+        body = json.loads(request.content)
+        n = len(body["content"])
+        return httpx.Response(200, json={"tokens": list(range(n)), "count": n})
+
+    obj = _make_embedder_with_mock(tmp_path, handler)
+    result = obj._truncate_for_llama([text])[0]
+    assert result == text, "под лимитом текст не трогаем"
+
+
+def test_tokenize_truncates_over_limit_to_guarantee(tmp_path):
+    """Счётчик > 480 — текст усекается так, что повторный подсчёт <= 480.
+
+    Мок считает 1 токен/символ (плотный CJK): 2000 символов должны ужаться
+    до <= 480 символов итеративным char-proportional cut.
+    """
+    calls = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        n = len(body["content"])
+        calls.append(n)
+        return httpx.Response(200, json={"tokens": list(range(n)), "count": n})
+
+    obj = _make_embedder_with_mock(tmp_path, handler)
+    long_text = "你" * 2000
+    result = obj._truncate_for_llama([long_text])[0]
+
+    assert len(result) <= MAX_NATIVE_TOKENS, "гарантия: после усечения <= 480 токенов"
+    assert result != long_text, "длинный текст усечён"
+    assert len(calls) >= 2, "понадобилось минимум 2 подсчёта (cut + re-check)"
+
+
+def test_tokenize_fallback_when_client_missing(tmp_path):
+    """Без _http_client (тест/offline) — HF-fallback, без исключений."""
+    dst = tmp_path / TOKENIZER_REL
+    if _SRC_TOKENIZER.exists():
+        dst.parent.mkdir(parents=True)
+        dst.write_bytes(_SRC_TOKENIZER.read_bytes())
+
+    obj = _make_embedder(tmp_path)  # без _http_client
+    long_text = " ".join(f"word_{i}" for i in range(900))
+
+    result = obj._truncate_for_llama([long_text])[0]
+    if obj._llama_tokenizer is not None:
+        assert result != long_text, "HF-fallback должен усечь длинный текст"
+    else:
+        assert result == long_text, "нет токенизатора — текст без изменений"

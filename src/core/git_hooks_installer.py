@@ -7,7 +7,6 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
 Хуки:
 1. verify_diary — проверка AGENT_DIARY.md на целостность
 2. stale_detector — обнаружение устаревшей документации
-3. generate_docs — авто-генерация Markdown документации
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Шаблон pre-commit хука — вызывает 3 скрипта через Python
 # Внимание: строка проходит через .format(installer_version=..., install_date=...),
 # поэтому внутренние фигурные скобки f-строк экранируются как {{ }}.
-PRE_COMMIT_HOOK = """#!/usr/bin/env python3
+PRE_COMMIT_HOOK = """#!/usr/bin/env python
 \"\"\"
 MSCodeBase pre-commit hook — автоматическая проверка перед коммитом.
 
@@ -32,12 +31,18 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 Запускает:
 1. verify_diary — проверка AGENT_DIARY.md
 2. stale_detector — поиск устаревшей документации
-3. generate_docs — генерация документации
 \"\"\"
 
 import subprocess
 import sys
 from pathlib import Path
+
+
+# §9 п.9 (ENCODING SAFETY): при выводе emoji-строк из stdout скриптов
+# (например, «📊 Итог: 20 ✅ / 1 ❌») в cp1251-консоль падает
+# UnicodeEncodeError → hook фейлит коммит по ложной причине.
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
 def run_script(script_path: str, label: str) -> bool:
@@ -49,16 +54,23 @@ def run_script(script_path: str, label: str) -> bool:
         print(f"  ⏭️  {{label}}: скрипт не найден ({{script}})")
         return True
 
-    result = subprocess.run(
+    # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock
+    # в фоновых потоках; encoding="utf-8" — декодирование stdout в utf-8.
+    proc = subprocess.Popen(
         [sys.executable, str(script)],
         cwd=str(project_root),
-        capture_output=True,
-        text=True,
-        timeout=120,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
     )
-    if result.returncode != 0:
-        print(f"  ❌ {{label}}: FAILED")
-        print(result.stderr[:500])
+    stdout, _ = proc.communicate(timeout=120)
+    if proc.returncode != 0:
+        print(f"  ❌ {{label}}: exit {{proc.returncode}}")
+        if stdout:
+            for line in stdout.splitlines()[-10:]:
+                print(f"    {{line}}")
         return False
     print(f"  ✅ {{label}}: OK")
     return True
@@ -70,7 +82,6 @@ def main():
 
     all_ok &= run_script("scripts/verify_diary.py", "verify_diary")
     all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
-    all_ok &= run_script("scripts/generate_docs.py", "generate_docs")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
@@ -132,7 +143,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary, stale_detector, generate_docs"
+            f"   Хуки: verify_diary, stale_detector"
         )
 
     def uninstall(self, project_root: str) -> str:

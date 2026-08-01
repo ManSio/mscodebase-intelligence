@@ -1,5 +1,26 @@
 ---
 
+## [2026-08-01] — Pre-commit hook: verify_diary cp1251-краш + SyntaxError в шаблоне git_hooks_installer
+
+**Status:** ✅ Fixed (локально, не запушено)
+**Root Cause:** (1) verify_diary.py требовал `## [YYYY-MM-DD HH:MM]` в заголовке, а записи 31.07 имели только дату → не матчились и склеивались с предыдущей записью, таская её символы (ложные 20/20; вскрыла запись 22:50). (2) Hook печатал stdout скриптов с emoji (📊) в cp1251-консоль → UnicodeEncodeError → коммит фейлился по ложной причине. (3) Мой edit после удаления generate_docs из шаблона записал голое `"""` (строка 35) → закрыло внешнюю тройную строку раньше времени → SyntaxError:36 в git_hooks_installer.py.
+**Fix:** verify_diary — дата-время опционально `(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)`; negative lookbehind в `_extract_code_functions`/`_check_test_file_exists`; поле `clean_state_reason` (§0.2: «не мог» ≠ «не проверил», такие записи не фейлятся); hook-шаблон — Popen+encoding utf-8+CREATE_NO_WINDOW (§5.16) + `sys.stdout.reconfigure(utf-8)` (§9.9); git_hooks_installer.py — восстановлено `\"\"\"` экранирование в шаблоне (2 места) + убраны 3 dead-ссылки на generate_docs (скрипт никогда не существовал, `git log -- scripts/generate_docs.py` пусто).
+**Guard:** `python -m py_compile` + `ast.parse(PRE_COMMIT_HOOK)` + hook прогон (verify_diary 36 ✅/0 ❌ + stale_detector OK, RC 0). Реиндекс после коммита не нужен (изменения только в scripts/).
+
+---
+
+## [2026-08-01 22:50] — HTTP 400 llama.cpp embedder: v1 (HF truncation) ОПРОВЕРГНУТ → v2 (native /tokenize) + полный реиндекс 4677 чанков
+
+**Status:** ✅ Fixed (v3.3.11, локально, не запушено)
+**Root Cause:** GGUF multilingual-e5-small: n_ctx_train=512 → llama.cpp капит слот до 512. HF-токенизатор ≠ GGUF-токенизатор (разные BPE): после усечения до 512 HF-токенов llama считает до 526 (замер 20 реальных чанков: макс 502, zh CHANGELOG; в прогоне 22:01 526>512) → HTTP 400 → реиндекс АБОРТИЛСЯ на 4512/4666 («Embedding failed for chunk 8», retry-loop перезапускал → симптом «вечно 4512»). Фикс 48e695b8 (v3.3.10) НЕ работал — запас 0-10 токенов.
+**Fix:** remote_embedder.py — подсчёт нативным /tokenize llama-server (лимит 480, запас 32 под спецтокены) + итеративный char-proportional cut (макс 4 итерации); HF-fallback 448 при недоступности /tokenize. Попутно: llama_install.py vulkaninfo → bytes+CREATE_NO_WINDOW (§5.16, был cp1251-краш reader-потока); pylance==9.0.0 в venv расширения + requirements (known_hashes bulk load, §5.19 API проверен to_lance().to_pandas()). Инцидент «умер с клиентом» — реиндекс detached (Start-Process).
+**Guard:** /tokenize-гарантия per-input ≤ 480 < 512; тест-мок плотный CJK (1 ток/симв) доказывает сходимость cut; правило: реиндекс только detached; чанки пишутся в Phase 3.
+**Reindex:** 22:37→22:47, 4677 chunks, FTS5 built (1901 names, 891 docs), HTTP 400=0, Aborted=0, E2E search_code OK.
+**Тесты:** 667 passed, 13 skipped, 91 deselected (slow/benchmark); truncation 10/10 (4 новых MockTransport); shadow_canary+idle_reload+install_embedder_sync 17/17; ruff clean.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest tests/ (667 passed) + живой реиндекс 4677 чанков (0 errors).
+
+---
+
 ## [2026-07-31] — P0 deadlock реиндекса + z.ai review обработка (16 пунктов)
 
 **Status:** ✅ Fixed (P0 deadlock; z.ai: 3 CONFIRMED/1 partial/12 REFUTED)
@@ -50,6 +71,7 @@
 **Fix:** A — P2-6 закрыт как TECH DEBT (ACCEPTED): протокол запрещает 3+ параллельных MCP → max_workers=2 недостижим легитимно; persistent loop отложен. B/C — фикс не требуется.
 **Guard:** ISSUE.md P2-6 → TECH DEBT (ACCEPTED) + секция «вторая волна» (A/B/C, File:Line); KNOWN_ISSUES.md зеркально; доки Zed: $VAR-интерполяция в env MCP не документирована.
 **Verification:** pytest 610+ (см. ИТОГ); ruff clean; bump_version --check.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest (610+) с рабочего дерева.
 
 ---
 
@@ -89,6 +111,7 @@
 **Root Cause:** C: диск заполнен на 100% (0 avail). `test_commit_memory.py` делает `git init`/`git commit` в pytest-temp (`C:\...\Temp\tmp...`) → `WinError 112 Недостаточно места на диске`; `capture_output=True` глотает stderr → падение как `assert 0 == 1`. TOCTOU-теория (`test_lancedb_race.py`) опровергнута: 3 изолированных + 6 полных прогонов pass.
 **Fix:** освобождено место на C: (0 → 10G avail) → `pytest tests/test_commit_memory.py` 8 passed. Доп. hardening: `_CLEAN_GIT_ENV` в commit_memory.py (защита от GIT_*-pollution из hook-окружения).
 **Guard:** при падении gate-zero — сначала `df -h /c`, затем `.pytest_cache/lastfailed` до чистых прогонов. Зеркальная запись: KNOWN_ISSUES.md:6-11.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest + точечные прогоны (test_commit_memory 8 passed) с рабочего дерева.
 
 ---
 

@@ -9,6 +9,21 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.11] — 2026-08-01 — llama.cpp embedder HTTP 400: native /tokenize truncation (fixes 3.3.10)
+
+### Fixed
+- **HTTP 400 from llama.cpp embedder — 3.3.10 fix was insufficient** (`remote_embedder.py`): the HF tokenizer is a different BPE than the GGUF tokenizer — after truncating to 512 HF tokens llama.cpp still counted up to 526 (measured: 20 real chunks, max 502 on the zh changelog) → HTTP 400 → reindex aborted at ~4512/4677 and its retry loop restarted forever. Fix: count tokens via the native `/tokenize` endpoint of the running llama-server (limit 480 < hard cap 512, margin for server-added specials) and cut the char prefix proportionally with re-check (≤4 iterations). Offline fallback: HF tokenizer at a reduced 448-token limit.
+- **`llama_install.py` vulkaninfo crash**: `subprocess.run(..., text=True)` decoded UTF-8 output as cp1251 → `UnicodeDecodeError` in the reader thread (noisy log). Now Popen + bytes + `CREATE_NO_WINDOW` (§5.16).
+- **`known_hashes` bulk load**: lancedb 0.34 needs the separate `lance` binding for `table.to_lance()` → added `pylance==9.0.0` (API verified: `to_lance().to_pandas()` works).
+
+### Added
+- **`tests/test_remote_embedder_truncation.py`**: +4 tests with `httpx.MockTransport` — short texts skip `/tokenize`, under-limit kept, over-limit truncated to ≤480 (dense CJK mock, 1 token/char), graceful fallback without client (10/10 in the file).
+
+### Tests
+- Full pytest: 667 passed, 13 skipped (91 slow/benchmark deselected); ruff clean. Reindex 22:37→22:47: **4677 chunks, FTS5 built, HTTP 400 = 0, Aborted = 0**, E2E search_code OK.
+
+---
+
 ## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 fix (truncation to 512 tokens)
 
 ### Fixed
@@ -21,6 +36,8 @@ All notable changes to this project will be documented in this file.
 - Full pytest: 672 passed, 0 failed (was 666) — +6 new
 
 ---
+
+
 
 ## [3.3.9] — 2026-07-31 — P0 reindex deadlock fix + z.ai review (16 items verified)
 
