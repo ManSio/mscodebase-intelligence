@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mscodebase-intelligence"
-version = "3.3.10"
+version = "3.3.11"
 description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 + vector search with 48 analysis tools. Multi-window with per-project Indexer registry."
 readme = "README.md"
 license = {text = "MIT"}
@@ -34,6 +34,10 @@ dependencies = [
     # (сломал тест-сьют 2026-07 через lancedb.LanceDB). Ребилд/бамп —
     # только после проверки совместимости API + прогона verify_clean_state.
     "lancedb==0.34.0",
+    # Pinned: lancedb>=0.30 требует отдельный пакет для table.to_lance()
+    # (known_hashes bulk load, index_project_runner.py). Проверено 2026-08-01:
+    # pylance 9.0.0 + lance-namespace 0.8.6, API to_lance().to_pandas() работает.
+    "pylance==9.0.0",
     "pyarrow>=14.0.0",  # + pyarrow.compute для to_arrow
     "huggingface_hub>=0.20.0",
     "numpy>=1.24.0,<3",  # upper bound: numpy 3.x ломает ABI для pyarrow/onnxruntime

@@ -177,3 +177,5 @@ scripts/quick_embed_test_v2.py
 scripts/run_test_check.py
 test_result.txt
 *.log
+_mcp_reindex_client.py
+_measure_*.py

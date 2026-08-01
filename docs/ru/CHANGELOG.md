@@ -8,6 +8,21 @@
 
 > **Количество инструментов (текущее):** живой сервер регистрирует **48 инструментов** = 19 core + 13 intel + 12 inline + 4 dev
 
+## [3.3.11] — 2026-08-01 — HTTP 400 llama.cpp embedder: нативное /tokenize-усечение (исправляет 3.3.10)
+
+### Исправлено
+- **HTTP 400 от llama.cpp embedder — фикс 3.3.10 недостаточен** (`remote_embedder.py`): HF-токенизатор — другая BPE, чем у GGUF: после усечения до 512 HF-токенов llama.cpp считал до 526 (замер: 20 реальных чанков, макс 502 на zh CHANGELOG) → HTTP 400 → реиндекс абортился на ~4512/4677, retry-loop перезапускал его вечно. Фикс: подсчёт нативным `/tokenize` живого llama-server (лимит 480 < жёсткого 512, запас под спецтокены сервера) + итеративный char-proportional cut (≤4 итерации). Оффлайн-fallback: HF-токенизатор с пониженным лимитом 448.
+- **Краш vulkaninfo в `llama_install.py`**: `subprocess.run(..., text=True)` декодировал UTF-8 вывод как cp1251 → `UnicodeDecodeError` в reader-потоке (мусор в логе). Теперь Popen + bytes + `CREATE_NO_WINDOW` (§5.16).
+- **`known_hashes` bulk load**: lancedb 0.34 требует отдельный биндинг `lance` для `table.to_lance()` → добавлен `pylance==9.0.0` (API проверен: `to_lance().to_pandas()` работает).
+
+### Добавлено
+- **`tests/test_remote_embedder_truncation.py`**: +4 теста с `httpx.MockTransport` — короткие тексты не ходят в /tokenize, под лимитом не трогаются, сверх лимита усекаются до ≤480 (плотный CJK-мок, 1 ток/симв), graceful fallback без клиента (10/10 в файле).
+
+### Тесты
+- Полный pytest: 667 passed, 13 skipped (91 slow/benchmark deselected); ruff clean. Реиндекс 22:37→22:47: **4677 чанков, FTS5 built, HTTP 400=0, Aborted=0**, E2E search_code OK.
+
+---
+
 ## [3.3.10] — 2026-08-01 — Фикс HTTP 400 от llama.cpp embedder (усечение до 512 токенов)
 
 ### Исправлено

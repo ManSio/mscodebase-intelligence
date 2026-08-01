@@ -61,3 +61,22 @@ YAML_OK — ci.yml jobs.clean-state.steps[-1].run = bash scripts/verify_clean_st
   L164:             await self._flush()              # OUTSIDE lock ✓
 ```
 **Вердикт:** подтверждена — `_flush()` вызывается вне lock, deadlock не воспроизводится.
+
+---
+
+## [2026-08-01 22:35] — Гипотеза: HF-truncation 512 гарантирует лимит llama.cpp (n_ctx_train=512)
+
+**Ожидание:** после усечения до 512 HF-токенов llama.cpp посчитает ≤ 512 токенов → HTTP 400 исчезнет.
+**Команда:** `_measure_tokens.py` (живой llama-server :8080, /tokenize, 20 реальных длинных чанков: error_handler, modification_guard, db_writer, lsp_project_bridge, rate_limiter, graph, runtime_coordinator, changelogs en/ru/zh) + прогон реиндекса 22:01-22:11.
+**Сырой результат:**
+```
+file                              len   HF512  ->llama  rawllama
+docs/zh/CHANGELOG.md              3500    512      502      1860   ← максимум после truncation
+docs/zh/CHANGELOG.md              3500    512      475      1822
+src/core/error_handler.py         3500    512      479       831
+... (все 20 чанков: llama_after_trunc <= 502)
+llama_server_stderr.log: E srv send_error: task id = 5977, input (526 tokens) is larger than the max context size (512). skipping
+_reindex_err.log: [embed] 4512/4677 ... Chunk 8 failed all retries, zero vector → Embedding failed for chunk 8 after all retries. Aborted.
+```
+**Вердикт:** ОПРОВЕРГНУТА — запас после HF-512 всего 0-10 токенов (502/512), плотный CJK даёт 526>512 (разные BPE у HF и GGUF). Фикс 48e695b8 не работает.
+**Вывод:** гарантия только через нативный `/tokenize` llama-server (лимит 480). Реализовано в remote_embedder.py; реиндекс 22:37→22:47: 4677 chunks, HTTP 400=0, Aborted=0.

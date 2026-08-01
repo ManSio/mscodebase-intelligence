@@ -433,6 +433,8 @@
 - ✅ **P0 deadlock реиндекса (2026-07-31, регрессия ac6e5ba0e P1-3)** — см. «z.ai review верификация»: bulk known_hashes в `index_project_runner.py` + тест test_index_runner_deadlock (валидирован)
 - Верификация через pytest после каждого фикса — выполнено: 666 passed, 0 failed
 - `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы
+- ✅ **HTTP 400 llama.cpp embedder (2026-08-01)** — v2: нативный `/tokenize` truncation (лимит 480 < 512), фикс 48e695b8 (HF 512) опровергнут замером (макс 502, в прогоне 526). Реиндекс 22:37→22:47 ЗАВЕРШЁН: 4677 chunks, FTS5 built, HTTP 400=0, Aborted=0, E2E search_code OK. Попутно: vulkaninfo cp1251-краш (§5.16) + pylance==9.0.0 (known_hashes). Тесты 667 passed, 13 skipped; версия 3.3.11 (локально).
+- ✅ **Pre-commit hook блокер (2026-08-01)** — verify_diary: время в заголовке опционально (склейка записей 31.07), negative lookbehind в `_extract_code_functions`/`_check_test_file_exists`, поле `clean_state_reason` (§0.2); hook-шаблон: Popen+utf-8+CREATE_NO_WINDOW (§5.16) + reconfigure (9.9); SyntaxError:36 в git_hooks_installer.py починен (экранирование `\"\"\"` в PRE_COMMIT_HOOK); dead-ссылки generate_docs удалены (скрипт не существовал). Hook прогон: verify_diary 36 ✅/0 ❌ + stale_detector OK, RC 0.
 
 ## z.ai review верификация (2026-07-31)
 

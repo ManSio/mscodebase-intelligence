@@ -322,8 +322,23 @@ if sys.platform == "win32":
         _vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
         if _vk_dll.exists():
             import subprocess as _sp
-            _vk_info = _sp.run(["vulkaninfo", "--summary"], capture_output=True, timeout=5, text=True)
-            if "GPU0" in _vk_info.stdout and "PHYSICAL_DEVICE_TYPE" in _vk_info.stdout:
+            # §5.16: Popen + communicate вместо run(capture_output=True, text=True) —
+            # text=True декодирует stdout через locale (cp1251) и крашит reader-поток
+            # на UTF-8 выводе vulkaninfo (UnicodeDecodeError, мусор в логе).
+            _vk_proc = _sp.Popen(
+                ["vulkaninfo", "--summary"],
+                stdout=_sp.PIPE,
+                stderr=_sp.DEVNULL,
+                stdin=_sp.DEVNULL,
+                creationflags=0x08000000,  # CREATE_NO_WINDOW
+            )
+            try:
+                _vk_bytes, _ = _vk_proc.communicate(timeout=5)
+            except Exception:
+                _vk_proc.kill()
+                _vk_bytes = b""
+            _vk_text = _vk_bytes.decode("utf-8", errors="replace")
+            if "GPU0" in _vk_text and "PHYSICAL_DEVICE_TYPE" in _vk_text:
                 _vk_bin = _get_vulkan_dir() / f"llama-server{_EXE_SUFFIX}"
                 if _vk_bin.exists():
                     _HAVE_VULKAN = True
@@ -332,8 +347,7 @@ if sys.platform == "win32":
                 else:
                     logger.info("🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
     except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+        logger.warning(f"Vulkan detection failed: {_e}")
 
 
 # ─── Установка ──────────────────────────────────────────────────
