@@ -3,6 +3,15 @@
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
+## 2026-08-01 — Contradiction Ledger: флапающий check_commit_exists (FIXED)
+
+**Symptom:** при старте MCP ledger логировал «Коммит X не найден в истории», хотя коммиты существуют (флапало: 22:02 — 1 расхождение, 22:37 — 2, 23:01/23:47 — 3 при одном и том же diary).
+**Root Cause:** scripts/verify_diary.py check_commit_exists — `git cat-file` с `communicate(timeout=5)`; при старте MCP (auto-index + embedder + reranker 499MB + Defender scan первого git) cat-file не укладывался в 5s → TimeoutExpired → False.
+**Fix:** timeout 5→30s + одна retry-попытка (verify_diary.py:331); синхронизировано в расширение.
+**Status:** ✅ — verify_diary --skip-gate-zero: 37 ✅ / 0 ❌; все 6 упомянутых хешей подтверждены cat-file вручную. Попутно: push v3.3.11 (e2817035..59fe58b0, FF), верификация чанков 4731/306/6030, векторы не нулевые (search_code OK).
+
+---
+
 ## 2026-08-01 — Pre-commit hook: verify_diary cp1251-краш + SyntaxError в шаблоне git_hooks_installer (FIXED)
 
 **Symptom:** git commit фейлился на pre-commit hook: (1) UnicodeEncodeError 'charmap' на emoji 📊 в cp1251-консоль; (2) после правки шаблона — SyntaxError:36 в src/core/git_hooks_installer.py.

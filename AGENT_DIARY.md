@@ -1,5 +1,16 @@
 ---
 
+## [2026-08-01 23:55] — Contradiction Ledger: флапающий check_commit_exists + push v3.3.11 + верификация чанков
+
+**Status:** ✅ Fixed
+**Root Cause:** verify_diary.py check_commit_exists — git cat-file с timeout=5s; при старте MCP (auto-index, embedder, reranker 499MB, Defender scan) git не укладывался в 5s → TimeoutExpired → False → ложные «коммит не найден» (эволюция 22:02: 1 → 22:37: 2 → 23:01/23:47: 3 при том же diary; хеши 48e695b8/8f799dec/95a322d6/ac6e5ba0e/5a522ead/b39ef455 реально существуют — cat-file вручную все True).
+**Fix:** scripts/verify_diary.py:331 — timeout 5→30s + одна retry-попытка; синхронизировано в расширение. Ledger после фикса: 37 ✅ / 0 ❌.
+**Guard:** retry+30s; при сомнении — `python scripts/verify_diary.py --skip-gate-zero` вручную.
+**Также:** push v3.3.11 e2817035..59fe58b0 (FF, origin/main=HEAD); верификация чанков: 4731 chunks / 306 files / 6030 symbols, jobs running=0, search_code семантический OK (векторы не нулевые), runtime blocked 0.0%, embed-fail в логах нет (ONNX fallback на старте — штатный auto-detect, llama.cpp активен).
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest (676 passed) + живой MCP: поиск/индекс/счётчики верифицированы в этой сессии.
+
+---
+
 ## [2026-08-01] — Pre-commit hook: verify_diary cp1251-краш + SyntaxError в шаблоне git_hooks_installer
 
 **Status:** ✅ Fixed (локально, не запушено)
