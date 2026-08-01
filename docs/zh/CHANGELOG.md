@@ -9,6 +9,19 @@
 > **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 修复（截断至 512 个 token）
+
+### 已修复
+- **llama.cpp embedder 返回 HTTP 400**（`remote_embedder.py`）：超过模型最大序列长度（512 token）的块会让 llama.cpp 拒绝整个 embedding 批次 → 批次重试 → 逐条重试 → 零向量 → 索引中断（`Embedding failed for chunk N after all retries`）。修复：在 llama.cpp 调用（批次和逐条）之前，通过 HF tokenizer（`tokenizers`，来自 `.codebase_models/onnx/multilingual-e5-small-int8/tokenizer.json`）将输入截断到 512 token。优雅降级：若 `tokenizer.json` 缺失，则禁用截断（旧行为）并记录 warning，不会崩溃。
+
+### 新增
+- **`tests/test_remote_embedder_truncation.py`**：6 个测试 — 从 `ext_root` 加载 tokenizer、长文本截断至 ≤512 token、批次顺序/数量保持不变、无 tokenizer 时的优雅降级、空输入、幂等的双重加载（double-checked lock）。CI 安全：依赖 tokenizer 的测试在缺少 `.codebase_models` 时自动跳过。
+
+### 测试
+- 完整 pytest：672 passed, 0 failed（原 666）— +6 新增
+
+---
+
 ## [3.3.9] — 2026-07-31 — P0 重新索引死锁修复 + z.ai 审查（16 项已验证）
 
 ### 已修复
@@ -35,7 +48,7 @@
 
 ---
 
-## [3.3.9] — 2026-07-31 — 测试覆盖：G-1 桩测试 → 真实测试，G-2 E2E MCP 冒烟测试
+## [3.3.9] — 2026-07-31 — 测试覆盖：G-1 存根 → 真实测试，G-2 E2E MCP 冒烟测试
 
 ### 新增
 - **`tests/e2e/test_e2e_mcp_smoke.py`** (G-2): 无模拟的 E2E MCP 冒烟测试 — 真实 llama.cpp embedder → 临时隔离 LanceDB → 项目真实文件 → `searcher.search_with_mode(mode="fast")`。输入→输出校验：查询 `move_chunks_metadata` 必须返回 `metadata.file` 含 `file_move_manager` 的块。CI 安全：无 `MSCODEBASE_E2E=1` 时 skipif；运行：`MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`。

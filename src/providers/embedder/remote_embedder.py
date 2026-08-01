@@ -72,6 +72,10 @@ class RemoteEmbedder(IEmbedder):
         self._llama_cleanup_task: Optional[threading.Thread] = None
         self._llama_cleanup_stop = threading.Event()
 
+        # llama.cpp tokenizer for truncation (max 512 tokens)
+        self._llama_tokenizer = None
+        self._llama_tokenizer_lock = threading.Lock()
+
         self.ext_root = get_extension_dir("mscodebase-intelligence")
         if not self.ext_root.exists():
             # Test/fallback: try project root
@@ -91,6 +95,46 @@ class RemoteEmbedder(IEmbedder):
         # Shadow Canary: эталонные пары запрос→чанк
         self._canary_pairs: List[dict] = []
         self._load_canary_set()
+
+    def _load_llama_tokenizer(self):
+        """Load tokenizer for llama.cpp truncation (max 512 tokens)."""
+        if self._llama_tokenizer is not None:
+            return
+        with self._llama_tokenizer_lock:
+            if self._llama_tokenizer is not None:
+                return
+            try:
+                from tokenizers import Tokenizer
+                # Try to find tokenizer in ONNX model directory
+                tokenizer_path = self.ext_root / ".codebase_models" / "onnx" / "multilingual-e5-small-int8" / "tokenizer.json"
+                if not tokenizer_path.exists():
+                    # Fallback: try to download from HF
+                    logger.warning(f"Tokenizer not found at {tokenizer_path}, truncation disabled")
+                    return
+                self._llama_tokenizer = Tokenizer.from_file(str(tokenizer_path))
+                # Enable truncation to 512 tokens
+                self._llama_tokenizer.enable_truncation(max_length=512)
+                logger.info("✅ llama.cpp tokenizer loaded for truncation (max 512 tokens)")
+            except Exception as e:
+                logger.warning(f"Failed to load llama.cpp tokenizer: {e}")
+                self._llama_tokenizer = None
+
+    def _truncate_for_llama(self, texts: List[str]) -> List[str]:
+        """Truncate texts to 512 tokens for llama.cpp."""
+        if not texts:
+            return texts
+        self._load_llama_tokenizer()
+        if self._llama_tokenizer is None:
+            return texts
+        try:
+            # Encode with truncation
+            encoded = self._llama_tokenizer.encode_batch(texts, add_special_tokens=True)
+            # Decode back to text (truncated)
+            truncated = [self._llama_tokenizer.decode(e.ids, skip_special_tokens=True) for e in encoded]
+            return truncated
+        except Exception as e:
+            logger.warning(f"Truncation failed: {e}")
+            return texts
 
     def _load_canary_set(self):
         """Загружает canary-набор из canary_set.json."""
@@ -572,6 +616,8 @@ class RemoteEmbedder(IEmbedder):
 
     def _call_llama_cpp_api(self, texts):
         """Временный эмбеддинг через llama.cpp (для shadow canary)."""
+        # Truncate inputs to 512 tokens for llama.cpp
+        texts = self._truncate_for_llama(texts)
         try:
             r = self._sync_client.post(
                 self.llama_cpp_url,
@@ -748,6 +794,8 @@ class RemoteEmbedder(IEmbedder):
 
         # ═══ llama.cpp ═══
         if current_mode in ("llama_cpp", "unknown"):
+            # Truncate inputs to 512 tokens for llama.cpp (model's max context)
+            texts = self._truncate_for_llama(texts)
             import time as _retry_time
             # Level 1: batch retry (3 attempts with backoff)
             for _attempt in range(3):

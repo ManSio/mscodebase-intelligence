@@ -9,6 +9,19 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 fix (truncation to 512 tokens)
+
+### Fixed
+- **HTTP 400 from llama.cpp embedder** (`remote_embedder.py`): chunks longer than the model's max sequence (512 tokens) made llama.cpp reject the whole embedding batch → batch retry → per-item retry → zero vector → indexing aborted (`Embedding failed for chunk N after all retries`). Fix: truncate inputs to 512 tokens via the HF tokenizer (`tokenizers`, `tokenizer.json` from `.codebase_models/onnx/multilingual-e5-small-int8/`) before both the batch and the per-item llama.cpp calls. Graceful fallback: if `tokenizer.json` is missing, truncation is disabled (previous behavior) with a warning — no crash.
+
+### Added
+- **`tests/test_remote_embedder_truncation.py`**: 6 tests — tokenizer load from `ext_root`, long text truncated to ≤512 tokens, batch order/count preserved, graceful fallback without tokenizer, empty input, idempotent double-load (double-checked lock). CI-safe: tokenizer-dependent tests skip when `.codebase_models` is absent.
+
+### Tests
+- Full pytest: 672 passed, 0 failed (was 666) — +6 new
+
+---
+
 ## [3.3.9] — 2026-07-31 — P0 reindex deadlock fix + z.ai review (16 items verified)
 
 ### Fixed
