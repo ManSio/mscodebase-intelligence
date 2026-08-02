@@ -557,6 +557,7 @@ class ProjectIntelligenceLayer:
                     ),
                     "status": "active" if total_chunks > 0 else "empty",
                 },
+                "startup_diagnostics": self._build_startup_diagnostics(active_indexer),
                 "resource_usage": {
                     "process_pid": os.getpid(),
                     "async_loop_tasks": len(asyncio.all_tasks()),
@@ -572,6 +573,38 @@ class ProjectIntelligenceLayer:
         except Exception as e:
             logger.error(f"Ошибка получения статуса: {e}")
             return {"status": "error", "detail": str(e)}
+
+    def _build_startup_diagnostics(self, active_indexer) -> dict:
+        """Человекочитаемая диагностика lock-а и БД (Задача 3/5).
+
+        Read-only: не захватывает lock, не трогает файлы. Возвращает
+        человеческий текст с действием вместо Rust-трейса.
+        """
+        from src.core.indexing.startup_diagnostics import build_startup_report
+
+        try:
+            db_path = getattr(active_indexer, "db_path", None)
+            if db_path is None:
+                return {"available": False, "report": "Индексатор не инициализирован."}
+            dbm = getattr(active_indexer, "db_manager", None)
+            lock_path = (
+                getattr(dbm, "_pid_lock_path", None)
+                if dbm is not None
+                else db_path / ".write_lock"
+            )
+            report = build_startup_report(
+                db_path=db_path,
+                lock_path=lock_path,
+            )
+            return {
+                "available": True,
+                "lock_state": report.lock.state,
+                "db_state": report.db.state,
+                "report": report.to_human(),
+            }
+        except Exception as _diag_err:
+            logger.debug(f"startup_diagnostics failed: {_diag_err}")
+            return {"available": False, "report": f"Диагностика недоступна: {_diag_err}"}
 
     def _get_embedder_model_info(self) -> dict:
         """Get real model info from the global embedder singleton.

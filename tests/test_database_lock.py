@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 
 import pytest
@@ -113,6 +114,50 @@ class TestContention:
         lock.acquire()
         assert lock.is_held() is True
         lock.release()
+
+    def test_steal_lock_of_terminated_process(self, lock_path):
+        """Завершённый, но не очищенный ОС процесс = мёртвый владелец.
+
+        INC-6471-fix: OpenProcess возвращает handle для завершённого процесса
+        (exit_code != STILL_ACTIVE), поэтому одной OpenProcess недостаточно —
+        lock-файл упавшего MCP выглядел живым и блокировал запуск (ожидание
+        wait_timeout + RuntimeError вместо steal). GetExitCodeProcess == 259
+        (STILL_ACTIVE) — единственная надёжная проверка живости на Windows.
+        """
+        import subprocess
+
+        # Запускаем реальный дочерний процесс, дожидаемся его завершения
+        # и берём его PID — процесс уже мёртв (exit_code != 259), но PID
+        # ещё числится в таблице процессов (не очищен ОС мгновенно).
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(0.1)"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        dead_pid = proc.pid
+        proc.wait(timeout=10)
+        # Даём ОС время перевести процесс в terminated-состояние.
+        import time as _time
+
+        _time.sleep(0.2)
+
+        # База: PID реального завершённого процесса не должен считаться живым.
+        assert DatabaseLock._is_pid_alive(dead_pid) is False, (
+            f"PID {dead_pid} мёртв, но _is_pid_alive вернул True"
+        )
+
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(
+            json.dumps({"pid": dead_pid, "started": 0, "role": "worker"}),
+            encoding="utf-8",
+        )
+        lock = DatabaseLock(lock_path, wait_timeout=0.2)
+        lock.acquire()  # не должен ждать 30с и падать — должен украсть
+        try:
+            data = json.loads(lock_path.read_text(encoding="utf-8"))
+            assert data["pid"] == os.getpid()  # lock перезаписан нашим PID
+        finally:
+            lock.release()
 
     def test_race_exactly_one_winner(self, lock_path):
         """Гонка N=8 экземпляров на одном пути: ровно один владелец.

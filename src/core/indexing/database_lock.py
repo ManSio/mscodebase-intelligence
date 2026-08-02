@@ -205,20 +205,32 @@ class DatabaseLock:
 
         На Unix: os.kill(pid, 0) — signal 0, ProcessLookupError = dead.
         На Windows: os.kill для чужих процессов кидает WinError 11 (OSError)
-        даже если процесс жив. Используем ctypes.OpenProcess.
+        даже если процесс жив. Используем ctypes.OpenProcess + GetExitCodeProcess.
+
+        INC-6471-fix: одного OpenProcess НЕДОСТАТОЧНО — он возвращает handle
+        и для завершённого, но не очищенного процесса (exit_code != 259,
+        STILL_ACTIVE). Без GetExitCodeProcess мёртвый владелец lock-файла
+        выглядел живым → новый процесс ждал wait_timeout и падал с
+        RuntimeError вместо steal (заблокированный запуск MCP).
         """
         if sys.platform == "win32":
             try:
                 import ctypes
+                from ctypes import wintypes
 
                 kernel32 = ctypes.windll.kernel32
+                STILL_ACTIVE = 259
                 # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — минимальные права
                 handle = kernel32.OpenProcess(0x1000, False, pid)
-                if handle:
+                if not handle:
+                    # ERROR_INVALID_PARAMETER (87) — процесс не существует
+                    return False
+                try:
+                    code = wintypes.DWORD()
+                    ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+                    return bool(ok) and code.value == STILL_ACTIVE
+                finally:
                     kernel32.CloseHandle(handle)
-                    return True
-                # ERROR_INVALID_PARAMETER (87) — процесс не существует
-                return False
             except Exception:
                 # fallback: если ctypes недоступен, считаем живым (safe side)
                 return True

@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-03 — Задача 3/5: Startup Diagnostics + P0 INC-6471 (GetExitCodeProcess) (FIXED, локально)
+
+**Symptom:** (1) при старте/сбое пользователь видел Rust-трейс (`lance-io-8.0.0\src\local.rs`) вместо человеческого действия; (2) P0: lock-файл упавшего MCP (PID 6264, exit_code=1) выглядел ЖИВЫМ — OpenProcess возвращает handle для завершённого, но не очищенного процесса → новый процесс ждал 30с и падал RuntimeError вместо steal → заблокированный запуск/реиндекс.
+**Fix:** startup_diagnostics.py (read-only inspect_pid_lock/inspect_db/build_startup_report — человеческий текст с действиями); LanceDBManager.human_report() + _startup_issue; intel_get_runtime_status.startup_diagnostics; лог в _delayed_auto_index; ui_formatter. P0: _is_pid_alive → OpenProcess + GetExitCodeProcess == STILL_ACTIVE(259).
+**Status:** ✅ локально — 701 passed / 0 failed; live-проверка: stale lock PID 6264 корректно определён, 23558 чанков.
+
+---
+
 ## 2026-08-03 — DatabaseGateway: PID-lock вынесен в database_lock.py (FIXED, локально)
 
 **Symptom:** PID-lock (Layer 3) был приватным 140-строчным методом db_manager._acquire_pid_lock; wait_timeout/retries захардкожены (30s/5); __del__ при неудачном acquire мог снять чужой lock на Unix.

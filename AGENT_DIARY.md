@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-03 01:10] — Задача 3/5: Startup Diagnostics + P0-фикс INC-6471 (GetExitCodeProcess)
+
+**Status:** ✅ Fixed (код+тесты, локально не запушено; синхронизировано в расширение)
+**Root Cause:** (1) При старте/сбое пользователь видел Rust-трейс (`lance-io-8.0.0\src\local.rs`) вместо человеческого действия. (2) P0 INC-6471: `DatabaseLock._is_pid_alive` на Windows проверял живость только через OpenProcess — он возвращает handle и для завершённого, но не очищенного процесса → lock-файл упавшего MCP (PID 6264, exit_code=1) выглядел ЖИВЫМ → новый процесс ждал 30с и падал RuntimeError вместо steal → заблокированный запуск/реиндекс.
+**Fix:** новый `startup_diagnostics.py` (read-only): inspect_pid_lock (free/held_alive/stale/corrupt) + inspect_db (missing/empty/healthy/corrupt) + build_startup_report (человеческий текст с действиями); `LanceDBManager.human_report()` + `_startup_issue` в 3 точках старта (lock/connect/table); `intel_get_runtime_status.startup_diagnostics`; лог отчёта в `_delayed_auto_index`; ui_formatter показывает отчёт при нештатных состояниях. P0-фикс: `_is_pid_alive` → OpenProcess + GetExitCodeProcess == STILL_ACTIVE(259).
+**Guard:** tests/test_startup_diagnostics.py (14 тестов) + tests/test_database_lock.py (вкл. steal lock завершённого процесса); полный pytest 701 passed / 0 failed.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный pytest 701 passed + live-проверка диагностики на реальном индексе (stale lock PID 6264, 23558 чанков).
+
 ## [2026-08-03 00:20] — Задача 2/5: DatabaseGateway — PID-lock вынесен в DatabaseLock (модуль + тесты)
 
 **Status:** ✅ Fixed (локально, не запушено)

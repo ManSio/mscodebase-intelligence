@@ -75,7 +75,20 @@ class LanceDBManager:
         # Логика вынесена в DatabaseLock (см. database_lock.py).
         self._pid_lock_path = self.db_path / ".write_lock"
         self._db_lock = DatabaseLock(self._pid_lock_path)
-        self._db_lock.acquire()
+        # Диагностика при старте (Задача 3/5): человеческий текст с действием
+        # вместо RuntimeError из глубины при живом владельце lock-а.
+        # Семантика lock-а НЕ меняется — только сообщение об ошибке.
+        self._startup_issue: Optional[str] = None
+        try:
+            self._db_lock.acquire()
+        except RuntimeError as _lock_err:
+            self._startup_issue = (
+                f"База занята другим процессом MCP. Закройте второе окно Zed "
+                f"или подождите завершения его индексации. "
+                f"Детали: {_lock_err}"
+            )
+            logger.error(self._startup_issue)
+            raise
 
         self._on_recreate = None
 
@@ -92,7 +105,18 @@ class LanceDBManager:
             lancedb_path = raw_path
 
         Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
-        self.db = lancedb.connect(lancedb_path)
+        try:
+            self.db = lancedb.connect(lancedb_path)
+        except Exception as _connect_err:
+            # Задача 3/5: не Rust-трейс, а действие (обычно: файлы залочены
+            # mmap живого процесса, либо директория повреждена).
+            self._startup_issue = (
+                f"Не удалось открыть базу LanceDB: {_connect_err}. "
+                f"Закройте все окна Zed и удалите папку "
+                f"{self.db_path.name} вручную, затем повторите."
+            )
+            logger.error(self._startup_issue)
+            raise
         self._lancedb_connect_path = lancedb_path
         self.table_name = "codebase_chunks"
 
@@ -126,7 +150,16 @@ class LanceDBManager:
         )
 
         # ─── Open or create table ────────────────────────────
-        self.table = self._open_or_create_table(self.schema)
+        try:
+            self.table = self._open_or_create_table(self.schema)
+        except Exception as _table_err:
+            self._startup_issue = (
+                f"Не удалось открыть/создать таблицу '{self.table_name}': "
+                f"{_table_err}. Индекс повреждён — выполните intel_reset_index "
+                f"или удалите папку {self.db_path.name} при закрытом Zed."
+            )
+            logger.error(self._startup_issue)
+            raise
 
         # ─── Index Guard ─────────────────────────────────────
         self._index_guard = IndexGuard(db_path, self.project_path)
@@ -198,6 +231,30 @@ class LanceDBManager:
                     raise
 
         return table
+
+    def human_report(self) -> str:
+        """Человекочитаемый отчёт о состоянии БД и lock-а (Задача 3/5).
+
+        Read-only: не захватывает lock, не трогает файлы. Может вызываться
+        в любой момент (в т.ч. когда таблица закрыта/пересоздаётся).
+        """
+        from src.core.indexing.startup_diagnostics import build_startup_report
+
+        try:
+            report = build_startup_report(
+                db_path=self.db_path,
+                table_name=self.table_name,
+                lock_path=self._pid_lock_path,
+            )
+            if self._startup_issue:
+                report.issues.insert(0, self._startup_issue)
+            return report.to_human()
+        except Exception as _diag_err:
+            logger.debug(f"human_report failed: {_diag_err}")
+            return (
+                f"Диагностика недоступна ({_diag_err}). "
+                f"Проверьте intel_get_runtime_status и логи."
+            )
 
     def _warmup_cache(self) -> None:
         """Прогрев кэша чанков и уникальных файлов (без сканирования диска).
