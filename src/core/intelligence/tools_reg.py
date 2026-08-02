@@ -50,31 +50,28 @@ def register_intelligence_tools(mcp_app, intel_layer):
         """
         if mode == "full":
             try:
-                # ── АТОМАРНАЯ очистка БД (фикс бага 'Not found' при full reindex) ──
-                # НЕ используем shutil.rmtree('.codebase_indices') — он физически
-                # удаляет файлы БД, пока worker-процесс держит self.table открытой
-                # (из __init__), превращая self.table в dangling -> 'lance error: Not found'
-                # при чтении (Pruning/optimize/search). rmtree с ignore_errors при
-                # залоченных файлах удаляет БД частично -> битый manifest.
-                # Вместо этого: drop_table + create_table ВНУТРИ процесса (LanceDB
-                # атомарно через lock-файлы) + reset_connection() (обновляет self.table).
+                # ── АТОМАРНАЯ очистка БД (фикс INC-6C62 'Not found' при full reindex) ──
+                # drop_table + create_table в LanceDB НЕ удаляет физические файлы:
+                # новая таблица наследует цепочку версий со ссылками на мёртвые
+                # фрагменты -> финальная optimize падает с 'Not found'. Вместо этого:
+                # close (mmap) → gc → rmtree директории таблицы → reconnect.
                 _idx = getattr(intel_layer, "indexer", None)
                 _dbm = getattr(_idx, "db_manager", None) if _idx else None
-                if _dbm is not None and hasattr(_dbm, "reset_connection"):
+                if _dbm is not None and hasattr(_dbm, "recreate_table_physical"):
                     # Guard: запрещаем concurrent search читать БД во время очистки
                     if hasattr(_dbm, "set_reindexing"):
                         _dbm.set_reindexing()
                     try:
-                        # 1. drop + recreate таблицу атомарно (через lock-файлы LanceDB)
-                        try:
-                            _dbm.db.drop_table(_dbm.table_name)
-                        except Exception:
-                            pass  # таблицы может не быть
-                        _dbm.db.create_table(
-                            _dbm.table_name, schema=_dbm.schema
-                        )
-                        # 2. ОБЯЗАТЕЛЬНО обновляем self.table во всех слоях
-                        _dbm.reset_connection()
+                        if not _dbm.recreate_table_physical():
+                            logger.warning(
+                                "recreate_table_physical failed — fallback to drop+create"
+                            )
+                            try:
+                                _dbm.db.drop_table(_dbm.table_name)
+                            except Exception:
+                                pass  # таблицы может не быть
+                            _dbm.db.create_table(_dbm.table_name, schema=_dbm.schema)
+                            _dbm.reset_connection()
                     finally:
                         if hasattr(_dbm, "clear_reindexing"):
                             _dbm.clear_reindexing()
@@ -145,19 +142,16 @@ def register_intelligence_tools(mcp_app, intel_layer):
     async def reset_index() -> str:
         """Полный сброс индекса: удалить LanceDB БД и запустить переиндексацию с нуля. Не требует перезапуска."""
         try:
-            # 1. СНАЧАЛА закрываем handle БД (до удаления файлов)
+            # 1. СНАЧАЛА закрываем все handle'ы БД (mmap) — до удаления файлов
             _idx = getattr(intel_layer, "indexer", None)
             _dbm = getattr(_idx, "db_manager", None) if _idx else None
-            if _dbm:
+            if _dbm is not None:
                 try:
-                    with _dbm._write_lock:
-                        if _dbm.db is not None:
-                            _dbm.db.close()
-                            _dbm.db = None
-                            _dbm.table = None
-                except Exception:
-                    pass
-            # 2. THEN удаляем директорию
+                    _dbm.close_for_maintenance()  # close + gc.collect() + sleep(0.5)
+                except Exception as _close_err:
+                    logger.warning(f"close_for_maintenance failed: {_close_err}")
+            # 2. THEN физически удаляем директории. ignore_errors=False — залоченные
+            #    mmap-файлы НЕ пропускаются молча: PermissionError → fresh DB path.
             import shutil
             _targets = [
                 intel_layer.project_path / '.codebase_indices',
@@ -165,9 +159,34 @@ def register_intelligence_tools(mcp_app, intel_layer):
             ext_root = __import__('os').environ.get('_ext_root', '')
             if ext_root:
                 _targets.append(__import__('pathlib').Path(ext_root) / '.codebase_indices')
+            _removed_ok = True
             for _t in _targets:
                 if _t.exists() and _t.is_dir():
-                    shutil.rmtree(str(_t), ignore_errors=True)
+                    try:
+                        shutil.rmtree(str(_t), ignore_errors=False)
+                        logger.info(f"Removed index dir: {_t}")
+                    except PermissionError as _perm_err:
+                        _removed_ok = False
+                        logger.warning(
+                            f"Index dir locked (mmap): {_t} ({_perm_err}) — fresh DB path"
+                        )
+                    except Exception as _rm_err:
+                        _removed_ok = False
+                        logger.warning(f"Index dir removal failed: {_rm_err}")
+            # 3. Пересоздаём чистую БД (пустая таблица) или fresh path
+            if _dbm is not None:
+                try:
+                    if _removed_ok:
+                        from src.utils.paths import to_win_long_path
+                        from pathlib import Path as _P
+                        _P(to_win_long_path(_dbm.db_path)).mkdir(
+                            parents=True, exist_ok=True
+                        )
+                        _dbm.reset_connection()
+                    else:
+                        _dbm._switch_to_fresh_path()
+                except Exception as _recreate_err:
+                    return f"⚠️ Ошибка при пересоздании БД: {_recreate_err}"
         except Exception as e:
             return f"⚠️ Ошибка при удалении БД: {e}"
         # Запускаем переиндексацию

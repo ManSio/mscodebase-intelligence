@@ -20,11 +20,14 @@ logger = logging.getLogger("mscodebase_server.db_writer")
 class LanceDBWriter:
     """Управляет записью чанков в LanceDB с атомарностью и кэш-синхронизацией."""
 
-    def __init__(self, table, table_write_lock, index_lock, embedder):
+    def __init__(self, table, table_write_lock, index_lock, embedder, db_manager=None):
         self.table = table
         self._table_write_lock = table_write_lock
         self._index_lock = index_lock
         self.embedder = embedder
+        # LanceDBManager (владелец db_path/db) — для физического пересоздания
+        # таблицы (INC-6C62). None → fallback на drop+create (старое поведение).
+        self.db_manager = db_manager
 
     def write_records(
         self,
@@ -143,12 +146,33 @@ class LanceDBWriter:
         return data_records
 
     def _safe_recreate_table(self):
-        """Fallback: удалить и пересоздать таблицу при потере.
+        """Fallback: пересоздать таблицу при потере.
+
+        INC-6C62: drop_table + create_table в LanceDB НЕ удаляет физические
+        файлы — новая таблица наследует цепочку версий со ссылками на мёртвые
+        фрагменты (*.lance) → optimize падает с 'Not found'. Поэтому при
+        наличии LanceDBManager делегируем физическое пересоздание
+        (close → gc → rmtree → reconnect), иначе — старое поведение.
 
         После пересоздания обновляет self.table на актуальный объект
         и вызывает on_recreate callback (если есть) для синхронизации
         ссылок в Indexer и IndexProjectRunner.
         """
+        if self.db_manager is not None:
+            try:
+                ok = self.db_manager.recreate_table_physical()
+                if ok:
+                    self.table = self.db_manager.table
+                    if hasattr(self, '_on_recreate') and self._on_recreate:
+                        try:
+                            self._on_recreate(self.table)
+                        except Exception as cb_err:
+                            logger.warning(f"on_recreate callback failed: {cb_err}")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Physical table recreation failed: {e}")
+                return False
         try:
             schema = self.table.schema
             self.table.db.drop_table("codebase_chunks")

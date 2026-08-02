@@ -229,6 +229,8 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 
 ### Важные замечания
 
+- **venvlauncher.exe — НЕ зомби.** Python 3.13+ на Windows использует `venvlauncher`/`venvwlauncher` как bootstrap-процесс (venv/Scripts/python.exe → venvlauncher → python.exe): при проверке `tasklist | grep python` можно увидеть 2 процесса на один MCP-сервер (основной + venvlauncher-обёртка). Это НОРМАЛЬНОЕ поведение, а не зомби/дубль — не тратить время на диагностику и не убивать (см. инцидент 2026-08-02: PID 21616 ошибочно принят за зомби).
+
 - **install.py шаг 4** (step_copy) копирует `llama_msvc/`, `llama_vulkan/`, `models/` ТОЛЬКО если их нет в `skip`.
   Там они уже есть в `skip`, так что install.py не затрёт бинарники — только код.
 - **llama_runner.py** содержит `_start_sync()` с авто-восстановлением: если CPU DLL пропали — сам скачает
