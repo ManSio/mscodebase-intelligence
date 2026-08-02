@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-02 22:50] — INC-6C62 «вечная ошибка» реиндекса: физическое пересоздание таблицы LanceDB
+
+**Status:** ✅ Fixed (код+тесты, локально не запушено; runtime-проверка требует Reload Window)
+**Root Cause:** drop_table+create_table в LanceDB НЕ удаляет физические файлы, залоченные mmap живого процесса → новая таблица наследует цепочку версий со ссылками на мёртвые фрагменты (*.lance) → финальная optimize падает с 'Not found'. rmtree(ignore_errors=True) в intel_reset_index молча пропускал залоченные файлы → круг замкнут.
+**Fix:** LanceDBManager: close_for_maintenance() (close+gc+sleep 0.5) → recreate_table_physical() (rmtree ignore_errors=False + PermissionError→fresh path lancedb_v2_{ts}) → reset_connection(). Все _safe_recreate_table (db_writer/indexer/indexer_table/runner) делегируют manager'у; trigger_reindex(full) и intel_reset_index переведены на физическую очистку; _verify_index_integrity после bulk_write с rewrite. Тест tests/test_lancedb_recreate.py (3 шт).
+**Guard:** rmtree только ignore_errors=False; close→gc→sleep перед удалением (Windows mmap); integrity-check до optimize; регрессия test_index_runner_deadlock не тронута (670 passed).
+**verified_from_clean_state:** ⚠️ не проверено — требует ubuntu-раннер; эквивалент: полный pytest 670 passed / 0 failed + регрессионный тест INC-6C62.
+
 ## [2026-08-02 00:26] — Реиндекс падает: lance 'Not found' (3 подряд) + 2 MCP-процесса + stale table refs
 
 **Status:** 🔴 Open — требуется действие владельца

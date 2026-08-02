@@ -6,12 +6,15 @@
 
 ---
 
-## 2026-08-02 — Full-reindex падает: lance 'Not found' + 2 MCP-процесса + stale table refs (OPEN)
+## 2026-08-02 — Full-reindex падает: lance 'Not found' — код-фикс физического пересоздания (FIXED, локально)
 
-**Symptom:** 3 подряд failed full-reindex (trigger_reindex full x2, reset_index): lance error 'Not found: codebase_chunks.lance/data/<fragment>.lance' на ~80% (фаза optimize/create_index, ~194-219s). Count чанков растёт на ~4701 за запуск: 4750→9451→14152 — таблица не очищается, дубликаты. Логи: 'known_hashes bulk load failed: Dataset at path', '_safe_read_arrow: таблица повреждена', 'Table optimize exceeded 300s timeout', 'Legacy create_index failed'.
-**Root Cause:** (1) Два MCP-процесса на одной БД с 23:47:00 (PID 4576 + PID 21616 зомби, 156ms CPU) — rmtree/drop частично блокируются залоченными файлами → таблица битая с момента старта. (2) db_manager.set_on_recreate_callback не вызывается нигде → reset_connection() не синхронизирует table-ссылки (Indexer/runner/writer) после drop+create → stale ghost-таблица.
-**Fix:** Требуется: закрыть 2-е окно Zed/Reload (убить зомби 21616 — агент не может kill MCP, §5.16) → intel_reset_index заново. Код-фикс (ждёт): привязать db_manager.set_on_recreate_callback → Indexer._sync_table_ref.
-**Status:** 🔴 OPEN — реиндекс не запускать до устранения двух процессов. Побочно: reset_index стирает .codebase_indices/intelligence (история инцидентов; INC-6C62 восстановлен вручную).
+**Symptom:** 3 подряд failed full-reindex (trigger_reindex full x2, reset_index): lance error 'Not found: codebase_chunks.lance/data/<fragment>.lance' на ~80% (фаза optimize/create_index, ~194-219s). Count чанков растёт на ~4701 за запуск: 4750→9451→14152 — таблица не очищается, дубликаты.
+**Root Cause:** drop_table+create_table в LanceDB НЕ удаляет физические файлы, залоченные mmap живого процесса → новая таблица наследует цепочку версий со ссылками на мёртвые фрагменты (*.lance) → optimize падает с 'Not found'. rmtree(ignore_errors=True) в intel_reset_index молча пропускал залоченные файлы → круг замкнут. reset_connection() НЕ лечил корень (переподключение не удаляет мёртвые фрагменты).
+**Fix:** LanceDBManager.close_for_maintenance() (close+gc+sleep 0.5) → recreate_table_physical() (rmtree ignore_errors=False; PermissionError→fresh path lancedb_v2_{ts} через switch_db) → reset_connection(). Все _safe_recreate_table (db_writer/indexer/indexer_table/runner) делегируют manager'у. trigger_reindex(full)+intel_reset_index — физическая очистка. _verify_index_integrity после bulk_write с rewrite. Тест tests/test_lancedb_recreate.py (3 шт).
+**Status:** ✅ локально — 670 passed/0 failed; регрессия deadlock/race не тронута. Runtime-проверка: после Reload Window (MCP перезапуск пользователем). Зомби-процесс (PID 21616, 2-е окно) — закрыть окно Zed; агент kill MCP запрещён (§5.16).
+
+---
+
 ## 2026-08-01 — Contradiction Ledger: флапающий check_commit_exists (FIXED)
 
 **Symptom:** при старте MCP ledger логировал «Коммит X не найден в истории», хотя коммиты существуют (флапало: 22:02 — 1 расхождение, 22:37 — 2, 23:01/23:47 — 3 при одном и том же diary).

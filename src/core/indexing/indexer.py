@@ -157,6 +157,7 @@ class Indexer(IndexerTableMixin):
             table_write_lock=self._table_write_lock,
             index_lock=self._index_lock,
             embedder=self.embedder,
+            db_manager=self.db_manager,  # INC-6C62: физическое пересоздание таблицы
         )
         # Регистрируем callback для синхронизации таблицы при пересоздании
         self._db_writer.set_on_recreate_callback(self._sync_table_ref)
@@ -708,7 +709,14 @@ class Indexer(IndexerTableMixin):
         return self._freshness_checker.verify(project_path)
 
     def _safe_recreate_table(self):
-        """Fallback: удалить и пересоздать таблицу."""
+        """Fallback: пересоздать таблицу физически (INC-6C62).
+
+        drop_table+create_table наследует цепочку версий старой таблицы
+        со ссылками на мёртвые фрагменты — делегируем физическую очистку
+        (close → gc → rmtree → reconnect) в LanceDBManager.
+        """
+        if getattr(self, "db_manager", None) is not None:
+            return self.db_manager.recreate_table_physical()
         try:
             schema = self.table.schema
             self.db.drop_table("codebase_chunks")

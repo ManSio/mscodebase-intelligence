@@ -13,8 +13,11 @@ LanceDBManager — жизненный цикл LanceDB: подключение, 
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
+import shutil
 import threading
+import time
 from pathlib import Path
 from typing import Any, Optional, Set
 
@@ -236,6 +239,29 @@ class LanceDBManager:
         if hasattr(self, 'db') and self.db is not None:
             self.db = None
 
+    def close_for_maintenance(self) -> None:
+        """Закрывает ВСЕ handle'ы БД (sync + async) и освобождает mmap.
+
+        Вызывается ПЕРЕД физическим удалением файлов индекса (rmtree).
+        На Windows db.close() не освобождает mmap-хендлы немедленно —
+        нужны gc.collect() + пауза, чтобы ОС сняла блокировки файлов.
+
+        Thread-safe: сериализуется через _write_lock (RLock — реентерабельно).
+        """
+        with self._write_lock:
+            try:
+                if self.db is not None:
+                    self.db.close()
+            except Exception as _close_err:
+                logger.debug(f"close_for_maintenance: db.close warning: {_close_err}")
+            self.db = None
+            self.table = None
+            # Async-подключение: best-effort сброс (нет loop в sync-контексте)
+            self._async_db = None
+            self._async_table = None
+            gc.collect()
+            time.sleep(0.5)  # Windows: дать ОС освободить mmap-хендлы
+
     async def ensure_async_table(self):
         """Гарантирует наличие асинхронного подключения к LanceDB.
 
@@ -333,6 +359,64 @@ class LanceDBManager:
             # Warmup new cache
             self._warmup_cache()
             logger.info(f"Switched to DB: {new_db_path}")
+
+    def _switch_to_fresh_path(self) -> None:
+        """Переключает БД на новый путь с timestamp (fallback при залоченных файлах).
+
+        Старая директория остаётся на диске (файлы залочены mmap) и требует
+        ручной очистки при выключенном MCP — логируется для оператора.
+        Использует существующий switch_db (закрытие → connect → таблица → guard).
+        """
+        fresh = self.db_path.parent / f"lancedb_v2_{int(time.time())}"
+        logger.warning(
+            f"⚠️ Using fresh DB path: {fresh} "
+            f"(old: {self.db_path} locked — requires manual cleanup)"
+        )
+        self.switch_db(fresh)
+
+    def recreate_table_physical(self) -> bool:
+        """Физическое пересоздание таблицы с нуля (INC-6C62).
+
+        Проблема: drop_table + create_table в LanceDB НЕ удаляет физические
+        файлы — новая таблица наследует цепочку версий старой, включая
+        ссылки на мёртвые фрагменты (*.lance, которых нет на диске) →
+        optimize падает с 'Not found'. Симптом «вечной» ошибки реиндекса.
+
+        Решение: закрыть все handle'ы → gc + пауза (освобождение mmap на
+        Windows) → физически удалить директорию таблицы (ignore_errors=False)
+        → пересоздать с нуля. Если файлы всё ещё залочены (PermissionError)
+        → новый путь БД (lancedb_v2_{timestamp}).
+
+        Returns:
+            True если таблица пересоздана (в т.ч. через fresh path).
+        """
+        with self._write_lock:
+            self.close_for_maintenance()
+            table_dir = self.db_path / f"{self.table_name}.lance"
+            try:
+                if table_dir.exists():
+                    shutil.rmtree(str(table_dir), ignore_errors=False)
+                    logger.info(f"✅ Physically removed LanceDB table dir: {table_dir}")
+                # Директория БД могла быть удалена целиком — пересоздаём её
+                Path(to_win_long_path(self.db_path)).mkdir(parents=True, exist_ok=True)
+                self.reset_connection()
+                return True
+            except PermissionError as _perm_err:
+                logger.warning(
+                    f"⚠️ Table dir locked (mmap): {_perm_err} — switching to fresh DB path"
+                )
+                self._switch_to_fresh_path()
+                return True
+            except Exception as _recreate_err:
+                logger.error(
+                    f"❌ Physical table recreate failed: {_recreate_err} — switching to fresh DB path"
+                )
+                try:
+                    self._switch_to_fresh_path()
+                    return True
+                except Exception as _fresh_err:
+                    logger.error(f"❌ Fresh path switch failed: {_fresh_err}")
+                    return False
 
     def reset_connection(self) -> None:
         """Сбрасывает handle БД и переподключается.

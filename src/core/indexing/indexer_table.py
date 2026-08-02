@@ -264,14 +264,36 @@ class IndexerTableMixin:
     def _safe_recreate_table(self) -> bool:
         """Безопасно пересоздаёт таблицу с полной схемой.
 
-        Используется когда таблица повреждена, сброшена извне или
-        migration не удался. Сбрасывает кэши и обновляет self.table.
-        Вызывает _sync_table_ref() (если есть) для синхронизации ссылок
-        во всех компонентах.
+        INC-6C62: drop_table+create_table в LanceDB НЕ удаляет физические
+        файлы — новая таблица наследует цепочку версий со ссылками на мёртвые
+        фрагменты. При наличии db_manager делегируем физическое пересоздание
+        (close → gc → rmtree → reconnect), иначе — старое поведение.
+
+        Сбрасывает кэши и обновляет self.table. Вызывает _sync_table_ref()
+        (если есть) для синхронизации ссылок во всех компонентах.
 
         Returns:
             True если таблица создана, False при ошибке.
         """
+        _dbm = getattr(self, "db_manager", None)
+        if _dbm is not None:
+            try:
+                if _dbm.recreate_table_physical():
+                    self.table = _dbm.table
+                    self.db = _dbm.db
+                    self._cached_total_chunks = 0
+                    self._cached_unique_files = set()
+                    self._async_table = None
+                    if hasattr(self, "_sync_table_ref") and callable(self._sync_table_ref):
+                        try:
+                            self._sync_table_ref(self.table)
+                        except Exception as sync_err:
+                            logger.warning(f"_sync_table_ref failed after recreate: {sync_err}")
+                    logger.info(f"📦 Таблица {self.table_name} пересоздана физически")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"❌ Physical recreate via db_manager failed: {e}")
         try:
             # Пытаемся удалить таблицу если существует
             try:

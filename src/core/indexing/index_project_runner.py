@@ -103,9 +103,18 @@ class IndexProjectRunner:
     def _safe_recreate_table(self):
         """Fallback: пересоздать таблицу если она потеряна.
 
-        Используется при ошибках "Not found" в bulk_write.
-        Обновляет self.table на новый объект таблицы.
+        INC-6C62: drop_table+create_table наследует битые ссылки на мёртвые
+        фрагменты — при наличии db_manager делегируем физическое пересоздание
+        (close → gc → rmtree → reconnect), иначе старое поведение.
         """
+        if getattr(self, "db_manager", None) is not None:
+            try:
+                if self.db_manager.recreate_table_physical():
+                    self.table = self.db_manager.table
+                    return True
+            except Exception as e:
+                logger.error(f"Physical table recreate failed: {e}")
+            return False
         try:
             schema = self.table.schema
             _db = getattr(self.table, '_db', None)
@@ -118,6 +127,39 @@ class IndexProjectRunner:
                 logger.info("✅ Table recreated after Not Found error")
         except Exception as e:
             logger.error(f"Table recreate failed: {e}")
+
+    def _verify_index_integrity(self) -> bool:
+        """Проверяет целостность таблицы LanceDB (INC-6C62).
+
+        Таблица, созданная drop+create поверх старой директории, может
+        наследовать ссылки на мёртвые фрагменты (*.lance отсутствуют на
+        диске) — count_rows/чтение фрагментов падают с 'Not found', и
+        финальная фаза optimize тоже. Проверка ДО optimize ловит это.
+
+        Returns:
+            True если таблица читается и все фрагменты на диске существуют.
+        """
+        try:
+            if self.table is None:
+                logger.warning("Index integrity check failed: table is None")
+                return False
+            # 1. count_rows не должен падать на мёртвых фрагментах
+            count = self.table.count_rows()
+            # 2. Полное чтение колонок file_path — реальный доступ к фрагментам
+            #    (count_rows может считать по манифесту, не читая данные)
+            _df = self.table.to_lance().to_pandas(columns=["file_path"])
+            del _df
+            # 3. Все фрагменты на диске существуют
+            table_dir = None
+            _dbm = getattr(self, "db_manager", None)
+            if _dbm is not None and hasattr(_dbm, "db_path"):
+                table_dir = _dbm.db_path / "codebase_chunks.lance" / "data"
+            fragments = list(table_dir.glob("*.lance")) if table_dir and table_dir.exists() else []
+            logger.info(f"Index integrity check passed: {count} rows, {len(fragments)} fragments")
+            return True
+        except Exception as e:
+            logger.error(f"Index integrity check failed: {e}")
+            return False
 
     def _sync_table_ref(self, new_table):
         """Sync table reference across all components after recreate."""
@@ -343,6 +385,29 @@ class IndexProjectRunner:
                     write_elapsed = time.time() - t_write
                     indexed_count = len(_prepared_map)
                     logger.info(f"Bulk write: {written} records from {indexed_count} files in {write_elapsed:.1f}s")
+
+                # INC-6C62: проверка целостности ДО optimize/IVF. Если таблица
+                # унаследовала ссылки на мёртвые фрагменты (drop+create не
+                # удаляет файлы) — физически пересоздаём и повторяем запись
+                # из уже готовых эмбеддингов (без повторного эмбеддинга).
+                if _all_prepared and not self._verify_index_integrity():
+                    logger.warning(
+                        "INC-6C62: index corrupted (dead fragment refs), "
+                        "recreating table physically + rewrite"
+                    )
+                    if (
+                        self.db_manager is not None
+                        and hasattr(self.db_manager, "recreate_table_physical")
+                        and self.db_manager.recreate_table_physical()
+                    ):
+                        self.table = self.db_manager.table
+                        rewritten = self._db_writer.bulk_write(_all_prepared)
+                        indexed_count = len(_prepared_map)
+                        logger.info(f"Rewrite after physical recreate: {rewritten} records")
+                    else:
+                        logger.error(
+                            "INC-6C62: physical recreate failed — optimize will likely fail"
+                        )
 
                 # Accounting (after bulk write)
                 for fp_idx, rec_count in _prepared_map:
