@@ -86,12 +86,36 @@ class WriteTool(MCPTool):
 
     def _validate_file_in_project(self, file_path: str) -> Optional[str]:
         """Validate that file_path is within the project root.
+
+        FileGuard: fail-closed. Если корень проекта не определяется — операция
+        запрещается, а не молча пропускается (старое поведение разрешало
+        запись в произвольные пути при недоступном indexer'е).
+
+        Дополнительно проверяет SafePathManager.is_safe_to_process — не-ASCII
+        пути, пробелы и длина >200 символов системой не обрабатываются
+        (консистентно с indexer.index_file).
+
         Returns error message or None if valid."""
         try:
-            project_root = Path(self.resolve_indexer().project_path).resolve()
+            indexer = self.resolve_indexer()
+            project_root = Path(indexer.project_path).resolve()
         except Exception:
-            return None  # Can't validate without indexer — let it proceed
+            return (
+                f"Cannot validate path '{file_path}': project root unavailable. "
+                f"Open a project in Zed first and retry."
+            )
+
         resolved = Path(file_path).resolve()
+
+        # SafePathManager guard: не-ASCII/пробелы/длинные пути не обрабатываются.
+        path_manager = getattr(indexer, "path_manager", None)
+        if path_manager is not None and not path_manager.is_safe_to_process(resolved):
+            return (
+                f"Path '{file_path}' is not safe to process: non-ASCII "
+                f"characters, spaces, or length >200. Write operations on "
+                f"such paths are disabled (SafePathManager guard)."
+            )
+
         try:
             resolved.relative_to(project_root)
         except ValueError:

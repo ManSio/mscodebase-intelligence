@@ -891,3 +891,57 @@ class TestWriteToolInsertAfter:
             apply=False,
         )
         assert "not found" in result.lower() or "Error" in result
+
+
+# ── WriteTool FileGuard (fail-closed) ──────────────────────────────
+
+
+class TestWriteToolFileGuard:
+    """FileGuard: write_tools._validate_file_in_project — fail-closed.
+
+    Регрессия INC-6E12: старый код возвращал None (fail-open) при
+    недоступном indexer'е, разрешая запись в произвольные пути. Новый код
+    обязан: 1) запрещать операцию при недоступном корне проекта;
+    2) применять SafePathManager.is_safe_to_process (не-ASCII/пробелы/длинные).
+    """
+
+    def _tool(self, mock_services, idx=None):
+        tool = WriteTool(mock_services)
+        tool.resolve_indexer = MagicMock(return_value=idx)
+        return tool
+
+    def test_valid_path_within_project(self, mock_services, tmp_path):
+        """Путь внутри project_root — валиден (None)."""
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool = self._tool(mock_services, idx)
+        err = tool._validate_file_in_project(str(tmp_path / "main.py"))
+        assert err is None
+
+    def test_outside_project_denied(self, mock_services, tmp_path):
+        """Путь вне project_root — отклонён."""
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool = self._tool(mock_services, idx)
+        err = tool._validate_file_in_project(str(tmp_path.parent / "evil.py"))
+        assert err is not None
+        assert "outside project root" in err
+
+    def test_fail_closed_when_indexer_unavailable(self, mock_services):
+        """Индексер недоступен → запрет, а не молчаливый пропуск (было fail-open)."""
+        tool = WriteTool(mock_services)
+        tool.resolve_indexer = MagicMock(side_effect=RuntimeError("no indexer"))
+        err = tool._validate_file_in_project("C:/anything/evil.py")
+        assert err is not None
+        assert "project root unavailable" in err
+
+    def test_non_ascii_path_denied(self, mock_services, tmp_path):
+        """Не-ASCII/небезопасный путь — отклонён SafePathManager guard'ом."""
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        idx.path_manager = MagicMock()
+        idx.path_manager.is_safe_to_process = MagicMock(return_value=False)
+        tool = self._tool(mock_services, idx)
+        err = tool._validate_file_in_project(str(tmp_path / "файл.py"))
+        assert err is not None
+        assert "not safe to process" in err
