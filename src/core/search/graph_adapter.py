@@ -6,11 +6,8 @@ Graph Adapters — обратная совместимость между Proper
 потребителях (MCP-инструменты, intelligence_layer, search_tools).
 
 Стратегия адаптации:
-    1. SymbolIndexAdapter — оборачивает PropertyGraph в интерфейс SymbolIndex
-       (add_definitions, add_references, get_call_chain, impact_analysis...)
-    2. GraphRAGAdapter — оборачивает PropertyGraph + адаптированный SymbolIndex
-       в интерфейс GraphRAGQueryEngine
-    3. CompositionAdapter — объединяет все три адаптера в единую точку входа
+    SymbolIndexAdapter — оборачивает PropertyGraph в интерфейс SymbolIndex
+    (add_definitions, add_references, get_call_chain, impact_analysis...)
 
 Фаза 1: PropertyGraph + адаптеры (текущий код работает без изменений)
 Фаза 2: Прямое внедрение PropertyGraph в инструменты (удаление адаптеров)

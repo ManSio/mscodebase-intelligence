@@ -230,25 +230,24 @@ services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
 indexer = services.resolve(Indexer)  # каждый раз тот же экземпляр
 ```
 
-### 3.2 Зарегистрированные сервисы (15)
+### 3.2 Зарегистрированные сервисы (11)
 
 | # | Сервис | Тип | Создаётся |
 |---|--------|-----|-----------|
-| 1 | Path (project_root) | singleton | явно |
-| 2 | Path (db_path) | singleton | `_generate_unique_db_path()` |
-| 3 | CodeParser | singleton | `CodeParser()` |
-| 4 | FileGuard | singleton | `FileGuard(project_root)` |
-| 5 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
-| 6 | SymbolIndex | singleton | `SymbolIndex()` |
-| 7 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
-| 8 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
-| 9 | ProjectRegistry | singleton | `ProjectRegistry()` |
-| 10 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
-| 11 | ResourceMonitor | singleton | `get_global_resource_monitor()` |
-| 12 | ResourceMonitorKey | singleton | `ResourceMonitor` (shared) |
-| 13 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
-| 14 | NotificationBroker | singleton | `NotificationBroker()` |
-| 15 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
+| 1 | ProjectRootKey | singleton | `project_root` (sentinel-ключ) |
+| 2 | CodeParser | singleton | `CodeParser()` |
+| 3 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
+| 4 | ProjectRegistry | singleton | `ProjectRegistry()` |
+| 5 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
+| 6 | PropertyGraph | singleton | `PropertyGraph(.codebase/graph.db)` |
+| 7 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
+| 8 | NotificationBroker | singleton | `NotificationBroker()` |
+| 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
+| 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
+| 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
+
+> Чистка (Задача 2/5): удалены мёртвые регистрации DbPathKey, FileGuard,
+> SymbolIndex, ResourceMonitor, ResourceMonitorKey (никогда не резолвились).
 
 ---
 
@@ -625,7 +624,7 @@ def _check_resources(self):
 tests/
 ├── test_error_handler.py     # 18 тестов — ToolError, error_boundary
 ├── test_rate_limiter.py      # 21 тестов — SlidingWindow, DebounceBatch, CircuitBreaker
-├── test_di_container.py      # 13 тестов — ServiceCollection, 15 services
+├── test_di_container.py      # 13 тестов — ServiceCollection, 11 services
 ├── test_resource_monitor.py  # 11 тестов — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
 ├── test_parser.py            # 4 теста — Tree-sitter парсинг
 ├── test_execution_contract.py# 10 тестов — verify_action

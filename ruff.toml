@@ -69,7 +69,6 @@ ignore = ["E501", "F405", "E701"]
 "src/core/search/fts5_index.py" = ["BLE001"]
 "src/core/search/fts5_mixin.py" = ["BLE001"]
 "src/core/search/graph_adapter_pure.py" = ["BLE001"]
-"src/core/search/graph_rag_adapter.py" = ["BLE001"]
 "src/core/search/scoring.py" = ["BLE001"]
 "src/core/structural_search.py" = ["BLE001"]
 "src/core/task_queue.py" = ["BLE001"]
@@ -99,6 +98,5 @@ ignore = ["E501", "F405", "E701"]
 "tests/test_symbol_index_invariant.py" = ["BLE001"]
 # F821 подавления сняты — добавлены явные импорты (см. audit B6 fix):
 #   src/core/search/cypher_sql.py: +List, Tuple
-#   src/core/search/composition_adapter.py: +Dict, List, Node, SymbolRef
 #   src/mcp/tools/graph_tools.py: проверено — все имена определены
 #   src/core/start_reranker_snippet.py: файл не существует, удалён

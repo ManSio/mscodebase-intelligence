@@ -117,12 +117,18 @@ class TestCreateServiceCollection:
         return tmp_path / "test_project"
 
     def test_creates_all_services(self, project_root):
-        """create_service_collection создаёт 14+ сервисов.
+        """create_service_collection создаёт 11+ сервисов.
 
         Multi-window (INC-6BCB-v2): Indexer/Searcher/DebounceBatch больше
         не singleton — они per-project в ProjectIndexerRegistry (batch живёт
         на Indexer-е как indexer.bm25_batch). Но registry и factory
         зарегистрированы в DI.
+
+        Cleanup (Задача 2/5): мёртвые DI-ключи удалены — DbPathKey,
+        FileGuard (класс жив, создаётся per-project в фабрике),
+        SymbolIndex (класс жив через SymbolRef/SymbolIndexAdapter),
+        ResourceMonitorKey, ResourceMonitor-в-DI (все используют
+        get_global_resource_monitor() напрямую).
         """
         project_root.mkdir()
         services = create_service_collection(project_root)
@@ -132,9 +138,8 @@ class TestCreateServiceCollection:
         # Indexer/Searcher/DebounceBatch теперь НЕ singleton — проверяем registry вместо.
         for expected in [
             "CodeParser",
-            "FileGuard",
             "RemoteEmbedder",
-            "SymbolIndex",
+            "PropertyGraph",
             "SlidingWindowRateLimiter",
             "ProjectRegistry",
             "MultiProjectSearcher",

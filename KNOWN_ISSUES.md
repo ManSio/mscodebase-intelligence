@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-08-02 — Расхождение документации: «18 сервисов» (README) vs 16 в коде (ЧАСТИЧНО ЗАКРЫТО)
+
+**Symptom:** README.md:119 и docs/en/ARCHITECTURE_DEEP.md:82 заявляют «DI Container (18 services)»; docs/ru/ARCHITECTURE.md:233 — «15».
+**Root Cause:** код регистрировал 16 типов (di_container.py:213-366); из них 11 резолвились в боевом пути, 5 мёртвых/дубликатов (DbPathKey, FileGuard, SymbolIndex, ResourceMonitorKey, ResourceMonitor-в-DI). Число «18» — устаревший исторический счёт.
+**Fix:** мёртвые DI-ключи вычищены (Задача 2/5): теперь 11 регистраций; таблицы 3.2 в docs/en|ru|zh/ARCHITECTURE.md синхронизированы. Оставшиеся упоминания счётчиков (README.md:121, ASCII-диаграммы, ARCHITECTURE_DEEP.md:82, HANDFOFF.md:20/59/119) — перенесены в systematic-cross-check.
+**Status:** 🟡 частично — код и таблицы 3.2 актуальны; остальные счётчики — кросс-чек.
+
+---
+
+## 2026-08-02 — Чистка мёртвого кода: 5 DI-ключей + 2 файла-адаптера (FIXED, локально)
+
+**Symptom:** DbPathKey/FileGuard-singleton/SymbolIndex/ResourceMonitorKey/ResourceMonitor-в-DI регистрировались, но не резолвились; composition_adapter.py/graph_rag_adapter.py — 0 импортов.
+**Fix:** di_container.py −5 регистраций, −2 sentinel-класса; удалены composition_adapter.py, graph_rag_adapter.py; ruff.toml, docstrings, test_di_container.py, doc-таблицы 3.2 обновлены. FileGuard/SymbolIndex-классы ЖИВЫ (per-project factory di_container.py:305, SymbolRef в index_guard.py:22).
+**Status:** ✅ закрыто (674 passed / 0 failed).
+
+---
+
 ## 2026-08-02 — INC-6E12: FileGuard в write_tools — fail-open → fail-closed (FIXED, локально)
 
 **Symptom:** write-инструменты (rename/move/safe_delete/replace) разрешали запись в произвольные пути вне проекта, когда indexer недоступен: `_validate_file_in_project` возвращал None (fail-open) вместо запрета. Guard `is_safe_to_process` не вызывался.
@@ -1608,12 +1625,10 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Тесты:** 519 passed.
 - **Техдолг:** 532 других broad excepts в codebase — постепенная очистка (P2).
 
-## 2026-07-22 — P2-12: MODE_HYBRID dead code в composition_adapter.py (OPEN)
+## 2026-07-22 — P2-12: MODE_HYBRID dead code в composition_adapter.py (CLOSED)
 
-- **Что было:** `composition_adapter.py` поддерживает `MODE_HYBRID` (L55-91) с полями `_definitions`, `_references`, `_file_to_symbols`. DI-контейнер (`di_container.py:189`) всегда создаёт `MODE_PURE` — hybrid-ветка никогда не выполняется.
-- **Статус:** ⏳ Отложено — удаление требует координации с `graph_adapter_pure.py` и `graph_adapter.py` (убедиться, что MODE_PURE покрывает все кейсы).
-- **Deadline:** следующий minor release.
-- **Guard:** удаление только после добавления тестов на `SymbolIndexAdapter(mode=MODE_PURE)` с полным покрытием.
+- **Что было:** `composition_adapter.py` поддерживал `MODE_HYBRID` (L55-91) с полями `_definitions`, `_references`, `_file_to_symbols`. DI-контейнер всегда создавал `MODE_PURE` — hybrid-ветка никогда не выполнялась.
+- **Статус:** ✅ Закрыто — файл удалён целиком (Задача 2/5 чистки мёртвого кода, 2026-08-02): 0 импортов в src/tests; MODE_PURE покрыт тестами (test_assignments.py, test_ast_cache_invalidation.py, полный pytest 674 passed).
 
 ---
 
