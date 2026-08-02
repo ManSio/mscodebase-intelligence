@@ -253,7 +253,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         _reranker_led = "🔴"
         _reranker_info = "offline"
 
-    return _(
+    result = _(
         "{hl} **MSCodeBase** — {proj}\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "🧠 **Embedder**\n"
@@ -280,6 +280,25 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         rrl=_reranker_led,
         rrn=_reranker_info,
     )
+
+    # ─── Startup diagnostics (Задача 3/5) ───────────────────
+    # Человеческий отчёт о lock-е/БД с действиями, если есть проблемы.
+    _sd = data.get("startup_diagnostics", {}) or {}
+    if _sd.get("available") and _sd.get("report"):
+        _sd_text = str(_sd["report"])
+        # Не дублируем весь отчёт в компактном дашборде — показываем
+        # только при нештатном состоянии (lock занят / БД повреждена).
+        if _sd.get("lock_state") in ("held_alive", "corrupt") or _sd.get("db_state") == "corrupt":
+            return _(
+                "{hl} **MSCodeBase** — {proj}\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "⚠️ **Требуется внимание**\n"
+                "{sd}\n",
+                hl=health_led,
+                proj=proj,
+                sd=_sd_text,
+            )
+    return result
 
 
 # ══════════════════════════════════════════════════════════

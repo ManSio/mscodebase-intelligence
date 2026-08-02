@@ -415,6 +415,26 @@ async def _delayed_auto_index(services):
             logger.info(f"⏸ Auto-index: индекс не пуст ({status.get('total_chunks', 0)} чанков), пропускаем")
             return
 
+        # Задача 3/5: человеческий отчёт вместо Rust-трейса при пустом/битом
+        # индексе — пользователь сразу видит причину и действие.
+        try:
+            _dbm_diag = getattr(indexer, "db_manager", None)
+            if _dbm_diag is not None and hasattr(_dbm_diag, "human_report"):
+                logger.warning(f"\n{_dbm_diag.human_report()}")
+            else:
+                from src.core.indexing.startup_diagnostics import (
+                    build_startup_report,
+                    log_startup_report,
+                )
+
+                log_startup_report(
+                    build_startup_report(
+                        db_path=getattr(indexer, "db_path", indexer.project_path),
+                    )
+                )
+        except Exception as _diag_err:
+            logger.debug(f"startup diagnostics log failed: {_diag_err}")
+
         # Ждём готовности рантайма
         await asyncio.sleep(1.5)
 
