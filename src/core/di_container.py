@@ -26,11 +26,7 @@ from src.core.indexing.parser import CodeParser
 from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
 )
-from src.core.indexing.resource_monitor import (
-    ResourceMonitor,
-    get_global_resource_monitor,
-)
-from src.core.indexing.symbol_index import SymbolIndex
+from src.core.indexing.resource_monitor import get_global_resource_monitor
 from src.core.rate_limiter import (
     CircuitBreaker,
     DebounceBatch,
@@ -52,20 +48,8 @@ class ProjectRootKey:
     pass
 
 
-class DbPathKey:
-    """Sentinel-ключ для db_path в DI. Импортируется потребителями."""
-
-    pass
-
-
 class IndexerFactoryKey:
     """Sentinel-ключ для Indexer factory в DI (см. INC-6BCB / multi-window)."""
-
-    pass
-
-
-class ResourceMonitorKey:
-    """Sentinel-ключ для ResourceMonitor в DI (см. INC-6BCB / multi-window)."""
 
     pass
 
@@ -74,9 +58,7 @@ class ResourceMonitorKey:
 __all__ = [
     "ServiceCollection",
     "ProjectRootKey",
-    "DbPathKey",
     "IndexerFactoryKey",
-    "ResourceMonitorKey",
     "create_service_collection",
 ]
 
@@ -200,8 +182,6 @@ def create_service_collection(
 
     # ══════════════════════════════════════════════════════
     # Базовые компоненты (без зависимостей от других)
-    # db_path нужен ДО регистрации sentinel-ключа.
-    db_path = _generate_unique_db_path(project_root)
 
     # ══════════════════════════════════════════════════════
     # Утилитные типы (keys)
@@ -211,13 +191,9 @@ def create_service_collection(
     # создаётся заново при каждом импорте), а str конфликтует
     # с любым будущим string-сервисом. См. INC-53EC / REFC-04.
     services.add_singleton(ProjectRootKey, project_root)
-    services.add_singleton(DbPathKey, db_path)
 
     code_parser = CodeParser()
     services.add_singleton(CodeParser, code_parser)
-
-    file_guard = FileGuard(project_root)
-    services.add_singleton(FileGuard, file_guard)
 
     if embedder is None:
         embedder = RemoteEmbedder()
@@ -241,11 +217,6 @@ def create_service_collection(
     property_graph = PropertyGraph(graph_db)
     services.add_singleton(PropertyGraph, property_graph)
 
-    # SymbolIndexAdapter — обёртка PropertyGraph в интерфейс SymbolIndex
-    # HYBRID mode: PropertyGraph + in-memory Dict для плавной миграции
-    symbol_index = SymbolIndexAdapter(property_graph, mode=SymbolIndexAdapter.MODE_PURE)
-    services.add_singleton(SymbolIndex, symbol_index)
-
     # ══════════════════════════════════════════════════════
     # Project Indexer Registry (multi-window support).
     # Раньше Indexer был singleton в DI — переключение окон Zed
@@ -256,8 +227,6 @@ def create_service_collection(
     # ResourceMonitor: подключаем к registry для adaptive throttling
     # (LRU evict под давлением RAM/CPU).
     resource_monitor = get_global_resource_monitor()
-    services.add_singleton(ResourceMonitorKey, resource_monitor)
-    services.add_singleton(ResourceMonitor, resource_monitor)
 
     registry = ProjectIndexerRegistry(
         max_cached=5,

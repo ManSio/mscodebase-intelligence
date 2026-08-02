@@ -2,6 +2,22 @@
 
 ---
 
+## [2026-08-02 23:55] — Задача 2/5: чистка мёртвого кода DI + файлы-адаптеры
+
+**Status:** ✅ Fixed (локально, не запушено)
+**Root Cause:** 5 DI-регистраций (DbPathKey, FileGuard-singleton, SymbolIndex, ResourceMonitorKey, ResourceMonitor-в-DI) никогда не резолвились; composition_adapter.py + graph_rag_adapter.py — 0 импортов в src/tests.
+**Fix:** di_container.py: −5 регистраций, −2 sentinel-класса (DbPathKey, ResourceMonitorKey), −1 импорт (SymbolIndex, ResourceMonitor); удалены 2 файла-адаптера; ruff.toml −1 per-file-ignore + −1 комментарий; docstrings graph.py/graph_adapter.py очищены от ссылок на удалённое; test_di_container.py обновлён; doc-таблицы 3.2 (en/ru/zh) → 11 сервисов.
+**Guard:** тест-файл tests/test_di_container.py ассертит 10 ключевых сервисов; полный pytest 674 passed / 0 failed (13 slow-фейлов — предсуществующие, НЕ от чистки: LSP VFS mmap-lock на graph.db, `.write_lock` коллизия с живым MCP PID 6264, core-imports-mcp layer.py:794, ledger contract isinstance(0, list)).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu-раннер); эквивалент — полный pytest + stash-проверка предсуществующих фейлов LSP VFS.
+
+## [2026-08-02 23:30] — Исследование перед Задачей 2/5 (DatabaseGateway): 4 вопроса владельца закрыты фактами
+
+**Status:** ✅ Исследование завершено (read-only; правок кода нет)
+**Root Cause (вопроса):** владелец описал архитектуру Gateway по памяти — требовалась проверка «что переписывать, что не сломать» до кодирования.
+**Выводы:** (1) «18 сервисов» (README.md:119) устарело: в коде 16 DI-типов (di_container.py:213-366), живых 11, мёртвых/дубликатов 5 (DbPathKey, FileGuard, SymbolIndex, ResourceMonitorKey, ResourceMonitor-в-DI). Вне DI мёртвые: composition_adapter.py, graph_rag_adapter.py. (2) Сложность — в ~12 workaround-слоях (Windows mmap, LanceDB self-healing, RLock, multi-window), не в архитектуре. (3) Переписывания нет: db_manager.py (664 стр) уже 80% Gateway — PID-lock:496-584, begin_write:644, close_for_maintenance:242, recreate_table_physical:377, intel_reset_index исправлен (tools_reg.py:139-191). (4) Не ломать: 683 теста, test_index_runner_deadlock, 24 ADR (PID-lock 3-layer defense), граф уже в quality (engine.py:814-817).
+**Guard:** Задача 2 = усиление LanceDBManager (PID-lock → database_lock.py + тесты, чистка 5 мёртвых DI-ключей), НЕ новый класс с нуля. Ждёт решения владельца.
+**verified_from_clean_state:** ⚠️ не проверено — read-only исследование, кода не менялось; факты Verified по этой сессии (grep+read).
+
 ## [2026-08-02 23:10] — INC-6E12: FileGuard в write_tools — fail-open → fail-closed (задача 1/5 «идеального кода»)
 
 **Status:** ✅ Fixed (локально, не запушено; runtime — живой MCP работает с синхронизированным файлом)

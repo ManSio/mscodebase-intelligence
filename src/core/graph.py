@@ -16,8 +16,8 @@ property graph с типизированными узлами и рёбрами.
 Совместимость:
     - SymbolIndex — адаптер SymbolIndexAdapter оборачивает PropertyGraph
       в интерфейс SymbolIndex (get_call_chain, search_symbols, impact...)
-    - GraphRAGQueryEngine — адаптер GraphRAGAdapter оборачивает PropertyGraph
-      в интерфейс query_impact / query_dependencies / query_feature
+    - GraphRAGQueryEngine — движок запросов поверх SymbolIndexAdapter
+      (query_impact / query_dependencies / query_feature)
 
 Фаза 1: PropertyGraph + адаптеры (обратная совместимость)
 Фаза 2: Cypher-like query engine + dead code detection

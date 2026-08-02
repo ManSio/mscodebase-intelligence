@@ -228,25 +228,23 @@ services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
 indexer = services.resolve(Indexer)  # 每次都是同一个实例
 ```
 
-### 3.2 已注册服务（15 个）
+### 3.2 已注册服务（11 个）
 
 | # | 服务 | 类型 | 创建者 |
 |---|---------|------|------------|
-| 1 | Path (project_root) | 单例 | 显式 |
-| 2 | Path (db_path) | 单例 | `_generate_unique_db_path()` |
-| 3 | CodeParser | 单例 | `CodeParser()` |
-| 4 | FileGuard | 单例 | `FileGuard(project_root)` |
-| 5 | RemoteEmbedder | 单例 | `RemoteEmbedder()` |
-| 6 | SymbolIndex | 单例 | `SymbolIndex()` |
-| 7 | SlidingWindowRateLimiter | 单例 | `SlidingWindowRateLimiter()` |
-| 8 | CircuitBreaker | 单例 | `CircuitBreaker(name="lm_studio")` |
-| 9 | ProjectRegistry | 单例 | `ProjectRegistry()` |
-| 10 | MultiProjectSearcher | 单例 | `MultiProjectSearcher(embedder, registry)` |
-| 11 | ResourceMonitor | 单例 | `get_global_resource_monitor()` |
-| 12 | ResourceMonitorKey | 单例 | `ResourceMonitor`（共享） |
-| 13 | ProjectIndexerRegistry | 单例 | `ProjectIndexerRegistry(max_cached=5)` |
-| 14 | NotificationBroker | 单例 | `NotificationBroker()` |
-| 15 | IndexerFactoryKey | 工厂 | `_create_indexer_for_path` |
+| 1 | ProjectRootKey | 单例 | `project_root`（哨兵键） |
+| 2 | CodeParser | 单例 | `CodeParser()` |
+| 3 | RemoteEmbedder | 单例 | `RemoteEmbedder()` |
+| 4 | ProjectRegistry | 单例 | `ProjectRegistry()` |
+| 5 | MultiProjectSearcher | 单例 | `MultiProjectSearcher(embedder, registry)` |
+| 6 | PropertyGraph | 单例 | `PropertyGraph(.codebase/graph.db)` |
+| 7 | ProjectIndexerRegistry | 单例 | `ProjectIndexerRegistry(max_cached=5)` |
+| 8 | NotificationBroker | 单例 | `NotificationBroker()` |
+| 9 | IndexerFactoryKey | 工厂 | `_create_indexer_for_path` |
+| 10 | SlidingWindowRateLimiter | 单例 | `SlidingWindowRateLimiter()` |
+| 11 | CircuitBreaker | 单例 | `CircuitBreaker(name="lm_studio")` |
+
+> 清理（任务 2/5）：已删除未使用的注册 DbPathKey、FileGuard、SymbolIndex、ResourceMonitor、ResourceMonitorKey（从未解析）。
 
 ---
 
@@ -674,7 +672,7 @@ def _check_resources(self):
 tests/
 ├── test_error_handler.py     # 18 个测试 — ToolError, error_boundary
 ├── test_rate_limiter.py      # 21 个测试 — SlidingWindow, DebounceBatch, CircuitBreaker
-├── test_di_container.py      # 13 个测试 — ServiceCollection, 15 services
+├── test_di_container.py      # 13 个测试 — ServiceCollection, 11 services
 ├── test_resource_monitor.py  # 11 个测试 — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
 ├── test_parser.py            # 4 个测试 — Tree-sitter 解析
 ├── test_execution_contract.py# 10 个测试 — verify_action
