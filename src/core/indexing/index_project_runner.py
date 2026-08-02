@@ -6,8 +6,9 @@ IndexProjectRunner — полная индексация проекта: пар�
   запись + prune + BM25 + IVF (Phase 3).
 
 PID-lock и write guard:
-- PID-lock (Layer 3): в db_manager._acquire_pid_lock() — атомарный lock-файл
-  с PID. Второй процесс ждёт или падает.
+- PID-lock (Layer 3): DatabaseLock (database_lock.py) — атомарный lock-файл
+  с PID; захватывается в LanceDBManager.__init__ (db_manager._db_lock.acquire()).
+  Второй процесс ждёт или падает.
 - reindex guard (Layer 1): Indexer.set_reindexing() / clear_reindexing()
   — search fast-fail во время reindex.
 - write lock (Layer 2): threading.Lock сериализует write/reconnect
@@ -35,7 +36,7 @@ class IndexProjectRunner:
     """Оркестрирует полную индексацию проекта.
 
     Использует db_manager.begin_write() для сериализации записи в LanceDB.
-    PID-lock (Layer 3) обеспечивается db_manager._acquire_pid_lock().
+    PID-lock (Layer 3) обеспечивается DatabaseLock (db_manager._db_lock).
     """
 
     def __init__(

@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-03 — DatabaseGateway: PID-lock вынесен в database_lock.py (FIXED, локально)
+
+**Symptom:** PID-lock (Layer 3) был приватным 140-строчным методом db_manager._acquire_pid_lock; wait_timeout/retries захардкожены (30s/5); __del__ при неудачном acquire мог снять чужой lock на Unix.
+**Fix:** новый DatabaseLock (acquire/release/is_held/ctx-manager/__del__) с конфигурируемыми таймаутами; release удаляет файл только при _acquired. db_manager подключён через _db_lock; старые методы удалены. 10 тестов (гонка N=8, stale, таймаут).
+**Status:** ✅ закрыто (684 passed / 0 failed).
+
+---
+
 ## 2026-08-02 — Расхождение документации: «18 сервисов» (README) vs 16 в коде (ЧАСТИЧНО ЗАКРЫТО)
 
 **Symptom:** README.md:119 и docs/en/ARCHITECTURE_DEEP.md:82 заявляют «DI Container (18 services)»; docs/ru/ARCHITECTURE.md:233 — «15».
