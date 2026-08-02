@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-02 23:10] — INC-6E12: FileGuard в write_tools — fail-open → fail-closed (задача 1/5 «идеального кода»)
+
+**Status:** ✅ Fixed (локально, не запушено; runtime — живой MCP работает с синхронизированным файлом)
+**Root Cause:** `_validate_file_in_project` (write_tools.py:93) возвращал None при недоступности indexer'а — fail-open: write-операции (rename/move/safe_delete/replace) разрешались на произвольных путях вне проекта. `is_safe_to_process` (SafePathManager) не вызывался, хотя indexer его использует (indexer.py:762).
+**Fix:** fail-closed: indexer недоступен → ошибка «project root unavailable»; добавлен guard `path_manager.is_safe_to_process` (не-ASCII/пробелы/длина >200 → запрет). Все 4 call-site (write_tools.py:187/249/304/350) уже оборачивали path_error — правка одного метода закрыла все. Тесты: TestWriteToolFileGuard (4 шт).
+**Guard:** fail-open в любом валидаторе путей запрещён; при недоступности корня — человеческое сообщение с действием («Откройте проект в Zed»).
+**verified_from_clean_state:** ⚠️ не проверено — требует ubuntu-раннер; эквивалент: полный pytest 683 passed / 0 failed + новые тесты FileGuard.
+
 ## [2026-08-02 22:50] — INC-6C62 «вечная ошибка» реиндекса: физическое пересоздание таблицы LanceDB
 
 **Status:** ✅ Fixed (код+тесты, локально не запушено; runtime-проверка требует Reload Window)

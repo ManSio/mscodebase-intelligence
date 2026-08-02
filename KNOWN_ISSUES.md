@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-02 — INC-6E12: FileGuard в write_tools — fail-open → fail-closed (FIXED, локально)
+
+**Symptom:** write-инструменты (rename/move/safe_delete/replace) разрешали запись в произвольные пути вне проекта, когда indexer недоступен: `_validate_file_in_project` возвращал None (fail-open) вместо запрета. Guard `is_safe_to_process` не вызывался.
+**Root Cause:** write_tools.py:93 — `except Exception: return None` («let it proceed») при недоступности indexer'а; отсутствие SafePathManager-проверки, которую indexer использует (indexer.py:762).
+**Fix:** fail-closed: indexer недоступен → ошибка «project root unavailable» с человеческим сообщением; добавлен guard `path_manager.is_safe_to_process` (не-ASCII/пробелы/длина >200 → запрет). Тесты: TestWriteToolFileGuard (4 шт).
+**Status:** ✅ локально — 683 passed/0 failed; runtime — живой MCP работает с синхронизированным файлом (копия в расширение + notify_change).
+
+---
+
 ## 2026-08-02 — Full-reindex падает: lance 'Not found' — код-фикс физического пересоздания (FIXED, локально)
 
 **Symptom:** 3 подряд failed full-reindex (trigger_reindex full x2, reset_index): lance error 'Not found: codebase_chunks.lance/data/<fragment>.lance' на ~80% (фаза optimize/create_index, ~194-219s). Count чанков растёт на ~4701 за запуск: 4750→9451→14152 — таблица не очищается, дубликаты.
