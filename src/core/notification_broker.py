@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import threading
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 __all__ = [
@@ -21,7 +22,8 @@ class NotificationBroker:
       а сам Lock защищает только session-указатель от race.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, project_path: Optional[Path] = None) -> None:
+        self._project_path: Optional[Path] = project_path  # корень проекта (Задача 4/5)
         self._session: Optional[Any] = None  # Инстанс BaseSession из mcp
         self._lock = threading.Lock()  # см. INC-53EC / REFC-03
         self._publish_lock = threading.Lock()  # защищает сериализацию publish_sync
@@ -70,31 +72,39 @@ class NotificationBroker:
             return False
 
     def _write_progress_file(self, method: str, params: Dict[str, Any]) -> None:
-        """Пишет прогресс в .mscodebase/progress.json для агента."""
+        """Пишет прогресс в progress.json (системная папка, Задача 4/5).
+
+        Файл-контракт для агента: <data_root>/projects/<hash>/progress.json
+        (см. AGENTS.md §0). Раньше писался в .mscodebase/ внутри проекта.
+        """
         if method != "mscodebase/indexing_status":
             return
         try:
             import json
             from pathlib import Path
-            # Определяем корень проекта (откуда запущен MCP)
-            cwd = Path.cwd()
-            for p in [cwd, cwd.parent, cwd / '..']:
-                target = p / '.mscodebase' / 'progress.json'
-                if target.parent.exists():
-                    with open(str(target), 'w', encoding='utf-8') as f:
-                        json.dump({
-                            "phase": params.get("status", "unknown"),
-                            "progress": params.get("progress", 0),
-                            "total_chunks": params.get("total_chunks", 0),
-                            "current_file": params.get("current_file", ""),
-                            "timestamp": __import__('time').time(),
-                        }, f, ensure_ascii=False)
-                    return
-            # Fallback: пишем в корень проекта
-            fallback = cwd / '.mscodebase'
-            fallback.mkdir(exist_ok=True)
-            with open(str(fallback / 'progress.json'), 'w', encoding='utf-8') as f:
-                json.dump({"phase": params.get("status", ""), "progress": params.get("progress", 0), "timestamp": __import__('time').time()}, f, ensure_ascii=False)
+
+            from src.core.artifact_paths import get_progress_file
+
+            root = self._project_path
+            if root is None:
+                # Fallback: определяем корень проекта откуда запущен MCP
+                cwd = Path.cwd()
+                for p in [cwd, cwd.parent, cwd / '..']:
+                    if (p / '.mscodebase').exists() or (p / '.git').exists():
+                        root = p
+                        break
+                if root is None:
+                    root = cwd
+            target = get_progress_file(root)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(str(target), 'w', encoding='utf-8') as f:
+                json.dump({
+                    "phase": params.get("status", "unknown"),
+                    "progress": params.get("progress", 0),
+                    "total_chunks": params.get("total_chunks", 0),
+                    "current_file": params.get("current_file", ""),
+                    "timestamp": __import__('time').time(),
+                }, f, ensure_ascii=False)
         except Exception as e:
             logger.debug(f"_write_progress_file: {e}")
 

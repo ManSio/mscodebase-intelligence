@@ -47,7 +47,8 @@ class _CrossProcessMutex:
     """Named Mutex для межпроцессной синхронизации SQLite на Windows.
 
     Решает проблему FOREIGN KEY constraint failed и database is locked
-    когда несколько MCP-процессов (окон Zed) пишут в один .codebase/graph.db.
+    когда несколько MCP-процессов (окон Zed) пишут в один graph.db
+    (хранится вне проекта — <data_root>/projects/<hash>/, Задача 4/5).
     """
 
     def __init__(self, db_path: Path):

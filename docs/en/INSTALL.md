@@ -171,7 +171,17 @@ Or manually:
    ```
    %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
    ```
-3. Delete `.codebase_indices` from your project root (if present)
+3. Delete the extension folder:
+   ```
+   %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+   ```
+4. (Optional) Delete the artifact data root (индексы, память проектов):
+   ```
+   %LOCALAPPDATA%\mscodebase\     (или ~/.cache/mscodebase — см. MSCODEBASE_DATA_DIR)
+   ```
+
+> Задача 4/5: артефакты MCP больше НЕ пишутся в проект —
+> удалять `.codebase_indices` из корня проекта больше не нужно.
 
 ---
 
@@ -187,10 +197,13 @@ Or manually:
 | **settings.json warning** | Outdated keys (`lsp`, `mscodebase`) | Run `python install.py` — it will clean up |
 | **ModuleNotFoundError** | PYTHONPATH doesn't point to the extension | `python install.py` — fixes automatically |
 
-**Where data is stored:**
-- **Index (LanceDB):** `<project>/.codebase_indices/lancedb_v2/` — vector DB with code chunks
+**Where data is stored** (Задача 4/5 — ВНЕ проекта):
+- **Index (LanceDB):** `<data_root>/projects/<hash>/lancedb_v2/` — vector DB with code chunks
+- **Project Memory (ADR, known_issues):** `<data_root>/projects/<hash>/intelligence/`
+- **PropertyGraph:** `<data_root>/projects/<hash>/graph.db`
 - **Logs:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
-- **Project Memory (ADR, known_issues):** `<project>/.codebase_indices/intelligence/`
+- `data_root` = `%LOCALAPPDATA%\mscodebase\` (Windows) / `~/.cache/mscodebase` (Unix);
+  `<hash>` = md5(путь проекта)[:8]
 
 ---
 

@@ -59,14 +59,16 @@ class MemoryNode:
 
 
 class IntelligenceStore:
-    """Хранилище Project Memory и Incident History в .codebase_indices/intelligence/.
+    """Хранилище Project Memory и Incident History (вне проекта, Задача 4/5).
 
-    Данные хранятся в JSON-файлах для прозрачности и версионирования.
+    Данные хранятся в JSON-файлах в системной папке:
+    <data_root>/projects/<hash>/intelligence/.
     """
 
     def __init__(self, project_path: Path):
-        self.store_dir = project_path / ".codebase_indices" / "intelligence"
-        self.store_dir.mkdir(parents=True, exist_ok=True)
+        from src.core.artifact_paths import get_intelligence_dir
+
+        self.store_dir = get_intelligence_dir(project_path)
 
     def _load_json(self, filename: str) -> List[Dict]:
         path = self.store_dir / filename
@@ -133,15 +135,17 @@ class IntelligenceStore:
 class JobHistoryStore:
     """Persistent история индексаций для адаптивного ETA.
 
-    Хранится в .codebase_indices/metrics/job_history.json как список записей:
+    Хранится в <data_root>/projects/<hash>/metrics/job_history.json
+    (вне проекта, Задача 4/5) как список записей:
     {"project_size": int, "duration_sec": float, "timestamp": float}
 
     Используется для rolling average по размеру проекта (+-20%).
     """
 
     def __init__(self, project_path: Path):
-        self.metrics_dir = project_path / ".codebase_indices" / "metrics"
-        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        from src.core.artifact_paths import get_metrics_dir
+
+        self.metrics_dir = get_metrics_dir(project_path)
         self.history_file = self.metrics_dir / "job_history.json"
         self._lock: Optional[threading.Lock] = None  # лениво создаётся при записи
 

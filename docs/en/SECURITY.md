@@ -56,7 +56,7 @@ Starting with version 2.0.0, MSCodeBase Intelligence uses a hybrid architecture 
 
 | Component | Data | Sent To |
 |-----------|------|---------|
-| LanceDB | Vector index, code chunks | Locally (`.codebase_indices/`) |
+| LanceDB | Vector index, code chunks | Locally (`<data_root>/projects/<hash>/lancedb_v2/`, вне проекта) |
 | Tree-sitter | AST parsing | Locally, in process memory |
 | SafePathManager | Path validation | Locally, no network |
 | MCP tools | Search/analysis requests | Locally, stdio/SSE |

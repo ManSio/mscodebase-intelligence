@@ -4,7 +4,6 @@ MSCodebase Intelligence — Продакшен инкрементальный и
 
 import hashlib
 import logging
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -27,25 +26,14 @@ _BATCH_SIZE = 4       # Оптимум для small INT8: batch=4 даёт 52 ch
 def _generate_unique_db_path(project_path: Path) -> Path:
     """Генерирует уникальный путь к базе данных на основе пути проекта.
 
-    Это позволяет каждому проекту иметь свою изолированную базу данных,
-    предотвращая конфликты при параллельной индексации.
+    Задача 4/5: БД живёт ВНЕ проекта — в системной папке пользователя
+    (см. src/core/artifact_paths.py), с per-project изоляцией через хэш.
+    Миграция legacy-данных из .codebase_indices/ проекта выполняется
+    автоматически при первом создании проектной папки.
     """
-    # Используем хэш пути проекта для создания уникального имени файла
-    # Нормализуем путь: lower() + replace('\', '/') для защиты от разного регистра в Windows
-    normalized_path = str(project_path.resolve()).lower().replace("\\", "/")
-    project_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
-    project_name = os.path.basename(project_path).lower()
+    from src.core.artifact_paths import get_db_path
 
-    # Создаем директорию .codebase_indices в корне проекта, если её нет
-    # ВАЖНО: используем сам project_path, а не его parent — иначе БД создаётся
-    # в родительской директории (D:\Project\.codebase_indices вместо D:\Project\MSCodeBase\.codebase_indices)
-    project_root = project_path
-    db_dir = project_root / ".codebase_indices" / "lancedb_v2"
-    db_dir.mkdir(parents=True, exist_ok=True)
-
-    # Имя базы данных: index_{project_name}_{hash}.db
-    db_name = f"index_{project_name}_{project_hash}.db"
-    return db_dir / db_name
+    return get_db_path(project_path)
 
 
 class Indexer(IndexerTableMixin):
@@ -117,10 +105,11 @@ class Indexer(IndexerTableMixin):
         if symbol_index is not None:
             self._symbol_index = symbol_index
         else:
+            from src.core.artifact_paths import get_graph_db_path
             from src.core.graph import PropertyGraph
             from src.core.search.graph_adapter import SymbolIndexAdapter
 
-            _graph_db = self.project_path / ".codebase" / "graph.db"
+            _graph_db = get_graph_db_path(self.project_path)
             _pg = PropertyGraph(_graph_db)
             self._symbol_index = SymbolIndexAdapter(_pg, mode=SymbolIndexAdapter.MODE_PURE)
             logger.info(f"PropertyGraph: {_pg.count_nodes()} nodes, {_pg.count_edges()} edges")

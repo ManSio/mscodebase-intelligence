@@ -253,9 +253,11 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         try:
             pg = self._services.resolve(PropertyGraph)
         except KeyError:
+            from src.core.artifact_paths import get_graph_db_path
+
             indexer = self.resolve_indexer()
             project_path = indexer.project_path
-            db_path = project_path / ".codebase" / "graph.db"
+            db_path = get_graph_db_path(project_path)
             pg = PropertyGraph(db_path)
 
         executor = CypherExecutor(pg)
@@ -471,21 +473,23 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         except Exception:
             pass
 
-        # Fallback: прямой путь к PropertyGraph
+        # Fallback: прямой путь к PropertyGraph (вне проекта, Задача 4/5)
         if not db_path:
             from pathlib import Path
+            from src.core.artifact_paths import get_graph_db_path
             try:
                 registry = self._services.resolve(ProjectIndexerRegistry)
                 roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
                 for r in roots:
-                    candidate = Path(r) / ".codebase" / "graph.db"
+                    candidate = get_graph_db_path(Path(r))
                     if candidate.exists():
                         db_path = str(candidate)
                         break
             except Exception:
                 pass
         if not db_path:
-            candidate = Path("D:/Project/MSCodeBase/.codebase/graph.db")
+            from src.core.artifact_paths import get_graph_db_path
+            candidate = get_graph_db_path(Path("D:/Project/MSCodeBase"))
             if candidate.exists():
                 db_path = str(candidate)
 
@@ -623,18 +627,20 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
             pass
         if not db_path:
             from pathlib import Path
+            from src.core.artifact_paths import get_graph_db_path
             try:
                 registry = self._services.resolve(ProjectIndexerRegistry)
                 roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
                 for r in roots:
-                    candidate = Path(r) / ".codebase" / "graph.db"
+                    candidate = get_graph_db_path(Path(r))
                     if candidate.exists():
                         db_path = str(candidate)
                         break
             except Exception:
                 pass
         if not db_path:
-            candidate = Path("D:/Project/MSCodeBase/.codebase/graph.db")
+            from src.core.artifact_paths import get_graph_db_path
+            candidate = get_graph_db_path(Path("D:/Project/MSCodeBase"))
             if candidate.exists():
                 db_path = str(candidate)
 

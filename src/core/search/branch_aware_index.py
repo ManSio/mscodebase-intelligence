@@ -52,9 +52,11 @@ class BranchAwareIndex:
         if branch in self._branch_cache:
             return self._branch_cache[branch]
 
-        # Создаём уникальный путь для ветки
+        # Создаём уникальный путь для ветки (вне проекта, Задача 4/5)
+        from src.core.artifact_paths import get_branches_dir
+
         normalized = branch.replace("/", "_").replace("\\", "_")
-        db_dir = self.project_path / ".codebase_indices" / "branches" / normalized
+        db_dir = get_branches_dir(self.project_path) / normalized
         db_dir.mkdir(parents=True, exist_ok=True)
 
         db_path = db_dir / "codebase_chunks.db"
@@ -143,7 +145,9 @@ class BranchAwareIndex:
 
     def list_branch_indices(self) -> Dict[str, int]:
         """Список всех индексов для веток."""
-        branches_dir = self.project_path / ".codebase_indices" / "branches"
+        from src.core.artifact_paths import get_branches_dir
+
+        branches_dir = get_branches_dir(self.project_path)
 
         if not branches_dir.exists():
             return {}
@@ -183,7 +187,9 @@ class BranchAwareIndex:
         """
         import shutil
 
-        branches_dir = self.project_path / ".codebase_indices" / "branches"
+        from src.core.artifact_paths import get_branches_dir
+
+        branches_dir = get_branches_dir(self.project_path)
         if not branches_dir.exists():
             return 0
 

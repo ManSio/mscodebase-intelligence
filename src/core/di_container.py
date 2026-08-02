@@ -212,8 +212,10 @@ def create_service_collection(
     services.add_singleton(MultiProjectSearcher, multi_project_searcher)
 
     # PropertyGraph — персистентный граф знаний (v3.0)
-    # Хранится в .codebase/graph.db, WAL mode, потокобезопасен.
-    graph_db = project_root / ".codebase" / "graph.db"
+    # Хранится ВНЕ проекта (Задача 4/5): <data_root>/projects/<hash>/graph.db
+    from src.core.artifact_paths import get_graph_db_path
+
+    graph_db = get_graph_db_path(project_root)
     property_graph = PropertyGraph(graph_db)
     services.add_singleton(PropertyGraph, property_graph)
 
@@ -243,7 +245,7 @@ def create_service_collection(
     # ══════════════════════════════════════════════════════
     from src.core.notification_broker import NotificationBroker
 
-    notification_broker = NotificationBroker()
+    notification_broker = NotificationBroker(project_path=project_root)
     services.add_singleton(NotificationBroker, notification_broker)
 
     # ══════════════════════════════════════════════════════
@@ -272,8 +274,8 @@ def create_service_collection(
         """
         p_db_path = _generate_unique_db_path(p)
         p_file_guard = FileGuard(p)
-        # Per-project PropertyGraph + SymbolIndexAdapter
-        p_graph_db = p / ".codebase" / "graph.db"
+        # Per-project PropertyGraph + SymbolIndexAdapter (вне проекта, Задача 4/5)
+        p_graph_db = get_graph_db_path(p)
         p_property_graph = PropertyGraph(p_graph_db)
         p_symbol_index = SymbolIndexAdapter(p_property_graph, mode=SymbolIndexAdapter.MODE_PURE)
         p_indexer = Indexer(

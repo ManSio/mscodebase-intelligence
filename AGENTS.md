@@ -7,7 +7,12 @@
 
 ## 0. FIRST STEP IN ANY SESSION
 
-0. **Check File-Contract:** Read `.mscodebase/progress.json` (if exists) — живой прогресс индексации без MCP-запросов.
+0. **Check File-Contract:** Артефакты MCP живут ВНЕ проекта (Задача 4/5).
+   progress.json — в системной папке: `<MSCODEBASE_DATA_DIR | %LOCALAPPDATA%/mscodebase | ~/.cache/mscodebase>/projects/<hash8>/progress.json`,
+   где `<hash8>` = md5(normalized project path)[:8] (lower, `\\`→`/`).
+   Быстрый способ узнать путь — `intel_get_runtime_status` (поле `progress_file`)
+   или `python -c "from src.core.artifact_paths import get_progress_file; print(get_progress_file(Path('.').resolve()))"`.
+   Легаси-путь `.mscodebase/progress.json` в проекте — больше не пишется.
 
 1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root).
 2. **Determine MCP Context:**

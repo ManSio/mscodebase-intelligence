@@ -237,9 +237,9 @@ indexer = services.resolve(Indexer)  # same instance every time
 | 3 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
 | 4 | ProjectRegistry | singleton | `ProjectRegistry()` |
 | 5 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
-| 6 | PropertyGraph | singleton | `PropertyGraph(.codebase/graph.db)` |
+| 6 | PropertyGraph | singleton | `PropertyGraph(<data_root>/projects/<hash>/graph.db)` |
 | 7 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
-| 8 | NotificationBroker | singleton | `NotificationBroker()` |
+| 8 | NotificationBroker | singleton | `NotificationBroker(project_path=project_root)` |
 | 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
 | 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
 | 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |

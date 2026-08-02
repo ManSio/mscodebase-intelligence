@@ -252,18 +252,10 @@ class IndexHealthTool(MCPTool):
                 "message": f"Path does not exist: {project_root}",
             }
 
-        # Находим путь к БД
-        import hashlib
+        # Находим путь к БД (вне проекта, Задача 4/5)
+        from src.core.indexing.indexer import _generate_unique_db_path
 
-        normalized_path = str(target_path.resolve()).lower().replace("\\", "/")
-        project_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
-        project_name = target_path.name.lower()
-        db_path = (
-            target_path
-            / ".codebase_indices"
-            / "lancedb_v2"
-            / f"index_{project_name}_{project_hash}.db"
-        )
+        db_path = _generate_unique_db_path(target_path)
 
         if not db_path.exists():
             return {
