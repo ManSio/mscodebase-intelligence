@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-03 00:20] — Задача 2/5: DatabaseGateway — PID-lock вынесен в DatabaseLock (модуль + тесты)
+
+**Status:** ✅ Fixed (локально, не запушено)
+**Root Cause:** PID-lock (Layer 3 defense) был приватным 140-строчным методом LanceDBManager (_acquire_pid_lock) — не тестируем, не переиспользуем; wait_timeout=30s/retries=5 захардкожены; __del__ мог снять ЧУЖОЙ lock на Unix при неудачном acquire.
+**Fix:** новый src/core/indexing/database_lock.py — класс DatabaseLock (acquire/release/is_held/ctx-manager/__del__; конфигурируемые wait_timeout/retry_attempts/poll_interval; release удаляет файл только при _acquired). db_manager.py: __init__ → self._db_lock.acquire(), __del__ → release(), старые 3 метода удалены; докстринги index_project_runner обновлены.
+**Guard:** tests/test_database_lock.py — 10 тестов: acquire/release, живой владелец→таймаут RuntimeError, steal мёртвого/битого lock, гонка N=8 (ровно 1 победитель + PID в файле), ctx-manager, __del__.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный pytest 684 passed / 0 failed + test_lancedb_race + test_index_runner_deadlock (4 passed).
+
 ## [2026-08-02 23:55] — Задача 2/5: чистка мёртвого кода DI + файлы-адаптеры
 
 **Status:** ✅ Fixed (локально, не запушено)

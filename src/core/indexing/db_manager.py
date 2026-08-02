@@ -24,6 +24,7 @@ from typing import Any, Optional, Set
 import lancedb
 import pyarrow as pa
 
+from src.core.indexing.database_lock import DatabaseLock
 from src.core.indexing.index_guard import IndexGuard
 from src.utils.paths import to_win_long_path
 
@@ -71,9 +72,10 @@ class LanceDBManager:
         # ─── Single-writer PID lock (Layer 3 defense) ───
         # Гарантирует, что только ОДИН worker-процесс пишет в БД.
         # Второй процесс (launcher) будет ждать или работать read-only.
+        # Логика вынесена в DatabaseLock (см. database_lock.py).
         self._pid_lock_path = self.db_path / ".write_lock"
-        self._pid_lock_fd = None
-        self._acquire_pid_lock()
+        self._db_lock = DatabaseLock(self._pid_lock_path)
+        self._db_lock.acquire()
 
         self._on_recreate = None
 
@@ -490,152 +492,14 @@ class LanceDBManager:
         """Снимает guard после завершения reindex."""
         self._reindex_guard.clear()
 
-    # ══════════════════════════════════════════════════════════
-    # Single-writer PID lock (Layer 3 defense)
-    # ═════════════════════════════════════════════════════════
-    def _acquire_pid_lock(self) -> None:
-        """Acquire exclusive PID lock on the database directory.
-
-        Uses a lock file with PID + timestamp. Если lock занят живым PID —
-        сразу выходим (raise), не ждём 30 секунд. Дубли MCP должны умирать
-        быстро, чтобы не плодить 6 процессов на 30 секунд.
-        """
-        import json
-        import os
-        import time
-
-        lock_path = self._pid_lock_path
-
-        # Убеждаемся, что parent dir существует (LanceDB может не создать его до первого connect)
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Try to create lock file exclusively
-            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-            self._pid_lock_fd = fd
-            lock_data = json.dumps({
-                "pid": os.getpid(),
-                "started": time.time(),
-                "role": "worker"
-            }).encode()
-            os.write(fd, lock_data)
-            os.fsync(fd)
-            logger.info(f"🔒 PID lock acquired: {lock_path} (pid={os.getpid()})")
-            return
-        except FileExistsError:
-            # Lock существует — читаем данные владельца
-            try:
-                with open(lock_path, 'r') as f:
-                    data = json.load(f)
-                holder_pid = data.get('pid')
-            except (json.JSONDecodeError, OSError):
-                holder_pid = None  # битый/нечитаемый lock — трактуем как stale
-
-            if holder_pid and self._is_pid_alive(holder_pid):
-                # Lock занят живым процессом — ждём до 30 секунд
-                logger.warning(f"PID lock held by alive pid={holder_pid}, waiting...")
-                waited = 0
-                while waited < 30:
-                    time.sleep(1)
-                    waited += 1
-                    if not self._is_pid_alive(holder_pid):
-                        logger.info(f"Previous process pid={holder_pid} exited, proceeding")
-                        break
-                    if not lock_path.exists():
-                        break
-                else:
-                    # P1-14 audit: раньше молча падал вниз БЕЗ захвата лока
-                    # (писатель работал без блокировки). Теперь — явный крах.
-                    raise RuntimeError(
-                        f"PID lock still held by alive pid={holder_pid} "
-                        f"after 30s — другой процесс пишет в эту БД"
-                    )
-
-            # Holder мёртв / lock освобождён / lock битый — забираем lock
-            if lock_path.exists():
-                try:
-                    lock_path.unlink(missing_ok=True)
-                except PermissionError:
-                    # Windows: файл занят живым процессом — некража
-                    raise RuntimeError(
-                        f"Cannot steal PID lock from pid={holder_pid}: file in use"
-                    )
-
-            # Retry-loop на гонку: другой процесс может создать lock между
-            # unlink и os.open (P1-14 audit — раньше был один шанс и краш)
-            for _attempt in range(5):
-                try:
-                    fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-                    self._pid_lock_fd = fd
-                    lock_data = json.dumps({
-                        "pid": os.getpid(),
-                        "started": time.time(),
-                        "role": "worker"
-                    }).encode()
-                    os.write(fd, lock_data)
-                    os.fsync(fd)
-                    logger.info(f"🔒 PID lock acquired (after retry): {lock_path} (pid={os.getpid()})")
-                    return
-                except FileExistsError:
-                    time.sleep(0.5)
-            raise RuntimeError("PID lock race: another process acquired lock during retry")
-        except Exception as e:
-            logger.error(f"PID lock error: {e}")
-            raise
-
-    def _is_pid_alive(self, pid: int) -> bool:
-        """Check if a PID is alive (cross-platform).
-
-        На Unix: os.kill(pid, 0) — signal 0, ProcessLookupError = dead.
-        На Windows: os.kill для чужих процессов кидает WinError 11 (OSError)
-        даже если процесс жив. Используем ctypes.OpenProcess.
-        """
-        import os
-        import sys
-
-        if sys.platform == "win32":
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — минимальные права
-                handle = kernel32.OpenProcess(0x1000, False, pid)
-                if handle:
-                    kernel32.CloseHandle(handle)
-                    return True
-                # ERROR_INVALID_PARAMETER (87) — процесс не существует
-                return False
-            except Exception:
-                # fallback: если ctypes недоступен, считаем живым (safe side)
-                return True
-
-        # Unix: os.kill(pid, 0)
-        try:
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            return False
-        except OSError:
-            # PermissionError и др. — процесс существует, но недоступен
-            return True
-
-    def _release_pid_lock(self) -> None:
-        """Release the PID lock."""
-        if self._pid_lock_fd is not None:
-            try:
-                import os
-                os.close(self._pid_lock_fd)
-            except Exception:
-                pass
-            self._pid_lock_fd = None
-        try:
-            self._pid_lock_path.unlink(missing_ok=True)
-            logger.info(f"🔓 PID lock released: {self._pid_lock_path}")
-        except Exception:
-            pass
-
     def __del__(self):
         """Ensure lock is released on object destruction."""
-        self._release_pid_lock()
+        db_lock = getattr(self, "_db_lock", None)
+        if db_lock is not None:
+            try:
+                db_lock.release()
+            except Exception:
+                pass
 
     def is_reindexing(self) -> bool:
         """True, если reindex в процессе — search должен fast-fail."""
