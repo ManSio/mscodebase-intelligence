@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-03 02:10] — Задача 4/5: Артефакты вынесены из проекта в системную папку
+
+**Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
+**Root Cause:** MCP писал индексы/граф/память/телеметрию ВНУТРЬ пользовательского проекта (.codebase_indices/, .codebase/graph.db, .mscodebase/) — непригодно для чужих проектов; reset_index удалял чужие файлы.
+**Fix:** новый src/core/artifact_paths.py — единая точка путей: <data_root>/projects/<hash8>/… (md5 пути)[:8], data_root = %LOCALAPPDATA%/mscodebase | ~/.cache/mscodebase | MSCODEBASE_DATA_DIR. Подключены: indexer (_generate_unique_db_path), di_container (2×graph.db), store (intelligence/metrics), commit_memory, branch_aware_index, layer (telemetry), notification_broker (progress.json + file-contract в AGENTS.md §0), tools_reg (reset/reindex targets), graph_tools, indexing_tools, sarif_tool. Авто-миграция legacy-артефактов из проекта при первом создании проектной папки (best-effort, идемпотентна). progress_file добавлен в intel_get_runtime_status.index_telemetry.
+**Guard:** tests/test_artifact_paths.py (15 тестов: root/изоляция/детерминизм/миграция/идемпотентность) + обновлены test_real_path (путь всегда абсолютный), test_job_history, test_branch_aware_index. Полный pytest 726 passed / 0 failed.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный pytest 726 passed + синхронизация 15 файлов в расширение.
+
 ## [2026-08-03 01:10] — Задача 3/5: Startup Diagnostics + P0-фикс INC-6471 (GetExitCodeProcess)
 
 **Status:** ✅ Fixed (код+тесты, локально не запушено; синхронизировано в расширение)

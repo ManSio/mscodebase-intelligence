@@ -149,8 +149,11 @@ class SearchConfig:
 class IndexConfig:
     """Конфигурация для индексации"""
 
-    # Base directory
+    # Base directory — корень хранения артефактов ВНЕ проекта (Задача 4/5).
+    # Полный приоритет: MSCODEBASE_DATA_DIR → BASE_INDEX_DIR (абс.) →
+    # %LOCALAPPDATA%/mscodebase (Win) | ~/.cache/mscodebase (Unix).
     base_index_dir: str = os.getenv("BASE_INDEX_DIR", ".codebase_indices")
+    data_root: str = os.getenv("MSCODEBASE_DATA_DIR", "")
 
     # LanceDB
     lancedb_version: str = os.getenv("LANCEDB_VERSION", "v2")

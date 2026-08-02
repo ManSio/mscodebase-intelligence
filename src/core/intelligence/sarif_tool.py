@@ -26,9 +26,10 @@ def get_dead_code_sarif(project_root: Optional[str] = None) -> dict:
         root = Path.cwd()
 
     try:
+        from src.core.artifact_paths import get_graph_db_path
         from src.core.graph import PropertyGraph
 
-        graph = PropertyGraph(root / ".codebase" / "graph.db")
+        graph = PropertyGraph(get_graph_db_path(root))
         return graph.detect_dead_code_sarif()
     except Exception as e:
         return {"error": str(e)}

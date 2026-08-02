@@ -29,12 +29,16 @@ def test_append_and_load(temp_project: Path):
 
 
 def test_history_file_location(temp_project: Path):
-    """История сохраняется в .codebase_indices/metrics/job_history.json."""
+    """История сохраняется ВНЕ проекта: <data_root>/projects/<hash>/metrics/job_history.json."""
+    from src.core.artifact_paths import get_metrics_dir
+
     store = JobHistoryStore(temp_project)
     store.append_record(50, 20.0)
 
-    expected = temp_project / ".codebase_indices" / "metrics" / "job_history.json"
+    expected = get_metrics_dir(temp_project) / "job_history.json"
     assert expected.exists()
+    # Задача 4/5: в проекте не остаётся .codebase_indices
+    assert not (temp_project / ".codebase_indices").exists()
 
 
 def test_rolling_average_similar_size(temp_project: Path):

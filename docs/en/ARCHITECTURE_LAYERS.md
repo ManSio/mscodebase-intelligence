@@ -19,7 +19,9 @@ Each layer answers exactly one question.
 ```
 
 > **v3.0 change:** Layer 8 (Graph) added between Passport and Intel. PropertyGraph
-> stores typed nodes (15 labels) and edges (27 types) in `.codebase/graph.db` (SQLite WAL+mmap).
+> stores typed nodes (15 labels) and edges (27 types) in
+> `<data_root>/projects/<hash>/graph.db` (SQLite WAL+mmap). Задача 4/5: граф
+> хранится ВНЕ проекта — в системной папке пользователя.
 
 ---
 

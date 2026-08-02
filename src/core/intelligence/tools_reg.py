@@ -77,8 +77,15 @@ def register_intelligence_tools(mcp_app, intel_layer):
                             _dbm.clear_reindexing()
                 else:
                     # Fallback: если db_manager недоступен — старый rmtree (редко)
+                    # Задача 4/5: индекс теперь в системной папке, не в проекте.
                     import shutil
-                    _targets = [intel_layer.project_path / '.codebase_indices']
+                    from src.core.artifact_paths import (
+                        get_index_dir,
+                        legacy_project_dirs,
+                    )
+
+                    _targets = [get_index_dir(intel_layer.project_path)]
+                    _targets += legacy_project_dirs(intel_layer.project_path)
                     ext_root = __import__('os').environ.get('_ext_root', '')
                     if ext_root:
                         _targets.append(__import__('pathlib').Path(ext_root) / '.codebase_indices')
@@ -152,10 +159,15 @@ def register_intelligence_tools(mcp_app, intel_layer):
                     logger.warning(f"close_for_maintenance failed: {_close_err}")
             # 2. THEN физически удаляем директории. ignore_errors=False — залоченные
             #    mmap-файлы НЕ пропускаются молча: PermissionError → fresh DB path.
+            #    Задача 4/5: основной таргет — системная папка (вне проекта).
             import shutil
-            _targets = [
-                intel_layer.project_path / '.codebase_indices',
-            ]
+            from src.core.artifact_paths import (
+                get_index_dir,
+                legacy_project_dirs,
+            )
+
+            _targets = [get_index_dir(intel_layer.project_path)]
+            _targets += legacy_project_dirs(intel_layer.project_path)
             ext_root = __import__('os').environ.get('_ext_root', '')
             if ext_root:
                 _targets.append(__import__('pathlib').Path(ext_root) / '.codebase_indices')

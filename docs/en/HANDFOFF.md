@@ -19,7 +19,7 @@ Runs fully locally: LanceDB (vector index) + ONNX E5-base INT8 (in-process embed
 - 48 MCP tools (19 core + 13 intel + 12 inline + 4 dev) — including `query_graph` (Cypher engine)
 - 11 tool files, 16 services in the DI container
 - Index: ~3000 chunks, ~170 files, ~1550 symbols
-- **PropertyGraph**: SQLite graph (15 node types, 27 edge types) in `.codebase/graph.db`
+- **PropertyGraph**: SQLite graph (15 node types, 27 edge types) in `<data_root>/projects/<hash>/graph.db`
 
 ---
 
@@ -107,10 +107,17 @@ JSON files. **Fix:** `asyncio.Lock` in `IntelligenceStore`.
 
 | Data | Path |
 |------|------|
-| Vector index | `<project>/.codebase_indices/lancedb_v2/` |
-| Project memory (ADR, issues) | `<project>/.codebase_indices/intelligence/` |
+| Vector index | `<data_root>/projects/<hash>/lancedb_v2/` |
+| Project memory (ADR, issues) | `<data_root>/projects/<hash>/intelligence/` |
+| PropertyGraph | `<data_root>/projects/<hash>/graph.db` |
+| progress.json (file-contract) | `<data_root>/projects/<hash>/progress.json` |
 | Logs | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
 | Zed's database | `%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite` |
+
+> Задача 4/5: все артефакты живут ВНЕ проекта — `data_root` =
+> `%LOCALAPPDATA%\mscodebase\` (Windows) / `~/.cache/mscodebase` (Unix),
+> `<hash>` = md5(путь проекта)[:8]. Legacy-артефакты из проекта переносятся
+> автоматически при первом запуске.
 
 ---
 

@@ -208,7 +208,7 @@ def build_startup_report(
     """Собирает полный отчёт: lock + БД + человеческие действия.
 
     Args:
-        db_path: путь к директории LanceDB (например `.codebase_indices/lancedb_v2`).
+        db_path: путь к директории LanceDB (например `<data_root>/projects/<hash>/lancedb_v2`).
         table_name: имя таблицы (по умолчанию `codebase_chunks`).
         lock_path: путь к lock-файлу; по умолчанию `db_path / ".write_lock"`.
 

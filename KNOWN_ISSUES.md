@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-03 — Задача 4/5: Артефакты MCP вынесены из проекта в системную папку (FIXED, локально)
+
+**Symptom:** MCP писал .codebase_indices/, .codebase/graph.db, .mscodebase/ внутрь пользовательского проекта; reset_index удалял эти папки в чужих проектах; работа с чужим кодом засоряла репозиторий.
+**Fix:** src/core/artifact_paths.py (единая точка путей: <data_root>/projects/<hash8>/, data_root = %LOCALAPPDATA%/mscodebase | ~/.cache/mscodebase | MSCODEBASE_DATA_DIR); авто-миграция legacy-артефактов при первом создании проектной папки; progress.json → системная папка (file-contract AGENTS.md §0, поле progress_file в runtime status).
+**Status:** ✅ локально — 726 passed / 0 failed; 15 файлов синхронизировано в расширение; не запушено.
+
+---
+
 ## 2026-08-03 — Задача 3/5: Startup Diagnostics + P0 INC-6471 (GetExitCodeProcess) (FIXED, локально)
 
 **Symptom:** (1) при старте/сбое пользователь видел Rust-трейс (`lance-io-8.0.0\src\local.rs`) вместо человеческого действия; (2) P0: lock-файл упавшего MCP (PID 6264, exit_code=1) выглядел ЖИВЫМ — OpenProcess возвращает handle для завершённого, но не очищенного процесса → новый процесс ждал 30с и падал RuntimeError вместо steal → заблокированный запуск/реиндекс.

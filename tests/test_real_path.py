@@ -47,7 +47,20 @@ def test_unique_db_path_is_deterministic(tmp_path):
     p1 = _generate_unique_db_path(tmp_path / "proj_a")
     p2 = _generate_unique_db_path(tmp_path / "proj_a")
     assert p1 == p2
-    assert p1.parent.exists()  # директория .codebase_indices/lancedb_v2 создана
+    assert p1.parent.exists()  # директория <data_root>/projects/<hash>/lancedb_v2 создана
+
+
+def test_unique_db_path_outside_project(tmp_path):
+    """Задача 4/5: БД живёт ВНЕ проекта (системная папка), проект не засоряется."""
+    proj = tmp_path / "proj_a"
+    proj.mkdir()
+    db = _generate_unique_db_path(proj)
+    # Путь БД не находится внутри каталога проекта
+    assert not str(db).lower().startswith(str(proj.resolve()).lower())
+    # В проекте не появляется .codebase_indices
+    assert not (proj / ".codebase_indices").exists()
+    assert not (proj / ".codebase").exists()
+    assert not (proj / ".mscodebase").exists()
 
 
 def test_unique_db_path_isolates_projects(tmp_path):
@@ -80,12 +93,12 @@ def test_unique_db_path_uses_basename_not_full_path(tmp_path):
 
 
 def test_unique_db_path_supports_relative_project(tmp_path, monkeypatch):
-    """Относительный проект: хэш резолвится, но возвращается путь как передан.
+    """Относительный проект: хэш резолвится, путь — ВСЕГДА абсолютный.
 
-    ВАЖНО: _generate_unique_db_path применяет resolve() ТОЛЬКО для хэша
-    (нормализация регистра/разделителей), а сам возвращаемый путь строится
-    от переданного project_path без resolve. Относительный вход →
-    относительный выход, абсолютный → абсолютный. Имя БД (хэш) совпадает.
+    Задача 4/5: БД в системной папке → выход всегда абсолютный, независимо
+    от формы входа. Раньше относительный вход давал относительный выход
+    (БД создавалась относительно CWD — риск засорить проект). Имя БД (хэш)
+    совпадает для обеих форм входа.
     """
     monkeypatch.chdir(tmp_path)
     proj = tmp_path / "rel_proj"
@@ -94,8 +107,8 @@ def test_unique_db_path_supports_relative_project(tmp_path, monkeypatch):
     p2 = _generate_unique_db_path(proj)
     # Одинаковое имя БД (resolve() в хэше даёт один hash)
     assert p1.name == p2.name
-    # Относительный вход → относительный выход; абсолютный → абсолютный
-    assert not p1.is_absolute()
+    # Относительный вход → ВСЁ РАВНО абсолютный выход (системная папка)
+    assert p1.is_absolute()
     assert p2.is_absolute()
     assert p1.parent.name == "lancedb_v2"
     assert p2.parent.name == "lancedb_v2"

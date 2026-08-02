@@ -543,6 +543,15 @@ class ProjectIntelligenceLayer:
                     "db_isolated_path": str(active_indexer.db_path)
                     if hasattr(active_indexer, "db_path")
                     else "unknown",
+                    # Задача 4/5: file-contract для агента (AGENTS.md §0)
+                    "progress_file": str(
+                        __import__(
+                            "src.core.artifact_paths",
+                            fromlist=["get_progress_file"],
+                        ).get_progress_file(active_indexer.project_path)
+                    )
+                    if hasattr(active_indexer, "project_path")
+                    else "unknown",
                     "index_healthy": total_chunks > 0,
                     "queue_depth": 0,
                     "total_chunks": total_chunks,
@@ -1282,10 +1291,11 @@ class ProjectIntelligenceLayer:
             logger.warning(f"Exception suppressed at layer.py: {_ee}")
             result["eta_stats"] = {"error": str(_ee)}
 
-        # Сохраняем снэпшот на диск при каждом вызове
+        # Сохраняем снэпшот на диск при каждом вызове (вне проекта, Задача 4/5)
         try:
-            _telemetry_dir = self.project_path / ".mscodebase" / "telemetry"
-            _telemetry_dir.mkdir(parents=True, exist_ok=True)
+            from src.core.artifact_paths import get_telemetry_dir
+
+            _telemetry_dir = get_telemetry_dir(self.project_path)
             _date_str = time.strftime("%Y-%m-%d")
             _filepath = _telemetry_dir / f"{_date_str}.json"
 
@@ -1337,7 +1347,7 @@ class ProjectIntelligenceLayer:
         except Exception as _e:
             logger.debug(f"Сохранение снэпшота телеметрии: {_e}")
 
-        # История телеметрии за N дней (из .mscodebase/telemetry/)}
+        # История телеметрии за N дней (из системной папки)}
         try:
             from scripts.collect_telemetry import get_history
 

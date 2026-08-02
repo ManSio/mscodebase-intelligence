@@ -101,13 +101,15 @@ class TestBranchAwareIndex:
             assert indices == {}
 
     def test_cleanup_old_branches(self):
-        """Очистка устаревших веток."""
+        """Очистка устаревших веток (ветки — в системной папке, Задача 4/5)."""
+        from src.core.artifact_paths import get_branches_dir
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
 
-            # Создаём директории веток
-            branches_dir = tmp_path / ".codebase_indices" / "branches"
-            branches_dir.mkdir(parents=True)
+            # Создаём директории веток в системной папке
+            # (get_branches_dir уже создаёт саму branches_dir)
+            branches_dir = get_branches_dir(tmp_path)
 
             (branches_dir / "old_branch").mkdir()
             (branches_dir / "old_branch" / "codebase_chunks.db").touch()

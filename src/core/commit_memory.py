@@ -45,9 +45,10 @@ class CommitMemory:
             # D:\d\... -> D:\...
             resolved = Path(resolved_str[:2] + resolved_str[4:])
         self.project_path = resolved
-        self.cache_dir = cache_dir or (
-            self.project_path / ".codebase_indices" / "commit_memory"
-        )
+        # Задача 4/5: кэш коммитов — в системной папке, не в проекте.
+        from src.core.artifact_paths import get_commit_memory_dir
+
+        self.cache_dir = cache_dir or get_commit_memory_dir(self.project_path)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_dir / "commits.json"
         self._commits: List[Dict] = []

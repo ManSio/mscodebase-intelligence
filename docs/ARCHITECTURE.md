@@ -50,8 +50,8 @@ MSCodeBase Intelligence is a hybrid code intelligence system combining:
 │                      EXTERNAL PROCESSES                                 │
 │  ┌─────────────────────┐  ┌─────────────────────┐                      │
 │  │ llama-server.exe    │  │  LanceDB (embedded) │                      │
-│  │ (BGE-M3 reranker)   │  │  .codebase_indices/ │                      │
-│  │ port 8081           │  │  lancedb_v2/        │                      │
+│  │ (BGE-M3 reranker)   │  │  <data_root>/projects│                      │
+│  │ port 8081           │  │  /<hash>/lancedb_v2/ │                      │
 │  └─────────────────────┘  └─────────────────────┘                      │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -316,10 +316,21 @@ Format → UI items with 🔍fts5 / 🔤bm25 / 🧠dense badges
 ### Key Paths
 ```
 Extension:     %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\
-Index DB:      <project>\.codebase_indices\lancedb_v2\index_<hash>.db\
+
+Artifacts (Задача 4/5 — ВНЕ проекта):
+  Data root:    %LOCALAPPDATA%\mscodebase\        (или ~/.cache/mscodebase; override: MSCODEBASE_DATA_DIR)
+  Index DB:     <data_root>\projects\<hash>\lancedb_v2\index_<hash>.db
+  Project memory: <data_root>\projects\<hash>\intelligence\
+  PropertyGraph:  <data_root>\projects\<hash>\graph.db
+  progress.json:  <data_root>\projects\<hash>\progress.json
+
 Logs:          <ext>\.codebase_indices\logs\mscodebase-intelligence.log
 Models:        <ext>\models\ (ONNX) + <ext>\llama_msvc\ (reranker)
 ```
+
+> `<hash>` = md5(нормализованный путь проекта, lower, `\\`→`/`)[:8].
+> При первом запуске legacy-артефакты (.codebase_indices/, .codebase/graph.db,
+> .mscodebase/telemetry) из проекта автоматически переносятся в системную папку.
 
 ---
 
