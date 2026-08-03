@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-03 20:15] — Верификация Задачи 5/5 после полного реиндекса + дедуп callers
+
+**Status:** ✅ Verified (реальный reindex + граф-проверка)
+**Root Cause (косметический дефект, найден при верификации):** find_references собирает incoming CALLS по каждому найденному узлу — интерфейс + реализация метода дают одно и то же ребро дважды → рендер `🔗 Вызывается из:` дублировал caller.
+**Fix:** graph_adapter_pure.py find_references — дедупликация по (symbol, file, line). Синхронизировано в расширение.
+**Guard:** верификация на реальном графе после полного reindex (4746 чанков): nodes 6159→6566, edges 8587→18720; find_references('search_with_mode') 0→1 (SearchCodeTool.execute, search_tools.py:360); `_expand_graph_context` 5.07ms (OK <50ms); тесты test_graph_center 8/8, полный pytest 725 passed / 13 skipped.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный reindex 4746 чанков + smoke реального пути engine.py + полный pytest.
+
 ## [2026-08-03] — Задача 5/5: Граф в каждом режиме поиска (INC: CALLS в методы = 0)
 
 **Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
