@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-08-03] — Задача 5/5: Граф в каждом режиме поиска (INC: CALLS в методы = 0)
+
+**Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
+**Root Cause:** (1) `_extract_calls_recursive` эмитил caller без класса → `add_edge` молча дропал рёбра в методы (0 CALLS в qualified узлы, 2043 всего). (2) Python `self.method()` — узел `attribute` вне CALL_IDENTIFIER_TYPES → callee="" → вызовы из Python-методов не извлекались ВООБЩЕ. (3) `find_references/get_call_chain/find_definitions` — exact-LIKE не матчит `Class.method`. (4) граф был только в quality/deep.
+**Fix:** parser.py: caller методов квалифицируется классом + `attribute` в CALL_IDENTIFIER_TYPES с извлечением последнего identifier. graph_adapter_pure.py: suffix-поиск callee (`%.bar`) при exact-промахе + `_find_nodes_flexible` в 3 поисках. engine.py: `_expand_graph_context` в fast-ветку (тайминг graph_expansion_ms) и auto-simple `search()` с рендером `🔗 Вызывается из:`.
+**Guard:** tests/test_graph_center.py (8 тестов: квалификация парсером, резолв методов не в __extern__, suffix-поиск, обогащение callers в fast). Полный pytest 734 passed / 4 skipped. Бенч: 10× find_references = 6.30 ms → OK <50ms.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный pytest 734 passed + smoke на реальном engine.py (294/298 calls квалифицированы). Реальные рёбра в методы — после Reload Window + полного reindex (старый graph.db построен старым парсером).
+
 ## [2026-08-03 02:10] — Задача 4/5: Артефакты вынесены из проекта в системную папку
 
 **Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)

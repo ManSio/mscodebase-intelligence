@@ -109,6 +109,15 @@ class PureGraphMixin:
                 name_pattern=callee,
                 limit=5,
             )
+            if not callee_nodes:
+                # Методы хранятся с qualified name ("Class.method") —
+                # точный LIKE по голому имени не находит их, и каждая
+                # ссылка на метод превращалась в __extern__ заглушку.
+                # Suffix-поиск резолвит методы в реальные узлы.
+                callee_nodes = self._graph.find_nodes(
+                    name_pattern=f"%.{callee}",
+                    limit=5,
+                )
             if callee_nodes:
                 for cn in callee_nodes:
                     self._graph.add_edge(
@@ -220,12 +229,25 @@ class PureGraphMixin:
         result["total_connected"] = len(result["callers_chain"]) + len(result["callees_chain"])
         return result
 
+    def _find_nodes_flexible(self, symbol: str, limit: int) -> List[Node]:
+        """Находит узлы по символу: точное имя, затем qualified-name suffix.
+
+        PropertyGraph хранит методы с qualified name ("Class.method"), а
+        вызовы/поиски приходят с голым именем ("method"). Точный LIKE
+        (name LIKE 'method') не матчит "Class.method", поэтому сначала
+        пробуем exact, потом suffix "%.method" — покрывает оба случая.
+        """
+        nodes = self._graph.find_nodes(name_pattern=symbol, limit=limit)
+        if not nodes:
+            nodes = self._graph.find_nodes(name_pattern=f"%.{symbol}", limit=limit)
+        return nodes
+
     def get_call_chain(self, symbol: str, direction: str = "both", max_depth: int = 3) -> Dict:
         """Цепочка вызовов: кто вызывает (up) / кого вызывает (down).
 
         Использует PropertyGraph.get_neighbors с BFS.
         """
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=5)
+        nodes = self._find_nodes_flexible(symbol, limit=5)
         if nodes:
             return self._graph_call_chain(nodes[0], direction, max_depth)
 
@@ -241,7 +263,7 @@ class PureGraphMixin:
         Сначала PropertyGraph, fallback на in-memory HYBRID.
         """
         # Пробуем через PropertyGraph
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=20)
+        nodes = self._find_nodes_flexible(symbol, limit=20)
         if nodes:
             result = []
             for n in nodes:
@@ -270,7 +292,7 @@ class PureGraphMixin:
     def find_references(self, symbol: str) -> List[SymbolRef]:
         """Где используется символ."""
         # PropertyGraph: ищем incoming CALLS edges
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=5)
+        nodes = self._find_nodes_flexible(symbol, limit=5)
         if nodes:
             refs = []
             for n in nodes:

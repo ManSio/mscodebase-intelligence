@@ -666,6 +666,9 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             results = self.hybrid_search(
                 query, limit=limit, since=since, before=before, layer=layer
             )
+            # Graph context expansion для auto-simple (Задача 5/5):
+            # граф участвует в каждом запросе, не только quality/deep.
+            results = self._expand_graph_context(results, query)
             if not results:
                 return _(
                     "🔍 По запросу ничего не найдено (база пуста или эмбеддер недоступен)."
@@ -680,8 +683,13 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 output.append(
                     f"{i}. 📄 {res['metadata']['file']} [Чанк #{res['metadata']['chunk_index']}]\n"
                     f"```\n{code_text}\n```\n"
-                    f"{'-' * 60}\n"
                 )
+                # Связи из графа вызовов (если найдены)
+                callers = res.get("metadata", {}).get("callers")
+                if callers:
+                    caller_names = ", ".join(c.get("symbol", "?") for c in callers[:3])
+                    output.append(f"🔗 Вызывается из: {caller_names}\n")
+                output.append(f"{'-' * 60}\n")
             return "".join(output)
         except Exception as e:
             return _("❌ Search engine error: {error}", error=str(e))
@@ -789,6 +797,13 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                     results = reciprocal_rank_fusion_3way([], results, fts5_raw, limit)
             except Exception as e:
                 logger.debug(f"FTS5 search error in fast mode: {e}")
+
+            # Graph context expansion для fast mode (Задача 5/5): связи из
+            # графа вызовов (callers/callees) видны агенту без reranker'а.
+            # Стоимость измерена ~7ms на 10 результатов (SQLite граф).
+            t1 = time.perf_counter()
+            results = self._expand_graph_context(results, query)
+            timing["graph_expansion_ms"] = (time.perf_counter() - t1) * 1000
 
         elif mode == self.MODE_DEEP:
             # DEEP: quality + graph context

@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-03 — Задача 5/5: Граф в каждом режиме поиска (CALLS в методы = 0) (FIXED, локально)
+
+**Symptom:** граф участвовал только в quality/deep; в fast/auto — обычный векторный поиск. CALLS-рёбра в методы отсутствовали полностью: (1) caller эмитился без класса → add_edge молча дропал; (2) Python `self.method()` (узел `attribute`) не входил в CALL_IDENTIFIER_TYPES → вызовы из Python-методов не извлекались вообще.
+**Fix:** parser.py — caller методов квалифицируется классом + `attribute` в CALL_IDENTIFIER_TYPES; graph_adapter_pure.py — suffix-поиск callee (`%.bar`) + `_find_nodes_flexible` в find_references/get_call_chain/find_definitions; engine.py — `_expand_graph_context` в fast-ветку и auto-simple `search()` (+ рендер `🔗 Вызывается из:`).
+**Status:** ✅ локально — 8 новых тестов, полный pytest 734 passed / 4 skipped; бенч 10× find_references = 6.30 ms (OK <50ms); 3 файла синхронизированы в расширение; не запушено. Реальные рёбра в методы — после Reload Window + полного reindex.
+
+---
+
 ## 2026-08-03 — Задача 4/5: Артефакты MCP вынесены из проекта в системную папку (FIXED, локально)
 
 **Symptom:** MCP писал .codebase_indices/, .codebase/graph.db, .mscodebase/ внутрь пользовательского проекта; reset_index удалял эти папки в чужих проектах; работа с чужим кодом засоряла репозиторий.
