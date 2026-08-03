@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+import os
 import shutil
 import threading
 import time
@@ -245,6 +246,7 @@ class LanceDBManager:
                 db_path=self.db_path,
                 table_name=self.table_name,
                 lock_path=self._pid_lock_path,
+                current_pid=os.getpid(),
             )
             if self._startup_issue:
                 report.issues.insert(0, self._startup_issue)
@@ -414,6 +416,16 @@ class LanceDBManager:
                     self.table = self.db.open_table(self.table_name)
                 except Exception as _open_err:
                     logger.warning(f"Table re-open after switch failed: {_open_err}")
+
+            # Синхронизируем ссылки на таблицу во всех компонентах
+            # (stale ghost table, AGENT_DIARY 2026-08-02 00:26): switch_db /
+            # fresh-path fallback НЕ вызывал callback — writer/runner/freshness
+            # продолжали писать/читать удалённую таблицу по старому пути.
+            if self._on_recreate is not None:
+                try:
+                    self._on_recreate(self.table)
+                except Exception as _cb_err:
+                    logger.debug(f"switch_db: on_recreate callback failed: {_cb_err}")
 
             # Warmup new cache
             self._warmup_cache()

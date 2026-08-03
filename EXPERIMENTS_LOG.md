@@ -1,5 +1,25 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-03] — Гипотеза: ONNX embedder не поднимается из-за off-by-one путей (не из-за модели/портов)
+
+**Ожидание:** исправление PROJECT_ROOT (parent×3 → parents[3]) в onnx_client/onnx_server вернёт ONNX-режим: сервер найдёт скрипт и модель, /embed вернёт 384-dim.
+**Команда:**
+```
+cd <ext> && PYTHONPATH=<ext> venv/Scripts/python.exe D:/Project/MSCodeBase/.local/onnx_client_check.py
+curl -X POST http://127.0.0.1:9876/embed -d '{"text":"тест"}'
+```
+**Сырой результат:**
+```
+[1] ensure_server_running: True
+[2] embed status=200
+[3] dim=384 first3=[0.037, -0.058, -0.041]
+ONNX CLIENT PATH: PASSED
+```
+**Вердикт:** подтверждена — причина в путях: (1) onnx_client искал `…\src\src\core\embedder\onnx_server.py` (задвоенный src), (2) onnx_server искал модель в `…/src/.codebase_models/…` (вместо корня). До фикса: `FileNotFoundError: Model directory not found for: multilingual-e5-small-int8`. Логи сервера: «НЕ УДАЛОСЬ загрузить E5-base ONNX» ×5 за день.
+**Урок:** off-by-one пути в `src/core/embedder/` копируются между файлами (onnx_client ← onnx_server) — при работе с путями в src/core/embedder обязателен `parents[3]` или проверка `path.exists()` на всех search_paths (remote_embedder использует get_extension_dir — верно).
+
+---
+
 ## [2026-07-31] — P0-3: verify_clean_state.sh --no-clone (CI self-clone убран)
 
 ### Гипотеза
@@ -96,3 +116,44 @@ tests/test_lancedb_recreate.py::test_close_for_maintenance_releases_handles PASS
 ```
 **Вердикт:** ПОДТВЕРЖДЕНА — в чистом окружении drop+create даёт 1 фрагмент (наследования нет); корень INC-6C62 — именно залоченные mmap-файлы живого MCP-процесса. Фикс: `recreate_table_physical()` (close → gc → sleep 0.5 → rmtree(ignore_errors=False) → reconnect; PermissionError → fresh path). Полный pytest: 670 passed / 0 failed.
 **Вывод:** физическое пересоздание таблицы или fresh-path — единственный надёжный путь; drop+create под живым процессом запрещён (guard: recreate_table_physical централизует все 4 места).
+
+
+## [2026-08-03] — Гипотеза: Python 3.14 ломает asyncio.get_event_loop() в синхронных потоках проекта
+
+**Триггер §1.7 п.2:** проект работает на Python 3.14.3 (новее training cutoff); §1.9 требует проверки актуальности API по источнику, а не по памяти.
+**Ожидание:** официальный changelog подтвердит «get_event_loop() без текущего цикла → RuntimeError»; в проекте найдутся использования в синхронном коде без защиты → латентные поломки инструментов в non-loop потоках.
+**Команда:** fetch https://docs.python.org/3.14/whatsnew/3.14.html (секции Removed/Deprecated/asyncio) + grep `get_event_loop|set_event_loop_policy|iscoroutinefunction` в src/ + чтение контекстов.
+**Сырой результат:**
+```
+В Python 3.14: asyncio.get_event_loop() raises RuntimeError if no current event loop,
+no longer implicitly creates one. asyncio policy system deprecated (удаление в 3.16).
+iscoroutinefunction deprecated → inspect.iscoroutinefunction. from __future__ import
+annotations deprecated (после EOL 3.13, 2029). Инкрементальный GC 3.14.0-3.14.4
+ОТКАТАН в 3.14.5 (memory pressure). Новое: python -m asyncio ps/pstree PID,
+pdb -p PID, pathlib.copy/move, map(strict=), uuid6/7/8.
+grep: 15 использований get_event_loop — 14 защищены (async-контекст или except RuntimeError),
+1 латентный: error_handler.py:605 sync_wrapper (RuntimeError ловится общим except Exception
+→ инструмент вернёт ошибку вместо запуска в non-loop потоке).
+```
+**Вердикт:** ПОДТВЕРЖДЕНА (частично — 1 из 15 рискован). Фикс error_handler.py:605: get_event_loop() → get_running_loop() + fallback на прямой вызов (поведение идентично ≤3.13 во всех контекстах). 56 passed (error-тесты). Остальные 14 — проверены и безопасны (except RuntimeError есть везде, где нужен).
+**Урок:** «get_event_loop() в sync-обёртке» — классический паттерн-ловушка: работал все годы, ломается тихо на 3.14. Guard: новые sync-обёртки используют get_running_loop() с try/except, никогда get_event_loop(). Отдельный урок: verify_diary.py — проверяльщик без собственных тестов; его ложные ❌ шумели в логах при каждом старте MCP (3 бага, exp-16 связан с KNOWN_ISSUES#2026-08-03 23:40). Применимость: audit asyncio-паттернов при бампе рантайма; python -m asyncio pstree <PID> — новый инструмент диагностики зависших async-задач MCP.
+
+---
+
+## [2026-08-03] — Гипотеза: рефлексивное обучение (Reflexion/Self-Refine) применимо к операционной DIS-системе агента через дневники
+
+**Триггер §1.7 п.3:** задача «как сделать агента самообучающимся» (add.md) — сама формулировка есть триггер исследования.
+**Ожидание:** академические подходы к самообучению LLM-агентов (вербальная рефлексия, memory augmentation) ложатся на существующие артефакты проекта (AGENT_DIARY, EXPERIMENTS_LOG, KNOWN_ISSUES) без переобучения весов.
+**Команда:** fetch arXiv:2303.11366 (Reflexion), arXiv:2303.17651 (Self-Refine), arXiv:2309.02427 (CoALA).
+**Сырой результат:**
+```
+Reflexion (Shinn et al., 2023, arXiv:2303.11366): вербальная рефлексия в episodic
+memory → 91% pass@1 на HumanEval; дообучение весов не требуется.
+Self-Refine (Madaan et al., 2023, arXiv:2303.17651): итеративный цикл feedback→refine
+даёт ~20% абсолютного улучшения (GPT-4, 7 задач).
+CoALA (Sumers et al., 2023, arXiv:2309.02427): modular memory = episodic (история
+инцидентов) + semantic (правила/паттерны) + procedural (навыки) + working (контекст)
+— прямое соответствие AGENT_DIARY/KNOWN_ISSUES/протоколу.
+```
+**Вердикт:** подтверждена — впитано в личный AGENTS.md: §3.5 (Systemic Generalization Loop), §3.6 (Cross-Domain Analogies), §6.6.2 (мета-проверка паттернов P-###), §6.6.5 (отрицательные результаты), §6.6.8 (Monthly Self-Review), §11 (добродетель «Обучение»).
+**Урок:** дневники проекта — это уже CoALA-память; протоколу не хватало только циклов рефлексии (обобщение после фикса, мета-анализ раз в месяц), а не новых артефактов.

@@ -10,7 +10,8 @@ Startup diagnostics — человекочитаемая диагностика 
 запись остаётся за LanceDBManager / intel_reset_index (семантика §5.13 / INC-6C62).
 
 Состояния:
-- PID-lock: free / held_alive / stale / corrupt
+- PID-lock: free / self / held_alive / stale / corrupt
+  (self = lock принадлежит ТЕКУЩЕМУ процессу — штатно, не ошибка)
 - БД: missing / empty / healthy / corrupt
 """
 
@@ -33,7 +34,7 @@ DEFAULT_TABLE_NAME = "codebase_chunks"
 class LockStatus:
     """Статус PID-lock-файла (read-only, без захвата)."""
 
-    state: str  # free | held_alive | stale | corrupt
+    state: str  # free | self | held_alive | stale | corrupt
     holder_pid: Optional[int] = None
     holder_started: Optional[float] = None
     message: str = ""
@@ -76,11 +77,14 @@ def _is_pid_alive(pid: int) -> bool:
     return DatabaseLock._is_pid_alive(pid)
 
 
-def inspect_pid_lock(lock_path: Path) -> LockStatus:
+def inspect_pid_lock(lock_path: Path, current_pid: Optional[int] = None) -> LockStatus:
     """Читает lock-файл БЕЗ захвата/изменения.
 
     Args:
         lock_path: путь к `.write_lock` (обычно `db_path / ".write_lock"`).
+        current_pid: PID текущего процесса (os.getpid()). Если lock-файл
+            принадлежит этому PID — состояние `self` (собственный lock
+            сервера, штатно), а НЕ `held_alive` (чужой экземпляр).
 
     Returns:
         LockStatus: состояние lock-файла.
@@ -116,6 +120,19 @@ def inspect_pid_lock(lock_path: Path) -> LockStatus:
             started_str = time.strftime("%H:%M:%S", time.localtime(holder_started))
         except (ValueError, OSError):
             started_str = "?"
+
+    if current_pid is not None and holder_pid == current_pid:
+        # Собственный lock текущего MCP-процесса (сервер держит lock всю
+        # сессию). Это штатно — НЕ «второй экземпляр» (см. INC-6C62 / задача 3/5).
+        return LockStatus(
+            state="self",
+            holder_pid=holder_pid,
+            holder_started=holder_started,
+            message=(
+                f"занят текущим процессом (PID {holder_pid}, с {started_str}) — "
+                f"штатно, это собственный lock сервера"
+            ),
+        )
 
     if _is_pid_alive(holder_pid):
         return LockStatus(
@@ -204,6 +221,7 @@ def build_startup_report(
     db_path: Path,
     table_name: str = DEFAULT_TABLE_NAME,
     lock_path: Optional[Path] = None,
+    current_pid: Optional[int] = None,
 ) -> StartupReport:
     """Собирает полный отчёт: lock + БД + человеческие действия.
 
@@ -211,6 +229,8 @@ def build_startup_report(
         db_path: путь к директории LanceDB (например `<data_root>/projects/<hash>/lancedb_v2`).
         table_name: имя таблицы (по умолчанию `codebase_chunks`).
         lock_path: путь к lock-файлу; по умолчанию `db_path / ".write_lock"`.
+        current_pid: PID текущего процесса; lock этого PID не считается
+            «другим экземпляром» (см. inspect_pid_lock).
 
     Returns:
         StartupReport с заполненными issue-списком (что делать).
@@ -219,7 +239,7 @@ def build_startup_report(
     if lock_path is None:
         lock_path = db_path / LOCK_FILENAME
 
-    lock = inspect_pid_lock(lock_path)
+    lock = inspect_pid_lock(lock_path, current_pid=current_pid)
     db = inspect_db(db_path, table_name)
 
     report = StartupReport(lock=lock, db=db)

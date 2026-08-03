@@ -180,6 +180,58 @@ def test_close_for_maintenance_releases_handles(tmp_db_root):
     assert mgr._async_table is None
 
 
+# ─── Stale ghost table: switch_db/fresh-path обязан синхронизировать ссылки ──
+
+def test_switch_db_fires_recreate_callback(tmp_db_root):
+    """switch_db вызывает _on_recreate → компоненты не держат stale-ссылку.
+
+    Регрессия stale ghost table (AGENT_DIARY 2026-08-02 00:26): fresh-path
+    fallback (intel_reset_index / recreate_table_physical при залоченных
+    файлах) переключал БД через switch_db БЕЗ вызова callback — writer/runner/
+    freshness продолжали писать/читать УДАЛЁННУЮ таблицу по старому пути
+    ('known_hashes bulk load failed', integrity check на мёртвый путь).
+    """
+    mgr = _make_manager(tmp_db_root)
+    _seed_chunks(mgr, 2)
+    old_table = mgr.table
+
+    # Регистрируем callback, как Indexer._sync_table_ref
+    captured = {}
+    def on_recreate(new_table):
+        captured["table"] = new_table
+        captured["called"] = True
+    mgr.set_on_recreate_callback(on_recreate)
+
+    # Переключение на новый путь (аналог fresh-path fallback)
+    new_path = tmp_db_root / "fresh.lancedb"
+    mgr.switch_db(new_path)
+
+    # Callback вызван с НОВОЙ таблицей (не stale-ссылкой на старый путь)
+    assert captured.get("called") is True, "switch_db должен вызывать _on_recreate"
+    assert captured.get("table") is not None
+    assert captured.get("table") is mgr.table
+    assert captured.get("table") is not old_table
+    assert mgr.table.count_rows() == 0, "Новая таблица на fresh-пути должна быть пустой"
+
+
+def test_reset_connection_fires_recreate_callback(tmp_db_root):
+    """reset_connection вызывает _on_recreate (синхронизация после recreate)."""
+    mgr = _make_manager(tmp_db_root)
+    _seed_chunks(mgr, 1)
+
+    captured = {}
+    def on_recreate(new_table):
+        captured["table"] = new_table
+        captured["called"] = True
+    mgr.set_on_recreate_callback(on_recreate)
+
+    mgr.reset_connection()
+
+    assert captured.get("called") is True
+    assert captured.get("table") is mgr.table
+    assert mgr.table.count_rows() == 1, "Данные должны пережить reset_connection"
+
+
 # ─── INC-6C62-v2: рендер не должен показывать error-dict как результат ───────
 
 

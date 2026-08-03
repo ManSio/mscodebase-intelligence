@@ -292,14 +292,18 @@ class HealthReport:
                 files_in_index = set()
                 if hasattr(self.indexer, "table") and self.indexer.table is not None:
                     try:
-                        files_in_index = set(
-                            self.indexer.table.to_pandas()["file_path"].unique()
-                        )
+                        files_in_index = {
+                            str(fp).replace("\\", "/")
+                            for fp in self.indexer.table.to_pandas()["file_path"].unique()
+                        }
                     except Exception:
                         # LanceDB фильтр (быстрее, не грузит всю таблицу в память)
                         try:
                             df = self.indexer.table.search().limit(100000).to_pandas()
-                            files_in_index = set(df["file_path"].unique())
+                            files_in_index = {
+                                str(fp).replace("\\", "/")
+                                for fp in df["file_path"].unique()
+                            }
                         except Exception as _e:
                             logger.warning(f"LanceDB filesystem sync failed: {_e}")
                 if files_in_index:

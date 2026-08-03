@@ -12,11 +12,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-649%20passed-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-747%20passed-brightgreen)](../../tests/)
 
-[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#-mcp-инструменты-42-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
+[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#mcp-инструменты-48-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
-*Последнее обновление: 2026-07-21*
+*Последнее обновление: 2026-08-03*
 
 </div>
 
@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 42 инструмента (18 core + 13 intel + 7 inline + 3 dev + 1 optional), 565+ тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 48 инструментов (19 core + 13 intel + 12 inline + 4 dev), 747+ тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 42 типа рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
@@ -183,7 +183,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-MCP Инструменты (48 всего)
+## MCP Инструменты (48 всего)
 
 ### Основной поиск
 
@@ -426,7 +426,7 @@ mscodebase-intelligence/
 │   ├── en/               # Документация на английском
 │   ├── ru/               # Документация на русском
 │   └── zh/               # Документация на китайском
-├── tests/                        # 649 тестов (pytest)
+├── tests/                        # 760 тестов (pytest)
 ├── .agents/skills/               # Навыки для AI-агента
 ├── install.py                    # Установщик
 └── README.md

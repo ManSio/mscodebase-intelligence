@@ -3,7 +3,9 @@ codebase_tool.py — Единый интерфейс для всех опера�
 
 Реализует «Hub & Spoke» архитектуру:
 - codebase(action, ...) — стабильные примитивы (read/write/index/git/system)
-- execute_script(code) — выполнение Python-кода (host-based, без изоляции)"""
+- execute_script(code) — выполнение Python-кода (host-based, без изоляции)
+
+E2E-LIVE-2026-08-03: проверка on-the-fly видимости правок в индексе."""
 
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
@@ -28,17 +31,28 @@ logger = logging.getLogger("mscodebase_server.codebase")
 class CodebaseTool(MCPTool):
     """Единый интерфейс для работы с кодовой базой.
 
-    Доступные action:
-    - "write"      — rename/ack/move/delete/replace/insert символы
+    Доступные action (контракт README, все 3 языка):
+    - Write-под-действия: "rename" | "move" | "safe_delete" | "replace" |
+      "insert_before" | "insert_after" | "ack_impact" (→ WriteTool)
+    - "write"      — legacy umbrella: под-действие выводится из kwargs
     - "index"      — notify_change/reindex/status/progress
     - "git"        — log/history/branch
     - "system"     — health/logs/read/counters
 
     Примеры:
-      codebase(action="write", old_name="foo", new_name="bar")  # rename
-      codebase(action="index", path="src/main.py")              # notify
+      codebase(action="rename", old_name="foo", new_name="bar", apply=False)
+      codebase(action="move", symbol="Foo", to_file="src/b.py", apply=False)
+      codebase(action="replace", symbol="Foo", new_code="...", apply=False)
+      codebase(action="insert_before", anchor_symbol="Bar", new_code="...")
+      codebase(action="ack_impact", file_path="src/main.py", impact_token="...")
+      codebase(action="write", old_name="foo", new_name="bar")  # legacy rename
+      codebase(action="index", path="status")                   # get_index_status
+      codebase(action="index", path="notify", file_path="src/main.py")  # notify_change
       codebase(action="git", path=".")                          # log
       codebase(action="system", path="health")                  # health
+
+    Под-действия index (path): status | progress | timeline | health |
+    project_dir | notify.
     """
 
     def __init__(self, services: ServiceCollection):
@@ -62,10 +76,20 @@ class CodebaseTool(MCPTool):
         allow_collision: bool = False,
         project_root: str = "",
         max_count: int = 10,
-    ) -> str:
+        impact_token: str = "",
+    ) -> str | dict[str, Any]:
         """Hub: диспетчеризация по action в профильные инструменты."""
-        action_map = {
-            "write": self._action_write,
+        action_map: dict[str, Any] = {
+            "write": self._action_write,  # legacy umbrella: вывод из kwargs
+            "rename": self._action_write,
+            "ack": self._action_write,
+            "ack_impact": self._action_write,
+            "delete": self._action_write,
+            "safe_delete": self._action_write,
+            "move": self._action_write,
+            "replace": self._action_write,
+            "insert_before": self._action_write,
+            "insert_after": self._action_write,
             "index": self._action_index,
             "git": self._action_git,
             "system": self._action_system,
@@ -84,17 +108,37 @@ class CodebaseTool(MCPTool):
             "anchor_symbol": anchor_symbol, "path": path, "file_path": file_path,
             "apply": apply, "force": force, "allow_collision": allow_collision,
             "project_root": project_root, "max_count": max_count,
+            "impact_token": impact_token,
         }
         return await handler(**_dispatch)
 
     async def _action_write(self, **kw) -> str:
-        """Write operations — делегирует в SymbolWriteTool."""
-        from src.mcp.tools.symbol_write_tools import SymbolWriteTool
+        """Write operations — делегирует в WriteTool.
 
-        wt = SymbolWriteTool(self._services)
-        # Пробрасываем только нужные kwargs
+        Под-действие определяется:
+        1. Из явного action (rename/move/safe_delete/replace/insert_*/ack_impact);
+        2. Для legacy action="write" — выводится из переданных kwargs.
+        """
+        sub = (kw.get("action") or "").strip().lower()
+        sub = _WRITE_ACTION_ALIASES.get(sub, sub)
+        if sub in ("", "write"):
+            sub = _infer_write_subaction(kw)
+        if sub not in _WRITE_ACTIONS:
+            return (
+                f"❌ Не удалось определить write sub-action "
+                f"(action={kw.get('action')!r}). Документированные формы (README): "
+                f"codebase(action='rename'|'move'|'safe_delete'|'replace'|"
+                f"'insert_before'|'insert_after'|'ack_impact', ...) или legacy "
+                f"codebase(action='write', old_name=..., new_name=...)."
+            )
+
+        from src.mcp.tools.write_tools import WriteTool
+
+        wt = WriteTool(self._services)
+        # Пробрасываем только нужные kwargs. project_root НЕ принимается
+        # WriteTool.execute — убран (REF: symbol_write_tools → write_tools).
         return await wt.execute(
-            action=kw.get("action", ""),
+            action=sub,
             old_name=kw.get("old_name", ""),
             new_name=kw.get("new_name", ""),
             symbol=kw.get("symbol", ""),
@@ -105,21 +149,62 @@ class CodebaseTool(MCPTool):
             apply=kw.get("apply", False),
             force=kw.get("force", False),
             allow_collision=kw.get("allow_collision", False),
-            project_root=kw.get("project_root", ""),
+            impact_token=kw.get("impact_token", ""),
         )
 
-    async def _action_index(self, **kw) -> str:
-        """Index operations — делегирует в IndexTool."""
-        from src.mcp.tools.index_tools import IndexTool
+    async def _action_index(self, **kw) -> str | dict[str, Any]:
+        """Index operations — диспетчеризация по path к системным index-инструментам.
 
-        it = IndexTool(self._services)
-        return await it.execute(
-            action=kw.get("action", ""),
-            path=kw.get("path", ""),
-            project_root=kw.get("project_root", ""),
+        Под-действие выбирается параметром path:
+          "" | "status"   → get_index_status
+          "progress"      → get_index_progress
+          "timeline"      → get_index_timeline
+          "health"        → index_health (project_root = целевой проект)
+          "project_dir"   → index_project_dir (project_root = целевой путь)
+          "notify"        → notify_change (file_path = целевой файл)
+
+        Ранее импортировался несуществующий src.mcp.tools.index_tools —
+        канал падал ImportError'ом. Теперь делегируем в реальные классы.
+        """
+        sub = (kw.get("path") or "").strip().lower()
+        from src.mcp.tools.indexing_tools import (
+            IndexHealthTool,
+            IndexProjectDirTool,
+            NotifyChangeTool,
+        )
+        from src.mcp.tools.system_tools import (
+            GetIndexProgressTool,
+            GetIndexStatusTool,
+            GetIndexTimelineTool,
         )
 
-    async def _action_git(self, **kw) -> str:
+        services = self._services
+        if sub in ("", "status"):
+            return await GetIndexStatusTool(services).execute()
+        if sub == "progress":
+            return await GetIndexProgressTool(services).execute()
+        if sub == "timeline":
+            return await GetIndexTimelineTool(services).execute()
+        if sub == "health":
+            return await IndexHealthTool(services).execute(
+                project_root=kw.get("project_root", "")
+            )
+        if sub == "project_dir":
+            target = kw.get("project_root") or kw.get("path")
+            if not target:
+                return "❌ index_project_dir: required project_root (целевой путь)"
+            return await IndexProjectDirTool(services).execute(path=target)
+        if sub == "notify":
+            file_path = kw.get("file_path", "")
+            if not file_path:
+                return "❌ notify_change: required file_path (путь к файлу)"
+            return await NotifyChangeTool(services).execute(file_path=file_path)
+        return (
+            f"❌ Unknown index sub-action: '{sub}'. "
+            f"Available: status | progress | timeline | health | project_dir | notify"
+        )
+
+    async def _action_git(self, **kw) -> str | dict[str, Any]:
         """Git operations — делегирует в GetCommitHistoryTool."""
         from src.mcp.tools.git_tools import GetCommitHistoryTool
 
@@ -335,3 +420,34 @@ class ExecuteScriptTool(MCPTool):
             raw["stderr"] = f"🔒 Sandbox violation: {result['violation']}\n{raw['stderr']}"
 
         return self._format_result(raw)
+
+
+# ══════════════════════════════════════════════════════════
+# Write sub-action aliases (README-контракт → WriteTool.action).
+# "delete" — синоним safe_delete; "ack_impact" — README-форма ack.
+# ══════════════════════════════════════════════════════════
+_WRITE_ACTION_ALIASES = {
+    "delete": "safe_delete",
+    "ack_impact": "ack",
+}
+_WRITE_ACTIONS = {
+    "rename", "ack", "move", "safe_delete", "replace",
+    "insert_before", "insert_after",
+}
+
+
+def _infer_write_subaction(kw: dict) -> str:
+    """Выводит под-действие write из переданных kwargs (legacy "write")."""
+    if kw.get("old_name") and kw.get("new_name"):
+        return "rename"
+    if kw.get("symbol") and kw.get("to_file"):
+        return "move"
+    if kw.get("anchor_symbol") and kw.get("new_code"):
+        return "insert_before"
+    if kw.get("symbol") and kw.get("new_code"):
+        return "replace"
+    if kw.get("symbol"):
+        return "safe_delete"
+    if kw.get("file_path"):
+        return "ack"
+    return ""

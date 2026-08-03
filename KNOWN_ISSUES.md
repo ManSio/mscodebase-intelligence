@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-08-03 23:25 — Ложные orphans: разделители путей Windows (FIXED, синхронизировано)
+
+**Symptom:** health report показывал «Осиротевшие файлы в индексе (283)» даже после полного реиндекса с нуля; overall_health=critical.
+**Root Cause:** `health.py _check_filesystem_sync` — индекс хранит пути с '\\', диск сравнивался с '/' → 283/310 ложных orphans (реально 1). prune_deleted_files корректен (оба пути backslash).
+**Fix:** нормализация `str(fp).replace("\\", "/")` в обеих ветках чтения таблицы.
+**Status:** ✅ локально — 3 регрессионных теста (test_health_report.py::TestHealthReportFilesystemSync); проверка по реальной БД: orphans 283 → 1.
+
+## 2026-08-03 23:15 — P1 REOPEN: hub codebase write — sub-action терялся (FIXED, код+тесты, синхронизировано)
+
+**Symptom:** `codebase(action="write", ...)` → «Unknown action: write»; README-формы `codebase(action="rename"/"move"/...)` → «Unknown action rename». Канал write не работал сквозняком: исходно ImportError (несуществующий symbol_write_tools), после фикса 22:45 — потеря под-действия.
+**Root Cause:** `_action_write` передавал в WriteTool `action="write"` (под-действие не извлекалось); прошлая live-проверка видела modification guard ДО action_map (guard DENY маскировал).
+**Fix:** action_map + write-под-действия (rename/ack/ack_impact/delete/safe_delete/move/replace/insert_before/insert_after); legacy `write` → вывод из kwargs; проброс impact_token.
+**Status:** ✅ локально — 15 новых тестов (tests/test_codebase_hub.py) + 37 регрессия. Live-проверка после Reload Window.
+
+## 2026-08-03 23:20 — ONNX embedder off-by-one пути (FIXED, синхронизировано, live через клиент)
+
+**Symptom:** «НЕ УДАЛОСЬ загрузить E5-base ONNX. Режим fallback» ×5/день (20:35..22:30); embedder тихо работал на llama.cpp (медленнее).
+**Root Cause:** `onnx_client.PROJECT_ROOT` и `onnx_server.PROJECT_ROOT` = parent×3 из src/core/embedder/ → `…/src` (офф-бай-один): клиент не находил скрипт сервера («…\src\src\core\…»), сервер — директорию модели.
+**Fix:** `parents[3]` в обоих файлах; ext_dir-хак в onnx_server заменён на корень.
+**Status:** ✅ локально — .local/onnx_client_check.py: ensure_server_running=True, embed 200, dim=384. Эксперимент EXPERIMENTS_LOG#2026-08-03-onnx.
+
+## 2026-08-03 — CONTRADICTION batch_size: прод = 32 (RESOLVED §4.9)
+
+**Source A:** AGENT_DIARY [2026-07-17 20:00] «Batch size 4 was suboptimal... Optimized batch size to 32... batch=32 at 100 ch/s sustained»
+**Source B:** KNOWN_ISSUES#INC-BATCH (2026-07-17) «_BATCH_SIZE 64→4»; indexer.py (до правки) `_BATCH_SIZE = 4  # batch=4 даёт 52 ch/s`; docs/ARCHITECTURE.md «ONNX_BATCH_SIZE | 4»
+**Runtime truth:** активный путь — `src/core/indexing/index_project_runner.py:191` `BATCH_SIZE = 32  # benchmarked: batch=32 = 100ch/s sustained (2026-07-26)`; `_BATCH_SIZE` в indexer.py — мёртвый код (0 использований в src+tests); `ONNX_BATCH_SIZE`/`ONNX_MAX_LENGTH` в коде не существуют (реальные ONNX-переменные: ONNX_PORT/ONNX_MODEL/ONNX_IDLE_TIMEOUT/ONNX_INTRA/INTER_THREADS). Хронология: 64 → 4 → 32 — запись 07-17 20:00 ИСТИННА.
+**Fix:** удалён мёртвый `_BATCH_SIZE` (indexer.py L21-25); docs/ARCHITECTURE.md — строки ONNX_BATCH_SIZE/ONNX_MAX_LENGTH помечены удалёнными.
+**Status:** ✅ RESOLVED (код + docs; правка кода не требовалась для дневника — он был верен)
+
+## 2026-08-03 — AGENT_DIARY: [2026-07-27] вне хронологии (🟡 косметика) + IndexConfig без потребителя (🟡 техдолг)
+
+**Что замечено (§3.4):** две записи `[2026-07-27]` (AGENT_DIARY L802-816 «P0 fixes», L839-853 «P1 fixes») стоят в конце файла между записями 07-05/07-07/07-09 — вне хронологии. Косметика: перенести при месячной ротации §4.8.
+**Техдолг:** `settings.py:166-168` `IndexConfig.index_batch_size` (default 100) и `max_concurrent_embeddings` (default 2) — НЕ потребляются кодом (grep: только определения); прод-путь использует локальную `BATCH_SIZE=32` в index_project_runner.py:191.
+**Статус:** 🟡 стабильно — dead-config и косметика, без влияния на runtime.
+
+## 2026-08-03 — search_code quality/deep/auto зависали на 30с (FIXED, локально, синхронизировано)
+
+**Symptom:** search_code(mode=quality/deep/auto) всегда «Context server request timeout» (30с+); fast работал только на FTS5; контекстные инструменты висли; после первого таймаута все последующие quality-поиски падали (каскад). Вне MCP тот же пайплайн — 3.5с.
+**Root Cause:** sync search_with_mode вызывался в main-loop потоке → hybrid_search → _sync_executor.submit(asyncio.run, ...) + future.result(30) блокировал ВЕСЬ event loop (asyncio.wait_for(15s) не мог прервать блокировку); первый застрявший таск (холодный старт + фоновая git-активность Contradiction Ledger) навсегда занимал воркер общего пула (max_workers=2) → каскадный отказ. Health-check (fresh поток, asyncio.run напрямую) проходил — доказательство здоровья пайплайна.
+**Fix:** search_tools.py — все sync-вызовы поиска обёрнуты в await asyncio.to_thread (fast/quality/smart, deep, auto, ask-light): в потоке нет running loop → прямая ветка asyncio.run (рабочий путь), loop не блокируется, wait_for работает, общий пул не отравляется.
+**Status:** ✅ локально — полный pytest 741 passed / 0 failed; scripts/diag_quality_hang.py (fixedpath 4.9s OK); синхронизировано в расширение; не запушено. Live-проверка: после Reload Window → search_code(quality).
+
+## 2026-08-03 — Ложное «Обнаружен второй экземпляр MCP» на собственном lock-е (FIXED, синхронизировано, live-подтверждено)
+
+**Symptom:** intel_get_runtime_status показывал «PID-lock занят процессом PID X — другой экземпляр MCP пишет в эту БД» и рекомендовал закрыть второе окно Zed, хотя X — PID самого сервера (lock держится всю сессию).
+**Root Cause:** inspect_pid_lock (startup_diagnostics.py) не знал собственный PID — любой lock с живым PID считался чужим экземпляром.
+**Fix:** build_startup_report/inspect_pid_lock принимают current_pid=os.getpid(); lock собственного PID → state 'self' (не held_alive, без issue). Правка DatabaseLock.acquire отклонена (ломала single-writer).
+**Status:** ✅ локально — 27+19 тестов; live-подтверждено на новом инстансе (RUN_ID 75428c27c2ae): чистый статус без предупреждений. Не запушено.
+
+## 2026-08-03 — Stale ghost table после fresh-path reset: switch_db не синхронизировал ссылки (FIXED, локально)
+
+**Symptom:** после intel_reset_index реиндекс «завершился» (100%), но search_code остался в grep-fallback: fresh-БД пуста (0 строк), каноническая — снова wrapped-версии (2^64−19/−18) и мусорный count_rows. Integritу-чек ловил «Not found» по удалённому пути → self-heal пересоздавал, но записи вновь уходили не туда.
+**Root Cause:** (1) stale ghost table — db_manager.set_on_recreate_callback не имел вызывающих (известный пункт 2026-08-02 00:26): switch_db/fresh-path НЕ вызывал _on_recreate → writer/runner/freshness писали в удалённую каноническую таблицу (счётчик версий унаследован от мёртвого датасета). (2) intel_reset_index не освобождал PID-lock перед rmtree (в отличие от recreate_table_physical) → rmtree упирался в .write_lock → частичное удаление и смешанное состояние.
+**Fix:** (1) switch_db (db_manager.py) вызывает _on_recreate после финализации таблицы; Indexer регистрирует _sync_table_ref на db_manager (indexer.py). (2) intel_reset_index (tools_reg.py): release PID-lock до rmtree, re-acquire после mkdir.
+**Status:** ✅ локально — 738 passed / 0 failed; +2 регрессионных теста (switch_db/reset_connection вызывают callback); 3 файла синхронизированы в расширение; не запушено. Live-проверка: после Reload Window → intel_reset_index → search_code.
+
+---
+
+## 2026-08-03 — search_code рендерил «📄 — (line , —)»: db-level manifest + error-dict vector_search (FIXED, локально)
+## 2026-08-03 — Stale ghost table после fresh-path reset: switch_db не синхронизировал ссылки (FIXED, локально)
+
+**Symptom:** после `intel_reset_index` реиндекс «завершился» (job 100%), но `search_code` остался в grep-fallback: fresh-БД пуста (0 строк), каноническая — wrapped-версии (2^64−19/−18) с мусорным count. Интегрити-чек падал «Not found» по удалённому каноническому пути.
+**Root Cause:** (1) stale ghost table: `db_manager.set_on_recreate_callback` не имел вызывающих — `switch_db`/fresh-path fallback не вызывал `_on_recreate`, writer/runner/freshness писали в удалённую каноническую таблицу (известный пункт от 2026-08-02 00:26). (2) `intel_reset_index` не освобождал PID-lock перед rmtree → частичное удаление + смешанное состояние.
+**Fix:** (1) `switch_db` (db_manager.py) вызывает `_on_recreate` после финализации таблицы; Indexer регистрирует `_sync_table_ref` на db_manager (indexer.py). (2) `intel_reset_index` (tools_reg.py): release PID-lock до rmtree, re-acquire после mkdir (зеркало recreate_table_physical).
+**Status:** ✅ локально — 738 passed / 0 failed; +2 регрессионных теста (switch_db/reset_connection вызывают callback); 3 файла синхронизированы в расширение; не запушено. Live-проверка: Reload Window → intel_reset_index → search_code.
+
+---
+
 ## 2026-08-03 — search_code рендерил «📄 — (line , —)»: db-level manifest + error-dict vector_search (FIXED, локально)
 
 **Symptom:** `search_code(mode=fast)` → `1 results` с пустым рендером `📄 **—** (line , —)` (нет файла/строки/кода). Воспроизводится на живом MCP; 0ms/пустой trace = кэш битого результата. Не «нестабильность», а поломка PRIMARY-инструмента MCP-FIRST.
@@ -633,9 +701,9 @@ error_boundary (как в meta_tools.py). Теперь доступны напр
 
 **Root Cause:** Исторически сложилось два параллельных дневника.
 
-**Решение (§4.7):** Нужно смёрджить содержимое DEV_DIARY.md в AGENT_DIARY.md, DEV_DIARY.md сделать редиректом.
+**Решение (§4.7):** Выполнено 2026-08-03: все 28 записей DEV_DIARY.md (2026-07-17..07-19) перенесены в AGENT_DIARY.md (сжатый формат §4.8, 3 хронологических блока). DEV_DIARY.md — редирект `# ARCHIVED — см. AGENT_DIARY.md`. Дубль записи про multilingual-e5-small-int8 НЕ перенесён (уже была в AGENT_DIARY как [2026-07-17 20:00]).
 
-**Status:** ⏳ OPEN — требует миграции
+**Status:** ✅ CLOSED (2026-08-03)
 
 ---
 
@@ -2214,10 +2282,94 @@ Three fixes from the same review:
 - **Статус:** автоматически синхронизировано
 
 
+## 2026-08-03 22:45 — P1: hub codebase — каналы write/index падали ImportError'ом (исправлено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты, не запушено; ext синхронизирован cp)
+**Root Cause:** codebase_tool.py импортировал несуществующие модули `symbol_write_tools.SymbolWriteTool` и `index_tools.IndexTool` → `codebase(action="write"|"index")` отвечали «No module named…». rename_symbol/replace_symbol падали с 20:52 (телеметрия).
+**Fix:** `_action_write` → write_tools.WriteTool (убран kwarg project_root); `_action_index` — диспетчер по path: status|progress|timeline|health|project_dir|notify.
+**Guard:** 37 passed (test_write_tools) + 10 passed (health/architecture/index_guard); live-проверка после Reload Window.
+- **Статус:** ✅ Fixed, live-подтверждено на RUN_ID e3f3aabd7186 (2026-08-03): codebase(action="index", path="status") → 4842 chunks; codebase(action="write", ...) → modification guard + impact_token. E2E-цепочка edit→notify_change→reindex (4842→4857)→search_code нашёл новый контент.
+
+
 ## 2026-08-01 22:50 — HTTP 400 llama.cpp embedder: v1 (HF truncation) ОПРОВЕРГНУТ → v2 (native /tokenize) + полный реиндекс 4677 чанков
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (v3.3.11, локально, не запушено)
 **Root Cause:** GGUF multilingual-e5-small: n_ctx_train=512 → llama.cpp капит слот до 512. HF-токенизатор ≠ GGUF-токенизатор (разные BPE): после ус...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-03 20:40 — search_code рендерил «📄 — (line , —)»: корень в db-level manifest, а не в рендере
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
+**Symptom:** `search_code(mode=fast)` возвращал `1 results` с пустым рендером `📄 **—** (line , —)` вместо файла/строки/кода....
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 23:40 — Contradiction Ledger: 3 ложных срабатывания в verify_diary.py (исправлено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код, не запушено; ext синхронизирован cp)
+**Symptom:** при каждом старте MCP логи предупреждали «Contradiction Ledger: 3 расхождения»: ❌ Функция `sustained`, ❌ Тест `test_race_exactly_one_winner`, ⚠️ Коммит `75428c27c2ae`.
+**Root Cause (3 бага в scripts/verify_diary.py):** (1) regex `name\s*\(` в `_extract_code_functions` ловил прозу «sustained (2026-07-26)» в backtick-контенте как вызов функции; (2) hex-сканер коммитов не исключал токен «RUN_ID <hex>» (RUN_ID — runtime-идентификатор, не git-коммит; в _COMMIT_EXCLUDE были только 2 хардкод-значения — пластырь); (3) `_check_test_file_exists` искал ФАЙЛ `tests/test_<имя>.py` и не находил тест-МЕТОД внутри класса (test_database_lock.py::TestContention) — SymbolCache (сканирует все .py, ловит отступные def) не использовался. Плюс заголовок `## CONTRADICTION [date]` не парсился как отдельная запись — символы §4.9-записи атрибутировались предыдущей.
+**Fix:** строгий `name\(` (без пробела перед скобкой); удаление токена «RUN_ID <hex>» до hex-сканирования; fallback is_test → SymbolCache.has_function; regex заголовка принимает `(?:CONTRADICTION\s+)?`. Дневник: +2 маркера `verified_from_clean_state` (записи 21:50 и 22:45 — обе live-подтверждены).
+**Guard:** `python scripts/verify_diary.py --skip-gate-zero` → 21 ✅ / 0 ❌ (было 18/3); тесты на verify_diary отсутствуют — урок в EXPERIMENTS_LOG#exp-16.
+- **Статус:** ✅ Fixed, live-проверено (21/0) — нужен Reload Window, чтобы фоновый поток старта подхватил фикс
+
+## 2026-08-03 23:15 — P1 REOPEN: hub codebase write — dispatch терял sub-action (guard маскировал баг)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код + 15 новых тестов, ext синхронизирован; live-проверка после Reload Window)
+**Root Cause:** фикс 22:45 перевёл `_action_write` на WriteTool, но передавал `action="write"` (под-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 23:20 — ONNX embedder: 2× off-by-one пути — тихий fallback на llama.cpp (5+ падений/день)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код, ext синхронизирован; live через продакшн-путь get_onnx_client)
+**Root Cause:** (1) `onnx_client.py` PROJECT_ROOT = parent×3 из src/core/embedder/ → `…/src` (не корень) → «Ser...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 23:45 — E2E-проверка MCP-цепочки + Contradiction Ledger 21/21 + Py3.14 audit
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (live RUN_ID e3f3aabd7186) + ✅ Fixed (verify_diary 3 бага, error_handler 1 латентный)
+**Root Cause (2 независимых):** (1) verify_diary.py — 3 ложных ❌ при каждом старте: regex л...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 22:30 — Слияние DEV_DIARY.md → AGENT_DIARY.md завершено (§4.7)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Closed
+**Root Cause:** исторически два параллельных дневника; заголовок «ARCHIVED» в DEV_DIARY (от 07-19) не соответствовал факту — 27 из 28 записей (07-17..07-19) так и не были перенесе...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 21:55 — search_code quality/deep/auto зависали на 30с: sync-поиск блокировал main loop и отравлял _sync_executor
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты, синхронизировано в расширение; live-проверка после Reload Window)
+**Root Cause:** search_code (async) вызывал sync `search_with_mode` прямо в main loop → `hybrid_search...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 21:50 — Ложное «Обнаружен второй экземпляр MCP» на собственном lock-е (startup_diagnostics)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты, синхронизировано в расширение; live-подтверждено на новом инстансе 21:32)
+**Root Cause:** inspect_pid_lock не знал собственный PID: lock, который живой MCP держит всю с...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 22:45 — Ротация дневника §4.8 (июль → docs/archive/AGENT_DIARY_2026_07.md)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done
+**Root Cause:** дневник 861 строка (> лимит 300) — перегрузка контекста.
+**Fix:** все записи < 2026-08-01 перенесены в docs/archive/AGENT_DIARY_2026_07.md (заголовок ARCHIVE — см. A...
 - **Статус:** автоматически синхронизировано
 

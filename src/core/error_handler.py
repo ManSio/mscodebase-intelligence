@@ -601,9 +601,15 @@ def error_boundary(
             start_time = time.perf_counter()
             try:
                 if timeout_ms:
-                    # Для синхронных функций используем ThreadPoolExecutor + timeout
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
+                    # Для синхронных функций используем ThreadPoolExecutor + timeout.
+                    # Py3.14: asyncio.get_event_loop() без текущего цикла бросает
+                    # RuntimeError (неявное создание цикла убрано) — get_running_loop()
+                    # + fallback на прямой вызов = эквивалент старого else-пути.
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    if loop is not None:
                         # Мы внутри async контекста — submit в пул с timeout
                         future = _SYNC_POOL.submit(func, *args, **kwargs)
                         try:

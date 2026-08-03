@@ -23,7 +23,8 @@ import numpy as np
 logger = logging.getLogger("mscodebase_server.onnx_server")
 
 # Добавляем корень проекта в sys.path для импортов
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # project root
+# parents[3]: src/core/embedder/onnx_server.py → корень (репо или расширение Zed).
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Конфигурация
@@ -221,8 +222,9 @@ def load_model(model_name: str):
         PROJECT_ROOT / ".codebase_models" / "onnx" / model_name,
         Path.home() / ".cache" / "mscodebase" / "models" / ".codebase_models" / "onnx" / model_name,
     ]
-    # Также проверяем в расширении Zed
-    ext_dir = Path(__file__).resolve().parent.parent / "mscodebase-intelligence"
+    # Также проверяем корень расширения Zed: PROJECT_ROOT уже указывает
+    # на корень (репо или расширение), см. search_paths[1].
+    ext_dir = Path(__file__).resolve().parent.parent.parent.parent
     if ext_dir.exists():
         search_paths.insert(0, ext_dir / ".codebase_models" / "onnx" / model_name)
 
