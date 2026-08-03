@@ -183,7 +183,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             return results
         except Exception as e:
             logger.error(f"Ошибка векторного поиска LanceDB: {e}")
-            return [{"error": str(e)}]
+            # НЕ возвращаем data-shaped error dict: он рендерится как пустой
+            # результат «📄 — (line , —)» и блокирует grep-fallback
+            # (results_count == 1 вместо 0). Консистентно с _vector_search_async.
+            return []
 
     async def _vector_search_async(
         self,

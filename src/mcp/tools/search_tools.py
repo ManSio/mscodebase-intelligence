@@ -279,7 +279,12 @@ class SearchCodeTool(MCPTool):
             if isinstance(raw, str):
                 result_str = stale_banner + project_header + "\n" + raw
             else:
-                results_count = len(raw.get("results", []))
+                results_count = len(
+                    [
+                        r for r in raw.get("results", [])
+                        if SearchCodeTool._is_real_result(r)
+                    ]
+                )
                 result_str = stale_banner + self._format_results(
                     raw, mode, project_header=project_header
                 )
@@ -369,7 +374,12 @@ class SearchCodeTool(MCPTool):
                 if isinstance(raw, str):
                     result_str = stale_banner + project_header + "\n" + raw
                 else:
-                    results_count = len(raw.get("results", []))
+                    results_count = len(
+                        [
+                            r for r in raw.get("results", [])
+                            if SearchCodeTool._is_real_result(r)
+                        ]
+                    )
                     result_str = stale_banner + self._format_results(
                         raw, mode, project_header=project_header
                     )
@@ -465,6 +475,23 @@ class SearchCodeTool(MCPTool):
             return searcher.search(query, limit=6)
 
     @staticmethod
+    def _is_real_result(r: Any) -> bool:
+        """True, если результат содержит файл или текст (не placeholder/error-dict).
+
+        INC-6C62-v2: Searcher.vector_search при сбое LanceDB возвращал
+        [{"error": ...}] — data-shaped мусор, который рендерился как
+        «📄 — (line , —)» и блокировал grep-fallback (count == 1).
+        """
+        if not isinstance(r, dict):
+            return False
+        meta = r.get("metadata")
+        file_path = (
+            meta.get("file") if isinstance(meta, dict) else r.get("file_path")
+        )
+        text = r.get("text_full") or r.get("text") or r.get("snippet")
+        return bool(file_path or text)
+
+    @staticmethod
     def _format_results(result: Any, mode: str, project_header: str = "") -> str:
         """Форматирует результаты поиска через единый UI-форматтер."""
         # Если search вернул ошибку (строка) — возвращаем как есть
@@ -485,6 +512,9 @@ class SearchCodeTool(MCPTool):
         ui_items = []
         for r in results:
             meta = r.get("metadata", {})
+            if not SearchCodeTool._is_real_result(r):
+                # Placeholder/error-dict — не рендерим мусор (INC-6C62-v2)
+                continue
             # Убираем избыточный // File: из текста чанка — путь уже есть в заголовке
             raw_text = r.get("text_full", r.get("text", ""))
             clean_lines = [

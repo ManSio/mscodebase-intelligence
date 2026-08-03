@@ -122,14 +122,22 @@ def test_recreate_table_physical_fresh_table(tmp_db_root):
     """recreate_table_physical: физическое пересоздание без наследования версий.
 
     - Закрывает handle'ы (db/table → None после close_for_maintenance)
-    - Удаляет директорию таблицы с диска
+    - Удаляет ВСЮ директорию БД с диска (INC-6C62-v2: db-level __manifest
+      несёт wrapped-версии со ссылкой на мёртвый фрагмент и переживает
+      удаление только таблицы)
     - Пересоздаёт чистую таблицу (0 строк)
+    - PID-lock перезахвачен на новой директории
     """
     mgr = _make_manager(tmp_db_root)
     _seed_chunks(mgr, 3)
     assert mgr.table.count_rows() == 3
     table_dir = mgr.db_path / f"{mgr.table_name}.lance"
     assert table_dir.exists()
+
+    # Маркер на db-уровне (аналог битого __manifest): должен исчезнуть при
+    # удалении ВСЕЙ директории БД, но пережил бы удаление только таблицы.
+    poison_marker = mgr.db_path / "poison_marker.txt"
+    poison_marker.write_text("dead fragment ref", encoding="utf-8")
 
     ok = mgr.recreate_table_physical()
 
@@ -139,6 +147,13 @@ def test_recreate_table_physical_fresh_table(tmp_db_root):
 
     # Директория таблицы существует (пересоздана с нуля)
     assert table_dir.exists()
+    # INC-6C62-v2: db-level мусор удалён вместе со всей директорией БД
+    assert not poison_marker.exists(), (
+        "poison_marker должен исчезнуть: удалялась ВСЯ директория БД, "
+        "а не только таблица (иначе db-level manifest наследует мёртвый фрагмент)"
+    )
+    # PID-lock перезахвачен после пересоздания директории
+    assert mgr._db_lock.is_held(), "PID-lock должен быть перезахвачен после recreate"
     # Старых фрагментов быть не должно (директория удалялась целиком)
     data_dir = table_dir / "data"
     fragments = list(data_dir.glob("*.lance")) if data_dir.exists() else []
@@ -163,3 +178,37 @@ def test_close_for_maintenance_releases_handles(tmp_db_root):
     assert mgr.table is None
     assert mgr._async_db is None
     assert mgr._async_table is None
+
+
+# ─── INC-6C62-v2: рендер не должен показывать error-dict как результат ───────
+
+
+def test_is_real_result_filters_error_dict():
+    """_is_real_result: error-dict от vector_search — НЕ результат (пустой рендер)."""
+    from src.mcp.tools.search_tools import SearchCodeTool
+
+    # Searcher.vector_search при сбое возвращал [{"error": ...}] — мусор
+    assert SearchCodeTool._is_real_result({"error": "lance error: Not found ..."}) is False
+    # Пустой dict — тоже мусор
+    assert SearchCodeTool._is_real_result({}) is False
+    # Настоящий чанк — результат
+    real = {
+        "text": "def f(): pass",
+        "metadata": {"file": "src/a.py", "chunk_index": 0, "layer": "core"},
+    }
+    assert SearchCodeTool._is_real_result(real) is True
+
+
+def test_format_results_no_garbage_render():
+    """_format_results: error-dict не рендерится как «📄 — (line , —)»."""
+    from src.mcp.tools.search_tools import SearchCodeTool
+
+    raw = {
+        "results": [{"error": "lance error: Not found"}],
+        "timing_ms": {"total_ms": 12},
+        "query": "def search_with_mode",
+    }
+    out = SearchCodeTool._format_results(raw, "fast")
+    # Ни одного битого заголовка результата
+    assert "📄" not in out, f"Error-dict не должен рендериться как результат:\n{out}"
+    assert "**0** results" in out, f"Ожидался счётчик 0 результатов:\n{out}"
