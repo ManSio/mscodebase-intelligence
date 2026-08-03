@@ -294,19 +294,27 @@ class PureGraphMixin:
         # PropertyGraph: ищем incoming CALLS edges
         nodes = self._find_nodes_flexible(symbol, limit=5)
         if nodes:
-            refs = []
+            # Один и тот же caller может быть найден через несколько узлов
+            # (интерфейс + реализация метода) — дедуплицируем по (символ, файл, строка),
+            # чтобы рендер '🔗 Вызывается из:' не дублировал один вызов.
+            refs: List[SymbolRef] = []
+            seen: set = set()
             for n in nodes:
                 neighbors = self._graph.get_neighbors(
                     n.qualified_name, edge_type=EdgeType.CALLS, direction="incoming",
                 )
                 for neighbor, edge, _depth in neighbors:
-                    refs.append(SymbolRef(
+                    ref = SymbolRef(
                         symbol=neighbor.name,
                         file_path=edge.properties.get("file", neighbor.file_path),
                         line=edge.properties.get("line", 0),
                         kind="call",
                         is_definition=False,
-                    ))
+                    )
+                    key = (ref.symbol, ref.file_path, ref.line)
+                    if key not in seen:
+                        seen.add(key)
+                        refs.append(ref)
             if refs:
                 return refs
 
