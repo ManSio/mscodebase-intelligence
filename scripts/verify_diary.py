@@ -145,7 +145,9 @@ def _extract_code_functions(line: str) -> List[str]:
         # Ищем function_name( внутри backtick.
         # Negative lookbehind (?<![\w.]) — НЕ выдёргиваем методы (os.environ.copy(),
         # future.result()) как функции проекта (ложные ❌ в verify_diary).
-        for fm in re.finditer(r'(?<![\w.])([a-z_][a-z0-9_]{2,})\s*\(', content):
+        # Без \s* перед скобкой: «sustained (» в прозе ≠ вызову `sustained(`
+        # (ложное ❌ из backtick-контента с комментарием benchmark).
+        for fm in re.finditer(r'(?<![\w.])([a-z_][a-z0-9_]{2,})\(', content):
             result.append(fm.group(1))
     return result
 
@@ -194,13 +196,16 @@ def parse_diary() -> List[DiaryEntry]:
     current_entry = None
 
     for i, line in enumerate(lines):
-        # Начало записи: ## [YYYY-MM-DD HH:MM] — Title
+        # Заголовок записи: ## [date] — Title  или  ## CONTRADICTION [date] — Title.
         # Время опционально: часть записей (например, 2026-07-31) пишется
         # только с датой — без (?:\s+\d{2}:\d{2})? такие записи склеиваются
         # с предыдущей, и их символы приписываются чужой записи (ложные ❌).
+        # CONTRADICTION (§4.9) — отдельная запись, иначе её символы (из цитат
+        # Source A/B) атрибутируются предыдущей записи (ложные ❌).
         m = re.match(
-            r"^##\s*\[(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)\]\s*[—-]\s*(.+)$",
+            r"^##\s*(?:CONTRADICTION\s+)?\[(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)\]\s*[—-]\s*(.+)$",
             line,
+            flags=re.IGNORECASE,
         )
         if m:
             if current_entry:
@@ -271,7 +276,13 @@ def parse_diary() -> List[DiaryEntry]:
                 'be6917458612', 'd47bee8235d9c14e', '001110010111',
                 '60d092b1e1', '0000135', 'c000001d', '5067470',
             }
-            for c in re.findall(r'(?<![a-f0-9A-F])([a-f0-9]{7,40})(?![a-f0-9A-F])', line):
+            # RUN_ID / run_id / RUN ID — runtime-идентификаторы процесса (§3.1),
+            # НЕ git-коммиты: удаляем ВЕСЬ токен «RUN_ID <hex>» ДО hex-сканирования
+            # (удаление только префикса оставляет hex, который ловится как коммит).
+            _line_no_runid = re.sub(
+                r'\bRUN[_ ]?ID\s*[=:]?\s*[a-f0-9]{7,40}',
+                '', line, flags=re.IGNORECASE)
+            for c in re.findall(r'(?<![a-f0-9A-F])([a-f0-9]{7,40})(?![a-f0-9A-F])', _line_no_runid):
                 if c in _COMMIT_EXCLUDE:
                     continue
                 if c.startswith('c0000') or c.startswith('0000'):
@@ -292,7 +303,12 @@ def check_symbol_exists(symbol: str, is_test: bool = False) -> bool:
     Использует SymbolCache (один проход по файлам) вместо grep -r (600-1200 вызовов).
     """
     if is_test:
-        return _check_test_file_exists(symbol)
+        if _check_test_file_exists(symbol):
+            return True
+        # Тест-метод внутри класса (tests/test_x.py::class::test_y): файла
+        # tests/test_y.py не существует — проверяем через SymbolCache (сканирует
+        # все .py, включая tests/, ловит отступные def внутри классов).
+        return SymbolCache.get_instance().has_function(symbol)
 
     # Пропускаем stdlib/builtin имена — они не из нашего проекта
     if symbol in _STDLIB_FUNCTIONS:

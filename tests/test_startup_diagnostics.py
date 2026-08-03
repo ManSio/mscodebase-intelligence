@@ -95,6 +95,31 @@ class TestInspectPidLock:
         inspect_pid_lock(lock_path)  # не должно снять/удалить чужой stale-lock
         assert lock_path.exists()
 
+    def test_own_pid_with_current_pid_is_self(self, lock_path):
+        """Lock текущего процесса + current_pid → state='self', не 'held_alive'.
+
+        Регрессия: живой MCP держит свой lock всю сессию; без current_pid
+        диагностика пугала владельца «другой экземпляр MCP» на САМОМ себе.
+        """
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(
+            json.dumps({"pid": os.getpid(), "started": 1000.0, "role": "worker"}),
+            encoding="utf-8",
+        )
+        status = inspect_pid_lock(lock_path, current_pid=os.getpid())
+        assert status.state == "self"
+        assert status.holder_pid == os.getpid()
+
+    def test_other_alive_pid_with_current_pid_still_held(self, lock_path):
+        """Чужой живой PID остаётся 'held_alive' даже при переданном current_pid."""
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(
+            json.dumps({"pid": os.getpid(), "started": 1000.0, "role": "worker"}),
+            encoding="utf-8",
+        )
+        status = inspect_pid_lock(lock_path, current_pid=os.getpid() + 1)
+        assert status.state == "held_alive"
+
 
 # ══════════════════════════════════════════════════════════
 # inspect_db
@@ -171,6 +196,25 @@ class TestBuildStartupReport:
         assert "local.rs" not in text
         assert "lance-io" not in text
         assert "Диагностика индекса" in text
+
+    def test_self_lock_adds_no_second_instance_issue(self, db_path, lock_path):
+        """Собственный lock (current_pid совпадает) НЕ даёт issue «второе окно».
+
+        Регрессия: live MCP видел в intel_get_runtime_status призыв закрыть
+        второе окно Zed на собственном lock-е — ложная тревога.
+        """
+        db_path.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(
+            json.dumps({"pid": os.getpid(), "started": 1000.0, "role": "worker"}),
+            encoding="utf-8",
+        )
+        report = build_startup_report(
+            db_path, lock_path=lock_path, current_pid=os.getpid()
+        )
+        assert report.lock.state == "self"
+        joined = " ".join(report.issues).lower()
+        assert "второе окно" not in joined
+        assert "второй экземпляр" not in joined
 
     def test_reuses_database_lock_semantics(self, lock_path):
         # inspect_pid_lock должен согласованно видеть lock, созданный DatabaseLock

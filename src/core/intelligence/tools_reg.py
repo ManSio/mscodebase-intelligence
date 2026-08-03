@@ -157,6 +157,19 @@ def register_intelligence_tools(mcp_app, intel_layer):
                     _dbm.close_for_maintenance()  # close + gc.collect() + sleep(0.5)
                 except Exception as _close_err:
                     logger.warning(f"close_for_maintenance failed: {_close_err}")
+            # Освобождаем PID-lock ДО rmtree (как recreate_table_physical):
+            # .write_lock внутри db_dir держит открытый fd — иначе rmtree
+            # упрётся в PermissionError, оставив ЧАСТИЧНО удалённую БД
+            # (смешанное состояние: fresh-путь пуст, канонический — с wrapped-
+            # версиями). Повторно захватываем после пересоздания директории.
+            _lock_released = False
+            if _dbm is not None and _dbm._db_lock is not None:
+                try:
+                    if _dbm._db_lock.is_held():
+                        _dbm._db_lock.release()
+                        _lock_released = True
+                except Exception as _rel_err:
+                    logger.warning(f"reset_index: PID-lock release failed: {_rel_err}")
             # 2. THEN физически удаляем директории. ignore_errors=False — залоченные
             #    mmap-файлы НЕ пропускаются молча: PermissionError → fresh DB path.
             #    Задача 4/5: основной таргет — системная папка (вне проекта).
@@ -194,6 +207,13 @@ def register_intelligence_tools(mcp_app, intel_layer):
                         _P(to_win_long_path(_dbm.db_path)).mkdir(
                             parents=True, exist_ok=True
                         )
+                        if _lock_released:
+                            try:
+                                _dbm._db_lock.acquire()
+                            except Exception as _reacq_err:
+                                logger.warning(
+                                    f"reset_index: PID-lock re-acquire failed: {_reacq_err}"
+                                )
                         _dbm.reset_connection()
                     else:
                         _dbm._switch_to_fresh_path()

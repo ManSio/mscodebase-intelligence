@@ -604,6 +604,7 @@ class ProjectIntelligenceLayer:
             report = build_startup_report(
                 db_path=db_path,
                 lock_path=lock_path,
+                current_pid=os.getpid(),
             )
             return {
                 "available": True,

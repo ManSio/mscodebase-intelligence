@@ -12,11 +12,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-649%20passed-brightgreen)](../../tests/)
+[![Tests](https://img.shields.io/badge/tests-747%20passed-brightgreen)](../../tests/)
 
 [功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共48个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
 
-*最后更新：2026-07-21*
+*最后更新：2026-08-03*
 
 </div>
 
@@ -113,7 +113,7 @@ MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/cor
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-🧪 **整洁架构** | DI 容器（18 个服务），48 个工具（18 core + 13 intel + 7 inline + 3 dev + 1 optional），565+ 测试 |
+| 🧪 **整洁架构** | DI 容器（18 个服务），48 个工具（19 core + 13 intel + 12 inline + 4 dev），747+ 测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
@@ -428,7 +428,7 @@ mscodebase-intelligence/
 │   ├── en/               # 英文文档
 │   ├── ru/               # 俄文文档
 │   └── zh/               # 中文文档
-├── tests/                        # 649 个测试（pytest）
+├── tests/                        # 760 个测试（pytest）
 ├── .agents/skills/               # AI 代理技能
 ├── install.py                    # 安装程序
 └── README.md

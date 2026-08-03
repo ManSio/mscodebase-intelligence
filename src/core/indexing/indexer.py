@@ -18,11 +18,6 @@ __all__ = [
 ]
 logger = logging.getLogger("mscodebase_server.indexer")
 
-# Размер батча для кросс-файлового эмбеддинга.
-# E5-base/BGE-M3 обрабатывают 64 текста почти за то же время, что и 1.
-_BATCH_SIZE = 4       # Оптимум для small INT8: batch=4 даёт 52 ch/s (vs 25 при 64)
-
-
 def _generate_unique_db_path(project_path: Path) -> Path:
     """Генерирует уникальный путь к базе данных на основе пути проекта.
 
@@ -150,6 +145,13 @@ class Indexer(IndexerTableMixin):
         )
         # Регистрируем callback для синхронизации таблицы при пересоздании
         self._db_writer.set_on_recreate_callback(self._sync_table_ref)
+
+        # db_manager тоже обязан синхронизировать table-ссылки: switch_db
+        # (fresh-path fallback при залоченных файлах, switch_project) и
+        # reset_connection вызывают _on_recreate — без регистрации writer/runner/
+        # freshness продолжают смотреть на старую удалённую таблицу
+        # (stale ghost table, AGENT_DIARY 2026-08-02 00:26).
+        self.db_manager.set_on_recreate_callback(self._sync_table_ref)
 
         # ─── FreshnessChecker
         from src.core.indexing.freshness import FreshnessChecker

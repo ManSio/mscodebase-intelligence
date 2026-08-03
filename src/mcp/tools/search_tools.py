@@ -268,7 +268,17 @@ class SearchCodeTool(MCPTool):
 
         # === Диспетчеризация по режиму ===
         if mode in ("fast", "quality", "smart"):
-            raw = self.resolve_searcher().search_with_mode(
+            # INC-6D31: sync search_with_mode — в отдельный поток (asyncio.to_thread).
+            # Внутри (hybrid_search) в этом потоке НЕТ running loop → берётся ветка
+            # asyncio.run(hybrid_search_async) напрямую — тот путь, который
+            # доказанно работает в живом MCP (health-check synthetic monitoring).
+            # Старая ветка (search_with_mode в main-loop потоке) блокировала loop
+            # на future.result(30) и могла отравить общий _sync_executor
+            # застрявшими asyncio.run-тасками → все последующие quality-поиски
+            # падали в 30s-таймаут, а веб-инструменты висли.
+            _searcher = self.resolve_searcher()
+            raw = await asyncio.to_thread(
+                _searcher.search_with_mode,
                 query,
                 mode=mode,
                 limit=effective_limit,
@@ -342,7 +352,9 @@ class SearchCodeTool(MCPTool):
                 stale_banner
                 + project_header
                 + "\n"
-                + self.resolve_searcher().deep_search(query, limit=effective_limit)
+                + await asyncio.to_thread(
+                    self.resolve_searcher().deep_search, query, limit=effective_limit
+                )
             )
 
         elif mode == "context":
@@ -363,7 +375,8 @@ class SearchCodeTool(MCPTool):
                     "mode=ask заблокирован в light profile. "
                     "Переключение на mode=quality."
                 )
-                raw = self.resolve_searcher().search_with_mode(
+                raw = await asyncio.to_thread(
+                    self.resolve_searcher().search_with_mode,
                     query,
                     mode="quality",
                     limit=effective_limit,
@@ -404,7 +417,8 @@ class SearchCodeTool(MCPTool):
                     stale_banner
                     + project_header
                     + "\n"
-                    + self.resolve_searcher().search(
+                    + await asyncio.to_thread(
+                        self.resolve_searcher().search,
                         query,
                         limit=effective_limit,
                         since=since,

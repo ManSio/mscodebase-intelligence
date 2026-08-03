@@ -430,6 +430,7 @@ async def _delayed_auto_index(services):
                 log_startup_report(
                     build_startup_report(
                         db_path=getattr(indexer, "db_path", indexer.project_path),
+                        current_pid=os.getpid(),
                     )
                 )
         except Exception as _diag_err:

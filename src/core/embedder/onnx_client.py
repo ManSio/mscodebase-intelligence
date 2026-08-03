@@ -233,8 +233,9 @@ class OnnxEmbedderClient:
 # Глобальный lock для координации внутри процесса
 _client_lock = threading.Lock()
 
-# Путь к корню проекта
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # project root
+# Путь к корню проекта (репо или расширение Zed).
+# parents[3]: src/core/embedder/onnx_client.py → корень.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 # ─── Singleton accessor ────────────────────────────────────
 

@@ -6,11 +6,66 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 
 from src.core.intelligence.health import HealthReport, format_health_report
 
 pytestmark = pytest.mark.slow
+
+
+class TestHealthReportFilesystemSync:
+    """Регрессия: Windows-пути с '\\' в индексе не должны быть ложными orphans.
+
+    INC-orphans: health.py сравнивал backslash-пути индекса с forward-slash
+    путями диска → 283/310 файлов ложно считались осиротевшими (critical).
+    """
+
+    def _make_report(self, tmp_path, index_paths):
+        idx = MagicMock()
+        idx.get_status.return_value = {
+            "status": "ready", "total_chunks": 5, "unique_files": len(index_paths),
+        }
+        idx.table = MagicMock()
+        idx.table.to_pandas.return_value = pd.DataFrame({"file_path": index_paths})
+        return HealthReport(tmp_path, indexer=idx)
+
+    def _orphan_warnings(self, report):
+        return [
+            w for w in report.warnings
+            if w["component"] == "filesystem_sync" and "Осиротевшие" in w["message"]
+        ]
+
+    def test_backslash_index_paths_match_disk(self, tmp_path):
+        """Индекс хранит 'src\\main.py', диск — 'src/main.py': после нормализации совпадение."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
+
+        report = self._make_report(tmp_path, [r"src\main.py"])
+        report._check_filesystem_sync()
+        assert not self._orphan_warnings(report), "Ложные orphans при совпадении путей"
+
+    def test_mixed_separators_not_orphans(self, tmp_path):
+        """Часть путей с '/', часть с '\\' — ни один не orphan."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "a.py").write_text("a\n", encoding="utf-8")
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "b.md").write_text("b\n", encoding="utf-8")
+
+        report = self._make_report(tmp_path, [r"src\a.py", "docs/b.md"])
+        report._check_filesystem_sync()
+        assert not self._orphan_warnings(report)
+
+    def test_real_orphan_still_detected(self, tmp_path):
+        """Действительно удалённый файл по-прежнему считается orphan."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
+
+        report = self._make_report(tmp_path, [r"src\main.py", r"src\deleted.py"])
+        report._check_filesystem_sync()
+        orphans = self._orphan_warnings(report)
+        assert len(orphans) == 1
+        assert orphans[0]["count"] == 1
 
 
 class TestHealthReportBasic:

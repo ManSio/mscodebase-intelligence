@@ -310,8 +310,8 @@ Format → UI items with 🔍fts5 / 🔤bm25 / 🧠dense badges
 | `PROJECT_PATH` | `$ZED_WORKTREE_ROOT` | Project root for indexing |
 | `MSCODEBASE_ALLOW_SELF_INDEX` | false | Allow indexing extension itself |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | false | Enable execute_script tool |
-| `ONNX_MAX_LENGTH` | 128 | Token limit per chunk |
-| `ONNX_BATCH_SIZE` | 4 | Embedding batch size |
+| `ONNX_MAX_LENGTH` | — | Удалено: переменная не существует в коде (реальные ONNX-переменные — `ONNX_PORT`, `ONNX_MODEL`, `ONNX_IDLE_TIMEOUT`, `ONNX_INTRA_THREADS`, `ONNX_INTER_THREADS`) |
+| `ONNX_BATCH_SIZE` | — | Удалено: batch эмбеддинга задаёт `src/core/indexing/index_project_runner.py` (`BATCH_SIZE=32`, см. AGENT_DIARY#CONTRADICTION-2026-08-03) |
 
 ### Key Paths
 ```
