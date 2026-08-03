@@ -2,6 +2,15 @@
 
 ---
 
+## [2026-08-03 20:40] — search_code рендерил «📄 — (line , —)»: корень в db-level manifest, а не в рендере
+
+**Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
+**Symptom:** `search_code(mode=fast)` возвращал `1 results` с пустым рендером `📄 **—** (line , —)` вместо файла/строки/кода. Владелец: «это поломка, а не нестабильность» — MCP-FIRST построен на search_code, мусор = нерабочий режим.
+**Root Cause (2 звена):** (1) LanceDB db-level манифест `<db>/__manifest/_versions/` нёс wrapped-версии (2^64−17/−2) со ссылкой на мёртвый фрагмент `data/0111...8a5d.lance` — переживал удаление ТОЛЬКО таблицы (recreate_table_physical, INC-6C62) и отравлял каждую новую таблицу в той же директории БД: count_rows() работал (33050), vector_search падал «Not found». (2) `Searcher.vector_search` превращал сбой в data-shaped `[{"error": ...}]` → `_format_results` рендерил его как пустой результат, `results_count==1` блокировал grep-fallback. Доказано read-only диагностикой (venv расширения, lancedb 0.34): count_rows OK / vector_search FAILED на тот же фрагмент.
+**Fix:** (1) `recreate_table_physical` (db_manager.py) — удаляет ВСЮ директорию БД (release PID-lock → rmtree(db_root) → mkdir → re-acquire → reset_connection), счётчик версий = 0. (2) `vector_search` (engine.py) — на сбое возвращает `[]` (консистентно с async-версией). (3) `SearchCodeTool._is_real_result` + фильтр в `_format_results` + реальный подсчёт для grep-fallback (search_tools.py).
+**Guard:** tests/test_lancedb_recreate.py +2 (poison_marker исчезает при удалении всей БД, lock перезахвачен; рендер error-dict → «**0** results», без «📄»). Полный pytest 736 passed / 0 failed. Live MCP пока на старом коде — после Reload Window: intel_reset_index + полный реиндекс (текущая БД на диске всё ещё отравлена).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh требует ubuntu); эквивалент — полный pytest 736 passed + read-only диагностика реальной БД (vector_search FAILED воспроизведён вне MCP, до фикса).
+
 ## [2026-08-03 20:15] — Верификация Задачи 5/5 после полного реиндекса + дедуп callers
 
 **Status:** ✅ Verified (реальный reindex + граф-проверка)

@@ -434,16 +434,24 @@ class LanceDBManager:
         self.switch_db(fresh)
 
     def recreate_table_physical(self) -> bool:
-        """Физическое пересоздание таблицы с нуля (INC-6C62).
+        """Физическое пересоздание БД с нуля (INC-6C62-v2).
 
         Проблема: drop_table + create_table в LanceDB НЕ удаляет физические
         файлы — новая таблица наследует цепочку версий старой, включая
         ссылки на мёртвые фрагменты (*.lance, которых нет на диске) →
         optimize падает с 'Not found'. Симптом «вечной» ошибки реиндекса.
 
-        Решение: закрыть все handle'ы → gc + пауза (освобождение mmap на
-        Windows) → физически удалить директорию таблицы (ignore_errors=False)
-        → пересоздать с нуля. Если файлы всё ещё залочены (PermissionError)
+        INC-6C62-v2 (рецидив 2026-08-03): удаление ТОЛЬКО директории таблицы
+        (<db>/<table>.lance) НЕДОСТАТОЧНО — db-level манифест
+        (<db>/__manifest/_versions/) несёт wrapped-версии (2^64−N) со ссылкой
+        на мёртвый фрагмент, переживает удаление таблицы и отравляет каждую
+        новую таблицу в той же директории БД. count_rows() читает свежую
+        версию (работает), а vector_search идёт по цепочке версий → 'Not found'.
+
+        Решение: закрыть все handle'ы → освободить PID-lock (.write_lock
+        внутри db_dir, fd держится открытым) → gc + пауза (Windows mmap) →
+        удалить ВСЮ директорию БД (ignore_errors=False) → пересоздать с нуля
+        (счётчик версий = 0). Если файлы всё ещё залочены (PermissionError)
         → новый путь БД (lancedb_v2_{timestamp}).
 
         Returns:
@@ -451,13 +459,26 @@ class LanceDBManager:
         """
         with self._write_lock:
             self.close_for_maintenance()
-            table_dir = self.db_path / f"{self.table_name}.lance"
+            # Освобождаем PID-lock до rmtree: .write_lock держит открытый fd,
+            # иначе shutil.rmtree упадёт с PermissionError именно на нём.
+            if self._db_lock is not None:
+                try:
+                    self._db_lock.release()
+                except Exception as _lock_release_err:
+                    logger.debug(f"recreate_table_physical: lock release warning: {_lock_release_err}")
+            db_root = self.db_path
             try:
-                if table_dir.exists():
-                    shutil.rmtree(str(table_dir), ignore_errors=False)
-                    logger.info(f"✅ Physically removed LanceDB table dir: {table_dir}")
-                # Директория БД могла быть удалена целиком — пересоздаём её
-                Path(to_win_long_path(self.db_path)).mkdir(parents=True, exist_ok=True)
+                if db_root.exists():
+                    shutil.rmtree(str(db_root), ignore_errors=False)
+                    logger.info(f"✅ Physically removed LanceDB DB dir: {db_root}")
+                # Пересоздаём чистую директорию БД (версионная цепочка = 0)
+                Path(to_win_long_path(db_root)).mkdir(parents=True, exist_ok=True)
+                # Перезахватываем PID-lock на новой директории
+                if self._db_lock is not None:
+                    try:
+                        self._db_lock.acquire()
+                    except RuntimeError as _lock_racq_err:
+                        logger.warning(f"recreate_table_physical: lock re-acquire failed: {_lock_racq_err}")
                 self.reset_connection()
                 return True
             except PermissionError as _perm_err:

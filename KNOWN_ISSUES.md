@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-03 — search_code рендерил «📄 — (line , —)»: db-level manifest + error-dict vector_search (FIXED, локально)
+
+**Symptom:** `search_code(mode=fast)` → `1 results` с пустым рендером `📄 **—** (line , —)` (нет файла/строки/кода). Воспроизводится на живом MCP; 0ms/пустой trace = кэш битого результата. Не «нестабильность», а поломка PRIMARY-инструмента MCP-FIRST.
+**Root Cause:** (1) db-level манифест `<db>/__manifest/_versions/` хранил wrapped-версии (2^64−17/−2) со ссылкой на мёртвый фрагмент `data/0111...8a5d.lance`; `recreate_table_physical` (INC-6C62) удалял только `<db>/<table>.lance`, манифест переживал → каждая новая таблица в той же директории БД наследовала битую цепочку (count_rows работает, vector_search падает «Not found»). (2) `vector_search` превращал сбой в `[{"error": ...}]` → рендер пустого результата + `results_count==1` блокировал grep-fallback.
+**Fix:** (1) `recreate_table_physical` → удаляет ВСЮ директорию БД: close_for_maintenance → release PID-lock (.write_lock держит fd) → rmtree(db_root, ignore_errors=False) → mkdir → re-acquire lock → reset_connection (счётчик версий = 0). (2) `vector_search` на сбое → `[]` (консистентно с async). (3) `SearchCodeTool._is_real_result` + фильтр мусора в `_format_results` + подсчёт реальных результатов для grep-fallback.
+**Status:** ✅ локально — 736 passed / 0 failed; +2 регрессионных теста (poison_marker удаляется вместе с БД; error-dict не рендерится, «**0** results»); 3 файла синхронизированы в расширение; не запушено. Live-проверка: после Reload Window → intel_reset_index → полный реиндекс (текущая БД на диске отравлена).
+
+---
+
 ## 2026-08-03 — Задача 5/5: Граф в каждом режиме поиска (CALLS в методы = 0) (FIXED, локально)
 
 **Symptom:** граф участвовал только в quality/deep; в fast/auto — обычный векторный поиск. CALLS-рёбра в методы отсутствовали полностью: (1) caller эмитился без класса → add_edge молча дропал; (2) Python `self.method()` (узел `attribute`) не входил в CALL_IDENTIFIER_TYPES → вызовы из Python-методов не извлекались вообще.
@@ -288,7 +297,7 @@
 ## 2026-07-21 — B10: 5 commit-хешей в AGENT_DIARY.md не существуют в git history (KNOWN TECH-DEBT)
 
 **Symptom:** verify_diary находит 5 хешей, которые не существуют:
-- `001110010111`
+- `<wrapped-version>`
 - `60d092b1e1`
 - `be6917458612`
 - `0000135`
