@@ -46,7 +46,8 @@ class CodeParser:
     CALL_IDENTIFIER_TYPES = {
         "identifier",
         "type_identifier",
-        "field_expression",  # obj.method()
+        "field_expression",  # JS/TS: obj.method()
+        "attribute",  # Python: self.method() / obj.method()
         "scoped_identifier",  # module::func()
     }
 
@@ -737,6 +738,7 @@ class CodeParser:
         file_path: Path,
         calls: List[Dict],
         current_function: str,
+        current_class: str = "",
     ):
         """Рекурсивно извлекает вызовы функций из AST.
 
@@ -746,16 +748,36 @@ class CodeParser:
             file_path: Путь к файлу
             calls: Накопитель результатов
             current_function: Имя текущей функции (контекст вызова)
+            current_class: Имя текущего класса/структуры (для методов)
         """
-        # Обновляем контекст текущей функции
+        # Обновляем контекст класса (зеркалит _walk_node CONTAINER_NODES)
+        if node.type in self.CONTAINER_NODES:
+            name_node = self._find_child_by_type(
+                node, "identifier"
+            ) or self._find_child_by_type(node, "type_identifier")
+            if name_node:
+                class_name = code[
+                    name_node.start_byte : name_node.end_byte
+                ].decode("utf-8", errors="ignore")
+                current_class = (
+                    f"{current_class}.{class_name}" if current_class else class_name
+                )
+
+        # Обновляем контекст текущей функции. Методы квалифицируются
+        # классом ("Class.method") — иначе CALLS-рёбра из методов не
+        # находят узел определения в PropertyGraph (узлы хранятся с
+        # qualified name) и молча дропаются add_edge().
         if node.type in self.TARGET_NODES:
             name_node = self._find_child_by_type(
                 node, "identifier"
             ) or self._find_child_by_type(node, "name")
             if name_node:
-                current_function = code[
+                fname = code[
                     name_node.start_byte : name_node.end_byte
                 ].decode("utf-8", errors="ignore")
+                current_function = (
+                    f"{current_class}.{fname}" if current_class else fname
+                )
 
         # Если это узел вызова — извлекаем имя вызываемой функции
         if node.type in self.CALL_NODES:
@@ -773,7 +795,7 @@ class CodeParser:
         # Рекурсивно обходим детей
         for child in node.children:
             self._extract_calls_recursive(
-                child, code, file_path, calls, current_function
+                child, code, file_path, calls, current_function, current_class
             )
 
     def _extract_callee_name(self, call_node, code: bytes) -> str:
@@ -791,7 +813,7 @@ class CodeParser:
                 name = code[child.start_byte : child.end_byte].decode(
                     "utf-8", errors="ignore"
                 )
-                # Для field_expression (obj.method) берём последнюю часть
+                # Для field_expression (JS/TS obj.method) берём последнюю часть
                 if child.type == "field_expression":
                     # field_expression: obj.field → ищем identifier внутри
                     for subchild in child.children:
@@ -803,6 +825,16 @@ class CodeParser:
                             return code[subchild.start_byte : subchild.end_byte].decode(
                                 "utf-8", errors="ignore"
                             )
+                # Для attribute (Python self.method) берём последний identifier
+                elif child.type == "attribute":
+                    last_id = None
+                    for subchild in child.children:
+                        if subchild.type == "identifier":
+                            last_id = subchild
+                    if last_id is not None:
+                        return code[last_id.start_byte : last_id.end_byte].decode(
+                            "utf-8", errors="ignore"
+                        )
                 # Для scoped_identifier (module::func) берём последний сегмент
                 elif child.type == "scoped_identifier":
                     parts = name.split("::")
