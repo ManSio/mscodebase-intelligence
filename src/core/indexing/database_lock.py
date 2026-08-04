@@ -170,13 +170,28 @@ class DatabaseLock:
         os.fsync(fd)
 
     def _read_holder_pid(self) -> Optional[int]:
-        """Возвращает PID владельца lock-файла или None (битый/нечитаемый)."""
-        try:
-            with open(self.lock_path, "r") as f:
-                data = json.load(f)
-            return data.get("pid")
-        except (json.JSONDecodeError, OSError):
-            return None  # битый/нечитаемый lock — трактуем как stale
+        """Возвращает PID владельца lock-файла или None (битый/нечитаемый).
+
+        Grace-период: нечитаемый/пустой JSON НЕ трактуется как stale сразу —
+        файл мог быть только что создан (O_EXCL), владелец ещё не записал
+        owner (окно между os.open и os.fsync). На Unix unlink активного
+        файла разрешён, поэтому немедленный steal даёт ДВА писателя
+        (test_race_exactly_one_winner на Linux: Expected 1 winner, got 2).
+        Чтение повторяется retry_attempts раз с паузой poll_interval,
+        после чего lock считается битым (stale).
+        """
+        for _attempt in range(self.retry_attempts):
+            try:
+                with open(self.lock_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("pid")
+            except (json.JSONDecodeError, OSError):
+                time.sleep(self._poll_interval)
+        logger.warning(
+            f"PID lock unreadable after {self.retry_attempts} attempts — "
+            f"treating as stale: {self.lock_path}"
+        )
+        return None
 
     def _wait_for_release(self, holder_pid: int) -> None:
         """Ждёт освобождения lock-а живым процессом; по таймауту — RuntimeError.

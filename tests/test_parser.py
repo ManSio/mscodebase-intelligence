@@ -32,7 +32,7 @@ class World:
     def method(self):
         pass
 '''
-    temp_file.write_text(code)
+    temp_file.write_text(code, encoding="utf-8")
 
     parser = CodeParser()
     result = parser.parse_file(temp_file)

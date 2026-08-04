@@ -84,7 +84,7 @@ class TestAckImpact:
 
         # Change the file — fingerprint (mtime+size) will differ
         time.sleep(0.05)
-        test_file.write_text("# version 2 — longer content to change size")
+        test_file.write_text("# version 2 — longer content to change size", encoding="utf-8")
 
         result = fresh_guard.ack_impact(str(test_file), impact_token=token_v1)
         assert result["status"] == "denied"
@@ -496,7 +496,7 @@ class TestHMACToken:
         test_file.write_text("# v1")
         t1 = fresh_guard._make_ack_token(str(test_file))
         time.sleep(0.05)
-        test_file.write_text("# v2 — different content")
+        test_file.write_text("# v2 — different content", encoding="utf-8")
         t2 = fresh_guard._make_ack_token(str(test_file))
         assert t1 != t2
 

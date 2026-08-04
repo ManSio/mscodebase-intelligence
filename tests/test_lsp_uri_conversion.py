@@ -20,6 +20,7 @@ from src.core.lsp_client import LspClient
 
 
 class TestPathToUri:
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-пути специфичны для Windows")
     def test_windows_drive_path(self):
         """C:\\x\\y.py → file:///C:/x/y.py (Windows)."""
         uri = LspClient._path_to_uri(r"C:\x\y.py")
@@ -33,6 +34,7 @@ class TestPathToUri:
         uri = LspClient._path_to_uri("/home/user/a.py")
         assert uri == "file:///home/user/a.py"
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="UNC-пути специфичны для Windows")
     def test_unc_path(self):
         """\\\\server\\share\\file.py → file://server/share/file.py (WIN-3).
 
