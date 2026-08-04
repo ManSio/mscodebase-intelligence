@@ -16,12 +16,42 @@ import os
 import pickle
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import lancedb
 import pyarrow as pa
 
 from src.core.indexing.symbol_index import SymbolRef
+
+
+# ── Безопасная загрузка legacy-pickle (ISSUE P1 / OWASP десериализация) ──
+# pickle.load() = RCE-вектор при недоверенном файле. Legacy symbol_index.pkl
+# содержит только SymbolRef и стандартные контейнеры — разрешаем ровно их,
+# любой другой тип → UnpicklingError.
+_LEGACY_PICKLE_ALLOWED: Dict[Tuple[str, str], Any] = {
+    ("builtins", "dict"): dict,
+    ("builtins", "list"): list,
+    ("builtins", "set"): set,
+    ("builtins", "tuple"): tuple,
+    ("builtins", "str"): str,
+    ("builtins", "int"): int,
+    ("builtins", "float"): float,
+    ("builtins", "bool"): bool,
+    ("builtins", "NoneType"): type(None),
+    ("src.core.indexing.symbol_index", "SymbolRef"): SymbolRef,
+}
+
+
+class _LegacyPickleLoader(pickle.Unpickler):
+    """Unpickler, разрешающий только типы legacy SymbolIndex (anti-RCE)."""
+
+    def find_class(self, module: str, name: str) -> Any:
+        key = (module, name)
+        if key not in _LEGACY_PICKLE_ALLOWED:
+            raise pickle.UnpicklingError(
+                f"legacy pickle содержит запрещённый тип: {module}.{name}"
+            )
+        return _LEGACY_PICKLE_ALLOWED[key]
 
 __all__ = [
     "IndexGuard",
@@ -364,7 +394,7 @@ class IndexGuard:
                 if legacy.exists():
                     logger.info("Migrating legacy pickle SymbolIndex to JSON...")
                     with open(legacy, "rb") as f:
-                        data = pickle.load(f)
+                        data = _LegacyPickleLoader(f).load()
                     # Immediately re-save as JSON
                     legacy.unlink()
 
