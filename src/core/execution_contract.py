@@ -68,7 +68,12 @@ class ExecutionContract:
         try:
             # Получаем хеш последнего коммита
             hash_result = subprocess.run(
-                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
             )
             if hash_result.returncode != 0:
                 result["errors"].append(
@@ -84,6 +89,8 @@ class ExecutionContract:
                 ["git", "log", "-1", "--pretty=%B"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             if msg_result.returncode == 0:
@@ -108,6 +115,8 @@ class ExecutionContract:
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             if diff_result.returncode == 0:
@@ -141,7 +150,12 @@ class ExecutionContract:
         try:
             # Проверяем статус push
             status_result = subprocess.run(
-                ["git", "status", "-sb"], capture_output=True, text=True, timeout=30
+                ["git", "status", "-sb"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
             )
             if status_result.returncode != 0:
                 result["errors"].append(
