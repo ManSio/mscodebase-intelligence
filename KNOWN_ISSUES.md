@@ -6,6 +6,15 @@
 
 ---
 
+---
+
+## 2026-08-04 — Полный аудит (3-й проход): метрики точны, P0-claims уже закрыты (TRIAGE)
+
+**Symptom:** внешний аудит: SQL x6, subprocess «14 без timeout», мёртвый код (_BATCH_SIZE, ONNX_*, adapters), эксперименты в проде, метрики (251 async/626 except/24 sleep/27 global).
+**Root Cause / Verdict (по коду):** SQL — ❌ REFUTED (тот же IN-паттерн); subprocess в graph.py — ❌ REFUTED (оба вызова timeout=60, B2/B3); мёртвый код — ❌ REFUTED (_BATCH_SIZE удалён 08-03, docs/ARCHITECTURE.md:313-314 помечают ONNX_* как удалённые, адаптеры не существуют); эксперименты — ✅ по дизайну (experiments/ канонична); метрики — ✅ точны; ruff 88 файлов BLE001 — ✅ gradual cleanup; DI-ключи — ⏳ VERIFY.
+**Fix:** отчёт+вердикты → docs/ISSUES/review_full_2026-08-04.md; Ledger расширен до 35 строк; Next Action без изменений (pickle P1 → print P3 → create_task P2).
+**Status:** 🟡 триаж завершён | **Guard:** pytest 761 passed; ключевой вывод — 3 аудита систематически помечают безопасный параметризованный IN-паттерн как SQL-injection.
+
 ## 2026-08-04 — Глубокий аудит (2-й проход): 24 sleep не в async, create_task fire-and-forget, subprocess (TRIAGE)
 
 **Symptom:** внешний инструмент: fire-and-forget create_task (server_factory.py:388), 24 time.sleep «в async», subprocess без timeout (executor/onnx_client/llama_runner/git_hooks), BLE001 664, нет coverage, хардкод-порты, нет rate limiting.
