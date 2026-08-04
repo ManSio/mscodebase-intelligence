@@ -33,8 +33,8 @@
 
 ## 0.1. MCP TOOL CALL PROTOCOL (MANDATORY)
 
-> Полный справочник 39 инструментов с JSON Raw Input:
-> `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
+> Полный справочник инструментов с JSON Raw Input — источник правды в коде:
+> `src/mcp/server_tools.py` (class-based) + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py` (intel_*).
 
 ### Формат вызова: JSON Raw Input (Zed MCP)
 
@@ -180,8 +180,8 @@ sleep 2
 
 # Скопировать изменённые файлы в расширение
 # (если install.py запускать не надо, а надо быстро обновить один файл)
-cp /d/Project/MSCodeBase/src/core/llama_runner.py \
-   "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence/src/core/llama_runner.py"
+cp /d/Project/MSCodeBase/src/providers/reranker/llama_runner.py \
+   "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence/src/providers/reranker/llama_runner.py"
 ```
 
 **Шаг 3 — install.py (если нужно обновить бинарники/модули):**
@@ -244,6 +244,21 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
   MCP использует GPU, иначе CPU.
 - Все тесты проводи в терминале (GitBash), пути в POSIX формате (`src/core/...`).
 
+## 0.6. СТРУКТУРА КОРНЯ (cleanup 2026-08-04)
+
+Канонический набор файлов в корне проекта:
+
+- **Код и конфиг:** `src/`, `tests/`, `scripts/`, `tools/`, `docs/`, `experiments/`, `ruff.toml`
+- **Правила проекта:** `AGENTS.md`, `AGENT_DIARY.md`, `KNOWN_ISSUES.md`, `EXPERIMENTS_LOG.md`, `ISSUE.md` (активный аудит-трекер)
+- **Установка:** `install.py` / `install.bat` / `install.sh` / `uninstall.bat`, `extension.toml`, `__mscodebase_ext__.marker`, `start_server.bat`
+- **Пакет:** `pyproject.toml`, `requirements.txt`, `requirements-lock.txt`, `MANIFEST.in`, `LICENSE`, `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `AI_INSTALLATION_PROMPT.md`
+- **Архивы:** `docs/archive/` (например `DEV_DIARY_2026_07.md`); `DEV_DIARY.md` в корне — заглушка-редирект на `AGENT_DIARY.md`
+
+**Запрещено добавлять в корень** (см. §6):
+- ❌ Одноразовые тест-скрипты / pytest-обёртки с захардкоженными путями → `scripts/` или `experiments/`, либо удалять
+- ❌ Логи, выводы тестов (`*.log`, `test_output.txt`, `install_output.txt`) — уже в `.gitignore`, не коммитить
+- ❌ Файлы вне списка выше без явной причины — корень чистился 2026-08-04, не дай ему захламиться заново
+
 ## 1. TOOL SELECTION
 
 ### 1.1 Architectural Substitution Rules
@@ -284,7 +299,8 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 ## 2. AVAILABLE TOOLS (48)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
-> `.agents/skills/mscodebase-rules/MCP_TOOLS.md`
+> источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
+> Актуальное число зарегистрированных инструментов — в логе MCP при старте (`📐 MCP Tools: N/M видимы`).
 
 ### A. Intel Intelligence Layer (12 tools)
 
@@ -390,6 +406,11 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 - NO debug prints to stdout (breaks JSON-RPC parser).
 - NO investigating a hypothesis after two consecutive observations confirm the same fact.
 
+### Repository hygiene (§0.6)
+- NO one-off test scripts / pytest wrappers / logs / test outputs in project root → `scripts/` or `experiments/`, добавить в `.gitignore`.
+- NO new root files вне канонического набора §0.6.
+- NO второй дневник / KNOWN_ISSUES — `AGENT_DIARY.md` и корневой `KNOWN_ISSUES.md` единственные (проверка `find . -iname "KNOWN_ISSUES.md"`).
+
 ### Windows subprocess (§5.16)
 - **NEVER** use `subprocess.run(capture_output=True)` in daemon threads — pipe buffer deadlock on Windows.
 - **ALWAYS** use `subprocess.Popen(stdout=PIPE, stderr=DEVNULL)` + `communicate(timeout=N)`.
@@ -411,3 +432,4 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
    - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
    - Результат вставляется в `[🏁 ИТОГ]` как `verified_from_clean_state: <output>`
 10. All correct? → **TASK VERIFIED**
+11. Root чистый? (нет новых одноразовых скриптов/логов в корне — §0.6)

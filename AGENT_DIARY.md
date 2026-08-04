@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 22:30] — Приведение в порядок корня проекта (root cleanup)
+
+**Status:** ✅ Done (закоммичено в этой сессии)
+**Root Cause:** в корне накопились одноразовые pytest-обёртки с hardcoded путями (runner.py, quickrun.py, do_test.py, execute_test.py, quick_test.py, _run_test.py, runtest.py, .verify_final_render.py, run_test/run_pytest/run_one_test.*), логи pytest/установки/ONNX и DEV_DIARY.md не был урезан до заглушки после слияния 08-03.
+**Fix:** 12 одноразовых скриптов — `git rm` + в .gitignore; 12 артефактов — удалены с диска (уже были gitignored); DEV_DIARY.md → `docs/archive/DEV_DIARY_2026_07.md` (git mv), в корне заглушка-редирект; `.agent_task_state.md` удалён (задача Sprint A закрыта, §0.1).
+**Guard:** .gitignore-паттерны на удалённые имена; AGENTS.md §0.6/§6 (root hygiene); ISSUE.md и start_server.bat оставлены (активный трекер аудита / рабочий хелпер).
+**verified_from_clean_state:** ✅ да — только гигиена репозитория (docs/.gitignore/удаление файлов), runtime-код не тронут; проверено `git status` + grep битых ссылок (пуст).
+
 ## [2026-08-04] — Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (progress cleanup)
 
 **Status:** ✅ Fixed (код + 4 регрессионных теста; полный прогон 761 passed, 4 skipped, 94 deselected)
