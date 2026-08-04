@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-05 00:45] — CI зелёный: 3 класса платформенных провалов закрыты (FIXED)
+
+**Status:** ✅ Fixed (коммиты a7a7a9e7, ddb9ebfe, bcef653b; финальный CI-прогон на bcef653b — 7/7 job'ов success: Ubuntu/Windows ×3.10-3.12 + clean-state)
+**Root Cause:** (1) ruff I001 ×10 — ruff не пинится (dev: >=0.5.0), свежая 0.15.16 строже к вложенным импорт-блокам; (2) DatabaseLock: окно O_EXCL→fsync — на Unix немедленный steal давал ДВА писателя (Windows скрывал тем, что unlink открытых файлов падает PermissionError); (3) test_lsp_uri_conversion ×2 без skipif — на POSIX C:\x\y.py = относительный путь; (4) write_text/text=True без encoding — Windows-runner cp1252: UnicodeEncodeError (кириллица) + UnicodeDecodeError (git-вывод).
+**Fix:** ruff --fix (I001); grace-период в _read_holder_pid (retry чтения retry_attempts×poll_interval перед трактовкой stale); skipif(win32) ×2; encoding="utf-8" в 4 тестовых write_text и 4 subprocess.run execution_contract (errors="replace").
+**Guard:** CI green на всех 6 ОС×Python + clean-state; coverage 39.8-41% ≥ 38% на всех платформах (баланс порога подтверждён). Долг: ещё 7 файлов с text=True без encoding — KNOWN_ISSUES.
+**verified_from_clean_state:** ✅ да — локально полный pytest 761 passed, 40.61%; CI 7/7 jobs success.
+
 ## [2026-08-05 00:05] — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
 
 **Status:** ✅ Fixed (коммит a7a7a9e7, запушен)

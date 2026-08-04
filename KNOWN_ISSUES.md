@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-08-05 — CI зелёный после 3 платформенных провалов (FIXED, прогон 7/7)
+
+**Symptom:** coverage gate (38%) выявил красный CI: Ubuntu — race 2 winners + 2 URI-теста; Windows — UnicodeEncodeError/UnicodeDecodeError (cp1252).
+**Root Cause / Verdict:** (1) DatabaseLock — РЕАЛЬНЫЙ POSIX-баг: окно O_EXCL→fsync позволяло второму потоку считать пустой файл stale и удалить активный лок (unlink на Unix разрешён) → 2 писателя; (2) Windows-URI-тесты без skipif; (3) write_text/text=True без encoding → cp1252 на windows-latest.
+**Fix:** grace-период в _read_holder_pid (retry чтения перед stale); skipif(win32) ×2; encoding="utf-8" в тестах (×4) и execution_contract subprocess (×4, errors="replace").
+**Status:** ✅ Fixed (a7a7a9e7, ddb9ebfe, bcef653b) | **Guard:** CI 7/7 success; coverage 39.8-41% ≥ 38% на всех платформах; порог 38 подтверждён (запас 1.8-3% под матрицу).
+
+## 2026-08-05 — Tech debt: subprocess text=True без encoding (7 файлов) (OPEN)
+
+**Symptom:** класс UnicodeDecodeError на не-UTF8 Windows-локалях не ограничен execution_contract.
+**Verdict:** те же text=True без encoding: src/core/commit_memory.py:82, src/core/git_hooks_installer.py:232, src/core/indexing/resource_monitor.py:295/488/519, src/core/intelligence/layer.py:994, src/core/search/branch_aware_index.py:34, src/mcp/server.py:144. Не падают в CI (вывод ASCII/нет тестов), но рванут на любой cp1251/cp1252-машине при не-ASCII выводе.
+**Fix:** НЕ сделан (осознанно, чтобы не раздувать diff горящего CI). По одному: добавить encoding="utf-8", errors="replace".
+**Status:** 🟡 open, дедлайн — при следующей правке каждого файла | **Guard:** эта запись; паттерн §9-lock: `grep -rn "text=True" src/ | grep -v encoding`.
+
 ## 2026-08-04 — CI lint red: ruff I001, 10 импорт-блоков в 8 файлах (FIXED)
 
 **Symptom:** CI-прогоны после добавления coverage (b121ab19) и coverage gate (6dc8d2ae) падали с exit 1 на lint-шаге.
