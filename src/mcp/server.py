@@ -164,6 +164,7 @@ def _check_source_extension_sync() -> Optional[str]:
 
 _last_progress: Dict[str, Any] = {}
 _progress_lock = threading.Lock()
+_progress_updates = 0  # счётчик обновлений для периодического cleanup (Item 4)
 
 
 def get_last_progress() -> Dict[str, Any]:
@@ -180,6 +181,7 @@ def _create_progress_callback(project_name: str):
     """
 
     def progress_callback(file_name: str, done: int, total: int, phase: str):
+        global _progress_updates
         try:
             now = time.time()
             with _progress_lock:
@@ -201,8 +203,10 @@ def _create_progress_callback(project_name: str):
             }
             with _progress_lock:
                 _last_progress[project_name] = progress_info
-                # Periodic cleanup of stale entries (every 100 progress updates)
-                if len(_last_progress) > 10:
+                # Periodic cleanup: раз в 100 обновлений, не на каждом —
+                # иначе O(n) на каждый update при >10 активных проектах
+                _progress_updates += 1
+                if _progress_updates % 100 == 0 and len(_last_progress) > 10:
                     _cleanup_old_progress()
 
             if done % 10 == 0 or phase in (

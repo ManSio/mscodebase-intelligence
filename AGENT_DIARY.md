@@ -12,6 +12,25 @@
 
 ---
 
+## [2026-08-04] — Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (progress cleanup)
+
+**Status:** ✅ Fixed (код + 4 регрессионных теста; полный прогон 761 passed, 4 skipped, 94 deselected)
+**Root Cause:** (Item 3) `asyncio.Lock()` создавался в sync `Searcher.__init__` — wrong-loop риск при cross-loop usage (повторение класса бага P3-12 db_manager). (Item 4) `if len(_last_progress) > 10: _cleanup_old_progress()` на каждом update — O(n) при >10 проектах, комментарий обещал «every 100 updates».
+**Fix:** (Item 3) lazy-создание lock в `_ensure_multi_reranker_async` (src/core/search/engine.py), зеркально db_manager.py:334-335. (Item 4) счётчик `_progress_updates % 100 == 0` + guard `len > 10` (src/mcp/server.py:202-208).
+**Guard:** tests/test_searcher.py (lock отсутствует после sync-инита / создаётся в loop / единственная инициализация под конкуренцией); tests/test_index_progress.py::TestPeriodicCleanup (cleanup раз в 100 обновлений, не каждый).
+**Verified from clean state:** ⚠️ не проверено из чистого клона — причина: `verify_clean_state.sh` требует полный clone+install+embedder/llama-бинарники (~15+ мин, не выполнялся в этом спринте); локальный полный прогон pytest: 761 passed, 4 skipped, 94 deselected.
+**Pattern:** Item 3 — повторение класса «asyncio-примитив в sync-контексте» (P3-12 db_manager, lazy-паттерн — эталон). Item 4 — NEW. Зеркально: KNOWN_ISSUES#2026-08-04-sprint-a.
+
+## [2026-08-04 21:00] — ZED CRASH-LOOP: 7 рестартов за 2 часа — всплески памяти агента 7.5-8.6GB + дефицит системных ресурсов
+
+**Status:** 🟡 Root Cause подтверждён (лог+счётчики+EventLog+GitHub); фикс — действия владельца, код не менялся
+**GitHub-подтверждение (2026-08-04 21:15):** `GitHub#60793` — точная копия кейса (Win11 + AMD Ryzen 5 5600H + 16GB + AMD Radeon iGPU Vega 512MB + context server mscodebase-intelligence + провайдер opencode): та же сигнатура `app_will_quit timeout`→каскад `window not found`, рост +200-500MB/10 tool calls → краш 3.5-6GB. Закрыт как duplicate → **`GitHub#59442`** (OPEN, assigned miguelraz, S2): фоновая SQLite-запись `agent_ui ScopedKeyValueStore::write` (26/49 семплов) + `save_workspace` (15/49) → WAL-луп → 53GB. Локальное подтверждение: `threads.db`=82.7MB (живая запись), `db/0-stable/db.sqlite`=27.2MB+WAL 4.1MB, `zed-crash-handler-9808` (пустой маркер 20:42 — handler вызван, миндамп не записан), `hang_traces/` пуст, WER/CrashDumps пусты.
+**Windows+AMD доп.:** `GitHub#40465` — краш-старт на AMD (`memory allocation of 2684354560 bytes failed`, 0xc0000409) → workaround `gpu_acceleration: false` + `renderer: "software"` (закрыт not_planned). Наши `window not found` (20:17:30, 20:35:30, 20:41:28) — кандидат на тот же класс iGPU-проблем.
+**Root Cause:** агент Zed при обработке промпта в длинной сессии транзиентно аллоцирует 7.5-8.6GB в процессе (`Zed.log`: `resident 7794 MiB (+7741)` через 19с после prompt, освобождение через 30с). Триггеры роста контекста: `agent.auto_compact=false`, глобальный AGENTS.md=123KB, threads.db=82MB, 2 context-сервера (`mscodebase-intelligence`+`firefox-browser-control`) опрашиваются на каждый ход. Система не переваривает всплеск: RAM 15.4GB, свободно 7.9GB, pagefile 2.1GB фикс, C: заполнен на 97% (4.3GB) → commit limit 17.5GB, при всплеске 89% → своп-шторм (зависания) → аллокация срывается, процесс убит без WER/дампера (нет следов). Windows Resource-Exhaustion: события 1001/1002 08-03 20:43-20:47 (и 07-22/07-25/07-26). Встроенный AMD Radeon делит RAM → `DXGI_ERROR_DEVICE_HUNG (0x887A0005)` 08-03 20:41:17, «invalid window handle» 08-04 20:17:30 → окно закрывается.
+**Fix (план, ждёт владельца):** (1) освободить C: → <85%, pagefile ≥8GB или на D: (56GB свободно); (2) `auto_compact.enabled=true` (~65%); (3) убрать firefox-browser-control из `context_servers_to_query`; (4) отключить edit_predictions (403 каждый старт); (5) сократить AGENTS.md 123KB → ~15-20KB; (6) обновить драйвер AMD (GPU hang).
+**Guard:** после фиксов — повторный скан Zed.log на `resident .* \+[0-9]{4}` и мониторинг commit charge; запись в KNOWN_ISSUES#2026-08-04-zed-crash-loop.
+**Pattern:** NEW — кандидат P-003 «экологический дефицит ресурсов + тяжёлый агентский контекст».
+
 ## [2026-08-04] — fast-mode сортировка инвертировала топ-результаты (cosine _distance ASC)
 
 **Status:** ✅ Fixed (код + 1 регрессионный тест)

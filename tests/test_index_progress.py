@@ -208,3 +208,43 @@ class TestProgressLockThreadSafety:
             t.join()
 
         assert len(errors) == 0
+
+
+class TestPeriodicCleanup:
+    """Item 4 (audit): cleanup вызывается периодически, не на каждом update."""
+
+    def test_cleanup_runs_every_100_updates_not_each(self):
+        """Раньше условие len(_last_progress) > 10 триггерило cleanup на каждый
+        update (O(n) при >10 проектах). Теперь — только каждый 100-й update.
+        """
+        import src.mcp.server as server_module
+        from src.mcp.server import _create_progress_callback
+
+        with server_module._progress_lock:
+            server_module._progress_updates = 0  # нормализуем глобальный счётчик для теста
+            server_module._last_progress.clear()
+            # 11 проектов с протухшими записями (>10 — старый триггер)
+            for i in range(11):
+                server_module._last_progress[f"old_{i}"] = {
+                    "phase": "complete",
+                    "files_done": 1,
+                    "files_total": 1,
+                    "percent": 100.0,
+                    "timestamp": time.time() - 7200,
+                }
+
+        cb = _create_progress_callback("new_project")
+        # 99 обновлений → cleanup ещё не вызван, протухшие записи на месте
+        for i in range(99):
+            cb("file.py", i + 1, 100, "scanning")
+
+        with server_module._progress_lock:
+            assert "old_0" in server_module._last_progress
+            assert server_module._progress_updates == 99
+
+        # 100-е обновление → cleanup срабатывает
+        cb("file.py", 100, 100, "scanning")
+
+        with server_module._progress_lock:
+            assert "old_0" not in server_module._last_progress
+            assert "new_project" in server_module._last_progress

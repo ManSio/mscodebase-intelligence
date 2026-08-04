@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-08-04 — Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (progress cleanup) (FIXED, код+тесты, синхронизировано)
+
+**Symptom:** (Item 3) `asyncio.Lock()` создавался в синхронном `Searcher.__init__` — риск wrong-loop при cross-loop usage (класс бага P3-12 db_manager). (Item 4) cleanup `_last_progress` вызывался на КАЖДОМ progress update при >10 проектах — O(n) на update, комментарий обещал «every 100 updates».
+**Root Cause:** (Item 3) eager-создание lock вне event loop. (Item 4) условие `len(_last_progress) > 10` триггерило cleanup чаще задуманного.
+**Fix:** (Item 3) lazy-создание lock в `_ensure_multi_reranker_async` (engine.py), зеркально `db_manager.py:334-335`; + 3 теста в tests/test_searcher.py. (Item 4) счётчик `_progress_updates % 100 == 0` + guard `len > 10` (server.py); + тест TestPeriodicCleanup в tests/test_index_progress.py.
+**Status:** ✅ локально — `python -m pytest tests/ -q` → 761 passed, 4 skipped, 94 deselected. E2E рантайм-прогресс: ⚠️ требует Reload Window (MCP держит старый код).
+**Tech debt (связано):** sync `Searcher._ensure_multi_reranker` (engine.py:1013) — мёртвый код (0 вызовов в src+tests); удаление — вне скоупа спринта, зафиксировано для рефакторинга.
+
+## 2026-08-04 21:00 — Zed crash-loop: 7 рестартов за 2ч — всплески памяти агента 7.5-8.6GB + дефицит ресурсов 🔴
+
+**Symptom:** Zed зависает/закрывается каждые 2-4 минуты; 7 рестартов 18:39-20:18 (08-04); crash dump/WER отсутствуют (аварийный kill).
+**Root Cause:** агент Zed транзиентно аллоцирует 7.5-8.6GB при промптах в длинных сессиях (auto_compact=off, AGENTS.md=123KB, threads.db=82MB, 2 context-сервера на ход). RAM 15.4GB + pagefile 2.1GB (C: заполнен 97%) → commit limit 17.5GB (89% при всплеске) → своп-шторм → краш/вис. Встроенный AMD iGPU делит RAM → DXGI_ERROR_DEVICE_HUNG 0x887A0005 → закрытие окна.
+**Fix (план):** C: → <85%; pagefile ≥8GB (или на D:, 56GB свободно); auto_compact=true (~65%); 1 context-сервер в запросах; edit_predictions off (403); AGENTS.md → ~15-20KB; драйвер AMD актуальный.
+**GitHub:** `GitHub#60793` — точная копия (Win11+AMD Ryzen 5600H+16GB+iGPU Vega 512MB+context server mscodebase-intelligence+opencode), закрыт как duplicate → `GitHub#59442` (OPEN: agent_ui SQLite write loop → 53GB; локально подтверждено threads.db 82.7MB + db.sqlite 27.2MB/WAL 4.1MB). `GitHub#40465`: AMD-краш лечится `gpu_acceleration:false` + `renderer:"software"`.
+**Status:** 🔴 открыто (требует действий владельца, код не менялся) | **Owner:** misha | **Deadline:** 2026-08-11
+
 ## 2026-08-03 23:25 — Ложные orphans: разделители путей Windows (FIXED, синхронизировано)
 
 **Symptom:** health report показывал «Осиротевшие файлы в индексе (283)» даже после полного реиндекса с нуля; overall_health=critical.
