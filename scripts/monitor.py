@@ -278,6 +278,7 @@ def render():
     os.system('cls' if os.name == 'nt' else 'clear')
     now = time.time()
     total_elapsed = now - monitor_start
+    avg_log = 0  # инициализация: задаётся в ветке эмбеддинга, но используется в блоке «Тренд» при любой фазе
 
     print("📊 МОНИТОР ИНДЕКСАЦИИ v3")
     print("─" * 60)

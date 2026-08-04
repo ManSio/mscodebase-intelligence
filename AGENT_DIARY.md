@@ -20,6 +20,22 @@
 **Guard:** .gitignore-паттерны на удалённые имена; AGENTS.md §0.6/§6 (root hygiene); ISSUE.md и start_server.bat оставлены (активный трекер аудита / рабочий хелпер).
 **verified_from_clean_state:** ✅ да — только гигиена репозитория (docs/.gitignore/удаление файлов), runtime-код не тронут; проверено `git status` + grep битых ссылок (пуст).
 
+## [2026-08-04 22:25] — scripts/monitor.py: UnboundLocalError avg_log (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** переменная `avg_log` присваивалась только в ветке фаз эмбеддинга (PHASE_EMBED/WRITING/IVF), а читалась в блоке «Тренд» при любой фазе — при фазе сканирования/простоя падение UnboundLocalError.
+**Fix:** инициализация `avg_log = 0` в начале функции render (scripts/monitor.py:280).
+**Guard:** запуск `python scripts/monitor.py` — рендер не падает ни при какой фазе; проверено при наблюдении за реиндексом (2026-08-04).
+**verified_from_clean_state:** ✅ да — монитор запущен после фикса, рендер корректен; правка изолирована в scripts/monitor.py.
+
+## [2026-08-04 22:40] — test_job_history: изоляция от переиспользования tmp_path (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** JobHistoryStore пишет во внешний `<data_root>/projects/<hash>/metrics/job_history.json`, а pytest переиспользует temp-пути между запусками (симлинк pytest-current) → внешний файл накапливал записи от прошлых прогонов → 3 теста, ждущих свежий стор, падали (gate-zero: 3 failed).
+**Fix:** фикстура temp_project удаляет job_history.json перед тестом (tests/test_job_history.py:10-19).
+**Guard:** полный pytest 761 passed после фикса; переиспользование temp-пути больше не влияет на результат.
+**verified_from_clean_state:** ✅ да — полный сьют 761 passed, 4 skipped после фикса.
+
 ## [2026-08-04] — Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (progress cleanup)
 
 **Status:** ✅ Fixed (код + 4 регрессионных теста; полный прогон 761 passed, 4 skipped, 94 deselected)
