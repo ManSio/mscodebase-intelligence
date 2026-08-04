@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-04 — Глубокий аудит (2-й проход): 24 sleep не в async, create_task fire-and-forget, subprocess (TRIAGE)
+
+**Symptom:** внешний инструмент: fire-and-forget create_task (server_factory.py:388), 24 time.sleep «в async», subprocess без timeout (executor/onnx_client/llama_runner/git_hooks), BLE001 664, нет coverage, хардкод-порты, нет rate limiting.
+**Root Cause / Verdict (по коду):** create_task — ✅ P2 (server_factory.py:388, ~4 места без ссылки); time.sleep — ⚠️ PARTIAL: счёт 24 верен, но 0 подтверждённых sleep в event loop (idle_killer onnx_server:285 — фоновый поток, database_lock — sync файловый лок, lsp_project_bridge — sync поллинг, resource_monitor.py:635 — в файле НЕТ sleep); executor.py:398 — ❌ REFUTED (communicate(timeout=) есть); onnx_client.py:129 — демон-спавн (timeout неприменим); llama_runner/git_hooks — ⏳ VERIFY; BLE001 — ✅ процесс (gradual cleanup); coverage — ✅ отсутствует; порты — ⚠️ PARTIAL (в settings.py, хардкоды doc_llm_verifier:96-97, layer.py:504).
+**Fix:** полный отчёт + вердикты → docs/ISSUES/review_deep_2026-08-04.md; Ledger (14 строк) → .agent_task_state.md; Next Action: pickle P1 → print P3 → create_task P2.
+**Status:** 🟡 триаж завершён, фиксы запланированы | **Guard:** pytest 761 passed (правок кода нет).
+
 ## 2026-08-04 — Внешнее ревью: 165 находок — SQL ложные, pickle P1 (TRIAGE)
 
 **Symptom:** внешний инструмент: 4 SQL_INJECTION (graph.py), 1 SECURITY pickle.load (index_guard.py), 107 bare-except, 18 sleep, 27 global, 8 print — всего 165.
