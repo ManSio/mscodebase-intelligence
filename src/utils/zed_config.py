@@ -256,7 +256,7 @@ def _make_server_entry(existing: dict | None, executable: str, args: list, ext_d
     """Build the merged server entry, preserving user customizations in `env`.
 
     Authoritative keys (ours) are always set: enabled, command, args,
-    PYTHONPATH, PROJECT_PATH. Optional keys (EMBEDDING_*) keep the user's
+    PYTHONPATH, PROJECT_PATH, PYTHONUTF8. Optional keys (EMBEDDING_*) keep the user's
     value if present. Any other user-added keys are preserved.
     """
     entry = dict(existing) if existing else {}
@@ -268,6 +268,9 @@ def _make_server_entry(existing: dict | None, executable: str, args: list, ext_d
     # Authoritative (ours):
     env["PYTHONPATH"] = str(ext_dir)
     env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"
+    # Windows: без PYTHONUTF8=1 Python читает исходники в cp1251,
+    # ломая индексацию русских комментариев и имён (аудит Item 12/5).
+    env["PYTHONUTF8"] = "1"
     # Optional: keep user value if present, else default.
     env.setdefault("EMBEDDING_PROVIDER", "e5_onnx")
     env.setdefault("EMBEDDING_DIMENSION", "768")

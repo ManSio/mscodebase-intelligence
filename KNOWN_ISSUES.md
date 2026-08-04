@@ -2373,3 +2373,72 @@ Three fixes from the same review:
 **Fix:** все записи < 2026-08-01 перенесены в docs/archive/AGENT_DIARY_2026_07.md (заголовок ARCHIVE — см. A...
 - **Статус:** автоматически синхронизировано
 
+
+## 2026-08-03 23:55 — §1.19 Hard Triggers внедрены в личный AGENTS.md (RESOLVED)
+
+**Symptom:** протокол (§1.15, §1.16, §1.18, §3.5, §0.1.1) сформулирован как «обязан» — агент выполняет шаги, но не думает по ним (нет Phase Zero, Red Team, обобщения, немедленной meta-check, Verification Ledger).
+**Root Cause:** «Обязан» — карта, которую можно не читать. Нужны «рельсы» («запрещено без»).
+**Fix:** §1.19 ЖЁСТКИЕ ТРИГГЕРЫ: 5 блокираторов (Phase Zero, Red Team, grep-обобщение, немедленный META-CHECK, Verification Ledger ≥3 подзадачи). Формат «запрещено без» + Red Team формат `[🔓 RED TEAM] Атака N → Защита/Нет защиты`.
+**Status:** ✅ внедрено в C:\Users\misha\AppData\Roaming\Zed\AGENTS.md (1375→1423 строки). Red Team 5/5 защищено на самой правке.
+
+## 2026-08-03 23:55 — Аудит audit.md: 29 вердикты размечены (PARTIAL — 7 неисправлено, 15 рекомендаций)
+
+**Symptom:** audit.md (2053 строк) содержал 24 пункта + solo-dev 5 без статусов.
+**Root Cause:** аудит накапливался без обновления статусов.
+**Fix:** скрипт .local/patch_audit_status.py вписал 29 вердиктов с File:Line: 4✅ (DI, resolve root, RRF, ack_impact), 3⚠️ (asyncio.Lock, progress cleanup, _distance inconsistency), 7❌ (Heartbeat GetLastError, SearchResultReranker weights, BM25 sync reindex, SQLite schema cols, PYTHONUTF8, shell=True, CodeParser leak), 15📝 рекомендаций (cancellation, OTel, Prometheus, ConfigReloader, chaos, property-based, AgentFriendlyError, ResourceGuard, uninstall, DevModeReloader и др.).
+**Status:** ⚠️ частично — баги 1,2,3,6,8,10,11,12,13,16,17 остаются открытыми; рекомендации 15-29 — новые фичи, не баги.
+
+## 2026-08-03 23:55 — Документация синхронизирована (RESOLVED)
+
+**Symptom:** README/docs badges 649/667 tests (реально 747), tool counts 42/48 (реально 48), dates 2026-07-21, CHANGELOG пуст в корне.
+**Fix:** README.md + docs/{ru,zh}/README.md: badges 747 passed, 48 tools, dates 2026-08-03; ru/zh heading anchors fixed; docs/en/CHANGELOG.md уже актуален (3.3.11, 48 tools).
+**Status:** ✅ docs/en/ru/zh/README.md + bump_version --check ✅ (3.3.11).
+
+## 2026-08-03 23:55 — Commit+push выполнен (RESOLVED)
+
+
+## 2026-08-03 — Аудит audit.md: открытые пункты (29 вердиктов, 6✅, 6❌, 6⚠️, 11📝)
+
+### ✅ ИСПРАВЛЕНО (спринт 2026-08-04, 5/6 FIXED + 1 REFUTED)
+
+| # | Пункт | Файл | Статус | Доказательство |
+|---|-------|------|--------|----------------|
+| 2 | HeartbeatService: нет SetLastError(0) перед OpenProcess, fail-open | src/mcp/server_factory.py:57-68 | ✅ Fixed | SetLastError(0) перед OpenProcess; GetLastError читается только при handle==0; fail-open сохранён. Red Team 5/5. |
+| 6 | SearchResultReranker: hardcoded веса bm25_weight=0.3, dense_weight=0.7 | src/config/settings.py + src/core/search/engine.py:86-89 | ✅ Fixed | SearchConfig.bm25_weight/dense_weight из env (BM25_WEIGHT/DENSE_WEIGHT, дефолты 0.3/0.7); engine читает get_config().search.* |
+| 8 | BM25 reindex callback: синхронный reindex в DebounceBatch | src/core/di_container.py:296-300 | ❌ Refuted | `BM25Mixin.reindex()` (src/core/search/bm25.py:37-40) = только `_bm25 = None` под `_bm25_lock` (O(1), инвалидация кэша). Полный rebuild — лениво при следующем поиске. Блокировки потока НЕТ. Предыдущая запись ledger «FIXED via ThreadPoolExecutor» — ложь, правки не было. |
+| 11 | SQLite schema validation: только таблицы, нет колонок | src/mcp/server.py:266-289 | ✅ Fixed | PRAGMA table_info(scoped_kv_store) → {key, value}; PRAGMA table_info(workspaces) → {workspace, data} |
+| 12 | Encoding: нет PYTHONUTF8=1 | src/utils/zed_config.py:270-273 | ✅ Fixed | env[\"PYTHONUTF8\"] = \"1\" в _make_server_entry (Windows cp1251 → UTF-8) |
+| 13 | install.py: shell=True в subprocess | install.py:254-264, 549-556 | ✅ Fixed | _run() → shlex.split + shell=False; step_pip Popen → список аргументов + shell=False; фикс stray `)` (синтаксическая ошибка) |
+
+### ⚠️ ЧАСТИЧНО (P2 — требуют доработки)
+
+| # | Пункт | Файл | Статус |
+|---|-------|------|--------|
+| 3 | asyncio.Lock создаётся вне event loop (cross-loop risk) | src/core/search/engine.py:91 | 🟡 Partial |
+| 4 | Progress tracking: эвристический cleanup (len > 10, 1ч) | src/mcp/server.py:202-229 | 🟡 Partial |
+| 10 | LanceDB _distance: engine OK, multi_project_searcher использует raw | src/core/multi_project_searcher.py:161-169 | 🟡 Partial |
+| 17 | PropertyGraph: lock есть, _recover_from_wal отсутствует | src/core/graph.py:742-795 | 🟡 Partial |
+| 19 | Rate limiting: только provider-level, нет MCP-level | src/core/rate_limiter.py | 🟡 Partial |
+| 26 | Agent-friendly errors: error_boundary есть, AgentFriendlyError нет | src/mcp/tools/write_tools.py:135 | 🟡 Partial |
+
+### 📝 РЕКОМЕНДАЦИИ (P3/P4 — tech debt / новые фичи)
+
+| # | Пункт | Файл | Статус |
+|---|-------|------|--------|
+| 15 | Cancellation handling: MCP запросы не отменяются | — | 📝 Tech Debt |
+| 16 | Tree-sitter: CodeParser leak (нет close/__del__) | src/core/indexing/parser.py:21 | 📝 Tech Debt |
+| 18 | MCP Progress notifications: не используются notifications/progress | — | 📝 Tech Debt |
+| 20 | OpenTelemetry: нет distributed tracing | — | 📝 Tech Debt |
+| 21 | Prometheus: нет metrics integration | — | 📝 Tech Debt |
+| 22 | Config hot-reload: ConfigReloader отсутствует | — | 📝 Tech Debt |
+| 23 | Chaos-тесты: kill process during indexing | — | 📝 Tech Debt |
+| 24 | Property-based тесты для scoring (RRF, cosine) | — | 📝 Tech Debt |
+| 27 | ResourceGuard: защита от OOM | — | 📝 Tech Debt |
+| 28 | One-command uninstall в install.py | install.py | 📝 Tech Debt |
+| 29 | Hot-reload кода: DevModeReloader отсутствует | — | 📝 Tech Debt |
+
+
+**Symptom:** 19+ изменённых файлов, unpushed commit 5ce0eaa3 (origin/main = ab44b00d).
+**Fix:** commit 8a07c23e (34 files, +2362/-522), pre-commit OK (verify_diary 25✅, stale_detector OK), push origin/main.
+**Status:** ✅ origin/main up to date (HEAD = 8a07c23e).
+

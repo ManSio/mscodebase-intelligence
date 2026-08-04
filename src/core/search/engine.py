@@ -83,7 +83,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._fts5_lock = threading.Lock()
         self._bm25_df: Any = None
         self._tokenizer_re = re.compile(r"\W+")
-        self._reranker = SearchResultReranker(bm25_weight=0.3, dense_weight=0.7)
+        self._reranker = SearchResultReranker(
+            bm25_weight=get_config().search.bm25_weight,
+            dense_weight=get_config().search.dense_weight
+        )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock = asyncio.Lock()

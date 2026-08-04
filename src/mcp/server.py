@@ -264,7 +264,8 @@ _sqlite_schema_checked: bool = False
 
 
 def _check_sqlite_schema_health(conn) -> Optional[str]:
-    """Проверяет, что таблицы scoped_kv_store и workspaces существуют.
+    """Проверяет, что таблицы scoped_kv_store и workspaces существуют
+    и содержат ключевые колонки.
 
     Принимает уже открытое соединение — не вызывает _get_sqlite_connection()
     рекурсивно. Вызывается один раз при старте.
@@ -273,6 +274,8 @@ def _check_sqlite_schema_health(conn) -> Optional[str]:
         return "Zed SQLite DB недоступна — workspace-резолвинг будет degraded"
     try:
         cur = conn.cursor()
+
+        # Проверяем таблицы
         cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='scoped_kv_store'"
         )
@@ -283,6 +286,23 @@ def _check_sqlite_schema_health(conn) -> Optional[str]:
         )
         if cur.fetchone() is None:
             return "workspaces не найдена! workspace-резолвинг будет degraded"
+
+        # Проверяем ключевые колонки scoped_kv_store
+        cur.execute("PRAGMA table_info(scoped_kv_store)")
+        kv_columns = {row[1] for row in cur.fetchall()}
+        required_kv = {"key", "value"}
+        missing_kv = required_kv - kv_columns
+        if missing_kv:
+            return f"scoped_kv_store: отсутствуют колонки {missing_kv} — схема устарела"
+
+        # Проверяем ключевые колонки workspaces
+        cur.execute("PRAGMA table_info(workspaces)")
+        ws_columns = {row[1] for row in cur.fetchall()}
+        required_ws = {"workspace", "data"}
+        missing_ws = required_ws - ws_columns
+        if missing_ws:
+            return f"workspaces: отсутствуют колонки {missing_ws} — схема устарела"
+
         return None
     except Exception as e:
         return f"Ошибка проверки схемы SQLite: {e}"

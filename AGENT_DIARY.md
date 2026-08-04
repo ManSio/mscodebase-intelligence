@@ -223,3 +223,26 @@
 **Guard:** 37 passed (test_write_tools) + 10 passed (health/architecture/index_guard); import OK; ext синхронизирован (cp); live-проверка после Reload Window.
 **verified_from_clean_state:** ✅ yes — live-подтверждено на RUN_ID e3f3aabd7186: codebase(action="index", path="status") → 4842 chunks; codebase(action="write", ...) → modification guard + impact_token.
 
+
+---
+
+## [2026-08-03 23:55] — Сессия: §1.19 Hard Triggers + аудит 29 пунктов + docs sync + commit/push
+
+**Status:** ✅ Done
+**Root Cause:** протокол требовал жёстких триггеров (§1.19), аудит audit.md был неразмечен, README/doc badges устарели (649→747), DEV_DIARY не архивирован, CHANGELOG пуст, unpushed commit.
+**Fix:** (1) §1.19 Hard Triggers в личный AGENTS.md (5 блокираторов «запрещено без»); (2) 29 вердиктов в experiments/audit.md (4✅, 3⚠️, 7❌, 15📝); (3) README/docs/{ru,zh}: badges 747, 48 tools, dates 2026-08-03; (4) onnx off-by-one parents[3]; hub write sub-action dispatch; Py3.14 get_running_loop; (5) verify_diary 3 ложных ❌; (6) DEV_DIARY → ARCHIVED header; (7) commit 8a07c23e + push origin/main.
+**Guard:** pre-commit (verify_diary 25✅/0❌, stale_detector OK); bump_version --check ✅ (3.3.11); live E2E MCP chain verified on RUN_ID e3f3aabd7186 (edit→notify→reindex→search_code 4857 chunks).
+**verified_from_clean_state:** ✅ yes — clean clone+venv+install+pytest (747 passed) + live MCP chain verified.
+
+---
+
+## [2026-08-04] — Спринт: 6 пунктов аудита (5 ✅ Fixed, 1 ❌ Refuted) + docs + commit/push
+
+**Status:** ✅ Done (5/6 FIXED, 1/6 REFUTED)
+**Root Cause:** 6 ❌ P1/P2 пунктов из experiments/audit.md требовали фикса: Heartbeat GetLastError, hardcoded reranker weights, BM25 sync reindex, SQLite schema cols, PYTHONUTF8, shell=True.
+**Fix:** (1) server_factory.py:57-68 SetLastError(0)+GetLastError только при handle==0; (2) settings.py SearchConfig.bm25/dense_weight из env + engine.py:86-89; (3) Item 8 REFUTED — BM25Mixin.reindex() = только инвалидация кэша `_bm25=None` под локом (bm25.py:37-40), блокировки нет; (4) server.py:266-289 PRAGMA table_info для {key,value}/{workspace,data}; (5) zed_config.py:270-273 env[PYTHONUTF8]="1"; (6) install.py _run()→shlex.split+shell=False, step_pip Popen→список, фикс stray `)` (syntax error).
+**Guard:** 756 passed, 4 skipped, 0 failed; AST OK на 7 файлах; shlex.split проверен на PowerShell-команде (4 args, скрипт цел); Ledger §0.1.1 — прошлая запись «Item 8 FIXED via ThreadPoolExecutor» была ложной (di_container.py не менялся) — сверять ledger с git status (§9 pitfall 1).
+**verified_from_clean_state:** ⚠️ no — pytest полный (756 passed) + AST, но verify_clean_state.sh (clone+venv) не гонялся в этой сессии.
+
+---
+

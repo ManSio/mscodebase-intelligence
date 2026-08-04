@@ -138,6 +138,14 @@ class SearchConfig:
     default_search_limit: int = int(os.getenv("DEFAULT_SEARCH_LIMIT", "6"))
     max_search_results: int = int(os.getenv("MAX_SEARCH_RESULTS", "20"))
 
+    # BM25 + Dense weights (SearchResultReranker legacy)
+    bm25_weight: float = field(
+        default_factory=lambda: float(os.getenv("BM25_WEIGHT", "0.3"))
+    )
+    dense_weight: float = field(
+        default_factory=lambda: float(os.getenv("DENSE_WEIGHT", "0.7"))
+    )
+
     # Query expansion
     query_synonyms_enabled: bool = (
         os.getenv("QUERY_SYNONYMS_ENABLED", "true").lower() == "true"
