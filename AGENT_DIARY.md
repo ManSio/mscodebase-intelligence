@@ -16,7 +16,7 @@
 
 **Status:** ✅ Fixed (коммит в этой сессии)
 **Root Cause:** Next Action #9-#10: CircuitBreaker «dead» — ❌ REFUTED (подключён к embedder напрямую, di_container:337-345); coverage отсутствовал.
-**Fix:** ci.yml cache: pip (оба jobs) + --cov=src в test job; pytest-cov>=7.1.0 в dev extras. Baseline 41% (761 passed). Порог не ставил — информационный отчёт.
+**Fix:** ci.yml cache: pip (оба jobs) + --cov=src --cov-fail-under=38 в test job; pytest-cov>=7.1.0 в dev extras. Baseline 41% (стабилен на 2 замерах), порог 38 (запас 3%).
 **Guard:** YAML валиден; pre-commit зелёный; bandit/xdist — defer.
 **verified_from_clean_state:** ✅ да — pytest с --cov: 761 passed, 41%.
 

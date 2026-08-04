@@ -48,7 +48,7 @@ jobs:
         run: python scripts/bump_version.py --check
 
       - name: Full test suite (no filters)
-        run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing
+        run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
         timeout-minutes: 10
 
   clean-state:
