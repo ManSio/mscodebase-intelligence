@@ -252,11 +252,19 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _run(cmd: str, timeout: int = 120, capture: bool = True) -> Optional[subprocess.CompletedProcess]:
-    """subprocess.run с таймаутом и безопасным возвратом None вместо исключения."""
+    """subprocess.run с таймаутом и безопасным возвратом None вместо исключения.
+
+    Использует shell=False со списком аргументов для безопасности.
+    Команда разбивается через shlex.split() для корректной обработки
+    путей с пробелами и спецсимволами.
+    """
+    import shlex
+
     try:
+        args = shlex.split(cmd)
         if capture:
-            return subprocess.run(cmd, shell=True, timeout=timeout, capture_output=True, text=True)
-        return subprocess.run(cmd, shell=True, timeout=timeout)
+            return subprocess.run(args, shell=False, timeout=timeout, capture_output=True, text=True)
+        return subprocess.run(args, shell=False, timeout=timeout)
     except subprocess.TimeoutExpired:
         logger.debug("command timed out after %ss: %s", timeout, cmd[:80])
         return None
@@ -539,8 +547,8 @@ def step_pip(lines, lang):
     _run(f'"{PYTHON_EXE}" -m pip install --upgrade pip', timeout=60)
 
     proc = subprocess.Popen(
-        f'"{PYTHON_EXE}" -m pip install -r "{req}"',
-        shell=True,
+        [PYTHON_EXE, "-m", "pip", "install", "-r", str(req)],
+        shell=False,
         cwd=str(ZED_EXT_DIR),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

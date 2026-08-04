@@ -55,16 +55,22 @@ class HeartbeatService:
         try:
             if sys.platform == "win32":
                 import ctypes
+                # Сбрасываем last error перед вызовом OpenProcess
+                # (OpenProcess при успехе не сбрасывает GetLastError)
+                ctypes.windll.kernel32.SetLastError(0)
                 handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
                 if handle:
                     ctypes.windll.kernel32.CloseHandle(handle)
                     return True
-                return ctypes.windll.kernel32.GetLastError() != 87
+                # Проверяем ошибку ТОЛЬКО при handle == 0
+                err = ctypes.windll.kernel32.GetLastError()
+                return err != 87  # ERROR_INVALID_PARAMETER
             os.kill(pid, 0)
             return True
         except (ProcessLookupError, PermissionError, OSError):
             return False
         except Exception:
+            # fail-open: не убиваем процесс из-за ошибки проверки
             return True
 
     async def _monitor(self) -> None:
