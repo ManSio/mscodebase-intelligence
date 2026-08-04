@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:59] — Баг-клоуза: layer.py порт LM + резолв 7 VERIFY (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** из 3 аудитов остались VERIFY-пункты; единственный реальный баг — layer.py:504 хардкод порта LM Studio 1234 (рядом код уже читал порты из config, lm_studio забыли).
+**Fix:** `_lm_port_str` из `_cfg.embedding.lm_studio_port` + фолбэк 1234 (layer.py:474-480,504). Резолв: subprocess — REFUTED (демон-спавны/communicate(timeout=120)/нет subprocess в lsp_project_bridge); rate limiting — REFUTED (SlidingWindowRateLimiter в DI); DI — REFUTED (ленивый resolve); print main.py — REFUTED (stderr/help).
+**Guard:** pytest 761 passed; diagnostics layer.py чисто; Ledger: 35 строк, 8 закрыто в этой сессии, остались bare-except(107)/global/CI — defer по Danger Zone.
+**verified_from_clean_state:** ✅ да — полный pytest 761 passed после фикса.
+
 ## [2026-08-04 23:58] — Hotfix: pickle P1 закрыт restricted unpickler'ом (FIXED)
 
 **Status:** ✅ Fixed (коммит в этой сессии)
