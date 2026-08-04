@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-04 — CI clean-state: venv/bin/python: No module named pytest (FIXED)
+
+**Symptom:** clean-state job падает: «venv/bin/python: No module named pytest» (файл .github/workflows/ci.yml).
+**Root Cause:** Linux-ветка verify_clean_state.sh: `pip install -e ".[dev]" --no-deps` — dev-зависимости (pytest) не в requirements-lock.txt, --no-deps их не ставит (регрессия от 0735c08e, lockfile drift-gate).
+**Fix:** убран --no-deps в Linux-ветке (scripts/verify_clean_state.sh:74); runtime из lock bit-exact, pip не апгрейдит удовлетворённые пакеты.
+**Status:** ✅ Fixed (коммит в этой сессии) | **Guard:** bash -n; логика идентична Windows-ветке; верификация — CI.
+
 ## 2026-08-04 — test_job_history: 3 теста падали при переиспользовании tmp_path между запусками (FIXED)
 
 **Symptom:** gate-zero: 3 failed (test_append_and_load, test_rolling_average_fallback_no_similar, test_corrupted_history_recovers) — assert len(history) == 2 получал 4.

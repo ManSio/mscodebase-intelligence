@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:00] — CI clean-state: No module named pytest (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** Linux-ветка verify_clean_state.sh ставила `pip install -e ".[dev]" --no-deps` — dev-зависимости (pytest и др.) не входят в requirements-lock.txt (runtime lock), а --no-deps пропускал их установку → venv без pytest (регрессия от 0735c08e, lockfile drift-gate).
+**Fix:** убран `--no-deps` в Linux-ветке (scripts/verify_clean_state.sh:74) — runtime из lock остаётся bit-exact (pip не апгрейдит удовлетворённые пакеты), dev-инструменты доставляются.
+**Guard:** логика теперь идентична рабочей Windows-ветке; bash -n OK; полный прогон — в CI.
+**verified_from_clean_state:** ⚠️ не проверено в этой среде — Linux-ветка выполняется только в CI (uname -s != Linux на Windows), локально не воспроизводится; синтаксис и логика проверены.
+
 ## [2026-08-04 22:30] — Приведение в порядок корня проекта (root cleanup)
 
 **Status:** ✅ Done (закоммичено в этой сессии)
