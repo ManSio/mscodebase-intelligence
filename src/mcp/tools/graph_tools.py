@@ -476,6 +476,7 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         # Fallback: прямой путь к PropertyGraph (вне проекта, Задача 4/5)
         if not db_path:
             from pathlib import Path
+
             from src.core.artifact_paths import get_graph_db_path
             try:
                 registry = self._services.resolve(ProjectIndexerRegistry)
@@ -627,6 +628,7 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
             pass
         if not db_path:
             from pathlib import Path
+
             from src.core.artifact_paths import get_graph_db_path
             try:
                 registry = self._services.resolve(ProjectIndexerRegistry)

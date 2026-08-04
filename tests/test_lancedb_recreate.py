@@ -18,11 +18,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import pytest
 import lancedb
+import pytest
 
 from src.core.indexing.db_manager import LanceDBManager
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

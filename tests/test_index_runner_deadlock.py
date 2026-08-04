@@ -29,7 +29,6 @@ from pathlib import Path
 
 from src.core.indexing.index_project_runner import IndexProjectRunner
 
-
 # ─── Моки ───────────────────────────────────────────────────────────────────
 
 class _FakeTable:

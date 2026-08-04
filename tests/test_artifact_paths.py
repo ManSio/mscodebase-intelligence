@@ -14,13 +14,13 @@ import pytest
 
 from src.core.artifact_paths import (
     get_branches_dir,
-    get_db_path,
     get_data_root,
+    get_db_path,
     get_graph_db_path,
     get_intelligence_dir,
     get_metrics_dir,
-    get_project_dir,
     get_progress_file,
+    get_project_dir,
     get_telemetry_dir,
     legacy_project_dirs,
     migrate_legacy_artifacts,
