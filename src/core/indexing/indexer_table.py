@@ -298,8 +298,8 @@ class IndexerTableMixin:
             # Пытаемся удалить таблицу если существует
             try:
                 self.db.drop_table(self.table_name)
-            except Exception:
-                pass
+            except Exception as _drop_err:
+                logger.debug(f"drop_table({self.table_name}) не удался (может отсутствовать): {_drop_err}")
             # Создаём новую таблицу с полной схемой
             self.table = self.db.create_table(self.table_name, schema=self.schema)
 
@@ -314,8 +314,8 @@ class IndexerTableMixin:
             if hasattr(self, "searcher") and self.searcher is not None:
                 try:
                     self.searcher.reindex()
-                except Exception:
-                    pass
+                except Exception as _reidx_err:
+                    logger.warning(f"searcher.reindex после пересоздания таблицы не удался: {_reidx_err}")
 
             # Синхронизируем ссылки в дочерних компонентах (Indexer._sync_table_ref)
             if hasattr(self, "_sync_table_ref") and callable(self._sync_table_ref):
@@ -536,8 +536,9 @@ class IndexerTableMixin:
                 df_all = self.table.to_pandas()
                 if not df_all.empty:
                     deleted_count = int((df_all["file_path"] == rel_path_str).sum())
-            except Exception:
-                pass
+            except Exception as _count_err:
+                # stale кэш-счётчик — декремент пропущен, но удаление всё равно выполнится
+                logger.debug(f"подсчёт удаляемых чанков не удался: {_count_err}")
             self.table.delete(f"file_path = '{escaped}'")
 
             # Синхронизация кэша: декремент на количество удалённых чанков
