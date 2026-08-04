@@ -10,6 +10,15 @@
 
 ---
 
+---
+
+## 2026-08-04 — Баг-клоуза сессия: layer.py порт LM из config + резолв 7 VERIFY-пунктов (FIXED)
+
+**Symptom:** закрытие незакрытых пунктов 3 аудитов по порядку.
+**Root Cause / Verdict:** единственный реальный баг — layer.py:504 захардкоженный порт LM Studio 1234 (хотя L472-475 уже читают порты из config) — фикс: `_lm_port_str` из `_cfg.embedding.lm_studio_port` + фолбэк. Остальное REFUTED: subprocess (llama_runner — демон-спавны, git_hooks — communicate(timeout=120), lsp_project_bridge — нет subprocess вообще); rate limiting — SlidingWindowRateLimiter в DI; DI-ключи — ленивый resolve; print main.py — stderr/help.
+**Fix:** src/core/intelligence/layer.py:474-480,504 — порт LM Studio из config.
+**Status:** ✅ Fixed (коммит в этой сессии) | **Guard:** pytest 761 passed; Ledger: 8 строк закрыто (REFUTED/FIXED), остались bare-except/global/CI (defer).
+
 ## 2026-08-04 — pickle.load заменён на restricted unpickler (FIXED, P1)
 
 **Symptom:** index_guard.py:367 `pickle.load(f)` — RCE-вектор при недоверенном legacy .pkl (OWASP десериализация).

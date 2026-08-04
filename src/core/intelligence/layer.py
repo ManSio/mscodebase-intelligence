@@ -473,9 +473,11 @@ class ProjectIntelligenceLayer:
                 _cfg = _get_cfg()
                 _llama_port_str = str(_cfg.embedding.llama_cpp_port)
                 _reranker_port_str = str(_cfg.embedding.reranker_port)
+                _lm_port_str = str(_cfg.embedding.lm_studio_port)
             except Exception:
                 _llama_port_str = "8080"
                 _reranker_port_str = "8081"
+                _lm_port_str = "1234"
             _llama_online = False
             # Динамическое сканирование ONNX модели (как в _detect_model_dir RemoteEmbedder)
             _search_paths = [
@@ -501,7 +503,7 @@ class ProjectIntelligenceLayer:
 
                 _s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
                 _s.settimeout(0.5)
-                if _s.connect_ex(("127.0.0.1", 1234)) == 0:
+                if _s.connect_ex(("127.0.0.1", int(_lm_port_str))) == 0:
                     _lm_online = True
                 _s.close()
                 # Проверяем llama.cpp (Qwen3 на порту 8080)
