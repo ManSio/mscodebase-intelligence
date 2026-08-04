@@ -12,7 +12,13 @@
 
 ---
 
-## [2026-08-03 23:25] — Ложные orphans в health report: Windows-пути с '\\' vs '/' (283/310)
+## [2026-08-04] — fast-mode сортировка инвертировала топ-результаты (cosine _distance ASC)
+
+**Status:** ✅ Fixed (код + 1 регрессионный тест)
+**Root Cause:** комментарий `engine.py:166` утверждал «негативная косинусная дистанция (чем больше, тем ближе)» — проверено экспериментом (lancedb 0.34.0, IVF_FLAT cosine): `_distance = 1 − cos_sim ∈ [0,2]`, МЕНЬШЕ = ближе, LanceDB сортирует ASC. `engine.py:791` fast mode (`.sort(reverse=True)`) инвертировал топ — fast — дефолтный режим (`search_tools.py:270`).
+**Fix:** комментарий исправлен на факт (1−cos_sim, ASC); `.sort(reverse=True)` → `.sort()`. Связанные места проверены: vector_search/hybrid RRF/context_search/multi_project_searcher — там семантика корректна.
+**Guard:** tests/test_searcher.py `test_search_with_mode_fast_sorts_distance_ascending` (падал бы на старом коде). Семантика `_distance` проверяется экспериментом, не чтением комментария.
+**Pattern:** повторение P-002 «Предположение вместо проверки» (комментарий принят как истина, сортировка не сверена с реальным поведением LanceDB).
 
 **Status:** ✅ Fixed (код + 3 регрессионных теста, ext синхронизирован)
 **Root Cause:** `health.py _check_filesystem_sync` нормализовал диск в '/', но НЕ нормализовал пути из LanceDB (там '\\' на Windows) → orphans = 283/310 при свежем реиндексе (реально 1). Ложный overall_health=critical в каждой проверке; пугал «Запустите переиндексацию» бесконечно. prune_deleted_files (indexer_table) сравнивает backslash-пути — там бага нет.

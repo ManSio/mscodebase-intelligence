@@ -156,6 +156,8 @@ experiments/incident_dataset*.json
 experiments/compiler_concept*.py
 experiments/compiler_concept*.json
 experiments/pagerank_out.txt
+experiments/exp_*.py
+experiments/research_internet_*.md
 docs/generated/MODULE_INDEX.md
 .local/state/gh/device-id
 

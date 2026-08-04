@@ -163,9 +163,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
             results = []
             for _, row in df.iterrows():
-                # LanceDB _distance = негативная косинусная дистанция
-                # (чем больше, тем ближе). Нужна для bucket weighting
-                # в fast mode — иначе все final_score=0.0 и docs не штрафуются.
+                # LanceDB _distance при cosine-метрике = 1 − cosine_similarity
+                # (диапазон [0,2], МЕНЬШЕ = БЛИЖЕ; сам вектор = 0.0). LanceDB
+                # сортирует ASC (ближайшие первыми) — порядок строк сохраняем.
+                # Проверено экспериментом lancedb 0.34.0 (IVF_FLAT cosine).
                 l2_score = row.get("_distance", 0.0)
                 results.append(
                     {
@@ -788,7 +789,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 timing["search_ms"] = (time.perf_counter() - t1) * 1000
                 # v2.6.0: Bucket weighting для fast mode
                 results = apply_bucket_weights(raw_results, intent_hint)
-                results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
+                # _distance: меньше = ближе (cosine) → сортировка ПО ВОЗРАСТАНИЮ.
+                # v3.4.1: было reverse=True — инверсия топ-результатов
+                # (LanceDB сортирует ASC, комментарий выше утверждал обратное).
+                results.sort(key=lambda x: x.get("final_score", 0.0))
             else:
                 results = []
 

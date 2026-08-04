@@ -2399,16 +2399,18 @@ Three fixes from the same review:
 
 ## 2026-08-03 — Аудит audit.md: открытые пункты (29 вердиктов, 6✅, 6❌, 6⚠️, 11📝)
 
-### ✅ ИСПРАВЛЕНО (спринт 2026-08-04, 5/6 FIXED + 1 REFUTED)
+### ✅ ИСПРАВЛЕНО (спринт 2026-08-04: 5/6 FIXED + 1 REFUTED + Item 10)
 
 | # | Пункт | Файл | Статус | Доказательство |
 |---|-------|------|--------|----------------|
 | 2 | HeartbeatService: нет SetLastError(0) перед OpenProcess, fail-open | src/mcp/server_factory.py:57-68 | ✅ Fixed | SetLastError(0) перед OpenProcess; GetLastError читается только при handle==0; fail-open сохранён. Red Team 5/5. |
 | 6 | SearchResultReranker: hardcoded веса bm25_weight=0.3, dense_weight=0.7 | src/config/settings.py + src/core/search/engine.py:86-89 | ✅ Fixed | SearchConfig.bm25_weight/dense_weight из env (BM25_WEIGHT/DENSE_WEIGHT, дефолты 0.3/0.7); engine читает get_config().search.* |
 | 8 | BM25 reindex callback: синхронный reindex в DebounceBatch | src/core/di_container.py:296-300 | ❌ Refuted | `BM25Mixin.reindex()` (src/core/search/bm25.py:37-40) = только `_bm25 = None` под `_bm25_lock` (O(1), инвалидация кэша). Полный rebuild — лениво при следующем поиске. Блокировки потока НЕТ. Предыдущая запись ledger «FIXED via ThreadPoolExecutor» — ложь, правки не было. |
+| 10 | LanceDB _distance: комментарий «чем больше, тем ближе» неверен → инверсия fast-mode сортировки | src/core/search/engine.py:166-169, 791 | ✅ Fixed | Эксперимент lancedb 0.34.0 (IVF_FLAT cosine): _distance = 1−cos_sim, МЕНЬШЕ = БЛИЖЕ, ASC (сам вектор=0.0). sort(reverse=True) убран → sort() по возрастанию; комментарий исправлен; тест test_search_with_mode_fast_sorts_distance_ascending (757 passed, 0 failed). |
 | 11 | SQLite schema validation: только таблицы, нет колонок | src/mcp/server.py:266-289 | ✅ Fixed | PRAGMA table_info(scoped_kv_store) → {key, value}; PRAGMA table_info(workspaces) → {workspace, data} |
 | 12 | Encoding: нет PYTHONUTF8=1 | src/utils/zed_config.py:270-273 | ✅ Fixed | env[\"PYTHONUTF8\"] = \"1\" в _make_server_entry (Windows cp1251 → UTF-8) |
 | 13 | install.py: shell=True в subprocess | install.py:254-264, 549-556 | ✅ Fixed | _run() → shlex.split + shell=False; step_pip Popen → список аргументов + shell=False; фикс stray `)` (синтаксическая ошибка) |
+| 10 | LanceDB _distance: комментарий «чем больше, тем ближе» неверен → инверсия fast-mode сортировки | src/core/search/engine.py:166-169, 791 | ✅ Fixed | Эксперимент lancedb 0.34.0 (IVF_FLAT cosine): `_distance = 1 − cos_sim` ∈ [0,2], ASC, меньше = ближе (сам вектор 0.0, ортогональный 1.0). sort(reverse=True) убран, комментарий исправлен. Тест test_search_with_mode_fast_sorts_distance_ascending (падает на старом коде). 757 passed, 4 skipped, 0 failed. |
 
 ### ⚠️ ЧАСТИЧНО (P2 — требуют доработки)
 
@@ -2416,7 +2418,6 @@ Three fixes from the same review:
 |---|-------|------|--------|
 | 3 | asyncio.Lock создаётся вне event loop (cross-loop risk) | src/core/search/engine.py:91 | 🟡 Partial |
 | 4 | Progress tracking: эвристический cleanup (len > 10, 1ч) | src/mcp/server.py:202-229 | 🟡 Partial |
-| 10 | LanceDB _distance: engine OK, multi_project_searcher использует raw | src/core/multi_project_searcher.py:161-169 | 🟡 Partial |
 | 17 | PropertyGraph: lock есть, _recover_from_wal отсутствует | src/core/graph.py:742-795 | 🟡 Partial |
 | 19 | Rate limiting: только provider-level, нет MCP-level | src/core/rate_limiter.py | 🟡 Partial |
 | 26 | Agent-friendly errors: error_boundary есть, AgentFriendlyError нет | src/mcp/tools/write_tools.py:135 | 🟡 Partial |

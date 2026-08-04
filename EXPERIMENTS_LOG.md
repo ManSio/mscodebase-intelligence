@@ -1,5 +1,27 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-04] — Гипотеза: _distance при cosine-метрике меньше=ближе, LanceDB сортирует ASC
+
+**Ожидание:** для lancedb 0.34.0 + IVF_FLAT cosine `_distance = 1 − cos_sim ∈ [0,2]` (сам вектор = 0.0), строки приходят по возрастанию. Комментарий `engine.py:166` «чем больше, тем ближе» неверен, и `sort(reverse=True)` в fast mode инвертирует топ.
+**Команда:** `<ext>/venv/Scripts/python.exe experiments/exp_distance_semantics.py` (temp-таблица, IVF_FLAT metric=cosine, query=[1,0,0,0], тот же путь create_index, что в index_project_runner.py:540)
+**Сырой результат:**
+```
+lancedb version: 0.34.0
+=== search([1,0,0,0]) c cosine-индексом ===
+  id=q_self   _distance=0.000000
+  id=near     _distance=0.006116
+  id=orth     _distance=1.000000
+  id=far      _distance=1.000000
+=== search c default (l2) ===
+  id=q_self   _distance=0.000000
+  id=near     _distance=0.020000
+  id=orth     _distance=2.000000
+```
+**Вердикт:** подтверждена — `_distance` = 1−cos_sim, порядок ASC, меньше=ближе. Комментарий engine.py:166 и `sort(reverse=True)` (engine.py:791, fast — дефолтный режим search_tools.py:270) неверны. Векторный поиск (157-186), hybrid RRF (513), context_search (885) — корректны, не тронуты. Fix: комментарий + `sort()` + регрессионный тест `test_search_with_mode_fast_sorts_distance_ascending`.
+**Урок:** семантика `_distance` — свойство БД, не кода: её нельзя выводить из комментария соседнего кода. Связь с отрицательными: не из таблицы §3.8; метод — реальный lancedb-запрос (не мок). Раньше (EXPERIMENTS_LOG#2026-07-31) аудит полагался на чтение кода → та же ловушка P-002.
+
+---
+
 ## [2026-08-03] — Гипотеза: ONNX embedder не поднимается из-за off-by-one путей (не из-за модели/портов)
 
 **Ожидание:** исправление PROJECT_ROOT (parent×3 → parents[3]) в onnx_client/onnx_server вернёт ONNX-режим: сервер найдёт скрипт и модель, /embed вернёт 384-dim.
