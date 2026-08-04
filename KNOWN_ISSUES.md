@@ -8,6 +8,15 @@
 
 ---
 
+---
+
+## 2026-08-04 — pickle.load заменён на restricted unpickler (FIXED, P1)
+
+**Symptom:** index_guard.py:367 `pickle.load(f)` — RCE-вектор при недоверенном legacy .pkl (OWASP десериализация).
+**Root Cause:** legacy-миграция symbol_index.pkl загружалась через обычный pickle.load без ограничений.
+**Fix:** `_LegacyPickleLoader` (pickle.Unpickler) — allowlist только SymbolRef + стандартные контейнеры (dict/list/set/tuple/str/int/float/bool/None); любой другой класс → UnpicklingError. Верифицирован: легаси-данные грузятся, Evil-объект (os.system через __reduce__) блокируется.
+**Status:** ✅ Fixed (коммит 8e2b72e0..448c80c0, новый — в этой сессии) | **Guard:** tests/test_index_guard.py 10 passed; полный pytest 761 passed. Попутно: create_task (server_factory:388) — ❌ REFUTED (внутренний try/except уже логирует), print onnx_client:272 — ❌ REFUTED (CLI `__main__`-блок) — исправлены ошибочные пометки в Ledger.
+
 ## 2026-08-04 — Полный аудит (3-й проход): метрики точны, P0-claims уже закрыты (TRIAGE)
 
 **Symptom:** внешний аудит: SQL x6, subprocess «14 без timeout», мёртвый код (_BATCH_SIZE, ONNX_*, adapters), эксперименты в проде, метрики (251 async/626 except/24 sleep/27 global).

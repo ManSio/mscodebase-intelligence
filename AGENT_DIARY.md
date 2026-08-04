@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:58] — Hotfix: pickle P1 закрыт restricted unpickler'ом (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** index_guard.py:367 обычный pickle.load на legacy symbol_index.pkl — RCE-вектор (OWASP десериализация).
+**Fix:** `_LegacyPickleLoader(pickle.Unpickler)` с allowlist (SymbolRef + базовые контейнеры); любой другой тип → UnpicklingError. Верификация: легаси грузится, Evil-объект блокируется; test_index_guard 10 passed; полный 761 passed.
+**Guard:** попутно исправлены две мои ошибочные пометки в Ledger: create_task (server_factory:388) — ❌ REFUTED (внутренний try/except L405-462 уже логирует исключения); print onnx_client:272 — ❌ REFUTED (CLI `__main__`-блок, не production). Урок: проверять контекст ДО фикса (верификация выявила, что 2 из 3 «hotfix» — не проблемы).
+**verified_from_clean_state:** ✅ да — полный pytest 761 passed, 4 skipped; restricted unpickler протестирован на легаси + вредоносный объект.
+
 ## [2026-08-04 23:55] — Полный аудит (3-й проход): метрики точны, P0-claims уже закрыты (TRIAGE)
 
 **Status:** 🟡 триаж завершён (коммит в этой сессии)
