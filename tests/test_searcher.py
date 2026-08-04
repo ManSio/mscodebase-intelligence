@@ -8,7 +8,6 @@ async edge cases уже покрыты там) — здесь основной s
 """
 
 import asyncio
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd

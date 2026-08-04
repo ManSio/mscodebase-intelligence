@@ -23,7 +23,6 @@ import pyarrow as pa
 
 from src.core.indexing.symbol_index import SymbolRef
 
-
 # ── Безопасная загрузка legacy-pickle (ISSUE P1 / OWASP десериализация) ──
 # pickle.load() = RCE-вектор при недоверенном файле. Legacy symbol_index.pkl
 # содержит только SymbolRef и стандартные контейнеры — разрешаем ровно их,

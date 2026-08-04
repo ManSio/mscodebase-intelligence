@@ -79,6 +79,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
                     # Fallback: если db_manager недоступен — старый rmtree (редко)
                     # Задача 4/5: индекс теперь в системной папке, не в проекте.
                     import shutil
+
                     from src.core.artifact_paths import (
                         get_index_dir,
                         legacy_project_dirs,
@@ -174,6 +175,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
             #    mmap-файлы НЕ пропускаются молча: PermissionError → fresh DB path.
             #    Задача 4/5: основной таргет — системная папка (вне проекта).
             import shutil
+
             from src.core.artifact_paths import (
                 get_index_dir,
                 legacy_project_dirs,
@@ -202,8 +204,9 @@ def register_intelligence_tools(mcp_app, intel_layer):
             if _dbm is not None:
                 try:
                     if _removed_ok:
-                        from src.utils.paths import to_win_long_path
                         from pathlib import Path as _P
+
+                        from src.utils.paths import to_win_long_path
                         _P(to_win_long_path(_dbm.db_path)).mkdir(
                             parents=True, exist_ok=True
                         )
