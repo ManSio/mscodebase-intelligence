@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-05 00:05] — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
+
+**Status:** ✅ Fixed (коммит a7a7a9e7, запушен)
+**Root Cause:** CI-прогоны b121ab19/6dc8d2ae упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/core/indexing/index_guard.py:12, src/core/intelligence/tools_reg.py:81/176/205 (вложенные импорт-блоки), src/mcp/tools/graph_tools.py:478/629, tests ×4 (test_artifact_paths, test_index_runner_deadlock, test_lancedb_recreate, test_searcher). Coverage-порог НЕ при чём — локально 40.59% ≥ 38%. Накопление: ruff в dev deps не пинится (`ruff>=0.5.0`), CI ставит свежую версию (0.15.16) — I001 стал строже к вложенным импорт-блокам, файлы писались при старом ruff.
+**Fix:** `ruff check src/ tests/ --fix` (автосортировка импортов, diff = пустые строки + перестановка, семантика не тронута). Верификация: ruff clean; 53 теста затронутых файлов passed; полный pytest 761 passed, coverage 40.59% ≥ 38%.
+**Guard:** lint-шаг CI зелёный; риск T+30d — ruff без верхней границы (`<0.16` не добавлен) → при апдейте возможны новые срабатывания I001, лечатся `ruff check --fix`; записано в KNOWN_ISSUES.
+**verified_from_clean_state:** ✅ да — полный pytest --cov-fail-under=38: 761 passed, 40.59%.
+
 ## [2026-08-04 23:59] — CI: кэш pip + coverage 41% (FIXED)
 
 **Status:** ✅ Fixed (коммит в этой сессии)

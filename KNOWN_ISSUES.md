@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-04 — CI lint red: ruff I001, 10 импорт-блоков в 8 файлах (FIXED)
+
+**Symptom:** CI-прогоны после добавления coverage (b121ab19) и coverage gate (6dc8d2ae) падали с exit 1 на lint-шаге.
+**Root Cause:** 10 ошибок I001 (неотсортированные импорты) — src/core/indexing/index_guard.py:12, src/core/intelligence/tools_reg.py:81/176/205, src/mcp/tools/graph_tools.py:478/629, tests ×4. Ruff не пинится (dev: `ruff>=0.5.0`), CI ставит свежую версию (0.15.16) — I001 строже к вложенным импорт-блокам, файлы писались при старом ruff.
+**Fix:** `ruff check src/ tests/ --fix` (коммит a7a7a9e7, запушен). Верифицировано: ruff clean; полный pytest 761 passed; coverage 40.59% ≥ 38%.
+**Status:** ✅ Fixed | **Guard:** lint-шаг CI — реальный gate (поймал накопление); 🟡 наблюдаем: ruff без верхней границы — при апдейте возможны новые I001, лечатся `ruff check --fix`; при следующем апдейте ruff рассмотреть пин `ruff==<версия>` в dev deps.
+
 ## 2026-08-04 — CI: кэш pip + coverage отчёт (baseline 41%) (FIXED)
 
 **Symptom:** нет кэша зависимостей (pip install каждый прогон), нет coverage в CI, нет bandit.
