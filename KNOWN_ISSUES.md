@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-04 — CI: кэш pip + coverage отчёт (baseline 41%) (FIXED)
+
+**Symptom:** нет кэша зависимостей (pip install каждый прогон), нет coverage в CI, нет bandit.
+**Verdict:** CircuitBreaker — ❌ REFUTED dead (di_container.py:337-345 подключает breaker к embedder напрямую, remote_embedder:483-492 использует).
+**Fix:** ci.yml — `cache: pip` в обоих setup-python (test + clean-state); test job — `--cov=src --cov-report=term-missing`; pyproject dev — `pytest-cov>=7.1.0` (проверено: установлен, работает с pytest 9.0.3). Baseline покрытия: 41% (22437 строк, 761 passed). Порог fail-under не ставился (информационный отчёт, чтобы не сломать CI).
+**Status:** ✅ Fixed (коммит в этой сессии) | **Guard:** YAML валиден; bandit/pytest-xdist — defer (шум на 626 except'ах).
+
 ## 2026-08-04 — Триаж bare-except: 4 рискованных silent-блока получили логирование (PARTIAL)
 
 **Symptom:** аудит: «107 bare except pass скрывают ошибки».
