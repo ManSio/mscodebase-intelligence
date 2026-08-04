@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:50] — Глубокий аудит (2-й проход): верификация 26 пунктов (TRIAGE)
+
+**Status:** 🟡 триаж завершён, фиксы запланированы (коммит в этой сессии)
+**Root Cause:** второй внешний аудит (async, subprocess, BLE001, coverage, порты). Проверено по коду: create_task fire-and-forget — ✅ P2 (server_factory.py:388); time.sleep — ⚠️ (24 верно, но 0 в event loop: потоки/sync; resource_monitor.py:635 — в файле нет sleep); executor.py:398 — ❌ (communicate(timeout=) есть); onnx_client:129 — демон-спавн; BLE001 664 — ✅ осознанный gradual cleanup.
+**Fix:** отчёт+вердикты → docs/ISSUES/review_deep_2026-08-04.md; Ledger расширен до 26 строк; Next Action: pickle P1 → print P3 → create_task P2.
+**Guard:** pytest 761 passed (правок кода нет); аудит-утверждения впредь верифицируются до классификации.
+**verified_from_clean_state:** ✅ да — полный сьют 761 passed; runtime-код не менялся.
+
 ## [2026-08-04 23:30] — Триаж внешнего ревью: 165 находок, тесты зелёные (TRIAGE)
 
 **Status:** 🟡 триаж завершён, фиксы запланированы (коммит в этой сессии)
