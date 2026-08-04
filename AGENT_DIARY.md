@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:59] — CI: кэш pip + coverage 41% (FIXED)
+
+**Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** Next Action #9-#10: CircuitBreaker «dead» — ❌ REFUTED (подключён к embedder напрямую, di_container:337-345); coverage отсутствовал.
+**Fix:** ci.yml cache: pip (оба jobs) + --cov=src в test job; pytest-cov>=7.1.0 в dev extras. Baseline 41% (761 passed). Порог не ставил — информационный отчёт.
+**Guard:** YAML валиден; pre-commit зелёный; bandit/xdist — defer.
+**verified_from_clean_state:** ✅ да — pytest с --cov: 761 passed, 41%.
+
 ## [2026-08-04 23:59] — Триаж bare-except: 4 рискованных silent-блока залогированы (PARTIAL)
 
 **Status:** 🟡 partial (коммит в этой сессии)
