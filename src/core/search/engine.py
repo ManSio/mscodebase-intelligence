@@ -89,7 +89,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
-        self._multi_reranker_lock = asyncio.Lock()
+        self._multi_reranker_lock: Optional[asyncio.Lock] = None  # lazy: создаётся при первом async-вызове (привязка к event loop)
 
         # ── Multi-level cache ──
         # P2-5 audit: entries хранят (timestamp, results) — TTL 30с, чтобы
@@ -1035,6 +1035,9 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         """
         if self._multi_reranker_initialized:
             return self._multi_reranker
+
+        if self._multi_reranker_lock is None:
+            self._multi_reranker_lock = asyncio.Lock()
 
         async with self._multi_reranker_lock:
             # Double-check после захвата блокировки

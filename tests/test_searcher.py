@@ -7,7 +7,9 @@
 async edge cases уже покрыты там) — здесь основной sync-путь.
 """
 
-from unittest.mock import MagicMock
+import asyncio
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 
@@ -227,3 +229,63 @@ def test_search_with_mode_cache_hit_on_second_call():
     assert second["cache_hit"] is True
     assert second["results"] == first["results"]
     searcher.vector_search.assert_called_once()
+
+
+# ─────────────────────────────────────────────────────────────
+# Item 3 (audit): lazy asyncio.Lock для мульти-реранкера
+# ─────────────────────────────────────────────────────────────
+
+
+def test_multi_reranker_lock_not_created_in_sync_init():
+    """Item 3: asyncio.Lock НЕ создаётся в sync __init__.
+
+    Создание lock'а вне event loop (в потоке MCP-сервера) — класс бага,
+    который уже кусался в db_manager (lazy-паттерн). Lock обязан
+    появляться лениво, при первом async-вызове.
+    """
+    searcher, _, _ = _make_searcher()
+    assert searcher._multi_reranker_lock is None
+
+
+async def test_multi_reranker_lock_created_lazily_in_loop():
+    """Item 3: lock создаётся при первом async-вызове, инициализация проходит."""
+    searcher, _, _ = _make_searcher()
+    searcher._multi_reranker_initialized = False
+
+    with patch("src.providers.reranker.llama_runner.get_global_runner") as gr:
+        gr.return_value.ensure_reranker_started = AsyncMock(return_value={"success": True})
+        gr.return_value.reranker_url = "http://mock:8081"
+        with patch("src.core.search.engine.MultiProviderReranker") as mr:
+            mr.return_value.initialize = AsyncMock(return_value=None)
+            result = await searcher._ensure_multi_reranker_async()
+
+    assert searcher._multi_reranker_lock is not None
+    assert searcher._multi_reranker_initialized is True
+    assert result is mr.return_value
+
+
+async def test_multi_reranker_concurrent_init_single_instance():
+    """Item 3 + §5.13: N корутин на неинициализированном lock → 1 инициализация.
+
+    Lock гарантирует double-check: вторая корутина ждёт освобождения и
+    выходит по `_initialized`, не инициализируя повторно.
+    """
+    searcher, _, _ = _make_searcher()
+    searcher._multi_reranker_initialized = False
+
+    async def _slow_init():
+        await asyncio.sleep(0.05)
+
+    with patch("src.providers.reranker.llama_runner.get_global_runner") as gr:
+        gr.return_value.ensure_reranker_started = AsyncMock(return_value={"success": True})
+        gr.return_value.reranker_url = "http://mock:8081"
+        with patch("src.core.search.engine.MultiProviderReranker") as mr:
+            mr.return_value.initialize = AsyncMock(side_effect=_slow_init)
+            results = await asyncio.gather(
+                searcher._ensure_multi_reranker_async(),
+                searcher._ensure_multi_reranker_async(),
+            )
+
+    assert mr.return_value.initialize.await_count == 1  # double-check под lock
+    assert results[0] is results[1]
+    assert searcher._multi_reranker_initialized is True

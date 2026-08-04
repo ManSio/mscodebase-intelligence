@@ -272,9 +272,10 @@ def parse_diary() -> List[DiaryEntry]:
             # - LanceDB file names (001110010111...)
             # - RUN_ID / cache keys (be6917458612, d47bee8235d9c14e)
             # - Long repeating patterns (001110010111)
+            # - Большие десятичные числа (2684354560 = byte count в ошибках OOM)
             _COMMIT_EXCLUDE = {
                 'be6917458612', 'd47bee8235d9c14e', '001110010111',
-                '60d092b1e1', '0000135', 'c000001d', '5067470',
+                '60d092b1e1', '0000135', 'c000001d', '5067470', '2684354560',
             }
             # RUN_ID / run_id / RUN ID — runtime-идентификаторы процесса (§3.1),
             # НЕ git-коммиты: удаляем ВЕСЬ токен «RUN_ID <hex>» ДО hex-сканирования
