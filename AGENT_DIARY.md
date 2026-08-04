@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:30] — Триаж внешнего ревью: 165 находок, тесты зелёные (TRIAGE)
+
+**Status:** 🟡 триаж завершён, фиксы запланированы (коммит в этой сессии)
+**Root Cause:** внешний инструмент нашёл 165 проблем; критические проверены по коду: SQL_INJECTION (graph.py x4) — ❌ ложные (параметризованный IN-паттерн, `placeholders` = только `?`); pickle.load (index_guard.py:367) — ✅ P1 (legacy-миграция из локального артефакт-каталога).
+**Fix:** отчёт → docs/ISSUES/review_2026-08-04.md; Verification Ledger → .agent_task_state.md (12 строк); KNOWN_ISSUES синхронизирован; фикс pickle — P1 следующая сессия.
+**Guard:** pytest 761 passed, 4 skipped — полный прогон после ревью зелёный; sql-фиксы в graph.py НЕ нужны (REFUTED).
+**verified_from_clean_state:** ✅ да — полный сьют 761 passed; правок runtime-кода в этой сессии нет.
+
 ## [2026-08-04 23:00] — CI clean-state: No module named pytest (FIXED)
 
 **Status:** ✅ Fixed (коммит в этой сессии)

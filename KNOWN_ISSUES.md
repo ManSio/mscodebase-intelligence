@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-04 — Внешнее ревью: 165 находок — SQL ложные, pickle P1 (TRIAGE)
+
+**Symptom:** внешний инструмент: 4 SQL_INJECTION (graph.py), 1 SECURITY pickle.load (index_guard.py), 107 bare-except, 18 sleep, 27 global, 8 print — всего 165.
+**Root Cause / Verdict:** SQL — ❌ REFUTED: `placeholders = ",".join("?" for _ in ...)` (graph.py:1029/1038/1084/1329/572/622) — в SQL только `?`, значения bind-параметрами; `where` из фиксированных строк + `_validate_property_key()`. pickle — ✅ CONFIRMED P1: index_guard.py:367 `pickle.load` legacy symbol_index.pkl из локального артефакт-каталога (самогенерируемый, удаляется после миграции в JSON L369); фикс — restricted unpickler/отказ от pickle.
+**Fix:** полный отчёт → docs/ISSUES/review_2026-08-04.md; триаж (Verification Ledger) → .agent_task_state.md; фикс pickle — следующая сессия P1; bare-except/sleep/global/print — дефер с приоритизацией.
+**Status:** 🟡 триаж завершён, фиксы запланированы | **Guard:** pytest 761 passed (ревью рантайм не ломает).
+
 ## 2026-08-04 — CI clean-state: venv/bin/python: No module named pytest (FIXED)
 
 **Symptom:** clean-state job падает: «venv/bin/python: No module named pytest» (файл .github/workflows/ci.yml).
