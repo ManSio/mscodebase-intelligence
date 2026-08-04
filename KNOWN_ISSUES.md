@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-04 — Триаж bare-except: 4 рискованных silent-блока получили логирование (PARTIAL)
+
+**Symptom:** аудит: «107 bare except pass скрывают ошибки».
+**Verdict:** scan нашёл 106 silent-блоков (except → только pass); большинство — намеренные паттерны (asyncio.CancelledError, таймауты, best-effort cleanup, фолбэк drop-и-пересоздай). Массовое логирование всех = шум.
+**Fix:** 4 реально рискованных (молчание → рассинхронизация состояния): write_tools.py:433 (stale symbol cache после replace), indexer_table.py:301 (drop_table перед recreate), 317 (searcher.reindex — stale BM25), 539 (счётчик удаляемых чанков — stale cache) — добавлены logger.debug/warning.
+**Status:** 🟡 partial — остальные ~100 намеренные/низкоприоритетные (defer) | **Guard:** pytest 761 passed.
+
 ## 2026-08-04 — Баг-клоуза сессия: layer.py порт LM из config + резолв 7 VERIFY-пунктов (FIXED)
 
 **Symptom:** закрытие незакрытых пунктов 3 аудитов по порядку.

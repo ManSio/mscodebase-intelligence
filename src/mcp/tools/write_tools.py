@@ -430,8 +430,9 @@ class WriteTool(MCPTool):
         await self._invalidate_lsp_cache(source_file)
         try:
             si.remove_file(source_file)
-        except Exception:
-            pass
+        except Exception as _si_err:
+            # Stale symbol cache — последующие get_symbol_info вернут устаревшие данные
+            logger.debug(f"remove_file из symbol index не удался: {_si_err}")
 
         return f"✅ **Replaced** `{symbol}` in `{source_file}` ({len(original_lines)} → {len(new_lines_list)} lines)"
 

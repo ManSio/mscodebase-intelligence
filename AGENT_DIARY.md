@@ -12,6 +12,14 @@
 
 ---
 
+## [2026-08-04 23:59] — Триаж bare-except: 4 рискованных silent-блока залогированы (PARTIAL)
+
+**Status:** 🟡 partial (коммит в этой сессии)
+**Root Cause:** scan нашёл 106 silent-блоков (except → pass); большинство намеренные (CancelledError/таймауты/best-effort).
+**Fix:** логирование в 4 местах, где молчание = stale состояние: write_tools.py:433 (symbol cache), indexer_table.py:301 (drop_table), 317 (searcher.reindex — BM25), 539 (счётчик чанков). Остальные ~100 — defer (шум при массовом логировании).
+**Guard:** pytest 761 passed; Ledger row 7 → ⚠️ PARTIAL с evidence.
+**verified_from_clean_state:** ✅ да — полный pytest 761 passed.
+
 ## [2026-08-04 23:59] — Баг-клоуза: layer.py порт LM + резолв 7 VERIFY (FIXED)
 
 **Status:** ✅ Fixed (коммит в этой сессии)
