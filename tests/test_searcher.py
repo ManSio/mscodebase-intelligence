@@ -173,6 +173,34 @@ def test_search_with_mode_fast_calls_embed_and_vector():
     searcher.vector_search.assert_called_once()
 
 
+def test_search_with_mode_fast_sorts_distance_ascending():
+    """fast-режим: сортировка по _distance ПО ВОЗРАСТАНИЮ (меньше = ближе).
+
+    Регрессия v3.4.1: было sort(reverse=True) при cosine-семантике
+    (_distance = 1 − cos_sim) → топ результатов инвертирован (худшие сверху).
+    Проверено экспериментом lancedb 0.34.0: сам вектор = 0.0, близкий мал,
+    ортогональный = 1.0; LanceDB сортирует ASC.
+    """
+    searcher, _, embedder = _make_searcher()
+    embedder.embed.return_value = [0.0] * _DIM
+    searcher.vector_search = MagicMock(
+        return_value=[
+            _chunk("far.py", score=1.9),
+            _chunk("self.py", score=0.1),
+            _chunk("near.py", score=1.0),
+        ]
+    )
+    searcher._fts5_search = MagicMock(return_value=[])
+
+    res = searcher.search_with_mode("q", mode="fast", limit=5)
+
+    distances = [r["final_score"] for r in res["results"]]
+    assert distances == sorted(distances), (
+        f"fast-режим должен сортировать по возрастанию _distance, получено: {distances}"
+    )
+    assert res["results"][0]["metadata"]["file"] == "self.py"
+
+
 def test_search_with_mode_fast_empty_embedding():
     """Пустой вектор эмбеддера → пустые результаты без поиска по БД."""
     searcher, _, embedder = _make_searcher()
