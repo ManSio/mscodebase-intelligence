@@ -166,6 +166,20 @@ scripts/_diag_*.py
 scripts/_run_*.py
 .codebase/
 
+# One-off dev/test scripts — удалены из репозитория 2026-08-04 (hardcoded paths, 0 ссылок)
+runner.py
+quickrun.py
+runtest.py
+do_test.py
+execute_test.py
+quick_test.py
+_run_test.py
+.verify_final_render.py
+run_test.bat
+run_pytest.bat
+run_one_test.bat
+run_one_test.sh
+
 # Temp benchmark/test files
 bench_out*.txt
 benchmark_batch.py
