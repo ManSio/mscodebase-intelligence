@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-08-04 — test_job_history: 3 теста падали при переиспользовании tmp_path между запусками (FIXED)
+
+**Symptom:** gate-zero: 3 failed (test_append_and_load, test_rolling_average_fallback_no_similar, test_corrupted_history_recovers) — assert len(history) == 2 получал 4.
+**Root Cause:** JobHistoryStore пишет во внешний `<data_root>/projects/<hash>/metrics/job_history.json`; pytest переиспользует temp-пути (симлинк pytest-current) → внешний файл накапливал записи от прошлых прогонов.
+**Fix:** фикстура temp_project удаляет job_history.json перед тестом (tests/test_job_history.py:10-19).
+**Status:** ✅ Fixed (коммит в этой сессии) | **Guard:** полный pytest 761 passed.
+
+## 2026-08-04 — scripts/monitor.py: UnboundLocalError avg_log при фазе сканирования (FIXED)
+
+**Symptom:** `python scripts/monitor.py` падал с UnboundLocalError при фазе «Эмбеддинг готов»/сканировании — переменная `avg_log` читалась в блоке «Тренд» без инициализации.
+**Root Cause:** `avg_log` присваивалась только в ветке PHASE_EMBED/WRITING/IVF, блок «Тренд» выполнялся при любой фазе с done_chunks > 0.
+**Fix:** инициализация `avg_log = 0` в начале `render()` (scripts/monitor.py:280).
+**Status:** ✅ Fixed (коммит в этой сессии) | **Guard:** запуск монитора при реиндексе Job 984fb036 — рендер корректен.
+
 ## 2026-08-04 — Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (progress cleanup) (FIXED, код+тесты, синхронизировано)
 
 **Symptom:** (Item 3) `asyncio.Lock()` создавался в синхронном `Searcher.__init__` — риск wrong-loop при cross-loop usage (класс бага P3-12 db_manager). (Item 4) cleanup `_last_progress` вызывался на КАЖДОМ progress update при >10 проектах — O(n) на update, комментарий обещал «every 100 updates».
@@ -2458,4 +2472,43 @@ Three fixes from the same review:
 **Symptom:** 19+ изменённых файлов, unpushed commit 5ce0eaa3 (origin/main = ab44b00d).
 **Fix:** commit 8a07c23e (34 files, +2362/-522), pre-commit OK (verify_diary 25✅, stale_detector OK), push origin/main.
 **Status:** ✅ origin/main up to date (HEAD = 8a07c23e).
+
+## 2026-08-04 22:30 — Приведение в порядок корня проекта (root cleanup)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (закоммичено в этой сессии)
+**Root Cause:** в корне накопились одноразовые pytest-обёртки с hardcoded путями (runner.py, quickrun.py, do_test.py, execute_test.py, quick_test.py, _ru...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 21:00 — ZED CRASH-LOOP: 7 рестартов за 2 часа — всплески памяти агента 7.5-8.6GB + дефицит системных ресурсов
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Root Cause подтверждён (лог+счётчики+EventLog+GitHub); фикс — действия владельца, код не менялся
+**GitHub-подтверждение (2026-08-04 21:15):** `GitHub#60793` — точная копия кейса (Win11 +...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 — fast-mode сортировка инвертировала топ-результаты (cosine _distance ASC)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код + 1 регрессионный тест)
+**Root Cause:** комментарий `engine.py:166` утверждал «негативная косинусная дистанция (чем больше, тем ближе)» — проверено экспериментом (lancedb 0.34...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-03 23:55 — Сессия: §1.19 Hard Triggers + аудит 29 пунктов + docs sync + commit/push
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done
+**Root Cause:** протокол требовал жёстких триггеров (§1.19), аудит audit.md был неразмечен, README/doc badges устарели (649→747), DEV_DIARY не архивирован, CHANGELOG пуст, unpushed ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 — Спринт: 6 пунктов аудита (5 ✅ Fixed, 1 ❌ Refuted) + docs + commit/push
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (5/6 FIXED, 1/6 REFUTED)
+**Root Cause:** 6 ❌ P1/P2 пунктов из experiments/audit.md требовали фикса: Heartbeat GetLastError, hardcoded reranker weights, BM25 sync reindex, SQLite sch...
+- **Статус:** автоматически синхронизировано
 

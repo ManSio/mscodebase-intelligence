@@ -12,6 +12,14 @@ def temp_project(tmp_path: Path) -> Path:
     """Временный проект для тестов."""
     project = tmp_path / "test_project"
     project.mkdir(parents=True, exist_ok=True)
+    # Изоляция от переиспользования tmp_path между запусками (pytest-current
+    # symlink): JobHistoryStore пишет во внешний <data_root>/projects/<hash>/metrics,
+    # который переживает pytest-сессии → удаляем job_history перед тестом.
+    from src.core.artifact_paths import get_metrics_dir
+
+    history_file = get_metrics_dir(project) / "job_history.json"
+    if history_file.exists():
+        history_file.unlink()
     return project
 
 
