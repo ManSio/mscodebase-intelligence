@@ -12,12 +12,13 @@
 
 ---
 
-## 2026-08-05 — A2: sandbox execute_script — модель угроз (ADR-0001, ждёт решения владельца)
+## 2026-08-05 — A2: sandbox execute_script — модель угроз (ADR-0001, ✅ FIXED — Вариант A)
 
 **Symptom:** внешний аудит: blacklist-модель sandbox принципиально обходима (чистый Python без OS-изоляции); вопрос — для какого класса ввода defense-in-depth достаточна.
 **Verdict:** обвязка аккуратна (AST + runtime __import__-перехват + минимальный env без os.environ — executor.py:306-321), но seccomp/namespaces нет. ast.Delete запрещён целиком (executor.py:73) — возможно ломает легитимный `del` локальной переменной.
-**Fix:** кода не меняли (Danger Zone). Создан docs/adr/0001-sandbox-threat-model.md (Draft) — варианты A: defense-in-depth (рекомендация), B: OS-изоляция (2-4 нед), C: гибрид с threat classifier.
-**Status:** 🟡 ждёт решения владельца (OPEN_QUESTION) | **Guard:** ADR-0001; executor.py не трогать до решения.
+**Fix:** кода не меняли (Danger Zone). Создан docs/adr/0001-sandbox-threat-model.md — варианты A: defense-in-depth (рекомендация), B: OS-изоляция (2-4 нед), C: гибрид с threat classifier.
+**Решение (2026-08-05):** Вариант A принят как дефолт по протоколу §1.10 (владелец не выбрал B/C; переопределение возможно). ADR-0001 → ✅ Accepted. Границы: executor — для доверенных сниппетов агента, не для внешнего/пользовательского кода.
+**Status:** ✅ FIXED (решение A) | **Guard:** ADR-0001 (✅ Accepted); executor.py не трогать; появление недоверенного источника ввода → переоткрытие ADR (эскалация до B/C).
 
 ## 2026-08-05 — A1 (внешний аудит): ThreadPoolExecutor max_workers=0 на 1-CPU (FIXED)
 
