@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from src.core.search.cypher_ast import Query
 from src.core.search.cypher_lexer import CypherLexer
 from src.core.search.cypher_parser import CypherParser
+from src.core.search.cypher_schema import schema_check
 from src.core.search.cypher_sql import CypherToSQL
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,20 @@ class CypherExecutor:
             # 2. Parse
             parser = CypherParser(tokens)
             ast = parser.parse()
+
+            # 2.5 D1: schema-валидация (метки/rel types/свойства против NodeLabel/
+            # EdgeType). До translate: галлюцинация LLM (MATCH (f:SERVICE)) даёт
+            # понятную ошибку, а не тихий []. OPTIONAL MATCH намеренно пропускается
+            # (NULL-семантика легитимна). Закрывает P-004 на уровне исполнения.
+            schema_err = schema_check(ast)
+            if schema_err:
+                logger.warning(f"Cypher schema error: {schema_err} | query: {query[:200]}")
+                return {
+                    "columns": [],
+                    "results": [],
+                    "error": schema_err,
+                    "stats": {"elapsed_ms": 0, "rows": 0, "sql": ""},
+                }
 
             # 3. Translate to SQL
             translator = CypherToSQL(self._graph)
