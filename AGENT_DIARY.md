@@ -12,6 +12,15 @@
 
 ---
 
+## [2026-08-05] — A1 (внешний аудит): ThreadPoolExecutor max_workers=0 на 1-CPU (FIXED)
+
+**Status:** ✅ Fixed
+**Root Cause:** index_project_runner.py:261 `min(4, (os.cpu_count() or 4) // 2)` → на 1-CPU: `1//2 = 0` → `ThreadPoolExecutor(max_workers=0)` → ValueError; достижимо через intel_trigger_reindex mode=full (Indexer.index_project → IndexProjectRunner.run).
+**Fix:** `max(1, min(4, (os.cpu_count() or 4) // 2))` + регрессионный тест test_run_survives_single_cpu_host (валидирован: без фикса — ровно ValueError, stash-прогон).
+**Guard:** тест; безопасный паттерн уже был в resource_monitor.py:133.
+**Pattern:** NEW (P-003 — отсутствие нижней границы воркеров при делении числа ядер пополам).
+**verified_from_clean_state:** ✅ да — полный pytest 762 passed, ruff clean; CI-прогон после push подтвердит.
+
 ## [2026-08-05 01:50] — Tech debt: subprocess text=True без encoding ×7 закрыт + пин ruff (DONE)
 
 **Status:** ✅ Done (коммит в этой сессии)
