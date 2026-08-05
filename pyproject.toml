@@ -86,7 +86,10 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=7.1.0",  # CI coverage reporting (проверено: 7.1.0 + pytest 9.0.3)
-    "ruff>=0.5.0",
+    # Pinned: ruff 0.16+ ужесточил I001 (сортировка вложенных импорт-блоков) —
+    # CI падал на lint 2026-08-05 (10 ошибок в 8 файлах). Бамп — только после
+    # прогона ruff check + verify_clean_state.
+    "ruff>=0.5.0,<0.16",
     "black",
     "isort",
 ]

@@ -32,6 +32,8 @@ class BranchAwareIndex:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
                 cwd=str(self.project_path),
             )

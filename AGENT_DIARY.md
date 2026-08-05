@@ -12,7 +12,13 @@
 
 ---
 
-## [2026-08-05 01:20] — Кросс-чек документации: 17 расхождений, синхронизированы (DONE)
+## [2026-08-05 01:50] — Tech debt: subprocess text=True без encoding ×7 закрыт + пин ruff (DONE)
+
+**Status:** ✅ Done (коммит в этой сессии)
+**Root Cause:** text=True без encoding в 7 местах декодирует вывод через locale (cp1251/cp1252 на Windows) — UnicodeDecodeError при не-ASCII выводе (тот же класс, что execution_contract). Ruff не пинился (>=0.5.0) — 0.16+ может снова уронить lint новыми I001.
+**Fix:** encoding="utf-8", errors="replace" в commit_memory:79, git_hooks_installer:228, resource_monitor:292/485/516, layer:991, branch_aware_index:31, server:140; пин ruff `>=0.5.0,<0.16` с rationale. layer:394/403 (байтовый + decode) и git_hooks_installer:59 (encoding есть) — уже безопасны, не тронуты.
+**Guard:** ruff ✅; bump --check ✅ 3.3.11; pytest 761 passed (40.96%); lockfile-drift-gate проверяет только lancedb/mcp/tree-sitter — пин ruff не создаёт drift.
+**verified_from_clean_state:** ✅ да — pytest 761 passed, coverage 40.96%; CI-прогон в этой сессии (7/7) подтвердит.
 
 **Status:** ✅ Done (коммит в этой сессии)
 **Root Cause:** серия изменений (hub&spoke, inline 6→12, intel 12→13, index/git-тулы → sub-actions hub) не отражалась в README/ARCHITECTURE/AGENTS.md: версии 3.3.9 (реально 3.3.11), «0 intel_*» (13), «747+ tests» (761), index/git-тулы описаны как самостоятельные (реально `codebase(action=...)`), «~16 видимо» (~36), intel-списки с inline-примесью, docs/KNOWN_ISSUES дубль-редирект, docs/ARCHITECTURE дубль.
