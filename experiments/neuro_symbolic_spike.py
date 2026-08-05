@@ -21,11 +21,9 @@ LLM (галлюцинированные метки, синтаксис) и НЕ 
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -35,6 +33,7 @@ from src.core.graph import EdgeType, NodeLabel, PropertyGraph  # noqa: E402
 from src.core.search.cypher_engine import (  # noqa: E402
     CypherLexer,
     CypherParser,
+    Query,
     query_graph,
 )
 
@@ -170,7 +169,7 @@ VALID_REL_TYPES = {"CALLS", "USAGE", "CONTAINS"}
 VALID_PROPS = {"name", "qualified_name", "file_path", "label"}
 
 
-def schema_check(query: "Query") -> Optional[str]:
+def schema_check(query: Query) -> Optional[str]:
     """Schema-валидация по AST: метки/типы связей/свойства/RETURN-функции.
 
     Слой 2 (после парсера): ловит галлюцинированные метки (SERVICE),
@@ -343,7 +342,7 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
+    except Exception:  # noqa: BLE001 — эксперимент: exit code для CI
         import traceback
 
         traceback.print_exc()
