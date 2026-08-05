@@ -153,7 +153,12 @@
 **Root Cause:** агент Zed транзиентно аллоцирует 7.5-8.6GB при промптах в длинных сессиях (auto_compact=off, AGENTS.md=123KB, threads.db=82MB, 2 context-сервера на ход). RAM 15.4GB + pagefile 2.1GB (C: заполнен 97%) → commit limit 17.5GB (89% при всплеске) → своп-шторм → краш/вис. Встроенный AMD iGPU делит RAM → DXGI_ERROR_DEVICE_HUNG 0x887A0005 → закрытие окна.
 **Fix (план):** C: → <85%; pagefile ≥8GB (или на D:, 56GB свободно); auto_compact=true (~65%); 1 context-сервер в запросах; edit_predictions off (403); AGENTS.md → ~15-20KB; драйвер AMD актуальный.
 **GitHub:** `GitHub#60793` — точная копия (Win11+AMD Ryzen 5600H+16GB+iGPU Vega 512MB+context server mscodebase-intelligence+opencode), закрыт как duplicate → `GitHub#59442` (OPEN: agent_ui SQLite write loop → 53GB; локально подтверждено threads.db 82.7MB + db.sqlite 27.2MB/WAL 4.1MB). `GitHub#40465`: AMD-краш лечится `gpu_acceleration:false` + `renderer:"software"`.
-**Status:** 🔴 открыто (требует действий владельца, код не менялся) | **Owner:** misha | **Deadline:** 2026-08-11
+**UPDATE 2026-08-05 21:15 (агент-триаж, цифры верифицированы замером):**
+- Loop остановлен: последний WER-краш 08-04 21:27 (Application Error 1000 ×3: 21:06/21:15/21:27); на 08-04 было 13 рестартов (18:39-22:20, не 7 — лог «Using GPU» показал ещё 6 после 20:18). 08-05: 0 крашей, 1 чистый старт 19:12, стабилен 2ч+.
+- Выполнено (settings.json, 08-04 22:04): auto_compact=true (90%), edit_predictions=false, context_servers_to_query=1 (было 2).
+- НЕ выполнено — риск активен: C: 92.4% (9.75GB free, цель <85%); pagefile 3.2GB (цель ≥8GB или D:, свободно 57.9GB); рендер на AMD iGPU 26.5.2 — gpu_acceleration:false/renderer:"software" НЕ применены; AGENTS.md 126KB; threads.db 79.7MB растёт (upstream GitHub#59442).
+- Замеры сейчас (Zed PID 3480): WS 5.84GB / commit 8.54GB; commit-лимит 18.5GB, свободно 1.14GB (93.8%); free RAM 2.17GB.
+**Status:** 🔴 открыто (триаж 08-05 подтвердил риск; требует действий владельца, код не менялся) | **Owner:** misha | **Deadline:** 2026-08-11
 
 ## 2026-08-03 23:25 — Ложные orphans: разделители путей Windows (FIXED, синхронизировано)
 
