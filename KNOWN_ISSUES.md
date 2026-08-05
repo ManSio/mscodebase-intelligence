@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01) (FIXED, не запушено)
+
+**Symptom:** (1) `MATCH (f:FUNCTION)` тихо возвращает `[]` при `'Function'` в БД; (2) `RETURN count()` → IndexError в parser, `count(n)` → SQLite near "*" syntax error; (3) синтаксические ошибки Cypher не пишутся в лог; (4) `RETURN cycle(a, b)` молча теряет `, b`, неизвестные RETURN-функции дают невалидный SQL.
+**Root Cause:** C1 — точное сравнение label/edge (`=`/`IN`) при регистронезависимом лексере; C2 — пустой агрегат-вызов без аргументов и генерация `COUNT(n.*)`; C3 — `except SyntaxError` без логирования; C4 — expect() пропускал любую пунктуацию вместо конкретного токена.
+**Fix:** COLLATE NOCASE ×9 (labels+edges); count()→`COUNT(*)`, count(узел)→`COUNT(узел.id)` (семантика Cypher), агрегаты над узлом → ValueError; `logger.warning` в except SyntaxError; строгий expect() по значению + ValueError для неизвестных функций; бонус — направление `<-` больше не затирается правой стрелкой (легаси-баг, вскрыт expect).
+**Status:** ✅ Fixed (коммит в этой сессии, не запушен) | **Guard:** 10 регрессионных тестов (регистр labels, count-семантика, caplog, unsupported function); Cypher 61 + graph-смежные 48 passed; полный pytest — pre-commit при коммите.
+
 ## 2026-08-05 — A2: sandbox execute_script — модель угроз (ADR-0001, ✅ FIXED — Вариант A)
 
 **Symptom:** внешний аудит: blacklist-модель sandbox принципиально обходима (чистый Python без OS-изоляции); вопрос — для какого класса ввода defense-in-depth достаточна.

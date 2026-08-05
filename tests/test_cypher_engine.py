@@ -201,6 +201,21 @@ class TestCypherParser:
         q2 = self._parse("MATCH (a)-[:CALLS]->(b) RETURN a.name")
         assert len(q1.match.paths) == len(q2.match.paths)
 
+    def test_empty_function_call_parses(self):
+        """C2: count() без аргумента — раньше IndexError в advance()."""
+        q = self._parse("MATCH (n) RETURN count()")
+        assert [(i.expression, i.alias) for i in q.return_items] == [("count()", None)]
+
+    def test_multiarg_function_raises_syntax_error(self):
+        """C4: cycle(a, b) — раньше молча терял ', b' (expect пропускал PUNCTUATION)."""
+        with pytest.raises(SyntaxError):
+            self._parse("MATCH (a) RETURN cycle(a, b)")
+
+    def test_missing_close_paren_raises_syntax_error(self):
+        """C4: незакрытая скобка — явная SyntaxError, не IndexError."""
+        with pytest.raises(SyntaxError):
+            self._parse("MATCH (n RETURN n.name")
+
 
 # ════════════════════════════════════════════════════════════
 # Phase 3: SQL Generation
@@ -248,7 +263,8 @@ class TestCypherToSQL:
         )
         assert "LEFT JOIN" in sql
         # 'Global' should be in the ON clause of the LEFT JOIN
-        assert "g.label IN (?)" in sql or "g.label IN" in sql
+        # (C1: label-сравнения case-insensitive через COLLATE NOCASE)
+        assert "g.label COLLATE NOCASE IN" in sql
 
     def test_multiple_optional_matches(self):
         sql, params = self._translate(
@@ -279,6 +295,33 @@ class TestCypherToSQL:
     def test_distinct_sql(self):
         sql, params = self._translate("MATCH (n) RETURN DISTINCT n.label")
         assert "DISTINCT" in sql
+
+    def test_label_case_insensitive_sql(self):
+        """C1: label-фильтры case-insensitive (хранится 'Function', ищем FUNCTION/function)."""
+        sql, params = self._translate("MATCH (f:FUNCTION) RETURN f.name")
+        assert "COLLATE NOCASE" in sql
+        assert params.count("FUNCTION") == 1
+
+    def test_count_empty_sql(self):
+        """C2: count() → count(*) (SQLite требует аргумент)."""
+        sql, params = self._translate("MATCH (n) RETURN count()")
+        assert "count(*)" in sql
+
+    def test_count_node_sql(self):
+        """C2: count(n) над узлом → COUNT(n.id), не невалидный COUNT(n.*)."""
+        sql, params = self._translate("MATCH (n) RETURN count(n)")
+        assert "COUNT(n.id)" in sql
+        assert "n.*" not in sql
+
+    def test_aggregate_over_node_non_count_raises(self):
+        """C2: sum(n)/avg(n) над узлом — явная ошибка вместо тихого невалидного SQL."""
+        with pytest.raises(ValueError, match="over node variable"):
+            self._translate("MATCH (n) RETURN sum(n)")
+
+    def test_unsupported_function_raises(self):
+        """C4: неизвестная функция в RETURN — явная ошибка вместо 'no such column'."""
+        with pytest.raises(ValueError, match="Unsupported function"):
+            self._translate("MATCH (a)-[:CALLS]->(b) RETURN cycle(a)")
 
 
 # ════════════════════════════════════════════════════════════
@@ -423,6 +466,45 @@ class TestCypherErrors:
         result = executor.execute("MATCH (f:Function) RETURN f.name LIMIT 1")
         assert "error" not in result
         assert len(result["results"]) == 1
+
+    def test_label_case_insensitive_execution(self, executor):
+        """C1: MATCH (f:FUNCTION) находит узлы с label 'Function' (было тихо [])."""
+        result = executor.execute("MATCH (f:FUNCTION) RETURN f.name")
+        assert "error" not in result
+        assert len(result["results"]) == 5  # все Function-узлы тестового графа
+
+    def test_count_empty_execution(self, executor):
+        """C2: count() → 7 (5 функций + 2 переменных)."""
+        result = executor.execute("MATCH (n) RETURN count()")
+        assert "error" not in result
+        assert result["results"][0]["count(*)"] == 7
+
+    def test_count_node_execution(self, executor):
+        """C2: count(n) над узлом — был SQLite 'near *', теперь корректный count."""
+        result = executor.execute("MATCH (n) RETURN count(n)")
+        assert "error" not in result
+        assert result["results"][0]["COUNT(n.id)"] == 7
+
+    def test_unsupported_function_returns_error(self, executor):
+        """C4: cycle(a) — понятная ошибка, не сырой sqlite 'no such column'."""
+        result = executor.execute("MATCH (a)-[:CALLS]->(b) RETURN cycle(a)")
+        assert "error" in result
+        assert "Unsupported function" in result["error"]
+
+    def test_multiarg_function_returns_syntax_error(self, executor):
+        """C4: cycle(a, b) — явная SyntaxError вместо молчаливой потери аргумента."""
+        result = executor.execute("MATCH (a) RETURN cycle(a, b)")
+        assert "error" in result
+        assert "Syntax error" in result["error"]
+
+    def test_syntax_error_is_logged(self, executor, caplog):
+        """C3: синтаксические ошибки пишутся в лог (раньше молча возвращались)."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="src.core.search.cypher_executor"):
+            result = executor.execute("MATCH (n RETURN n.name")
+        assert "error" in result
+        assert any("syntax" in r.message.lower() for r in caplog.records)
 
 
 # ════════════════════════════════════════════════════════════

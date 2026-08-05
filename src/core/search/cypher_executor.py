@@ -92,6 +92,9 @@ class CypherExecutor:
             }
 
         except SyntaxError as e:
+            # C3: раньше SyntaxError возвращался без лога — в MCP-ответе
+            # была ошибка, но в логах сервера следа не оставалось.
+            logger.warning(f"Cypher syntax error: {e} | query: {query[:200]}")
             return {
                 "columns": [],
                 "results": [],

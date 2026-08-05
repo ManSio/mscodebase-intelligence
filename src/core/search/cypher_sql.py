@@ -177,10 +177,10 @@ class CypherToSQL:
             placeholders = ",".join("?" for _ in labels)
             if left_labels_in_on and has_right:
                 # LEFT JOIN: фильтр в ON, чтобы не ломать NULL-семантику
-                left_label_sql = f"{node_vars[left_var]}.label IN ({placeholders})"
+                left_label_sql = f"{node_vars[left_var]}.label COLLATE NOCASE IN ({placeholders})"
                 left_label_vals = list(labels)
             else:
-                wheres.append(f"{node_vars[left_var]}.label IN ({placeholders})")
+                wheres.append(f"{node_vars[left_var]}.label COLLATE NOCASE IN ({placeholders})")
                 target = where_params if where_params is not None else params
                 target.extend(labels)
 
@@ -199,11 +199,11 @@ class CypherToSQL:
         if path.rel.rel_types:
             rtypes = path.rel.rel_types
             if len(rtypes) == 1:
-                edge_on = f"AND {edge_alias}.type = ?"
+                edge_on = f"AND {edge_alias}.type COLLATE NOCASE = ?"
                 params.append(rtypes[0])
             else:
                 placeholders = ",".join("?" for _ in rtypes)
-                edge_on = f"AND {edge_alias}.type IN ({placeholders})"
+                edge_on = f"AND {edge_alias}.type COLLATE NOCASE IN ({placeholders})"
                 params.extend(rtypes)
 
         # Направление — условие JOIN для edges
@@ -242,11 +242,11 @@ class CypherToSQL:
         if path.right and path.right.labels:
             labels = path.right.labels
             if len(labels) == 1:
-                target_join += f" AND {node_vars[right_var]}.label = ?"
+                target_join += f" AND {node_vars[right_var]}.label COLLATE NOCASE = ?"
                 params.append(labels[0])
             else:
                 placeholders = ",".join("?" for _ in labels)
-                target_join += f" AND {node_vars[right_var]}.label IN ({placeholders})"
+                target_join += f" AND {node_vars[right_var]}.label COLLATE NOCASE IN ({placeholders})"
                 params.extend(labels)
 
         joins.append(f"{join_type} nodes AS {node_vars[right_var]} ON {target_join}")
@@ -339,7 +339,7 @@ class CypherToSQL:
 
         elif isinstance(expr, _LabelTest):
             alias = node_vars.get(expr.variable, expr.variable)
-            clauses.append(f"{alias}.label = ?")
+            clauses.append(f"{alias}.label COLLATE NOCASE = ?")
             params.append(expr.label)
 
         elif isinstance(expr, _ExistsSubquery):
@@ -350,11 +350,11 @@ class CypherToSQL:
             if pattern.rel.rel_types:
                 rtypes = pattern.rel.rel_types
                 if len(rtypes) == 1:
-                    edge_filter = "AND e.type = ?"
+                    edge_filter = "AND e.type COLLATE NOCASE = ?"
                     params.append(rtypes[0])
                 else:
                     placeholders = ",".join("?" for _ in rtypes)
-                    edge_filter = f"AND e.type IN ({placeholders})"
+                    edge_filter = f"AND e.type COLLATE NOCASE IN ({placeholders})"
                     params.extend(rtypes)
 
             if pattern.rel.direction == "<-":
@@ -403,13 +403,39 @@ class CypherToSQL:
         if expr == "count(*)":
             return "count(*)"
 
-        # count(n.name)
+        # count() — SQLite требует аргумент (C2): пустой вызов → count(*)
+        if re.fullmatch(r"count\(\)", expr, re.IGNORECASE):
+            return "count(*)"
+
+        # count(n.name) / sum(...) / collect(...)
         agg_match = re.match(r"(count|sum|avg|min|max|collect)\((.+)\)", expr, re.IGNORECASE)
         if agg_match:
             func = agg_match.group(1).upper()
             inner = agg_match.group(2)
+            if inner in node_vars:
+                # C2: агрегат над узлом-переменной. count(n) → COUNT(n.id)
+                # (считает не-NULL узлы — точная семантика Cypher; раньше
+                # генерировался невалидный COUNT(n.*) → SQLite "near *").
+                # Прочие агрегаты над узлом семантически бессмысленны —
+                # явная ошибка вместо тихого невалидного SQL.
+                alias = node_vars[inner]
+                if func == "COUNT":
+                    return f"COUNT({alias}.id)"
+                raise ValueError(
+                    f"Aggregate {func}({inner}) over node variable is not supported; "
+                    f"use a property, e.g. {inner}.name"
+                )
             sql_inner = self._property_ref_to_sql(inner, node_vars)
             return f"{func}({sql_inner})"
+
+        # C4: неизвестная функция в RETURN — явная ошибка вместо невалидного SQL
+        # (раньше cycle(a) уходил в SQL как есть → "no such column: a").
+        func_call = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\(.*\)", expr)
+        if func_call:
+            raise ValueError(
+                f"Unsupported function in RETURN: {func_call.group(1)}(). "
+                f"Supported: count, sum, avg, min, max, collect."
+            )
 
         # Простое свойство
         return self._property_ref_to_sql(expr, node_vars)
