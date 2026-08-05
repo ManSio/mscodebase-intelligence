@@ -991,7 +991,7 @@ class ProjectIntelligenceLayer:
                 result = subprocess.run(
                     ["git", "-C", str(self.project_path), "--no-pager", "log",
                      "-1", "--format=%s%x00%b", hash_str],
-                    capture_output=True, text=True, timeout=10, check=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=True,
                 )
                 subject, _, body = result.stdout.partition('\x00')
                 return (subject.strip(), body.strip()[:500]) if subject.strip() else None

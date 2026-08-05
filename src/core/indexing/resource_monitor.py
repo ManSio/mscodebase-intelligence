@@ -292,7 +292,7 @@ class ResourceMonitor:
                 out = _sp.check_output(
                     ["powershell", "-NoProfile", "-Command",
                      f"Get-CimInstance Win32_Process | Where-Object {{ $_.ParentProcessId -eq {_pid} }} | Select-Object ProcessId,Name,WorkingSet64,ProcessId | ConvertTo-Csv -NoHeader"],
-                    timeout=5, text=True
+                    timeout=5, text=True, encoding="utf-8", errors="replace",
                 )
                 for line in out.strip().splitlines():
                     parts = line.split(",")
@@ -485,7 +485,7 @@ class ResourceMonitor:
             out = _sp.check_output(
                 ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
                  "--format=csv,noheader,nounits"],
-                timeout=5, text=True,
+                timeout=5, text=True, encoding="utf-8", errors="replace",
             )
             parts = out.strip().split(", ")
             if len(parts) >= 3:
@@ -516,7 +516,7 @@ class ResourceMonitor:
             out = _sp.check_output(
                 ["powershell", "-NoProfile", "-Command",
                  f"(Get-Process -Id {pid} | Select-Object -Property ReadOperationCount,WriteOperationCount) | ConvertTo-Csv -NoHeader"],
-                timeout=5, text=True,
+                timeout=5, text=True, encoding="utf-8", errors="replace",
             )
             parts = out.strip().split(",")
             if len(parts) >= 2:

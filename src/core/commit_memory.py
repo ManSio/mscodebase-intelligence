@@ -79,7 +79,7 @@ class CommitMemory:
             result = subprocess.run(
                 ["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r", commit_hash],
                 cwd=str(self.project_path),
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
                 env=_CLEAN_GIT_ENV,  # не наследуем GIT_* от hook-окружения
             )
             if result.returncode == 0 and result.stdout.strip():

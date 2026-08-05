@@ -142,6 +142,8 @@ def _check_source_extension_sync() -> Optional[str]:
             cwd=str(Path.cwd()),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if r.returncode == 0:
