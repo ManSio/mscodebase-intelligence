@@ -271,3 +271,23 @@ def test_run_with_existing_known_hashes_skips_unchanged(tmp_path):
     assert count == 1, f"ожидали 1 изменённый файл, получено {count}"
     assert seen.get(rel_a) == {rel_a: "hash_a"}, "a.py получил неверные known_hashes"
     assert seen.get(rel_b) is not None, "b.py не получил known_hashes"
+
+
+def test_run_survives_single_cpu_host(tmp_path):
+    """A1 (внешний аудит): на 1-CPU хосте пул воркеров не должен быть 0.
+
+    Регрессия: `_max_workers = min(4, (os.cpu_count() or 4) // 2)` → на 1-CPU
+    `1 // 2 = 0` → `ThreadPoolExecutor(max_workers=0)` кидает ValueError и
+    full reindex (intel_trigger_reindex mode=full) падает ДО парсинга.
+    Фикс: `max(1, ...)` — минимум 1 воркер.
+
+    До фикса этот тест падает на 1-CPU хосте (mock os.cpu_count → 1);
+    после фикса run() создаёт пул с 1 воркером и индексирует все 4 файла.
+    """
+    from unittest import mock
+
+    runner, parsed_calls, _ = _make_runner(tmp_path, known_hashes={})
+    with mock.patch("src.core.indexing.index_project_runner.os.cpu_count", return_value=1):
+        count = runner.run(runner.project_path)
+    assert count > 0, "run() на 1-CPU хосте не проиндексировал ни одного файла"
+    assert len(parsed_calls) == 4, f"ожидали 4 файла, обработано {len(parsed_calls)}"

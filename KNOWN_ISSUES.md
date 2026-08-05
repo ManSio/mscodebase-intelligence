@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-08-05 — A1 (внешний аудит): ThreadPoolExecutor max_workers=0 на 1-CPU (FIXED)
+
+**Symptom:** `_max_workers = min(4, (os.cpu_count() or 4) // 2)` → на 1-CPU хосте `1//2 = 0` → `ThreadPoolExecutor(max_workers=0)` кидает ValueError → full reindex падает ДО парсинга (intel_trigger_reindex mode=full). Живые сценарии: VPS с 1 ядром, cgroup-ограниченный контейнер CI, WSL.
+**Root Cause:** отсутствие нижней границы воркеров при делении cpu_count на 2; безопасный паттерн `max(1, ...)` уже был в resource_monitor.py:133.
+**Fix:** `max(1, min(4, (os.cpu_count() or 4) // 2))` (index_project_runner.py:261) + регрессионный тест test_run_survives_single_cpu_host (mock os.cpu_count→1).
+**Status:** ✅ Fixed | **Guard:** тест валидирован — без фикса воспроизводится ровно ValueError (stash-прогон); полный pytest 762 passed.
+
+## 2026-08-05 — A3 (внешний аудит): 626 except Exception — тихих глотателей не подтверждено (REFUTED, метод сохранён)
+
+**Symptom:** внешний аудит: 626 `except Exception` — риск молчаливого проглатывания ошибок без лога.
+**Verdict:** счёт подтверждён (grep: 626, 0 голых `except:`, 0 однострочных pass/continue). AST-эвристика «тело без вызовов/raise»: 231 кандидат из 820 обработчиков. Выборка n=8 (rate_limiter:213, cypher_executor:94, modification_guard:45, index_status:62, sandbox/executor:180, write_tools:41, remote_embedder:886, layer:338) — ВСЕ легитимные: fallback-значение, повторный вызов API, cleanup с re-raise, touch телеметрии.
+**Fix:** массовый рефакторинг НЕ требуется. Рекомендация: при редактировании таких мест добавлять logger.debug; cypher_executor:101 уже логирует через logger.exception (тихий SQL-fail — отдельный пункт C3).
+**Status:** ❌ REFUTED (в выборке) | **Guard:** AST-скрипт (см. EXPERIMENTS_LOG) для повторного аудита при подозрении.
+
 ## 2026-08-05 — CI зелёный после 3 платформенных провалов (FIXED, прогон 7/7)
 
 **Symptom:** coverage gate (38%) выявил красный CI: Ubuntu — race 2 winners + 2 URI-теста; Windows — UnicodeEncodeError/UnicodeDecodeError (cp1252).

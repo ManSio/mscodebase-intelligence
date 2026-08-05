@@ -258,7 +258,7 @@ class IndexProjectRunner:
                     return {"error": str(e), "rel": _rel_path}
                 return None
 
-            _max_workers = min(4, (os.cpu_count() or 4) // 2)
+            _max_workers = max(1, min(4, (os.cpu_count() or 4) // 2))  # 1-CPU: 1//2=0 → ValueError
             _parsed_list: list = []
             _parse_errors = []
 
