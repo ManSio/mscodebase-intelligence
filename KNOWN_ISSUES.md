@@ -12,12 +12,19 @@
 
 ---
 
+## 2026-08-05 — A2: sandbox execute_script — модель угроз (ADR-0001, ждёт решения владельца)
+
+**Symptom:** внешний аудит: blacklist-модель sandbox принципиально обходима (чистый Python без OS-изоляции); вопрос — для какого класса ввода defense-in-depth достаточна.
+**Verdict:** обвязка аккуратна (AST + runtime __import__-перехват + минимальный env без os.environ — executor.py:306-321), но seccomp/namespaces нет. ast.Delete запрещён целиком (executor.py:73) — возможно ломает легитимный `del` локальной переменной.
+**Fix:** кода не меняли (Danger Zone). Создан docs/adr/0001-sandbox-threat-model.md (Draft) — варианты A: defense-in-depth (рекомендация), B: OS-изоляция (2-4 нед), C: гибрид с threat classifier.
+**Status:** 🟡 ждёт решения владельца (OPEN_QUESTION) | **Guard:** ADR-0001; executor.py не трогать до решения.
+
 ## 2026-08-05 — A1 (внешний аудит): ThreadPoolExecutor max_workers=0 на 1-CPU (FIXED)
 
 **Symptom:** `_max_workers = min(4, (os.cpu_count() or 4) // 2)` → на 1-CPU хосте `1//2 = 0` → `ThreadPoolExecutor(max_workers=0)` кидает ValueError → full reindex падает ДО парсинга (intel_trigger_reindex mode=full). Живые сценарии: VPS с 1 ядром, cgroup-ограниченный контейнер CI, WSL.
 **Root Cause:** отсутствие нижней границы воркеров при делении cpu_count на 2; безопасный паттерн `max(1, ...)` уже был в resource_monitor.py:133.
 **Fix:** `max(1, min(4, (os.cpu_count() or 4) // 2))` (index_project_runner.py:261) + регрессионный тест test_run_survives_single_cpu_host (mock os.cpu_count→1).
-**Status:** ✅ Fixed | **Guard:** тест валидирован — без фикса воспроизводится ровно ValueError (stash-прогон); полный pytest 762 passed.
+**Status:** ✅ Fixed | **Guard:** тест валидирован — без фикса воспроизводится ровно ValueError (stash-прогон); полный pytest 762 passed. Обобщение §3.5: аналогов уязвимого паттерна 0 — все остальные воркеры src/ фиксированы ≥1 или защищены `max(1, ...)` (cpu_count: 4 места; ThreadPoolExecutor: 7 мест).
 
 ## 2026-08-05 — A3 (внешний аудит): 626 except Exception — тихих глотателей не подтверждено (REFUTED, метод сохранён)
 

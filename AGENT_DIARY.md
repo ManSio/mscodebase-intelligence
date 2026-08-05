@@ -19,6 +19,7 @@
 **Fix:** `max(1, min(4, (os.cpu_count() or 4) // 2))` + регрессионный тест test_run_survives_single_cpu_host (валидирован: без фикса — ровно ValueError, stash-прогон).
 **Guard:** тест; безопасный паттерн уже был в resource_monitor.py:133.
 **Pattern:** NEW (P-003 — отсутствие нижней границы воркеров при делении числа ядер пополам).
+**Обобщение (§3.5):** grep по src/ — cpu_count: 4 места (runner:261 FIXED; resource_monitor:133 `max(1, ...)` SAFE; llama_install:95/810 — конфиг-значение cores, не делитель SAFE). ThreadPoolExecutor: 7 мест, все max_workers фиксированы ≥1 или защищены (error_handler:58=4; runner:502=1; health:49=1; agentic_search:551=1; engine:48=2; task_queue:78 default=2, единственный инстанциатор =2). ProcessPoolExecutor/multiprocessing как экзекуторы — 0. Аналогов уязвимого паттерна `min(N, cpu//2)` без `max(1, ...)`: **0** — P-003 закрыт как единичный экземпляр.
 **verified_from_clean_state:** ✅ да — полный pytest 762 passed, ruff clean; CI-прогон после push подтвердит.
 
 ## [2026-08-05 01:50] — Tech debt: subprocess text=True без encoding ×7 закрыт + пин ruff (DONE)
