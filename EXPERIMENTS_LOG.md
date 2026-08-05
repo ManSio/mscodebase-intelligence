@@ -1,5 +1,89 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-05] — Exp 1: tree-sitter-language-pack — «371 язык за 1 день» (проверка ключевого заявления audit.md)
+
+**Гипотеза:** пакет даёт 300+ языков symbol extraction «из коробки» одним pip install; get_parser работает с tree-sitter 0.26; tags.scm присутствуют для большинства языков.
+**Команда:** `python -m venv %TEMP%/tslp_venv && pip install tree-sitter-language-pack` → скрипты: подсчёт `manifest_languages()`, `get_tags_query()` по всем 371, парс Python-файла.
+**Сырой результат:**
+```
+manifest_languages: 371
+language_count()/available_languages(): 1 (только downloaded)
+with non-empty tags.scm: 71 (19%) — 300 языков имеют ПУСТЫЕ tags (bash, clojure, cmake, cobol, ada, actionscript…)
+первый парс python: 37.6 s (on-demand скачивание грамматики, кэш 22MB); повторный парс: 0.03 ms
+tags.scm для core-языков: python/js/ts/go/rust/java/c/cpp/csharp YES; bash NO
+win_amd64 abi3 wheel 2.0MB; требует Python >=3.10; abi3 совместим с 3.14
+API: QueryCursor(query).captures(node) → dict {capture_name: [nodes]} (tree-sitter 0.26)
+```
+**Вердикт:** ЧАСТИЧНО опровергнута. Пакет реален и ставится (2MB wheel + 22MB/грамматика кэш, on-demand), парсинг AST работает, но **symbol extraction через tags.scm есть только у 71 из 371 языка (19%)** — «+350 языков symbol extraction за 1 день» НЕ подтверждено. Для наших 9 core-языков tags-запросы есть (паритет), для shell/context (bash, sql, hcl) — нет. Выигрыш пакета: +62 новых языка с tags-запросами + AST-парсинг 300 языков для чанкинга (без символов/рёбер).
+**Урок:** «N языков в манифесте» ≠ «N языков с symbol extraction» — манифест содержит грамматики, tags-запросы — подмножество (19%). Перед интеграцией считать именно язык+tags, а не язык+парсер. Первый парс каждого языка требует сети (37.6s) — для offline/CI нужен prefetch или запечённые грамматики.
+
+---
+
+## [2026-08-05] — Exp 2: извлечение символов — текущий CodeParser vs tags.scm (паритет?)
+
+**Гипотеза:** tags.scm-подход даёт извлечение определений функций/классов не хуже текущего CodeParser (который также строит calls/imports/dataflow).
+**Команда:** `venv python -X utf8 experiments/exp2_symbols.py` (src/core/graph.py, 66 defs/classes по regex-граунд-труту)
+**Сырой результат:**
+```
+Ground truth (regex def/class, включая методы): 66
+[A] CodeParser init+parse_file: 65 ms | chunks: 69 | symbols: 60 (qualified: Class.method)
+[B] tags.scm parse+query: 16 ms | defs: 66
+[B] recall vs truth: 100% (missing: [], extra: []) — после коррекции граунд-трута
+```
+**Вердикт:** подтверждена (паритет). tags.scm извлекает 66/66 определений за 16ms vs CodeParser 60 символов за 65ms — чуть быстрее и полнее по определениям. НО: tags.scm даёт только definition.* / reference.call / name — НЕ даёт imports, dataflow (ASSIGNED_FROM), вызовы с резолвом qualified_name, чанкинг с метаданными. Для замены текущего extract_calls/extract_imports/extract_assignments нужна доп. работа.
+**Урок:** tags.scm — готовый drop-in для извлечения определений (дешевле собственного walk), но НЕ полноценная замена CodeParser; оптимально — гибрид (scm для определений + текущий walk для calls/imports/dataflow).
+
+---
+
+## [2026-08-05] — Exp 3: реальная латентность Cypher/impact (проверка «4297ms из лога» в audit.md)
+
+**Гипотеза:** текущая латентность графовых запросов ~4297ms (цифра аудита) — реальность или артефакт?
+**Команда:** `CypherExecutor(PropertyGraph(graph.db)).execute(q)` ×3 на живом индексе (6856 nodes / 19969 edges, 8.2MB) + живой MCP-вызов graph_query(action=cypher).
+**Сырой результат:**
+```
+MATCH (n) RETURN count(n):           min=0.3ms avg=4.2ms
+MATCH (n:Function) RETURN count(n):  min=0.4ms avg=0.5ms
+MATCH (a:Function)-[:CALLS]->(b) count(*): min=3.7ms avg=4.2ms
+MATCH … WHERE b.name = '…':          min=4.2ms avg=4.4ms
+ORDER BY count(*) DESC LIMIT 5:      min=8.2ms avg=10.1ms
+Живой MCP graph_query (cypher):      elapsed_ms = 7.2ms / 12.6ms (rows=0 / rows=1794)
+```
+**Вердикт:** опровергнута (для графа). Реальная латентность Cypher на 6856 узлов / 19969 рёбер: **0.3–13ms** (прямой вызов) и **7–13ms** (живой MCP round-trip). «4297ms» — вероятно, цифра из старого лога векторного поиска/embedding-первого-вызова, не графа. Наблюдение: имена калл-таргетов — qualified (Analyzer.__init__), запросы по `name = 'x'` должны учитывать это (docs для query_graph).
+**Урок:** цифры производительности в audit.md не верифицированы — замер перед сравнением обязателен (§5.15). Графовая латентность уже в классе конкурентов (<10ms).
+
+---
+
+## [2026-08-05] — Exp 4: DECORATES/OVERRIDES — извлекаемость текущими tree-sitter-парсерами
+
+**Гипотеза:** рёбра DECORATES и OVERRIDES (недостающие 2 типа из таксономии DeusData) извлекаемы текущей инфраструктурой без SCIP/LSP.
+**Команда:** парс синтетического Python-файла (декораторы + наследование + @override) текущим CodeParser + walk AST на decorated_definition/decorator.
+**Сырой результат:**
+```
+symbols CodeParser: Base.method, Child.method, Child.abstract_method, Child.prop, Child.helper, standalone — БЕЗ свойств-декораторов
+AST содержит: decorated_definition (@override/@abc.abstractmethod/@property/@staticmethod), decorator-узлы, class Child(Base) — база видна
+```
+**Вердикт:** подтверждена (feasibility). DECORATES: узлы decorated_definition/decorator есть в tree-sitter-python — извлечение ~30–50 строк в parser.py (walk decorator → имя → ребро DECORATES). OVERRIDES: вычисляемо по class-иерархии (class Child(Base) в AST) + name-матчинг методов — ~100 строк. Никаких новых зависимостей.
+**Урок:** 2 недостающих типа рёбер из таксономии аудита закрываются малым патчем существующего parser.py — это быстрый win, не требует SCIP.
+
+---
+
+## [2026-08-05] — Гипотеза: доступность зависимостей для кандидатов аудита (SCIP, Leiden, cypher-sqlite)
+
+**Гипотеза:** scip-python и cypher-sqlite существуют на PyPI и ставятся pip (заявление audit.md «Быстрый вариант: cypher-sqlite (Python)» и «интегрировать scip-python»).
+**Команда:** PyPI JSON API для scip-python, cypher-sqlite, leidenalg, igraph, tree-sitter-language-pack.
+**Сырой результат:**
+```
+scip-python:      HTTP 404 Not Found (НЕ существует на PyPI)
+cypher-sqlite:    HTTP 404 Not Found (НЕ существует на PyPI)
+leidenalg 0.12.0: есть, win_amd64 abi3 (совместим с 3.14) ✓
+igraph 1.0.0:     есть, win_amd64 abi3 ✓
+tree-sitter-language-pack 1.14.3: есть, abi3 ✓
+```
+**Вердикт:** частично опровергнута. SCIP-индексеры для Python на PyPI НЕТ (только отдельные CLI-репозитории Sourcegraph, требуют node/native сборку) — «встроить scip-python как optional backend» требует не-pip установки. cypher-sqlite не существует — не нужен (свой Cypher уже есть). Leiden-стек (leidenalg+igraph) доступен abi3 — community detection реализуем.
+**Урок:** audit.md ссылается на пакеты, которых нет на PyPI (scip-python, cypher-sqlite) — «проверить существование пакета до планирования» (§1.14 Verified vs Recalled).
+
+---
+
 ## [2026-08-04] — Гипотеза: _distance при cosine-метрике меньше=ближе, LanceDB сортирует ASC
 
 **Ожидание:** для lancedb 0.34.0 + IVF_FLAT cosine `_distance = 1 − cos_sim ∈ [0,2]` (сам вектор = 0.0), строки приходят по возрастанию. Комментарий `engine.py:166` «чем больше, тем ближе» неверен, и `sort(reverse=True)` в fast mode инвертирует топ.
@@ -179,3 +263,13 @@ CoALA (Sumers et al., 2023, arXiv:2309.02427): modular memory = episodic (ист
 ```
 **Вердикт:** подтверждена — впитано в личный AGENTS.md: §3.5 (Systemic Generalization Loop), §3.6 (Cross-Domain Analogies), §6.6.2 (мета-проверка паттернов P-###), §6.6.5 (отрицательные результаты), §6.6.8 (Monthly Self-Review), §11 (добродетель «Обучение»).
 **Урок:** дневники проекта — это уже CoALA-память; протоколу не хватало только циклов рефлексии (обобщение после фикса, мета-анализ раз в месяц), а не новых артефактов.
+
+---
+
+## 🚫 Отрицательные результаты (не повторять)
+
+| Что пробовали | Почему не сработало | Дата | Связь |
+|---------------|---------------------|------|-------|
+| scip-python как pip-зависимость (SCIP backend для Python) | Пакета нет на PyPI (404) — только CLI-репозитории Sourcegraph с node/native сборкой | 2026-08-05 | audit.md п.9 |
+| cypher-sqlite как готовая Cypher-библиотека | Пакета нет на PyPI (404); свой CypherExecutor уже реализован | 2026-08-05 | audit.md п.2 |
+| «371 язык symbol extraction» из tree-sitter-language-pack | Манифест = 371 грамматика, но tags.scm есть только у 71 (19%); 300 языков — AST-парсинг без символов | 2026-08-05 | audit.md п.1 |

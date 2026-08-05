@@ -195,6 +195,84 @@ class PureGraphMixin:
                     properties={"line": line, "text": imp.get("text", "")},
                 )
 
+    # ── Decorators (DECORATES) ─────────────────────────────
+
+    def _pure_add_decorators(self, file_path: str, decorators: List[Dict]) -> None:
+        """PropertyGraph контур: DECORATES рёбра (декоратор → декорируемый символ).
+
+        Декоратор представлен TYPE-узлом ("__decorator__.<имя>"), ребро идёт
+        от декоратора к символу: (TYPE:property) --[DECORATES]--> (Function:get).
+        Ребро создаётся только если декорируемый символ реально определён
+        в графе (add_definitions уже отработал для этого файла).
+
+        Вызывается из SymbolIndexAdapter.add_decorators() под self._lock.
+        """
+        project_name = self._get_project_name(file_path)
+
+        for d in decorators:
+            decorated = d.get("decorated", "")
+            deco = d.get("decorator", "")
+            line = d.get("line", 0)
+            if not decorated or not deco:
+                continue
+
+            decorated_qname = f"{project_name}.{file_path}.{decorated}"
+            deco_qname = f"{project_name}.__decorator__.{deco}"
+
+            if not self._graph.get_node(deco_qname):
+                self._graph.add_node(
+                    name=deco,
+                    label=NodeLabel.TYPE,
+                    qualified_name=deco_qname,
+                    properties={"line": line, "file": file_path, "decorator": True},
+                )
+
+            if self._graph.get_node(decorated_qname):
+                self._graph.add_edge(
+                    source_qname=deco_qname,
+                    target_qname=decorated_qname,
+                    type=EdgeType.DECORATES,
+                    weight=1.0,
+                    properties={"line": line, "file": file_path},
+                )
+
+    # ── Overrides (OVERRIDES) ──────────────────────────────
+
+    def _pure_add_overrides(self, file_path: str, overrides: List[Dict]) -> None:
+        """PropertyGraph контур: OVERRIDES рёбра (Child.m → Base.m).
+
+        Оба узла (переопределяющий и переопределяемый метод) — реальные
+        Method-узлы того же файла; ребро создаётся только если оба существуют
+        (add_definitions уже отработал). Same-file ограничение v1.
+
+        Вызывается из SymbolIndexAdapter.add_overrides() под self._lock.
+        """
+        project_name = self._get_project_name(file_path)
+
+        for ov in overrides:
+            override = ov.get("override", "")
+            overridden = ov.get("overridden", "")
+            line = ov.get("line", 0)
+            if not override or not overridden:
+                continue
+
+            src_qname = f"{project_name}.{file_path}.{override}"
+            tgt_qname = f"{project_name}.{file_path}.{overridden}"
+
+            if self._graph.get_node(src_qname) and self._graph.get_node(tgt_qname):
+                self._graph.add_edge(
+                    source_qname=src_qname,
+                    target_qname=tgt_qname,
+                    type=EdgeType.OVERRIDES,
+                    weight=1.0,
+                    properties={
+                        "line": line,
+                        "file": file_path,
+                        "base": ov.get("base", ""),
+                        "method": ov.get("method", ""),
+                    },
+                )
+
     # ── Call Chain ────────────────────────────────────────
 
     def _graph_call_chain(self, node: Node, direction: str, max_depth: int) -> Dict:
