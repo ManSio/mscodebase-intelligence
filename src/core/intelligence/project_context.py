@@ -80,6 +80,7 @@ class ProjectContextSnapshot:
     # Jobs
     jobs_running: int = 0
     jobs_completed: int = 0
+    jobs_failed: int = 0
 
     # Мета
     captured_at: str = ""
@@ -125,6 +126,7 @@ class ProjectContextSnapshot:
             "jobs": {
                 "running": self.jobs_running,
                 "completed": self.jobs_completed,
+                "failed": self.jobs_failed,
             },
             "captured_at": self.captured_at,
             "capture_duration_ms": round(self.capture_duration_ms, 1),
@@ -308,18 +310,21 @@ class ProjectContext:
 
     def _capture_jobs(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.core.progress_state import get_last_progress
+            from src.core.intelligence.jobs import job_manager
 
             running = 0
             completed = 0
-            with __import__("threading").Lock():
-                for pname, info in list(get_last_progress().items()):
-                    if info.get("phase") == "complete":
-                        completed += 1
-                    else:
-                        running += 1
+            failed = 0
+            for job in job_manager.list_jobs():
+                if job.status in ("pending", "running"):
+                    running += 1
+                elif job.status == "completed":
+                    completed += 1
+                else:  # failed — терминальное состояние, видно отдельно
+                    failed += 1
             snap.jobs_running = running
             snap.jobs_completed = completed
+            snap.jobs_failed = failed
         except Exception as e:
             logger.debug(f"ProjectContext: jobs error: {e}")
         return snap

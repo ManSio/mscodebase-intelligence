@@ -1,5 +1,14 @@
 """
 Тесты для системы отслеживания прогресса индексации.
+
+Прогресс индексации в проде идёт через JobManager (src/core/intelligence/jobs.py):
+- intel_trigger_reindex → layer.trigger_async_reindex → job.progress
+- ProjectContext._capture_jobs агрегирует статусы задач в снэпшот.
+
+Легаси-механизм src/core/progress_state.py (_create_progress_callback,
+_last_progress) удалён — был dead code: в проде не вызывался, питал только
+_get_last_progress() → всегда пустой счётчик jobs в intel_get_project_context.
+Единый источник правды теперь — job_manager.
 """
 
 import inspect
@@ -7,169 +16,24 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-
-class TestProgressCallback:
-    """Тесты для progress callback механизма."""
-
-    def test_callback_updates_progress(self):
-        """Callback обновляет _last_progress."""
-        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
-
-        # Очищаем перед тестом
-        with _progress_lock:
-            _last_progress.clear()
-
-        cb = _create_progress_callback("test_project")
-        cb("file.py", 5, 10, "scanning")
-
-        with _progress_lock:
-            assert "test_project" in _last_progress
-            assert _last_progress["test_project"]["files_done"] == 5
-            assert _last_progress["test_project"]["files_total"] == 10
-            assert _last_progress["test_project"]["percent"] == 50.0
-
-    def test_callback_complete_phase(self):
-        """Callback с phase=complete устанавливает 100%."""
-        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-
-        cb = _create_progress_callback("test_project")
-        cb("file.py", 10, 10, "complete")
-
-        with _progress_lock:
-            assert _last_progress["test_project"]["percent"] == 100.0
-            assert _last_progress["test_project"]["phase"] == "complete"
-
-    def test_callback_handles_zero_total(self):
-        """Callback не падает при total=0."""
-        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-
-        cb = _create_progress_callback("test_project")
-        cb("file.py", 0, 0, "scanning")
-
-        with _progress_lock:
-            assert _last_progress["test_project"]["percent"] == 0.0
-
-    def test_callback_error_does_not_crash(self):
-        """Ошибка в callback не прерывает работу."""
-        import src.core.progress_state as server_module
-        from src.core.progress_state import _create_progress_callback
-
-        # Подменяем _last_progress на объект который бросит ошибку
-        # ВАЖНО: не удерживаем _progress_lock во время вызова callback — иначе deadlock!
-        original = server_module._last_progress
-        server_module._last_progress = None  # type: ignore
-
-        try:
-            cb = _create_progress_callback("test_project")
-            # Не должно упасть — callback оборачивает в try/except
-            cb("file.py", 1, 10, "scanning")
-        finally:
-            # Восстанавливаем
-            server_module._last_progress = original
-
-    def test_callback_tracks_timestamp(self):
-        """Callback записывает timestamp."""
-        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-
-        before = time.time()
-        cb = _create_progress_callback("test_project")
-        cb("file.py", 1, 10, "scanning")
-        after = time.time()
-
-        with _progress_lock:
-            ts = _last_progress["test_project"]["timestamp"]
-            assert before <= ts <= after
-
-
-class TestCleanupOldProgress:
-    """Тесты для очистки старых записей прогресса."""
-
-    def test_cleanup_removes_expired_entries(self):
-        """Записи старше 1 часа удаляются."""
-        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-            _last_progress["old_project"] = {
-                "phase": "complete",
-                "files_done": 10,
-                "files_total": 10,
-                "percent": 100.0,
-                "timestamp": time.time() - 7200,  # 2 часа назад
-            }
-            _last_progress["new_project"] = {
-                "phase": "scanning",
-                "files_done": 5,
-                "files_total": 10,
-                "percent": 50.0,
-                "timestamp": time.time(),
-            }
-
-        _cleanup_old_progress()
-
-        with _progress_lock:
-            assert "old_project" not in _last_progress
-            assert "new_project" in _last_progress
-
-    def test_cleanup_keeps_recent_entries(self):
-        """Свежие записи не удаляются."""
-        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-            _last_progress["recent"] = {
-                "phase": "complete",
-                "files_done": 10,
-                "files_total": 10,
-                "percent": 100.0,
-                "timestamp": time.time() - 300,  # 5 минут назад
-            }
-
-        _cleanup_old_progress()
-
-        with _progress_lock:
-            assert "recent" in _last_progress
-
-    def test_cleanup_empty_progress(self):
-        """Очистка не падает на пустом прогрессе."""
-        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
-
-        with _progress_lock:
-            _last_progress.clear()
-
-        # Не должно упасть
-        _cleanup_old_progress()
-
-        with _progress_lock:
-            assert len(_last_progress) == 0
+from src.core.intelligence.jobs import JobManager
 
 
 class TestIndexerProgressCallback:
-    """Тесты для progress callback в indexer."""
+    """Тесты для progress callback в indexer (прод-контракт: index_project принимает callback)."""
 
     def test_indexer_accepts_callback(self):
         """Indexer принимает progress_callback параметр."""
-
         from src.core.indexing.indexer import Indexer
 
         indexer = Indexer(
             Path("/tmp/test.db"),
             MagicMock(),
             MagicMock(),
-            project_path=Path("/tmp")
+            project_path=Path("/tmp"),
         )
 
         # Проверяем что метод принимает callback
-        import inspect
         sig = inspect.signature(indexer.index_project)
         assert "progress_callback" in sig.parameters
 
@@ -183,68 +47,102 @@ class TestIndexerProgressCallback:
         assert param.default is None
 
 
-class TestProgressLockThreadSafety:
-    """Тесты потокобезопасности."""
+class TestJobManager:
+    """JobManager — единый источник прогресса фоновых задач."""
 
-    def test_lock_protects_concurrent_access(self):
-        """Lock защищает от concurrent access."""
-        from src.core.progress_state import _last_progress, _progress_lock
+    def test_create_job_tracks_lifecycle(self):
+        """create_job → pending, get_job возвращает задачу."""
+        m = JobManager()
+        job_id = m.create_job("full_reindex")
 
-        errors = []
+        job = m.get_job(job_id)
 
-        def writer():
-            try:
-                for i in range(100):
-                    with _progress_lock:
-                        _last_progress["test"] = {"value": i}
-            except Exception as e:
-                errors.append(e)
+        assert job is not None
+        assert job.status == "pending"
+        assert job.progress == 0.0
 
-        import threading
-        threads = [threading.Thread(target=writer) for _ in range(5)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+    def test_list_jobs_returns_snapshot(self):
+        """list_jobs возвращает копию списка задач (мутация снаружи безопасна)."""
+        m = JobManager()
+        m.create_job("full_reindex")
+        m.create_job("full_reindex")
 
-        assert len(errors) == 0
+        jobs = m.list_jobs()
+        assert len(jobs) == 2
+
+        # Снимок: очистка полученного списка не трогает manager
+        jobs.clear()
+        assert len(m.list_jobs()) == 2
+
+    def test_cleanup_removes_expired_terminal_jobs(self):
+        """Завершённые задачи старше 1 часа удаляются (ленивый cleanup на чтении)."""
+        m = JobManager()
+        job_id = m.create_job("full_reindex")
+        job = m.get_job(job_id)
+        job.status = "completed"
+        job.started_at = time.time() - 7200  # 2 часа назад
+
+        m.list_jobs()
+
+        assert m.get_job(job_id) is None
+
+    def test_cleanup_keeps_running_jobs(self):
+        """Активная задача не удаляется, даже если старше 1 часа."""
+        m = JobManager()
+        job_id = m.create_job("full_reindex")
+        m.get_job(job_id).started_at = time.time() - 7200
+
+        m.list_jobs()
+
+        assert m.get_job(job_id) is not None
+
+    def test_cleanup_keeps_recent_terminal_jobs(self):
+        """Свежая завершённая задача не удаляется."""
+        m = JobManager()
+        job_id = m.create_job("full_reindex")
+        m.get_job(job_id).status = "completed"
+
+        m.list_jobs()
+
+        assert m.get_job(job_id) is not None
 
 
-class TestPeriodicCleanup:
-    """Item 4 (audit): cleanup вызывается периодически, не на каждом update."""
+class TestCaptureJobs:
+    """ProjectContext._capture_jobs агрегирует статусы из job_manager."""
 
-    def test_cleanup_runs_every_100_updates_not_each(self):
-        """Раньше условие len(_last_progress) > 10 триггерило cleanup на каждый
-        update (O(n) при >10 проектах). Теперь — только каждый 100-й update.
-        """
-        import src.core.progress_state as server_module
-        from src.core.progress_state import _create_progress_callback
+    def _capture(self, manager, monkeypatch):
+        from src.core.intelligence.project_context import (
+            ProjectContext,
+            ProjectContextSnapshot,
+        )
 
-        with server_module._progress_lock:
-            server_module._progress_updates = 0  # нормализуем глобальный счётчик для теста
-            server_module._last_progress.clear()
-            # 11 проектов с протухшими записями (>10 — старый триггер)
-            for i in range(11):
-                server_module._last_progress[f"old_{i}"] = {
-                    "phase": "complete",
-                    "files_done": 1,
-                    "files_total": 1,
-                    "percent": 100.0,
-                    "timestamp": time.time() - 7200,
-                }
+        monkeypatch.setattr("src.core.intelligence.jobs.job_manager", manager)
 
-        cb = _create_progress_callback("new_project")
-        # 99 обновлений → cleanup ещё не вызван, протухшие записи на месте
-        for i in range(99):
-            cb("file.py", i + 1, 100, "scanning")
+        return ProjectContext(Path("/tmp"), MagicMock())._capture_jobs(
+            ProjectContextSnapshot(project_path="/tmp", project_name="test")
+        )
 
-        with server_module._progress_lock:
-            assert "old_0" in server_module._last_progress
-            assert server_module._progress_updates == 99
+    def test_counts_running_completed_failed(self, monkeypatch):
+        """pending/running → running; completed → completed; failed → failed."""
+        m = JobManager()
+        r_id = m.create_job("full_reindex")
+        m.get_job(r_id).status = "running"
+        m.create_job("full_reindex")  # pending — тоже running
+        c_id = m.create_job("full_reindex")
+        m.get_job(c_id).status = "completed"
+        f_id = m.create_job("full_reindex")
+        m.get_job(f_id).status = "failed"
 
-        # 100-е обновление → cleanup срабатывает
-        cb("file.py", 100, 100, "scanning")
+        snap = self._capture(m, monkeypatch)
 
-        with server_module._progress_lock:
-            assert "old_0" not in server_module._last_progress
-            assert "new_project" in server_module._last_progress
+        assert snap.jobs_running == 2
+        assert snap.jobs_completed == 1
+        assert snap.jobs_failed == 1
+
+    def test_empty_jobs_defaults(self, monkeypatch):
+        """Пустой manager → все счётчики 0, не падает."""
+        snap = self._capture(JobManager(), monkeypatch)
+
+        assert snap.jobs_running == 0
+        assert snap.jobs_completed == 0
+        assert snap.jobs_failed == 0

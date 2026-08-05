@@ -12,12 +12,23 @@
 
 ---
 
+## [2026-08-05 21:56] — Открытая нить закрыта: progress_state удалён (dead code), project_context → job_manager (единый источник прогресса)
+
+**Status:** ✅ Fixed
+**Root Cause:** `_create_progress_callback`/`_last_progress` (src/core/progress_state.py) в проде не вызывались (внутренний callback layer.py маппит прогресс в `job.progress`, не в `_last_progress`) → get_last_progress() всегда пуст → `ProjectContext._capture_jobs` вечно 0/0. `JobManager.cleanup_old_jobs()` определён, но не вызывался нигде (латентный рост `jobs`).
+**Fix:** механизм удалён целиком: progress_state.py (92 строки) + 6 реэкспортов в mcp/server.py + 11 легаси-тестов; `_capture_jobs` переключен на `job_manager.list_jobs()` (новый метод с ленивым cleanup — cleanup_old_jobs теперь реально работает); в снэпшот добавлен честный счётчик `jobs_failed`; исторические комментарии (architecture_linter, test_architecture_lifecycle) обновлены.
+**Guard:** tests/test_index_progress.py переписан (9 тестов: JobManager lifecycle/list/cleanup + _capture_jobs mapping running/completed/failed); полный pytest 796 passed / 4 skipped (0 failed); grep `progress_state|_create_progress_callback|_last_progress` — 0 ссылок в src/tests (только обновлённые комментарии).
+**Pattern:** NEW-класс «диагностический accessor без проверки прод-использования» — механизм держался 1 версию «для диагностики», никто не проверил, что он мёртв. Guard: открытая нить закрыта явно, по плану владельца.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не запускался (нет repo URL/сети); полный pytest 796 passed запущен явно. Runtime (после install+reload): ✅ MCP PID 12076, BUILD_ID=HEAD; live-проверка — intel_trigger_reindex (инкрементальный job) → intel_get_project_context().jobs = {running:0, completed:1, failed:0} (до фикса было вечно 0/0).
+
+---
+
 ## [2026-08-05 22:50] — Следующий шаг: get_last_progress → core, фикс bump_version, фикс sys.path-загрязнения теста (FIXED, будет закоммичено)
 
 **Status:** ✅ Fixed (не закоммичено — коммит следом)
 **Root Cause:** (1) техдолг из ARCH-03-цепочки: `project_context` импортировал `get_last_progress` из mcp.server — направление core→mcp оставалось; (2) `version_manager.check_consistency` ловил ВСЕ `X.Y.Z` (версии зависимостей, старых записей) как дрифты; `scripts/bump_version.py` вставлял заголовок после первого `---`, для ru/zh он попадал в середину файла; (3) `test_architecture_lifecycle` на уровне модуля делал `sys.path.insert(0, extension_dir)` — вся pytest-сессия импортировала УСТАРЕВШУЮ копию src из установленного расширения → ModuleNotFoundError для новых core-модулей (вскрыто переносом progress_state).
 **Fix:** (1) новый `src/core/progress_state.py` (состояние+callback+cleanup), mcp.server реэкспортирует, project_context импортирует из core, исключения в architecture_linter убраны; (2) per-file версионные паттерны в check_consistency, вставка ПЕРЕД первым `## [X.Y.Z]` в обоих bump (scripts + version_manager), version_manager обновляет все три CHANGELOG; (3) sys.path/env-загрязнение перенесено в autouse-fixture с восстановлением (намерение теста «установленное расширение» сохранено).
-**Guard:** tests/test_version_manager.py (4 регрессионных: ложные дрифты, реальный дрифт, вставка заголовка, три CHANGELOG); полный pytest 799 passed / 4 skipped (0 failed); вскрытая аномалия: `_create_progress_callback` в проде не вызывается → `get_last_progress()` всегда пуст — открытая нить.
+**Guard:** tests/test_version_manager.py (4 регрессионных: ложные дрифты, реальный дрифт, вставка заголовка, три CHANGELOG); полный pytest 799 passed / 4 skipped (0 failed); вскрытая аномалия: `_create_progress_callback` в проде не вызывается → get_last_progress() всегда пуст — открытая нить.
 **Pattern:** P-002 «предположение вместо проверки» (симптом: «тесты флейкят» → реальная причина: глобальное загрязнение sys.path чужим тестом).
 **verified_from_clean_state:** ⚠️ не проверено — clean-clone скрипт не запускался (нет repo URL/сети); полный pytest 799 passed запущен явно, 2 раза подряд (стабильно).
 

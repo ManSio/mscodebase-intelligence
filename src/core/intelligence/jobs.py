@@ -11,7 +11,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 __all__ = [
     "BackgroundJob",
@@ -72,6 +72,17 @@ class JobManager:
     def get_job(self, job_id: str) -> Optional[BackgroundJob]:
         """Возвращает задачу по ID."""
         return self.jobs.get(job_id)
+
+    def list_jobs(self) -> List[BackgroundJob]:
+        """Возвращает снимок всех задач (после ленивой очистки завершённых).
+
+        Единственная точка перечисления job_manager'а — используется
+        ProjectContext._capture_jobs для агрегированной статистики.
+        Ленивый cleanup на чтении держит self.jobs ограниченным:
+        cleanup_old_jobs() иначе не вызывается нигде (латентный рост).
+        """
+        self.cleanup_old_jobs()
+        return list(self.jobs.values())
 
     def cleanup_old_jobs(self, max_age_seconds: int = 3600):
         """Удаляет старые завершённые задачи (защита от memory leak)."""
