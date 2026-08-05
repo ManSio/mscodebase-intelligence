@@ -11,13 +11,14 @@ auto_doc_updater.py — автоматическое обновление док
 
 Что обновляет:
 - docs/generated/MODULE_INDEX.md — документация из PropertyGraph
-- README.md — tool count, языки, статус тестов
+- README.md — tool count, статус тестов
 - KNOWN_ISSUES.md — синхронизация из AGENT_DIARY.md
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -209,27 +210,78 @@ class AutoDocUpdater:
     # ─── Internal: обновление README.md ───────────────────
 
     def _count_tools(self, root: Path) -> int:
-        """Считает количество MCP-инструментов по коду."""
-        server_tools = root / "src" / "mcp" / "server_tools.py"
-        if not server_tools.exists():
+        """Считает количество MCP-инструментов по местам регистрации.
+
+        Зеркалит runtime-константы register_all_tools (19 core + 13 intel +
+        12 inline + 4 dev = 48). Раньше: text.count() на regex-строке как на
+        литерале + только server_tools.py — всегда возвращал 0.
+        - core: классы в списке tool_classes (server_tools.py);
+        - intel: @mcp_app.tool(\" в src/core/intelligence/tools_reg.py (13);
+        - inline: @mcp.tool(\" в server_tools.py (12);
+        - dev: @mcp_app.tool(\" в src/mcp/tools/dev_tools.py (4);
+        - ExecuteScriptTool: +1 только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true.
+        """
+        mcp_dir = root / "src" / "mcp"
+        if not mcp_dir.exists():
             return 0
 
-        text = server_tools.read_text(encoding="utf-8")
-        # Ищем паттерны регистрации инструментов
-        tool_patterns = [
-            r'@mcp\.tool\("',
-            r'@mcp_app\.tool\("',
-            r'name=name,',
-            r'tool\(name=',
-            r'class \w+Tool\b',
-        ]
-        count = 0
-        for pattern in tool_patterns:
-            count = max(count, text.count(pattern))
-        return count
+        # ── Core: классы в списке tool_classes (игнорируем классы вне списка:
+        # base/git/meta/system/write — легаси или скрытые, не регистрируются) ──
+        server_tools_text = (mcp_dir / "server_tools.py").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        list_match = re.search(
+            r'tool_classes\s*=\s*\[(.*?)\]', server_tools_text, re.DOTALL
+        )
+        core_classes = (
+            len(re.findall(r'(\w+Tool)\b', list_match.group(1)))
+            if list_match
+            else 0
+        )
+
+        # ── Декораторы с именем инструмента ──
+        inline = len(re.findall(r'@mcp\.tool\("', server_tools_text))
+        dev_path = mcp_dir / "tools" / "dev_tools.py"
+        dev = (
+            len(re.findall(r'@mcp_app\.tool\("', dev_path.read_text(
+                encoding="utf-8", errors="ignore"
+            )))
+            if dev_path.exists()
+            else 0
+        )
+        tools_reg = root / "src" / "core" / "intelligence" / "tools_reg.py"
+        intel = (
+            len(re.findall(r'@mcp_app\.tool\("', tools_reg.read_text(
+                encoding="utf-8", errors="ignore"
+            )))
+            if tools_reg.exists()
+            else 0
+        )
+
+        # ── ExecuteScriptTool: добавляется в список только при включённом env ──
+        codebase_path = mcp_dir / "tools" / "codebase_tool.py"
+        exec_script_defined = codebase_path.exists() and (
+            "class ExecuteScriptTool"
+            in codebase_path.read_text(encoding="utf-8", errors="ignore")
+        )
+        exec_enabled = (
+            os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower()
+            == "true"
+        )
+        if exec_script_defined and exec_enabled:
+            core_classes += 1
+
+        return core_classes + inline + intel + dev
 
     def _update_readme(self, root: Path) -> bool:
-        """Обновляет счетчики в README.md.
+        """Обновляет счётчики в README.md.
+
+        Точечные замены по реальным маркерам (без cross-line regex):
+        - бейдж тестов tests-N%20passed (%20 — URL-encoded пробел, целостность
+          обязательна: раньше regex '\\d+\\s*passed' ловил '20passed' внутри бейджа);
+        - заголовок "MCP Tools (N total)" + якорь навигации "#mcp-tools-N-total"
+          (GitHub генерирует якорь из заголовка — обновляются синхронно; раньше
+          re.search попадал на якорь, а не на заголовок).
 
         Returns:
             True если были изменения.
@@ -240,31 +292,28 @@ class AutoDocUpdater:
 
         text = readme_path.read_text(encoding="utf-8")
 
-        # Собираем реальные метрики
         tool_count = self._count_tools(root)
         test_count = self._count_tests(root)
-        lang_count = self._count_languages(root)
 
-        # Обновляем tool count
-        text = self._replace_between(
+        # Бейдж тестов: обновляем только точную форму tests-N%20passed
+        badge_match = re.search(r'tests-(\d+)%20passed', text)
+        if badge_match and badge_match.group(1) != str(test_count):
+            text = text.replace(
+                badge_match.group(0), f"tests-{test_count}%20passed", 1
+            )
+
+        # Заголовок секции + якорь навигации — синхронно
+        text = re.sub(
+            r'(MCP Tools \()(\d+)( total\))',
+            lambda m: f"{m.group(1)}{tool_count}{m.group(3)}",
             text,
-            "tools",
-            str(tool_count),
+            count=1,
         )
-
-        # Обновляем test count (паттерн "N passed, 0 failed")
-        test_match = re.search(r'\d+\s*passed', text)
-        if test_match:
-            old = test_match.group()
-            new = f"{test_count} passed"
-            if old != new:
-                text = text.replace(old, new, 1)
-
-        # Обновляем языки
-        text = self._replace_between(
+        text = re.sub(
+            r'(mcp-tools-)(\d+)(-total)',
+            lambda m: f"{m.group(1)}{tool_count}{m.group(3)}",
             text,
-            "language",
-            str(lang_count),
+            count=1,
         )
 
         # Пишем только если были изменения
@@ -276,37 +325,22 @@ class AutoDocUpdater:
         return False
 
     def _count_tests(self, root: Path) -> int:
-        """Считает количество тестовых функций."""
+        """Считает тестовые функции без двойного счёта.
+
+        Раньше text.count("def test_") + text.count("async def test_") —
+        async-тест содержит обе подстроки (двойной счёт, 1016 вместо ~894).
+        """
         tests_dir = root / "tests"
         if not tests_dir.exists():
             return 0
+        pattern = re.compile(
+            r'^\s*(?:async\s+)?def\s+test_[a-zA-Z0-9_]*\s*\(', re.MULTILINE
+        )
         count = 0
         for py_file in tests_dir.rglob("test_*.py"):
             text = py_file.read_text(encoding="utf-8", errors="ignore")
-            count += text.count("def test_")
-            count += text.count("async def test_")
+            count += len(pattern.findall(text))
         return count
-
-    def _count_languages(self, root: Path) -> int:
-        """Считает поддерживаемые языки из parser.py."""
-        parser_path = root / "src" / "core" / "indexing" / "parser.py"
-        if not parser_path.exists():
-            return 0
-        text = parser_path.read_text(encoding="utf-8")
-        # Ищем словарь LANGUAGES или PARSE_EXTENSIONS
-        lang_match = re.search(r'LANGUAGES\s*=\s*\{([^}]+)\}', text, re.DOTALL)
-        if lang_match:
-            return lang_match.group(1).count(":") + 1
-        return 0
-
-    @staticmethod
-    def _replace_between(text: str, marker: str, new_value: str) -> str:
-        """Заменяет число после маркера."""
-        pattern = rf'(\b{marker}[^\d]*?)(\d+)'
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return text[:match.start(2)] + new_value + text[match.end(2):]
-        return text
 
     # ─── Internal: синхронизация KNOWN_ISSUES.md ─────────
 

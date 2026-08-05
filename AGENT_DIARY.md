@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-05 22:15] — AutoDocUpdater коррумпировал README: 4 бага в _update_readme/_count_* (FIXED)
+
+**Status:** ✅ Fixed
+**Root Cause:** (1) `_count_tools`: `text.count()` на regex-строке как на литерале (`@mcp\.tool\("` со слешами) + скан только server_tools.py → всегда 0; (2) `_count_tests`: `count("def test_") + count("async def test_")` — двойной счёт async (1016 вместо 890); (3) замена тестов `\d+\s*passed` ловила '20passed' внутри URL-бейджа `tests-747%20passed` → `747%1016 passed`; (4) `_replace_between(marker)` с cross-line `[^\d]*?` попадал на якорь навигации вместо заголовка и, для «language», перепрыгивал таблицу языков и заменял «13 high-level intel_* tools» → «0 …».
+**Fix:** `_count_tools` зеркалит runtime-константы (19 core из списка tool_classes + 12 inline + 13 intel из tools_reg.py + 4 dev + ExecuteScriptTool по env = 48); `_count_tests` — line-anchored regex `^(?:async )?def test_`; замены в `_update_readme` точечные: бейдж `tests-N%20passed`, заголовок `MCP Tools (N total)` + якорь `mcp-tools-N-total` синхронно; `_count_languages`/`_replace_between` удалены (не имели корректной цели). Тесты: tests/test_auto_doc_updater.py (6 новых, включая регрессию на коррупцию).
+**Guard:** регрессионные тесты (fixture README + фейковые src/tests); полный pytest 802 passed / 4 skipped; README пересобран корректно (бейдж 747→890, 48 не тронут).
+**Pattern:** P-002-класс «regex-паттерн используется как литерал» (`text.count(regex)` вместо `re.findall`) — guard: fixture-тест на реальный счёт (48) и на отсутствие коррупции.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не запускался (нет repo URL/сети); полный pytest 802 passed запущен явно.
+
+---
+
 ## [2026-08-05 21:56] — Открытая нить закрыта: progress_state удалён (dead code), project_context → job_manager (единый источник прогресса)
 
 **Status:** ✅ Fixed
