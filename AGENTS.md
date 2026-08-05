@@ -1,7 +1,7 @@
 # Project Agent Rules — MSCodeBase Hybrid Architecture (48 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 12 Intel Layer + 19 Core MCP + 6 Inline/Diagnostic + 2 Hub&Spoke (codebase + execute_script\*)
+> Optimized for the hybrid model: 13 Intel Layer + 19 Core MCP (включая `codebase` hub) + 12 Inline/Diagnostic + 4 Dev Tools = 48 registered
 
 > \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
 
@@ -302,16 +302,15 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
 > Актуальное число зарегистрированных инструментов — в логе MCP при старте (`📐 MCP Tools: N/M видимы`).
 
-### A. Intel Intelligence Layer (12 tools)
+### A. Intel Intelligence Layer (13 tools)
 
-`intel_get_runtime_status`, `intel_trigger_reindex`, `intel_get_job_status`,
-`intel_auto_collect_adrs`,
+`intel_get_runtime_status`, `intel_trigger_reindex`, `intel_reset_index`,
+`intel_get_job_status`, `intel_auto_collect_adrs`,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
-`intel_add_memory_node`, `intel_get_project_memory`, `intel_get_project_context`,
-`intel_predict_root_cause`, `intel_get_hotspots`,
-`intel_get_telemetry`, `intel_tool_health`.
+`intel_add_memory_node`, `intel_get_project_memory`,
+`intel_predict_root_cause`, `intel_get_hotspots`, `intel_get_telemetry`.
 
-Inline/Diagnostic: `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`.
+Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
 
 ### B. Core MCP & Search (19 tools)
 

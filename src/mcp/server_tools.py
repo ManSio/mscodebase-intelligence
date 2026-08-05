@@ -224,7 +224,7 @@ def register_all_tools(mcp, services):
     # ─── Intelligence Layer (13 инструментов) ──────
     _register_intelligence_tools(mcp, services)
 
-    # ─── Inline diagnostic tools (7 шт) ────────────
+    # ─── Inline diagnostic tools (12 шт) ────────────
     _register_inline_tools(mcp, services)
 
     # ─── Dev tools (4 шт: generate_docs, bump_version, auto_update_docs, install_git_hooks) ───

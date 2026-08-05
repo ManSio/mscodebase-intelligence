@@ -4,8 +4,8 @@
 
 # MSCodeBase Intelligence — Архитектура
 
-> **Версия:** 3.3.9  
-> **Последнее обновление:** 2026-07-21  
+> **Версия:** 3.3.11
+> **Последнее обновление:** 2026-08-05  
 > **Архитектура:** 4-слойная архитектура + Graph-Native PropertyGraph Layer + Data Flow Layer (Точки входа → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) с Multi-Window Registry + DocSync
 
 ---
@@ -280,7 +280,7 @@ def register_all_tools(mcp, services):
     # Всего: 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev)
 ```
 
-**Фильтр видимости инструментов:** По умолчанию видимо ~16 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 48.
+**Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 48.
 
 ### 4.2 Все инструменты по группам
 
@@ -296,13 +296,14 @@ def register_all_tools(mcp, services):
 | **Write** (1) | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
 | **Индексация** (1) | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
 | **Git** (1) | `git_tools.py` | git(action={log,history,branch}) |
-| **Документация** (1) | `doc_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
+| **Doc** (1) | `doc_tools.py` | stale_detector |
+| **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
 | **Meta** (1) | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **Система** (1) | `system_tools.py` | read_live_file, get_health_report, get_logs |
-| **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Всего:** 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~16. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+> **Всего:** 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~36. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Обработка ошибок
 

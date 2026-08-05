@@ -4,8 +4,8 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本：** 3.3.9  
-> **最后更新：** 2026-07-21  
+> **版本：** 3.3.11
+> **最后更新：** 2026-08-05  
 > **架构：** 4 层架构 + 图原生 PropertyGraph 层 + 数据流层（入口点 → MCP 服务器/DI → 工具类 → 核心业务逻辑 → PropertyGraph → 数据流）带多窗口注册表 + DocSync
 
 ---
@@ -277,7 +277,7 @@ def register_all_tools(mcp, services):
     # 总计：48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）
 ```
 
-**工具可见性过滤器：** 默认显示 ~16 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 48 个。
+**工具可见性过滤器：** 默认显示 ~36 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 48 个。
 
 ### 4.2 按组分组的全部工具
 
@@ -293,13 +293,14 @@ def register_all_tools(mcp, services):
 | **写入**（1 个） | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
 | **索引**（1 个） | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
 | **Git**（1 个） | `git_tools.py` | git(action={log,history,branch}) |
-| **文档**（1 个） | `doc_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
+| **Doc**（1 个） | `doc_tools.py` | stale_detector |
+| **Dev**（4 个） | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
 | **元**（1 个） | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **系统**（1 个） | `system_tools.py` | read_live_file, get_health_report, get_logs |
-| **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **总计：** 48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）。默认可见：~16 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）。默认可见：~36 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
 ---
 
