@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — Cypher-стек: 4 бага, найдены спайком Neuro-Symbolic (OPEN)
+
+**Symptom:** эксперимент exp-lab-2026-01 (NL→LLM→Cypher) выявил: MATCH (f:FUNCTION) → [] без ошибки; count() → SQLite "near *"; тихие отказы.
+**Verdict (по коду/замеру):** (1) label case-sensitive: хранится 'Function' (NodeLabel.FUNCTION), MATCH (f:FUNCTION) → [] — executor не нормализует регистр; (2) count(*)/count(f) → SQL "near *"; (3) CypherExecutor.execute глотает sqlite-ошибки → возвращает [] (скрытый отказ, хуже ошибки); (4) CypherParser молча игнорирует RETURN-выражения с вызовами функций (cycle(a) → return_items=[]).
+**Fix:** НЕ сделан (вне скоупа спайка; обход — WHERE n.label = 'Function').
+**Status:** 🟡 open | **Guard:** эксперименты/neuro_symbolic_spike.py — регрнесс-харнес для будущих фиксов; при фиксе executor'а: нормализация регистра меток + проброс sqlite-ошибок + allowlist функций RETURN.
+
 ## 2026-08-05 — CI зелёный после 3 платформенных провалов (FIXED, прогон 7/7)
 
 **Symptom:** coverage gate (38%) выявил красный CI: Ubuntu — race 2 winners + 2 URI-теста; Windows — UnicodeEncodeError/UnicodeDecodeError (cp1252).
