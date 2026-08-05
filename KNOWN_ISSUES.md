@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — AutoDocUpdater коррумпировал README: 4 бага в _update_readme/_count_* (FIXED)
+
+**Symptom:** после реиндекса README.md получил: бейдж `tests-747%1016 passed` (вместо `tests-747%20passed`), якорь `#mcp-tools-0-total`, `0 high-level intel_* tools` (вместо 13).
+**Root Cause:** (1) `_count_tools` — `text.count()` на regex-строке как литерале → всегда 0; (2) `_count_tests` — двойной счёт async-тестов (1016); (3) `\d+\s*passed` ловил '20passed' внутри URL-encoded бейджа; (4) `_replace_between` с cross-line `[^\d]*?` попадал на якорь навигации/перескакивал таблицу языков (13→0).
+**Fix:** `_count_tools` зеркалит runtime (19 core + 12 inline + 13 intel + 4 dev = 48, ExecuteScriptTool по env); `_count_tests` — line-anchored regex (890); точечные замены бейджа/заголовка/якоря; `_count_languages`/`_replace_between` удалены.
+**Status:** ✅ Fixed | **Guard:** tests/test_auto_doc_updater.py (6 тестов, включая регрессию коррупции); полный pytest 802 passed / 4 skipped.
+
 ## 2026-08-05 — progress_state удалён (dead code), project_context → job_manager — открытая нить закрыта (FIXED)
 
 **Symptom:** `_create_progress_callback` в проде не вызывался → `get_last_progress()` всегда пуст → `intel_get_project_context().jobs` вечно `{running: 0, completed: 0}` (открытая нить из записи 2026-08-05 «get_last_progress → core»). `cleanup_old_jobs()` не вызывался нигде.

@@ -13,7 +13,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-747%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-890%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-48-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
