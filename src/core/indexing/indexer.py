@@ -417,6 +417,16 @@ class Indexer(IndexerTableMixin):
                         if imports:
                             with self._symbol_index_lock:
                                 self._symbol_index.add_imports(str(full_path), imports)
+                        # DECORATES/OVERRIDES (PropertyGraph-only, legacy SymbolIndex не имеет)
+                        if hasattr(self._symbol_index, "add_decorators"):
+                            decorators = self.parser.extract_decorators(full_path)
+                            if decorators:
+                                with self._symbol_index_lock:
+                                    self._symbol_index.add_decorators(str(full_path), decorators)
+                            overrides = self.parser.extract_overrides(full_path)
+                            if overrides:
+                                with self._symbol_index_lock:
+                                    self._symbol_index.add_overrides(str(full_path), overrides)
                 except Exception as sym_err:
                     logger.warning(f"SymbolIndex update failed for {rel_path_str}: {sym_err}")
 

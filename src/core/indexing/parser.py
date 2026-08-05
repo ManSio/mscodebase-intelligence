@@ -1,6 +1,7 @@
 """
 Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -18,10 +19,15 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+# Путь к встроенным tags.scm queries
+QUERIES_DIR = Path(__file__).parent / "queries"
+
+
 class CodeParser:
     """Парсит код и разбивает на семантически значимые чанки (функции, методы)."""
 
     SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS
+
 
     # Узлы, которые мы извлекаем как чанки
     TARGET_NODES = {
@@ -659,6 +665,18 @@ class CodeParser:
         # (языки запросов/конфигурации, не имеют переменных-присваиваний)
     }
 
+    # Узлы-декораторы для разных языков — для DECORATES-рёбер.
+    # Python: декоратор отделён (decorated_definition оборачивает def/class,
+    # а внутри него — узлы decorator). TS/JS/Dart/Java/Kotlin/C#: декоратор
+    # (annotation/attribute/metadata) — прямой ребёнок definition-узла.
+    DECORATOR_ATTACH_TYPES = {
+        "decorator",            # TS/JS/JSX/Dart (и Python — внутри decorated_definition)
+        "annotation",           # Java/Kotlin
+        "marker_annotation",    # Java @Override/@Deprecated
+        "attribute",            # C# [Obsolete]
+        "metadata",             # Dart @deprecated
+    }
+
     # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
     CONDITIONAL_NODES = {
         "if_statement", "else_clause",
@@ -667,15 +685,19 @@ class CodeParser:
         "except_clause", "match_statement", "case_clause",
     }
 
-    def _walk_file(self, file_path: Path):
-        """Единый обход AST: один parse, один walk, три результата.
+    def _get_tree(self, file_path: Path):
+        """Возвращает (code, tree) с кэшем на 1 файл (thread-local).
+
+        Один Tree-sitter parse на файл при множественных extract_* вызовах
+        (кеш на последний прочитанный файл + его содержимое).
 
         Returns:
-            (calls, assignments, imports) — кортеж из трёх списков.
+            (bytes, Tree) при успехе; (None, None) при ошибке чтения,
+            пустом файле или неподдерживаемом расширении.
         """
         ext = file_path.suffix.lower()
         if ext not in self.parsers or ext == ".md":
-            return [], [], []
+            return None, None
 
         # Cache hit: тот же файл И то же содержимое.
         # (раньше проверялся только путь — из-за этого extract_calls
@@ -685,19 +707,111 @@ class CodeParser:
             with open(file_path, "rb") as f:
                 code = f.read()
         except Exception:
-            return [], [], []
+            return None, None
         if not code.strip():
-            return [], [], []
+            return None, None
 
         local = self._local
         if file_path == getattr(local, "cache_path", None) and code == getattr(local, "cache_code", None):
-            tree = local.cache_tree
-        else:
-            tree = self._get_parser(ext).parse(code)
-            local.cache_path = file_path
-            local.cache_code = code
-            local.cache_tree = tree
-            local.cache_ext = ext
+            return code, local.cache_tree
+
+        tree = self._get_parser(ext).parse(code)
+        local.cache_path = file_path
+        local.cache_code = code
+        local.cache_tree = tree
+        local.cache_ext = ext
+        return code, tree
+
+    def _load_tags_query(self, lang: str) -> str:
+        """Загружает tags.scm для языка из встроенных queries."""
+        # Маппинг расширения -> папка queries
+        ext_to_query = {
+            ".py": "python",
+            ".ts": "typescript", ".tsx": "typescript",
+            ".js": "javascript", ".jsx": "javascript",
+            ".rs": "rust",
+            ".go": "go",
+            ".java": "java",
+            ".c": "c", ".h": "c",
+            ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+            ".cs": "csharp",
+            ".kt": "kotlin", ".kts": "kotlin",
+            ".swift": "swift",
+            ".rb": "ruby",
+            ".php": "php",
+            ".scala": "scala", ".sc": "scala",
+            ".dart": "dart",
+            ".sh": "bash", ".bash": "bash",
+            ".sql": "sql",
+        }
+        query_lang = ext_to_query.get(lang, "")
+        if not query_lang:
+            return ""
+        query_path = QUERIES_DIR / query_lang / "tags.scm"
+        if query_path.exists():
+            try:
+                return query_path.read_text(encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"Failed to load tags.scm for {lang}: {e}")
+        return ""
+
+    def extract_definitions_scm(self, file_path: Path) -> List[Dict]:
+        """Извлекает определения (function/class/method) через tags.scm query.
+
+        Заменяет TARGET_NODES walk для определений.
+        Возвращает список символов в формате CodeParser: name, line, kind.
+        """
+        ext = file_path.suffix.lower()
+        if ext not in self.parsers:
+            return []
+
+        query_src = self._load_tags_query(ext)
+        if not query_src:
+            return []  # fallback на старый walk
+
+        code, tree = self._get_tree(file_path)
+        if tree is None:
+            return []
+
+        try:
+            from tree_sitter import Query, QueryCursor
+            query = Query(self.parsers[ext].language, query_src)
+            cursor = QueryCursor(query)
+            captures = cursor.captures(tree.root_node)
+        except Exception as e:
+            logger.warning(f"SCM query failed for {file_path}: {e}")
+            return []
+
+        symbols = []
+        # captures: {capture_name: [nodes]}  (tree-sitter 0.26)
+        for cap_name, nodes in captures.items():
+            if not cap_name.startswith("definition."):
+                continue
+            kind = cap_name.replace("definition.", "")  # function, class, method, etc.
+            for node in nodes:
+                name_node = self._find_child_by_type(node, "identifier") or \
+                            self._find_child_by_type(node, "type_identifier") or \
+                            self._find_child_by_type(node, "simple_identifier") or \
+                            self._find_child_by_type(node, "function_name")
+                if name_node:
+                    name = code[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="ignore")
+                    symbols.append({
+                        "name": name,
+                        "line": node.start_point[0] + 1,
+                        "kind": kind,
+                    })
+        return symbols
+
+    def _walk_file(self, file_path: Path):
+        """Единый обход AST: один parse, один walk, три результата.
+
+        Returns:
+            (calls, assignments, imports) — кортеж из трёх списков.
+        """
+        code, tree = self._get_tree(file_path)
+        if tree is None:
+            return [], [], []
+        ext = file_path.suffix.lower()
 
         calls = []
         self._extract_calls_recursive(
@@ -871,6 +985,225 @@ class CodeParser:
         """
         _, _, imports = self._walk_file(file_path)
         return imports
+
+    # ── Decorator extraction for DECORATES edges ──────────────
+
+    def extract_decorators(self, file_path: Path) -> List[Dict]:
+        """Извлекает DECORATES связи: декорируемый символ ← декоратор.
+
+        Python: @property/@abstractmethod/@app.route(...) на методах и классах.
+        TS/JS/Java/Kotlin/C#/Dart: decorator/annotation/attribute как
+        ребёнок definition-узла (best-effort, имя берётся из текста узла).
+
+        Returns:
+            [{"decorated": "Class.method", "decorator": "property", "line": N, "file": ...}, ...]
+        """
+        code, tree = self._get_tree(file_path)
+        if tree is None:
+            return []
+        decorators = []
+        self._extract_decorators_recursive(
+            tree.root_node, code, file_path, decorators, current_class=""
+        )
+        return decorators
+
+    def _extract_decorators_recursive(
+        self,
+        node,
+        code: bytes,
+        file_path: Path,
+        decorators: List[Dict],
+        current_class: str,
+    ):
+        """Рекурсивно обходит AST, извлекая декораторы (Python-first).
+
+        Python: decorated_definition оборачивает def/class и содержит узлы
+        decorator — обрабатываем целиком и не спускаемся внутрь (внутренний
+        definition уже обработан). Другие языки: decorator/annotation как
+        прямые дети definition-узла — обрабатываем при обходе контейнеров.
+        """
+        if node.type == "decorated_definition":
+            inner = None
+            for c in node.children:
+                if c.type in self.TARGET_NODES or c.type in self.CONTAINER_NODES:
+                    inner = c
+                    break
+            name = self._node_name(inner, code)
+            qualified = f"{current_class}.{name}" if current_class and name else name
+            for child in node.children:
+                if child.type == "decorator":
+                    deco = self._decorator_name(child, code)
+                    if deco and qualified:
+                        decorators.append(
+                            {
+                                "decorated": qualified,
+                                "decorator": deco,
+                                "line": node.start_point[0] + 1,
+                                "file": str(file_path),
+                            }
+                        )
+            return  # не спускаемся внутрь — декорируемый символ уже обработан
+
+        # Контейнеры (классы/структуры): обновляем контекст + декораторы
+        # класса (TS @Component, Java @Deprecated, C# [Serializable])
+        if node.type in self.CONTAINER_NODES:
+            class_name = self._node_name(node, code)
+            if class_name:
+                for child in node.children:
+                    if child.type in self.DECORATOR_ATTACH_TYPES:
+                        deco = self._decorator_name(child, code)
+                        if deco:
+                            decorators.append(
+                                {
+                                    "decorated": class_name,
+                                    "decorator": deco,
+                                    "line": node.start_point[0] + 1,
+                                    "file": str(file_path),
+                                }
+                            )
+                current_class = class_name
+
+        # Методы без decorated_definition (TS/Java/C#/Kotlin/Dart):
+        # декоратор — прямой ребёнок definition-узла
+        if node.type in self.TARGET_NODES:
+            method_name = self._node_name(node, code)
+            if method_name:
+                for child in node.children:
+                    if child.type in self.DECORATOR_ATTACH_TYPES:
+                        deco = self._decorator_name(child, code)
+                        if deco:
+                            qualified = (
+                                f"{current_class}.{method_name}"
+                                if current_class
+                                else method_name
+                            )
+                            decorators.append(
+                                {
+                                    "decorated": qualified,
+                                    "decorator": deco,
+                                    "line": node.start_point[0] + 1,
+                                    "file": str(file_path),
+                                }
+                            )
+
+        for child in node.children:
+            self._extract_decorators_recursive(
+                child, code, file_path, decorators, current_class
+            )
+
+    @staticmethod
+    def _decorator_name(decorator_node, code: bytes) -> str:
+        """Имя декоратора из узла: '@app.route('/x')' → 'app.route'.
+
+        Срезает префиксы (@, [) и аргументы вызова (...).
+        """
+        text = code[decorator_node.start_byte : decorator_node.end_byte].decode(
+            "utf-8", errors="ignore"
+        ).strip()
+        if text.startswith("@"):
+            text = text[1:]
+        elif text.startswith("[") and text.endswith("]"):
+            text = text[1:-1]  # C# [Obsolete] → Obsolete
+        paren = text.find("(")
+        if paren != -1:
+            text = text[:paren]
+        return text.strip() or ""
+
+    def _node_name(self, node, code: bytes) -> str:
+        """Имя символа из definition-узла (первый identifier/type_identifier)."""
+        if node is None:
+            return ""
+        name_node = self._find_child_by_type(node, "identifier") or self._find_child_by_type(
+            node, "type_identifier"
+        )
+        if name_node is not None:
+            return code[name_node.start_byte : name_node.end_byte].decode()
+        return ""
+
+    # ── Override extraction for OVERRIDES edges ─────────────
+
+    def extract_overrides(self, file_path: Path) -> List[Dict]:
+        """Извлекает OVERRIDES связи: методы, переопределяющие методы базового класса.
+
+        Same-file класс-иерархия (Python class Child(Base), Java/TS extends,
+        C# : Base, Kotlin : Base()): метод Child.m с тем же именем, что у
+        Base.m, даёт OVERRIDES-ребро. Cross-file базовые классы не
+        резолвятся (документированное ограничение v1).
+
+        Returns:
+            [{"class": "Child", "base": "Base", "method": "m",
+              "override": "Child.m", "overridden": "Base.m", "line": N, "file": ...}, ...]
+        """
+        code, tree = self._get_tree(file_path)
+        if tree is None:
+            return []
+        classes: Dict[str, Dict] = {}
+        self._collect_classes(tree.root_node, code, classes)
+        overrides = []
+        for cls_name, info in classes.items():
+            for base in info["bases"]:
+                base_methods = classes.get(base, {}).get("methods", {})
+                if not base_methods:
+                    continue
+                for method, line in info["methods"].items():
+                    if method in base_methods:
+                        overrides.append(
+                            {
+                                "class": cls_name,
+                                "base": base,
+                                "method": method,
+                                "override": f"{cls_name}.{method}",
+                                "overridden": f"{base}.{method}",
+                                "line": line,
+                                "file": str(file_path),
+                            }
+                        )
+        return overrides
+
+    def _collect_classes(self, node, code: bytes, classes: Dict[str, Dict]):
+        """Собирает карту классов файла: имя → {bases, methods}."""
+        if node.type in self.CONTAINER_NODES:
+            name = self._node_name(node, code)
+            if name:
+                bases = []
+                for child in node.children:
+                    if child.type in ("superclass", "class_heritage", "base_class", "base_list"):
+                        bases.extend(self._extract_type_names(child, code))
+                    elif child.type == "argument_list":
+                        # tree-sitter-python: class Child(Base, Other) — базы в argument_list
+                        # (не в superclass, как в Java/TS). Безопасно: у class_definition
+                        # единственный argument_list — это суперклассы.
+                        bases.extend(self._extract_type_names(child, code))
+                methods = {}
+                for child in node.children:
+                    self._collect_methods(child, code, methods)
+                classes[name] = {"bases": bases, "methods": methods}
+        for child in node.children:
+            self._collect_classes(child, code, classes)
+
+    def _collect_methods(self, node, code: bytes, methods: Dict[str, int]):
+        """Собирает методы класса: имя → строка определения (для line)."""
+        if node.type in self.TARGET_NODES:
+            name = self._node_name(node, code)
+            if name:
+                methods[name] = node.start_point[0] + 1
+            return
+        for child in node.children:
+            self._collect_methods(child, code, methods)
+
+    @staticmethod
+    def _extract_type_names(node, code: bytes) -> List[str]:
+        """Все identifier/type_identifier имена под узлом (базы классов)."""
+        names = []
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            for child in n.children:
+                if child.type in ("identifier", "type_identifier"):
+                    names.append(code[child.start_byte : child.end_byte].decode())
+                else:
+                    stack.append(child)
+        return names
 
     def _extract_imports_recursive(
         self,

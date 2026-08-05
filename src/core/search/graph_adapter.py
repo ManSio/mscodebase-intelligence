@@ -211,6 +211,36 @@ class SymbolIndexAdapter(PureGraphMixin):
         with self._lock:
             self._pure_add_imports(file_path, imports)
 
+    def add_decorators(self, file_path: str, decorators: List[Dict]) -> None:
+        """Добавляет DECORATES рёбра (декоратор → декорируемый символ).
+
+        PropertyGraph: (TYPE:decorator) --[DECORATES]--> (Function|Class|Method).
+        Только PropertyGraph-контур (in-memory HYBRID-структуры не хранят
+        декораторы).
+        """
+        file_path = Path(file_path).resolve().as_posix()
+
+        if not decorators:
+            return
+
+        with self._lock:
+            self._pure_add_decorators(file_path, decorators)
+
+    def add_overrides(self, file_path: str, overrides: List[Dict]) -> None:
+        """Добавляет OVERRIDES рёбра (Child.m → Base.m, same-file).
+
+        PropertyGraph: (Method:Child.m) --[OVERRIDES]--> (Method:Base.m).
+        Только PropertyGraph-контур (in-memory HYBRID-структуры не хранят
+        переопределения).
+        """
+        file_path = Path(file_path).resolve().as_posix()
+
+        if not overrides:
+            return
+
+        with self._lock:
+            self._pure_add_overrides(file_path, overrides)
+
     def _hybrid_add_references(self, file_path: str, calls: List[Dict]):
         """HYBRID: дублирует в in-memory структуры SymbolIndex."""
         if file_path not in self._file_to_symbols:
@@ -799,6 +829,14 @@ class SymbolIndexAdapter(PureGraphMixin):
                         for call in calls:
                             call["file"] = rel_path
                         self.add_references(rel_path, calls)
+                # DECORATES/OVERRIDES рёбра (PropertyGraph-only)
+                if hasattr(parser, "extract_decorators"):
+                    decorators = parser.extract_decorators(abs_file_path)
+                    if decorators:
+                        self.add_decorators(rel_path, decorators)
+                    overrides = parser.extract_overrides(abs_file_path)
+                    if overrides:
+                        self.add_overrides(rel_path, overrides)
 
     def _should_skip_dir(self, dir_name: str) -> bool:
         skip_dirs = {

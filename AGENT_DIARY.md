@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-05 23:30] — Реальный отбор audit.md: 16 предложений сверено с кодом + 5 экспериментов (DONE)
+
+**Status:** ✅ Done (документация; код не менялся — Danger Zone соблюдён)
+**Root Cause:** audit.md содержал 16 предложений «внедрить», из которых 6 УЖЕ реализованы (Cypher-стек, 27/29 EdgeType, change coupling, dead code, depth-группировка impact) и 2 опровергнуты (scip-python и cypher-sqlite не существуют на PyPI; «371 язык» = 71 с tags.scm).
+**Fix:** 5 реальных экспериментов (EXPERIMENTS_LOG#2026-08-05): (1) language-pack: манифест 371, tags.scm у 71 (19%), первый парс 37.6s/0.03ms повторно; (2) tags.scm recall 100% (66/66) vs CodeParser 60/65ms — паритет; (3) Cypher 0.3–13ms direct / 7–13ms live MCP на 6856 узлов / 19969 рёбер — «4297ms» опровергнуто; (4) DECORATES/OVERRIDES извлекаемы (decorated_definition в AST); (5) PyPI: scip-python/cypher-sqlite 404, leidenalg/igraph доступны. Итоговый отбор: делать next_step-hints, DECORATES, OVERRIDES, confidence в impact, language-pack как опциональный слой (+62 tags-языка); не делать SCIP/KuzuDB/tsg-DSL/GitHub-Artifacts.
+**Guard:** секция верификации в experiments/audit.md (матрица 16 строк); EXPERIMENTS_LOG.md 5 записей + таблица отрицательных результатов §3.8.
+**Pattern:** P-002 «предположение вместо проверки» — аудит планировал внедрение того, что уже существует; guard = Phase Zero сверки перед планированием.
+**verified_from_clean_state:** N/A — docs-only (код не менялся); замеры выполнены реальным исполнением в этой сессии.
+
+---
+
 ## [2026-08-05 22:15] — AutoDocUpdater коррумпировал README: 4 бага в _update_readme/_count_* (FIXED)
 
 **Status:** ✅ Fixed

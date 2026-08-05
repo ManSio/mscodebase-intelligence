@@ -6,13 +6,12 @@
 
 ---
 
----
+## 2026-08-05 — Реальный отбор audit.md: 16 предложений сверено, 5 экспериментов, 6 уже реализовано (DONE, docs-only)
 
----
-
----
-
-## 2026-08-05 — AutoDocUpdater коррумпировал README: 4 бага в _update_readme/_count_* (FIXED)
+**Symptom:** audit.md предлагал внедрить Cypher/change-coupling/dead-code/edge-таксономию, которые уже реализованы; заявлял «371 язык за 1 день» и «query latency 4297ms» без проверки.
+**Verdict (эксперименты, EXPERIMENTS_LOG#2026-08-05):** ✅ уже есть — Cypher-стек (cypher_lexer…schema/engine), 27/29 EdgeType (нет DECORATES/OVERRIDES), change coupling (commit_memory.py:202, Axon-формула), dead code (graph.py:1054 + SARIF), depth-группировка impact (graph_adapter.py:661). ❌ опровергнуто — scip-python/cypher-sqlite нет на PyPI (404); «371 язык» = 71 (19%) с tags.scm; «4297ms» = реально 0.3–13ms Cypher на 6856 узлов/19969 рёбер (7–13ms live MCP). ✅ подтверждено — tags.scm recall 100% (66/66, 16ms) паритет; DECORATES/OVERRIDES извлекаемы (decorated_definition в AST); leidenalg/igraph доступны (abi3).
+**Fix:** experiments/audit.md += секция «Верификация и реальный отбор» (матрица 16 строк, приоритеты: next_step-hints, DECORATES, OVERRIDES, confidence impact, language-pack опционально); EXPERIMENTS_LOG.md += 5 записей + таблица отрицательных результатов. Код не менялся (docs-only).
+**Status:** ✅ Done | **Guard:** аудит-файл теперь содержит актуальную матрицу статусов — следующая сессия не начнёт «внедрять» уже существующее.
 
 **Symptom:** после реиндекса README.md получил: бейдж `tests-747%1016 passed` (вместо `tests-747%20passed`), якорь `#mcp-tools-0-total`, `0 high-level intel_* tools` (вместо 13).
 **Root Cause:** (1) `_count_tools` — `text.count()` на regex-строке как литерале → всегда 0; (2) `_count_tests` — двойной счёт async-тестов (1016); (3) `\d+\s*passed` ловил '20passed' внутри URL-encoded бейджа; (4) `_replace_between` с cross-line `[^\d]*?` попадал на якорь навигации/перескакивал таблицу языков (13→0).
