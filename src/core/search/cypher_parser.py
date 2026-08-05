@@ -44,10 +44,11 @@ class CypherParser:
         return t
 
     def expect(self, *expected: str) -> Token:
+        # C4: строгое сравнение ПО ЗНАЧЕНИЮ. Раньше для пунктуационных ожиданий
+        # (например, expect(")")) пропускался ЛЮБОЙ PUNCTUATION-токен — поэтому
+        # `cycle(a, b)` молча съедал `,` и терял второй аргумент без ошибки.
         t = self.advance()
-        if t.value.upper() not in expected and t.type not in (
-            (TokenType.PUNCTUATION,) if all(e in "()[]{}.,:*->" for e in expected) else ()
-        ):
+        if t.value.upper() not in expected:
             raise SyntaxError(
                 f"Expected {expected} at pos {t.pos}, got '{t.value}'"
             )
@@ -172,9 +173,15 @@ class CypherParser:
         props = {}
         direction = "--"
 
-        # Пропускаем начальный дефис (n)-[ или n-->
-        if self.peek() and self.peek().value == "-":
-            self.advance()  # consume the -
+        # C4: стрелка МОЖЕТ идти ДО блока [r:TYPE] — (a)<-[r:TYPE]-(b).
+        # Раньше это не обрабатывалось: токен '<-' съедался как направление
+        # ниже, а блок [...] оставался непотреблённым (маскировалось старой
+        # PUNCTUATION-поблажкой в expect()).
+        if self.peek() and self.peek().value == "<-":
+            self.advance()
+            direction = "<-"
+        elif self.peek() and self.peek().value == "-":
+            self.advance()  # consume the - of -[:TYPE]->
 
         if self.peek() and self.peek().value == "[":
             self.advance()
@@ -219,17 +226,21 @@ class CypherParser:
         # Определяем направление (после [r:TYPE] или после дефиса)
         if self.peek():
             if self.peek().value == "->":
-                direction = "->"
+                if direction != "<-":  # C4: левая стрелка не затирается правой
+                    direction = "->"
                 self.advance()
-            elif self.peek().value == "<-":
+            elif self.peek().value == "<-" and direction == "--":
                 direction = "<-"
                 self.advance()
+            elif self.peek().value == "--":
+                # undirected одним токеном (лексер: '--' → PUNCTUATION)
+                self.advance()
             elif self.peek().value == "-":
-                # -- для undirected
+                # -- для undirected (direction уже "--" по умолчанию —
+                # не затираем установленное слева "<-")
                 self.advance()
                 if self.peek() and self.peek().value == "-":
                     self.advance()
-                direction = "--"
 
         return RelPattern(
             variable=var, rel_types=rel_types, direction=direction,
@@ -370,17 +381,22 @@ class CypherParser:
             prop = self.advance()
             result = f"{result}.{prop.value}"
 
-        # count(*)
+        # count(*) / count() / count(n.name)
         if self.peek() and self.peek().value == "(":
             self.advance()
-            if self.peek().value == "*":
+            if self.peek() and self.peek().value == "*":
                 result = f"{result}(*)"
                 self.advance()
+            elif self.peek() and self.peek().value == ")":
+                # C2: пустой вызов (count()) — раньше уходил в IndexError
+                # (advance за конец токенов). Парсим как foo().
+                result = f"{result}()"
+                self.expect(")")
             else:
                 # count(n.name)
                 inner = self._parse_property_ref()
                 result = f"{result}({inner})"
-            self.expect(")")
+                self.expect(")")
 
         return result
 

@@ -12,6 +12,16 @@
 
 ---
 
+## [2026-08-05 20:10] — C1-C4 Cypher-стек: 4 бага KNOWN_ISSUES#2026-08-05 (FIXED, не запушено)
+
+**Status:** ✅ Fixed (коммит в этой сессии; push — по команде владельца)
+**Root Cause:** C1 — label/edge сравнивались точно (=/IN) в cypher_sql.py, лексер принимает любой регистр LABEL → тихий пустой результат; C2 — пустой count-вызов ронял parser (IndexError), агрегат над узлом генерил `COUNT(n.*)` → SQLite near "*"; C3 — `except SyntaxError` молчал; C4 — expect() пропускал любую пунктуацию → cycle(a, b) терял аргумент, неизвестные RETURN-функции давали невалидный SQL.
+**Fix:** C1 — COLLATE NOCASE в 9 местах (label+edge); C2 — count без аргумента → `COUNT(*)`, count(узел) → `COUNT(узел.id)` (точная семантика Cypher), агрегаты над узлом → ValueError; C3 — logger.warning «Cypher syntax error» + query[:200]; C4 — строгий expect() по значению + ValueError для неизвестных функций; бонус — `<-` больше не затирается правой стрелкой (легаси-баг направления, вскрыт expect).
+**Guard:** 10 регрессионных тестов (регистр labels, count-семантика, caplog-лог, unsupported function); Cypher 61 + graph-смежные 48 passed; полный pytest — pre-commit при коммите.
+**Pattern:** NEW — P-004 «разрыв валидации между слоями: принято лексером/parser'ом, исполнено SQL неверно и тихо».
+**Обобщение (§3.5):** остальные label/edge-сравнения вне Cypher-стека (graph.py) — нативные enum-ключи, регистр не применим; аналогов рассинхрона не найдено.
+**verified_from_clean_state:** ⚠️ полный pytest пройдёт через pre-commit при коммите (Cypher 61 + graph-смежные 48 уже зелёные; 3 failed в ходе фиксов — все исправлены).
+
 ## [2026-08-05] — A2 (внешний аудит): sandbox threat model — ADR-0001 ✅ Accepted (Вариант A)
 
 **Status:** ✅ Done (решение по умолчанию, §1.10 — владелец не выбрал B/C; переопределение возможно)
