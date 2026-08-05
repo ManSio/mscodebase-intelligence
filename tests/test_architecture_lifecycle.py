@@ -18,20 +18,40 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 _HERE = Path(__file__).resolve().parent.parent
 _INSTALL = Path(r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence")
 _PYTHONPATH = str(_INSTALL if _INSTALL.exists() else _HERE)
 
-if _PYTHONPATH not in sys.path:
-    sys.path.insert(0, _PYTHONPATH)
-
-os.environ.setdefault("PROJECT_PATH", str(_HERE))
-os.environ.setdefault("ZED_WORKTREE_ROOT", str(_HERE))
-os.environ.setdefault("PYTHONPATH", _PYTHONPATH)
-
-import pytest
-
 pytestmark = pytest.mark.slow
+
+
+@pytest.fixture(autouse=True)
+def _use_installed_extension():
+    """Интеграционный smoke: импорты идут из УСТАНОВЛЕННОГО расширения (если есть).
+
+    sys.path и env НЕ загрязняются на уровне модуля — раньше insert(0) на
+    уровне импорта ломал всю pytest-сессию: соседние тесты начинали
+    импортировать устаревшую копию src/ из расширения (без новых модулей
+    вроде src.core.progress_state) → ModuleNotFoundError.
+    """
+    original_path = list(sys.path)
+    original_env = {
+        k: os.environ.get(k) for k in ("PROJECT_PATH", "ZED_WORKTREE_ROOT", "PYTHONPATH")
+    }
+    if _PYTHONPATH not in sys.path:
+        sys.path.insert(0, _PYTHONPATH)
+    os.environ.setdefault("PROJECT_PATH", str(_HERE))
+    os.environ.setdefault("ZED_WORKTREE_ROOT", str(_HERE))
+    os.environ.setdefault("PYTHONPATH", _PYTHONPATH)
+    yield
+    sys.path[:] = original_path
+    for k, v in original_env.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 class TestSystemArtifactsLayer:

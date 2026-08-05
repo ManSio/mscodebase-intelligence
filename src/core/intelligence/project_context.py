@@ -308,7 +308,7 @@ class ProjectContext:
 
     def _capture_jobs(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
         try:
-            from src.mcp.server import get_last_progress
+            from src.core.progress_state import get_last_progress
 
             running = 0
             completed = 0

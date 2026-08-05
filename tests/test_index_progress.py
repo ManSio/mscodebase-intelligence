@@ -13,7 +13,7 @@ class TestProgressCallback:
 
     def test_callback_updates_progress(self):
         """Callback обновляет _last_progress."""
-        from src.mcp.server import _create_progress_callback, _last_progress, _progress_lock
+        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
 
         # Очищаем перед тестом
         with _progress_lock:
@@ -30,7 +30,7 @@ class TestProgressCallback:
 
     def test_callback_complete_phase(self):
         """Callback с phase=complete устанавливает 100%."""
-        from src.mcp.server import _create_progress_callback, _last_progress, _progress_lock
+        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -44,7 +44,7 @@ class TestProgressCallback:
 
     def test_callback_handles_zero_total(self):
         """Callback не падает при total=0."""
-        from src.mcp.server import _create_progress_callback, _last_progress, _progress_lock
+        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -57,8 +57,8 @@ class TestProgressCallback:
 
     def test_callback_error_does_not_crash(self):
         """Ошибка в callback не прерывает работу."""
-        import src.mcp.server as server_module
-        from src.mcp.server import _create_progress_callback
+        import src.core.progress_state as server_module
+        from src.core.progress_state import _create_progress_callback
 
         # Подменяем _last_progress на объект который бросит ошибку
         # ВАЖНО: не удерживаем _progress_lock во время вызова callback — иначе deadlock!
@@ -75,7 +75,7 @@ class TestProgressCallback:
 
     def test_callback_tracks_timestamp(self):
         """Callback записывает timestamp."""
-        from src.mcp.server import _create_progress_callback, _last_progress, _progress_lock
+        from src.core.progress_state import _create_progress_callback, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -95,7 +95,7 @@ class TestCleanupOldProgress:
 
     def test_cleanup_removes_expired_entries(self):
         """Записи старше 1 часа удаляются."""
-        from src.mcp.server import _cleanup_old_progress, _last_progress, _progress_lock
+        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -122,7 +122,7 @@ class TestCleanupOldProgress:
 
     def test_cleanup_keeps_recent_entries(self):
         """Свежие записи не удаляются."""
-        from src.mcp.server import _cleanup_old_progress, _last_progress, _progress_lock
+        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -141,7 +141,7 @@ class TestCleanupOldProgress:
 
     def test_cleanup_empty_progress(self):
         """Очистка не падает на пустом прогрессе."""
-        from src.mcp.server import _cleanup_old_progress, _last_progress, _progress_lock
+        from src.core.progress_state import _cleanup_old_progress, _last_progress, _progress_lock
 
         with _progress_lock:
             _last_progress.clear()
@@ -188,7 +188,7 @@ class TestProgressLockThreadSafety:
 
     def test_lock_protects_concurrent_access(self):
         """Lock защищает от concurrent access."""
-        from src.mcp.server import _last_progress, _progress_lock
+        from src.core.progress_state import _last_progress, _progress_lock
 
         errors = []
 
@@ -217,8 +217,8 @@ class TestPeriodicCleanup:
         """Раньше условие len(_last_progress) > 10 триггерило cleanup на каждый
         update (O(n) при >10 проектах). Теперь — только каждый 100-й update.
         """
-        import src.mcp.server as server_module
-        from src.mcp.server import _create_progress_callback
+        import src.core.progress_state as server_module
+        from src.core.progress_state import _create_progress_callback
 
         with server_module._progress_lock:
             server_module._progress_updates = 0  # нормализуем глобальный счётчик для теста

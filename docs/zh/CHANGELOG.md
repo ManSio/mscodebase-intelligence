@@ -11,6 +11,28 @@
 
 ---
 
+
+## [3.3.13] — 2026-08-05
+
+<!-- TODO: 填写变更内容 -->
+
+---
+## [3.3.13] — 2026-08-05 — get_last_progress → core（ARCH-03 完全关闭）、bump_version 修复、测试 sys.path 污染修复
+
+### 修复
+- **Core→MCP 导入完全关闭（ARCH-03 后续）**：`get_last_progress`/`_create_progress_callback`/`_cleanup_old_progress` 从 `src/mcp/server.py` 移至新增 `src/core/progress_state.py`；`mcp/server.py` 重新导出以兼容测试；`project_context` 从 core 导入；`architecture_linter.py` 中 `project_context` 的例外已移除。
+- **`bump_version` 误报漂移**：`check_consistency` 匹配所有 `X.Y.Z`（依赖版本、旧 CHANGELOG 条目）→ 现在仅按文件版本模式（pyproject 中 `^version =`、CHANGELOG 中第一个 `## [X.Y.Z]` 标题）。
+- **`bump_version` 标题插入**：两个实现（scripts/bump_version.py 和 src/core/version_manager.py）都在第一个 `---`/h1 之后插入——ru/zh CHANGELOG 的标题落在文件中间。现在在第一个 `## [X.Y.Z]` 之前插入；`version_manager.bump` 更新全部三个 CHANGELOG。
+- **测试会话污染**：`tests/test_architecture_lifecycle.py` 在模块级执行 `sys.path.insert(0, <扩展目录>)` → 整个 pytest 会话从已安装扩展导入过期的 `src/` 副本（`ModuleNotFoundError: src.core.progress_state`）。改为 autouse fixture，在每次测试后恢复 `sys.path`/env（保留测试已安装扩展的意图）。
+
+### 新增
+- `tests/test_version_manager.py`：4 个回归测试（无误报漂移、检测真实漂移、标题插入在首个版本标题前、三个 CHANGELOG 全部更新）。
+
+### 测试
+- 完整 pytest：**799 passed，4 skipped，94 deselected，0 failed**（两次运行稳定）。
+
+---
+
 ## [3.3.12] — 2026-08-05 — 审计修复：experiments/audit.md（版本同步、Windows 编码、ONNX provider 策略、受限读取、resolve_project_root → core）
 
 ### 修复

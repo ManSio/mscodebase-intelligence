@@ -9,6 +9,28 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+
+## [3.3.13] — 2026-08-05
+
+<!-- TODO: fill in changes -->
+
+---
+## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), bump_version fix, test sys.path pollution fix
+
+### Fixed
+- **Core→MCP import closed fully (ARCH-03 follow-up)**: `get_last_progress`/`_create_progress_callback`/`_cleanup_old_progress` moved from `src/mcp/server.py` to new `src/core/progress_state.py`; `mcp/server.py` re-exports for tests; `project_context` imports from core; `architecture_linter.py` exceptions for `project_context` removed.
+- **`bump_version` false drifts**: `check_consistency` matched ALL `X.Y.Z` strings (dependency versions, old CHANGELOG entries) → now per-file version patterns only (`^version =` in pyproject, first `## [X.Y.Z]` header in CHANGELOGs).
+- **`bump_version` header insertion**: both `scripts/bump_version.py` and `src/core/version_manager.py` inserted after the first `---`/h1 — for ru/zh CHANGELOG the header landed mid-file. Now inserted BEFORE the first `## [X.Y.Z]`; `version_manager.bump` updates all three CHANGELOGs.
+- **Test session pollution**: `tests/test_architecture_lifecycle.py` did `sys.path.insert(0, <extension dir>)` at module level → the whole pytest session imported a STALE copy of `src/` from the installed extension (`ModuleNotFoundError: src.core.progress_state`). Moved to an autouse fixture that restores `sys.path`/env after each test (intent — test the installed extension — preserved).
+
+### Added
+- `tests/test_version_manager.py`: 4 regression tests (no false drifts, real drift detected, header inserted before first version header, all three CHANGELOGs updated).
+
+### Tests
+- Full pytest: **799 passed, 4 skipped, 94 deselected, 0 failed** (stable across 2 runs).
+
+---
+
 ## [3.3.12] — 2026-08-05 — Audit fixes: experiments/audit.md (version sync, Windows encoding, ONNX provider policy, restricted read, resolve_project_root → core)
 
 ### Fixed

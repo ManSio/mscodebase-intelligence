@@ -30,6 +30,24 @@ class VersionManager:
         "docs/zh/CHANGELOG.md",
     ]
 
+    # Per-file паттерн ТОЛЬКО «нашей» версии проекта.
+    # НЕ ищем все X.Y.Z подряд: версии зависимостей (pyproject), прошлых
+    # записей (CHANGELOG) и сторонних пакетов дают ложные дрифты.
+    VERSION_PATTERNS = {
+        "pyproject.toml": r'^version\s*=\s*["\'](\d+\.\d+\.\d+)["\']',
+        "docs/en/CHANGELOG.md": r"^## \[(\d+\.\d+\.\d+)\]",
+        "docs/ru/CHANGELOG.md": r"^## \[(\d+\.\d+\.\d+)\]",
+        "docs/zh/CHANGELOG.md": r"^## \[(\d+\.\d+\.\d+)\]",
+        "README.md": r"(?:version\s*[=:]\s*|releases/tag/v)(\d+\.\d+\.\d+)",
+    }
+
+    # CHANGELOG, в которые bump вставляет заголовок (все три языка)
+    CHANGELOGS = [
+        "docs/en/CHANGELOG.md",
+        "docs/ru/CHANGELOG.md",
+        "docs/zh/CHANGELOG.md",
+    ]
+
     @staticmethod
     def _bump_semver(version: str, part: str) -> str:
         """Бампает семантическую версию: major/minor/patch."""
@@ -78,16 +96,23 @@ class VersionManager:
             if not fp.exists():
                 continue
             text = fp.read_text(encoding="utf-8")
-            # Ищем все вхождения семантической версии
-            for m in re.finditer(r"(\d+\.\d+\.\d+)", text):
-                found = m.group(1)
-                if found != actual:
-                    drifts.append({
-                        "file": rel_path,
-                        "line": text[:m.start()].count("\n") + 1,
-                        "expected": actual,
-                        "actual": found,
-                    })
+            pattern = self.VERSION_PATTERNS.get(rel_path)
+            if not pattern:
+                continue
+            # Берём ПЕРВОЕ вхождение версии (для CHANGELOG — верхний заголовок,
+            # для pyproject — project.version). Версии зависимостей/старых
+            # записей игнорируются паттерном.
+            m = re.search(pattern, text, re.MULTILINE)
+            if not m:
+                continue  # версия в файле не найдена — не дрифт
+            found = m.group(1)
+            if found != actual:
+                drifts.append({
+                    "file": rel_path,
+                    "line": text[:m.start()].count("\n") + 1,
+                    "expected": actual,
+                    "actual": found,
+                })
         return drifts
 
     def bump(
@@ -130,27 +155,27 @@ class VersionManager:
         )
         pyproject.write_text(text, encoding="utf-8")
 
-        # Обновляем CHANGELOG.md (добавляем заголовок)
-        changelog = root / "docs/en/CHANGELOG.md"
-        if changelog.exists():
+        # Обновляем CHANGELOG.md (добавляем заголовок перед первым версионным
+        # заголовком — не зависеть от позиции первого h1/---)
+        import datetime
+        today = datetime.date.today().isoformat()
+        for rel_cl in self.CHANGELOGS:
+            changelog = root / rel_cl
+            if not changelog.exists():
+                print(f"  ⏭️  {rel_cl} — not found, skipping")
+                continue
             cl_text = changelog.read_text(encoding="utf-8")
-            # Вставляем новый заголовок после первого h1
-            lines = cl_text.split("\n")
-            insert_at = 0
-            for i, line in enumerate(lines):
-                if line.startswith("# ") and i > 0:
-                    insert_at = i
-                    break
-            import datetime
-            today = datetime.date.today().isoformat()
+            m = re.search(r"^## \[\d+\.\d+\.\d+\]", cl_text, re.MULTILINE)
+            insert_pos = m.start() if m else len(cl_text)
             new_entry = (
                 f"\n## [{new_version}] — {today}\n\n"
                 f"### Changed\n"
                 f"- Version bumped from {current} to {new_version}\n\n"
-                f"---\n"
+                f"---\n\n"
             )
-            lines.insert(insert_at, new_entry)
-            changelog.write_text("\n".join(lines), encoding="utf-8")
+            cl_text = cl_text[:insert_pos] + new_entry + cl_text[insert_pos:]
+            changelog.write_text(cl_text, encoding="utf-8")
+            print(f"  ✅ {rel_cl} → header added")
 
         logger.info(f"Version bumped: {current} → {new_version}")
         return new_version

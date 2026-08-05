@@ -74,9 +74,9 @@ def set_version(new_version: str) -> None:
     print(f"  ✅ pyproject.toml → {new_version}")
 
     # 2. CHANGELOGs — prepend header after first ---
-    header_en = f"\n## [{new_version}] — {today}\n\n<!-- TODO: fill in changes -->\n"
-    header_ru = f"\n## [{new_version}] — {today}\n\n<!-- TODO: опишите изменения -->\n"
-    header_zh = f"\n## [{new_version}] — {today}\n\n<!-- TODO: 填写变更内容 -->\n"
+    header_en = f"\n## [{new_version}] — {today}\n\n<!-- TODO: fill in changes -->\n\n---\n"
+    header_ru = f"\n## [{new_version}] — {today}\n\n<!-- TODO: опишите изменения -->\n\n---\n"
+    header_zh = f"\n## [{new_version}] — {today}\n\n<!-- TODO: 填写变更内容 -->\n\n---\n"
     headers = zip(CHANGELOGS, [header_en, header_ru, header_zh])
 
     for changelog, header in headers:
@@ -84,12 +84,11 @@ def set_version(new_version: str) -> None:
             print(f"  ⏭️  {changelog.name} — not found, skipping")
             continue
         text = changelog.read_text(encoding="utf-8")
-        # Insert after the first --- separator
-        idx = text.find("\n---\n")
-        if idx == -1:
-            # Fallback: insert after first heading
-            idx = text.find("\n\n")
-        insert_pos = idx + len("\n---\n") if idx != -1 else 0
+        # Вставляем ПЕРЕД первым версионным заголовком (## [X.Y.Z]),
+        # а не после первого `---` — в ru/zh первый `---` встречается
+        # позже (внутри записей), и заголовок попадал в середину файла.
+        m = re.search(r"^## \[\d+\.\d+\.\d+\]", text, re.MULTILINE)
+        insert_pos = m.start() if m else len(text)
         text = text[:insert_pos] + header + text[insert_pos:]
         changelog.write_text(text, encoding="utf-8")
         print(f"  ✅ {changelog.parent.name}/{changelog.name} → header added")

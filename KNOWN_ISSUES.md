@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — get_last_progress → core (техдолг ARCH-03 закрыт) + bump_version фиксы + sys.path-загрязнение теста (FIXED)
+
+**Symptom:** (1) core→mcp импорт оставался: `project_context` брал `get_last_progress` из mcp.server; (2) bump_version: ложные дрифты (версии зависимостей), кривая вставка заголовка в ru/zh CHANGELOG; (3) при полном прогоне pytest падали 13 тестов с `ModuleNotFoundError: src.core.progress_state` только при запуске вместе с test_architecture_lifecycle.
+**Root Cause:** (1) техдолг из цепочки ARCH-03; (2) `re.finditer(r"\d+\.\d+\.\d+")` по всем файлам + вставка после первого `---`; (3) `sys.path.insert(0, extension_dir)` на уровне модуля теста → вся сессия импортировала устаревшую копию src/ из установленного расширения.
+**Fix:** (1) `src/core/progress_state.py`, mcp.server реэкспортирует, linter-исключения убраны; (2) per-file версионные паттерны (pyproject `^version =`, CHANGELOG `^## [X.Y.Z]`), вставка перед первым версионным заголовком, version_manager обновляет все три CHANGELOG; (3) sys.path/env → autouse-fixture с восстановлением.
+**Status:** ✅ Fixed | **Guard:** tests/test_version_manager.py ×4; полный pytest 799 passed / 4 skipped (0 failed), стабильно 2 прогона.
+
 ## 2026-08-05 — experiments/audit.md: 16 пунктов проверено, 12 исправлено (FIXED, не запушено)
 
 **Symptom:** рассинхрон версий (pyproject 3.3.11 / extension.toml 3.3.9 / __init__.py 3.2.3); hardcoded start_server.bat; subprocess decode()/text=True без encoding (llama_runner:1278, llama_install ×3, install.py ×2); read_live_file без cp1251 fallback; ONNX providers без env override; onnx stderr-лог в корне проекта; absolute_path без guard в read_live_file; rename PropertyGraph без rollback; resolve() под threading.Lock; core→mcp import (resolve_project_root).
