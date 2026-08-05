@@ -424,7 +424,7 @@ class LlamaRunner:
 
                         timeout=5
 
-                    ).decode().strip()
+                    ).decode("utf-8", errors="replace").strip()
 
                     ram_mb = int(out) // (1024*1024)
 
@@ -1275,7 +1275,7 @@ class LlamaRunner:
 
                     timeout=5, stderr=_sp.DEVNULL
 
-                ).decode().strip()
+                ).decode("utf-8", errors="replace").strip()
 
             except _sp.CalledProcessError:
 

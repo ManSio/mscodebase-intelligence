@@ -79,7 +79,9 @@ class ServiceCollection:
     def __init__(self):
         self._instances: Dict[type, Any] = {}  # Уже созданные экземпляры
         self._factories: Dict[type, Callable] = {}  # Фабрики для ленивых синглтонов
-        self._lock = threading.Lock()  # защита resolve от параллельного создания (P2-18)
+        # RLock (ARCH-02): factory, вызывающая resolve() рекурсивно (nested resolve),
+        # не дедлокнет. threading.Lock дедлокнул бы на том же потоке.
+        self._lock = threading.RLock()  # защита resolve от параллельного создания (P2-18)
 
     def add_singleton(self, key: type, instance: Any = None):
         """Регистрирует синглтон (существующий экземпляр).

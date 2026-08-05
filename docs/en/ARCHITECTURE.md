@@ -33,7 +33,7 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │              Four Layers of Architecture                          │
 │                                                                  │
-│  Layer 1: main.py / lsp_main.py  (Entry points, minimal)          │
+│  Layer 1: main.py               (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
 │  Layer 3: mcp/tools/*.py         (19 core + 12 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
@@ -560,24 +560,20 @@ if monitor.is_under_pressure():
     time.sleep(delay)  # in Indexer.index_project between files
 ```
 
-### 9.3 LSP per-workspace DI
+### 9.3 Per-workspace DI (multi-window)
 
-`src/lsp_main.py` stores **per-workspace** DI containers:
+Standalone LSP (`src/lsp_main.py`) is **deleted** (WONTFIX, см.
+`docs/en/investigations/LSP_WONTFIX.md`). Per-workspace DI lives in
+`ProjectIndexerRegistry` (v2.3+):
 
 ```python
-_services_per_workspace: dict[str, ServiceCollection] = {}
-
-@server.feature("initialize")
-async def on_initialize(ls, params):
-    project_root = Path(urlparse(params.root_uri).path)
-    ls._workspace_uri = params.root_uri
-    ls._project_root = project_root
-    init_components(project_root, workspace_uri=params.root_uri)
-    # → creates isolated DI container for a WINDOW
+registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+indexer = registry.get_indexer(project_path, factory=factory)
+# → creates isolated per-project Indexer (LRU max_cached=5 + pressure eviction)
 ```
 
-LSP handlers (`did_open`/`did_change`/`did_save`/`did_close`/
-`didChangeWatchedFiles`) receive `ls._workspace_uri` and resolve the correct `Indexer` via registry.
+Each workspace/project window gets its own Indexer with its own LanceDB DB
+and PropertyGraph (paths hashed outside the project — Задача 4/5).
 
 ### 9.4 MCP `resolve_indexer_for_request`
 

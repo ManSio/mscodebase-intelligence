@@ -12,6 +12,18 @@
 
 ---
 
+## [2026-08-05 22:10] — experiments/audit.md: 16 пунктов верифицировано, 12 исправлено (FIXED, не запушено)
+
+**Status:** ✅ Fixed (не закоммичено — по команде владельца)
+**Root Cause:** audit.md накопил 4 наложенных аудита; свежий (ARCH/BL/WIN/ZED/SEC/TEST) содержал подтверждаемые проблемы: version drift (pyproject 3.3.11 vs extension.toml 3.3.9 vs __init__ 3.2.3 — три версии!), hardcoded start_server.bat, subprocess decode/encoding debt, read_live_file без cp1251, ONNX providers без env override, stderr-лог в корне проекта, absolute_path без guard, rename в PropertyGraph без rollback, resolve() под threading.Lock, core→mcp import (resolve_project_root, дедлайн v2.5 просрочен).
+**Fix:** (1) версии синхронизированы к 3.3.11 + tests/test_versions.py (TEST-01); (2) start_server.bat portable (%~dp0, errorlevel, PYTHONUTF8, venv check); (3) encoding utf-8+replace: llama_runner:1278, llama_install ×3, install.py ×2, onnx_client HTTP/taskkill; (4) cp1251 fallback в read_live_file (WIN-03) + MSCODEBASE_RESTRICTED_READ guard для absolute_path (SEC-05) + tests/test_read_live_file.py (TEST-04); (5) select_onnx_providers (WIN-11, MSCODEBASE_ONNX_PROVIDER) + tests/test_onnx_providers.py (TEST-03); (6) onnx stderr → <data_root>/logs (WIN-12); (7) extension.toml += PYTHONUTF8 (ZED-03); (8) rename_symbol rollback (BL-05); (9) RLock в ServiceCollection.resolve (ARCH-02); (10) resolve_project_root → src/core/project_resolution.py (ARCH-03, mcp.server реэкспорт для тестов); (11) install.bat errorlevel после cd (WIN-16); (12) docs/en+ru+zh ARCHITECTURE.md: убраны устаревшие lsp_main (контрадикция §4.9); .env.example += MSCODEBASE_ONNX_PROVIDER/MSCODEBASE_RESTRICTED_READ.
+**Guard:** тесты 16 новых + полный pytest 801 passed / 4 skipped; diagnostics чисто; architecture_linter: runtime_coordinator больше не нарушает core→mcp (9 остальных нарушений — существовавшие).
+**Pattern:** P-002 «предположение вместо проверки» — 3 пункта старого аудита опровергнуты (файлы src/di_container.py, src/process_manager.py, src/lsp_main.py не существуют; encoding частично уже исправлен).
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone скрипт (scripts/verify_clean_state.sh) не запускался: требует repo URL и сеть; полный pytest 801 passed запущен явно в этой сессии (pre-commit = verify_diary+stale_detector).
+**Temporal:** T+0 OK | T+30d: версии снова разъедутся без CI-гейта — tests/test_versions.py теперь ловит на прогоне; MSCODEBASE_RESTRICTED_READ/ONNX_PROVIDER задокументированы в .env.example | T+180d: project_resolution.py — точка входа для переноса get_last_progress (техдолг, KNOWN_ISSUES#2026-08-05).
+
+---
+
 ## [2026-08-05 21:15] — Триаж KNOWN_ISSUES#2026-08-04-21:00 (Zed crash-loop) — цифры верифицированы замером
 
 **Status:** 🟡 Partial — loop остановлен (последний краш 08-04 21:27), риск сохраняется; дедлайн владельца 08-11

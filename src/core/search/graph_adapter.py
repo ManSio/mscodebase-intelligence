@@ -990,11 +990,31 @@ class SymbolIndexAdapter(PureGraphMixin):
             for n in nodes:
                 if n.name == old_name:
                     new_qname = n.qualified_name.replace(f".{old_name}", f".{new_name}")
-                    self._graph.add_node(
-                        name=new_name, label=n.label, qualified_name=new_qname,
-                        file_path=n.file_path, properties=n.properties,
-                    )
-                    self._graph.delete_node(n.qualified_name)
+                    try:
+                        self._graph.add_node(
+                            name=new_name, label=n.label, qualified_name=new_qname,
+                            file_path=n.file_path, properties=n.properties,
+                        )
+                    except Exception as _add_err:
+                        # BL-05: add упал — старый узел не трогаем (целостность графа).
+                        logger.warning(f"rename_symbol: add_node({new_qname}) failed: {_add_err}")
+                        continue
+                    try:
+                        self._graph.delete_node(n.qualified_name)
+                    except Exception as _del_err:
+                        # BL-05: частичная миграция — откатываем добавленный узел,
+                        # чтобы не остался дубль (старый + новый).
+                        logger.warning(
+                            f"rename_symbol: delete_node({n.qualified_name}) failed: {_del_err} — rolling back"
+                        )
+                        try:
+                            self._graph.delete_node(new_qname)
+                        except Exception as _rb_err:
+                            logger.error(
+                                f"rename_symbol: rollback delete_node({new_qname}) failed: {_rb_err} "
+                                f"— possible duplicate node"
+                            )
+                        continue
                     count += 1
 
             # HYBRID
