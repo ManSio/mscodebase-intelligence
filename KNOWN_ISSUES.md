@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — progress_state удалён (dead code), project_context → job_manager — открытая нить закрыта (FIXED)
+
+**Symptom:** `_create_progress_callback` в проде не вызывался → `get_last_progress()` всегда пуст → `intel_get_project_context().jobs` вечно `{running: 0, completed: 0}` (открытая нить из записи 2026-08-05 «get_last_progress → core»). `cleanup_old_jobs()` не вызывался нигде.
+**Root Cause:** два механизма прогресса: прод-путь (job_manager, layer.py `_index_progress_callback`) и легаси-путь (`_last_progress`, только тесты). Легаси-путь — dead code с 3.3.12.
+**Fix:** удалён `src/core/progress_state.py` (92 строки) + 6 реэкспортов в mcp/server.py + 11 легаси-тестов; `_capture_jobs` переключен на `job_manager.list_jobs()` (новый метод: снимок + ленивый cleanup); снэпшот: добавлен `jobs_failed`.
+**Status:** ✅ Fixed | **Guard:** tests/test_index_progress.py переписан (9 тестов); полный pytest 796 passed / 4 skipped (0 failed); grep-развёртка 0 ссылок в коде.
+
 ## 2026-08-05 — get_last_progress → core (техдолг ARCH-03 закрыт) + bump_version фиксы + sys.path-загрязнение теста (FIXED)
 
 **Symptom:** (1) core→mcp импорт оставался: `project_context` брал `get_last_progress` из mcp.server; (2) bump_version: ложные дрифты (версии зависимостей), кривая вставка заголовка в ru/zh CHANGELOG; (3) при полном прогоне pytest падали 13 тестов с `ModuleNotFoundError: src.core.progress_state` только при запуске вместе с test_architecture_lifecycle.
@@ -2648,5 +2655,151 @@ Three fixes from the same review:
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Done (5/6 FIXED, 1/6 REFUTED)
 **Root Cause:** 6 ❌ P1/P2 пунктов из experiments/audit.md требовали фикса: Heartbeat GetLastError, hardcoded reranker weights, BM25 sync reindex, SQLite sch...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-05 21:56 — Открытая нить закрыта: progress_state удалён (dead code), project_context → job_manager (единый источник прогресса)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** `_create_progress_callback`/`_last_progress` (src/core/progress_state.py) в проде не вызывались (внутренний callback layer.py маппит прогресс в `job.progress`, не в...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 22:50 — Следующий шаг: get_last_progress → core, фикс bump_version, фикс sys.path-загрязнения теста (FIXED, будет закоммичено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (не закоммичено — коммит следом)
+**Root Cause:** (1) техдолг из ARCH-03-цепочки: `project_context` импортировал `get_last_progress` из mcp.server — направление core→mcp оставалось;...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 22:10 — experiments/audit.md: 16 пунктов верифицировано, 12 исправлено (FIXED, не запушено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (не закоммичено — по команде владельца)
+**Root Cause:** audit.md накопил 4 наложенных аудита; свежий (ARCH/BL/WIN/ZED/SEC/TEST) содержал подтверждаемые проблемы: version drift (pyp...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 21:15 — Триаж KNOWN_ISSUES#2026-08-04-21:00 (Zed crash-loop) — цифры верифицированы замером
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial — loop остановлен (последний краш 08-04 21:27), риск сохраняется; дедлайн владельца 08-11
+**Root Cause:** подтверждён: Zed commit 8.54GB при commit-лимите 18.5GB (свободно 1.14GB...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 — D1: schema-слой из Neuro-Symbolic спайка → CypherExecutor (архитектурное закрытие P-004, FIXED, не запушено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии; push — по команде владельца)
+**Root Cause:** P-004 «разрыв валидации между слоями»: неизвестные label/rel (галлюцинация LLM: `MATCH (f:SERVICE)`) принимались...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 20:10 — C1-C4 Cypher-стек: 4 бага KNOWN_ISSUES#2026-08-05 (FIXED, не запушено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии; push — по команде владельца)
+**Root Cause:** C1 — label/edge сравнивались точно (=/IN) в cypher_sql.py, лексер принимает любой регистр LABEL → тихий пустой р...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 — A2 (внешний аудит): sandbox threat model — ADR-0001 ✅ Accepted (Вариант A)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (решение по умолчанию, §1.10 — владелец не выбрал B/C; переопределение возможно)
+**Root Cause:** внешний аудит: blacklist-модель sandbox принципиально обходима (чистый Python без ОС...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 01:50 — Tech debt: subprocess text=True без encoding ×7 закрыт + пин ruff (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (коммит в этой сессии)
+**Root Cause:** text=True без encoding в 7 местах декодирует вывод через locale (cp1251/cp1252 на Windows) — UnicodeDecodeError при не-ASCII выводе (тот же кл...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 00:05 — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит a7a7a9e7, запушен)
+**Root Cause:** CI-прогоны b121ab19/6dc8d2ae упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/cor...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:59 — CI: кэш pip + coverage 41% (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** Next Action #9-#10: CircuitBreaker «dead» — ❌ REFUTED (подключён к embedder напрямую, di_container:337-345); coverage отсутствовал.
+**Fix:** ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:59 — Триаж bare-except: 4 рискованных silent-блока залогированы (PARTIAL)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 partial (коммит в этой сессии)
+**Root Cause:** scan нашёл 106 silent-блоков (except → pass); большинство намеренные (CancelledError/таймауты/best-effort).
+**Fix:** логирование в 4 местах...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:59 — Баг-клоуза: layer.py порт LM + резолв 7 VERIFY (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** из 3 аудитов остались VERIFY-пункты; единственный реальный баг — layer.py:504 хардкод порта LM Studio 1234 (рядом код уже читал порты из conf...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:58 — Hotfix: pickle P1 закрыт restricted unpickler'ом (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** index_guard.py:367 обычный pickle.load на legacy symbol_index.pkl — RCE-вектор (OWASP десериализация).
+**Fix:** `_LegacyPickleLoader(pickle.U...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:50 — Глубокий аудит (2-й проход): верификация 26 пунктов (TRIAGE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 триаж завершён, фиксы запланированы (коммит в этой сессии)
+**Root Cause:** второй внешний аудит (async, subprocess, BLE001, coverage, порты). Проверено по коду: create_task fire-and-forg...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:30 — Триаж внешнего ревью: 165 находок, тесты зелёные (TRIAGE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 триаж завершён, фиксы запланированы (коммит в этой сессии)
+**Root Cause:** внешний инструмент нашёл 165 проблем; критические проверены по коду: SQL_INJECTION (graph.py x4) — ❌ ложные (па...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 23:00 — CI clean-state: No module named pytest (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** Linux-ветка verify_clean_state.sh ставила `pip install -e ".[dev]" --no-deps` — dev-зависимости (pytest и др.) не входят в requirements-lock....
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 22:25 — scripts/monitor.py: UnboundLocalError avg_log (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** переменная `avg_log` присваивалась только в ветке фаз эмбеддинга (PHASE_EMBED/WRITING/IVF), а читалась в блоке «Тренд» при любой фазе — при ф...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-04 22:40 — test_job_history: изоляция от переиспользования tmp_path (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит в этой сессии)
+**Root Cause:** JobHistoryStore пишет во внешний `<data_root>/projects/<hash>/metrics/job_history.json`, а pytest переиспользует temp-пути между запусками (с...
 - **Статус:** автоматически синхронизировано
 

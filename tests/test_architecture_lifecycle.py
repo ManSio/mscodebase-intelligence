@@ -34,7 +34,7 @@ def _use_installed_extension():
     sys.path и env НЕ загрязняются на уровне модуля — раньше insert(0) на
     уровне импорта ломал всю pytest-сессию: соседние тесты начинали
     импортировать устаревшую копию src/ из расширения (без новых модулей
-    вроде src.core.progress_state) → ModuleNotFoundError.
+    рабочего дерева) → ModuleNotFoundError.
     """
     original_path = list(sys.path)
     original_env = {

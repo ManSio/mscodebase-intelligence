@@ -164,17 +164,6 @@ from src.core.project_resolution import (
     ext_root as _ext_root,
 )
 
-# Progress-состояние (ARCH-03 follow-up: перенесено в src/core/progress_state.py)
-# Реэкспорт для обратной совместимости — тесты импортируют из mcp.server.
-from src.core.progress_state import (
-    get_last_progress,
-    _create_progress_callback,
-    _cleanup_old_progress,
-    _last_progress,
-    _progress_lock,
-    _progress_updates,
-)
-
 
 # Default project root (устанавливается при create_mcp_server)
 # ══════════════════════════════════════════════════════════
