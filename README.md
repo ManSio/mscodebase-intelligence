@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 0 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 13 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 48 tools (19 core + 13 intel + 12 inline + 4 dev), 747+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 48 tools (19 core + 13 intel + 12 inline + 4 dev), 761+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -219,16 +219,16 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `execute_script(code, timeout, args)` | **Sandboxed Python execution (3-layer).** AST validation + runtime `__import__` wrapper + subprocess isolation. Audit-logged. Returns `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
 | `impact_analysis(symbol)` | Symbol change impact analysis (risk score, depth) |
 
-### Index Management
+### Index Management (via `codebase(action="index", ...)`)
 
-| Tool | When to Use |
+| Action | When to Use |
 |------|-------------|
-| `get_index_status()` | Index status: chunks, files, symbols |
-| `get_index_progress()` | Indexing progress (phase, percent) |
-| `index_project_dir(path)` | Start full project indexing |
-| `get_index_timeline()` | Indexing history by date |
-| `index_health(project_root)` | Index diagnostics and self-recovery |
-| `notify_change(file_path)` | Force index update for a file (via DebounceBatch) |
+| `codebase(action="index", path="status")` | Index status: chunks, files, symbols (`get_index_status`) |
+| `codebase(action="index", path="progress")` | Indexing progress (phase, percent) |
+| `codebase(action="index", path="project_dir", project_root=...)` | Start full project indexing (`index_project_dir`) |
+| `codebase(action="index", path="timeline")` | Indexing history by date |
+| `codebase(action="index", path="health")` | Index diagnostics and self-recovery (`index_health`) |
+| `notify_change(file_path)` | Force index update for a file (via DebounceBatch) — inline tool |
 | `generate_chunk_summaries(root)` | LLM-generated descriptions for code chunks |
 | `scan_changes(project_root)` | Architectural diff — analyze changes since last baseline |
 
@@ -248,17 +248,17 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
 | `get_repo_map(project_root)` | Project map: file tree + key symbols |
-| `get_related_files(project_root, path)` | Files related via co-change / bug correlation |
+| `graph_query(action="related", target=path)` | Files related via co-change / bug correlation (`get_related_files`) |
 | `graph_query(action, target)` | Graph queries: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
 
-### Git & History
+### Git & History (via `codebase(action="git", ...)`)
 
-| Tool | When to Use |
+| Action | When to Use |
 |------|-------------|
-| `get_commit_history(root, limit)` | Semantic commit history |
-| `get_file_history(root, path)` | Change history for a specific file |
-| `get_branch_info(project_root)` | Branch info + index status |
+| `codebase(action="git", path="log", ...)` | Semantic commit history (`get_commit_history`) |
+| `codebase(action="git", path="history", ...)` | Change history for a specific file |
+| `codebase(action="git", path="branch")` | Branch info + index status (`get_branch_info`) |
 
 ### Lifecycle & Verification
 

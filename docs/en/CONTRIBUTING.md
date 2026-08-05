@@ -4,7 +4,7 @@
 
 # Contributing — MSCodeBase Intelligence
 
-> **Version:** 3.3.9 — DocSync Edition
+> **Version:** 3.3.11 — DocSync Edition
 
 ---
 

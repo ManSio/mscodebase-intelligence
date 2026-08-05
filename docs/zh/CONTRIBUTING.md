@@ -1,6 +1,6 @@
 # 贡献指南 — MSCodeBase Intelligence
 
-> **版本：** 3.3.9 — DocSync 版
+> **版本：** 3.3.11 — DocSync 版
 
 ---
 

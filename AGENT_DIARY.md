@@ -12,7 +12,13 @@
 
 ---
 
-## [2026-08-05 00:45] — CI зелёный: 3 класса платформенных провалов закрыты (FIXED)
+## [2026-08-05 01:20] — Кросс-чек документации: 17 расхождений, синхронизированы (DONE)
+
+**Status:** ✅ Done (коммит в этой сессии)
+**Root Cause:** серия изменений (hub&spoke, inline 6→12, intel 12→13, index/git-тулы → sub-actions hub) не отражалась в README/ARCHITECTURE/AGENTS.md: версии 3.3.9 (реально 3.3.11), «0 intel_*» (13), «747+ tests» (761), index/git-тулы описаны как самостоятельные (реально `codebase(action=...)`), «~16 видимо» (~36), intel-списки с inline-примесью, docs/KNOWN_ISSUES дубль-редирект, docs/ARCHITECTURE дубль.
+**Fix:** README (13 intel, 761 tests, hub-формы index/git/related); версии en/ru/zh ARCHITECTURE+CONTRIBUTING → 3.3.11; таблицы групп en/ru/zh (Doc(1)+Dev(4), intel-13 чистый список, ~36 видимо); server_tools.py комментарий 7→12; AGENTS.md формула 13+19+12+4=48 + inline-12; docs/ARCHITECTURE.md и docs/KNOWN_ISSUES.md → docs/archive/.
+**Guard:** find KNOWN_ISSUES = 1; shim-импорты = 0; bump --check ✅ 3.3.11; ruff ✅; pytest 761 passed (40.94%). Инфо: search_code mode="smart" (legacy-синоним, search_tools.py:270) — не документирован, не выпилен.
+**verified_from_clean_state:** ✅ да — pytest 761 passed; повторный grep по устаревшим числам = 0.
 
 **Status:** ✅ Fixed (коммиты a7a7a9e7, ddb9ebfe, bcef653b; финальный CI-прогон на bcef653b — 7/7 job'ов success: Ubuntu/Windows ×3.10-3.12 + clean-state)
 **Root Cause:** (1) ruff I001 ×10 — ruff не пинится (dev: >=0.5.0), свежая 0.15.16 строже к вложенным импорт-блокам; (2) DatabaseLock: окно O_EXCL→fsync — на Unix немедленный steal давал ДВА писателя (Windows скрывал тем, что unlink открытых файлов падает PermissionError); (3) test_lsp_uri_conversion ×2 без skipif — на POSIX C:\x\y.py = относительный путь; (4) write_text/text=True без encoding — Windows-runner cp1252: UnicodeEncodeError (кириллица) + UnicodeDecodeError (git-вывод).

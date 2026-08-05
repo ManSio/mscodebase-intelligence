@@ -4,8 +4,8 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 3.3.9  
-> **Last updated:** 2026-07-21  
+> **Version:** 3.3.11
+> **Last updated:** 2026-08-05  
 > **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry + DocSync
 
 ---
@@ -278,7 +278,7 @@ def register_all_tools(mcp, services):
     # Total: 48 registered (19 core + 13 intel + 12 inline + 4 dev)
 ```
 
-**Tool visibility filter:** By default ~16 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 48.
+**Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 48.
 
 ### 4.2 All Tools by Group
 
@@ -294,13 +294,14 @@ def register_all_tools(mcp, services):
 | **Write** (1) | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
 | **Indexing** (1) | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
 | **Git** (1) | `git_tools.py` | git(action={log,history,branch}) |
-| **Docs** (1) | `doc_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
+| **Docs** (1) | `doc_tools.py` | stale_detector |
+| **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
 | **Meta** (1) | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
 | **System** (1) | `system_tools.py` | read_live_file, get_health_report, get_logs |
-| **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_trigger_reindex, intel_get_project_context, intel_explain_project_state, intel_get_telemetry, intel_tool_health |
+| **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Total:** 48 registered (19 core + 13 intel + 12 inline + 4 dev). Default visible: ~16. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 48 registered (19 core + 13 intel + 12 inline + 4 dev). Default visible: ~36. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 
