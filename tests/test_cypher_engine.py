@@ -588,3 +588,76 @@ class TestOptionalMatchEdgeCases:
         assert "log_error" in g_names
         assert "parse" not in g_names
         assert "validate" not in g_names
+
+
+# ════════════════════════════════════════════════════════════
+# Phase 7: Schema validation (D1 — P-004, unknown labels/rels)
+# ════════════════════════════════════════════════════════════
+
+
+class TestSchemaValidation:
+    """D1: schema-слой из спайка — неизвестные label/rel дают ошибку, не тихий [].
+
+    Источник правды — NodeLabel/EdgeType из graph.py (single source of truth).
+    OPTIONAL MATCH намеренно не валидируется (NULL-семантика легитимна).
+    """
+
+    def test_unknown_label_returns_error(self, executor):
+        """D1: галлюцинация LLM (MATCH (f:SERVICE)) — ошибка, не тихий []."""
+        result = executor.execute("MATCH (f:SERVICE) RETURN f.name")
+        assert "error" in result
+        assert "unknown label" in result["error"]
+        assert "SERVICE" in result["error"]
+
+    def test_unknown_rel_type_returns_error(self, executor):
+        """D1: неизвестный rel type в обязательном MATCH — ошибка."""
+        result = executor.execute("MATCH (a)-[:FLIES]->(b) RETURN a.name")
+        assert "error" in result
+        assert "unknown rel type" in result["error"]
+        assert "FLIES" in result["error"]
+
+    def test_known_labels_and_rels_pass(self, executor):
+        """D1: легитимные метки/rels из NodeLabel/EdgeType не режутся."""
+        result = executor.execute("MATCH (f:Function)-[:CALLS]->(g:Function) RETURN f.name")
+        assert "error" not in result
+        assert len(result["results"]) == 4
+
+    def test_method_label_is_valid(self, executor):
+        """D1: Method — каноническая метка NodeLabel, не режется."""
+        result = executor.execute("MATCH (n:Method) RETURN n.name")
+        assert "error" not in result
+        assert result["results"] == []
+
+    def test_case_insensitive_label_still_works(self, executor):
+        """D1: валидация case-insensitive — C1 (FUNCTION == Function) не ломается."""
+        result = executor.execute("MATCH (f:function) RETURN f.name")
+        assert "error" not in result
+        assert len(result["results"]) == 5
+
+    def test_optional_match_unknown_rel_is_null_not_error(self, executor):
+        """D1: OPTIONAL MATCH с неизвестным rel — NULL-семантика, не ошибка."""
+        result = executor.execute(
+            "MATCH (f:Function) "
+            "OPTIONAL MATCH (f)-[:NONEXISTENT]->(x) "
+            "RETURN f.name, x.name"
+        )
+        assert "error" not in result
+        assert len(result["results"]) == 5
+        assert all(r["x.name"] is None for r in result["results"])
+
+    def test_where_label_test_unknown_returns_error(self, executor):
+        """D1: WHERE n:SERVICE (label-test) — тоже валидируется."""
+        result = executor.execute("MATCH (n:Function) WHERE n:SERVICE RETURN n.name")
+        assert "error" in result
+        assert "unknown label" in result["error"]
+
+    def test_where_label_test_known_passes(self, executor):
+        """D1: WHERE n:Function (label-test, каноническая метка) — не режется."""
+        result = executor.execute("MATCH (n) WHERE n:Function RETURN n.name")
+        assert "error" not in result
+        assert len(result["results"]) == 5
+
+    def test_node_properties_rejected(self, executor):
+        """D1: properties в паттерне не поддерживаются — понятная ошибка, не тихий игнор."""
+        result = executor.execute("MATCH (n:Function {name: 'main'}) RETURN n.name")
+        assert "error" in result

@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-05] — D1: schema-слой из Neuro-Symbolic спайка → CypherExecutor (архитектурное закрытие P-004, FIXED, не запушено)
+
+**Status:** ✅ Fixed (коммит в этой сессии; push — по команде владельца)
+**Root Cause:** P-004 «разрыв валидации между слоями»: неизвестные label/rel (галлюцинация LLM: `MATCH (f:SERVICE)`) принимались парсером и тихо давали `[]` без объяснения; источник схемы был захардкожен в спайке (5 меток, 3 rel) и расходился с реальной схемой (15 меток, 27 rel).
+**Fix:** новый `src/core/search/cypher_schema.py` — `schema_check` (имена меток/rels из `NodeLabel`/`EdgeType` graph.py как single source of truth, case-insensitive upper()); внедрён в `CypherExecutor.execute` после parse, до translate (cypher_executor.py:62-74) → понятная ошибка `schema: unknown label :SERVICE` вместо тихого `[]`. OPTIONAL MATCH намеренно пропускается (NULL-семантика, тесты NONEXISTENT). WHERE-label-tests валидируются. Свойства узла `{prop}`: парсер на них падает (SyntaxError), schema-проверка — defensive-слой.
+**Guard:** 9 регрессионных тестов (Phase 7 TestSchemaValidation): unknown label/rel → error, Method/function case-insensitive → ок, OPTIONAL NONEXISTENT → NULL не error, WHERE label-test, node properties → error. Полный pytest 785 passed / 0 failed.
+**Pattern:** P-004 → закрыт архитектурно (валидация перенесена в постоянный слой executor'а, а не точечные фиксы).
+**Обобщение (§3.5):** `node.properties` в паттерне игнорируются SQL-генератором (grep — 0 использований); парсер падает раньше (SyntaxError) — тихий неверный результат сейчас невозможен; defensive-слой на будущее. Аналогов «принято-но-не-исполнено» в Cypher-стеке не найдено.
+**verified_from_clean_state:** ⚠️ полный pytest 785 passed запущен явно в этой сессии (pre-commit = только verify_diary+stale_detector); 45 ✅ / 0 ❌ verify_diary.
+**Temporal:** T+0 OK | T+30d: добавление метки в NodeLabel автоматически расширяет валидацию (источник правды); риск — пользователь с сознательным «пустым» запросом на неизвестную метку получит ошибку вместо `[]` (задокументировано) | T+180d: при поддержке node-properties в SQL-генераторе schema-слой переиспользуется без изменений.
+
 ## [2026-08-05 20:10] — C1-C4 Cypher-стек: 4 бага KNOWN_ISSUES#2026-08-05 (FIXED, не запушено)
 
 **Status:** ✅ Fixed (коммит в этой сессии; push — по команде владельца)

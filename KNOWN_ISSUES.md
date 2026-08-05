@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — D1: schema-слой спайка → CypherExecutor (P-004 закрыт архитектурно, FIXED, не запушено)
+
+**Symptom:** галлюцинация LLM (`MATCH (f:SERVICE)`) — тихий `[]` без объяснения; схема спайка (5 меток, 3 rel) расходилась с реальной (15 меток, 27 rel).
+**Root Cause:** P-004 — разрыв валидации между слоями: парсер принимает, SQL исполняет неверно/тихо.
+**Fix:** `src/core/search/cypher_schema.py` — валидация меток/rels против NodeLabel/EdgeType (single source of truth, case-insensitive); внедрена в CypherExecutor.execute после parse до translate. OPTIONAL MATCH пропускается (NULL-семантика легитимна).
+**Status:** ✅ Fixed (коммит в этой сессии, не запушен) | **Guard:** 9 регресс-тестов (Phase 7); полный pytest 785 passed; verify_diary 45 ✅ / 0 ❌.
+
 ## 2026-08-05 — C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01) (FIXED, не запушено)
 
 **Symptom:** (1) `MATCH (f:FUNCTION)` тихо возвращает `[]` при `'Function'` в БД; (2) `RETURN count()` → IndexError в parser, `count(n)` → SQLite near "*" syntax error; (3) синтаксические ошибки Cypher не пишутся в лог; (4) `RETURN cycle(a, b)` молча теряет `, b`, неизвестные RETURN-функции дают невалидный SQL.
