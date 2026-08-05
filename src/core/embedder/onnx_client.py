@@ -54,7 +54,7 @@ class OnnxEmbedderClient:
         try:
             req = urllib.request.Request(f"{self.base_url}/health", method="GET")
             with urllib.request.urlopen(req, timeout=2) as resp:
-                data = json.loads(resp.read().decode())
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
                 return data.get("status") == "ok"
         except Exception:
             return False
@@ -126,10 +126,21 @@ class OnnxEmbedderClient:
         env["PYTHONPATH"] = str(PROJECT_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
 
         try:
+            # WIN-12: stderr — в артефакт-директорию (вне проекта), не в корень проекта.
+            from src.core.artifact_paths import get_data_root
+
+            _log_dir = get_data_root() / "logs"
+            _log_dir.mkdir(parents=True, exist_ok=True)
+            _stderr_fh = open(_log_dir / "onnx_server_stderr.log", "a")
+        except Exception as _log_err:
+            logger.warning(f"[ONNX Client] Cannot open stderr log ({_log_err}) — stderr to DEVNULL")
+            _stderr_fh = subprocess.DEVNULL
+
+        try:
             proc = subprocess.Popen(
                 [sys.executable, str(server_script), f"--port={self.port}", f"--model={self.model_name}"],
                 stdout=subprocess.DEVNULL,
-                stderr=open(PROJECT_ROOT / "onnx_server_stderr.log", "a"),
+                stderr=_stderr_fh,
                 stdin=subprocess.DEVNULL,
                 env=env,
                 creationflags=creation_flags,
@@ -194,7 +205,7 @@ class OnnxEmbedderClient:
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode())
+            result = json.loads(resp.read().decode("utf-8", errors="replace"))
             if "error" in result:
                 raise RuntimeError(result["error"])
             return result["vector"]
@@ -212,7 +223,7 @@ class OnnxEmbedderClient:
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
-            result = json.loads(resp.read().decode())
+            result = json.loads(resp.read().decode("utf-8", errors="replace"))
             if "error" in result:
                 raise RuntimeError(result["error"])
             return result["vectors"]
@@ -222,8 +233,10 @@ class OnnxEmbedderClient:
         if self._server_started_by_us and hasattr(self, '_server_pid'):
             try:
                 if sys.platform == 'win32':
+                    # DEVNULL вместо capture_output: задача — только убить процесс,
+                    # вывод не читаем (Windows pipe-safety, §6 AGENTS.md).
                     subprocess.run(['taskkill', '/F', '/PID', str(self._server_pid)],
-                                 capture_output=True)
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 else:
                     os.kill(self._server_pid, 15)
             except Exception:

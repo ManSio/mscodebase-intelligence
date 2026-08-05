@@ -92,7 +92,7 @@ class RuntimeCoordinator:
         _COUNTERS["can_execute_calls"] += 1
         warnings: list[str] = []
         try:
-            from src.mcp.server import resolve_project_root
+            from src.core.project_resolution import resolve_project_root
             path = project_path or resolve_project_root()
         except Exception as e:
             return ExecutionVerdict(ok=False, reason="project_resolution_failed", detail=str(e))

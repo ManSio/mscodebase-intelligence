@@ -8,6 +8,34 @@
 
 > **Количество инструментов (текущее):** живой сервер регистрирует **48 инструментов** = 19 core + 13 intel + 12 inline + 4 dev
 
+---
+
+## [3.3.12] — 2026-08-05 — Аудит-фиксы: experiments/audit.md (синхронизация версий, Windows-кодировки, ONNX provider policy, restricted read, resolve_project_root → core)
+
+### Исправлено
+- **Рассинхрон версий (3 разных значения)**: pyproject.toml 3.3.11 vs extension.toml 3.3.9 vs `src/__init__.py` 3.2.3 → унифицировано до 3.3.12. Новый `tests/test_versions.py` (TEST-01) валит прогон при любом расхождении.
+- **`start_server.bat` захардкожен на машину автора** (`C:\Users\misha\...`) → portable: `%~dp0`, `if errorlevel 1` после `cd`, проверка venv, `PYTHONUTF8=1`, `-u -m src.main`.
+- **Windows subprocess encoding debt**: `llama_runner.py:1278` и `llama_install.py` (×3) — `.decode()` без encoding; `install.py` (×2) — `text=True` без encoding → везде `encoding="utf-8", errors="replace"`. `onnx_client.py` taskkill → `DEVNULL` (pipe-safety).
+- **Порядок декодирования `read_live_file`** (WIN-03) унифицирован с index_parser: UTF-8 → cp1251 → chardet → latin-1 (русские Windows-проекты раньше давали мусор через latin-1).
+- **ONNX provider policy** (WIN-11): новый `MSCODEBASE_ONNX_PROVIDER=auto|cpu|dml|cuda`, чистая `select_onnx_providers()` + тесты (TEST-03).
+- **ONNX stderr-лог** (WIN-12) перенесён из корня проекта в `<data_root>/logs/onnx_server_stderr.log`.
+- **Restricted read** (SEC-05): `read_live_file(absolute_path=...)` теперь отклоняет пути вне корня проекта при `MSCODEBASE_RESTRICTED_READ=1` + тесты (TEST-04). По умолчанию выключено.
+- **Rollback rename в PropertyGraph** (BL-05): `rename_symbol` откатывает добавленный узел при сбое удаления (нет частичной миграции/дублей).
+- **`resolve()` под `threading.Lock`** (ARCH-02) → `RLock` (re-entrant factory больше не дедлокнет).
+- **Core→MCP import** (ARCH-03): `resolve_project_root` перенесён в `src/core/project_resolution.py` (дедлайн v2.5 давно просрочен); `mcp/server.py` реэкспортирует для тестов; исключение в `architecture_linter.py` убрано; `runtime_coordinator.py`/`collect_telemetry.py` импортируют из core.
+- **`install.bat`** (WIN-16): `if errorlevel 1` после `cd /d`.
+- **Контрадикция в доках** (§4.9): `docs/en|ru|zh/ARCHITECTURE.md` всё ещё ссылались на удалённый `src/lsp_main.py` (диаграмма слоёв + per-workspace DI) → переписано под `ProjectIndexerRegistry`.
+- **`extension.toml` env** (ZED-03): добавлен `PYTHONUTF8 = "1"` (в install-time merge он уже был).
+
+### Добавлено
+- `tests/test_versions.py` (TEST-01), `tests/test_read_live_file.py` (TEST-04/WIN-03), `tests/test_onnx_providers.py` (TEST-03) — 16 тестов.
+- `.env.example`: `MSCODEBASE_ONNX_PROVIDER`, `MSCODEBASE_RESTRICTED_READ`.
+
+### Тесты
+- Полный pytest: **801 passed, 4 skipped, 94 deselected**; diagnostics чисто; architecture_linter: runtime_coordinator больше не нарушает core→mcp (9 остальных нарушений — существовали).
+
+---
+
 ## [3.3.11] — 2026-08-01 — HTTP 400 llama.cpp embedder: нативное /tokenize-усечение (исправляет 3.3.10)
 
 ### Исправлено
@@ -20,8 +48,6 @@
 
 ### Тесты
 - Полный pytest: 667 passed, 13 skipped (91 slow/benchmark deselected); ruff clean. Реиндекс 22:37→22:47: **4677 чанков, FTS5 built, HTTP 400=0, Aborted=0**, E2E search_code OK.
-
----
 
 ## [3.3.10] — 2026-08-01 — Фикс HTTP 400 от llama.cpp embedder (усечение до 512 токенов)
 

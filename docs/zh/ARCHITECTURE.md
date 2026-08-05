@@ -33,7 +33,7 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │              四层架构                                              │
 │                                                                  │
-│  第 1 层: main.py / lsp_main.py  （入口点，最简）                   │
+│  第 1 层: main.py              （入口点，最简）                   │
 │  第 2 层: mcp/server.py          （DI 路由，工具注册）              │
 │  第 3 层: mcp/tools/*.py         （18 核心 + 7 内联 + 3 开发）      │
 │  第 4 层: core/*.py              （纯业务逻辑）                    │
@@ -611,24 +611,20 @@ if monitor.is_under_pressure():
     time.sleep(delay)  # 在 Indexer.index_project 中文件之间
 ```
 
-### 11.3 LSP 按工作区 DI
+### 11.3 Per-workspace DI（多窗口）
 
-`src/lsp_main.py` 存储 **按工作区** 的 DI 容器：
+独立 LSP（`src/lsp_main.py`）**已删除**（WONTFIX，见
+`docs/en/investigations/LSP_WONTFIX.md`）。按项目 DI 由
+`ProjectIndexerRegistry`（v2.3+）管理：
 
 ```python
-_services_per_workspace: dict[str, ServiceCollection] = {}
-
-@server.feature("initialize")
-async def on_initialize(ls, params):
-    project_root = Path(urlparse(params.root_uri).path)
-    ls._workspace_uri = params.root_uri
-    ls._project_root = project_root
-    init_components(project_root, workspace_uri=params.root_uri)
-    # → 为一个窗口创建隔离的 DI 容器
+registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
+indexer = registry.get_indexer(project_path, factory=factory)
+# → 创建隔离的 per-project Indexer（LRU max_cached=5 + 内存压力驱逐）
 ```
 
-LSP 处理程序（`did_open`/`did_change`/`did_save`/`did_close`/
-`didChangeWatchedFiles`）接收 `ls._workspace_uri` 并通过注册表解析正确的 `Indexer`。
+每个窗口/工作区都有自己的 Indexer，拥有独立的 LanceDB 数据库和
+PropertyGraph（路径哈希到项目外部 — 任务 4/5）。
 
 ### 11.4 MCP `resolve_indexer_for_request`
 

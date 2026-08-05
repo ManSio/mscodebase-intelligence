@@ -79,7 +79,7 @@ def collect_project_stats() -> dict:
     try:
         from src.core.di_container import create_service_collection, IndexerFactoryKey
         from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry
-        from src.mcp.server import resolve_project_root, reset_project_root_cache
+        from src.core.project_resolution import resolve_project_root, reset_project_root_cache
 
         reset_project_root_cache()
         pr = resolve_project_root()

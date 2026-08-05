@@ -355,6 +355,24 @@ class ReadLiveFileTool(MCPTool):
         # ─── 1. Определяем полный путь с Path traversal guard (§5.12) ───
         if absolute_path:
             target = Path(absolute_path).resolve()
+            # SEC-05: restricted-read policy. При MSCODEBASE_RESTRICTED_READ=1
+            # absolute_path разрешён только внутри активного project root
+            # (аналог guard для file_path ниже). По умолчанию выключено —
+            # не ломает существующие сценарии диагностики.
+            if os.environ.get("MSCODEBASE_RESTRICTED_READ", "").strip().lower() in ("1", "true", "yes"):
+                try:
+                    project_root = self.resolve_indexer().project_path
+                except Exception as _res_err:
+                    logger.warning(f"read_live_file: resolve_indexer failed ({_res_err}) — restricted read cannot verify root")
+                    project_root = None
+                if project_root is not None and not target.is_relative_to(project_root.resolve()):
+                    logger.warning(
+                        f"read_live_file: restricted read blocked absolute_path outside project root: {target}"
+                    )
+                    return {
+                        "status": "error",
+                        "message": f"Restricted read: path outside project root: {target}",
+                    }
         elif file_path:
             project_root = self.resolve_indexer().project_path
             resolved = (project_root / file_path).resolve()
@@ -387,20 +405,26 @@ class ReadLiveFileTool(MCPTool):
             return {"status": "error", "message": f"Cannot read file header: {e}"}
 
         # ─── 3. Читаем файл ───
+        # WIN-03: порядок декодирования унифицирован с index_parser:
+        # UTF-8 → cp1251 → chardet → latin-1 (русские Windows-проекты).
         encoding = "utf-8"
         try:
             content = target.read_text(encoding=encoding)
         except UnicodeDecodeError:
-            # Fallback: пробуем chardet, иначе latin-1
             try:
-                import chardet
-                raw = target.read_bytes()
-                detected = chardet.detect(raw)
-                encoding = detected.get("encoding", "latin-1") or "latin-1"
-                content = raw.decode(encoding, errors="replace")
-            except ImportError:
-                encoding = "latin-1"
-                content = target.read_text(encoding=encoding, errors="replace")
+                content = target.read_text(encoding="cp1251")
+                encoding = "cp1251"
+            except UnicodeDecodeError:
+                # Fallback: пробуем chardet, иначе latin-1
+                try:
+                    import chardet
+                    raw = target.read_bytes()
+                    detected = chardet.detect(raw)
+                    encoding = detected.get("encoding", "latin-1") or "latin-1"
+                    content = raw.decode(encoding, errors="replace")
+                except ImportError:
+                    encoding = "latin-1"
+                    content = target.read_text(encoding=encoding, errors="replace")
         except Exception as e:
             return {"status": "error", "message": f"Cannot read file: {e}"}
 

@@ -263,7 +263,15 @@ def _run(cmd: str, timeout: int = 120, capture: bool = True) -> Optional[subproc
     try:
         args = shlex.split(cmd)
         if capture:
-            return subprocess.run(args, shell=False, timeout=timeout, capture_output=True, text=True)
+            return subprocess.run(
+                args,
+                shell=False,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",  # WIN-08: locale-зависимый декод ломал русский вывод на Windows
+            )
         return subprocess.run(args, shell=False, timeout=timeout)
     except subprocess.TimeoutExpired:
         logger.debug("command timed out after %ss: %s", timeout, cmd[:80])
@@ -859,6 +867,8 @@ def _record_install_meta() -> None:
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",  # WIN-09: git hooks могут содержать русские/emoji-символы
                 timeout=10,
             )
             if r.returncode == 0:

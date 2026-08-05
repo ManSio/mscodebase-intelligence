@@ -12,6 +12,13 @@
 
 ---
 
+## 2026-08-05 — experiments/audit.md: 16 пунктов проверено, 12 исправлено (FIXED, не запушено)
+
+**Symptom:** рассинхрон версий (pyproject 3.3.11 / extension.toml 3.3.9 / __init__.py 3.2.3); hardcoded start_server.bat; subprocess decode()/text=True без encoding (llama_runner:1278, llama_install ×3, install.py ×2); read_live_file без cp1251 fallback; ONNX providers без env override; onnx stderr-лог в корне проекта; absolute_path без guard в read_live_file; rename PropertyGraph без rollback; resolve() под threading.Lock; core→mcp import (resolve_project_root).
+**Root Cause:** аудит накопил 4 версии; дедлайн переноса резолвера (v2.5, architecture_linter) просрочен.
+**Fix:** версии → 3.3.11 + tests/test_versions.py; start_server.bat portable; encoding utf-8+replace везде; cp1251 fallback; select_onnx_providers (MSCODEBASE_ONNX_PROVIDER); stderr → <data_root>/logs; extension.toml PYTHONUTF8; rename rollback; RLock; src/core/project_resolution.py (mcp.server реэкспорт); install.bat errorlevel; ARCHITECTURE.md en/ru/zh без lsp_main; .env.example += 2 переменные; тесты 16 новых (TEST-01/03/04).
+**Status:** ✅ Fixed (не закоммичено) | **Guard:** tests/test_versions.py ловит version drift на каждом прогоне; полный pytest 801 passed / 4 skipped; diagnostics чисто; architecture_linter: runtime_coordinator закрыт (техдолг: project_context/get_last_progress — следующий кандидат).
+
 ## 2026-08-05 — D1: schema-слой спайка → CypherExecutor (P-004 закрыт архитектурно, FIXED, не запушено)
 
 **Symptom:** галлюцинация LLM (`MATCH (f:SERVICE)`) — тихий `[]` без объяснения; схема спайка (5 меток, 3 rel) расходилась с реальной (15 меток, 27 rel).

@@ -34,11 +34,9 @@ _FORBIDDEN_MCP_IMPORTS = {
     "mcp.tools",
 }
 
-# Разрешённые исключения (documented for v2.5 migration):
-# resolve_project_root, _is_self_index_path, passport vars —
-# временно в src.mcp.server, будут перенесены в core в v2.5.
+# Исключения: get_last_progress (progress-состояние MCP) — техдолг, кандидат
+# на перенос в core (как resolve_project_root, закрыт в 3.3.11).
 _ALLOWED_CORE_MCP_IMPORTS: dict[str, list[str]] = {
-    "src.core.runtime_coordinator": ["src.mcp.server"],
     "src.core.intelligence_layer": ["src.mcp.tools.base"],
     "src.core.intelligence.layer": ["src.mcp.tools.base"],
     "src.core.project_context": ["src.mcp.server"],

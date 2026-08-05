@@ -211,6 +211,41 @@ class OnnxHandler(BaseHTTPRequestHandler):
         pass
 
 
+def select_onnx_providers(policy: str, available: List[str]) -> List[str]:
+    """Выбор ONNX execution providers по политике MSCODEBASE_ONNX_PROVIDER.
+
+    Args:
+        policy: "auto" (default) | "cpu" | "dml" | "cuda"
+        available: список доступных провайдеров (ort.get_available_providers()).
+
+    Returns:
+        Список провайдеров для InferenceSession (порядок = приоритет).
+        CPU всегда в конце как fallback.
+    """
+    _policy = (policy or "auto").strip().lower()
+    _available = set(available or [])
+    providers = ["CPUExecutionProvider"]
+
+    if _policy == "cpu":
+        pass  # CPU only
+    elif _policy == "dml":
+        if "DmlExecutionProvider" in _available:
+            providers.insert(0, "DmlExecutionProvider")
+        else:
+            logger.warning("[ONNX Server] MSCODEBASE_ONNX_PROVIDER=dml, но DirectML недоступен — fallback на CPU")
+    elif _policy == "cuda":
+        if "CUDAExecutionProvider" in _available:
+            providers.insert(0, "CUDAExecutionProvider")
+        else:
+            logger.warning("[ONNX Server] MSCODEBASE_ONNX_PROVIDER=cuda, но CUDA недоступен — fallback на CPU")
+    else:  # auto (default)
+        if "DmlExecutionProvider" in _available:
+            providers.insert(0, "DmlExecutionProvider")
+
+    logger.info(f"[ONNX Server] Provider policy={_policy} → {providers}")
+    return providers
+
+
 def load_model(model_name: str):
     """Загружает ONNX модель и токенизатор."""
     import onnxruntime as ort
@@ -263,10 +298,9 @@ def load_model(model_name: str):
     opts.inter_op_num_threads = int(os.getenv("ONNX_INTER_THREADS", "1"))
     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 
-    # Провайдеры
-    providers = ["CPUExecutionProvider"]
-    if "DmlExecutionProvider" in ort.get_available_providers():
-        providers.insert(0, "DmlExecutionProvider")
+    # Провайдеры (WIN-11: политика через select_onnx_providers, см. функцию выше)
+    _provider_policy = os.getenv("MSCODEBASE_ONNX_PROVIDER", "auto")
+    providers = select_onnx_providers(_provider_policy, ort.get_available_providers())
 
     session = ort.InferenceSession(str(onnx_path), sess_options=opts, providers=providers)
     input_names = [inp.name for inp in session.get_inputs()]

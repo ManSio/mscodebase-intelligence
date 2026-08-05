@@ -38,6 +38,11 @@ echo.
 
 :: Запускаем установщик
 cd /d "!SCRIPT_DIR!"
+if errorlevel 1 (
+    echo ❌ Не удалось перейти в каталог: !SCRIPT_DIR!
+    pause
+    exit /b 1
+)
 python -u install.py
 
 if errorlevel 1 (

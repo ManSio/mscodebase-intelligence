@@ -9,6 +9,32 @@ All notable changes to this project will be documented in this file.
 > **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
+## [3.3.12] — 2026-08-05 — Audit fixes: experiments/audit.md (version sync, Windows encoding, ONNX provider policy, restricted read, resolve_project_root → core)
+
+### Fixed
+- **Version drift (3 separate versions)**: pyproject.toml 3.3.11 vs extension.toml 3.3.9 vs `src/__init__.py` 3.2.3 → unified to 3.3.12. New `tests/test_versions.py` (TEST-01) fails the suite on any mismatch.
+- **`start_server.bat` hardcoded to author machine** (`C:\Users\misha\...`) → portable: `%~dp0`, `if errorlevel 1` after `cd`, venv existence check, `PYTHONUTF8=1`, `-u -m src.main`.
+- **Windows subprocess encoding debt**: `llama_runner.py:1278` and `llama_install.py` (×3) `.decode()` without encoding; `install.py` (×2) `text=True` without encoding → all now `encoding="utf-8", errors="replace"`. `onnx_client.py` taskkill → `DEVNULL` (Windows pipe-safety).
+- **`read_live_file` decode order** (WIN-03) unified with index_parser: UTF-8 → cp1251 → chardet → latin-1 (Russian Windows projects were mojibake via latin-1).
+- **ONNX provider policy** (WIN-11): new `MSCODEBASE_ONNX_PROVIDER=auto|cpu|dml|cuda`, pure `select_onnx_providers()` + tests (TEST-03).
+- **ONNX stderr log** (WIN-12) moved from project root to `<data_root>/logs/onnx_server_stderr.log`.
+- **Restricted read** (SEC-05): `read_live_file(absolute_path=...)` now rejectable outside project root via `MSCODEBASE_RESTRICTED_READ=1` + tests (TEST-04). Off by default.
+- **PropertyGraph rename rollback** (BL-05): `rename_symbol` rolls back the added node if delete fails (no more partial migration/duplicates).
+- **DI resolve() under `threading.Lock`** (ARCH-02) → `RLock` (re-entrant factory no longer deadlocks).
+- **Core→MCP import** (ARCH-03): `resolve_project_root` moved to `src/core/project_resolution.py` (deadline v2.5 was long overdue); `mcp/server.py` re-exports for tests; `architecture_linter.py` exception removed; `runtime_coordinator.py`/`collect_telemetry.py` import from core.
+- **`install.bat`** (WIN-16): `if errorlevel 1` after `cd /d`.
+- **Docs contradiction** (§4.9): `docs/en|ru|zh/ARCHITECTURE.md` still referenced deleted `src/lsp_main.py` (Layer 1 diagram + per-workspace DI sections) → rewritten to `ProjectIndexerRegistry`.
+- **`extension.toml` env** (ZED-03): added `PYTHONUTF8 = "1"` (install-time merge already had it).
+
+### Added
+- `tests/test_versions.py` (TEST-01), `tests/test_read_live_file.py` (TEST-04/WIN-03), `tests/test_onnx_providers.py` (TEST-03) — 16 tests.
+- `.env.example`: `MSCODEBASE_ONNX_PROVIDER`, `MSCODEBASE_RESTRICTED_READ`.
+
+### Tests
+- Full pytest: **801 passed, 4 skipped, 94 deselected**; diagnostics clean; architecture_linter: runtime_coordinator no longer violates core→mcp (9 remaining violations pre-existing).
+
+---
+
 ## [3.3.11] — 2026-08-01 — llama.cpp embedder HTTP 400: native /tokenize truncation (fixes 3.3.10)
 
 ### Fixed
@@ -23,6 +49,10 @@ All notable changes to this project will be documented in this file.
 - Full pytest: 667 passed, 13 skipped (91 slow/benchmark deselected); ruff clean. Reindex 22:37→22:47: **4677 chunks, FTS5 built, HTTP 400 = 0, Aborted = 0**, E2E search_code OK.
 
 ---
+
+## [3.3.12] — 2026-08-05
+
+<!-- TODO: fill in changes -->
 
 ## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 fix (truncation to 512 tokens)
 

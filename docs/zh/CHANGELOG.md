@@ -9,6 +9,34 @@
 > **工具数量（当前）:** 实时服务器注册 **48 个工具** = 19 core + 13 intel + 12 inline + 4 dev
 > `MSCODEBASE_MCP_TOOLS=""` 显示全部；默认仅显示 12 个。
 
+---
+
+## [3.3.12] — 2026-08-05 — 审计修复：experiments/audit.md（版本同步、Windows 编码、ONNX provider 策略、受限读取、resolve_project_root → core）
+
+### 修复
+- **版本漂移（三个不同值）**：pyproject.toml 3.3.11 vs extension.toml 3.3.9 vs `src/__init__.py` 3.2.3 → 统一为 3.3.12。新增 `tests/test_versions.py`（TEST-01），任何不一致都会让测试失败。
+- **`start_server.bat` 硬编码作者机器路径**（`C:\Users\misha\...`）→ 可移植：`%~dp0`、`cd` 后 `if errorlevel 1`、venv 存在性检查、`PYTHONUTF8=1`、`-u -m src.main`。
+- **Windows 子进程编码债务**：`llama_runner.py:1278` 和 `llama_install.py`（×3）— `.decode()` 无编码；`install.py`（×2）— `text=True` 无编码 → 全部改为 `encoding="utf-8", errors="replace"`。`onnx_client.py` taskkill → `DEVNULL`（管道安全）。
+- **`read_live_file` 解码顺序**（WIN-03）与 index_parser 统一：UTF-8 → cp1251 → chardet → latin-1（俄语 Windows 项目此前经 latin-1 变成乱码）。
+- **ONNX provider 策略**（WIN-11）：新增 `MSCODEBASE_ONNX_PROVIDER=auto|cpu|dml|cuda`，纯函数 `select_onnx_providers()` + 测试（TEST-03）。
+- **ONNX stderr 日志**（WIN-12）从项目根移到 `<data_root>/logs/onnx_server_stderr.log`。
+- **受限读取**（SEC-05）：`read_live_file(absolute_path=...)` 在 `MSCODEBASE_RESTRICTED_READ=1` 时拒绝项目根之外的路径 + 测试（TEST-04）。默认关闭。
+- **PropertyGraph rename 回滚**（BL-05）：`rename_symbol` 在删除失败时回滚新增节点（不再有部分迁移/重复节点）。
+- **`resolve()` 在 `threading.Lock` 下**（ARCH-02）→ `RLock`（可重入 factory 不再死锁）。
+- **Core→MCP 导入**（ARCH-03）：`resolve_project_root` 移至 `src/core/project_resolution.py`（v2.5 截止日期早已逾期）；`mcp/server.py` 重新导出以兼容测试；`architecture_linter.py` 异常移除；`runtime_coordinator.py`/`collect_telemetry.py` 从 core 导入。
+- **`install.bat`**（WIN-16）：`cd /d` 后加 `if errorlevel 1`。
+- **文档矛盾**（§4.9）：`docs/en|ru|zh/ARCHITECTURE.md` 仍引用已删除的 `src/lsp_main.py`（架构图 + per-workspace DI 章节）→ 改写为 `ProjectIndexerRegistry`。
+- **`extension.toml` env**（ZED-03）：添加 `PYTHONUTF8 = "1"`（install-time merge 中已有）。
+
+### 新增
+- `tests/test_versions.py`（TEST-01）、`tests/test_read_live_file.py`（TEST-04/WIN-03）、`tests/test_onnx_providers.py`（TEST-03）— 16 个测试。
+- `.env.example`：`MSCODEBASE_ONNX_PROVIDER`、`MSCODEBASE_RESTRICTED_READ`。
+
+### 测试
+- 完整 pytest：**801 passed，4 skipped，94 deselected**；diagnostics 干净；architecture_linter：runtime_coordinator 不再违反 core→mcp（其余 9 处违规为既有问题）。
+
+---
+
 ## [3.3.11] — 2026-08-01 — llama.cpp embedder HTTP 400：原生 /tokenize 截断（修复 3.3.10）
 
 ### 修复
@@ -21,8 +49,6 @@
 
 ### 测试
 - 完整 pytest：667 passed，13 skipped（91 slow/benchmark deselected）；ruff clean。重新索引 22:37→22:47：**4677 chunks、FTS5 built、HTTP 400=0、Aborted=0**，E2E search_code OK。
-
----
 
 ## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 修复（截断到 512 token）
 

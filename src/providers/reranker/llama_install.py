@@ -101,7 +101,7 @@ def _detect_cpu() -> dict:
         if sys.platform == "win32":
             out = subprocess.check_output(
                 ["wmic", "memorychip", "get", "capacity"], timeout=5
-            ).decode()
+            ).decode("utf-8", errors="replace")
             total_bytes = sum(int(x) for x in re.findall(r"\d+", out) if len(x) > 5)
             info["ram_gb"] = total_bytes // (1024**3)
         elif sys.platform == "darwin":
@@ -122,14 +122,14 @@ def _detect_cpu() -> dict:
         if sys.platform == "win32":
             out = subprocess.check_output(
                 ["wmic", "cpu", "get", "name"], timeout=5
-            ).decode()
+            ).decode("utf-8", errors="replace")
             for line in out.splitlines():
                 if line.strip() and "Name" not in line:
                     info["name"] = line.strip()
                     break
         elif sys.platform == "darwin":
             out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=5)
-            info["name"] = out.decode().strip()
+            info["name"] = out.decode("utf-8", errors="replace").strip()
         elif sys.platform == "linux":
             with open("/proc/cpuinfo") as f:
                 for line in f:
