@@ -12,6 +12,13 @@
 
 ---
 
+## [2026-08-05] — Neuro-Symbolic spike: 2-слойная валидация Cypher (DONE)
+
+**Status:** ✅ Done (ветка experiment/lab-2026 на origin; коммиты d72353df, 6cd9bfd6)
+**Root Cause:** parser-слой один не ловит LLM-галлюцинации: SERVICE — синтаксически валиден; cycle(a) молча игнорируется парсером (return_items=[])
+**Fix:** schema-слой (VALID_LABELS/REL_TYPES/PROPS + allowlist RETURN-выражений): 10 вопросов → 8 EXEC ok, 2 SCHEMA-REJECT, 0 exec_error, latency 0.1 ms; гипотеза подтверждена
+**Guard:** 4 бага Cypher-стека → KNOWN_ISSUES#2026-08-05 (OPEN); schema-слой — эталон для будущего text2cypher (общий паттерн schema-aware prompting, EXPERIMENTS_LOG#exp-lab-2026-01)
+
 ## [2026-08-05 01:50] — Tech debt: subprocess text=True без encoding ×7 закрыт + пин ruff (DONE)
 
 **Status:** ✅ Done (коммит в этой сессии)
