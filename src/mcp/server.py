@@ -13,11 +13,9 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Optional
 
 
 logger = logging.getLogger("mscodebase_server")
@@ -156,82 +154,6 @@ def _check_source_extension_sync() -> Optional[str]:
         return None
 
 
-# ═════════════════════════════════════════════════════════
-# Progress Tracking — для визуализации хода индексации
-# ══════════════════════════════════════════════════════════
-
-_last_progress: Dict[str, Any] = {}
-_progress_lock = threading.Lock()
-_progress_updates = 0  # счётчик обновлений для периодического cleanup (Item 4)
-
-
-def get_last_progress() -> Dict[str, Any]:
-    """Thread-safe accessor for progress tracking (used by core.intelligence)."""
-    with _progress_lock:
-        return dict(_last_progress)
-
-
-def _create_progress_callback(project_name: str):
-    """Создаёт callback для отслеживания прогресса индексации.
-
-    Возвращает callable который обновляет внутренний счётчик прогресса
-    и логирует каждые 10 файлов. Потокобезопасен через _progress_lock.
-    """
-
-    def progress_callback(file_name: str, done: int, total: int, phase: str):
-        global _progress_updates
-        try:
-            now = time.time()
-            with _progress_lock:
-                existing = _last_progress.get(project_name, {})
-                if "started_at" not in existing or existing.get("phase") == "complete":
-                    started_at = now
-                else:
-                    started_at = existing["started_at"]
-
-            progress_info = {
-                "project": project_name,
-                "phase": phase,
-                "files_done": done,
-                "files_total": total,
-                "current_file": file_name,
-                "percent": (done / total * 100) if total > 0 else 0,
-                "timestamp": now,
-                "started_at": started_at,
-            }
-            with _progress_lock:
-                _last_progress[project_name] = progress_info
-                # Periodic cleanup: раз в 100 обновлений, не на каждом —
-                # иначе O(n) на каждый update при >10 активных проектах
-                _progress_updates += 1
-                if _progress_updates % 100 == 0 and len(_last_progress) > 10:
-                    _cleanup_old_progress()
-
-            if done % 10 == 0 or phase in (
-                "complete",
-                "rebuilding_bm25",
-                "error_security",
-            ):
-                logger.info(
-                    f"📊 Progress [{project_name}]: "
-                    f"{done}/{total} ({progress_info['percent']:.0f}%) — {phase}"
-                )
-        except Exception as _e:
-            logger.warning(f"Progress callback failed: {_e}")
-    return progress_callback
-
-
-def _cleanup_old_progress():
-    """Удаляет записи прогресса старше 1 часа (защита от memory leak)."""
-    now = time.time()
-    expired = [
-        k for k, v in _last_progress.items() if now - v.get("timestamp", 0) > 3600
-    ]
-    for k in expired:
-        del _last_progress[k]
-
-
-# ══════════════════════════════════════════════════════════
 # Резолвер корня проекта (ARCH-03: перенесён в src/core/project_resolution.py)
 # Реэкспорт для обратной совместимости — тесты и скрипты импортируют
 # resolve_project_root / reset_project_root_cache из mcp.server.
@@ -242,7 +164,16 @@ from src.core.project_resolution import (
     ext_root as _ext_root,
 )
 
-
+# Progress-состояние (ARCH-03 follow-up: перенесено в src/core/progress_state.py)
+# Реэкспорт для обратной совместимости — тесты импортируют из mcp.server.
+from src.core.progress_state import (
+    get_last_progress,
+    _create_progress_callback,
+    _cleanup_old_progress,
+    _last_progress,
+    _progress_lock,
+    _progress_updates,
+)
 
 
 # Default project root (устанавливается при create_mcp_server)

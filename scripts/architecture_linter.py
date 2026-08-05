@@ -34,13 +34,12 @@ _FORBIDDEN_MCP_IMPORTS = {
     "mcp.tools",
 }
 
-# Исключения: get_last_progress (progress-состояние MCP) — техдолг, кандидат
-# на перенос в core (как resolve_project_root, закрыт в 3.3.11).
+# Core больше не импортирует MCP (resolve_project_root — закрыт в 3.3.11,
+# get_last_progress — закрыт в 3.3.12). Оставшиеся исключения — tools.base
+# из intelligence.layer (документированный мост для _grep_fallback).
 _ALLOWED_CORE_MCP_IMPORTS: dict[str, list[str]] = {
     "src.core.intelligence_layer": ["src.mcp.tools.base"],
     "src.core.intelligence.layer": ["src.mcp.tools.base"],
-    "src.core.project_context": ["src.mcp.server"],
-    "src.core.intelligence.project_context": ["src.mcp.server"],
 }
 
 

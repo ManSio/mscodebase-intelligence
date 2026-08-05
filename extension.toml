@@ -1,6 +1,6 @@
 id = "mscodebase-intelligence"
 name = "MSCodeBase Intelligence"
-version = "3.3.12"
+version = "3.3.13"
 schema_version = 1
 description = "Semantic codebase intelligence with Multi-Bucket RAG, contextual retrieval, and system profiles"
 repository = "https://github.com/ManSio/mscodebase-intelligence"

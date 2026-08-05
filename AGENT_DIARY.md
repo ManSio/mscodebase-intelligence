@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-05 22:50] — Следующий шаг: get_last_progress → core, фикс bump_version, фикс sys.path-загрязнения теста (FIXED, будет закоммичено)
+
+**Status:** ✅ Fixed (не закоммичено — коммит следом)
+**Root Cause:** (1) техдолг из ARCH-03-цепочки: `project_context` импортировал `get_last_progress` из mcp.server — направление core→mcp оставалось; (2) `version_manager.check_consistency` ловил ВСЕ `X.Y.Z` (версии зависимостей, старых записей) как дрифты; `scripts/bump_version.py` вставлял заголовок после первого `---`, для ru/zh он попадал в середину файла; (3) `test_architecture_lifecycle` на уровне модуля делал `sys.path.insert(0, extension_dir)` — вся pytest-сессия импортировала УСТАРЕВШУЮ копию src из установленного расширения → ModuleNotFoundError для новых core-модулей (вскрыто переносом progress_state).
+**Fix:** (1) новый `src/core/progress_state.py` (состояние+callback+cleanup), mcp.server реэкспортирует, project_context импортирует из core, исключения в architecture_linter убраны; (2) per-file версионные паттерны в check_consistency, вставка ПЕРЕД первым `## [X.Y.Z]` в обоих bump (scripts + version_manager), version_manager обновляет все три CHANGELOG; (3) sys.path/env-загрязнение перенесено в autouse-fixture с восстановлением (намерение теста «установленное расширение» сохранено).
+**Guard:** tests/test_version_manager.py (4 регрессионных: ложные дрифты, реальный дрифт, вставка заголовка, три CHANGELOG); полный pytest 799 passed / 4 skipped (0 failed); вскрытая аномалия: `_create_progress_callback` в проде не вызывается → `get_last_progress()` всегда пуст — открытая нить.
+**Pattern:** P-002 «предположение вместо проверки» (симптом: «тесты флейкят» → реальная причина: глобальное загрязнение sys.path чужим тестом).
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone скрипт не запускался (нет repo URL/сети); полный pytest 799 passed запущен явно, 2 раза подряд (стабильно).
+
+---
+
 ## [2026-08-05 22:10] — experiments/audit.md: 16 пунктов верифицировано, 12 исправлено (FIXED, не запушено)
 
 **Status:** ✅ Fixed (не закоммичено — по команде владельца)

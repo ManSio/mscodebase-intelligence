@@ -10,6 +10,28 @@
 
 ---
 
+
+## [3.3.13] — 2026-08-05
+
+<!-- TODO: опишите изменения -->
+
+---
+## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), фикс bump_version, фикс sys.path-загрязнения теста
+
+### Исправлено
+- **Core→MCP импорт закрыт полностью (продолжение ARCH-03)**: `get_last_progress`/`_create_progress_callback`/`_cleanup_old_progress` перенесены из `src/mcp/server.py` в новый `src/core/progress_state.py`; `mcp/server.py` реэкспортирует для тестов; `project_context` импортирует из core; исключения для `project_context` в `architecture_linter.py` убраны.
+- **Ложные дрифты `bump_version`**: `check_consistency` матчил ВСЕ `X.Y.Z` (версии зависимостей, старые записи CHANGELOG) → теперь только per-file версионные паттерны (`^version =` в pyproject, первый заголовок `## [X.Y.Z]` в CHANGELOG).
+- **Вставка заголовка `bump_version`**: оба (scripts/bump_version.py и src/core/version_manager.py) вставляли после первого `---`/h1 — для ru/zh CHANGELOG заголовок попадал в середину файла. Теперь вставка ПЕРЕД первым `## [X.Y.Z]`; `version_manager.bump` обновляет все три CHANGELOG.
+- **Загрязнение pytest-сессии**: `tests/test_architecture_lifecycle.py` делал `sys.path.insert(0, <директория расширения>)` на уровне модуля → вся сессия импортировала УСТАРЕВШУЮ копию `src/` из установленного расширения (`ModuleNotFoundError: src.core.progress_state`). Перенесено в autouse-fixture с восстановлением `sys.path`/env после каждого теста (намерение — тестировать установленное расширение — сохранено).
+
+### Добавлено
+- `tests/test_version_manager.py`: 4 регрессионных теста (нет ложных дрифтов, реальный дрифт ловится, заголовок перед первым версионным, все три CHANGELOG).
+
+### Тесты
+- Полный pytest: **799 passed, 4 skipped, 94 deselected, 0 failed** (стабильно в 2 прогонах).
+
+---
+
 ## [3.3.12] — 2026-08-05 — Аудит-фиксы: experiments/audit.md (синхронизация версий, Windows-кодировки, ONNX provider policy, restricted read, resolve_project_root → core)
 
 ### Исправлено
