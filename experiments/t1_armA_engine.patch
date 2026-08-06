@@ -1,0 +1,27 @@
+diff --git a/src/core/search/engine.py b/src/core/search/engine.py
+index 76f5981a..69dd5041 100644
+--- a/src/core/search/engine.py
++++ b/src/core/search/engine.py
+@@ -1010,22 +1010,6 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
+             logger.debug(f"Graph context expansion error: {e}")
+             return results
+ 
+-    def _ensure_multi_reranker(self) -> Optional[MultiProviderReranker]:
+-        """Ленивая синхронная инициализация мульти-провайдерного реранкера."""
+-        if self._multi_reranker_initialized:
+-            return self._multi_reranker
+-
+-        self._multi_reranker_initialized = True
+-        try:
+-            reranker = MultiProviderReranker()
+-            asyncio.run(reranker.initialize())
+-            self._multi_reranker = reranker
+-            return reranker
+-        except Exception as e:
+-            logger.warning(f"Не удалось инициализировать MultiProviderReranker: {e}")
+-            self._multi_reranker = None
+-            return None
+-
+     async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
+         """Ленивая thread-safe async инициализация мульти-провайдерного реранкера.
+ 

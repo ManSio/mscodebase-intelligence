@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-747%20passed-brightgreen)](../../tests/)
 
-[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#mcp-инструменты-48-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
+[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Инструменты](#mcp-инструменты-49-всего) • [Документация](#-карта-документации) • [Установка](INSTALL.md) • [Архитектура](ARCHITECTURE.md) • [Участие](../../CONTRIBUTING.md) • [Безопасность](../../SECURITY.md)
 
 *Последнее обновление: 2026-08-03*
 
@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 42 инструмента для AI-ассистента          │  │
+│  │  · 49 инструментов для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP: только для rename (гибридный режим)
 
-MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **42 MCP-инструмента**.
+MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **49 MCP-инструментов**.
 
 Отдельный LSP-сервер (`src/lsp_main.py`) был экспериментальным и **не работает в Zed** — см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md).
 
@@ -101,7 +101,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | Возможность | Описание |
 |-------------|----------|
 | 🔍 **Унифицированный поиск** | `search_code(query, mode, intent_hint)` — единый инструмент: fast/quality/deep/context/ask/auto |
-| 🧠 **Интеллектуальный слой** | 14 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
+| 🧠 **Интеллектуальный слой** | 13 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
 | 🗃️ **Память проекта** | ADR, известные проблемы, технический долг — автоматически сохраняется между сессиями |
 | 🌐 **Кросс-репозиторный поиск** | Поиск по нескольким проектам с синтаксисом `@mention` |
 | 🌳 **Граф вызовов** | Полный граф вызовов: определение + вызывающие + вызываемые + анализ влияния |
@@ -112,8 +112,8 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 48 инструментов (19 core + 13 intel + 12 inline + 4 dev), 747+ тестов |
-| 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 42 типа рёбер в PropertyGraph. |
+| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 49 инструментов (20 core + 13 intel + 12 inline + 4 dev), 853+ тестов |
+| 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 29 типов рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename без пере-эмбеддинга (50ms против 5s) |
@@ -183,7 +183,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-## MCP Инструменты (48 всего)
+## MCP Инструменты (49 всего)
 
 ### Основной поиск
 
@@ -193,52 +193,50 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `structural_search(pattern)` | AST-поиск: `class_inheritance`, `async_function`, `function_with_decorator` и другие |
 | `cross_repo_search(query @repo)` | Поиск по нескольким проектам (моно-репозиторий) |
 | `cross_project_deps(action)` | Граф зависимостей между проектами: `graph` / `deps` / `cycles` / `impact` |
-| `get_symbol_info(query)` | Граф вызовов: вызывающие, вызываемые, затрагиваемые файлы |
-| `impact_analysis(symbol)` | Анализ влияния изменений символа (оценка риска, глубина) |
+| `get_symbol_info(query)` | Граф вызовов: вызывающие, вызываемые, затрагиваемые файлы |
+| `execute_script(code, timeout, args)` | **Песочница Python-выполнения (3 слоя).** AST-валидация + runtime-обёртка `__import__` + изоляция subprocess. Аудит-лог. Возвращает `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
+| `impact_analysis(symbol)` | Анализ влияния изменений символа (оценка риска, глубина) |
 
-### Управление индексом
+### Управление индексом (через `codebase(action="index", ...)`)
 
-| Инструмент | Когда использовать |
-|------------|-------------------|
-| `get_index_status()` | Статус индекса: чанки, файлы, символы |
-| `get_index_progress()` | Прогресс индексации (фаза, проценты) |
-| `index_project_dir(path)` | Запустить полную индексацию проекта |
-| `get_index_timeline()` | История индексации по датам |
-| `index_health(project_root)` | Диагностика индекса и самовосстановление |
-| `notify_change(file_path)` | Принудительное обновление индекса для файла (через DebounceBatch) |
+| Действие | Когда использовать |
+|------|-------------|
+| `codebase(action="index", path="status")` | Статус индекса: чанки, файлы, символы (`get_index_status`) |
+| `codebase(action="index", path="progress")` | Прогресс индексации (фаза, проценты) |
+| `codebase(action="index", path="project_dir", project_root=...)` | Запустить полную индексацию проекта (`index_project_dir`) |
+| `codebase(action="index", path="timeline")` | История индексации по датам |
+| `codebase(action="index", path="health")` | Диагностика индекса и самовосстановление (`index_health`) |
+| `notify_change(file_path)` | Принудительное обновление индекса для файла (через DebounceBatch) — inline-тул |
 | `generate_chunk_summaries(root)` | LLM-генерированные описания для чанков кода |
-| `scan_changes(project_root)` | Архитектурный diff — анализ изменений с последнего baseline |
+| `scan_changes(project_root)` | Архитектурный diff — анализ изменений с последнего baseline |
 
 ### Система и диагностика
 
 | Инструмент | Когда использовать |
 |------------|-------------------|
 | `get_health_report()` | **Полная самодиагностика:** индекс, эмбеддер, логи, синхронизация |
-| `watcher_status()` | Статус компонентов: режим эмбеддера, индексация, здоровье |
 | `get_logs(project_root)` | Последние ошибки и предупреждения из логов проекта |
-| `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
-| `read_live_file(path)` | Чтение файла из памяти LSP (включая несохранённые изменения) |
-| `predict_eta(operation)` | Прогнозирование длительности операции на основе истории |
-| `run_health_check()` | Полная проверка здоровья проекта (тесты + git + индекс) |
+| `read_live_file(path)` | Чтение файла из памяти LSP (включая несохранённые изменения) |
 
 ### Аналитика
 
 | Инструмент | Когда использовать |
 |------------|-------------------|
-| `get_hotspots(project_root)` | Горячие точки — файлы с высоким уровнем багов |
-| `get_repo_rank(project_root, top_k)` | Ранжирование важностей символов (PageRank на графе вызовов) |
-| `get_bug_correlation(project_root)` | Анализ корреляции багов и изменений |
-| `get_related_files(project_root, path)` | Файлы, связанные через совместные изменения / корреляцию багов |
-| `graph_query(query_type, target)` | Запросы к графу знаний: `impact` / `feature` / `deps` / `tests` |
+| `get_hotspots(project_root)` | Горячие точки — файлы с высоким уровнем багов |
+| `get_repo_rank(project_root, top_k)` | Ранжирование важностей символов (PageRank на графе вызовов) |
+| `get_bug_correlation(project_root)` | Анализ корреляции багов и изменений |
+| `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
+| `graph_query(action="related", target=path)` | Файлы, связанные через совместные изменения / корреляцию багов (`get_related_files`) |
+| `graph_query(action, target)` | Запросы к графу: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
 
-### Git и история
+### Git и история (через `codebase(action="git", ...)`)
 
-| Инструмент | Когда использовать |
-|------------|-------------------|
-| `get_commit_history(root, limit)` | Семантическая история коммитов |
-| `get_file_history(root, path)` | История изменений конкретного файла |
-| `get_branch_info(project_root)` | Информация о ветке + статус индекса |
+| Действие | Когда использовать |
+|------|-------------|
+| `codebase(action="git", path="log", ...)` | Семантическая история коммитов (`get_commit_history`) |
+| `codebase(action="git", path="history", ...)` | История изменений конкретного файла |
+| `codebase(action="git", path="branch")` | Информация о ветке + статус индекса (`get_branch_info`) |
 
 ### Жизненный цикл и верификация
 
@@ -262,32 +260,46 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `insert_after` | Вставка кода после тела anchor (preview/apply) |
 | `ack_impact` | Подтверждение влияния для modification guard |
 
-### Интеллектуальный слой (intel_*) — 14 высокоуровневых инструментов
+### Интеллектуальный слой (intel_*) — 13 высокоуровневых инструментов
 
 | Инструмент | Назначение |
 |------------|------------|
-| `intel_get_runtime_status()` | Агрегированный статус здоровья: эмбеддер, индекс, использование ресурсов |
+| `intel_get_runtime_status()` | Агрегированный статус здоровья: эмбеддер, индекс, использование ресурсов |
 | `intel_trigger_reindex()` | Реиндексация без ожидания (не блокирует Zed) |
-| `intel_get_job_status(job_id)` | Прогресс фоновой задачи |
-| `intel_code_topology(symbol)` | Граф вызовов + топология модулей (< 2 сек) |
+| `intel_get_job_status(job_id)` | Прогресс фоновой задачи |
+| `intel_code_topology(symbol)` | Граф вызовов + топология модулей (< 2 сек) |
 | `intel_get_project_memory()` | Карта памяти проекта: ADR, known_issues, tech_debt |
 | `intel_log_incident(...)` | Запись инцидента в историю проекта |
 | `intel_analyze_incident(error)` | Поиск похожих инцидентов + готовые решения |
 | `intel_add_memory_node(section, data)` | Добавление записи в память проекта |
-| `intel_get_hotspots()` | Топ-5 файлов с наибольшей баг-нагрузкой |
+| `intel_get_hotspots()` | Топ-5 файлов с наибольшей баг-нагрузкой |
 | `intel_predict_root_cause(error)` | Предсказание первопричины по логам + истории |
 | `intel_get_telemetry(days)` | Поинструментальная телеметрия, использование ресурсов, статистика LLM |
-| `intel_tool_health()` | Процент успеха инструментов, задержки, уверенность |
-| `intel_explain_project_state(root)` | Человекочитаемый диагноз состояния проекта |
-| `intel_get_project_context(root)` | Единый снэпшот: состояние, индекс, здоровье, память |
+| `intel_auto_collect_adrs(max_commits)` | Автогенерация ADR из истории коммитов |
+| `intel_reset_index()` | Удалить и пересобрать индекс с нуля |
 
-### Диагностические инструменты (3)
+> `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — см. Диагностические инструменты ниже.
+
+### Dev Tools (4)
+
+| Инструмент | Назначение |
+|------------|------------|
+| `generate_docs(project_root)` | Генерация Markdown-документации из PropertyGraph (DEPRECATED — используйте auto_update_docs) |
+| `bump_version(project_root, part, dry_run)` | Бамп версии проекта + обновление CHANGELOG |
+| `auto_update_docs(project_root, action)` | Автообновление документации: update/check |
+| `install_git_hooks(project_root, action)` | Установка pre-commit хуков: install/uninstall/status |
+
+### Диагностические инструменты (7)
 
 | Инструмент | Назначение |
 |------------|------------|
 | `debug_runtime_passport()` | Паспорт процесса: RUN_ID, PID, информация о сборке |
-| `get_runtime_counters()` | Счётчики рантайма: вызовы, блокировки, предупреждения |
-| `intel_execution_timeline(limit)` | Лента последних действий с длительностью |
+| `get_runtime_counters()` | Счётчики рантайма: вызовы, блокировки, предупреждения |
+| `intel_execution_timeline(limit)` | Лента последних действий с длительностью |
+| `intel_get_project_context(root)` | Единый снэпшот: состояние, индекс, здоровье, память |
+| `intel_explain_project_state(root)` | Человекочитаемый диагноз состояния проекта |
+| `intel_tool_health()` | Процент успеха инструментов, задержки, уверенность |
+| `refresh_db_connection()` | Сброс handle БД и переподключение |
 
 ---
 
@@ -314,7 +326,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  33 Класса         │  │  14 intel_* + 3 diag             │  │
+│  │  20 Классов        │  │  13 intel_* + 12 inline          │  │
 │  │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  │  Один класс на       │  │  decorator error_boundary         │
 │  │  │  инструмент          │  │  JSON status/message/detail       │
@@ -395,16 +407,21 @@ mscodebase-intelligence/
 │   ├── main.py                   # Точка входа MCP-сервера (~600 строк)
 │   ├── lsp_main.py               # LSP-сервер (на DI, для индексации при didSave)
 │   ├── mcp/
-│   │   ├── server.py + server_tools.py + server_factory.py  # DI-маршрутизация (~600 строк)
-│   │   └── tools/                # 10 файлов, 33 инструмента на классах
-│   │       ├── search_tools.py   # search_code, get_symbol_info, impact_analysis
-│   │       ├── indexing_tools.py # notify_change, index_project_dir, index_health
-│   │       ├── git_tools.py      # get_branch_info, get_commit_history
-│   │       ├── system_tools.py   # get_index_status, watcher_status, read_live_file
-│   │       ├── analysis_tools.py # structural_search, get_repo_map, scan_changes
-│   │       ├── graph_tools.py    # cross_repo_search, graph_query, get_related_files
-│   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots
-│   │       └── lifecycle_tools.py      # submit_background_task, verify_action
+│   │   ├── server.py               # Создание MCP-сервера (~597 строк)
+│   │   ├── server_factory.py       # DI setup + жизненный цикл сервера (~478 строк)
+│   │   ├── server_tools.py         # Регистрация инструментов + 12 inline (~607 строк)
+│   │   └── tools/                  # 13 модулей + base-класс
+│   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
+│   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis
+│   │       ├── indexing_tools.py   # notify_change, index_project_dir, index_health
+│   │       ├── git_tools.py        # get_branch_info, get_commit_history, get_file_history
+│   │       ├── system_tools.py     # get_index_status, get_health_report, read_live_file, get_logs
+│   │       ├── analysis_tools.py   # structural_search, get_repo_map, get_repo_rank, scan_changes
+│   │       ├── graph_tools.py      # cross_repo_search, cross_project_deps, graph_query
+│   │       ├── investigation_tools.py  # get_bug_correlation, get_hotspots, find_similar_bugs
+│   │       ├── lifecycle_tools.py  # submit_background_task, get_task_status, verify_action
+│   │       ├── meta_tools.py       # IndexTool, GitTool, SystemTool (spoke для codebase hub)
+│   │       └── write_tools.py      # WriteTool (rename, move, delete, replace, insert)
 │   ├── core/
 │   │   ├── di_container.py       # ★ DI-контейнер (18 сервисов, ServiceCollection)
 │   │   ├── error_handler.py      # ★ error_boundary + ToolError
@@ -412,7 +429,7 @@ mscodebase-intelligence/
 │   │   ├── indexer.py            # Векторное хранилище LanceDB
 │   │   ├── searcher.py           # Гибридный поиск (BM25 + Dense + RRF)
 │   │   ├── symbol_index.py       # Граф вызовов (BFS, анализ влияния)
-│   │   ├── intelligence_layer.py # Инструменты intel_* (14 высокоуровневых)
+│   │   ├── intelligence_layer.py # Инструменты intel_* (13 высокоуровневых)
 │   │   ├── llama_runner.py       # ★ Менеджер жизненного цикла llama-server (reranker)
 │   ├── remote_embedder.py    # ONNX/OpenVINO multilingual-e5-small (in-process) + LM Studio / Ollama fallback
 │   │   ├── reranker.py           # Мульти-провайдерный реранкер (HTTP к провайдерам)
@@ -426,7 +443,7 @@ mscodebase-intelligence/
 │   ├── en/               # Документация на английском
 │   ├── ru/               # Документация на русском
 │   └── zh/               # Документация на китайском
-├── tests/                        # 760 тестов (pytest)
+├── tests/                        # 853 теста (pytest)
 ├── .agents/skills/               # Навыки для AI-агента
 ├── install.py                    # Установщик
 └── README.md

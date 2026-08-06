@@ -1,6 +1,6 @@
 # 贡献指南 — MSCodeBase Intelligence
 
-> **版本：** 3.3.11 — DocSync 版
+> **版本：** 3.3.13
 
 ---
 
@@ -27,8 +27,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP 服务器注册（约 220 行）
 │   ├── server_factory.py # 服务器工厂 + DI 设置
-│   ├── server_tools.py  # 工具注册（共 48 个工具）
-│   └── tools/           # 14 个文件，19 个核心 + 13 个 intel + 12 个内联 + 4 个开发
+│   ├── server_tools.py  # 工具注册（共 49 个工具）
+│   └── tools/           # 14 个文件，20 个核心 + 13 个 intel + 12 个内联 + 4 个开发
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -111,7 +111,7 @@ isort src/
 
 ## 4. 运行测试
 
-项目在 `tests/` 目录中有 **565+ 个测试**。
+项目在 `tests/` 目录中有 **853+ 个测试**。
 
 ```powershell
 # 完整测试集
@@ -164,7 +164,7 @@ pytest tests/ --tb=long -v
 工具在 `src/mcp/server_tools.py` 中通过 `register_all_tools()` 注册。
 每个工具是 `src/mcp/tools/*.py` 中的一个类，继承自 `MCPTool`。
 
-### 工具类别（共 48 个）：
+### 工具类别（共 49 个）：
 
 | 类别 | 数量 | 主要工具 |
 |----------|-------|-----------|
@@ -340,7 +340,7 @@ SemVer：MAJOR.MINOR.PATCH
 - **MINOR** — 新工具/功能（向后兼容）
 - **PATCH** — 错误修复
 
-当前版本在 `pyproject.toml` 中：`3.3.9`
+当前版本在 `pyproject.toml` 中：`3.3.13`
 
 ---
 

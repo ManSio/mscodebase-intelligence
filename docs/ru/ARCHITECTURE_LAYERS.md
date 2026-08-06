@@ -19,7 +19,7 @@
 ```
 
 > **v3.0 change:** Слой 8 (Graph) добавлен между Passport и Intel. PropertyGraph
-> хранит типизированные узлы (15 меток) и рёбра (27 типов) в `.codebase/graph.db` (SQLite WAL+mmap).
+> хранит типизированные узлы (15 меток) и рёбра (29 типов) в `.codebase/graph.db` (SQLite WAL+mmap).
 
 ---
 

@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-08-06 — A/B protocol-compression: ARM A 54/64 vs ARM B 49.5/64 → ЧАСТИЧНО (завершён) 🟡
+
+**Symptom:** поведенческая эквивалентность компакта (−57.2%) не была измерена — A/B не запускался (запись 2026-08-06 protocol-compression, 🟡 Partial).
+**Fix (arm A):** 4 задачи × чек-лист 8 пунктов: T1 (dead code `_ensure_multi_reranker` engine.py:1013 — 19 passed, diff+откат), T2 (crash-loop 🔴 KNOWN_ISSUES:202: commit 57% vs 93.8%, RAM 8.47GB vs 2.17GB — риск снижен; активны C: 91.5%, pagefile 2.1GB, threads.db 85.6MB), T3 (batch=32 подтверждён, 156.15 ch/s max), T4 (счётчики инструментов: runtime-truth 49 = 20 core + 13 intel + 12 inline + 4 dev; правки AGENTS.md/README/ARCHITECTURE.md, auto_update_docs check ✓, откат).
+**Status:** 🟡 Partial (arm A done; arm B — сессия 2 после Reload, те же задачи в обратном порядке; восстановление AGENTS.full.bak→AGENTS.md обязательно) | **Guard:** .agent_task_state.md «Next Action»; EXPERIMENTS_LOG#2026-08-06-A/B; патчи experiments/t1_armA_engine.patch, experiments/t4_armA_docs.patch.
+**UPDATE 2026-08-06 21:50 (arm B, сессия 2 под компактом):** 4 задачи в обратном порядке выполнены → 49.5/64 (77.3%) vs arm A 54/64 (84.4%) → **ЧАСТИЧНО** (гипотеза «компакт ≥ полной» НЕ подтверждена). T4: runtime-truth 49 (20 core+13 intel+12 inline+4 dev, env off; 50 при env on) — 23 правки в 6 файлах, patch experiments/t4_armB_docs.patch, откат, 6 passed. T3: bench общий скрипт — batch=16 max (156.33 ch/s), batch=32 = 152.32 (1.026x хуже) → batch=32 НЕ подтверждён как строгий максимум (arm A: подтверждён). T2: риск краша снижен (commit 59.3%, Zed WS 0.59GB, free RAM 6.28GB, crash-loop 0; активны C: 92%, pagefile 2.1GB — хуже триажа 3.2GB, threads.db 85.9MB). T1: sync `_ensure_multi_reranker` удалён (−16 строк; grep 0 вызовов; 19 passed; patch experiments/t1_armB_engine.patch; откат). Восстановление AGENTS.full.bak→AGENTS.md выполнено (129705 B), .bak удалён. Просадки arm B: per-task Phase Zero (T2 без блока; 5.5/8 vs 6/8) и инкрементальный Ledger (4/8 vs 8/8 — обновление пачкой в конце) — оба контракта ЕСТЬ в компакте, просело срабатывание. Совпали с arm A: Red Team после edit (1.5), Concurrency note (1). Рекомендация: наблюдательный режим 5 сессий с правом отката; находки вне скоупа: sync `_apply_multi_reranker` (engine.py:1063) — 0 вызовов; старые счётчики «37/6 diag» в CONTRIBUTING/CHANGELOG/TELEMETRY/DEEP/HANDFOFF/GRACEFUL_DEGRADATION.
+
+**UPDATE 2026-08-06 22:30 (находки вне скоупа закрыты):** (1) sync `_apply_multi_reranker` удалён из engine.py (−39 строк суммарно с `_ensure_multi_reranker`, оба 0 вызовов в src+tests+scripts; `_sync_executor` остаётся в использовании sync `hybrid_search` L315; 19 passed: test_searcher 15 + test_fts5_integration 4). (2) Счётчики в 7 файлах обновлены 37/48→49 (20 core + 13 intel + 12 inline + 4 dev): CONTRIBUTING.md L31, docs/en/{ARCHITECTURE_DEEP L9/210/344, CHANGELOG L10, CONTRIBUTING L34-35/171, TELEMETRY L258/261/263, HANDFOFF L19/65/126, GRACEFUL_DEGRADATION L98-99}. НЕ закрыто (вне скоупа владельца): AGENTS.md L1/3-4/299/315 и docs/en|ru|zh/ARCHITECTURE.md (L18/94/276/304) всё ещё «48/19 core» — runtime-truth 49/20 core; README.md L208 «50 total» (env-on) vs L70 «49» — внутреннее противоречие; ZED_WINDOWS_QUIRKS.md L293 «48 tools» — ждут решения владельца.
+
+**UPDATE 2026-08-06 23:05 (решение владельца):** AGENTS.md (L1/4/299/315) + docs/en|ru|zh/ARCHITECTURE.md (TOC/диаграмма/register/«14 файлов»/комментарий/видимость/Total) ЗАКРЫТЫ → 49 (20 core + 13 intel + 12 inline + 4 dev); per-file grep «19 core|=48|=42|48 total» = 0 по 4 файлам; runtime пересчитан: server_tools.py tool_classes = 20, tools_reg.py = 13. Осталось (вне скоупа): README.md L208 «50 total» vs L70 «49» (внутреннее противоречие), ZED_WINDOWS_QUIRKS.md L293 «48 tools», ru/zh-версии README/CHANGELOG/CONTRIBUTING/HANDFOFF/GRACEFUL_DEGRADATION/TELEMETRY + docs/ru/ARCHITECTURE_DEEP:344 «37/19 core» — кандидаты на следующий проход.
+
+**UPDATE 2026-08-06 23:35 (следующий шаг, решение владельца):** ЗАКРЫТО 18 файлов → 49 (20 core + 13 intel + 12 inline + 4 dev): README.md (50→49, TOC-якорь), docs/ru|zh/README.md (42/48/33/14 intel/18 core/7 inline → 49/20/13/12; 747→761), CHANGELOG ru|zh, CONTRIBUTING ru|zh, HANDFOFF ru|zh, GRACEFUL_DEGRADATION ru|zh, TELEMETRY ru|zh, ARCHITECTURE_DEEP ru|zh, ZED_WINDOWS_QUIRKS en|ru|zh. Per-file grep-0 по устаревшим счётчикам. Осталось (вне скоупа, зафиксировано): ru/zh README секции инструментов — легаси-эр (deprecated-тулы, «Диагностические инструменты (3)»); edge-count PropertyGraph 42 (en/ru) vs 48 (zh).
+
+**UPDATE 2026-08-06 23:50 (3 открытых вопроса закрыты):** (1) ru/zh README секции инструментов реструктурированы по en-эталону: hub-формат index/git (codebase(action=...)), убраны deprecated-имена (get_commit_history→hub, watcher_status/predict_eta/run_health_check/get_related_files→актуальные), «Диагностические инструменты (3)»→(7) (+intel_get_project_context/explain/tool_health/refresh_db_connection), intel_* 14→13 (+auto_collect_adrs/reset_index), добавлены Dev Tools (4), структура проекта 13 модулей/853. (2) edge-count PropertyGraph: runtime-truth 29 (EdgeType graph.py:217-248) — исправлено 12 файлов: README 42→29, zh README 48→29, ARCHITECTURE/ARCHITECTURE_LAYERS/HANDFOFF en|ru|zh 27→29 (CHANGELOG 28 — историческая запись 3.2.0, не тронута). (3) CONTRIBUTING.md root 3.2.0/494→3.3.13/853 + docs en|ru|zh (3.3.11/565/3.3.9→3.3.13/853). Бонус (P-002): pyproject «48 analysis tools»→49, ARCHITECTURE_DEEP «396 тестов/15 DI»→853/18, ARCHITECTURE «396 tests»→853, «43 tools»→49, README badge «938»→853, «760 tests»→853. Итог: 26 файлов, pytest 853 passed (замер сессии), edge-count 29 везде, 49 tools везде.
+
 ## 2026-08-06 — Workstreams A+B+C по audit.md: SCM wiring (17 queries переписаны — было 0/17 компилируемых), language-pack слой (+54 языка), Leiden detect_communities (DONE, 853 passed)
 
 **Symptom:** «SCM-определения» (прошлая сессия) — вендоренные 17 tags.scm НЕ компилировались с установленными грамматиками (async_function_definition нет в tree-sitter-python 0.25) → SCM-путь никогда не работал; extract_definitions_scm вызывался только из scripts/patch_parser.py. Leiden: leidenalg/igraph — GPL (несовместимо с MIT как обязательные). language-pack: issue #174 угрожал отсутствием Windows-парсеров.
@@ -2858,5 +2873,59 @@ Three fixes from the same review:
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Done — глобальный AGENTS.md: Триггеры 6-7 (§1.19), §6.4 (Ledger-проверка каждой сессии), §0.1 п.2 (блокирующее обновление task state), §7 п.10 (DoD); создан WISDOM.md ≤50 строк; проектный AGENTS.md §0.6 + FIRST STEP
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 — Protocol-compression: черновик AGENTS.compact.md (−57.7%) + мех-слой (PARTIAL, A/B pending)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial — сжатие глобального AGENTS.md: черновик −57.7% (14.9k токенов), мех-слой вернул §5.16 (Windows subprocess, 12+ ссылок), Living Memory → §5.24; EXPERIMENTS_LOG: exp: protocol-compression; A/B по §1 не запускался — поведенческая эквивалентность ⏳ PENDING
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-06 22:35 — Закрытие находок вне скоупа A/B: sync-мосты удалены, счётчики 49 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+доки; 19 passed)
+**Root Cause:** T1/T4 эксперимента были откатаны — реальные фиксы не применялись: 2 мёртвых sync→async bridge (0 вызовов) + устаревшие счётчики «37/48/19 core...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 23:05 — Закрытие «48/19 core»: AGENTS.md + ARCHITECTURE en|ru|zh → 49 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (docs-only; per-file grep-0 по 4 файлам)
+**Root Cause:** счётчики «48/19 core» (ru/zh — даже «42»/«18 core»/«7 inline») в AGENTS.md + ARCHITECTURE en|ru|zh не обновлены после Detect...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 23:35 — Следующий шаг: «48/19 core»/«37»/«50» закрыты в README + ru/zh-доках + ZED (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (docs-only, 18 файлов, per-file grep-0)
+**Root Cause:** те же устаревшие счётчики «48/19 core», «37 (19 core + 12 intel + 6 diag)», «42», «50 total» в ru/zh-переводах + README/ZED —...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 21:40 — A/B protocol-compression: ARM A (полная версия) — 54/64; ARM B ждёт Reload Zed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial — arm A готов; arm B — сессия 2 (компакт); восстановление AGENTS.md после arm B обязательно
+**Root Cause:** (контекст) компакт −57.2% (53054 B/486 строк); поведенческая эквивален...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 22:05 — Протокол: Триггеры 6-7 (§1.19), оживлён §6.4, создан WISDOM.md (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done — правки в глобальном `AGENTS.md` (профиль Zed, вне репозитория) + проектном AGENTS.md; WISDOM.md создан
+**Root Cause:** три дыры замыкания петель: (1) §6.4 Ledger-проверка «раз в с...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 — Protocol-compression: черновик AGENTS.compact.md (−57.7%) + мех-слой (DONE, A/B pending)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial — объём подтверждён замером; поведенческая эквивалентность — A/B не запускался
+**Root Cause:** 126KB/35k токенов AGENTS.md — «Lost in the Middle»-риск (Verified: arXiv:2307.03172...
 - **Статус:** автоматически синхронизировано
 

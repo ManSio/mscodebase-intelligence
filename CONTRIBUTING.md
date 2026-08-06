@@ -26,9 +26,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Version** | 3.2.0 — Polyglot Graph Engine |
-| **Tests** | 494 ✅ |
-| **MCP Tools** | 37 (19 core + 12 intel + 6 diagnostic) |
+| **Version** | 3.3.13 — get_last_progress → core (ARCH-03 closed) |
+| **Tests** | 853 ✅ |
+| **MCP Tools** | 49 (20 core + 13 intel + 12 inline + 4 dev) |
 | **Parsing Languages** | 30 file extensions (16 with ASSIGNED_FROM data flow) |
 | **PropertyGraph** | SQLite WAL — 3,337 ASSIGNED_FROM edges on MSCodeBase |
 
