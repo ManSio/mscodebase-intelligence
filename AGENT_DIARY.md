@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-06 19:45] — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
+
+**Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца
+**Root Cause:** «SCM-определения» реализованы на 70%: 17 tags.scm + `extract_definitions_scm`/`_load_tags_query` есть, но прод-путь `parse_file` (parser.py:297) использует TARGET_NODES walk — `extract_definitions_scm` вызывается только из `scripts/patch_parser.py` (наивный патч не применён: ломает .md, callees, двойной парсинг и qualified names «Class.method» → регресс CALLS/DECORATES/OVERRIDES).
+**Fix:** queries/__init__.py + `*.scm` в pyproject.toml/MANIFEST.in (wheel больше не теряет queries); `install.py --sync-only` → расширение синхронизировано (grep-подтверждены все 5 побед в копии расширения); полный pytest 831 passed / 4 skipped / 94 deselected (0 failed).
+**Guard:** .agent_task_state.md «Decision 2026-08-06» (варианты A/B wiring); проверка вызовов (grep callers) перед заявлением «✅ реализовано».
+**Pattern:** P-002 «предположение вместо проверки» — победа помечена ✅ без проверки прод-пути.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не запускался (нет repo URL/сети); полный pytest 831 passed запущен явно; install --sync-only применён, ожидается Reload Window.
+
+---
+
 ## [2026-08-05 23:30] — Реальный отбор audit.md: 16 предложений сверено с кодом + 5 экспериментов (DONE)
 
 **Status:** ✅ Done (документация; код не менялся — Danger Zone соблюдён)
