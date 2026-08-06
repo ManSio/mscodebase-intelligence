@@ -14,7 +14,7 @@
    или `python -c "from src.core.artifact_paths import get_progress_file; print(get_progress_file(Path('.').resolve()))"`.
    Легаси-путь `.mscodebase/progress.json` в проекте — больше не пишется.
 
-1. **Read the Diary:** Review the first 5 entries in `AGENT_DIARY.md` (if the file exists in the project root).
+1. **Read the Diary + Wisdom:** Review the first 5 entries in `AGENT_DIARY.md` and read `WISDOM.md` целиком (если существуют) — WISDOM.md загружается всегда, это дистиллят фактов, а не архив.
 2. **Determine MCP Context:**
    - If `intel_*` tools or `search_code` are available → **MCP-FIRST MODE** (§0.2). IDE grep/read — только fallback.
    - If absent → MCP server offline. Work exclusively with `grep`, `read_file`, `terminal`.
@@ -249,7 +249,7 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 Канонический набор файлов в корне проекта:
 
 - **Код и конфиг:** `src/`, `tests/`, `scripts/`, `tools/`, `docs/`, `experiments/`, `ruff.toml`
-- **Правила проекта:** `AGENTS.md`, `AGENT_DIARY.md`, `KNOWN_ISSUES.md`, `EXPERIMENTS_LOG.md`, `ISSUE.md` (активный аудит-трекер)
+- **Правила проекта:** `AGENTS.md`, `AGENT_DIARY.md`, `KNOWN_ISSUES.md`, `EXPERIMENTS_LOG.md`, `WISDOM.md` (дистиллят ≤50 строк, пополняется по Триггеру 7 §1.19), `ISSUE.md` (активный аудит-трекер)
 - **Установка:** `install.py` / `install.bat` / `install.sh` / `uninstall.bat`, `extension.toml`, `__mscodebase_ext__.marker`, `start_server.bat`
 - **Пакет:** `pyproject.toml`, `requirements.txt`, `requirements-lock.txt`, `MANIFEST.in`, `LICENSE`, `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `AI_INSTALLATION_PROMPT.md`
 - **Архивы:** `docs/archive/` (например `DEV_DIARY_2026_07.md`); `DEV_DIARY.md` в корне — заглушка-редирект на `AGENT_DIARY.md`
