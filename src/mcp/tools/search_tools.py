@@ -708,9 +708,11 @@ class ImpactAnalysisTool(MCPTool):
             "risk_score": result["risk_score"],
             "affected_files": result["affected_files"],
             "affected_modules": result.get("affected_modules", []),
+            "impact_grouped": result.get("impact_grouped", {}),
+            "top_callers": result.get("top_callers", []),
             "next_step": (
                 "Проверьте affected_files через `read_live_file`; "
-                "при высоком risk_score — просмотрите direct_callers"
+                "при высоком risk_score — просмотрите impact_grouped.depth_1_will_break"
             ),
         }
 
