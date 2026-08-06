@@ -1,28 +1,5 @@
-; Bash tags query
+; Bash tags query — version-matched to tree-sitter-bash 0.25.x
 
-; Functions
 (function_definition
-  name: (function_name) @name
-  (#set! "kind" "function")
+  name: (_) @name
 ) @definition.function
-
-; Calls
-(command
-  name: (command_name) @name
-) @reference.call
-
-; Source/Import
-(source_statement
-  (word) @module
-) @definition.import
-
-; Variables
-(variable_assignment
-  name: (variable_name) @name
-) @definition.variable
-
-(variable_assignment
-  name: (array_variable
-    name: (variable_name) @name
-  )
-) @definition.variable

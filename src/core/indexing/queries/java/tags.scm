@@ -1,65 +1,21 @@
-; Java tags query
+; Java tags query — version-matched to tree-sitter-java 0.23.x
 
-; Classes
 (class_declaration
-  name: (identifier) @name
-  (#set! "kind" "class")
+  name: (_) @name
 ) @definition.class
 
-; Interfaces
 (interface_declaration
-  name: (identifier) @name
-  (#set! "kind" "interface")
+  name: (_) @name
 ) @definition.interface
 
-; Enums
 (enum_declaration
-  name: (identifier) @name
-  (#set! "kind" "enum")
-) @definition.type
+  name: (_) @name
+) @definition.enum
 
-; Methods
 (method_declaration
-  name: (identifier) @name
-  (#set! "kind" "method")
+  name: (_) @name
 ) @definition.method
 
-; Constructors
 (constructor_declaration
-  name: (identifier) @name
-  (#set! "kind" "constructor")
-) @definition.function
-
-; Annotations (decorators equivalent)
-(annotation
-  (identifier) @name
-  (#set! "kind" "annotation")
-) @definition.decorator
-
-; Calls
-(method_invocation
-  name: (identifier) @name
-) @reference.call
-
-; Field access calls
-(method_invocation
-  object: (_)
-  name: (identifier) @name
-) @reference.call
-
-; Imports
-(import_declaration
-  name: (scoped_identifier) @module
-) @definition.import
-
-; Variables
-(variable_declarator
-  name: (identifier) @name
-) @definition.variable
-
-; Fields
-(field_declaration
-  (variable_declarator
-    name: (identifier) @name
-  )
-) @definition.variable
+  name: (_) @name
+) @definition.constructor

@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 # Путь к встроенным tags.scm queries
 QUERIES_DIR = Path(__file__).parent / "queries"
 
+# Валидный идентификатор для SCM-символов (фильтр мусора макро-грамматик)
+_VALID_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
 
 class CodeParser:
     """Парсит код и разбивает на семантически значимые чанки (функции, методы)."""
@@ -64,6 +67,17 @@ class CodeParser:
         "impl_item",
         "class_declaration",
         "interface_declaration",
+    }
+
+    # Какие definition.*-капчуры tags.scm считаются символами-определениями.
+    # Исключены: variable/import (обрабатываются add_assignments/IMPORTS),
+    # decorator (DECORATES-рёбра через extract_decorators), implementation
+    # (дублирует struct-символ в Rust: impl Foo = тот же qname, что struct Foo).
+    SCM_DEFINITION_KINDS = {
+        "function", "method", "class", "interface", "enum", "type",
+        "struct", "union", "record", "trait", "protocol", "namespace",
+        "module", "object", "mixin", "extension", "constructor",
+        "delegate", "event", "macro", "property",
     }
 
     # Настройки Fallback-чанкера и защиты от гигантских функций
@@ -291,6 +305,32 @@ class CodeParser:
 
             logger.info(f"✅ Tree-sitter готов для: {list(self.parsers.keys())}")
 
+            # ── Опциональный слой tree-sitter-language-pack (MSCODEBASE_LANGUAGE_PACK) ──
+            try:
+                from src.core import language_pack
+
+                if language_pack.is_enabled():
+                    result = language_pack.try_enable()
+                    if result.get("enabled"):
+                        added = 0
+                        for ext in language_pack.registered_exts():
+                            parser = language_pack.get_parser(ext)
+                            if parser is not None:
+                                self.parsers[ext] = parser
+                                added += 1
+                        if added:
+                            self.SUPPORTED_EXTENSIONS = PARSE_EXTENSIONS | frozenset(
+                                language_pack.registered_exts()
+                            )
+                            logger.info(
+                                f"🌍 language-pack: +{added} расширений, "
+                                f"SUPPORTED_EXTENSIONS={len(self.SUPPORTED_EXTENSIONS)}"
+                            )
+                    else:
+                        logger.debug(f"language-pack не активен: {result.get('reason')}")
+            except Exception as e:  # noqa: BLE001 — слой опционален, не роняем парсер
+                logger.warning(f"language-pack init failed: {e}")
+
         except ImportError as e:
             logger.warning(f"⚠️ Модуль Tree-sitter не установлен: {e}")
 
@@ -315,6 +355,17 @@ class CodeParser:
                 chunks, symbols = self._fallback_line_chunking(file_path)
         else:
             chunks, symbols = self._fallback_line_chunking(file_path)
+
+        # v3.x: определения через tags.scm — полнее walk (async def, классы,
+        # struct/enum/interface) в том же формате (qualified, 0-based, node.type).
+        # Walk-символы остаются fallback'ом, если SCM недоступен/пуст.
+        if ext in self.parsers:
+            try:
+                scm_symbols = self.extract_definitions_scm(file_path)
+                if scm_symbols:
+                    symbols = scm_symbols
+            except Exception as e:
+                logger.warning(f"SCM definitions failed for {file_path}: {e}")
 
         # v3.0: добавляем callees в metadata каждого чанка
         if chunks:
@@ -352,20 +403,14 @@ class CodeParser:
     def _parse_with_tree_sitter(self, file_path: Path, ext: str) -> tuple:
         """Парсинг через AST с сохранением контекста и извлечением символов.
         Возвращает (chunks, symbols).
+
+        Использует _get_tree() (thread-local кэш на 1 файл): при вызове из
+        parse_file следом за extract_definitions_scm файл НЕ парсится дважды.
         """
-        parser = self._get_parser(ext)
-
-        try:
-            with open(file_path, "rb") as f:
-                code = f.read()
-        except Exception as e:
-            logger.warning(f"Ошибка чтения файла {file_path}: {e}")
+        code, tree = self._get_tree(file_path)
+        if tree is None:
             return [], []
 
-        if not code.strip():
-            return [], []
-
-        tree = parser.parse(code)
         chunks = []
         symbols = []
 
@@ -755,11 +800,29 @@ class CodeParser:
                 logger.warning(f"Failed to load tags.scm for {lang}: {e}")
         return ""
 
+    def _load_language_pack_query(self, ext: str) -> str:
+        """tags.scm из опционального language-pack слоя (языки без вендоренных)."""
+        try:
+            from src.core import language_pack
+
+            lang = language_pack.lang_for_ext(ext)
+            if lang:
+                return language_pack.get_tags_query(lang) or ""
+        except Exception:  # noqa: BLE001 — fallback на walk, не роняем парсер
+            pass
+        return ""
+
     def extract_definitions_scm(self, file_path: Path) -> List[Dict]:
         """Извлекает определения (function/class/method) через tags.scm query.
 
-        Заменяет TARGET_NODES walk для определений.
-        Возвращает список символов в формате CodeParser: name, line, kind.
+        Возвращает символы в ФОРМАТЕ TARGET_NODES walk (совместимость с
+        потребителями без изменений): name — qualified ("Class.method" через
+        контейнерные предки, как current_context в _walk_node), line — 0-based,
+        kind — node.type.
+
+        Имя берётся из @name-капчуры query (не из _find_child_by_type):
+        в C/C++/PHP/Ruby name-узел вложен в обёртки (function_declarator,
+        name, constant), и прямой поиск ребёнка их пропускает.
         """
         ext = file_path.suffix.lower()
         if ext not in self.parsers:
@@ -767,14 +830,18 @@ class CodeParser:
 
         query_src = self._load_tags_query(ext)
         if not query_src:
-            return []  # fallback на старый walk
-
-        code, tree = self._get_tree(file_path)
-        if tree is None:
+            # Слой language-pack: встроенные tags.scm для новых языков
+            # (компилируются с его грамматикой — self.parsers[ext] тот же).
+            query_src = self._load_language_pack_query(ext)
+        if not query_src:
             return []
 
         try:
             from tree_sitter import Query, QueryCursor
+
+            code, tree = self._get_tree(file_path)
+            if tree is None:
+                return []
             query = Query(self.parsers[ext].language, query_src)
             cursor = QueryCursor(query)
             captures = cursor.captures(tree.root_node)
@@ -782,25 +849,78 @@ class CodeParser:
             logger.warning(f"SCM query failed for {file_path}: {e}")
             return []
 
-        symbols = []
-        # captures: {capture_name: [nodes]}  (tree-sitter 0.26)
+        # Собираем definition-узлы (свои kinds из whitelist) по диапазону.
+        def_nodes = []  # [(node, kind_suffix)]
+        def_by_range = {}  # (start, end, type) -> index
         for cap_name, nodes in captures.items():
             if not cap_name.startswith("definition."):
                 continue
-            kind = cap_name.replace("definition.", "")  # function, class, method, etc.
+            kind = cap_name[len("definition."):]
+            if kind not in self.SCM_DEFINITION_KINDS:
+                continue
             for node in nodes:
-                name_node = self._find_child_by_type(node, "identifier") or \
-                            self._find_child_by_type(node, "type_identifier") or \
-                            self._find_child_by_type(node, "simple_identifier") or \
-                            self._find_child_by_type(node, "function_name")
-                if name_node:
-                    name = code[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="ignore")
-                    symbols.append({
-                        "name": name,
-                        "line": node.start_point[0] + 1,
-                        "kind": kind,
-                    })
-        return symbols
+                key = (node.start_byte, node.end_byte, node.type)
+                if key in def_by_range:
+                    continue
+                def_by_range[key] = len(def_nodes)
+                def_nodes.append((node, kind))
+
+        # Спариваем @name-узлы со своим definition-узлом: ближайший
+        # definition-предок name-узла (вложенные def-узлы не крадут имя).
+        name_owner = {}  # index def_nodes -> name node
+        for nm in captures.get("name", []):
+            parent = nm.parent
+            while parent is not None:
+                key = (parent.start_byte, parent.end_byte, parent.type)
+                idx = def_by_range.get(key)
+                if idx is not None:
+                    if idx not in name_owner:
+                        name_owner[idx] = nm
+                    break
+                parent = parent.parent
+
+        symbols = []
+        for idx, (node, _kind) in enumerate(def_nodes):
+            nm = name_owner.get(idx)
+            if nm is None:
+                continue
+            name = code[nm.start_byte:nm.end_byte].decode(
+                "utf-8", errors="ignore"
+            ).strip()
+            # Фильтр валидности имени: отсекает мусор из макро-грамматик
+            # (elixir: 'ef ', 'ello(') — см. tests/test_scm_definitions.py.
+            if not name or not _VALID_IDENTIFIER_RE.fullmatch(name):
+                continue
+
+            # qualified name через контейнерные предки — как current_context
+            # в _walk_node (CONTAINER_NODES: class/struct/impl/interface).
+            context_parts = []
+            parent = node.parent
+            while parent is not None:
+                if parent.type in self.CONTAINER_NODES:
+                    cname = self._node_name(parent, code)
+                    if cname:
+                        context_parts.insert(0, cname)
+                parent = parent.parent
+            if context_parts:
+                name = ".".join(context_parts + [name])
+
+            symbols.append({
+                "name": name,
+                "line": node.start_point[0],
+                "kind": node.type,
+            })
+
+        # Дедуп по (name, line) — защита от дублей captures.
+        seen = set()
+        uniq = []
+        for s in symbols:
+            key = (s["name"], s["line"])
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(s)
+        return uniq
 
     def _walk_file(self, file_path: Path):
         """Единый обход AST: один parse, один walk, три результата.

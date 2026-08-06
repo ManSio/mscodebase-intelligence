@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-06 21:10] — Workstreams A+B+C по отбору audit.md: SCM wiring, language-pack (+54), Leiden (DONE)
+
+**Status:** ✅ Done — 853 passed / 4 skipped (baseline 831); ruff чист; коммиты: (A) SCM wiring, (B) language-pack, (C) Leiden
+**Root Cause:** (A) вендоренные 17 tags.scm НЕ компилировались с установленными грамматиками (0/17 — async_function_definition не существует в tree-sitter-python 0.25); extract_definitions_scm вызывался только из scripts/patch_parser.py; формат SCM-символов несовместим с walk (simple name, 1-based, capture-kind). (C) leidenalg GPL-3.0 + igraph GPL-2.0 ≠ MIT. (B) issue #174 «нет windows-бандла» мог блокировать язык-pack.
+**Fix:** (A) переписаны 17 tags.scm под установленные грамматики (name: (_) @name, positional где нет полей) + extract_definitions_scm: qualified names через контейнерные предки, 0-based line, kind=node.type, whitelist kinds, @name-спаривание через ancestor-walk, фильтр валидных имён; parse_file: SCM-first с fallback на walk; _parse_with_tree_sitter через _get_tree (без двойного парсинга); label_map расширен (class/struct/enum/interface/type/property). SCM теперь ⊇ walk (классы, async, struct, enum). (C) [community] extra + src/core/community_detection.py (CPM Leiden, лимиты OOM) + MCP tool detect_communities (49 tools всего). (B) [language-pack] extra + гейт MSCODEBASE_LANGUAGE_PACK (off) + src/core/language_pack.py (54 языка, tags queries, DYNAMIC_EXTENSIONS→FileGuard); elixir/matlab исключены (макро-шум/.m конфликт). Эксперимент: per-language download на Windows работает (Exp 6).
+**Guard:** tests/test_scm_definitions.py (11: format parity, superset, fallback, compile-guard на бампы грамматик), test_community_detection.py (5), test_language_pack.py (6); README 48→49 (20 core); .env.example += MSCODEBASE_LANGUAGE_PACK.
+**Pattern:** P-002 «предположение вместо проверки» — прошлая сессия закоммитила нерабочие queries без compile-теста; guard = compile-guard теперь обязателен.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не запускался (нет repo URL/сети); полный pytest 853 passed запущен явно.
+
+---
+
 ## [2026-08-06 19:45] — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
 
 **Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца

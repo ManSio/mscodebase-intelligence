@@ -57,6 +57,7 @@ def register_all_tools(mcp, services):
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
+        DetectCommunitiesTool,
         GraphQueryTool,
     )
     from src.mcp.tools.investigation_tools import (
@@ -89,10 +90,11 @@ def register_all_tools(mcp, services):
         GetRepoRankTool,
         ScanChangesTool,
         GenerateChunkSummariesTool,
-        # Graph (3 — Фаза 2: graph_query мультиплексирует 4 бывших тула)
+        # Graph (4 — graph_query мультиплексирует 4 бывших тула)
         CrossRepoSearchTool,
         CrossProjectDepsTool,
         GraphQueryTool,
+        DetectCommunitiesTool,
         # Investigation (3)
         GetBugCorrelationTool,
         GetHotspotsTool,

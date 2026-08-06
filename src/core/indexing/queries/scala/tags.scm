@@ -1,84 +1,21 @@
-; Scala tags query
+; Scala tags query — version-matched to tree-sitter-scala 0.26.x
 
-; Classes
 (class_definition
-  name: (type_identifier) @name
-  (#set! "kind" "class")
+  name: (_) @name
 ) @definition.class
 
-; Case classes
-(class_definition
-  modifiers: (modifiers
-    (modifier) @_case
-    (#eq? @_case "case")
-  )
-  name: (type_identifier) @name
-  (#set! "kind" "class")
-) @definition.class
-
-; Traits
 (trait_definition
-  name: (type_identifier) @name
-  (#set! "kind" "trait")
-) @definition.interface
+  name: (_) @name
+) @definition.trait
 
-; Objects (singletons)
 (object_definition
-  name: (identifier) @name
-  (#set! "kind" "object")
+  name: (_) @name
 ) @definition.type
 
-; Functions
 (function_definition
-  name: (identifier) @name
-  (#set! "kind" "function")
+  name: (_) @name
 ) @definition.function
 
-; Methods
-(method_declaration
-  name: (identifier) @name
-  (#set! "kind" "method")
-) @definition.method
-
-; Values and vars
-(val_definition
-  pattern: (identifier) @name
-  (#set! "kind" "value")
-) @definition.variable
-
-(var_definition
-  pattern: (identifier) @name
-  (#set! "kind" "variable")
-) @definition.variable
-
-; Annotations (decorators)
-(annotation
-  (simple_type
-    (type_identifier) @name
-  )
-  (#set! "kind" "annotation")
-) @definition.decorator
-
-; Calls
-(apply_expression
-  function: (identifier) @name
-) @reference.call
-
-(apply_expression
-  function: (select_expression
-    field: (identifier) @name
-  )
-) @reference.call
-
-; Imports
-(import_clause
-  (import_selector
-    (identifier) @module
-  )
-) @definition.import
-
-(import_clause
-  (import_selector
-    (wildcard_import) @_wild
-  )
-) @definition.import
+(enum_definition
+  name: (_) @name
+) @definition.enum
