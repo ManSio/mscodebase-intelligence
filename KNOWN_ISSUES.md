@@ -2838,3 +2838,25 @@ Three fixes from the same review:
 **Root Cause:** (1) `_count_tools`: `text.count()` на regex-строке как на литерале (`@mcp\.tool\("` со слешами) + скан только server_tools.py → всегда 0; (2) `_count_tests`: `count...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-06 21:10 — Workstreams A+B+C по отбору audit.md: SCM wiring, language-pack (+54), Leiden (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done — 853 passed / 4 skipped (baseline 831); ruff чист; коммиты: (A) SCM wiring, (B) language-pack, (C) Leiden
+**Root Cause:** (A) вендоренные 17 tags.scm НЕ компилировались с установле...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 19:45 — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца
+**Root Cause:** «SCM-определения» реализованы на 70%: 17 tags.scm + `extract_definitions_scm`/`_load_tags_...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 22:05 — Протокол: Триггеры 6-7 (§1.19), оживлён §6.4, §0.1/§7 блокирующий task state, WISDOM.md (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done — глобальный AGENTS.md: Триггеры 6-7 (§1.19), §6.4 (Ledger-проверка каждой сессии), §0.1 п.2 (блокирующее обновление task state), §7 п.10 (DoD); создан WISDOM.md ≤50 строк; проектный AGENTS.md §0.6 + FIRST STEP
+- **Статус:** автоматически синхронизировано
+
