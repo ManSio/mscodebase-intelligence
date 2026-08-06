@@ -189,6 +189,7 @@ class GraphQueryTool(MCPTool):
                 "risk_score": result.get("risk_score", 0),
                 "direct_impact": result.get("direct_impact", [])[:10],
                 "tests_to_run": result.get("tests_to_run", []),
+                "next_step": "Проверьте direct_impact через `get_symbol_info`; при высоком risk_score — запустите tests_to_run",
             }
 
         elif query_type == "feature":
@@ -209,6 +210,7 @@ class GraphQueryTool(MCPTool):
                 "target": target,
                 "files": result.get("files", []),
                 "symbols": symbols_dicts,
+                "next_step": "Для оценки влияния изменений используйте `impact_analysis`",
             }
 
         elif query_type == "deps":
@@ -220,6 +222,7 @@ class GraphQueryTool(MCPTool):
                 "target": target,
                 "depends_on": result.get("depends_on", []),
                 "depended_by": result.get("depended_by", []),
+                "next_step": "Проверьте зависимые модули через `impact_analysis`",
             }
 
         elif query_type == "tests":
@@ -230,6 +233,7 @@ class GraphQueryTool(MCPTool):
                 "query_type": "tests",
                 "target": target,
                 "tests": tests or [],
+                "next_step": "Запустите перечисленные тесты перед коммитом изменений",
             }
 
         known_types = "impact|feature|deps|tests"

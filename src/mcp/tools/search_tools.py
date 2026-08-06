@@ -464,6 +464,19 @@ class SearchCodeTool(MCPTool):
             detail=detail,
         )
 
+        # Next-step hint (Axon pattern, audit.md п.5): ведёт агента к
+        # следующему действию вместо плоского списка результатов.
+        if results_count > 0:
+            result_str = result_str.rstrip() + (
+                "\n\n💡 **next_step:** для графа вызовов символа используйте "
+                "`get_symbol_info`; для оценки влияния — `impact_analysis`"
+            )
+        else:
+            result_str = result_str.rstrip() + (
+                "\n\n💡 **next_step:** результатов нет — уточните запрос "
+                "или используйте `graph_query` для структурного поиска"
+            )
+
         return result_str
 
     async def _agentic_search(self, query: str) -> str:
@@ -601,12 +614,15 @@ class GetSymbolInfoTool(MCPTool):
                 result += _("\n⬇️ **Calls:**\n")
                 for c in callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
-            return result
+            return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
         # Fallback: поиск по имени
         results = self.resolve_symbol_index().search_symbols(query)
         if not results:
-            return _("ℹ️ **{query}** — not found\n", query=query)
+            return _(
+                "ℹ️ **{query}** — not found\n\n💡 **next_step:** попробуйте `search_code` с другим запросом или `graph_query` для поиска по графу\n",
+                query=query,
+            )
 
         defs = [r for r in results if getattr(r, "is_definition", False)]
         usages = [r for r in results if not getattr(r, "is_definition", False)]
@@ -624,7 +640,7 @@ class GetSymbolInfoTool(MCPTool):
             result += _("\n📎 **Usages:**\n")
             for u in usages[:5]:
                 result += f"   • `{u.file_path}` строка {u.line}\n"
-        return result
+        return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
 
 class ImpactAnalysisTool(MCPTool):
@@ -659,6 +675,7 @@ class ImpactAnalysisTool(MCPTool):
             return {
                 "status": "warning",
                 "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
+                "next_step": "Уточните имя символа через `search_code` или `graph_query`",
             }
 
         # Guard: защита от не-списковых значений (B2 — TypeError в логах)
@@ -691,6 +708,10 @@ class ImpactAnalysisTool(MCPTool):
             "risk_score": result["risk_score"],
             "affected_files": result["affected_files"],
             "affected_modules": result.get("affected_modules", []),
+            "next_step": (
+                "Проверьте affected_files через `read_live_file`; "
+                "при высоком risk_score — просмотрите direct_callers"
+            ),
         }
 
 
