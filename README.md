@@ -15,7 +15,7 @@
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-853%20passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-49-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-52-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-08-03*
 
@@ -44,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 49 tools for AI assistant                 │
+│  │  · 52 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 49 tools (20 core + 13 intel + 12 inline + 4 dev), 853+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 52 tools (23 core + 13 intel + 12 inline + 4 dev), 853+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -205,7 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (49 total)
+## 🔧 MCP Tools (52 total)
 
 ### Core Search
 
@@ -218,6 +218,14 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 | `get_symbol_info(query)` | Call Graph: callers, callees, impact files |
 | `execute_script(code, timeout, args)` | **Sandboxed Python execution (3-layer).** AST validation + runtime `__import__` wrapper + subprocess isolation. Audit-logged. Returns `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
 | `impact_analysis(symbol)` | Symbol change impact analysis (risk score, depth) |
+
+### LSP Analysis (basedpyright)
+
+| Tool | When to Use |
+|------|-------------|
+| `lsp_find_references(file_path, line, col, symbol_name)` | **Exact AST references** (all usages of a symbol) via Zed's bundled basedpyright. `line`/`col` are 0-based (LSP); `col=-1` auto-detects via `symbol_name` |
+| `lsp_find_definition(file_path, line, col, symbol_name)` | Jump to symbol definition (declaration) — precise, language-server-grade |
+| `lsp_document_symbols(file_path)` | File structure tree: classes/functions/variables with positions |
 
 ### Index Management (via `codebase(action="index", ...)`)
 

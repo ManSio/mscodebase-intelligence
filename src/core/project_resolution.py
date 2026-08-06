@@ -309,17 +309,9 @@ def resolve_project_root(provided: str = "") -> Path:
     except Exception as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 
-    # LSP→MCP bridge (Windows compat)
-    try:
-        from src.core.lsp_project_bridge import read_project_from_bridge
-
-        bridge_path = read_project_from_bridge()
-        if bridge_path is not None:
-            logger.debug(f"resolve_project_root: bridge={bridge_path}")
-            return bridge_path
-    except Exception as _e:
-        logger.warning(f"Bridge read failed: {_e}")
-    # ─── 4. PROJECT_PATH из окружения (перед Zed DB — явный приоритет) ───
+    # LSP→MCP bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
+    # read_project_from_bridge всегда возвращает None. project_root резолвится
+    # через PROJECT_PATH env / Zed SQLite / CWD (см. следующий блок).
     env_root = _resolve_env_project_root()
     if env_root is not None:
         logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")

@@ -95,8 +95,8 @@ stateDiagram-v2
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
 
-    state ALL_TOOLS[Visible: 49 tools]
-        ALL_TOOLS: All 49 MCP tools available (20 core + 13 intel + 12 inline + 4 dev)
+    state ALL_TOOLS[Visible: 52 tools]
+        ALL_TOOLS: All 52 MCP tools available (23 core + 13 intel + 12 inline + 4 dev)
     end
 
     state CUSTOM_TOOLS[Custom selection]

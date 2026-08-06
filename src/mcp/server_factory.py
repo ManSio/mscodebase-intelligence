@@ -253,7 +253,6 @@ def create_mcp_server():
     start_heartbeat_monitor(mcp)
     # Auto-index НЕ вызываем здесь — event loop ещё не запущен.
     # Вызов будет в run_server() после asyncio.run().
-    _start_delayed_bridge_recheck(services)
 
     return mcp
 
@@ -338,25 +337,7 @@ def _register_extension_handlers(mcp, services):
 
 
 
-def _start_delayed_bridge_recheck(services):
-    try:
-        from src.core.lsp_project_bridge import read_project_from_bridge
 
-        def _recheck():
-            try:
-                time.sleep(1.5)
-                bridged = read_project_from_bridge(max_wait=2.0)
-                from src.mcp.server import _ext_root, reset_project_root_cache
-                if bridged and bridged.resolve() != _ext_root.resolve():
-                    reset_project_root_cache()
-                    logger.info(f"🌉 Delayed recheck: project_root = {bridged}")
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
-        threading.Thread(target=_recheck, name="bridge-recheck", daemon=True).start()
-    except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
 # ══════════════════════════════════════════════════════════
 # run_server — точка входа stdio
 # ══════════════════════════════════════════════════════════

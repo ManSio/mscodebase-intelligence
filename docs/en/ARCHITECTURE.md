@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (20 core + 13 intel + 12 inline + 4 dev = 49 total)](#4-tool-layer)
+4. [Tool Layer (23 core + 13 intel + 12 inline + 4 dev = 52 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py               (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (20 core + 12 inline + 4 dev)│
+│  Layer 3: mcp/tools/*.py         (23 core + 12 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,14 +91,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 20 core + 13 intel + 12 inline + 4 dev = 49 total
+3. Register 23 core + 13 intel + 12 inline + 4 dev = 52 total
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **14 files: 20 core (19 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 native).**
+`src/mcp/tools/*.py` — **15 files: 23 core (19 + codebase hub + 3 LSP) + 12 inline + 4 dev.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -275,7 +275,7 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
     # +13 intel_* tools + 12 inline diagnostic + 4 dev
-    # Total: 49 registered (20 core + 13 intel + 12 inline + 4 dev)
+    # Total: 52 registered (23 core + 13 intel + 12 inline + 4 dev)
 ```
 
 **Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 49.
@@ -301,7 +301,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Total:** 49 registered (20 core + 13 intel + 12 inline + 4 dev). Default visible: ~36. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 52 registered (23 core + 13 intel + 12 inline + 4 dev). Default visible: ~39. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

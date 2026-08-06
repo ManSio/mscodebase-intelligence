@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-06 — LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyright), счётчики 49→52 (DONE)
+
+**Symptom:** (B) вечное предупреждение «LSP bridge not yet synchronized» — MCP session key (11592) никогда не совпадает с bridge-файлами (пишутся чужими процессами); check_lsp_health.py искал bridge в несуществующей директории ext_root/.codebase_indices/bridge (реальная ~/.mscodebase/bridge) и ссылался на несуществующий docs/investigations/2026-07-05-lsp-zed-1.9.0.md (реальный LSP_WONTFIX.md); (C) точный AST-анализ (references/definition/symbols) был доступен только внутри write_tools (rename), не как MCP-тулы; LspClient писал мусорные bridge-файлы при каждом старте (легаси write_active_project в _initialize).
+**Fix:** (B) read_active_project/read_project_from_bridge → None без polling (deprecated, модуль сохранён для импортов); warning убран (runtime_coordinator requires_bridge_sync=False); bridge-ветка удалена из resolve_project_root; _start_delayed_bridge_recheck удалён (функция+вызов); легаси-запись убрана из LspClient._initialize; паспорт/intel_explain/снапшот — честный статус «deprecated»; check_lsp_health.py: путь ~/.mscodebase/bridge + LSP_WONTFIX.md + вердикт под Zed 1.14.2; LSP_WONTFIX en|ru|zh += перепроверка (официальные доки Zed: кастомные LSP требуют Rust+WASM). (C) новый src/mcp/tools/lsp_tools.py: lsp_find_references/lsp_find_definition/lsp_document_symbols (0-based line/col, col=-1 автопоиск по symbol_name, общий ленивый LspClient, graceful fallback); LspClient += _write_lock (сериализация JSON-RPC stdin — было без lock, риск интерливинга фреймов при параллельных вызовах); регистрация в tool_classes + default _allowed_names → 23 core = 52 total; счётчики 49→52 в 27 файлах (AGENTS/README/CONTRIBUTING/pyproject/docs en|ru|zh) + auto_doc_updater docstring + тест-гвард 49→52; README += секция «LSP Analysis».
+**Status:** ✅ Fixed (не закоммичено) | **Guard:** pytest 853 passed / 4 skipped; concurrency-стресс A==C (2/2 refs параллельно через общий клиент); grep-0 «49 total|20 core» по живым докам; smoke: start 267ms, references 2/2 верные; _count_tools = 52 (динамический); test_auto_doc_updater 52.
+**verified_from_clean_state:** ⚠️ не проверено — чистый клон не запускался; перепроверено в рабочем дереве: pytest tests/ → 853 passed (эта сессия).
+
+---
+
 ## 2026-08-06 — A/B protocol-compression: ARM A 54/64 vs ARM B 49.5/64 → ЧАСТИЧНО (завершён) 🟡
 
 **Symptom:** поведенческая эквивалентность компакта (−57.2%) не была измерена — A/B не запускался (запись 2026-08-06 protocol-compression, 🟡 Partial).

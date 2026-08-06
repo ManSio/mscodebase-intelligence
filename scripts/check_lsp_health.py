@@ -97,11 +97,12 @@ def check_settings_json(settings_path: Path) -> dict:
         if binary:
             result["issues"].append(
                 "⚠️  LSP 'mscodebase-lsp' зарегистрирован в settings.json, "
-                "но НЕ БУДЕТ СТАРТОВАТЬ на Zed 1.9.0 Windows."
+                "но НЕ БУДЕТ СТАРТОВАТЬ на Windows."
             )
             result["issues"].append(
-                "   Причина: имени нет в LanguageRegistry Zed. "
-                "Подробности: docs/investigations/2026-07-05-lsp-zed-1.9.0.md"
+                "   Причина: кастомные имена LSP невозможны без Rust+WASM-расширения "
+                "(перепроверено 2026-08-06 на Zed 1.14.2). "
+                "Подробности: docs/en/investigations/LSP_WONTFIX.md"
             )
     else:
         result["issues"].append("ℹ️  LSP 'mscodebase-lsp' не зарегистрирован в settings.json — это норма.")
@@ -151,25 +152,20 @@ def check_lsp_process() -> list[str]:
 
 
 def check_bridge_files() -> list[str]:
-    """Проверяет наличие bridge-файлов от LSP."""
+    """Проверяет bridge-файлы (DEPRECATED 2026-08-06 — LSP-мост удалён)."""
     issues = []
-    ext_root = _get_ext_root()
-    if ext_root is None:
-        issues.append("ℹ️  Расширение не установлено — bridge-файлы не ожидаются")
-        return issues
-
-    bridge_dir = ext_root / ".codebase_indices" / "bridge"
+    bridge_dir = Path.home() / ".mscodebase" / "bridge"
     if bridge_dir.exists():
         json_files = list(bridge_dir.glob("*.json"))
         if json_files:
-            issues.append(f"✅ Найдено {len(json_files)} bridge-файл(ов):")
-            for f in json_files:
-                issues.append(f"   • {f.name}")
+            issues.append(
+                f"ℹ️  Найдено {len(json_files)} bridge-файл(ов) — артефакты удалённого "
+                "LSP-моста, игнорируются (LSP server removed 2026-07-20)"
+            )
         else:
-            issues.append("ℹ️  Директория bridge существует, но JSON-файлов нет — LSP не писал проект")
+            issues.append("ℹ️  Директория bridge пуста")
     else:
-        issues.append("ℹ️  Директория bridge не найдена — LSP никогда не стартовал")
-
+        issues.append("ℹ️  Директория bridge не найдена — ожидаемо (мост деприцирован)")
     return issues
 
 
@@ -244,31 +240,23 @@ def main():
 
     if s_result["has_lsp_block"] and platform.system() == "Windows":
         print("  ⚠️  LSP 'mscodebase-lsp' зарегистрирован в settings.json,")
-        print("      но НЕ БУДЕТ СТАРТОВАТЬ на Zed 1.9.0 Windows.")
+        print("      но НЕ БУДЕТ СТАРТОВАТЬ (перепроверено 2026-08-06 на Zed 1.14.2).")
         print()
-        print("  Первопричина: на Windows Zed 1.9.0 кастомные имена LSP")
-        print("  отсутствуют в LanguageRegistry. lsp_store.rs не находит")
-        print("  адаптер и падает в панику .expect('To find LSP adapter').")
+        print("  Причина: кастомные имена LSP невозможны через settings.json —")
+        print("  имя обязано быть в LanguageRegistry (встроенное или WASM-расширение).")
         print()
-        print("  Подробности: docs/investigations/2026-07-05-lsp-zed-1.9.0.md")
+        print("  Подробности: docs/en/investigations/LSP_WONTFIX.md")
         print()
         print("  Рекомендация: удалить блок lsp из settings.json")
         print("  (он не работает, но не вредит).")
-        print("  MCP-сервер (43 инструмента) покрывает 100% сценариев.")
     elif platform.system() == "Windows" and not s_result["has_lsp_block"]:
-        print("  ℹ️  LSP 'mscodebase-lsp' корректно не зарегистрирован —")
-        print("      это WONTFIX на Zed 1.9.0 Windows.")
+        print("  ℹ️  LSP-сервер 'mscodebase-lsp' не зарегистрирован — корректно.")
+        print("      Редакторный LSP требует Rust+WASM-расширения (путь A, не реализован).")
         print()
-        print("  MCP-сервер работает и обеспечивает весь функционал")
-        print("  код-ассистента: семантический поиск, parent_id retrieval,")
-        print("  layer-фильтрация, телеметрия.")
-        print()
-        print("  Рабочие сценарии:")
-        print("   • search_code(mode=deep, filter_layer=core)")
-        print("   • get_chunks_by_parent_id(parent_id)")
-        print("   • intel_get_telemetry")
-        print("   • intel_get_runtime_status")
-        print("   • ... и ещё 39 инструментов")
+        print("  MCP-сервер работает и обеспечивает весь функционал:")
+        print("  семантический поиск, точный AST-анализ через LspClient")
+        print("  (basedpyright): lsp_find_references / lsp_find_definition /")
+        print("  lsp_document_symbols, плюс 49 других инструментов.")
     else:
         print("  ✅ Всё в порядке.")
         print()

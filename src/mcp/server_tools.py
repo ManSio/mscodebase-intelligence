@@ -3,11 +3,11 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- register_all_tools() — регистрация 19 core-инструментов (18 core + 1 codebase hub) + execute_script
+- register_all_tools() — регистрация 23 core-инструментов (20 + 3 LSP) + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
 - _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
-- Всего: 19 + 13 + 12 + 4 = 48 инструментов (+ 1 optional execute_script = 49)
+- Всего: 23 + 13 + 12 + 4 = 52 инструментов (+ 1 optional execute_script = 53 при env-on)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -70,6 +70,11 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool,
         VerifyActionTool,
     )
+    from src.mcp.tools.lsp_tools import (
+        LspDocumentSymbolsTool,
+        LspFindDefinitionTool,
+        LspFindReferencesTool,
+    )
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
@@ -82,6 +87,10 @@ def register_all_tools(mcp, services):
         SearchCodeTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
+        # LSP (3) — точный AST через basedpyright (вариант C, 2026-08-06)
+        LspFindReferencesTool,
+        LspFindDefinitionTool,
+        LspDocumentSymbolsTool,
         # Hub: codebase (единый интерфейс для всех операций)
         CodebaseTool,
         # Analysis (5)
@@ -138,6 +147,9 @@ def register_all_tools(mcp, services):
             "search_code",
             "get_symbol_info",
             "impact_analysis",
+            "lsp_find_references",
+            "lsp_find_definition",
+            "lsp_document_symbols",
             "intel_get_runtime_status",
             "intel_get_project_context",
             "intel_get_project_memory",
@@ -327,15 +339,9 @@ def _register_inline_tools(mcp, services):
 
         pr = _default_project_root or resolve_project_root()
 
-        # Bridge state
-        _bridge = None
+        # Bridge state — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20.
+        _bridge_state = "<not used — LSP server removed 2026-07-20>"
         _bridge_err = None
-        try:
-            from src.core.lsp_project_bridge import read_project_from_bridge
-
-            _bridge = str(read_project_from_bridge(max_wait=0.1))
-        except Exception as e:
-            _bridge_err = str(e)
 
         # Registry state
         _registry_paths: list[str] = []
@@ -370,7 +376,7 @@ def _register_inline_tools(mcp, services):
         result += f"• **Default Project:** `{_val(str(pr))}`\n"
         result += f"• **Project State:** `{_val(_project_state)}`\n"
         result += section("🔗 Bridge")
-        result += f"• **State:** {_val(_bridge)}\n"
+        result += f"• **State:** {_val(_bridge_state)}\n"
         if _bridge_err:
             result += f"• **Error:** `{_val(_bridge_err)}`\n"
         result += section("📦 Registry")
@@ -452,10 +458,7 @@ def _register_inline_tools(mcp, services):
         lines.append(f"  Embedder: {snap.index_embedder or 'N/A'}")
         lines.append("")
         lines.append("── Bridge ──")
-        if snap.bridge_synced:
-            lines.append(f"  ✅ LSP synchronized: {snap.bridge_path}")
-        else:
-            lines.append("  ❌ LSP not synced")
+        lines.append("  ⚪ LSP bridge deprecated (LSP server removed 2026-07-20)")
         lines.append("")
         lines.append("── Runtime ──")
         lines.append(f"  PID: {snap.runtime_pid or 'N/A'}")
@@ -486,10 +489,6 @@ def _register_inline_tools(mcp, services):
             lines.append(
                 "  Run intel_trigger_reindex() then check status via intel_get_job_status()"
             )
-        if not verdict.requires_bridge_sync and snap.bridge_path:
-            lines.append("")
-            lines.append("── Bridge path ──")
-            lines.append(f"  LSP workspace: {snap.bridge_path}")
 
         return chr(10).join(lines)
 
