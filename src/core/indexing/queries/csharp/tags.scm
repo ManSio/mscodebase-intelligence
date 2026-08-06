@@ -1,72 +1,25 @@
-; C# tags query
+; C# tags query — version-matched to tree-sitter-c-sharp 0.23.x
 
-; Classes
 (class_declaration
-  name: (type_identifier) @name
-  (#set! "kind" "class")
+  name: (_) @name
 ) @definition.class
 
-; Interfaces
 (interface_declaration
-  name: (type_identifier) @name
-  (#set! "kind" "interface")
+  name: (_) @name
 ) @definition.interface
 
-; Structs
 (struct_declaration
-  name: (type_identifier) @name
-  (#set! "kind" "struct")
+  name: (_) @name
 ) @definition.type
 
-; Methods
+(enum_declaration
+  name: (_) @name
+) @definition.enum
+
 (method_declaration
-  name: (identifier) @name
-  (#set! "kind" "method")
+  name: (_) @name
 ) @definition.method
 
-; Properties
 (property_declaration
-  name: (identifier) @name
-  (#set! "kind" "property")
-) @definition.function
-
-; Attributes (decorators)
-(attribute
-  (attribute_target)? "attribute"?
-  (attribute_section
-    (attribute
-      name: (identifier) @name
-    )
-  )
-  (#set! "kind" "attribute")
-) @definition.decorator
-
-; Calls
-(invocation_expression
-  expression: (member_access_expression
-    name: (identifier) @name
-  )
-) @reference.call
-
-(invocation_expression
-  expression: (identifier) @name
-) @reference.call
-
-; Imports
-(using_directive
-  (qualified_name) @module
-) @definition.import
-
-; Variables
-(variable_declaration
-  (variable_declarator
-    name: (identifier) @name
-  )
-) @definition.variable
-
-; Fields
-(field_declaration
-  (variable_declarator
-    name: (identifier) @name
-  )
-) @definition.variable
+  name: (_) @name
+) @definition.property

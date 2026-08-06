@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-06 — Workstreams A+B+C по audit.md: SCM wiring (17 queries переписаны — было 0/17 компилируемых), language-pack слой (+54 языка), Leiden detect_communities (DONE, 853 passed)
+
+**Symptom:** «SCM-определения» (прошлая сессия) — вендоренные 17 tags.scm НЕ компилировались с установленными грамматиками (async_function_definition нет в tree-sitter-python 0.25) → SCM-путь никогда не работал; extract_definitions_scm вызывался только из scripts/patch_parser.py. Leiden: leidenalg/igraph — GPL (несовместимо с MIT как обязательные). language-pack: issue #174 угрожал отсутствием Windows-парсеров.
+**Root Cause:** P-002 — queries закоммичены без compile-теста против установленных версий грамматик (pyproject pin — диапазоны, версии дрейфуют); формат SCM-символов не совпадал с walk (simple name vs qualified, 1-based vs 0-based, capture-kind vs node.type).
+**Fix:** (A) 17 tags.scm переписаны минимальными (name: (_) @name; positional где нет полей — kotlin/dart/sql) + extract_definitions_scm: qualified names через контейнерные предки, 0-based, kind=node.type, whitelist kinds, @name-спаривание ancestor-walk, фильтр валидных имён; parse_file SCM-first/fallback-walk; _parse_with_tree_sitter через _get_tree; label_map расширен. (C) [community] extra (GPL) + src/core/community_detection.py + MCP detect_communities (49 tools). (B) [language-pack] extra + гейт MSCODEBASE_LANGUAGE_PACK (off) + src/core/language_pack.py: 54 языка, tags queries, DYNAMIC_EXTENSIONS→FileGuard; elixir (макро-шум) и matlab (.m vs ObjC) исключены. Эксперимент Exp 6: per-language download на Windows РАБОТАЕТ (issue #174 = только download_all).
+**Status:** ✅ Done | **Guard:** test_scm_definitions.py compile-guard (бамп грамматики без обновления query = красный); test_language_pack.py/test_community_detection.py; README 48→49 (20 core); .env.example MSCODEBASE_LANGUAGE_PACK.
+
 ## 2026-08-06 — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring не подключён) + packaging-фикс (FIXED, коммит f14435db)
 
 **Symptom:** заявлено «все 5 побед реализованы», но проверка показала: SCM-определения на 70% — queries (17 языков) + `extract_definitions_scm`/`_load_tags_query` есть, а прод-путь `parse_file` (parser.py:297) использует TARGET_NODES walk; `extract_definitions_scm` вызывается только из `scripts/patch_parser.py`. Дополнительно: queries/ не входили в wheel (нет package_data/MANIFEST.in, queries не пакет без `__init__.py`).

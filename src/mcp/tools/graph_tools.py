@@ -807,8 +807,62 @@ def _unverifiable(message: str, predicate: str) -> dict:
     return {"status": "ok", "verdict": "unverifiable", "message": message, "evidence": [], "confidence": 0.3, "predicate": predicate}
 
 
+class DetectCommunitiesTool(MCPTool):
+    """detect_communities — Leiden-детекция сообществ в PropertyGraph.
+
+    Находит группы связанных файлов/символов (семантические рёбра:
+    CALLS/IMPORTS/DECORATES/OVERRIDES/...). CO_CHANGES_WITH не смешивается.
+
+    ⚠️ Требует copyleft-зависимостей (GPL-3.0/GPL-2.0):
+        pip install mscodebase-intelligence[community]
+    Без них возвращает status=not_installed (MIT-ядро не затронуто).
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="detect_communities")
+
+    @error_boundary("detect_communities", timeout_ms=30000)
+    async def execute(
+        self,
+        edge_types: Optional[list] = None,
+        max_nodes: int = 20000,
+        max_edges: int = 200000,
+        resolution: float = 1.0,
+        top_communities: int = 20,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> dict:
+        """Детектирует сообщества в графе текущего проекта."""
+        from src.core.community_detection import detect_communities
+
+        try:
+            pg = self._services.resolve(PropertyGraph)
+        except KeyError:
+            indexer = self.resolve_indexer()
+            pg = getattr(indexer, "_graph", None) or getattr(
+                indexer, "property_graph", None
+            )
+            if not pg:
+                return {
+                    "status": "error",
+                    "action": "communities",
+                    "message": "PropertyGraph not available. Run reindex first.",
+                }
+
+        result = detect_communities(
+            pg,
+            edge_types=edge_types,
+            max_nodes=max_nodes,
+            max_edges=max_edges,
+            resolution=resolution,
+            top_communities=top_communities,
+        )
+        result.setdefault("action", "communities")
+        return result
+
+
 __all__ = [
     "CrossRepoSearchTool",
     "CrossProjectDepsTool",
     "GraphQueryTool",
+    "DetectCommunitiesTool",
 ]

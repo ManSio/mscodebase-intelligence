@@ -1,49 +1,23 @@
-; C++ tags query (extends C)
+; C++ tags query — version-matched to tree-sitter-cpp 0.23.x
 
-; Classes
+(function_definition
+  declarator: (function_declarator
+    declarator: (_) @name
+  )
+) @definition.function
+
 (class_specifier
-  name: (type_identifier) @name
-  (#set! "kind" "class")
+  name: (_) @name
 ) @definition.class
 
-; Structs
 (struct_specifier
-  name: (type_identifier) @name
-  (#set! "kind" "struct")
+  name: (_) @name
 ) @definition.type
 
-; Namespaces
+(enum_specifier
+  name: (_) @name
+) @definition.type
+
 (namespace_definition
-  name: (identifier) @name
-  (#set! "kind" "namespace")
-) @definition.type
-
-; Templates
-(template_declaration
-  (class_specifier
-    name: (type_identifier) @name
-  )
-) @definition.class
-
-(template_declaration
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier) @name
-    )
-  )
-) @definition.function
-
-; Lambdas
-(lambda_expression
-  (#set! "kind" "function")
-) @definition.function
-
-; Using declarations
-(using_declaration
-  name: (scoped_identifier) @name
-) @definition.import
-
-; Inherits
-(base_class_clause
-  (type_identifier) @name
-) @reference.type
+  name: (_) @name
+) @definition.namespace

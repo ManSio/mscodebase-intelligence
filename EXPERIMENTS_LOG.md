@@ -1,5 +1,28 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-06] — Exp 6: tree-sitter-language-pack парсеры на Windows (issue #174 блокирует?)
+
+**Гипотеза:** language-pack 1.14.3 НЕ может скачивать парсеры на Windows (issue #174: `No pre-built parsers available for platform 'windows-x86_64'`) → интеграция +56 языков невозможна до следующего релиза.
+**Команда:** `python -m venv %TEMP%/tslp_test && pip install tree-sitter-language-pack` → `get_parser('lua')` + 11 других языков + `get_tags_query`; затем интеграция в проект: `MSCODEBASE_LANGUAGE_PACK=true python -c "from src.core import language_pack; print(language_pack.try_enable())"`.
+**Сырой результат:**
+```
+language-pack: 1.14.3
+LUA PARSER: OK Language   ← get_parser РАБОТАЕТ на Windows (per-language download)
+12/12 тестовых языков: parser OK (lua, elixir, haskell, zig, nim, clojure, v, odin, groovy, julia, perl, crystal)
+cache_dir: %LOCALAPPDATA%/tree-sitter-language-pack/v1.14.3/libs
+manifest_languages: 371 | languages WITH tags: 71
+интеграция: try_enable → enabled: True | langs: 54 | tags: 54 | failed: []
+.lua SCM-символы: greet, helper (function_declaration) — чисто
+.sol: Bank, deposit, get | .r: greet, compute_mean | .pyx: cy_add, Point.__init__ — чисто
+.nix: 0 символов (query есть, captures пусты — честный пусто)
+.exs (elixir): МУСОР — 'defmodule', 'ef ', 'ello(' (макро-грамматика: def/defmodule — call-узлы) → elixir исключён из карты
+```
+**Вердикт:** гипотеза ОПРОВЕРГНУТА (хорошая новость). Per-language download на Windows работает (issue #174 касается только download_all()). Слой интегрирован как optional extra [language-pack] + гейт MSCODEBASE_LANGUAGE_PACK (off по умолчанию): 54 языка, 54 tags-queries, 0 failed.
+**Урок:** issue про «нет windows-бандла» ≠ «не работают per-language загрузки» — эмпирическая проверка обязательна; макро-грамматики (elixir) требуют фильтра валидности имён (добавлен: `_VALID_IDENTIFIER_RE`) или исключения.
+**Связь с отрицательными:** вариация «371 язык symbol extraction» (Exp 1) — подтверждено 71 tags-язык; новое: парсеры на Windows работают.
+
+---
+
 ## [2026-08-05] — Exp 1: tree-sitter-language-pack — «371 язык за 1 день» (проверка ключевого заявления audit.md)
 
 **Гипотеза:** пакет даёт 300+ языков symbol extraction «из коробки» одним pip install; get_parser работает с tree-sitter 0.26; tags.scm присутствуют для большинства языков.

@@ -56,15 +56,42 @@ class PureGraphMixin:
             qname = f"{project_name}.{file_path}.{name}"
 
             label_map = {
+                # walk (TARGET_NODES) + SCM (tags.scm): функции
                 "function_definition": NodeLabel.FUNCTION,
+                "async_function_definition": NodeLabel.FUNCTION,
+                "function_declaration": NodeLabel.FUNCTION,
+                "function_item": NodeLabel.FUNCTION,
+                "function_expression": NodeLabel.FUNCTION,
+                "arrow_function": NodeLabel.FUNCTION,
+                "macro_definition": NodeLabel.FUNCTION,
+                "decorated_definition": NodeLabel.FUNCTION,
                 "function": NodeLabel.FUNCTION,
-                "class_definition": NodeLabel.CLASS,
-                "class": NodeLabel.CLASS,
+                # методы
                 "method_definition": NodeLabel.METHOD,
+                "method_declaration": NodeLabel.METHOD,
                 "method": NodeLabel.METHOD,
+                # классы и им подобные контейнеры
+                "class_definition": NodeLabel.CLASS,
+                "class_declaration": NodeLabel.CLASS,
+                "class_expression": NodeLabel.CLASS,
+                "class": NodeLabel.CLASS,
+                "struct_item": NodeLabel.CLASS,
+                "struct_declaration": NodeLabel.CLASS,
+                "object_declaration": NodeLabel.CLASS,  # Kotlin/Scala object
+                # интерфейсы
+                "interface_declaration": NodeLabel.INTERFACE,
                 "interface": NodeLabel.INTERFACE,
+                "trait_item": NodeLabel.INTERFACE,  # Rust
+                "trait_declaration": NodeLabel.INTERFACE,  # PHP/Scala
+                "protocol_declaration": NodeLabel.INTERFACE,  # Swift
+                # enum / type
+                "enum_item": NodeLabel.ENUM,
+                "enum_declaration": NodeLabel.ENUM,
                 "enum": NodeLabel.ENUM,
+                "type_alias_declaration": NodeLabel.TYPE,
                 "type": NodeLabel.TYPE,
+                # свойства/поля (C#/Kotlin property из tags.scm)
+                "property_declaration": NodeLabel.VARIABLE,
                 "variable": NodeLabel.VARIABLE,
             }
             node_label = label_map.get(kind, NodeLabel.FUNCTION)

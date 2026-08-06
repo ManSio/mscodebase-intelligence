@@ -94,6 +94,21 @@ dev = [
     "isort",
 ]
 
+# ⚠️ COPyleft-зависимости (GPL): leidenalg = GPL-3.0, igraph = GPL-2.0.
+# НЕ совместимы с MIT-дистрибуцией как обязательные — только опциональный extra.
+# Кто ставит [community] — принимает GPL-условия для этого расширения.
+community = [
+    "leidenalg>=0.12.0,<1",   # Leiden algorithm (GPL-3.0-or-later)
+    "igraph>=1.0.0,<2",       # Graph backend (GPL-2.0-or-later)
+]
+
+# Опциональный слой +56 языков с tags.scm (symbol extraction).
+# Парсеры скачиваются при первом использовании (нужна сеть) — см. src/core/language_pack.py.
+# Включение: MSCODEBASE_LANGUAGE_PACK=true в .env
+language-pack = [
+    "tree-sitter-language-pack>=1.14.3,<2",  # MIT
+]
+
 [project.urls]
 Homepage = "https://github.com/ManSio/mscodebase-intelligence"
 Repository = "https://github.com/ManSio/mscodebase-intelligence"

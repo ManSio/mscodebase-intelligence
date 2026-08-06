@@ -55,14 +55,18 @@ INDEX_EXTENSIONS: frozenset[str] = frozenset({
 # ── Backward-compat alias (drop-in замена для старых мест) ─────────────────
 SUPPORTED_EXTENSIONS: frozenset[str] = INDEX_EXTENSIONS
 
+# ── Динамические расширения (language-pack слой, MSCODEBASE_LANGUAGE_PACK) ─
+# Дополняется src/core/language_pack.try_enable() при включённом гейте.
+DYNAMIC_EXTENSIONS: set[str] = set()
+
 
 def is_supported(path: str) -> bool:
     """Быстрая проверка по суффиксу. Case-insensitive."""
     suffix = Path(path).suffix.lower()
-    return suffix in INDEX_EXTENSIONS
+    return suffix in INDEX_EXTENSIONS or suffix in DYNAMIC_EXTENSIONS
 
 
 def is_parseable(path: str) -> bool:
     """True если файл поддерживает AST-парсинг через tree-sitter."""
     suffix = Path(path).suffix.lower()
-    return suffix in PARSE_EXTENSIONS
+    return suffix in PARSE_EXTENSIONS or suffix in DYNAMIC_EXTENSIONS
