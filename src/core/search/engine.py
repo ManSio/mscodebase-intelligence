@@ -1010,22 +1010,6 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             logger.debug(f"Graph context expansion error: {e}")
             return results
 
-    def _ensure_multi_reranker(self) -> Optional[MultiProviderReranker]:
-        """Ленивая синхронная инициализация мульти-провайдерного реранкера."""
-        if self._multi_reranker_initialized:
-            return self._multi_reranker
-
-        self._multi_reranker_initialized = True
-        try:
-            reranker = MultiProviderReranker()
-            asyncio.run(reranker.initialize())
-            self._multi_reranker = reranker
-            return reranker
-        except Exception as e:
-            logger.warning(f"Не удалось инициализировать MultiProviderReranker: {e}")
-            self._multi_reranker = None
-            return None
-
     async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
         """Ленивая thread-safe async инициализация мульти-провайдерного реранкера.
 
@@ -1077,29 +1061,6 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 return None
             finally:
                 self._multi_reranker_initialized = True
-
-    def _apply_multi_reranker(
-        self,
-        query: str,
-        rrf_results: List[dict],
-        top_n: int,
-    ) -> List[dict]:
-        """Синхронная обёртка для мульти-провайдерного реранкинга."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            future = _sync_executor.submit(
-                asyncio.run,
-                self._apply_multi_reranker_async(query, rrf_results, top_n),
-            )
-            return future.result(timeout=35)
-        else:
-            return asyncio.run(
-                self._apply_multi_reranker_async(query, rrf_results, top_n)
-            )
 
     async def _apply_multi_reranker_async(
         self,
