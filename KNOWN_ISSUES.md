@@ -2809,3 +2809,18 @@ Three fixes from the same review:
 **Root Cause:** JobHistoryStore пишет во внешний `<data_root>/projects/<hash>/metrics/job_history.json`, а pytest переиспользует temp-пути между запусками (с...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-05 23:30 — Реальный отбор audit.md: 16 предложений сверено с кодом + 5 экспериментов (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (документация; код не менялся — Danger Zone соблюдён)
+**Root Cause:** audit.md содержал 16 предложений «внедрить», из которых 6 УЖЕ реализованы (Cypher-стек, 27/29 EdgeType, change ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-05 22:15 — AutoDocUpdater коррумпировал README: 4 бага в _update_readme/_count_* (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed
+**Root Cause:** (1) `_count_tools`: `text.count()` на regex-строке как на литерале (`@mcp\.tool\("` со слешами) + скан только server_tools.py → всегда 0; (2) `_count_tests`: `count...
+- **Статус:** автоматически синхронизировано
+
