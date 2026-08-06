@@ -5,6 +5,7 @@ include pyproject.toml
 include requirements.txt
 
 recursive-include src *.py
+recursive-include src *.scm
 recursive-include tests *.py
 recursive-include .agents/skills *.md
 
