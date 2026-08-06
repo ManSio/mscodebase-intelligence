@@ -567,6 +567,7 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "line": edge.properties.get("line", 0),
                         "kind": neighbor.properties.get("kind", neighbor.label.lower()),
                         "depth": level + 1,
+                        "confidence": self._call_confidence(neighbor),
                     })
                     result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)
@@ -592,6 +593,7 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "line": edge.properties.get("line", 0),
                         "kind": neighbor.properties.get("kind", neighbor.label.lower()),
                         "depth": level + 1,
+                        "confidence": self._call_confidence(neighbor),
                     })
                     result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)
@@ -687,14 +689,43 @@ class SymbolIndexAdapter(PureGraphMixin):
 
     # ── Impact Analysis ───────────────────────────────────
 
+    @staticmethod
+    def _call_confidence(neighbor: Node) -> float:
+        """Доверие к разрешению вызова (Axon: 1.0 exact / 0.8 receiver / 0.5 fuzzy).
+
+        - 1.0: реальный узел с определением (не placeholder)
+        - 0.8: квалифицированный метод (Class.method — резолв по суффиксу)
+        - 0.5: placeholder (не резолвлен при индексации, __extern__)
+        """
+        props = neighbor.properties or {}
+        if props.get("placeholder"):
+            return 0.5
+        if "." in neighbor.name:
+            return 0.8
+        return 1.0
+
     def get_impact_analysis(self, symbol: str, depth: int = 3) -> Dict:
-        """Анализ влияния изменения символа."""
+        """Анализ влияния изменения символа.
+
+        Группирует callers по глубине (Axon pattern, audit.md п.3):
+        depth_1_will_break / depth_2_may_break / depth_3_review.
+        Каждая запись содержит confidence (1.0 exact / 0.8 receiver / 0.5 fuzzy).
+        """
         call_graph = self.build_call_graph(symbol, depth=depth)
 
-        direct_callers = sum(1 for c in call_graph["callers"] if c.get("depth") == 1)
-        transitive_callers = len(call_graph["callers"]) - direct_callers
+        callers = call_graph["callers"]
+        direct_callers = sum(1 for c in callers if c.get("depth") == 1)
+        transitive_callers = len(callers) - direct_callers
         direct_callees = sum(1 for c in call_graph["callees"] if c.get("depth") == 1)
         transitive_callees = len(call_graph["callees"]) - direct_callees
+
+        # Depth grouping (Axon): will_break / may_break / review
+        impact_grouped = {
+            "depth_1_will_break": [c for c in callers if c.get("depth") == 1],
+            "depth_2_may_break": [c for c in callers if c.get("depth") == 2],
+            "depth_3_review": [c for c in callers if c.get("depth") >= 3],
+        }
+        top_callers = sorted(callers, key=lambda c: (c.get("depth", 99), -c.get("confidence", 0)))[:10]
 
         affected_files = call_graph.get("impact_files", [])
         affected_modules = set()
@@ -724,6 +755,8 @@ class SymbolIndexAdapter(PureGraphMixin):
             "affected_modules": sorted(affected_modules),
             "risk_level": risk_level,
             "risk_score": risk_score,
+            "impact_grouped": impact_grouped,
+            "top_callers": top_callers,
             "call_graph": call_graph,
         }
 
