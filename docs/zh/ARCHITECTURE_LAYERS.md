@@ -19,7 +19,7 @@
 ```
 
 > **v3.0 变更：** 第 8 层（Graph）已添加到 Passport 和 Intel 之间。PropertyGraph
-> 在 `.codebase/graph.db`（SQLite WAL+mmap）中存储类型化节点（15 种标签）和边（27 种类型）。
+> 在 `.codebase/graph.db`（SQLite WAL+mmap）中存储类型化节点（15 种标签）和边（29 种类型）。
 
 ---
 

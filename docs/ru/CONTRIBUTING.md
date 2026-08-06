@@ -4,7 +4,7 @@
 
 # Контрибьюция — MSCodeBase Intelligence
 
-> **Версия:** 3.3.11 — DocSync Edition
+> **Версия:** 3.3.13
 
 ---
 
@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # Регистрация MCP-сервера (~220 строк)
 │   ├── server_factory.py # Фабрика сервера + DI setup
-│   ├── server_tools.py  # Регистрация инструментов (всего 48)
-│   └── tools/           # 14 файлов, 19 core + 13 intel + 12 inline + 4 dev
+│   ├── server_tools.py  # Регистрация инструментов (всего 49)
+│   └── tools/           # 14 файлов, 20 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -115,7 +115,7 @@ isort src/
 
 ## 4. Запуск тестов
 
-В проекте **565+ тестов** в `tests/`.
+В проекте **853+ тестов** в `tests/`.
 
 ```powershell
 # Полный набор
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Инструменты регистрируются в `src/mcp/server_tools.py` через `register_all_tools()`.
 Каждый инструмент — класс в `src/mcp/tools/*.py`, наследующий от `MCPTool`.
 
-### Категории инструментов (всего 48):
+### Категории инструментов (всего 49):
 
 | Категория | Количество | Ключевые инструменты |
 |----------|-------|-----------|
@@ -344,7 +344,7 @@ SemVer: MAJOR.MINOR.PATCH
 - **MINOR** — новые инструменты/функции (обратно совместимые)
 - **PATCH** — багфиксы
 
-Текущая версия в `pyproject.toml`: `3.3.9`
+Текущая версия в `pyproject.toml`: `3.3.13`
 
 ---
 

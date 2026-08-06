@@ -13,9 +13,9 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-938%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-853%20passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-50-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-49-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-08-03*
 
@@ -118,11 +118,11 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 49 tools (20 core + 13 intel + 12 inline + 4 dev), 761+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 49 tools (20 core + 13 intel + 12 inline + 4 dev), 853+ tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
-| 🔗 **Data Flow Graph** | `ASSIGNED_FROM` edges track variable assignments. Unified Walker + Conditional Flow (if/for/while/try). 42 edge types in PropertyGraph. |
+| 🔗 **Data Flow Graph** | `ASSIGNED_FROM` edges track variable assignments. Unified Walker + Conditional Flow (if/for/while/try). 29 edge types in PropertyGraph. |
 | ⚙️ **SYSTEM_PROFILE** | `light` (sync) / `server` (async with phi-4) |
 | 🎯 **MMR Diversification** | Maximal Marginal Relevance (λ=0.6) after RRF — removes duplicates while preserving relevance. 0.3ms for 50 docs. |
 | 🧠 **Auto Intent Detection** | Keyword-based auto-detection of code/docs intent from query text. No manual `intent_hint` required. |
@@ -205,7 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
-## 🔧 MCP Tools (50 total)
+## 🔧 MCP Tools (49 total)
 
 ### Core Search
 
@@ -434,8 +434,8 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py               # MCP server creation (~597 lines)
 │   │   ├── server_factory.py       # DI setup + server lifecycle (~478 lines)
-│   │   ├── server_tools.py         # Tool registration + 7 inline tools (~607 lines)
-│   │   └── tools/                  # 11 modules + base class
+│   │   ├── server_tools.py         # Tool registration + 12 inline tools (~607 lines)
+│   │   └── tools/                  # 13 modules + base class
 │   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py   # notify_change, index_project_dir, index_health
@@ -451,7 +451,7 @@ mscodebase-intelligence/
 │   │   ├── di_container.py         # ★ DI Container (18 services, ServiceCollection)
 │   │   ├── error_handler.py        # error_boundary decorator + ToolError
 │   │   ├── rate_limiter.py         # SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
-│   │   ├── graph.py                # PropertyGraph (42 edge types)
+│   │   ├── graph.py                # PropertyGraph (29 edge types)
 │   │   ├── structural_search.py    # 13 AST patterns (Tree-sitter)
 │   │   ├── lsp_client.py           # Thin LSP client (pyright JSON-RPC 2.0)
 │   │   ├── intelligence_layer.py   # Shim → core/intelligence/layer.py
@@ -470,7 +470,7 @@ mscodebase-intelligence/
 │   ├── ru/                         # Russian docs
 │   └── zh/                         # Chinese docs
 ├── scripts/                        # CLI utilities (install, sync, benchmark, audit)
-├── tests/                          # 760 tests (pytest)
+├── tests/                          # 853 tests (pytest)
 ├── install.py                      # Installer (3 languages: en/ru/zh)
 └── README.md
 ```

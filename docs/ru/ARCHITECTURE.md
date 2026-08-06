@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 всего)](#4-tool-layer)
+4. [Слой инструментов (20 core + 13 intel + 12 inline + 4 dev = 49 всего)](#4-tool-layer)
 5. [PropertyGraph (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Обработка ошибок](#7-error-handling)
@@ -37,7 +37,7 @@
 │                                                                  │
 │  Слой 1: main.py               (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (18 core + 7 inline + 3 dev)     │
+│  Слой 3: mcp/tools/*.py         (20 core + 12 inline + 4 dev)   │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -93,14 +93,14 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 18 core + 13 intel + 7 inline + 3 dev + 1 optional = 42 всего
+3. Зарегистрировать 20 core + 13 intel + 12 inline + 4 dev = 49 всего
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **14 файлов: 19 core (18 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 нативных).**
+`src/mcp/tools/*.py` — **14 файлов: 20 core (19 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 нативных).**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -175,7 +175,7 @@ class SearchCodeTool(MCPTool):
 │   PropertyGraph (graph.py)                               │
 │   SQLite (WAL + mmap), nodes/edges, JSON properties      │
 │   — 15 меток узлов (File, Function, Class, Variable...)  │
-│   — 27 типов рёбер (CALLS, DEFINES, ASSIGNED_FROM, ...) │
+│   — 29 типов рёбер (CALLS, DEFINES, ASSIGNED_FROM, ...) │
 │   — Cypher query engine (MATCH→SQL)                     │
 └─────────────────────────────────────────────────────────┘
          │
@@ -277,10 +277,10 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
     # +13 intel_* инструментов + 12 inline diagnostic + 4 dev
-    # Всего: 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev)
+    # Всего: 49 зарегистрировано (20 core + 13 intel + 12 inline + 4 dev)
 ```
 
-**Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 48.
+**Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 49.
 
 ### 4.2 Все инструменты по группам
 
@@ -303,7 +303,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Всего:** 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~36. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+> **Всего:** 49 зарегистрировано (20 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~36. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Обработка ошибок
 
@@ -630,7 +630,7 @@ tests/
 ├── ... (ещё 20 тестовых файлов)
 ```
 
-**Всего: 396 тестов.**
+**Всего: 853 теста.**
 
 Запуск:
 ```bash

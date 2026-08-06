@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n48 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n49 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -207,7 +207,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 48 tools
+    MCP->>MCP: Register 49 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: Total startup: ~2-5s (async embedder init)
@@ -295,8 +295,8 @@ erDiagram
 |-----------|:--------------:|:----------:|:---------:|:------:|
 | **Language** | Python + LanceDB (Rust-core) | Rust | TypeScript | - |
 | **Search** | BM25 + Dense + RRF + Reranker | Static analysis | Knowledge Graph | Symbol lookup |
-| **Tools** | **43** | 30+ | - | - |
-| **Tests** | **396** | - | - | - |
+| **Tools** | **49** | 30+ | - | - |
+| **Tests** | **853** | - | - | - |
 | **Windows** | **Native** (UNC, MAX_PATH) | - | - | - |
 | **Incremental index** | MD5 + DebounceBatch | - | - | - |
 | **Self-recovery** | IndexGuard | - | - | - |
@@ -342,9 +342,9 @@ flowchart LR
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 37 (19 core + 12 intel + 6 diagnostic) |
-| **Services in DI** | 15 |
-| **Tests** | 396 |
+| **MCP tools** | 49 (20 core + 13 intel + 12 inline + 4 dev) |
+| **Services in DI** | 18 |
+| **Tests** | 853 |
 | **Languages** | 3 (EN, RU, ZH) |
 | **Schema fields** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
 | **Embedding dim** | 384 (E5-small INT8, in-process) |

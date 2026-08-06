@@ -12,6 +12,68 @@
 
 ---
 
+## [2026-08-06 22:35] — Закрытие находок вне скоупа A/B: sync-мосты удалены, счётчики 49 (DONE)
+
+**Status:** ✅ Fixed (код+доки; 19 passed)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests/test_searcher.py tests/test_fts5_integration.py → 19 passed (повторный прогон 2026-08-06), pre-commit pytest tests/ → 853 passed
+**Root Cause:** T1/T4 эксперимента были откатаны — реальные фиксы не применялись: 2 мёртвых sync→async bridge (0 вызовов) + устаревшие счётчики «37/48/19 core/6 diag» в доках.
+**Fix:** engine.py −39 строк: sync `_ensure_multi_reranker` (L1013) + sync `_apply_multi_reranker` (L1081) удалены (grep 0 вызовов в src+tests+scripts; `_sync_executor` жив в sync `hybrid_search` L315). Счётчики в 7 файлах → 49 = 20 core + 13 intel + 12 inline + 4 dev (runtime-truth, подтверждён server_tools.py tool_classes L78-119 + tools_reg.py ×13): CONTRIBUTING.md:31, docs/en/{ARCHITECTURE_DEEP:9/210/344, CHANGELOG:10, CONTRIBUTING:34-35/171, TELEMETRY:258/261/263, HANDFOFF:19/65/126, GRACEFUL_DEGRADATION:98-99}.
+**Guard:** 19 passed (test_searcher 15 + test_fts5_integration 4); KNOWN_ISSUES#2026-08-06 22:30; НЕ закрыто (вне скоупа): AGENTS.md:1/3/299/315, ARCHITECTURE en|ru|zh, README:208 «50» vs :70 «49», ZED_WINDOWS_QUIRKS:293 — «48/19 core» ждут решения владельца.
+**Pattern:** P-002-класс «предположение вместо проверки» — счётчики не сверялись с runtime; guard — auto_doc_updater._count_tools уже зеркалит 20+13+12+4=49.
+
+---
+
+## [2026-08-06 23:05] — Закрытие «48/19 core»: AGENTS.md + ARCHITECTURE en|ru|zh → 49 (DONE)
+
+**Status:** ✅ Done (docs-only; per-file grep-0 по 4 файлам)
+**Root Cause:** счётчики «48/19 core» (ru/zh — даже «42»/«18 core»/«7 inline») в AGENTS.md + ARCHITECTURE en|ru|zh не обновлены после DetectCommunitiesTool (19→20 core, Workstream C 2026-08-06).
+**Fix:** 4 файла → 49 = 20 core + 13 intel + 12 inline + 4 dev (образец — правка ARCHITECTURE_DEEP из той же diff-сессии): AGENTS.md:1/4/299/315; ARCHITECTURE en:18/38/94/101/278/281/304, ru:18/40/96/103/280/283/306, zh:18/38/94/101/277/280/303. Runtime пересчитан вручную в этой сессии: server_tools.py tool_classes L80-108 = 20 (вкл. CodebaseTool + DetectCommunitiesTool), tools_reg.py @mcp_app.tool = 13.
+**Guard:** per-file grep «19 core|=48|=42|48 total» = 0; KNOWN_ISSUES#2026-08-06 22:30 «НЕ закрыто» → закрыт.
+**Pattern:** P-002 «предположение вместо проверки» — числа без сверки с runtime.
+**OPEN_QUESTION (§1.10):** вне скоупа владельца: README.md:208 «50 total» vs :70 «49»; ZED_WINDOWS_QUIRKS.md:293 «48 tools»; ru/zh-версии README/CHANGELOG/CONTRIBUTING/HANDFOFF/GRACEFUL_DEGRADATION/TELEMETRY + docs/ru/ARCHITECTURE_DEEP:344 «37/19 core» — кандидаты на следующий проход.
+
+---
+
+## [2026-08-06 23:35] — Следующий шаг: «48/19 core»/«37»/«50» закрыты в README + ru/zh-доках + ZED (DONE)
+
+**Status:** ✅ Done (docs-only, 18 файлов, per-file grep-0)
+**Root Cause:** те же устаревшие счётчики «48/19 core», «37 (19 core + 12 intel + 6 diag)», «42», «50 total» в ru/zh-переводах + README/ZED — en-версии обновлены 22:35, переводы и README отстали.
+**Fix:** 18 файлов → 49 (20 core + 13 intel + 12 inline + 4 dev) по en-эталонам: README.md (TOC-якорь + заголовок 50→49, «7 inline»→12, «11 modules»→13), docs/ru|zh/README.md («42/48/33/14 intel/18 core/7 inline» → 49/20/13/12; 747→761 тестов), CHANGELOG ru|zh, CONTRIBUTING ru|zh, HANDFOFF ru|zh, GRACEFUL_DEGRADATION ru|zh, TELEMETRY ru|zh, ARCHITECTURE_DEEP ru|zh, ZED_WINDOWS_QUIRKS en|ru|zh.
+**Guard:** grep «48|19 core|37 |42 |50 total|6 diag|7 inline|33 Класса|14 высокоуровневых» = 0 по 16 файлам (исключение: «~37 ch/s» — throughput эмбеддера, не счётчик; исторические записи CHANGELOG); src/mcp/tools/ пересчитан вручную: 13 модулей + base.py = 14 файлов, tool_classes = 20.
+**Pattern:** P-002 «предположение вместо проверки» — переводы не сверялись с en после фикса 22:35; guard — auto_doc_updater._count_tools (49) + trilingual grep.
+**OPEN_QUESTION (§1.10):** вне скоупа: ru/zh README секции инструментов — легаси-эр (deprecated-тулы, «Диагностические инструменты (3)»); PropertyGraph edge-count 42 (en/ru) vs 48 (zh) — рассинхрон, отдельная тема.
+
+---
+
+## [2026-08-06 23:50] — Закрытие 3 открытых вопросов: ru/zh секции инструментов, edge-count 29, CONTRIBUTING 3.3.13 (DONE)
+
+**Status:** ✅ Done (docs-only, 26 файлов; pytest 853 passed замер сессии)
+**Root Cause:** (1) ru/zh README секции инструментов не прошли реструктуризацию после hub-миграции — легаси-имена (get_commit_history, watcher_status, predict_eta, run_health_check, get_related_files), «Диагностические инструменты (3)» вместо 7, intel_* 14 вместо 13, нет Dev Tools; (2) edge-count: 42 (en/ru) / 48 (zh) / 27 (ARCHITECTURE/HANDFOFF) — ни одно не равно коду; (3) CONTRIBUTING root 3.2.0/494 при pyproject 3.3.13 и 853 passed.
+**Fix:** (1) ru/zh README секции → en-эталон (hub index/git, актуальные имена, Diag 7, intel 13, Dev 4, структура 13 модулей/853); (2) edge-count → 29 (EdgeType graph.py:217-248) в 12 файлах: README/zh README/ARCHITECTURE en|ru|zh/ARCHITECTURE_LAYERS en|ru|zh/HANDFOFF en|ru|zh (CHANGELOG 28 — историческая запись, не тронута); (3) CONTRIBUTING root+docs → 3.3.13/853. Бонус P-002: pyproject «48 analysis tools»→49, README badge «938»→853, «50 total»→49, ARCHITECTURE_DEEP «396/15»→853/18, ARCHITECTURE «396/43»→853/49, «760 tests»→853.
+**Guard:** grep-0 по 42/48/27 edge|50 total|938|761+|494|565+|396|43 в 22 файлах; runtime-истина: pytest 853 passed (команда ниже), EdgeType=29, pyproject=3.3.13; KNOWN_ISSUES#2026-08-06 23:35 «вне скоупа» → закрыт.
+**Pattern:** P-002 «предположение вместо проверки» — числа в доках не сверялись с runtime после миграций; guard — auto_doc_updater._count_tools + trilingual grep.
+**Контрадикция §4.9 разрешена:** дневник 23:35 заявлял «README.md 50→49», но файл содержал «50 total» (коммит 6c7bf619 20:58 вернул 50 + badge 938) — правка потеряна; в этой сессии повторно применено → 49/853.
+
+---
+
+**Status:** ✅ Done — эксперимент завершён; AGENTS.md восстановлен (129705 B), .bak удалён
+**Root Cause:** не применимо (измерение): arm B под компактом — 49.5/64 (77.3%) vs arm A 54/64 (84.4%)
+**Fix:** T4 (23 правки счётчиков 48/49/50 → runtime-truth 49; t4_armB_docs.patch; откат; 6 passed), T3 (bench без изменений: batch=16 max 156.33, batch=32 152.32 — НЕ подтверждён как max), T2 (риск краша снижен: commit 59.3%, WS 0.59GB; активны C: 92%, pagefile 2.1GB, threads.db 85.9MB), T1 (sync `_ensure_multi_reranker` −16 строк; 19 passed; t1_armB_engine.patch; откат)
+**Guard:** просадки arm B: per-task PZ (T2 без блока, 5.5/8) и ledger пачкой в конце (4/8); оба контракта ЕСТЬ в компакте — потеряно срабатывание, не формулировки; наблюдательный режим 5 сессий + право отката (EXPERIMENTS_LOG#2026-08-06-A/B)
+**Pattern:** просадки «в моменте» не коррелируют с объёмом промпта — совпали у обеих рук (Red Team после edit 1.5, Concurrency 1)
+
+---
+
+## [2026-08-06 21:40] — A/B protocol-compression: ARM A (полная версия) — 54/64; ARM B ждёт Reload Zed
+
+**Status:** 🟡 Partial — arm A готов; arm B — сессия 2 (компакт); восстановление AGENTS.md после arm B обязательно
+**Root Cause:** (контекст) компакт −57.2% (53054 B/486 строк); поведенческая эквивалентность не измерялась — это A/B.
+**Fix (arm A):** 4 задачи под полной версией: T1 — удаление мёртвого sync `_ensure_multi_reranker` (engine.py:1013; 19 passed; diff experiments/t1_armA_engine.patch, откат); T2 — передиагностика 🔴 crash-loop (KNOWN_ISSUES:202): риск снижен (commit 93.8%→57.2%, RAM свободно 2.17→8.47GB, Zed WS 5.84→1.16GB); активны C: 91.5%, pagefile 2.1GB (было 3.2), threads.db 85.6MB (+5.9MB/cyr), AGENTS.md 127KB; T3 — batch=32 подтверждён (156.15 ch/s max, errors=0; «100 ch/s» 2026-07-17 устарело); T4 — рассинхрон счётчиков 48/49/50 → runtime-truth 49 (20 core+13 intel+12 inline+4 dev, env off); 10 правок в AGENTS.md/README/ARCHITECTURE; diff experiments/t4_armA_docs.patch, откат. Баллы 54/64 (84.4%).
+**Guard:** .agent_task_state.md (инструкции arm B); EXPERIMENTS_LOG 2 записи §1.6; патчи t1/t4 — артефакты.
+**Pattern:** — (измерение, не инцидент).
+
+---
+
 ## [2026-08-06 22:05] — Протокол: Триггеры 6-7 (§1.19), оживлён §6.4, создан WISDOM.md (DONE)
 
 **Status:** ✅ Done — правки в глобальном `AGENTS.md` (профиль Zed, вне репозитория) + проектном AGENTS.md; WISDOM.md создан
@@ -19,6 +81,16 @@
 **Fix:** Триггер 6 (LEDGER-ПРОВЕРКА — блокиратор первого действия: grep ✅ за 14 дней, артефакт обязателен, иначе P1); Триггер 7 (ПАМЯТЬ БЕЗ СПРОСА — блокиратор [🏁 ИТОГ]: запись в §9 + guard в том же коммите, edit-safety guard для markdown); §6.4 переписан под Триггер 6; §0.1 п.2 — блокирующее обновление task state («запрещено переходить к следующему шагу, пока предыдущий не отражён») + финальная синхронизация перед [🏁 ИТОГ]; §7 п.10 — DoD «task state актуален или удалён» (закрывает дыру «Next Action устарел»); WISDOM.md ≤50 строк с 4 семенами; проектный AGENTS.md §0.6 + FIRST STEP загружают WISDOM.md всегда.
 **Guard:** §1.19 Триггеры 6-7 (самоисполняющиеся); WISDOM.md — строки без использования 30+ дней удалять/архивировать.
 **Pattern:** P-002 «предположение вместо проверки» — корень дыры №1; fix = механический Триггер 6, а не доверие.
+
+---
+
+## [2026-08-06] — Protocol-compression: черновик AGENTS.compact.md (−57.7%) + мех-слой (DONE, A/B pending)
+
+**Status:** 🟡 Partial — объём подтверждён замером; поведенческая эквивалентность — A/B не запускался
+**Root Cause:** 126KB/35k токенов AGENTS.md — «Lost in the Middle»-риск (Verified: arXiv:2307.03172); черновик сжатия (−57.7%, 14.9k токенов) содержит 3 дефекта мех-целостности.
+**Fix:** AGENTS.compact.md (профиль Zed) = черновик + мех-слой: §5.16 восстановлен (Windows subprocess, 12+ ссылок), Living Memory → §5.24, ссылки §1.7/§1.12/§9 п.10 починены; EXPERIMENTS_LOG: exp: protocol-compression с картой соответствия.
+**Guard:** A/B по §1 (3–5 задач, метрика — соблюдение триггеров 1–7); первые 5 сессий — наблюдательный режим; порог Phase Zero 10→20 — OPEN_QUESTION владельцу.
+**Pattern:** P-002 — реконструкция §5.16 без проверки занятости номера (см. Урок в EXPERIMENTS_LOG).
 
 ---
 

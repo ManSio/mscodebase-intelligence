@@ -14,7 +14,7 @@
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![Tests](https://img.shields.io/badge/tests-747%20passed-brightgreen)](../../tests/)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共48个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共49个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
 
 *最后更新：2026-08-03*
 
@@ -43,7 +43,7 @@
 │  │  · 调用图与影响分析                            │  │
 │  │  · 项目记忆（ADR、技术债务）                   │  │
 │  │  · 自诊断与自愈                                │  │
-│  │  · 为 AI 助手提供 48 个工具                    │  │
+│  │  · 为 AI 助手提供 49 个工具                    │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP：仅用于重命名（混合模式）
 
-MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **pyright-langserver** 以实现精确的跨文件重命名，超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **48 个 MCP 工具** 实现。
+MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **pyright-langserver** 以实现精确的跨文件重命名，超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **49 个 MCP 工具** 实现。
 
 独立的 LSP 服务器（`src/lsp_main.py`）是实验性组件，**在 Zed 中无法工作** — 参见 [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)。
 
@@ -113,12 +113,12 @@ MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/cor
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-| 🧪 **整洁架构** | DI 容器（18 个服务），48 个工具（19 core + 13 intel + 12 inline + 4 dev），747+ 测试 |
+| 🧪 **整洁架构** | DI 容器（18 个服务），49 个工具（20 core + 13 intel + 12 inline + 4 dev），853+ 测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
 | ⚙️ **SYSTEM_PROFILE** | `light`（同步）/ `server`（异步，带 phi-4） |
-| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 48 种边类型。 |
+| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 29 种边类型。 |
 
 ---
 
@@ -184,7 +184,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 
 ---
 
-## 🔧 MCP 工具（共 48 个）
+## 🔧 MCP 工具（共 49 个）
 
 ### 核心搜索
 
@@ -195,18 +195,19 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `cross_repo_search(query @repo)` | 跨多项目搜索（单体仓库） |
 | `cross_project_deps(action)` | 跨项目依赖图：`graph` / `deps` / `cycles` / `impact` |
 | `get_symbol_info(query)` | 调用图：调用方、被调用方、影响文件 |
+| `execute_script(code, timeout, args)` | **沙箱 Python 执行（3 层）。** AST 验证 + runtime `__import__` 包装 + subprocess 隔离。审计日志。返回 `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
 | `impact_analysis(symbol)` | 符号变更影响分析（风险分数、深度） |
 
-### 索引管理
+### 索引管理（通过 `codebase(action="index", ...)`）
 
-| 工具 | 使用场景 |
+| 操作 | 使用场景 |
 |------|-------------|
-| `get_index_status()` | 索引状态：块数、文件数、符号数 |
-| `get_index_progress()` | 索引进度（阶段、百分比） |
-| `index_project_dir(path)` | 开始完整项目索引 |
-| `get_index_timeline()` | 按日期查看索引历史 |
-| `index_health(project_root)` | 索引诊断与自我恢复 |
-| `notify_change(file_path)` | 强制更新某个文件的索引（通过 DebounceBatch） |
+| `codebase(action="index", path="status")` | 索引状态：块数、文件数、符号数（`get_index_status`） |
+| `codebase(action="index", path="progress")` | 索引进度（阶段、百分比） |
+| `codebase(action="index", path="project_dir", project_root=...)` | 开始完整项目索引（`index_project_dir`） |
+| `codebase(action="index", path="timeline")` | 按日期查看索引历史 |
+| `codebase(action="index", path="health")` | 索引诊断与自我恢复（`index_health`） |
+| `notify_change(file_path)` | 强制更新某个文件的索引（通过 DebounceBatch）— inline 工具 |
 | `generate_chunk_summaries(root)` | 代码块的 LLM 生成描述 |
 | `scan_changes(project_root)` | 架构差异 — 分析自上次基线以来的变更 |
 
@@ -215,12 +216,8 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | 工具 | 使用场景 |
 |------|-------------|
 | `get_health_report()` | **完整自诊断：** 索引、嵌入器、日志、同步 |
-| `watcher_status()` | 组件状态：嵌入器模式、索引、健康 |
 | `get_logs(project_root)` | 项目日志中的最新错误和警告 |
-| `get_repo_map(project_root)` | 项目地图：文件树 + 关键符号 |
 | `read_live_file(path)` | 从 LSP 内存读取文件（含未保存的更改） |
-| `predict_eta(operation)` | 基于历史预测操作耗时 |
-| `run_health_check()` | 完整项目健康检查（测试 + git + 索引） |
 
 ### 分析
 
@@ -229,17 +226,18 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `get_hotspots(project_root)` | 热点 — 高缺陷率的文件 |
 | `get_repo_rank(project_root, top_k)` | 符号重要性排名（调用图上的 PageRank） |
 | `get_bug_correlation(project_root)` | 缺陷-变更关联分析 |
-| `get_related_files(project_root, path)` | 通过共同变更/缺陷关联相关的文件 |
-| `graph_query(query_type, target)` | 知识图谱查询：`impact` / `feature` / `deps` / `tests` |
+| `get_repo_map(project_root)` | 项目地图：文件树 + 关键符号 |
+| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（`get_related_files`） |
+| `graph_query(action, target)` | 图查询：`impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | 通过错误文本从历史中查找类似缺陷 |
 
-### Git 与历史
+### Git 与历史（通过 `codebase(action="git", ...)`）
 
-| 工具 | 使用场景 |
+| 操作 | 使用场景 |
 |------|-------------|
-| `get_commit_history(root, limit)` | 语义化提交历史 |
-| `get_file_history(root, path)` | 特定文件的变更历史 |
-| `get_branch_info(project_root)` | 分支信息 + 索引状态 |
+| `codebase(action="git", path="log", ...)` | 语义化提交历史（`get_commit_history`） |
+| `codebase(action="git", path="history", ...)` | 特定文件的变更历史 |
+| `codebase(action="git", path="branch")` | 分支信息 + 索引状态（`get_branch_info`） |
 
 ### 生命周期与验证
 
@@ -276,10 +274,21 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `intel_get_hotspots()` | 缺陷负载最高的 Top-5 文件 |
 | `intel_predict_root_cause(error)` | 从日志 + 历史预测根本原因 |
 | `intel_get_telemetry(days)` | 按工具统计的遥测、资源使用、LLM 统计 |
+| `intel_auto_collect_adrs(max_commits)` | 从提交历史自动生成 ADR |
+| `intel_reset_index()` | 删除并从头重建索引 |
 
 > `intel_tool_health()`、`intel_explain_project_state()`、`intel_get_project_context()` — 见下方诊断工具。
 
-### 诊断工具（6 个）
+### 开发工具（4 个）
+
+| 工具 | 功能 |
+|------|-------------|
+| `generate_docs(project_root)` | 从 PropertyGraph 生成 Markdown 文档（DEPRECATED — 使用 auto_update_docs） |
+| `bump_version(project_root, part, dry_run)` | 提升项目版本 + 更新 CHANGELOG |
+| `auto_update_docs(project_root, action)` | 自动更新文档：update/check |
+| `install_git_hooks(project_root, action)` | 安装 pre-commit 钩子：install/uninstall/status |
+
+### 诊断工具（7 个）
 
 | 工具 | 功能 |
 |------|-------------|
@@ -289,6 +298,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `intel_get_project_context(root)` | 单一快照：状态、索引、健康、记忆 |
 | `intel_explain_project_state(root)` | 人类可读的项目状态诊断 |
 | `intel_tool_health()` | 工具成功率、延迟、置信度 |
+| `refresh_db_connection()` | 重置数据库句柄并重新连接 |
 
 ---
 
@@ -315,7 +325,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  18 个工具类      │  │  13 intel_* + 7 inline 工具      │  │
+│  │  19 个工具类      │  │  13 intel_* + 12 inline 工具      │  │
 │  │  src/mcp/tools/*.py│  │  intelligence/layer.py +         │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)       │  │
 │  │  构造函数注入      │  │  error_boundary 装饰器            │  │
@@ -397,16 +407,19 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py             # MCP 服务器创建（约 597 行）
 │   │   ├── server_factory.py     # DI 设置 + 服务器生命周期
-│   │   ├── server_tools.py       # 工具注册（18 core + 13 intel + 7 inline）
-│   │   └── tools/                # 12 个文件，18 个基于类的工具
+│   │   ├── server_tools.py       # 工具注册 + 12 个 inline 工具（约 607 行）
+│   │   └── tools/                # 13 个模块 + base 类
+│   │       ├── codebase_tool.py  # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py   # search_code、get_symbol_info、impact_analysis
 │   │       ├── indexing_tools.py # notify_change、index_project_dir、index_health
-│   │       ├── git_tools.py      # get_branch_info、get_commit_history
-│   │       ├── system_tools.py   # get_index_status、watcher_status、read_live_file
-│   │       ├── analysis_tools.py # structural_search、get_repo_map、scan_changes
-│   │       ├── graph_tools.py    # cross_repo_search、graph_query、get_related_files
-│   │       ├── investigation_tools.py  # get_bug_correlation、get_hotspots
-│   │       └── lifecycle_tools.py      # submit_background_task、verify_action
+│   │       ├── git_tools.py      # get_branch_info、get_commit_history、get_file_history
+│   │       ├── system_tools.py   # get_index_status、get_health_report、read_live_file、get_logs
+│   │       ├── analysis_tools.py # structural_search、get_repo_map、get_repo_rank、scan_changes
+│   │       ├── graph_tools.py    # cross_repo_search、cross_project_deps、graph_query
+│   │       ├── investigation_tools.py  # get_bug_correlation、get_hotspots、find_similar_bugs
+│   │       ├── lifecycle_tools.py      # submit_background_task、get_task_status、verify_action
+│   │       ├── meta_tools.py     # IndexTool、GitTool、SystemTool（codebase hub 的 spoke）
+│   │       └── write_tools.py    # WriteTool（rename、move、delete、replace、insert）
 │   ├── core/
 │   │   ├── di_container.py       # ★ DI 容器（18 个服务，ServiceCollection）
 │   │   ├── error_handler.py      # ★ error_boundary + ToolError
@@ -428,7 +441,7 @@ mscodebase-intelligence/
 │   ├── en/               # 英文文档
 │   ├── ru/               # 俄文文档
 │   └── zh/               # 中文文档
-├── tests/                        # 760 个测试（pytest）
+├── tests/                        # 853 个测试（pytest）
 ├── .agents/skills/               # AI 代理技能
 ├── install.py                    # 安装程序
 └── README.md

@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n48 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n49 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -204,7 +204,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 48 tools
+    MCP->>MCP: Register 49 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: 总启动时间：~2-5秒（异步嵌入器初始化）
@@ -292,8 +292,8 @@ erDiagram
 |-----------|:--------------:|:----------:|:---------:|:------:|
 | **语言** | Python + LanceDB (Rust-core) | Rust | TypeScript | - |
 | **搜索** | BM25 + Dense + RRF + Reranker | 静态分析 | 知识图谱 | 符号查找 |
-| **工具** | **43** | 30+ | - | - |
-| **测试** | **396** | - | - | - |
+| **工具** | **49** | 30+ | - | - |
+| **测试** | **853** | - | - | - |
 | **Windows** | **原生**（UNC, MAX_PATH） | - | - | - |
 | **增量索引** | MD5 + DebounceBatch | - | - | - |
 | **自恢复** | IndexGuard | - | - | - |
@@ -339,9 +339,9 @@ flowchart LR
 | 指标 | 值 |
 |--------|-------|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP 工具** | 48（19 个核心 + 12 个 intel + 6 个诊断 + 11 个 dev） |
-| **DI 中的服务** | 15 |
-| **测试** | 396 |
+| **MCP 工具** | 49（20 个核心 + 13 个 intel + 12 个内联 + 4 个 dev） |
+| **DI 中的服务** | 18 |
+| **测试** | 853 |
 | **语言** | 3（EN, RU, ZH） |
 | **模式字段** | 19（chunk: 9 + metadata: 6 + v3.0: 4） |
 | **嵌入维度** | 384（E5-small INT8，进程内） |

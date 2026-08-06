@@ -4,7 +4,7 @@
 
 # Contributing — MSCodeBase Intelligence
 
-> **Version:** 3.3.11 — DocSync Edition
+> **Version:** 3.3.13
 
 ---
 
@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP server registration (~220 lines)
 │   ├── server_factory.py # Server factory + DI setup
-│   ├── server_tools.py  # Tool registration (48 tools total)
-│   └── tools/           # 14 files, 19 core + 13 intel + 12 inline + 4 dev
+│   ├── server_tools.py  # Tool registration (49 tools total)
+│   └── tools/           # 14 files, 20 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -115,7 +115,7 @@ isort src/
 
 ## 4. Running Tests
 
-The project has **565+ tests** in `tests/`.
+The project has **853+ tests** in `tests/`.
 
 ```powershell
 # Full suite
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Tools are registered in `src/mcp/server_tools.py` via `register_all_tools()`.
 Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 
-### Tool categories (48 total):
+### Tool categories (49 total):
 
 | Category | Count | Key tools |
 |----------|-------|-----------|
@@ -344,7 +344,7 @@ SemVer: MAJOR.MINOR.PATCH
 - **MINOR** — new tools/features (backward compatible)
 - **PATCH** — bug fixes
 
-Current version in `pyproject.toml`: `3.3.9`
+Current version in `pyproject.toml`: `3.3.13`
 
 ---
 

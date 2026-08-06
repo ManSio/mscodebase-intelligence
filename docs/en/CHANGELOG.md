@@ -6,7 +6,7 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **48 tools** = 19 core + 13 intel + 12 inline + 4 dev
+> **Tool count (current):** the live server registers **49 tools** = 20 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
 

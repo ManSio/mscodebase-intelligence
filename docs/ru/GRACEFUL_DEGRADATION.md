@@ -95,8 +95,8 @@ stateDiagram-v2
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
 
-    state ALL_TOOLS[Видимо: 37 инструментов]
-        ALL_TOOLS: Все 37 MCP-инструментов (19 core + 12 intel + 6 diag)
+    state ALL_TOOLS[Видимо: 49 инструментов]
+        ALL_TOOLS: Все 49 MCP-инструментов (20 core + 13 intel + 12 inline + 4 dev)
     end
 
     state CUSTOM_TOOLS[Пользовательский выбор]

@@ -1,0 +1,203 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 9752d32e..ed99e48f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,7 +1,7 @@
+-# Project Agent Rules — MSCodeBase Hybrid Architecture (48 Registered Tools)
++# Project Agent Rules — MSCodeBase Hybrid Architecture (49 Registered Tools)
+ 
+ > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
+-> Optimized for the hybrid model: 13 Intel Layer + 19 Core MCP (включая `codebase` hub) + 12 Inline/Diagnostic + 4 Dev Tools = 48 registered
++> Optimized for the hybrid model: 13 Intel Layer + 20 Core MCP (включая `codebase` hub) + 12 Inline/Diagnostic + 4 Dev Tools = 49 registered
+ 
+ > \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
+ 
+@@ -296,7 +296,7 @@ intel_get_project_memory      ──>   git(action="log") / git(action="history"
+ intel_get_project_context     ──>   (aggregates 5+ calls)
+ ```
+ 
+-## 2. AVAILABLE TOOLS (48)
++## 2. AVAILABLE TOOLS (49)
+ 
+ > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
+ > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
+@@ -312,7 +312,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
+ 
+ Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
+ 
+-### B. Core MCP & Search (19 tools)
++### B. Core MCP & Search (20 tools)
+ 
+ > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
+ > Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.
+diff --git a/README.md b/README.md
+index ac8764fa..c43bdee9 100644
+--- a/README.md
++++ b/README.md
+@@ -15,7 +15,7 @@
+ [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
+ [![Tests](https://img.shields.io/badge/tests-938%20passed-brightgreen)](tests/)
+ 
+-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-50-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
++[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-49-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+ 
+ *Last updated: 2026-08-03*
+ 
+@@ -205,7 +205,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс
+ 
+ ---
+ 
+-## 🔧 MCP Tools (50 total)
++## 🔧 MCP Tools (49 total)
+ 
+ ### Core Search
+ 
+diff --git a/docs/en/ARCHITECTURE.md b/docs/en/ARCHITECTURE.md
+index f1e2f4b4..689a2687 100644
+--- a/docs/en/ARCHITECTURE.md
++++ b/docs/en/ARCHITECTURE.md
+@@ -15,7 +15,7 @@
+ 1. [Core Principles](#1-core-principles)
+ 2. [Layer Architecture](#2-layer-architecture)
+ 3. [DI Container (ServiceCollection)](#3-di-container)
+-4. [Tool Layer (19 core + 13 intel + 12 inline + 4 dev = 48 total)](#4-tool-layer)
++4. [Tool Layer (20 core + 13 intel + 12 inline + 4 dev = 49 total)](#4-tool-layer)
+ 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
+ 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
+ 7. [Error Handling](#7-error-handling)
+@@ -35,7 +35,7 @@
+ │                                                                  │
+ │  Layer 1: main.py               (Entry points, minimal)          │
+ │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
+-│  Layer 3: mcp/tools/*.py         (19 core + 12 inline + 4 dev)│
++│  Layer 3: mcp/tools/*.py         (20 core + 12 inline + 4 dev)│
+ │  Layer 4: core/*.py              (Pure business logic)            │
+ └──────────────────────────────────────────────────────────────────┘
+ ```
+@@ -91,14 +91,14 @@ Both use the same `create_service_collection()` factory.
+ Responsibilities:
+ 1. Resolve project root (`resolve_project_root()`)
+ 2. Create DI container (`create_service_collection()`)
+-3. Register 19 core + 13 intel + 12 inline + 4 dev = 48 total
++3. Register 20 core + 13 intel + 12 inline + 4 dev = 49 total
+ 4. Register system prompt (mscodebase-rules)
+ 
+ **No business logic lives here.** Every tool is an import from `mcp/tools/`.
+ 
+ ### 2.3 Tool Layer
+ 
+-`src/mcp/tools/*.py` — **14 files: 19 core (18 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 native).**
++`src/mcp/tools/*.py` — **14 files: 20 core (19 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 19 native).**
+ 
+ Every tool:
+ - Inherits from `MCPTool` (ABC)
+@@ -275,10 +275,10 @@ def register_all_tools(mcp, services):
+         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
+     ]
+     # +13 intel_* tools + 12 inline diagnostic + 4 dev
+-    # Total: 48 registered (19 core + 13 intel + 12 inline + 4 dev)
++    # Total: 49 registered (20 core + 13 intel + 12 inline + 4 dev)
+ ```
+ 
+-**Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 48.
++**Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 49.
+ 
+ ### 4.2 All Tools by Group
+ 
+@@ -301,7 +301,7 @@ def register_all_tools(mcp, services):
+ | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
+ | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
+ 
+-> **Total:** 48 registered (19 core + 13 intel + 12 inline + 4 dev). Default visible: ~36. Show all: `MSCODEBASE_MCP_TOOLS=""`.
++> **Total:** 49 registered (20 core + 13 intel + 12 inline + 4 dev). Default visible: ~36. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+ 
+ ## 5. Error Handling
+ 
+diff --git a/docs/ru/ARCHITECTURE.md b/docs/ru/ARCHITECTURE.md
+index 01894157..bb541861 100644
+--- a/docs/ru/ARCHITECTURE.md
++++ b/docs/ru/ARCHITECTURE.md
+@@ -100,7 +100,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
+ 
+ ### 2.3 Слой инструментов
+ 
+-`src/mcp/tools/*.py` — **14 файлов: 19 core (18 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 17 нативных).**
++`src/mcp/tools/*.py` — **14 файлов: 20 core (19 + codebase hub) + 12 inline + 4 dev (Hub & Spoke: codebase + execute_script + 19 нативных).**
+ 
+ Каждый инструмент:
+ - Наследуется от `MCPTool` (ABC)
+@@ -277,10 +277,10 @@ def register_all_tools(mcp, services):
+         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
+     ]
+     # +13 intel_* инструментов + 12 inline diagnostic + 4 dev
+-    # Всего: 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev)
++    # Всего: 49 зарегистрировано (20 core + 13 intel + 12 inline + 4 dev)
+ ```
+ 
+-**Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 48.
++**Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 49.
+ 
+ ### 4.2 Все инструменты по группам
+ 
+@@ -303,7 +303,7 @@ def register_all_tools(mcp, services):
+ | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
+ | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
+ 
+-> **Всего:** 48 зарегистрировано (19 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~36. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
++> **Всего:** 49 зарегистрировано (20 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~36. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+ 
+ ## 5. Обработка ошибок
+ 
+diff --git a/docs/zh/ARCHITECTURE.md b/docs/zh/ARCHITECTURE.md
+index c676b9e1..3e1829b6 100644
+--- a/docs/zh/ARCHITECTURE.md
++++ b/docs/zh/ARCHITECTURE.md
+@@ -274,10 +274,10 @@ def register_all_tools(mcp, services):
+         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
+     ]
+     # +13 个 intel_* 工具 + 12 个内联诊断 + 4 个开发
+-    # 总计：48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）
++    # 总计：49 个已注册（20 核心 + 13 intel + 12 内联 + 4 开发）
+ ```
+ 
+-**工具可见性过滤器：** 默认显示 ~36 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 48 个。
++**工具可见性过滤器：** 默认显示 ~36 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 49 个。
+ 
+ ### 4.2 按组分组的全部工具
+ 
+@@ -300,7 +300,7 @@ def register_all_tools(mcp, services):
+ | **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
+ | **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
+ 
+-> **总计：** 48 个已注册（19 核心 + 13 intel + 12 内联 + 4 开发）。默认可见：~36 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
++> **总计：** 49 个已注册（20 核心 + 13 intel + 12 内联 + 4 开发）。默认可见：~36 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+ 
+ ---
+ 
+diff --git a/src/mcp/server_tools.py b/src/mcp/server_tools.py
+index 94e96722..964abcd9 100644
+--- a/src/mcp/server_tools.py
++++ b/src/mcp/server_tools.py
+@@ -3,11 +3,11 @@ server_tools.py — Регистрация MCP-инструментов.
+ 
+ Выделено из server.py (Фаза 2, Шаг 1).
+ Содержит:
+-- register_all_tools() — регистрация 19 core-инструментов (18 core + 1 codebase hub) + execute_script
++- register_all_tools() — регистрация 20 core-инструментов (19 core + 1 codebase hub) + execute_script
+ - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
+ - _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
+ - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
+-- Всего: 19 + 13 + 12 + 4 = 48 инструментов (+ 1 optional execute_script = 49)
++- Всего: 20 + 13 + 12 + 4 = 49 инструментов (+ 1 optional execute_script = 50)
+ - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
+ """
+ 
+@@ -24,7 +24,7 @@ from typing import Any, Dict, Optional
+ logger = logging.getLogger("mscodebase_server.tools")
+ 
+ # ══════════════════════════════════════════════════════════
+-# Регистрация core-инструментов (18 шт + execute_script optional)
++# Регистрация core-инструментов (20 шт + execute_script optional)
+ # ══════════════════════════════════════════════════════════
+ 
+ 
