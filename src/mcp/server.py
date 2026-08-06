@@ -63,18 +63,10 @@ def _log_run_passport() -> None:
     """
     import getpass
 
-    _bridge_state = "<unavailable>"
+    _bridge_state = "<not used — LSP server removed 2026-07-20>"
     _registry_state = "<unavailable>"
     try:
-        from src.core.lsp_project_bridge import read_project_from_bridge
-
-        _bp = read_project_from_bridge(max_wait=0.1)
-        _bridge_state = str(_bp) if _bp else "<empty — LSP not synced>"
-    except Exception as _e:
-        logger.warning(f"Bridge state check failed: {_e}")
-    try:
         from src.core.di_container import ProjectIndexerRegistry as PIRKey
-        from src.mcp.server import _services_cache
 
         if _services_cache is not None:
             _reg = _services_cache.resolve(PIRKey)

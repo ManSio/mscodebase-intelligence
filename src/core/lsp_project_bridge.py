@@ -1,18 +1,17 @@
 """
 MSCodeBase LSP→MCP Project Bridge — временный файл для передачи корня проекта.
 
-Архитектура:
+DEPRECATED (2026-08-06): LSP-сервер (lsp_main.py) удалён 2026-07-20 (WONTFIX на
+Zed 1.9.0 Windows — кастомные имена LSP невозможны без Rust+WASM-расширения,
+см. docs/en/investigations/LSP_WONTFIX.md). Писатель моста мёртв, поэтому
+read_active_project/read_project_from_bridge всегда возвращают None (без polling).
+project_root резолвится через PROJECT_PATH env / Zed SQLite / CWD — мост не нужен.
+Модуль сохранён для совместимости импортов; новые вызовы запрещены.
+
+Архитектура (историческая):
   LSP получает project_root от Zed через LSP-протокол (root_uri / workspaceFolders).
   MCP не имеет доступа к root_uri, а current_dir не работает на Windows (баг #36019).
   Решение: LSP пишет project_root в temp-файл, MCP читает при старте.
-
-Multi-root (INC-6BCB-v3): LSP 3.6+ присылает массив workspaceFolders.
-  LSP пишет ВСЕ корни в JSON, MCP выбирает первый non-self-indexing.
-
-Исправления:
-  - Удалена изоляция по UUID процесса (так как у LSP и MCP разные UUID).
-  - Привязка сессий жестко зафиксирована на общем Parent PID (Zed Workspace).
-  - Self-indexing guard: is_zed_install_dir() пропускает Zed-установку.
 """
 
 import hashlib
@@ -215,18 +214,12 @@ def write_active_project(
 
 def read_active_project(max_wait: float = _MAX_WAIT_SEC) -> Optional[Path]:
     """
-    Читает корень проекта из temp-файла сессии с использованием Polling.
+    УСТАРЕЛО (2026-08-06): писатель моста удалён — всегда возвращает None.
 
-    Multi-root (INC-6BCB-v3): если в JSON есть `all_workspaces`, выбираем
-    первый workspace, который НЕ является Zed-установкой (self-indexing guard).
-    Fallback на `project_root` если фильтрация не дала результата.
-
-    Защита:
-      - Файл должен быть не старше _STALE_AGE_SEC.
-      - Если файл занят ОС или перезаписывается, срабатывает обработка OSError.
-
-    Вызывается MCP в _resolve_project_path().
+    Исторически: читал корень проекта из temp-файла сессии с polling.
+    См. модульный docstring (DEPRECATED).
     """
+    return None
     target = _bridge_path()
     deadline = time.time() + max_wait
     first = True
@@ -353,14 +346,11 @@ def cleanup_stale() -> None:
 
 def read_project_from_bridge(max_wait: float = 2.0) -> Optional[Path]:
     """
-    High-level API для _resolve_project_path в server.py.
+    УСТАРЕЛО (2026-08-06): писатель моста удалён — всегда возвращает None.
 
-    Выполняет предварительную очистку директории и пытается дождаться
-    актуального пути к корню разрабатываемого проекта.
-
-    ВАЖНО (INC-6BCB): max_wait по умолчанию 2.0s (было 0.5s), чтобы LSP
-    успел стартовать при cold start. Если нужен меньший — вызывающий
-    код может передать явно.
+    Исторически: high-level API для _resolve_project_path в server.py.
+    См. модульный docstring (DEPRECATED).
     """
+    return None
     cleanup_stale()
     return read_active_project(max_wait=max_wait)

@@ -39,6 +39,7 @@ class LspClient:
         self._process: Optional[asyncio.subprocess.Process] = None
         self._request_id = 1
         self._pending: Dict[int, asyncio.Future] = {}
+        self._write_lock = asyncio.Lock()  # сериализация фреймов stdin (параллельные вызовы тулов)
         self._reader_task: Optional[asyncio.Task] = None
         self._stderr_task: Optional[asyncio.Task] = None
         self._start_lock = asyncio.Lock()
@@ -309,12 +310,6 @@ class LspClient:
             ],
         })
         await self._send_notification("initialized", {})
-        # Write project_root to bridge for MCP project resolution
-        try:
-            from src.core.lsp_project_bridge import write_active_project
-            write_active_project(self.project_root)
-        except Exception as _e:
-            logger.warning(f"Bridge write failed: {_e}")
         return result
 
     def _handle_crash(self):
@@ -446,11 +441,12 @@ class LspClient:
         self._request_id += 1
         future = asyncio.get_running_loop().create_future()
         self._pending[req_id] = future
-        self._write_message(json.dumps(
-            {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
-            ensure_ascii=False, separators=(",", ":"),
-        ))
-        await self._process.stdin.drain()
+        async with self._write_lock:
+            self._write_message(json.dumps(
+                {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
+                ensure_ascii=False, separators=(",", ":"),
+            ))
+            await self._process.stdin.drain()
         try:
             response = await asyncio.wait_for(future, timeout=self.REQUEST_TIMEOUT)
         except asyncio.TimeoutError:
@@ -470,11 +466,12 @@ class LspClient:
         if self._process is None or self._process.stdin is None:
             return
         try:
-            self._write_message(json.dumps(
-                {"jsonrpc": "2.0", "method": method, "params": params},
-                ensure_ascii=False, separators=(",", ":"),
-            ))
-            await self._process.stdin.drain()
+            async with self._write_lock:
+                self._write_message(json.dumps(
+                    {"jsonrpc": "2.0", "method": method, "params": params},
+                    ensure_ascii=False, separators=(",", ":"),
+                ))
+                await self._process.stdin.drain()
         except Exception as exc:
             logger.warning("notify '%s' failed: %s", method, exc)
 

@@ -231,18 +231,10 @@ class ProjectContext:
     # ─── Bridge ────────────────────────────────────────────────
 
     def _capture_bridge(self, snap: ProjectContextSnapshot) -> ProjectContextSnapshot:
-        try:
-            from src.core.lsp_project_bridge import read_project_from_bridge
-
-            bp = read_project_from_bridge(max_wait=0.2)
-            if bp is not None:
-                snap.bridge_path = str(bp)
-                snap.bridge_synced = bp.resolve() == self._path
-            else:
-                snap.bridge_path = None
-                snap.bridge_synced = False
-        except Exception as e:
-            logger.debug(f"ProjectContext: bridge error: {e}")
+        # Bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
+        # писатель моста мёртв. project_root резолвится через env/Zed SQLite/CWD.
+        snap.bridge_path = None
+        snap.bridge_synced = False
         return snap
 
     # ─── Runtime ───────────────────────────────────────────────

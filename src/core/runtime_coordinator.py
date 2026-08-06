@@ -109,17 +109,10 @@ class RuntimeCoordinator:
         except ImportError:
             pass
 
-        # Layer 2: проверка bridge (LSP синхронизирован?)
+        # Layer 2: bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
+        # писатель моста мёртв (см. src/core/lsp_project_bridge.py). project_root
+        # резолвится через PROJECT_PATH env / Zed SQLite / CWD — мост не нужен.
         bridge_synced = False
-        try:
-            from src.core.lsp_project_bridge import read_project_from_bridge
-            bp = read_project_from_bridge(max_wait=0.3)
-            if bp is not None and bp.resolve() == path.resolve():
-                bridge_synced = True
-            else:
-                warnings.append("LSP bridge not yet synchronized")
-        except Exception:
-            warnings.append("LSP bridge unavailable")
 
         # Layer 3: проверка registry + state machine
         try:
@@ -191,7 +184,8 @@ class RuntimeCoordinator:
             ok=True,
             reason="ready",
             state=state.name if 'state' in dir() else "READY",
-            requires_bridge_sync=not bridge_synced,
+            # Bridge deprecated — поле сохранено для API-совместимости (всегда False).
+            requires_bridge_sync=False,
             warnings=warnings,
         )
 
@@ -206,7 +200,7 @@ class ExecutionVerdict:
         detail: человекочитаемое описание.
         retry_after: секунд до повторной попытки (0 = не retry).
         requires_reindex: True если нужна переиндексация.
-        requires_bridge_sync: True если LSP не синхронизирован.
+        requires_bridge_sync: DEPRECATED — всегда False (LSP-мост удалён 2026-07-20).
         requires_restart: True если нужен рестарт MCP.
         warnings: список предупреждений.
         recommended_action: строка с рекомендуемым действием ("run intel_trigger_reindex",

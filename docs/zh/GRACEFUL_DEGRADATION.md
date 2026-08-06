@@ -94,8 +94,8 @@ stateDiagram-v2
     DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
     DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
 
-    state ALL_TOOLS[可见: 49 个工具]
-        ALL_TOOLS: 全部 49 个 MCP 工具可用（20 core + 13 intel + 12 inline + 4 dev）
+    state ALL_TOOLS[可见: 52 个工具]
+        ALL_TOOLS: 全部 52 个 MCP 工具可用（23 core + 13 intel + 12 inline + 4 dev）
     end
 
     state CUSTOM_TOOLS[自定义选择]

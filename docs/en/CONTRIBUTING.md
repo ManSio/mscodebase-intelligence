@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP server registration (~220 lines)
 │   ├── server_factory.py # Server factory + DI setup
-│   ├── server_tools.py  # Tool registration (49 tools total)
-│   └── tools/           # 14 files, 20 core + 13 intel + 12 inline + 4 dev
+│   ├── server_tools.py  # Tool registration (52 tools total)
+│   └── tools/           # 15 files, 23 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Tools are registered in `src/mcp/server_tools.py` via `register_all_tools()`.
 Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 
-### Tool categories (49 total):
+### Tool categories (52 total):
 
 | Category | Count | Key tools |
 |----------|-------|-----------|

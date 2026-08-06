@@ -12,6 +12,17 @@
 
 ---
 
+## [2026-08-06 23:45] — LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyright), счётчик 52 (DONE)
+
+**Status:** ✅ Fixed (код+доки+тесты; 853 passed)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests/ → 853 passed (эта сессия), smoke LSP: references 2/2 верные (server_tools.py:241/307), start 267ms, concurrency A==C.
+**Root Cause:** (B) LSP→MCP bridge — рудимент удалённого lsp_main.py (2026-07-20): чтение всегда безуспешно (session key MCP=11592 ≠ ключей файлов) → вечное «LSP bridge not yet synchronized»; (C) LspClient (basedpyright) был доступен только внутри write_tools.
+**Fix:** (B) read_active_project/read_project_from_bridge → None без polling (deprecated); warning убран (requires_bridge_sync=False); bridge-ветка удалена из resolve_project_root; _start_delayed_bridge_recheck удалён; легаси write_active_project убран из LspClient._initialize; паспорт/explain/снапшот — честный статус; check_lsp_health.py: путь bridge → ~/.mscodebase/bridge + ссылка LSP_WONTFIX.md; LSP_WONTFIX en|ru|zh += перепроверка на Zed 1.14.2 (вердикт подтверждён: кастомные LSP-имена невозможны без Rust+WASM). (C) src/mcp/tools/lsp_tools.py: lsp_find_references/lsp_find_definition/lsp_document_symbols, общий ленивый LspClient, graceful fallback; LspClient += _write_lock (сериализация JSON-RPC stdin — было без lock); регистрация в tool_classes + default _allowed_names → 23 core = 52 total.
+**Guard:** pytest 853 passed; concurrency-стресс (A==C: 2/2 refs параллельно); grep-0 «49 total|20 core» по живым докам; test_auto_doc_updater 49→52; _count_tools динамический = 52; счётчики обновлены в 27 файлах (AGENTS/README/CONTRIBUTING/pyproject/docs en|ru|zh).
+**Pattern:** P-002-класс «предположение вместо проверки» — docs/en/ARCHITECTURE:101 «20 core (19 + hub)» рассинхронился с tool_classes после Workstream C (DetectCommunities, 19→20) и вновь после 3 LSP (20→23); guard — auto_doc_updater._count_tools + grep-свип в сессии.
+
+---
+
 ## [2026-08-06 22:35] — Закрытие находок вне скоупа A/B: sync-мосты удалены, счётчики 49 (DONE)
 
 **Status:** ✅ Fixed (код+доки; 19 passed)

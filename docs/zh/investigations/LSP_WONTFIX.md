@@ -12,6 +12,12 @@
 **状态：** ✅ Zed 1.9.0 Windows 上 WONTFIX。需要 Rust+WASM 包装
 以实现完整支持（参见「建议」部分）。
 
+> **复核 2026-08-06（Zed 1.14.2）：** 结论确认 — 自定义 LSP 名称无法通过
+> settings.json 注册，需要 Rust+WASM（路径 A，未实现）。LSP→MCP 桥已弃用
+> （写入方已于 2026-07-20 删除）。活跃的 LSP 集成 — LspClient（basedpyright
+> 子进程）：新增 3 个 MCP 工具 lsp_find_references/lsp_find_definition/
+> lsp_document_symbols（2026-08-06）。详情：docs/en/investigations/LSP_WONTFIX.md
+
 ---
 
 ## 1. 症状

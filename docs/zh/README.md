@@ -43,7 +43,7 @@
 │  │  · 调用图与影响分析                            │  │
 │  │  · 项目记忆（ADR、技术债务）                   │  │
 │  │  · 自诊断与自愈                                │  │
-│  │  · 为 AI 助手提供 49 个工具                    │  │
+│  │  · 为 AI 助手提供 52 个工具                    │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP：仅用于重命名（混合模式）
 
-MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **pyright-langserver** 以实现精确的跨文件重命名，超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **49 个 MCP 工具** 实现。
+MSCodeBase **在 `rename_symbol` 和 3 个 LSP 工具中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **basedpyright** 以实现精确的跨文件重命名与 AST 分析（lsp_find_references / lsp_find_definition / lsp_document_symbols），超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **52 个 MCP 工具** 实现。
 
 独立的 LSP 服务器（`src/lsp_main.py`）是实验性组件，**在 Zed 中无法工作** — 参见 [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)。
 
@@ -113,7 +113,7 @@ MSCodeBase **仅在 `rename_symbol` 中使用 LSP** — LSP 客户端（`src/cor
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-| 🧪 **整洁架构** | DI 容器（18 个服务），49 个工具（20 core + 13 intel + 12 inline + 4 dev），853+ 测试 |
+| 🧪 **整洁架构** | DI 容器（18 个服务），52 个工具（23 core + 13 intel + 12 inline + 4 dev），853+ 测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
@@ -184,7 +184,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 
 ---
 
-## 🔧 MCP 工具（共 49 个）
+## 🔧 MCP 工具（共 52 个）
 
 ### 核心搜索
 

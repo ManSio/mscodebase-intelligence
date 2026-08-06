@@ -12,6 +12,12 @@ inlay-hints / автокомплит / code-actions в редакторе.
 **Статус:** ✅ WONTFIX на Zed 1.9.0 Windows. Требует Rust+WASM обёртки
 для полноценной поддержки (см. раздел «Рекомендации»).
 
+> **ПЕРЕПРОВЕРКА 2026-08-06 (Zed 1.14.2):** вердикт подтверждён — кастомные
+> имена LSP невозможны через settings.json, нужен Rust+WASM (путь A, не реализован).
+> LSP→MCP bridge деприцирован (писатель удалён 2026-07-20). Живой LSP — LspClient
+> (basedpyright subprocess): 3 MCP-тула lsp_find_references/lsp_find_definition/
+> lsp_document_symbols добавлены 2026-08-06. Подробности: docs/en/investigations/LSP_WONTFIX.md
+
 ---
 
 ## 1. Симптом

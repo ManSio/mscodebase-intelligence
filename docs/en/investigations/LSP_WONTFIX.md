@@ -12,6 +12,21 @@ inlay-hints / автокомплит / code-actions в редакторе.
 **Статус:** ✅ WONTFIX на Zed 1.9.0 Windows. Требует Rust+WASM обёртки
 для полноценной поддержки (см. раздел «Рекомендации»).
 
+> **ПЕРЕПРОВЕРКА 2026-08-06 (Zed 1.14.2):** вердикт подтверждён на актуальной
+> версии. Официальная документация Zed (developing-extensions): «Only language
+> server, context server and debugger extensions require the presence of custom
+> Rust» — расширение компилируется в wasm32-wasip2 и реализует
+> `language_server_command` из `zed_extension_api`. `settings.json` по-прежнему
+> может только переопределять параметры УЖЕ известных LSP, но не регистрировать
+> новые имена. Путь A (Rust+WASM) — единственный способ редакторного LSP, не реализован.
+>
+> **Следствие (2026-08-06, вариант B+C):** LSP→MCP bridge деприцирован —
+> писатель моста (`lsp_main.py`) удалён 2026-07-20, чтение всегда возвращает None,
+> предупреждение «LSP bridge not yet synchronized» убрано. Живая LSP-интеграция —
+> LspClient (basedpyright как subprocess, не зависит от LanguageRegistry):
+> работает на Windows, выведен в 3 MCP-тула (lsp_find_references /
+> lsp_find_definition / lsp_document_symbols, 2026-08-06).
+
 ---
 
 ## 1. Симптом
