@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-06 — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring не подключён) + packaging-фикс (FIXED, коммит f14435db)
+
+**Symptom:** заявлено «все 5 побед реализованы», но проверка показала: SCM-определения на 70% — queries (17 языков) + `extract_definitions_scm`/`_load_tags_query` есть, а прод-путь `parse_file` (parser.py:297) использует TARGET_NODES walk; `extract_definitions_scm` вызывается только из `scripts/patch_parser.py`. Дополнительно: queries/ не входили в wheel (нет package_data/MANIFEST.in, queries не пакет без `__init__.py`).
+**Root Cause:** наивный patch (patch_parser.py) НЕ применён — и правильно: он ломает .md-путь, try/except fallback, callees-метаданные, двойной парсинг и, главное, формат символов (walk даёт qualified names «Class.method», SCM — простое имя) → регресс CALLS/DECORATES/OVERRIDES, ключующихся на qname. Подключение SCM требует обогащения qualified names — это отдельная задача (Decision в .agent_task_state.md).
+**Fix:** pyproject.toml/MANIFEST.in += `*.scm`; создан `queries/__init__.py` (пакет для package-data); `install.py --sync-only` → расширение синхронизировано (queries 17 языков + parser + search_tools/graph подтверждены grep'ом); полный pytest 831 passed / 4 skipped / 94 deselected (0 failed); коммит f14435db.
+**Status:** 🟡 Partial (packaging закрыт; wiring SCM — на решение владельца: A — обогащение qualified names, B — оставить walk, SCM для будущего language-pack слоя) | **Guard:** .agent_task_state.md «Decision 2026-08-06»; queries/__init__.py исключает повторную потерю package-data; проверка вызовов перед заявлением «реализовано» (паттерн P-002).
+
 ## 2026-08-05 — Реальный отбор audit.md: 16 предложений сверено, 5 экспериментов, 6 уже реализовано (DONE, docs-only)
 
 **Symptom:** audit.md предлагал внедрить Cypher/change-coupling/dead-code/edge-таксономию, которые уже реализованы; заявлял «371 язык за 1 день» и «query latency 4297ms» без проверки.
