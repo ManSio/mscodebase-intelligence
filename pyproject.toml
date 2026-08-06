@@ -109,8 +109,8 @@ where = ["."]
 include = ["src*", "scripts*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.json", "*.md", "*.bat", "*.cfg"]
-"src" = ["*.json", "*.txt", "*.cfg"]
+"*" = ["*.json", "*.md", "*.bat", "*.cfg", "*.scm"]
+"src" = ["*.json", "*.txt", "*.cfg", "*.scm"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
