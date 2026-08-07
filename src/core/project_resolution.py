@@ -7,16 +7,21 @@ ProjectResolution — резолвер корня проекта (ARCH-03).
 просрочен, закрыт в 3.3.11).
 
 Приоритеты резолва (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
-    0. SQLite multi_workspace_state.active_workspace_id (НАДЁЖНО!)
-       Zed пишет сюда активный проект при каждом переключении.
-       Единственный механизм, работающий на Windows.
-    1. Явно переданный provided
-    2. LSP→MCP bridge (temp-файл от LSP)
-    3. Zed SQLite DB (workspaces table — fallback, если нет active)
-    4. PROJECT_PATH из окружения (lazy, с self-indexing guard)
+    0. Явно переданный provided
+    1. CWD (корень окна, для которого запущен MCP-процесс) — per-window
+       изоляция (INC-MULTI-WINDOW). Zed запускает ОТДЕЛЬНЫЙ MCP-процесс
+       на окно и ставит CWD = корень окна. SQLite active_workspace_id
+       глобальный на весь Zed (одна строка на namespace, key = window_id,
+       но резолв берёт rowid DESC LIMIT 1 без фильтра по окну) — два окна
+       резолвят один проект → PID-lock конфликт → ProjectState.FAILED.
+       CWD — единственный per-process сигнал.
+    2. PROJECT_PATH из окружения (lazy, с self-indexing guard) — явный
+       override пользователя; Zed-литерал "$ZED_WORKTREE_ROOT" → None.
+    3. SQLite multi_workspace_state.active_workspace_id (fallback для
+       single-window / когда CWD отклонён self-indexing guard'ом)
+    4. Zed SQLite DB (workspaces table — fallback, если нет active)
     5. ZED_WORKTREE_ROOT env
-    6. CWD, если != ext_root
-    7. ext_root как fallback
+    6. ext_root как fallback
 """
 
 from __future__ import annotations
@@ -89,7 +94,9 @@ def _check_sqlite_schema_health(conn) -> Optional[str]:
         # Проверяем ключевые колонки scoped_kv_store
         cur.execute("PRAGMA table_info(scoped_kv_store)")
         kv_columns = {row[1] for row in cur.fetchall()}
-        required_kv = {"key", "value"}
+        # Реальная схема Zed: namespace/key/value (key = window_id).
+        # Резолв фильтрует по namespace (см. resolve_project_root).
+        required_kv = {"namespace", "key", "value"}
         missing_kv = required_kv - kv_columns
         if missing_kv:
             return f"scoped_kv_store: отсутствуют колонки {missing_kv} — схема устарела"
@@ -97,7 +104,8 @@ def _check_sqlite_schema_health(conn) -> Optional[str]:
         # Проверяем ключевые колонки workspaces
         cur.execute("PRAGMA table_info(workspaces)")
         ws_columns = {row[1] for row in cur.fetchall()}
-        required_ws = {"workspace", "data"}
+        # Реальная схема Zed: workspace_id/paths/timestamp (не workspace/data).
+        required_ws = {"workspace_id", "paths", "timestamp"}
         missing_ws = required_ws - ws_columns
         if missing_ws:
             return f"workspaces: отсутствуют колонки {missing_ws} — схема устарела"
@@ -253,21 +261,44 @@ def resolve_project_root(provided: str = "") -> Path:
     """Возвращает корень проекта для MCP-инструментов.
 
     Приоритет (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
-    0. SQLite multi_workspace_state.active_workspace_id (НАДЁЖНО!)
-       Zed пишет сюда активный проект при каждом переключении.
-       Единственный механизм, работающий на Windows.
-    1. Явно переданный provided
-    2. LSP→MCP bridge (temp-файл от LSP)
-    3. Zed SQLite DB (workspaces table — fallback, если нет active)
-    4. PROJECT_PATH из окружения (lazy, с self-indexing guard)
+    0. Явно переданный provided
+    1. CWD (корень окна, для которого запущен MCP-процесс) — per-window
+       изоляция (INC-MULTI-WINDOW): Zed запускает отдельный MCP на окно
+       и ставит CWD = корень окна. SQLite active_workspace_id глобальный
+       на весь Zed — два окна резолвят один проект → PID-lock конфликт.
+       Self-indexing guard: CWD == ext_root отклоняется (dev/test-режим
+       добирается через SQLite active_workspace с доверием ACTIVE_WORKSPACE).
+    2. PROJECT_PATH из окружения (lazy, с self-indexing guard) — явный
+       override пользователя; Zed-литерал "$ZED_WORKTREE_ROOT" → None.
+    3. SQLite multi_workspace_state.active_workspace_id (fallback для
+       single-window / когда CWD отклонён self-indexing guard'ом)
+    4. Zed SQLite DB (workspaces table — fallback, если нет active)
     5. ZED_WORKTREE_ROOT env
-    6. CWD, если != ext_root
-    7. ext_root как fallback
+    6. ext_root как fallback
     """
     if provided and provided.strip():
         return Path(provided).resolve()
 
-    # ─── 1. SQLite: multi_workspace_state.active_workspace_id ───
+    # ─── 1. CWD-FIRST: per-window изоляция (INC-MULTI-WINDOW) ───
+    # Раньше CWD был предпоследним в цепочке, а SQLite active_workspace_id
+    # (один на весь Zed) — первым: оба окна резолвили один проект →
+    # PID-lock конфликт и ProjectState.FAILED во втором окне.
+    cwd = Path.cwd().resolve()
+    if not _reject_self_index_target(cwd, source="CWD"):
+        logger.debug(f"resolve_project_root: CWD={cwd}")
+        return cwd
+
+    # LSP→MCP bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
+    # read_project_from_bridge всегда возвращает None. project_root резолвится
+    # через CWD / PROJECT_PATH env / Zed SQLite (см. следующие блоки).
+
+    # ─── 2. PROJECT_PATH env (явный override пользователя) ───
+    env_root = _resolve_env_project_root()
+    if env_root is not None:
+        logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")
+        return env_root
+
+    # ─── 3. SQLite: multi_workspace_state.active_workspace_id ───
     # Используем кэшированное соединение (TTL 2с, см. _get_sqlite_connection).
     try:
         _conn = _get_sqlite_connection()
@@ -309,15 +340,7 @@ def resolve_project_root(provided: str = "") -> Path:
     except Exception as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 
-    # LSP→MCP bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
-    # read_project_from_bridge всегда возвращает None. project_root резолвится
-    # через PROJECT_PATH env / Zed SQLite / CWD (см. следующий блок).
-    env_root = _resolve_env_project_root()
-    if env_root is not None:
-        logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")
-        return env_root
-
-    # Fallback: Zed SQLite DB (через то же кэшированное соединение)
+    # ─── 4. Fallback: Zed SQLite DB (через то же кэшированное соединение) ───
     try:
         _conn2 = _get_sqlite_connection()
         if _conn2 is not None:
@@ -352,11 +375,7 @@ def resolve_project_root(provided: str = "") -> Path:
     except Exception as _zed_err:
         logger.debug(f"resolve_project_root: Zed DB fallback error: {_zed_err}")
 
-    env_root = _resolve_env_project_root()
-    if env_root is not None:
-        logger.debug(f"resolve_project_root: PROJECT_PATH={env_root}")
-        return env_root
-
+    # ─── 5. ZED_WORKTREE_ROOT env ───
     zed_root = os.environ.get("ZED_WORKTREE_ROOT")
     if zed_root:
         zed_path = Path(zed_root).resolve()
@@ -365,11 +384,6 @@ def resolve_project_root(provided: str = "") -> Path:
         ):
             logger.debug(f"resolve_project_root: ZED_WORKTREE_ROOT={zed_path}")
             return zed_path
-
-    cwd = Path.cwd().resolve()
-    if not _reject_self_index_target(cwd, source="CWD"):
-        logger.debug(f"resolve_project_root: CWD={cwd}")
-        return cwd
 
     # Диагностика: почему все шаги провалились
     _log_project_resolution_failure()

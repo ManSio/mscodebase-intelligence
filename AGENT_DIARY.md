@@ -9,6 +9,18 @@
 - **Защита:** PID-lock + self-healing + auto-index guard (3-layer defense) — 2026-08-02
 - **Security:** SQL injection fixes (alias/layer), FileGuard fail-open → fail-closed в write_tools — 2026-07-27/08-02
 - **P0 reindex deadlock:** bulk-загрузка known_hashes вне RLock между потоками — 2026-07-31
+- **Multi-window:** CWD-first резолв проекта (per-process сигнал вместо глобального SQLite active_workspace_id) — 2026-08-07
+
+---
+
+## [2026-08-07] — Multi-window MCP изоляция: CWD-first резолв (INC-MULTI-WINDOW) (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 881 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests/ → 881 passed (эта сессия), эксперимент-симуляция двух окон (CWD=MSCodeBase / CWD=Bot_snow) — до фикса оба резолвили MSCodeBase, после — каждый свой CWD (EXPERIMENTS_LOG#exp-multiwindow).
+**Root Cause:** SQLite `scoped_kv_store` хранит ПО-ОКОННЫЕ строки (key=window_id), но резолв брал `rowid DESC LIMIT 1` без фильтра по окну → все MCP-процессы (по одному на окно Zed) читали глобальный `active_workspace_id` → два окна резолвили один проект → PID-lock конфликт (database_lock.py, RuntimeError после 30s) → ProjectState.FAILED.
+**Fix:** CWD-first в resolve_project_root() (src/core/project_resolution.py): provided → CWD (self-index guard) → PROJECT_PATH env → SQLite active → Zed DB → ZED_WORKTREE_ROOT → ext_root. Удалён дубликат `_resolve_env_project_root`; Schema Guard: колонки workspace/data → workspace_id/paths/timestamp (было ложное предупреждение). +9 тестов (tests/test_project_resolution_multiwindow.py).
+**Guard:** test_cwd_wins_over_global_active_workspace; докстринги base.py/server_factory.py синхронизированы (§5.14).
+**Pattern:** P-002-класс «глобальный сигнал вместо per-process» — решение 2026-07-05 (active_workspace_id приоритет 0) не учитывало multi-window.
 
 ---
 

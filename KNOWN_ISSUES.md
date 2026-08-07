@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-07 — Multi-window MCP: все окна резолвят один проект → PID-lock FAILED (FIXED)
+
+**Symptom:** при двух открытых окнах Zed (MSCodeBase + Bot_snow) второй MCP-процесс падал: «PID lock held by alive pid=... after 30.0s» → ProjectState.FAILED; debug_runtime_passport показывал CWD=Bot_snow, но Default Project=MSCodeBase.
+**Root Cause:** SQLite scoped_kv_store хранит ПО-ОКОННЫЕ строки (key=window_id), но resolve_project_root брал `ORDER BY rowid DESC LIMIT 1` без фильтра по окну → все MCP-процессы (по одному на окно Zed) читали глобальный active_workspace_id последнего сфокусированного окна → резолвили один проект → PID-lock конфликт.
+**Fix:** CWD-first в resolve_project_root() (src/core/project_resolution.py): CWD — единственный per-process сигнал (Zed ставит его в корень окна). Приоритет: provided → CWD (guard) → PROJECT_PATH env → SQLite active → Zed DB → ZED_WORKTREE_ROOT → ext_root. Удалён дубликат _resolve_env_project_root; Schema Guard исправлен (workspace_id/paths/timestamp вместо workspace/data — ложное предупреждение).
+**Status:** ✅ Fixed (не закоммичено) | **Guard:** tests/test_project_resolution_multiwindow.py (9 тестов; 881 passed / 4 skipped).
+
+---
+
 ## 2026-08-07 — LSP E: lsp_get_code_actions (quick fixes), счётчики 54→55 (DONE)
 
 **Symptom:** pyright умеет textDocument/codeAction (автоимпорт, quickfix, pyright: ignore), но LspClient не реализовывал метод, MCP-тула не было — агент не мог узнать, какие быстрые правки предлагает типовой движок.

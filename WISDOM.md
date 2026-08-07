@@ -24,3 +24,8 @@
   нормализуй через unquote+Path.as_uri() до lookup, иначе тихая false-negative.
 - _send_text_request оборачивает единичный dict-ответ в список → hover и др.
   методы обязаны обрабатывать wrapped-list, не только dict.
+
+## Multi-window (2026-08-07)
+- SQLite scoped_kv_store хранит по-оконные строки (key=window_id), но без
+  фильтра по окну это глобальный сигнал → резолв проекта CWD-first:
+  Zed ставит CWD = корень окна для каждого MCP-процесса (Verified по 2 окнам).
