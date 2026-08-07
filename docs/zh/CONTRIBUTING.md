@@ -27,7 +27,7 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP 服务器注册（约 220 行）
 │   ├── server_factory.py # 服务器工厂 + DI 设置
-│   ├── server_tools.py  # 工具注册（共 52 个工具）
+│   ├── server_tools.py  # 工具注册（共 54 个工具）
 │   └── tools/           # 14 个文件，20 个核心 + 13 个 intel + 12 个内联 + 4 个开发
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
@@ -164,7 +164,7 @@ pytest tests/ --tb=long -v
 工具在 `src/mcp/server_tools.py` 中通过 `register_all_tools()` 注册。
 每个工具是 `src/mcp/tools/*.py` 中的一个类，继承自 `MCPTool`。
 
-### 工具类别（共 52 个）：
+### 工具类别（共 54 个）：
 
 | 类别 | 数量 | 主要工具 |
 |----------|-------|-----------|

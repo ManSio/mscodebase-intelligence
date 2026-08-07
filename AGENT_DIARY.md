@@ -12,6 +12,15 @@
 
 ---
 
+## [2026-08-07] — LSP D: lsp_get_type_info + lsp_get_diagnostics + pre-flight в WriteTool, счётчик 52→54 (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 866 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests/ → 866 passed (эта сессия), smoke LSP: preflight ловит unknown_var, hover отдаёт сигнатуру, revert не трогает диск.
+**Root Cause:** LspClient (basedpyright) имел hover/completion, но: (1) publishDiagnostics отбрасывались в _read_loop → тип-ошибки невидимы; (2) hover-ответ оборачивался _send_text_request в список → hover возвращал None (латентный баг); (3) basedpyright на Windows перекодирует uri (file:///D:/x → file:///d%3A/x) → lookup диагностики молча не совпадал (тихая false-negative); (4) WriteTool валидировал только фрагмент (ast.parse), не весь файл; (5) LSP был только внутри write_tools/rename, без MCP-обёрток.
+**Fix:** (1) _read_loop копит publishDiagnostics в _diagnostics (uri нормализован через _normalize_diag_uri — регрессия DRIVE-LETTER %3A); (2) hover обрабатывает wrapped-list; (3) get_diagnostics(wait_ms) + preflight_content(didChange→wait→revert, per-uri lock) в LspClient; (4) 2 новых тула lsp_get_type_info (hover) + lsp_get_diagnostics в lsp_tools.py + регистрация tool_classes + _allowed_names → 25 core = 54 total; (5) WriteTool._preflight_validate: compile() всего файла = жёсткий гейт (блокирует), check_types=True = advisory LSP-диагностика в ответе (не блокирует); (6) счётчики 52→54 в 23 doc-файлах (en/ru/zh, AGENTS/README/CONTRIBUTING/ARCHITECTURE/...); zh/CHANGELOG «52 теста» не тронут (тест-счётчик).
+**Guard:** pytest 866 passed; tests/test_lsp_tools.py (new: formatter, uri-нормализация, имена тулов) + TestWriteToolPreflight (6 тестов: синтакс-гейт блокирует, чистый файл проходит, check_types без LSP — advisory, insert с битым синтаксисом — файл не изменён, insert+check_types — запись+note); test_auto_doc_updater контракт 52→54; _count_tools динамический = 54; smoke: preflight errors ['"unknown_var" is not defined'], hover '(function) def add(...)', disk unchanged=True.
+**Pattern:** P-002-класс «предположение вместо проверки» — предложение «добавить hover/автопоиск» не знало, что они уже есть; превентивно найдены 2 реальных бага (hover-list-wrap, uri %3A).
+
 ## [2026-08-06 23:45] — LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyright), счётчик 52 (DONE)
 
 **Status:** ✅ Fixed (код+доки+тесты; 853 passed)
