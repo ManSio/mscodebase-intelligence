@@ -13,6 +13,17 @@
 
 ---
 
+## [2026-08-07] — Synthetic monitoring качества поиска: «не пусто?» → реальные результаты (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 894 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 894 passed (эта сессия), регресс-тесты 10/10.
+**Root Cause:** _check_search_quality (health.py) считал тест сданным при len(results)>0, но Searcher.search() возвращает СТРОКУ — даже «ничего не найдено» проходило; мусорные чанки (пустые __init__.py c fallback_lines, error-dicts vector_search) считались результатами (аудит Bot_snow #15). Плюс _out["error"] захватывался, но не проверялся — ошибка поиска маскировалась под «пустой результат».
+**Fix:** hybrid_search() → List[dict] + _is_quality_result (файл + непустой текст; без импорта из mcp — ARCH-03 core←mcp); проверка _out["error"]; 3 разных запроса вместо «index file» ×3. +10 тестов (tests/test_search_quality_monitoring.py).
+**Guard:** test_fails_on_garbage_chunks / test_fails_when_searcher_raises — на старом коде падают (строка-результат или мусор проходили).
+**Pattern:** P-002 «проверка не той вещи» — мониторинг мерил «что-то вернулось», а не «вернулось нужное».
+
+---
+
 ## [2026-08-07] — Инструменты с корнем через __file__: stale_detector/_grep_fallback сканировали расширение (DONE)
 
 **Status:** ✅ Fixed (код+тесты; 884 passed / 4 skipped)

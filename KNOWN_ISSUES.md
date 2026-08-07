@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-07 — Synthetic monitoring качества поиска «лжёт»: мусор проходит (FIXED)
+
+**Symptom:** get_health_report показывал search_quality 3/3 passed даже при битом поиске — Searcher.search() возвращает строку (len>0 всегда), мусорные чанки/error-dicts считались результатами (аудит Bot_snow #15).
+**Root Cause:** проверка «результат не пуст?» вместо «результат реальный?»; ошибка поиска захватывалась в _out["error"], но не проверялась.
+**Fix:** hybrid_search() → List[dict]; _is_quality_result (файл + непустой текст); проверка _out["error"]; 3 разных запроса. 10 тестов; 894 passed / 4 skipped.
+**Status:** ✅ Fixed | **Guard:** tests/test_search_quality_monitoring.py.
+
+---
+
 ## 2026-08-07 — stale_detector/_grep_fallback сканируют расширение вместо проекта (FIXED)
 
 **Symptom:** в окне Bot_snow stale_detector показывал «дрейфы» чужой документации расширения; запасной поиск (grep fallback) и инцидент-анализ возвращали пути в расширение (install.py:11, experiments\bench_embed_batch.py).
