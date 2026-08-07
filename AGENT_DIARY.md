@@ -10,6 +10,20 @@
 - **Security:** SQL injection fixes (alias/layer), FileGuard fail-open → fail-closed в write_tools — 2026-07-27/08-02
 - **P0 reindex deadlock:** bulk-загрузка known_hashes вне RLock между потоками — 2026-07-31
 - **Multi-window:** CWD-first резолв проекта (per-process сигнал вместо глобального SQLite active_workspace_id) — 2026-08-07
+- **Type resolution:** query-time LSP через basedpyright (не index-time USES_TYPE) — 2026-08-06/07
+- **Edge transparency:** confidence EXTRACTED/INFERRED + evidence в properties рёбер — 2026-08-08
+
+---
+
+## [2026-08-08 23:50] — А+Б из audit.md: edge transparency, path queries, Jupyter, find_duplicates, get_context (DONE, 956 passed)
+
+**Status:** ✅ Fixed (код+тесты; 937→956 passed, +19 новых тестов; файлы синхронизированы в расширение — для активации MCP нужен Reload Window)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 956 passed / 4 skipped / 94 deselected (эта сессия, рабочее дерево).
+**Root Cause:** audit.md (experiments/) заявлял «❌ Нет» по фичам, часть из которых уже существовала (co-change, code_health — P-002). Реальные gaps подтверждены экспериментами 2026-08-08 (EXPERIMENTS_LOG: 4 записи): path BFS 0.11ms, .ipynb parse 0.006ms, AST-дупликация 861ms/140 файлов.
+**Fix:** A1) confidence/evidence в properties рёбер (graph_adapter_pure ×5, add_assignments, relation_extractor INFERRED); A2) `graph_query(action="path", from, to, direction, max_depth)` + direction в PropertyGraph.shortest_path (backward-compat "outgoing"); A3) `.ipynb` в INDEX/PARSE_EXTENSIONS + CodeParser._parse_notebook (stdlib json, cell → tree-sitter, fallback code_cell); B1) src/core/duplication.py + find_duplicates (AST-отпечатки + multiset-Jaccard + minhash-LSH); B2) get_context(targets) — task-shaped обёртка. Регистрация 55→57 тулов (docstring, README, AGENTS.md, docs en/ru/zh — 38 замен; контракт-тест 57). Тесты: tests/test_graph_path, test_duplication, test_jupyter, test_edge_transparency.
+**Guard:** тест на каждую фичу; контракт-тест кол-ва тулов (test_auto_doc_updater); старые рёбра без confidence — tools отдают "unknown" (переиндексация наполнит); duplication default threshold 0.85 — примечание про шум на коротких функциях.
+**Pattern:** P-002 (аудит «внедрить существующее») — теперь гипотезы проверяются экспериментом ДО реализации (EXPERIMENTS_LOG §1.6).
+**Temporal:** T+0 OK | T+30d: число тулов снова разъедется с доками — auto_doc_updater динамический, README-маркеры правятся вручную | T+180d: duplication.py — кандидат на index-time SIMILAR_TO; open thread: class-узлы без исходящих DEFINES-рёбер (impact_analysis не видит методов класса по пути).
 
 ---
 

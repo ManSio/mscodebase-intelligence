@@ -76,6 +76,7 @@ class RelationExtractor:
                     "target": parts[1],
                     "weight": frequency,
                     "type": "cochange",
+                    "confidence": "INFERRED",
                 })
 
         # Сортируем по весу
@@ -132,6 +133,7 @@ class RelationExtractor:
                     "weight": frequency,
                     "type": "bug_correlation",
                     "common_bugs": common_bugs[pair_str][:5],  # Топ-5 сообщений
+                    "confidence": "INFERRED",
                 })
 
         relations.sort(key=lambda x: x["weight"], reverse=True)
@@ -158,6 +160,7 @@ class RelationExtractor:
                             "target": callee,
                             "weight": 1,
                             "type": "call",
+                            "confidence": "EXTRACTED",
                         })
         except Exception as e:
             logger.warning(f"Failed to extract call relations: {e}")

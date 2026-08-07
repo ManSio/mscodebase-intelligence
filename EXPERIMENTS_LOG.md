@@ -385,3 +385,68 @@ CoALA (Sumers et al., 2023, arXiv:2309.02427): modular memory = episodic (ист
 | scip-python как pip-зависимость (SCIP backend для Python) | Пакета нет на PyPI (404) — только CLI-репозитории Sourcegraph с node/native сборкой | 2026-08-05 | audit.md п.9 |
 | cypher-sqlite как готовая Cypher-библиотека | Пакета нет на PyPI (404); свой CypherExecutor уже реализован | 2026-08-05 | audit.md п.2 |
 | «371 язык symbol extraction» из tree-sitter-language-pack | Манифест = 371 грамматика, но tags.scm есть только у 71 (19%); 300 языков — AST-парсинг без символов | 2026-08-05 | audit.md п.1 |
+| pylint-django как детектор дупликации | Это плагин для Django-фреймворка (типы ForeignKey/Model), а не dup-detector — официальное описание PyPI 2.8.0 (2026-07-11) | 2026-08-08 | audit.md L197 |
+
+---
+
+## [2026-08-08] — Exp: `PropertyGraph.shortest_path` — корректность + латентность (H-PATH)
+**Гипотеза:** BFS (graph.py:937) работает на живом графе, медиана <50ms; gap = только отсутствие MCP `graph_query(action="path")`.
+**Команда:** `venv/Scripts/python.exe experiments/exp_graph_path.py` (скрипт в experiments/, read-only через API PropertyGraph).
+**Сырой результат:**
+```
+graph: 7247 nodes, 21404 edges
+[tool->PropertyGraph (CALLS)] shortest_path('_execute_cypher' -> 'PropertyGraph'): 2 hops
+   ...GraphQueryTool._execute_cypher  -[->
+   ...graph.py.PropertyGraph  -[CALLS]->
+latency_ms: [0.3, 0.14, 0.12, 0.11, 0.09, 0.09, 0.09]  median_ms: 0.11
+```
+**Вердикт:** подтверждена — 0.11ms медиана (гипотеза <50ms выполнена ×450). Реальный путь найден, структура корректна (source→CALLS→target).
+**Урок:** `shortest_path` траverses ТОЛЬКО outgoing-рёбра (`graph.py:974` `WHERE source_id = ?`) — классы/методы без исходящих рёбер недостижимы. MCP-обёртке `action="path"` нужен опциональный `direction="both"` (BFS уже параметризуем). Также: qname-формат `D:.D:/Project/...` — клиенту нужен подсказчик имён (как `find_nodes(name_pattern=...)`).
+
+---
+
+## [2026-08-08] — Exp: Jupyter `.ipynb` = JSON, интеграция без новых зависимостей (H-JUPYTER)
+**Гипотеза:** .ipynb разбирается stdlib json (nbformat опционален), code cells подаются в существующий tree-sitter пайплайн CodeParser. Интеграция = extensions.py + ветка в parse_file.
+**Команда:** `venv/Scripts/python.exe experiments/exp_jupyter.py`
+**Сырой результат:**
+```
+json.loads 200x: median_ms = 0.0055
+cells=5 code_cells=3
+  cell 0: 69 chars / 5 lines ...
+CodeParser.parsers keys: ['.go', '.js', '.py', '.rs', '.ts', '.tsx']
+  cell 0 -> parse_file: 1 chunks, 0 syms, 15.08ms
+  cell 1 -> parse_file: 1 chunks, 1 syms, 13.35ms
+  cell 2 -> parse_file: 1 chunks, 0 syms, 13.48ms
+TOTAL chunks из 3 code cells: 3
+```
+**Вердикт:** подтверждена — парсинг ~0.006ms, извлечение корректно, существующий пайплайн работает на cell-as-.py (13-15ms/cell). nbformat 5.11.0 существует (PyPI, 2026-08-06), но не нужен.
+**Урок:** накладные расходы на ноутбук ~N×13ms (N = code cells) — приемлемо. Замечание: standalone `CodeParser()` загрузил только 6 грамматик (полный набор идёт через другой путь инициализации — язык-пак/окружение) — для .ipynb достаточно python-грамматики + metadata.language_info.name.
+
+---
+
+## [2026-08-08] — Exp: детекция дупликации AST-нормализованными отпечатками (H-DUP)
+**Гипотеза:** для 54 языков AST-нормализация (tree-sitter уже есть) + minhash ближних дублей реализуемо stdlib+numpy, без suffix-array движка. fallow: suffix-array покрывает только JS/TS+CSS. pylint-django — НЕ dup-detector.
+**Команда:** `venv/Scripts/python.exe experiments/exp_dup.py` (скрипт в experiments/, ~60 строк: tree-sitter листовые токены с плейсхолдерами <id>/<lit>, sha1-группировка точных, minhash-64 8-грамм для ближних).
+**Сырой результат:**
+```
+files=137 functions/classes>=24tokens=401 scan_ms=414.8
+EXACT дубликаты: 8 групп
+  artifact_paths.py: get_index_dir/get_intelligence_dir/get_metrics_dir/get_commit_memory_dir/get_branches_dir/get_telemetry_dir/get_summaries_cache_dir (7 шт)
+  extensions.py: is_supported ~ is_parseable
+  resource_monitor.get_global_resource_monitor ~ llama_runner.get_global_runner
+  language_pack.lang_for_ext ~ get_parser
+  lsp_project_bridge._bridge_path ~ _stale_path
+  cypher_ast._UnaryOp ~ _LabelTest
+  graph_tools._confirmed ~ _contradicted
+  lsp_tools.LspFindReferencesTool ~ LspFindDefinitionTool
+NEAR-дубли (minhash>0.85): 1 пара, 0.969 — lsp_tools.LspFindReferencesTool ~ LspFindDefinitionTool; pair_scan_ms=660.8
+```
+**Вердикт:** подтверждена — 137 файлов за 414.8ms, найдены РЕАЛЬНЫЕ дубли (7 функций get_*_dir — классический copy-paste; LSP-классы-близнецы 0.969). Ноль новых зависимостей (tree_sitter + hashlib уже есть; simhash 2.1.2 существует, но не нужен). pylint-django опровергнут (см. 🚫 таблицу).
+**Урок:** порог ≥24 токена и k=8-граммы дают 0 false-positive на этом репо. Для MCP-тула `find_duplicates(threshold)` — готовая схема: index-time (опционально) или on-demand скан ~415ms. Кандидаты: 7×get_*_dir стоит реально отрефакторить в 1 функцию.
+
+---
+
+## [2026-08-08] — Верификация кода (без замеров): H-EDGE / H-LSP / H-TASK
+**H-EDGE (edge transparency) — подтверждена:** `Edge.properties` — реальная колонка (graph.py:410), `add_edge` принимает properties и upsert обновляет их (graph.py:736,778), `to_dict` отдаёт (graph.py:329). Теги EXTRACTED/INFERRED = метаданные, **без миграции схемы**. Реальная стоимость: пометить вызовы add_edge/batch_add_edges при создании рёбер + пасс-through в tools (уже через to_dict). Оценка аудита «2-3 недели» завышена на порядок (3-5 дней, а то и меньше).
+**H-LSP (type resolution) — закрыт другим путём:** с 2026-08-06 в проекте есть 6 LSP-тулов через basedpyright (src/core/lsp_client.py, src/mcp/tools/lsp_tools.py): lsp_find_references/definition/document_symbols/get_type_info/get_diagnostics/get_code_actions. Живая проверка: `lsp_get_type_info(graph.py:730)` вернул `(parameter) self: Self@PropertyGraph`. USES_TYPE edge объявлен (graph.py:234), но не заполняется — index-time type resolution НЕ нужен: query-time LSP покрывает боль точнее (тот же паттерн, что fallow `--type-aware` — семантика на уровне запроса, не индекса).
+**H-TASK (task-shaped) — частично есть:** `intel_get_project_context` — один вызов = снапшот state+index+health+memory+background (server_tools.py: инлайн-регистрация); `graph_query(action="related")` — контекст по нескольким целям через CommitMemory+RelationExtractor. Нет только символьного `get_context(targets=[...])` — это тонкая обёртка. **H-PATH примечание:** class-узлы имеют 0 исходящих рёбер (CodeParser out=0) — DEFINES-связи неполны на уровне class→method; открытая нить для ревью indexer.edge-записи.

@@ -30,6 +30,8 @@ PARSE_EXTENSIONS: frozenset[str] = frozenset({
     ".hcl", ".tf", ".tfvars",
     # Markdown
     ".md",
+    # Jupyter notebooks (JSON → code cells)
+    ".ipynb",
 })
 
 # ── Все расширения, которые индексируем ───────────────────────────────────
@@ -46,6 +48,8 @@ INDEX_EXTENSIONS: frozenset[str] = frozenset({
     ".css", ".scss", ".sass", ".less",
     # Markup / Data
     ".html", ".xml", ".json", ".yaml", ".yml", ".toml", ".md",
+    # Jupyter notebooks (JSON → code cells)
+    ".ipynb",
     # Database / Shell
     ".sql", ".sh", ".bash",
     # Text (из lsp_main.py)

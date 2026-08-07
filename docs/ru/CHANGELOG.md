@@ -6,17 +6,30 @@
 
 Все значимые изменения в этом проекте документируются в данном файле.
 
-> **Количество инструментов (текущее):** живой сервер регистрирует **49 инструментов** = 20 core + 13 intel + 12 inline + 4 dev
+> **Количество инструментов (текущее):** живой сервер регистрирует **57 инструментов** = 28 core + 13 intel + 12 inline + 4 dev
 > (см. лог старта `src/mcp/server_tools.py`). Записи ниже ссылаются на более ранние суммарные значения.
 
 ---
 
 
-## [3.3.13] — 2026-08-05
 
-<!-- TODO: опишите изменения -->
+## [3.4.0] — 2026-08-08
+
+### Добавлено
+- **Edge transparency**: `confidence` (EXTRACTED/INFERRED) + `evidence` (file:line) в properties рёбер PropertyGraph — DEFINES/CALLS/IMPORTS/DECORATES/OVERRIDES/ASSIGNED_FROM помечаются EXTRACTED, co-change/bug-correlation — INFERRED. Агент видит, что прочитано из кода, а что выведено (gap audit.md, проверено экспериментом 2026-08-08).
+- **Path queries**: `graph_query(action="path", from, to, direction, max_depth)` — кратчайший путь между символами; `PropertyGraph.shortest_path(..., direction="outgoing|incoming|both")` (обратная совместимость).
+- **Поддержка Jupyter**: `.ipynb` в INDEX/PARSE_EXTENSIONS; `CodeParser._parse_notebook` — code cells → чанки через tree-sitter (stdlib json; nbformat не требуется).
+- **find_duplicates**: детектор copy-paste — AST-нормализованные отпечатки + multiset-Jaccard + minhash-LSH, мультиязычно (src/core/duplication.py).
+- **get_context(targets=[...])**: task-shaped агрегатор — контекст по нескольким символам одним вызовом.
+
+### Изменено
+- Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 12 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
+
+### Тесты
+- +19 новых тестов (test_graph_path, test_duplication, test_jupyter, test_edge_transparency); полный pytest: 956 passed / 4 skipped / 94 deselected.
 
 ---
+## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), bump_version fix, test sys.path pollution fix
 ## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), фикс bump_version, фикс sys.path-загрязнения теста
 
 ### Исправлено

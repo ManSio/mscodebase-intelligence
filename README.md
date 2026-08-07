@@ -13,9 +13,9 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-947%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1032%20passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-55-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-58-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-08-03*
 
@@ -44,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 55 tools for AI assistant                 │
+│  │  · 57 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 55 tools (26 core + 13 intel + 12 inline + 4 dev), 853+ tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 57 tools (28 core + 13 intel + 12 inline + 4 dev), 956 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -199,13 +199,13 @@ Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-
 | **[SECURITY.md](SECURITY.md)** | Security policy, reporting vulnerabilities | Security | 🇬🇧 |
 | **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** | Community standards | Contributors | 🇬🇧 |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | How to contribute (root-level) | Contributors | 🇬🇧 |
-| **[docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)** | Known issues & technical debt registry | All | 🇬🇧 |
+| **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | Known issues & technical debt registry | All | 🇬🇧 |
 
 All documents are cross-referenced. Available in 3 languages: English, Русский, 中文.
 
 ---
 
-## 🔧 MCP Tools (55 total)
+## 🔧 MCP Tools (58 total)
 
 ### Core Search
 
@@ -233,7 +233,7 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 |------|-------------|
 | `codebase(action="index", path="status")` | Index status: chunks, files, symbols (`get_index_status`) |
 | `codebase(action="index", path="progress")` | Indexing progress (phase, percent) |
-| `codebase(action="index", path="project_dir", project_root=...)` | Start full project indexing (`index_project_dir`) |
+| `codebase(action="index", path="project_dir", project_root=...)` | Start full project indexing (`index_project_dir`; prefer async `intel_trigger_reindex`) |
 | `codebase(action="index", path="timeline")` | Indexing history by date |
 | `codebase(action="index", path="health")` | Index diagnostics and self-recovery (`index_health`) |
 | `notify_change(file_path)` | Force index update for a file (via DebounceBatch) — inline tool |

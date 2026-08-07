@@ -941,8 +941,18 @@ class PropertyGraph:
         target_qname: str,
         edge_type: Optional[str] = None,
         max_depth: int = 10,
+        direction: str = "outgoing",
     ) -> List[Tuple[Node, Edge]]:
         """BFS кратчайший путь между двумя узлами.
+
+        Args:
+            source_qname: qualified_name исходного узла
+            target_qname: qualified_name целевого узла
+            edge_type: ограничить рёбра одним типом
+            max_depth: максимальная глубина BFS
+            direction: "outgoing" (source→target по исходящим рёбрам,
+                       backward-compat), "incoming" или "both" — для
+                       неориентированных путей (path queries).
 
         Returns:
             Список (узел, ребро) от source до target, или [] если путь не найден
@@ -971,18 +981,31 @@ class PropertyGraph:
                 next_frontier: List[int] = []
 
                 for node_id in frontier:
-                    edges_sql = (
-                        "SELECT id, source_id, target_id, type, weight, properties "
-                        "FROM edges WHERE source_id = ?"
-                    )
-                    params: List[Any] = [node_id]
-                    if edge_type:
-                        edges_sql += " AND type = ?"
-                        params.append(edge_type)
+                    candidates: List[Tuple[int, sqlite3.Row]] = []
+                    if direction in ("outgoing", "both"):
+                        edges_sql = (
+                            "SELECT id, source_id, target_id, type, weight, properties "
+                            "FROM edges WHERE source_id = ?"
+                        )
+                        params: List[Any] = [node_id]
+                        if edge_type:
+                            edges_sql += " AND type = ?"
+                            params.append(edge_type)
+                        for row in conn.execute(edges_sql, params).fetchall():
+                            candidates.append((row["target_id"], row))
+                    if direction in ("incoming", "both"):
+                        edges_sql_in = (
+                            "SELECT id, source_id, target_id, type, weight, properties "
+                            "FROM edges WHERE target_id = ?"
+                        )
+                        params_in: List[Any] = [node_id]
+                        if edge_type:
+                            edges_sql_in += " AND type = ?"
+                            params_in.append(edge_type)
+                        for row in conn.execute(edges_sql_in, params_in).fetchall():
+                            candidates.append((row["source_id"], row))
 
-                    rows = conn.execute(edges_sql, params).fetchall()
-                    for row in rows:
-                        neighbor_id = row["target_id"]
+                    for neighbor_id, row in candidates:
                         if neighbor_id in visited:
                             continue
                         visited.add(neighbor_id)

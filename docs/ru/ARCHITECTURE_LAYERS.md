@@ -148,7 +148,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result.
 
 | Документ | Описание |
 |----------|----------|
-| [README.md](../README.md) | Основная документация, карта всех доков |
+| [README.md](../../README.md) | Основная документация, карта всех доков |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Архитектура проекта, DI, слои |
 | [TELEMETRY.md](TELEMETRY.md) | Метрики и телеметрия |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |

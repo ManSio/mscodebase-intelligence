@@ -293,7 +293,7 @@ let adapter = self.languages
 
 - **LSP-возможности в редакторе (inlay-hints, code-actions, автодополнение через
   mscodebase-lsp) невозможны на Zed 1.9.0 Windows.**
-- **Вся семантика и поиск продолжают работать через MCP** — 55 инструментов,
+- **Вся семантика и поиск продолжают работать через MCP** — 57 инструментов,
 - **LSP bridge (project_root от LSP)** остаётся пустым, но `resolve_project_root()`
   компенсирует это через SQLite fallback.
 

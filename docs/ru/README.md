@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 55 инструментов для AI-ассистента          │  │
+│  │  · 57 инструментов для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 55 инструментов (26 core + 13 intel + 12 inline + 4 dev), 853+ тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 57 инструментов (28 core + 13 intel + 12 inline + 4 dev), 853+ тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 29 типов рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
@@ -167,7 +167,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | **[ARCHITECTURE_LAYERS.md](ARCHITECTURE_LAYERS.md)** | 10 слоев рантайма | Архитекторы | 🇬🇧 🇷🇺 🇨🇳 |
 | **[FAQ.md](FAQ.md)** | Часто задаваемые вопросы | Все | 🇬🇧 🇷🇺 🇨🇳 |
 | **[TELEMETRY.md](TELEMETRY.md)** | Метрики, ETA, сбор данных | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
-| **[investigations/ONNX_SESSION_REPORT.md](investigations/ONNX_SESSION_REPORT.md)** | Полная миграция ONNX, 7 исправлений, бенчмарки | Поддержка | 🇬🇧 |
+| **[investigations/ONNX_SESSION_REPORT.md](../en/investigations/ONNX_SESSION_REPORT.md)** | Полная миграция ONNX, 7 исправлений, бенчмарки | Поддержка | 🇬🇧 |
 | **[investigations/LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)** | Исследование LSP на Windows (WONTFIX) | Поддержка | 🇬🇧 🇨🇳 |
 | **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)** | Особенности Windows, Restricted Mode | Пользователи Windows | 🇬🇧 🇷🇺 🇨🇳 |
 | **[CHANGELOG.md](CHANGELOG.md)** | История версий | Все | 🇬🇧 🇷🇺 🇨🇳 |
@@ -177,7 +177,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | **[../../SECURITY.md](../../SECURITY.md)** | Политика безопасности, сообщение об уязвимостях | Безопасность | 🇬🇧 |
 | **[../../CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)** | Стандарты сообщества | Контрибьюторы | 🇬🇧 |
 
-| **[../../docs/KNOWN_ISSUES.md](../../docs/KNOWN_ISSUES.md)** | Известные проблемы и реестр техдолга | Все | 🇬🇧 |
+| **[../../KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)** | Известные проблемы и реестр техдолга | Все | 🇬🇧 |
 
 Все документы перекрёстно ссылаются друг на друга. Доступны на 3 языках: English, Русский, 中文.
 

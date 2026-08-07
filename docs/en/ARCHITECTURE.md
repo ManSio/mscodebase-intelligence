@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (26 core + 13 intel + 12 inline + 4 dev = 55 total)](#4-tool-layer)
+4. [Tool Layer (28 core + 13 intel + 12 inline + 4 dev = 57 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py               (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (26 core + 12 inline + 4 dev)│
+│  Layer 3: mcp/tools/*.py         (28 core + 12 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,14 +91,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 26 core + 13 intel + 12 inline + 4 dev = 55 total
+3. Register 28 core + 13 intel + 12 inline + 4 dev = 57 total
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **15 files: 26 core (19 + codebase hub + 6 LSP) + 12 inline + 4 dev.**
+`src/mcp/tools/*.py` — **15 files: 28 core (21 + codebase hub + 6 LSP) + 12 inline + 4 dev.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -144,7 +144,7 @@ Key modules:
 | `cypher_engine.py` | `src/core/search/cypher_engine.py` | Cypher→SQL facade (facade over cypher_ast/lexer/parser/sql/executor) |
 | `indexer.py` | `src/core/indexing/indexer.py` | LanceDB vector storage + indexing pipeline |
 | `symbol_index.py` | `src/core/indexing/symbol_index.py` | Call Graph (BFS, PageRank) |
-| `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST parser (16 languages) |
+| `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST parser (32 extensions: core + shell + context + markdown) |
 | `file_guard.py` | `src/core/indexing/file_guard.py` | .gitignore + extension filter |
 | `db_manager.py` | `src/core/indexing/db_manager.py` | LanceDB table lifecycle (PID-lock, reindex guard) |
 | `fts5_mixin.py` | `src/core/search/fts5_mixin.py` | FTS5 full-text search mixin |
@@ -275,7 +275,7 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
     # +13 intel_* tools + 12 inline diagnostic + 4 dev
-    # Total: 55 registered (26 core + 13 intel + 12 inline + 4 dev)
+    # Total: 57 registered (28 core + 13 intel + 12 inline + 4 dev)
 ```
 
 **Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 49.
@@ -301,7 +301,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Total:** 55 registered (26 core + 13 intel + 12 inline + 4 dev). Default visible: ~39. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 57 registered (28 core + 13 intel + 12 inline + 4 dev). Default visible: ~39. Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

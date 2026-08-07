@@ -1,6 +1,6 @@
 # Investigation: Кастомный LSP не стартует в Zed 1.9.0 (Windows)
 
-[🇬🇧 English](../en/investigations/LSP_WONTFIX.md) • [🇷🇺 Русский](LSP_WONTFIX.md) • [🇨🇳 中文](../zh/investigations/LSP_WONTFIX.md)
+[🇬🇧 English](../../en/investigations/LSP_WONTFIX.md) • [🇷🇺 Русский](LSP_WONTFIX.md) • [🇨🇳 中文](../../zh/investigations/LSP_WONTFIX.md)
 
 **Дата:** 2026-07-05
 **Автор:** AI-Agent (по запросу misha)

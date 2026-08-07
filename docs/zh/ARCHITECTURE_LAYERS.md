@@ -148,7 +148,7 @@ env (PROJECT_PATH, ZED_WORKTREE_ROOT, PYTHONPATH), guard result。
 
 | 文档 | 描述 |
 |----------|----------|
-| [README.md](../README.md) | 主文档，所有文档的导览 |
+| [README.md](../../README.md) | 主文档，所有文档的导览 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 项目架构，DI，分层 |
 | [TELEMETRY.md](TELEMETRY.md) | 指标与遥测 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本历史 |

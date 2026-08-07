@@ -1,6 +1,6 @@
 # 调查：Windows 上的活动项目确定
 
-[🇬🇧 English](../en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md) • [🇨🇳 中文](ACTIVE_WORKSPACE_RESOLUTION.md)
+[🇬🇧 English](../../en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md) • [🇨🇳 中文](ACTIVE_WORKSPACE_RESOLUTION.md)
 
 **日期：** 2026-07-05
 **目标：** 找到一种可靠的方法来确定 Zed IDE 中当前焦点的项目/工作区，在 Windows 上无需使用 `ZED_WORKTREE_ROOT`（不起作用）和 `current_dir`（在 Windows 上也不起作用）。

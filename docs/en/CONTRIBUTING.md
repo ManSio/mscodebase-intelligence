@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # MCP server registration (~220 lines)
 │   ├── server_factory.py # Server factory + DI setup
-│   ├── server_tools.py  # Tool registration (55 tools total)
-│   └── tools/           # 15 files, 26 core + 13 intel + 12 inline + 4 dev
+│   ├── server_tools.py  # Tool registration (57 tools total)
+│   └── tools/           # 15 files, 28 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -115,7 +115,7 @@ isort src/
 
 ## 4. Running Tests
 
-The project has **853+ tests** in `tests/`.
+The project has **956 tests** in `tests/`.
 
 ```powershell
 # Full suite
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Tools are registered in `src/mcp/server_tools.py` via `register_all_tools()`.
 Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 
-### Tool categories (55 total):
+### Tool categories (57 total):
 
 | Category | Count | Key tools |
 |----------|-------|-----------|

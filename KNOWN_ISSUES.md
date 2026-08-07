@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-08-08 — А+Б из audit.md: edge transparency, path queries, Jupyter, find_duplicates, get_context (DONE, 956 passed)
+
+**Symptom:** аудит заявлял 6 gaps: edge transparency ❌, path queries ❌, Jupyter ❌, dup detection ❌, task-shaped ❌, «Hybrid LSP» 🔴 Critical; pylint-django рекомендован как dup-detector.
+**Verdict (эксперименты 2026-08-08, EXPERIMENTS_LOG):** реальные gaps подтверждены: edge transparency (но properties-колонка уже есть — без миграции схемы), path BFS (shortest_path 0.11ms, только MCP-экспозиция), Jupyter (stdlib json 0.006ms, nbformat не нужен), dup detection (AST-отпечатки + multiset-Jaccard, 861ms/140 файлов, реальные дубли: 7×get_*_dir, 6×get_lm_studio_*_url), task-shaped (частично был: intel_get_project_context). ❌ Опровергнуто: pylint-django — Django-плагин, НЕ dup-detector (PyPI 2.8.0); «Hybrid LSP index-time» — уже закрыт query-time LSP-тулами через basedpyright (2026-08-06/07); co-change и code_health существовали (P-002).
+**Fix:** A1) confidence EXTRACTED/INFERRED + evidence в properties рёбер (graph_adapter_pure ×5, add_assignments, relation_extractor); A2) `graph_query(action="path", from, to, direction, max_depth)` + direction в PropertyGraph.shortest_path; A3) `.ipynb` в extensions.py + CodeParser._parse_notebook; B1) src/core/duplication.py + find_duplicates; B2) get_context(targets). Регистрация 55→57 тулов (README/AGENTS.md/docs en+ru+zh, контракт-тест 57). Тесты +19: test_graph_path, test_duplication, test_jupyter, test_edge_transparency.
+**Status:** ✅ Done (локально; файлы синхронизированы в расширение — активация MCP после Reload Window).
+**Guard:** тесты на фичи; контракт-тест 57 тулов; EXPERIMENTS_LOG 4 записи с сырыми выводами; старые рёбра без confidence → "unknown" в tools (переиндексация наполнит); duplication threshold 0.85 шумит на коротких функциях — рекомендован 0.9+.
+
+---
+
 ## 2026-08-07 — Synthetic monitoring качества поиска «лжёт»: мусор проходит (FIXED)
 
 **Symptom:** get_health_report показывал search_quality 3/3 passed даже при битом поиске — Searcher.search() возвращает строку (len>0 всегда), мусорные чанки/error-dicts считались результатами (аудит Bot_snow #15).
@@ -3003,5 +3013,52 @@ Three fixes from the same review:
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Done (docs-only, 26 файлов; pytest 853 passed замер сессии)
 **Root Cause:** (1) ru/zh README секции инструментов не прошли реструктуризацию после hub-миграции — легаси-имена (get_commit_...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-07 23:30 — Аудит Bot_snow остаток BS-1..BS-14: 14/14 закрыто (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 894→937 passed, +43 теста в tests/test_search_bs_audit.py)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 937 pas...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-07 — Synthetic monitoring качества поиска: «не пусто?» → реальные результаты (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 894 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 894 passed...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-07 — Инструменты с корнем через __file__: stale_detector/_grep_fallback сканировали расширение (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 884 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 884 passed...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-07 — Multi-window MCP изоляция: CWD-first резолв (INC-MULTI-WINDOW) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 881 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-07 — LSP E: lsp_get_code_actions (quick fixes), счётчик 54→55 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 872 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 872 passed...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-07 — LSP D: lsp_get_type_info + lsp_get_diagnostics + pre-flight в WriteTool, счётчик 52→54 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 866 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests...
 - **Статус:** автоматически синхронизировано
 

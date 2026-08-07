@@ -110,7 +110,12 @@ class PureGraphMixin:
                 target_qname=qname,
                 type=EdgeType.DEFINES,
                 weight=1.0,
-                properties={"line": line, "kind": kind},
+                properties={
+                    "line": line,
+                    "kind": kind,
+                    "confidence": "EXTRACTED",
+                    "evidence": f"{file_path}:{line}",
+                },
             )
 
     def _pure_add_references(self, file_path: str, calls: List[Dict]) -> None:
@@ -152,7 +157,12 @@ class PureGraphMixin:
                         target_qname=cn.qualified_name,
                         type=EdgeType.CALLS,
                         weight=1.0,
-                        properties={"line": line, "file": file_path},
+                        properties={
+                            "line": line,
+                            "file": file_path,
+                            "confidence": "EXTRACTED",
+                            "evidence": f"{file_path}:{line}",
+                        },
                     )
             else:
                 # callee ещё не проиндексирован — создаём placeholder
@@ -168,7 +178,12 @@ class PureGraphMixin:
                     target_qname=callee_qname,
                     type=EdgeType.CALLS,
                     weight=1.0,
-                    properties={"line": line, "file": file_path},
+                    properties={
+                        "line": line,
+                        "file": file_path,
+                        "confidence": "EXTRACTED",
+                        "evidence": f"{file_path}:{line}",
+                    },
                 )
 
     def _pure_remove_file(self, file_path: str) -> None:
@@ -219,7 +234,12 @@ class PureGraphMixin:
                     target_qname=target_qname,
                     type=EdgeType.IMPORTS,
                     weight=1.0,
-                    properties={"line": line, "text": imp.get("text", "")},
+                    properties={
+                        "line": line,
+                        "text": imp.get("text", ""),
+                        "confidence": "EXTRACTED",
+                        "evidence": f"{file_path}:{line}",
+                    },
                 )
 
     # ── Decorators (DECORATES) ─────────────────────────────
@@ -260,7 +280,12 @@ class PureGraphMixin:
                     target_qname=decorated_qname,
                     type=EdgeType.DECORATES,
                     weight=1.0,
-                    properties={"line": line, "file": file_path},
+                    properties={
+                        "line": line,
+                        "file": file_path,
+                        "confidence": "EXTRACTED",
+                        "evidence": f"{file_path}:{line}",
+                    },
                 )
 
     # ── Overrides (OVERRIDES) ──────────────────────────────
@@ -297,6 +322,8 @@ class PureGraphMixin:
                         "file": file_path,
                         "base": ov.get("base", ""),
                         "method": ov.get("method", ""),
+                        "confidence": "EXTRACTED",
+                        "evidence": f"{file_path}:{line}",
                     },
                 )
 
