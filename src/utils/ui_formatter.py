@@ -452,6 +452,12 @@ def format_hotspots(items: List[Dict]) -> str:
 
 def format_analysis_result(title: str, data: Dict) -> str:
     """Универсальный форматер для analyze_incident / predict_root_cause."""
+
+    def _short(s) -> str:
+        """Обрезка с маркером (BS-5: голый рез [:60] ломал JSON/пути)."""
+        s = str(s)
+        return s[:117] + "..." if len(s) > 120 else s
+
     result = _("🔍 **{title}**\n\n", title=title)
     for k, v in data.items():
         if isinstance(v, list):
@@ -461,15 +467,41 @@ def format_analysis_result(title: str, data: Dict) -> str:
             for item in v[:5]:
                 if isinstance(item, dict):
                     for ik, iv in item.items():
-                        result += f"   • {ik}: {str(iv)[:60]}\n"
+                        result += f"   • {ik}: {_short(iv)}\n"
                 else:
                     result += f"   • {item}\n"
             if len(v) > 5:
                 result += _("   • ...and {more} more\n", more=len(v) - 5)
         elif isinstance(v, dict):
+            if not v:
+                continue  # BS-5: пустой dict не рендерится заголовком
             result += _("**{key}:**\n", key=k.replace("_", " ").title())
             for ik, iv in v.items():
-                result += f"   • {ik}: {str(iv)[:60]}\n"
+                if isinstance(iv, list) and iv and all(
+                    isinstance(x, dict) for x in iv[:5]
+                ):
+                    # BS-5: вложенные list[dict] — компактно одной строкой,
+                    # значения НЕ режем посреди (раньше str(list)[:60] давал
+                    # «'file': 'D:/Project/MSCodeBase/src/core/inde»).
+                    inner = ", ".join(
+                        "{"
+                        + ", ".join(
+                            f"'{ik2}': {_short(iv2)}" for ik2, iv2 in item.items()
+                        )
+                        + "}"
+                        for item in iv[:5]
+                    )
+                    result += f"   • {ik}: [{inner}]\n"
+                    if len(iv) > 5:
+                        result += _("   • ...and {more} more\n", more=len(iv) - 5)
+                elif isinstance(iv, dict):
+                    result += f"   • {ik}: {{"
+                    result += ", ".join(
+                        f"'{ik2}': {_short(iv2)}" for ik2, iv2 in iv.items()
+                    )
+                    result += "}\n"
+                else:
+                    result += f"   • {ik}: {_short(iv)}\n"
         else:
             result += f"• {k}: {str(v)[:80]}\n"
         result += "\n"

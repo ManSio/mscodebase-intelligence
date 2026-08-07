@@ -646,11 +646,18 @@ class SymbolIndex:
         transitive_callees = len(call_graph["callees"]) - direct_callees
 
         affected_files = call_graph.get("impact_files", [])
+        # BS-12: страховка — пустые пути не рендерятся как «-»
+        affected_files = [f for f in affected_files if f]
         affected_modules = set()
         for f in affected_files:
+            # BS-12 (аудит Bot_snow): брался ПЕРВЫЙ сегмент Windows-пути —
+            # «D:/Project/Bot_snow/bot.py» → «D:». Теперь идём с конца:
+            # ближайший к файлу каталог — самый специфичный модуль.
             parts = f.replace("\\", "/").split("/")
-            for part in parts:
-                if part and "." not in part and part != "src":
+            for part in reversed(parts):
+                if not part or part in (".", "..") or ":" in part:
+                    continue  # служебные сегменты (drive letter, пустые)
+                if "." not in part and part != "src":
                     affected_modules.add(part)
                     break
 

@@ -547,7 +547,8 @@ class SymbolIndexAdapter(PureGraphMixin):
             "callers": [],
             "callees": [],
             "call_chain": [],
-            "impact_files": {node.file_path},
+            # BS-12: пустые file_path (extern-узлы) не попадают в impact_files
+            "impact_files": {node.file_path} if node.file_path else set(),
             "depth_reached": 0,
         }
 
@@ -569,7 +570,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "depth": level + 1,
                         "confidence": self._call_confidence(neighbor),
                     })
-                    result["impact_files"].add(neighbor.file_path)
+                    if neighbor.file_path:  # BS-12: не добавляем пустые пути
+                        result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)
             current_level = next_level
             if not current_level:
@@ -595,7 +597,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "depth": level + 1,
                         "confidence": self._call_confidence(neighbor),
                     })
-                    result["impact_files"].add(neighbor.file_path)
+                    if neighbor.file_path:  # BS-12: не добавляем пустые пути
+                        result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)
             current_level = next_level
             if not current_level:
@@ -630,7 +633,8 @@ class SymbolIndexAdapter(PureGraphMixin):
         defs = self._definitions.get(symbol, [])
         for d in defs:
             result["definition"].append({"file": d.file_path, "line": d.line, "kind": d.kind})
-            result["impact_files"].add(d.file_path)
+            if d.file_path:  # BS-12: не добавляем пустые пути
+                result["impact_files"].add(d.file_path)
 
         current_level_callers = {symbol}
         for level in range(depth):
@@ -651,7 +655,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                     if not any(c.get("symbol") == caller_sym and c.get("file") == r.file_path
                                for c in result["callers"]):
                         result["callers"].append(caller_entry)
-                        result["impact_files"].add(r.file_path)
+                        if r.file_path:  # BS-12: не добавляем пустые пути
+                            result["impact_files"].add(r.file_path)
                         next_level_callers.add(caller_sym)
             current_level_callers = next_level_callers
             if not current_level_callers:
@@ -674,7 +679,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                                             "line": ref.line, "kind": ref.kind, "depth": level + 1}
                             if not any(c.get("symbol") == callee_sym for c in result["callees"]):
                                 result["callees"].append(callee_entry)
-                                result["impact_files"].add(ref.file_path)
+                                if ref.file_path:  # BS-12: не добавляем пустые пути
+                                    result["impact_files"].add(ref.file_path)
                                 next_level_callees.add(callee_sym)
             current_level_callees = next_level_callees
             if not current_level_callees:
@@ -728,11 +734,18 @@ class SymbolIndexAdapter(PureGraphMixin):
         top_callers = sorted(callers, key=lambda c: (c.get("depth", 99), -c.get("confidence", 0)))[:10]
 
         affected_files = call_graph.get("impact_files", [])
+        # BS-12: страховка — пустые пути не рендерятся как «-»
+        affected_files = [f for f in affected_files if f]
         affected_modules = set()
         for f in affected_files:
+            # BS-12 (аудит Bot_snow): брался ПЕРВЫЙ сегмент Windows-пути —
+            # «D:/Project/Bot_snow/bot.py» → «D:». Теперь идём с конца:
+            # ближайший к файлу каталог — самый специфичный модуль.
             parts = f.replace("\\", "/").split("/")
-            for part in parts:
-                if part and "." not in part and part != "src":
+            for part in reversed(parts):
+                if not part or part in (".", "..") or ":" in part:
+                    continue  # служебные сегменты (drive letter, пустые)
+                if "." not in part and part != "src":
                     affected_modules.add(part)
                     break
 

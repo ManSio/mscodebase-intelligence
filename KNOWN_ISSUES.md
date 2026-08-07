@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-07 — Аудит Bot_snow остаток BS-1..BS-14: search_code-выдача, topology, health, hub (FIXED)
+
+**Symptom:** 14 пунктов аудита MCP-инструментов: search_code отдавал мусор вместо пустого ответа, пропускал точные хиты, «line 0/2» вместо реальных строк; intel_code_topology — symbol='' и обрыв JSON; get_health_report — ложный critical «индексер молчит»; graph_query — cypher/flow недостижимы; телеметрия/health/runtime — три разных embedder-провайдера; passport «Cached: 1» vs health «0»; auto_update_docs ложное предупреждение; predict_root_cause 16с; affected_files [-, bot.py] / [D:]; codebase action=symbol не существует; get_symbol_info −994ms.
+**Root Cause (классы):** метаданные не доезжают до выдачи (start_line, chunk_index, symbol-ключ); dense-пространство эмбеддера сжато (distance 0.09-0.18 — порог невозможен); второй инстанс сервиса (RemoteEmbedder/ProjectIndexerRegistry) vs DI; sync-блокировка event loop; первый сегмент Windows-пути как «модуль»; str[:60] резал JSON; старые метрики −994ms.
+**Fix:** _has_code_lines (не индексируем файлы без кода); start_line/end_line в metadata 3 источников + 1-based рендер; буст точного имени + дедуп (file,symbol); реальный chunk_index в FTS5; c.get("symbol"); critical только при reindex; query/name в схеме graph_query; DI-резолв embedder; глобальный registry singleton; маркер «N total/tools»; to_thread+wait_for(3s); reversed-сегменты; action="symbol"; санитизация метрик. +43 теста (tests/test_search_bs_audit.py).
+**Status:** ✅ Fixed | **Guard:** tests/test_search_bs_audit.py — 937 passed / 4 skipped.
+
+---
+
 ## 2026-08-07 — Synthetic monitoring качества поиска «лжёт»: мусор проходит (FIXED)
 
 **Symptom:** get_health_report показывал search_quality 3/3 passed даже при битом поиске — Searcher.search() возвращает строку (len>0 всегда), мусорные чанки/error-dicts считались результатами (аудит Bot_snow #15).

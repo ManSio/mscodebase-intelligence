@@ -13,6 +13,17 @@
 
 ---
 
+## [2026-08-07 23:30] — Аудит Bot_snow остаток BS-1..BS-14: 14/14 закрыто (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 894→937 passed, +43 теста в tests/test_search_bs_audit.py)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 937 passed (эта сессия); живые воспроизведения BS-1/3/5/7/11/12/13 в MCP-сессии.
+**Root Cause (классы):** (1) BS-1/2/3/4 — search_code: dense-пространство сжато (замер 0.09-0.18 distance → порог невозможен), комментарные файлы индексируются, start_line не в metadata, fts5 chunk_index=0 схлопывался в RRF, нет буста точного имени; (2) BS-5 — c.get("name") vs ключ "symbol", рендер str[:60] резал JSON; (3) BS-6 — watchdog.alive=False после idle трактовался как critical; (4) BS-7 — query/name не в схеме execute; (5) BS-8/9 — второй инстанс (RemoteEmbedder()/ProjectIndexerRegistry) vs DI; (6) BS-10 — str(count) in text без маркера; (7) BS-11 — sync run_full_diagnostic блокировал loop 15с; (8) BS-12 — первый сегмент Windows-пути («D:») + пустые file_path; (9) BS-13 — нет action="symbol"; (10) BS-14 — старые метрики −994ms (код P1-10 исправлен ранее).
+**Fix:** по одному на пункт (см. ISSUE.md статусы); ключевые: _has_code_lines (не индексируем пустышки), start_line/end_line в metadata 3 источников + 1-based рендер, буст точного имени + дедуп (file,symbol), реальный chunk_index в FTS5, get_global_registry singleton в DI, to_thread+wait_for(3s) в predict_root_cause, reversed-сегменты для modules, санитизация метрик. +43 регресс-теста.
+**Guard:** test_search_bs_audit.py — на старом коде падает по каждому пункту (BS-1: пустышки индексировались; BS-3: line=chunk_index; BS-5: symbol=''; BS-6: idle→critical; BS-7: «query required»; BS-8: provider=unknown; BS-9: DI≠singleton; BS-10: ложный warning; BS-11: >15с; BS-12: [D:]; BS-13: Unknown action; BS-14: −994).
+**Pattern:** P-002-класс «предположение вместо проверки» (BS-5 name/symbol, BS-7 схема, BS-8/9 второй инстанс) + P-001-класс «метаданные не доезжают до выдачи» (BS-3, BS-12).
+
+---
+
 ## [2026-08-07] — Synthetic monitoring качества поиска: «не пусто?» → реальные результаты (DONE)
 
 **Status:** ✅ Fixed (код+тесты; 894 passed / 4 skipped)

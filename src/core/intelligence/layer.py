@@ -233,26 +233,30 @@ class ProjectIntelligenceLayer:
             if call_graph:
                 callers = call_graph.get("callers", [])
                 if callers:
+                    # BS-5: build_call_graph отдаёт ключ "symbol", а не "name"
+                    # → c.get("name") всегда "" (аудит Bot_snow: symbol='').
                     result["call_graph"]["incoming_callers"] = [
                         {
-                            "symbol": c.get("name", ""),
+                            "symbol": c.get("symbol", "") or c.get("name", ""),
                             "file": c.get("file", ""),
                             "line": c.get("line", 0),
                             "kind": "caller",
                         }
                         for c in callers
+                        if c.get("symbol") or c.get("name")
                     ]
 
                 callees = call_graph.get("callees", [])
                 if callees:
                     result["call_graph"]["outgoing_callees"] = [
                         {
-                            "symbol": c.get("name", ""),
+                            "symbol": c.get("symbol", "") or c.get("name", ""),
                             "file": c.get("file", ""),
                             "line": c.get("line", 0),
                             "kind": "callee",
                         }
                         for c in callees
+                        if c.get("symbol") or c.get("name")
                     ]
 
             result["references_count"] = (
@@ -625,18 +629,7 @@ class ProjectIntelligenceLayer:
         иначе создаёт временный экземпляр для диагностики.
         """
         try:
-            emb = None
-            # 1. Пробуем достать embedder из DI контейнера
-            if self._services is not None:
-                try:
-                    from src.providers.embedder.remote_embedder import RemoteEmbedder
-                    emb = self._services.resolve(RemoteEmbedder)
-                except Exception:
-                    pass
-            # 2. Fallback: создаём временный экземпляр
-            if emb is None:
-                from src.providers.embedder.remote_embedder import RemoteEmbedder
-                emb = RemoteEmbedder()
+            emb = self._resolve_active_embedder()
             info = emb.get_model_info()
             return {
                 "provider": info.get("provider", "unknown"),
@@ -645,6 +638,24 @@ class ProjectIntelligenceLayer:
             }
         except Exception:
             return {"provider": "unknown", "model": "unknown", "dimension": 0}
+
+    def _resolve_active_embedder(self):
+        """Возвращает РЕАЛЬНЫЙ инстанс embedder из DI (единая правда BS-8).
+
+        Аудит Bot_snow BS-8: intel_get_telemetry создавал собственный
+        `RemoteEmbedder()` вместо resolve из DI → новый инстанс мог иметь
+        mode="unknown" (инициализация фоновая) → телеметрия показывала
+        «Provider: unknown», пока health/runtime — «llama.cpp». Теперь все
+        инструменты читают один и тот же объект.
+        """
+        from src.providers.embedder.remote_embedder import RemoteEmbedder
+
+        if self._services is not None:
+            try:
+                return self._services.resolve(RemoteEmbedder)
+            except Exception:
+                pass
+        return RemoteEmbedder()
 
     # -----------------------------------------------------------------
     # БЛОК Reindex (Фоновая переиндексация)
@@ -1165,43 +1176,55 @@ class ProjectIntelligenceLayer:
                     }
                 )
 
-        # 2. Проверяем показатели здоровья
-        try:
-            health_report = (
-                health.run_full_diagnostic()
-                if hasattr(health, "run_full_diagnostic")
-                else {}
-            )
-            if health_report:
-                if health_report.get("overall_health") == "warning":
-                    candidates.append(
-                        {
-                            "component": component_context or "system",
-                            "probability": 0.45,
-                            "reason": "Общее состояние системы: warning",
-                            "source": "health_report",
-                        }
+        # 2+3. Проверяем показатели здоровья и Hotspots — параллельно, в потоках,
+        # с тайм-бюджетом. BS-11 (аудит Bot_snow): run_full_diagnostic (sync,
+        # ~15с) блокировал event loop даже для дефолтного ответа «не найдено»
+        # (analysis_time_ms: 15634). Теперь: asyncio.to_thread + wait_for(3с),
+        # не успели — пропускаем сигнал (дефолтная эвристика остаётся).
+        async def _collect_signals() -> None:
+            async def _health_signal() -> None:
+                try:
+                    health_report = await asyncio.wait_for(
+                        asyncio.to_thread(health.run_full_diagnostic), timeout=3.0
                     )
-        except Exception as _e:
-            logger.warning(f"Exception suppressed at layer.py: {_e}")
-
-    # 3. Проверяем Hotspots
-        try:
-            hotspots = await self.intel_get_code_hotspots()
-            if hotspots and component_context:
-                for h in hotspots[:2]:
-                    if component_context.lower() in h["file"].lower():
+                    if health_report and health_report.get("overall_health") == "warning":
                         candidates.append(
                             {
-                                "component": h["file"],
-                                "probability": 0.6,
-                                "reason": f"Файл входит в топ горячих точек (багов: {h['bug_count']})",
-                                "source": "hotspot_analysis",
+                                "component": component_context or "system",
+                                "probability": 0.45,
+                                "reason": "Общее состояние системы: warning",
+                                "source": "health_report",
                             }
                         )
-        except Exception as _e:
-            logger.warning(f"Exception suppressed at layer.py: {_e}")
-            pass
+                except asyncio.TimeoutError:
+                    logger.debug("predict_root_cause: health diagnostic timed out (>3s), skipped")
+                except Exception as _e:
+                    logger.warning(f"Exception suppressed at layer.py: {_e}")
+
+            async def _hotspots_signal() -> None:
+                try:
+                    hotspots = await asyncio.wait_for(
+                        self.intel_get_code_hotspots(), timeout=3.0
+                    )
+                    if hotspots and component_context:
+                        for h in hotspots[:2]:
+                            if component_context.lower() in h["file"].lower():
+                                candidates.append(
+                                    {
+                                        "component": h["file"],
+                                        "probability": 0.6,
+                                        "reason": f"Файл входит в топ горячих точек (багов: {h['bug_count']})",
+                                        "source": "hotspot_analysis",
+                                    }
+                                )
+                except asyncio.TimeoutError:
+                    logger.debug("predict_root_cause: hotspots timed out (>3s), skipped")
+                except Exception as _e:
+                    logger.warning(f"Exception suppressed at layer.py: {_e}")
+
+            await asyncio.gather(_health_signal(), _hotspots_signal())
+
+        await asyncio.wait_for(_collect_signals(), timeout=4.0)
 
         # 4. Если ничего не нашли — дефолтная эвристика
         if not candidates:
@@ -1254,9 +1277,10 @@ class ProjectIntelligenceLayer:
 
         # LLM ping + model info + throughput
         try:
-            from src.providers.embedder.remote_embedder import RemoteEmbedder
-
-            _emb = RemoteEmbedder()
+            # BS-8: DI-инстанс embedder (единая правда провайдера), не новый
+            # RemoteEmbedder() — иначе телеметрия показывала «Provider: unknown»
+            # при реально активном llama.cpp.
+            _emb = self._resolve_active_embedder()
             _t0 = time.perf_counter()
             _vec = _emb.embed("ping")
             _ping = round((time.perf_counter() - _t0) * 1000, 1)

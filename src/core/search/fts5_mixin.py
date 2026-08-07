@@ -180,10 +180,11 @@ class FTS5Mixin:
         try:
             raw = self._fts5.hybrid_search_rrf(query, limit=limit)
             # Normalize metadata so RRF key (file:chunk_index) matches bm25/dense.
+            # BS-3: chunk_index приходит реальным из hybrid_search_rrf (был 0 —
+            # все fts5-хиты файла схлопывались в file:0 и затирали dense).
             for r in raw:
                 meta = r.get("metadata", {})
-                if "chunk_index" not in meta:
-                    meta["chunk_index"] = 0
+                meta.setdefault("chunk_index", 0)
                 meta.setdefault("source", "fts5_hybrid")
             return raw
         except Exception as e:

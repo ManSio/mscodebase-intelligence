@@ -90,6 +90,7 @@ class CodebaseTool(MCPTool):
             "replace": self._action_write,
             "insert_before": self._action_write,
             "insert_after": self._action_write,
+            "symbol": self._action_symbol,  # BS-13: граф вызовов символа
             "index": self._action_index,
             "git": self._action_git,
             "system": self._action_system,
@@ -151,6 +152,17 @@ class CodebaseTool(MCPTool):
             allow_collision=kw.get("allow_collision", False),
             impact_token=kw.get("impact_token", ""),
         )
+
+    async def _action_symbol(self, **kw) -> str:
+        """Symbol operations — граф вызовов символа (эквивалент get_symbol_info).
+
+        BS-13 (аудит Bot_snow): action="symbol" отсутствовал в hub —
+        символьные запросы были недостижимы через codebase().
+        """
+        from src.mcp.tools.search_tools import GetSymbolInfoTool
+
+        st = GetSymbolInfoTool(self._services)
+        return await st.execute(query=kw.get("symbol", ""))
 
     async def _action_index(self, **kw) -> str | dict[str, Any]:
         """Index operations — диспетчеризация по path к системным index-инструментам.

@@ -167,12 +167,35 @@ class HealthReport:
                 )
 
             # Watchdog: жив ли индексер?
+            # BS-6 (аудит Bot_snow): heartbeat бьётся ТОЛЬКО во время
+            # index_project.run. После завершённой индексации watchdog молчит
+            # 60с+ → alive=False → ложное critical «индексер молчит 278с».
+            # Critical — только если индексация РЕАЛЬНО идёт (reindex guard
+            # активен), а heartbeat молчит (завис/умер). Иначе — нормальный
+            # idle: пишем метрику, не пугаем.
             watchdog = status.get("watchdog", {})
             if watchdog.get("alive") is False:
-                self.issues.append({
-                    "component": "indexer",
-                    "message": f"🚨 Watchdog: индексер молчит {watchdog.get('idle_sec', '?')}с. Последняя активность: {watchdog.get('label', '?')}",
-                })
+                reindex_in_progress = False
+                try:
+                    dbm = getattr(self.indexer, "db_manager", None)
+                    is_reindexing = (
+                        getattr(dbm, "is_reindexing", None) if dbm else None
+                    )
+                    reindex_in_progress = bool(
+                        callable(is_reindexing) and is_reindexing()
+                    )
+                except Exception:
+                    reindex_in_progress = False
+                if reindex_in_progress:
+                    self.issues.append({
+                        "component": "indexer",
+                        "message": f"🚨 Watchdog: индексер молчит {watchdog.get('idle_sec', '?')}с во время индексации. Последняя активность: {watchdog.get('label', '?')}",
+                    })
+                else:
+                    # Idle после завершённой индексации — ожидаемо, не critical
+                    self.metrics["watchdog_idle_sec"] = watchdog.get("idle_sec", 0)
+                    self.metrics["watchdog_label"] = watchdog.get("label", "")
+                    self.metrics["watchdog_state"] = "idle_after_index"
             elif watchdog.get("idle_sec", 0) > 10:
                 self.metrics["watchdog_idle_sec"] = watchdog["idle_sec"]
                 self.metrics["watchdog_label"] = watchdog.get("label", "")

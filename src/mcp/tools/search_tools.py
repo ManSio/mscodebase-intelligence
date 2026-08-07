@@ -555,9 +555,17 @@ class SearchCodeTool(MCPTool):
                 if not ln.startswith("// File:") and not ln.startswith("// File :")
             ]
             clean_text = "\n".join(clean_lines).strip()
+            # BS-3: координаты в БД 0-based (tree-sitter), пользователю нужны
+            # 1-based номера строк (аудит Bot_snow: «line 0/2 вместо L27-71»).
+            sl = meta.get("start_line")
+            if isinstance(sl, int) and sl >= 0:
+                start_line_display = sl + 1
+            else:
+                # Фолбэк для старых данных/других источников без start_line
+                start_line_display = meta.get("chunk_index", "")
             item = {
                 "file_path": meta.get("file", r.get("file_path", "")),
-                "start_line": meta.get("start_line", meta.get("chunk_index", "")),
+                "start_line": start_line_display,
                 "text": clean_text,
                 "layer": meta.get("layer", ""),
                 "score": r.get("final_score", r.get("score", 0)),

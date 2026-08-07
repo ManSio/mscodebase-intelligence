@@ -503,3 +503,85 @@
 | DI resolve race | ❌ REFUTED | = P2-18 | `di_container.py:136` — `threading.Lock` уже добавлен (Claude review P1, закрыт P2-18) |
 
 **Итого:** 12 ✅ CONFIRMED (все закрыты фиксами), 4 ❌ REFUTED, 2 ⏳ ACCEPTED. Полный pytest 616 passed, 0 failed; ruff clean; bump_version 3.3.9.
+
+---
+
+## Аудит Bot_snow 2026-08-07 — остаток (передача в новый чат)
+
+> Источник: `` `debug_runtime_passport`.md `` L3394-3466 (аудит MCP-инструментов из окна Bot_snow).
+> Уже закрыто этой сессией: multi-window CWD-first (229c7156), stale_detector/_grep_fallback `__file__`-root (e2950a14), search_quality мониторинг (f54bea8b). Тесты 894 passed.
+
+### BS-1 (🔴 #12): `search_code` — ложная уверенность: мусор вместо пустого ответа ✅ FIXED (2026-08-07)
+- **Фикс:** файлы без единой строки кода (__init__.py с комментарием) не индексируются
+  (`_has_code_lines` в index_parser.py + parser.py fallback); тесты BS-1.
+- **Файл:** `src/mcp/tools/search_tools.py` (путь выдачи); корень — эмбеддер-fallback → мусорные чанки
+- **Детали:** на несуществующий запрос возвращает 6 «результатов» (5/6 — пустые `__init__.py` с `fallback_lines`). Должен вернуть честный пустой ответ + подсказку. Проверить, не должны ли пустые чанки индексироваться/фильтроваться при выдаче.
+
+### BS-2 (🔴 #16): `search_code` пропускает точные хиты ✅ FIXED (2026-08-07)
+- **Фикс:** реальный chunk_index в FTS5-метаданных (не 0 → не схлопывается с dense в RRF), буст точного имени (запрос-идентификатор), дедуп (file, symbol); тесты BS-2.
+- **Файл:** `src/mcp/tools/search_tools.py`
+- **Детали:** запрос «финансовый отчёт инструктора за неделю» не нашёл `get_report` (financial.py), дублирует `delete_schedule` в выдаче.
+
+### BS-3 (🟠 #1): `search_code` — неверные координаты строк ✅ FIXED (2026-08-07)
+- **Фикс:** start_line/end_line добавлены в metadata vector_search/search_async/FTS5; рендер 0→1-based; тесты BS-3.
+- **Файл:** `src/mcp/tools/search_tools.py`
+- **Детали:** line 0/2 вместо реальных L27-71 (все 4 проверенных символа).
+
+### BS-4 (🟠 #5): `search_code` пропускает определения ✅ FIXED (2026-08-07)
+- **Фикс:** буст точного имени (get_db над dense-мусором) в hybrid_search_async и fast-ветке; тест test_bs4.
+- **Файл:** `src/mcp/tools/search_tools.py`
+- **Детали:** запрос `get_db` не нашёл `async def get_db()` (database.py:37).
+
+### BS-5 (🟠 #17): `intel_code_topology` — обрезанный/пустой вывод ✅ FIXED (2026-08-07)
+- **Фикс:** layer читает c.get("symbol") (был c.get("name") → всегда ""); фильтр пустых;
+  format_analysis_result не режет значения посреди (str[:60] → рекурсивный рендер); тесты BS-5.
+- **Файл:** `src/core/intelligence/` (topology-инструмент)
+- **Детали:** `symbol=''`, `file=''` у callees, обрыв строки в JSON.
+
+### BS-6 (🟠 #10): `get_health_report` — false positive `overall_health=critical` ✅ FIXED (2026-08-07)
+- **Фикс:** «индексер молчит» — critical только если reindex идёт (is_reindexing+молчит);
+  idle после завершённой индексации → метрика watchdog_state; тесты BS-6.
+- **Файл:** `src/core/intelligence/health.py`
+- **Детали:** «индексер молчит 278с» — нормальный idle после завершённой индексации, а не критично.
+
+### BS-7 (🟠 #14): `graph_query` — `cypher`/`flow` недостижимы ✅ FIXED (2026-08-07)
+- **Фикс:** параметры query/name добавлены в execute-схему (target — backward-compat); тесты BS-7.
+- **Файл:** `src/mcp/tools/graph_tools.py` (или регистрация схемы)
+- **Детали:** «query required»/«name required», таких параметров в схеме нет.
+
+### BS-8 (🟠 #8): противоречие embedder-провайдера между инструментами ✅ FIXED (2026-08-07)
+- **Фикс:** телеметрия читает DI-инстанс embedder (_resolve_active_embedder), а не новый RemoteEmbedder()
+  → единая правда с health (llama_cpp); тесты BS-8.
+- **Файлы:** логи — «E5-base ONNX не загрузился, fallback»; телеметрия — `Provider: onnx, multilingual-e5-small-int8`; runtime status — `llama.cpp 🟢`
+- **Детали:** три инструмента показывают три разных провайдера. Привести к единой правде (кто реально активен).
+
+### BS-9 (🟡 #9): registry passport vs health рассинхрон счётчиков ✅ FIXED (2026-08-07)
+- **Фикс:** DI регистрирует глобальный singleton get_global_registry() (было два разных реестра); тест BS-9.
+- **Детали:** passport «Cached: 1» vs health `registry_cached_projects: 0`.
+
+### BS-10 (🟡 #11): `auto_update_docs` — ложное предупреждение про README tool count ✅ FIXED (2026-08-07)
+- **Фикс:** проверка счётчика только при наличии маркера «N total/tools» в README; тесты BS-10.
+- **Детали:** «README tool count устарел» — в README его нет.
+
+### BS-11 (🟡 #18): `intel_predict_root_cause` — 16 сек на «не найдено» ✅ FIXED (2026-08-07)
+- **Фикс:** run_full_diagnostic/hotspots в asyncio.to_thread + wait_for(3s); замер 15634→1261ms; тест BS-11.
+- **Детали:** дефолтный ответ (probability 0.3) занимает 16 сек.
+
+### BS-12 (🟡 #19): `impact_analysis`/`graph_query` — пустые элементы в списках путей ✅ FIXED (2026-08-07)
+- **Фикс:** модули — reversed-сегменты пути (не «D:»), пустые file_path фильтруются
+  (symbol_index.py + graph_adapter.py); тесты BS-12.
+- **Детали:** `affected_files: [-, bot.py]`, `affected_modules: [D:]`.
+
+### BS-13 (🟡 #20): `codebase` hub — `action=symbol` не существует ✅ FIXED (2026-08-07)
+- **Фикс:** action="symbol" → делегирование в get_symbol_info; system-под-действия работают (проверено); тесты BS-13.
+- **Файл:** `src/mcp/tools/codebase_tool.py`
+- **Детали:** под-действия `system` недостижимы (есть прямые эквиваленты).
+
+### BS-14 (⏭ #3): `get_symbol_info` — отрицательная латентность (−994 ms) ✅ CLOSED (2026-08-07)
+- **Статус P1-10:** код-баг исправлен 2026-07-27 (везде `* 1000`); оставались старые метрики
+  в tool_metrics.json → санитизация при загрузке + guard в record/summary; тесты BS-14.
+- **Связь:** уже покрыто P1-10 (`error_handler.py:454` — `elapsed = ... - 1000` вместо `* 1000`). Проверить статус P1-10 и закрыть.
+
+### Не делать
+- ❌ `DEV_DIARY.md` в расширении — НЕ нарушение (§0.6: заглушка-редирект на AGENT_DIARY.md).
+- ⚠️ `financial.py:72-75` (сравнение дат) — код проекта Bot_snow, НЕ расширения. Отдельная задача для окна Bot_snow.
