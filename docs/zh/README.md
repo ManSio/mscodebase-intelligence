@@ -168,7 +168,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | **[ARCHITECTURE_LAYERS.md](ARCHITECTURE_LAYERS.md)** | 10 个运行时层次 | 架构师 | 🇬🇧 🇷🇺 🇨🇳 |
 | **[FAQ.md](FAQ.md)** | 常见问题 | 全部 | 🇬🇧 🇷🇺 🇨🇳 |
 | **[TELEMETRY.md](TELEMETRY.md)** | 指标、ETA、数据收集 | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
-| **[investigations/ONNX_SESSION_REPORT.md](investigations/ONNX_SESSION_REPORT.md)** | 完整 ONNX 迁移、7 个修复、基准测试 | 支持 | 🇬🇧 |
+| **[investigations/ONNX_SESSION_REPORT.md](../en/investigations/ONNX_SESSION_REPORT.md)** | 完整 ONNX 迁移、7 个修复、基准测试 | 支持 | 🇬🇧 |
 | **[investigations/LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)** | Windows 上 LSP 调研（WONTFIX） | 支持 | 🇬🇧 🇨🇳 |
 | **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)** | Windows 特性、受限模式 | Windows 用户 | 🇬🇧 🇷🇺 🇨🇳 |
 | **[CHANGELOG.md](CHANGELOG.md)** | 版本历史 | 全部 | 🇬🇧 🇷🇺 🇨🇳 |
@@ -178,7 +178,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | **[../../SECURITY.md](../../SECURITY.md)** | 安全策略、报告漏洞 | 安全人员 | 🇬🇧 |
 | **[../../CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)** | 社区准则 | 贡献者 | 🇬🇧 |
 
-| **[../../docs/KNOWN_ISSUES.md](../../docs/KNOWN_ISSUES.md)** | 已知问题与技术债务注册表 | 全部 | 🇬🇧 |
+| **[../../KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)** | 已知问题与技术债务注册表 | 全部 | 🇬🇧 |
 
 所有文档相互引用。提供 3 种语言：English、Русский、中文。
 

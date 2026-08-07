@@ -211,7 +211,7 @@ pytest
 python install.py
 ```
 
-Подробнее: **[CONTRIBUTING.md](../CONTRIBUTING.md)**
+Подробнее: **[CONTRIBUTING.md](../../CONTRIBUTING.md)**
 
 ---
 
@@ -219,10 +219,10 @@ python install.py
 
 | Документ | Описание |
 |----------|---------|
-| [README.md](../README.md) | Основная документация, карта всех доков, список инструментов |
+| [README.md](../../README.md) | Основная документация, карта всех доков, список инструментов |
 | [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) | **Особенности Windows:** Restricted Mode, CWD, перезапуск MCP |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Архитектура проекта, DI, слои |
 | [TELEMETRY.md](TELEMETRY.md) | Метрики, ETA, сбор данных |
 | [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md) | Почему LSP не работает на Windows |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | Разработка, тесты, PR |
+| [CONTRIBUTING.md](../../CONTRIBUTING.md) | Разработка, тесты, PR |

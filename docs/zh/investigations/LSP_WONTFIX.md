@@ -1,6 +1,6 @@
 # 调查：自定义 LSP 在 Zed 1.9.0（Windows）上无法启动
 
-[🇬🇧 English](../en/investigations/LSP_WONTFIX.md) • [🇨🇳 中文](LSP_WONTFIX.md)
+[🇬🇧 English](../../en/investigations/LSP_WONTFIX.md) • [🇨🇳 中文](LSP_WONTFIX.md)
 
 **日期：** 2026-07-05
 **作者：** AI 代理（应 misha 要求）

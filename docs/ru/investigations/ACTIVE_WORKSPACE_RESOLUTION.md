@@ -1,6 +1,6 @@
 # Investigation: Определение активного проекта на Windows
 
-[🇬🇧 English](../en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md) • [🇷🇺 Русский](ACTIVE_WORKSPACE_RESOLUTION.md) • [🇨🇳 中文](../zh/investigations/ACTIVE_WORKSPACE_RESOLUTION.md)
+[🇬🇧 English](../../en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md) • [🇷🇺 Русский](ACTIVE_WORKSPACE_RESOLUTION.md) • [🇨🇳 中文](../../zh/investigations/ACTIVE_WORKSPACE_RESOLUTION.md)
 
 **Дата:** 2026-07-05
 **Цель:** Найти надёжный способ узнать, какой проект/workspace сейчас под фокусом

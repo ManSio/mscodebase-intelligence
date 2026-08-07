@@ -166,6 +166,8 @@ class GraphQueryTool(MCPTool):
             return await self._execute_cypher(query or target, kwargs)
         elif action == "related":
             return await self._execute_related(target, kwargs)
+        elif action == "path":
+            return await self._execute_path(target, kwargs)
         elif action == "flow":
             return await self._execute_flow(name or target, kwargs)
         elif action == "drift":
@@ -353,6 +355,90 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
             "total_relations": len(related),
             "related_files": items,
             "relation_summary": summary,
+        }
+
+    async def _execute_path(
+        self, target: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Path Query: кратчайший путь между двумя символами (BFS PropertyGraph).
+
+        Параметры (kwargs): from, to, max_depth (default 10), direction
+        ("outgoing" | "both" | "incoming"). Имена резолвятся через
+        find_nodes(name_pattern) если точный qname не найден.
+        """
+        _kwargs = kwargs or {}
+        from_symbol = _kwargs.get("from", _kwargs.get("from_symbol", ""))
+        to_symbol = _kwargs.get("to", _kwargs.get("to_symbol", ""))
+        max_depth = int(_kwargs.get("max_depth", 10) or 10)
+        direction = _kwargs.get("direction", "outgoing")
+
+        if not from_symbol or not to_symbol:
+            return {
+                "status": "error",
+                "action": "path",
+                "message": (
+                    "from и to обязательны: "
+                    "graph_query(action='path', from='X', to='Y')"
+                ),
+            }
+        if direction not in ("outgoing", "incoming", "both"):
+            return {
+                "status": "error",
+                "action": "path",
+                "message": f"direction должен быть outgoing|incoming|both, got {direction!r}",
+            }
+
+        from src.core.graph import PropertyGraph
+
+        try:
+            pg = self._services.resolve(PropertyGraph)
+        except KeyError:
+            from src.core.artifact_paths import get_graph_db_path
+
+            indexer = self.resolve_indexer()
+            project_path = indexer.project_path
+            pg = PropertyGraph(get_graph_db_path(project_path))
+
+        def _resolve(qname_or_name: str):
+            node = pg.get_node(qname_or_name)
+            if node:
+                return node, None
+            found = pg.find_nodes(name_pattern=f"%{qname_or_name}%", limit=5)
+            return (found[0] if found else None), [n.qualified_name for n in found]
+
+        src, src_cands = _resolve(from_symbol)
+        tgt, tgt_cands = _resolve(to_symbol)
+        if not src or not tgt:
+            missing = []
+            if not src:
+                missing.append(f"from={from_symbol!r} (candidates: {src_cands})")
+            if not tgt:
+                missing.append(f"to={to_symbol!r} (candidates: {tgt_cands})")
+            return {"status": "error", "action": "path", "message": "Узел не найден: " + "; ".join(missing)}
+
+        path = pg.shortest_path(
+            src.qualified_name,
+            tgt.qualified_name,
+            max_depth=max_depth,
+            direction=direction,
+        )
+        result_path = []
+        for i, (node, edge) in enumerate(path):
+            item = {"symbol": node.qualified_name}
+            if edge:
+                item["edge_to_next"] = edge.type
+                item["confidence"] = edge.properties.get("confidence", "unknown")
+                item["evidence"] = edge.properties.get("evidence", "")
+            result_path.append(item)
+
+        return {
+            "status": "ok",
+            "action": "path",
+            "from": src.qualified_name,
+            "to": tgt.qualified_name,
+            "direction": direction,
+            "hops": max(0, len(result_path) - 1),
+            "path": result_path,
         }
 
     async def _execute_flow(

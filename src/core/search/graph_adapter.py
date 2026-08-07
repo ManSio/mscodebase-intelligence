@@ -184,6 +184,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                     "line": line,
                     "function": function,
                     "file": file_path,
+                    "confidence": "EXTRACTED",
+                    "evidence": f"{file_path}:{line}",
                 }
                 if condition_path:
                     props["condition_path"] = condition_path

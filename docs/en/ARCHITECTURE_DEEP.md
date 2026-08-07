@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n55 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -42,7 +42,7 @@ The system is divided into 10 runtime layers, from lowest (infrastructure) to hi
 flowchart LR
     subgraph "Layer 11 — MCP Tools"
         T1[search_code]
-        T2[query_graph\nCypher]
+        T2[graph_query\nCypher]
         T3[impact_analysis]
         T4[intel_*]
     end
@@ -207,7 +207,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 55 tools
+    MCP->>MCP: Register 57 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: Total startup: ~2-5s (async embedder init)
@@ -342,7 +342,7 @@ flowchart LR
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 55 (26 core + 13 intel + 12 inline + 4 dev) |
+| **MCP tools** | 57 (28 core + 13 intel + 12 inline + 4 dev) |
 | **Services in DI** | 18 |
 | **Tests** | 853 |
 | **Languages** | 3 (EN, RU, ZH) |

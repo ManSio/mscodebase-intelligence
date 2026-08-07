@@ -6,13 +6,25 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **49 tools** = 20 core + 13 intel + 12 inline + 4 dev
+> **Tool count (current):** the live server registers **57 tools** = 28 core + 13 intel + 12 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
 
-## [3.3.13] — 2026-08-05
 
-<!-- TODO: fill in changes -->
+## [3.4.0] — 2026-08-08
+
+### Added
+- **Edge transparency**: `confidence` (EXTRACTED/INFERRED) + `evidence` (file:line) в properties рёбер PropertyGraph — DEFINES/CALLS/IMPORTS/DECORATES/OVERRIDES/ASSIGNED_FROM помечаются EXTRACTED, co-change/bug-correlation — INFERRED. Агент видит, что прочитано из кода, а что выведено (audit.md gap, проверено экспериментом 2026-08-08).
+- **Path queries**: `graph_query(action="path", from, to, direction, max_depth)` — кратчайший путь между символами; `PropertyGraph.shortest_path(..., direction="outgoing|incoming|both")` (обратная совместимость, дефолт outgoing).
+- **Jupyter support**: `.ipynb` в INDEX/PARSE_EXTENSIONS; `CodeParser._parse_notebook` — code cells → чанки через tree-sitter (stdlib json; nbformat не требуется).
+- **find_duplicates**: детектор copy-paste — AST-нормализованные отпечатки + multiset-Jaccard + minhash-LSH, мультиязычно через грамматики CodeParser (src/core/duplication.py).
+- **get_context(targets=[...])**: task-shaped агрегатор — контекст по нескольким символам одним вызовом (обёртка над get_symbol_info/impact_analysis).
+
+### Changed
+- Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 12 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
+
+### Tests
+- +19 новых тестов (test_graph_path, test_duplication, test_jupyter, test_edge_transparency); полный pytest: 956 passed / 4 skipped / 94 deselected.
 
 ---
 ## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), bump_version fix, test sys.path pollution fix
@@ -71,10 +83,6 @@ All notable changes to this project will be documented in this file.
 - Full pytest: 667 passed, 13 skipped (91 slow/benchmark deselected); ruff clean. Reindex 22:37→22:47: **4677 chunks, FTS5 built, HTTP 400 = 0, Aborted = 0**, E2E search_code OK.
 
 ---
-
-## [3.3.12] — 2026-08-05
-
-<!-- TODO: fill in changes -->
 
 ## [3.3.10] — 2026-08-01 — llama.cpp embedder HTTP 400 fix (truncation to 512 tokens)
 

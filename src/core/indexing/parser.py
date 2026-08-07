@@ -13,6 +13,13 @@ from typing import Any, Dict, List, Optional, Set
 
 from src.core.extensions import PARSE_EXTENSIONS
 
+# Языки Jupyter-ноутбуков → расширение для tree-sitter (из metadata.language_info)
+_NOTEBOOK_LANG_EXT = {
+    "python": ".py", "python3": ".py", "ipython": ".py",
+    "r": ".r", "julia": ".jl",
+    "javascript": ".js", "typescript": ".ts",
+}
+
 __all__ = [
     "CodeParser",
 ]
@@ -343,6 +350,8 @@ class CodeParser:
 
         if ext == ".md":
             chunks, symbols = self._parse_markdown(file_path)
+        elif ext == ".ipynb":
+            chunks, symbols = self._parse_notebook(file_path)
         elif ext in self.parsers:
             try:
                 chunks, symbols = self._parse_with_tree_sitter(file_path, ext)
@@ -1741,6 +1750,82 @@ class CodeParser:
                     }
                 )
         return chunks, []
+
+    def _parse_notebook(self, file_path: Path) -> tuple:
+        """Парсинг Jupyter .ipynb: code cells → чанки + определения через AST.
+
+        .ipynb — JSON (nbformat 4). Каждая code cell парсится tree-sitter
+        (язык из metadata.language_info.name); функции/классы внутри cell
+        становятся обычными чанками (line-numbers относительны cell — в
+        context фиксируется номер ячейки). Если парсер для языка
+        недоступен — cell целиком становится одним чанком.
+
+        Returns:
+            (chunks, symbols)
+        """
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8", errors="ignore"))
+        except Exception as e:
+            logger.warning(f"Notebook parse failed {file_path}: {e}")
+            return [], []
+
+        if not isinstance(data, dict):
+            return [], []
+        cells = data.get("cells", []) or []
+        code_cells = [
+            c for c in cells
+            if isinstance(c, dict) and c.get("cell_type") == "code"
+        ]
+        if not code_cells:
+            return [], []
+
+        lang = ((data.get("metadata") or {}).get("language_info") or {}).get("name", "")
+        ext = _NOTEBOOK_LANG_EXT.get((lang or "python").lower())
+
+        chunks: List[Dict[str, Any]] = []
+        symbols: List[Dict[str, Any]] = []
+        for idx, cell in enumerate(code_cells):
+            src = "".join(cell.get("source", []) or [])
+            if not src.strip():
+                continue
+            code = src.encode("utf-8", errors="ignore")
+            if ext and ext in self.parsers:
+                try:
+                    tree = self._get_parser(ext).parse(code)
+                    if tree and tree.root_node.child_count:
+                        _before_c, _before_s = len(chunks), len(symbols)
+                        self._walk_node(
+                            tree.root_node, code, file_path, chunks, symbols,
+                            parent_context=f"cell_{idx}",
+                        )
+                        # Cell без функций/классов (top-level стейтменты) —
+                        # _walk_node не даёт чанков, уходим в fallback ниже.
+                        if len(chunks) > _before_c or len(symbols) > _before_s:
+                            continue
+                except Exception as e:
+                    logger.warning(f"Notebook cell parse failed {file_path}#{idx}: {e}")
+            # Fallback: cell целиком одним чанком
+            meta = self._build_chunk_metadata(
+                str(file_path), f"cell_{idx}", "code_cell", f"cell_{idx}"
+            )
+            prefix = f"// File: {file_path} | Notebook cell {idx}\n"
+            chunks.append({
+                "text": prefix + src,
+                "text_compact": prefix + src,
+                "file": str(file_path),
+                "start_line": idx,
+                "end_line": idx,
+                "type": "code_cell",
+                "context": f"cell_{idx}",
+                "symbol_name": f"cell_{idx}",
+                "layer": meta["layer"],
+                "module_name": meta["module_name"],
+                "hierarchy_level": meta["hierarchy_level"],
+                "is_public": meta["is_public"],
+                "symbol_type": meta["symbol_type"],
+                "parent_id": meta["parent_id"],
+            })
+        return chunks, symbols
 
     def _parse_markdown(self, file_path: Path) -> tuple:
         """Улучшенный парсинг Markdown с защитой блоков кода.

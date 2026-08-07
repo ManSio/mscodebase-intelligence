@@ -72,10 +72,10 @@
 
 | 文档 | 描述 |
 |----------|-------------|
-| [README.md](../README.md) | 主文档，所有文档的导览 |
+| [README.md](../../README.md) | 主文档，所有文档的导览 |
 | [TELEMETRY.md](TELEMETRY.md) | 本文档 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本历史 |
-| [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) | 已知问题，含 RAM 画像（KI-002） |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | 已知问题，含 RAM 画像（KI-002） |
 
 ## 使用方法
 

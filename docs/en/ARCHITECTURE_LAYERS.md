@@ -150,7 +150,7 @@ Aggregates data from lower layers into ready-made answers.
 
 | Document | Description |
 |----------|----------|
-| [README.md](../README.md) | Main documentation, map of all docs |
+| [README.md](../../README.md) | Main documentation, map of all docs |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Project architecture, DI, layers |
 | [TELEMETRY.md](TELEMETRY.md) | Metrics and telemetry |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |

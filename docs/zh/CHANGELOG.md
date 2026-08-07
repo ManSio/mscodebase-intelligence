@@ -6,18 +6,30 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
-> **工具数量（当前）:** 实时服务器注册 **49 个工具** = 20 core + 13 intel + 12 inline + 4 dev
+> **工具数量（当前）:** 实时服务器注册 **57 个工具** = 28 core + 13 intel + 12 inline + 4 dev
 > （参见 `src/mcp/server_tools.py` 启动日志）。以下条目引用较早的总数。
 
 ---
 
 
-## [3.3.13] — 2026-08-05
 
-<!-- TODO: 填写变更内容 -->
+## [3.4.0] — 2026-08-08
+
+### 新增
+- **Edge transparency**: `confidence` (EXTRACTED/INFERRED) + `evidence` (file:line) 写入 PropertyGraph 边的 properties（DEFINES/CALLS/IMPORTS/DECORATES/OVERRIDES/ASSIGNED_FROM 为 EXTRACTED；co-change/bug-correlation 为 INFERRED）。
+- **Path queries**: `graph_query(action="path", from, to, direction, max_depth)`；`PropertyGraph.shortest_path(..., direction="outgoing|incoming|both")`（向后兼容）。
+- **Jupyter 支持**: `.ipynb` 加入 INDEX/PARSE_EXTENSIONS；`CodeParser._parse_notebook` — code cells → chunks（stdlib json）。
+- **find_duplicates**: copy-paste 检测 — AST 归一化指纹 + multiset-Jaccard + minhash-LSH（src/core/duplication.py）。
+- **get_context(targets=[...])**: task-shaped 聚合 — 一次调用获取多个符号的上下文。
+
+### 变更
+- MCP 工具注册 55 → 57（28 core + 13 intel + 12 inline + 4 dev）；README/AGENTS.md/docs en+ru+zh 同步；工具数量契约测试更新为 57。
+
+### 测试
+- +19 个新测试（test_graph_path, test_duplication, test_jupyter, test_edge_transparency）；完整 pytest：956 passed / 4 skipped / 94 deselected。
 
 ---
-## [3.3.13] — 2026-08-05 — get_last_progress → core（ARCH-03 完全关闭）、bump_version 修复、测试 sys.path 污染修复
+## [3.3.13] — 2026-08-05 — get_last_progress → core（ARCH-03 完全关闭）、bump_version 修复、test sys.path 污染修复
 
 ### 修复
 - **Core→MCP 导入完全关闭（ARCH-03 后续）**：`get_last_progress`/`_create_progress_callback`/`_cleanup_old_progress` 从 `src/mcp/server.py` 移至新增 `src/core/progress_state.py`；`mcp/server.py` 重新导出以兼容测试；`project_context` 从 core 导入；`architecture_linter.py` 中 `project_context` 的例外已移除。

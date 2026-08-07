@@ -72,10 +72,10 @@ Each file is an array of records:
 
 | Document | Description |
 |----------|-------------|
-| [README.md](../README.md) | Main documentation, map of all docs |
+| [README.md](../../README.md) | Main documentation, map of all docs |
 | [TELEMETRY.md](TELEMETRY.md) | This file |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) | Known issues, including RAM profile (KI-002) |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | Known issues, including RAM profile (KI-002) |
 
 ## Usage
 
