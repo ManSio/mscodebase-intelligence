@@ -171,6 +171,7 @@ class WriteTool(MCPTool):
             check_types: Для replace/insert — прогнать результирующий файл через
                 basedpyright и вернуть ошибки типов в ответе (не блокирует запись;
                 синтаксическая ошибка результирующего файла блокирует всегда).
+                Работает и в preview-режиме (apply=False) — ошибки видны ДО записи.
         """
 
         action_map = {
@@ -406,15 +407,23 @@ class WriteTool(MCPTool):
         original_lines = lines[start_idx:end_idx]
 
         if not apply:
-            return f"🔍 **Preview:** replace `{symbol}` in `{source_file}` (line {source_def.line})\n\nOld: {len(original_lines)} lines → New: {len(new_code.splitlines())} lines"
+            preview_msg = (
+                f"🔍 **Preview:** replace `{symbol}` in `{source_file}` (line {source_def.line})\n\n"
+                f"Old: {len(original_lines)} lines → New: {len(new_code.splitlines())} lines"
+            )
+            if kw.get("check_types", False) and source_file.endswith(".py"):
+                assembled = "".join(
+                    lines[:start_idx]
+                    + self._indent_new_lines(new_code, len(lines[start_idx]) - len(lines[start_idx].lstrip()))
+                    + lines[end_idx:]
+                )
+                preflight = await self._preflight_validate(source_file, assembled, check_types=True)
+                preview_msg += self._preflight_note(preflight)
+            return preview_msg
 
-        new_lines_list = new_code.splitlines(True)
-        base_indent = len(lines[start_idx]) - len(lines[start_idx].lstrip())
-        if new_lines_list and base_indent > 0:
-            indented = []
-            for i, nl in enumerate(new_lines_list):
-                indented.append(nl if i == 0 or not nl.strip() else " " * base_indent + nl)
-            new_lines_list = indented
+        new_lines_list = self._indent_new_lines(
+            new_code, len(lines[start_idx]) - len(lines[start_idx].lstrip())
+        )
 
         # P3-8 audit: синтаксис-валидация new_code перед записью (Python-файлы),
         # чтобы пользователь не получил сломанный файл без предупреждения.
@@ -501,13 +510,15 @@ class WriteTool(MCPTool):
                 insert_at = anchor_idx
 
         if not apply:
-            return f"🔍 **Preview:** insert {position} `{anchor_symbol}` in `{source_file}`"
+            preview_msg = f"🔍 **Preview:** insert {position} `{anchor_symbol}` in `{source_file}`"
+            if kw.get("check_types", False) and source_file.endswith(".py"):
+                new_lines = self._build_insert_lines(new_code, position, insert_at, lines)
+                assembled = "".join(lines[:insert_at] + new_lines + lines[insert_at:])
+                preflight = await self._preflight_validate(source_file, assembled, check_types=True)
+                preview_msg += self._preflight_note(preflight)
+            return preview_msg
 
-        new_lines = new_code.splitlines(True)
-        if new_lines and new_lines[-1].strip() != '':
-            new_lines.append('\n')
-        if position == "after" and insert_at < len(lines) and lines[insert_at - 1].strip() != '':
-            new_lines.insert(0, '\n')
+        new_lines = self._build_insert_lines(new_code, position, insert_at, lines)
 
         lines[insert_at:insert_at] = new_lines
         preflight = await self._preflight_validate(
@@ -587,6 +598,39 @@ class WriteTool(MCPTool):
             except Exception:
                 self._lsp_client = False
         return self._lsp_client if self._lsp_client is not False else None
+
+    def _indent_new_lines(self, new_code: str, base_indent: int) -> List[str]:
+        """Разбивает new_code на строки и выравнивает отступы под base_indent.
+
+        Используется и в apply-, и в preview-пути (preview+check_types должен
+        собирать тот же результирующий файл, что и запись).
+        """
+        new_lines_list = new_code.splitlines(True)
+        if new_lines_list and base_indent > 0:
+            indented = []
+            for i, nl in enumerate(new_lines_list):
+                indented.append(nl if i == 0 or not nl.strip() else " " * base_indent + nl)
+            new_lines_list = indented
+        return new_lines_list
+
+    @staticmethod
+    def _build_insert_lines(new_code: str, position: str, insert_at: int, lines: list) -> List[str]:
+        """Строит блок строк для вставки (нормализация переносов и пустых строк)."""
+        new_lines = new_code.splitlines(True)
+        if new_lines and new_lines[-1].strip() != '':
+            new_lines.append('\n')
+        if position == "after" and insert_at < len(lines) and lines[insert_at - 1].strip() != '':
+            new_lines.insert(0, '\n')
+        return new_lines
+
+    @staticmethod
+    def _preflight_note(preflight) -> str:
+        """Форматирует результат _preflight_validate для preview-сообщения."""
+        if preflight is None:
+            return "\n\n✅ **Preflight:** типовые ошибки не найдены"
+        blocking, msg = preflight
+        icon = "🚫" if blocking else "⚠️"
+        return f"\n\n{icon} **Preflight:** {msg}"
 
     async def _preflight_validate(self, file_path: str, new_content: str, check_types: bool) -> Optional[tuple]:
         """Pre-flight валидация результирующего файла ПЕРЕД записью.

@@ -1064,3 +1064,88 @@ class TestWriteToolPreflight:
         assert "Inserted after" in result
         assert "Preflight" in result  # advisory-note в ответе
         assert "def c" in py_file.read_text()  # запись прошла
+
+    async def test_preview_with_check_types_shows_lsp_skip(self, write_tool, tmp_path):
+        """Preview + check_types=True без LSP — advisory в preview, файл не тронут."""
+        f = tmp_path / "preview_me.py"
+        f.write_text("def a():\n    pass\n")
+        si = _build_index_for_file(f, extra_defs=[
+            {"name": "a", "line": 1, "kind": "function"},
+        ], add_refs=False)
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+        write_tool._get_lsp_client = MagicMock(return_value=None)
+        before = f.read_text()
+
+        result = await write_tool._action_replace(
+            symbol="a",
+            new_code="def a():\n    return 1\n",
+            file_path=str(f),
+            apply=False,
+            check_types=True,
+        )
+        assert "Preview" in result
+        assert "Preflight" in result  # advisory о проверке типов
+        assert "LSP" in result
+        assert f.read_text() == before  # запись не производилась
+
+    async def test_preview_with_check_types_syntax_error(self, write_tool, tmp_path):
+        """Preview + check_types=True с битым результирующим файлом — ошибка в preview."""
+        f = tmp_path / "preview_bad.py"
+        f.write_text("def a():\n    pass\n")
+        si = _build_index_for_file(f, extra_defs=[
+            {"name": "a", "line": 1, "kind": "function"},
+        ], add_refs=False)
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+        write_tool._get_lsp_client = MagicMock(return_value=None)
+        before = f.read_text()
+
+        result = await write_tool._action_replace(
+            symbol="a",
+            new_code="def broken(:\n    pass\n",
+            file_path=str(f),
+            apply=False,
+            check_types=True,
+        )
+        assert "Preview" in result
+        assert "🚫" in result or "Синтаксическая ошибка" in result
+        assert f.read_text() == before  # запись не производилась
+
+    async def test_preview_insert_with_check_types(self, write_tool, tmp_path):
+        """Preview + check_types=True для insert — advisory в preview, файл не тронут."""
+        f = tmp_path / "preview_insert.py"
+        f.write_text(
+            "def a():\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def b():\n"
+            "    return 2\n"
+        )
+        si = _build_index_for_file(f, extra_defs=[
+            {"name": "a", "line": 1, "kind": "function"},
+            {"name": "b", "line": 5, "kind": "function"},
+        ], add_refs=False)
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+        write_tool._get_lsp_client = MagicMock(return_value=None)
+        before = f.read_text()
+
+        result = await write_tool._action_insert_after(
+            anchor_symbol="a",
+            new_code="def c():\n    return 3\n",
+            file_path=str(f),
+            apply=False,
+            check_types=True,
+        )
+        assert "Preview" in result
+        assert "Preflight" in result
+        assert "LSP" in result
+        assert f.read_text() == before  # запись не производилась
