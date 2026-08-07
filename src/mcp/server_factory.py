@@ -513,7 +513,8 @@ def _resolve_ledger_project_root():
     """Возвращает путь к проекту пользователя (где лежит AGENT_DIARY.md).
 
     Использует resolve_project_root() из server.py — единственный надёжный
-    резолвер (SQLite bridge + env + fallback). _default_project_root в
+    резолвер (CWD-first per-window → PROJECT_PATH env → Zed SQLite → fallback).
+    _default_project_root в
     server_factory.py — ЛОКАЛЬНАЯ переменная (баг F811), не обновляет модуль.
 
     Ранее использовал самодельный резолвер, который падал из-за:

@@ -105,7 +105,7 @@ def resolve_indexer_for_request(
 
     Приоритет project_path:
     1) explicit_project_root (из kwargs инструмента)
-    2) resolve_project_root() (PROJECT_PATH env → bridge → CWD → ext_root)
+    2) resolve_project_root() (CWD → PROJECT_PATH env → Zed SQLite → ZED_WORKTREE_ROOT → ext_root)
     3) fallback: default project_path из DI
 
     Self-Indexing Protection (INC-6BCB-v3): если target path попадает
