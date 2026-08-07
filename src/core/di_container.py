@@ -230,12 +230,14 @@ def create_service_collection(
     # ══════════════════════════════════════════════════════
     # ResourceMonitor: подключаем к registry для adaptive throttling
     # (LRU evict под давлением RAM/CPU).
+    # BS-9 (аудит Bot_snow): регистрируем ГЛОБАЛЬНЫЙ singleton, а не новый
+    # инстанс — иначе passport (DI.resolve) и health (get_global_registry)
+    # читали ДВА разных реестра: «Cached: 1» vs «registry_cached_projects: 0».
     resource_monitor = get_global_resource_monitor()
 
-    registry = ProjectIndexerRegistry(
-        max_cached=5,
-        resource_monitor=resource_monitor,
-    )
+    from src.core.indexing.project_indexer_registry import get_global_registry
+
+    registry = get_global_registry()
 
     services.add_singleton(ProjectIndexerRegistry, registry)
 

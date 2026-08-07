@@ -20,6 +20,28 @@ __all__ = [
 ]
 logger = logging.getLogger("mscodebase_server.index_parser")
 
+# Префиксы строк-комментариев для проверки «файл без кода» (BS-1):
+# файл, где все непустые строки — комментарии (напр. __init__.py с одной
+# строкой-комментарием), не индексируется — иначе его fallback-чанк
+# вылезает в выдаче search_code как «результат» (аудит Bot_snow BS-1:
+# 5/6 результатов на пустой запрос — пустые __init__.py с fallback_lines).
+_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--", "-->", "\"\"\"", "'''", "--")
+
+
+def _has_code_lines(content: str) -> bool:
+    """True, если в файле есть хотя бы одна непустая некомментарная строка."""
+    for line in content.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith(_COMMENT_PREFIXES):
+            continue
+        # Строка-закрытие блочного комментария ("*/") без префикса
+        if s.startswith("*/"):
+            continue
+        return True
+    return False
+
 
 class IndexParser:
     """Чистый парсер: читает файл → AST-чанкинг → возвращает данные.
@@ -112,6 +134,12 @@ class IndexParser:
                 return None
 
             if not content.strip():
+                return None
+
+            # BS-1: файл без единой строки кода (только комментарии/пустые)
+            # не индексируется — fallback-чанк пустышки не должен попадать
+            # в индекс и в выдачу поиска.
+            if not _has_code_lines(content):
                 return None
 
             # AST-чанкинг + Breadcrumbs

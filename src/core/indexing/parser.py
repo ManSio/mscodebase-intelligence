@@ -1692,6 +1692,20 @@ class CodeParser:
         if not lines:
             return [], []
 
+        # BS-1 (аудит Bot_snow): файл без единой строки кода (только
+        # комментарии/пустые, напр. __init__.py с одной строкой-комментарием)
+        # не индексируется — иначе его fallback-чанк вылезает в поиске
+        # как «результат» (5/6 мусорных результатов на пустой запрос).
+        # Дублирует _has_code_lines из index_parser.py — парсер может
+        # вызываться напрямую (SymbolIndex и т.п.), без IndexParser.
+        if not any(
+            ln.strip() and not ln.strip().startswith(
+                ("#", "//", "/*", "*", "<!--", "-->", "\"\"\"", "'''", "--")
+            )
+            for ln in lines
+        ):
+            return [], []
+
         chunks = []
         file_path_str = str(file_path)
         # v2.6.0: Contextual prefix для fallback-чанков

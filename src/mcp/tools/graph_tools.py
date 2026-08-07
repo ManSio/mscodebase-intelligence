@@ -151,14 +151,23 @@ class GraphQueryTool(MCPTool):
         action: str = "query",
         query_type: str = "",
         target: str = "",
+        query: str = "",
+        name: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
+        """Мультиплексированный графовый запрос.
+
+        BS-7 (аудит Bot_snow): `query`/`name` отсутствовали в схеме —
+        клиент не мог передать Cypher-запрос или имя переменной
+        («query is required» / «name is required» при пустом target).
+        Теперь параметры в схеме; `target` остаётся как backward-compat.
+        """
         if action == "cypher":
-            return await self._execute_cypher(target, kwargs)
+            return await self._execute_cypher(query or target, kwargs)
         elif action == "related":
             return await self._execute_related(target, kwargs)
         elif action == "flow":
-            return await self._execute_flow(target, kwargs)
+            return await self._execute_flow(name or target, kwargs)
         elif action == "drift":
             return await self._execute_arch_drift(target)
         elif action == "verify":

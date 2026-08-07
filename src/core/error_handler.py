@@ -97,6 +97,26 @@ def load_metrics() -> None:
             saved = json.load(f)
         with _TOOL_METRICS_LOCK:
             for name, stats in saved.items():
+                # BS-14 (аудит Bot_snow #3): старые метрики с отрицательной
+                # латентностью (баг P1-10 «- 1000» вместо «* 1000», исправлен
+                # 2026-07-27) остались в tool_metrics.json и показывались как
+                # «-994 ms». Санитизируем при загрузке.
+                if not isinstance(stats, dict):
+                    continue
+                stats = dict(stats)
+                if stats.get("min_ms", 999999) is not None and stats.get(
+                    "min_ms", 999999
+                ) < 0:
+                    stats["min_ms"] = 999999
+                if stats.get("max_ms", 0) is not None and stats.get("max_ms", 0) < 0:
+                    stats["max_ms"] = 0
+                if stats.get("total_ms", 0) is not None and stats.get("total_ms", 0) < 0:
+                    stats["total_ms"] = 0
+                lat = stats.get("latencies")
+                if isinstance(lat, list):
+                    stats["latencies"] = [
+                        x for x in lat if isinstance(x, (int, float)) and x >= 0
+                    ]
                 if name not in _TOOL_METRICS:
                     _TOOL_METRICS[name] = stats
                 else:
@@ -158,6 +178,10 @@ def record_tool_call(
         detail: Доп. информация ("6 chunks, layer=core")
     """
     global _METRICS_SAVE_COUNTER, _LAST_TOOL, _REPEAT_COUNT, _LAST_CALL_AT
+
+    # BS-14: защита от отрицательной латентности (регрессия P1-10)
+    if latency_ms is None or latency_ms < 0:
+        latency_ms = 0
 
     with _TOOL_METRICS_LOCK:
         entry = _TOOL_METRICS.setdefault(
@@ -350,7 +374,8 @@ def get_tool_metrics_summary() -> list:
         ):
             calls = stats["calls"]
             avg_ms = round(stats["total_ms"] / calls, 1) if calls else 0
-            min_ms = stats["min_ms"] if stats["min_ms"] < 999999 else 0
+            # BS-14: guard — отрицательная латентность не показывается
+            min_ms = stats["min_ms"] if 0 <= stats["min_ms"] < 999999 else 0
 
             # Percentiles
             latencies = sorted(stats.get("latencies", []))

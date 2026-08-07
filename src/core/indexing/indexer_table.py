@@ -597,6 +597,11 @@ class IndexerTableMixin:
                             "layer": row.get("layer", ""),
                             "hierarchy_level": row.get("hierarchy_level", ""),
                             "parent_id": row.get("parent_id", ""),
+                            # BS-3: координаты строк доезжают до рендера (0-based).
+                            "start_line": row.get("start_line", 0),
+                            "end_line": row.get("end_line", 0),
+                            "symbol_type": row.get("symbol_type", ""),
+                            "module_name": row.get("module_name", ""),
                         },
                         "vector": row.get("vector"),  # v3.2.1: для MMR
                     }

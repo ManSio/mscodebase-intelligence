@@ -451,17 +451,23 @@ class FTS5IndexManager:
         final = []
         for key in sorted_keys:
             r = data[key]
-            # Get full text from metadata
+            # Get full text + координаты из метаданных (BS-3: не теряем строки)
             full_text = ""
+            line_start = 0
+            line_end = 0
+            chunk_index = 0
             with self._lock:
                 if self._conn is not None:
                     try:
                         row = self._conn.execute(
-                            "SELECT text FROM chunks WHERE symbol_name=? AND file_path=?",
+                            "SELECT text, line_start, line_end, chunk_index FROM chunks WHERE symbol_name=? AND file_path=?",
                             (r["name"], r["file"]),
                         ).fetchone()
                         if row:
                             full_text = row[0]
+                            line_start = row[1] or 0
+                            line_end = row[2] or 0
+                            chunk_index = row[3] or 0
                     except Exception:
                         pass
 
@@ -472,6 +478,12 @@ class FTS5IndexManager:
                     "symbol_name": r["name"],
                     "symbol_kind": r.get("kind", ""),
                     "rrf_detail": r.get("rrf_detail", {}),
+                    # BS-3: реальный chunk_index (не 0) — иначе в RRF-дедупе
+                    # все fts5-хиты файла схлопывались в ключ file:0 и
+                    # перезаписывали dense-хиты (аудит Bot_snow BS-2/BS-3).
+                    "chunk_index": chunk_index,
+                    "start_line": line_start,
+                    "end_line": line_end,
                 },
                 "final_score": scores[key],
                 "source": "fts5_hybrid",

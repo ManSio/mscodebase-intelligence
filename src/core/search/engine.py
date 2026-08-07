@@ -65,6 +65,97 @@ def _cache_key(*parts: str) -> str:
     ).hexdigest()
 
 
+# Идентификатор-запрос: одно слово snake_case/CamelCase (не фраза).
+# Для таких запросов «get_db» точное совпадение имени — сильный сигнал,
+# который обязан перевешивать семантический мусор dense-поиска
+# (аудит Bot_snow BS-2/BS-4: точные хиты вытеснялись случайными чанками).
+_IDENTIFIER_QUERY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{1,63}$")
+
+
+def _boost_exact_name_matches(results: List[dict], query: str) -> List[dict]:
+    """Поднимает результаты, чьё имя символа точно совпадает с запросом.
+
+    Мотивация: dense-эмбеддинги слабо различают релевантность (сжатое
+    пространство, замер 2026-08-07: distance 0.09-0.18 для всех пар),
+    поэтому точный токен имени (get_db → symbol "get_db") — самый
+    надёжный сигнал. Буст применяется ТОЛЬКО если запрос — одиночный
+    идентификатор; семантические фразы не затрагиваются.
+    """
+    q = (query or "").strip()
+    if not _IDENTIFIER_QUERY_RE.match(q):
+        return results
+    ql = q.lower()
+
+    for r in results:
+        meta = r.get("metadata") or {}
+        text = str(r.get("text", "") or "")
+        sym = str(meta.get("symbol_name", "") or "")
+        if not sym:
+            sym = _extract_symbol_name(text)  # "def get_db(" → "get_db"
+        if not sym:
+            continue
+        sym_l = sym.lower()
+        # Точное имя, имя-префикс или вызов вида def <query>( / <query>(
+        if (
+            sym_l == ql
+            or ql in sym_l
+            or re.search(rf"\bdef\s+{re.escape(q)}\s*\(", text)
+            or re.search(rf"\b{re.escape(q)}\s*\(", text)
+        ):
+            r["final_score"] = (r.get("final_score", 0) or 0) * 100.0
+            r["exact_name_boost"] = True
+
+    # Стабильная сортировка: бустнутые впереди (в исходном порядке), остальные
+    # сзади (в исходном порядке). НЕ сортируем по final_score — у dense-хитов
+    # в fast-mode скор = distance (меньше = лучше), у RRF/rerank — больше =
+    # лучше; пересортировка по нему инвертировала бы dense-порядок.
+    results.sort(key=lambda r: 0 if r.get("exact_name_boost") else 1)
+    return results
+
+
+def _dedupe_by_symbol(results: List[dict]) -> List[dict]:
+    """Оставляет один лучший чанк на (файл, символ).
+
+    Убирает «дубли» из аудита BS-2: несколько чанков одного файла про одну
+    функцию (определение + тело/вызовы) показывались как два результата.
+    Безымянные чанки (fallback_lines и т.п.) не трогаются.
+
+    Порядок: позиция первого вхождения ключа сохраняется, содержимое —
+    чанк с максимальным final_score. Не сортируем по final_score:
+    у dense-хитов в fast-mode скор = distance (меньше = лучше), у RRF —
+    больше = лучше; пересортировка инвертировала бы dense-порядок.
+    """
+    best: Dict[tuple, dict] = {}
+    for r in results:
+        meta = r.get("metadata") or {}
+        file = meta.get("file", "")
+        sym = str(meta.get("symbol_name", "") or "")
+        if not sym:
+            sym = _extract_symbol_name(str(r.get("text", "") or ""))
+        if not sym:
+            continue  # безымянные чанки всегда проходят
+        key = (file, sym)
+        score = r.get("final_score", 0) or 0
+        if key not in best or score > best[key].get("final_score", float("-inf")):
+            best[key] = r
+
+    seen: set = set()
+    out: List[dict] = []
+    for r in results:
+        meta = r.get("metadata") or {}
+        sym = str(meta.get("symbol_name", "") or "")
+        if not sym:
+            sym = _extract_symbol_name(str(r.get("text", "") or ""))
+        if not sym:
+            out.append(r)
+            continue
+        key = (meta.get("file", ""), sym)
+        if key not in seen:
+            seen.add(key)
+            out.append(best[key])
+    return out
+
+
 class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
     """Выполняет гибридный семантический поиск по кодовой базе."""
 
@@ -181,6 +272,13 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                             "layer": row.get("layer", ""),
                             "hierarchy_level": row.get("hierarchy_level", ""),
                             "parent_id": row.get("parent_id", ""),
+                            # BS-3 (аудит Bot_snow): координаты строк существовали
+                            # в таблице, но не доезжали до рендера → search_code
+                            # показывал chunk_index как «line 0/2». 0-based.
+                            "start_line": row.get("start_line", 0),
+                            "end_line": row.get("end_line", 0),
+                            "symbol_type": row.get("symbol_type", ""),
+                            "module_name": row.get("module_name", ""),
                         },
                     }
                 )
@@ -539,6 +637,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         if tracer and _pre_rerank:
             tracer.record_reranker(_pre_rerank, final_results)
 
+        # BS-2/BS-4 (аудит Bot_snow): точные совпадения имени и дедуп дублей
+        # одного (файл, символ) — см. helpers выше.
+        final_results = _boost_exact_name_matches(final_results, query)
+        final_results = _dedupe_by_symbol(final_results)
+
         # Фильтрация по времени (since/before) — чистый Python
         if tracer:
             tracer.record_final(final_results)
@@ -807,6 +910,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                     results = reciprocal_rank_fusion_3way([], results, fts5_raw, limit)
             except Exception as e:
                 logger.debug(f"FTS5 search error in fast mode: {e}")
+
+            # BS-2/BS-4: точные совпадения имени + дедуп (fast-mode не проходит
+            # через hybrid_search_async, поэтому повторяем здесь).
+            results = _boost_exact_name_matches(results, query)
+            results = _dedupe_by_symbol(results)
 
             # Graph context expansion для fast mode (Задача 5/5): связи из
             # графа вызовов (callers/callees) видны агенту без reranker'а.

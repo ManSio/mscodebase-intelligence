@@ -184,12 +184,23 @@ class AutoDocUpdater:
                 issues.append(f"MODULE_INDEX.md старше 1ч ({age.seconds // 60}м)")
 
         # Проверка README tool count
+        # BS-10 (аудит Bot_snow): строка-проверка `str(actual) in text` давала
+        # ложное предупреждение для проектов, чей README не содержит счётчика
+        # инструментов вообще (напр. Bot_snow), и не ловила несоответствие
+        # («49 MCP tools» vs фактических 55). Теперь срабатываем только при
+        # явном маркере «N total»/«N tools» в README и сверяем его значение.
         readme_path = root / "README.md"
         if readme_path.exists():
             text = readme_path.read_text(encoding="utf-8")
-            actual_count = self._count_tools(root)
-            if str(actual_count) not in text:
-                issues.append(f"README.md: tool count устарел (ожидается {actual_count})")
+            tool_count_markers = re.findall(
+                r"(\d+)\s+(?:total|tools)", text, re.IGNORECASE
+            )
+            if tool_count_markers:
+                actual_count = self._count_tools(root)
+                if str(actual_count) not in tool_count_markers:
+                    issues.append(
+                        f"README.md: tool count устарел (ожидается {actual_count})"
+                    )
 
         if not issues:
             return "✅ Документация актуальна"
