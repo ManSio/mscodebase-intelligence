@@ -13,8 +13,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.mcp.tools.lsp_tools import (
+    LspGetCodeActionsTool,
     LspGetDiagnosticsTool,
     LspGetTypeInfoTool,
+    _format_code_actions,
     _format_diagnostics,
 )
 
@@ -76,6 +78,35 @@ def test_format_diagnostics_maps_severity_and_position():
     assert "reportUndefinedVariable" in out
 
 
+# ── _format_code_actions ─────────────────────────────────────────────
+
+
+def test_format_code_actions_empty():
+    assert "не найдено" in _format_code_actions([])
+
+
+def test_format_code_actions_lists_title_kind_edits():
+    actions = [
+        {
+            "title": 'Add import "os"',
+            "kind": "quickfix",
+            "edit": {
+                "changes": {
+                    "file:///D:/x.py": [
+                        {"range": {"start": {"line": 0, "character": 0}}, "newText": "import os\n"}
+                    ]
+                }
+            },
+        },
+        {"title": "Remove unused variable", "kind": "quickfix", "edit": None},
+    ]
+    out = _format_code_actions(actions)
+    assert "2" in out  # count
+    assert 'Add import "os"' in out
+    assert "quickfix" in out
+    assert "import os" in out  # превью первой правки
+
+
 # ── Контракт имён ─────────────────────────────────────────────────────
 
 
@@ -84,6 +115,7 @@ def test_format_diagnostics_maps_severity_and_position():
     [
         (LspGetTypeInfoTool, "lsp_get_type_info"),
         (LspGetDiagnosticsTool, "lsp_get_diagnostics"),
+        (LspGetCodeActionsTool, "lsp_get_code_actions"),
     ],
 )
 def test_tool_names(cls, expected_name):

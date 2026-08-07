@@ -234,6 +234,31 @@ class LspClient:
             self._handle_crash()
             return []
 
+    async def code_actions(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
+        """textDocument/codeAction → список быстрых правок (CodeAction).
+
+        Read-only: pyright вычисляет quickfix'ы из собственного анализа,
+        context.diagnostics пуст — редактор не обязан передавать их.
+        """
+        if not await self._ensure_started():
+            return []
+        if not await self.open_file(file_path):
+            return []
+        try:
+            result = await self._send_request("textDocument/codeAction", {
+                "textDocument": {"uri": self._path_to_uri(file_path)},
+                "range": {
+                    "start": {"line": line, "character": col},
+                    "end": {"line": line, "character": col},
+                },
+                "context": {"diagnostics": []},
+            })
+            return result if isinstance(result, list) else []
+        except Exception as exc:
+            logger.warning("code_actions failed: %s", exc)
+            self._handle_crash()
+            return []
+
     async def hover(self, file_path: str, line: int, col: int) -> Optional[str]:
         """textDocument/hover → human-readable string."""
         result = await self._send_text_request("textDocument/hover", file_path, line, col)

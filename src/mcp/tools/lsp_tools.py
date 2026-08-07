@@ -335,3 +335,75 @@ class LspGetDiagnosticsTool(MCPTool):
             )
         diags = await lsp.get_diagnostics(file_path, wait_ms=max(100, min(wait_ms, 5000)))
         return _format_diagnostics(diags)
+
+
+def _format_code_actions(actions) -> str:
+    """Форматирует CodeAction (title/kind/edits) в человекочитаемый список."""
+    if not actions:
+        return "Быстрых правок не найдено в указанной позиции."
+    lines = [f"Быстрые правки ({len(actions)}):"]
+    for a in actions:
+        title = a.get("title", "?")
+        kind = a.get("kind", "quickfix")
+        edit = a.get("edit") or {}
+        changes = edit.get("changes") or {}
+        doc_changes = edit.get("documentChanges") or []
+        n_edits = sum(len(v) for v in changes.values()) if changes else len(doc_changes)
+        # Краткий превью первой правки (новый текст, ≤60 символов)
+        preview = ""
+        if changes:
+            for uris in changes.values():
+                if uris:
+                    txt = (uris[0].get("newText") or "").replace("\n", " ⏎ ").strip()
+                    if txt:
+                        preview = f" → {txt[:60]}"
+                    break
+        elif doc_changes:
+            edits = doc_changes[0].get("edits") or []
+            if edits:
+                txt = (edits[0].get("newText") or "").replace("\n", " ⏎ ").strip()
+                if txt:
+                    preview = f" → {txt[:60]}"
+        lines.append(f"- {title} (kind={kind}, edits={n_edits}){preview}")
+    return "\n".join(lines)
+
+
+class LspGetCodeActionsTool(MCPTool):
+    """lsp_get_code_actions — быстрые правки (quick fixes) через basedpyright."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="lsp_get_code_actions")
+
+    @error_boundary("lsp_get_code_actions", timeout_ms=15000)
+    async def execute(
+        self,
+        file_path: str,
+        line: int = 0,
+        col: int = 0,
+        symbol_name: str = "",
+        kwargs: Optional[dict] = None,
+    ) -> str:
+        """Получить доступные быстрые правки (автоимпорт, quickfix) в позиции.
+
+        Args:
+            file_path: путь к файлу (абсолютный или от корня проекта).
+            line: строка символа, 0-based (LSP-конвенция).
+            col: колонка символа, 0-based.
+            symbol_name: имя символа (для автопоиска колонки при col=0 и line указана).
+
+        Returns:
+            Список CodeAction: title / kind / число правок / превью первой.
+        """
+        await self.require_ready_project()
+        lsp = await _ensure_lsp()
+        if lsp is None:
+            return (
+                "LSP недоступен (basedpyright не найден). "
+                "Используйте search_code / get_symbol_info."
+            )
+        if col == 0 and symbol_name:
+            col = lsp._find_symbol_column(file_path, line, symbol_name)
+            if col < 0:
+                col = 0
+        actions = await lsp.code_actions(file_path, line, col)
+        return _format_code_actions(actions)

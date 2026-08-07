@@ -249,7 +249,7 @@ let adapter = self.languages
 ### 这对 MSCodeBase 意味着什么
 
 - **编辑器中通过 mscodebase-lsp 的 LSP 功能（inlay-hints、code-actions、自动补全）在 Zed 1.9.0 Windows 上是不可能的。**
-**所有语义和搜索继续通过 MCP 工作** — 54 个工具，
+**所有语义和搜索继续通过 MCP 工作** — 55 个工具，
 - **LSP 桥接器（bridge）（来自 LSP 的 project_root）** 仍然为空，但 `resolve_project_root()` 通过 SQLite 回退（fallback）补偿了这一点。
 
 ### 为什么 settings.json 显示 Serde 错误
