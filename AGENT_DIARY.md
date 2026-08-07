@@ -13,6 +13,17 @@
 
 ---
 
+## [2026-08-07] — Инструменты с корнем через __file__: stale_detector/_grep_fallback сканировали расширение (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 884 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 884 passed (эта сессия), регресс-тесты 3/3 (проект пользователя vs каталог расширения).
+**Root Cause:** stale_detector (doc_tools.py) и _grep_fallback (search_tools.py) вычисляли корень через Path(__file__).parent... — в installed-режиме это каталог РАСШИРЕНИЯ, а не проект пользователя → мусорная выдача (аудит Bot_snow #6/#7, подтверждено grep'ом в этой сессии).
+**Fix:** оба инструмента берут корень из resolve_project_root() (CWD-first, per-window, ленивый импорт — ARCH-03 core←mcp). intel_analyze_incident починен транзитивно (использует _grep_fallback). +3 регресс-теста (tests/test_tool_project_root.py).
+**Guard:** test_searches_resolved_project / test_does_not_scan_extension_dir / test_uses_resolved_project — на старом коде падают (искали в __file__-каталоге).
+**Pattern:** P-002-класс «__file__ вместо резолвера» — тот же корень, что INC-MULTI-WINDOW, но в периферийных инструментах.
+
+---
+
 ## [2026-08-07] — Multi-window MCP изоляция: CWD-first резолв (INC-MULTI-WINDOW) (DONE)
 
 **Status:** ✅ Fixed (код+тесты; 881 passed / 4 skipped)

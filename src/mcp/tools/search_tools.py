@@ -183,7 +183,13 @@ def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
     """Fallback to grep when index is empty/corrupted. Uses keyword-based search."""
     import pathlib as _pl
 
-    root = _pl.Path(__file__).resolve().parent.parent.parent.parent
+    # INC-MULTI-WINDOW: корень берём из резолвера (CWD-first, per-window),
+    # а не из __file__: в installed-режиме __file__ = каталог расширения,
+    # и fallback искал в чужом каталоге (аудит Bot_snow #7). Ленивый импорт
+    # — core-слой не зависит от mcp (ARCH-03, направление core←mcp).
+    from src.core.project_resolution import resolve_project_root
+
+    root = _pl.Path(resolve_project_root())
     results = []
 
     # Split query into keywords for flexible matching
