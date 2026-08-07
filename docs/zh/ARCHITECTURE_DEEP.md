@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n52 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n54 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -204,7 +204,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 52 tools
+    MCP->>MCP: Register 54 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: 总启动时间：~2-5秒（异步嵌入器初始化）

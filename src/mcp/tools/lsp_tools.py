@@ -69,6 +69,25 @@ async def _ensure_lsp():
         return None
 
 
+
+def _format_diagnostics(diags) -> str:
+    """Форматирует publishDiagnostics (severity 1=Error, 2=Warning, 3=Info, 4=Hint)."""
+    if not diags:
+        return "Диагностика: ошибок не найдено ✅"
+    lines = [f"Диагностика: {len(diags)}"]
+    for d in diags:
+        sev = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}.get(d.get("severity"), "?")
+        rng = d.get("range", {})
+        start = rng.get("start", {})
+        code = d.get("code", "")
+        msg = d.get("message", "")
+        lines.append(
+            f"- [{sev}] L{start.get('line', 0)}:{start.get('character', 0)}"
+            f" ({code}) {msg}"
+        )
+    return "\n".join(lines)
+
+
 def _format_locations(locations, label: str) -> str:
     """Форматирует список LSP Location (uri + range) в человекочитаемый текст."""
     if not locations:
@@ -235,3 +254,84 @@ class LspDocumentSymbolsTool(MCPTool):
         lines = [f"Символы: {len(symbols)}"]
         lines.extend(_format_document_symbols(symbols))
         return "\n".join(lines)
+
+
+class LspGetTypeInfoTool(MCPTool):
+    """lsp_get_type_info — выведенный тип и сигнатура символа через basedpyright (hover)."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="lsp_get_type_info")
+
+    @error_boundary("lsp_get_type_info", timeout_ms=15000)
+    async def execute(
+        self,
+        file_path: str,
+        line: int,
+        col: int = -1,
+        symbol_name: str = "",
+        kwargs: Optional[dict] = None,
+    ) -> str:
+        """Получить выведенный тип и сигнатуру символа в позиции (line, col).
+
+        Args:
+            file_path: путь к файлу (абсолютный или от корня проекта).
+            line: строка символа, 0-based (LSP-конвенция).
+            col: колонка символа, 0-based; -1 = автопоиск по symbol_name.
+            symbol_name: имя символа (для автопоиска колонки при col=-1).
+
+        Returns:
+            Markdown-строка с типом/сигнатурой/docstring или сообщение.
+        """
+        await self.require_ready_project()
+        lsp = await _ensure_lsp()
+        if lsp is None:
+            return (
+                "LSP недоступен (basedpyright не найден). "
+                "Используйте get_symbol_info / search_code."
+            )
+        if col < 0:
+            if not symbol_name:
+                return "col < 0 требует symbol_name для автопоиска колонки"
+            col = lsp._find_symbol_column(file_path, line, symbol_name)
+            if col < 0:
+                return f"Не удалось найти '{symbol_name}' на строке {line} — укажите col вручную"
+        info = await lsp.hover(file_path, line, col)
+        if not info:
+            return (
+                f"Тип/информация не найдены в позиции L{line}:{col} "
+                f"(проверьте file_path и координаты)"
+            )
+        return info
+
+
+class LspGetDiagnosticsTool(MCPTool):
+    """lsp_get_diagnostics — ошибки типов и синтаксиса файла через basedpyright."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="lsp_get_diagnostics")
+
+    @error_boundary("lsp_get_diagnostics", timeout_ms=20000)
+    async def execute(
+        self,
+        file_path: str,
+        wait_ms: int = 800,
+        kwargs: Optional[dict] = None,
+    ) -> str:
+        """Проверить файл: ошибки типов, неимпортированные модули, синтаксис.
+
+        Args:
+            file_path: путь к файлу (абсолютный или от корня проекта).
+            wait_ms: сколько ждать публикации диагностики (по умолчанию 800).
+
+        Returns:
+            Список диагностик (severity/message/позиция) или "ошибок не найдено".
+        """
+        await self.require_ready_project()
+        lsp = await _ensure_lsp()
+        if lsp is None:
+            return (
+                "LSP недоступен (basedpyright не найден). "
+                "Используйте search_code / get_symbol_info."
+            )
+        diags = await lsp.get_diagnostics(file_path, wait_ms=max(100, min(wait_ms, 5000)))
+        return _format_diagnostics(diags)

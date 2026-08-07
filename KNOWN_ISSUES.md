@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-07 — LSP D: тип-инфо и диагностика как MCP-тулы + pre-flight в WriteTool (DONE)
+
+**Symptom:** LspClient (basedpyright) умел hover/completion, но: publishDiagnostics отбрасывались в _read_loop (диагностика невидима); hover возвращал None (ответ оборачивался в список); basedpyright на Windows перекодирует uri драйва (file:///D:/x → file:///d%3A/x) — lookup диагностики молча не совпадал (тихая false-negative: битый код проходил preflight как «чистый»); WriteTool валидировал только фрагмент кода, не весь файл; LSP-анализ был доступен только внутри write_tools (rename).
+**Fix:** (1) _read_loop копит publishDiagnostics (uri нормализован _normalize_diag_uri, регрессия DRIVE-LETTER %3A); hover обрабатывает wrapped-list; (2) LspClient.get_diagnostics(wait_ms) + preflight_content (didChange → wait publish → revert к диску, per-uri lock — сессия не отравляется); (3) новые MCP-тулы lsp_get_type_info (hover: выведенный тип/сигнатура) + lsp_get_diagnostics (severity 1-4) в src/mcp/tools/lsp_tools.py, регистрация в tool_classes + default _allowed_names → 25 core = 54 total; (4) WriteTool._preflight_validate: compile() всего файла — жёсткий гейт (синтаксис блокирует запись), check_types=True — LSP-диагностика нового контента advisory в ответе (запись не блокируется); (5) счётчики 52→54 в 23 doc-файлах (en/ru/zh); zh/CHANGELOG «52 теста» не тронут.
+**Status:** ✅ Fixed (866 passed / 4 skipped; smoke: preflight ловит unknown_var, hover отдаёт сигнатуру, revert не трогает диск).
+
+---
+
 ## 2026-08-06 — LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyright), счётчики 49→52 (DONE)
 
 **Symptom:** (B) вечное предупреждение «LSP bridge not yet synchronized» — MCP session key (11592) никогда не совпадает с bridge-файлами (пишутся чужими процессами); check_lsp_health.py искал bridge в несуществующей директории ext_root/.codebase_indices/bridge (реальная ~/.mscodebase/bridge) и ссылался на несуществующий docs/investigations/2026-07-05-lsp-zed-1.9.0.md (реальный LSP_WONTFIX.md); (C) точный AST-анализ (references/definition/symbols) был доступен только внутри write_tools (rename), не как MCP-тулы; LspClient писал мусорные bridge-файлы при каждом старте (легаси write_active_project в _initialize).
@@ -2936,5 +2944,20 @@ Three fixes from the same review:
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** 🟡 Partial — объём подтверждён замером; поведенческая эквивалентность — A/B не запускался
 **Root Cause:** 126KB/35k токенов AGENTS.md — «Lost in the Middle»-риск (Verified: arXiv:2307.03172...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-06 23:45 — LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyright), счётчик 52 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+доки+тесты; 853 passed)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests/ → 853...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-06 23:50 — Закрытие 3 открытых вопросов: ru/zh секции инструментов, edge-count 29, CONTRIBUTING 3.3.13 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Done (docs-only, 26 файлов; pytest 853 passed замер сессии)
+**Root Cause:** (1) ru/zh README секции инструментов не прошли реструктуризацию после hub-миграции — легаси-имена (get_commit_...
 - **Статус:** автоматически синхронизировано
 

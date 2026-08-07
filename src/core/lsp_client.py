@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
@@ -48,6 +49,12 @@ class LspClient:
         self._capabilities: Dict[str, Any] = {}
         self._open_files: Set[str] = set()
         self._stopped = False
+        # uri → последний publishDiagnostics (обновляется из _read_loop)
+        self._diagnostics: Dict[str, List[Dict[str, Any]]] = {}
+        # abs_path → version документа (для didChange)
+        self._doc_versions: Dict[str, int] = {}
+        # per-uri lock для preflight_content (сериализация didChange→wait→revert)
+        self._preflight_locks: Dict[str, asyncio.Lock] = {}
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -118,6 +125,8 @@ class LspClient:
         self._process = None
         self._started = False
         self._open_files.clear()
+        self._diagnostics.clear()
+        self._doc_versions.clear()
         for f in self._pending.values():
             if not f.done():
                 f.set_exception(RuntimeError("LSP stopped"))
@@ -228,11 +237,103 @@ class LspClient:
     async def hover(self, file_path: str, line: int, col: int) -> Optional[str]:
         """textDocument/hover → human-readable string."""
         result = await self._send_text_request("textDocument/hover", file_path, line, col)
+        # _send_text_request оборачивает единичный dict (c "range") в список
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            return self._format_hover(result[0].get("contents"))
         if isinstance(result, dict):
             return self._format_hover(result.get("contents"))
         if isinstance(result, str):
             return result
         return None
+
+    async def get_diagnostics(self, file_path: str, wait_ms: int = 800) -> List[Dict[str, Any]]:
+        """textDocument/publishDiagnostics → список диагностик файла.
+
+        basedpyright публикует диагностику асинхронно после didOpen; ждём до
+        wait_ms, пока не придёт СВЕЖИЙ publish для этого файла (entry
+        сбрасывается перед запросом, чтобы не вернуть устаревшие данные).
+        """
+        if not await self._ensure_started():
+            return []
+        abs_path = str(Path(file_path).resolve())
+        uri = self._path_to_uri(abs_path)
+        self._diagnostics.pop(uri, None)
+        if not await self.open_file(abs_path):
+            return []
+        deadline = time.monotonic() + wait_ms / 1000.0
+        while time.monotonic() < deadline:
+            if uri in self._diagnostics:
+                return list(self._diagnostics.get(uri, []))
+            await asyncio.sleep(0.05)
+        return list(self._diagnostics.get(uri, []))
+
+    async def preflight_content(self, file_path: str, new_content: str, wait_ms: int = 1200) -> List[Dict[str, Any]]:
+        """Проверить НОВЫЙ контент файла через LSP без записи на диск.
+
+        Отправляет didChange (или didOpen для нового файла) с new_content,
+        ждёт publishDiagnostics, затем откатывает изменение (didChange к
+        содержимому с диска / didClose), чтобы не отравить состояние
+        LSP-сессии для последующих вызовов (rename и т.п.).
+
+        Возвращает список диагностик для new_content (может быть пустым).
+        При недоступности LSP / ошибке — пустой список (advisory).
+        """
+        if not await self._ensure_started():
+            return []
+        abs_path = str(Path(file_path).resolve())
+        uri = self._path_to_uri(abs_path)
+        lock = self._preflight_locks.setdefault(abs_path, asyncio.Lock())
+        async with lock:
+            was_open = abs_path in self._open_files
+            try:
+                if not was_open:
+                    await self._send_notification("textDocument/didOpen", {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": self._language_id(),
+                            "version": 1,
+                            "text": new_content,
+                        },
+                    })
+                    self._open_files.add(abs_path)
+                    self._doc_versions[abs_path] = 1
+                else:
+                    version = self._doc_versions.get(abs_path, 1) + 1
+                    self._doc_versions[abs_path] = version
+                    await self._send_notification("textDocument/didChange", {
+                        "textDocument": {"uri": uri, "version": version},
+                        "contentChanges": [{"text": new_content}],
+                    })
+                self._diagnostics.pop(uri, None)
+                result: List[Dict[str, Any]] = []
+                deadline = time.monotonic() + wait_ms / 1000.0
+                while time.monotonic() < deadline:
+                    if uri in self._diagnostics:
+                        result = list(self._diagnostics.get(uri, []))
+                        break
+                    await asyncio.sleep(0.05)
+                return result
+            finally:
+                # Откат: вернуть LSP-сессию к содержимому с диска
+                try:
+                    original = self._read_file_content(abs_path)
+                    if was_open:
+                        if original is not None:
+                            version = self._doc_versions.get(abs_path, 1) + 1
+                            self._doc_versions[abs_path] = version
+                            await self._send_notification("textDocument/didChange", {
+                                "textDocument": {"uri": uri, "version": version},
+                                "contentChanges": [{"text": original}],
+                            })
+                    else:
+                        self._open_files.discard(abs_path)
+                        self._doc_versions.pop(abs_path, None)
+                        if self._started and self._process is not None:
+                            await self._send_notification("textDocument/didClose", {
+                                "textDocument": {"uri": uri},
+                            })
+                except Exception as exc:
+                    logger.warning("preflight revert failed for %s: %s", abs_path, exc)
 
     async def completion(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
         """textDocument/completion → list of CompletionItem."""
@@ -508,6 +609,17 @@ class LspClient:
                         fut = self._pending.pop(resp_id)
                         if not fut.done():
                             fut.set_result(resp)
+                    elif resp.get("method") == "textDocument/publishDiagnostics":
+                        # Server-инициированное уведомление (без id):
+                        # копим диагностику по uri для get_diagnostics/preflight.
+                        # basedpyright на Windows перекодирует uri (D: → d%3A) —
+                        # нормализуем к каноническому виду клиента, иначе
+                        # lookup никогда не совпадёт (тихая false-negative).
+                        _params = resp.get("params") or {}
+                        _uri = _params.get("uri", "")
+                        if _uri:
+                            _canonical = self._normalize_diag_uri(_uri)
+                            self._diagnostics[_canonical] = _params.get("diagnostics", [])
         except asyncio.CancelledError:
             pass
         except Exception as exc:
@@ -676,6 +788,27 @@ class LspClient:
         if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
             raw = raw[1:]
         return Path(raw).resolve().as_posix()
+
+    @staticmethod
+    def _normalize_diag_uri(uri: str) -> str:
+        """Приводит publishDiagnostics-uri к каноническому виду клиента.
+
+        basedpyright на Windows перекодирует uri (file:///D:/x →
+        file:///d%3A/x: lowercase-драйв + percent-encoding). Клиент шлёт
+        Path.as_uri() — ищет по нему. Без нормализации диагностика
+        молча теряется (key mismatch).
+        """
+        try:
+            from urllib.parse import unquote
+            parsed = urlparse(unquote(uri))
+            raw = parsed.path
+            if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
+                return Path("//" + parsed.netloc + raw).resolve().as_uri()
+            if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
+                raw = raw[1:]
+            return Path(raw).resolve().as_uri()
+        except Exception:
+            return uri
 
 
 async def create_lsp_client(project_root: Path, language: str = "python") -> LspClient:

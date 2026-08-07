@@ -945,3 +945,122 @@ class TestWriteToolFileGuard:
         err = tool._validate_file_in_project(str(tmp_path / "файл.py"))
         assert err is not None
         assert "not safe to process" in err
+
+
+# ── WriteTool Preflight (check_types + compile-гейт) ──────────────────
+
+
+class TestWriteToolPreflight:
+    """Pre-flight валидация: compile() всего файла (жёсткий гейт) +
+
+    LSP-типы (advisory, check_types=True).
+    """
+
+    async def test_syntax_gate_blocks_broken_full_file(self, write_tool, tmp_path):
+        """Синтаксическая ошибка в результирующем файле — блокирующий (True, msg)."""
+        f = tmp_path / "x.py"
+        f.write_text("def a():\n    pass\n")
+        result = await write_tool._preflight_validate(
+            str(f), "def a():\n    pass\n\n\ndef broken(:\n    pass\n", check_types=False
+        )
+        assert result is not None
+        blocking, msg = result
+        assert blocking is True
+        assert "Синтаксическая ошибка" in msg
+
+    async def test_syntax_clean_passes(self, write_tool, tmp_path):
+        """Валидный результирующий файл — None (чисто), без LSP."""
+        f = tmp_path / "x.py"
+        f.write_text("def a():\n    pass\n")
+        result = await write_tool._preflight_validate(
+            str(f), "def a():\n    return 1\n", check_types=False
+        )
+        assert result is None
+
+    async def test_non_python_skipped(self, write_tool, tmp_path):
+        """Не-Python файлы — preflight не применяется."""
+        f = tmp_path / "x.ts"
+        f.write_text("export const x = 1;\n")
+        result = await write_tool._preflight_validate(
+            str(f), "export const x = ;", check_types=False
+        )
+        assert result is None
+
+    async def test_types_skipped_without_lsp(self, write_tool, tmp_path):
+        """check_types=True без LSP — advisory (False, note), не блокирует."""
+        f = tmp_path / "x.py"
+        f.write_text("x = 1\n")
+        write_tool._get_lsp_client = MagicMock(return_value=None)
+        result = await write_tool._preflight_validate(str(f), "x = 1\n", check_types=True)
+        assert result is not None
+        blocking, msg = result
+        assert blocking is False
+        assert "LSP" in msg
+
+    async def test_insert_blocked_on_broken_syntax(self, mock_services, tmp_path):
+        """Интеграция: insert с ломающим файл синтаксисом — запись отменена."""
+        py_file = tmp_path / "insert_me.py"
+        py_file.write_text(
+            "def a():\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def b():\n"
+            "    return 2\n"
+        )
+        si = _build_index_for_file(py_file, extra_defs=[
+            {"name": "a", "line": 1, "kind": "function"},
+            {"name": "b", "line": 5, "kind": "function"},
+        ], add_refs=False)
+
+        tool = WriteTool(mock_services)
+        tool.require_ready_project = AsyncMock()
+        tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool.resolve_indexer = MagicMock(return_value=idx)
+
+        before = py_file.read_text()
+        result = await tool._action_insert_after(
+            anchor_symbol="a",
+            new_code="def broken(:\n    pass\n",
+            file_path=str(py_file),
+            apply=True,
+        )
+        assert "Error" in result
+        assert py_file.read_text() == before  # файл не изменён
+
+    async def test_insert_success_with_note_when_types_checked(self, mock_services, tmp_path):
+        """check_types=True и LSP недоступен — запись проходит, note в ответе."""
+        py_file = tmp_path / "note_me.py"
+        py_file.write_text(
+            "def a():\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def b():\n"
+            "    return 2\n"
+        )
+        si = _build_index_for_file(py_file, extra_defs=[
+            {"name": "a", "line": 1, "kind": "function"},
+            {"name": "b", "line": 5, "kind": "function"},
+        ], add_refs=False)
+
+        tool = WriteTool(mock_services)
+        tool.require_ready_project = AsyncMock()
+        tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool.resolve_indexer = MagicMock(return_value=idx)
+        tool._get_lsp_client = MagicMock(return_value=None)
+
+        result = await tool._action_insert_after(
+            anchor_symbol="a",
+            new_code="def c():\n    return 3\n",
+            file_path=str(py_file),
+            apply=True,
+            check_types=True,
+        )
+        assert "Inserted after" in result
+        assert "Preflight" in result  # advisory-note в ответе
+        assert "def c" in py_file.read_text()  # запись прошла

@@ -151,6 +151,7 @@ class WriteTool(MCPTool):
         force: bool = False,
         apply: bool = False,
         impact_token: str = "",
+        check_types: bool = False,
     ) -> str:
         """Execute a write operation.
 
@@ -167,6 +168,9 @@ class WriteTool(MCPTool):
             force: Force delete with references (safe_delete)
             apply: Apply changes (False = preview only)
             impact_token: HMAC token from guard DENY response (ack action only)
+            check_types: Для replace/insert — прогнать результирующий файл через
+                basedpyright и вернуть ошибки типов в ответе (не блокирует запись;
+                синтаксическая ошибка результирующего файла блокирует всегда).
         """
 
         action_map = {
@@ -426,6 +430,16 @@ class WriteTool(MCPTool):
                 )
 
         lines[start_idx:end_idx] = new_lines_list
+        preflight = await self._preflight_validate(
+            source_file, "".join(lines), check_types=kw.get("check_types", False)
+        )
+        if preflight is not None:
+            blocking, pmsg = preflight
+            if blocking:
+                return _R({"status": "error", "message": pmsg})
+            preflight_note = pmsg
+        else:
+            preflight_note = ""
         _atomic_write(abs_path, "".join(lines))
         await self._invalidate_lsp_cache(source_file)
         try:
@@ -434,7 +448,10 @@ class WriteTool(MCPTool):
             # Stale symbol cache — последующие get_symbol_info вернут устаревшие данные
             logger.debug(f"remove_file из symbol index не удался: {_si_err}")
 
-        return f"✅ **Replaced** `{symbol}` in `{source_file}` ({len(original_lines)} → {len(new_lines_list)} lines)"
+        msg = f"✅ **Replaced** `{symbol}` in `{source_file}` ({len(original_lines)} → {len(new_lines_list)} lines)"
+        if preflight_note:
+            msg += f"\n\n⚠️ **Preflight:** {preflight_note}"
+        return msg
 
     async def _action_insert_before(self, **kw) -> str:
         return await self._action_insert("before", **kw)
@@ -493,9 +510,22 @@ class WriteTool(MCPTool):
             new_lines.insert(0, '\n')
 
         lines[insert_at:insert_at] = new_lines
+        preflight = await self._preflight_validate(
+            source_file, "".join(lines), check_types=kw.get("check_types", False)
+        )
+        if preflight is not None:
+            blocking, pmsg = preflight
+            if blocking:
+                return _R({"status": "error", "message": pmsg})
+            preflight_note = pmsg
+        else:
+            preflight_note = ""
         _atomic_write(abs_path, "".join(lines))
         await self._invalidate_lsp_cache(source_file)
-        return f"✅ **Inserted {position}** `{anchor_symbol}` in `{source_file}` (+{len(new_lines)} lines)"
+        msg = f"✅ **Inserted {position}** `{anchor_symbol}` in `{source_file}` (+{len(new_lines)} lines)"
+        if preflight_note:
+            msg += f"\n\n⚠️ **Preflight:** {preflight_note}"
+        return msg
 
     # ─── Вспомогательные методы ─────────────────────────
 
@@ -557,6 +587,51 @@ class WriteTool(MCPTool):
             except Exception:
                 self._lsp_client = False
         return self._lsp_client if self._lsp_client is not False else None
+
+    async def _preflight_validate(self, file_path: str, new_content: str, check_types: bool) -> Optional[tuple]:
+        """Pre-flight валидация результирующего файла ПЕРЕД записью.
+
+        - compile() всего файла: жёсткий гейт — синтаксическая ошибка
+          блокирует запись (ловит IndentationError/TabError, которые
+          ast.parse фрагмента в _action_replace не видит).
+        - check_types=True для Python: LSP-диагностика нового контента через
+          preflight_content (advisory — запись НЕ блокируется: агент может
+          быть в середине рефакторинга, часть типов ещё не согласована).
+
+        Returns:
+            None — чисто.
+            (True, message) — блокирующая ошибка (синтаксис результирующего файла).
+            (False, note) — advisory (ошибки типов / LSP недоступен / таймаут).
+        """
+        if file_path.endswith(".py"):
+            try:
+                compile(new_content, file_path, "exec")
+            except SyntaxError as exc:
+                return (True, f"Синтаксическая ошибка в результирующем файле: {exc}. Запись отменена — файл не изменён.")
+        if not check_types or not file_path.endswith(".py"):
+            return None
+        lsp = self._get_lsp_client()
+        if lsp is None:
+            return (False, "Проверка типов пропущена: LSP (basedpyright) недоступен.")
+        try:
+            diags = await asyncio.wait_for(
+                lsp.preflight_content(file_path, new_content),
+                timeout=6.0,
+            )
+        except asyncio.TimeoutError:
+            return (False, "Проверка типов: таймаут basedpyright, пропущено.")
+        except Exception as exc:
+            logger.debug("preflight type check failed for %s: %s", file_path, exc)
+            return (False, "Проверка типов: ошибка LSP, пропущено.")
+        errors = [d for d in diags if d.get("severity") == 1]
+        if errors:
+            lines = []
+            for d in errors[:5]:
+                ln = d.get("range", {}).get("start", {}).get("line", 0) + 1
+                lines.append(f"- L{ln}: {d.get('message', '')}")
+            more = f"… и ещё {len(errors) - 5}" if len(errors) > 5 else ""
+            return (False, f"Найдено ошибок типов: {len(errors)}\n" + "\n".join(lines) + (more and f"\n{more}" or ""))
+        return None
 
     async def _invalidate_lsp_cache(self, file_path: str):
         """Переоткрыть файл в LSP, чтобы language server не держал stale content.

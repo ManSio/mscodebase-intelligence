@@ -18,3 +18,9 @@
 ## Language-pack / платформа (Windows)
 - Парсеры language-pack работают вопреки issue #174 → проверка замером (§1.6),
   не issue-трекером. Факт из трекера — гипотеза, факт из прогона — вердикт.
+
+## LSP (basedpyright, Windows, 2026-08-07)
+- publishDiagnostics-uri перекодируется (file:///D:/x → file:///d%3A/x):
+  нормализуй через unquote+Path.as_uri() до lookup, иначе тихая false-negative.
+- _send_text_request оборачивает единичный dict-ответ в список → hover и др.
+  методы обязаны обрабатывать wrapped-list, не только dict.

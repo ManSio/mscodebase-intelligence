@@ -3,11 +3,11 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- register_all_tools() — регистрация 23 core-инструментов (20 + 3 LSP) + execute_script
+- register_all_tools() — регистрация 25 core-инструментов (20 + 5 LSP) + execute_script
 - _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
 - _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
-- Всего: 23 + 13 + 12 + 4 = 52 инструментов (+ 1 optional execute_script = 53 при env-on)
+- Всего: 25 + 13 + 12 + 4 = 54 инструментов (+ 1 optional execute_script = 55 при env-on)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -74,6 +74,8 @@ def register_all_tools(mcp, services):
         LspDocumentSymbolsTool,
         LspFindDefinitionTool,
         LspFindReferencesTool,
+        LspGetDiagnosticsTool,
+        LspGetTypeInfoTool,
     )
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
@@ -87,10 +89,12 @@ def register_all_tools(mcp, services):
         SearchCodeTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
-        # LSP (3) — точный AST через basedpyright (вариант C, 2026-08-06)
+        # LSP (5) — точный AST через basedpyright (вариант C+D, 2026-08-06/07)
         LspFindReferencesTool,
         LspFindDefinitionTool,
         LspDocumentSymbolsTool,
+        LspGetTypeInfoTool,
+        LspGetDiagnosticsTool,
         # Hub: codebase (единый интерфейс для всех операций)
         CodebaseTool,
         # Analysis (5)
@@ -150,6 +154,8 @@ def register_all_tools(mcp, services):
             "lsp_find_references",
             "lsp_find_definition",
             "lsp_document_symbols",
+            "lsp_get_type_info",
+            "lsp_get_diagnostics",
             "intel_get_runtime_status",
             "intel_get_project_context",
             "intel_get_project_memory",

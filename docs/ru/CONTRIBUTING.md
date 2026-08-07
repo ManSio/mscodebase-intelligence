@@ -31,8 +31,8 @@ src/
 ├── mcp/
 │   ├── server.py        # Регистрация MCP-сервера (~220 строк)
 │   ├── server_factory.py # Фабрика сервера + DI setup
-│   ├── server_tools.py  # Регистрация инструментов (всего 52)
-│   └── tools/           # 15 файлов, 23 core + 13 intel + 12 inline + 4 dev
+├── server_tools.py  # Регистрация инструментов (всего 54)
+│   └── tools/           # 15 файлов, 25 core + 13 intel + 12 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -168,7 +168,7 @@ pytest tests/ --tb=long -v
 Инструменты регистрируются в `src/mcp/server_tools.py` через `register_all_tools()`.
 Каждый инструмент — класс в `src/mcp/tools/*.py`, наследующий от `MCPTool`.
 
-### Категории инструментов (всего 52):
+### Категории инструментов (всего 54):
 
 | Категория | Количество | Ключевые инструменты |
 |----------|-------|-----------|

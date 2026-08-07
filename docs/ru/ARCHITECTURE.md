@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (23 core + 13 intel + 12 inline + 4 dev = 52 всего)](#4-tool-layer)
+4. [Слой инструментов (25 core + 13 intel + 12 inline + 4 dev = 54 всего)](#4-tool-layer)
 5. [PropertyGraph (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Обработка ошибок](#7-error-handling)
@@ -37,7 +37,7 @@
 │                                                                  │
 │  Слой 1: main.py               (Точки входа, минималистичные)    │
 │  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (23 core + 12 inline + 4 dev)   │
+│  Слой 3: mcp/tools/*.py         (25 core + 12 inline + 4 dev)   │
 │  Слой 4: core/*.py              (Чистая бизнес-логика)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -93,14 +93,14 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 23 core + 13 intel + 12 inline + 4 dev = 52 всего
+3. Зарегистрировать 25 core + 13 intel + 12 inline + 4 dev = 54 всего
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
 
 ### 2.3 Слой инструментов
 
-`src/mcp/tools/*.py` — **15 файлов: 23 core (19 + codebase hub + 3 LSP) + 12 inline + 4 dev.**
+`src/mcp/tools/*.py` — **15 файлов: 25 core (19 + codebase hub + 5 LSP) + 12 inline + 4 dev.**
 
 Каждый инструмент:
 - Наследуется от `MCPTool` (ABC)
@@ -277,7 +277,7 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
     # +13 intel_* инструментов + 12 inline diagnostic + 4 dev
-    # Всего: 52 зарегистрировано (23 core + 13 intel + 12 inline + 4 dev)
+    # Всего: 54 зарегистрировано (25 core + 13 intel + 12 inline + 4 dev)
 ```
 
 **Фильтр видимости инструментов:** По умолчанию видимо ~36 инструментов. Установите `MSCODEBASE_MCP_TOOLS=""` чтобы показать все 49.
@@ -303,7 +303,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Всего:** 52 зарегистрировано (23 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~39. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+> **Всего:** 54 зарегистрировано (25 core + 13 intel + 12 inline + 4 dev). По умолчанию видимо: ~39. Показать все: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Обработка ошибок
 
