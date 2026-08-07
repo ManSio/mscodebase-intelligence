@@ -627,6 +627,29 @@ class HealthReport:
                 }
             )
 
+    @staticmethod
+    def _is_quality_result(r: Any) -> bool:
+        """True, если результат поиска — реальный: файл + непустой текст.
+
+        Аудит Bot_snow #15: synthetic monitoring считал тест сданным при
+        «список не пуст», но Searcher.search() возвращает СТРОКУ — даже
+        «ничего не найдено» имеет len>0 → тест проходил всегда. Плюс мусорные
+        чанки (пустые __init__.py с fallback_lines, error-dicts от
+        vector_search) проходили как «результаты». Здесь: файл ОБЯЗАТЕЛЕН,
+        текст непустой (как SearchCodeTool._is_real_result, но без импорта
+        из mcp — ARCH-03 core←mcp).
+        """
+        if not isinstance(r, dict):
+            return False
+        meta = r.get("metadata")
+        file_path = (
+            meta.get("file") if isinstance(meta, dict) else r.get("file_path")
+        )
+        if not file_path:
+            return False
+        text = (r.get("text_full") or r.get("text") or r.get("snippet") or "").strip()
+        return bool(text)
+
     def _check_search_quality(self):
         """Synthetic monitoring: проверка качества семантического поиска.
 
@@ -654,12 +677,18 @@ class HealthReport:
             passed_tests = 0
             self.metrics["search_quality_total_tests"] = total_tests
 
-            for i in range(total_tests):
+            # Разные запросы вместо трёх одинаковых (было «index file» ×3).
+            queries = ["index file", "error handler", "search query"]
+
+            for i, query in enumerate(queries, 1):
                 _out = {"results": None, "error": None}
 
                 def _search():
                     try:
-                        _out["results"] = searcher.search("index file", 3)
+                        # Структурированный поиск: Searcher.search() возвращает
+                        # СТРОКУ (даже «ничего не найдено» имеет len>0 — тест
+                        # проходил всегда). hybrid_search() → List[dict].
+                        _out["results"] = searcher.hybrid_search(query, limit=3)
                     except Exception as e:
                         _out["error"] = str(e)
 
@@ -670,19 +699,36 @@ class HealthReport:
                     self.warnings.append(
                         {
                             "component": "search_quality",
-                            "message": f"Тест поиска #{i + 1} завершился с ошибкой/таймаутом: {res}",
+                            "message": f"Тест поиска #{i} завершился с ошибкой/таймаутом: {res}",
                         }
                     )
                     continue
 
-                results = _out["results"]
-                if results and len(results) > 0:
+                results = _out["results"] or []
+                # Скрытый баг оригинала: _out["error"] захватывался, но не
+                # проверялся — ошибка поиска маскировалась под «пустой результат».
+                if _out.get("error"):
+                    self.warnings.append(
+                        {
+                            "component": "search_quality",
+                            "message": (
+                                f"Тест поиска #{i} ('{query}') завершился с ошибкой: {_out['error']}"
+                            ),
+                        }
+                    )
+                    continue
+
+                real_results = [r for r in results if self._is_quality_result(r)]
+                if real_results:
                     passed_tests += 1
                 else:
                     self.warnings.append(
                         {
                             "component": "search_quality",
-                            "message": f"Search вернул пустой результат на шаге #{i + 1}",
+                            "message": (
+                                f"Search шаг #{i} ('{query}'): нет реальных результатов "
+                                f"({len(results)} сырых — все пустые/мусорные чанки)"
+                            ),
                         }
                     )
 
