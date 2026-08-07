@@ -31,7 +31,12 @@ class StaleDetectorTool(MCPTool):
         self,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        # INC-MULTI-WINDOW: корень из резолвера (CWD-first, per-window), а не
+        # из __file__: в installed-режиме __file__ = каталог расширения, и
+        # stale_detector сканировал чужую документацию расширения (аудит Bot_snow #6).
+        from src.core.project_resolution import resolve_project_root
+
+        project_root = resolve_project_root()
         config_path = project_root / "tools" / "stale_detector" / "stale_config.json"
 
         config = self._load_config(config_path)

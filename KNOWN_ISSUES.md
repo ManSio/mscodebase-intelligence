@@ -6,12 +6,21 @@
 
 ---
 
+## 2026-08-07 — stale_detector/_grep_fallback сканируют расширение вместо проекта (FIXED)
+
+**Symptom:** в окне Bot_snow stale_detector показывал «дрейфы» чужой документации расширения; запасной поиск (grep fallback) и инцидент-анализ возвращали пути в расширение (install.py:11, experiments\bench_embed_batch.py).
+**Root Cause:** корень проекта вычислялся через Path(__file__).parent... — в installed-режиме это каталог РАСШИРЕНИЯ, а не проект пользователя.
+**Fix:** оба инструмента используют resolve_project_root() (CWD-first); intel_analyze_incident починен транзитивно. 3 регресс-теста; 884 passed / 4 skipped.
+**Status:** ✅ Fixed | **Guard:** tests/test_tool_project_root.py.
+
+---
+
 ## 2026-08-07 — Multi-window MCP: все окна резолвят один проект → PID-lock FAILED (FIXED)
 
 **Symptom:** при двух открытых окнах Zed (MSCodeBase + Bot_snow) второй MCP-процесс падал: «PID lock held by alive pid=... after 30.0s» → ProjectState.FAILED; debug_runtime_passport показывал CWD=Bot_snow, но Default Project=MSCodeBase.
 **Root Cause:** SQLite scoped_kv_store хранит ПО-ОКОННЫЕ строки (key=window_id), но resolve_project_root брал `ORDER BY rowid DESC LIMIT 1` без фильтра по окну → все MCP-процессы (по одному на окно Zed) читали глобальный active_workspace_id последнего сфокусированного окна → резолвили один проект → PID-lock конфликт.
 **Fix:** CWD-first в resolve_project_root() (src/core/project_resolution.py): CWD — единственный per-process сигнал (Zed ставит его в корень окна). Приоритет: provided → CWD (guard) → PROJECT_PATH env → SQLite active → Zed DB → ZED_WORKTREE_ROOT → ext_root. Удалён дубликат _resolve_env_project_root; Schema Guard исправлен (workspace_id/paths/timestamp вместо workspace/data — ложное предупреждение).
-**Status:** ✅ Fixed (не закоммичено) | **Guard:** tests/test_project_resolution_multiwindow.py (9 тестов; 881 passed / 4 skipped).
+**Status:** ✅ Fixed + live-verified (коммит 229c7156; 2026-08-07 после Reload Window: окно MSCodeBase → Default Project MSCodeBase (RUN_ID fe0fb83f671f), окно Bot_snow → Registry Bot_snow (RUN_ID 43500b6175fb), оба ProjectState READY, PID-lock конфликтов нет) | **Guard:** tests/test_project_resolution_multiwindow.py (9 тестов; 881 passed / 4 skipped).
 
 ---
 
