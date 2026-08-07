@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-08-07 — LSP E: lsp_get_code_actions (quick fixes), счётчики 54→55 (DONE)
+
+**Symptom:** pyright умеет textDocument/codeAction (автоимпорт, quickfix, pyright: ignore), но LspClient не реализовывал метод, MCP-тула не было — агент не мог узнать, какие быстрые правки предлагает типовой движок.
+**Fix:** LspClient.code_actions() (read-only, single-point range, пустой context.diagnostics — pyright считает из собственного анализа); LspGetCodeActionsTool (title/kind/edits-счётчик/превью первой правки, col=0 автопоиск по symbol_name); регистрация tool_classes + default _allowed_names → 26 core = 55 total; счётчики 54→55 в 26 doc-файлах (en/ru/zh); zh/README список LSP-тулов += lsp_get_code_actions; auto_doc_updater docstring + тест-гвард 55.
+**Status:** ✅ Fixed (872 passed / 4 skipped; smoke: code_actions 1 quickfix, diags 3).
+
+---
+
 ## 2026-08-07 — LSP D: тип-инфо и диагностика как MCP-тулы + pre-flight в WriteTool (DONE)
 
 **Symptom:** LspClient (basedpyright) умел hover/completion, но: publishDiagnostics отбрасывались в _read_loop (диагностика невидима); hover возвращал None (ответ оборачивался в список); basedpyright на Windows перекодирует uri драйва (file:///D:/x → file:///d%3A/x) — lookup диагностики молча не совпадал (тихая false-negative: битый код проходил preflight как «чистый»); WriteTool валидировал только фрагмент кода, не весь файл; LSP-анализ был доступен только внутри write_tools (rename).

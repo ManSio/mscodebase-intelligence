@@ -28,7 +28,7 @@
 |--------|-------|
 | **Version** | 3.3.13 — get_last_progress → core (ARCH-03 closed) |
 | **Tests** | 853 ✅ |
-| **MCP Tools** | 54 (25 core + 13 intel + 12 inline + 4 dev) |
+| **MCP Tools** | 55 (26 core + 13 intel + 12 inline + 4 dev) |
 | **Parsing Languages** | 30 file extensions (16 with ASSIGNED_FROM data flow) |
 | **PropertyGraph** | SQLite WAL — 3,337 ASSIGNED_FROM edges on MSCodeBase |
 

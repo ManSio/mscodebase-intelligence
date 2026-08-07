@@ -12,6 +12,15 @@
 
 ---
 
+## [2026-08-07] — LSP E: lsp_get_code_actions (quick fixes), счётчик 54→55 (DONE)
+
+**Status:** ✅ Fixed (код+тесты; 872 passed / 4 skipped)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; перепроверено в рабочем дереве: pytest tests/ → 872 passed (эта сессия), smoke code_actions: pyright отвечает с пустым context.diagnostics (quickfix «Add pyright: ignore»), organizeImports через single-point range не отдаётся (полный файл — вне скоупа).
+**Root Cause:** pyright поддерживает textDocument/codeAction, но LspClient его не реализовывал; MCP-тул отсутствовал.
+**Fix:** LspClient.code_actions() (read-only, single-point range, пустой context.diagnostics — pyright считает из своего анализа); LspGetCodeActionsTool (title/kind/edits-счётчик/превью первой правки, col=0 автопоиск по symbol_name); регистрация tool_classes + _allowed_names → 26 core = 55 total; счётчики 54→55 в 26 doc-файлах; zh/README список тулов += lsp_get_code_actions; test_auto_doc_updater контракт 55.
+**Guard:** pytest 872 passed; tests/test_lsp_tools.py += _format_code_actions (2) + tool name; _count_tools динамический = 55; smoke: diags 3 (UnusedImport/UnknownVarType/UndefinedVariable), code_actions 1 quickfix.
+**Pattern:** нет нового — механический перенос проверенного паттерна LSP-тулов.
+
 ## [2026-08-07] — LSP D: lsp_get_type_info + lsp_get_diagnostics + pre-flight в WriteTool, счётчик 52→54 (DONE)
 
 **Status:** ✅ Fixed (код+тесты; 866 passed / 4 skipped)
