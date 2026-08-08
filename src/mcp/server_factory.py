@@ -352,9 +352,6 @@ def run_server(original_stdout=None):
     try:
         atexit.register(lambda: _shutdown_services())
 
-        # Всегда запускаем reranker (не зависит от провайдера эмбеддинга)
-        _start_llama_sync()
-
         # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
         _start_contradiction_ledger_background()
 
@@ -367,6 +364,13 @@ def run_server(original_stdout=None):
             # Auto-index — event loop УЖЕ запущен -> create_task сработает
             if _services_cache is not None:
                 asyncio.create_task(_delayed_auto_index(_services_cache))
+            # WS8 (boot fix): llama.cpp стартует в ФОНЕ, ПОСЛЕ старта stdio.
+            # Раньше _start_llama_sync() выполнялся синхронно ДО run_stdio_async
+            # и блокировал handshake ожиданием здоровья llama (холодный старт
+            # 30-40s+ на spawn + health-poll) — Zed убивал сервер по
+            # "Context server request timeout". Транспорт отвечает сразу,
+            # провайдеры поднимаются лениво (graceful fallback на ONNX).
+            asyncio.create_task(asyncio.to_thread(_start_llama_sync))
             await mcp.run_stdio_async()
 
         asyncio.run(_run_with_auto_index())
