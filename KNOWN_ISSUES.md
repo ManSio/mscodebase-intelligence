@@ -6,7 +6,24 @@
 
 ---
 
-## 2026-08-08 — deep-research-report.md P1: Windows mutex llama_runner.py:184 initialOwner=True (FIXED 🟢)
+## 2026-08-08 — Символьные инструменты (get_symbol_info/impact_analysis): 3 дефекта качества индекса (🟡 наблюдаем, НЕ фикс до повторного прогона)
+
+**Найдено:** эксперимент context_engine v1/v2 (реальные MCP-вызовы, 2026-08-08). Дефекты искажают ЛЮБЫЕ замеры контекста — зафиксированы до чистки, фикс после повторного прогона (§1: измерить → зафиксировать → исправить → повторить).
+
+**D1 — get_symbol_info wrong definition (тень experiments/):** `get_symbol_info("build_call_graph")` → определение `experiments/run_experiment_pagerank.py:40` вместо `src/core/indexing/symbol_index.py:480`. Экспериментальный файл затеняет прод-символ. **Влияние:** отравляет секцию целиком (T7 wrong=1.0 во всех руках). **Fix (предложен):** guard при индексации — не индексировать `experiments/` как источник определений для имён, существующих в `src/` (или отсев на композиции).
+
+**D2 — impact_analysis «not found» для приватных/неиндексных символов:** `impact_analysis("_expand_graph_context")`, `impact_analysis("intel_code_topology")`, `impact_analysis("write_records")`, `impact_analysis("_extract_symbol_name")`, `impact_analysis("_InterProcessLock")` → «Symbol not found in index», при этом `get_symbol_info` для тех же символов НАХОДИТ определения. Причина: impact-индекс строится по другому правилу (нет записей для приватных/методов?). **Влияние:** мёртвый round-trip в multi-tool стратегии (≈половина вызовов), в агрегаторе — пустая секция.
+
+**D3 — get_symbol_info пустой путь определения:** `_extract_symbol_name` и `_InterProcessLock` → определение с ПУСТЫМ путём (line есть, файл пустой). **Влияние:** агент не может перейти к определению; wrong-context (файл не указан).
+
+**Status:** ✅ Fixed (2026-08-08: единый корень D1-D3 — неранжированный nodes[0] в build_call_graph/get_callers/get_call_chain; фикс: _find_nodes_flexible (union exact+suffix) + _pick_best_node (src/ > placeholder > тень) + union-старты BFS + фильтр _is_one_off_script; +4 регресс-теста tests/test_graph_adapter_node_selection.py, 1021 passed, ruff чист). **Guard:** тесты D1-D3 + контрольный прогон context_engine v3: wrong_rate C1/C2 0.000, C1 recall 0.288→0.380. Память проекта NODE-93c9e2 — отметить fixed.
+
+## 2026-08-08 — CONTRADICTION: README число тестов (853/956/1032 vs реально 1120) 🔴
+
+**Source A:** README.md L483 «853 tests (pytest)» | README.md L121 «956 tests» | README.md L16 badge «1032 passed»
+**Source B:** `pytest --collect-only tests/` → 1120 collected (1026/1120 после -m 'not slow and not benchmark')
+**Runtime truth:** 1110 test-функций в 101 файле tests/
+**Resolution:** НЕ исправлено (исследование); требуется: привести README L121/L483/badge к одному числу. Открытое противоречие — P2.
 
 **Symptom:** `CreateMutexW(None, True, ...)` + `WaitForSingleObject` = двойной захват (recursion 2), один `ReleaseMutex` (:248) → владение утекает до смерти потока → повторный запуск llama-server не может захватить лок (10s timeout → RuntimeError). graph.py:74 и onnx_client.py:76 уже используют False (паттерн-эталон).
 **Root Cause:** bInitialOwner=TRUE при последующем WaitForSingleObject; непарный ReleaseMutex.
@@ -3220,3 +3237,24 @@ Three fixes from the same review:
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; перепроверено в рабочем дереве: pytest tests...
 - **Статус:** автоматически синхронизировано
 
+
+## 2026-08-08 — Эксперимент: Multi-Tool vs Context Engine (CodeGraph-стиль) (DONE, исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine)
+Агрегатор get_edit_context-стиля: −78% tool_calls, −89% latency, −19% tokens, паритет task success (84.5% vs 88.1%), wrong-context 13% vs 15.5%. Условия: source+symbols во всех intent; память файл-скоуп; impact_analysis «not found» на приватных символах.
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-08 — Эксперимент D (v2): Context Composition vs Tool Composition (DONE, исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine-v2)
+15 задач, 4 руки: C2 (реальный get_edit_context) recall 0.817 > A 0.783, precision 0.705 > 0.667, 1 RT/865ms vs 3.4 RT/1583ms; C1 (существующий get_context) recall 0.267 — недостаточен; токены C2 1231 vs A 241 (нужен token budgeting); wrong-definition build_call_graph штрафует все руки.
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-08 — Эксперимент D v3: 30 задач — B vs C2 устойчивость (DONE, исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (read-only, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine-v3)
+30 задач, paired-статистика: recall B vs C2 неразличимы (Δ +0.025, CI95 ±0.054, ничьи 27/30), precision C2 не значимо (+0.036 ± 0.047), токены B стабильно ниже (~980, CI95 ±249, 30/30). Вывод: B-подход (intent-фильтр) = оптимум (recall 0.900 ≥ A 0.875, 1 RT, 275 токенов); расширять get_context по B-схеме, не полный C2.
+- **Статус:** автоматически синхронизировано
