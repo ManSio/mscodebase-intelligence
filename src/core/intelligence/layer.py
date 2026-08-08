@@ -572,6 +572,27 @@ class ProjectIntelligenceLayer:
                     ),
                     "status": "active" if total_chunks > 0 else "empty",
                 },
+                # Consistency Engine (WS2): состояния артефактов — аддитивно.
+                "consistency": {
+                    k: {
+                        "state": v["state"],
+                        "age_sec": v["age_sec"],
+                        "reason": v.get("reason", ""),
+                    }
+                    for k, v in (
+                        __import__(
+                            "src.core.consistency",
+                            fromlist=["get_consistency_tracker"],
+                        )
+                        .get_consistency_tracker()
+                        .get_all()
+                        .items()
+                    )
+                },
+                # Trust Boundary (WS1): уровень доверия к активному корню.
+                "trust": __import__(
+                    "src.core.trust_boundary", fromlist=["trust_report"]
+                ).trust_report(Path(active_path) if active_path != "unknown" else Path.cwd()),
                 "startup_diagnostics": self._build_startup_diagnostics(active_indexer),
                 "resource_usage": {
                     "process_pid": os.getpid(),
@@ -683,6 +704,16 @@ class ProjectIntelligenceLayer:
             job_id = job_manager.create_job("full_reindex")
             self._reindex_job_id = job_id
 
+            # Consistency Engine (WS2): переиндексация начата.
+            try:
+                from src.core.consistency import get_consistency_tracker
+
+                get_consistency_tracker().mark_updating(
+                    "index", "reindex job started"
+                )
+            except Exception:  # noqa: BLE001 — консистентность не блокирует индексацию
+                pass
+
         async def _run_reindex_job():
             job = job_manager.get_job(job_id)
             if not job:
@@ -747,6 +778,17 @@ class ProjectIntelligenceLayer:
                 job.ended_at = time.time()
                 job.result = {"files_processed": "Индексация завершена", "status": "ok"}
 
+                # Consistency Engine (WS2): индексация завершена успешно.
+                try:
+                    from src.core.consistency import get_consistency_tracker
+
+                    _tracker = get_consistency_tracker()
+                    _tracker.mark_consistent("index", "reindex completed")
+                    _tracker.mark_consistent("graph", "reindex completed")
+                    _tracker.mark_consistent("symbols", "reindex completed")
+                except Exception:  # noqa: BLE001
+                    pass
+
                 # Сохраняем в историю для адаптивного ETA (только если есть размер)
                 if job.project_size:
                     duration = (job.ended_at or time.time()) - job.started_at
@@ -767,6 +809,15 @@ class ProjectIntelligenceLayer:
                 job.error = str(e)
                 job.ended_at = time.time()
                 logger.error(f"Ошибка фоновой индексации: {e}")
+                # Consistency Engine (WS2): индексация упала — индекс недоверен.
+                try:
+                    from src.core.consistency import get_consistency_tracker
+
+                    get_consistency_tracker().mark_corrupted(
+                        "index", f"reindex failed: {e}"
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             finally:
                 # Снимаем guard в любом случае (успех/ошибка/таймаут),
                 # чтобы search снова заработал после завершения reindex.

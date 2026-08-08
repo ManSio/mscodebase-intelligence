@@ -148,6 +148,15 @@ class MultiProjectSearcher:
         if table is None:
             return []
 
+        # WS7 (SoK/AIShellJack): чужой проект = UNTRUSTED. Trust-уровень
+        # стампится в каждый результат — агент видит происхождение чанка.
+        try:
+            from src.core.trust_boundary import classify
+
+            trust = classify(project_path).value
+        except Exception:  # noqa: BLE001
+            trust = "unknown"
+
         try:
             df = (
                 table.search(query_vector, vector_column_name="vector")
@@ -164,6 +173,7 @@ class MultiProjectSearcher:
                             "file": row["file_path"],
                             "chunk_index": row["chunk_index"],
                             "project": project_name,
+                            "trust": trust,
                         },
                         "score": float(row.get("_distance", 0.0)),
                     }

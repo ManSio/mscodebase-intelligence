@@ -571,6 +571,97 @@ class CommitMemory:
         hotspots.sort(key=lambda x: x["bug_ratio"], reverse=True)
         return hotspots
 
+    # ── WS6: Commit Memory 2.0 — significance gate (RecMem-подход) ────────────
+    # Не каждый коммит требует LLM-консолидации. Дешёвый детерминированный
+    # скоринг отделяет значимые (bug fix / multi-file refactor / security)
+    # от рутины. LLM-консолидация в будущем — только для score >= порога.
+
+    _SIGNIFICANCE_WORDS = (
+        "fix",
+        "bug",
+        "hotfix",
+        "security",
+        "vulnerab",
+        "refactor",
+        "migrat",
+        "perf",
+        "race",
+        "deadlock",
+        "crash",
+        "regress",
+        "deadlock",
+        "reindex",
+    )
+
+    def significance_score(self, commit: Dict) -> float:
+        """Оценка значимости коммита 0..1 (детерминированная, без LLM).
+
+        Сигналы (RecMem: "cheap structural extraction → detect significance"):
+        - число изменённых файлов (>=3 — широкий рефакторинг)
+        - ключевые слова в message (bug/security/refactor/...)
+        - попадание в горячие файлы (частые изменения)
+        - наличие body (коммит описывает решение)
+        """
+        score = 0.0
+        files = commit.get("files", []) or []
+        message = "{}".format(commit.get("message", "")) + " " + "{}".format(
+            commit.get("body", "")
+        )
+        msg_lower = message.lower()
+
+        # 1. Масштаб: число файлов.
+        if len(files) >= 5:
+            score += 0.35
+        elif len(files) >= 3:
+            score += 0.25
+        elif len(files) >= 1:
+            score += 0.1
+
+        # 2. Семантические маркеры в сообщении.
+        if any(w in msg_lower for w in self._SIGNIFICANCE_WORDS):
+            score += 0.3
+
+        # 3. Горячие файлы (частые изменения = высокий риск/активность).
+        if files:
+            try:
+                hotspots = {h["file"] for h in self.get_hotspots(min_changes=3)}
+                if hotspots and any(f in hotspots for f in files):
+                    score += 0.2
+            except Exception:  # noqa: BLE001 — скоринг не должен падать
+                pass
+
+        # 4. Body (коммит объясняет решение).
+        if commit.get("body"):
+            score += 0.1
+
+        return round(min(score, 1.0), 2)
+
+    def get_significant_commits(
+        self, limit: int = 20, min_score: float = 0.4
+    ) -> List[Dict]:
+        """Коммиты со score >= min_score, отсортированные по значимости.
+
+        Args:
+            limit: максимум результатов
+            min_score: порог значимости (0..1); 0.4 = bug-fix или multi-file
+
+        Returns:
+            Список коммитов с полем "significance_score".
+        """
+        if not self._commits:
+            self.fetch_commits()
+
+        scored = []
+        for commit in self._commits:
+            score = self.significance_score(commit)
+            if score >= min_score:
+                entry = dict(commit)
+                entry["significance_score"] = score
+                scored.append(entry)
+
+        scored.sort(key=lambda c: c["significance_score"], reverse=True)
+        return scored[:limit]
+
     def get_stats(self) -> Dict:
         """Статистика коммитов."""
         if not self._commits:

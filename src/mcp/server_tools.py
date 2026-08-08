@@ -646,6 +646,15 @@ def _register_inline_tools(mcp, services):
                 return "❌ db_manager not found on indexer"
             db_manager.reset_connection()
             count = db_manager.table.count_rows() if db_manager.table else 0
+            # Consistency Engine (WS2): соединение пересоздано успешно.
+            try:
+                from src.core.consistency import get_consistency_tracker
+
+                get_consistency_tracker().mark_consistent(
+                    "index", "refresh_db_connection ok"
+                )
+            except Exception:  # noqa: BLE001
+                pass
             return f"✅ DB connection refreshed. Table: {db_manager.table_name} ({count} rows)"
         except Exception as e:
             return f"❌ refresh_db_connection failed: {e}"

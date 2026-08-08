@@ -150,6 +150,15 @@ def register_intelligence_tools(mcp_app, intel_layer):
     async def reset_index() -> str:
         """Полный сброс индекса: удалить LanceDB БД и запустить переиндексацию с нуля. Не требует перезапуска."""
         try:
+            # Consistency Engine (WS2): полный сброс — индекс недоверен до пересоздания.
+            try:
+                from src.core.consistency import get_consistency_tracker
+
+                get_consistency_tracker().mark_corrupted(
+                    "index", "intel_reset_index: full wipe"
+                )
+            except Exception:  # noqa: BLE001
+                pass
             # 1. СНАЧАЛА закрываем все handle'ы БД (mmap) — до удаления файлов
             _idx = getattr(intel_layer, "indexer", None)
             _dbm = getattr(_idx, "db_manager", None) if _idx else None
