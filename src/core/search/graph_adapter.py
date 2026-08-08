@@ -1081,21 +1081,23 @@ class SymbolIndexAdapter(PureGraphMixin):
                             name=new_name, label=n.label, qualified_name=new_qname,
                             file_path=n.file_path, properties=n.properties,
                         )
-                    except Exception as _add_err:
-                        # BL-05: add упал — старый узел не трогаем (целостность графа).
+                    except Exception as _add_err:  # noqa: BLE001
+                        # BL-05: add упал — старый узел не трогаем (целостность графа);
+                        # любой сбой add не должен ломать rename (integrity-preserving).
                         logger.warning(f"rename_symbol: add_node({new_qname}) failed: {_add_err}")
                         continue
                     try:
                         self._graph.delete_node(n.qualified_name)
-                    except Exception as _del_err:
+                    except Exception as _del_err:  # noqa: BLE001
                         # BL-05: частичная миграция — откатываем добавленный узел,
-                        # чтобы не остался дубль (старый + новый).
+                        # чтобы не остался дубль (старый + новый); rollback обязателен.
                         logger.warning(
                             f"rename_symbol: delete_node({n.qualified_name}) failed: {_del_err} — rolling back"
                         )
                         try:
                             self._graph.delete_node(new_qname)
-                        except Exception as _rb_err:
+                        except Exception as _rb_err:  # noqa: BLE001
+                            # BL-05: rollback обязан выполняться при любом сбое.
                             logger.error(
                                 f"rename_symbol: rollback delete_node({new_qname}) failed: {_rb_err} "
                                 f"— possible duplicate node"

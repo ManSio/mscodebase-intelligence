@@ -15,6 +15,35 @@
 
 ---
 
+## [2026-08-08] — CI красный 18 прогонов (#226-#243): lint 35 ошибок + clean-state ubuntu (FIXED lint, clean-state pending)
+
+**Status:** ✅ Fixed (lint: 35 ошибок → 0; matrix-команда: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% при гейте 38%) | ⏳ clean-state ubuntu — не воспроизводится локально, ждёт лог CI
+**verified_from_clean_state:** ✅ РЕАЛЬНЫЙ прогон `bash scripts/verify_clean_state.sh --no-clone` на GitBash: PASSED (995 passed) | matrix-команда CI: EXIT=0
+**Root Cause:** (1) ЛИНТ: `ruff check src/ tests/` падал на ВСЕХ 6 matrix-джобах (тесты не запускались с #226!) — 35 ошибок: F401/I001 (автофикс), F841 (di_container.py:236 resource_monitor, runtime_coordinator.py:115 bridge_synced, test_search_bs_audit ×2), E741 (cypher_schema `l`), BLE001 ×13 (project_resolution ×9 — новый файл без per-file-ignore, graph_adapter ×3 BL-05, lsp_tools ×1). Каждая сессия пушила без полного `ruff check src/ tests/` (только per-file) → 18 красных. (2) CLEAN-STATE: ubuntu exit 1 с #236 (d611b3a), лог 403 без прав; локально НЕ воспроизводится (установка из lock резолвится, wheel'ы есть, e2e скипается, slow-тесты отсечены addopts); #232-#234 — инфра-фейлы «Set up job», не код.
+**Fix:** (1) 19 автофиксов F401/I001 + ручные: F841 удалены (side-effect call/мёртвый код), E741 label, BLE001 — сужение (sqlite3.Error/OSError/ValueError) для project_resolution, noqa BL-05 для graph_adapter, noqa для fail-open lsp_tools. ЛОВУШКА: F401-автофикс снёс реэкспорт resolve_project_root/reset_project_root_cache из src/mcp/server.py (фасад! импортируются base.py:127 и тестами) — восстановлены с # noqa: F401. (2) скрипт: явный exit 1 при pip-фейле (раньше set -e не было — установка тихо падала, pytest падал с невнятным ImportError).
+**Guard:** `ruff check src/ tests/` = 0 (команда CI); matrix-команда локально; pre-push чеклист: ruff ЦЕЛИКОМ по src+tests, НЕ только per-file. KNOWN_ISSUES#2026-08-08-ci-red.
+**Pattern:** P-002-класс «проверка не того объёма» — сессии гоняли pytest tests/ (зелёный) и per-file ruff, а CI-гейт `ruff check src/ tests/` целиком — никогда; + P-002 «F401 на фасаде» — автофикс удалил реэкспорт (ruff не знает про реэкспорты — нужен noqa).
+
+## [2026-08-08] — Следующий шаг: verify_clean_state Windows-ветка + unclosed transport (DONE, 1005 passed)
+
+**Status:** ✅ Fixed (код+тесты; -X dev 1005 passed / 4 skipped / 94 deselected; ruff чисто)
+**verified_from_clean_state:** ✅ РЕАЛЬНЫЙ прогон `bash scripts/verify_clean_state.sh --no-clone` на Windows GitBash: CLEAN STATE VERIFICATION: PASSED (yes), exit 0, 995 passed / 10 skipped (112s) — впервые скрипт отработал на Windows (в прошлых сессиях: ⚠️ CI-only)
+**Root Cause:** (1) скрипт жёстко venv/bin (POSIX) → exit 127 на GitBash (Windows-venv = venv/Scripts); (2) unclosed transport: rename-тесты (test_write_tools.py:139/214) лениво поднимали РЕАЛЬНЫЙ basedpyright через LspClient — фикстура мокала services, но _get_lsp_client импортирует LspClient напрямую → процесс+asyncio-транспорт не закрывались (2× _WindowsSubprocessTransport «still running»; воспроизведено -X dev + sitecustomize-трейс)
+**Fix:** (1) VENV_BIN-детекция (case uname -s: MINGW*/MSYS*/CYGWIN* → venv/Scripts, иначе venv/bin); Linux-ветка CI не тронута; (2) WriteTool.close() (идемпотентный stop ленивого LSP) + фикстура write_tool → async с teardown await tool.close()
+**Guard:** -X dev grep «unclosed transport|still running|PytestUnraisable» = 0 (было 2+6); bash -n OK; реальный GitBash-прогон PASSED; остаточные 51× ResourceWarning: unclosed sqlite/file — follow-up KNOWN_ISSUES 🟡. Не коммитилось (по запросу владельца)
+**Pattern:** P-002-класс «мок не туда» — фикстура мокала DI-сервисы, но LSP-клиент импортируется напрямую, минуя DI (мок не изолирует реальный субпроцесс)
+
+## [2026-08-08] — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
+
+**Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит f73be307eeb1)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 1005 passed (рабочее дерево)
+**Root Cause:** `server_factory.run_server` вызывал `_start_llama_sync()` СИНХРОННО до `mcp.run_stdio_async()`: spawn+health-poll llama (холодный старт 30-40s+) блокировал handshake → Zed "Context server request timeout" (~60s) убивал сервер; выжившие зомби-инстансы держали DB PID-lock → каждый следующий бут ждал лок 30s → вечный цикл падений (лог 08:52-08:57)
+**Fix:** `asyncio.create_task(asyncio.to_thread(_start_llama_sync))` ПОСЛЕ старта транспорта; провайдеры поднимаются лениво (graceful fallback ONNX/без реранкера); транспорт отвечает сразу (~10-12s)
+**Guard:** бут 08:57:03→08:57:15 (12s) без блокировки; llama health-check идёт в фоне. Остаточный риск: multi-window PID-lock 30s wait vs Zed timeout — KNOWN_ISSUES 🟡
+**Pattern:** P-002-класс «блокирующий sync-старт до транспорта» — тяжёлая инициализация обязана быть ленивой/фоновой
+
+---
+
 ## [2026-08-08] — WS7 Security Hardening: trust-стампинг, instruction-флаги, tool-guard (DONE, 1005 passed)
 
 **Status:** ✅ Fixed (код+тесты; 990→1005 passed, +15 тестов; runner benchmark2: 20 задач; активация MCP после Reload Window)

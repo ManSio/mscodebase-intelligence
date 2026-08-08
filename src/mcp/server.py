@@ -17,7 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-
 logger = logging.getLogger("mscodebase_server")
 
 
@@ -151,11 +150,12 @@ def _check_source_extension_sync() -> Optional[str]:
 # resolve_project_root / reset_project_root_cache из mcp.server.
 # ══════════════════════════════════════════════════════════
 from src.core.project_resolution import (
-    resolve_project_root,
-    reset_project_root_cache,
     ext_root as _ext_root,
 )
-
+from src.core.project_resolution import (
+    reset_project_root_cache,  # noqa: F401 — импортируется из mcp.server (тесты, base.py)
+    resolve_project_root,  # noqa: F401 — реэкспорт для обратной совместимости
+)
 
 # Default project root (устанавливается при create_mcp_server)
 # ══════════════════════════════════════════════════════════

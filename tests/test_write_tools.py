@@ -118,13 +118,16 @@ def symbol_index():
 
 
 @pytest.fixture
-def write_tool(mock_services, symbol_index):
+async def write_tool(mock_services, symbol_index):
     """WriteTool with mocked dependencies (shared across all action tests)."""
     tool = WriteTool(mock_services)
     tool.require_ready_project = AsyncMock()
     tool.resolve_symbol_index = MagicMock(return_value=symbol_index)
     tool.resolve_indexer = MagicMock(return_value=_make_mock_indexer())
-    return tool
+    yield tool
+    # rename-тесты лениво поднимают реальный basedpyright (LspClient вне моков);
+    # без остановки процесс+транспорт висят до GC → unclosed transport warning
+    await tool.close()
 
 
 # ── WriteTool._action_rename ──────────────────────────────────────────

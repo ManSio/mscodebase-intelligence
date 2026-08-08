@@ -63,7 +63,8 @@ async def _ensure_lsp():
                 _lsp_client = client
                 logger.info("LspClient ready (pid=%s)", getattr(client._process, "pid", "?"))
                 return client
-        except Exception as _e:
+        except Exception as _e:  # noqa: BLE001
+            # Ленивый старт: любой сбой LSP (loop/transport/init) → graceful fallback (None).
             logger.warning("LspClient start failed: %s", _e)
         _lsp_client = False
         return None

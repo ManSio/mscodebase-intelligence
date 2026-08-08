@@ -1,18 +1,16 @@
 """WS4: Execution Contract 2.0 — ChangeIntent, ledger, hash-верификация, base_commit."""
 
-import os
 import subprocess
-from pathlib import Path
 
 import pytest
 
 from src.core.execution_contract import (
     ChangeIntent,
     ChangeIntentLedger,
+    ExecutionContract,
     get_base_commit,
     invalidate_base_commit_cache,
     sha256_file,
-    ExecutionContract,
 )
 from src.mcp.tools.write_tools import _sha256_text
 

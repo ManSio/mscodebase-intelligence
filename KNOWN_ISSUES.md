@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-08-08 — Multi-window PID-lock 30s wait vs Zed handshake timeout (🟡 наблюдаем)
+
+**Symptom:** при нескольких окнах Zed (или зомби-инстансе) новый MCP-бут ждёт DB PID-lock до 30s (database_lock.py, fail-closed) → превышает Zed "Context server request timeout" → сервер убивается, зомби остаётся → цикл.
+**Root Cause:** 30s-ожидание лока (защита от конкурентной записи) + нет таймаут-каскада на клиенте; WS8-фикс убрал llama-блокировку, но lock-wait остался.
+**Fix:** не вносился — требуется решение: (a) сократить wait до <Zed timeout с отложенным ретраем, (b) self-healing по stale-зомби (PID не принадлежит живому окну).
+**Status:** 🟡 наблюдаем | **Guard:** WS8 (транспорт стартует сразу, 12s) уменьшил окно; диагностика — database_lock.py + Zed log.
+
+---
+
 ## 2026-08-08 — MCPSec (capability attestation / message auth) — отклонено для текущей модели (🟢 принято)
 
 **Symptom:** обзор arXiv 2601.17549: MCP-серверы уязвимы (52.8% attack success) — рекомендованы capability attestation и message authentication для всех tools.
@@ -33,21 +42,40 @@
 
 ---
 
-## 2026-08-08 — verify_clean_state.sh не запускается на Windows GitBash (🟡 наблюдаем)
+## 2026-08-08 — verify_clean_state.sh не запускается на Windows GitBash (FIXED)
 
 **Symptom:** bash scripts/verify_clean_state.sh --no-clone на Windows GitBash: exit 127, «venv/bin/activate: No such file or directory», «venv/bin/pip: No such file or directory» — Windows-venv создаёт venv/Scripts/, а скрипт жёстко использует POSIX-пути venv/bin/*.
 **Root Cause:** скрипт CI/Linux-ориентирован (пути, активация, pip install .[dev] из сети) при том, что README заявляет Windows как supported-платформу.
-**Fix:** не вносился (CI-only use-case; локальная верификация — pytest tests/ в рабочем дереве). Lockfile drift gate при этом отработал: «Lockfile in sync».
-**Status:** 🟡 наблюдаем | **Guard:** локальный прогон pytest tests/ (990 passed) + контракт-тесты.
+**Fix:** VENV_BIN-детекция платформы (case uname -s: MINGW*/MSYS*/CYGWIN* → venv/Scripts, иначе venv/bin) — все 7 обращений venv/bin/* переведены на переменную; Linux-ветка CI (ci.yml clean-state) не тронута.
+**Status:** ✅ Fixed | **Guard:** реальный прогон на Windows GitBash: CLEAN STATE VERIFICATION: PASSED, exit 0, 995 passed / 10 skipped / 94 deselected (112s) + bash -n OK.
 
 ---
 
-## 2026-08-08 — Остаточный PytestUnraisableExceptionWarning: unclosed transport (🟡 наблюдаем)
+## 2026-08-08 — Остаточный PytestUnraisableExceptionWarning: unclosed transport (FIXED)
 
-**Symptom:** полный прогон (990 passed) выдаёт 1 предупреждение «Exception ignored while calling deallocator _ProactorBasePipeTransport.__del__» + unclosed transport (Windows Proactor).
-**Root Cause:** незакрытый asyncio transport в одном из тестов (вероятно тест с сокетом/транспортом к 127.0.0.1:8080, test_resource_monitor) — остаточный класс после устранения sleep-корутин.
-**Fix:** не вносился — отдельный класс (тестовый транспорт), низкая серьёзность; требует воспроизведения с -X dev.
-**Status:** 🟡 наблюдаем | **Guard:** -X dev прогон + grep unclosed transport.
+**Symptom:** полный прогон выдаёт «Exception ignored while calling deallocator _ProactorBasePipeTransport.__del__» + unclosed transport (Windows Proactor).
+**Root Cause:** воспроизведено `-X dev` + sitecustomize-трейс create_subprocess_exec: tests/test_write_tools.py:139 (test_preview_returns_changes) и :214 (test_collision_guard_allows_with_flag) → _action_rename → _rename_with_lsp_fallback → lsp.open_file() → LspClient.start() поднимал РЕАЛЬНЫЙ basedpyright (Zed\languages\basedpyright\node_modules\.bin\pyright-langserver.cmd, вне PATH — поэтому which его не видит). Фикстура write_tool мокала services, но _get_lsp_client импортирует LspClient напрямую → процесс + asyncio-транспорт не закрывались (2 субпроцесса «still running» при session-GC).
+**Fix:** WriteTool.close() (идемпотентно останавливает лениво-созданный LSP-клиент) + фикстура write_tool → async с teardown await tool.close(). Прогон -X dev: 0× unclosed transport / still running / PytestUnraisable (было 2+6), 1005 passed / 4 skipped.
+**Status:** ✅ Fixed | **Guard:** python -X dev -m pytest tests/ + grep «unclosed transport|still running|PytestUnraisable» = 0.
+
+---
+
+## 2026-08-08 — CI красный 18 прогонов #226-#243: ruff 35 ошибок (FIXED) + clean-state ubuntu (⏳ pending)
+
+**Symptom:** GitHub Actions: 18 consecutive failures. Все 6 matrix-джобов падали на шаге «Lint (ruff)» (тесты НЕ запускались); clean-state джоб (ubuntu) падал на «Verify clean state» exit 1 с #236.
+**Root Cause:** (1) lint: 35 нарушений — F401/I001 (автофикс), F841 ×4 (di_container/runtime_coordinator/test), E741 (`l` в cypher_schema), BLE001 ×13 (project_resolution ×9 — новый файл вне per-file-ignore, graph_adapter ×3 BL-05, lsp_tools ×1) — сессии пушили без полного `ruff check src/ tests/`; (2) clean-state: ubuntu exit 1, локально не воспроизводится (установка из lock резолвится, wheel'ы есть; #232-#234 — инфра-фейлы «Set up job»).
+**Fix:** (1) 35 ошибок → 0 (19 автофикс + 16 ручных: сужение except для sqlite, noqa BL-05, удаление мёртвых переменных); восстановлен реэкспорт resolve_project_root/reset_project_root_cache из src/mcp/server.py (F401-автофикс снёс фасад — ImportError в base.py:127); (2) verify_clean_state.sh: явный exit 1 при pip-фейле вместо тихого продолжения. Matrix-команда локально: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% (>38).
+**Status:** ✅ Fixed (lint) | ⏳ clean-state ubuntu — требует лога CI (нет прав); после push matrix ubuntu покажет фейл в «Full test suite»
+**Guard:** ruff check src/ tests/ = 0; KNOWN_ISSUES#2026-08-08-unclosed-transport закрыт ранее.
+
+---
+
+## 2026-08-08 — ResourceWarning: unclosed database/file в -X dev прогоне (🟡 наблюдаем, follow-up)
+
+**Symptom:** -X dev прогон (1005 passed) держит 51 ResourceWarning «unclosed» (отдельный класс от unclosed transport): sqlite3.Connection — src/core/indexing/index_project_runner.py:352 (progress db, ×20, атрибуция test_index_runner_deadlock), tests/test_indexer_project_path.py:36, tests/test_suppression_markers.py:82, src/core/indexing/db_manager.py:323; файл — src/core/execution_contract.py:180 (ChangeIntentLedger.count: open без context-manager, атрибуция test_ledger_record_and_query); сокет к 127.0.0.1:8080 — tests/test_sandbox.py (thread).
+**Root Cause:** ресурсы закрываются только GC (неявный close), а не явно; в -X dev ResourceWarning показывает каждый случай.
+**Fix:** не вносился (вне скоупа unclosed transport; index_project_runner — горячий путь с историей deadlock, требует осторожного рефакторинга). Низкая серьёзность: sqlite-close происходит при GC, данные не теряются.
+**Status:** 🟡 наблюдаем | **Guard:** python -X dev -m pytest tests/ — счётчик 51 должен снижаться по мере фиксов.
 
 ---
 

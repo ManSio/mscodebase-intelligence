@@ -1,7 +1,5 @@
 """Trust Boundary: классификация корней и сканирование инструкционных файлов."""
 
-import os
-from pathlib import Path
 
 import pytest
 

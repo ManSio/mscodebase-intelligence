@@ -1,6 +1,5 @@
 """WS7: Instruction Scan + security-стампинг результатов поиска."""
 
-import pytest
 
 from src.core.instruction_scan import (
     has_instruction_risk,

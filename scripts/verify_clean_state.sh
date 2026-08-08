@@ -72,19 +72,24 @@ fi
 
 # Ставим из pyproject (с exact pins / upper bounds), а не резолвим заново из PyPI.
 # Если платформа совпадает с lock — ставим из lock для битовой воспроизводимости.
+# ВАЖНО: pip-фейл = exit 1 сразу (раньше без set -e установка тихо проваливалась,
+# и скрипт падал уже на pytest с невнятной ошибкой импорта).
 echo "Installing package + test deps..."
 if [ -f requirements-lock.txt ] && [ "$(uname -s)" = "Linux" ]; then
     # На Linux-CI ставим из lock, фильтруя Windows-only пакеты
     grep -viE "^(pywin32|wmi|pythoncom)=" requirements-lock.txt > /tmp/req_unix.txt
-    "$VENV_BIN/pip" install -q -r /tmp/req_unix.txt 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -r /tmp/req_unix.txt 2>&1 | tail -3 \
+        || { echo -e "${RED}PIP INSTALL (lock) FAILED${NC}"; rm -f /tmp/req_unix.txt; exit 1; }
     rm -f /tmp/req_unix.txt
     # Dev-зависимости (pytest и др.) в requirements-lock.txt не входят (runtime lock).
     # --no-deps нельзя: он пропускает и dev-инструменты. Уже установленные из lock
     # runtime-пакеты удовлетворяют bounds pyproject — pip их не апгрейдит.
-    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3 \
+        || { echo -e "${RED}PIP INSTALL (editable) FAILED${NC}"; exit 1; }
 else
     # Локально / не-Linux — резолвим по bounds (защищено exact pin lancedb)
-    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3 \
+        || { echo -e "${RED}PIP INSTALL FAILED${NC}"; exit 1; }
 fi
 
 echo "Running full test suite (no filters)..."

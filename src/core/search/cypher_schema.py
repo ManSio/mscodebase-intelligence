@@ -27,7 +27,6 @@ from src.core.search.cypher_ast import (
     MatchClause,
     NodePattern,
     Query,
-    WhereClause,
     _BinaryOp,
     _LabelTest,
     _UnaryOp,
@@ -49,7 +48,7 @@ KNOWN_REL_TYPES: Set[str] = {
 # Валидируем case-insensitively (cypher_sql генерирует COLLATE NOCASE —
 # lowercase-метки легитимны, см. C1). Хранение в upper() без коллизий:
 # все канонические имена ASCII (Function, Method, CALLS, ...).
-_KNOWN_LABELS_UPPER: Set[str] = {l.upper() for l in KNOWN_LABELS}
+_KNOWN_LABELS_UPPER: Set[str] = {label.upper() for label in KNOWN_LABELS}
 _KNOWN_REL_TYPES_UPPER: Set[str] = {r.upper() for r in KNOWN_REL_TYPES}
 
 

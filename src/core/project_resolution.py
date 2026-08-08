@@ -111,7 +111,7 @@ def _check_sqlite_schema_health(conn) -> Optional[str]:
             return f"workspaces: отсутствуют колонки {missing_ws} — схема устарела"
 
         return None
-    except Exception as e:
+    except (sqlite3.Error, OSError) as e:
         return f"Ошибка проверки схемы SQLite: {e}"
 
 
@@ -125,7 +125,7 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
             try:
                 _sqlite_conn.execute("SELECT 1")  # проверка живости
                 return _sqlite_conn
-            except Exception as _alive_err:
+            except sqlite3.Error as _alive_err:
                 logger.debug(f"SQLite connection stale: {_alive_err}")
                 _sqlite_conn = None  # умерло, создадим новое
 
@@ -143,7 +143,7 @@ def _get_sqlite_connection() -> Optional[sqlite3.Connection]:
                 _sqlite_schema_checked = True
             _sqlite_conn_time = now
             return _sqlite_conn
-        except Exception as _conn_err:
+        except (sqlite3.Error, OSError) as _conn_err:
             logger.debug(f"SQLite connection failed: {_conn_err}")
             _sqlite_conn = None
             return None
@@ -156,7 +156,7 @@ def _close_sqlite_connection():
         if _sqlite_conn is not None:
             try:
                 _sqlite_conn.close()
-            except Exception as _e:
+            except sqlite3.Error as _e:
                 logger.warning(f"SQLite close failed: {_e}")
             _sqlite_conn = None
 
@@ -199,7 +199,7 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
                 f"Игнорирую — self-indexing guard."
             )
             return True
-    except Exception as _bridge_err:
+    except (ImportError, OSError, ValueError) as _bridge_err:
         # Если lsp_project_bridge недоступен — не блокируем (fail-open)
         logger.debug(f"LSP bridge check failed (fail-open): {_bridge_err}")
     return False
@@ -335,9 +335,9 @@ def resolve_project_root(provided: str = "") -> Path:
                                     f"resolve_project_root: active_workspace_id={_active_id} → {_path}"
                                 )
                                 return _path.resolve()
-                except Exception as _ws_err:
+                except (sqlite3.Error, OSError, ValueError) as _ws_err:
                     logger.debug(f"resolve_project_root: workspace parse failed: {_ws_err}")
-    except Exception as _active_err:
+    except (sqlite3.Error, OSError, ValueError) as _active_err:
         logger.debug(f"resolve_project_root: active_workspace error: {_active_err}")
 
     # ─── 4. Fallback: Zed SQLite DB (через то же кэшированное соединение) ───
@@ -372,7 +372,7 @@ def resolve_project_root(provided: str = "") -> Path:
                     f"resolve_project_root: Zed DB ({len(_candidates)} candidates) → {_best}"
                 )
                 return _best.resolve()
-    except Exception as _zed_err:
+    except (sqlite3.Error, OSError, ValueError) as _zed_err:
         logger.debug(f"resolve_project_root: Zed DB fallback error: {_zed_err}")
 
     # ─── 5. ZED_WORKTREE_ROOT env ───
@@ -412,5 +412,5 @@ def _log_project_resolution_failure() -> None:
         else:
             for f in json_files:
                 logger.debug(f"🌉 BRIDGE найден: {f.name}")
-    except Exception as _rpf_err:
+    except (ImportError, OSError, ValueError) as _rpf_err:
         logger.debug(f"_log_project_resolution_failure: {_rpf_err}")

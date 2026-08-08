@@ -13,6 +13,21 @@
 - `MagicMock(return_value=asyncio.sleep(0, result=X))` — eager-корутина живёт
   в циклах ссылок мока до чужого GC → «coroutine 'sleep' was never awaited».
   Правильно: `AsyncMock(return_value=X)`.
+- Мок DI-сервисов НЕ изолирует LSP: WriteTool._get_lsp_client импортирует
+  LspClient напрямую → rename-тест поднимал реальный basedpyright и не
+  закрывал его (unclosed transport). Фикс: WriteTool.close() + teardown
+  фикстуры. Проверять -X dev прогоном, а не which-ом: langserver лежит в
+  Zed\languages\...\node_modules, вне PATH.
+
+## CI lint gate (2026-08-08, 18 красных прогонов)
+- CI-гейт — `ruff check src/ tests/` ЦЕЛИКОМ, а не per-file: F841/F401/BLE001
+  накапливались по коммитам, pytest локально был зелёный, а lint-шаг блокировал
+  ВСЕ тесты в CI. Pre-push: полный ruff, не только изменённые файлы.
+- F401-автофикс опасен на ФАСАДАХ: src/mcp/server.py реэкспортирует
+  resolve_project_root/reset_project_root_cache (импортируются base.py:127 и
+  тестами) — автоудаление дало ImportError. Реэкспорт = `# noqa: F401`.
+- BLE001: новые файлы обязаны без broad except; sqlite-код → сужение до
+  (sqlite3.Error, OSError); integrity-rollback (BL-05) → noqa с причиной.
 
 **Правила:**
 - ≤50 строк. Новое входит — вытесненное уходит в `docs/archive/`.

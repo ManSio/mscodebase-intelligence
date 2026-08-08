@@ -53,7 +53,9 @@ def register_all_tools(mcp, services):
 
     if _exec_script_enabled:
         from src.mcp.tools.codebase_tool import ExecuteScriptTool
+    from src.mcp.tools.context_tool import GetContextTool
     from src.mcp.tools.doc_tools import StaleDetectorTool
+    from src.mcp.tools.duplication_tool import FindDuplicatesTool
     from src.mcp.tools.graph_tools import (
         CrossProjectDepsTool,
         CrossRepoSearchTool,
@@ -65,8 +67,6 @@ def register_all_tools(mcp, services):
         GetBugCorrelationTool,
         GetHotspotsTool,
     )
-    from src.mcp.tools.duplication_tool import FindDuplicatesTool
-    from src.mcp.tools.context_tool import GetContextTool
     from src.mcp.tools.lifecycle_tools import (
         GetTaskStatusTool,
         SubmitBackgroundTaskTool,
