@@ -8,6 +8,7 @@ LSP-запуск basedpyright (реальный процесс) в CI не га�
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,14 +25,17 @@ from src.mcp.tools.lsp_tools import (
 # ── Нормализация publishDiagnostics-uri (регрессия 2026-08-07) ──────────
 # basedpyright на Windows перекодирует uri (file:///D:/x → file:///d%3A/x);
 # без нормализации диагностика молча терялась (key mismatch в _diagnostics).
+# Нормализация драйв-букв — Windows-специфична (на POSIX /d:/... — обычный путь).
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Нормализация драйв-букв специфична для Windows")
 def test_normalize_diag_uri_win_drive():
     server_uri = "file:///d%3A/Project/MSCodeBase/_smoke_tmp.py"
     canonical = LspClient._normalize_diag_uri(server_uri)
     assert canonical == "file:///D:/Project/MSCodeBase/_smoke_tmp.py"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Нормализация драйв-букв специфична для Windows")
 def test_normalize_diag_uri_already_canonical():
     canonical = "file:///D:/Project/MSCodeBase/_smoke_tmp.py"
     assert LspClient._normalize_diag_uri(canonical) == canonical
