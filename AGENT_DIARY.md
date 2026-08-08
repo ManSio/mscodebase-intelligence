@@ -42,6 +42,15 @@
 **Guard:** assert identity lock'ов в тесте; KNOWN_ISSUES F3 — риск закрыт. Урок: «остаточный риск» обязан верифицироваться до записи (тот же класс, что P-002 «предположение вместо проверки»).
 **Pattern:** P-002-класс «предположение вместо проверки» — риск был записан без чтения lock-структуры.
 
+## [2026-08-08] — Координационный инцидент: git commit без pathspec украл staged-правку параллельной сессии (RESOLVED)
+
+**Status:** ✅ Resolved (история не переписана — 568b1f27 уже в origin; урок в WISDOM)
+**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран ad1a6d2d — 7/7 success
+**Root Cause:** две сессии Zed в одном репо без файл-локов (§10): `git commit -m ...` БЕЗ pathspec коммитит ВЕСЬ индекс — параллельная сессия в тот момент застейджила свой google*.html → коммит 568b1f27 ушёл с чужим содержимым и моим message; её push вынес его в origin (force-переписывание запрещено §5.5). Дополнительно: локальный ruff-кэш пропустил BLE001 (except Exception в поток-обёртке теста) → CI lint red 6/6 → фикс noqa ad1a6d2d.
+**Fix:** (1) `git commit -m ... -- <paths>` — pathspec ограничивает коммит (применено в c5a20400/7653e94e/ad1a6d2d); (2) перед git-операциями `git fetch` + сверка HEAD vs origin (за сессию — 2 расхождения); (3) index.lock параллельной сессии НЕ удалять — ждать освобождения (2 цикла ожидания, кап ~3 мин); (4) `ruff check --no-cache` перед push.
+**Guard:** WISDOM: «мультисессия: git commit только с pathspec»; локальный ruff — `--no-cache`.
+**Pattern:** P-002-класс «инструмент-предположение»: (a) commit без pathspec предполагает «только мои файлы» — неверно при параллельной записи индекса; (b) ruff-кэш предполагает свежесть — проверять явно.
+
 ## [2026-08-08] — PYSEC-2026-3552: cryptography 49.0.0 в lock → 50.0.0 + pip-audit в CI (FIXED)
 
 **Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)

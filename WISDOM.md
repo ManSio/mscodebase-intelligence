@@ -63,6 +63,12 @@
 - LanceDB atomic delete+add: фикс table.version + restore(prev_version) при сбое add
   (db_writer.py) — нативный versioning лучше temp+os.replace.
 
+## Git-мультисессия (2026-08-08)
+- `git commit` БЕЗ pathspec коммитит ВЕСЬ индекс — при параллельной сессии
+  украдёт её staged-правку (инцидент 568b1f27). Всегда `git commit -m ... -- <paths>`.
+  index.lock чужой сессии не удалять — ждать освобождения (кап ~3 мин).
+- Локальный ruff-кэш может пропускать BLE001 — перед push `ruff check src/ tests/ --no-cache`.
+
 ## Tree-sitter грамматики (семена 2026-08-06)
 - elixir: шумит макро-токенами → низкое качество индексации, исключить или пометить.
 - matlab: расширение `.m` конфликтует с Objective-C → разрешать по содержимому, не по расширению.
