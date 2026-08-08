@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-08-08 — PYSEC-2026-3552 в lock: cryptography 49.0.0→50.0.0 + pip-audit в CI (FIXED 🟢)
+
+**Symptom:** `pip-audit -r requirements-lock.txt` → cryptography 49.0.0 (PYSEC-2026-3552), фикс в 50.0.0. Транзитивная зависимость mcp→pyjwt→cryptography — вручную не отслеживалась, SCA-гейт в CI отсутствовал.
+**Root Cause:** lock пинил уязвимую версию; отсутствие сканера CVE в CI.
+**Fix:** lock: 49.0.0→50.0.0 (RS256 roundtrip pyjwt 2.13.0 + import mcp на 50.0.0 — §5.19); ci.yml: `pip-audit==2.10.1 -r requirements-lock.txt`.
+**Status:** ✅ Fixed (pip-audit: No known vulnerabilities found; YAML валиден). НЕ запушено | **Guard:** pip-audit в CI; extension venv обновится при install.py.
+
 ## 2026-08-08 — Pre-commit hook flake: 120s кап vs gate-zero pytest (~108-130s) (FIXED 🟢)
 
 **Symptom:** коммит падал через `subprocess.TimeoutExpired` на `verify_diary.py` — таймаут хука 120s при полном pytest ~108-130s под нагрузкой (2-я попытка из 3 не успевала; 1-я — 107.91s впритык).

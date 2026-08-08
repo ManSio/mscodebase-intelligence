@@ -7,7 +7,9 @@ certifi==2026.6.17
 cffi==2.1.0
 click==8.4.2
 colorama==0.4.6
-cryptography==49.0.0
+# Bumped 2026-08-08: 49.0.0 → 50.0.0 (PYSEC-2026-3552, fix 50.0.0).
+# Verified: pyjwt 2.13.0 + cryptography 50.0.0 RS256 roundtrip + import mcp ok.
+cryptography==50.0.0
 deprecation==2.1.0
 filelock==3.31.0
 flatbuffers==25.12.19
