@@ -15,6 +15,49 @@
 
 ---
 
+## [2026-08-08] — WS7 Security Hardening: trust-стампинг, instruction-флаги, tool-guard (DONE, 1005 passed)
+
+**Status:** ✅ Fixed (код+тесты; 990→1005 passed, +15 тестов; runner benchmark2: 20 задач; активация MCP после Reload Window)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 1005 passed / 4 skipped / 94 deselected (рабочее дерево)
+**Root Cause:** — (не инцидент; security-обзор: AIShellJack arXiv 2509.22040, SoK 2601.17548, Tool Poisoning 2603.22489, MCPSec 2601.17549, CoREB 2605.04615)
+**Fix:** `src/core/instruction_scan.py` (4 категории паттернов, маркировка на выдаче — НЕ фильтрация, per SoK); `Searcher._stamp_security_metadata` (trust+instruction_flags в metadata, все моды поиска); trust в `multi_project_searcher._search_project` (кросс-репо: чужой проект = untrusted — cross-origin poisoning); guard-тесты статической регистрации тулов (AST: имена — литералы, нет eval/read из проекта); `experiments/benchmark2/keywords.jsonl` (8 коротких запросов, CoREB-находка)
+**Guard:** +15 тестов (test_tool_registration_security ×5, test_security_metadata ×10); 1005 passed. НЕ коммитилось
+**Pattern:** P-002-класс «рекомендация без сверки с моделью развёртывания» — MCPSec/message-auth отклонены (localhost stdio, tools статические) → KNOWN_ISSUES 🟢
+
+---
+
+## [2026-08-08] — WS1-WS6 roadmap: consistency, trust, late enrichment, Execution Contract 2.0 (DONE, 990 passed)
+
+**Status:** ✅ Fixed (код+тесты; 956→990 passed, +34 теста; 2 эксперимента в EXPERIMENTS_LOG; активация MCP после Reload Window)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 990 passed / 4 skipped / 94 deselected (рабочее дерево, эта сессия)
+**Root Cause:** — (не инцидент; roadmap по свежим исследованиям: Late Code Chunking, Claim Plane, RecMem, RepoReason, Malicious Skills)
+**Fix:** WS1 `src/core/trust_boundary.py` + docs/TRUST_BOUNDARY.md (trust-классификация, instruction-scan); WS2 `src/core/consistency.py` (6 состояний, threading.Lock, интеграция notify/reset/refresh/reindex, блоки trust+consistency в intel_get_runtime_status); WS3 `_late_enrich_results` за флагом MSCODEBASE_LATE_ENRICHMENT (0.7ms, ~186 ток/чанк, imports=0.0 — находка, см. KNOWN_ISSUES); WS4 ChangeIntent+JSONL-ledger+hash-verify + newline="\n" в _atomic_write (Windows \r\n ломал SHA-256 — найден и исправлен); WS5 experiments/benchmark2 (12 задач L3-L5, runner); WS6 significance_score (bugfix≥0.4, docs<0.4, RecMem-гейт)
+**Guard:** +34 регресс-теста (test_trust_boundary, test_consistency, test_late_enrichment, test_execution_contract_v2, test_commit_memory_significance); 990 passed. Не коммитилось (по запросу)
+**Pattern:** P-002-класс «предположение вместо проверки» — Windows newline-трансляция в хэшах (пойман тестом WS4, не проде)
+
+---
+
+## [2026-08-08 02:15] — 1-2-3: доки 57/58, AsyncMock-фикс sleep-корутин, verify_clean_state (DONE, 990 passed)
+
+**Status:** ✅ Fixed (1-2) | ⚠️ Task 3: verify_clean_state.sh не запускается на Windows GitBash (POSIX venv/bin vs Windows venv/Scripts, exit 127) — CI-only; локальный эквивалент: pytest tests/ 990 passed
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh Windows-несовместим (venv/Scripts vs venv/bin, exit 127); локальный эквивалент: pytest tests/ → 990 passed (рабочее дерево, сессия владельца 02:15)
+**Root Cause:** (1) дрейф tool-count: рантайм 58 (ExecuteScriptTool on), доки 57/55/54/52/49 — маркеры не обновлялись с эпохи 49 (README:70/AGENTS:1,299/pyproject/TELEMETRY); (2) «coroutine 'sleep' never awaited»: тесты с `MagicMock(return_value=asyncio.sleep(0, result=...))` — eager-корутина создаётся при создании мока; если метод не вызван (fts5 _ensure_multi_reranker_async) — осиротевает; циклы ссылок моков держат её до циклического GC в чужих тестах (tracemalloc → test_fts5_integration.py:58).
+**Fix:** (1) доки → канон 57 base + conditional note «+1 execute_script при env=true → 58» (README:70 «49»→«57», AGENTS:1 «55»→«57»/:299 «(54)»→«(57)»/B «(23)»→«(28)», pyproject «52»→«57», TELEMETRY en/ru →57/28 core); репо-дефолт execute_script = off (.env.example) — локальный .env не тронут; (2) 3 тест-файла: MagicMock+asyncio.sleep → AsyncMock (fts5 ×11, notify ×2), grep-0 анти-паттерна; (3) KNOWN_ISSUES 🟡 про Windows-несовместимость скрипта + остаточный unclosed-transport warning.
+**Guard:** контракт-тесты 57/58 (6 passed); полный pytest 990 passed / 4 skipped / 94 deselected без «never awaited»; lockfile drift gate — «Lockfile in sync»; grep-свипы = 0.
+**Pattern:** P-002-класс «заглушка вместо мока» (asyncio.sleep как awaitable-фабрика в return_value) — правильно AsyncMock.
+
+---
+
+## [2026-08-08 01:30] — Верификация внешнего аудита (ChatGPT): 14/15 утверждений подтверждено, полный реиндекс 5205 чанков (DONE, 956 passed)
+
+**Status:** ✅ Verified (код не менялся — исследовательская сессия по запросу владельца; полная переиндексация выполнена)
+**Root Cause:** — (не инцидент; сверка внешнего аудита vs локальный код + внешние исследования + эксперименты)
+**Fix:** — (правок не требуется; 2 находки заведены в KNOWN_ISSUES: 58 vs 57 tools при ExecuteScriptTool on; coroutine-sleep warning на gc.collect() в runner.py:352 / registry.py:465)
+**Guard:** контракт-тест 57/58 тулов работает; дрейф доков (README:70 «49», AGENTS:1 «55»/:299 «(54)», pyproject «52», TELEMETRY «55») — ждёт решения владельца; реиндекс: 5194→5205 чанков, 325 файлов, 7298 symbols, search smoke ✅
+**Pattern:** — (новая сессия; подтверждён P-002-класс «цифры в доках vs runtime» из #2026-08-06/07)
+
+---
+
 ## [2026-08-08 23:50] — А+Б из audit.md: edge transparency, path queries, Jupyter, find_duplicates, get_context (DONE, 956 passed)
 
 **Status:** ✅ Fixed (код+тесты; 937→956 passed, +19 новых тестов; файлы синхронизированы в расширение — для активации MCP нужен Reload Window)

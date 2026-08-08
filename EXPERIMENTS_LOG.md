@@ -450,3 +450,31 @@ NEAR-дубли (minhash>0.85): 1 пара, 0.969 — lsp_tools.LspFindReference
 **H-EDGE (edge transparency) — подтверждена:** `Edge.properties` — реальная колонка (graph.py:410), `add_edge` принимает properties и upsert обновляет их (graph.py:736,778), `to_dict` отдаёт (graph.py:329). Теги EXTRACTED/INFERRED = метаданные, **без миграции схемы**. Реальная стоимость: пометить вызовы add_edge/batch_add_edges при создании рёбер + пасс-through в tools (уже через to_dict). Оценка аудита «2-3 недели» завышена на порядок (3-5 дней, а то и меньше).
 **H-LSP (type resolution) — закрыт другим путём:** с 2026-08-06 в проекте есть 6 LSP-тулов через basedpyright (src/core/lsp_client.py, src/mcp/tools/lsp_tools.py): lsp_find_references/definition/document_symbols/get_type_info/get_diagnostics/get_code_actions. Живая проверка: `lsp_get_type_info(graph.py:730)` вернул `(parameter) self: Self@PropertyGraph`. USES_TYPE edge объявлен (graph.py:234), но не заполняется — index-time type resolution НЕ нужен: query-time LSP покрывает боль точнее (тот же паттерн, что fallow `--type-aware` — семантика на уровне запроса, не индекса).
 **H-TASK (task-shaped) — частично есть:** `intel_get_project_context` — один вызов = снапшот state+index+health+memory+background (server_tools.py: инлайн-регистрация); `graph_query(action="related")` — контекст по нескольким целям через CommitMemory+RelationExtractor. Нет только символьного `get_context(targets=[...])` — это тонкая обёртка. **H-PATH примечание:** class-узлы имеют 0 исходящих рёбер (CodeParser out=0) — DEFINES-связи неполны на уровне class→method; открытая нить для ревью indexer.edge-записи.
+
+---
+
+## [2026-08-08] — Exp: WS3 Late Enrichment — стоимость стадии на реальных чанках
+
+**Гипотеза (Late Code Chunking, ACL 2026):** enrichment ПОСЛЕ retrieval дёшев (<2ms на топ-10) и покрывает ≥2 полей на чанк; imports из metadata чанка доступны.
+**Команда:** `python experiments/late_enrichment/bench.py --phase chunks --limit 10` — 8 запросов × 10 реальных чанков проекта, фаза chunks (live недоступна: MCP держит PID-lock).
+**Сырой результат:**
+```
+avg_enrichment_ms: 0.701
+avg_tokens_added: 1860.0   (≈186 ток/чанк на топ-10)
+avg_coverage: module=1.0, parent_symbol=0.3, chunk_headline=1.0, imports=0.0
+```
+**Вердикт:** ЧАСТИЧНО ПОДТВЕРЖДЕНА. Латентность пренебрежима (0.7ms), module/headline покрывают 100%. **imports=0.0** — метаданные чанков НЕ содержат импортов (графовые IMPORTS-рёбра есть, но не прикреплены к чанкам) → enrichment импортов требует graph-lookup (и зависимость от consistency — будущая работа). parent_symbol=0.3 — извлечение имени из текста находит не каждый чанк.
+**Урок:** chunk-local enrichment (module/headline/symbol) безопасен и дёшев; imports — отдельная стадия с графом. Токен-стоимость ~186/чанк обязана быть в метрике контекста (Context Engine 2.0).
+
+## [2026-08-08] — Exp: Benchmark 2.0 runner — live-фаза vs PID-lock
+
+**Гипотеза:** runner может поднять in-process Searcher при живом MCP (индекс доступен).
+**Команда:** `python experiments/benchmark2/runner.py` (MCP запущен, PID 7496).
+**Сырой результат:**
+```
+RuntimeError: PID lock still held by alive pid=7496 after 30.0s — другой процесс пишет в эту БД
+[bench2] записано 12 задач -> out/evidence.jsonl
+[bench2] manual-проб (нужен ручной прогон): 16
+```
+**Вердикт:** ОПРОВЕРГНУТА. PID-lock (database_lock.py, 30s, fail-closed) блокирует второй Indexer на ту же БД — это защита, работает как задумано. Runner корректно фолбэчит в manual-режим (16 ручных проб).
+**Урок:** live-эвалы против MCP требуют остановленного сервера или отдельного MSCODEBASE_DATA_DIR; документировано в experiments/benchmark2/README.md.

@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-08-08 — MCPSec (capability attestation / message auth) — отклонено для текущей модели (🟢 принято)
+
+**Symptom:** обзор arXiv 2601.17549: MCP-серверы уязвимы (52.8% attack success) — рекомендованы capability attestation и message authentication для всех tools.
+**Verdict:** НЕ ПРИМЕНИМО в текущей модели развёртывания: (1) transport — localhost stdio (Zed ↔ MCP), не сетевой MCP; (2) tools — статически зарегистрированы в нашем коде (server_tools.py/tools_reg.py), динамической регистрации из контента репо нет (guard-тесты WS7); (3) sampling — только локальный phi-4 через LM Studio, без внешних origins. Цена внедрения (спецификация — research-протокол, не ratified) >> польза.
+**Fix:** не внедрялось; вместо этого — trust-стампинг результатов + instruction-флаги + guard на регистрацию (WS7).
+**Status:** 🟢 принято | **Guard:** tests/test_tool_registration_security.py; docs/TRUST_BOUNDARY.md.
+
+---
+
+## 2026-08-08 — Импорты НЕ индексируются в metadata чанков (🟡 наблюдаем)
+
+**Symptom:** эксперимент WS3 (EXPERIMENTS_LOG): coverage imports=0.0 — ни один чанк не несёт импортов в metadata, хотя PropertyGraph имеет IMPORTS-рёбра.
+**Root Cause:** indexer пишет в metadata чанка file/chunk_index/layer/callees, но не imports; graph-рёбра IMPORTS не прикрепляются к чанкам при выдаче.
+**Fix:** не вносился — enrichment импортов требует graph-lookup на выдаче (зависимость от consistency-состояния графа); отложено как follow-up Context Engine 2.0.
+**Status:** 🟡 наблюдаем | **Guard:** experiments/late_enrichment/bench.py — coverage-метрика.
+
+---
+
+## 2026-08-08 — Windows newline-трансляция ломала SHA-256 верификацию записи (FIXED)
+
+**Symptom:** пост-верификация ChangeIntent (WS4) падала на Windows: _sha256_text(логический текст) != sha256_file(байты диска) — текстовая запись переводила \n → \r\n.
+**Root Cause:** os.fdopen("w") без newline на Windows делает \r\n; hash-сравнение логического текста и байтов диска давало расхождение.
+**Fix:** _atomic_write → newline="\n" (детерминированная запись); тесты test_execution_contract_v2.py (10 шт).
+**Status:** ✅ Fixed | **Guard:** test_sha256_text_equals_file + test_verify_file_write_hash_match.
+
+---
+
+## 2026-08-08 — verify_clean_state.sh не запускается на Windows GitBash (🟡 наблюдаем)
+
+**Symptom:** bash scripts/verify_clean_state.sh --no-clone на Windows GitBash: exit 127, «venv/bin/activate: No such file or directory», «venv/bin/pip: No such file or directory» — Windows-venv создаёт venv/Scripts/, а скрипт жёстко использует POSIX-пути venv/bin/*.
+**Root Cause:** скрипт CI/Linux-ориентирован (пути, активация, pip install .[dev] из сети) при том, что README заявляет Windows как supported-платформу.
+**Fix:** не вносился (CI-only use-case; локальная верификация — pytest tests/ в рабочем дереве). Lockfile drift gate при этом отработал: «Lockfile in sync».
+**Status:** 🟡 наблюдаем | **Guard:** локальный прогон pytest tests/ (990 passed) + контракт-тесты.
+
+---
+
+## 2026-08-08 — Остаточный PytestUnraisableExceptionWarning: unclosed transport (🟡 наблюдаем)
+
+**Symptom:** полный прогон (990 passed) выдаёт 1 предупреждение «Exception ignored while calling deallocator _ProactorBasePipeTransport.__del__» + unclosed transport (Windows Proactor).
+**Root Cause:** незакрытый asyncio transport в одном из тестов (вероятно тест с сокетом/транспортом к 127.0.0.1:8080, test_resource_monitor) — остаточный класс после устранения sleep-корутин.
+**Fix:** не вносился — отдельный класс (тестовый транспорт), низкая серьёзность; требует воспроизведения с -X dev.
+**Status:** 🟡 наблюдаем | **Guard:** -X dev прогон + grep unclosed transport.
+
+---
+
+## 2026-08-08 — Рантайм 58 tools vs доки 57: ExecuteScriptTool включён, дока-дрейф (FIXED)
+
+**Symptom:** лог MCP при старте: «29 core + 13 intel + 12 inline + 4 dev = 58 total» — ExecuteScriptTool зарегистрирован (MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env и ext/.env). Доки заявляют 57: AGENTS.md:1 «55 Registered» / :4 «= 57» / :299 «(54)», README:47 «57 tools» vs README:70 «49 MCP tools», pyproject desc «52 analysis tools», TELEMETRY en:258/261, ru:260 «55».
+**Root Cause:** контракт-тест корректно считает 57 (env off) / 58 (env on), но дока-маркеры обновлялись только для базового числа 57; +1 за ExecuteScriptTool нигде не документирован; README:70/AGENTS:1,299/pyproject:8/TELEMETRY не обновлены с эпохи 49-55.
+**Fix:** доки синхронизированы под канон 57 base + conditional note (+1 execute_script при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true → 58): README:70 «49»→«57», AGENTS:1 «55»→«57», :299 «(54)»→«(57)», секция B «(23)»→«(28)», pyproject desc «52»→«57», TELEMETRY en/ru «55/49»→«57» (28 core); conditional-note в AGENTS:4 и README-секции тулов «58 = 57 base + execute_script». Решение по RCE-инструменту: репо-дефолт off (.env.example:256 =false), локальный .env владельца не тронут. Контракт-тесты: 6 passed.
+**Status:** ✅ Fixed | **Guard:** test_count_tools_real_project_guard (57 off / 58 on) + test_count_tools_counts_execute_script_when_enabled + grep-свип «49 MCP tools|55 Registered|(54)|52 analysis|(23 tools)» = 0.
+
+---
+
+## 2026-08-08 — RuntimeWarning: coroutine 'sleep' never awaited при gc.collect() (🟡 наблюдаем)
+
+**Symptom:** pytest (956 passed) выдаёт 2 предупреждения «coroutine 'sleep' was never awaited» на gc.collect(): src/core/indexing/index_project_runner.py:352 (после embed-цикла) и src/core/indexing/project_indexer_registry.py:465 (в _safe_close). Только в полном прогоне — порядково-зависимо.
+**Root Cause:** тесты: `MagicMock(return_value=asyncio.sleep(0, result=...))` (test_fts5_integration.py:56-120 ×11, test_notify_change_fire_and_forget.py:28, test_notify_change_nonblocking.py:34) — asyncio.sleep(0) создаёт корутину СРАЗУ при создании мока; если метод не вызывается (например, _ensure_multi_reranker_async при пустых результатах) — корутина осиротевает; циклы ссылок MagicMock удерживают её до циклического GC в чужих тестах (трассировка tracemalloc: fts5_integration:58).
+**Fix:** MagicMock(return_value=asyncio.sleep(0,...)) → AsyncMock(return_value=...) / AsyncMock(side_effect=lambda q,res,lim: res) в 3 тест-файлах. Полный прогон: предупреждение исчезло, 990 passed.
+**Status:** ✅ Fixed | **Guard:** полный прогон pytest tests/ без «never awaited» + grep-свип «asyncio.sleep(0,» в tests/ = 0.
+
+---
+
 ## 2026-08-07 — Аудит Bot_snow остаток BS-1..BS-14: search_code-выдача, topology, health, hub (FIXED)
 
 **Symptom:** 14 пунктов аудита MCP-инструментов: search_code отдавал мусор вместо пустого ответа, пропускал точные хиты, «line 0/2» вместо реальных строк; intel_code_topology — symbol='' и обрыв JSON; get_health_report — ложный critical «индексер молчит»; graph_query — cypher/flow недостижимы; телеметрия/health/runtime — три разных embedder-провайдера; passport «Cached: 1» vs health «0»; auto_update_docs ложное предупреждение; predict_root_cause 16с; affected_files [-, bot.py] / [D:]; codebase action=symbol не существует; get_symbol_info −994ms.
