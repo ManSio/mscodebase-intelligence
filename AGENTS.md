@@ -428,8 +428,11 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 6. Did I log the incident in project memory? (`intel_log_incident`)
 7. Did I check `diagnostics`?
 8. Did I run `python -m pytest tests/ -k write_tools -v` before committing?
-9. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
-   - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
-   - Результат вставляется в `[🏁 ИТОГ]` как `verified_from_clean_state: <output>`
-10. All correct? → **TASK VERIFIED**
-11. Root чистый? (нет новых одноразовых скриптов/логов в корне — §0.6)
+9. **CI проверен через `gh run view --log-failed`** (последний ран — механический guard против «CI green» на словах):
+   - Перед push: последний ран не красный. После push: новый ран зелёный на ВСЕХ джобах — ubuntu matrix (3.10-3.12) + windows; локальный Windows-прогон слеп к POSIX-фейлам (WISDOM 2026-08-08).
+   - Точные фейлы даёт `gh run view --log-failed` — аннотации GitHub показывают только «exit code 1».
+10. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
+    - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
+    - Результат вставляется в `[🏁 ИТОГ]` как `verified_from_clean_state: <output>`
+11. All correct? → **TASK VERIFIED**
+12. Root чистый? (нет новых одноразовых скриптов/логов в корне — §0.6)

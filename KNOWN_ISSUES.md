@@ -6,12 +6,26 @@
 
 ---
 
-## 2026-08-08 — Multi-window PID-lock 30s wait vs Zed handshake timeout (🟡 наблюдаем)
+## 2026-08-08 — Pre-commit hook flake: 120s кап vs gate-zero pytest (~108-130s) (FIXED 🟢)
 
-**Symptom:** при нескольких окнах Zed (или зомби-инстансе) новый MCP-бут ждёт DB PID-lock до 30s (database_lock.py, fail-closed) → превышает Zed "Context server request timeout" → сервер убивается, зомби остаётся → цикл.
-**Root Cause:** 30s-ожидание лока (защита от конкурентной записи) + нет таймаут-каскада на клиенте; WS8-фикс убрал llama-блокировку, но lock-wait остался.
-**Fix:** не вносился — требуется решение: (a) сократить wait до <Zed timeout с отложенным ретраем, (b) self-healing по stale-зомби (PID не принадлежит живому окну).
-**Status:** 🟡 наблюдаем | **Guard:** WS8 (транспорт стартует сразу, 12s) уменьшил окно; диагностика — database_lock.py + Zed log.
+**Symptom:** коммит падал через `subprocess.TimeoutExpired` на `verify_diary.py` — таймаут хука 120s при полном pytest ~108-130s под нагрузкой (2-я попытка из 3 не успевала; 1-я — 107.91s впритык).
+**Root Cause:** двойной кап 120s: (1) хук-обёртка `git_hooks_installer.py:68` на весь verify_diary; (2) внутренний gate-zero `verify_diary.py:390`. Запас всего ~12s при флуктуациях загрузки машины.
+**Fix:** оба капа → 300s (src/core/git_hooks_installer.py + scripts/verify_diary.py); хук переустановлен из шаблона (install_git_hooks).
+**Status:** ✅ Fixed (commit прошёл, gate-zero 1022 passed) | **Guard:** кап 300s в источнике шаблона — переживает переустановку хука; scripts/ вне CI-гейта ruff (предсуществующие BLE001 в verify_diary не трогались).
+
+## 2026-08-08 — CodeQL-алерты 22/24: tempfile.mktemp в тестах аудит-лога (FIXED 🟢)
+
+**Symptom:** два открытых code-scanning алерта (`py/insecure-temporary-file`, state open): tests/test_sandbox.py:304 и :324 — `tempfile.mktemp()` (TOCTOU-паттерн) для временного аудит-лога.
+**Root Cause:** mktemp неатомарен (race между проверкой и созданием файла); в тестах риск низкий, но CodeQL флагает.
+**Fix:** mktemp → `tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)` (без новых импортов); executor пишет аудит в "a"-режиме (executor.py:180) — предсозданный пустой файл безопасен; finally-unlink сохранён.
+**Status:** ✅ Fixed (TestAuditLog 2 passed, ruff чист) | **Guard:** алерты закроются на следующем default-branch scan после push; тест TestAuditLog остаётся.
+
+## 2026-08-08 — Multi-window PID-lock 30s wait vs Zed handshake timeout (FIXED, код+тесты, не запушено)
+
+**Symptom:** при нескольких окнах Zed (или зомби-инстансе) новый MCP-бут ждал DB PID-lock до 30s (database_lock.py, fail-closed) → превышал Zed "Context server request timeout" → сервер убивался, зомби оставался → цикл.
+**Root Cause:** 30s-ожидание лока (защита от конкурентной записи) + нет таймаут-каскада на клиенте; WS8-фикс убрал llama-блокировку, но lock-wait остался. Исследование (эксперименты WS9): Zed НЕ убивает MCP при таймауте запроса (client.rs: DEFAULT_REQUEST_TIMEOUT=60s, Drop→kill только при остановке сервера) → вечный цикл = осиротевший живой python.exe (venvlauncher double-process) держит lock; `_is_pid_alive` не отличает здоровый MCP от сироты.
+**Fix (Вариант C, WS9):** `database_lock.py` — классификация holder'а (DEAD/HEALTHY/ORPHAN/AMBIGUOUS): PID validation; create_time-guard (create_time > started+2s → PID-reuse → stale); parent-chain walk ≤8 (Windows, Toolhelp32): живой Zed → HEALTHY (wait ≤8s default, мягкий LockBusyError), корень мёртв → ORPHAN (TerminateProcess → ждать смерти → retry-unlink → steal), иначе/не-Windows → AMBIGUOUS (fail-closed, не убивать); TOCTOU-guard перед unlink (lock пересоздан другим → LockBusyError, чужой не тронут); retry-unlink против PermissionError после TerminateProcess. psutil-зависимость устранена (мёртвый `_get_process_cpu` удалён, psutil-ветки `_find_pid`/`_get_parent_pid` убраны — пакет не был объявлен/установлен).
+**Status:** ✅ Fixed (код+тесты; 1022 passed / 4 skipped / 94 deselected, ruff чист; +17 regression-тестов tests/test_database_lock_selfhealing.py; live: TerminateProcess реального python в venv-цепочке — обёртка умирает сама; бенч: orphan 30s→120ms, healthy 30s→1.5s soft, free/stale без изменений). НЕ запушено (по запросу владельца) | **Guard:** классификация + TOCTOU-guard + _unlink_with_retry; live-тест Windows test_real_orphan_process_terminated_and_stolen; бенчмарк experiments/lock_zombie/benchmark_selfhealing.py.
 
 ---
 

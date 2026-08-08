@@ -301,7 +301,8 @@ class TestAuditLog:
 
     def test_violation_logged(self):
         with patch("src.core.sandbox.executor._get_audit_log_path") as mock_path:
-            audit_file = Path(tempfile.mktemp(suffix=".jsonl"))
+            with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as _tmp:
+                audit_file = Path(_tmp.name)
             mock_path.return_value = audit_file
             try:
                 result = execute_sandboxed(
@@ -321,7 +322,8 @@ class TestAuditLog:
 
     def test_execution_logged(self):
         with patch("src.core.sandbox.executor._get_audit_log_path") as mock_path:
-            audit_file = Path(tempfile.mktemp(suffix=".jsonl"))
+            with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as _tmp:
+                audit_file = Path(_tmp.name)
             mock_path.return_value = audit_file
             try:
                 execute_sandboxed(

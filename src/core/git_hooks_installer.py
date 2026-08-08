@@ -65,7 +65,9 @@ def run_script(script_path: str, label: str) -> bool:
         errors="replace",
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
     )
-    stdout, _ = proc.communicate(timeout=120)
+    # Таймаут-запас: verify_diary гоняет gate-zero (полный pytest ~108-130s под
+    # нагрузкой) — кап 120s давал флаки TimeoutExpired на коммитах (2026-08-08).
+    stdout, _ = proc.communicate(timeout=300)
     if proc.returncode != 0:
         print(f"  ❌ {{label}}: exit {{proc.returncode}}")
         if stdout:
