@@ -37,9 +37,13 @@ def test_sha256_file_missing(tmp_path):
 
 def test_sha256_text_equals_file(tmp_path):
     f = tmp_path / "b.py"
-    # newline="\n" — как _atomic_write (детерминированно, без \r\n Windows)
+    # newline="\n" — как _atomic_write (детерминированно, без \r\n Windows).
+    # open() вместо Path.read_text(newline=...): newline в read_text — Python 3.13+
+    # (CI matrix: 3.10-3.12).
     f.write_text("y = 2\n", encoding="utf-8", newline="\n")
-    assert _sha256_text(f.read_text(encoding="utf-8", newline="\n")) == sha256_file(f)
+    with f.open(encoding="utf-8", newline="\n") as fh:
+        text = fh.read()
+    assert _sha256_text(text) == sha256_file(f)
 
 
 def test_get_base_commit_in_git_repo(tmp_path):

@@ -92,6 +92,8 @@ dev = [
     "ruff>=0.5.0,<0.16",
     "black",
     "isort",
+    # tomllib — Python 3.11+; CI matrix включает 3.10 (test_versions.py).
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 # ⚠️ COPyleft-зависимости (GPL): leidenalg = GPL-3.0, igraph = GPL-2.0.

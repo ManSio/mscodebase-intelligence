@@ -68,6 +68,13 @@
 **Status:** ✅ Fixed (lint) | ⏳ clean-state ubuntu — требует лога CI (нет прав); после push matrix ubuntu покажет фейл в «Full test suite»
 **Guard:** ruff check src/ tests/ = 0; KNOWN_ISSUES#2026-08-08-unclosed-transport закрыт ранее.
 
+## 2026-08-08 — CI: version-compat фейлы 3.10-3.12 — tomllib / read_text(newline) / UNC resolve (FIXED)
+
+**Symptom:** «Full test suite» падал на ВСЕХ 6 matrix-джобах после починки lint (был скрыт 18 прогонов). Локально на py3.14 всё проходило.
+**Root Cause:** (1) 3.10: tests/test_versions.py `import tomllib` (stdlib 3.11+) → collection error exit 2; (2) 3.11-3.12: `Path.read_text(newline=...)` (3.13+) в test_sha256_text_equals_file; (3) 3.10-3.12: `LspClient._path_to_uri/_uri_to_path/_normalize_diag_uri` — `Path(UNC).resolve()` → FileNotFoundError (realpath на несуществующий UNC-сервер), ловился только ValueError + повторный resolve в except.
+**Fix:** tomli-fallback + dev-dep `tomli>=2.0; python_version<'3.11'`; read_text → `f.open(newline=...)`; UNC-ветки: except OSError → `Path(...).as_uri()/as_posix()` без resolve.
+**Status:** ✅ Fixed | **Guard:** matrix-команда на py3.10 (995 passed) и py3.11 (1000 passed) — EXIT 0; 3.12 — CI-ран после push. Ловушка: локальная проверка только на 3.14 не ловит версионные API.
+
 ---
 
 ## 2026-08-08 — ResourceWarning: unclosed database/file в -X dev прогоне (🟡 наблюдаем, follow-up)

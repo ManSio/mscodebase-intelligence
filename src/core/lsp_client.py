@@ -798,10 +798,11 @@ class LspClient:
         """
         try:
             return Path(path).resolve().as_uri()
-        except ValueError:
-            # Некорректный путь (например, относительный с несуществующим base)
-            abs_path = Path(path).resolve()
-            return abs_path.as_uri()
+        except (ValueError, OSError):
+            # Некорректный/недоступный путь. OSError: Python 3.10-3.12
+            # realpath бросает FileNotFoundError для несуществующего UNC-сервера
+            # (3.13+ не бросает) — берём путь как есть (UNC остаётся абсолютным).
+            return Path(path).as_uri()
 
     @staticmethod
     def _uri_to_path(uri: str) -> str:
@@ -809,7 +810,11 @@ class LspClient:
         raw = parsed.path
         # WIN-4: UNC URI (file://server/share/file) — authority это сервер.
         if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
-            return Path("//" + parsed.netloc + raw).resolve().as_posix()
+            p = Path("//" + parsed.netloc + raw)
+            try:
+                return p.resolve().as_posix()
+            except OSError:  # 3.10-3.12: realpath UNC-сервер → FileNotFoundError
+                return p.as_posix()
         if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
             raw = raw[1:]
         return Path(raw).resolve().as_posix()
@@ -828,7 +833,11 @@ class LspClient:
             parsed = urlparse(unquote(uri))
             raw = parsed.path
             if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
-                return Path("//" + parsed.netloc + raw).resolve().as_uri()
+                p = Path("//" + parsed.netloc + raw)
+                try:
+                    return p.resolve().as_uri()
+                except OSError:  # 3.10-3.12: realpath UNC-сервер → FileNotFoundError
+                    return p.as_uri()
             if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
                 raw = raw[1:]
             return Path(raw).resolve().as_uri()
