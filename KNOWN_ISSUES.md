@@ -32,12 +32,18 @@
 **Fix:** нижняя граница → >=5.3.0 (или удалить зависимость).
 **Status:** ✅ Fixed (2026-08-08: pyproject → `>=5.3.0,<5.15.0`; CVE-2026-4372 фиксится ТОЛЬКО 5.3.0) | **Guard:** pip-audit в CI; rationale-комментарий в pyproject
 
+## 2026-08-08 — Pre-commit gate-zero флейк: tests/test_connection.py::test_setup (🟡 наблюдаем)
+
+**Symptom:** при `git commit` gate-zero (verify_diary, полный pytest под C:\Python314 системным python) падает 1 тест из ~1026: `tests/test_connection.py::test_setup` — «1 failed, 1025 passed». Не воспроизводится standalone ни под venv, ни под системным python, ни полным сьютом (2 попытки × обе среды — 0 failed); CI (ubuntu+windows) зелёный.
+**Root Cause (гипотеза):** тест строит полный DI-контейнер (create_service_collection → LanceDB) — вероятно, DB PID-lock wait ≤8s (WS9) не успевает под нагрузкой хука в момент коммита → LockBusyError. Требует замер: запуск полного сьюта под системным python N раз подряд с нагрузкой.
+**Status:** 🟡 наблюдаем (2 фейла 2026-08-08, оба при gate-zero) | **Guard:** ретрай коммита; при повторе — замер времени init под нагрузкой.
+
 ## 2026-08-08 — PYSEC-2026-3552 в lock: cryptography 49.0.0→50.0.0 + pip-audit в CI (FIXED 🟢)
 
 **Symptom:** `pip-audit -r requirements-lock.txt` → cryptography 49.0.0 (PYSEC-2026-3552), фикс в 50.0.0. Транзитивная зависимость mcp→pyjwt→cryptography — вручную не отслеживалась, SCA-гейт в CI отсутствовал.
 **Root Cause:** lock пинил уязвимую версию; отсутствие сканера CVE в CI.
-**Fix:** lock: 49.0.0→50.0.0 (RS256 roundtrip pyjwt 2.13.0 + import mcp на 50.0.0 — §5.19); ci.yml: `pip-audit==2.10.1 -r requirements-lock.txt`.
-**Status:** ✅ Fixed (pip-audit: No known vulnerabilities found; YAML валиден). НЕ запушено | **Guard:** pip-audit в CI; extension venv обновится при install.py.
+**Fix:** lock: 49.0.0→50.0.0 (RS256 roundtrip pyjwt 2.13.0 + import mcp на 50.0.0 — §5.19); ci.yml: `pip-audit==2.10.1 -r requirements-lock.txt --no-deps --disable-pip`.
+**Status:** ✅ Fixed (pip-audit: No known vulnerabilities found; CI green 6/6 + clean-state). Запушено (b8117c2f) | **Guard:** pip-audit в CI; extension venv обновится при install.py.
 
 ## 2026-08-08 — Pre-commit hook flake: 120s кап vs gate-zero pytest (~108-130s) (FIXED 🟢)
 
