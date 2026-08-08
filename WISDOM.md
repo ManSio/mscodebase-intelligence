@@ -50,6 +50,15 @@
 - Строка без подтверждения/использования 30+ дней → удалить или архивировать.
 - Свежая строка бьёт старую → старую удалить, `CONTRADICTION RESOLVED` в дневнике (§4.9).
 
+## Audit verification deep-research-report.md (2026-08-08)
+- Windows mutex-эталон: `CreateMutexW(None, False, ...)` + WaitForSingleObject + парный
+  ReleaseMutex (graph.py:74, onnx_client.py:76). llama_runner.py:184 — исправлен на
+  `False` 2026-08-08 (был `True` — утечка владения), тест test_llama_mutex Windows.
+- CVE-2026-4372 (transformers RCE, обходит trust_remote_code) фиксится в 5.3.0, НЕ 5.0.0 —
+  «fixed version» брать из OSV по каждой CVE; lock уже 5.14.1, пин поднят до >=5.3.0.
+- LanceDB atomic delete+add: фикс table.version + restore(prev_version) при сбое add
+  (db_writer.py) — нативный versioning лучше temp+os.replace.
+
 ## Tree-sitter грамматики (семена 2026-08-06)
 - elixir: шумит макро-токенами → низкое качество индексации, исключить или пометить.
 - matlab: расширение `.m` конфликтует с Objective-C → разрешать по содержимому, не по расширению.

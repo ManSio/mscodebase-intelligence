@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-08-08 — deep-research-report.md P1: Windows mutex llama_runner.py:184 initialOwner=True (FIXED 🟢)
+
+**Symptom:** `CreateMutexW(None, True, ...)` + `WaitForSingleObject` = двойной захват (recursion 2), один `ReleaseMutex` (:248) → владение утекает до смерти потока → повторный запуск llama-server не может захватить лок (10s timeout → RuntimeError). graph.py:74 и onnx_client.py:76 уже используют False (паттерн-эталон).
+**Root Cause:** bInitialOwner=TRUE при последующем WaitForSingleObject; непарный ReleaseMutex.
+**Fix (предложен, НЕ применён):** `CreateMutexW(None, False, ...)` — ждёт решения владельца.
+**Status:** ✅ Fixed (2026-08-08: llama_runner.py:184 → False, эталон graph.py:74; +test_llama_mutex — ловит утечку владения; grep CreateMutexW(True)=0) | **Guard:** тест Windows-only + обобщение grep по паттерну
+
+## 2026-08-08 — deep-research-report.md P1: неатомарная запись LanceDBWriter (FIXED 🟢)
+
+**Symptom:** `write_records` (db_writer.py:122-134) и `bulk_write` (:310-327): delete до add под lock; сбой add (≠ table-not-found) → чанки файла удалены без новых данных.
+**Root Cause:** комментарий «Atomic write» не соответствует поведению; lock защищает от конкурентов, не от сбоя.
+**Fix (варианты):** add-first (записать новые → удалить старые; при сбое — дубли, не потеря); replay/переиндексация при ошибке; версии LanceDB. Temp+os.replace из отчёта для LanceDB малоприменим (таблица = директория с версиями).
+**Status:** ✅ Fixed (2026-08-08: write_records/bulk_write — table.version до delete + restore(prev_version) при сбое add; +test_write_records_rollback_on_failed_add) | **Guard:** тест на сбой add после delete; остаточный риск: restore при конкурентном внешнем reset_connection
+
+## 2026-08-08 — deep-research-report.md P1: TaskQueue.submit_sync «вечная задача» + race (FIXED 🟢)
+
+**Symptom:** task_queue.py:127-183: `except RuntimeError: pass` без отката — задача навсегда в `_results`/`_pending_names`, лог «поставлена в очередь» ложен, повторный submit с тем же name → None навсегда; check-then-add `pending_names` без lock (гонка 2 потоков).
+**Fix (предложен):** Lock вокруг check+add; при RuntimeError — `_pending_names.discard(name)` + `_results.pop(task_id)`. Ждёт решения владельца.
+**Status:** ✅ Fixed (2026-08-08: _submit_lock + откат регистрации; +test_submit_sync_failure_cleanup, +test_submit_sync_dedup_concurrent) | **Guard:** 2 регресс-теста (cleanup детерминирован через monkeypatch run_coroutine_threadsafe)
+
+## 2026-08-08 — pyproject transformers>=4.36 разрешает CVE-уязвимые 4.x (FIXED 🟢)
+
+**Symptom:** pyproject.toml:83 `>=4.36.0,<5.15.0` — при установке БЕЗ lock приедет 4.x (CVE-2026-1839 — фикс 5.0.0; CVE-2026-4372 RCE — фикс 5.3.0). Lock уже 5.14.1 (безопасен); src/ НЕ импортирует transformers (легаси от старого реранкера).
+**Fix:** нижняя граница → >=5.3.0 (или удалить зависимость).
+**Status:** ✅ Fixed (2026-08-08: pyproject → `>=5.3.0,<5.15.0`; CVE-2026-4372 фиксится ТОЛЬКО 5.3.0) | **Guard:** pip-audit в CI; rationale-комментарий в pyproject
+
 ## 2026-08-08 — PYSEC-2026-3552 в lock: cryptography 49.0.0→50.0.0 + pip-audit в CI (FIXED 🟢)
 
 **Symptom:** `pip-audit -r requirements-lock.txt` → cryptography 49.0.0 (PYSEC-2026-3552), фикс в 50.0.0. Транзитивная зависимость mcp→pyjwt→cryptography — вручную не отслеживалась, SCA-гейт в CI отсутствовал.

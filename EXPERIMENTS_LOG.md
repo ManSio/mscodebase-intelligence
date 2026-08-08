@@ -1,5 +1,39 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-08] — Exp: верификация deep-research-report.md (внешний аудит) против кода
+
+**Гипотеза:** 3 P1-находки отчёта (Windows mutex, неатомарная запись LanceDB, TaskQueue.submit_sync) существуют в текущем коде; CVE-рекомендации актуальны; roadmap P0/P1 реализован.
+**Команда:** get_symbol_info/read_live_file по llama_runner.py:184/248, db_writer.py:122-134/310-327, task_queue.py:127-183; OSV API (api.osv.dev) для CVE-2026-1839/4372; PyPI для актуальных версий; `python -m pytest tests/ -q -m "not slow and not benchmark" --cov=src --cov-fail-under=38` (реальный прогон).
+**Сырой результат:**
+```
+| Гипотеза                                  | Вердикт |
+|-------------------------------------------|---------|
+| Mutex initialOwner=TRUE + 1 ReleaseMutex  | ✅ CONFIRMED llama_runner.py:184/248 (graph.py:74, onnx_client.py:76 — уже False) |
+| delete+add неатомарны                     | ✅ CONFIRMED (метод write_records, НЕ replace_chunks) |
+| submit_sync race + «вечная» задача        | ✅ CONFIRMED (except RuntimeError: pass без cleanup; тест из отчёта НЕ существует) |
+| CVE-2026-1839/4372                        | ✅ CVE реальны; отчёт недооценил 4372 (фикс 5.3.0, не 5.0.0); lock уже 5.14.1 → закрыты |
+| Coverage ~38% / 956 passed                | ❌ УСТАРЕЛО: 1022 passed / 4 skipped / 94 deselected, 46.89%, 84.94s |
+| Roadmap P0 (bench/enrichment/planner)     | ⚠️ Частично: bench ✅ (experiments/benchmark2), late enrichment ✅ (engine.py:1142), Adaptive Planner ❌ не найден |
+```
+**Вердикт:** отчёт точен по P1 (3/3 подтверждены), но: (1) имена кода частично вымышлены (replace_chunks, test_submit_sync_failure_cleanup, путь src/core/indexing/task_queue.py — реально src/core/task_queue.py); (2) CVE-2026-4372 недооценён (>=5.0.0 недостаточно, нужен >=5.3.0); (3) числа тестов/coverage устарели (+66 тестов, +9%); (4) часть roadmap уже реализована (WS1-WS9), Adaptive Retrieval Planner — нет.
+**Урок:** внешние аудиты писать по актуальному дереву (grep по именам), не по памяти об API; «fixed version» CVE брать из OSV по каждой CVE отдельно, не обобщать.
+
+## [2026-08-08] — Exp: применение фиксов аудита (4/4) — 1026 passed
+
+**Гипотеза:** rollback по LanceDB-версиям + lock/cleanup в TaskQueue + mutex False + пин >=5.3.0 не ломают существующие тесты и закрывают 3 P1 + CVE-пин.
+**Команда:** правки 4 файлов (llama_runner.py, task_queue.py, db_writer.py, pyproject.toml) + 4 новых теста; `python -m ruff check src/ tests/`; `python -m pytest tests/ -q -m "not slow and not benchmark"`.
+**Сырой результат:**
+```
+All checks passed!
+1026 passed, 4 skipped, 94 deselected in 74.49s (было 1022)
+17/17 targeted (test_task_queue, test_llama_mutex, test_lancedb_recreate) passed
+grep CreateMutexW(None, True) = 0; except RuntimeError:pass с потерей состояния = 0
+```
+**Вердикт:** подтверждена — 3 P1 закрыты кодом+тестами, CVE-пин поднят до >=5.3.0. Остаточные риски: (1) restore при конкурентном внешнем reset_connection может откатить чужую версию (сериализация только внутри writer); (2) если restore упадёт (версия очищена cleanup_old_versions) — данные восстановятся повторной индексацией (self-healing).
+**Урок:** LanceDB versioning (table.version/restore) — нативный механизм атомарности delete+add, лучше выдуманного temp+os.replace из отчёта; проверка API (§5.19) заняла 1 команду и подтвердила restore/version на 0.33.
+
+---
+
 ## [2026-08-06] — Exp: batch-размер embedder'а (A/B T3) — прод-настройка batch=32 подтверждена
 
 **Гипотеза:** batch=64 даст максимум ch/s (амортизация фиксированных накладных расходов); batch=32 не проиграет существенно (<10%).
