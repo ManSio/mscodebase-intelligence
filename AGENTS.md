@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (55 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (57 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 13 Intel Layer + 28 Core MCP (включая `codebase` hub + 6 LSP) + 12 Inline/Diagnostic + 4 Dev Tools = 57 registered
+> Optimized for the hybrid model: 13 Intel Layer + 28 Core MCP (включая `codebase` hub + 6 LSP) + 12 Inline/Diagnostic + 4 Dev Tools = 57 registered (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` → 58)
 
 > \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
 
@@ -296,7 +296,7 @@ intel_get_project_memory      ──>   git(action="log") / git(action="history"
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (54)
+## 2. AVAILABLE TOOLS (57)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
@@ -312,7 +312,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
 
-### B. Core MCP & Search (23 tools)
+### B. Core MCP & Search (28 tools)
 
 > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
 > Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.

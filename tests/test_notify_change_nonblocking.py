@@ -9,7 +9,7 @@
 "индексирует" (мок с искусственной задержкой).
 """
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from src.core.di_container import ServiceCollection
 from src.mcp.tools.indexing_tools import NotifyChangeTool
@@ -31,7 +31,7 @@ def _make_tool(slow_index_seconds: float = 0.3):
     indexer._index_single_file.side_effect = _slow_index
     # bm25_batch с async add (как DebounceBatch)
     batch = MagicMock()
-    batch.add = MagicMock(return_value=asyncio.sleep(0, result=True))
+    batch.add = AsyncMock(return_value=True)
     indexer.bm25_batch = batch
     tool = NotifyChangeTool(services)
     tool.resolve_indexer = MagicMock(return_value=indexer)
