@@ -401,7 +401,7 @@ def test_rollback_serialized_with_reset_connection(tmp_db_root):
         try:
             mgr.reset_connection()
             reset_result["done"] = True
-        except Exception as e:  # pragma: no cover — сбой должен проявиться в assert
+        except Exception as e:  # noqa: BLE001 — поток-обёртка: любой сбой reset_connection фиксируется в reset_result для assert
             reset_result["err"] = repr(e)
 
     t2 = threading.Thread(target=do_reset)
