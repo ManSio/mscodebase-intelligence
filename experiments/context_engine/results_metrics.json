@@ -1,0 +1,170 @@
+{
+  "results": [
+    {
+      "task": "T1-explain",
+      "facts": [
+        "Searcher.search",
+        "search_with_mode",
+        "callers",
+        "callees",
+        "metadata",
+        "graph context",
+        "enrich"
+      ],
+      "A": {
+        "calls": 5,
+        "latency": 2481,
+        "tokens": 423.25,
+        "success": 0.8571428571428571,
+        "wrong": 0.1509433962264151,
+        "found": [
+          "Searcher.search",
+          "search_with_mode",
+          "callers",
+          "callees",
+          "metadata",
+          "enrich"
+        ]
+      },
+      "B": {
+        "calls": 1,
+        "latency": 501,
+        "tokens": 266.5,
+        "success": 0.7142857142857143,
+        "wrong": 0.0,
+        "found": [
+          "Searcher.search",
+          "search_with_mode",
+          "callers",
+          "callees",
+          "metadata"
+        ]
+      }
+    },
+    {
+      "task": "T2-modify",
+      "facts": [
+        "tools_reg",
+        "code_topology",
+        "callers",
+        "depth",
+        "symbol_name",
+        "call_graph",
+        "incoming_callers"
+      ],
+      "A": {
+        "calls": 5,
+        "latency": 6755,
+        "tokens": 460.25,
+        "success": 1.0,
+        "wrong": 0.1482843137254902,
+        "found": [
+          "tools_reg",
+          "code_topology",
+          "callers",
+          "depth",
+          "symbol_name",
+          "call_graph",
+          "incoming_callers"
+        ]
+      },
+      "B": {
+        "calls": 1,
+        "latency": 502,
+        "tokens": 389.25,
+        "success": 1.0,
+        "wrong": 0.15562700964630224,
+        "found": [
+          "tools_reg",
+          "code_topology",
+          "callers",
+          "depth",
+          "symbol_name",
+          "call_graph",
+          "incoming_callers"
+        ]
+      }
+    },
+    {
+      "task": "T3-debug",
+      "facts": [
+        "build_call_graph",
+        "depth",
+        "callers",
+        "callees",
+        "definition",
+        "resolve_symbol_index",
+        "SymbolIndex"
+      ],
+      "A": {
+        "calls": 4,
+        "latency": 2118,
+        "tokens": 434.75,
+        "success": 1.0,
+        "wrong": 0.08621815806662313,
+        "found": [
+          "build_call_graph",
+          "depth",
+          "callers",
+          "callees",
+          "definition",
+          "resolve_symbol_index",
+          "SymbolIndex"
+        ]
+      },
+      "B": {
+        "calls": 1,
+        "latency": 501,
+        "tokens": 350.25,
+        "success": 1.0,
+        "wrong": 0.0,
+        "found": [
+          "build_call_graph",
+          "depth",
+          "callers",
+          "callees",
+          "definition",
+          "resolve_symbol_index",
+          "SymbolIndex"
+        ]
+      }
+    },
+    {
+      "task": "T4-test",
+      "facts": [
+        "intel_trigger_reindex",
+        "job_id",
+        "intel_get_job_status",
+        "reindex",
+        "mode",
+        "incremental"
+      ],
+      "A": {
+        "calls": 4,
+        "latency": 6358,
+        "tokens": 299.75,
+        "success": 0.6666666666666666,
+        "wrong": 0.2330978809283552,
+        "found": [
+          "intel_trigger_reindex",
+          "job_id",
+          "intel_get_job_status",
+          "reindex"
+        ]
+      },
+      "B": {
+        "calls": 1,
+        "latency": 501,
+        "tokens": 299.75,
+        "success": 0.6666666666666666,
+        "wrong": 0.3637123745819398,
+        "found": [
+          "intel_trigger_reindex",
+          "job_id",
+          "intel_get_job_status",
+          "reindex"
+        ]
+      }
+    }
+  ]
+}
