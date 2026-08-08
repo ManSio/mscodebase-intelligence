@@ -49,12 +49,13 @@ jobs:
 
       - name: Audit dependencies (pip-audit)
         # Pinned: pip-audit 2.10.1 проверен 2026-08-08 (PYSEC-2026-3552).
-        # Бамп — только после локального прогона `pip-audit -r requirements-lock.txt --no-deps`.
-        # --no-deps: lock уже полностью разрешён; резолв в temp-venv валит CI
-        # (pywin32 — Windows-only на ubuntu, numpy 2.4.6 без колёс для py3.10).
+        # Бамп — только после локального прогона `pip-audit -r requirements-lock.txt --no-deps --disable-pip`.
+        # --disable-pip + --no-deps: lock уже полностью разрешён; резолв через pip
+        # в temp-venv валил CI (pywin32 — Windows-only на ubuntu, numpy 2.4.6
+        # без колёс для py3.10). --no-deps обязателен с --disable-pip для не-hashed файла.
         run: |
           python -m pip install "pip-audit==2.10.1"
-          pip-audit -r requirements-lock.txt --no-deps
+          pip-audit -r requirements-lock.txt --no-deps --disable-pip
 
       - name: Full test suite (no filters)
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
