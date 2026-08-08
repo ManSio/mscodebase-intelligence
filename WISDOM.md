@@ -3,6 +3,17 @@
 > Не архив, не дневник. Каждая строка — проверенный факт, сжатый до одной мысли.
 > Полная история — в `AGENT_DIARY.md` / `EXPERIMENTS_LOG.md`.
 
+## Внешний аудит 2026-08-08 (верификация 14/15)
+- Indexer всё ещё composition root (12+ подсистем в __init__, indexer.py:34-196);
+  кэш-счётчики продублированы в 3 классах (Indexer/db_manager/project_runner).
+- Канон доков: 57 base (+1 `execute_script` при env=true → 58) — дрейф закрыт 2026-08-08.
+- mcp 2.0.0 уже на PyPI — потолок <2 защищает реально.
+
+## Моки async-методов (2026-08-08)
+- `MagicMock(return_value=asyncio.sleep(0, result=X))` — eager-корутина живёт
+  в циклах ссылок мока до чужого GC → «coroutine 'sleep' was never awaited».
+  Правильно: `AsyncMock(return_value=X)`.
+
 **Правила:**
 - ≤50 строк. Новое входит — вытесненное уходит в `docs/archive/`.
 - Пополнение в `[🏁 ИТОГ]` сессии (Триггер 7, §1.19): 1-3 лучших урока, не больше.
@@ -29,3 +40,21 @@
 - SQLite scoped_kv_store хранит по-оконные строки (key=window_id), но без
   фильтра по окну это глобальный сигнал → резолв проекта CWD-first:
   Zed ставит CWD = корень окна для каждого MCP-процесса (Verified по 2 окнам).
+
+## Consistency / Trust / Write (2026-08-08)
+- Consistency Engine: 6 состояний (CONSISTENT/STALE/UPDATING/PARTIAL/CORRUPTED/
+  UNKNOWN), событийная модель, threading.Lock (не asyncio.Lock) — см. src/core/consistency.py.
+- Windows: текстовая запись \n→\r\n ломает SHA-256 пост-верификацию →
+  _atomic_write пишет с newline="\n" (детерминированно, WS4).
+- Late enrichment (флаг MSCODEBASE_LATE_ENRICHMENT): chunk-local поля
+  (module/headline/symbol) ~0.7ms на топ-10, +~186 ток/чанк; imports в
+  metadata чанков НЕ индексируются — нужен graph-lookup (KNOWN_ISSUES 🟡).
+
+## Security (2026-08-08, WS7)
+- Instruction-флаги — адвизорная маркировка на выдаче (role_hijack/imperative/
+  shell/secrets), НЕ фильтрация (SoK: filtering не работает) — src/core/instruction_scan.py.
+- Trust-стампинг: результаты поиска несут trust-уровень проекта; кросс-репо =
+  untrusted по умолчанию (cross-origin poisoning, multi_project_searcher).
+- MCPSec/message-auth НЕ применимы: localhost stdio, tools статические
+  (guard-тесты test_tool_registration_security). CoREB: короткие запросы
+  схлопываются — benchmark2/keywords.jsonl (8 кейсов).
