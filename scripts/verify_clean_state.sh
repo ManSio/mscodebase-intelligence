@@ -23,6 +23,13 @@ NC='\033[0m'
 echo -e "${YELLOW}=== VERIFY CLEAN STATE ===${NC}"
 echo "Temp dir: $TMPDIR"
 
+# venv layout: POSIX (Linux/macOS) → bin/, Windows (GitBash/MSYS2/Cygwin) → Scripts/
+# (README заявляет Windows как основную платформу — скрипт обязан работать и там)
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) VENV_BIN="venv/Scripts" ;;
+    *) VENV_BIN="venv/bin" ;;
+esac
+
 if [ "$NO_CLONE" -eq 1 ]; then
     echo "No-clone mode: verifying current directory"
 else
@@ -32,12 +39,12 @@ else
 fi
 
 echo "Creating venv..."
-python -m venv venv || { echo "venv creation failed, trying with ensurepip"; python -m venv --without-pip venv; source venv/bin/activate && python -m ensurepip; }
+python -m venv venv || { echo "venv creation failed, trying with ensurepip"; python -m venv --without-pip venv; source "$VENV_BIN/activate" && python -m ensurepip; }
 
 # Ensure pip is available
-if [ ! -f venv/bin/pip ]; then
+if [ ! -f "$VENV_BIN/pip" ]; then
     echo "pip not found in venv, running ensurepip..."
-    source venv/bin/activate
+    source "$VENV_BIN/activate"
     python -m ensurepip --default-pip
 fi
 
@@ -69,19 +76,19 @@ echo "Installing package + test deps..."
 if [ -f requirements-lock.txt ] && [ "$(uname -s)" = "Linux" ]; then
     # На Linux-CI ставим из lock, фильтруя Windows-only пакеты
     grep -viE "^(pywin32|wmi|pythoncom)=" requirements-lock.txt > /tmp/req_unix.txt
-    venv/bin/pip install -q -r /tmp/req_unix.txt 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -r /tmp/req_unix.txt 2>&1 | tail -3
     rm -f /tmp/req_unix.txt
     # Dev-зависимости (pytest и др.) в requirements-lock.txt не входят (runtime lock).
     # --no-deps нельзя: он пропускает и dev-инструменты. Уже установленные из lock
     # runtime-пакеты удовлетворяют bounds pyproject — pip их не апгрейдит.
-    venv/bin/pip install -q -e ".[dev]" 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3
 else
     # Локально / не-Linux — резолвим по bounds (защищено exact pin lancedb)
-    venv/bin/pip install -q -e ".[dev]" 2>&1 | tail -3
+    "$VENV_BIN/pip" install -q -e ".[dev]" 2>&1 | tail -3
 fi
 
 echo "Running full test suite (no filters)..."
-RESULT=$(venv/bin/python -m pytest tests/ -q --tb=short 2>&1)
+RESULT=$("$VENV_BIN/python" -m pytest tests/ -q --tb=short 2>&1)
 EXIT_CODE=$?
 
 PASSED=$(echo "$RESULT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")

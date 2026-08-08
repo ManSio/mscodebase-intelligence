@@ -8,7 +8,7 @@
 4. 3-way RRF корректно объединяет bm25 + dense + fts5 (ключи file:chunk_index).
 """
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from src.core.search.engine import Searcher
 from src.core.search.fts5_index import FTS5IndexManager
@@ -53,11 +53,11 @@ def test_fts5_results_present_in_search_with_mode():
     """FTS5-результаты реально участвуют в выдаче search_with_mode."""
     searcher = _make_searcher_with_fts5(_sample_chunks())
     # Мокаем bm25/dense, чтобы изолировать FTS5-вклад
-    searcher._bm25_search_async = MagicMock(return_value=asyncio.sleep(0, result=[]))
-    searcher._vector_search_async = MagicMock(return_value=asyncio.sleep(0, result=[]))
-    searcher._ensure_multi_reranker_async = MagicMock(return_value=asyncio.sleep(0, result=None))
-    searcher._apply_multi_reranker_async = MagicMock(
-        side_effect=lambda q, res, lim: asyncio.sleep(0, result=res)
+    searcher._bm25_search_async = AsyncMock(return_value=[])
+    searcher._vector_search_async = AsyncMock(return_value=[])
+    searcher._ensure_multi_reranker_async = AsyncMock(return_value=None)
+    searcher._apply_multi_reranker_async = AsyncMock(
+        side_effect=lambda q, res, lim: res
     )
 
     res = searcher.search_with_mode("hybrid_search", mode="quality", limit=6)
@@ -75,11 +75,11 @@ def test_fts5_results_present_in_search_with_mode():
 def test_fts5_correctness_no_cross_contamination():
     """Правильный запрос -> правильный символ (без перемешивания векторов)."""
     searcher = _make_searcher_with_fts5(_sample_chunks())
-    searcher._bm25_search_async = MagicMock(return_value=asyncio.sleep(0, result=[]))
-    searcher._vector_search_async = MagicMock(return_value=asyncio.sleep(0, result=[]))
-    searcher._ensure_multi_reranker_async = MagicMock(return_value=asyncio.sleep(0, result=None))
-    searcher._apply_multi_reranker_async = MagicMock(
-        side_effect=lambda q, res, lim: asyncio.sleep(0, result=res)
+    searcher._bm25_search_async = AsyncMock(return_value=[])
+    searcher._vector_search_async = AsyncMock(return_value=[])
+    searcher._ensure_multi_reranker_async = AsyncMock(return_value=None)
+    searcher._apply_multi_reranker_async = AsyncMock(
+        side_effect=lambda q, res, lim: res
     )
 
     res = searcher.search_with_mode("build_index", mode="quality", limit=6)
@@ -100,24 +100,21 @@ def test_fts5_timeout_does_not_break_search():
 
     searcher._fts5_search_async = _slow_fts5
     # bm25 возвращает реальный результат, чтобы проверить, что поиск жив
-    searcher._bm25_search_async = MagicMock(
-        return_value=asyncio.sleep(
-            0,
-            result=[
-                {
-                    "text": "x",
-                    "metadata": {"file": "a.py", "chunk_index": 0},
-                    "bm25_score": 1.0,
-                    "dense_score": 0.0,
-                    "final_score": 1.0,
-                }
-            ],
-        )
+    searcher._bm25_search_async = AsyncMock(
+        return_value=[
+            {
+                "text": "x",
+                "metadata": {"file": "a.py", "chunk_index": 0},
+                "bm25_score": 1.0,
+                "dense_score": 0.0,
+                "final_score": 1.0,
+            }
+        ]
     )
-    searcher._vector_search_async = MagicMock(return_value=asyncio.sleep(0, result=[]))
-    searcher._ensure_multi_reranker_async = MagicMock(return_value=asyncio.sleep(0, result=None))
-    searcher._apply_multi_reranker_async = MagicMock(
-        side_effect=lambda q, res, lim: asyncio.sleep(0, result=res)
+    searcher._vector_search_async = AsyncMock(return_value=[])
+    searcher._ensure_multi_reranker_async = AsyncMock(return_value=None)
+    searcher._apply_multi_reranker_async = AsyncMock(
+        side_effect=lambda q, res, lim: res
     )
 
     res = searcher.search_with_mode("anything", mode="quality", limit=6)
