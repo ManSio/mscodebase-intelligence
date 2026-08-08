@@ -32,6 +32,13 @@
 **Fix:** нижняя граница → >=5.3.0 (или удалить зависимость).
 **Status:** ✅ Fixed (2026-08-08: pyproject → `>=5.3.0,<5.15.0`; CVE-2026-4372 фиксится ТОЛЬКО 5.3.0) | **Guard:** pip-audit в CI; rationale-комментарий в pyproject
 
+## 2026-08-08 — CI тайминг-флейк: test_dead_pid_stolen_immediately, порог steal 0.2s (FIXED 🟢)
+
+**Symptom:** ubuntu-джоба падала периодически: «steal занял 0.27s — ждал зря» (assert elapsed < 0.2) на загруженном раннере; rerun проходил.
+**Root Cause:** fast-path steal DEAD-PID включает grace-повтор _read_holder (sleep poll_interval 0.25s, database_lock.py:518-524) + накладные под нагрузкой → 0.27s > жёсткого порога 0.2s; порог был уже собственного sleep-гранулярия кода.
+**Fix:** tests/test_database_lock_selfhealing.py:321-329 — wait_timeout 0.3→0.8 (не участвует в DEAD-пути, только HEALTHY/AMBIGUOUS) + порог <0.2→<0.5: fast-path (≤0.27s) с запасом 2x; регрессия «steal ждёт полный wait_timeout» (0.8s) всё ещё ловится. Локально 5/5, CI green 6/6 + clean-state (c4f540bc).
+**Status:** ✅ Fixed (запушено c4f540bc) | **Guard:** CI ubuntu-джобы; при повторе флейка — ещё +0.2s к порогу.
+
 ## 2026-08-08 — Pre-commit gate-zero флейк: tests/test_connection.py::test_setup (🟡 наблюдаем)
 
 **Symptom:** при `git commit` gate-zero (verify_diary, полный pytest под C:\Python314 системным python) падает 1 тест из ~1026: `tests/test_connection.py::test_setup` — «1 failed, 1025 passed». Не воспроизводится standalone ни под venv, ни под системным python, ни полным сьютом (2 попытки × обе среды — 0 failed); CI (ubuntu+windows) зелёный.
