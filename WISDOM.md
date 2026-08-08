@@ -41,6 +41,10 @@
 - Windows-only тесты БЕЗ skipif(win32) валят ubuntu-джобы (normalize_diag_uri
   драйв-букв: на POSIX /d:/... — обычный путь). Guard: проверять ubuntu-джобы
   CI, не только локальный Windows-прогон.
+- pip-audit -r lock --no-deps БЕЗ --disable-pip всё равно резолвит через pip
+  в temp-venv (requirement.py:161-168: --no-deps лишь разрешает preresolved-путь)
+  → pywin32 валит ubuntu, numpy 2.4.6 без колёс для py3.10. На Windows py3.14
+  локально маскируется (установка успешна). Guard: --no-deps --disable-pip.
 - `gh` CLI авторизован (ManSio) — `gh run view <run> --job <id> --log` даёт
   точные фейлы CI, аннотации GitHub — только «exit code 1».
 
