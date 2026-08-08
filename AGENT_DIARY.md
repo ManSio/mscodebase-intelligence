@@ -27,7 +27,7 @@
 ## [2026-08-08] — CI ubuntu: test_normalize_diag_uri без Windows-skip (FIXED, CI зелёный на 3.10/3.11/3.12 + clean-state)
 
 **Status:** ✅ Fixed (код+тесты; ruff чист; ubuntu-фейлы 2 шт на ВСЕХ версиях + clean-state — одна причина)
-**verified_from_clean_state:** ⚠️ не проверено — прогон CI после push (ubuntu 3.10/3.11/3.12 + clean-state ожидаемо зелёные; Windows уже зелёный на #246)
+**verified_from_clean_state:** ✅ да — CI-прогон #247 (5a771789): 7/7 джобов success (windows+ubuntu × 3.10/3.11/3.12 + clean-state), впервые с #225
 **Root Cause:** tests/test_lsp_tools.py: test_normalize_diag_uri_win_drive + test_normalize_diag_uri_already_canonical — Windows-специфичная нормализация драйв-букв (d%3A→D:) БЕЗ skipif(win32) → на ubuntu Path('/d:/...').resolve() даёт POSIX-URI и тест падает (AssertionError file:///home... != file:///D:...). Это и был тайный clean-state ubuntu-фейл (все #236-#243: 2 failed 989 passed) + matrix ubuntu.
 **Fix:** +skipif(sys.platform != 'win32') на оба теста (+import sys). test_normalize_diag_uri_idempotent оставлен — его assert платформенно-нейтрален (проходит на ubuntu).
 **Guard:** gh run view --log (gh CLI авторизован) — точный список фейлов за 1 запрос; CI-прогон после push.
