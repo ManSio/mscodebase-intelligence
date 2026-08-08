@@ -15,6 +15,15 @@
 
 ---
 
+## [2026-08-08] — PYSEC-2026-3552: cryptography 49.0.0 в lock → 50.0.0 + pip-audit в CI (FIXED)
+
+**Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (изменения вне Python-кода: lock-запись + ci.yml); шаг проверится при следующем push
+**Root Cause:** requirements-lock.txt пинил cryptography==49.0.0 — транзитивная зависимость (mcp→pyjwt), PYSEC-2026-3552, фикс в 50.0.0; сканер CVE в CI отсутствовал (аудит PDF 2026-08-08, пункт «SCA»).
+**Fix:** (1) requirements-lock.txt:10: cryptography 49.0.0→50.0.0 — проверено на 50.0.0: pyjwt 2.13.0 RS256 roundtrip OK + import mcp OK (§5.19); (2) ci.yml: шаг `pip-audit==2.10.1 -r requirements-lock.txt` между version-check и test suite.
+**Guard:** pip-audit (OSV) против requirements-lock.txt в CI — новые CVE в любом транзитивном пине = красный CI. ⚠️ Вступит в силу в расширении после install.py + перезапуска MCP (extension venv ещё на 49.0.0).
+**Pattern:** P-002-класс «ручная проверка вместо инструмента» — CVE в транзитивных пинах невидимы без сканера.
+
 ## [2026-08-08] — CI-механический guard в AGENTS.md §7 + code-scanning алерты 22/24 (DONE)
 
 **Status:** ✅ Fixed (доки+тесты; ruff check src/ tests/ = 0, TestAuditLog 2 passed)

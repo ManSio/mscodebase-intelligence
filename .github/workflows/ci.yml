@@ -47,6 +47,13 @@ jobs:
       - name: Check version consistency
         run: python scripts/bump_version.py --check
 
+      - name: Audit dependencies (pip-audit)
+        # Pinned: pip-audit 2.10.1 проверен 2026-08-08 (PYSEC-2026-3552).
+        # Бамп — только после локального прогона `pip-audit -r requirements-lock.txt`.
+        run: |
+          python -m pip install "pip-audit==2.10.1"
+          pip-audit -r requirements-lock.txt
+
       - name: Full test suite (no filters)
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
         timeout-minutes: 10
