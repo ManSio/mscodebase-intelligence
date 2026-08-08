@@ -15,6 +15,15 @@
 
 ---
 
+## [2026-08-08] — CI: version-compat фейлы на 3.10-3.12 (tomllib/read_text-newline/UNC) (FIXED, matrix локально зелёный на 3.10+3.11)
+
+**Status:** ✅ Fixed (код+тесты; 3.10: 995 passed / 10 skipped, 3.11: 1000 passed / 5 skipped, coverage 46.6% > 38; ruff чист)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh после фикса не гонялся; matrix-команда CI на py3.10 и py3.11 — EXIT 0
+**Root Cause:** (1) 3.10: tests/test_versions.py `import tomllib` — stdlib с 3.11+ (PEP 680) → collection error → exit 2 (это и есть тайный фейл clean-state/matrix на 3.10!); (2) 3.11-3.12: `Path.read_text(newline=...)` в test_sha256_text_equals_file — параметр добавлен в 3.13 (write_text newline — работает); (3) 3.10-3.12: `_path_to_uri/_uri_to_path/_normalize_diag_uri` — `Path(UNC).resolve()` бросает FileNotFoundError (realpath на несуществующий сервер), ловился только ValueError, а в except повторный resolve (двойной баг); (4) language_pack 26 vs 53 — артефакт stale 0.13.0 в локальном 3.11 (пин >=1.14.3 на CI ставит 1.14.3).
+**Fix:** tomllib → tomli fallback + `tomli>=2.0; python_version<'3.11'` в dev-deps; read_text → f.open(newline=...); UNC-ветки ловят OSError → fallback `Path(...).as_uri()/as_posix()` без resolve.
+**Guard:** полный matrix на py3.10 и py3.11 (команда CI) = EXIT 0; CI-ран на 3.12 — проверка после push. Ловушка: НЕ проверять только на py3.14 — CI matrix 3.10-3.12.
+**Pattern:** P-002-класс «тест проверялся на одной версии Python» — версионно-зависимые API (tomllib/read_text newline/realpath UNC) не видны на 3.14; guard — прогон на всех версиях matrix.
+
 ## [2026-08-08] — CI красный 18 прогонов (#226-#243): lint 35 ошибок + clean-state ubuntu (FIXED lint, clean-state pending)
 
 **Status:** ✅ Fixed (lint: 35 ошибок → 0; matrix-команда: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% при гейте 38%) | ⏳ clean-state ubuntu — не воспроизводится локально, ждёт лог CI

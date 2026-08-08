@@ -6,7 +6,11 @@ pyproject.toml, extension.toml и src/__init__.py обязаны совпада�
 """
 
 import re
-import tomllib
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # Python 3.10 (CI matrix includes 3.10)
+    import tomli as tomllib  # type: ignore[no-redef]
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
