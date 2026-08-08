@@ -38,8 +38,8 @@
 **Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (изменения вне Python-кода: lock-запись + ci.yml); шаг проверится при следующем push
 **Root Cause:** requirements-lock.txt пинил cryptography==49.0.0 — транзитивная зависимость (mcp→pyjwt), PYSEC-2026-3552, фикс в 50.0.0; сканер CVE в CI отсутствовал (аудит PDF 2026-08-08, пункт «SCA»).
-**Fix:** (1) requirements-lock.txt:10: cryptography 49.0.0→50.0.0 — проверено на 50.0.0: pyjwt 2.13.0 RS256 roundtrip OK + import mcp OK (§5.19); (2) ci.yml: шаг `pip-audit==2.10.1 -r requirements-lock.txt` между version-check и test suite.
-**Guard:** pip-audit (OSV) против requirements-lock.txt в CI — новые CVE в любом транзитивном пине = красный CI. ⚠️ Вступит в силу в расширении после install.py + перезапуска MCP (extension venv ещё на 49.0.0).
+**Fix:** (1) requirements-lock.txt:10: cryptography 49.0.0→50.0.0 — проверено на 50.0.0: pyjwt 2.13.0 RS256 roundtrip OK + import mcp OK (§5.19); (2) ci.yml: шаг `pip-audit==2.10.1 -r requirements-lock.txt --no-deps --disable-pip` между version-check и test suite. Два красных CI до финального: (а) без --no-deps — pip-audit резолвит lock через pip в temp-venv → pywin32 (Windows-only) валит ubuntu, numpy 2.4.6 без колёс для py3.10; (б) --no-deps БЕЗ --disable-pip всё равно резолвит через venv (требование из requirement.py:161-168 — флаг лишь разрешает preresolved-путь) — на чужой платформе локальный зелёный маскировал ошибку.
+**Guard:** pip-audit (OSV) против requirements-lock.txt в CI — новые CVE в любом транзитивном пине = красный CI; CI green 6/6 + clean-state. ⚠️ Вступит в силу в расширении после install.py + перезапуска MCP (extension venv ещё на 49.0.0).
 **Pattern:** P-002-класс «ручная проверка вместо инструмента» — CVE в транзитивных пинах невидимы без сканера.
 
 ## [2026-08-08] — CI-механический guard в AGENTS.md §7 + code-scanning алерты 22/24 (DONE)

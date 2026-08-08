@@ -1,5 +1,5 @@
 <div align="center">
-
+    <meta name="google-site-verification" content="wezigItrx4iAeX5Cxs8KJbzHJhs7Y3eI6W9ZWqzbfHU" />
 <img src="logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
 
 [🇬🇧 English](README.md) • [🇷🇺 Русский](docs/ru/README.md) • [🇨🇳 中文](docs/zh/README.md)
