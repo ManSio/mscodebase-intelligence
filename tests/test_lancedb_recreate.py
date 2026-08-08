@@ -17,6 +17,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -321,6 +322,100 @@ def test_write_records_rollback_on_failed_add(tmp_db_root, monkeypatch):
     assert mgr.table.count_rows() == 1, "Сбой add не должен оставлять таблицу без чанков файла"
     df = mgr.table.search([0.5] * 768).limit(5).to_pandas()
     assert (df["text"] == "OLD_MARKER").any(), "Старый чанк должен пережить rollback"
+
+
+def test_rollback_serialized_with_reset_connection(tmp_db_root):
+    """Регрессия F3: rollback (restore) и reset_connection сериализованы одним lock.
+
+    Риск: restore(prev_version) при конкурентном внешнем reset_connection мог бы
+    откатить чужую версию (например, пересозданную таблицу). В проде Indexer
+    передаёт ОДИН _table_write_lock и в LanceDBManager, и в LanceDBWriter, а
+    reset_connection/switch_db/recreate_table_physical захватывают его. Тест
+    фиксирует: (1) identity lock'ов; (2) reset_connection блокируется, пока
+    writer держит lock (т.е. не может пересечь delete→add→restore-окно).
+    """
+    shared_lock = threading.RLock()
+    project_path = tmp_db_root / "project"
+    project_path.mkdir(parents=True, exist_ok=True)
+    mgr = LanceDBManager(
+        db_path=tmp_db_root / "index.lancedb",
+        embedder=None,
+        project_path=project_path,
+        embedding_dim=768,
+        table_write_lock=shared_lock,
+    )
+    mgr.table.add([{
+        "id": "old_0",
+        "vector": [0.5] * 768,
+        "text": "OLD_MARKER",
+        "text_full": "OLD_MARKER",
+        "file_path": "test.py",
+        "file_hash": "h1",
+        "chunk_index": 0,
+        "source": "test",
+        "indexed_at": "2026-08-08T00:00:00",
+        "summary": "",
+        "layer": "core",
+        "module_name": "test",
+        "hierarchy_level": "function",
+        "is_public": True,
+        "symbol_type": "function",
+        "parent_id": "",
+        "callees": "",
+        "health_score": 0.0,
+        "health_band": "",
+        "chunk_hash": "c1",
+        "start_line": 1,
+        "end_line": 2,
+    }])
+    writer = LanceDBWriter(
+        table=mgr.table,
+        table_write_lock=shared_lock,
+        index_lock=threading.RLock(),
+        embedder=SimpleNamespace(embedding_dim=768),
+        db_manager=mgr,
+    )
+
+    # (1) writer и manager обязаны разделять ОДИН lock-объект (как в Indexer)
+    assert writer._table_write_lock is mgr._write_lock, (
+        "writer и manager должны использовать один lock (иначе reset_connection "
+        "может пересечься с rollback-restore)"
+    )
+
+    # (2) пока writer держит lock (окно delete→add→restore) — reset_connection ждёт
+    entered = threading.Event()
+    release = threading.Event()
+
+    def holder():
+        with writer._table_write_lock:
+            entered.set()
+            release.wait(5)
+
+    t1 = threading.Thread(target=holder)
+    t1.start()
+    assert entered.wait(5), "holder не захватил lock"
+
+    reset_result = {}
+
+    def do_reset():
+        try:
+            mgr.reset_connection()
+            reset_result["done"] = True
+        except Exception as e:  # pragma: no cover — сбой должен проявиться в assert
+            reset_result["err"] = repr(e)
+
+    t2 = threading.Thread(target=do_reset)
+    t2.start()
+    time.sleep(0.3)
+    assert "done" not in reset_result, (
+        "reset_connection не должен выполняться, пока writer держит lock "
+        "(иначе restore откатит чужую версию)"
+    )
+
+    release.set()
+    t1.join(5)
+    t2.join(5)
+    assert reset_result.get("done") is True, f"reset_connection должен пройти после освобождения lock: {reset_result}"
 
 
 def test_format_results_no_garbage_render():
