@@ -33,6 +33,15 @@
 **Guard:** +4 регресс-теста: test_llama_mutex (Windows-only, ловит утечку владения через WaitForSingleObject(h,0)); test_submit_sync_failure_cleanup; test_submit_sync_dedup_concurrent; test_write_records_rollback_on_failed_add. Обобщение: grep CreateMutexW(None, True) = 0; except RuntimeError:pass с потерей состояния = 0.
 **Pattern:** NEW (аудит→фикс за один цикл; урок: LanceDB versioning — нативный механизм атомарности, лучше выдуманного temp+os.replace).
 
+## [2026-08-08] — F3 остаточный риск закрыт: rollback и reset_connection сериализованы единым lock (DONE, +1 тест)
+
+**Status:** ✅ Fixed (тест; 9/9 test_lancedb_recreate, ruff чист; полный прогон 1027 passed — 1 транзиентный фейл test_connection из-за живого MCP, повтор зелёный)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/test_lancedb_recreate.py → 9 passed
+**Root Cause:** — (не инцидент; закрытие остаточного риска F3): в KNOWN_ISSUES оставалась формулировка «restore при конкурентном внешнем reset_connection может откатить чужую версию» — ПРЕДПОЛОЖЕНИЕ без проверки (§1.13). Факт: reset_connection (db_manager.py:517), switch_db (:369), recreate_table_physical (:470), close_for_maintenance (:304), _warmup_cache (:262) — ВСЕ под self._write_lock, который в Indexer = ТОТ ЖЕ объект, что LanceDBWriter._table_write_lock (indexer.py:89/138 передают один threading.RLock()). Сериализация существовала (P1-13 audit) — не было теста, фиксирующего её.
+**Fix:** +test_rollback_serialized_with_reset_connection (test_lancedb_recreate.py): (1) identity writer._table_write_lock is mgr._write_lock; (2) reset_connection блокируется, пока writer держит lock (события + таймаут); (3) после освобождения — reset_connection выполняется.
+**Guard:** assert identity lock'ов в тесте; KNOWN_ISSUES F3 — риск закрыт. Урок: «остаточный риск» обязан верифицироваться до записи (тот же класс, что P-002 «предположение вместо проверки»).
+**Pattern:** P-002-класс «предположение вместо проверки» — риск был записан без чтения lock-структуры.
+
 ## [2026-08-08] — PYSEC-2026-3552: cryptography 49.0.0 в lock → 50.0.0 + pip-audit в CI (FIXED)
 
 **Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)

@@ -18,7 +18,7 @@
 **Symptom:** `write_records` (db_writer.py:122-134) и `bulk_write` (:310-327): delete до add под lock; сбой add (≠ table-not-found) → чанки файла удалены без новых данных.
 **Root Cause:** комментарий «Atomic write» не соответствует поведению; lock защищает от конкурентов, не от сбоя.
 **Fix (варианты):** add-first (записать новые → удалить старые; при сбое — дубли, не потеря); replay/переиндексация при ошибке; версии LanceDB. Temp+os.replace из отчёта для LanceDB малоприменим (таблица = директория с версиями).
-**Status:** ✅ Fixed (2026-08-08: write_records/bulk_write — table.version до delete + restore(prev_version) при сбое add; +test_write_records_rollback_on_failed_add) | **Guard:** тест на сбой add после delete; остаточный риск: restore при конкурентном внешнем reset_connection
+**Status:** ✅ Fixed (2026-08-08: write_records/bulk_write — table.version до delete + restore(prev_version) при сбое add; +test_write_records_rollback_on_failed_add). Остаточный риск «restore vs конкурентный reset_connection» — ЗАКРЫТ (2026-08-08): reset_connection/switch_db/recreate_table_physical/close_for_maintenance — ВСЕ под тем же _write_lock (P1-13, единый объект, Indexer передаёт его и в manager, и в writer); +test_rollback_serialized_with_reset_connection (identity lock'ов + reset ждёт writer-окно) | **Guard:** 2 регресс-теста; assert writer._table_write_lock is mgr._write_lock
 
 ## 2026-08-08 — deep-research-report.md P1: TaskQueue.submit_sync «вечная задача» + race (FIXED 🟢)
 
