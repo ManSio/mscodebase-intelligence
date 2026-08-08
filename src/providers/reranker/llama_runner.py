@@ -182,7 +182,10 @@ class _InterProcessLock:
         if sys.platform == 'win32':
             # Windows Named Mutex — атомарный захват
             kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-            self._mutex_handle = kernel32.CreateMutexW(None, True, self._name)
+            # bInitialOwner=False: владение только через WaitForSingleObject.
+            # True = рекурсивный захват (recursion 2 при WaitForSingleObject),
+            # один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок).
+            self._mutex_handle = kernel32.CreateMutexW(None, False, self._name)
             WAIT_MS = 10_000  # 10 сек таймаут
             result = kernel32.WaitForSingleObject(self._mutex_handle, WAIT_MS)
             if result not in (0, 128):  # 0=OWNED, 128=ABANDONED

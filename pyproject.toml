@@ -76,8 +76,11 @@ dependencies = [
     # ONNX Embedder
     "onnxruntime>=1.17.0",
     "openvino>=2026.0.0",
-    # Reranker (transformers-based)
-    "transformers>=4.36.0,<5.15.0",
+    # Reranker (transformers-based; легаси — llama.cpp, но tokenizers используются)
+    # Pinned: >=5.3.0 закрывает CVE-2026-1839 (фикс 5.0.0) и CVE-2026-4372
+    # (RCE через _attn_implementation_internal, обходит trust_remote_code — фикс ТОЛЬКО 5.3.0).
+    # Lock уже на 5.14.1; нижняя граница защищает установку БЕЗ lock. Проверено 2026-08-08 (OSV).
+    "transformers>=5.3.0,<5.15.0",
     "tokenizers>=0.15.0",
 ]
 

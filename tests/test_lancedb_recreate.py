@@ -16,12 +16,15 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import lancedb
 import pytest
 
 from src.core.indexing.db_manager import LanceDBManager
+from src.core.indexing.db_writer import LanceDBWriter
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -248,6 +251,76 @@ def test_is_real_result_filters_error_dict():
         "metadata": {"file": "src/a.py", "chunk_index": 0, "layer": "core"},
     }
     assert SearchCodeTool._is_real_result(real) is True
+
+
+def test_write_records_rollback_on_failed_add(tmp_db_root, monkeypatch):
+    """Регрессия deep-research-report.md P1: сбой add после delete НЕ теряет чанки.
+
+    Было: delete затем add; add падает (≠ table-not-found) → файл остаётся
+    без чанков («база сломана»). Фикс: перед delete фиксируем table.version;
+    при сбое add — restore(prev_version), старые данные возвращаются.
+    """
+    mgr = _make_manager(tmp_db_root)
+    mgr.table.add([{
+        "id": "old_0",
+        "vector": [0.5] * 768,
+        "text": "OLD_MARKER",
+        "text_full": "OLD_MARKER",
+        "file_path": "test.py",
+        "file_hash": "h1",
+        "chunk_index": 0,
+        "source": "test",
+        "indexed_at": "2026-08-08T00:00:00",
+        "summary": "",
+        "layer": "core",
+        "module_name": "test",
+        "hierarchy_level": "function",
+        "is_public": True,
+        "symbol_type": "function",
+        "parent_id": "",
+        "callees": "",
+        "health_score": 0.0,
+        "health_band": "",
+        "chunk_hash": "c1",
+        "start_line": 1,
+        "end_line": 2,
+    }])
+    assert mgr.table.count_rows() == 1
+
+    writer = LanceDBWriter(
+        table=mgr.table,
+        table_write_lock=threading.RLock(),
+        index_lock=threading.RLock(),
+        embedder=SimpleNamespace(embedding_dim=768),
+        db_manager=mgr,
+    )
+
+    parsed = {
+        "rel_path": "test.py",
+        "current_hash": "h2",
+        "escaped_path": "test.py",
+        "existing_hash": "h1",
+        "chunk_texts": ["new chunk"],
+        "chunk_hashes": ["c2"],
+        "chunk_texts_full": ["new chunk"],
+        "chunk_metadatas": [{}],
+        "health": {},
+        "source": "test",
+    }
+    embeddings = [[0.1] * 768]
+
+    def _boom(records):
+        raise ValueError("dimension mismatch")
+
+    monkeypatch.setattr(mgr.table, "add", _boom)
+
+    with pytest.raises(ValueError):
+        writer.write_records(parsed=parsed, embeddings=embeddings)
+
+    # Старые чанки на месте: сбой add откатил delete (rollback по версии)
+    assert mgr.table.count_rows() == 1, "Сбой add не должен оставлять таблицу без чанков файла"
+    df = mgr.table.search([0.5] * 768).limit(5).to_pandas()
+    assert (df["text"] == "OLD_MARKER").any(), "Старый чанк должен пережить rollback"
 
 
 def test_format_results_no_garbage_render():

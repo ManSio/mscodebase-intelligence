@@ -118,9 +118,14 @@ class LanceDBWriter:
                 "end_line": meta.get("end_line", 0),
             })
 
-        # Atomic write: delete old + add new
+        # Atomic write: delete old + add new (rollback на версию при сбое add)
         with self._table_write_lock:
+            prev_version = None
             if existing_hash is not None:
+                try:
+                    prev_version = self.table.version  # для отката delete при сбое add
+                except Exception:
+                    prev_version = None
                 try:
                     self.table.delete(f"file_path = '{escaped_path}'")
                 except Exception as del_err:
@@ -141,6 +146,15 @@ class LanceDBWriter:
                     else:
                         raise
                 else:
+                    # Сбой записи: откатываем delete, чтобы не оставить файл без чанков
+                    if prev_version is not None:
+                        try:
+                            self.table.restore(prev_version)
+                            logger.warning(
+                                f"Rolled back table to version {prev_version} after failed add for {rel_path_str}"
+                            )
+                        except Exception as restore_err:
+                            logger.warning(f"Restore to version {prev_version} failed: {restore_err}")
                     raise
 
         return data_records
@@ -302,12 +316,18 @@ class LanceDBWriter:
             return 0
 
         with self._table_write_lock:
-            # Phase 1: batch delete (all stale file_paths)
-            for ep in paths_to_delete:
+            # Phase 1: batch delete (all stale file_paths) + фикс версии для отката
+            prev_version = None
+            if paths_to_delete:
                 try:
-                    self.table.delete(f"file_path = '{ep}'")
+                    prev_version = self.table.version
                 except Exception:
-                    pass
+                    prev_version = None
+                for ep in paths_to_delete:
+                    try:
+                        self.table.delete(f"file_path = '{ep}'")
+                    except Exception:
+                        pass
 
             # Phase 2: single bulk add
             try:
@@ -321,6 +341,15 @@ class LanceDBWriter:
                     else:
                         raise
                 else:
+                    # Сбой bulk add: откатываем batch delete (файлы не должны остаться без чанков)
+                    if prev_version is not None:
+                        try:
+                            self.table.restore(prev_version)
+                            logger.warning(
+                                f"Rolled back table to version {prev_version} after failed bulk add"
+                            )
+                        except Exception as restore_err:
+                            logger.warning(f"Restore to version {prev_version} failed: {restore_err}")
                     raise
 
         return len(all_records)
