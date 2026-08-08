@@ -60,13 +60,13 @@
 
 ---
 
-## 2026-08-08 — CI красный 18 прогонов #226-#243: ruff 35 ошибок (FIXED) + clean-state ubuntu (⏳ pending)
+## 2026-08-08 — CI красный 18 прогонов #226-#243: ruff 35 ошибок + clean-state ubuntu (FIXED, CI 7/7 зелёный #247)
 
 **Symptom:** GitHub Actions: 18 consecutive failures. Все 6 matrix-джобов падали на шаге «Lint (ruff)» (тесты НЕ запускались); clean-state джоб (ubuntu) падал на «Verify clean state» exit 1 с #236.
-**Root Cause:** (1) lint: 35 нарушений — F401/I001 (автофикс), F841 ×4 (di_container/runtime_coordinator/test), E741 (`l` в cypher_schema), BLE001 ×13 (project_resolution ×9 — новый файл вне per-file-ignore, graph_adapter ×3 BL-05, lsp_tools ×1) — сессии пушили без полного `ruff check src/ tests/`; (2) clean-state: ubuntu exit 1, локально не воспроизводится (установка из lock резолвится, wheel'ы есть; #232-#234 — инфра-фейлы «Set up job»).
-**Fix:** (1) 35 ошибок → 0 (19 автофикс + 16 ручных: сужение except для sqlite, noqa BL-05, удаление мёртвых переменных); восстановлен реэкспорт resolve_project_root/reset_project_root_cache из src/mcp/server.py (F401-автофикс снёс фасад — ImportError в base.py:127); (2) verify_clean_state.sh: явный exit 1 при pip-фейле вместо тихого продолжения. Matrix-команда локально: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% (>38).
-**Status:** ✅ Fixed (lint) | ⏳ clean-state ubuntu — требует лога CI (нет прав); после push matrix ubuntu покажет фейл в «Full test suite»
-**Guard:** ruff check src/ tests/ = 0; KNOWN_ISSUES#2026-08-08-unclosed-transport закрыт ранее.
+**Root Cause:** (1) lint: 35 нарушений — F401/I001 (автофикс), F841 ×4, E741, BLE001 ×13 — сессии пушили без полного `ruff check src/ tests/`; (2) clean-state/matrix ubuntu: test_lsp_tools test_normalize_diag_uri_win_drive/already_canonical — Windows-специфичная нормализация драйв-букв БЕЗ skipif(win32); (3) 3.10: tomllib (3.11+); (4) 3.11-3.12: read_text(newline=...) 3.13+ и Path(UNC).resolve() FileNotFoundError.
+**Fix:** 35 lint-ошибок → 0 (сужеение BLE001, noqa BL-05, реэкспорт server.py восстановлен); skipif(win32) на 2 normalize-теста; tomli-fallback + dev-dep; read_text→open; UNC except OSError. verify_clean_state.sh: exit 1 при pip-фейле.
+**Status:** ✅ Fixed — CI run #247 (5a771789): 7/7 джобов success (windows+ubuntu × 3.10/3.11/3.12 + clean-state)
+**Guard:** ruff check src/ tests/ = 0; matrix-команда на py3.10/3.11; gh run view --log-failed для точных фейлов; НЕ проверять только на py3.14/Windows.
 
 ## 2026-08-08 — CI: version-compat фейлы 3.10-3.12 — tomllib / read_text(newline) / UNC resolve (FIXED)
 
