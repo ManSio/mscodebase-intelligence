@@ -152,6 +152,17 @@ class SearchConfig:
     )
     max_query_expansions: int = int(os.getenv("MAX_QUERY_EXPANSIONS", "3"))
 
+    # Late enrichment (WS3, эксперимент): обогащение топ-N результатов
+    # метаданными из самого чанка (module/headline/imports) перед выдачей.
+    # Off по умолчанию — поведение поиска неизменно без флага.
+    # field(default_factory) — чтобы reload_config() перечитывал env.
+    late_enrichment: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_LATE_ENRICHMENT", "false"
+        ).lower()
+        == "true"
+    )
+
 
 @dataclass
 class IndexConfig:

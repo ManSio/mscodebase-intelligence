@@ -148,6 +148,7 @@ experiments/github_research_log.md
 experiments/sandbox_*.py
 experiments/_*.py
 experiments/_*.txt
+experiments/benchmark2/out/
 experiments/_*.bat
 experiments/_*.sh
 experiments/evaluation_output.txt

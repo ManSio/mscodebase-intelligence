@@ -33,7 +33,10 @@ def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
 
     tmp_fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".msc.tmp")
     try:
-        with os.fdopen(tmp_fd, "w", encoding=encoding) as f:
+        # newline="\n": детерминированная запись (без \r\n-трансляции Windows).
+        # Иначе SHA-256 логического текста != хэша байтов на диске →
+        # пост-верификация ChangeIntent (WS4) падает на Windows.
+        with os.fdopen(tmp_fd, "w", encoding=encoding, newline="\n") as f:
             f.write(content)
             f.flush()
             os.fsync(f.fileno())
@@ -44,6 +47,13 @@ def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
         except OSError:
             pass
         raise
+
+
+def _sha256_text(text: str) -> str:
+    """SHA-256 строкового содержимого (для expected_hash в ChangeIntent)."""
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class _R(str):
@@ -131,6 +141,71 @@ class WriteTool(MCPTool):
         if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name):
             return f"Invalid {context} identifier: '{name}'. Must match [A-Za-z_][A-Za-z0-9_]*"
         return None
+
+    # ── WS4: Execution Contract 2.0 (ChangeIntent / provenance) ──────────────
+    # (a) base_commit + hashes фиксируются в ledger до/после записи;
+    # (b) пост-верификация: expected_hash сверяется с диском.
+    # Любая ошибка ledger'а НЕ ломает запись — только warning.
+
+    def _contract_project_root(self) -> str:
+        try:
+            return str(Path(self.resolve_indexer().project_path))
+        except Exception:  # noqa: BLE001
+            return str(Path.cwd())
+
+    def _contract_base_commit(self) -> str:
+        try:
+            from src.core.execution_contract import get_base_commit
+
+            return get_base_commit(self._contract_project_root())
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _contract_record(
+        self,
+        operation: str,
+        file_path: str,
+        before_hash: Optional[str],
+        after_hash: Optional[str],
+        expected_hash: Optional[str] = None,
+        symbol: str = "",
+        base_commit: str = "",
+    ) -> Dict[str, Any]:
+        """Записывает ChangeIntent в ledger (+ пост-верификация при expected_hash).
+
+        Returns: dict {"verified": bool, ...} — пустой, если ledger недоступен.
+        """
+        try:
+            from src.core.execution_contract import (
+                ChangeIntent,
+                ChangeIntentLedger,
+                ExecutionContract,
+            )
+
+            if not base_commit:
+                base_commit = self._contract_base_commit()
+            intent = ChangeIntent(
+                operation=operation,
+                file=file_path,
+                base_commit=base_commit,
+                before_hash=before_hash or "",
+                after_hash=after_hash or "",
+                expected_hash=expected_hash or "",
+                symbol=symbol,
+            )
+            ledger = ChangeIntentLedger(self._contract_project_root())
+            if expected_hash:
+                verify = ExecutionContract.verify_file_write(
+                    file_path, expected_hash=expected_hash
+                )
+                intent.verified = bool(verify.get("verified"))
+                ledger.record(intent)
+                return verify
+            ledger.record(intent)
+            return {"verified": True, "recorded": True}
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"ChangeIntent record skipped for {file_path}: {e}")
+            return {}
 
     @error_boundary("write", timeout_ms=30000)
     @modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600.0)
@@ -759,6 +834,14 @@ class WriteTool(MCPTool):
         errors = []
         files_modified = []
 
+        # WS4: base_commit резолвим один раз на вызов (в потоке, чтобы не
+        # блокировать event loop git-вызовом; кэш TTL=30с в execution_contract).
+        base_commit = ""
+        try:
+            base_commit = await asyncio.to_thread(self._contract_base_commit)
+        except Exception:  # noqa: BLE001
+            pass
+
         for file_path, file_changes in by_file.items():
             try:
                 abs_path = Path(file_path).resolve()
@@ -767,6 +850,7 @@ class WriteTool(MCPTool):
                     continue
                 content = abs_path.read_text(encoding="utf-8", errors="replace")
                 lines = content.splitlines(True)
+                before_hash = _sha256_text(content)
                 file_changes.sort(key=lambda c: c["line"], reverse=True)
                 for change in file_changes:
                     idx = change["line"] - 1
@@ -775,7 +859,17 @@ class WriteTool(MCPTool):
                         if new_line != lines[idx]:
                             lines[idx] = new_line
                             applied += 1
-                _atomic_write(abs_path, "".join(lines))
+                intended = "".join(lines)
+                _atomic_write(abs_path, intended)
+                # WS4: ChangeIntent — provenance + пост-верификация.
+                self._contract_record(
+                    "replace",
+                    str(abs_path),
+                    before_hash=before_hash,
+                    after_hash=_sha256_text(intended),
+                    expected_hash=_sha256_text(intended),
+                    base_commit=base_commit,
+                )
                 files_modified.append(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:
@@ -857,6 +951,7 @@ class WriteTool(MCPTool):
                     continue
                 content = abs_path.read_text(encoding="utf-8")
                 text_lines = content.splitlines(True)
+                before_hash = _sha256_text(content)
                 lines_to_remove.sort(reverse=True)
                 removed = 0
                 # P3-7 audit: удаляем строку только если она действительно содержит
@@ -873,7 +968,17 @@ class WriteTool(MCPTool):
                                 f"Line {line_no} in {file_path} no longer contains "
                                 f"'{short_name}' — skipped (stale index?)"
                             )
-                _atomic_write(abs_path, "".join(text_lines))
+                intended = "".join(text_lines)
+                _atomic_write(abs_path, intended)
+                # WS4: ChangeIntent для safe_delete (provenance + пост-верификация).
+                self._contract_record(
+                    "safe_delete",
+                    str(abs_path),
+                    before_hash=before_hash,
+                    after_hash=_sha256_text(intended),
+                    expected_hash=_sha256_text(intended),
+                    symbol=short_name,
+                )
                 modified.add(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:

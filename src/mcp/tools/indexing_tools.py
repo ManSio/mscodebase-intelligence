@@ -59,6 +59,17 @@ class NotifyChangeTool(MCPTool):
 
         rel_path_str = str(rel_path.relative_to(project_root))
 
+        # Consistency Engine (WS2): источник изменён — индекс станет устаревшим
+        # до завершения фоновой переиндексации.
+        try:
+            from src.core.consistency import get_consistency_tracker
+
+            _tracker = get_consistency_tracker()
+            _tracker.mark_stale("source", f"notify_change: {rel_path_str}")
+            _tracker.mark_stale("index", f"notify_change: {rel_path_str}")
+        except Exception:  # noqa: BLE001 — консистентность не блокирует индексацию
+            pass
+
         # ★ FIX (fire-and-forget, §5.16 / async): re-embed одного файла через
         # ONNX CPU занимает ДОЛЬШЕ транспортного таймаута Zed -> прямой вызов
         # (даже через to_thread) обрывается по таймауту транспорта, хотя

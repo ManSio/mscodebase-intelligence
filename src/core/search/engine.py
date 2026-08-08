@@ -178,6 +178,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             bm25_weight=get_config().search.bm25_weight,
             dense_weight=get_config().search.dense_weight
         )
+        # Late enrichment (WS3, эксперимент): MSCODEBASE_LATE_ENRICHMENT=true.
+        # По умолчанию выключено — поиск ведёт себя как раньше.
+        self._late_enrichment = bool(
+            getattr(get_config().search, "late_enrichment", False)
+        )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock: Optional[asyncio.Lock] = None  # lazy: создаётся при первом async-вызове (привязка к event loop)
@@ -651,6 +656,19 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         for r in final_results:
             r["_token_savings"] = token_savings
 
+        # === Late Enrichment (WS3, эксперимент): флаг MSCODEBASE_LATE_ENRICHMENT ===
+        if self._late_enrichment and final_results:
+            _t_enrich = time.perf_counter()
+            final_results = self._late_enrich_results(final_results, query)
+            if tracer:
+                tracer.record_stage_timing(
+                    "enrichment_ms", (time.perf_counter() - _t_enrich) * 1000
+                )
+
+        # === Security metadata (WS7): trust + instruction-флаги ===
+        if final_results:
+            final_results = self._stamp_security_metadata(final_results)
+
         return _filter_by_time(final_results, since=since, before=before)
 
     # === mode=ask: генерация ответа через phi-4 ===
@@ -923,6 +941,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             results = self._expand_graph_context(results, query)
             timing["graph_expansion_ms"] = (time.perf_counter() - t1) * 1000
 
+            # WS7: trust + instruction-флаги (fast-mode не идёт через hybrid).
+            if results:
+                results = self._stamp_security_metadata(results)
+
         elif mode == self.MODE_DEEP:
             # DEEP: quality + graph context
             t1 = time.perf_counter()
@@ -1116,6 +1138,116 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             return expanded_results
         except Exception as e:
             logger.debug(f"Graph context expansion error: {e}")
+            return results
+
+    def _late_enrich_results(self, results: List[dict], original_query: str) -> List[dict]:
+        """Late enrichment (WS3, эксперимент): обогащает топ-N результатов.
+
+        Концепция Late Code Chunking (ACL 2026): chunk не обязан быть
+        самодостаточным — контекст добавляется ПОСЛЕ retrieval. Здесь
+        обогащение дешёвое и безопасное: только метаданные из самого чанка,
+        без зависимостей от графа (безопасно при любом состоянии consistency).
+
+        Добавляет в metadata (НЕ меняет text/final_score):
+        - module: модуль файла (путь без расширения, '/' -> '.')
+        - parent_symbol: имя символа, извлечённое из текста чанка
+        - imports: список импортов из metadata чанка (если индексированы)
+        - chunk_headline: первая непустая строка (дешёвый заменитель summary)
+        - enrichment_tokens: оценка добавленных токенов (chars/4)
+        """
+        try:
+            enriched = list(results)
+            total_chars = 0
+            for r in enriched[:10]:
+                meta = r.get("metadata", {})
+                if not isinstance(meta, dict):
+                    continue
+                added: Dict[str, Any] = {}
+
+                # module из пути файла.
+                fpath = str(meta.get("file", "")).replace("\\", "/")
+                if fpath and fpath != "unknown":
+                    mod = fpath.rsplit("/", 1)[-1]
+                    mod = mod.rsplit(".", 1)[0] if "." in mod else mod
+                    added["module"] = mod
+
+                # parent_symbol из текста чанка.
+                text = r.get("text", "") or r.get("text_full", "")
+                name = _extract_symbol_name(text) if text else None
+                if name and len(name) >= 2:
+                    added["parent_symbol"] = name
+
+                # imports из metadata (если индексированы).
+                imports = meta.get("imports")
+                if imports:
+                    if isinstance(imports, str):
+                        try:
+                            imports = json.loads(imports)
+                        except (json.JSONDecodeError, TypeError):
+                            imports = [imports]
+                    if isinstance(imports, list):
+                        added["imports"] = imports[:8]
+
+                # headline: первая непустая строка чанка.
+                if text:
+                    for line in text.splitlines():
+                        line = line.strip()
+                        if line:
+                            added["chunk_headline"] = line[:120]
+                            break
+
+                if added:
+                    meta["context_extra"] = added
+                    total_chars += sum(len(str(v)) for v in added.values())
+
+            if total_chars:
+                # Оценка добавленных токенов (chars/4) для эксперимента.
+                for r in enriched[:10]:
+                    meta = r.get("metadata", {})
+                    if isinstance(meta, dict) and meta.get("context_extra"):
+                        meta["enrichment_tokens"] = total_chars // 4
+
+            if enriched and total_chars:
+                logger.debug(
+                    f"[LateEnrichment] {original_query[:40]!r}: +{total_chars} chars "
+                    f"(~{total_chars // 4} tokens) на топ-{min(len(enriched), 10)}"
+                )
+            return enriched
+        except Exception as e:
+            logger.debug(f"Late enrichment error: {e}")
+            return results
+
+    def _stamp_security_metadata(self, results: List[dict]) -> List[dict]:
+        """Trust + instruction-risk флаги на результаты (WS7).
+
+        Адвизорная маркировка (SoK arXiv 2601.17548: фильтрация не работает —
+        работает видимость): чанки недоверенного корня и тексты с инструкционными
+        паттернами помечаются в metadata. Агент видит предупреждение и трактует
+        чанк как ДАННЫЕ, а не authority (docs/TRUST_BOUNDARY.md).
+
+        Никогда не блокирует выдачу; стоимость микросекундная (10×1KB, regex).
+        """
+        try:
+            from pathlib import Path as _Path
+
+            from src.core.instruction_scan import scan_instruction_risk
+            from src.core.trust_boundary import classify
+
+            root = getattr(self.indexer, "project_path", None)
+            trust = classify(_Path(root) if root else _Path.cwd()).value
+            for r in results:
+                meta = r.get("metadata")
+                if not isinstance(meta, dict):
+                    continue
+                meta.setdefault("trust", trust)
+                text = r.get("text", "") or r.get("text_full", "")
+                if text:
+                    flags = scan_instruction_risk(text)
+                    if flags:
+                        meta["instruction_flags"] = flags
+            return results
+        except Exception as e:
+            logger.debug(f"Security metadata stamp error: {e}")
             return results
 
     async def _ensure_multi_reranker_async(self) -> Optional[MultiProviderReranker]:
