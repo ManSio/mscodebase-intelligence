@@ -7,6 +7,7 @@ verify_diary.py — Ledger-проверка AGENT_DIARY.md против реал
   python scripts/verify_diary.py --fix-missing        # интерактивное добавление маркеров
 """
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -380,11 +381,19 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
     Возвращает (passed, output_snippet).
     """
     try:
+        # REFC-03-обобщение (2026-08-08): git commit экспортирует в hook-окружение
+        # GIT_INDEX_FILE (временный next-index.lock индекса коммита). Полный pytest
+        # наследует его, и тесты с git-субпроцессами в tmp-репо (test_branch_aware_index,
+        # test_bug_correlation и др., без санитизации как в test_commit_memory.py)
+        # писали записи tmp-файлов (a.py) в индекс коммита → «invalid object ... for
+        # 'a.py'» при построении дерева partial-коммита. Санируем GIT_* для pytest.
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         proc = subprocess.Popen(
             [sys.executable, "-m", "pytest", "tests/", "-q", "--tb=line", "--no-header"],
             cwd=str(ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            env=env,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         # 120s кап флаки при нагрузке (pytest ~108-130s) — 300s запас (2026-08-08).
