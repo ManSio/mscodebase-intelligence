@@ -674,6 +674,22 @@ class WriteTool(MCPTool):
                 self._lsp_client = False
         return self._lsp_client if self._lsp_client is not False else None
 
+    async def close(self) -> None:
+        """Останавливает лениво-стартованный LSP-клиент (если создан).
+
+        WriteTool-инстансы живут по вызову/по тесту, а rename/preflight
+        поднимают реальный basedpyright-субпроцесс. Без явного закрытия
+        процесс и его asyncio-транспорт висят до GC →
+        PytestUnraisableExceptionWarning: unclosed transport (Windows Proactor).
+        """
+        lsp = self._lsp_client
+        self._lsp_client = None
+        if lsp is not None and not isinstance(lsp, bool):
+            try:
+                await lsp.stop()
+            except Exception as exc:
+                logger.debug("LSP close failed: %s", exc)
+
     def _indent_new_lines(self, new_code: str, base_indent: int) -> List[str]:
         """Разбивает new_code на строки и выравнивает отступы под base_indent.
 

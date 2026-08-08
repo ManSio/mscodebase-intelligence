@@ -233,7 +233,7 @@ def create_service_collection(
     # BS-9 (аудит Bot_snow): регистрируем ГЛОБАЛЬНЫЙ singleton, а не новый
     # инстанс — иначе passport (DI.resolve) и health (get_global_registry)
     # читали ДВА разных реестра: «Cached: 1» vs «registry_cached_projects: 0».
-    resource_monitor = get_global_resource_monitor()
+    get_global_resource_monitor()  # warm-up singleton (используется adaptive throttling'ом)
 
     from src.core.indexing.project_indexer_registry import get_global_registry
 

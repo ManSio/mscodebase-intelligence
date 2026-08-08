@@ -112,7 +112,6 @@ class RuntimeCoordinator:
         # Layer 2: bridge — DEPRECATED (2026-08-06): LSP-сервер удалён 2026-07-20,
         # писатель моста мёртв (см. src/core/lsp_project_bridge.py). project_root
         # резолвится через PROJECT_PATH env / Zed SQLite / CWD — мост не нужен.
-        bridge_synced = False
 
         # Layer 3: проверка registry + state machine
         try:

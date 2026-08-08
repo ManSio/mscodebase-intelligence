@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.core.lsp_client import LspClient
 from src.mcp.tools.lsp_tools import (
     LspGetCodeActionsTool,
     LspGetDiagnosticsTool,
@@ -19,9 +20,6 @@ from src.mcp.tools.lsp_tools import (
     _format_code_actions,
     _format_diagnostics,
 )
-
-from src.core.lsp_client import LspClient
-
 
 # ── Нормализация publishDiagnostics-uri (регрессия 2026-08-07) ──────────
 # basedpyright на Windows перекодирует uri (file:///D:/x → file:///d%3A/x);

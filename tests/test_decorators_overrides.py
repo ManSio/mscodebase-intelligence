@@ -20,8 +20,8 @@ import pytest
 
 from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.indexing.parser import CodeParser
-from src.core.search.graph_adapter import SymbolIndexAdapter
 from src.core.search.cypher_executor import CypherExecutor
+from src.core.search.graph_adapter import SymbolIndexAdapter
 
 
 @pytest.fixture

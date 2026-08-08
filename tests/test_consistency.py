@@ -2,8 +2,6 @@
 
 import threading
 
-import pytest
-
 from src.core.consistency import (
     ConsistencyState,
     ConsistencyTracker,

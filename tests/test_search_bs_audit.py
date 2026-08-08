@@ -25,7 +25,6 @@ from src.core.search.engine import (
 )
 from src.mcp.tools.search_tools import SearchCodeTool
 
-
 # ─────────────────────────────────────────────────────────────
 # BS-1: файл без кода не индексируется
 # ─────────────────────────────────────────────────────────────
@@ -407,7 +406,7 @@ async def test_bs7_cypher_accepts_query_param():
     assert captured["query"] == "MATCH (n) RETURN n LIMIT 1"
 
     # backward-compat: query пуст, но target заполнен
-    out2 = await GraphQueryTool.execute.__wrapped__(
+    await GraphQueryTool.execute.__wrapped__(
         tool, action="cypher", target="MATCH (m) RETURN m LIMIT 1"
     )
     assert captured["query"] == "MATCH (m) RETURN m LIMIT 1"
@@ -431,7 +430,7 @@ async def test_bs7_flow_accepts_name_param():
     assert out["status"] == "ok"
     assert captured["name"] == "query_vector"
 
-    out2 = await GraphQueryTool.execute.__wrapped__(
+    await GraphQueryTool.execute.__wrapped__(
         tool, action="flow", target="old_var"
     )
     assert captured["name"] == "old_var"
