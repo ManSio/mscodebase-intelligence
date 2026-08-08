@@ -111,29 +111,29 @@ def _get_parent_pid() -> Optional[int]:
     Схема: MCP/LSP → Zed workspace process → Zed main
     Нам нужен Zed workspace process — PID дедушки.
 
-    На Windows psutil может выдать AccessDenied.
-    Fallback: None, используем хеш argv как ключ.
+    WS9: psutil убран (не объявлен в зависимостях и не установлен в venv);
+    на Windows используем Toolhelp32 (WindowsProcessInspector), иначе None
+    (fallback — хеш argv как ключ сессии).
     """
-    try:
-        import psutil
-        current = psutil.Process()
-        parent = current.parent()
-        if parent is not None:
-            grandparent = parent.parent()
-            if grandparent is not None:
-                return grandparent.pid
-            return parent.pid
-        return None
-    except (ImportError, AttributeError):
-        pass
-    except Exception as e:
-        logger.debug(f"psutil parent PID недоступен: {e}")
+    if sys.platform == "win32":
+        try:
+            from src.core.indexing.database_lock import WindowsProcessInspector
+
+            chain = WindowsProcessInspector().parent_chain(os.getpid(), max_levels=4)
+            # chain = [self, parent, grandparent, ...] — возвращаем дедушку,
+            # если есть, иначе родителя.
+            if chain and len(chain) >= 3:
+                return chain[2][0]
+            if chain and len(chain) == 2:
+                return chain[1][0]
+        except Exception:  # noqa: BLE001 — диагностика, не критично
+            logger.debug("parent PID недоступен (Toolhelp32)", exc_info=True)
     return None
 
 
 def _get_fallback_key() -> str:
     """
-    Fallback-ключ, когда psutil недоступен или выдает AccessDenied.
+    Fallback-ключ сессии, когда parent PID недоступен.
 
     Базируется на аргументах командной строки процесса. Поскольку Zed запускает
     LSP и MCP серверы с предсказуемыми путями окружения, хеш их базовых путей

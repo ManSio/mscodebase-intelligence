@@ -13,6 +13,19 @@ RuntimeError (не молча работает без блокировки).
 - release() идемпотентен и удаляет файл ТОЛЬКО если lock наш (_acquired) —
   в отличие от оригинала, не может снять чужой lock на Unix.
 
+Self-healing (WS9, KNOWN_ISSUES#2026-08-08-multiwindow-pidlock):
+- PID validation: мёртвый PID → steal (как раньше);
+- create_time guard: процесс с данным PID, созданный ПОСЛЕ записи lock
+  (create_time > started + tolerance) → lock не от этого процесса (PID-reuse) → steal;
+- parent-chain orphan detection (Windows, walk ≤ 8): живой Zed.exe в цепочке
+  → HEALTHY (ждём до wait_timeout, soft LockBusyError); корень цепочки мёртв
+  → ORPHAN (TerminateProcess зомби → дождаться смерти → повторно проверить
+  lock → steal); иначе / не-Windows → AMBIGUOUS (fail-closed: никого не убиваем,
+  только wait → LockBusyError).
+
+Инжектируемый ProcessInspector позволяет тестам симулировать цепочки
+процессов без реальных OS-процессов (Linux CI).
+
 DatabaseLock — «один хозяин соединения» (DatabaseGateway): единственная
 точка захвата/освобождения блокировки на директорию LanceDB.
 """
@@ -24,12 +37,177 @@ import logging
 import os
 import sys
 import time
+from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger("mscodebase_server.database_lock")
 
 LOCK_ROLE = "worker"
+
+# WS9: дефолтное ожидание сокращено 30s → 8s (Zed request timeout = 60s/запрос,
+# но 8s достаточно для легитимного контеншена; мягкий LockBusyError вместо
+# жёсткого RuntimeError-краха при живом holder'е).
+DEFAULT_WAIT_TIMEOUT = 8.0
+# create_time guard: процесс создан позже записи lock более чем на это
+# значение → lock не от него (PID-reuse / подделка).
+CREATE_TIME_TOLERANCE = 2.0
+# Сколько ждать фактической смерти зомби после TerminateProcess.
+TERMINATE_TIMEOUT = 5.0
+# Максимальная глубина walk по цепочке родителей.
+PARENT_CHAIN_MAX_LEVELS = 8
+
+
+class LockHolderState(Enum):
+    """Классификация holder'а lock-файла (см. classify_holder)."""
+
+    DEAD = "dead"  # PID мёртв или PID-reuse → steal
+    HEALTHY = "healthy"  # живой процесс окна Zed (или наш собственный) → wait
+    ORPHAN = "orphan"  # живой, но осиротевший (корень цепочки мёртв) → terminate+steal
+    AMBIGUOUS = "ambiguous"  # не можем определить → fail-closed (wait, не убивать)
+
+
+class LockBusyError(RuntimeError):
+    """Soft-failure: лок занят здоровым процессом (или неопределимым).
+
+    Подкласс RuntimeError — существующие обработчики (db_manager) и тесты,
+    ловящие RuntimeError, продолжают работать. Holder НЕ убивается.
+    """
+
+
+class ProcessInspector:
+    """Интроспекция процессов для классификации holder'а lock-файла.
+
+    Инжектируется в тестах; default — платформенная реализация
+    (Windows: ctypes/OpenProcess/GetProcessTimes/Toolhelp32; Unix: os.kill,
+    без parent-chain и create_time → соответствующие методы возвращают None).
+    """
+
+    def is_alive(self, pid: int) -> bool:
+        """Жив ли процесс с данным PID (в т.ч. завершённый, не очищенный ОС)."""
+        return DatabaseLock._is_pid_alive(pid)
+
+    def create_time(self, pid: int) -> Optional[float]:
+        """Unix-секунды старта процесса или None (платформа не поддерживает)."""
+        return None
+
+    def parent_chain(
+        self, pid: int, max_levels: int = PARENT_CHAIN_MAX_LEVELS
+    ) -> Optional[List[Tuple[int, str, bool]]]:
+        """Цепочка (pid, имя, alive) от holder'а к корню (≤ max_levels).
+
+        None — платформа не поддерживает / недоступно (fail-closed).
+        """
+        return None
+
+
+class WindowsProcessInspector(ProcessInspector):
+    """Реализация через Win32 API (без psutil — см. WS9 psutil-вывод).
+
+    - живость: OpenProcess + GetExitCodeProcess (STILL_ACTIVE=259);
+    - create_time: GetProcessTimes (FILETIME → unix-секунды);
+    - parent chain: Toolhelp32Snapshot (Process32First/Next).
+    """
+
+    def is_alive(self, pid: int) -> bool:
+        return DatabaseLock._is_pid_alive(pid)
+
+    def create_time(self, pid: int) -> Optional[float]:
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
+            if not handle:
+                return None
+            try:
+                class _FT(ctypes.Structure):
+                    _fields_ = [
+                        ("dwLowDateTime", wintypes.DWORD),
+                        ("dwHighDateTime", wintypes.DWORD),
+                    ]
+
+                create, exit_, kern, user = _FT(), _FT(), _FT(), _FT()
+                if not kernel32.GetProcessTimes(
+                    handle,
+                    ctypes.byref(create),
+                    ctypes.byref(exit_),
+                    ctypes.byref(kern),
+                    ctypes.byref(user),
+                ):
+                    return None
+                ft = (create.dwHighDateTime << 32) | create.dwLowDateTime
+                # FILETIME: 100ns с 1601-01-01 → unix-секунды
+                return ft / 10_000_000 - 11644473600
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:  # noqa: BLE001 — диагностика, не критично
+            return None
+
+    def parent_chain(
+        self, pid: int, max_levels: int = PARENT_CHAIN_MAX_LEVELS
+    ) -> Optional[List[Tuple[int, str, bool]]]:
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.windll.kernel32
+            TH32CS_SNAPPROCESS = 0x00000002
+            snapshot = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+            if snapshot == -1:
+                return None
+            table: dict = {}
+            try:
+                class _PE32(ctypes.Structure):
+                    _fields_ = [
+                        ("dwSize", wintypes.DWORD),
+                        ("cntUsage", wintypes.DWORD),
+                        ("th32ProcessID", wintypes.DWORD),
+                        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                        ("th32ModuleID", wintypes.DWORD),
+                        ("cntThreads", wintypes.DWORD),
+                        ("th32ParentProcessID", wintypes.DWORD),
+                        ("pcPriClassBase", ctypes.c_long),
+                        ("dwFlags", wintypes.DWORD),
+                        ("szExeFile", ctypes.c_char * 260),
+                    ]
+
+                entry = _PE32()
+                entry.dwSize = ctypes.sizeof(_PE32)
+                ok = kernel32.Process32First(snapshot, ctypes.byref(entry))
+                while ok:
+                    table[entry.th32ProcessID] = {
+                        "ppid": entry.th32ParentProcessID,
+                        "name": entry.szExeFile.decode("ascii", "replace"),
+                    }
+                    ok = kernel32.Process32Next(snapshot, ctypes.byref(entry))
+            finally:
+                kernel32.CloseHandle(snapshot)
+
+            chain: List[Tuple[int, str, bool]] = []
+            cur = pid
+            for _ in range(max_levels):
+                info = table.get(cur)
+                if info is None:
+                    # Мёртвые процессы отсутствуют в Toolhelp-снапшоте;
+                    # живость проверяем OpenProcess (ловит PID-reuse).
+                    alive = self.is_alive(cur)
+                    chain.append((cur, "?", alive))
+                    if not alive:
+                        break
+                    break
+                alive = self.is_alive(cur)
+                chain.append((cur, info["name"], alive))
+                if not alive:
+                    break
+                nxt = info["ppid"]
+                if nxt == cur or nxt == 0:
+                    break
+                cur = nxt
+            return chain
+        except Exception:  # noqa: BLE001 — диагностика, не критично
+            return None
 
 
 class DatabaseLock:
@@ -38,33 +216,56 @@ class DatabaseLock:
     Args:
         lock_path: путь к lock-файлу (обычно `db_path / ".write_lock"`).
         wait_timeout: сколько секунд ждать освобождения lock-а живым
-            процессом (по умолчанию 30 — как в оригинале).
+            процессом (по умолчанию 8 — WS9; мягкий LockBusyError).
         retry_attempts: попыток повторного os.open после steal
             (гонка между unlink и open).
         poll_interval: шаг опроса в цикле ожидания.
+        holder_inspector: ProcessInspector для классификации holder'а
+            (по умолчанию — платформенный).
+        terminate_timeout: сколько ждать фактической смерти зомби.
+        create_time_tolerance: допуск create_time guard (PID-reuse).
     """
 
     def __init__(
         self,
         lock_path: Path,
-        wait_timeout: float = 30.0,
+        wait_timeout: float = DEFAULT_WAIT_TIMEOUT,
         retry_attempts: int = 5,
         poll_interval: float = 0.25,
+        *,
+        holder_inspector: Optional[ProcessInspector] = None,
+        terminate_timeout: float = TERMINATE_TIMEOUT,
+        create_time_tolerance: float = CREATE_TIME_TOLERANCE,
     ) -> None:
         self.lock_path = Path(lock_path)
         self.wait_timeout = wait_timeout
         self.retry_attempts = retry_attempts
         self._poll_interval = poll_interval
+        self._terminate_timeout = terminate_timeout
+        self._create_time_tolerance = create_time_tolerance
+        self._inspector = holder_inspector or self._make_default_inspector()
         self._fd: Optional[int] = None
         self._acquired = False
+
+    @staticmethod
+    def _make_default_inspector() -> ProcessInspector:
+        if sys.platform == "win32":
+            return WindowsProcessInspector()
+        return ProcessInspector()
 
     # ══════════════════════════════════════════════════════
     # Public API
     # ══════════════════════════════════════════════════════
 
     def acquire(self) -> None:
-        """Захватывает lock. RuntimeError если lock занят живым процессом
-        дольше wait_timeout или не удаётся забрать stale-lock."""
+        """Захватывает lock.
+
+        Raises:
+            LockBusyError (RuntimeError): lock занят живым/неопределимым
+                процессом дольше wait_timeout, или зомби не удалось
+                завершить, или гонка при retry. Holder НЕ убивается,
+                кроме подтверждённого ORPHAN (зомби, корень цепочки мёртв).
+        """
         if self._acquired:
             return
 
@@ -84,19 +285,58 @@ class DatabaseLock:
             pass
 
         # Lock существует — читаем данные владельца.
-        holder_pid = self._read_holder_pid()
+        holder = self._read_holder()
+        holder_pid = holder["pid"] if holder is not None else None
+        holder_started = (holder.get("started") or 0) if holder is not None else 0
 
-        if holder_pid is not None and self._is_pid_alive(holder_pid):
-            # Lock занят живым процессом — ждём до wait_timeout.
-            logger.warning(f"PID lock held by alive pid={holder_pid}, waiting...")
-            self._wait_for_release(holder_pid)
+        if holder is not None and holder_pid is not None:
+            state = self.classify_holder(holder_pid, holder_started)
+            if state is LockHolderState.HEALTHY or state is LockHolderState.AMBIGUOUS:
+                # Живой процесс окна Zed (или неопределимый) — ждём до
+                # wait_timeout; holder НЕ трогаем (fail-closed).
+                logger.warning(
+                    f"PID lock held by {state.value} pid={holder_pid}, "
+                    f"waiting up to {self.wait_timeout}s..."
+                )
+                self._wait_for_release(holder_pid)
+            elif state is LockHolderState.ORPHAN:
+                # Подтверждённый зомби (корень цепочки родителей мёртв) —
+                # завершаем его, дожидаемся фактической смерти, затем
+                # повторно проверяем lock и забираем.
+                logger.warning(
+                    f"PID lock orphan holder pid={holder_pid} — terminating zombie"
+                )
+                if not self._terminate_holder(holder_pid):
+                    raise LockBusyError(
+                        f"PID lock orphan pid={holder_pid} не удалось завершить "
+                        f"за {self._terminate_timeout}s — retry позже (fail-closed, "
+                        f"lock не тронут)"
+                    )
+                logger.info(f"Zombie pid={holder_pid} terminated, stealing lock")
 
-        # Holder мёртв / lock освобождён / lock битый — забираем lock.
+        # Holder мёртв / lock освобождён / lock битый / зомби завершён —
+        # забираем lock. TOCTOU-guard (termination/lock race): удаляем файл
+        # ТОЛЬКО если это всё ещё ТОТ ЖЕ lock, который мы классифицировали.
         if self.lock_path.exists():
+            cur = self._read_holder()
+            same_holder = (
+                cur is not None
+                and cur.get("pid") == holder_pid
+                and (cur.get("started") or 0) == holder_started
+            )
+            same_stale = holder is None and cur is None
+            if not (same_holder or same_stale):
+                # Lock пересоздан другим процессом после нашей классификации —
+                # чужой свежий lock не трогаем (fail-closed).
+                raise LockBusyError(
+                    f"PID lock пересоздан другим процессом (pid={cur.get('pid') if cur else '?'}) "
+                    f"во время ожидания — retry позже"
+                )
             try:
-                self.lock_path.unlink(missing_ok=True)
+                self._unlink_with_retry(holder_pid)
             except PermissionError:
-                # Windows: файл занят живым процессом — некража.
+                # Windows: файл не освободился за terminate_timeout (живой
+                # процесс держит fd) — некража, fail-closed.
                 raise RuntimeError(
                     f"Cannot steal PID lock from pid={holder_pid}: file in use"
                 )
@@ -116,7 +356,10 @@ class DatabaseLock:
                 return
             except FileExistsError:
                 time.sleep(0.5)
-        raise RuntimeError("PID lock race: another process acquired lock during retry")
+        raise LockBusyError(
+            "PID lock race: другой процесс захватил lock во время retry — "
+            "retry позже"
+        )
 
     def release(self) -> None:
         """Освобождает lock. Идемпотентен; удаляет файл только если lock наш."""
@@ -153,6 +396,98 @@ class DatabaseLock:
             pass
 
     # ══════════════════════════════════════════════════════
+    # Holder classification (WS9)
+    # ══════════════════════════════════════════════════════
+
+    def classify_holder(self, pid: int, started: float) -> LockHolderState:
+        """Классифицирует holder'а lock-файла по интроспекции процесса.
+
+        Порядок проверок (см. AC-1..AC-6):
+        1. PID мёртв → DEAD (stale, steal).
+        2. pid == наш процесс → HEALTHY (self-hold; не может быть PID-reuse).
+        3. create_time guard: процесс создан ПОСЛЕ записи lock
+           (create_time > started + tolerance) → PID-reuse → DEAD.
+        4. parent-chain walk: живой Zed в цепочке → HEALTHY;
+           корень мёртв → ORPHAN; недоступно/неоднозначно → AMBIGUOUS.
+        """
+        if not self._inspector.is_alive(pid):
+            return LockHolderState.DEAD
+        if pid == os.getpid():
+            return LockHolderState.HEALTHY
+
+        ct = self._inspector.create_time(pid)
+        if ct is not None and ct > started + self._create_time_tolerance:
+            # Направленный инвариант: процесс не мог записать lock до своего
+            # создания. create_time <= started всегда для честного holder'а
+            # (независимо от лага между стартом процесса и acquire).
+            logger.warning(
+                f"PID lock PID-reuse: pid={pid} create_time={ct:.0f} "
+                f"> started={started:.0f} — lock не от этого процесса, stale"
+            )
+            return LockHolderState.DEAD
+
+        chain = self._inspector.parent_chain(pid)
+        if chain is None:
+            return LockHolderState.AMBIGUOUS
+        if any(alive and ("Zed" in name) for (_pid, name, alive) in chain):
+            return LockHolderState.HEALTHY
+        if chain and not chain[-1][2]:
+            # Последний элемент цепочки мёртв (корень) и Zed не найден
+            # → holder осиротел.
+            return LockHolderState.ORPHAN
+        return LockHolderState.AMBIGUOUS
+
+    def _terminate_holder(self, pid: int) -> bool:
+        """Завершает осиротевший процесс и ждёт фактической смерти.
+
+        Windows: TerminateProcess; Unix: os.kill(pid, SIGKILL).
+        Возвращает True только если процесс реально умер
+        (не просто «команда отправлена»).
+        """
+        try:
+            if sys.platform == "win32":
+                import ctypes
+
+                kernel32 = ctypes.windll.kernel32
+                PROCESS_TERMINATE = 0x0001
+                handle = kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+                if not handle:
+                    return not self._inspector.is_alive(pid)
+                try:
+                    kernel32.TerminateProcess(handle, 1)
+                finally:
+                    kernel32.CloseHandle(handle)
+            else:
+                os.kill(pid, 9)  # SIGKILL
+        except Exception:  # noqa: BLE001 — диагностика, не критично
+            return False
+
+        deadline = time.monotonic() + self._terminate_timeout
+        while time.monotonic() < deadline:
+            if not self._inspector.is_alive(pid):
+                return True
+            time.sleep(0.1)
+        return not self._inspector.is_alive(pid)
+
+    def _unlink_with_retry(self, holder_pid: Optional[int]) -> None:
+        """Удаляет lock-файл с retry против Windows PermissionError.
+
+        После TerminateProcess процесс формально мёртв, но файловый дескриптор
+        (os.open в holder'е) может ещё мгновение держаться ядром → unlink
+        бросает PermissionError. Повторяем до terminate_timeout; по таймауту
+        пробрасываем PermissionError (fail-closed, некража).
+        """
+        deadline = time.monotonic() + self._terminate_timeout
+        while True:
+            try:
+                self.lock_path.unlink(missing_ok=True)
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.1)
+
+    # ══════════════════════════════════════════════════════
     # Internals
     # ══════════════════════════════════════════════════════
 
@@ -169,8 +504,8 @@ class DatabaseLock:
         os.write(fd, lock_data)
         os.fsync(fd)
 
-    def _read_holder_pid(self) -> Optional[int]:
-        """Возвращает PID владельца lock-файла или None (битый/нечитаемый).
+    def _read_holder(self) -> Optional[dict]:
+        """Возвращает данные владельца lock-файла или None (битый/нечитаемый).
 
         Grace-период: нечитаемый/пустой JSON НЕ трактуется как stale сразу —
         файл мог быть только что создан (O_EXCL), владелец ещё не записал
@@ -184,7 +519,7 @@ class DatabaseLock:
             try:
                 with open(self.lock_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                return data.get("pid")
+                return {"pid": data.get("pid"), "started": data.get("started") or 0}
             except (json.JSONDecodeError, OSError):
                 time.sleep(self._poll_interval)
         logger.warning(
@@ -194,21 +529,23 @@ class DatabaseLock:
         return None
 
     def _wait_for_release(self, holder_pid: int) -> None:
-        """Ждёт освобождения lock-а живым процессом; по таймауту — RuntimeError.
+        """Ждёт освобождения lock-а живым процессом; по таймауту — LockBusyError.
 
         P1-14 audit: раньше при таймауте молча падал вниз БЕЗ захвата лока
-        (писатель работал без блокировки). Теперь — явный крах.
+        (писатель работал без блокировки). Теперь — явная ошибка.
+        WS9: мягкая LockBusyError (holder не убивается, retry возможен).
         """
         deadline = time.monotonic() + self.wait_timeout
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise RuntimeError(
+                raise LockBusyError(
                     f"PID lock still held by alive pid={holder_pid} "
-                    f"after {self.wait_timeout}s — другой процесс пишет в эту БД"
+                    f"after {self.wait_timeout}s — база занята другим окном MCP; "
+                    f"retry позже (holder не тронут)"
                 )
             time.sleep(min(self._poll_interval, remaining))
-            if not self._is_pid_alive(holder_pid):
+            if not self._inspector.is_alive(holder_pid):
                 logger.info(f"Previous process pid={holder_pid} exited, proceeding")
                 return
             if not self.lock_path.exists():

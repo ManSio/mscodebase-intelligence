@@ -70,6 +70,14 @@
 - SQLite scoped_kv_store хранит по-оконные строки (key=window_id), но без
   фильтра по окну это глобальный сигнал → резолв проекта CWD-first:
   Zed ставит CWD = корень окна для каждого MCP-процесса (Verified по 2 окнам).
+- PID-lock self-healing (WS9, 2026-08-08): holder классифицируется по цепочке
+  родителей (Windows Toolhelp32): живой Zed.exe = HEALTHY (wait ≤8s → мягкий
+  LockBusyError), корень мёртв = ORPHAN (TerminateProcess → steal). create_time-
+  guard: процесс создан ПОСЛЕ записи lock → PID-reuse → stale. lock пишет
+  РЕАЛЬНЫЙ python (не venvlauncher), terminate убивает держателя, обёртка
+  умирает сама; после terminate нужен retry-unlink (PermissionError от fd).
+- psutil НЕ объявлен/НЕ установлен в venv (WS9): удалён мёртвый _get_process_cpu,
+  _find_pid → netstat/ss, _get_parent_pid → Toolhelp32. grep-0.
 
 ## Consistency / Trust / Write (2026-08-08)
 - Consistency Engine: 6 состояний (CONSISTENT/STALE/UPDATING/PARTIAL/CORRUPTED/

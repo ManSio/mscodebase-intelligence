@@ -478,3 +478,72 @@ RuntimeError: PID lock still held by alive pid=7496 after 30.0s — другой
 ```
 **Вердикт:** ОПРОВЕРГНУТА. PID-lock (database_lock.py, 30s, fail-closed) блокирует второй Indexer на ту же БД — это защита, работает как задумано. Runner корректно фолбэчит в manual-режим (16 ручных проб).
 **Урок:** live-эвалы против MCP требуют остановленного сервера или отдельного MSCODEBASE_DATA_DIR; документировано в experiments/benchmark2/README.md.
+
+---
+
+## [2026-08-08] — Exp: Multi-window PID-lock 30s wait vs Zed timeout (KNOWN_ISSUES 🟡, WS8 follow-up)
+
+**Гипотеза:** (1) Zed убивает MCP-процесс по таймауту запроса → вечный зомби-цикл; (2) зомби-holder'а (осиротевший живой процесс) можно отличить от здорового MCP по цепочке родителей; (3) create_time-сверка ловит PID-reuse.
+
+**Команда:** см. ниже per-эксперимент; скрипты — `experiments/lock_zombie/` (orphan_holder.py / spawn_orphan.py / zombie_probe.py / check_signals.py).
+
+**Сырой результат (Exp A — реальное состояние lock-файлов, PowerShell):**
+```
+LOCK: ...index_bot_snow_5e94fc96.db\.write_lock  pid=8148 started=1786135695 age=13,1h
+  holder: DEAD (stale -> steal works)
+LOCK: ...index_mscodebase_bfe9644b.db\.write_lock  pid=13376 started=1786168629 age=3,95h
+  holder: name=python.exe parent_pid=17860 (venvlauncher chain) -> Zed.exe alive -> healthy
+```
+**Сырой результат (Exp B — контеншн, реальный второй процесс):**
+```
+RuntimeError: PID lock still held by alive pid=13376 after 30.0s — другой процесс пишет в эту БД
+indexer creation (stale-steal path): 1.04s   (свободный/steal lock)
+get_status: 0.02s
+```
+**Сырой результат (Exp C — walk-to-root детекция, zombie_probe.py):**
+```
+=== HEALTHY (наш MCP 13376) ===
+[0] pid=13376 python.exe alive
+[1] pid=17860 python.exe alive   (venvlauncher)
+[2] pid=11668 powershell.exe alive
+[3] pid=18216 Zed.exe alive
+VERDICT: HEALTHY (живой Zed в цепочке) -> WAIT
+=== ORPHAN (симуляция, holder 22508) ===
+[0] pid=22508 python.exe alive
+[1] pid=23776 python.exe alive
+[2] pid=10740 DEAD
+direct_parent_alive=True   <- ловушка: наивная проверка дала бы false-WAIT
+live_Zed_in_chain=False; chain_root_dead=True
+VERDICT: ORPHAN/ZOMBIE -> STEAL safe
+zombie_probe full run: 88 ms
+```
+**Сырой результат (Exp D — PID-reuse):**
+```
+Фейковый lock: pid=наш(живой), started=now-3600, role=worker
+PID lock held by alive pid=12684, waiting...
+FAILED after 1024 ms: PID lock still held ... after 1.0s   <- текущий код НЕ ловит
+zombie_probe: holder pid=12684 alive=False -> STALE  (после выхода скрипта)
+```
+**Вердикт:** (1) ПОДТВЕРЖДЕНА-с-уточнением — из исходников Zed (client.rs): `DEFAULT_REQUEST_TIMEOUT=60s` на каждый JSON-RPC запрос; процесс НЕ убивается при таймауте (Drop→kill только при остановке сервера, stdio_transport.rs). Вечный цикл = осиротевший живой python.exe (venvlauncher double-process) держит lock. (2) ПОДТВЕРЖДЕНА: walk-to-root (≤8 уровней, ~88ms) различает HEALTHY (Zed alive→wait) / ORPHAN (корень мёртв→steal); direct-parent-проверка даёт ложный WAIT (ловится). (3) ПОДТВЕРЖДЕНА: create_time-дельта ловит фейковый started (3600s), текущий `_is_pid_alive` — нет.
+
+**Урок:** 30s-ожидание + fail-closed — защита «один писатель», но без детекции сирот она превращает осиротевший процесс в вечный цикл падений (инцидент WS8 08:52-08:57 — это ручной taskkill решал). Индустрия: PostgreSQL postmaster.pid хранит start timestamp именно для stale-детекции; Zed даёт 60s/запрос, поэтому 30s wait формально «в бюджет влезает», но UX = 30s-блокировка + ошибка. Находка: psutil импортируется в layer.py/lsp_project_bridge.py, но НЕ объявлен в pyproject и НЕ установлен в venv — тихая деградация runtime.
+
+---
+
+## [2026-08-08] — Exp: WS9 benchmark before/after (self-healing PID-lock, вариант C)
+
+**Гипотеза:** после внедрения классификации holder'а (DEAD/HEALTHY/ORPHAN/AMBIGUOUS) время acquire для orphan-кейса падает с ~30s (ожидание+RuntimeError) до сотен мс (terminate+steal), healthy-кейс — мягкая ошибка через ~8s (дефолт) вместо 30s RuntimeError; free/stale не деградируют.
+
+**Команда:** `python experiments/lock_zombie/benchmark_selfhealing.py` (venv расширения, Windows).
+
+**Сырой результат (after):**
+```
+[free (no contention)] 7 ms | acquire ok
+[stale-holder (dead pid)] 31 ms | steal ok
+[healthy-holder (wait=1.5s)] 1512 ms | LockBusyError: PID lock still held by alive pid=... after 1.5s — база занята другим окном MCP; retry позже (holder не тронут)
+[orphan-holder (terminate+steal)] 120 ms | acquired pid=...
+```
+**Before (та же сессия, старый код):** контеншн = 30.0s → RuntimeError (замерено в Exp B); orphan-кейс не детектился (30s → RuntimeError); free ~9ms; stale ~33ms.
+
+**Вердикт:** ПОДТВЕРЖДЕНА. orphan: 30000ms → 120ms (terminate+steal, вкл. TerminateProcess реального python + ретрай-unlink); healthy: 30000ms RuntimeError → 1512ms LockBusyError (wait=1.5 в бенче; прод-дефолт 8.0s); free/stale без изменений (7/31ms). Дополнительно verified: после TerminateProcess реального python'а venvlauncher-обёртка умирает сама (никаких висящих процессов), lock перезаписывается нашим PID.
+**Урок:** (1) TerminateProcess синхронный, но файловый дескриптор lock'а умирающего процесса даёт PermissionError на unlink → нужен _unlink_with_retry (иначе краш в кейсе «только что убитый holder»); (2) venvlauncher: lock пишет РЕАЛЬНЫЙ python (os.getpid() внутри скрипта), terminate по pid из lock убивает именно держателя, обёртка умирает следом — прод-механизм работоспособен.

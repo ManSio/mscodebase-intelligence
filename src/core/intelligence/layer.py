@@ -353,44 +353,18 @@ class ProjectIntelligenceLayer:
         return 0
 
     @staticmethod
-    def _get_process_cpu(pid: int) -> float:
-        try:
-            import psutil
-            return psutil.Process(pid).cpu_percent(interval=0.1)
-        except ImportError:
-            return 0.0
-        except Exception:  # noqa: BLE001 — psutil.NoSuchProcess, AccessDenied, etc.
-            return 0.0
-
-    @staticmethod
     def _find_pid(port: str) -> int:
         """Ищет PID процесса по порту (cross-platform, без shell).
 
-        Порядок: psutil (единый API) → netstat (Windows) / ss (Linux).
+        netstat (Windows) / ss (Linux). psutil не используется — см. WS9
+        (psutil не объявлен в зависимостях и не установлен в venv;
+        импорт был guarded, но мёртвой веткой).
         """
         try:
             port_int = int(port)
         except (ValueError, TypeError):
             return 0
 
-        # 1. psutil — единый cross-platform путь (уже используется в _get_process_cpu)
-        try:
-            import psutil
-
-            for conn in psutil.net_connections(kind="tcp"):
-                if (
-                    conn.laddr
-                    and conn.laddr.port == port_int
-                    and conn.status == "LISTEN"
-                ):
-                    return conn.pid or 0
-            return 0
-        except ImportError:
-            pass
-        except Exception:
-            pass
-
-        # 2. Fallback: netstat -ano (Windows) / ss -ltnp (Linux)
         import sys as _sys
 
         try:
