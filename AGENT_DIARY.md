@@ -15,6 +15,15 @@
 
 ---
 
+## [2026-08-08] — CI-механический guard в AGENTS.md §7 + code-scanning алерты 22/24 (DONE)
+
+**Status:** ✅ Fixed (доки+тесты; ruff check src/ tests/ = 0, TestAuditLog 2 passed)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; pre-commit gate-zero: pytest tests/ → 1022 passed / 4 skipped / 94 deselected; ruff check src/ tests/ = 0 (рабочее дерево)
+**Root Cause:** (1) «CI green» заявлялся на словах — память-гард жил только в WISDOM.md, но не в AGENTS.md §7 SELF-CHECK (механический чеклист каждой сессии) → риск рецидива 18 красных (#226-#243); (2) открытые CodeQL-алерты 22/24: `tempfile.mktemp()` (TOCTOU, py/insecure-temporary-file) в двух тестах аудит-лога.
+**Fix:** (1) AGENTS.md §7: новый пункт 9 — `gh run view --log-failed` последнего рана (перед push: последний ран не красный; после push: новый ран зелёный на ubuntu matrix 3.10-3.12 + windows), ренумерация 9-11→10-12, внешних ссылок на номера нет (grep); (2) tests/test_sandbox.py:304,324: `mktemp` → `NamedTemporaryFile(delete=False)` — executor пишет аудит в "a"-режиме (executor.py:180), предсозданный файл безопасен, finally-unlink сохранён.
+**Guard:** AGENTS.md §7 п.9 (загружается в каждую сессию — механический, а не память-гард); ruff src/ tests/ = 0; алерты 22/24 закроются автоматически после push (CodeQL default-branch scan).
+**Pattern:** P-002-класс «защита в памяти, а не в чеклисте» — урок был в WISDOM/DIARY, но не в операционном манифесте §7.
+
 ## [2026-08-08] — CI: version-compat фейлы на 3.10-3.12 (tomllib/read_text-newline/UNC) (FIXED, matrix локально зелёный на 3.10+3.11)
 
 **Status:** ✅ Fixed (код+тесты; 3.10: 995 passed / 10 skipped, 3.11: 1000 passed / 5 skipped, coverage 46.6% > 38; ruff чист)
@@ -50,6 +59,15 @@
 **Fix:** (1) VENV_BIN-детекция (case uname -s: MINGW*/MSYS*/CYGWIN* → venv/Scripts, иначе venv/bin); Linux-ветка CI не тронута; (2) WriteTool.close() (идемпотентный stop ленивого LSP) + фикстура write_tool → async с teardown await tool.close()
 **Guard:** -X dev grep «unclosed transport|still running|PytestUnraisable» = 0 (было 2+6); bash -n OK; реальный GitBash-прогон PASSED; остаточные 51× ResourceWarning: unclosed sqlite/file — follow-up KNOWN_ISSUES 🟡. Не коммитилось (по запросу владельца)
 **Pattern:** P-002-класс «мок не туда» — фикстура мокала DI-сервисы, но LSP-клиент импортируется напрямую, минуя DI (мок не изолирует реальный субпроцесс)
+
+## [2026-08-08] — WS9: PID-lock self-healing (вариант C) — orphan/зомби-детекция + soft-wait 8s + psutil-вывод (DONE, 1022 passed)
+
+**Status:** ✅ Fixed (код+тесты; 1005→1022 passed / 4 skipped / 94 deselected, ruff чист; НЕ запушено)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался (код не в CI-ветке до push); pytest tests/ → 1022 passed (рабочее дерево); live-проверка terminate на Windows
+**Root Cause:** KNOWN_ISSUES#2026-08-08-multiwindow-pidlock: 30s-wait + fail-closed без детекции сирот → осиротевший живой python.exe (venvlauncher double-process) держал lock вечно; исследования/эксперименты подтвердили: Zed не убивает процесс при таймауте запроса (client.rs 60s/запрос), cycle = сирота. Плюс: psutil импортировался в prod (layer/_find_pid, _get_parent_pid) без объявления в pyproject и без установки в venv — тихая деградация.
+**Fix:** `database_lock.py`: LockHolderState (DEAD/HEALTHY/ORPHAN/AMBIGUOUS) + ProcessInspector (Windows: OpenProcess/GetProcessTimes/Toolhelp32; Unix: os.kill, без chain); classify: PID validation → create_time-guard (create_time>started+2s = PID-reuse → stale) → parent-chain walk ≤8 (Zed жив = HEALTHY; корень мёртв = ORPHAN; иначе AMBIGUOUS); HEALTHY/AMBIGUOUS → wait ≤8s (default 30→8) → LockBusyError (soft, holder не тронут); ORPHAN → TerminateProcess → ждать смерти → TOCTOU-guard (lock пересоздан другим → LockBusyError, чужой не тронут) → _unlink_with_retry (PermissionError после terminate) → steal. psutil: удалён мёртвый `_get_process_cpu`, psutil-ветки `_find_pid`/`_get_parent_pid` → netstat/ss + Toolhelp32.
+**Guard:** +17 тестов tests/test_database_lock_selfhealing.py (8 кейсов владельца: healthy chain / Zed alive+child dead / orphan root / PID reuse / lock race / termination race / stale / concurrent); live Windows-тест реальной TerminateProcess (venvlauncher-обёртка умирает сама — проверено); бенчмарк experiments/lock_zombie/benchmark_selfhealing.py: orphan 30s→120ms, healthy 30s→1.5s soft, free 7ms/stale 31ms без изменений; ruff чист; psutil grep-0.
+**Pattern:** P-002-класс «необъявленная runtime-зависимость» (psutil) + «процесс жив, но функционально мёртв» (сирота неотличима от здорового без цепочки родителей).
 
 ## [2026-08-08] — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
 

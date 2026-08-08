@@ -387,7 +387,8 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
             stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
-        stdout, _ = proc.communicate(timeout=120)
+        # 120s кап флаки при нагрузке (pytest ~108-130s) — 300s запас (2026-08-08).
+        stdout, _ = proc.communicate(timeout=300)
         output = stdout.decode("utf-8", errors="replace").strip()
         # Извлекаем итоговую строку
         lines = [l for l in output.split("\n") if "passed" in l or "failed" in l]
