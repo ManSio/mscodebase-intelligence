@@ -329,59 +329,143 @@ class PureGraphMixin:
 
     # ── Call Chain ────────────────────────────────────────
 
-    def _graph_call_chain(self, node: Node, direction: str, max_depth: int) -> Dict:
-        """Call chain из PropertyGraph."""
+    def _graph_call_chain(self, node: Node, direction: str, max_depth: int,
+                          extra_starts=None) -> Dict:
+        """Call chain из PropertyGraph.
+
+        extra_starts: qname'ы одноимённых узлов (real + extern-placeholder) —
+        CALLS-рёбра при индексации могут уйти на любой из них в зависимости
+        от порядка файлов; объединяем входящие/исходящие по всем (D1-D3).
+        """
         result = {
             "symbol": node.name,
             "callers_chain": [],
             "callees_chain": [],
             "total_connected": 0,
         }
+        starts = [node.qualified_name]
+        if extra_starts:
+            starts = list(dict.fromkeys([node.qualified_name] + list(extra_starts)))
 
         if direction in ("up", "both"):
-            for neighbor, edge, depth in self._graph.get_neighbors(
-                node.qualified_name, edge_type=EdgeType.CALLS,
-                direction="incoming", max_depth=max_depth,
-            ):
-                result["callers_chain"].append({
-                    "symbol": neighbor.name, "file": neighbor.file_path,
-                    "line": edge.properties.get("line", 0), "depth": depth,
-                })
+            for qname in starts:
+                for neighbor, edge, depth in self._graph.get_neighbors(
+                    qname, edge_type=EdgeType.CALLS,
+                    direction="incoming", max_depth=max_depth,
+                ):
+                    if neighbor.qualified_name == node.qualified_name:
+                        continue
+                    if self._is_one_off_script(neighbor.file_path):
+                        continue
+                    result["callers_chain"].append({
+                        "symbol": neighbor.name, "file": neighbor.file_path,
+                        "line": edge.properties.get("line", 0), "depth": depth,
+                    })
 
         if direction in ("down", "both"):
-            for neighbor, edge, depth in self._graph.get_neighbors(
-                node.qualified_name, edge_type=EdgeType.CALLS,
-                direction="outgoing", max_depth=max_depth,
-            ):
-                result["callees_chain"].append({
-                    "symbol": neighbor.name, "file": neighbor.file_path,
-                    "line": edge.properties.get("line", 0), "depth": depth,
-                })
+            for qname in starts:
+                for neighbor, edge, depth in self._graph.get_neighbors(
+                    qname, edge_type=EdgeType.CALLS,
+                    direction="outgoing", max_depth=max_depth,
+                ):
+                    if neighbor.qualified_name == node.qualified_name:
+                        continue
+                    result["callees_chain"].append({
+                        "symbol": neighbor.name, "file": neighbor.file_path,
+                        "line": edge.properties.get("line", 0), "depth": depth,
+                    })
 
         result["total_connected"] = len(result["callers_chain"]) + len(result["callees_chain"])
         return result
 
     def _find_nodes_flexible(self, symbol: str, limit: int) -> List[Node]:
-        """Находит узлы по символу: точное имя, затем qualified-name suffix.
+        """Находит узлы по символу: точное имя + qualified-name suffix (union).
 
         PropertyGraph хранит методы с qualified name ("Class.method"), а
         вызовы/поиски приходят с голым именем ("method"). Точный LIKE
-        (name LIKE 'method') не матчит "Class.method", поэтому сначала
-        пробуем exact, потом suffix "%.method" — покрывает оба случая.
+        (name LIKE 'method') не матчит "Class.method", поэтому объединяем
+        exact и suffix "%.method" — покрывает оба случая (D1-D3: иначе тень
+        experiments/ в exact-выборке исключала src/ метод из суффикса).
         """
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=limit)
+        exact = self._graph.find_nodes(name_pattern=symbol, limit=limit)
+        suffix = self._graph.find_nodes(name_pattern=f"%.{symbol}", limit=limit)
+        seen = {n.qualified_name for n in exact}
+        merged = list(exact)
+        for n in suffix:
+            if n.qualified_name not in seen:
+                seen.add(n.qualified_name)
+                merged.append(n)
+        return merged
+
+    def _pick_best_node(self, nodes: List[Node], symbol: str):
+        """Выбирает лучший узел-кандидат для символа (D1-D3, 2026-08-08).
+
+        Ранжирование (в порядке убывания важности):
+        - реальное определение (не placeholder, с file_path) >> placeholder (extern)
+        - прод-код (src/) >> одноразовые скрипты (experiments/, scripts/)
+        - точное имя (bare или qualified-suffix) >> прочие совпадения
+
+        Без ранжирования build_call_graph/get_callers брали nodes[0] по порядку
+        вставки: тень experiments/ опережала src/ (D1), placeholder с пустым
+        file_path опережал реальное определение (D3).
+        """
         if not nodes:
-            nodes = self._graph.find_nodes(name_pattern=f"%.{symbol}", limit=limit)
-        return nodes
+            return None
+        sym = symbol
+
+        def _rank(n: Node) -> int:
+            props = n.properties or {}
+            fp = (n.file_path or "").replace("\\", "/")
+            score = 0
+            if not props.get("placeholder") and fp:
+                score += 100
+            if "/src/" in fp:
+                score += 50
+            elif fp and ("/experiments/" in fp or "/scripts/" in fp):
+                score -= 50
+            if n.name == sym or n.name.endswith("." + sym):
+                score += 20
+            return score
+
+        return max(nodes, key=_rank)
+
+    def _candidate_starts(self, nodes: List[Node], best: Node) -> List[str]:
+        """qname'ы для BFS по callers/callees: ВСЕ одноимённые узлы.
+
+        CALLS-рёбра при индексации привязываются к тому узлу, который нашёлся
+        первым exact-LIKE в момент обработки файла — реальные callers могут
+        лежать на тени experiments//scripts/ или extern-placeholder, а не на
+        src-определении. BFS по всем сохраняет их; одноразовые скрипты
+        отфильтровываются на уровне записей (_is_one_off_script).
+        """
+        seen = {best.qualified_name}
+        starts = [best.qualified_name]
+        for n in nodes:
+            if n.qualified_name not in seen:
+                seen.add(n.qualified_name)
+                starts.append(n.qualified_name)
+        return starts
+
+    @staticmethod
+    def _is_one_off_script(file_path: str) -> bool:
+        """True если путь — одноразовый скрипт (experiments/, scripts/).
+
+        Такие файлы — бенчмарки/эксперименты (§0.6), их callers не являются
+        прод-потребителями и не должны попадать в get_symbol_info/impact.
+        """
+        fp = (file_path or "").replace("\\", "/")
+        return "/experiments/" in fp or "/scripts/" in fp
 
     def get_call_chain(self, symbol: str, direction: str = "both", max_depth: int = 3) -> Dict:
         """Цепочка вызовов: кто вызывает (up) / кого вызывает (down).
 
         Использует PropertyGraph.get_neighbors с BFS.
         """
-        nodes = self._find_nodes_flexible(symbol, limit=5)
-        if nodes:
-            return self._graph_call_chain(nodes[0], direction, max_depth)
+        nodes = self._find_nodes_flexible(symbol, limit=20)
+        node = self._pick_best_node(nodes, symbol)
+        if node is not None:
+            starts = self._candidate_starts(nodes, node)
+            return self._graph_call_chain(node, direction, max_depth, starts)
 
         # HYBRID fallback
         with self._lock:

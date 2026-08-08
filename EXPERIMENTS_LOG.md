@@ -581,3 +581,120 @@ zombie_probe: holder pid=12684 alive=False -> STALE  (после выхода с
 
 **Вердикт:** ПОДТВЕРЖДЕНА. orphan: 30000ms → 120ms (terminate+steal, вкл. TerminateProcess реального python + ретрай-unlink); healthy: 30000ms RuntimeError → 1512ms LockBusyError (wait=1.5 в бенче; прод-дефолт 8.0s); free/stale без изменений (7/31ms). Дополнительно verified: после TerminateProcess реального python'а venvlauncher-обёртка умирает сама (никаких висящих процессов), lock перезаписывается нашим PID.
 **Урок:** (1) TerminateProcess синхронный, но файловый дескриптор lock'а умирающего процесса даёт PermissionError на unlink → нужен _unlink_with_retry (иначе краш в кейсе «только что убитый holder»); (2) venvlauncher: lock пишет РЕАЛЬНЫЙ python (os.getpid() внутри скрипта), terminate по pid из lock убивает именно держателя, обёртка умирает следом — прод-механизм работоспособен.
+
+---
+
+## [2026-08-08] — Exp: Multi-Tool (MSCodeBase, 4-5 вызовов) vs Context Engine (CodeGraph-стиль, 1 вызов)
+
+**Гипотеза:** единый контекстный агрегатор (get_edit_context-стиль) побеждает последовательные MCP-вызовы по tool_calls (N→1), latency (1 RT vs N), tokens (при intent-фильтре), при паритете task success; wrong-context решается intent-фильтрацией. Контрольная группа: ОДНА кодовая база (MSCodeBase), 4 задачи на реальных символах, отличаются только стратегии оркестрации. CodeGraph (Rust) не устанавливался — иначе сравнение смешало бы «качество индекса» с «архитектурой инструментов».
+
+**Команда:** `python experiments/context_engine/compose_eval.py` (данные: strategy_a_data.json — реальные ответы MCP 2026-08-08, тайминги из intel_execution_timeline; B-v2 = compose source+symbols(+memory+git по intent), symbols во всех intent).
+
+**Сырой результат:**
+```
+task        strat   calls tokens   latency_ms facts                 success  wrong%
+T1-explain  A       5     423      2481       ...                  86%      15%
+T1-explain  B       1     266      501        ...                  71%       0%
+T2-modify   A       5     460      6755       ...                 100%      15%
+T2-modify   B       1     389      502        ...                 100%      16%
+T3-debug    A       4     435      2118       ...                 100%       9%
+T3-debug    B       1     350      501        ...                 100%       0%
+T4-test     A       4     300      6358       ...                  67%      23%
+T4-test     B       1     300      501        ...                  67%      36%   <- B-v1 (test без symbols): 33%/59%
+AVG calls    A=4.500  B=1.000   Δ=-78%
+AVG latency  A=4428   B=501     Δ=-89%
+AVG tokens   A=404.5  B=326.4   Δ=-19%
+AVG success  A=88.1%  B=84.5%   Δ=-3.6pp (разрыв = артефакт рубрики T1: "enrich" только в git-сообщении)
+AVG wrong    A=15.5%  B=13.0%   Δ=-2.5pp (B лучше: dedup убрал шум упавших вызовов)
+```
+
+**Вердикт:** ПОДТВЕРЖДЕНА (все 5 пунктов гипотезы, с оговорками):
+- tool_calls: N=4.5 → 1 (−78%), latency agent-facing: 4428ms → 501ms (−89%) — выигрыш по построению, подтверждён замером.
+- tokens: с intent-фильтром B меньше даже без учёта round-trip промпта (−19%); «сырой» агрегатор (все секции) ≥ суммы вызовов.
+- task success: паритет (84.5% vs 88.1%); B-v1 (test БЕЗ symbols) падал до 33% — intent-фильтр обязан ВСЕГДА включать source+symbols (callers), как у реального CodeGraph get_edit_context.
+- wrong-context: B-v2 13.0% < A 15.5% — dedup+отсутствие упавших вызовов чище; глобальная память проекта (55 ADR) ≈ 0 реколл для задачи «тест» → CodeGraph memory_context ФАЙЛ-скоуп, у нас — проектный (находка).
+
+**Побочные наблюдения (реальные данные сессии):**
+1. impact_analysis вернул «not found» для 2/4 символов (_expand_graph_context, intel_code_topology — приватные/не в индексе) → 2 мёртвых вызова в A (соль в wrong 15-23%).
+2. get_symbol_info для build_call_graph вернул НЕВЕРНОЕ определение (experiments/run_experiment_pagerank.py:40 вместо src/core/indexing/symbol_index.py:480) — символ-тень эксперимента скрывает реальный; multi-tool требует доп. поиска (wrong-definition кейс).
+3. CodeGraph README: 42 community tools (не 45 — расхождение в их же README), --profile=core (8 tools) для сужения поверхности — паттерн «tool surface inflates prompt cost» признают и они.
+
+**Урок:** (1) архитектура «1 контекстный инструмент с серверной композицией» валидна и для MSCodeBase: −78% вызовов, −89% latency, −19% токенов при паритете полноты; (2) критично: compose ОБЯЗАН включать source+symbols во все intent; (3) файл-скоуп памяти (а не глобальный ADR-список) — условие полезности memory-секции в edit-контексте; (4) impact_analysis «not found» на приватных функциях = тихий провал multi-tool стратегии.
+
+---
+
+## [2026-08-08] — Exp D (v2): Context Composition vs Tool Composition — Where Does the Latency Actually Come From?
+
+**Гипотеза (v2):** (1) выигрыш агрегатора — в round-trips и agent-facing latency, НЕ в серверной работе (compose ≈ тем же операциям + overhead); (2) полнота (recall) C ≥ A при правильном составе секций; (3) wrong-evidence (дефекты impact_analysis/build_call_graph) одинаково бьют по всем рукам; (4) при подтверждении — вариант А реализуем в прод.
+
+**Команда:** `MSCODEBASE_ALLOW_SELF_INDEX=1 venv/Scripts/python.exe experiments/context_engine/bench_v2.py`
+15 задач × 9 классов (find_bug_cause/modify/impact/architecture/test/git/caller-callee/prepare/verify), ground-truth required-facts, 4 руки: A (реальные MCP-вызовы, latency из intel_execution_timeline) / B (compose-модель, intent-фильтр) / C1 (СУЩЕСТВУЮЩИЙ get_context — GetContextTool, реальный in-process на snapshot БД) / C2 (РЕАЛЬНЫЙ get_edit_context: EditContextEngine — GetSymbolInfoTool+ImpactAnalysisTool+SearchCodeTool fallback+source+git+memory, in-process). PID-lock живого MCP обходится snapshot-копией артефакт-БД (та же реальная БД, temp, .write_lock удалён). Readiness-гейт — патч как в тестах проекта.
+
+**Сырой результат (AVG, 15 задач):**
+```
+              round_trips  tokens  agent_ms  server_ms  recall  prec  wrong  dup
+A (multi-tool)    3.400    241.3   1582.6    1582.6     0.783  0.667 0.090  0.135
+B (compose model) 1.000    276.5    400.0*       0.0     0.833  0.663 0.098  0.164
+C1 (get_context)  1.000    637.1    449.2       49.2     0.267  0.600 0.133  0.000
+C2 (get_edit_context)     1.000   1230.6    865.3      465.3     0.817  0.705 0.108  0.184
+* B agent_ms — модель 1 RT (400ms, реальный медианный).
+```
+
+**Вердикт:** ПОДТВЕРЖДЕНА (все 4 пункта):
+1. **Latency-декомпозиция:** agent-facing: A=1583ms (3.4 RT, Σ реальных server-латентностей, включая 5.3s search_code на T5) vs C2=865ms (1 RT + 465ms реальной серверной работы: symbol-index + fast-search fallback + git + чтение файла). Выигрыш = round-trips (N→1) + дешёвые точечные запросы вместо семантического поиска. C2 server_ms < A server_ms даже в лобовом сравнении.
+2. **Полнота:** C2 recall=0.817 > A=0.783, precision=0.705 > 0.667 (fallback search_code при пустом gsi закрыл inline-tools: intel_trigger_reindex, notify_change). C1 recall=0.267 — СУЩЕСТВУЮЩИЙ get_context недостаточен (только symbol_info+impact, нет source/git/memory/fallback).
+3. **Wrong-evidence:** дефект «get_symbol_info для build_call_graph возвращает тень experiments/run_experiment_pagerank.py:40» штрафует ВСЕ руки (A wrong=0.09, C2=0.108; T7 wrong=1.0 у всех, секция целиком отравлена). Реальный фикс — не «починить get_symbol_info», а guard в агрегаторе: отбрасывать определения из experiments/ (scaffolding) или сверять файл определения.
+4. **Токены — точка напряжения:** C2 без token budgeting = 1231 vs A=241 (source-окно 80 строк + fallback). B (intent-фильтр, CodeGraph-стиль) = 276 токенов при recall 0.833 — лучший recall при минимуме токенов среди 1-RT рук. Вывод: агрегатор обязан иметь токен-бюджет (intent + обрезка секций), иначе побеждает по round-trips/latency, но проигрывает по токенам.
+
+**Итерации методологии (§1.8):** v2.0 wrong_rate не ловил wrong-секции с корректными фактами → штрафуется всегда (ложная уверенность опаснее отсутствия); v2.1 source-окно цепляло docstring/call-site (walk-up от декоратора попадал в чужую def) → Pass A (def с именем) + Pass B (walk-DOWN); v2.2 fallback search_code при пустом gsi (символ вне графа).
+
+**Урок:** (1) «1 контекстный инструмент» побеждает по round-trips/latency и паритету-превышению полноты ТОЛЬКО при составе: source+symbols+fallback+git+memory и токен-бюджете; (2) существующий get_context (C1) — урезанный агрегатор: recall 0.267 против 0.817 у полного — его расширение (не новый tool с нуля) — путь к варианту А; (3) wrong-context guard в агрегаторе (отсев определений из experiments/) дешевле и надёжнее фикса самого get_symbol_info; (4) PID-lock + snapshot-копия БД — рабочий паттерн изоляции экспериментов от живого MCP (никаких taskkill).
+
+---
+
+## [2026-08-08] — Exp D v3: 30 задач — устойчивость B vs C2 (токены решают, recall паритет)
+
+**Гипотеза (v3, по решению владельца):** разница B vs C2 на 15 задачах может быть шумом (доверительный интервал перекрывает). Нужен прогон на 30 задачах: если recall паритетен, а токены у B стабильно ниже — решаем в пользу B-подхода (intent-фильтр), не полного C2.
+
+**Команда:** `MSCODEBASE_ALLOW_SELF_INDEX=1 venv/Scripts/python.exe experiments/context_engine/bench_v2.py tasks_v3.json` (30 задач: 15 из v2 + 15 новых; 4 новых символа с реальными MCP-вызовами: trigger_async_reindex, get_active_reindex_job_id, RuntimeCoordinator, _reject_self_index_target; paired-статистика добавлена в bench_v2.py).
+
+**Сырой результат (AVG, N=30):**
+```
+              round_trips  tokens  agent_ms  server_ms  recall  prec  wrong  dup
+A (multi-tool)    3.367    246.0   1558.7    1558.7     0.875  0.748 0.045  0.197
+B (compose-model) 1.000    274.9    400.0*       0.0     0.900  0.748 0.049  0.209
+C1 (get_context)  1.000    581.8    428.7       28.7     0.288  0.700 0.067  0.000
+C2 (get_edit_context)     1.000   1254.6    805.3      405.3     0.875  0.784 0.054  0.315
+* B agent_ms — модель 1 RT (400ms).
+
+=== PAIRED B vs C2 (N=30) ===
+recall     mean_delta(B-C2)=+0.025  sd=0.152  CI95=±0.054  B>recall: 2/30  C2>recall: 1/30
+precision  mean_delta(B-C2)=-0.036  sd=0.132  CI95=±0.047  B>precision: 5/30  C2>precision: 17/30
+tokens     mean_delta(B-C2)=-979.8  sd=695.9  CI95=±249.0  B>tokens: 0/30  C2>tokens: 30/30
+```
+
+**Вердикт:** ГИПОТЕЗА v2-владельца ПОДТВЕРЖДЕНА — recall у B и C2 статистически НЕРАЗЛИЧИМ (mean Δ=+0.025, CI95 ±0.054 перекрывает 0; ничьи в 27/30 задач), precision C2 направленно выше, но не значимо (CI включает 0), токены у B стабильно ниже на ~980 (CI95 ±249 — далеко от 0; B дешевле в 30/30 задач). Итог по 30 задачам: **B-подход (intent-фильтр) = оптимальная точка** — recall 0.900 ≥ A 0.875 при 1 RT (vs 3.37) и 275 токенов (≈ A). C1 (существующий get_context) по-прежнему recall 0.288 — требует расширения. C2 не нужен целиком: его выигрыш по precision (+0.036) не окупает +980 токенов.
+
+**Урок:** (1) на выборке 15 задач разница 0.833 vs 0.817 — шум: подтверждено CI на 30 (0.025 ± 0.054); решения об архитектуре контекста принимать на ≥30 задач с paired-анализом; (2) решает не «сколько секций собрать», а «какие секции включить по intent» — B (source+symbols по intent, без impact для git-задач и т.п.) даёт максимум полноты при минимуме токенов; (3) dup_rate C2=0.315 — fallback search_code дублирует symbol-инфо: в прод-агрегаторе нужен dedup. Дефекты D1-D3 зафиксированы в KNOWN_ISSUES (🟡), фикс после повторного прогона.
+
+---
+
+## [2026-08-08] — Контрольный прогон v3 после фикса D1-D3 (wrong_rate 0, C1 recall +32%)
+
+**Гипотеза:** фикс корня D1-D3 (неранжированный nodes[0] → _find_nodes_flexible union + _pick_best_node + union-старты + _is_one_off_script) убирает отравление контекста тенями experiments//scripts/ и placeholder'ами и поднимает качество живых рук C1/C2; A/B (записанные до-фиксовые данные) — контроль «до».
+
+**Команда:** `MSCODEBASE_ALLOW_SELF_INDEX=1 venv/Scripts/python.exe experiments/context_engine/bench_v2.py tasks_v3.json` (после фикса; C1/C2 — живой in-process код с фиксом).
+
+**Сырой результат (AVG, N=30, до → после фикса):**
+```
+                recall          precision       wrong_rate       tokens
+C1 (get_context) 0.288 → 0.380   0.700 → 0.800   0.067 → 0.000   582 → 975
+C2 (get_edit_context) 0.875→0.883 0.784 → 0.819  0.054 → 0.000   1255 → 1427
+A/B — без изменений (записанные pre-fix данные)
+Paired B vs C2: recall Δ=+0.017 (CI95 ±0.052, неразличимы), precision C2 19/30,
+tokens B −1152 (CI95 ±315, 30/30) — вывод B-оптимальности НЕ изменился.
+```
+
+**Вердикт:** ПОДТВЕРЖДЕНА. wrong_rate 0.000 у C1/C2 (тень build_call_graph больше не отравляет секции; T7 wrong 0.993→0.0), C1 recall +0.092 (D2: методы резолвятся), precision вырос. Реальная проверка: build_call_graph → def=src/core/indexing/symbol_index.py:481 (было experiments/run_experiment_pagerank.py:40), callers=9 реальных прод-потребителей (без скриптового main). Полный pytest 1021 passed, ruff src/ tests/ = 0.
+
+**Урок:** (1) корень D1-D3 ОДИН — неранжированный выбор узла при наличии одноимённых (тень/placeholder/реальный); (2) CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers могут лежать на тени: исключать тень из стартов НЕЛЬЗЯ (теряются callers), фильтровать нужно на уровне записей по файлу вызывающего; (3) wrong-evidence guard «отсев experiments/» на композиции (вариант из v2) оказался НЕ нужен — правильный фикс в адаптере дешевле и чище.

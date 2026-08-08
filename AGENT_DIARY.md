@@ -15,7 +15,52 @@
 
 ---
 
-## [2026-08-08] — Верификация deep-research-report.md: 3 P1 подтверждены, CVE-4372 недооценён (исследование)
+## [2026-08-08] — Фикс D1-D3: единый корень — неранжированный выбор узла в графе
+
+**Status:** ⚠️ Fixed (локально: gate-zero 1031 passed / 4 skipped, ruff src/ tests/ = 0; +4 регресс-теста tests/test_graph_adapter_node_selection.py)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh запускается после коммита (клон закоммиченного состояния, фикс уже покрыт gate-zero: 1031 passed)
+**Root Cause:** get_symbol_info/impact_analysis/intel_code_topology читали build_call_graph/get_callers, где узел выбирался `find_nodes(name_pattern)[0]` без ранжирования: (D1) тень experiments/run_experiment_pagerank.py:40 опережала src/ (exact-LIKE + порядок вставки); (D2) методы хранятся как «Class.method» — точный LIKE промахивался; (D3) extern-placeholder (пустой file_path) опережал реальное определение. Плюс: CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers лежат на тени.
+**Fix:** graph_adapter_pure.py + graph_adapter.py: _find_nodes_flexible → union (exact+suffix «%.method»); _pick_best_node (ранг: реальное определение src/ > placeholder > тень experiments//scripts/); _candidate_starts (BFS по ВСЕМ одноимённым — misrouted рёбра); _is_one_off_script (фильтр записей: скриптовые callers не прод-потребители). get_call_chain/get_callers — тот же паттерн (Триггер 3).
+**Guard:** +4 теста (D1 src>тень, D2 метод по голому имени, D3 placeholder не вытесняет, callers-merge); контрольный прогон context_engine v3: wrong_rate C1/C2 = 0.000, C1 recall 0.288→0.380, precision C1 0.700→0.800; real-probe: build_call_graph → symbol_index.py:481, 9 реальных callers.
+**Pattern:** P-002-класс «инструмент-предположение» (nodes[0] предполагал «первый = правильный»); урок: граф при индексации привязывает рёбра к первому матчу — правки выбора узла обязаны учитывать misrouted рёбра.
+
+---
+
+## [2026-08-08] — Эксперимент D v3: 30 задач — B vs C2 устойчивость (DONE, исследование)
+
+**Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine-v3)
+**Root Cause:** — (не инцидент; контроль владельца «15 задач мало»): 30 задач, paired-статистика. Verdict: recall B vs C2 НЕРАЗЛИЧИМ (mean Δ +0.025, CI95 ±0.054, ничьи 27/30 — разрыв v2 был шумом); токены B стабильно ниже на ~980 (CI95 ±249, 30/30) → B-подход (intent-фильтр) = оптимум: recall 0.900 ≥ A 0.875 при 1 RT и 275 токенах.
+**Fix:** — (код не менялся). Решение для прод: расширять get_context по B-схеме (intent-фильтр + source/symbols/fallback + dedup + токен-бюджет), НЕ полный C2 (precision +0.036 не окупает +980 токенов).
+**Guard:** bench_v2.py tasks_v3.json + paired-анализ (N=30) — воспроизводимо; дефекты D1-D3 в KNOWN_ISSUES (🟡) — фикс после повторного прогона.
+**Pattern:** NEW (урок: на 15 задачах разница recall 0.833 vs 0.817 — шум; архитектурные решения — на ≥30 задач с paired CI).
+
+---
+
+## [2026-08-08] — Эксперимент D (v2): Context Composition vs Tool Composition (DONE, исследование)
+
+**Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine-v2)
+**Root Cause:** — (не инцидент; второй, строгий эксперимент по решению владельца): 15 задач × 9 классов, ground-truth, 4 руки (A multi-tool / B compose-модель / C1 существующий get_context / C2 реальный get_edit_context). Дефекты impact_analysis/get_symbol_info НЕ чинились (часть контрольной среды).
+**Fix:** — (код не менялся). Результат: C2 recall 0.817 > A 0.783, precision 0.705 > 0.667, 1 RT/865ms vs 3.4 RT/1583ms, НО токены 1231 vs 241 (нет token budgeting); C1 (существующий get_context) recall 0.267 — недостаточен; wrong-definition build_call_graph штрафует все руки (A 0.09/C2 0.108).
+**Guard:** bench_v2.py + tasks_v2.json + get_edit_context_v2.py + strategy_a_data_v2.json (воспроизводимо); PID-lock живого MCP обходится snapshot-копией артефакт-БД; вывод — «вариант А реализуем как РАСШИРЕНИЕ get_context + токен-бюджет + wrong-context guard», решение — за владельцем.
+**Pattern:** NEW (второй эксперимент подтвердил первый; урок — токены и wrong-context, а не latency, являются точкой напряжения агрегатора).
+
+---
+
+## [2026-08-08] — Эксперимент: Multi-Tool vs Context Engine (CodeGraph-стиль) (DONE, исследование)
+
+**Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine)
+**Root Cause:** — (не инцидент; архитектурное сравнение): MSCodeBase (4-5 MCP-вызовов на задачу) против 1 контекстного агрегатора get_edit_context-стиля на тех же 4 задачах/символах.
+**Fix:** — (код не менялся — эксперимент). Результат: агрегатор −78% tool_calls, −89% latency agent-facing, −19% tokens при паритете task success (84.5% vs 88.1%, разрыв = артефакт рубрики) и лучшем wrong-context (13% vs 15.5%). Ключевые условия: source+symbols ВО ВСЕХ intent; память должна быть файл-скоуп, не глобальный ADR-список; impact_analysis «not found» на приватных символах = тихий провал multi-tool.
+**Guard:** compose_eval.py + strategy_a_data.json в experiments/context_engine/ (воспроизводимо); опция «добавить get_edit_context-агрегатор» — на решение владельца.
+**Pattern:** NEW (архитектурный эксперимент: побеждает 1 контекстный инструмент с серверной композицией; урок — состав секций compose критичен, не только число вызовов).
+
+## [2026-08-08] — Повторная верификация deep-research-report(1).md: 25 пунктов, 10 ❌ (исследование)
+
+**Status:** ✅ Verified (исследование, код не менялся; Ledger закрыт в .agent_task_state.md)
+**Root Cause:** — (не инцидент; верификация аудита): 25 утверждений отчёта сверены с текущим кодом. Верно: CI (ruff+cov 38%), 29 типов рёбер (graph.py:217-247), замеры поиска (BM25 150ms/embed 800ms/rerank 1200ms), файлы graph_rag/llama_install/lsp_project_bridge, DI 18 services, lsp_client в README. Ложно/устарело: 853 теста (реально 1120), except Exception 223 (реально 653), «нет pickle» (13, но anti-RCE _LegacyPickleLoader), P0 current_task (не существует; реальный P1 submit_sync уже исправлен ранее сегодня), CircuitBreaker «подвешивание» (исправлен), 648MB/мин утечка (не подтверждена — нет источника), «нет timeout в search_code» (error_boundary 15s), «нет проверки ONNX» (exists() ×4), paths.py (SafePathManager уже реализован), intelligence_layer.py/searcher.py/config/paths.py (не существуют).
+**Fix:** — (код не менялся). Единственный реальный пробел: UNC-пути не обработаны явно (paths.py); README противоречив: 853/956/1032 vs 1120.
+**Guard:** Verification Ledger §0.1.1 (25 строк, все закрыты, файл удалён); CONTRADICTION README → KNOWN_ISSUES.
+**Pattern:** P-002 (предположение вместо проверки — аудит описывал «current_task» без чтения кода; урок: даты отчёта 2026-08-03, фиксы внесены 08-08 → любые отчёты старше недели сверять с кодом).
 
 **Status:** ✅ Verified (исследование, код не менялся; 1022 passed / 46.89% coverage — реальный прогон)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался (исследование без правок); реальный pytest tests/ → 1022 passed / 4 skipped / 94 deselected

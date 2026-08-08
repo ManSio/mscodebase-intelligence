@@ -532,16 +532,28 @@ class SymbolIndexAdapter(PureGraphMixin):
     # ── Call Graph ────────────────────────────────────────
 
     def build_call_graph(self, symbol: str, depth: int = 2) -> Dict:
-        """Строит граф вызовов (BFS)."""
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=5)
-        if nodes:
-            return self._graph_build_call_graph(nodes[0], depth)
+        """Строит граф вызовов (BFS).
+
+        D1-D3 (2026-08-08): узел выбирается ранжированием (_pick_best_node),
+        BFS стартует со всех одноимённых узлов (real + extern-placeholder).
+        """
+        nodes = self._find_nodes_flexible(symbol, limit=20)
+        node = self._pick_best_node(nodes, symbol)
+        if node is not None:
+            starts = self._candidate_starts(nodes, node)
+            return self._graph_build_call_graph(node, depth, starts)
 
         with self._lock:
             return self._hybrid_build_call_graph(symbol, depth)
 
-    def _graph_build_call_graph(self, node: Node, depth: int) -> Dict:
-        """Call graph из PropertyGraph."""
+    def _graph_build_call_graph(self, node: Node, depth: int,
+                                extra_starts=None) -> Dict:
+        """Call graph из PropertyGraph.
+
+        extra_starts: qname'ы одноимённых узлов (real + extern-placeholder) —
+        CALLS-рёбра при индексации распределяются между ними в зависимости от
+        порядка файлов; BFS по всем сохраняет callers/callees (D1-D3).
+        """
         result = {
             "symbol": node.name,
             "definition": [{"file": node.file_path, "line": node.properties.get("line", 0),
@@ -554,8 +566,12 @@ class SymbolIndexAdapter(PureGraphMixin):
             "depth_reached": 0,
         }
 
-        visited_callers: Set[str] = {node.qualified_name}
-        current_level = {node.qualified_name}
+        starts = [node.qualified_name]
+        if extra_starts:
+            starts = list(dict.fromkeys([node.qualified_name] + list(extra_starts)))
+
+        visited_callers: Set[str] = set(starts)
+        current_level: Set[str] = set(starts)
         for level in range(depth):
             next_level: Set[str] = set()
             for qname in current_level:
@@ -563,6 +579,9 @@ class SymbolIndexAdapter(PureGraphMixin):
                     qname, edge_type=EdgeType.CALLS, direction="incoming"
                 ):
                     if neighbor.qualified_name in visited_callers:
+                        continue
+                    # Одноразовые скрипты (experiments//scripts/) — не прод-callers
+                    if self._is_one_off_script(neighbor.file_path):
                         continue
                     visited_callers.add(neighbor.qualified_name)
                     result["callers"].append({
@@ -581,8 +600,8 @@ class SymbolIndexAdapter(PureGraphMixin):
             result["depth_reached"] = level + 1
 
         # Аналогично для callees
-        visited_callees: Set[str] = {node.qualified_name}
-        current_level = {node.qualified_name}
+        visited_callees: Set[str] = set(starts)
+        current_level = set(starts)
         for level in range(depth):
             next_level = set()
             for qname in current_level:
@@ -833,16 +852,20 @@ class SymbolIndexAdapter(PureGraphMixin):
 
     def get_callers(self, symbol: str) -> List[SymbolRef]:
         """Кто вызывает этот символ."""
-        nodes = self._graph.find_nodes(name_pattern=symbol, limit=5)
-        if nodes:
+        nodes = self._find_nodes_flexible(symbol, limit=20)
+        node = self._pick_best_node(nodes, symbol)
+        if node is not None:
             result = []
-            for neighbor, edge, _depth in self._graph.get_neighbors(
-                nodes[0].qualified_name, edge_type=EdgeType.CALLS, direction="incoming"
-            ):
-                result.append(SymbolRef(
-                    symbol=neighbor.name, file_path=neighbor.file_path,
-                    line=edge.properties.get("line", 0), kind="call", is_definition=False,
-                ))
+            for qname in self._candidate_starts(nodes, node):
+                for neighbor, edge, _depth in self._graph.get_neighbors(
+                    qname, edge_type=EdgeType.CALLS, direction="incoming"
+                ):
+                    if self._is_one_off_script(neighbor.file_path):
+                        continue
+                    result.append(SymbolRef(
+                        symbol=neighbor.name, file_path=neighbor.file_path,
+                        line=edge.properties.get("line", 0), kind="call", is_definition=False,
+                    ))
             return result
         return [r for r in self.find_references(symbol) if not r.is_definition]
 
