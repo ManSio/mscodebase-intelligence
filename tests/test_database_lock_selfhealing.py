@@ -318,13 +318,18 @@ class TestStaleLock:
         lock_path = tmp_path / ".write_lock"
         _write_lock(lock_path, DEAD_PID, time.time() - 3600)
 
-        lock = DatabaseLock(lock_path, wait_timeout=0.3, holder_inspector=insp)
+        # wait_timeout не участвует в DEAD-пути (только HEALTHY/AMBIGUOUS ждут
+        # до него): 0.8 — просто запас для ассерта ниже.
+        # Порог 0.5: fast-path steal измерен до 0.27s на загруженном CI-раннере
+        # (grace-повтор _read_holder спит 0.25s) — 0.2 был флейком; регрессия
+        # «steal ждёт полный wait_timeout» (0.8s) всё ещё ловится запасом 0.3s.
+        lock = DatabaseLock(lock_path, wait_timeout=0.8, holder_inspector=insp)
         t0 = time.monotonic()
         lock.acquire()  # не должен ждать
         elapsed = time.monotonic() - t0
         try:
             assert lock.is_held()
-            assert elapsed < 0.2, f"steal занял {elapsed:.2f}s — ждал зря"
+            assert elapsed < 0.5, f"steal занял {elapsed:.2f}s — ждал зря"
         finally:
             lock.release()
 
