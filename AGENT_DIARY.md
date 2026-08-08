@@ -15,6 +15,24 @@
 
 ---
 
+## [2026-08-08] — Верификация deep-research-report.md: 3 P1 подтверждены, CVE-4372 недооценён (исследование)
+
+**Status:** ✅ Verified (исследование, код не менялся; 1022 passed / 46.89% coverage — реальный прогон)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался (исследование без правок); реальный pytest tests/ → 1022 passed / 4 skipped / 94 deselected
+**Root Cause:** — (не инцидент; верификация внешнего аудита): 3 P1 подтверждены: llama_runner.py:184 mutex initialOwner=True (двойной захват, 1 ReleaseMutex, утечка владения до смерти потока); db_writer.py write_records/bulk_write delete+add неатомарны (сбой add → потеря чанков); task_queue.py submit_sync except RuntimeError: pass без cleanup («вечная» задача, гонка на pending_names). CVE-2026-1839/4372 реальны, но рекомендация отчёта «>=5.0.0» НЕДОСТАТОЧНА: 4372 фиксится в 5.3.0; lock уже на 5.14.1 → закрыты; pyproject-пин `>=4.36` остаётся риском при установке без lock. Числа отчёта (956/38%) устарели: 1022 passed / 46.89%.
+**Fix:** — (код не менялся — исследование). Рекомендации: llama_runner.py:184 → CreateMutexW(None, False, ...); write_records → add-first или replay; submit_sync → lock + откат регистрации; pyproject transformers → >=5.3.0; тесты на submit_sync + mutex (сейчас 0%).
+**Guard:** Verification Ledger в .agent_task_state.md (закрыт, файл удалён); EXPERIMENTS_LOG#2026-08-08-verify-report; KNOWN_ISSUES 4 новые записи.
+**Pattern:** NEW (аудит-верификация: урок — «fixed version» CVE брать из OSV по каждой CVE, не по обобщённой рекомендации аудита).
+
+## [2026-08-08] — Реализация 4 фиксов аудита: mutex, TaskQueue, LanceDB rollback, transformers-pin (DONE, 1026 passed)
+
+**Status:** ✅ Fixed (код+тесты; 1022→1026 passed / 4 skipped / 94 deselected, ruff check src/ tests/ = 0)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 1026 passed (рабочее дерево)
+**Root Cause:** 3 P1 из deep-research-report.md (верифицированы ранее в этой сессии): llama_runner.py:184 mutex initialOwner=True (двойной захват); task_queue.py submit_sync except RuntimeError: pass («вечная» задача + гонка pending_names); db_writer.py delete+add неатомарны; pyproject transformers>=4.36 разрешал CVE-уязвимые 4.x.
+**Fix:** (1) llama_runner.py:184 → CreateMutexW(None, False, ...) (эталон graph.py:74/onnx_client.py:76); (2) task_queue.py → _submit_lock + откат регистрации (discard+pop) при RuntimeError; (3) db_writer.py write_records/bulk_write → фикс table.version до delete, restore(prev_version) при сбое add (LanceDB versioning — API проверен на 0.33: version/restore есть); (4) pyproject.toml → transformers>=5.3.0 (CVE-2026-4372 — фикс ТОЛЬКО 5.3.0, OSV).
+**Guard:** +4 регресс-теста: test_llama_mutex (Windows-only, ловит утечку владения через WaitForSingleObject(h,0)); test_submit_sync_failure_cleanup; test_submit_sync_dedup_concurrent; test_write_records_rollback_on_failed_add. Обобщение: grep CreateMutexW(None, True) = 0; except RuntimeError:pass с потерей состояния = 0.
+**Pattern:** NEW (аудит→фикс за один цикл; урок: LanceDB versioning — нативный механизм атомарности, лучше выдуманного temp+os.replace).
+
 ## [2026-08-08] — PYSEC-2026-3552: cryptography 49.0.0 в lock → 50.0.0 + pip-audit в CI (FIXED)
 
 **Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)
