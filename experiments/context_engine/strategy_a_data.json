@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "note": "Реальные ответы MCP-инструментов за 2026-08-08, сессия эксперимента Multi-Tool vs Context Engine. Тексты — verbatim где короткие, иначе точный эксцерпт полученного ответа. read_live_file — реальный исходник из LSP/disk.",
+    "tokens_heuristic": "tokens = chars / 4 (стандартная эвристика, CodeGraph-документация использует ту же норму)",
+    "memory_amortized": "intel_get_project_memory() вызван 1 раз на сессию (55 ADR), амортизируется на задачи"
+  },
+  "per_task_memory": {
+    "payload": "🧠 Project Memory: 55 ADR entries: PID-lock + self-healing + auto-index guard; audit fixes B1-B12; verify_diary 14%->68%; SymbolCache MCP tools; ... (выборка из intel_get_project_memory, 1 вызов на сессию)"
+  },
+  "tasks": [
+    {
+      "id": "T1-explain",
+      "intent": "explain",
+      "symbol": "_expand_graph_context",
+      "calls": [
+        {"tool": "get_symbol_info", "latency_ms": 408, "ok": true, "payload": "🔍 _expand_graph_context — 1 definitions, 0 usages. Definition: D:/Project/MSCodeBase/src/core/search/engine.py строка 1066 (function_definition)"},
+        {"tool": "impact_analysis", "latency_ms": 394, "ok": false, "payload": "✅ Completed (394ms) — message: Symbol '_expand_graph_context' not found in index"},
+        {"tool": "search_code", "latency_ms": 473, "ok": true, "payload": "📞 Called by: Searcher.search (engine.py:798), Searcher.search_with_mode (engine.py:970). Scope: function_part | giant_function_part | core.search.engine. def _expand_graph_context(self, results, original_query): Расширяет результаты контекстом из графа вызовов (v3.0): callers/callees в metadata, вместо синтетических [CALLER]-записей обогащает metadata."},
+        {"tool": "read_live_file", "latency_ms": 1086, "ok": true, "payload": "def _expand_graph_context(self, results: List[dict], original_query: str) -> List[dict]: \"\"\"Расширяет результаты контекстом из графа вызовов (v3.0). Для каждого результата добавляет в metadata: callers, callees. Вместо создания синтетических [CALLER]-записей (как было раньше) обогащает существующие метаданные — агент видит связи прямо в ответе search_code.\"\"\" try: expanded_results = list(results); si = getattr(self.indexer, '_symbol_index', None)...; for r in results[:10]: text = r.get('text',''); name = _extract_symbol_name(text); meta = r.get('metadata', {})"},
+        {"tool": "git history", "latency_ms": 120, "ok": true, "payload": "e1efe82c feat: WS1-WS7 consistency/trust/late enrichment; 59cb04da fix(audit): BS-1..BS-14; 094ff60f refactor(search): remove dead sync reranker bridges; 1ab2893b fix(search,mcp): lazy asyncio.Lock; d7ebf5fd fix: fast-mode distance sort; 5ce0eaa3 fix(search): search_code пустой результат; c10e9b4c feat(search): граф в каждом режиме поиска"}
+      ]
+    },
+    {
+      "id": "T2-modify",
+      "intent": "modify",
+      "symbol": "intel_code_topology",
+      "calls": [
+        {"tool": "get_symbol_info", "latency_ms": 406, "ok": true, "payload": "🔍 intel_code_topology — 1 definitions, 0 usages. Definition: D:/Project/MSCodeBase/src/core/intelligence/layer.py строка 191 (function_definition)"},
+        {"tool": "impact_analysis", "latency_ms": 399, "ok": false, "payload": "✅ Completed (399ms) — message: Symbol 'intel_code_topology' not found in index"},
+        {"tool": "search_code", "latency_ms": 5349, "ok": true, "payload": "📞 Called by: code_topology in src/core/intelligence/tools_reg.py:337. async def intel_code_topology(self, symbol_name: str) -> Dict[str, Any]: Агрегированный инструмент: полная картина связей символа. SymbolIndex: граф вызовов (callers/callees), кол-во ссылок, статический анализ (мертвый код). result = {symbol, latency_ms, definitions, call_graph: {incoming_callers, outgoing_callees}, references_count, definitions_count, static_analysis}"},
+        {"tool": "read_live_file", "latency_ms": 481, "ok": true, "payload": "async def intel_code_topology(self, symbol_name: str) -> Dict[str, Any]: \"\"\"Агрегированный инструмент: отдает полную картину связей символа. Использует SymbolIndex: граф вызовов (callers и callees), количество ссылок, статический анализ (мертвый код).\"\"\" result = {symbol, latency_ms, definitions, call_graph: {incoming_callers, outgoing_callees}, references_count, definitions_count, static_analysis}; start = perf_counter(); sv = self.symbol_index; defs = sv.search_symbols(symbol_name); call_graph = sv.build_call_graph(symbol_name, depth=2); callers = call_graph.get('callers', []); result['call_graph']['incoming_callers'] = [{symbol: c.get('symbol','') or c.get('name',''), file, line, kind: 'caller'} for c in callers]"},
+        {"tool": "git history", "latency_ms": 120, "ok": true, "payload": "3798d6a9 feat(lock): WS9 PID-lock self-healing; e1efe82c WS1-WS7; 59cb04da fix(audit) BS-1..BS-14 (search_code, topology, health, hub); b0a853f2 utf-8 subprocess; 6aae5c01 LM Studio port; 8a07c23e docs+fix, onnx off-by-one, hub write dispatch"}
+      ]
+    },
+    {
+      "id": "T3-debug",
+      "intent": "debug",
+      "symbol": "build_call_graph",
+      "calls": [
+        {"tool": "get_symbol_info", "latency_ms": 410, "ok": true, "wrong": true, "payload": "🔍 build_call_graph — 1 defs, 11 callers, 10 callees. Definition: D:/Project/MSCodeBase/experiments/run_experiment_pagerank.py line 40 (!!! НЕВЕРНОЕ: это эксперимент, не реальный SymbolIndex.build_call_graph). Called from: main (run_experiment_pagerank.py:216), SymbolIndex.get_impact_analysis (symbol_index.py:640), SymbolIndex.get_callees (symbol_index.py:789), ProjectIntelligenceLayer.intel_code_topology (layer.py:231). Calls: DiGraph, list, rglob, print, len"},
+        {"tool": "search_code", "latency_ms": 502, "ok": true, "payload": "call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2) (src/mcp/tools/search_tools.py:20); if call_graph['definition'] or call_graph['callers'] or call_graph['callees']: defs = call_graph['definition']; callers = call_graph['callers'][:15]; callees = call_graph['callees'][:10]"},
+        {"tool": "read_live_file", "latency_ms": 1086, "ok": true, "payload": "def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: \"\"\"Строит двунаправленный граф вызовов с заданной глубиной. BFS: уровень 0 = сам символ + определения; уровень 1 = прямые callers/callees; уровень 2+ рекурсивно. Возвращает: definition, callers, callees, call_chain, impact_files, depth_reached.\"\"\" with self._lock: result = {symbol, definition: [], callers: [], callees: [], call_chain: [], impact_files: set(), depth_reached: 0}; if depth < 1: depth = 1; if depth > 5: depth = 5; visited_callers/visited_callees (Set); defs = self._definitions.get(symbol, []); for level in range(depth): refs = self._references.get(sym, [])"},
+        {"tool": "git history", "latency_ms": 120, "ok": true, "payload": "59cb04da fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub); d84adeec Initial commit: restore project state"}
+      ]
+    },
+    {
+      "id": "T4-test",
+      "intent": "test",
+      "symbol": "intel_trigger_reindex",
+      "calls": [
+        {"tool": "get_symbol_info", "latency_ms": 408, "ok": false, "payload": "ℹ️ intel_trigger_reindex — not found"},
+        {"tool": "search_code", "latency_ms": 5349, "ok": true, "payload": "📞 Called by: trigger_reindex (tools_reg.py:97), reset_index (tools_reg.py:227). async def trigger_async_reindex(self) -> str: Двухфазная операция: запускает асинхронную переиндексацию. Предотвращает конкурентные вызовы: если reindex уже запущен, возвращает существующий job_id. Возвращает job_id мгновенно, задача в фоне. Zed опрашивает статус через intel_get_job_status. Также: get_active_reindex_job_id() -> Optional[str]"},
+        {"tool": "read_live_file", "latency_ms": 481, "ok": true, "payload": "job_id = await intel_layer.trigger_async_reindex(); await asyncio.sleep(2); job = job_manager.get_job(job_id); progress = round(job.progress * 100); p_label = job.status; enriched = intel_layer._enrich_job_response(job); estimated_sec = enriched.get('estimated_seconds', 120); ETA форматируется: ~Nм/с"},
+        {"tool": "git history", "latency_ms": 120, "ok": true, "payload": "e1efe82c WS1-WS7; a7a7a9e7 sort imports ruff I001; 8a07c23e docs+fix audit; f9ebd3a5 feat(artifacts): артефакты MCP в системную папку; fe1e3dc6 fix(indexing): физическое пересоздание таблицы LanceDB; 6c695c0e chore docs sandbox fix"}
+      ]
+    }
+  ]
+}

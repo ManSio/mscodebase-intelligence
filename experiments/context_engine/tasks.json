@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "id": "T1-explain",
+      "intent": "explain",
+      "prompt": "Что делает функция _expand_graph_context в src/core/search/engine.py? Как она связана с пайплайном поиска?",
+      "symbol": "_expand_graph_context",
+      "file": "src/core/search/engine.py",
+      "needed_facts": ["Searcher.search", "search_with_mode", "callers", "callees", "metadata", "graph context", "enrich"],
+      "rubric": "Должны быть названы вызывающие (Searcher.search, search_with_mode), суть (обогащение результатов метаданными графа вызовов), механизм (callers/callees в metadata)"
+    },
+    {
+      "id": "T2-modify",
+      "intent": "modify",
+      "prompt": "Хочу добавить параметр depth в intel_code_topology. Кто его вызывает, что сломается, где тесты?",
+      "symbol": "intel_code_topology",
+      "file": "src/core/intelligence/layer.py",
+      "needed_facts": ["tools_reg", "code_topology", "callers", "depth", "symbol_name", "call_graph", "incoming_callers"],
+      "rubric": "Должны быть названы вызывающий (code_topology в tools_reg.py), структура ответа (call_graph, incoming_callers), и связанные API"
+    },
+    {
+      "id": "T3-debug",
+      "intent": "debug",
+      "prompt": "В build_call_graph пустые callers для символа. Где определена функция, что она возвращает, какие связанные функции проверить?",
+      "symbol": "build_call_graph",
+      "file": "src/mcp/tools/search_tools.py",
+      "needed_facts": ["build_call_graph", "depth", "callers", "callees", "definition", "resolve_symbol_index", "SymbolIndex"],
+      "rubric": "Должны быть: определение build_call_graph, контракт (callers/callees/definition), вызовы resolve_symbol_index"
+    },
+    {
+      "id": "T4-test",
+      "intent": "test",
+      "prompt": "Напиши тест для intel_trigger_reindex. Какие связанные модули, существующие тесты, ADR/память проекта?",
+      "symbol": "intel_trigger_reindex",
+      "file": "src/core/intelligence/tools_reg.py",
+      "needed_facts": ["intel_trigger_reindex", "job_id", "intel_get_job_status", "reindex", "mode", "incremental"],
+      "rubric": "Должны быть: сигнатура (mode, job_id), статус-инструмент (intel_get_job_status), память проекта (ADR/known issues)"
+    }
+  ]
+}

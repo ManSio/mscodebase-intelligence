@@ -205,6 +205,16 @@ All documents are cross-referenced. Available in 3 languages: English, Русс�
 
 ---
 
+## Research & Writeups
+
+Deep-dives into specific technical findings from building this project:
+
+- [PageRank vs RAG on a Real Codebase: Corrected Numbers, and What I Almost Got Wrong Twice](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) — comparing retrieval methods, with two rounds of honest self-correction
+- [I Asked One AI to Fact-Check Another AI's Audit of My Own Code](https://dev.to/mansio/i-asked-one-ai-to-fact-check-another-ais-audit-of-my-own-code-1ac3)
+- [The Silent Vector Contamination Bug: Why Your Concurrent Embeddings Might Be Lying to You](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7)
+
+---
+
 ## 🔧 MCP Tools (58 total)
 
 > 58 = 57 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 57 (28 core + 13 intel + 12 inline + 4 dev).

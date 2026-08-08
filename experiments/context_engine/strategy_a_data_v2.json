@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "note": "Реальные ответы MCP-инструментов 2026-08-08 (сессии v1+v2). Payload — verbatim где короткие, иначе точный эксцерпт. latency_ms — реальные значения из intel_execution_timeline. ok=false = вызов вернул ошибку/not-found (входит в round trips, даёт 0 релевантных токенов). wrong=true = известный дефект (неверное определение).",
+    "memory_amortized": "intel_get_project_memory(): 55 ADR, 1 вызов на сессию, latency ~300ms (амортизируется)"
+  },
+  "memory": {
+    "payload": "🧠 Project Memory: 55 ADR entries: feat: PID-lock + self-healing + auto-index guard (3-layer defense); feat: audit fixes B1-B12 + 10 test fixes + CI + verify_diary 14%->68%; feat: verify_diary 81%->89% + B10/B11 KNOWN_ISSUES + SymbolCache MCP tools; ... (выборка из intel_get_project_memory)",
+    "latency_ms": 300
+  },
+  "symbols": {
+    "build_call_graph": {
+      "file": "src/core/indexing/symbol_index.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "wrong": true, "latency_ms": 408, "payload": "🔍 build_call_graph — 1 defs, 11 callers, 10 callees. Definition: D:/Project/MSCodeBase/experiments/run_experiment_pagerank.py line 40 (НЕВЕРНОЕ: тень эксперимента, реальное — symbol_index.py:480). Called from: main (run_experiment_pagerank.py:216), SymbolIndex.get_impact_analysis (symbol_index.py:640), SymbolIndex.get_callees (symbol_index.py:789), ProjectIntelligenceLayer.intel_code_topology (layer.py:231). Calls: DiGraph, list, rglob, print, len"},
+        "impact_analysis": {"ok": false, "latency_ms": 394, "payload": "✅ Completed (394ms) — message: Symbol 'build_call_graph' not found in index"},
+        "search_code": {"ok": true, "latency_ms": 502, "payload": "call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2) (src/mcp/tools/search_tools.py:20); if call_graph['definition'] or call_graph['callers'] or call_graph['callees']: defs = call_graph['definition']; callers = call_graph['callers'][:15]; callees = call_graph['callees'][:10]"},
+        "read_live_file": {"ok": true, "latency_ms": 1086, "payload": "def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: \"\"\"Строит двунаправленный граф вызовов с заданной глубиной. BFS: уровень 0 = символ + определения; уровень 1 = прямые callers/callees; 2+ рекурсивно. Возвращает: definition, callers, callees, call_chain, impact_files, depth_reached.\"\"\" with self._lock: result = {symbol, definition: [], callers: [], callees: [], call_chain: [], impact_files: set(), depth_reached: 0}; if depth < 1: depth = 1; if depth > 5: depth = 5; visited_callers/visited_callees (Set); defs = self._definitions.get(symbol, []); for level in range(depth): refs = self._references.get(sym, [])"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "59cb04da fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub); d84adeec Initial commit: restore project state"}
+      }
+    },
+    "intel_code_topology": {
+      "file": "src/core/intelligence/layer.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 406, "payload": "🔍 intel_code_topology — 1 definitions, 0 usages. Definition: D:/Project/MSCodeBase/src/core/intelligence/layer.py строка 191 (function_definition)"},
+        "impact_analysis": {"ok": false, "latency_ms": 399, "payload": "✅ Completed (399ms) — message: Symbol 'intel_code_topology' not found in index"},
+        "search_code": {"ok": true, "latency_ms": 5349, "payload": "📞 Called by: code_topology in src/core/intelligence/tools_reg.py:337. async def intel_code_topology(self, symbol_name: str) -> Dict[str, Any]: Агрегированный инструмент: полная картина связей символа. SymbolIndex: граф вызовов (callers/callees), кол-во ссылок, статический анализ (мертвый код). result = {symbol, latency_ms, definitions, call_graph: {incoming_callers, outgoing_callees}, references_count, definitions_count, static_analysis}"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "async def intel_code_topology(self, symbol_name: str) -> Dict[str, Any]: \"\"\"Агрегированный инструмент: полная картина связей символа. Использует SymbolIndex: граф вызовов (callers и callees), количество ссылок, статический анализ (мертвый код).\"\"\" result = {symbol, latency_ms, definitions, call_graph: {incoming_callers, outgoing_callees}, references_count, definitions_count, static_analysis}; start = perf_counter(); sv = self.symbol_index; defs = sv.search_symbols(symbol_name); call_graph = sv.build_call_graph(symbol_name, depth=2); callers = call_graph.get('callers', []); result['call_graph']['incoming_callers'] = [{symbol: c.get('symbol','') or c.get('name',''), file, line, kind: 'caller'} for c in callers]"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "3798d6a9 feat(lock): WS9 PID-lock self-healing — orphan/zombie detection; e1efe82c WS1-WS7 consistency/trust/late enrichment; 59cb04da fix(audit) BS-1..BS-14 (search_code, topology, health, hub); b0a853f2 utf-8 subprocess; 6aae5c01 LM Studio port; 8a07c23e docs+fix onnx off-by-one"}
+      }
+    },
+    "_expand_graph_context": {
+      "file": "src/core/search/engine.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 408, "payload": "🔍 _expand_graph_context — 1 definitions, 0 usages. Definition: D:/Project/MSCodeBase/src/core/search/engine.py строка 1066 (function_definition)"},
+        "impact_analysis": {"ok": false, "latency_ms": 394, "payload": "✅ Completed (394ms) — message: Symbol '_expand_graph_context' not found in index"},
+        "search_code": {"ok": true, "latency_ms": 473, "payload": "📞 Called by: Searcher.search (engine.py:798), Searcher.search_with_mode (engine.py:970). Scope: function_part | giant_function_part | core.search.engine. def _expand_graph_context(self, results, original_query): Расширяет результаты контекстом из графа вызовов (v3.0): callers/callees в metadata, вместо синтетических [CALLER]-записей обогащает metadata."},
+        "read_live_file": {"ok": true, "latency_ms": 1086, "payload": "def _expand_graph_context(self, results: List[dict], original_query: str) -> List[dict]: \"\"\"Расширяет результаты контекстом из графа вызовов (v3.0). Для каждого результата добавляет в metadata: callers, callees. Вместо создания синтетических [CALLER]-записей (как было раньше) обогащает существующие метаданные — агент видит связи прямо в ответе search_code.\"\"\" try: expanded_results = list(results); si = getattr(self.indexer, '_symbol_index', None)...; for r in results[:10]: text = r.get('text',''); name = _extract_symbol_name(text); meta = r.get('metadata', {})"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "e1efe82c feat: WS1-WS7 consistency/trust/late enrichment; 59cb04da fix(audit): BS-1..BS-14; 094ff60f refactor(search): remove dead sync reranker bridges; 1ab2893b fix(search,mcp): lazy asyncio.Lock; d7ebf5fd fix: fast-mode distance sort; 5ce0eaa3 fix(search): search_code пустой результат; c10e9b4c feat(search): граф в каждом режиме поиска"}
+      }
+    },
+    "intel_trigger_reindex": {
+      "file": "src/core/intelligence/tools_reg.py",
+      "calls": {
+        "get_symbol_info": {"ok": false, "latency_ms": 408, "payload": "ℹ️ intel_trigger_reindex — not found"},
+        "impact_analysis": {"ok": false, "latency_ms": 396, "payload": "Symbol 'intel_trigger_reindex' not found"},
+        "search_code": {"ok": true, "latency_ms": 5349, "payload": "📞 Called by: trigger_reindex (tools_reg.py:97), reset_index (tools_reg.py:227). async def trigger_async_reindex(self) -> str: Двухфазная операция: запускает асинхронную переиндексацию. Предотвращает конкурентные вызовы: если reindex уже запущен, возвращает существующий job_id. Возвращает job_id мгновенно, задача в фоне. Zed опрашивает статус через intel_get_job_status. Также: get_active_reindex_job_id() -> Optional[str]"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "job_id = await intel_layer.trigger_async_reindex(); await asyncio.sleep(2); job = job_manager.get_job(job_id); progress = round(job.progress * 100); p_label = job.status; enriched = intel_layer._enrich_job_response(job); estimated_sec = enriched.get('estimated_seconds', 120); ETA форматируется: ~Nм/с"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "e1efe82c WS1-WS7; a7a7a9e7 sort imports ruff I001; 8a07c23e docs+fix audit; f9ebd3a5 feat(artifacts): артефакты MCP в системную папку; fe1e3dc6 fix(indexing): физическое пересоздание таблицы LanceDB; 6c695c0e chore docs sandbox fix"}
+      }
+    },
+    "notify_change": {
+      "file": "src/mcp/server_tools.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 403, "payload": "🔍 notify_change — 1 defs, 0 callers, 2 callees. Definition: D:/Project/MSCodeBase/src/mcp/server_tools.py line 654. Calls: NotifyChangeTool → :666, __wrapped__ → :667"},
+        "impact_analysis": {"ok": true, "latency_ms": 400, "payload": "✅ Completed (400ms) — symbol: notify_change, depth: 3, direct callers: 0, direct callees: 2, risk level: low, risk score: 12, affected files: [src/mcp/server_tools.py], next step: read_live_file"},
+        "read_live_file": {"ok": true, "latency_ms": 468, "payload": "@mcp.tool('notify_change') async def notify_change(file_path: str, kwargs=None) -> str: \"\"\"Обновляет индекс одного файла через LSP VFS или диск. P0: замыкает workflow edit → notify → reindex. Доступен напрямую (также через hub-инструмент index(action='notify')).\"\"\" from src.mcp.tools.indexing_tools import NotifyChangeTool; tool = NotifyChangeTool(services); return await NotifyChangeTool.execute.__wrapped__(tool, file_path=file_path, kwargs=kwargs)"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "94e6173f fix(ci): ruff lint 35 errors + verify_clean_state pip-fail guard; e1efe82c WS1-WS7; 4bd29b0a feat: edge transparency, Jupyter, find_duplicates, get_context (3.4.0); be132122 feat(lsp): lsp_get_code_actions; d611b3a6 feat(lsp): type-info/diagnostics"}
+      }
+    },
+    "write_records": {
+      "file": "src/core/indexing/db_writer.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 406, "payload": "🔍 write_records — 1 definitions, 0 usages. Definition: D:/Project/MSCodeBase/src/core/indexing/db_writer.py строка 31 (function_definition)"},
+        "impact_analysis": {"ok": false, "latency_ms": 396, "payload": "✅ Completed (396ms) — message: Symbol 'write_records' not found in index"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "def write_records(self, parsed, embeddings, summarizer=None, enable_summaries=False, parser=None) -> list: \"\"\"Собирает data_records и пишет в LanceDB. Возвращает records.\"\"\" rel_path_str = parsed['rel_path']; current_hash = parsed['current_hash']; escaped_path = parsed.get('escaped_path', rel_path_str); existing_hash = parsed.get('existing_hash'); chunk_texts = parsed['chunk_texts']; ...; if not embeddings or len(embeddings) != len(chunk_texts): logger.warning('Embedding count mismatch'); return []; _target_dim = self.embedder.embedding_dim or 768"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "8c4596c0 fix(core): audit P1s — mutex initialOwner=False, task_queue lock+cleanup, lancedb version-rollback, transformers>=5.3.0 (+4 regression tests); fe1e3dc6 fix(indexing): физическое пересоздание таблицы LanceDB (INC-6C62); 06f432e6 perf: embedding 14x faster + bulk write; 53107339 fix: 217 ruff lint errors; f0c34102 feat: DB Proxy pattern"}
+      }
+    },
+    "_extract_symbol_name": {
+      "file": "src/core/search/utils.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "wrong": true, "latency_ms": 410, "payload": "🔍 _extract_symbol_name — 1 defs, 7 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 950. Called from: _boost_exact_name_matches (engine.py:93), _dedupe_by_symbol (engine.py:147), Searcher._expand_graph_context (engine.py:1105), Searcher._late_enrich_results (engine.py:1175), Searcher.hybrid_search_async (engine.py:647)"},
+        "impact_analysis": {"ok": false, "latency_ms": 396, "payload": "Symbol '_extract_symbol_name' not found"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "def _extract_symbol_name(text: str) -> Optional[str]: \"\"\"Извлекает имя символа из текста чанка.\"\"\" patterns = [r'def\\s+(\\w+)', r'class\\s+(\\w+)', r'(\\w+)\\s*=\\s*function', r'function\\s+(\\w+)', r'const\\s+(\\w+)\\s*=', r'let\\s+(\\w+)\\s*=', r'var\\s+(\\w+)\\s*=']; for pattern in patterns: match = re.search(pattern, text); if match: return match.group(1); return None"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "d84adeec Initial commit: restore project state"}
+      }
+    },
+    "SearchCodeTool": {
+      "file": "src/mcp/tools/search_tools.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 407, "payload": "🔍 SearchCodeTool — 1 defs, 0 callers, 0 callees. Definition: D:/Project/MSCodeBase/src/mcp/tools/search_tools.py line 230"},
+        "search_code": {"ok": true, "latency_ms": 63, "payload": "📂 search_code(fast) — result #2: context_search (engine.py) Called by: SearchCodeTool.execute in search_tools.py:371"},
+        "impact_analysis": {"ok": true, "latency_ms": 396, "payload": "✅ Completed (396ms) — symbol: SearchCodeTool, depth: 3, direct callers: 0, direct callees: 0, risk level: low, risk score: 8, affected files: [src/mcp/tools/search_tools.py], next step: read_live_file"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "class SearchCodeTool(MCPTool): \"\"\"search_code — семантический поиск по коду (vector + BM25 + agentic).\"\"\" def __init__(self, services): super().__init__(services, tool_name='search_code'); @error_boundary('search_code', timeout_ms=15000, max_retries=1) async def execute(self, query: str, mode: str = 'auto', limit: int = 6, filter_layer=None, intent_hint: str = 'auto', explain: bool = False, kwargs=None) -> str: await self.require_ready_project(); if not query or not query.strip(): return 'Query is empty'; searcher = self.resolve_searcher(); adaptive_limit = _get_search_budget(searcher); effective_limit = limit if limit != 6 else adaptive_limit"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "59cb04da fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub); e2950a14 fix(tools): stale_detector/_grep_fallback resolve_project_root; 3887bf7f feat: impact_analysis confidence scores + depth grouping; b4e694de feat: next_step hints in MCP tools; 8a07c23e docs+fix audit"}
+      }
+    },
+    "GetContextTool": {
+      "file": "src/mcp/tools/context_tool.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "latency_ms": 402, "payload": "🔍 GetContextTool — 1 defs, 0 callers, 0 callees. Definition: D:/Project/MSCodeBase/src/mcp/tools/context_tool.py line 18"},
+        "search_code": {"ok": true, "wrong": true, "latency_ms": 63, "payload": "📂 search_code(fast, 'GetContextTool get_context targets') — 3 results, ВСЕ НЕСВЯЗАННЫЕ: eta_predictor.py __init__, engine.py context_search (Called by SearchCodeTool.execute search_tools.py:371), graph.py node insert. GetContextTool НЕ найден по имени."},
+        "impact_analysis": {"ok": false, "latency_ms": 396, "payload": "Symbol 'GetContextTool' not found"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "get_context — task-shaped инструмент: контекст по нескольким целям одним вызовом. Вместо N вызовов get_symbol_info/impact_analysis агент передаёт список целей и получает агрегированный контекст (31.6% token reduction по benchmark repowise; у нас — обёртка над существующими тулами). class GetContextTool(MCPTool): def __init__(self, services): super().__init__(services, tool_name='get_context'); @error_boundary('get_context', timeout_ms=30000) async def execute(self, targets=None, kwargs=None) -> dict: targets = ... [:_MAX_TARGETS=10]; symbol_tool = GetSymbolInfoTool(self._services); impact_tool = ImpactAnalysisTool(self._services); for target in targets: item['symbol_info'] = await symbol_tool.execute(target); item['impact'] = await impact_tool.execute(target); return {status, targets, total_targets, context}"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "4bd29b0a feat: edge transparency, path queries, Jupyter, find_duplicates, get_context (3.4.0)"}
+      }
+    },
+    "_InterProcessLock": {
+      "file": "src/providers/reranker/llama_runner.py",
+      "calls": {
+        "get_symbol_info": {"ok": true, "wrong": true, "latency_ms": 405, "payload": "🔍 _InterProcessLock — 1 defs, 3 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 272. Called from: _acquire_llama_lock (llama_runner.py:272), LlamaRunner._start_sync (llama_runner.py:934), LlamaRunner.start_reranker (llama_runner.py:1034)"},
+        "impact_analysis": {"ok": false, "latency_ms": 396, "payload": "Symbol '_InterProcessLock' not found"},
+        "read_live_file": {"ok": true, "latency_ms": 481, "payload": "class _InterProcessLock › def __enter__ (llama_runner.py:184-194): kernel32 = ctypes.windll.kernel32; # bInitialOwner=False: владение только через WaitForSingleObject. True = рекурсивный захват (recursion 2 при WaitForSingleObject), один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок). self._mutex_handle = kernel32.CreateMutexW(None, False, self._name); WAIT_MS = 10_000; result = kernel32.WaitForSingleObject(self._mutex_handle, WAIT_MS); if result not in (0, 128): logger.warning('Не удалось захватить межпроцессный лок')"},
+        "git": {"ok": true, "latency_ms": 120, "payload": "8c4596c0 fix(core): audit P1s — mutex initialOwner=False, task_queue lock+cleanup, lancedb version-rollback, transformers>=5.3.0 (+4 regression tests); 9e0f0c5e fix(audit): 12 fixes; 1dea279d fix: Claude review 7/8; ac6e5ba0 fix: ISSUE P1-P3; d5d20ede fix: shared write lock"}
+      }
+    }
+  }
+}

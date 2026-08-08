@@ -1,0 +1,143 @@
+{
+  "_meta": {
+    "experiment": "D (v2) — Context Composition vs Tool Composition: Where Does the Latency Actually Come From?",
+    "date": "2026-08-08",
+    "method": "Одна кодовая база (MSCodeBase), 15 задач × 9 классов. Ground truth — только Verified факты (§1.14), зафиксированные в сессии. Patterns — regex, case-insensitive, по реальному содержимому корректных ответов.",
+    "metrics": "recall = retrieved_required/total_required; precision = tokens секций с ≥1 required fact / total; wrong = tokens секций с wrong-pattern / total; duplicate = tokens повторных вхождений факта (факт в ≥2 секциях, считается 2-е+ вхождение); agent_latency = A: Σ реальных latency MCP, C1/C2: 1×RT(реальный, из timeline) + реальный exec; server_latency = реальный exec (C1/C2), Σ server times (A); tokens = chars/4; round_trips = число вызовов.",
+    "defects_not_fixed": ["impact_analysis not-found на приватных/неиндексных символах", "get_symbol_info wrong definition для build_call_graph (тень experiments/run_experiment_pagerank.py)"]
+  },
+  "tasks": [
+    {"id": "T1", "klass": "find_bug_cause", "symbol": "build_call_graph", "file": "src/core/indexing/symbol_index.py",
+     "prompt": "В build_call_graph пустые callers для символа. Где реальное определение, что возвращает?",
+     "required_facts": [
+       {"id": "F1", "pattern": "symbol_index\\.py", "label": "определение в symbol_index.py"},
+       {"id": "F2", "pattern": "depth", "label": "параметр depth (BFS)"},
+       {"id": "F3", "pattern": "callers", "label": "возвращает callers"},
+       {"id": "F4", "pattern": "impact_files", "label": "impact_files в контракте"}
+     ],
+     "wrong_patterns": [{"pattern": "run_experiment_pagerank", "label": "wrong definition — тень экспериментального файла"}]},
+    {"id": "T2", "klass": "modify_function", "symbol": "intel_code_topology", "file": "src/core/intelligence/layer.py",
+     "prompt": "Хочу добавить параметр depth в intel_code_topology. Кто вызывает, что сломается?",
+     "required_facts": [
+       {"id": "F1", "pattern": "intelligence/layer\\.py", "label": "определение в layer.py"},
+       {"id": "F2", "pattern": "tools_reg", "label": "вызывающий code_topology в tools_reg.py"},
+       {"id": "F3", "pattern": "build_call_graph", "label": "использует build_call_graph"},
+       {"id": "F4", "pattern": "incoming_callers", "label": "структура ответа incoming_callers"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T3", "klass": "find_impact", "symbol": "_expand_graph_context", "file": "src/core/search/engine.py",
+     "prompt": "Что сломается, если изменю _expand_graph_context?",
+     "required_facts": [
+       {"id": "F1", "pattern": "Searcher\\.search", "label": "вызывающий Searcher.search"},
+       {"id": "F2", "pattern": "search_with_mode", "label": "вызывающий search_with_mode"},
+       {"id": "F3", "pattern": "metadata", "label": "обогащает metadata"},
+       {"id": "F4", "pattern": "engine\\.py", "label": "файл engine.py"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T4", "klass": "understand_architecture", "symbol": "_expand_graph_context", "file": "src/core/search/engine.py",
+     "prompt": "Как устроен пайплайн поиска: search → graph context?",
+     "required_facts": [
+       {"id": "F1", "pattern": "Searcher\\.search", "label": "Searcher.search точка входа"},
+       {"id": "F2", "pattern": "search_with_mode", "label": "search_with_mode маршрутизация"},
+       {"id": "F3", "pattern": "_extract_symbol_name", "label": "извлечение имени символа"},
+       {"id": "F4", "pattern": "symbol_index", "label": "SymbolIndex для связей"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T5", "klass": "find_test", "symbol": "intel_trigger_reindex", "file": "src/core/intelligence/tools_reg.py",
+     "prompt": "Напиши тест для intel_trigger_reindex. Какие связанные модули и существующие тесты?",
+     "required_facts": [
+       {"id": "F1", "pattern": "tools_reg\\.py", "label": "MCP-обёртка trigger_reindex в tools_reg.py"},
+       {"id": "F2", "pattern": "job_id", "label": "двухфазный job_id"},
+       {"id": "F3", "pattern": "intel_get_job_status", "label": "опрос через intel_get_job_status"},
+       {"id": "F4", "pattern": "test_index_progress", "label": "существующий тест test_index_progress.py"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T6", "klass": "git_history", "symbol": "intel_code_topology", "file": "src/core/intelligence/layer.py",
+     "prompt": "Что менялось в layer.py за последнее время?",
+     "required_facts": [
+       {"id": "F1", "pattern": "3798d6a9", "label": "WS9 PID-lock self-healing"},
+       {"id": "F2", "pattern": "e1efe82c", "label": "WS1-WS7 hardening"},
+       {"id": "F3", "pattern": "59cb04da", "label": "BS-1..BS-14 audit fix"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T7", "klass": "find_caller_callee", "symbol": "build_call_graph", "file": "src/core/indexing/symbol_index.py",
+     "prompt": "Кто вызывает build_call_graph и что он вызывает?",
+     "required_facts": [
+       {"id": "F1", "pattern": "get_impact_analysis", "label": "caller SymbolIndex.get_impact_analysis:640"},
+       {"id": "F2", "pattern": "get_callees", "label": "caller SymbolIndex.get_callees:789"},
+       {"id": "F3", "pattern": "intel_code_topology", "label": "caller intel_code_topology:231"},
+       {"id": "F4", "pattern": "_references", "label": "использует self._references"}
+     ],
+     "wrong_patterns": [{"pattern": "run_experiment_pagerank", "label": "wrong definition тень"}]},
+    {"id": "T8", "klass": "prepare_change", "symbol": "intel_code_topology", "file": "src/core/intelligence/layer.py",
+     "prompt": "Дай всё, чтобы безопасно изменить intel_code_topology: source, callers, git history.",
+     "required_facts": [
+       {"id": "F1", "pattern": "intelligence/layer\\.py", "label": "source layer.py"},
+       {"id": "F2", "pattern": "tools_reg", "label": "caller tools_reg.py"},
+       {"id": "F3", "pattern": "3798d6a9|e1efe82c|59cb04da", "label": "git history"},
+       {"id": "F4", "pattern": "incoming_callers", "label": "структура ответа"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T9", "klass": "verify_change", "symbol": "notify_change", "file": "src/mcp/server_tools.py",
+     "prompt": "Я изменил engine.py — какой инструмент вызвать для обновления индекса и как?",
+     "required_facts": [
+       {"id": "F1", "pattern": "notify_change", "label": "инструмент notify_change"},
+       {"id": "F2", "pattern": "file_path", "label": "параметр file_path"},
+       {"id": "F3", "pattern": "reindex|индекс", "label": "обновление индекса"},
+       {"id": "F4", "pattern": "server_tools\\.py", "label": "определение в server_tools.py"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T10", "klass": "find_bug_cause", "symbol": "write_records", "file": "src/core/indexing/db_writer.py",
+     "prompt": "Почему файл мог остаться без чанков при сбое add в write_records? Как это чинится?",
+     "required_facts": [
+       {"id": "F1", "pattern": "db_writer\\.py", "label": "определение в db_writer.py"},
+       {"id": "F2", "pattern": "delete", "label": "delete old"},
+       {"id": "F3", "pattern": "restore", "label": "rollback restore(prev_version)"},
+       {"id": "F4", "pattern": "version", "label": "table.version до delete"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T11", "klass": "understand_architecture", "symbol": "GetContextTool", "file": "src/mcp/tools/context_tool.py",
+     "prompt": "Что делает get_context и как он композирует другие инструменты?",
+     "required_facts": [
+       {"id": "F1", "pattern": "context_tool\\.py", "label": "определение GetContextTool"},
+       {"id": "F2", "pattern": "GetSymbolInfoTool", "label": "композиция GetSymbolInfoTool"},
+       {"id": "F3", "pattern": "ImpactAnalysisTool", "label": "композиция ImpactAnalysisTool"},
+       {"id": "F4", "pattern": "targets", "label": "параметр targets"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T12", "klass": "modify_function", "symbol": "_extract_symbol_name", "file": "src/core/search/utils.py",
+     "prompt": "Хочу добавить паттерн извлечения имён символов. Что это за функция, какие паттерны есть?",
+     "required_facts": [
+       {"id": "F1", "pattern": "search/utils\\.py", "label": "определение в utils.py"},
+       {"id": "F2", "pattern": "def\\\\s+", "label": "паттерн def"},
+       {"id": "F3", "pattern": "class\\\\s+", "label": "паттерн class"},
+       {"id": "F4", "pattern": "Optional", "label": "Optional[str] возврат"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T13", "klass": "find_test", "symbol": "SearchCodeTool", "file": "src/mcp/tools/search_tools.py",
+     "prompt": "Напиши тест для search_code. Какие существующие тесты и контракт инструмента?",
+     "required_facts": [
+       {"id": "F1", "pattern": "search_tools\\.py", "label": "SearchCodeTool в search_tools.py"},
+       {"id": "F2", "pattern": "test_next_step_hints", "label": "тест next_step"},
+       {"id": "F3", "pattern": "test_agentic_search", "label": "тест agentic search"},
+       {"id": "F4", "pattern": "mode", "label": "параметр mode (fast/quality/deep)"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T14", "klass": "git_history", "symbol": "build_call_graph", "file": "src/core/indexing/symbol_index.py",
+     "prompt": "Что менялось в symbol_index.py?",
+     "required_facts": [
+       {"id": "F1", "pattern": "59cb04da", "label": "BS-1..BS-14 audit fix"},
+       {"id": "F2", "pattern": "d84adeec", "label": "initial commit"}
+     ],
+     "wrong_patterns": []},
+    {"id": "T15", "klass": "prepare_change", "symbol": "_InterProcessLock", "file": "src/providers/reranker/llama_runner.py",
+     "prompt": "Готовлюсь менять mutex-лок в llama_runner. Что там сейчас и какие эталоны в проекте?",
+     "required_facts": [
+       {"id": "F1", "pattern": "CreateMutexW", "label": "CreateMutexW"},
+       {"id": "F2", "pattern": "initialOwner|False", "label": "bInitialOwner=False"},
+       {"id": "F3", "pattern": "WaitForSingleObject", "label": "WaitForSingleObject"},
+       {"id": "F4", "pattern": "graph\\.py|onnx_client\\.py", "label": "эталон в graph.py/onnx_client.py"}
+     ],
+     "wrong_patterns": []}
+  ]
+}
