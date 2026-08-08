@@ -3,11 +3,24 @@
 """
 
 import asyncio
+import threading
 import time
 
 import pytest
 
 from src.core.task_queue import TaskQueue, TaskStatus
+
+
+def _raise_no_loop(coro, loop):
+    """Эмуляция отсутствия работающего event loop (RuntimeError)."""
+    raise RuntimeError("no event loop")
+
+
+class _FakeQueue:
+    """Минимальная очередь для sync-тестов (put без реального loop)."""
+
+    def put(self, task):
+        return None
 
 
 class TestTaskQueue:
@@ -125,3 +138,55 @@ class TestTaskQueue:
 
         queue.cleanup_old_results(max_age_minutes=1)
         assert "old1" not in queue._results
+
+    def test_submit_sync_failure_cleanup(self, monkeypatch):
+        """RuntimeError при постановке → задача НЕ «застревает» в регистрации.
+
+        Регрессия deep-research-report.md P1: except RuntimeError: pass оставлял
+        задачу в _pending_names/_results навсегда — повторный submit с тем же
+        именем возвращал None вечно, а лог «поставлена в очередь» врал.
+        """
+        queue = TaskQueue(max_workers=1)
+        monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", _raise_no_loop)
+
+        task_id = queue.submit_sync("foo", lambda: "ok")
+
+        assert task_id is None
+        assert "foo" not in queue._pending_names, "Задача не должна остаться в pending_names"
+        assert queue._results == {}, "Задача не должна остаться в _results"
+        assert queue.has_pending("foo") is False
+
+    def test_submit_sync_dedup_concurrent(self, monkeypatch):
+        """Гонка двух потоков на submit_sync: ровно одна задача получает task_id.
+
+        Без lock (check-then-add) оба потока могли пройти проверку и создать
+        две задачи с одним именем. С _submit_lock — ровно один победитель.
+        """
+        queue = TaskQueue(max_workers=1)
+        monkeypatch.setattr(asyncio, "run_coroutine_threadsafe", lambda coro, loop: None)
+        loop = asyncio.new_event_loop()
+        queue._loop = loop
+        queue._queue = _FakeQueue()  # не None — пропускаем создание asyncio.Queue
+
+        try:
+            barrier = threading.Barrier(2)
+            results = []
+            results_lock = threading.Lock()
+
+            def worker():
+                barrier.wait()
+                tid = queue.submit_sync("foo", lambda: "ok")
+                with results_lock:
+                    results.append(tid)
+
+            threads = [threading.Thread(target=worker) for _ in range(2)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            loop.close()
+
+        granted = [tid for tid in results if tid is not None]
+        assert len(granted) == 1, f"Ожидался 1 task_id, получено {len(granted)}: {results}"
+        assert queue.has_pending("foo") is True

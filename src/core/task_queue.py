@@ -16,6 +16,7 @@ Task Queue — фоновая очередь задач для MCP.
 
 import asyncio
 import logging
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -82,6 +83,8 @@ class TaskQueue:
         self._result_ttl_sec = result_ttl_sec  # 10 минут
         self._cleanup_task: Optional[asyncio.Task] = None
         self._pending_names: set = set()  # для dedup по имени
+        # Защита check-then-add в submit_sync от гонки нескольких потоков
+        self._submit_lock = threading.Lock()
 
     async def start(self):
         """Запускает фоновый воркер + cleanup cycle."""
@@ -145,21 +148,22 @@ class TaskQueue:
         Returns:
             task_id для отслеживания или None если задача уже есть
         """
-        # ─── Dedup: не сабмитим если уже есть такая задача ───
-        if name in self._pending_names:
-            logger.debug(f"Задача уже в очереди: {name}")
-            return None
+        # ─── Dedup: не сабмитим если уже есть такая задача (check+add атомарно) ───
+        with self._submit_lock:
+            if name in self._pending_names:
+                logger.debug(f"Задача уже в очереди: {name}")
+                return None
 
-        task_id = str(uuid.uuid4())[:8]
-        task = Task(
-            id=task_id,
-            name=name,
-            func=func,
-            args=args,
-            kwargs=kwargs,
-        )
-        self._results[task_id] = task
-        self._pending_names.add(name)
+            task_id = str(uuid.uuid4())[:8]
+            task = Task(
+                id=task_id,
+                name=name,
+                func=func,
+                args=args,
+                kwargs=kwargs,
+            )
+            self._results[task_id] = task
+            self._pending_names.add(name)
 
         # Пытаемся положить в очередь (создаём если нет)
         try:
@@ -169,8 +173,14 @@ class TaskQueue:
             loop = self._loop or asyncio.get_event_loop()
             asyncio.run_coroutine_threadsafe(self._queue.put(task), loop)
         except RuntimeError:
-            # Нет event loop — задача в очереди на следующий старт
-            pass
+            # Нет event loop — отменяем регистрацию задачи, иначе она «повиснет»
+            # в _results/_pending_names навсегда и повторный submit с тем же именем
+            # будет возвращать None вечно.
+            with self._submit_lock:
+                self._pending_names.discard(name)
+                self._results.pop(task_id, None)
+            logger.warning(f"Задача не поставлена в очередь (нет event loop): {name}")
+            return None
 
         logger.info(f"Задача поставлена в очередь: {name} [{task_id}]")
         return task_id
