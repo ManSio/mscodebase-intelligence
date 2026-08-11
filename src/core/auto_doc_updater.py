@@ -223,11 +223,11 @@ class AutoDocUpdater:
     def _count_tools(self, root: Path) -> int:
         """Считает количество MCP-инструментов по местам регистрации.
 
-        Зеркалит runtime-константы register_all_tools (28 core + 13 intel +
-        12 inline + 4 dev = 57). Раньше: text.count() на regex-строке как на
+        Зеркалит runtime-константы register_all_tools (28 core + 14 intel +
+        12 inline + 4 dev = 58). Раньше: text.count() на regex-строке как на
         литерале + только server_tools.py — всегда возвращал 0.
         - core: классы в списке tool_classes (server_tools.py);
-        - intel: @mcp_app.tool(\" в src/core/intelligence/tools_reg.py (13);
+        - intel: @mcp_app.tool(\" в src/core/intelligence/tools_reg.py (14);
         - inline: @mcp.tool(\" в server_tools.py (12);
         - dev: @mcp_app.tool(\" в src/mcp/tools/dev_tools.py (4);
         - ExecuteScriptTool: +1 только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true.

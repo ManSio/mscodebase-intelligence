@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n57 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n58 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -204,7 +204,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 57 tools
+    MCP->>MCP: Register 58 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: 总启动时间：~2-5秒（异步嵌入器初始化）
@@ -339,7 +339,7 @@ flowchart LR
 | 指标 | 值 |
 |--------|-------|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP 工具** | 49（20 个核心 + 13 个 intel + 12 个内联 + 4 个 dev） |
+| **MCP 工具** | 58（28 个核心 + 14 个 intel + 12 个内联 + 4 个 dev） |
 | **DI 中的服务** | 18 |
 | **测试** | 853 |
 | **语言** | 3（EN, RU, ZH） |

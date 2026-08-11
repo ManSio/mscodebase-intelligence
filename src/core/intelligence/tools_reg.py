@@ -363,17 +363,37 @@ def register_intelligence_tools(mcp_app, intel_layer):
         )
 
     @mcp_app.tool("intel_get_project_memory")
-    async def get_project_memory() -> str:
-        """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли)."""
-        memory = await intel_layer.intel_get_project_memory()
+    async def get_project_memory(include_retracted: bool = False, verify_on_read: bool = True) -> str:
+        """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли).
+
+        ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True — показать все (аудит).
+        ADR-0003: verify_on_read=True (по умолчанию) — ленивая проверка ACTIVE-узлов при чтении
+        (SILENT_ABSENCE -> REFUTED, найденные -> VERIFIED); False — отключить для отладки.
+        """
+        memory = await intel_layer.intel_get_project_memory(
+            include_retracted=include_retracted, verify_on_read=verify_on_read
+        )
         from src.utils.ui_formatter import format_project_memory
 
         return format_project_memory(memory)
 
     @mcp_app.tool("intel_add_memory_node")
-    async def add_memory_node(section: str, data_json: str) -> str:
-        """Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'."""
-        return await intel_layer.intel_add_memory_node(section, data_json)
+    async def add_memory_node(section: str, data_json: str, status: str = "ACTIVE") -> str:
+        """Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'.
+
+        status (ADR-0002): 'ACTIVE' (по умолчанию, не проверено) | 'VERIFIED' (проверено против кода).
+        REFUTED при записи недоступен — только через intel_retract_memory_node.
+        """
+        return await intel_layer.intel_add_memory_node(section, data_json, status)
+
+    @mcp_app.tool("intel_retract_memory_node")
+    async def retract_memory_node(node_id: str, reason: str) -> str:
+        """Отозвать узел проектной памяти (ADR-0002): ACTIVE/VERIFIED → REFUTED.
+
+        reason обязателен — отзыв не бывает молчаливым. Отозванный узел
+        скрывается из intel_get_project_memory (виден с include_retracted=True).
+        """
+        return await intel_layer.intel_retract_memory_node(node_id, reason)
 
     @mcp_app.tool("intel_auto_collect_adrs")
     def auto_collect_adrs(max_commits: int = 50) -> str:

@@ -1,0 +1,715 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1 — Memory Contamination, facts v3 (mutation generator, N=50)",
+    "date": "2026-08-11",
+    "seed": 42,
+    "mix": {
+      "n_true": 25,
+      "n_absent": 16,
+      "n_present_trap": 6,
+      "n_silent": 3,
+      "n_total": 50
+    },
+    "design": "25 real (TRUE_POOL, паттерны валидированы grep-ом) + 16 absent-mutation + 6 present-trap + 3 silent. value != real_value субъекта; (subject, value) уникальны. Детерминированно (seed=42)."
+  },
+  "facts": [
+    {
+      "id": "G01",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "embedder",
+      "value": "llama.cpp",
+      "claim": "Векторный embedder использует llama.cpp",
+      "support_patterns": [
+        "LLAMA_CPP"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G02",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "embedding_model",
+      "value": "multilingual-e5-small",
+      "claim": "Модель эмбеддингов использует multilingual-e5-small",
+      "support_patterns": [
+        "multilingual-e5-small"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G03",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "embedder_fallback",
+      "value": "ONNX",
+      "claim": "Fallback embedder использует ONNX",
+      "support_patterns": [
+        "OnnxEmbedderClient"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G04",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "reranker",
+      "value": "BGE-M3",
+      "claim": "Реренкер использует BGE-M3",
+      "support_patterns": [
+        "bge-m3"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G05",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "reranker_model",
+      "value": "bge-reranker-v2-m3",
+      "claim": "Модель реранкера использует bge-reranker-v2-m3",
+      "support_patterns": [
+        "bge-reranker-v2-m3"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G06",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "index",
+      "value": "LanceDB",
+      "claim": "Индекс чанков использует LanceDB",
+      "support_patterns": [
+        "lancedb"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G07",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "index_version",
+      "value": "v2",
+      "claim": "Версия LanceDB использует v2",
+      "support_patterns": [
+        "lancedb_version"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G08",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "graph",
+      "value": "SQLite",
+      "claim": "Граф знаний использует SQLite",
+      "support_patterns": [
+        "sqlite3"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G09",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "graph_db",
+      "value": "graph.db",
+      "claim": "Файл графа использует graph.db",
+      "support_patterns": [
+        "graph.db"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G10",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "cypher",
+      "value": "in-process движок",
+      "claim": "Cypher-запросы использует in-process движок",
+      "support_patterns": [
+        "file:src/core/search/cypher_engine.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G11",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "transport",
+      "value": "fastmcp",
+      "claim": "MCP-транспорт использует fastmcp",
+      "support_patterns": [
+        "fastmcp"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G12",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "pid_lock",
+      "value": "CreateMutexW",
+      "claim": "PID-lock использует CreateMutexW",
+      "support_patterns": [
+        "CreateMutexW"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G13",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "mutex_wait",
+      "value": "WaitForSingleObject",
+      "claim": "Ожидание mutex использует WaitForSingleObject",
+      "support_patterns": [
+        "WaitForSingleObject"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G14",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "memory_store",
+      "value": "project_memory.json",
+      "claim": "Хранилище памяти использует project_memory.json",
+      "support_patterns": [
+        "project_memory.json"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G15",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "incidents_store",
+      "value": "incidents.json",
+      "claim": "Хранилище инцидентов использует incidents.json",
+      "support_patterns": [
+        "incidents.json"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G16",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "artifacts",
+      "value": "вне проекта",
+      "claim": "Артефакты использует вне проекта",
+      "support_patterns": [
+        "MSCODEBASE_DATA_DIR"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G17",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "execute_script",
+      "value": "отключён",
+      "claim": "execute_script использует отключён",
+      "support_patterns": [
+        "MSCODEBASE_EXECUTE_SCRIPT_ENABLED"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G18",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "bm25",
+      "value": "bm25_weight",
+      "claim": "BM25-ранжирование использует bm25_weight",
+      "support_patterns": [
+        "bm25_weight"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G19",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "bm25_batch",
+      "value": "DebounceBatch",
+      "claim": "Реиндексация BM25 использует DebounceBatch",
+      "support_patterns": [
+        "DebounceBatch"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G20",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "edge_types",
+      "value": "ASSIGNED_FROM",
+      "claim": "Типы рёбер графа использует ASSIGNED_FROM",
+      "support_patterns": [
+        "ASSIGNED_FROM"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G21",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "lsp",
+      "value": "basedpyright",
+      "claim": "LSP-диагностика использует basedpyright",
+      "support_patterns": [
+        "basedpyright"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G22",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "parser",
+      "value": "tree-sitter",
+      "claim": "Парсер кода использует tree-sitter",
+      "support_patterns": [
+        "tree_sitter"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G23",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "incidents_log",
+      "value": "intel_log_incident",
+      "claim": "Запись инцидентов использует intel_log_incident",
+      "support_patterns": [
+        "intel_log_incident"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G24",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "adr_collect",
+      "value": "intel_auto_collect_adrs",
+      "claim": "Сбор ADR использует intel_auto_collect_adrs",
+      "support_patterns": [
+        "intel_auto_collect_adrs"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G25",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "telemetry",
+      "value": "intel_get_telemetry",
+      "claim": "Телеметрия использует intel_get_telemetry",
+      "support_patterns": [
+        "intel_get_telemetry"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G26",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "lsp",
+      "value": "nose",
+      "claim": "LSP-диагностика использует nose",
+      "support_patterns": [
+        "nose"
+      ],
+      "contra_patterns": [
+        "basedpyright"
+      ]
+    },
+    {
+      "id": "G27",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "embedder",
+      "value": "neo4j",
+      "claim": "Векторный embedder использует neo4j",
+      "support_patterns": [
+        "neo4j"
+      ],
+      "contra_patterns": [
+        "LLAMA_CPP"
+      ]
+    },
+    {
+      "id": "G28",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "graph_db",
+      "value": "rabbitmq",
+      "claim": "Файл графа использует rabbitmq",
+      "support_patterns": [
+        "rabbitmq"
+      ],
+      "contra_patterns": [
+        "graph.db"
+      ]
+    },
+    {
+      "id": "G29",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "graph",
+      "value": "gremlin",
+      "claim": "Граф знаний использует gremlin",
+      "support_patterns": [
+        "gremlin"
+      ],
+      "contra_patterns": [
+        "sqlite3"
+      ]
+    },
+    {
+      "id": "G30",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "adr_collect",
+      "value": "nose",
+      "claim": "Сбор ADR использует nose",
+      "support_patterns": [
+        "nose"
+      ],
+      "contra_patterns": [
+        "intel_auto_collect_adrs"
+      ]
+    },
+    {
+      "id": "G31",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "parser",
+      "value": "neo4j",
+      "claim": "Парсер кода использует neo4j",
+      "support_patterns": [
+        "neo4j"
+      ],
+      "contra_patterns": [
+        "tree_sitter"
+      ]
+    },
+    {
+      "id": "G32",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "bm25",
+      "value": "zmq",
+      "claim": "BM25-ранжирование использует zmq",
+      "support_patterns": [
+        "zmq"
+      ],
+      "contra_patterns": [
+        "bm25_weight"
+      ]
+    },
+    {
+      "id": "G33",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "bm25_batch",
+      "value": "kafka",
+      "claim": "Реиндексация BM25 использует kafka",
+      "support_patterns": [
+        "kafka"
+      ],
+      "contra_patterns": [
+        "DebounceBatch"
+      ]
+    },
+    {
+      "id": "G34",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "embedding_model",
+      "value": "milvus",
+      "claim": "Модель эмбеддингов использует milvus",
+      "support_patterns": [
+        "milvus"
+      ],
+      "contra_patterns": [
+        "multilingual-e5-small"
+      ]
+    },
+    {
+      "id": "G35",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "embedder_fallback",
+      "value": "elasticsearch",
+      "claim": "Fallback embedder использует elasticsearch",
+      "support_patterns": [
+        "elasticsearch"
+      ],
+      "contra_patterns": [
+        "OnnxEmbedderClient"
+      ]
+    },
+    {
+      "id": "G36",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "graph",
+      "value": "mysql",
+      "claim": "Граф знаний использует mysql",
+      "support_patterns": [
+        "mysql"
+      ],
+      "contra_patterns": [
+        "sqlite3"
+      ]
+    },
+    {
+      "id": "G37",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "edge_types",
+      "value": "milvus",
+      "claim": "Типы рёбер графа использует milvus",
+      "support_patterns": [
+        "milvus"
+      ],
+      "contra_patterns": [
+        "ASSIGNED_FROM"
+      ]
+    },
+    {
+      "id": "G38",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "bm25",
+      "value": "elasticsearch",
+      "claim": "BM25-ранжирование использует elasticsearch",
+      "support_patterns": [
+        "elasticsearch"
+      ],
+      "contra_patterns": [
+        "bm25_weight"
+      ]
+    },
+    {
+      "id": "G39",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "incidents_log",
+      "value": "k8s",
+      "claim": "Запись инцидентов использует k8s",
+      "support_patterns": [
+        "k8s"
+      ],
+      "contra_patterns": [
+        "intel_log_incident"
+      ]
+    },
+    {
+      "id": "G40",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "incidents_log",
+      "value": "grafana",
+      "claim": "Запись инцидентов использует grafana",
+      "support_patterns": [
+        "grafana"
+      ],
+      "contra_patterns": [
+        "intel_log_incident"
+      ]
+    },
+    {
+      "id": "G41",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "memory_store",
+      "value": "rabbitmq",
+      "claim": "Хранилище памяти использует rabbitmq",
+      "support_patterns": [
+        "rabbitmq"
+      ],
+      "contra_patterns": [
+        "project_memory.json"
+      ]
+    },
+    {
+      "id": "G42",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "incidents_store",
+      "value": "sqlite3",
+      "claim": "Хранилище инцидентов использует sqlite3",
+      "support_patterns": [
+        "sqlite3"
+      ],
+      "contra_patterns": [
+        "incidents.json"
+      ]
+    },
+    {
+      "id": "G43",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "embedder",
+      "value": "onnx",
+      "claim": "Векторный embedder использует onnx",
+      "support_patterns": [
+        "onnx"
+      ],
+      "contra_patterns": [
+        "LLAMA_CPP"
+      ]
+    },
+    {
+      "id": "G44",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "incidents_log",
+      "value": "httpx",
+      "claim": "Запись инцидентов использует httpx",
+      "support_patterns": [
+        "httpx"
+      ],
+      "contra_patterns": [
+        "intel_log_incident"
+      ]
+    },
+    {
+      "id": "G45",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "transport",
+      "value": "sqlite3",
+      "claim": "MCP-транспорт использует sqlite3",
+      "support_patterns": [
+        "sqlite3"
+      ],
+      "contra_patterns": [
+        "fastmcp"
+      ]
+    },
+    {
+      "id": "G46",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "reranker_model",
+      "value": "fts5",
+      "claim": "Модель реранкера использует fts5",
+      "support_patterns": [
+        "fts5"
+      ],
+      "contra_patterns": [
+        "bge-reranker-v2-m3"
+      ]
+    },
+    {
+      "id": "G47",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "telemetry",
+      "value": "git",
+      "claim": "Телеметрия использует git",
+      "support_patterns": [
+        "git"
+      ],
+      "contra_patterns": [
+        "intel_get_telemetry"
+      ]
+    },
+    {
+      "id": "G48",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "Дашборды мониторинга построены в Grafana",
+      "support_patterns": [
+        "grafana"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G49",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "CI-пайплайн развёрнут в GitLab CI",
+      "support_patterns": [
+        "gitlab"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "G50",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "Деплой выполняется в Kubernetes",
+      "support_patterns": [
+        "kubernetes",
+        "k8s"
+      ],
+      "contra_patterns": []
+    }
+  ]
+}

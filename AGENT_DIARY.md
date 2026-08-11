@@ -12,8 +12,42 @@
 - **Multi-window:** CWD-first резолв проекта (per-process сигнал вместо глобального SQLite active_workspace_id) — 2026-08-07
 - **Type resolution:** query-time LSP через basedpyright (не index-time USES_TYPE) — 2026-08-06/07
 - **Edge transparency:** confidence EXTRACTED/INFERRED + evidence в properties рёбер — 2026-08-08
+- **Memory retraction (ADR-0002):** status ACTIVE|VERIFIED|REFUTED + `intel_retract_memory_node` (OWP lifecycle VERIFIED→REFUTED, причина обязательна) — 2026-08-11
 
 ---
+
+## [2026-08-11 22:10] — ADR-0002 RetractionReceipt: intel_retract_memory_node + статус-модель (DONE)
+**Status:** ✅ Fixed (код+тесты+доки; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1041 passed / 0 failed (2026-08-11)
+**Root Cause:** Project Memory add-only (EXPERIMENTS_LOG#2026-08-11): SILENT-факты заражают кумулятивно (adopt 0.12 у честного агента / 1.0 у memory_first), отзыв невозможен (grep-0 refute-тулов), память даёт уверенную ложь (conf_eff=4).
+**Fix:** ADR-0002 (docs/adr/0002-retraction-receipt.md, ✅ Accepted): status ACTIVE|VERIFIED|REFUTED (OWP lifecycle VERIFIED→REFUTED); intel_retract_memory_node(node_id, reason) — причина обязательна, повторный отзыв запрещён (retract_reason/retracted_at сохраняются); intel_add_memory_node(status=ACTIVE|VERIFIED, REFUTED запрещён); фильтрация REFUTED в store.load_memory/intel_get_project_memory (include_retracted для аудита); TOCTOU закрыт (RMW целиком под _write_lock — было: лок только на load); dedup auto_collect видит REFUTED (отозванный ADR не пересобирается); legacy без status = ACTIVE (zero миграций).
+**Guard:** tests/test_memory_retraction.py (14: store-фильтр, lifecycle, отказы, concurrency add+retract ×15 без потерь); контракт-тест тулов 57→58 (14 intel, auto_doc_updater); счётчики синхронизированы в 25+ файлах (AGENTS/README/CONTRIBUTING/docs en|ru|zh/AI_INSTALLATION_PROMPT); pytest 1041 passed / 10 skipped; diagnostics чистые.
+**Pattern:** NEW (первый фикс класса retraction). Смежный P-002-класс «счётчики vs runtime» закрыт в том же проходе (grep-свип 57/55/26-core = 0 по живым докам).
+**OPEN_QUESTION:** verify-on-read (Вариант B) и TTL auto_collect_adrs (C) отложены — см. KNOWN_ISSUES остаток; MCP-процесс с новым тулом появится после Reload Zed (§5.16 hot-reload).
+
+## [2026-08-11 22:40] — Exp 1-R: ретракция измерена — persistent contamination -88%, memory_first 1.0→0.12 (DONE)
+**Status:** ✅ Verified (эксперимент выполнен, EXPERIMENTS_LOG#2026-08-11-1-R; код-изменений вне experiments/ нет)
+**Root Cause:** — (измерение эффекта ADR-0002; контрольная группа = v3, parity OK: adoption честного S1 = 0.12)
+**Fix:** — (правок нет) | **Guard:** scripts/experiment + memory_contamination_results_v3_retraction.json; ADR-0002 Temporal уточнён
+**Pattern:** P-002-класс «прогноз vs замер» — «adoption → 0» в ADR Temporal оказался неверным таргетом: SILENT-факты неотзывны (adoption честного остаётся 0.12); падают persistent contamination (-88%), memory_first adoption (1.0→0.12) и токены (-45%).
+
+## [2026-08-11 23:10] — ADR-0003 Verify-On-Read: Lazy Validation Layer, adoption честного → 0.0 (DONE)
+**Status:** ✅ Fixed (код+тесты+эксперимент; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1056 passed / 0 failed (2026-08-11)
+**Root Cause:** ретракция (ADR-0002) не отзывала SILENT-факты (Exp 1-R: adoption честного 0.12) — вектор проверки на записи/отклике, а не на чтении.
+**Fix:** ADR-0003 (docs/adr/0003-verify-on-read.md, ✅ Accepted, 3 решения владельца: INCONCLUSIVE-предохранитель, кэш hash(node_id+HEAD) per-node без TTL, verify_on_read=True по умолчанию): src/core/intelligence/verify_on_read.py (Lazy Validation Layer: extract_anchors file/import/env, вердикты FOUND/NOT_FOUND/INCONCLUSIVE, fingerprint src+.env, кэш verify_cache.json, бюджет ≤50мс + TTL-кэш HEAD 30с); хук в intel_get_project_memory (layer.py:914-916, asyncio.to_thread); tools_reg param; 15 юнит-тестов; Exp 1-V.
+**Guard:** tests/test_verify_on_read.py (15); pytest 1056 passed; Exp 1-V: adoption честного 0.0 (v3/1-R 0.12), steady-state 0.6мс (бюджет), 0 ложных отзывов при корректных якорях; ограничения зафиксированы: present-trap слепы для presence-проверки (memory_first 0.16), наивная типизация токенов → 7/25 ложных REFUTED TRUE (урок: write-path хранит ТОЧНЫЕ якоря).
+**Pattern:** продолжение NEW-класса memory-retraction; P-002 «прогноз vs замер» закрыт измерением (Exp 1-V подтвердил прогноз 0.0 и вскрыл 2 реальных ограничения).
+**OPEN_QUESTION:** anchor-capture на write-пути (типизированные якоря при записи) — следующий кандидат; stale auto_collect_adrs → C (TTL) по Temporal T+180d.
+
+## [2026-08-11 23:50] — ADR-0003 follow-up: write-time anchor capture в intel_add_memory_node/auto_collect_adrs (DONE)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1061 passed / 0 failed (2026-08-11)
+**Root Cause:** Exp 1-V: verify-on-read с наивной типизацией голых токенов паттернов дал 7/25 ложных REFUTED TRUE (конфиг-строки bm25_weight/lancedb_version, методы слоя intel_*, подмодуль mcp.server.fastmcp, бинарник basedpyright) — артефакты типа, не дефект проверки.
+**Fix:** write-time anchor capture: intel_add_memory_node (layer.py) и intel_auto_collect_adrs извлекают ТИПИЗИРОВАННЫЕ якоря (file:/import X/from X import y/env:KEY/$KEY — синтаксис, не голые токены) при записи и хранят в data.anchors; verify-on-read проверяет их; guard против абсолютных/вложенных путей в _PATH_RE (C:\..., URL). Проза без артефакт-синтаксиса якорей не получает (INCONCLUSIVE, без ложных отзывов).
+**Guard:** +5 тестов (capture import-якоря, проза без якорей, сохранение явных anchors, скип абсолютного пути, end-to-end «проза import grafana → REFUTED / import fastmcp → VERIFIED»); pytest 1061 passed / 10 skipped; ruff чист.
+**Pattern:** P-002-класс «тип vs токен» — артефакты маппинга из 1-V закрыты у источника (write-путь), а не пост-фильтрацией.
+**OPEN_QUESTION:** stale auto_collect_adrs → C (TTL) — Temporal ADR-0003 T+180d.
 
 ## [2026-08-11 21:15] — FIX: get_context интенты git_history/verify_change возвращали пусто
 **Status:** ✅ Fixed (закоммичено локально, не запушено; tests/test_context_tool.py 2 passed, ruff чист)
@@ -22,6 +56,16 @@
 **Fix:** оба маппинга → [source, symbols, git] (правка из дерева параллельной сессии, верифицирована эмпирически: 3 секции собираются); +guard-тест test_intent_sections_with_dependent_sections_include_symbols.
 **Guard:** guard-тест (на старом маппинге падает — доказано AST-разбором HEAD); KNOWN_ISSUES#2026-08-11-context-intents.
 **Pattern:** P-003 NEW «молча пустой результат при неудовлетворённой downstream-зависимости» (случай 2 за сессию; случай 1 — engine.py кэш-хит #2026-08-11-hybrid-cache; guard — инвариант-тест на маппинг/ветку).
+
+---
+
+## [2026-08-11 22:40] — Experiment 1: Memory Contamination (IntelligenceStore) N=24 (DONE, исследование)
+
+**Status:** ✅ Verified (read-only к src/; EXPERIMENTS_LOG#2026-08-11-memory-contamination; изоляция: store_dir tempdir ≠ реальный, подтверждено assert'ом и полем isolation)
+**Root Cause:** — (не инцидент; проверка гипотезы second_brain_research: «персистентная память вносит stale/false контекст»): code_contradictability 0.714 (внутренние факты 10/10, внешние Redis/Celery/MySQL/Kafka 0/4); correction_capability (A code_first) = 1.0 — при явном противоречии Memory vs Code агент выбирает CODE и отзывает; НО система add-only: инструмента отзыва нет (grep-0) → даже корректное решение агента нереализуемо системно; memory_confidence_effect = 4 (SILENT-факты: уверенная ложь vs UNKNOWN без памяти); память-контекст ×22 токенов, выигрыша в correct_rate нет (0.833 == без памяти).
+**Fix:** — (код не менялся). Вывод для прод: (1) verify-on-read при load_memory; (2) retraction-статус VERIFIED/REFUTED (концепт владельца RetractionReceipt) + фильтрация при чтении; (3) intel_auto_collect_adrs — риск stale, ADR об окружении неверифицируемы кодом. KNOWN_ISSUES#2026-08-11-memory-addonly.
+**Guard:** memory_contamination.py + memory_contamination_facts.json (воспроизводимо; детерминированный агент — баг вердикта v1 (CONTRADICT→not truth) исправлен, ловушка «openai-compatible» уточнена до text-embedding-3).
+**Pattern:** NEW (урок: измерили «защитную способность системы», не психологию LLM — честная калибровка обязательна; память без отзыва = кумулятивное заражение).
 
 ---
 

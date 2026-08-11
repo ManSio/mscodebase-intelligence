@@ -1,0 +1,2207 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1 — Memory Contamination (IntelligenceStore)",
+    "date": "2026-08-11",
+    "scan_ms_total": 114.8,
+    "isolation": {
+      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\76cbe430\\intelligence",
+      "real_project_store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "isolated": true
+    }
+  },
+  "validation": {
+    "valid": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19",
+      "G20",
+      "G21",
+      "G22",
+      "G23",
+      "G24",
+      "G25",
+      "G26",
+      "G27",
+      "G28",
+      "G29",
+      "G30",
+      "G31",
+      "G32",
+      "G33",
+      "G34",
+      "G35",
+      "G36",
+      "G37",
+      "G38",
+      "G39",
+      "G40",
+      "G41",
+      "G42",
+      "G43",
+      "G44",
+      "G45",
+      "G46",
+      "G47",
+      "G48",
+      "G49",
+      "G50"
+    ],
+    "invalid": [],
+    "ambiguous": [
+      {
+        "id": "G42",
+        "reason": "FALSE fact has support found"
+      },
+      {
+        "id": "G43",
+        "reason": "FALSE fact has support found"
+      },
+      {
+        "id": "G44",
+        "reason": "FALSE fact has support found"
+      },
+      {
+        "id": "G45",
+        "reason": "FALSE fact has support found"
+      },
+      {
+        "id": "G46",
+        "reason": "FALSE fact has support found"
+      },
+      {
+        "id": "G47",
+        "reason": "FALSE fact has support found"
+      }
+    ]
+  },
+  "per_fact": [
+    {
+      "id": "G01",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Векторный embedder использует llama.cpp",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "LLAMA_CPP"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "LLAMA_CPP"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "LLAMA_CPP"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.3
+    },
+    {
+      "id": "G02",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Модель эмбеддингов использует multilingual-e5-small",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "multilingual-e5-small"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "multilingual-e5-small"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "multilingual-e5-small"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G03",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Fallback embedder использует ONNX",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "OnnxEmbedderClient"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "OnnxEmbedderClient"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "OnnxEmbedderClient"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 31.0,
+      "latency_ms": 2.3
+    },
+    {
+      "id": "G04",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Реренкер использует BGE-M3",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-m3"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-m3"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-m3"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 27.25,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G05",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Модель реранкера использует bge-reranker-v2-m3",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-reranker-v2-m3"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-reranker-v2-m3"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bge-reranker-v2-m3"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 32.5,
+      "latency_ms": 24.6
+    },
+    {
+      "id": "G06",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Индекс чанков использует LanceDB",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.25,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G07",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Версия LanceDB использует v2",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb_version"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb_version"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "lancedb_version"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G08",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Граф знаний использует SQLite",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "sqlite3"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 27.0,
+      "latency_ms": 4.7
+    },
+    {
+      "id": "G09",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Файл графа использует graph.db",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.5,
+      "latency_ms": 0.4
+    },
+    {
+      "id": "G10",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Cypher-запросы использует in-process движок",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "file:src/core/search/cypher_engine.py"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "file:src/core/search/cypher_engine.py"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "file:src/core/search/cypher_engine.py"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 15.25,
+      "latency_ms": 0.1
+    },
+    {
+      "id": "G11",
+      "truth": true,
+      "section": "adrs",
+      "claim": "MCP-транспорт использует fastmcp",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "fastmcp"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "fastmcp"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "fastmcp"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 27.75,
+      "latency_ms": 0.9
+    },
+    {
+      "id": "G12",
+      "truth": true,
+      "section": "adrs",
+      "claim": "PID-lock использует CreateMutexW",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CreateMutexW"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CreateMutexW"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CreateMutexW"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 2.3
+    },
+    {
+      "id": "G13",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Ожидание mutex использует WaitForSingleObject",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 31.0,
+      "latency_ms": 2.6
+    },
+    {
+      "id": "G14",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Хранилище памяти использует project_memory.json",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "project_memory.json"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "project_memory.json"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "project_memory.json"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 12.0
+    },
+    {
+      "id": "G15",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Хранилище инцидентов использует incidents.json",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "incidents.json"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "incidents.json"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "incidents.json"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.25,
+      "latency_ms": 13.4
+    },
+    {
+      "id": "G16",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Артефакты использует вне проекта",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_DATA_DIR"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_DATA_DIR"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_DATA_DIR"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G17",
+      "truth": true,
+      "section": "adrs",
+      "claim": "execute_script использует отключён",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_EXECUTE_SCRIPT_ENABLED"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_EXECUTE_SCRIPT_ENABLED"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "MSCODEBASE_EXECUTE_SCRIPT_ENABLED"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 1.0
+    },
+    {
+      "id": "G18",
+      "truth": true,
+      "section": "adrs",
+      "claim": "BM25-ранжирование использует bm25_weight",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "G19",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Реиндексация BM25 использует DebounceBatch",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.0,
+      "latency_ms": 1.7
+    },
+    {
+      "id": "G20",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Типы рёбер графа использует ASSIGNED_FROM",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.75,
+      "latency_ms": 1.4
+    },
+    {
+      "id": "G21",
+      "truth": true,
+      "section": "adrs",
+      "claim": "LSP-диагностика использует basedpyright",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "basedpyright"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "basedpyright"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "basedpyright"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 15.2
+    },
+    {
+      "id": "G22",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Парсер кода использует tree-sitter",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "tree_sitter"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "tree_sitter"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "tree_sitter"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.5,
+      "latency_ms": 0.9
+    },
+    {
+      "id": "G23",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Запись инцидентов использует intel_log_incident",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_log_incident"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_log_incident"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_log_incident"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 13.1
+    },
+    {
+      "id": "G24",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Сбор ADR использует intel_auto_collect_adrs",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_auto_collect_adrs"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_auto_collect_adrs"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_auto_collect_adrs"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 13.2
+    },
+    {
+      "id": "G25",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Телеметрия использует intel_get_telemetry",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_get_telemetry"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_get_telemetry"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "intel_get_telemetry"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.0,
+      "latency_ms": 12.2
+    },
+    {
+      "id": "G26",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "LSP-диагностика использует nose",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "basedpyright"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "basedpyright"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "basedpyright"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 42.3
+    },
+    {
+      "id": "G27",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Векторный embedder использует neo4j",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 29.6
+    },
+    {
+      "id": "G28",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Файл графа использует rabbitmq",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.5,
+      "latency_ms": 29.5
+    },
+    {
+      "id": "G29",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Граф знаний использует gremlin",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 27.0,
+      "latency_ms": 34.1
+    },
+    {
+      "id": "G30",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Сбор ADR использует nose",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_auto_collect_adrs"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_auto_collect_adrs"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_auto_collect_adrs"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 40.1
+    },
+    {
+      "id": "G31",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Парсер кода использует neo4j",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "tree_sitter"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "tree_sitter"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "tree_sitter"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.5,
+      "latency_ms": 28.3
+    },
+    {
+      "id": "G32",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "BM25-ранжирование использует zmq",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 27.6
+    },
+    {
+      "id": "G33",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Реиндексация BM25 использует kafka",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 29.0,
+      "latency_ms": 28.3
+    },
+    {
+      "id": "G34",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Модель эмбеддингов использует milvus",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "multilingual-e5-small"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "multilingual-e5-small"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "multilingual-e5-small"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 27.7
+    },
+    {
+      "id": "G35",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Fallback embedder использует elasticsearch",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "OnnxEmbedderClient"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "OnnxEmbedderClient"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "OnnxEmbedderClient"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 31.0,
+      "latency_ms": 29.1
+    },
+    {
+      "id": "G36",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Граф знаний использует mysql",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "sqlite3"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 27.0,
+      "latency_ms": 32.8
+    },
+    {
+      "id": "G37",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Типы рёбер графа использует milvus",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "ASSIGNED_FROM"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "ASSIGNED_FROM"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "ASSIGNED_FROM"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.75,
+      "latency_ms": 29.3
+    },
+    {
+      "id": "G38",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "BM25-ранжирование использует elasticsearch",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "bm25_weight"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 28.5,
+      "latency_ms": 31.1
+    },
+    {
+      "id": "G39",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Запись инцидентов использует k8s",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 41.5
+    },
+    {
+      "id": "G40",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Запись инцидентов использует grafana",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 42.8
+    },
+    {
+      "id": "G41",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Хранилище памяти использует rabbitmq",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "project_memory.json"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "project_memory.json"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "project_memory.json"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 30.5,
+      "latency_ms": 41.4
+    },
+    {
+      "id": "G42",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Хранилище инцидентов использует sqlite3",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "incidents.json"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "incidents.json"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "incidents.json"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 57.5,
+      "latency_ms": 17.3
+    },
+    {
+      "id": "G43",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Векторный embedder использует onnx",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": [
+            "onnx"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": [
+            "onnx"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "LLAMA_CPP"
+          ],
+          "support_found": [
+            "onnx"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 56.75,
+      "latency_ms": 0.4
+    },
+    {
+      "id": "G44",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Запись инцидентов использует httpx",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": [
+            "httpx"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": [
+            "httpx"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_log_incident"
+          ],
+          "support_found": [
+            "httpx"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 60.75,
+      "latency_ms": 13.0
+    },
+    {
+      "id": "G45",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "MCP-транспорт использует sqlite3",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": [
+            "sqlite3"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 55.0,
+      "latency_ms": 5.7
+    },
+    {
+      "id": "G46",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Модель реранкера использует fts5",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "bge-reranker-v2-m3"
+          ],
+          "support_found": [
+            "fts5"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "bge-reranker-v2-m3"
+          ],
+          "support_found": [
+            "fts5"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "bge-reranker-v2-m3"
+          ],
+          "support_found": [
+            "fts5"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 62.75,
+      "latency_ms": 34.2
+    },
+    {
+      "id": "G47",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Телеметрия использует git",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": [
+            "git"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": [
+            "git"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": [
+            "git"
+          ]
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 58.75,
+      "latency_ms": 14.8
+    },
+    {
+      "id": "G48",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Дашборды мониторинга построены в Grafana",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 0.0,
+      "latency_ms": 31.8
+    },
+    {
+      "id": "G49",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "CI-пайплайн развёрнут в GitLab CI",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 0.0,
+      "latency_ms": 31.2
+    },
+    {
+      "id": "G50",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Деплой выполняется в Kubernetes",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 1298.75,
+      "tokens_evidence": 0.0,
+      "latency_ms": 66.0
+    }
+  ],
+  "aggregates": {
+    "n_valid": 50,
+    "n_true": 25,
+    "n_false": 25,
+    "n_silent_false": 3,
+    "arms": {
+      "B": {
+        "correct_rate": 0.94,
+        "unknown_rate": 0.06,
+        "adoption_rate": 0.0,
+        "code_contradictability": 0.88,
+        "correction_capability": 0.0,
+        "correction_gap": 3,
+        "memory_confidence_effect": 3,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 0.0,
+        "tokens_evidence_total": 1539.2
+      },
+      "A_code_first": {
+        "correct_rate": 0.94,
+        "unknown_rate": 0.0,
+        "adoption_rate": 0.12,
+        "code_contradictability": 0.88,
+        "correction_capability": 1.0,
+        "correction_gap": 3,
+        "memory_confidence_effect": 3,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 64937.5,
+        "tokens_evidence_total": 1539.2
+      },
+      "A_memory_first": {
+        "correct_rate": 0.5,
+        "unknown_rate": 0.0,
+        "adoption_rate": 1.0,
+        "code_contradictability": 0.88,
+        "correction_capability": 0.0,
+        "correction_gap": 3,
+        "memory_confidence_effect": 3,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 64937.5,
+        "tokens_evidence_total": 1539.2
+      }
+    }
+  }
+}

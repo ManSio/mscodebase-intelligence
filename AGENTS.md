@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (57 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (58 Registered Tools)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 13 Intel Layer + 28 Core MCP (включая `codebase` hub + 6 LSP) + 12 Inline/Diagnostic + 4 Dev Tools = 57 registered (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` → 58)
+> Optimized for the hybrid model: 14 Intel Layer + 28 Core MCP (включая `codebase` hub + 6 LSP) + 12 Inline/Diagnostic + 4 Dev Tools = 58 registered (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` → 59)
 
 > \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
 
@@ -296,13 +296,13 @@ intel_get_project_memory      ──>   git(action="log") / git(action="history"
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (57)
+## 2. AVAILABLE TOOLS (58)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
 > Актуальное число зарегистрированных инструментов — в логе MCP при старте (`📐 MCP Tools: N/M видимы`).
 
-### A. Intel Intelligence Layer (13 tools)
+### A. Intel Intelligence Layer (14 tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_reset_index`,
 `intel_get_job_status`, `intel_auto_collect_adrs`,

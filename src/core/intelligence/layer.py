@@ -911,29 +911,35 @@ class ProjectIntelligenceLayer:
             "similar_incidents": matches[:5],
         }
 
-    async def intel_get_project_memory(self) -> Dict[str, List[Dict]]:
-        """Получить полную карту памяти проекта."""
-        return self.store.load_memory()
+    async def intel_get_project_memory(
+        self,
+        include_retracted: bool = False,
+        verify_on_read: bool = True,
+    ) -> Dict[str, List[Dict]]:
+        """Получить полную карту памяти проекта.
 
-    async def intel_add_memory_node(self, section: str, data_json: str) -> str:
-        """Добавить запись в проектную память.
-
-        Секции: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
+        ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True
+        возвращает их для аудита и отладки.
+        ADR-0003: verify_on_read=True (по умолчанию) — ACTIVE-узлы проходят
+        ленивую проверку якорей (file/import/env) при извлечении: прямые
+        отрицательные тесты -> REFUTED (SILENT_ABSENCE_ON_READ), найденные
+        -> VERIFIED, непроверяемые (без якорей) -> остаются ACTIVE.
         """
-        if section not in ("adrs", "known_issues", "tech_debt", "failed_attempts"):
-            return _(
-                "Неизвестная секция: {section}. Допустимые: adrs, known_issues, tech_debt, failed_attempts",
-                section=section,
-            )
+        memory = self.store.load_memory(include_retracted=include_retracted)
+        if verify_on_read and not include_retracted:
+            from src.core.intelligence.verify_on_read import get_verifier
 
-        try:
-            data = json.loads(data_json)
-        except json.JSONDecodeError as e:
-            return _("JSON parse error: {error}", error=e)
+            verifier = get_verifier(self.project_path, self.store, self._write_lock)
+            memory, _stats = await asyncio.to_thread(verifier.run, memory)
+        return memory
 
-        async with _AsyncLockAdapter(self._write_lock):
-            nodes = self.store._load_json("project_memory.json")
-        # Миграция старого формата (dict) в плоский список
+    def _load_flat_memory_nodes(self) -> List[Dict]:
+        """Загружает project_memory.json как плоский список узлов.
+
+        Мигрирует legacy dict-формат {"section": [...]} в плоский список
+        (ADR-0002: старые записи без статуса получают status=ACTIVE).
+        """
+        nodes = self.store._load_json("project_memory.json")
         if isinstance(nodes, dict):
             flat = []
             for sec_name, sec_items in nodes.items():
@@ -944,24 +950,103 @@ class ProjectIntelligenceLayer:
                             "section": sec_name,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "data": item if isinstance(item, dict) else {"value": item},
+                            "status": "ACTIVE",
                         }
                     )
             nodes = flat
+        return nodes
+
+    async def intel_add_memory_node(
+        self, section: str, data_json: str, status: str = "ACTIVE"
+    ) -> str:
+        """Добавить запись в проектную память.
+
+        Секции: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'
+        status (ADR-0002): 'ACTIVE' (по умолчанию — записано, не проверено)
+        или 'VERIFIED' (факт проверен против кода). 'REFUTED' при записи
+        недоступен — только через intel_retract_memory_node.
+        """
+        if section not in ("adrs", "known_issues", "tech_debt", "failed_attempts"):
+            return _(
+                "Неизвестная секция: {section}. Допустимые: adrs, known_issues, tech_debt, failed_attempts",
+                section=section,
+            )
+        if status not in ("ACTIVE", "VERIFIED"):
+            if status == "REFUTED":
+                return _(
+                    "Статус REFUTED устанавливается только через intel_retract_memory_node(node_id, reason)."
+                )
+            return _(
+                "Недопустимый статус: {status}. Допустимые: ACTIVE, VERIFIED.",
+                status=status,
+            )
+
+        try:
+            data = json.loads(data_json)
+        except json.JSONDecodeError as e:
+            return _("JSON parse error: {error}", error=e)
+
+        # ADR-0003: write-time anchor capture — типизированные якоря из синтаксиса
+        # claim/data (file:/import/env), чтобы verify-on-read проверял ТОЧНЫЕ якоря,
+        # а не голые токены (урок Exp 1-V: наивная типизация -> 7/25 ложных REFUTED).
+        if isinstance(data, dict):
+            from src.core.intelligence.verify_on_read import extract_anchors
+
+            captured = [a.to_dict() for a in extract_anchors({"data": data})]
+            if captured:
+                data["anchors"] = captured
 
         new_node = {
             "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
             "section": section,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "data": data,
+            "status": status,
         }
-        nodes.append(new_node)
-        self.store._save_json("project_memory.json", nodes)
-        logger.info(f"Запись {new_node['node_id']} добавлена в {section}")
+        # Весь read-modify-write — под одним локом (ADR-0002: два писателя —
+        # add и retract — не должны терять аппенды при конкуренции).
+        async with _AsyncLockAdapter(self._write_lock):
+            nodes = self._load_flat_memory_nodes()
+            nodes.append(new_node)
+            self.store._save_json("project_memory.json", nodes)
+        logger.info(f"Запись {new_node['node_id']} добавлена в {section} ({status})")
         return _(
-            "Запись {node_id} добавлена в раздел '{section}'.",
+            "Запись {node_id} добавлена в раздел '{section}' (status: {status}).",
             node_id=new_node["node_id"],
             section=section,
+            status=status,
         )
+
+    async def intel_retract_memory_node(self, node_id: str, reason: str) -> str:
+        """Отозвать узел проектной памяти (ADR-0002).
+
+        Переводит узел (ACTIVE или VERIFIED) в REFUTED — терминальный статус —
+        и фиксирует причину отзыва (retract_reason) и время (retracted_at).
+        Отзыв без непустой причины невозможен; повторный отзыв запрещён
+        (первичная причина отзыва сохраняется).
+        """
+        reason = reason.strip() if reason else ""
+        if not reason:
+            return _(
+                "Отзыв требует непустую причину (reason) — память не отзывается молча."
+            )
+        async with _AsyncLockAdapter(self._write_lock):
+            nodes = self._load_flat_memory_nodes()
+            for n in nodes:
+                if n.get("node_id") == node_id:
+                    if n.get("status") == "REFUTED":
+                        return _("Узел {node_id} уже отозван.", node_id=node_id)
+                    n["status"] = "REFUTED"
+                    n["retract_reason"] = reason
+                    n["retracted_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    self.store._save_json("project_memory.json", nodes)
+                    logger.info(f"Узел {node_id} отозван: {reason[:50]}...")
+                    return _(
+                        "Узел {node_id} отозван (status=REFUTED). Причина: {reason}",
+                        node_id=node_id,
+                        reason=reason,
+                    )
+            return _("Узел {node_id} не найден.", node_id=node_id)
 
     # -----------------------------------------------------------------
     # БЛОК 5. Hotspot Engine (Зоны высокого риска)
@@ -1067,8 +1152,10 @@ class ProjectIntelligenceLayer:
         ]
         adr_re = _re.compile('|'.join(f'(?:{p})' for p in ADR_PATTERNS), _re.IGNORECASE)
 
-        # Загружаем существующие ADR (чтобы не дублировать)
-        memory = self.store.load_memory()
+        # Загружаем существующие ADR (чтобы не дублировать).
+        # ADR-0002: dedup видит и REFUTED-узлы — отозванный ADR не собирается
+        # повторно следующим прогоном auto_collect_adrs.
+        memory = self.store.load_memory(include_retracted=True)
         existing_adrs = memory.get('adrs', [])
         existing_hashes = set()
         for a in existing_adrs:
@@ -1104,6 +1191,7 @@ class ProjectIntelligenceLayer:
                 'node_id': f'ADR-{commit_hash}',
                 'section': 'adrs',
                 'timestamp': '',  # будет заполнено при save
+                'status': 'ACTIVE',  # ADR-0002: авто-собранное — не проверено против кода
                 'data': {
                     'commit_hash': commit_hash,
                     'title': subject,
@@ -1112,6 +1200,12 @@ class ProjectIntelligenceLayer:
                     'source': 'auto-collect',
                 },
             }
+            # ADR-0003: write-time anchor capture (file:/import/env из title/body)
+            from src.core.intelligence.verify_on_read import extract_anchors
+
+            captured = [a.to_dict() for a in extract_anchors({'data': adr_node['data']})]
+            if captured:
+                adr_node['data']['anchors'] = captured
             new_adrs.append(adr_node)
 
         if not new_adrs:

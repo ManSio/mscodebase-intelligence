@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-08-11 — Project Memory add-only: нет отзыва (retraction) — РЕШЕНО ADR-0002 (🟢 стабильно; verify-on-read остаётся 🟡)
+
+**Symptom:** Experiment 1 Memory Contamination (N=24) подтвердил: память (IntelligenceStore) однонаправлена — инструментов delete/refute нет (grep-0 по memory-инструментам), при чтении claim не сверяется с кодом. На SILENT-фактах (внешние системы: Redis/Celery/MySQL/Kafka — в коде отсутствуют) память дала уверенный ложный ответ там, где без памяти был бы UNKNOWN (memory_confidence_effect=4). stale-ADR из `intel_auto_collect_adrs` остаются навсегда → заражение кумулятивно.
+**Root Cause:** store API = save/load без статусов (VERIFIED/REFUTED), нет verify-on-read; код опровергает 71% ложных фактов (10/14), но система не использует это.
+**Fix (2026-08-11, ADR-0002, docs/adr/0002-retraction-receipt.md):** статус-модель ACTIVE|VERIFIED|REFUTED (OWP lifecycle VERIFIED→REFUTED); `intel_retract_memory_node(node_id, reason)` — причина обязательна, повторный отзыв запрещён (retract_reason/retracted_at сохраняются); `intel_add_memory_node(status=ACTIVE|VERIFIED, REFUTED при записи запрещён)`; фильтрация REFUTED в `store.load_memory`/`intel_get_project_memory` (include_retracted=True для аудита); TOCTOU закрыт (весь RMW под `_write_lock`); dedup `intel_auto_collect_adrs` видит REFUTED; legacy без status = ACTIVE (zero миграций). Guard: tests/test_memory_retraction.py (14), pytest 1041 passed.
+**Status:** 🟢 стабильно (ретракция + verify-on-read + write-time anchor capture) | **Остаток (🟡):** TTL для auto_collect_adrs (Вариант C) — отложен; переоткрытие ADR по мере надобности (Temporal ADR-0003 T+180d). | **Владелец:** misha. | **Deadline остатка:** 2026-09-11 (1 месяц наблюдения за stale-rate auto_collect_adrs).
+
+---
+
 ## 2026-08-11 — get_context (B-scheme): интенты git_history/verify_change молча возвращали пусто (FIXED 🟢)
 
 **Symptom:** `INTENT_SECTIONS` (context_tool.py): `git_history: ["git"]`, `verify_change: ["source", "git"]` — без `"symbols"`. `_collect_sections` собирает source/git/fallback ТОЛЬКО при `symbols_data` (заполняется, если `"symbols"` в keep_sections) → оба интента всегда возвращали пустой payload. Доказано AST-разбором HEAD-маппинга (BROKEN ×2) + эмпирически (новый маппинг собирает 3 секции).
