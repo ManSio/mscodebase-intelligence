@@ -70,10 +70,12 @@
 - Локальный ruff-кэш может пропускать BLE001 — перед push `ruff check src/ tests/ --no-cache`.
 
 ## Multi-RAG ablation (2026-08-11, Experiment 1 N=30)
-- hybrid_search_async engine.py L521-541: на кэш-хите эмбеддинга dense-поиск ПРОПУСКАЕТСЯ
-  (all_dense_results пуст) — vector-тир молча исчезает при повторных запросах. НЕ чинить
-  без регресс-теста «два подряд одинаковых запроса → оба с dense». Эксперимент обходит
-  изоляцией кэша per-arm. Баг доказан абляцией: vector_bm25 == bm25_only 30/30.
+- hybrid_search_async: кэш-хит эмбеддинга ПРОПУСКАЛ dense-поиск (vector-тир молча
+  исчезал при повторных запросах) — ИСПРАВЛЕНО 2026-08-11 (engine.py L536-545:
+  dense вынесен из else под guard query_vector is not None) + 4 регресс-теста
+  tests/test_hybrid_cache.py (два подряд одинаковых запроса → оба с dense;
+  на старом коде падают). Паттерн-ловушка: mid-pipeline кэш обязан проходить
+  тот же downstream, что свежий (кэши конечного результата — корректны).
 - Абляция: recall несут BM25+FTS5 (fts5_only 0.825 — максимум, выше full 0.775),
   vector (llama.cpp e5-small) слабейший (0.167), реранкер = precision (+0.147) ценой
   recall (−0.019); graph-ценность в metadata (callers/callees), не в тексте чанков.
