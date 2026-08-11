@@ -226,7 +226,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `get_repo_rank(project_root, top_k)` | Ранжирование важностей символов (PageRank на графе вызовов) |
 | `get_bug_correlation(project_root)` | Анализ корреляции багов и изменений |
 | `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
-| `graph_query(action="related", target=path)` | Файлы, связанные через совместные изменения / корреляцию багов (мультиплексирует бывший `get_related_files`) |
+| `graph_query(action="related", target=path)` | Файлы, связанные через совместные изменения / корреляцию багов (через `related` action) |
 | `graph_query(action, target)` | Запросы к графу: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
 

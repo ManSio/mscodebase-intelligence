@@ -268,7 +268,7 @@ Deep-dives into specific technical findings from building this project:
 | `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
 | `get_repo_map(project_root)` | Project map: file tree + key symbols |
-| `graph_query(action="related", target=path)` | Files related via co-change / bug correlation (multiplexes legacy `get_related_files`) |
+| `graph_query(action="related", target=path)` | Files related via co-change / bug correlation (via `related` action) |
 | `graph_query(action, target)` | Graph queries: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
 

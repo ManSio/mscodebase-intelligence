@@ -8,6 +8,8 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
 1. verify_diary — проверка AGENT_DIARY.md на целостность
 2. stale_detector — проверка дрейфа версий в доках (doc-sync 2026-08-12:
    checker exit 0, re-enabled после 113 дрейфов → 0)
+3. check_tool_names — semantic-гейт имён MCP-тулов в доках (2026-08-12:
+   мёртвые имена get_variable_flow и др. удалены, гейт не даёт им вернуться)
 """
 
 from __future__ import annotations
@@ -85,6 +87,7 @@ def main():
 
     all_ok &= run_script("scripts/verify_diary.py", "verify_diary")
     all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
+    all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
@@ -106,7 +109,7 @@ class GitHooksInstaller:
         result = installer.uninstall("/path/to/project")
     """
 
-    def __init__(self, version: str = "3.3.7"):
+    def __init__(self, version: str = "3.3.8"):
         self.version = version
 
     # ─── Public API ────────────────────────────────────────
@@ -146,7 +149,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary + stale_detector"
+            f"   Хуки: verify_diary + stale_detector + check_tool_names"
         )
 
     def uninstall(self, project_root: str) -> str:
