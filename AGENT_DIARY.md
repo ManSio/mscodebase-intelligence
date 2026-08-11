@@ -15,6 +15,14 @@
 
 ---
 
+## [2026-08-11 21:45] — FIX: hybrid_search_async кэш-хит терял vector-тир
+**Status:** ✅ Fixed (закоммичено локально, не запушено; gate-zero 1025 passed/10 skipped, ruff 0)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1025 passed / 0 failed (рабочее дерево, эта сессия)
+**Root Cause:** engine.py L521-541 — dense-поиск вызывался только в else-ветке свежего эмбеддинга; кэш-хит присваивал query_vector и молча пропускал `_vector_search_async` → `all_dense_results` пуст.
+**Fix:** dense-поиск вынесен из else под `if query_vector is not None` (engine.py L536-545) — выполняется при любом источнике вектора (хит/свежий).
+**Guard:** +3 регресс-теста tests/test_hybrid_cache.py (кэш-хит: `assert_awaited_once` + результат в выдаче + embedder не вызван; cache-miss контроль; провал эмбеддинга не роняет поиск). KNOWN_ISSUES#2026-08-11 → ✅.
+**Pattern:** NEW (кэш-хит ≠ завершение операции — ресурс из кэша обязан проходить тот же downstream-путь, что свежий).
+
 ## [2026-08-11] — Experiment 1: Multi-RAG Component Ablation N=30 (DONE, исследование)
 
 **Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-11-multi-rag)

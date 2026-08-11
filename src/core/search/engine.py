@@ -533,6 +533,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                                 if len(self._embedding_cache) >= self._embedding_cache_max:
                                     self._embedding_cache.popitem(last=False)  # evict oldest
                                 self._embedding_cache[query_hash] = query_vector
+                    # Dense-поиск — при ЛЮБОМ источнике вектора (кэш-хит или свежий
+                    # эмбеддинг). Ранее выполнялся только в else-ветке: кэш-хит
+                    # молча терял vector-тир (KNOWN_ISSUES#2026-08-11).
+                    if query_vector is not None:
                         dense_results = await self._vector_search_async(
                             query_vector, limit=raw_limit, filter_expr=filter_expr
                         )
