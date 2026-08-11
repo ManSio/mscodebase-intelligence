@@ -4,7 +4,7 @@ server_tools.py — Регистрация MCP-инструментов.
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
 - register_all_tools() — регистрация 28 core-инструментов (20 + 6 LSP + find_duplicates + get_context) + execute_script
-- _register_intelligence_tools() — 13 intel_* инструментов (intelligence/layer.py)
+- _register_intelligence_tools() — 14 intel_* инструментов (intelligence/tools_reg.py)
 - _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
 - Всего: 28 + 13 + 12 + 4 = 57 инструментов (+ 1 optional execute_script = 58 при env-on)
@@ -250,7 +250,7 @@ def register_all_tools(mcp, services):
     else:
         logger.info(f"✅ Все {registered} инструментов зарегистрированы")
 
-    # ─── Intelligence Layer (13 инструментов) ──────
+    # ─── Intelligence Layer (14 инструментов) ──────
     _register_intelligence_tools(mcp, services)
 
     # ─── Inline diagnostic tools (12 шт) ────────────
@@ -261,7 +261,7 @@ def register_all_tools(mcp, services):
     register_dev_tools(mcp)
 
     total_core = len(tool_classes)
-    total_intel = 13
+    total_intel = 14
     total_inline = 12
     total_dev = 4
     logger.info(
@@ -277,7 +277,7 @@ def register_all_tools(mcp, services):
 
 
 def _register_intelligence_tools(mcp, services):
-    """Регистрирует 13 инструментов Intelligence Layer.
+    """Регистрирует 14 инструментов Intelligence Layer.
 
     Multi-window (INC-6BCB-v2): Indexer/Searcher/SymbolIndex больше НЕ
     зарегистрированы как singleton. Используем resolve_indexer_for_request()
@@ -310,7 +310,7 @@ def _register_intelligence_tools(mcp, services):
         except Exception as adr_e:
             logger.info(f"  📚 ADR auto-collect skip: {adr_e}")
 
-        logger.info("  🧠 Intel tools registered (13 tools)")
+        logger.info("  🧠 Intel tools registered (14 tools)")
     except Exception as e:
         logger.warning(f"  ⚠️ Intel layer not registered: {e}")
 

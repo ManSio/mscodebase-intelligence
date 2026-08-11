@@ -66,7 +66,7 @@
 
 ### LSP: только для rename (гибридный режим)
 
-MSCodeBase **использует LSP только для `rename_symbol`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **49 MCP-инструментов**.
+MSCodeBase **использует LSP только для `codebase(action="rename")`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **58 MCP-инструментов**.
 
 Отдельный LSP-сервер (`src/lsp_main.py`) был экспериментальным и **не работает в Zed** — см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md).
 
@@ -101,7 +101,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | Возможность | Описание |
 |-------------|----------|
 | 🔍 **Унифицированный поиск** | `search_code(query, mode, intent_hint)` — единый инструмент: fast/quality/deep/context/ask/auto |
-| 🧠 **Интеллектуальный слой** | 13 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
+| 🧠 **Интеллектуальный слой** | 14 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
 | 🗃️ **Память проекта** | ADR, известные проблемы, технический долг — автоматически сохраняется между сессиями |
 | 🌐 **Кросс-репозиторный поиск** | Поиск по нескольким проектам с синтаксисом `@mention` |
 | 🌳 **Граф вызовов** | Полный граф вызовов: определение + вызывающие + вызываемые + анализ влияния |
@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `rename_symbol`** — 
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 58 инструментов (28 core + 14 intel + 12 inline + 4 dev), 853+ тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 58 инструментов (28 core + 14 intel + 12 inline + 4 dev), 1180 тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 29 типов рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
@@ -226,7 +226,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `get_repo_rank(project_root, top_k)` | Ранжирование важностей символов (PageRank на графе вызовов) |
 | `get_bug_correlation(project_root)` | Анализ корреляции багов и изменений |
 | `get_repo_map(project_root)` | Карта проекта: дерево файлов + ключевые символы |
-| `graph_query(action="related", target=path)` | Файлы, связанные через совместные изменения / корреляцию багов (`get_related_files`) |
+| `graph_query(action="related", target=path)` | Файлы, связанные через совместные изменения / корреляцию багов (мультиплексирует бывший `get_related_files`) |
 | `graph_query(action, target)` | Запросы к графу: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Поиск похожих багов из истории по тексту ошибки |
 
@@ -260,7 +260,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `insert_after` | Вставка кода после тела anchor (preview/apply) |
 | `ack_impact` | Подтверждение влияния для modification guard |
 
-### Интеллектуальный слой (intel_*) — 13 высокоуровневых инструментов
+### Интеллектуальный слой (intel_*) — 14 высокоуровневых инструментов
 
 | Инструмент | Назначение |
 |------------|------------|
@@ -309,7 +309,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~600 строк)                         │
+│                   MCP Server (~1000 строк)                       │
 │            server.py + server_tools.py + server_factory.py — регистрация и маршрутизация                │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -326,7 +326,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  20 Классов        │  │  14 intel_* + 12 inline          │  │
+│  │  28 Классов        │  │  14 intel_* + 12 inline          │  │
 │  │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  │  Один класс на       │  │  decorator error_boundary         │
 │  │  │  инструмент          │  │  JSON status/message/detail       │
@@ -404,7 +404,7 @@ python -c "import urllib.request; print(urllib.request.urlopen('http://localhost
 ```
 mscodebase-intelligence/
 ├── src/
-│   ├── main.py                   # Точка входа MCP-сервера (~600 строк)
+│   ├── main.py                   # Точка входа MCP-сервера (~200 строк)
 │   ├── lsp_main.py               # LSP-сервер (на DI, для индексации при didSave)
 │   ├── mcp/
 │   │   ├── server.py               # Создание MCP-сервера (~597 строк)

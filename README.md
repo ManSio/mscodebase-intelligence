@@ -67,7 +67,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `rename_symbol`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **57 MCP tools**.
+MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **58 MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 13 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 14 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 58 tools (28 core + 14 intel + 12 inline + 4 dev), 956 tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 58 tools (28 core + 14 intel + 12 inline + 4 dev), 1180 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -268,7 +268,7 @@ Deep-dives into specific technical findings from building this project:
 | `get_repo_rank(project_root, top_k)` | Symbol importance ranking (PageRank on call graph) |
 | `get_bug_correlation(project_root)` | Bug-change correlation analysis |
 | `get_repo_map(project_root)` | Project map: file tree + key symbols |
-| `graph_query(action="related", target=path)` | Files related via co-change / bug correlation (`get_related_files`) |
+| `graph_query(action="related", target=path)` | Files related via co-change / bug correlation (multiplexes legacy `get_related_files`) |
 | `graph_query(action, target)` | Graph queries: `impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | Find similar bugs from history by error text |
 
@@ -300,7 +300,7 @@ Deep-dives into specific technical findings from building this project:
 | `codebase(action="insert_after", anchor, new_code, apply)` | Insert code after anchor's body (preview/apply) |
 | `codebase(action="ack_impact", file_path)` | Acknowledge impact for modification guard |
 
-### Intelligence Layer (intel_*) — 13 High-Level Tools
+### Intelligence Layer (intel_*) — 14 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -317,6 +317,7 @@ Deep-dives into specific technical findings from building this project:
 | `intel_get_telemetry(days)` | Per-tool telemetry, resource usage, LLM stats |
 | `intel_auto_collect_adrs(max_commits)` | Auto-generate ADRs from commit history |
 | `intel_reset_index()` | Delete and rebuild index from scratch |
+| `intel_retract_memory_node(node_id, reason)` | Retract a memory node (ACTIVE/VERIFIED → REFUTED, reason required) |
 
 > `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — see Diagnostic Tools below.
 
@@ -349,7 +350,7 @@ Deep-dives into specific technical findings from building this project:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~600 lines)                         │
+│                   MCP Server (~1000 lines)                        │
 │            src/mcp/server.py + server_tools.py + server_factory.py │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -366,7 +367,7 @@ Deep-dives into specific technical findings from building this project:
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  19 Tool Classes   │  │  14 intel_* + 12 inline tools    │  │
+│  │  28 Tool Classes   │  │  14 intel_* + 12 inline tools    │  │
 │  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)          │  │
 │  │  Constructor Inj.   │  │  error_boundary decorator          │
@@ -432,7 +433,7 @@ Run in Agent Panel:
 intel_trigger_reindex()
 ```
 
-Then verify: `get_index_status()`
+Then verify: `codebase(action="index", path="status")`
 
 ### LM Studio Connection Issues
 

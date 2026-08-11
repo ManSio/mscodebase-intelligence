@@ -101,14 +101,14 @@ Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
 | Прочитать файл | read_file | `read_live_file` |
 | Состояние проекта | shell / cat | `intel_explain_project_state` |
 | Полный снэпшот | 5+ вызовов | `intel_get_project_context` |
-| Индекс / chunks | — | `get_index_status` |
+| Индекс / chunks | — | `codebase(action="index", path="status")` |
 | Логи / ошибки | cat terminal | `get_logs`, `intel_predict_root_cause` |
 | Здоровье системы | — | `get_health_report`, `debug_runtime_passport` |
-| Git история | git log | `git(action="log")`, `git(action="history")` |
+| Git история | git log | `codebase(action="git", path="log")`, `codebase(action="git", path="history")` |
 | Рисковые файлы | — | `intel_get_hotspots` |
-| Data flow переменной | grep | `get_variable_flow` |
+| Data flow переменной | grep | `graph_query(action="flow", name=...)` |
 | AST-паттерн | grep | `structural_search` |
-| После правки кода | — | `notify_change` → `get_index_status` |
+| После правки кода | — | `notify_change` → `codebase(action="index", path="status")` |
 
 ### Когда fallback на IDE разрешён
 
@@ -125,7 +125,7 @@ Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
 - ❌ `grep` вместо `search_code` (если chunks > 0)
 - ❌ `Read` целых файлов вместо `read_live_file` / `get_symbol_info`
 - ❌ `Glob` для поиска символов вместо `search_code(mode="fast")`
-- ❌ `Shell: git log` вместо `git(action="log")`
+- ❌ `Shell: git log` вместо `codebase(action="git", path="log")`
 - ❌ Угадывать номера строк — сначала MCP, потом read точечно
 
 ### Демонстрация правильной сессии (только MCP)
@@ -265,8 +265,8 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 
 | Instead of | Use |
 |---|---|
-| `get_index_status` + `watcher_status` | `intel_get_runtime_status` |
-| `index_project_dir` (blocking) | `intel_trigger_reindex` (fire-and-forget) |
+| `codebase(action="index", path="status")` | `intel_get_runtime_status` |
+| `codebase(action="index", path="project_dir")` (blocking) | `intel_trigger_reindex` (fire-and-forget) |
 | Multiple low-level calls | `intel_get_project_context` (one snapshot) |
 | Parsing raw logs | `intel_predict_root_cause` or `intel_analyze_incident` |
 
@@ -288,11 +288,11 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 [ANALYSIS / BRAIN]                  [SURGICAL ACTION]               [FALLBACK]
 High-Level Intel Tools              Low-Level Core MCP              Built-in IDE
 ──────────────────────              ──────────────────────          ───────────
-intel_get_runtime_status      ──>   get_index_status / watcher     grep (exact)
+intel_get_runtime_status      ──>   codebase(action="index", path="status")   grep (exact)
 intel_trigger_reindex         ──>   notify_change                  grep (fallback)
 intel_code_topology           ──>   get_symbol_info / structural   grep
 intel_predict_root_cause      ──>   get_logs / get_health_report   terminal cat
-intel_get_project_memory      ──>   git(action="log") / git(action="history") (no analog)
+intel_get_project_memory      ──>   codebase(action="git", path="log") / codebase(action="git", path="history") (no analog)
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
@@ -308,60 +308,64 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 `intel_get_job_status`, `intel_auto_collect_adrs`,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
 `intel_add_memory_node`, `intel_get_project_memory`,
-`intel_predict_root_cause`, `intel_get_hotspots`, `intel_get_telemetry`.
+`intel_predict_root_cause`, `intel_get_hotspots`, `intel_get_telemetry`,
+`intel_retract_memory_node`.
 
 Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
 
 ### B. Core MCP & Search (28 tools)
 
 <!-- stale-ignore -->
-> **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
-> Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.
-> Use `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name = 'x' RETURN s.name, e.condition_path` (Cypher) for advanced queries.
-> Edges have optional `condition_path` property — list of control-flow contexts like `["if_statement", "for_statement"]`.
-> Supported for: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart.
+> **v3.2.0 Data Flow:** PropertyGraph содержит `ASSIGNED_FROM`-рёбра, отслеживающие
+> присваивания переменных между телами функций.
+> Трассировка переменной — `graph_query(action="flow", name="x")` (scope-resolution).
+> Расширенный запрос — `graph_query(action="cypher", query="...")`.
+> Рёбра имеют опциональное свойство `condition_path` — список control-flow контекстов
+> вида `["if_statement", "for_statement"]`.
+> Поддержка: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart.
 <!-- stale-ignore -->
 
-`search_code(mode=fast|quality|deep|context|auto)`, `get_variable_flow(name, scope_id)`, `cross_repo_search`
-`cross_project_deps`, `get_symbol_info`, `impact_analysis`, `lsp_find_references(file_path, line, col)`,
-`lsp_find_definition(file_path, line, col)`, `lsp_document_symbols(file_path)`, `get_repo_map`,
-`get_repo_rank`, `get_hotspots`, `get_bug_correlation`, `get_related_files`,
-`graph_query`, `get_index_status`, `get_index_progress`, `get_index_timeline`,
-`index_health`, `index_project_dir`, `notify_change`, `watcher_status`,
-`get_logs`, `get_health_report`, `run_health_check`, `git(action="log")`,
-`git(action="history")`, `git(action="branch")`, `generate_chunk_summaries`,
-`scan_changes`, `find_similar_bugs`, `predict_eta`, `verify_action`,
-`get_task_status`, `submit_background_task`, `read_live_file`,
-`structural_search`.
+`search_code(mode=fast|quality|deep|context|auto)`, `get_symbol_info`, `impact_analysis`,
+`lsp_find_references(file_path, line, col)`, `lsp_find_definition(file_path, line, col)`,
+`lsp_document_symbols(file_path)`, `lsp_get_type_info(file_path, line, col)`,
+`lsp_get_diagnostics(file_path)`, `lsp_get_code_actions(file_path, line, col)`,
+`codebase(action=...)`, `structural_search`, `get_repo_map`,
+`get_repo_rank`, `get_hotspots`, `get_bug_correlation`,
+`graph_query(action=query|cypher|related|flow)`, `detect_communities`,
+`cross_repo_search`, `cross_project_deps`, `find_duplicates`,
+`generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `get_context`,
+`verify_action`, `get_task_status`, `submit_background_task`, `stale_detector`.
 
-`ack_impact(file_path)`, `rename_symbol(old, new, apply)`,
-`move_symbol(symbol, to_file, apply)`, `safe_delete(symbol, force, apply)`,
-`replace_symbol(symbol, new_code, apply)`,
-`insert_before/after_symbol(anchor, new_code, apply)`.
+> Hub-маршруты `codebase(action=...)` (не отдельные MCP-тулы):
+> `codebase(action="index", path=status|progress|health|timeline|project_dir)` — индекс;
+> `codebase(action="git", path=log|history|branch)` — git;
+> `codebase(action="rename"|"move"|"safe_delete"|"replace"|"insert_before"|"insert_after")` — write.
+> `notify_change`, `read_live_file`, `get_logs`, `get_health_report` — inline (секция A).
 
 > **Deprecated** (use `search_code`): `smart_search`, `deep_search`, `context_search`.
 
 <!-- stale-ignore -->
-> **v3.2.0 Scope Resolution:** Use `get_variable_flow(name="x")` for data flow queries.
-> **Protocol:**
-> 1. Call `get_variable_flow(name="result")` without scope_id — see ALL `result` variables with their context.
-> 2. If multiple results → pick the right `scope_id` (it encodes file + function + line).
-> 3. Call `get_variable_flow(name="result", scope_id="...")` to get precise data flow.
-> 4. Check `condition_path` on edges — empty list = unconditional, `["if_statement"]` = inside IF.
+> **v3.2.0 Scope Resolution:** data flow запросы — `graph_query(action="flow", name=...)`.
+> **Протокол:**
+> 1. `graph_query(action="flow", name="result")` без scope_id — увидеть ВСЕ `result`-переменные с контекстом.
+> 2. Если результатов несколько — выбрать нужный `scope_id` (кодирует file + function + line).
+> 3. `graph_query(action="flow", name="result", scope_id="...")` — точный data flow.
+> 4. `condition_path` на рёбрах — пустой список = безусловный, `["if_statement"]` = внутри IF.
 <!-- stale-ignore -->
 
-### C. Write Tools (6)
+### C. Write Operations — через `codebase(action=...)` (hub)
 
-`rename_symbol(old, new, apply)` — rename symbol across all files
-`move_symbol(symbol, to_file, apply)` — move symbol to another file
-`safe_delete(symbol, force, apply)` — safe delete with reference check
-`replace_symbol(symbol, new_code, apply)` — replace function/class body
-`insert_before/after_symbol(anchor, new_code, apply)` — anchor-based insertion
-`ack_impact(file_path)` — acknowledge impact for modification guard
+`codebase(action="rename", old, new, apply)` — rename symbol across all files
+`codebase(action="move", symbol, to_file, apply)` — move symbol to another file
+`codebase(action="safe_delete", symbol, force, apply)` — safe delete with reference check
+`codebase(action="replace", symbol, new_code, apply)` — replace function/class body
+`codebase(action="insert_before", anchor, new_code, apply)` — insert code before anchor symbol
+`codebase(action="insert_after", anchor, new_code, apply)` — insert code after anchor's body
+`ack_impact(file_path)` — отдельный inline-тул: подтверждение impact для modification guard
 
 ## 3. STATE AWARENESS
 
-- If `get_index_status` returns 0 chunks → FORBIDDEN to use `search_code`. Switch to `grep`/regex.
+- If index status (`codebase(action="index", path="status")`) returns 0 chunks → FORBIDDEN to use `search_code`. Switch to `grep`/regex.
 - If chunks > 0 → use `search_code` for semantic, `get_symbol_info` for exact names.
 - If using write tools, call `ack_impact(file_path)` before destructive operations on load-bearing files.
 
@@ -379,7 +383,7 @@ Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `
 - SAFE WRITING: Read target lines before edit. Preserve indentation and style.
 
 ### Post-Modification
-After `edit_file` / `write_file` → `notify_change(file_path=...)` → `get_index_status()`.
+After `edit_file` / `write_file` → `notify_change(file_path=...)` → `codebase(action="index", path="status")`.
 Use batch notify: `notify_change(file_path=["src/a.py", "src/b.py"])`.
 For file renames, use `apply_file_move(old, new)` instead of `notify_change` — it does meta-patching in 50ms instead of full reindex (5s).
 
@@ -396,7 +400,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 
 ### Deprecated
 - `smart_search`, `deep_search`, `context_search` — DEPRECATED. Use `search_code(mode=...)`.
-- `index_project_dir` (blocking) — Use `intel_trigger_reindex` (async).
+- `codebase(action="index", path="project_dir")` (blocking) — Use `intel_trigger_reindex` (async).
 
 ### Architecture
 - Tools must NOT call Registry, Bridge, or Passport directly. Use `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`.
@@ -424,7 +428,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 
 ## 7. SELF-CHECK BEFORE COMPLETING
 
-1. Did I update the index after writing? (`notify_change` + `get_index_status`)
+1. Did I update the index after writing? (`notify_change` + `codebase(action="index", path="status")`)
 2. Are paths in correct format? (Windows for MCP, POSIX for terminal)
 3. Did I avoid retrying failed tools?
 4. Is the code production-ready (no stubs/TODOs)?

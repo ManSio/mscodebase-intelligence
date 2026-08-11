@@ -111,7 +111,7 @@ isort src/
 
 ## 4. 运行测试
 
-项目在 `tests/` 目录中有 **956 个测试**。
+项目在 `tests/` 目录中有 **1180 个测试**（默认标记收集 1086 个 + 94 个被筛除为 slow/integration/benchmark）。
 
 ```powershell
 # 完整测试集
@@ -169,19 +169,17 @@ pytest tests/ --tb=long -v
 | 类别 | 数量 | 主要工具 |
 |----------|-------|-----------|
 | **搜索** | 3 | `search_code`, `get_symbol_info`, `impact_analysis` |
-| **Codebase** | 1 | `codebase(action=rename/move/delete/...)` |
-| **写入** | 1 | `write(action=rename/move/delete/replace/insert)` |
-| **分析** | 5 | `structural_search`, `get_repo_map`, `scan_changes` 等 |
-| **图** | 3 | `graph_query`, `cross_repo_search`, `cross_project_deps` |
-| **Git** | 1 | `git(action=log/history/branch)` |
-| **索引** | 1 | `get_index_status`, `notify_change`, `watcher_status` |
-| **文档** | 1 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
+| **LSP** | 6 | `lsp_find_references`, `lsp_find_definition`, `lsp_document_symbols`, `lsp_get_type_info`, `lsp_get_diagnostics`, `lsp_get_code_actions` |
+| **Codebase hub** | 1 | `codebase(action=index/git/rename/move/delete/replace/insert)` |
+| **分析** | 5 | `structural_search`, `get_repo_map`, `get_repo_rank`, `scan_changes`, `generate_chunk_summaries` |
+| **图** | 4 | `graph_query`, `cross_repo_search`, `cross_project_deps`, `detect_communities` |
 | **调查** | 3 | `get_bug_correlation`, `get_hotspots`, `find_similar_bugs` |
+| **重复** | 1 | `find_duplicates` |
+| **上下文** | 1 | `get_context` |
 | **生命周期** | 3 | `submit_background_task`, `get_task_status`, `verify_action` |
-| **系统** | 1 | `read_live_file`, `get_health_report`, `get_logs` |
-| **元** | 1 | 索引状态，健康报告 |
-| **Intelligence** | 13 | `intel_get_runtime_status`, `intel_trigger_reindex` 等 |
-| **开发** | 3 | `generate_docs`, `bump_version`, `install_git_hooks` |
+| **文档** | 1 | `stale_detector` |
+| **Intelligence** | 14 | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_retract_memory_node` 等 |
+| **开发** | 4 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
 | **诊断内联** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
 
 ### 添加新工具的步骤：
