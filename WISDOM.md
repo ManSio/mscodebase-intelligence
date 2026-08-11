@@ -76,6 +76,11 @@
   не отдельные MCP-тулы (единственная регистрация — register_all_tools).
   Факты: intel_*=14, core=28, inline=12, dev=4, tests=1180. Правило:
   каждое имя тула в AGENTS.md обязано быть в списке tool_name (grep-гейт).
+- ГЕЙТ РЕАЛИЗОВАН (2026-08-12): scripts/check_tool_names.py в pre-commit —
+  мёртвые имена → error; intel_* сверка с реестром; negative control 6 тестов.
+  Нюанс: intel_* всего 18 = 14 tools_reg + 4 inline (intel_get_project_context,
+  intel_explain_project_state, intel_tool_health, intel_execution_timeline —
+  живут в server_tools.py, НЕ в tools_reg.py; леджеры вне scope гейта).
 
 ## Git-мультисессия (2026-08-08)
 - `git commit` БЕЗ pathspec коммитит ВЕСЬ индекс — при параллельной сессии

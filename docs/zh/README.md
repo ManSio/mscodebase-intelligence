@@ -227,7 +227,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `get_repo_rank(project_root, top_k)` | 符号重要性排名（调用图上的 PageRank） |
 | `get_bug_correlation(project_root)` | 缺陷-变更关联分析 |
 | `get_repo_map(project_root)` | 项目地图：文件树 + 关键符号 |
-| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（复用旧 `get_related_files`） |
+| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（通过 `related` 操作） |
 | `graph_query(action, target)` | 图查询：`impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | 通过错误文本从历史中查找类似缺陷 |
 
