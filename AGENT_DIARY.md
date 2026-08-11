@@ -15,6 +15,16 @@
 
 ---
 
+## [2026-08-11] — Experiment 1: Multi-RAG Component Ablation N=30 (DONE, исследование)
+
+**Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-11-multi-rag)
+**Root Cause:** — (не инцидент; проверка статьи «Multi-RAG > Single RAG»): recall-максимум даёт fts5_only 0.825 ≥ full 0.775 / quality 0.756 → H1 по recall опровергнута; multi-RAG выигрывает по precision (quality 0.719 vs fts5 0.523). Инкременты: BM25 над vector +0.430 (21/30), FTS5 над V+BM25 +0.178 (13/30), vector над BM25 −0.098 (вредит), graph-enrichment 0.000 (метаданные, не текст). graph_only: 12ms/121 ток., recall 0.625 на find_caller_callee, 0.583 на find_impact (H3 подтверждена).
+**Fix:** — (код не менялся). Вывод для прод: recall несут keyword-тиры (BM25+FTS5), реранкер = precision/токен-контроль, vector (llama.cpp e5-small) — слабейший тир на символьных задачах (0.167).
+**Guard:** multi_rag_ablation.py v2 (реальная изоляция компонентов + изоляция кэша per-arm) + multi_rag_design.md. Обнаружен production-баг hybrid_search_async (кэш-хит пропускает dense — vector-тир исчезает) → KNOWN_ISSUES#2026-08-11-hybrid-cache, ждёт решения владельца (Danger Zone: engine.py не трогаем).
+**Pattern:** NEW (урок: single-компонент может превышать full по целевой метрике; кэш-баг исказил первый прогон — изоляция кэша обязательна для абляций).
+
+---
+
 ## [2026-08-08] — Фикс D1-D3: единый корень — неранжированный выбор узла в графе
 
 **Status:** ⚠️ Fixed (локально: gate-zero 1031 passed / 4 skipped, ruff src/ tests/ = 0; +4 регресс-теста tests/test_graph_adapter_node_selection.py)
