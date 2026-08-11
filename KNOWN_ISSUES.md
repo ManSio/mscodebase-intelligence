@@ -9,8 +9,8 @@
 
 **Symptom:** повторный запрос с тем же текстом возвращает результаты БЕЗ vector-тира. engine.py L521-541: `if cached_vector is not None: query_vector = cached_vector` — dense-поиск выполняется ТОЛЬКО в `else`-ветке (свежий эмбеддинг), на кэш-хите `all_dense_results` остаётся пустым. Доказано абляцией (2026-08-11): vector_only на символе, эмбеддившемся ранее, = 0 результатов (15/30 задач с повторными символами); vector_bm25 == bm25_only бит-в-бит 30/30.
 **Root Cause:** паттерн «кэш-хит → присвоить query_vector → забыть поиск»; dense-результаты не считаются из кэшированного вектора.
-**Fix (предложен, НЕ применён):** вынести `dense_results = await self._vector_search_async(query_vector, ...)` из else-ветки — выполнять при любом источнике вектора (хит/свежий).
-**Status:** 🔴 open (Danger Zone: production search engine.py — решение владельца; эксперимент обходит изоляцией кэша per-arm) | **Guard:** регресс-тест — два подряд hybrid_search с одним запросом, оба обязаны содержать dense-результаты.
+**Fix:** вынести `dense_results = await self._vector_search_async(query_vector, ...)` из else-ветки — выполнять при любом источнике вектора (хит/свежий).
+**Status:** ✅ Fixed (2026-08-11: engine.py L536-545 — dense-поиск вынесен из else под guard `query_vector is not None`; +3 регресс-теста tests/test_hybrid_cache.py; gate-zero 1025 passed, ruff чист; коммит см. git log) | **Guard:** регресс-тест — кэш-хит обязан давать dense-результаты (assert_awaited + результат в выдаче, embedder не вызывается)
 
 ---
 
