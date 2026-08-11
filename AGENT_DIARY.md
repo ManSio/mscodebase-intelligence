@@ -15,6 +15,16 @@
 
 ---
 
+## [2026-08-11 21:15] — FIX: get_context интенты git_history/verify_change возвращали пусто
+**Status:** ✅ Fixed (закоммичено локально, не запушено; tests/test_context_tool.py 2 passed, ruff чист)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1027 passed / 0 failed (после фикса; AST-доказательство бага на HEAD-маппинге)
+**Root Cause:** INTENT_SECTIONS: git_history=["git"], verify_change=["source","git"] без "symbols" — _collect_sections собирает source/git/fallback ТОЛЬКО при symbols_data (file_path резолвится из symbols) → оба интента всегда пустые.
+**Fix:** оба маппинга → [source, symbols, git] (правка из дерева параллельной сессии, верифицирована эмпирически: 3 секции собираются); +guard-тест test_intent_sections_with_dependent_sections_include_symbols.
+**Guard:** guard-тест (на старом маппинге падает — доказано AST-разбором HEAD); KNOWN_ISSUES#2026-08-11-context-intents.
+**Pattern:** P-003 NEW «молча пустой результат при неудовлетворённой downstream-зависимости» (случай 2 за сессию; случай 1 — engine.py кэш-хит #2026-08-11-hybrid-cache; guard — инвариант-тест на маппинг/ветку).
+
+---
+
 ## [2026-08-11 21:45] — FIX: hybrid_search_async кэш-хит терял vector-тир
 **Status:** ✅ Fixed (закоммичено локально, не запушено; gate-zero 1025 passed/10 skipped, ruff 0)
 **verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1025 passed / 0 failed (рабочее дерево, эта сессия)
