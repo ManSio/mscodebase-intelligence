@@ -1,7 +1,6 @@
 """Test for B-scheme GetContextTool."""
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -22,11 +21,7 @@ async def test_collect_sections():
     tool = GetContextTool(services)
 
     # Mock the underlying tools
-    from src.mcp.tools.search_tools import (
-        GetSymbolInfoTool,
-        ImpactAnalysisTool,
-        SearchCodeTool,
-    )
+    from src.mcp.tools.search_tools import GetSymbolInfoTool
 
     symbol_tool = GetSymbolInfoTool(services)
     impact_tool = MagicMock()
@@ -48,15 +43,6 @@ async def test_collect_sections():
     search_tool.execute = AsyncMock(return_value="search fallback result")
 
     # Mock symbol_tool.execute
-    async def mock_symbol_execute(query, kwargs=None):
-        return (
-            "🔍 **build_call_graph** — 1 defs, 2 callers, 3 callees\n\n"
-            "📄 Definition: `src/core/indexing/symbol_index.py` line 480\n\n"
-            "⬆️ **Called from:**\n"
-            "   • `SymbolIndex.get_impact_analysis`\n"
-            "   • `SymbolIndex.get_callees`"
-        )
-
     symbol_tool = GetSymbolInfoTool(services)
     symbol_tool.execute = AsyncMock(
         return_value=(
@@ -67,23 +53,6 @@ async def test_collect_sections():
             "   • `SymbolIndex.get_callees`"
         )
     )
-    impact_tool = MagicMock()
-    impact_tool.execute = AsyncMock(
-        return_value={
-            "status": "ok",
-            "symbol": "build_call_graph",
-            "depth": 3,
-            "direct_callers": 2,
-            "transitive_callers": 5,
-            "direct_callees": 3,
-            "transitive_callees": 1,
-            "affected_files": ["src/core/indexing/symbol_index.py"],
-            "risk_level": "low",
-            "risk_score": 12,
-        }
-    )
-    search_tool = MagicMock()
-    search_tool.execute = AsyncMock(return_value="search fallback result")
 
     # Test _collect_sections
     sections = await tool._collect_sections(
@@ -111,3 +80,4 @@ async def test_collect_sections():
 
 if __name__ == "__main__":
     asyncio.run(test_collect_sections())
+
