@@ -36,10 +36,10 @@ INTENT_SECTIONS = {
     "modify": ["source", "symbols", "git", "memory"],
     "debug": ["source", "symbols", "git"],
     "test": ["source", "symbols", "memory", "git"],
-    "git_history": ["git"],
+    "git_history": ["source", "symbols", "git"],
     "find_caller_callee": ["symbols"],
     "prepare_change": ["source", "symbols", "git", "memory"],
-    "verify_change": ["source", "git"],
+    "verify_change": ["source", "symbols", "git"],
 }
 
 SECTION_PRIORITY = {"source": 5, "symbols": 4, "git": 3, "memory": 2, "fallback": 1}

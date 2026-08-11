@@ -78,6 +78,22 @@ async def test_collect_sections():
     print("\n✅ All tests passed!")
 
 
+def test_intent_sections_with_dependent_sections_include_symbols():
+    """Секции source/git/fallback собираются ТОЛЬКО при наличии symbols_data
+    (_collect_sections: if 'git' in keep and symbols_data). Любой intent с этими
+    секциями обязан включать 'symbols', иначе интенты молча возвращают пустой
+    результат (KNOWN_ISSUES#2026-08-11-context-intents)."""
+    from src.mcp.tools.context_tool import INTENT_SECTIONS
+
+    dependent = {"source", "git", "fallback"}
+    for intent, sections in INTENT_SECTIONS.items():
+        if dependent & set(sections):
+            assert "symbols" in sections, (
+                f"intent '{intent}' содержит {dependent & set(sections)}, но не 'symbols' — "
+                "секции не соберутся (_collect_sections требует symbols_data)"
+            )
+
+
 if __name__ == "__main__":
     asyncio.run(test_collect_sections())
 

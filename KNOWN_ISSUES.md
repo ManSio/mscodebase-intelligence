@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-08-11 — get_context (B-scheme): интенты git_history/verify_change молча возвращали пусто (FIXED 🟢)
+
+**Symptom:** `INTENT_SECTIONS` (context_tool.py): `git_history: ["git"]`, `verify_change: ["source", "git"]` — без `"symbols"`. `_collect_sections` собирает source/git/fallback ТОЛЬКО при `symbols_data` (заполняется, если `"symbols"` в keep_sections) → оба интента всегда возвращали пустой payload. Доказано AST-разбором HEAD-маппинга (BROKEN ×2) + эмпирически (новый маппинг собирает 3 секции).
+**Root Cause:** маппинг интентов не учитывал зависимость source/git от symbols (file_path резолвится из symbols-секции).
+**Status:** ✅ Fixed (2026-08-11: оба → [source, symbols, git]; +guard-тест test_intent_sections_with_dependent_sections_include_symbols — инвариант «intent с source/git/fallback обязан содержать symbols», на старом маппинге падает). Правка из дерева параллельной сессии (2026-08-08, B-scheme). | **Guard:** guard-тест + P-003 (второй случай «молча пустой результат» за сессию после engine.py кэш-хита).
+
+---
+
 ## 2026-08-11 — hybrid_search_async: кэш-хит эмбеддинга пропускает dense-поиск (vector-тир молча исчезает) 🔴
 
 **Symptom:** повторный запрос с тем же текстом возвращает результаты БЕЗ vector-тира. engine.py L521-541: `if cached_vector is not None: query_vector = cached_vector` — dense-поиск выполняется ТОЛЬКО в `else`-ветке (свежий эмбеддинг), на кэш-хите `all_dense_results` остаётся пустым. Доказано абляцией (2026-08-11): vector_only на символе, эмбеддившемся ранее, = 0 результатов (15/30 задач с повторными символами); vector_bm25 == bm25_only бит-в-бит 30/30.
