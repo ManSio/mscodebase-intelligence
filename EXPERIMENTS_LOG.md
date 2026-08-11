@@ -698,3 +698,37 @@ tokens B −1152 (CI95 ±315, 30/30) — вывод B-оптимальности
 **Вердикт:** ПОДТВЕРЖДЕНА. wrong_rate 0.000 у C1/C2 (тень build_call_graph больше не отравляет секции; T7 wrong 0.993→0.0), C1 recall +0.092 (D2: методы резолвятся), precision вырос. Реальная проверка: build_call_graph → def=src/core/indexing/symbol_index.py:481 (было experiments/run_experiment_pagerank.py:40), callers=9 реальных прод-потребителей (без скриптового main). Полный pytest 1021 passed, ruff src/ tests/ = 0.
 
 **Урок:** (1) корень D1-D3 ОДИН — неранжированный выбор узла при наличии одноимённых (тень/placeholder/реальный); (2) CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers могут лежать на тени: исключать тень из стартов НЕЛЬЗЯ (теряются callers), фильтровать нужно на уровне записей по файлу вызывающего; (3) wrong-evidence guard «отсев experiments/» на композиции (вариант из v2) оказался НЕ нужен — правильный фикс в адаптере дешевле и чище.
+
+## [2026-08-11] — Exp: Multi-RAG Component Ablation (Experiment 1, N=30, v2)
+
+**Гипотеза:** Multi-RAG (Vector+BM25+FTS5+Graph+rerank) > Single-RAG по evidence-recall на задачах о кодовой базе (статья «AI-Native Second Brain»); каждый компонент даёт инкрементальный вклад; graph силён на задачах связей; BM25 и FTS5 избыточны.
+**Ожидание:** full/quality recall > fts5_only; BM25, FTS5, Graph дают положительные парные Δ; graph_only recall максимален на klass ∈ {find_caller_callee, find_impact}; FTS5 ≈ BM25 (избыточность).
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/multi_rag_ablation.py tasks_v3.json` — 30 задач × 12 рук; изоляция компонентов monkey-patch'ем методов Searcher (`_bm25_search_async`/`_vector_search_async`/`_fts5_search_async`/`_expand_graph_context`/`_apply_multi_reranker_async`); `expand=False`; кэш эмбеддингов очищается per-arm (см. «Урок 1»). Дизайн: experiments/context_engine/multi_rag_design.md. Лог: experiments/context_engine/multi_rag_full_run_2026-08-11.log.
+**Сырой результат (AVG по 30 задач):**
+```
+recall      vector=0.167 bm25=0.694 fts5=0.825 graph=0.357 vbm25=0.597 vfts5=0.783
+            bm25fts5=0.817 vbm25fts5=0.775 full_norerank=0.775 quality=0.756
+precision   vector=0.083 bm25=0.791 fts5=0.523 graph=0.441 quality=0.719
+tokens      vector=1360 bm25=1774 fts5=2327 graph=122 quality=1862
+latency_ms  vector=122 bm25=298 fts5=110 graph=12 quality=1704
+
+PAIRED (Δ, CI95, wins/30):
+BM25 over Vector:   recall +0.430 ±0.164 (21/30) | prec +0.531 (26/30) → SIGNIFICANT
+Vector over BM25:   recall −0.098 ±0.086 (1/30)  | prec −0.177 (1/30)  → вредит
+FTS5 over V+BM25:   recall +0.178 ±0.097 (13/30) | tokens +375 (29/30) → значим recall
+Graph over V+BM25:  recall +0.000 (enrichment = metadata, не текст) → ~0
+Rerank over full:   recall −0.019 (3/30) | prec +0.147 ±0.061 (22/30) | tokens −301 → значим precision
+BM25 vs FTS5:       recall Δ −0.131 (FTS5 12/30) | prec +0.268 (BM25 24/30) | tokens −553 (BM25 26/30)
+
+graph_only recall by klass: find_caller_callee 0.625, find_impact 0.583, modify_function 0.500,
+understand_architecture 0.500, verify_change 0.500, find_bug_cause 0.300, prepare_change 0.237,
+find_test 0.125, git_history 0.000
+```
+**Вердикт:**
+- **H1 (Multi-RAG > Single по recall): ❌ ОПРОВЕРГНУТА** — fts5_only 0.825 ≥ full_no_rerank 0.775 / quality 0.756 (13 задач, где FTS5-одиночка лучше, против 5 у full). Multi-RAG подтверждён только по precision (quality 0.719 vs fts5 0.523, wrong_rate 0.033→0.050 — реранкер добавляет точность ценой минимального recall).
+- **H2 (инкрементальные вклады): ⚠️ ЧАСТИЧНО** — BM25 над vector +0.430 ✓; FTS5 над V+BM25 +0.178 ✓; graph-enrichment 0.000 ✗ (добавляет metadata callers/callees, которую evidence-метрики не видят); vector над BM25 −0.098 ✗ (разбавляет чистые BM25-хиты через RRF).
+- **H3 (graph на задачах связей): ✅ ПОДТВЕРЖДЕНА** — graph_only recall максимален на find_caller_callee (0.625) и find_impact (0.583), минимален на git_history (0.000); при 12ms и 121 токене (дешевле всех в 5-10 раз).
+- **H4 (токены монотонны): ⚠️ ЧАСТИЧНО** — не монотонно: graph добавляет ~0 токенов, реранкер режет −301.
+- **H5 (BM25≈FTS5 избыточны): ❌ ОПРОВЕРГНУТА** — FTS5 даёт +0.178 recall над V+BM25 (CI95 ∌ 0); профили противоположны: FTS5 = recall-max (0.825), BM25 = precision/токен-эффективность (0.791 / 1774).
+**Урок:** (1) production-баг `hybrid_search_async` (engine.py L521-541): на кэш-хите эмбеддинга dense-поиск пропускается — vector-тир молча исчезает при повторных запросах; первый прогон абляции полностью искажён (vector_bm25 == bm25_only 30/30, vector_only пуст на повторных символах 15/30). Изоляция кэша per-arm обязательна для абляций. (2) vector-тир (llama.cpp multilingual-e5-small) — слабейший на символьных задачах (0.167 recall); recall несут keyword-тиры, precision покупается реранкером. (3) graph-ценность живёт в метаданных (callers/callees), не в тексте чанков — evidence-метрики по паттернам текста её не измеряют; нужен отдельный протокол оценки graph-вклада (или чтение metadata в секции).
+**Связь с отрицательными:** первый прогон (без изоляции кэша) — артефакт кэш-бага, не повторять без фикса (результаты в multi_rag_full_run_2026-08-11.log содержат оба прогона; валиден второй).
