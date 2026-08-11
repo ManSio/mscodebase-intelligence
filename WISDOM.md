@@ -72,6 +72,10 @@
 - `git commit` БЕЗ pathspec коммитит ВЕСЬ индекс — при параллельной сессии
   украдёт её staged-правку (инцидент 568b1f27). Всегда `git commit -m ... -- <paths>`.
   index.lock чужой сессии не удалять — ждать освобождения (кап ~3 мин).
+- Новые .sh на Windows: git создаёт без exec-bit (100644) → CI clean-state
+  падает «Permission denied» (exit 126) при прямом вызове из verify_clean_state.sh.
+  Guard: `git update-index --chmod=+x` ДО коммита (2026-08-12, ff67c1bf).
+  Mode-only change pathspec-коммит НЕ захватывает — коммитить без pathspec.
 - Локальный ruff-кэш может пропускать BLE001 — перед push `ruff check src/ tests/ --no-cache`.
 
 ## Multi-RAG ablation (2026-08-11, Experiment 1 N=30)
