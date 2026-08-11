@@ -278,30 +278,28 @@ def register_all_tools(mcp, services):
     # Total: 58 registered (28 core + 14 intel + 12 inline + 4 dev)
 ```
 
-**Tool visibility filter:** By default ~36 tools visible. Set `MSCODEBASE_MCP_TOOLS=""` to show all 49.
+**Tool visibility filter:** By default 43 tools visible (13 of 28 core via allowlist + 14 intel + 12 inline + 4 dev; +1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 58.
 
 ### 4.2 All Tools by Group
 
 | Group | File | Tools |
 |-------|------|-------|
 | **Search** (3) | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **Hub: codebase** (1) | `codebase_tool.py` | codebase(action=rename/move/delete/replace/insert/notify/index/git) |
-| **Spoke: Sandbox** (1) | `codebase_tool.py` | execute_script(code) — AST + runtime import wrapper + subprocess isolation |
+| **LSP** (6) | `lsp_tools.py` | lsp_find_references, lsp_find_definition, lsp_document_symbols, lsp_get_type_info, lsp_get_diagnostics, lsp_get_code_actions |
+| **Hub: codebase** (1) | `codebase_tool.py` | codebase(action=index/git/rename/move/delete/replace/insert/notify) |
+| **Spoke: Sandbox** (1) | `codebase_tool.py` | execute_script(code) — AST + runtime import wrapper + subprocess isolation (опционально, env-флаг) |
 | **Analysis** (5) | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **Graph** (3) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query |
+| **Graph** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, detect_communities |
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
+| **Duplication** (1) | `duplication_tool.py` | find_duplicates |
+| **Context** (1) | `context_tool.py` | get_context |
 | **Lifecycle** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **Write** (1) | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
-| **Indexing** (1) | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
-| **Git** (1) | `git_tools.py` | git(action={log,history,branch}) |
 | **Docs** (1) | `doc_tools.py` | stale_detector |
 | **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **Meta** (1) | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
-| **System** (1) | `system_tools.py` | read_live_file, get_health_report, get_logs |
-| **Intelligence** (13) | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
+| **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Total:** 58 registered (28 core + 14 intel + 12 inline + 4 dev). Default visible: ~39. Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 58 registered (28 core + 14 intel + 12 inline + 4 dev). Default visible: 43 (13 из 28 core по default-allowlist + 14 + 12 + 4). Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

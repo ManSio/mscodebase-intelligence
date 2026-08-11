@@ -115,7 +115,7 @@ isort src/
 
 ## 4. Running Tests
 
-The project has **956 tests** in `tests/`.
+The project has **1180 tests** in `tests/` (1086 collected by default markers + 94 deselected as slow/integration/benchmark).
 
 ```powershell
 # Full suite
@@ -173,19 +173,17 @@ Each tool is a class in `src/mcp/tools/*.py` inheriting from `MCPTool`.
 | Category | Count | Key tools |
 |----------|-------|-----------|
 | **Search** | 3 | `search_code`, `get_symbol_info`, `impact_analysis` |
-| **Codebase** | 1 | `codebase(action=rename/move/delete/...)` |
-| **Write** | 1 | `write(action=rename/move/delete/replace/insert)` |
-| **Analysis** | 5 | `structural_search`, `get_repo_map`, `scan_changes`, etc. |
-| **Graph** | 3 | `graph_query`, `cross_repo_search`, `cross_project_deps` |
-| **Git** | 1 | `git(action=log/history/branch)` |
-| **Indexing** | 1 | `get_index_status`, `notify_change`, `watcher_status` |
-| **Docs** | 1 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
+| **LSP** | 6 | `lsp_find_references`, `lsp_find_definition`, `lsp_document_symbols`, `lsp_get_type_info`, `lsp_get_diagnostics`, `lsp_get_code_actions` |
+| **Codebase hub** | 1 | `codebase(action=index/git/rename/move/delete/replace/insert)` |
+| **Analysis** | 5 | `structural_search`, `get_repo_map`, `get_repo_rank`, `scan_changes`, `generate_chunk_summaries` |
+| **Graph** | 4 | `graph_query`, `cross_repo_search`, `cross_project_deps`, `detect_communities` |
 | **Investigation** | 3 | `get_bug_correlation`, `get_hotspots`, `find_similar_bugs` |
+| **Duplication** | 1 | `find_duplicates` |
+| **Context** | 1 | `get_context` |
 | **Lifecycle** | 3 | `submit_background_task`, `get_task_status`, `verify_action` |
-| **System** | 1 | `read_live_file`, `get_health_report`, `get_logs` |
-| **Meta** | 1 | index status, health reports |
-| **Intelligence** | 13 | `intel_get_runtime_status`, `intel_trigger_reindex`, etc. |
-| **Dev** | 3 | `generate_docs`, `bump_version`, `install_git_hooks` |
+| **Docs** | 1 | `stale_detector` |
+| **Intelligence** | 14 | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_retract_memory_node`, etc. |
+| **Dev** | 4 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
 | **Diagnostic inline** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
 
 ### Steps to add a new tool:

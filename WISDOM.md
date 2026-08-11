@@ -68,6 +68,15 @@
 - LanceDB atomic delete+add: фикс table.version + restore(prev_version) при сбое add
   (db_writer.py) — нативный versioning лучше temp+os.replace.
 
+## Doc-vs-code semantic drift (2026-08-12)
+- stale_detector сверяет ТОЛЬКО version-строки — имена тулов/счётчики в доках
+  НЕ проверяются. Кросс-чек: AGENTS.md B перечислял НЕСУЩЕСТВУЮЩИЕ тулы
+  (get_variable_flow/get_related_files/run_health_check/predict_eta — 0 в src/),
+  get_index_status/git(action)/watcher_status — action-маршруты codebase hub,
+  не отдельные MCP-тулы (единственная регистрация — register_all_tools).
+  Факты: intel_*=14, core=28, inline=12, dev=4, tests=1180. Правило:
+  каждое имя тула в AGENTS.md обязано быть в списке tool_name (grep-гейт).
+
 ## Git-мультисессия (2026-08-08)
 - `git commit` БЕЗ pathspec коммитит ВЕСЬ индекс — при параллельной сессии
   украдёт её staged-правку (инцидент 568b1f27). Всегда `git commit -m ... -- <paths>`.

@@ -66,7 +66,7 @@
 
 ### LSP：仅用于重命名（混合模式）
 
-MSCodeBase **在 `rename_symbol` 和 6 个 LSP 工具中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **basedpyright** 以实现精确的跨文件重命名与 AST 分析（lsp_find_references / lsp_find_definition / lsp_document_symbols / lsp_get_type_info / lsp_get_diagnostics / lsp_get_code_actions），超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **58 个 MCP 工具** 实现。
+MSCodeBase **在 `codebase(action="rename")` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **basedpyright** 以实现精确的跨文件重命名与 AST 分析（lsp_find_references / lsp_find_definition / lsp_document_symbols / lsp_get_type_info / lsp_get_diagnostics / lsp_get_code_actions），超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **58 个 MCP 工具** 实现。
 
 独立的 LSP 服务器（`src/lsp_main.py`）是实验性组件，**在 Zed 中无法工作** — 参见 [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)。
 
@@ -102,7 +102,7 @@ MSCodeBase **在 `rename_symbol` 和 6 个 LSP 工具中使用 LSP** — LSP 客
 | 功能 | 描述 |
 |---------|-------------|
 | 🔍 **统一搜索** | `search_code(query, mode, intent_hint)` — 单一工具：fast/quality/deep/context/ask/auto |
-| 🧠 **智能层** | 13 个高级 `intel_*` 工具：自诊断、拓扑、记忆、错误预测 |
+| 🧠 **智能层** | 14 个高级 `intel_*` 工具：自诊断、拓扑、记忆、错误预测 |
 | 🗃️ **项目记忆** | ADR、已知问题、技术债务 — 跨会话自动持久化 |
 | 🌐 **跨仓库搜索** | 使用 `@mention` 语法跨多个项目搜索 |
 | 🌳 **调用图** | 完整调用图：定义 + 调用方 + 被调用方 + 影响分析 |
@@ -113,7 +113,7 @@ MSCodeBase **在 `rename_symbol` 和 6 个 LSP 工具中使用 LSP** — LSP 客
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-| 🧪 **整洁架构** | DI 容器（18 个服务），58 个工具（28 core + 14 intel + 12 inline + 4 dev），853+ 测试 |
+| 🧪 **整洁架构** | DI 容器（18 个服务），58 个工具（28 core + 14 intel + 12 inline + 4 dev），1180 个测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
@@ -227,7 +227,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `get_repo_rank(project_root, top_k)` | 符号重要性排名（调用图上的 PageRank） |
 | `get_bug_correlation(project_root)` | 缺陷-变更关联分析 |
 | `get_repo_map(project_root)` | 项目地图：文件树 + 关键符号 |
-| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（`get_related_files`） |
+| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（复用旧 `get_related_files`） |
 | `graph_query(action, target)` | 图查询：`impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
 | `find_similar_bugs(error)` | 通过错误文本从历史中查找类似缺陷 |
 
@@ -259,7 +259,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `codebase(action="insert_after", anchor, new_code, apply)` | 在锚点主体后插入代码（预览/应用） |
 | `codebase(action="ack_impact", file_path)` | 确认影响以解除 modification guard |
 
-### 智能层（intel_*）— 13 个高级工具
+### 智能层（intel_*）— 14 个高级工具
 
 | 工具 | 功能 |
 |------|-------------|
@@ -325,7 +325,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  19 个工具类      │  │  14 intel_* + 12 inline 工具      │  │
+│  │  28 个工具类      │  │  14 intel_* + 12 inline 工具      │  │
 │  │  src/mcp/tools/*.py│  │  intelligence/layer.py +         │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)       │  │
 │  │  构造函数注入      │  │  error_boundary 装饰器            │  │
@@ -408,7 +408,7 @@ mscodebase-intelligence/
 │   │   ├── server.py             # MCP 服务器创建（约 597 行）
 │   │   ├── server_factory.py     # DI 设置 + 服务器生命周期
 │   │   ├── server_tools.py       # 工具注册 + 12 个 inline 工具（约 607 行）
-│   │   └── tools/                # 13 个模块 + base 类
+│   │   └── tools/                # 16 个模块 + base 类
 │   │       ├── codebase_tool.py  # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py   # search_code、get_symbol_info、impact_analysis
 │   │       ├── indexing_tools.py # notify_change、index_project_dir、index_health
@@ -427,7 +427,7 @@ mscodebase-intelligence/
 │   │   ├── indexer.py            # LanceDB 向量存储
 │   │   ├── searcher.py           # 混合搜索（BM25 + 密集向量 + RRF）
 │   │   ├── symbol_index.py       # 调用图（BFS、影响分析）
-│   │   ├── intelligence_layer.py # intel_* 工具（13 个高级）
+│   │   ├── intelligence_layer.py # intel_* 工具（14 个高级）
 │   │   ├── llama_runner.py       # llama.cpp 生命周期管理器 ★
 │   ├── remote_embedder.py    # ONNX/OpenVINO multilingual-e5-small INT8（进程内）+ LM Studio / Ollama fallback
 │   │   ├── reranker.py           # 多提供者重排序（HTTP 到提供者）

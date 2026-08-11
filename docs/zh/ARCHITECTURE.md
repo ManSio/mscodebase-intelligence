@@ -277,30 +277,28 @@ def register_all_tools(mcp, services):
     # 总计：58 个已注册（28 核心 + 14 intel + 12 内联 + 4 开发）
 ```
 
-**工具可见性过滤器：** 默认显示 ~39 个工具。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 58 个。
+**工具可见性过滤器：** 默认显示 43 个工具（28 个核心中的 13 个 + 14 intel + 12 内联 + 4 开发；启用 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时 +1 `execute_script`）。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 58 个。
 
 ### 4.2 按组分组的全部工具
 
 | 组 | 文件 | 工具 |
 |-------|------|-------|
 | **搜索**（3 个） | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **Hub: codebase**（1 个） | `codebase_tool.py` | codebase(action=rename/move/delete/replace/insert/notify/index/git) |
-| **Spoke: Sandbox**（1 个） | `codebase_tool.py` | execute_script(code) — AST + 运行时 import wrapper + 子进程隔离 |
+| **LSP**（6 个） | `lsp_tools.py` | lsp_find_references, lsp_find_definition, lsp_document_symbols, lsp_get_type_info, lsp_get_diagnostics, lsp_get_code_actions |
+| **Hub: codebase**（1 个） | `codebase_tool.py` | codebase(action=index/git/rename/move/delete/replace/insert/notify) |
+| **Spoke: Sandbox**（1 个） | `codebase_tool.py` | execute_script(code) — AST + 运行时 import wrapper + 子进程隔离（可选，env 标志） |
 | **分析**（5 个） | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **图**（3 个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query |
+| **图**（4 个） | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, detect_communities |
 | **调查**（3 个） | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
+| **重复**（1 个） | `duplication_tool.py` | find_duplicates |
+| **上下文**（1 个） | `context_tool.py` | get_context |
 | **生命周期**（3 个） | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **写入**（1 个） | `write_tools.py` | codebase(action={rename,move,delete,replace,insert,impact}) |
-| **索引**（1 个） | `indexing_tools.py` | get_index_status, notify_change, watcher_status |
-| **Git**（1 个） | `git_tools.py` | git(action={log,history,branch}) |
 | **Doc**（1 个） | `doc_tools.py` | stale_detector |
 | **Dev**（4 个） | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **元**（1 个） | `meta_tools.py` | get_index_status, get_index_progress, get_index_timeline, get_health_report, get_logs |
-| **系统**（1 个） | `system_tools.py` | read_live_file, get_health_report, get_logs |
-| **智能层**（13 个） | `intelligence/layer.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry |
+| **智能层**（14 个） | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
 | **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **总计：** 58 个已注册（28 核心 + 14 intel + 12 内联 + 4 开发）。默认可见：~39 个。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 58 个已注册（28 核心 + 14 intel + 12 内联 + 4 开发）。默认可见：43 个（28 个核心中的 13 个 + 14 + 12 + 4）。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
 ---
 

@@ -5,7 +5,15 @@
 
 ---
 
-## 2026-08-11 — verify_clean_state.sh: drift-гейт структурно мёртв — FIXED 2026-08-12 (✅ закрыт)
+## 2026-08-12 — doc-vs-code: доки перечисляли НЕСУЩЕСТВУЮЩИЕ MCP-тулы и неверные счётчики — FIXED (✅ закрыт)
+
+**Symptom:** пользователь: «ты просто поменял версию, но документация всё равно не ровна коду». Кросс-чек подтвердил: stale_detector проверяет ТОЛЬКО version-строки — содержание (имена тулов, счётчики) не сверялось. AGENTS.md секция B перечисляла `get_variable_flow`, `get_related_files`, `run_health_check`, `predict_eta` — **0 файлов в src/** (мёртвые инструкции агенту!); `get_index_status`/`git(action=...)`/`watcher_status`/`index_project_dir` — НЕ отдельные MCP-тулы (action-маршруты hub'а `codebase`, единственная регистрация — register_all_tools, server_factory.py:249).
+**Root Cause:** doc-sync 2026-08-12 поднял только version-строки до 3.4.0 (117→0 дрейфов), не проверив семантику. Счётчики врали: «14 Intel» в заголовке, но 13 имён (нет `intel_retract_memory_node` — ADR-0002); README «57 MCP tools»/«13 intel»/«956 tests»/«19 Tool Classes»; ARCHITECTURE.md «all 49»/«Graph (3)» (реально 4)/«Intelligence (13)»; server_tools.py хардкод `total_intel = 13` в логе.
+**Fix (2026-08-12):** AGENTS.md (A: +`intel_retract_memory_node`; B: переписан реальным списком 28 core; C: write-операции как `codebase(action=...)`; таблица MCP-FIRST: `get_index_status`→`codebase(action="index", path="status")`, `git(action=log)`→`codebase(action="git", path="log")`, `get_variable_flow`→`graph_query(action="flow", name=...)`); README ×3 (en/ru/zh): 58/14/1180/28 классов; ARCHITECTURE ×3: таблица групп под реальную структуру (LSP 6, Graph 4, +duplication/context, убраны indexing/git/meta/system — не регистрируются), visible 43 (13 из 28 core + 14 + 12 + 4); CONTRIBUTING ×3: Dev 3→4, Intel 13→14; server_tools.py `total_intel=13`→`14`, комментарии; tools_reg.py docstring. Факты: intel_* = 14 (@mcp_app.tool в tools_reg.py), tool_classes = 28, inline = 12, dev = 4, tests = 1180 (1086+94).
+**Guard:** 🟡 НЕТ автоматического semantic-чека tool-имён в доках (stale_detector видит только версии) — кандидат на `structural_search`/grep-гейт «каждое имя тула в AGENTS.md существует в tool_name-списке»; docs/BENCHMARK.md:327 — исторический отчёт, числа на дату прогона, не править.
+**Status:** 🟢 стабильно (доки сверены с кодом 2026-08-12) | **Владелец:** misha.
+
+---
 
 **Symptom:** EXP-5 (research dev.to): симулированный дрейф (lancedb==0.99.0 pin vs lock 0.34.0) → гейт печатает «Lockfile in sync.», exit 0. На реальных файлах PINNED пуст для lancedb/mcp/tree-sitter.
 **Root Cause:** verify_clean_state.sh:58-65 — `grep -iE "^\"?${pkg}==" pyproject.toml` требует `pkg==` в НАЧАЛЕ строки; реальные пины в TOML-массиве (`    "lancedb==0.34.0",` строка 36) → PINNED всегда пуст → условие `[ -n "$PINNED" ] && ...` никогда не истинно → ветка `DRIFT=1` недостижима. Класс Тома ln.strip(): guard, структурно неспособный упасть, неотличимый от рабочего.
