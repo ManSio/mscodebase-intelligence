@@ -54,6 +54,11 @@
 - Строка без подтверждения/использования 30+ дней → удалить или архивировать.
 - Свежая строка бьёт старую → старую удалить, `CONTRADICTION RESOLVED` в дневнике (§4.9).
 
+## Research verification layers dev.to (2026-08-11, EXP-1..5)
+- verify_clean_state.sh drift-гейт: был МЁРТВ (grep `^\"?pkg==` не матчил пины TOML-массива) → **FIXED 2026-08-12**: scripts/check_lock_drift.sh (`grep -vE '^\s*#' | grep -oE "\"${pkg}==[0-9.]+"`, exact-пины lancedb/pylance) + scripts/negative_control_drift_gate.sh (Arm1 мутант → exit 1, Arm2 sync → exit 0) — контроль на КАЖДОМ clean-state прогоне (правило Тома).
+- scripts/stale_detector.py: был placeholder («No drifts») → **FIXED + RE-ENABLED в pre-commit 2026-08-12**: обёртка над tools/stale_detector/stale_check.py; doc-sync (117 дрейфов → 0): live-доки → 3.4.0, леджеры (KNOWN_ISSUES/ISSUE/WISDOM) и архивы (docs/archive, blog, ISSUES) исключены из версионной проверки, исторические маркеры («CHANGELOG 3.2.1», «v3.2.0 Data Flow», «v3.2.0+») — stale-ignore.
+- Shadow Canary fail-open → **FIXED 2026-08-12** (EXP-1 регрессии): fail-closed (пустой canary / сбой базлайна → BLOCK), абсолютный якорь MSCODEBASE_CANARY_MIN_QUALITY=0.5 (baseline И new_mean), collapse-детектор (дисперсия нормализованных векторов ≈ 0); test_shadow_canary.py 13/13. Health P3: eligible_seen в _check_search_quality — «0 eligible» ≠ «broken collector».
+
 ## Audit verification deep-research-report.md (2026-08-08)
 - Windows mutex-эталон: `CreateMutexW(None, False, ...)` + WaitForSingleObject + парный
   ReleaseMutex (graph.py:74, onnx_client.py:76). llama_runner.py:184 — исправлен на

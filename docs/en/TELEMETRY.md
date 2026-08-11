@@ -189,10 +189,12 @@ required for semantic search:
 | Reranker | llama.cpp (`llama-server.exe`, separate process, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Loaded by `step_gguf` in `install.py`. |
 | LLM (RAG, optional) | reserved | — | Not required for search. |
 
+<!-- stale-ignore -->
 > ⚠️ **Doc drift fixed (2026-07-12):** Older telemetry docs described "LM Studio
 > bge-m3 / phi-4-mini" as the embedding provider. That is **out of date** — embedding
 > moved in-process to ONNX/OpenVINO E5-base INT8 (see CHANGELOG 3.2.1). LM Studio remains
 > only an optional fallback if the local ONNX/OpenVINO model is unavailable.
+<!-- stale-ignore -->
 
 ---
 
@@ -275,7 +277,9 @@ Full load test: **all 58 registered tools** called live through the real MCP ser
 | rename_symbol | 1 | 2624 | ✅ (preview) |
 | get_health_report | 1 | 21618 | ✅ (heavy: log scan) |
 
+<!-- stale-ignore -->
 ### Bugs found & fixed during the audit (see KNOWN_ISSUES / CHANGELOG 3.2.1)
+<!-- stale-ignore -->
 - **INC-58EA** — IVF index "0 vectors": `_init_onnx` loaded `model.onnx` but the file on
   disk is `model_quantized.onnx` → embedder returned zeros → all vectors had norm 0.0 →
   KMeans failed. Fixed: `_init_onnx` now prefers `model_quantized.onnx` (like `_init_openvino`).

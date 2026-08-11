@@ -2,7 +2,7 @@
 
 [🇬🇧 English](../en/ARCHITECTURE_DEEP.md) • [🇷🇺 Русский](../ru/ARCHITECTURE_DEEP.md) • [🇨🇳 中文](ARCHITECTURE_DEEP.md)
 
-> **版本：** v3.2.0 | **最后更新：** 2026-07-12
+> **版本：** v3.4.0 | **最后更新：** 2026-08-12
 
 ```mermaid
 flowchart TD

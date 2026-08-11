@@ -187,10 +187,12 @@ python scripts/collect_telemetry.py --history 7
 | 重排序 | llama.cpp（`llama-server.exe`，独立进程，`:8081`） | `BAAI/bge-reranker-v2-m3`（GGUF Q4_K_M） | 由 `install.py` 的 `step_gguf` 加载。 |
 | LLM（RAG，可选） | 保留 | — | 搜索不需要。 |
 
+<!-- stale-ignore -->
 > ⚠️ **文档漂移已修复（2026-07-12）**：旧遥测文档将 "LM Studio
 > bge-m3 / phi-4-mini" 描述为嵌入提供者（provider）。这 **已过时** — 嵌入已
 > 进程内迁移到 ONNX/OpenVINO E5-base INT8（见 CHANGELOG 3.2.1）。LM Studio
 > 仅作为本地 ONNX/OpenVINO 模型不可用时的可选回退（fallback）。
+<!-- stale-ignore -->
 
 ---
 
@@ -273,7 +275,9 @@ python scripts/collect_telemetry.py --history 7
 | rename_symbol | 1 | 2624 | ✅（预览） |
 | get_health_report | 1 | 21618 | ✅（重量级：日志扫描） |
 
+<!-- stale-ignore -->
 ### 审计中发现并修复的 bug（见 KNOWN_ISSUES / CHANGELOG 3.2.1）
+<!-- stale-ignore -->
 - **INC-58EA** — IVF 索引 "0 vectors"：`_init_onnx` 加载了 `model.onnx`，但磁盘上的文件是
   `model_quantized.onnx` → 嵌入器（embedder）返回零 → 所有向量 norm 为 0.0 → KMeans 失败。
   修复：`_init_onnx` 现在优先使用 `model_quantized.onnx`（同 `_init_openvino`）。

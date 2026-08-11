@@ -5,12 +5,51 @@
 
 ---
 
+## 2026-08-11 — verify_clean_state.sh: drift-гейт структурно мёртв — FIXED 2026-08-12 (✅ закрыт)
+
+**Symptom:** EXP-5 (research dev.to): симулированный дрейф (lancedb==0.99.0 pin vs lock 0.34.0) → гейт печатает «Lockfile in sync.», exit 0. На реальных файлах PINNED пуст для lancedb/mcp/tree-sitter.
+**Root Cause:** verify_clean_state.sh:58-65 — `grep -iE "^\"?${pkg}==" pyproject.toml` требует `pkg==` в НАЧАЛЕ строки; реальные пины в TOML-массиве (`    "lancedb==0.34.0",` строка 36) → PINNED всегда пуст → условие `[ -n "$PINNED" ] && ...` никогда не истинно → ветка `DRIFT=1` недостижима. Класс Тома ln.strip(): guard, структурно неспособный упасть, неотличимый от рабочего.
+**Fix (2026-08-12, P1):** логика вынесена в scripts/check_lock_drift.sh (`grep -vE '^\s*#' | grep -oE "\"${pkg}==[0-9.]+"`, exact-пины lancedb/pylance; RC: 0=sync, 1=дрейф, 2=нет pyproject); scripts/negative_control_drift_gate.sh — двухрукавный контроль (Arm1 мутант → exit 1 + DRIFT, Arm2 sync → exit 0); verify_clean_state.sh вызывает оба непрерывно (правило Тома). Прогоны: gate на проекте RC=0 «Lockfile in sync.»; мутант на копии реального pyproject → DRIFT RC=1; control PASSED.
+**Status:** 🟢 стабильно (negative control доказывает способность падать на каждом clean-state прогоне) | **Владелец:** misha.
+
+---
+
+## 2026-08-11 — pre-commit хук stale_detector = placeholder — FIXED + RE-ENABLED 2026-08-12 (✅ закрыт)
+
+**Symptom:** pre-commit запускает scripts/stale_detector.py (git_hooks_installer.py:88) — тот печатает «Stale Detector: No drifts detected (placeholder implementation)» и exit 0 всегда.
+**Root Cause:** scripts/stale_detector.py:86-94 — TODO «Implement actual stale detection logic / For now, just return success». Рабочие реализации существуют рядом: tools/stale_detector/stale_check.py, tools/stale_detector/graph_stale_check.py (v2 content-hash), src/mcp/tools/doc_tools.py StaleDetectorTool (_scan_docs).
+**Fix (2026-08-12, P2):** scripts/stale_detector.py → тонкая обёртка над tools/stale_detector/stale_check.py (--project-root; §5.16 Popen+communicate). Doc-sync (117 дрейфов → 0): live-доки bumped до 3.4.0 (AI_INSTALLATION_PROMPT, CONTRIBUTING ×3, ARCHITECTURE/ARCHITECTURE_DEEP/GRACEFUL_DEGRADATION/SEARCH_PIPELINE ×3); леджеры (KNOWN_ISSUES/ISSUE/WISDOM) и исторические архивы (docs/archive, docs/blog, docs/ISSUES) исключены из версионной проверки (stale_config.json); Python-версии (3.10-3.14) — паттерн-исключение; исторические маркеры («CHANGELOG 3.2.1», «v3.2.0 Data Flow», «v3.2.0+») — <!-- stale-ignore -->. **RE-ENABLED в pre-commit** (git_hooks_installer.py шаблон + .git/hooks/pre-commit переустановлен через install_git_hooks).
+**Прогоны:** stale_detector --report-format json → ok=True files=0 total=0 RC=0; `python .git/hooks/pre-commit` → verify_diary ✅ + stale_detector ✅ RC=0.
+**Status:** 🟢 стабильно (pre-commit блокирует коммиты при новом version-drift) | **Владелец:** misha.
+
+---
+
+## 2026-08-11 — Shadow Canary: fail-open ветки + относительная метрика — 5/5 атак прошли — FIXED 2026-08-12 (✅ закрыт)
+
+**Symptom:** EXP-1: (b) collapse-to-constant `[1.0]*384` проходит canary (sims=1.0); (c) пустой canary-набор → доверие (remote_embedder.py:242-243); (d) сбой базлайна → доверие (строка 259-261); (e) взаимно-вырожденная пара old+new проходит. Единственный ловимый дефект — нулевые векторы.
+**Root Cause:** сравнение ОТНОСИТЕЛЬНОЕ (new_mean vs old_mean*0.9, строка 284-287) без абсолютного порога; fail-open на empty-canary и на сбое базлайна. test_shadow_canary.py:54-63 закреплял «пустой canary = доверие» как фичу.
+**Fix (2026-08-12, P2):** (1) fail-closed: пустой canary / сбой базлайна / пустой ответ → BLOCK с логом причины; (2) абсолютный якорь `_ABS_MIN_QUALITY` (MSCODEBASE_CANARY_MIN_QUALITY=0.5, env-оверрайд): baseline ИЛИ new_mean ниже → UNKNOWN → BLOCK; (3) collapse-детектор `_vectors_collapsed` (дисперсия НОРМАЛИЗОВАННЫХ векторов < 1e-3 → reject; ловит и constant-векторы, и ±1%-noisy-constant, и scalar-кратные); (4) eligible_seen (pairs=N) в лог canary. Решение по open-question: пустой canary ПЕРЕВЁРНУТ в fail-closed (L3: пустая популяция ≠ all-clear).
+**Тесты:** test_shadow_canary.py переписан — реалистичные per-pair векторы вместо коллапс-фейков (старый `_make_fake_embedding` сам был collapse-состоянием!); 13/13 passed: регрессии EXP-1 (b/c/d + absolute anchor ×2 + collapse ×4) + accepts_good/rejects_bad.
+**Status:** 🟢 стабильно (fail-closed + абсолютный якорь + collapse-детектор; стресс-тесты EXP-1 как регрессии) | **Владелец:** misha | **Нюанс:** если текущий провайдер реально набирает < 0.5 на canary-наборе, переключения блокируются — тюнить порог или улучшить canary_set.json.
+
+---
+
+## 2026-08-11 — _check_search_quality: «0 eligible» неотличим от «0 собрано» (population blind spot, P3) — FIXED 2026-08-12 (✅ закрыт)
+
+**Symptom:** EXP-4: searcher → [] (пустой индекс, здоровый idle) и мусорные чанки (сломанный коллектор) дают ОДИНАКОВЫЙ сигнал: search_quality_passed=0 + warning «нет реальных результатов»; сообщение даже утверждает «пустые/мусорные чанки» при 0 сырых.
+**Root Cause:** health.py:744-756 — не измеряется eligible_seen (размер индекса/кол-во чанков ДО запроса); gap между population_size и eligible_seen не аудируем (Tom день 2: «You sampled 12 of 400 invites an argument»).
+**Fix (2026-08-12, P3):** `search_quality_eligible_seen` из indexer.get_status().total_chunks ДО запросов (источник — indexer, не searcher; рецепт-правило селекции в метрике). eligible_seen=0 → `search_quality_skipped=empty_index` (healthy idle, warning НЕ дублируется — issue «Индекс пуст» уже в _check_index_integrity). eligible_seen>0 + 0 реальных → warning «0 реальных результатов при N eligible-чанков в индексе (broken collector)» + метрика search_quality_population_size (сырые на запрос). get_status недоступен → eligible_seen=-1 → fallback на старое поведение.
+**Тесты:** test_search_quality_monitoring.py 12/12: empty-population-is-healthy-idle, eligible-в-warning (EXP-4 различимость), unknown-fallback, старые регрессии #15.
+**Status:** 🟢 стабильно (population manifest в метрике и warning) | **Владелец:** misha.
+
+---
+
 ## 2026-08-11 — Project Memory add-only: нет отзыва (retraction) — РЕШЕНО ADR-0002 (🟢 стабильно; verify-on-read остаётся 🟡)
 
 **Symptom:** Experiment 1 Memory Contamination (N=24) подтвердил: память (IntelligenceStore) однонаправлена — инструментов delete/refute нет (grep-0 по memory-инструментам), при чтении claim не сверяется с кодом. На SILENT-фактах (внешние системы: Redis/Celery/MySQL/Kafka — в коде отсутствуют) память дала уверенный ложный ответ там, где без памяти был бы UNKNOWN (memory_confidence_effect=4). stale-ADR из `intel_auto_collect_adrs` остаются навсегда → заражение кумулятивно.
 **Root Cause:** store API = save/load без статусов (VERIFIED/REFUTED), нет verify-on-read; код опровергает 71% ложных фактов (10/14), но система не использует это.
 **Fix (2026-08-11, ADR-0002, docs/adr/0002-retraction-receipt.md):** статус-модель ACTIVE|VERIFIED|REFUTED (OWP lifecycle VERIFIED→REFUTED); `intel_retract_memory_node(node_id, reason)` — причина обязательна, повторный отзыв запрещён (retract_reason/retracted_at сохраняются); `intel_add_memory_node(status=ACTIVE|VERIFIED, REFUTED при записи запрещён)`; фильтрация REFUTED в `store.load_memory`/`intel_get_project_memory` (include_retracted=True для аудита); TOCTOU закрыт (весь RMW под `_write_lock`); dedup `intel_auto_collect_adrs` видит REFUTED; legacy без status = ACTIVE (zero миграций). Guard: tests/test_memory_retraction.py (14), pytest 1041 passed.
-**Status:** 🟢 стабильно (ретракция + verify-on-read + write-time anchor capture) | **Остаток (🟡):** TTL для auto_collect_adrs (Вариант C) — отложен; переоткрытие ADR по мере надобности (Temporal ADR-0003 T+180d). | **Владелец:** misha. | **Deadline остатка:** 2026-09-11 (1 месяц наблюдения за stale-rate auto_collect_adrs).
+**Status:** 🟢 стабильно (ретракция + verify-on-read + write-time anchor capture) | **Репликация 1-V (2026-08-11, facts v4):** ✅ ВОСПРОИЗВЕДЕНО — adoption честного 0.0 (1-V: 0.0), 0 ложных REFUTED TRUE при корректной типизации (1-V: 7 — артефакты наивной типизации, закрыты write-time capture), present-trap слепота воспроизведена (memory_first 0.24 vs 0.16) | **Остаток (🟡):** TTL для auto_collect_adrs (Вариант C) — отложен; переоткрытие ADR по мере надобности (Temporal ADR-0003 T+180d). | **Владелец:** misha. | **Deadline остатка:** 2026-09-11 (1 месяц наблюдения за stale-rate auto_collect_adrs).
 
 ---
 

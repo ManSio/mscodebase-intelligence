@@ -1,6 +1,8 @@
 # Руководство по настройке LM Studio для MSCodeBase Intelligence
 
+<!-- stale-ignore -->
 > **Последнее обновление:** 2026-07-12 | **Применяется к:** v3.2.0+
+<!-- stale-ignore -->
 
 ## ⚠️ LM Studio теперь второстепенен
 

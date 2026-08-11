@@ -188,10 +188,12 @@ python scripts/collect_telemetry.py --history 7
 | Reranker | llama.cpp (`llama-server.exe`, отдельный процесс, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Грузится шагом `step_gguf` в `install.py`. |
 | LLM (RAG, опц.) | зарезервирован | — | Не нужен для поиска. |
 
+<!-- stale-ignore -->
 > ⚠️ **Исправлен дрейф документации (2026-07-12):** старые телеметрийные доки описывали
 > «LM Studio bge-m3 / phi-4-mini» как провайдер эмбеддинга. Это **устарело** — эмбеддинг
 > переехал in-process на ONNX/OpenVINO E5-base INT8 (см. CHANGELOG 3.2.1). LM Studio остаётся
 > лишь опциональным fallback, если локальная ONNX/OpenVINO модель недоступна.
+<!-- stale-ignore -->
 
 ---
 
@@ -274,7 +276,9 @@ python scripts/collect_telemetry.py --history 7
 | rename_symbol | 1 | 2624 | ✅ (preview) |
 | get_health_report | 1 | 21618 | ✅ (тяжёлый: скан логов) |
 
+<!-- stale-ignore -->
 ### Баги, найденные и исправленные в ходе аудита (см. KNOWN_ISSUES / CHANGELOG 3.2.1)
+<!-- stale-ignore -->
 - **INC-58EA** — IVF-индекс «0 vectors»: `_init_onnx` грузил `model.onnx`, но на диске файл
   `model_quantized.onnx` → эмбеддер возвращал нули → все векторы имели norm 0.0 →
   KMeans падал. Исправлено: `_init_onnx` теперь сначала берёт `model_quantized.onnx` (как `_init_openvino`).

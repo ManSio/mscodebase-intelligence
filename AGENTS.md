@@ -314,11 +314,13 @@ Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `
 
 ### B. Core MCP & Search (28 tools)
 
+<!-- stale-ignore -->
 > **v3.2.0 Data Flow:** PropertyGraph contains `ASSIGNED_FROM` edges tracking variable assignments across function bodies.
 > Use `get_variable_flow(name="x")` to trace variable provenance with scope resolution.
 > Use `MATCH (s)-[e:ASSIGNED_FROM]->(t) WHERE t.name = 'x' RETURN s.name, e.condition_path` (Cypher) for advanced queries.
 > Edges have optional `condition_path` property — list of control-flow contexts like `["if_statement", "for_statement"]`.
 > Supported for: Python, Rust, Go, JavaScript, TypeScript/TSX, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala, Dart.
+<!-- stale-ignore -->
 
 `search_code(mode=fast|quality|deep|context|auto)`, `get_variable_flow(name, scope_id)`, `cross_repo_search`
 `cross_project_deps`, `get_symbol_info`, `impact_analysis`, `lsp_find_references(file_path, line, col)`,
@@ -339,12 +341,14 @@ Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `
 
 > **Deprecated** (use `search_code`): `smart_search`, `deep_search`, `context_search`.
 
+<!-- stale-ignore -->
 > **v3.2.0 Scope Resolution:** Use `get_variable_flow(name="x")` for data flow queries.
 > **Protocol:**
 > 1. Call `get_variable_flow(name="result")` without scope_id — see ALL `result` variables with their context.
 > 2. If multiple results → pick the right `scope_id` (it encodes file + function + line).
 > 3. Call `get_variable_flow(name="result", scope_id="...")` to get precise data flow.
 > 4. Check `condition_path` on edges — empty list = unconditional, `["if_statement"]` = inside IF.
+<!-- stale-ignore -->
 
 ### C. Write Tools (6)
 

@@ -26,7 +26,7 @@
 
 | Metric | Value |
 |--------|-------|
-| **Version** | 3.3.13 — get_last_progress → core (ARCH-03 closed) |
+| **Version** | 3.4.0 |
 | **Tests** | 853 ✅ |
 | **MCP Tools** | 58 (28 core + 14 intel + 12 inline + 4 dev) |
 | **Parsing Languages** | 30 file extensions (16 with ASSIGNED_FROM data flow) |

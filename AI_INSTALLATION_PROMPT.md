@@ -1,6 +1,6 @@
 # 🤖 One-Prompt Install Manifest for Zed Agent
 
-> Версия: 3.3.9 | Дата: 2026-07-21
+> Версия: 3.4.0 | Дата: 2026-08-12
 >
 > Скопируй этот текст в чат Агента Zed (`Ctrl+Shift+P` → `Agent Panel: Toggle`)
 > и Агент сам выполнит установку, настройку и проверку MSCodeBase Intelligence.
