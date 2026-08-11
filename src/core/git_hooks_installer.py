@@ -6,7 +6,8 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
 
 Хуки:
 1. verify_diary — проверка AGENT_DIARY.md на целостность
-2. stale_detector — обнаружение устаревшей документации
+2. stale_detector — проверка дрейфа версий в доках (doc-sync 2026-08-12:
+   checker exit 0, re-enabled после 113 дрейфов → 0)
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 
 Запускает:
 1. verify_diary — проверка AGENT_DIARY.md
-2. stale_detector — поиск устаревшей документации
+2. stale_detector — проверка дрейфа версий в доках
 \"\"\"
 
 import subprocess
@@ -145,7 +146,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary, stale_detector"
+            f"   Хуки: verify_diary + stale_detector"
         )
 
     def uninstall(self, project_root: str) -> str:

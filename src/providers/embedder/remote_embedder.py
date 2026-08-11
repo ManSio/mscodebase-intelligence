@@ -31,6 +31,37 @@ _LLAMA_MAX_TOKENS = 480          # безопасный запас под жёс
 _LLAMA_FALLBACK_MAX_TOKENS = 448 # HF-fallback: запас поверх расхождения BPE
 _LLAMA_TOKENIZE_MIN_CHARS = 256  # короче — не проверяем (bounded даже ~2 ток/симв)
 
+# Shadow Canary: абсолютный якорь качества (EXP-1, 2026-08-11). Базлайн или новый
+# провайдер ниже порога — «не можем верифицировать» → BLOCK (fail-closed), а не
+# относительное «не хуже». Env-оверрайд: MSCODEBASE_CANARY_MIN_QUALITY (Тумблер).
+try:
+    _ABS_MIN_QUALITY = float(os.getenv("MSCODEBASE_CANARY_MIN_QUALITY", "0.5"))
+except ValueError:  # кривой env не должен ронять импорт модуля
+    _ABS_MIN_QUALITY = 0.5
+
+
+def _vectors_collapsed(vectors: List[List[float]], eps: float = 1e-3) -> bool:
+    """True, если все векторы ~однонаправлены (collapse-to-constant, EXP-1 b/b2).
+
+    Collapse-состояние: модель возвращает один и тот же ВЕКТОР (или скалярно-
+    кратные — cos=1.0 для любой пары) на любой вход → cosine-подобие всех пар
+    = 1.0, относительная метрика не видит деградацию. Критерий — дисперсия
+    НОРМАЛИЗОВАННЫХ векторов ≈ 0 (совпадает направление), а не сырых значений:
+    [1.0]*384 и [1.001]*384 — один и тот же коллапс в cosine-пространстве.
+    Мало векторов (<2) — верифицировать нельзя → True.
+    """
+    if not vectors or len(vectors) < 2:
+        return True
+    dim = len(vectors[0])
+    normed = []
+    for v in vectors:
+        n = sum(x * x for x in v) ** 0.5
+        normed.append([x / n for x in v] if n else [0.0] * dim)
+    n = len(normed)
+    mean = [sum(v[i] for v in normed) / n for i in range(dim)]
+    var = sum(sum((v[i] - mean[i]) ** 2 for i in range(dim)) for v in normed) / n
+    return var < eps
+
 
 class RemoteEmbedder(IEmbedder):
     def __init__(
@@ -231,17 +262,22 @@ class RemoteEmbedder(IEmbedder):
     def _shadow_compare(self, new_embed_fn, new_name: str) -> bool:
         """Shadow Canary: сравнивает качество эмбеддинга до и после смены провайдера.
 
+        Fail-closed (EXP-1, 2026-08-11): пустой canary, сбой/вырождение базлайна,
+        collapse-вывод нового провайдера и качество ниже абсолютного якоря — НЕ
+        «доверие», а BLOCK переключения с явным логом причины. «Проверка, которая
+        не может упасть, всегда зелёная про то, чего не видит» (Tom, L1).
+
         Args:
             new_embed_fn: callable(texts) -> List[List[float]] — эмбеддер нового провайдера.
             new_name: имя нового провайдера (для лога).
 
         Returns:
             True если новый провайдер не хуже старого (можно переключать).
-            False если качество упало (отказ от переключения).
+            False если качество упало / верификация невозможна (отказ от переключения).
         """
         if not self._canary_pairs:
-            return True  # нет canary — доверяем
-
+            logger.warning("🐦 Shadow Canary: canary set empty — switch BLOCKED (fail-closed)")
+            return False
 
         def _cos_sim(a, b):
             dot = sum(x * y for x, y in zip(a, b))
@@ -257,14 +293,29 @@ class RemoteEmbedder(IEmbedder):
             old_q_vecs = self.embed_batch(old_queries, is_query=True)
             old_c_vecs = self.embed_batch(old_chunks, is_query=False)
         except Exception as e:
-            logger.warning(f"🐦 Shadow baseline failed: {e}")
-            return True
+            logger.warning(f"🐦 Shadow baseline failed: {e} — switch BLOCKED (fail-closed)")
+            return False
 
         if not old_q_vecs or not old_c_vecs:
-            return True
+            logger.warning("🐦 Shadow baseline empty — switch BLOCKED (fail-closed)")
+            return False
+
+        # Collapse-детектор на базлайне (EXP-1 (e)): constant-векторы → сравнение бессмысленно
+        if _vectors_collapsed(old_q_vecs) or _vectors_collapsed(old_c_vecs):
+            logger.warning("🐦 Shadow baseline collapsed (constant vectors) — UNKNOWN, switch BLOCKED")
+            return False
 
         old_sims = [_cos_sim(q, c) for q, c in zip(old_q_vecs, old_c_vecs)]
         old_mean = sum(old_sims) / len(old_sims) if old_sims else 0.0
+
+        # Абсолютный якорь: базлайн сам ниже качества → относительная метрика
+        # не имеет смысла (UNKNOWN, а не ложный отказ из-за деградации)
+        if old_mean < _ABS_MIN_QUALITY:
+            logger.warning(
+                f"🐦 Shadow baseline below absolute quality "
+                f"({old_mean:.4f} < {_ABS_MIN_QUALITY}) — UNKNOWN, switch BLOCKED"
+            )
+            return False
 
         # Прогоняем через новый провайдер
         try:
@@ -278,16 +329,33 @@ class RemoteEmbedder(IEmbedder):
             logger.warning(f"🐦 Shadow {new_name}: empty response")
             return False
 
+        # Collapse-детектор нового провайдера (EXP-1 (b), (b2)): constant-векторы
+        # дают sims=1.0 и проходят относительную метрику — это и есть слепая зона
+        if _vectors_collapsed(new_q_vecs) or _vectors_collapsed(new_c_vecs):
+            logger.warning(
+                f"🐦 Shadow {new_name}: collapsed output (constant vectors) — switch BLOCKED"
+            )
+            return False
+
         new_sims = [_cos_sim(q, c) for q, c in zip(new_q_vecs, new_c_vecs)]
         new_mean = sum(new_sims) / len(new_sims) if new_sims else 0.0
+
+        # Абсолютный порог на нового провайдера: «относительно не хуже» ≠ «абсолютно хорош»
+        if new_mean < _ABS_MIN_QUALITY:
+            logger.warning(
+                f"🐦 Shadow {new_name}: below absolute quality "
+                f"({new_mean:.4f} < {_ABS_MIN_QUALITY}) — switch BLOCKED"
+            )
+            return False
 
         # Сравнение с tolerance 10%
         threshold = old_mean * 0.9
         degraded = sum(1 for n in new_sims if n < threshold)
         degraded_ratio = degraded / len(new_sims) if new_sims else 1.0
 
+        # eligible_seen в лог: сколько пар реально сравнивалось (L3 — population manifest)
         logger.info(
-            f"🐦 Shadow Canary: {new_name} vs baseline | "
+            f"🐦 Shadow Canary: {new_name} vs baseline | pairs={len(new_sims)} "
             f"old_mean={old_mean:.4f} new_mean={new_mean:.4f} "
             f"degraded={degraded}/{len(new_sims)} ({degraded_ratio:.0%})"
         )

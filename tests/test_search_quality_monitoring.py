@@ -33,8 +33,9 @@ class FakeSearcher:
         return self._responses[0]
 
 
-def _make_report(searcher) -> HealthReport:
+def _make_report(searcher, total_chunks=100) -> HealthReport:
     indexer = SimpleNamespace(searcher=searcher)
+    indexer.get_status = lambda: {"total_chunks": total_chunks}
     return HealthReport(project_path=Path("."), indexer=indexer)
 
 
@@ -84,15 +85,41 @@ class TestCheckSearchQuality:
         assert not [w for w in report.warnings if w["component"] == "search_quality"]
 
     def test_fails_on_garbage_chunks(self):
-        """Мусорные чанки (пустой текст с файлом) — НЕ проходят (регрессия #15)."""
+        """Мусорные чанки при непустой популяции — «broken collector» (регрессия #15 + EXP-4)."""
         garbage = {"text": "", "metadata": {"file": "init.py"}}
         report = _make_report(FakeSearcher([[garbage]]))
         report._check_search_quality()
 
         assert report.metrics["search_quality_passed"] == 0
+        assert report.metrics["search_quality_eligible_seen"] == 100
         search_warnings = [w for w in report.warnings if w["component"] == "search_quality"]
         assert search_warnings, "Ожидалось предупреждение о мусорных результатах"
-        assert "нет реальных результатов" in search_warnings[0]["message"]
+        assert "0 реальных результатов" in search_warnings[0]["message"]
+        assert "100 eligible" in search_warnings[0]["message"], \
+            "warning обязан нести population manifest (EXP-4)"
+
+    def test_empty_population_is_healthy_idle(self):
+        """Пустой индекс (0 eligible): synthetic-запросы не имеют смысла —
+        НЕ «broken collector», а ожидаемый idle (EXP-4: различимость).
+        Warnings нет (дублировал бы issue «Индекс пуст» из _check_index_integrity)."""
+        report = _make_report(FakeSearcher([[]]), total_chunks=0)
+        report._check_search_quality()
+
+        assert report.metrics["search_quality_eligible_seen"] == 0
+        assert report.metrics["search_quality_skipped"] == "empty_index"
+        assert not [w for w in report.warnings if w["component"] == "search_quality"], \
+            "0 eligible + 0 собрано = healthy idle, не warning"
+
+    def test_eligible_seen_unknown_falls_back(self):
+        """get_status недоступен → eligible_seen=-1, проверка идёт как раньше."""
+        searcher = FakeSearcher([[REAL_RESULT]])
+        indexer = SimpleNamespace(searcher=searcher)
+        # get_status отсутствует — имитация сломанного/старого indexer
+        report = HealthReport(project_path=Path("."), indexer=indexer)
+        report._check_search_quality()
+
+        assert report.metrics["search_quality_eligible_seen"] == -1
+        assert report.metrics["search_quality_passed"] == 3
 
     def test_fails_when_searcher_raises(self):
         class RaisingSearcher:

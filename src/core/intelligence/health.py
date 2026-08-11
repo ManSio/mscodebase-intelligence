@@ -700,6 +700,27 @@ class HealthReport:
             passed_tests = 0
             self.metrics["search_quality_total_tests"] = total_tests
 
+            # Population manifest (L3.5, EXP-4): сколько eligible-чанков было в
+            # индексе ДО запроса — из indexer.get_status() (не производное от
+            # searcher: рецепт-правило селекции в метрике). Отличает
+            # «0 собрано, потому что индекса нет» (healthy idle) от
+            # «0 собрано при N eligible» (сломанный коллектор).
+            eligible_seen = -1  # -1 = не удалось определить → fallback на старое поведение
+            try:
+                status = self.indexer.get_status() or {}
+                eligible_seen = int(status.get("total_chunks", 0) or 0)
+            except Exception:
+                eligible_seen = -1
+            self.metrics["search_quality_eligible_seen"] = eligible_seen
+
+            if eligible_seen == 0:
+                # Пустая популяция: synthetic-запросы не имеют смысла — это НЕ
+                # вакуумная сюита, индекс реально пуст (issue «Индекс пуст» уже
+                # добавлен в _check_index_integrity). Не дублируем warning.
+                self.metrics["search_quality_skipped"] = "empty_index"
+                self.metrics["search_quality_passed"] = 0
+                return
+
             # Разные запросы вместо трёх одинаковых (было «index file» ×3).
             queries = ["index file", "error handler", "search query"]
 
@@ -741,16 +762,24 @@ class HealthReport:
                     )
                     continue
 
+                # population_size: сколько собрано коллектором (сырые результаты)
+                self.metrics.setdefault("search_quality_population_size", []).append(
+                    len(results)
+                )
+
                 real_results = [r for r in results if self._is_quality_result(r)]
                 if real_results:
                     passed_tests += 1
                 else:
+                    # eligible_seen > 0 здесь гарантирован (early-return выше):
+                    # популяция есть, а собрано 0 — сломанный коллектор
                     self.warnings.append(
                         {
                             "component": "search_quality",
                             "message": (
-                                f"Search шаг #{i} ('{query}'): нет реальных результатов "
-                                f"({len(results)} сырых — все пустые/мусорные чанки)"
+                                f"Search шаг #{i} ('{query}'): 0 реальных результатов "
+                                f"при {eligible_seen} eligible-чанков в индексе "
+                                f"({len(results)} сырых — broken collector)"
                             ),
                         }
                     )

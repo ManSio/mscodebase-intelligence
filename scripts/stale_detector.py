@@ -2,95 +2,70 @@
 """
 Stale Detector — detects documentation drift from codebase.
 
+Реальная реализация: `tools/stale_detector/stale_check.py` (version-string drift,
+severity error/warn, конфиг tools/stale_detector/stale_config.json).
+Этот файл — тонкая обёртка с правильным project-root (по Тумблеру: обёртка,
+не дубль логики).
+
+Было (2026-08-08..11): placeholder «No drifts detected (placeholder implementation)»,
+всегда exit 0 — класс «guard структурно неспособен упасть» (EXP-5B, KNOWN_ISSUES
+2026-08-11). Заменено на делегирование реальному чекеру.
+
 Usage:
-    python tools/stale_detector/stale_check.py                          # human-readable report
-    python tools/stale_detector/stale_check.py --report-format=json     # JSON for CI
-    python tools/stale_detector/stale_check.py --config stale_config.yaml
+    python scripts/stale_detector.py [--report-format human|json] [--config PATH]
 
-Configurable via stale_config.yaml (exclusion lists, severity overrides).
-Supports <!-- stale-ignore --> comments in markdown to skip sections.
-
-Returns exit code 1 if critical drifts found.
+Exit code: 0 = нет critical-дрейфов; 1 = найдены severity=error дрейфы;
+2 = чекер не найден/таймаут.
 """
 
-import json
-import re
+from __future__ import annotations
+
+import subprocess
 import sys
-from dataclasses import dataclass, asdict
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
-@dataclass
-class DriftHit:
-    doc_file: str
-    line: int
-    expected: str
-    actual: str
-    severity: str  # "error" | "warn"
-    context: str = ""
-    check_type: str = "version"
-@dataclass
-class DocReport:
-    path: str
-    mtime: str
-    hits: list
-    total_hits: int = 0
-# ─── Config ───────────────────────────────────────────────────
 
-@dataclass
-class StaleConfig:
-    exclude_dirs: list = None
-    exclude_files: list = None
-    severity_overrides: dict = None
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CHECKER = PROJECT_ROOT / "tools" / "stale_detector" / "stale_check.py"
 
-    def __post_init__(self):
-        if self.exclude_dirs is None:
-            self.exclude_dirs = []
-        if self.exclude_files is None:
-            self.exclude_files = []
-        if self.severity_overrides is None:
-            self.severity_overrides = {}
-def load_config(config_path: str) -> StaleConfig:
-    """Load configuration from JSON file."""
-    if not Path(config_path).exists():
-        return StaleConfig()
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+def main() -> int:
+    if not CHECKER.exists():
+        print(f"Stale Detector: checker not found: {CHECKER}")
+        return 2
 
-    return StaleConfig(
-        exclude_dirs=data.get("exclude_dirs", []),
-        exclude_files=data.get("exclude_files", []),
-        severity_overrides=data.get("severity_overrides", {}),
-    )
-def main():
-    """Main function."""
-    import argparse
+    # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock;
+    # cwd=PROJECT_ROOT — config по умолчанию резолвится от project-root.
+    cmd = [
+        sys.executable,
+        str(CHECKER),
+        "--project-root",
+        str(PROJECT_ROOT),
+        *sys.argv[1:],
+    ]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        stdout, stderr = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        print("Stale Detector: TIMEOUT (>120s)")
+        return 2
 
-    parser = argparse.ArgumentParser(description="Detect documentation drift from codebase")
-    parser.add_argument(
-        "--config", default="tools/stale_detector/stale_config.json",
-        help="Path to config file (JSON)"
-    )
-    parser.add_argument(
-        "--report-format", choices=["text", "json"], default="text",
-        help="Report format"
-    )
-    args = parser.parse_args()
+    if stdout:
+        sys.stdout.write(stdout)
+    if stderr:
+        sys.stderr.write(stderr)
+    return proc.returncode
 
-    config = load_config(args.config)
 
-    # TODO: Implement actual stale detection logic
-    # For now, just return success
-    print("Stale Detector: No drifts detected (placeholder implementation)")
-
-    if args.report_format == "json":
-        import json
-        print(json.dumps({"drifts": [], "total": 0}, ensure_ascii=False, indent=2))
-
-    sys.exit(0)
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

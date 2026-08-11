@@ -3,7 +3,10 @@
     "AGENT_DIARY.md",
     "DEV_DIARY.md",
     "EXPERIMENTS_LOG.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "KNOWN_ISSUES.md",
+    "ISSUE.md",
+    "WISDOM.md"
   ],
   "exclude_dirs": [
     "research",
@@ -11,15 +14,19 @@
     "sandbox",
     "__pycache__",
     ".git",
-    "node_modules"
+    "node_modules",
+    "archive",
+    "blog",
+    "ISSUES"
   ],
   "version_exclude_patterns": [
-    "127\\.0\\.0",           
-    "^20\\d{2}\\.\\d+",      
-    "^0\\.\\d{2,}\\.",       
-    "^1\\.(9|10)\\.\\d+",    
-    "^2\\.\\d+\\.\\d+",     
-    "^0\\.0\\."            
+    "127\\.0\\.0",
+    "^20\\d{2}\\.\\d+",
+    "^0\\.\\d{2,}\\.",
+    "^1\\.(9|10)\\.\\d+",
+    "^2\\.\\d+\\.\\d+",
+    "^0\\.0\\.",
+    "^3\\.(10|11|12|13|14)\\.\\d+"
   ],
   "version_ignore_files": [
     "docs/en/SECURITY.md",

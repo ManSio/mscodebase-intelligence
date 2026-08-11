@@ -3,6 +3,9 @@
 # Вывод: EXIT_CODE + число passed/failed тестов
 set -uo pipefail
 
+# Корень скрипта (ДО любого cd — BASH_SOURCE относительный, см. clone-режим)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # $1 = repo URL (для ручного запуска с клоном), либо флаг --no-clone [repo URL]
 # --no-clone: работать в текущем каталоге (CI: $GITHUB_WORKSPACE = свежий checkout
 # раннера) — CI не должна клонировать сам себя (ISSUE.md P0-3).
@@ -51,23 +54,27 @@ fi
 # --- Lockfile drift gate (аналог uv lock --check) ---
 # Если requirements-lock.txt не синхронизирован с pyproject.toml,
 # установка из lock расходится с декларацией deps -> CI падает.
+# Логика вынесена в scripts/check_lock_drift.sh: negative control
+# (scripts/negative_control_drift_gate.sh) обязан тестировать ТУ ЖЕ логику
+# (EXP-5A: старый grep "^\"?${pkg}==" не матчил пины TOML-массива — гейт мёртв).
 echo "Checking lockfile drift (pyproject.toml vs requirements-lock.txt)..."
 if [ -f requirements-lock.txt ]; then
-    # Сравниваем версии ключевых deps из pyproject (exact pins) с lock
-    DRIFT=0
-    for pkg in lancedb mcp tree-sitter; do
-        PINNED=$(grep -iE "^\"?${pkg}==" pyproject.toml | head -1 | grep -oE '[0-9][0-9.]*' | head -1)
-        LOCKED=$(grep -iE "^${pkg}==" requirements-lock.txt | head -1 | grep -oE '[0-9][0-9.]*' | head -1)
-        if [ -n "$PINNED" ] && [ -n "$LOCKED" ] && [ "$PINNED" != "$LOCKED" ]; then
-            echo -e "${RED}DRIFT: ${pkg} pinned ${PINNED} in pyproject but ${LOCKED} in lock${NC}"
-            DRIFT=1
-        fi
-    done
-    if [ "$DRIFT" -ne 0 ]; then
+    "$SCRIPT_DIR/check_lock_drift.sh" .
+    GATE_RC=$?
+    if [ "$GATE_RC" -eq 1 ]; then
         echo -e "${RED}LOCKFILE DRIFT DETECTED — run: pip freeze > requirements-lock.txt${NC}"
         exit 1
+    elif [ "$GATE_RC" -ne 0 ]; then
+        # exit 2 = нет pyproject.toml (запуск не из корня проекта) — не путать с дрейфом
+        echo -e "${RED}LOCKFILE DRIFT CHECK FAILED (exit $GATE_RC)${NC}"
+        exit 1
     fi
-    echo -e "${GREEN}Lockfile in sync.${NC}"
+    # Negative control (правило Тома): guard обязан уметь падать, иначе его
+    # зелёные результаты ничего не значат. Мёртвый guard = fail громко.
+    "$SCRIPT_DIR/negative_control_drift_gate.sh" || {
+        echo -e "${RED}DRIFT GATE NEGATIVE CONTROL FAILED — guard сломан${NC}"
+        exit 1
+    }
 fi
 
 # Ставим из pyproject (с exact pins / upper bounds), а не резолвим заново из PyPI.
