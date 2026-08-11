@@ -1,6 +1,6 @@
 # Search Pipeline — Complete Technical Reference
 
-> **Part of MSCodeBase Intelligence** | v3.0.0
+> **Part of MSCodeBase Intelligence** | v3.4.0
 
 ## Overview
 

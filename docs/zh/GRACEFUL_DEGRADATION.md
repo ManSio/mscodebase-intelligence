@@ -1,6 +1,6 @@
 # 优雅降级（Graceful Degradation）— 系统弹性指南
 
-> **MSCodeBase Intelligence 的一部分** | v3.2.1
+> **MSCodeBase Intelligence 的一部分** | v3.4.0
 
 ## 概述
 

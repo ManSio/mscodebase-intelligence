@@ -86,7 +86,8 @@ def _pattern_anchors(pattern: str, env_keys: set) -> List[Dict[str, str]]:
 
 def main() -> int:
     try:
-        facts_path = HERE / "memory_contamination_facts_v3_generated.json"
+        # Репликация: путь фактов из argv (тот же агент/логика — контрольная группа).
+        facts_path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "memory_contamination_facts_v3_generated.json"
         facts: List[Dict] = json.loads(facts_path.read_text(encoding="utf-8"))["facts"]
         engine = CodeEvidence(ROOT)
         truth_map = {f["id"]: bool(f["truth"]) for f in facts}
@@ -179,11 +180,15 @@ def main() -> int:
             if not f["truth"] and f["id"] not in refuted_ids:
                 visible_false_ids.append(f["id"])
 
+        is_rep = "rep" in facts_path.stem
         result = {
             "_meta": {
-                "experiment": "Experiment 1-V: Memory Contamination VERIFY-ON-READ (ADR-0003)",
+                "experiment": ("Experiment 1-V REPLICATION: Memory Contamination VERIFY-ON-READ (ADR-0003)"
+                                if is_rep else "Experiment 1-V: Memory Contamination VERIFY-ON-READ (ADR-0003)"),
                 "date": "2026-08-11",
-                "control_group": "v3 (add-only) / 1-R (retraction)",
+                "facts_file": facts_path.name,
+                "replication": is_rep,
+                "control_group": "1-V (facts v3)" if is_rep else "v3 (add-only) / 1-R (retraction)",
                 "isolation": {"store_dir": str(store.store_dir), "real": str(real_store),
                               "isolated": str(store.store_dir) != str(real_store)},
                 "verify_stats": stats,
@@ -210,11 +215,11 @@ def main() -> int:
             },
         }
 
-        out_path = HERE / "memory_contamination_results_v3_verify.json"
+        out_path = HERE / (facts_path.stem.replace("facts", "results") + ".json")
         out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
         print("=" * 78)
-        print("Experiment 1-V: Memory Contamination VERIFY-ON-READ (ADR-0003)")
+        print("Experiment 1-V{}: Memory Contamination VERIFY-ON-READ (ADR-0003)".format(" REPLICATION" if is_rep else ""))
         print(f"facts: 50 (25T + 25F) | isolation: {result['_meta']['isolation']['isolated']}")
         print(f"verify: checked={stats['checked']} cache_hits={stats['cache_hits']} "
               f"inconclusive={stats['inconclusive']} budget_exceeded={stats['budget_exceeded']}")

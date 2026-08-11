@@ -1,6 +1,8 @@
 # LM Studio 设置指南 — MSCodeBase Intelligence
 
+<!-- stale-ignore -->
 > **最后更新：** 2026-07-12 | **适用版本：** v3.2.0+
+<!-- stale-ignore -->
 
 ## ⚠️ LM Studio 现为次要方案
 

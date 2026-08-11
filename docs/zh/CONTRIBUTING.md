@@ -1,6 +1,6 @@
 # 贡献指南 — MSCodeBase Intelligence
 
-> **版本：** 3.3.13
+> **版本：** 3.4.0
 
 ---
 
@@ -340,7 +340,7 @@ SemVer：MAJOR.MINOR.PATCH
 - **MINOR** — 新工具/功能（向后兼容）
 - **PATCH** — 错误修复
 
-当前版本在 `pyproject.toml` 中：`3.3.13`
+当前版本在 `pyproject.toml` 中：`3.4.0`
 
 ---
 

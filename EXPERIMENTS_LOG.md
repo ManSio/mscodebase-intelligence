@@ -1,5 +1,136 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-12] — EXP-1 → тест: canary fail-closed внедрён, 13/13 регрессий (атаки EXP-1 больше не проходят)
+
+**Гипотеза:** фикс по уроку EXP-1 (абсолютный якорь + fail-closed + collapse-детектор) переводит атаки (b)(c)(d)(e) из PASSED в BLOCKED, не сломав accepts_good/rejects_bad.
+**Команда:** `python -m pytest tests/test_shadow_canary.py -q` — реалистичные per-pair векторы вместо коллапс-фейков (старый `_make_fake_embedding` возвращал ОДИНАКОВЫЙ вектор на любой вход — сам был collapse-состоянием!).
+**Сырой результат:**
+```
+collected 13 items
+tests\test_shadow_canary.py .............  [100%]
+13 passed in 0.18s
+```
+Тесты: TestVectorsCollapsed ×5 (constant/noisy-constant/zero → collapsed; distinct → нет; <2 → unverifiable), TestShadowCanary ×8 (accepts_good; rejects_bad; **empty_canary_blocks** — было «доверие», теперь BLOCK; **baseline_failure_blocks**; **collapse_to_constant_blocks** — EXP-1 (b); **baseline_below_absolute_quality_blocks**; **new_below_absolute_quality_blocks** — old_mean=0.53→threshold 0.477, new_mean=0.49: relative прошёл бы, абсолютный якорь 0.5 блокирует; canary_set.json 20 пар).
+**Вердикт: ✅ подтверждена.** Атаки EXP-1 (b)(c)(d) теперь BLOCKED; «relative прошёл, absolute блокирует» — различается. Коллапс-детектор ловит и ±1%-noisy (дисперсия НОРМАЛИЗОВАННЫХ векторов — scalar-кратные дают cos=1.0; сырая дисперсия их пропускала, что поймал тест на первом прогоне: 12/13, фикс — нормировка).
+**Урок:** коллапс-фейк в тестах маскировал collapse-детектор: детектор обязан мерить НАПРАВЛЕНИЯ (нормированные векторы), не сырые значения.
+**Связь с отрицательными:** нет.
+
+## [2026-08-12] — EXP-4 → тест: eligible_seen внедрён в health, «0 eligible» ≠ «0 собрано» (12/12)
+
+**Гипотеза:** population manifest (eligible_seen из indexer.get_status ДО запросов) различает пустую популяцию (healthy idle) и сломанный коллектор; warning несёт число eligible.
+**Команда:** `python -m pytest tests/test_search_quality_monitoring.py -q`.
+**Сырой результат:**
+```
+collected 12 items
+tests\test_search_quality_monitoring.py ............  [100%]
+12 passed in 0.07s
+```
+Новые: test_empty_population_is_healthy_idle (0 eligible → skipped=empty_index, warning НЕТ), test_fails_on_garbage_chunks → «0 реальных результатов при 100 eligible-чанков в индексе (broken collector)», test_eligible_seen_unknown_falls_back (get_status отсутствует → -1 → старое поведение).
+**Вердикт: ✅ подтверждена.** «0 сырых + 0 eligible» (idle) vs «0 сырых + N eligible» (коллектор) — различимы метрикой и warning.
+**Урок:** источник eligible_seen — реальный счётчик indexer (не производное от searcher), иначе та же популяционная слепота (Red Team §1.16 п.3).
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — EXP-1: Shadow Canary attack — дискриминативная способность `_shadow_compare` (5/5 атак прошли)
+
+**Гипотеза:** canary измеряет ОТНОСИТЕЛЬНУЮ деградацию (new vs old), а не абсолютное качество → (b) collapse-to-constant, (c) пустой canary, (d) сбой базлайна, (e) взаимно-вырожденная пара дают ложное PASSED=True. Контроль (a) нулевые векторы обязан дать BLOCKED.
+**Команда:** `python experiments/exp_canary_attack.py` — дословная реплика remote_embedder.py:231-304 (без импорта провайдера), N=20 пар, DIM=384.
+**Сырой результат:**
+```
+(a) Нулевые векторы (контроль): BLOCKED=True ✅ контроль отработал
+(b) АТАКА constant-vector (все тексты → [1.0]*384): PASSED=True ❌ АТАКА ПРОШЛА
+(b2) АТАКА noisy-constant (±1%): PASSED=True ❌ АТАКА ПРОШЛА
+(c) Пустой canary-набор: PASSED=True ❌ АТАКА ПРОШЛА (fail-open)
+(d) Сбой базлайна (old raises): PASSED=True ❌ АТАКА ПРОШЛА (fail-open)
+(e) old И new обе constant: PASSED=True ❌ АТАКА ПРОШЛА
+ИТОГ: атаки (b)(b2)(c)(d)(e) — 5 из 5 прошли. Контроль (a) — работает.
+```
+**Вердикт: ✅ АТАКИ ПОДТВЕРЖДЕНЫ.** Canary не может упасть на collapse-to-constant (sims=1.0 > порога), fail-open при пустом canary (`if not self._canary_pairs: return True`, строка 242-243) и при сбое базлайна (`except Exception: return True`, строка 259-261). Единственный пойманный дефект — нулевые векторы. «Проверка, которая не может увидеть что-то, всегда зелёная про это» (Tom, день 2). test_shadow_canary.py:54-63 закрепляет «пустой canary = доверие» как фичу.
+**Урок:** относительная метрика без абсолютного якоря и fail-open ветки — два способа сделать guard неспособным упасть. Фикс: (1) абсолютный порог (new_mean ≥ X), (2) baseline-fail и empty-canary → блокировать переключение/UNKNOWN, не доверять, (3) детектор collapse (дисперсия векторов ≈ 0 → reject), (4) eligible_seen (число пар при загрузке).
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — EXP-2: Скан тестов на вакуумность — таблица Max Quimby для MSCodeBase (1133/1143 proven)
+
+**Гипотеза:** часть тестов синтаксически не может упасть (нет assert/raises/warns/fail/raise) — «33 unproven» в миниатюре. Ожидание: 5-15% вакуумных.
+**Команда:** `python experiments/exp_vacuous_scan.py` — AST-скан tests/test_*.py (1143 test-функции/метода); proven = есть assert / pytest.raises/warns/xfail/fail / raise / mock-assert_* (после правки).
+**Сырой результат:**
+```
+Всего тестов: 1143
+  proven: 1133 | вакуумных: 3 | skip: 7 | доля вакуумных: 0.3%
+Вакуумные: test_assignments.py:396, test_ast_cache_invalidation.py:60, test_sandbox.py:46
+```
+**Вердикт: ❌ ГИПОТЕЗА ОПРОВЕРГНУТА** (в хорошем смысле): сюита почти полностью доказуема — 1133/1143 (99.7%) содержат failing-конструкцию. 3 «вакуумных» — smoke-тесты, способные упасть через exception-пропагацию из хелперов (`_ = parser.extract_assignments(f)  # не падает`), т.е. дискриминация слабее, но не нулевая. Первичный скан дал 5 «вакуумных», 2 из них (test_move_chunks.py:351, test_indexer_fts5_sync.py:55) использовали mock-утверждения (`assert_called_once`/`assert_not_called` — Call, не ast.Assert) — сканер обновлён (учитывает `assert_*` методы), честный пересчёт 3.
+**Урок:** MSCodeBase НЕ в состоянии fintech (7/40 proven) — но именно поэтому отрицательные контроли выгодны: их мало (0-3), а ценность максимальна. 2 ловушки для сканеров вакуумности: mock-assert_* и exception-пропагация.
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — EXP-3: Воспроизведение бага `ln.strip()` (Tom Jones) — 3/8 ложных проходов у сломанного экстрактора
+
+**Гипотеза:** assert-экстрактор, фильтрующий по `ln.strip()` но эмитирующий сырую `ln`, даёт ложные verified для неверного ответа, когда отступ вложенного assert-а попадает ПОСЛЕ `return` в теле функции. Ожидание: ≥2/8 ложных проходов (у fintech — 5/8 на их наборе форм).
+**Команда:** `python experiments/exp_ln_strip_repro.py` — 8 форм вызова (col 0 / 4-space / 8-space / 12-space, до/после return), неверный ответ `add_two(1,2)=4`, сборка module = answer + raw assert-строки (как у fintech-gateway), exit 0 = verified.
+**Сырой результат:**
+```
+Сломанный экстрактор: 3/8 ложных проходов  (формы 2,3,8 — assert на 4-space после return)
+Правильный экстрактор: 0/8 ложных проходов
+Пример модуля (форма 2):
+def add_two(a, b):
+    return a + b + 1
+    assert add_two(1, 2) == 3   # мёртвый код ПОСЛЕ return — valid Python, exit 0
+```
+**Вердикт: ✅ КЛАСС БАГА ВОСПРОИЗВЕДЁН.** Число форм (3/8 vs 5/8) отличается — набор форм другой, но суть та же: valid Python, никогда не исполняется, exit 0, «verified:true» для неверного ответа. Правильный экстрактор (emit `ln.strip()`, col 0) — 0/8. Ключ: сигнатура/exit-код верифицируют ПРОЦЕСС, не СЕМАНТИКУ (Giulio: «ask for the artifact, not the exit code»).
+**Урок:** любой код, извлекающий/перекомпилирующий фрагменты (assert-экстракция, док-примеры, code-gen) обязан нормализовать отступы ПЕРЕД эмиссией; negative control для экстрактора = фикстура с assert-после-return, обязанная упасть.
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — EXP-4: Population blind spot — `_check_search_quality` не различает «0 eligible» и «0 собрано» (gap Тома день 2)
+
+**Гипотеза:** пустая популяция (пустой индекс — «здоровый idle») и сломанный коллектор (мусор) дают ОДИНАКОВЫЙ сигнал: `search_quality_passed=0` + warning «нет реальных результатов». `eligible_seen` до селекции не измеряется (health.py:744-756).
+**Команда:** `python experiments/exp_population_blindspot.py` — реальный `src/core/intelligence/health.py` (importlib direct-load, stdlib-only), FakeSearcher: [] vs мусор vs реальные vs raising.
+**Сырой результат:**
+```
+(a) ПУСТАЯ популяция ([]): metrics passed=0
+    warning: ...нет реальных результатов (0 сырых — все пустые/мусорные чанки)
+(b) МУСОР: passed=0
+    warning: ...нет реальных результатов (2 сырых — все пустые/мусорные чанки)
+(b2) ОШИБКА searcher: passed=0, warning: ...завершился с ошибкой: embedder down
+(c) КОНТРОЛЬ (реальные): passed=3, без warning
+```
+**Вердикт: ✅ GAP ПОДТВЕРЖДЁН.** (a) и (b) — одинаковый failure-сигнал (passed=0, warning-класс «нет реальных результатов»); сообщение (a) утверждает «пустые/мусорные чанки», хотя сырых результатов было 0 — ложное объяснение. Нет счётчика `eligible_seen` (сколько чанков было в индексе ДО запроса): «0 строк с 0 eligible» (здоровый idle — свежий проект) неотличим от «0 строк с N eligible» (сломанный коллектор). Ошибка searcher (b2) — отдельный класс (различается).
+**Урок:** метрика обязана нести оба числа: `population_size` (после) и `eligible_seen` (до селекции); gap между ними — аудируемая величина (Tom: «You sampled 12 of 400 invites an argument. You sampled 12 ends one.»). В health: добавить в warning count сырых + размер индекса, а «0 eligible» маркировать как INFO (healthy idle), не как failure.
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — EXP-5: `verify_clean_state.sh` — falsifiability-проверка гейта + P1: drift-гейт структурно мёртв
+
+**Гипотеза:** (A) drift-гейт (строки 55-71) умеет падать на рассинхроне pin vs lock; (B) вакуумная сюита (0 asserts) проходит → «CLEAN STATE VERIFICATION: PASSED» — reproducibility без falsifiability (ANP2).
+**Команда:** `bash experiments/exp_verify_gate.sh` (drift-цикл дословно из скрипта, temp pyproject/lock; pytest на temp-сюите) + повторный прогон гейт-кода на РЕАЛЬНЫХ файлах проекта.
+**Сырой результат:**
+```
+Часть A: drift (lancedb 0.12.0 pin vs 0.13.0 lock) → «drift НЕ обнаружен → exit 0 ❌»
+Реальные файлы: lancedb PINNED='' LOCKED='0.34.0' | mcp PINNED='' LOCKED='1.28.1' | tree-sitter PINNED='' LOCKED='0.26.0'
+Часть B: вакуумная сюита → 3 passed in 0.21s, exit 0 → гейт напечатал бы PASSED
+Корректный парсинг (grep -oE "pkg==[0-9.]+"): lancedb PINNED='0.34.0' = lock ✅;
+  симулированный дрейф (lancedb==0.99.0 в pyproject) → DRIFT DETECTED
+```
+**Вердикт: ✅ ЧАСТИЧНО, с критической находкой.** (B) подтверждена: гейт печатает PASSED для сюиты без единого assert — семантическая слепота. (A) ОПРОВЕРГНУТА наоборот: **дрейф-гейт структурно неспособен сработать** — паттерн `grep -iE "^\"?${pkg}=="` требует `pkg==` в начале строки, но пины лежат в TOML-массиве (`    "lancedb==0.34.0",`) → PINNED всегда пуст → ветка `DRIFT=1` недостижима для всех 3 пакетов. Живой экземпляр класса «guard не может упасть» (Tom ln.strip()). Корректный парсинг (демонстрация направления фикса) ловит и текущий sync, и симулированный дрейф.
+**Урок:** grep-парсинг TOML-массивов по якорю `^` — мёртвый паттерн; fix = `grep -oE "${pkg}==[0-9.]+"` или python tomllib; обязателен negative control (фикстура с заведомым дрейфом, обязан дать exit 1). Бонус-находка (Любопытство §3.4): scripts/stale_detector.py — placeholder «No drifts detected», всегда exit 0, подключён к pre-commit хуку (git_hooks_installer.py:88) — второй guard того же класса.
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — Exp 1-V REPLICATION: Memory Contamination VERIFY-ON-READ — факты v4, N=50 (ВОСПРОИЗВЕДЕНО)
+
+**Гипотеза:** verify-on-read доводит adoption честного до 0.0 на SILENT-фактах — свойство системы, а не артефакт набора v3 (Правило одного бенча §1: одиночный замер ≠ доказательство).
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination_generator_rep.py` (seed=7, TRUE_POOL_REP: file:6+env:2+import:9+CamelCase:8, absent: qdrant/weaviate/.../vault 16, trap: pathlib/threading/dataclasses/json/logging/re 6, silent: terraform/jaeger/loki 3) → `memory_contamination_facts_v4_rep.json` → `venv/Scripts/python.exe experiments/context_engine/memory_contamination_verify.py memory_contamination_facts_v4_rep.json`. Тот же агент/логика (контрольная группа), другой набор данных.
+**Сырой результат (v4 vs v3):**
+```
+verify: checked=50 cache_hits=0 inconclusive=9 budget_exceeded=False
+latency: fingerprint 73.8ms, first pass 115.3ms, steady-state 0.6ms (cache_hits=31, checked=0)
+verdicts: VERIFIED=22 REFUTED=19 ACTIVE(INCONCLUSIVE)=9
+false REFUTED: total=19 | среди TRUE (артефакт маппинга): 0
+видимые ложные после verify (memory_first adopters): [R42,R43,R44,R45,R46,R47]
+adoption A_code_first: v3 0.12 | 1-R 0.12 | 1-V 0.0 | 1-V-REP 0.0
+adoption A_memory_first: v3 1.0  | 1-R 0.12 | 1-V 0.16 | 1-V-REP 0.24
+visible false of 25: 1-V 4 | 1-V-REP 6
+```
+**Вердикт: ✅ ВОСПРОИЗВЕДЕНО.** (1) **adoption честного 0.0 воспроизведён** на независимых данных (v3→v4, другой TRUE-пул, другие absent/silent) — главная метрика DoD ADR-0003 устойчива: все 3 SILENT (terraform/jaeger/loki) + 16 absent отозваны до контекста. (2) **0 ложных REFUTED TRUE** при корректно типизированных якорях (R01-R25: 16 VERIFIED + 9 INCONCLUSIVE, 0 REFUTED) — DoD подтверждён независимо (в 1-V было 7 — артефакты НАИВНОЙ типизации голых токенов; при корректной типизации их 0). (3) **Ограничение present-trap воспроизведено**: 6/6 ловушек — реальные импорты → VERIFIED, visible 6 → memory_first 0.24 (1-V: 0.16; число выше, т.к. в v4 ВСЕ 6 trap — импорты, в v3 — 4 из 6). Слепота presence-проверки к present-trap — структурная, ловит только честный агент (code_first 0.0). (4) steady-state 0.6ms (cache_hits=31) — бюджет ≤50мс соблюдён. (5) Разложение вердиктов точно по прогнозу: REFUTED=19 (16 absent + 3 silent — все корректные отзывы FALSE), VERIFIED=22 (16 TRUE + 6 trap), ACTIVE=9 (8 CamelCase + env MSCODEBASE_ALLOW_SELF_INDEX вне .env).
+**Урок:** репликация подтвердила: (a) главный вывод 1-V — свойство VerifyOnRead, не данных; (b) типизация якорей — единственный источник ложных отзывов TRUE (0 при корректной, 7 при наивной — воспроизводимо, закрыто write-time capture); (c) «0.0 adoption» требует отзыва SILENT — проверено дважды. Ограничение прежнее: детерминированный прокси-агент, не живой LLM.
+**Связь с отрицательными:** нет.
+
 ## [2026-08-11] — Exp 1-V: Memory Contamination VERIFY-ON-READ — аналог v3 с Lazy Validation Layer (ADR-0003)
 
 **Гипотеза:** Verify-On-Read (проверка ACTIVE-узлов при извлечении, до промпта) доводит заражение до нуля: SILENT-факты с отсутствующими якорями -> REFUTED (SILENT_ABSENCE_ON_READ). Ожидание (DoD ADR-0003): adoption честного 0.0; 0 ложных REFUTED среди TRUE при корректно типизированных якорях.
@@ -835,3 +966,34 @@ find_test 0.125, git_history 0.000
 - **H5 (BM25≈FTS5 избыточны): ❌ ОПРОВЕРГНУТА** — FTS5 даёт +0.178 recall над V+BM25 (CI95 ∌ 0); профили противоположны: FTS5 = recall-max (0.825), BM25 = precision/токен-эффективность (0.791 / 1774).
 **Урок:** (1) production-баг `hybrid_search_async` (engine.py L521-541): на кэш-хите эмбеддинга dense-поиск пропускается — vector-тир молча исчезает при повторных запросах; первый прогон абляции полностью искажён (vector_bm25 == bm25_only 30/30, vector_only пуст на повторных символах 15/30). Изоляция кэша per-arm обязательна для абляций. (2) vector-тир (llama.cpp multilingual-e5-small) — слабейший на символьных задачах (0.167 recall); recall несут keyword-тиры, precision покупается реранкером. (3) graph-ценность живёт в метаданных (callers/callees), не в тексте чанков — evidence-метрики по паттернам текста её не измеряют; нужен отдельный протокол оценки graph-вклада (или чтение metadata в секции).
 **Связь с отрицательными:** первый прогон (без изоляции кэша) — артефакт кэш-бага, не повторять без фикса (результаты в multi_rag_full_run_2026-08-11.log содержат оба прогона; валиден второй).
+
+## [2026-08-11] — EXP-6: VC/Merkle vs Verify-On-Read — симуляция логической границы (dev.to, unitbuilds)
+
+**Гипотеза:** (а) консистентностный валидатор (хэш структуры + отсутствие конфликтов записи) принимает внутренне-консистентную семантическую ложь; (б) «эмпирическое доказательство превосходства Verify-On-Read» можно публиковать как железобетонное пруф.
+**Ожидание:** вывод скрипта — «VC принял 2 лжи, VOR — 0».
+**Команда:** `python experiments/experiment_concurrency_vs_semantic.py`
+**Сырой результат:**
+```
+Arm VC (Live VC + Merkle): Accepted 2 hallucinated lies as truth.
+Arm Verify-On-Read: Accepted 0 hallucinated lies as truth.
+```
+**Вердикт:** гипотеза (а) ✅ ПОДТВЕРЖДЕНА — но только ЛОГИЧЕСКИ, по построению (тавтология, не замер): Arm VC по определению не получает семантических данных, Arm VOR получает ground-truth список импортов прямо в аргументы. Гипотеза (б) ❌ ОПРОВЕРГНУТА как фрейминг: «эксперимент» не фальсифицируем — результат зашит в определения валидаторов. Уязвимости для оппонента: (1) confound — разные входные права у рук; (2) ground truth захардкожен экспериментатором (самая сложная часть задачи решена заранее — если бы список правды существовал, валидатор не нужен); (3) VOR показан всемогущим — не моделируются слепые зоны (ложь про реальный импорт, утверждения без кодового якоря, runtime/конфиг/внешние сервисы); (4) strawman-риск — оппонент может сказать «мой стек тоже проверяет AST».
+**Урок:** сильный вывод здесь НЕ требует симуляции: «консистентность (VC/Merkle) ≠ семантика; нужен внешний слой grounding (AST/runtime/мир)». Симуляция — хорошая иллюстрация, плохое доказательство. Публиковать с честными оговорками (см. §1.6: гипотеза без фальсифицируемости = иллюстрация, не эксперимент).
+
+## [2026-08-11] — EXP-7: Adversarial probe базового VC/VOR-эксперимента (6 атак, Red Team §1.16)
+
+**Гипотеза:** базовый вывод «VC=2 лжи, VOR=0» — не закон, а артефакт входных прав и настройки сценария; VOR на anchor-гранулярности имеет собственные FP; VC имеет уникальное покрытие (конфликты, staleness), которого у VOR нет; VC и VOR — комплементарные слои.
+**Команда:** `python experiments/experiment_concurrency_vs_semantic_attacks.py`
+**Сырой результат (метрики per-attack):**
+```
+A1a baseline VC:             FP=2 FN=0  (VC без семантических входных данных)
+A1b hybrid VC+semantics:     FP=0 FN=0  (равные права: семантика доступна обеим рукам)
+A2 VOR, ложь про реальный импорт: FP=1  (duckdb «for analytics», реально CSV-парсер)
+A3 VOR без кодового якоря:  UNCHECKABLE — любая политика даёт FP или FN
+A4a VC, косметическое изменение: FN=1  (page-level хэш слишком груб)
+A4b VC под конфликтом записи: REJECTED (ловит lost write); VOR к нему слеп
+A5 VOR на отравленном truth-листе: FP=1 (stripe из README-примера, не код)
+A6 мутация сценария (writers=1): FP=0 FN=1 — «VC принимает ложь» переворачивается
+```
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА. Базовый результат — артефакт: при равных входных правах гибрид даёт 0 лжи (A1); при мутации VC начинает отвергать правду (A6). VOR не всемогущ: anchor-гранулярность пропускает ложь про реальный импорт (A2), не покрывает утверждения без якоря (A3), деградирует на отравленном truth-списке (A5). VC даёт уникальное покрытие (lost write, конфликт, A4b), но page-level хэш слишком груб (A4a: косметика → ложное отвержение истины). Решает наличие внешнего grounding-слоя + консистентностный слой + качество извлечения якорей — а не выбор «VC или VOR».
+**Урок:** перед публикацией «пруфа» — атаковать собственный эксперимент мутациями сценария: вывод, который рушится при изменении ОДНОЙ переменной (A6), — иллюстрация, не закон. VOR на гранулярности «якорь ∈ импорты» — нижняя граница возможностей; реальная семантика требует usage-уровня.

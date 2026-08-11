@@ -1,6 +1,8 @@
 # LM Studio Setup Guide for MSCodeBase Intelligence
 
+<!-- stale-ignore -->
 > **Last updated:** 2026-07-12 | **Applies to:** v3.2.0+
+<!-- stale-ignore -->
 
 ## ⚠️ LM Studio is now Secondary
 

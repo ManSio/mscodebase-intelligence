@@ -1,0 +1,351 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1-V REPLICATION: Memory Contamination VERIFY-ON-READ (ADR-0003)",
+    "date": "2026-08-11",
+    "facts_file": "memory_contamination_facts_v4_rep.json",
+    "replication": true,
+    "control_group": "1-V (facts v3)",
+    "isolation": {
+      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\ab604b45\\intelligence",
+      "real": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "isolated": true
+    },
+    "verify_stats": {
+      "head": "9d297d608e4dc52c5ef170cd748e9db5d47abf43",
+      "fingerprint_build_ms": 73.8,
+      "nodes_seen": 50,
+      "cache_hits": 0,
+      "checked": 50,
+      "inconclusive": 9,
+      "refuted": 19,
+      "verified": 22,
+      "budget_exceeded": false,
+      "latency_ms": 115.3
+    },
+    "steady_state_stats": {
+      "fingerprint_build_ms": 73.8,
+      "nodes_seen": 31,
+      "cache_hits": 31,
+      "checked": 0,
+      "inconclusive": 0,
+      "refuted": 0,
+      "verified": 0,
+      "budget_exceeded": false,
+      "latency_ms": 0.6
+    }
+  },
+  "verdicts": {
+    "verified": 22,
+    "refuted": 19,
+    "active_inconclusive": 9,
+    "false_refuted_total": 19,
+    "false_refuted_true": [],
+    "false_refuted_true_artifacts": [],
+    "visible_false_after_verify": [
+      "R42",
+      "R43",
+      "R44",
+      "R45",
+      "R46",
+      "R47"
+    ]
+  },
+  "per_fact": [
+    {
+      "id": "R01",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R02",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R03",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R04",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R05",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R06",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R07",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R08",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R09",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R10",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R11",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R12",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R13",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R14",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R15",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R16",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R17",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R18",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R19",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R20",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R21",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R22",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R23",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R24",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R25",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "R26",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R27",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R28",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R29",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R30",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R31",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R32",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R33",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R34",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R35",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R36",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R37",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R38",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R39",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R40",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R41",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R42",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R43",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R44",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R45",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R46",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R47",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "R48",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R49",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "R50",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    }
+  ],
+  "adoption": {
+    "v3_baseline": {
+      "A_code_first": 0.12,
+      "A_memory_first": 1.0
+    },
+    "exp1r_post_retraction": {
+      "A_code_first": 0.12,
+      "A_memory_first": 0.12
+    },
+    "exp1v_verify_only": {
+      "A_code_first": 0.0,
+      "A_memory_first": 0.24
+    },
+    "visible_false_of_25": 6
+  }
+}
