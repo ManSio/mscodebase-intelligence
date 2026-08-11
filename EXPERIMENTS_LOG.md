@@ -1,5 +1,108 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-11] — Exp 1-V: Memory Contamination VERIFY-ON-READ — аналог v3 с Lazy Validation Layer (ADR-0003)
+
+**Гипотеза:** Verify-On-Read (проверка ACTIVE-узлов при извлечении, до промпта) доводит заражение до нуля: SILENT-факты с отсутствующими якорями -> REFUTED (SILENT_ABSENCE_ON_READ). Ожидание (DoD ADR-0003): adoption честного 0.0; 0 ложных REFUTED среди TRUE при корректно типизированных якорях.
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination_verify.py` — те же 50 фактов v3; якоря из support_patterns по синтаксису (file: -> file, ALL-CAPS -> env с нормализацией к точному ключу, lowercase -> import); РЕАЛЬНЫЙ VerifyOnRead на реальной кодовой базе (отпечаток src+.env), изолированный store и кэш; агенты решают на пост-verify памяти.
+**Сырой результат:**
+```
+verify: checked=50 cache_hits=0 inconclusive=12 budget_exceeded=False
+latency: fingerprint 82.3ms, first pass 128.9ms, steady-state 0.6ms (cache_hits=22, checked=0)
+verdicts: VERIFIED=10 REFUTED=28 ACTIVE(INCONCLUSIVE)=12
+false REFUTED: total=21 | среди TRUE (артефакт маппинга): 7 [G07,G25,G11,G24,G23,G18,G21]
+видимые ложные после verify (memory_first adopters): [G42,G43,G44,G45]
+adoption A_code_first: v3 0.12 | 1-R 0.12 | 1-V 0.0
+adoption A_memory_first: v3 1.0  | 1-R 0.12 | 1-V 0.16
+```
+**Вердикт: ЧАСТИЧНО (цель достигнута, 2 ограничения зафиксированы честно).** (1) **adoption честного → 0.0** (v3/1-R: 0.12) — цель «заражение к нулю» достигнута: SILENT-отсутствия (grafana/gitlab/kubernetes/nose/neo4j/rabbitmq) отозваны до контекста. (2) **steady-state 0.6мс** (cache_hits=22, checked=0) — бюджет ≤50мс соблюдён; fingerprint ~80мс платится один раз на HEAD. (3) **Ограничение 1 (present-trap):** 4 ложных остались видимыми (G42 sqlite3/G43 onnx/G44 httpx/G45 sqlite3 — токены РЕАЛЬНО импортируются кодом) -> memory_first adoption 0.16 (хуже 1-R 0.12: ручной отзыв честного агента в 1-R поймал traps contra-анализом; presence-проверка их не видит). Комбинация verify + честный агент (code_first) = 0.0. (4) **Ограничение 2 (артефакты типизации):** 7/25 ложных REFUTED TRUE — все от наивного маппинга голых токенов в import-якоря (lancedb_version/bm25_weight — конфиг-строки; intel_log_incident/intel_auto_collect_adrs/intel_get_telemetry — методы слоя; fastmcp — реальный импорт `from mcp.server.fastmcp import FastMCP` (server_factory.py:158), корень `mcp`, не `fastmcp`; basedpyright — бинарник node_modules/.bin (lsp_client.py:527), не python-импорт). Компонент проверил ровно то, что ему дали; с корректно типизированными якорями (юнит-тесты) — 0 ложных отзывов.
+**Урок:** verify-on-read удаляет absence-заражение (SILENT+отсутствующие) полностью, но presence-проверка принципиально слепа к present-trap (токен есть, субъект другой) — их ловит только честный агент. Типизация якорей — ответственность write-пути: голые токены паттернов НЕЛЬЗЯ превращать в import-якоря без валидации типа (метод/конфиг/подмодуль/бинарник ≠ импорт). Следующий шаг: anchor-capture при записи узла (типизированные якоря в data.anchors).
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — Exp 1-R: Memory Contamination RETRACTION — аналог v3 с ретракцией (ADR-0002)
+
+**Гипотеза:** системный отзыв (intel_retract_memory_node, ADR-0002) превращает `would_refute` честного агента (corr_cap=1.0) в реальное действие: отозванные факты исчезают из контекста следующих сессий → даже memory_first в сессии 2 не примет уже отозванный факт. Ожидание (ADR Temporal): adoption честного падает с 0.12 к 0.
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination_retraction.py` — те же 50 фактов v3 (контрольная группа), тот же CodeEvidence/decide; сессия 1 = честный агент + реальный `intel_retract_memory_node` (прод-путь layer, изолированный store, seed БЕЗ status = легаси/ACTIVE); сессия 2 = свежее чтение обоими агентами пост-ретракционной памяти (load_memory фильтрует REFUTED).
+**Сырой результат:**
+```
+valid facts: 50 (25T + 25F, silent-false 3)  |  invalid: 0  |  parity: OK
+              adopt(F)  corr_cap persist.F    tokens
+S1 honest+retract   0.12       1.0         3     653.2
+S2 code_first       0.12         -               360.8
+S2 memory_first     0.12         -
+retraction: 22/22 would_refute реализовано системно (correction_capability_systemic=1.0)
+persistent false in memory: 25 -> 3 (-88%)
+tokens_memory: 653.2 -> 360.8 (-45%)
+all refuted have reason: True
+```
+**Вердикт: ЧАСТИЧНО (гипотеза подтверждена в части системного отзыва, прогноз «adoption → 0» уточнён).** (1) Parity с v3: adoption честного S1 = 0.12 — контрольная группа совпала. (2) **Systemic capability: 22/22** would_refute реализованы через реальный прод-путь (correction_capability_systemic=1.0; раньше grep-0 refute-тулов). (3) **memory_first adoption: 1.0 → 0.12** в сессии 2 — ретракция защищает даже «ленивого» агента (отозванное скрыто load_memory). (4) **Persistent contamination: 25 → 3 false (-88%)** — остались только SILENT. (5) **tokens контекста: -45%** (653→361; метрика — реальный размер одного чтения, не накопленный v3-аналог 66.5k). (6) **Прогноз «adoption честного → 0» НЕ подтверждён**: SILENT-факты код молчит — честный агент их не отзовёт (adoption остаётся 0.12); до 0 доведёт только verify-on-read (Вариант B), нацеленный на остаточные SILENT.
+**Урок:** ретракция удаляет ОПРОВЕРЖИМУЮ часть заражения (88%), но не SILENT — они требуют верификации против кода, а не отзыва. «Adoption → 0» — неверный таргет для ретракции; правильные метрики: persistent contamination, adoption не-честных агентов, токены контекста. ADR-0002 Temporal уточнён (см. ADR).
+**Связь с отрицательными:** нет.
+
+## [2026-08-11] — Exp: Memory Contamination — INDEPENDENT AUDIT (second opinion, 48/48 CONFIRMED)
+
+**Гипотеза:** truth-метки фактов v1+v2 достоверны: TRUE-паттерны — рабочая логика (не docstring/мёртвый код), FALSE/SILENT — чистые grep-0 с рабочими контраргументами.
+**Команда:** spawn_agent (независимый аудитор, не видел наш диалог): 48 фактов из memory_contamination_facts.json + _v2.json против src/**/*.py; чек-лист «активный код vs docstring/статические списки»; без MCP-семантического поиска.
+**Сырой результат:**
+```
+CONFIRMED 48/48 | DEAD 0 | MISSING 0 | BROKEN 0
+T01-T20, F01-F20, S01-S14 — все с file:line evidence (активные импорты/вызовы/конфиги)
+```
+**Вердикт: ✅ ПОДТВЕРЖДЕНО (48/48).** Оговорки (не ложность, качество паттернов): T03 «ВНЕ проекта» — только docstring, но подтверждён вторым паттерном MSCODEBASE_DATA_DIR; T06 fastmcp — активный import в server_factory.py:158 (не server.py — note неточен); T13 «57 инструментов» — паттерн «12 inline» в docstring, но счёт регистраций 28+13+12+4=57 независимо подтверждён; T18 «идемпотентен» — docstring, но код _migrate_into (artifact_paths.py:252-298, if src.exists and not dst.exists) реализует. Системное ограничение: .env невидим grep-инструменту (private_files) — grep-0 по src подтверждён, по .env — остаточный риск мал (KNOWN_ISSUES 2026-08-08 цитирует .env владельца: только MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true).
+**Урок:** (1) «свежие глаза» (независимый аудитор без контекста) — финальный уровень верификации truth-данных, закрывает риск «автор верит своему набору»; (2) паттерны-якоря в docstring валидны, если claim независимо подтверждается рабочим кодом (счёт/чтение кода) — фиксировать оговорки, не переделывать факты пост-фактум.
+
+## [2026-08-11] — Exp: Memory Contamination — MUTATION GENERATOR (facts v3, N=50) — РЕАЛЬНОЕ РАСПРЕДЕЛЕНИЕ
+
+**Гипотеза:** (1) метрики — точные функции смеси категорий (алгебра, а не статистика): при контролируемой смеси значения предсказуемы по формулам; (2) «голос кода» на сгенерированных фактах: real-паттерны подтверждают 25/25, мутации-отсутствия опровергаются, present-trap «ловушки» (ложный токен ЕСТЬ в коде) тоже опровергаются контраргументом.
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination_generator.py` (seed=42, смесь 25T+16absent+6trap+3silent=50) → `memory_contamination_facts_v3_generated.json` → `venv/Scripts/python.exe experiments/context_engine/memory_contamination.py memory_contamination_facts_v3_generated.json`.
+**Сырой результат (v3 vs v1/v2):**
+```
+arm             correct  adopt(F)  contra  corr_cap  conf_eff  unk     tokens
+B               0.94     0.0       0.88    0.0       3         0.06    1539
+A_code_first    0.94     0.12      0.88    1.0       3         0.0     66477
+A_memory_first  0.50     1.0       0.88    0.0       3         0.0     66477
+(v1/v2 для сравнения: B 0.833/0.0, A_cf 0.833/0.286/1.0, A_mf 0.417/1.0, contra 0.714, conf_eff 4)
+```
+**Вердикт:**
+- **H1: ✅ ПОДТВЕРЖДЕНА (алгебра)** — все 6 метрик совпали с формулами от смеси: 0.94=(25+22)/50, adopt 0.12=3/25, contra 0.88=22/25, corr_cap 22/22=1.0, B unk 3/50. Это финальное доказательство: при детерминированном агенте N определяет только смесь, не точность.
+- **H2: ✅ ПОДТВЕРЖДЕНА** — «голос кода» на 50 фактах: 25 SUPPORT + 22 CONTRADICT + 3 SILENT. Все 6 present-trap (ollama/lm_studio/onnx/fts5/sqlite3/git — токены ЕСТЬ в коде) дали CONTRADICT: реальный паттерн субъекта перевешивает токен лжи → вердикт корректен. Заражение честного агента (A_cf adopt 0.12) только на SILENT (внешние системы).
+- **Стоимость памяти:** 66.5k токенов на 50 фактов (~1.3k/факт, O(N) per-fact) — контекст-цена памяти растёт линейно с числом записей.
+**Урок:** (1) генератор мутаций — масштабируемый путь к реалистичным наборам вместо ручной курации (риск семантических ловушек не масштабируется с N); (2) present-trap устойчивость — эмпирически подтверждено, что verify-on-read с контраргументом по реальному паттерну не ломается о правдоподобную ложь; (3) ambiguous=6 в v3 — не дефект, а by-design ловушки (верификатор параметризован: v1/v2=0, v3=6, invalid=0 всегда).
+
+## [2026-08-11] — Exp: Memory Contamination — REPLICATION (facts v2, N=24) — ВОСПРОИЗВЕДЕНО
+
+**Гипотеза:** метрики v1 — свойство системы (структура задачи), а не артефакт конкретного набора фактов.
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination.py memory_contamination_facts_v2.json` — НОВЫЙ набор фактов (10T + 10F + 4SILENT: grafana/gitlab/kubernetes/memcached), другой паттерн-дизайн, та же логика агента (Правило контрольной группы §1: не меняем агента между прогонами).
+**Сырой результат (v2 vs v1):**
+```
+arm             v1 correct  v2 correct  v1 adopt  v2 adopt  corr_cap v2  contra v2  conf_eff v2  unk v2
+B               0.833       0.833       0.0       0.0       0.0         0.714      4            0.167
+A_code_first    0.833       0.833       0.286     0.286     1.0         0.714      4            0.0
+A_memory_first  0.417       0.417       1.0       1.0       0.0         0.714      4            0.0
+```
+**Вердикт: ✅ ВОСПРОИЗВЕДЕНО** — идентичные метрики на двух независимых наборах фактов (24+24, разные паттерны, разные внешние системы). Числа детерминированы структурой: внутренние факты о коде опровергаемы 10/10, внешние системы 4/4 SILENT (код молчит), TRUE 10/10 SUPPORT. Итоговые выводы v1 устойчивы: correction_capability (code_first)=1.0 при явном противоречии; система add-only (отзыв невозможен — grep-0); память даёт уверенную ложь на SILENT-фактах (conf_eff=4); память ×22 токенов без выигрыша в точности.
+**Урок:** репликация на независимых данных — обязательна для «одиночных замеров» (§1 «Правило одного бенча»): два набора → одинаковый вердикт → вывод подтверждён. Ограничение прежнее: детерминированный прокси-агент, не живой LLM.
+**Верификация (verify_memory_contamination.py, 2026-08-11):** 3 оси ALL PASS — (A) truth-table decide(): 9/9 путей = спецификации (поймал choice-непоследовательность memory_first@SUPPORT: было CODE, стало MEMORY; вердикты/метрики не изменились); (B) декомпозиция агрегатов из per-fact строк для v1+v2; (C) 24/24 valid, 0 invalid, 0 ambiguous в обоих наборах.
+
+## [2026-08-11] — Exp: Memory Contamination (IntelligenceStore) N=24, v1 (Experiment 1 из second_brain_research)
+
+**Гипотеза:** персистентная память (project_memory.json + incidents.json) вносит stale/false контекст: (H1) код может опровергнуть большинство ложных фактов памяти; (H2) при явном противоречии Memory vs Code агент с честной политикой выбирает CODE и отзывает факт (correction_capability — метрика владельца), но система не имеет инструмента отзыва; (H3) там, где код молчит, память превращает UNKNOWN в уверенный (ложный) ответ.
+**Ожидание:** code_contradictability ≥0.7; correction_capability (code_first) = 1.0; adoption (memory_first) = 1.0; memory_confidence_effect > 0 на SILENT-фактах.
+**Команда:** `venv/Scripts/python.exe experiments/context_engine/memory_contamination.py` — 24 факта (10T + 10F с контраргументом + 4 SILENT-F внешние системы, grep-0 в src); изолированный `IntelligenceStore(tempdir)` (assert store_dir != реальный); агент = детерминированный прокси (живого LLM в проекте нет): evidence-поиск по src/**/*.py + .env; руки B (без памяти) / A code_first / A memory_first; выбор ground truth (MEMORY|CODE|NONE) фиксируется per-fact. Факты: memory_contamination_facts.json. Результат: memory_contamination_results.json.
+**Сырой результат (24 факта, 0 invalid, 0 ambiguous, isolation confirmed):**
+```
+arm             correct  adopt(F)  contra  corr_cap  conf_eff  unk     tokens
+B               0.833    0.0       0.714   0.0       4         0.167   784
+A_code_first    0.833    0.286     0.714   1.0       4         0.0     17830
+A_memory_first  0.417    1.0       0.714   0.0       4         0.0     17830
+```
+**Вердикт:**
+- **H1: ✅ ПОДТВЕРЖДЕНА (частично)** — code_contradictability 0.714 (10/14). Внутренние факты о коде опровергаются 10/10; внешние системы (Redis/Celery/MySQL/Kafka) — 0/4: код молчит → неопровержимая ложь.
+- **H2: ✅ ПОДТВЕРЖДЕНА** — correction_capability (A code_first) = 1.0: при CONTRADICT честный агент ВСЕГДА выбирает CODE и отзывает (10/10). НО: (a) A_memory_first adoption = 1.0 — противоречие само по себе не защищает (агент может игнорировать код); (b) система add-only: инструмента отзыва/refute нет (grep-0 delete/refute по memory-инструментам) — даже would_refute=1 не реализуемо системно.
+- **H3: ✅ ПОДТВЕРЖДЕНА** — memory_confidence_effect = 4: на SILENT-фактах A дала уверенный неверный ответ, B — честный UNKNOWN (unknown_rate 0.167). Память без контроля кода генерирует уверенную ложь.
+- **Стоимость:** память-контекст ≈ 17k токенов на 24 записи (~710 ток/факт) vs 784 evidence в B (×22 дороже), при этом correct_rate A_code_first == B == 0.833 — выигрыша в точности память НЕ дала на этом наборе.
+**Урок:** (1) калибровка честная: без живого LLM измеряем «защитную способность системы», не психологию агента — adoption code_first = только SILENT-факты (нижняя граница заражения), memory_first = 100% (верхняя). (2) Память add-only + нет verify-on-read → заражение кумулятивно: найденная ложь не отзывается, stale-ADR из intel_auto_collect_adrs остаются навсегда. (3) Ловушка паттернов: «openai» найдено в multi_provider.py:294 как «OpenAI-compatible API» (LM Studio) — не провайдер; для внешних систем нужны специфичные имена (text-embedding-3). (4) Изоляция памяти per-project (hash пути) работает: store_dir tempdir ≠ реальный.
+**Связь с отрицательными:** нет. | **Решение для архитектуры:** (1) verify-on-read: при load_memory сверять claim с кодом (code_contradictability 0.714 — большинство опровергаемо) или помечать trust-статусом; (2) retraction-статус записи (VERIFIED/REFUTED, владелец: RetractionReceipt) + фильтрация REFUTED при чтении; (3) intel_auto_collect_adrs — риск stale: ADR о коде проверимы (0.714), ADR об окружении/решениях — нет; приоритет: статус + TTL.
+
 ## [2026-08-08] — Exp: верификация deep-research-report.md (внешний аудит) против кода
 
 **Гипотеза:** 3 P1-находки отчёта (Windows mutex, неатомарная запись LanceDB, TaskQueue.submit_sync) существуют в текущем коде; CVE-рекомендации актуальны; roadmap P0/P1 реализован.

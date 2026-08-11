@@ -91,12 +91,16 @@ class IntelligenceStore:
     def save_incidents(self, incidents: List[Dict]):
         self._save_json("incidents.json", incidents)
 
-    def load_memory(self) -> Dict[str, List[Dict]]:
+    def load_memory(self, include_retracted: bool = False) -> Dict[str, List[Dict]]:
         """Загружает проектную память.
 
         Поддерживает два формата:
-        - Новый: список узлов с полем "section"
+        - Новый: список узлов с полем "section" и опциональным "status"
         - Старый: dict с секциями как ключами
+
+        ADR-0002: узлы со status == "REFUTED" скрыты по умолчанию;
+        include_retracted=True возвращает их (для аудита). Узлы без поля
+        "status" интерпретируются как ACTIVE (backward-compat).
         """
         data = self._load_json("project_memory.json")
         if isinstance(data, dict):
@@ -107,7 +111,19 @@ class IntelligenceStore:
                 "tech_debt": [],
                 "failed_attempts": [],
             }
-            sections.update({k: v for k, v in data.items() if k in sections})
+            for k, v in data.items():
+                if k not in sections:
+                    continue
+                if not include_retracted and isinstance(v, list):
+                    v = [
+                        item
+                        for item in v
+                        if not (
+                            isinstance(item, dict)
+                            and item.get("status") == "REFUTED"
+                        )
+                    ]
+                sections[k] = v
             return sections
         # Новый формат: список узлов с полем "section"
         sections = {
@@ -120,6 +136,8 @@ class IntelligenceStore:
             if isinstance(n, dict):
                 sec = n.get("section", "")
                 if sec in sections:
+                    if n.get("status") == "REFUTED" and not include_retracted:
+                        continue
                     sections[sec].append(n)
         return sections
 

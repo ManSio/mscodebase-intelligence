@@ -44,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 57 tools for AI assistant                 │
+│  │  · 58 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 57 tools (28 core + 13 intel + 12 inline + 4 dev), 956 tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 58 tools (28 core + 14 intel + 12 inline + 4 dev), 956 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -217,7 +217,7 @@ Deep-dives into specific technical findings from building this project:
 
 ## 🔧 MCP Tools (58 total)
 
-> 58 = 57 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 57 (28 core + 13 intel + 12 inline + 4 dev).
+> 59 = 58 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 58 (28 core + 14 intel + 12 inline + 4 dev).
 
 ### Core Search
 
@@ -366,7 +366,7 @@ Deep-dives into specific technical findings from building this project:
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  19 Tool Classes   │  │  13 intel_* + 12 inline tools    │  │
+│  │  19 Tool Classes   │  │  14 intel_* + 12 inline tools    │  │
 │  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)          │  │
 │  │  Constructor Inj.   │  │  error_boundary decorator          │

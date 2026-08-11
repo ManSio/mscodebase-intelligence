@@ -1,0 +1,1063 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1 — Memory Contamination (IntelligenceStore)",
+    "date": "2026-08-11",
+    "scan_ms_total": 86.4,
+    "isolation": {
+      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\f3bbb8a9\\intelligence",
+      "real_project_store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "isolated": true
+    }
+  },
+  "validation": {
+    "valid": [
+      "T11",
+      "T12",
+      "T13",
+      "T14",
+      "T15",
+      "T16",
+      "T17",
+      "T18",
+      "T19",
+      "T20",
+      "F11",
+      "F12",
+      "F13",
+      "F14",
+      "F15",
+      "F16",
+      "F17",
+      "F18",
+      "F19",
+      "F20",
+      "S11",
+      "S12",
+      "S13",
+      "S14"
+    ],
+    "invalid": [],
+    "ambiguous": []
+  },
+  "per_fact": [
+    {
+      "id": "T11",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Граф знаний хранится в SQLite (graph.db)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "graph.db"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.5,
+      "latency_ms": 0.4
+    },
+    {
+      "id": "T12",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Consistency Engine имеет 6 состояний (CONSISTENT…UNKNOWN)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CORRUPTED",
+            "PARTIAL"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CORRUPTED",
+            "PARTIAL"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "CORRUPTED",
+            "PARTIAL"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 56.25,
+      "latency_ms": 3.0
+    },
+    {
+      "id": "T13",
+      "truth": true,
+      "section": "adrs",
+      "claim": "MCP регистрирует 57 инструментов (28 core + 13 intel + 12 inline + 4 dev)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "register_all_tools",
+            "12 inline"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "register_all_tools",
+            "12 inline"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "register_all_tools",
+            "12 inline"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 59.0,
+      "latency_ms": 2.0
+    },
+    {
+      "id": "T14",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Поиск использует BM25-ранжирование (bm25_weight)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "bm25_weight"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 28.5,
+      "latency_ms": 0.2
+    },
+    {
+      "id": "T15",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Рёбра графа: CALLS/IMPORTS/DECORATES/OVERRIDES/DATA_FLOWS/ASSIGNED_FROM",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM",
+            "DECORATES"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM",
+            "DECORATES"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "ASSIGNED_FROM",
+            "DECORATES"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 61.75,
+      "latency_ms": 4.5
+    },
+    {
+      "id": "T16",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Межпроцессный mutex: CreateMutexW + WaitForSingleObject",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "WaitForSingleObject"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 31.0,
+      "latency_ms": 4.2
+    },
+    {
+      "id": "T17",
+      "truth": true,
+      "section": "tech_debt",
+      "claim": "JobHistoryStore — rolling history для адаптивного ETA индексации",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "JobHistoryStore"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "JobHistoryStore"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "JobHistoryStore"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 30.25,
+      "latency_ms": 16.7
+    },
+    {
+      "id": "T18",
+      "truth": true,
+      "section": "adrs",
+      "claim": "Перенос legacy-артефактов из .codebase идемпотентен и безопасен",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "идемпотентен"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "идемпотентен"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "идемпотентен"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.5,
+      "latency_ms": 0.4
+    },
+    {
+      "id": "T19",
+      "truth": true,
+      "section": "tech_debt",
+      "claim": "Реиндексация BM25 — DebounceBatch (debounce 500ms)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "DebounceBatch"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.0,
+      "latency_ms": 1.7
+    },
+    {
+      "id": "T20",
+      "truth": true,
+      "section": "adrs",
+      "claim": "LanceDB: atomic delete+add с откатом версии (restore prev_version)",
+      "arms": {
+        "B": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "prev_version",
+            "restore"
+          ]
+        },
+        "A_code_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "prev_version",
+            "restore"
+          ]
+        },
+        "A_memory_first": {
+          "code_says": "SUPPORT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": [
+            "prev_version",
+            "restore"
+          ]
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 54.0,
+      "latency_ms": 12.6
+    },
+    {
+      "id": "F11",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Граф хранится в graph.json",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "graph.db"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.5,
+      "latency_ms": 32.3
+    },
+    {
+      "id": "F12",
+      "truth": false,
+      "section": "adrs",
+      "claim": "Индекс — векторная БД Milvus",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "lancedb"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "lancedb"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "lancedb"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 28.25,
+      "latency_ms": 31.3
+    },
+    {
+      "id": "F13",
+      "truth": false,
+      "section": "adrs",
+      "claim": "MCP-транспорт — ZeroMQ",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "fastmcp"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 27.75,
+      "latency_ms": 62.8
+    },
+    {
+      "id": "F14",
+      "truth": false,
+      "section": "failed_attempts",
+      "claim": "Тесты запускаются через nose",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "pytest"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "pytest"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "pytest"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 28.5,
+      "latency_ms": 33.7
+    },
+    {
+      "id": "F15",
+      "truth": false,
+      "section": "adrs",
+      "claim": "Графовые запросы — через Gremlin (Apache TinkerPop)",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "file:src/core/search/cypher_engine.py"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "file:src/core/search/cypher_engine.py"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "file:src/core/search/cypher_engine.py"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 15.25,
+      "latency_ms": 32.5
+    },
+    {
+      "id": "F16",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Метрики инструментов экспортируются в Prometheus",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "_TOOL_METRICS"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "_TOOL_METRICS"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "_TOOL_METRICS"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.25,
+      "latency_ms": 35.4
+    },
+    {
+      "id": "F17",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Телеметрия отправляется в Sentry",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "intel_get_telemetry"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.0,
+      "latency_ms": 44.2
+    },
+    {
+      "id": "F18",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Хранилище моделей — S3 (MinIO)",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "lm-kit"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "lm-kit"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "lm-kit"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 32.75,
+      "latency_ms": 58.7
+    },
+    {
+      "id": "F19",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Очередь задач — RabbitMQ",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "DebounceBatch"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 29.0,
+      "latency_ms": 33.0
+    },
+    {
+      "id": "F20",
+      "truth": false,
+      "section": "adrs",
+      "claim": "MCP-сервер реализован на Java (Spring Boot)",
+      "arms": {
+        "B": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": false,
+          "contra_found": [
+            "file:src/mcp/server.py",
+            "fastmcp"
+          ],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "CONTRADICT",
+          "verdict": false,
+          "choice": "CODE",
+          "would_refute": true,
+          "contra_found": [
+            "file:src/mcp/server.py",
+            "fastmcp"
+          ],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "CONTRADICT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [
+            "file:src/mcp/server.py",
+            "fastmcp"
+          ],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 39.5,
+      "latency_ms": 33.3
+    },
+    {
+      "id": "S11",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "Дашборды мониторинга — Grafana",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 0.0,
+      "latency_ms": 31.4
+    },
+    {
+      "id": "S12",
+      "truth": false,
+      "section": "known_issues",
+      "claim": "CI-пайплайн — GitLab CI",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 0.0,
+      "latency_ms": 33.1
+    },
+    {
+      "id": "S13",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Деплой — Kubernetes",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 0.0,
+      "latency_ms": 60.8
+    },
+    {
+      "id": "S14",
+      "truth": false,
+      "section": "tech_debt",
+      "claim": "Кэш-слой — Memcached",
+      "arms": {
+        "B": {
+          "code_says": "SILENT",
+          "verdict": null,
+          "choice": "NONE",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_code_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        },
+        "A_memory_first": {
+          "code_says": "SILENT",
+          "verdict": true,
+          "choice": "MEMORY",
+          "would_refute": false,
+          "contra_found": [],
+          "support_found": []
+        }
+      },
+      "tokens_memory": 699.5,
+      "tokens_evidence": 0.0,
+      "latency_ms": 30.7
+    }
+  ],
+  "aggregates": {
+    "n_valid": 24,
+    "n_true": 10,
+    "n_false": 14,
+    "n_silent_false": 4,
+    "arms": {
+      "B": {
+        "correct_rate": 0.833,
+        "unknown_rate": 0.167,
+        "adoption_rate": 0.0,
+        "code_contradictability": 0.714,
+        "correction_capability": 0.0,
+        "correction_gap": 4,
+        "memory_confidence_effect": 4,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 0.0,
+        "tokens_evidence_total": 697.5
+      },
+      "A_code_first": {
+        "correct_rate": 0.833,
+        "unknown_rate": 0.0,
+        "adoption_rate": 0.286,
+        "code_contradictability": 0.714,
+        "correction_capability": 1.0,
+        "correction_gap": 4,
+        "memory_confidence_effect": 4,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 16788.0,
+        "tokens_evidence_total": 697.5
+      },
+      "A_memory_first": {
+        "correct_rate": 0.417,
+        "unknown_rate": 0.0,
+        "adoption_rate": 1.0,
+        "code_contradictability": 0.714,
+        "correction_capability": 0.0,
+        "correction_gap": 4,
+        "memory_confidence_effect": 4,
+        "false_confirmation_rate": 0.0,
+        "tokens_memory_total": 16788.0,
+        "tokens_evidence_total": 697.5
+      }
+    }
+  }
+}

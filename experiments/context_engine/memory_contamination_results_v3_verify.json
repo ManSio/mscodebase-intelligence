@@ -1,0 +1,438 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1-V: Memory Contamination VERIFY-ON-READ (ADR-0003)",
+    "date": "2026-08-11",
+    "control_group": "v3 (add-only) / 1-R (retraction)",
+    "isolation": {
+      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\5517d5cd\\intelligence",
+      "real": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "isolated": true
+    },
+    "verify_stats": {
+      "head": "a06b238702d4df765193ff8a177e2db1222a8d1a",
+      "fingerprint_build_ms": 82.3,
+      "nodes_seen": 50,
+      "cache_hits": 0,
+      "checked": 50,
+      "inconclusive": 12,
+      "refuted": 28,
+      "verified": 10,
+      "budget_exceeded": false,
+      "latency_ms": 128.9
+    },
+    "steady_state_stats": {
+      "fingerprint_build_ms": 82.3,
+      "nodes_seen": 22,
+      "cache_hits": 22,
+      "checked": 0,
+      "inconclusive": 0,
+      "refuted": 0,
+      "verified": 0,
+      "budget_exceeded": false,
+      "latency_ms": 0.6
+    }
+  },
+  "verdicts": {
+    "verified": 10,
+    "refuted": 28,
+    "active_inconclusive": 12,
+    "false_refuted_total": 21,
+    "false_refuted_true": [
+      "G07",
+      "G25",
+      "G11",
+      "G24",
+      "G23",
+      "G18",
+      "G21"
+    ],
+    "false_refuted_true_artifacts": [
+      {
+        "id": "G07",
+        "claim": "Версия LanceDB использует v2",
+        "support_patterns": [
+          "lancedb_version"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "lancedb_version"
+          }
+        ]
+      },
+      {
+        "id": "G11",
+        "claim": "MCP-транспорт использует fastmcp",
+        "support_patterns": [
+          "fastmcp"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "fastmcp"
+          }
+        ]
+      },
+      {
+        "id": "G18",
+        "claim": "BM25-ранжирование использует bm25_weight",
+        "support_patterns": [
+          "bm25_weight"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "bm25_weight"
+          }
+        ]
+      },
+      {
+        "id": "G21",
+        "claim": "LSP-диагностика использует basedpyright",
+        "support_patterns": [
+          "basedpyright"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "basedpyright"
+          }
+        ]
+      },
+      {
+        "id": "G23",
+        "claim": "Запись инцидентов использует intel_log_incident",
+        "support_patterns": [
+          "intel_log_incident"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "intel_log_incident"
+          }
+        ]
+      },
+      {
+        "id": "G24",
+        "claim": "Сбор ADR использует intel_auto_collect_adrs",
+        "support_patterns": [
+          "intel_auto_collect_adrs"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "intel_auto_collect_adrs"
+          }
+        ]
+      },
+      {
+        "id": "G25",
+        "claim": "Телеметрия использует intel_get_telemetry",
+        "support_patterns": [
+          "intel_get_telemetry"
+        ],
+        "anchors": [
+          {
+            "kind": "import",
+            "value": "intel_get_telemetry"
+          }
+        ]
+      }
+    ],
+    "visible_false_after_verify": [
+      "G42",
+      "G43",
+      "G44",
+      "G45"
+    ]
+  },
+  "per_fact": [
+    {
+      "id": "G01",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G02",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G03",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G04",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G05",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G06",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G07",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G08",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G09",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G10",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G11",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G12",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G13",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G14",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G15",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G16",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G17",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G18",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G19",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G20",
+      "truth": true,
+      "status_after_verify": "ACTIVE",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G21",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G22",
+      "truth": true,
+      "status_after_verify": "VERIFIED",
+      "code_says": "SUPPORT"
+    },
+    {
+      "id": "G23",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G24",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G25",
+      "truth": true,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G26",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G27",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G28",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G29",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G30",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G31",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G32",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G33",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G34",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G35",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G36",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G37",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G38",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G39",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G40",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G41",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G42",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "G43",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "G44",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "G45",
+      "truth": false,
+      "status_after_verify": "VERIFIED",
+      "code_says": "CONTRADICT"
+    },
+    {
+      "id": "G46",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G47",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G48",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G49",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    },
+    {
+      "id": "G50",
+      "truth": false,
+      "status_after_verify": "REFUTED"
+    }
+  ],
+  "adoption": {
+    "v3_baseline": {
+      "A_code_first": 0.12,
+      "A_memory_first": 1.0
+    },
+    "exp1r_post_retraction": {
+      "A_code_first": 0.12,
+      "A_memory_first": 0.12
+    },
+    "exp1v_verify_only": {
+      "A_code_first": 0.0,
+      "A_memory_first": 0.16
+    },
+    "visible_false_of_25": 4
+  }
+}

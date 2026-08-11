@@ -19,7 +19,7 @@
   ✅ ONNX модель e5-base-v2 (~265 MB) + GGUF модель bge-reranker-v2-m3 (~544 MB)
   ✅ MCP сервер настроен в Zed
   ✅ ~1.0 GB RAM в простое (ONNX in-process + reranker)
-  ✅ 42 инструмента доступны Агенту (18 core + 13 intel + 7 inline + 3 dev + 1 optional)
+  ✅ 58 инструментов доступны Агенту (28 core + 14 intel + 12 inline + 4 dev + 1 optional execute_script)
 ```
 
 ---
@@ -142,7 +142,7 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
    MCP:               ${python} -u -m src.main
    Embed:             ONNX ✅ (768 dim)
    Reranker:          8081 ✅
-   Инструменты:       42 (18 core + 13 intel + 7 inline + 3 dev + 1 optional)
+   Инструменты:       58 (28 core + 14 intel + 12 inline + 4 dev + 1 optional execute_script)
    
    Действие: Перезагрузи Zed (File → Quit → reopen)
    После перезапуска проверь: intel_get_runtime_status()

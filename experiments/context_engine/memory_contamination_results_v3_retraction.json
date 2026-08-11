@@ -1,0 +1,918 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1-R: Memory Contamination RETRACTION (ADR-0002 analog of v3)",
+    "date": "2026-08-11",
+    "control_group": "v3 (memory_contamination_facts_v3_generated.json, same 50 facts)",
+    "parity_with_v3_A_code_first_adoption": "OK",
+    "isolation": {
+      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\107b52a6\\intelligence",
+      "real_project_store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "isolated": true
+    },
+    "validation": {
+      "valid": 50,
+      "invalid": 0,
+      "ambiguous": 6
+    }
+  },
+  "session1": {
+    "agent": "A_code_first + retraction (real intel_retract_memory_node)",
+    "rows": [
+      {
+        "id": "G01",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G02",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G03",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G04",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G05",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G06",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G07",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G08",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G09",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G10",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G11",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G12",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G13",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G14",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G15",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G16",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G17",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G18",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G19",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G20",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G21",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G22",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G23",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G24",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G25",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G26",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G27",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G28",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G29",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G30",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G31",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G32",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G33",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G34",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G35",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G36",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G37",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G38",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G39",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G40",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G41",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G42",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G43",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G44",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G45",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G46",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G47",
+        "truth": false,
+        "silent": false,
+        "code_says": "CONTRADICT",
+        "verdict": false,
+        "adopted": false,
+        "would_refute": true,
+        "retract_ok": true
+      },
+      {
+        "id": "G48",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G49",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      },
+      {
+        "id": "G50",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "verdict": true,
+        "adopted": true,
+        "would_refute": false
+      }
+    ],
+    "refuted": [
+      {
+        "id": "G26",
+        "pattern": "basedpyright",
+        "resp": "Узел G26 отозван (status=REFUTED). Причина: CONTRADICT: basedpyright"
+      },
+      {
+        "id": "G27",
+        "pattern": "LLAMA_CPP",
+        "resp": "Узел G27 отозван (status=REFUTED). Причина: CONTRADICT: LLAMA_CPP"
+      },
+      {
+        "id": "G28",
+        "pattern": "graph.db",
+        "resp": "Узел G28 отозван (status=REFUTED). Причина: CONTRADICT: graph.db"
+      },
+      {
+        "id": "G29",
+        "pattern": "sqlite3",
+        "resp": "Узел G29 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
+      },
+      {
+        "id": "G30",
+        "pattern": "intel_auto_collect_adrs",
+        "resp": "Узел G30 отозван (status=REFUTED). Причина: CONTRADICT: intel_auto_collect_adrs"
+      },
+      {
+        "id": "G31",
+        "pattern": "tree_sitter",
+        "resp": "Узел G31 отозван (status=REFUTED). Причина: CONTRADICT: tree_sitter"
+      },
+      {
+        "id": "G32",
+        "pattern": "bm25_weight",
+        "resp": "Узел G32 отозван (status=REFUTED). Причина: CONTRADICT: bm25_weight"
+      },
+      {
+        "id": "G33",
+        "pattern": "DebounceBatch",
+        "resp": "Узел G33 отозван (status=REFUTED). Причина: CONTRADICT: DebounceBatch"
+      },
+      {
+        "id": "G34",
+        "pattern": "multilingual-e5-small",
+        "resp": "Узел G34 отозван (status=REFUTED). Причина: CONTRADICT: multilingual-e5-small"
+      },
+      {
+        "id": "G35",
+        "pattern": "OnnxEmbedderClient",
+        "resp": "Узел G35 отозван (status=REFUTED). Причина: CONTRADICT: OnnxEmbedderClient"
+      },
+      {
+        "id": "G36",
+        "pattern": "sqlite3",
+        "resp": "Узел G36 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
+      },
+      {
+        "id": "G37",
+        "pattern": "ASSIGNED_FROM",
+        "resp": "Узел G37 отозван (status=REFUTED). Причина: CONTRADICT: ASSIGNED_FROM"
+      },
+      {
+        "id": "G38",
+        "pattern": "bm25_weight",
+        "resp": "Узел G38 отозван (status=REFUTED). Причина: CONTRADICT: bm25_weight"
+      },
+      {
+        "id": "G39",
+        "pattern": "intel_log_incident",
+        "resp": "Узел G39 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+      },
+      {
+        "id": "G40",
+        "pattern": "intel_log_incident",
+        "resp": "Узел G40 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+      },
+      {
+        "id": "G41",
+        "pattern": "project_memory.json",
+        "resp": "Узел G41 отозван (status=REFUTED). Причина: CONTRADICT: project_memory.json"
+      },
+      {
+        "id": "G42",
+        "pattern": "incidents.json",
+        "resp": "Узел G42 отозван (status=REFUTED). Причина: CONTRADICT: incidents.json"
+      },
+      {
+        "id": "G43",
+        "pattern": "LLAMA_CPP",
+        "resp": "Узел G43 отозван (status=REFUTED). Причина: CONTRADICT: LLAMA_CPP"
+      },
+      {
+        "id": "G44",
+        "pattern": "intel_log_incident",
+        "resp": "Узел G44 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+      },
+      {
+        "id": "G45",
+        "pattern": "fastmcp",
+        "resp": "Узел G45 отозван (status=REFUTED). Причина: CONTRADICT: fastmcp"
+      },
+      {
+        "id": "G46",
+        "pattern": "bge-reranker-v2-m3",
+        "resp": "Узел G46 отозван (status=REFUTED). Причина: CONTRADICT: bge-reranker-v2-m3"
+      },
+      {
+        "id": "G47",
+        "pattern": "intel_get_telemetry",
+        "resp": "Узел G47 отозван (status=REFUTED). Причина: CONTRADICT: intel_get_telemetry"
+      }
+    ],
+    "adoption_rate_false": 0.12,
+    "correction_capability_systemic": 1.0,
+    "would_refute_attempted": 22,
+    "refuted_via_tool": 22,
+    "latency_ms": 666.4
+  },
+  "session2": {
+    "agent": "fresh read of post-retraction memory, both policies",
+    "visible_nodes": 28,
+    "visible_false": 3,
+    "rows": [
+      {
+        "id": "G01",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G02",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G03",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G04",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G05",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G06",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G07",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G08",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G09",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G10",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G11",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G12",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G13",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G14",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G15",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G16",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G17",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G18",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G19",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G20",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G21",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G22",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G23",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G24",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G25",
+        "truth": true,
+        "silent": false,
+        "code_says": "SUPPORT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G48",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G49",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      },
+      {
+        "id": "G50",
+        "truth": false,
+        "silent": true,
+        "code_says": "SILENT",
+        "arms": {
+          "A_code_first": true,
+          "A_memory_first": true
+        }
+      }
+    ],
+    "adoption_rate_false_A_code_first": 0.12,
+    "adoption_rate_false_A_memory_first": 0.12
+  },
+  "memory_after": {
+    "total_raw_nodes": 50,
+    "refuted_nodes": 22,
+    "false_active_remaining": 3,
+    "false_refuted": 22,
+    "persistent_false_reduction": 0.88,
+    "refuted_all_have_reason": true,
+    "tokens_memory_session1": 653.2,
+    "tokens_memory_session2": 360.8,
+    "tokens_memory_reduction": 0.448
+  },
+  "references": {
+    "v3_adoption_A_code_first": 0.12,
+    "v3_adoption_A_memory_first": 1.0,
+    "v3_persistent_false_in_memory": 25,
+    "v3_tokens_memory_total_50_facts": 66500.0
+  }
+}

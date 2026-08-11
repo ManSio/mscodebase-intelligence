@@ -126,4 +126,4 @@ def test_count_tools_real_project_guard():
     tools = AutoDocUpdater()._count_tools(root)
     assert tools >= 44, f"_count_tools вернул {tools} — снова баг подсчёта?"
     if os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower() != "true":
-        assert tools == 57, f"ожидалось 57 (README-контракт), получено {tools}"
+        assert tools == 58, f"ожидалось 58 (README-контракт), получено {tools}"
