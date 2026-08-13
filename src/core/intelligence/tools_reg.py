@@ -395,6 +395,27 @@ def register_intelligence_tools(mcp_app, intel_layer):
         """
         return await intel_layer.intel_retract_memory_node(node_id, reason)
 
+    @mcp_app.tool("intel_restore_memory_node")
+    async def restore_memory_node(node_id: str, reason: str) -> str:
+        """Восстановить узел из REFUTED (ручной возврат факта, ADR-0002/0003).
+
+        Переводит узел из REFUTED обратно в ACTIVE, фиксирует причину восстановления
+        (restore_reason) и время (restored_at). Добавляет флаг
+        false_retraction=true для метрики ложных отзывов (спека v1).
+        Восстановление без непустой причины невозможно.
+        """
+        return await intel_layer.intel_restore_memory_node(node_id, reason)
+
+    @mcp_app.tool("intel_supersede_memory_node")
+    async def supersede_memory_node(node_id: str, reason: str, new_node_id: str = "") -> str:
+        """Пометить узел как SUPERSEDED — заменён более свежим фактом.
+
+        SUPERSEDED — терминальный статус (не REFUTED): факт был верен, но устарел.
+        В отличие от REFUTED, это не опровержение, а естественная смена знания.
+        Опционально: new_node_id — ID нового узла, который замещает старый.
+        """
+        return await intel_layer.intel_supersede_memory_node(node_id, reason, new_node_id)
+
     @mcp_app.tool("intel_auto_collect_adrs")
     def auto_collect_adrs(max_commits: int = 50) -> str:
         """Автоматический сбор ADR из git-лога.

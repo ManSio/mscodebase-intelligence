@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-08-12 — Memory v2 (SUPERSEDED-фильтр + метрика false-retraction + ADR-0004 каскад) — DONE (не закоммичено)
+
+**Что:** v1-спека памяти закрыта + Propagation Engine. (1) store.load_memory скрывает терминальные REFUTED+SUPERSEDED (include_retracted для аудита); (2) verify-on-read больше НЕ переписывает терминальные статусы (SUPERSEDED не откатывается в VERIFIED); (3) store.memory_metrics() + health._check_memory — false_retraction_rate (доля вручную возвращённых отзывов, ловец false-negative дрифта системы проверки); (4) ADR-0004: propagation_engine.py — каскадная ретракция по data.depends_on/superseded_by (PROPAGATED_FROM:<root>, retract_source=propagation), хук в intel_retract_memory_node.
+**Тесты:** +21 (55 зелёных); полный pytest 1108/1/4/94 — фейл чужой. | **Fix:** commit/push по команде.
+
+## 2026-08-12 — ЧУЖОЙ staged-пакет блокирует полный зелёный (P1 🔴)
+
+**Symptom:** test_count_tools_real_project_guard: assert 61 == 58 — staged-правки добавили 3 MCP-тула (intel_restore_memory_node, intel_supersede_memory_node в tools_reg.py, dual_arm_health_check в system_tools.py+server_tools.py), но guard-счётчик и README-контракт (58) не синхронизированы. system_tools.py — 16 ruff-ошибок (W293/F401/I001). ui_formatter.py:404 — битая строка (unterminated string) — ПОЧИНЕНА (1 строка).
+**Root Cause:** staged-пакет не доведён до зелёного: после +3 тулов счётчик 58 не обновлён (тест + README ×3 + CONTRIBUTING ×3 + ARCHITECTURE ×3 + server_tools.py total_intel), ruff не прогнан.
+**Status:** 🔴 деградирует (блокирует pre-commit/CI) | **Владелец:** misha (решить: синк 58→61 или откат staged) | **Deadline:** до коммита моей части.
+**Guard:** verify_clean_state.sh FAILED только по этому тесту; мои 55 тестов зелёные, ruff 0 в моих файлах.
+
+---
+
 ## 2026-08-12 — doc-vs-code: доки перечисляли НЕСУЩЕСТВУЮЩИЕ MCP-тулы и неверные счётчики — FIXED (✅ закрыт)
 
 **Symptom:** пользователь: «ты просто поменял версию, но документация всё равно не ровна коду». Кросс-чек подтвердил: stale_detector проверяет ТОЛЬКО version-строки — содержание (имена тулов, счётчики) не сверялось. AGENTS.md секция B перечисляла `get_variable_flow`, `get_related_files`, `run_health_check`, `predict_eta` — **0 файлов в src/** (мёртвые инструкции агенту!); `get_index_status`/`git(action=...)`/`watcher_status`/`index_project_dir` — НЕ отдельные MCP-тулы (action-маршруты hub'а `codebase`, единственная регистрация — register_all_tools, server_factory.py:249).

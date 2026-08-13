@@ -27,6 +27,7 @@ from src.core.intelligence.verify_on_read import (
     RETRACT_SOURCE,
     STATUS_ACTIVE,
     STATUS_REFUTED,
+    STATUS_SUPERSEDED,
     STATUS_VERIFIED,
     VerifyOnRead,
     extract_anchors,
@@ -256,6 +257,39 @@ def test_verified_node_rechecked_on_head_change(project: Path):
     verifier._resolve_head = lambda: "NEW-HEAD-xyz"
     _, stats2 = verifier.run(store.load_memory())
     assert stats2["checked"] == 1  # перепроверка, не липкий VERIFIED
+
+
+def test_terminal_superseded_not_rewritten_to_verified(project: Path):
+    """Терминальный SUPERSEDED не откатывается в VERIFIED verify-on-read'ом.
+
+    Защита в _persist_transitions: узлы с живыми якорями и терминальным
+    статусом остаются в истории как есть (прямой прогон — как при аудите
+    include_retracted, в обход фильтра store.load_memory).
+    """
+    store = IntelligenceStore(project)
+    node = _node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}], status=STATUS_SUPERSEDED)
+    _seed(store, [node])
+    verifier = _make_verifier(project, store)
+
+    memory, stats = verifier.run({"adrs": [node]})
+    raw = store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_SUPERSEDED
+    assert "verified_at" not in raw
+    assert stats["verified"] == 1  # вердикт посчитан, но переход не применён
+    assert memory["adrs"][0]["node_id"] == "N1"
+
+
+def test_terminal_refuted_not_rewritten_to_verified(project: Path):
+    """REFUTED с живыми якорями не возвращается в VERIFIED (аудит-путь)."""
+    store = IntelligenceStore(project)
+    node = _node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}], status=STATUS_REFUTED)
+    _seed(store, [node])
+    verifier = _make_verifier(project, store)
+
+    verifier.run({"adrs": [node]})
+    raw = store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_REFUTED
+    assert "verified_at" not in raw
 
 
 # =====================================================================

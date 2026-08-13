@@ -302,14 +302,14 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
 > Актуальное число зарегистрированных инструментов — в логе MCP при старте (`📐 MCP Tools: N/M видимы`).
 
-### A. Intel Intelligence Layer (14 tools)
+### A. Intel Intelligence Layer (16 tools)
 
 `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_reset_index`,
 `intel_get_job_status`, `intel_auto_collect_adrs`,
 `intel_code_topology`, `intel_log_incident`, `intel_analyze_incident`,
 `intel_add_memory_node`, `intel_get_project_memory`,
 `intel_predict_root_cause`, `intel_get_hotspots`, `intel_get_telemetry`,
-`intel_retract_memory_node`.
+`intel_retract_memory_node`, `intel_restore_memory_node`, `intel_supersede_memory_node`.
 
 Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
 
