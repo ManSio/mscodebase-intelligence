@@ -161,3 +161,7 @@
   отозванные) + health._check_memory — ловец false-negative дрифта проверки.
 - Правка CRLF-файлов с эмодзи: edit_file с ФАКТИЧЕСКИМ UTF-8 символом; \U0001F9E0
   в JSON — невалидный escape; python -c на Windows съедает \\ (bash) — нельзя.
+- Мусорные file-якоря (слепленные пути/завершающая пунктуация) из текста коммитов
+  → ЛОЖНЫЕ REFUTED от VOR (fail-closed _classify); фикс c3512740: extract_anchors
+  на write-path отбрасывает несуществующие пути (project_root) и обрезает
+  пунктуацию; read-path остаётся честным (удалённый файл = дрейф → REFUTED).
