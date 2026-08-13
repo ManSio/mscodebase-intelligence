@@ -299,15 +299,30 @@ def register_intelligence_tools(mcp_app, intel_layer):
             f"   Статус: `{job.status}`\n"
             f"   Прогресс: {enriched.get('progress_label', 'N/A')}\n"
         )
-        # Парсим прогресс чанков из последнего embed лога
+        # Парсим прогресс чанков из embed лога ТЕКУЩЕГО job (инцидент 2026-08-13:
+        # лог-файл общий и накапливается — без фильтра по времени парсер показывал
+        # СТАРЫЕ «7426/7426 (100%)» прошлой индексации, пока текущий full reindex
+        # ещё в фазе parsing (embed-строки не писаны). Фильтр: только строки,
+        # не старше job.started_at.
         try:
+            import datetime as _dt
             import re
 
             from src.core.log_manager import get_main_log_path
             _log_path = get_main_log_path()
+            _started_ts = job.started_at or 0
             if _log_path.exists():
                 with open(str(_log_path), 'r', encoding='utf-8', errors='replace') as _f:
                     for _line in reversed(_f.readlines()):
+                        # Строки до старта job — прошлая сессия/индексация, пропускаем
+                        try:
+                            _line_ts = _dt.datetime.strptime(
+                                _line[:19], "%Y-%m-%d %H:%M:%S"
+                            ).timestamp()
+                            if _line_ts < _started_ts - 2:
+                                continue
+                        except (ValueError, IndexError):
+                            continue
                         _m = re.search(r'\[embed\]\s+(\d+)/(\d+)', _line)
                         if _m:
                             _done, _total = int(_m.group(1)), int(_m.group(2))
@@ -363,19 +378,24 @@ def register_intelligence_tools(mcp_app, intel_layer):
         )
 
     @mcp_app.tool("intel_get_project_memory")
-    async def get_project_memory(include_retracted: bool = False, verify_on_read: bool = True) -> str:
+    async def get_project_memory(
+        include_retracted: bool = False,
+        verify_on_read: bool = True,
+        limit: int = 3,
+    ) -> str:
         """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли).
 
         ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True — показать все (аудит).
         ADR-0003: verify_on_read=True (по умолчанию) — ленивая проверка ACTIVE-узлов при чтении
         (SILENT_ABSENCE -> REFUTED, найденные -> VERIFIED); False — отключить для отладки.
+        limit: сколько узлов секции показывать в сводке (0 — показать все; аудит/полный список).
         """
         memory = await intel_layer.intel_get_project_memory(
             include_retracted=include_retracted, verify_on_read=verify_on_read
         )
         from src.utils.ui_formatter import format_project_memory
 
-        return format_project_memory(memory)
+        return format_project_memory(memory, limit=limit)
 
     @mcp_app.tool("intel_add_memory_node")
     async def add_memory_node(section: str, data_json: str, status: str = "ACTIVE") -> str:
