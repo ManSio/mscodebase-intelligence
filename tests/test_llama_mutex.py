@@ -23,6 +23,10 @@ import pytest
 
 from src.providers.reranker.llama_runner import _InterProcessLock
 
+_WIN32 = pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows Named Mutex / PID-проверка только на Windows"
+)
+
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows Named Mutex только на Windows")
 def test_interprocess_lock_release_does_not_leak_ownership():
@@ -58,7 +62,7 @@ def test_is_pid_alive_dead_process_returns_false():
     reranker'а блокировал запуск весь день).
 
     До фикса OpenProcess(SYNCHRONIZE) возвращал handle для завершённого
-    процесса (объект жив, пока у родителя открыт handle) → ложный True.
+    процесса (объект жив, пока у родителя handle) → ложный True.
     """
     proc = subprocess.Popen([sys.executable, "-c", "pass"])
     proc.wait(timeout=10)
@@ -89,8 +93,13 @@ def test_is_pid_alive_non_llama_process_returns_false():
     assert _InterProcessLock._is_pid_alive(os.getpid()) is False
 
 
+@_WIN32
 def test_start_sync_spawns_embedder_once_under_concurrency():
     """Дедупликация embedder при 2 окнах (инцидент 2026-08-13: 2×8080).
+
+    Windows-only: на Linux _InterProcessLock не использует Named Mutex
+    (только PID-файл, гонка между потоками) — проверяем именно Windows-путь
+    (прод-платформа: 2 окна Zed).
 
     Два конкурирующих вызова _start_sync (по одному на MCP-окно):
     lock держится ДО готовности порта, поэтому второй вызов видит
