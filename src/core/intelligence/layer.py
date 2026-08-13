@@ -22,7 +22,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Импортируем модули ядра и глобальные настройки
 from src.core.indexing.indexer import Indexer
@@ -930,8 +930,8 @@ class ProjectIntelligenceLayer:
         self,
         include_retracted: bool = False,
         verify_on_read: bool = True,
-    ) -> Dict[str, List[Dict]]:
-        """Получить полную карту памяти проекта.
+    ) -> Tuple[Dict[str, List[Dict]], Dict[str, Any]]:
+        """Получить полную карту памяти проекта + ресипт VOR-проверки.
 
         ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True
         возвращает их для аудита и отладки.
@@ -940,6 +940,13 @@ class ProjectIntelligenceLayer:
         отрицательные тесты -> REFUTED (SILENT_ABSENCE_ON_READ), найденные
         -> VERIFIED, непроверяемые (без якорей) -> остаются ACTIVE с флагом
         verification="no_anchors" для выдачи агенту (ADR-0003: предохранитель).
+        Непроверенные из-за бюджета узлы помечаются verification="budget_exceeded"
+        — их статус унаследован от прошлых циклов, а не подтверждён в этом чтении.
+
+        Returns:
+            (memory, stats). stats — ресипт проверки (пол Тома): nodes_seen/
+            checked/budget_exceeded/latency_ms — потребитель сам видит
+            checked/total и решает, преждевременно ли измерение.
         """
         memory = self.store.load_memory(include_retracted=include_retracted)
         if verify_on_read and not include_retracted:
@@ -954,7 +961,18 @@ class ProjectIntelligenceLayer:
                     for node in nodes:
                         if node.get("node_id") in inconclusive_ids:
                             node.setdefault("verification", "no_anchors")
-        return memory
+            # Пол Тома: узлы, не проверенные в этом цикле из-за бюджета,
+            # несут устаревший статус — помечаем явно, чтобы потребитель не
+            # принял вчерашний VERIFIED за свежую проверку.
+            budget_exceeded_ids = set(stats.get("budget_exceeded_nodes", []))
+            if budget_exceeded_ids:
+                for section, nodes in memory.items():
+                    for node in nodes:
+                        if node.get("node_id") in budget_exceeded_ids:
+                            node.setdefault("verification", "budget_exceeded")
+        else:
+            stats = {"verify_on_read": False}
+        return memory, stats
 
     def _load_flat_memory_nodes(self) -> List[Dict]:
         """Загружает project_memory.json как плоский список узлов.

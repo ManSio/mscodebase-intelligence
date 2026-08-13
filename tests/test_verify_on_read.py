@@ -377,6 +377,73 @@ def test_budget_timeout_graceful_degradation(project: Path):
     assert raw["N3"].get("status") != STATUS_REFUTED
 
 
+def test_budget_exceeded_nodes_recorded_in_stats(project: Path):
+    """Пол Тома: непроверенные из-за бюджета узлы попадают в stats.budget_exceeded_nodes,
+    чтобы потребитель видел checked/total, а не принимал вчерашний статус за свежий."""
+    store = IntelligenceStore(project)
+    _seed(
+        store,
+        [
+            _node(f"N{i}", "c", anchors=[{"kind": "import", "value": "fastmcp"}])
+            for i in range(1, 6)
+        ],
+    )
+    verifier = _make_verifier(project, store)
+
+    def slow_check(anchor, fp):
+        import time as _t
+
+        _t.sleep(0.02)  # 20ms/узел — бюджет 10ms исчерпан со 2-го узла
+        return True
+
+    verifier._check_anchor = slow_check
+    memory, stats = verifier.run(store.load_memory(), budget_ms=10.0)
+    assert stats["budget_exceeded"] is True
+    assert stats["checked"] == 1  # обработан только первый узел
+    assert set(stats["budget_exceeded_nodes"]) == {"N2", "N3", "N4", "N5"}
+    # Непроверенные узлы остались в контексте и не отозваны
+    assert {n["node_id"] for n in memory["adrs"]} == {"N1", "N2", "N3", "N4", "N5"}
+
+
+def test_layer_budget_exceeded_flags_nodes(project: Path, monkeypatch):
+    """Слой помечает непроверенные узлы verification="budget_exceeded" — их статус
+    унаследован от прошлых циклов, а не подтверждён в этом чтении (пол Тома)."""
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    nodes = [
+        _node(f"N{i}", "c", anchors=[{"kind": "import", "value": "fastmcp"}])
+        for i in range(5)
+    ]
+    layer.store.save_memory(nodes)
+
+    def slow_check(self, anchor, fp):
+        import time as _t
+
+        _t.sleep(0.03)
+        return True
+
+    monkeypatch.setattr(VerifyOnRead, "_check_anchor", slow_check)
+    mem, stats = asyncio.run(layer.intel_get_project_memory())
+    assert stats["budget_exceeded"] is True
+    assert stats["checked"] < stats["nodes_seen"]  # часть узлов не проверена
+    # Флаг стоит ровно на узлах, которые run() пометил как непроверенные
+    flagged = {
+        n["node_id"]
+        for sec in mem.values()
+        for n in sec
+        if n.get("verification") == "budget_exceeded"
+    }
+    assert flagged == set(stats["budget_exceeded_nodes"])
+    assert flagged  # хотя бы один помечен
+    # Обработанные узлы флага не несут
+    processed = {
+        n["node_id"]
+        for sec in mem.values()
+        for n in sec
+        if n.get("verification") is None
+    }
+    assert len(processed) == stats["checked"]
+
+
 # =====================================================================
 # LAYER HOOK (Q3: default ON)
 # =====================================================================
@@ -387,8 +454,9 @@ def test_layer_hook_verify_on_read_default_on(project: Path):
     layer.store.save_memory([_node("N1", "b", anchors=[{"kind": "import", "value": "grafana"}])])
 
     # По умолчанию verify_on_read=True -> узел отозван и скрыт
-    mem = asyncio.run(layer.intel_get_project_memory())
+    mem, stats = asyncio.run(layer.intel_get_project_memory())
     assert mem["adrs"] == []
+    assert stats["nodes_seen"] == 1 and stats["checked"] == 1 and stats["refuted"] == 1
     raw = layer.store._load_json("project_memory.json")[0]
     assert raw["status"] == STATUS_REFUTED
     assert raw["retract_source"] == RETRACT_SOURCE
@@ -398,8 +466,9 @@ def test_layer_hook_verify_on_read_off(project: Path):
     layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
     layer.store.save_memory([_node("N1", "b", anchors=[{"kind": "import", "value": "grafana"}])])
 
-    mem = asyncio.run(layer.intel_get_project_memory(verify_on_read=False))
+    mem, stats = asyncio.run(layer.intel_get_project_memory(verify_on_read=False))
     assert [n["node_id"] for n in mem["adrs"]] == ["N1"]  # отключено: не проверялся
+    assert stats == {"verify_on_read": False}  # ресипт: VOR выключен
     assert layer.store._load_json("project_memory.json")[0].get("status", STATUS_ACTIVE) == STATUS_ACTIVE
 
 
@@ -414,7 +483,7 @@ def test_write_capture_makes_verify_effective_on_prose(project: Path):
         "adrs", json.dumps({"claim": "транспорт использует import fastmcp"})
     ))
 
-    mem = asyncio.run(layer.intel_get_project_memory())
+    mem, _stats = asyncio.run(layer.intel_get_project_memory())
     assert len(mem["adrs"]) == 1  # grafana-узел отозван, fastmcp-узел остался
 
     raw = {n["node_id"]: n for n in layer.store._load_json("project_memory.json")}
