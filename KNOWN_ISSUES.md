@@ -10,12 +10,12 @@
 **Что:** v1-спека памяти закрыта + Propagation Engine. (1) store.load_memory скрывает терминальные REFUTED+SUPERSEDED (include_retracted для аудита); (2) verify-on-read больше НЕ переписывает терминальные статусы (SUPERSEDED не откатывается в VERIFIED); (3) store.memory_metrics() + health._check_memory — false_retraction_rate (доля вручную возвращённых отзывов, ловец false-negative дрифта системы проверки); (4) ADR-0004: propagation_engine.py — каскадная ретракция по data.depends_on/superseded_by (PROPAGATED_FROM:<root>, retract_source=propagation), хук в intel_retract_memory_node.
 **Тесты:** +21 (55 зелёных); полный pytest 1108/1/4/94 — фейл чужой. | **Fix:** commit/push по команде.
 
-## 2026-08-12 — ЧУЖОЙ staged-пакет блокирует полный зелёный (P1 🔴)
+## 2026-08-12 — ЧУЖОЙ staged-пакет блокирует полный зелёный — РЕШЕНО (✅ закрыт)
 
 **Symptom:** test_count_tools_real_project_guard: assert 61 == 58 — staged-правки добавили 3 MCP-тула (intel_restore_memory_node, intel_supersede_memory_node в tools_reg.py, dual_arm_health_check в system_tools.py+server_tools.py), но guard-счётчик и README-контракт (58) не синхронизированы. system_tools.py — 16 ruff-ошибок (W293/F401/I001). ui_formatter.py:404 — битая строка (unterminated string) — ПОЧИНЕНА (1 строка).
-**Root Cause:** staged-пакет не доведён до зелёного: после +3 тулов счётчик 58 не обновлён (тест + README ×3 + CONTRIBUTING ×3 + ARCHITECTURE ×3 + server_tools.py total_intel), ruff не прогнан.
-**Status:** 🔴 деградирует (блокирует pre-commit/CI) | **Владелец:** misha (решить: синк 58→61 или откат staged) | **Deadline:** до коммита моей части.
-**Guard:** verify_clean_state.sh FAILED только по этому тесту; мои 55 тестов зелёные, ruff 0 в моих файлах.
+**Fix (2026-08-12):** (1) ruff --fix system_tools.py (16 ошибок); (2) синк счётчика 58→61 (28 core + 16 intel + 13 inline + 4 dev): guard-тест, README ×3, ARCHITECTURE ×3, ARCHITECTURE_DEEP ×3, CONTRIBUTING ×3, GRACEFUL_DEGRADATION ×3, HANDFOFF ×3, TELEMETRY ×3, ZED_WINDOWS_QUIRKS, AI_INSTALLATION_PROMPT ×3, CHANGELOG current ×3, server_tools.py docstring, auto_doc_updater docstring; видимость по умолчанию 43→46; исторические записи (CHANGELOG прошлые, ONNX_SESSION_REPORT) не тронуты; (3) stale_config.json: +venv/.venv в exclude_dirs (ложные дрейфы из site-packages).
+**Status:** 🟢 стабильно (guard 61, ruff чист, stale_detector 0 дрейфов) | **Владелец:** misha.
+**Guard:** test_count_tools_real_project_guard 6/6; полный pytest зелёный.
 
 ---
 

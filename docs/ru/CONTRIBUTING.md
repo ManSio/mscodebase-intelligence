@@ -32,7 +32,7 @@ src/
 │   ├── server.py        # Регистрация MCP-сервера (~220 строк)
 │   ├── server_factory.py # Фабрика сервера + DI setup
 │   ├── server_tools.py  # Регистрация инструментов (всего 58)
-│   └── tools/           # 15 файлов, 28 core + 14 intel + 12 inline + 4 dev
+│   └── tools/           # 15 файлов, 28 core + 16 intel + 13 inline + 4 dev
 │       ├── base.py          # MCPTool ABC
 │       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
 │       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
@@ -68,7 +68,7 @@ src/
 │   │   ├── symbol_index.py # Граф вызовов (BFS, PageRank)
 │   │   └── watchdog.py  # Вотчер изменений файлов
 │   └── intelligence/
-│       ├── layer.py     # 14 intel_* инструментов
+│       ├── layer.py     # 16 intel_* инструментов
 │       ├── project_context.py # Снэпшот состояния проекта
 │       ├── health.py    # Проверки здоровья системы
 │       └── tools_reg.py # Регистрация Intel-инструментов

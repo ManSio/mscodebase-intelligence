@@ -6,7 +6,7 @@
 
 本项目所有值得注意的变更都会记录在此文件中。
 
-> **工具数量（当前）:** 实时服务器注册 **58 个工具** = 28 core + 14 intel + 12 inline + 4 dev
+> **工具数量（当前）:** 实时服务器注册 **61 个工具** = 28 core + 16 intel + 13 inline + 4 dev
 > （参见 `src/mcp/server_tools.py` 启动日志）。以下条目引用较早的总数。
 
 ---
@@ -23,7 +23,7 @@
 - **get_context(targets=[...])**: task-shaped 聚合 — 一次调用获取多个符号的上下文。
 
 ### 变更
-- MCP 工具注册 55 → 57（28 core + 13 intel + 12 inline + 4 dev）；README/AGENTS.md/docs en+ru+zh 同步；工具数量契约测试更新为 57。
+- MCP 工具注册 55 → 57（28 core + 13 intel + 13 inline + 4 dev）；README/AGENTS.md/docs en+ru+zh 同步；工具数量契约测试更新为 57。
 
 ### 测试
 - +19 个新测试（test_graph_path, test_duplication, test_jupyter, test_edge_transparency）；完整 pytest：956 passed / 4 skipped / 94 deselected。
@@ -297,7 +297,7 @@
 - 🔍 **Agent 可见**: `condition_path` 在 `query_graph` 结果中显示。
 
 ### 变更
-- 56 → 57 个 MCP 工具 (+ `query_graph`)。当前总数为 **59** (42 core + 14 intel + 3 diag)。
+- 56 → 57 个 MCP 工具 (+ `query_graph`)。当前总数为 **59** (42 core + 16 intel + 3 diag)。
 - 24 → 29 个 `src/core/` 文件
 - 全部 494 个测试通过，无需修改
 

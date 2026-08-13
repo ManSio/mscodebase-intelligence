@@ -4,10 +4,10 @@ server_tools.py — Регистрация MCP-инструментов.
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
 - register_all_tools() — регистрация 28 core-инструментов (20 + 6 LSP + find_duplicates + get_context) + execute_script
-- _register_intelligence_tools() — 14 intel_* инструментов (intelligence/tools_reg.py)
-- _register_inline_tools() — 12 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
+- _register_intelligence_tools() — 16 intel_* инструментов (intelligence/tools_reg.py)
+- _register_inline_tools() — 13 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
-- Всего: 28 + 13 + 12 + 4 = 57 инструментов (+ 1 optional execute_script = 58 при env-on)
+- Всего: 28 + 16 + 13 + 4 = 61 инструментов (+ 1 optional execute_script = 62 при env-on)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -321,7 +321,7 @@ def _register_intelligence_tools(mcp, services):
 
 
 def _register_inline_tools(mcp, services):
-    """Регистрирует 12 inline-инструментов, определённых прямо в server_tools.py.
+    """Регистрирует 13 inline-инструментов, определённых прямо в server_tools.py.
 
     debug_runtime_passport, intel_get_project_context, intel_explain_project_state,
     get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection,
@@ -738,6 +738,27 @@ def _register_inline_tools(mcp, services):
 
         tool = GetHealthReportTool(services)
         return await GetHealthReportTool.execute.__wrapped__(
+            tool, project_root=project_root, kwargs=kwargs
+        )
+
+    @mcp.tool("dual_arm_health_check")
+    async def dual_arm_health_check(
+        project_root: str = "", kwargs: Optional[Dict[str, Any]] = None
+    ) -> dict:
+        """Двухрукая проверка здоровья (mutation + health).
+
+        Negative arm: mutmut mutation testing — обязан падать на введённом дефекте.
+        Positive arm: get_health_report — обычная диагностика.
+
+        Negative control (правило Тома): guard, который не умеет падать, бесполезен.
+        mutmut требует fork() — на Windows работает ТОЛЬКО в WSL.
+        CI (ubuntu matrix): полный mutmut run; локально: MSCODEBASE_MUTMUT=1 + WSL.
+        Без WSL / отключено — Arm 1 пропускается с warning, Arm 2 выполняется.
+        """
+        from src.mcp.tools.system_tools import DualArmHealthCheckTool
+
+        tool = DualArmHealthCheckTool(services)
+        return await DualArmHealthCheckTool.execute.__wrapped__(
             tool, project_root=project_root, kwargs=kwargs
         )
 

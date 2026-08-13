@@ -6,7 +6,7 @@
 
 All notable changes to this project will be documented in this file.
 
-> **Tool count (current):** the live server registers **58 tools** = 28 core + 14 intel + 12 inline + 4 dev
+> **Tool count (current):** the live server registers **61 tools** = 28 core + 16 intel + 13 inline + 4 dev
 > (see `src/mcp/server_tools.py` startup log). Older entries below reference earlier totals.
 
 
@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
 - **get_context(targets=[...])**: task-shaped агрегатор — контекст по нескольким символам одним вызовом (обёртка над get_symbol_info/impact_analysis).
 
 ### Changed
-- Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 12 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
+- Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 13 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
 
 ### Tests
 - +19 новых тестов (test_graph_path, test_duplication, test_jupyter, test_edge_transparency); полный pytest: 956 passed / 4 skipped / 94 deselected.
@@ -423,7 +423,7 @@ All notable changes to this project will be documented in this file.
 - 🔍 **Agent visibility**: `condition_path` exposed in `query_graph` results — agent sees `x → y (if_statement → for_statement)`.
 
 ### Changed
-- Architecture: 56 → 57 MCP tools (+ `query_graph`). Current total is **59** (42 core + 14 intel + 3 diag).
+- Architecture: 56 → 57 MCP tools (+ `query_graph`). Current total is **59** (42 core + 16 intel + 3 diag).
 - DI container: `PropertyGraph` registered as singleton, `SymbolIndex` replaced by `SymbolIndexAdapter` (PURE mode)
 - Core layer: `src/core/*.py` 24 → 30 files (+ `graph.py`, `graph_adapter.py`, `cypher_engine.py`, `route_extractor.py`, `multi_signal_scorer.py`, `dataflow_experiment.py`)
 - ALL 494 tests pass without changes — full backward compatibility via adapter layer

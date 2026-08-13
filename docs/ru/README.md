@@ -43,7 +43,7 @@
 │  │  · Граф вызовов и анализ влияния              │  │
 │  │  · Память проекта (ADR, техдолг)              │  │
 │  │  · Самодиагностика и самовосстановление       │  │
-│  │  · 58 инструментов для AI-ассистента          │  │
+│  │  · 61 инструментов для AI-ассистента          │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@
 
 ### LSP: только для rename (гибридный режим)
 
-MSCodeBase **использует LSP только для `codebase(action="rename")`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **58 MCP-инструментов**.
+MSCodeBase **использует LSP только для `codebase(action="rename")`** — LSP-клиент (`src/core/lsp_client.py`) запускает **pyright-langserver** для точного rename между файлами, с автоматическим fallback на SymbolIndex (Tree-sitter) при таймауте. Вся остальная функциональность реализована через **61 MCP-инструментов**.
 
 Отдельный LSP-сервер (`src/lsp_main.py`) был экспериментальным и **не работает в Zed** — см. [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md).
 
@@ -112,7 +112,7 @@ MSCodeBase **использует LSP только для `codebase(action="rena
 | 💾 **LanceDB v2** | Векторная БД с изоляцией по проектам (инкрементальный BM25-реиндекс) |
 | 🛡 **Ограничение запросов** | DebounceBatch + CircuitBreaker — защита от VFS-циклов |
 | 🏥 **Самодиагностика** | `get_health_report` + `index_health` — полная проверка и восстановление |
-| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 58 инструментов (28 core + 14 intel + 12 inline + 4 dev), 1180 тестов |
+| 🧪 **Чистая архитектура** | DI-контейнер (18 сервисов), 61 инструментов (28 core + 16 intel + 13 inline + 4 dev), 1180 тестов |
 | 🔗 **Граф потока данных** | Рёбра `ASSIGNED_FROM` отслеживают присваивания. Unified Walker + Conditional Flow (if/for/while/try). 29 типов рёбер в PropertyGraph. |
 | 🪟 **Мульти-оконность** | `ProjectIndexerRegistry` — изолированный Indexer на проект, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — единый хаб модификации кода: rename/move/delete/replace/insert с preview/apply + `@modification_guard` |
@@ -326,7 +326,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  28 Классов        │  │  14 intel_* + 12 inline          │  │
+│  │  28 Классов        │  │  16 intel_* + 13 inline          │  │
 │  │  │  src/mcp/tools/*.py │  │  src/core/intelligence_layer.py    │  │
 │  │  │  Один класс на       │  │  decorator error_boundary         │
 │  │  │  инструмент          │  │  JSON status/message/detail       │
@@ -409,7 +409,7 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py               # Создание MCP-сервера (~597 строк)
 │   │   ├── server_factory.py       # DI setup + жизненный цикл сервера (~478 строк)
-│   │   ├── server_tools.py         # Регистрация инструментов + 12 inline (~607 строк)
+│   │   ├── server_tools.py         # Регистрация инструментов + 13 inline (~607 строк)
 │   │   └── tools/                  # 13 модулей + base-класс
 │   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis
