@@ -1000,7 +1000,9 @@ class ProjectIntelligenceLayer:
         if isinstance(data, dict):
             from src.core.intelligence.verify_on_read import extract_anchors
 
-            captured = [a.to_dict() for a in extract_anchors({"data": data})]
+            captured = [a.to_dict() for a in extract_anchors(
+                {"data": data}, project_root=self.project_path
+            )]
             if captured:
                 data["anchors"] = captured
 
@@ -1302,7 +1304,9 @@ class ProjectIntelligenceLayer:
             # ADR-0003: write-time anchor capture (file:/import/env из title/body)
             from src.core.intelligence.verify_on_read import extract_anchors
 
-            captured = [a.to_dict() for a in extract_anchors({'data': adr_node['data']})]
+            captured = [a.to_dict() for a in extract_anchors(
+                {'data': adr_node['data']}, project_root=self.project_path
+            )]
             if captured:
                 adr_node['data']['anchors'] = captured
             new_adrs.append(adr_node)
