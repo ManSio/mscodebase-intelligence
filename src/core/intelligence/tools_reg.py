@@ -389,13 +389,15 @@ def register_intelligence_tools(mcp_app, intel_layer):
         ADR-0003: verify_on_read=True (по умолчанию) — ленивая проверка ACTIVE-узлов при чтении
         (SILENT_ABSENCE -> REFUTED, найденные -> VERIFIED); False — отключить для отладки.
         limit: сколько узлов секции показывать в сводке (0 — показать все; аудит/полный список).
+        Вывод включает VOR-ресипт: checked/total узлов, бюджет, latency — потребитель
+        видит, сколько реально проверено в этом чтении (пол: измерение ниже пола — преждевременно).
         """
-        memory = await intel_layer.intel_get_project_memory(
+        memory, stats = await intel_layer.intel_get_project_memory(
             include_retracted=include_retracted, verify_on_read=verify_on_read
         )
         from src.utils.ui_formatter import format_project_memory
 
-        return format_project_memory(memory, limit=limit)
+        return format_project_memory(memory, stats=stats, limit=limit)
 
     @mcp_app.tool("intel_add_memory_node")
     async def add_memory_node(section: str, data_json: str, status: str = "ACTIVE") -> str:

@@ -413,6 +413,9 @@ class VerifyOnRead:
 
         Returns:
             (memory с исключёнными новыми REFUTED, stats).
+        stats: nodes_seen/checked/verified/refuted/inconclusive/latency_ms +
+            budget_exceeded (флаг) и budget_exceeded_nodes (id непроверенных из-за
+            бюджета) — потребитель видит checked/total, а не скрытый «пол».
         """
         t_start = time.perf_counter()
         head = self._resolve_head()
@@ -439,15 +442,19 @@ class VerifyOnRead:
             for node in nodes:
                 if not isinstance(node, dict) or not node.get("node_id"):
                     continue
+                node_id = str(node["node_id"])
                 stats["nodes_seen"] += 1
                 if stats["nodes_seen"] > 1 and (time.perf_counter() - t_check) * 1000.0 > budget_ms:
                     # Бюджет исчерпан: необработанные узлы — INCONCLUSIVE-семантика,
                     # остаются в контексте как есть (graceful degradation).
+                    # budget_exceeded_nodes даёт потребителю точный список непроверенных
+                    # узлов («пол»: checked/total виден, а не скрыт) для пометки
+                    # verification="budget_exceeded" на стороне слоя.
                     stats["budget_exceeded"] = True
                     stats["inconclusive"] += 1
+                    stats.setdefault("budget_exceeded_nodes", []).append(node_id)
                     continue
 
-                node_id = str(node["node_id"])
                 key = self._cache_key(node_id, head)
                 cached = self._cache.get("verdicts", {}).get(key)
                 if cached and cached.get("verdict"):

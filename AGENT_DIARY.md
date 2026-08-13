@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-13 23:55] — VOR-ресипт: checked/total в intel_get_project_memory (пол Тома) (DONE, 1142 passed)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1142 passed / 4 skipped (2026-08-13); LSP-diagnostics чистые в verify_on_read.py/layer.py/ui_formatter.py
+**Root Cause:** verify_on_read.run() считал stats (checked/nodes_seen/budget_exceeded), но layer.py:949 выбрасывал их — потребитель не видел checked/total и принимал вчерашний VERIFIED за свежую проверку (при budget_exceeded непроверенные узлы не флагались вовсе: «театр верификации», измерение ниже пола неотличимо от полного)
+**Fix:** (1) verify_on_read.py: budget_exceeded_nodes в stats; (2) layer.py: intel_get_project_memory → (memory, stats) + флаг verification="budget_exceeded" на непроверенные узлы; (3) ui_formatter: «🔎 VOR coverage: N/M узлов проверено» + ⚠️-маркер; (4) tools_reg.py: проброс stats. Единственный прод-коллер tools_reg — обновлён в том же diff (grep-развёртка: 5 вхождений метода, 6 форматера)
+**Guard:** test_budget_exceeded_nodes_recorded_in_stats (run-level, детерминизм: budget 10ms vs sleep 20ms) + test_layer_budget_exceeded_flags_nodes (инварианты: flagged == stats.budget_exceeded_nodes, processed == checked) + 5 formatter-тестов; полный pytest 1142 passed / 4 skipped
+**Pattern:** NEW-класс «метрика считается, но выбрасывается до ресипта» (1-й экземпляр); при повторении — завести P-xxx в реестре
+
 ## [2026-08-13 23:20] — Фикс job-чанков (фильтр embed-лога) + LIVE-SMOKE скрипт + правило §7 (DONE, 1135 passed)
 **Status:** ✅ Fixed (код+скрипт+доки; коммиты 7b38f50a + следующий)
 **verified_from_clean_state:** ✅ да — полный pytest 1135 passed / 4 skipped (2026-08-13); `python scripts/smoke_e2e.py --project .` → SMOKE E2E: PASSED (4/4: health, embed dim=384, rerank top=1, search 3 results); ruff clean

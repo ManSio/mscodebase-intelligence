@@ -399,14 +399,35 @@ def format_incident(component: str, symptom: str, fix: str, incident_id: str) ->
     )
 
 
-def format_project_memory(memory: Dict[str, List], limit: int = 3) -> str:
+def format_project_memory(
+    memory: Dict[str, List], limit: int = 3, stats: Optional[Dict] = None
+) -> str:
     """Форматирует вывод intel_get_project_memory.
 
     limit: сколько узлов секции показывать в сводке (limit <= 0 — все).
     По умолчанию 3 — токен-бюджет (память ×22 токенов в полном виде,
     эксперимент 2026-08-11); полный список — limit=0 (аудит).
+    stats: VOR-ресипт (пол Тома) — checked/total узлов, budget_exceeded,
+    latency_ms; без stats ресипт не выводится (обратная совместимость).
     """
     result = _("🧠 **Project Memory**\n\n")
+    if stats is not None:
+        if stats.get("verify_on_read") is False:
+            result += _("🔎 **VOR:** отключён (verify_on_read=False)\n\n")
+        else:
+            checked = stats.get("checked", 0)
+            total = stats.get("nodes_seen", 0)
+            warn = (
+                " ⚠️ бюджет исчерпан — непроверенные узлы несут статус прошлых циклов"
+                if stats.get("budget_exceeded")
+                else ""
+            )
+            result += _(
+                "🔎 **VOR coverage:** {checked}/{total} узлов проверено{warn}\n\n",
+                checked=checked,
+                total=total,
+                warn=warn,
+            )
     for section, items in memory.items():
         if not items:
             continue
@@ -431,6 +452,8 @@ def format_project_memory(memory: Dict[str, List], limit: int = 3) -> str:
             verification = item.get("verification")
             if verification == "no_anchors":
                 title += " ❓️ [неверифицируемо по коду]"
+            elif verification == "budget_exceeded":
+                title += " ⚠️ [не проверен: бюджет цикла исчерпан]"
             result += f"   • {title}\n"
         hidden = len(items) - len(shown)
         if hidden > 0:
