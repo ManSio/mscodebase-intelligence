@@ -406,9 +406,9 @@ def format_project_memory(memory: Dict[str, List]) -> str:
         if not items:
             continue
         icons = {
-            "adrs": "💡",
+            "adrs": "…",
             "known_issues": "🐛",
-            "tech_debt": "🧹",
+            "tech_debt": "🥹",
             "failed_attempts": "❌",
         }
         icon = icons.get(section, "📌")
@@ -421,6 +421,10 @@ def format_project_memory(memory: Dict[str, List]) -> str:
         for item in items[:3]:
             data = item.get("data", {})
             title = data.get("title", data.get("issue", data.get("fix", "?")))[:80]
+            # INCONCLUSIVE flag: external fact без якорей (ADR-0003)
+            verification = item.get("verification")
+            if verification == "no_anchors":
+                title += " ❓️ [неверифицируемо по коду]"
             result += f"   • {title}\n"
         if len(items) > 3:
             result += _("   • ...and {more} more\n", more=len(items) - 3)
