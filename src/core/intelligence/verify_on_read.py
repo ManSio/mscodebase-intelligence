@@ -99,20 +99,36 @@ class Anchor:
         return cls(str(d.get("kind", "")), str(d.get("value", "")))
 
 
-def extract_anchors(node: Dict[str, Any]) -> List[Anchor]:
+def extract_anchors(
+    node: Dict[str, Any], project_root: Optional[Path] = None
+) -> List[Anchor]:
     """Извлекает checkable-якоря из data/claim узла (лёгкий regex, без LLM).
 
     Приоритет: явные `data.anchors` (пишутся при записи узла), затем синтаксис
     в тексте claim/data: `file:path`, `import X` / `from X import y`,
     `env:KEY` / `$KEY`, пути с разделителями и расширением.
+
+    project_root (write-path, P2-фикс): при передаче file-якоря, которых нет
+    относительно корня, отбрасываются — вольный текст коммитов даёт мусор
+    (слепленные пути «pyproject/extension.toml/__init__.py», относительные
+    «queries/__init__.py», завершающая пунктуация «__init__.py.»), а fail-closed
+    _classify превращает его в ЛОЖНЫЙ REFUTED. Read-path (None) — все якоря
+    классифицируются честно: удалённый файл = дрейф → REFUTED (фильтр не
+    отключает детекцию дрейфа).
     """
     anchors: List[Anchor] = []
     seen: Set[Tuple[str, str]] = set()
 
     def _add(kind: str, value: str) -> None:
         value = value.strip().strip("`'\"")
+        # Обрезка завершающей пунктуации: "src/.../__init__.py." -> ".../__init__.py"
+        value = value.rstrip(".,;:!?)]}")
         if not value:
             return
+        # P2: write-path хранит только существующие файлы (мусор из текста — мимо)
+        if kind == "file" and project_root is not None:
+            if not (project_root / value).is_file():
+                return
         key = (kind, value)
         if key not in seen:
             seen.add(key)

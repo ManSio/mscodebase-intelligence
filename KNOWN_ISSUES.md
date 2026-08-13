@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-13 — P2: extract_anchors — мусорные якоря → ложные отзывы VOR (DONE)
+
+**Что:** anchor-capture (auto_collect_adrs/intel_add_memory_node) вытаскивал из текста коммитов мусорные якоря: слепленные пути («pyproject/extension.toml/__init__.py»), пути с завершающей пунктуацией («__init__.py.»), относительные пути без префикса src/ («queries/__init__.py»). _classify fail-closed (любой NOT_FOUND → REFUTED) → ЛОЖНЫЕ отзывы верных ADR (2026-08-13: ADR-f14435db31f2, ADR-9e0f0c5e7a4c).
+**Тесты:** +5 в tests/test_verify_on_read.py (22/22); полный pytest 1113 passed / 4 skipped; ruff clean. | **Fix:** verify_on_read.py `extract_anchors(node, project_root=None)` — P2: (1) обрезка завершающей пунктуации в _add (rstrip «.,;:!?)]}»); (2) при переданном project_root file-якоря, которых нет относительно корня, отбрасываются (write-path). layer.py: оба вызова (intel_add_memory_node, intel_auto_collect_adrs) передают project_root=self.project_path. Read-path (run()) без root — честная классификация (дрейф → REFUTED) сохранена.
+
 ## 2026-08-12 — Memory v2 (SUPERSEDED-фильтр + метрика false-retraction + ADR-0004 каскад) — DONE (не закоммичено)
 
 **Что:** v1-спека памяти закрыта + Propagation Engine. (1) store.load_memory скрывает терминальные REFUTED+SUPERSEDED (include_retracted для аудита); (2) verify-on-read больше НЕ переписывает терминальные статусы (SUPERSEDED не откатывается в VERIFIED); (3) store.memory_metrics() + health._check_memory — false_retraction_rate (доля вручную возвращённых отзывов, ловец false-negative дрифта системы проверки); (4) ADR-0004: propagation_engine.py — каскадная ретракция по data.depends_on/superseded_by (PROPAGATED_FROM:<root>, retract_source=propagation), хук в intel_retract_memory_node.

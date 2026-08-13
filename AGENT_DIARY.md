@@ -17,6 +17,22 @@
 
 ---
 
+## [2026-08-13 20:05] — P2-фикс: extract_anchors валидация якорей на write-path (DONE, 1113 passed)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `python -m pytest tests/ -q` → 1113 passed / 4 skipped (2026-08-13); ruff check на 3 изменённых файла — clean
+**Root Cause:** (аудит памяти 19:35) auto_collect_adrs/intel_add_memory_node писали мусорные file-якоря из вольного текста коммитов (слепленные пути «pyproject/extension.toml/__init__.py», завершающая пунктуация «__init__.py.», относительные «queries/__init__.py»); fail-closed _classify (любой NOT_FOUND → REFUTED) → ложные отзывы верных ADR (ADR-f14435db31f2, ADR-9e0f0c5e7a4c)
+**Fix:** verify_on_read.py `extract_anchors(node, project_root=None)`: (1) _add обрезает завершающую пунктуацию (rstrip «.,;:!?)]}»); (2) при переданном project_root file-якоря без существующего файла отбрасываются (write-path). layer.py: оба вызова передают project_root=self.project_path. Read-path (run(), без root) — честная классификация (дрейф→REFUTED) сохранена. +5 тестов (фильтр слепленных, обрезка пунктуации, явные anchors, backward-compat без root)
+**Guard:** тесты test_verify_on_read.py 22/22; полный pytest 1113/4/94; ruff 0; KNOWN_ISSUES#2026-08-13-P2 → DONE
+**Pattern:** P-002-класс «инструмент-предположение» — extract_anchors предполагал токен=путь; закрыто валидацией существования на write-path (ADR-0003 урок «write-path хранит ТОЧНЫЕ якоря»)
+
+## [2026-08-13 19:35] — Аудит project memory: VOR работает, 2 ложных авто-отзыва закрыты пересохранением, 1 устаревший узел суперседирован (DONE)
+**Status:** ✅ Fixed (память приведена в порядок; мутации — через MCP-инструменты; файл памяти вне git)
+**verified_from_clean_state:** ✅ да — повторный дамп 36 узлов (5 VERIFIED / 24 ACTIVE / 6 REFUTED / 1 SUPERSEDED) + прогон VOR через intel_get_project_memory без новых отзывов
+**Root Cause:** (1) VOR работает — 4 авто-отзыва SILENT_ABSENCE_ON_READ; (2) 2 авто-отзыва ЛОЖНЫЕ — anchor-capture в auto_collect_adrs извлекает мусор (слепленные пути, завершающая пунктуация, относительные пути), а fail-closed _classify (любой NOT_FOUND → REFUTED) превращает это в ложные отзывы верных ADR; (3) узел-статус «SCM wiring pending owner decision» устарел — решение принято позже
+**Fix:** supersede ADR-0af7ba03fb7d → ADR-856e1eb09655; пересохранение 2 фактов с ЯВНЫМИ валидными якорями (NODE-544497/NODE-f55bcd → VERIFIED после VOR); промежуточные мусорные узлы отозваны с причиной; KNOWN_ISSUES: P2-дефект extract_anchors (нет валидации путей)
+**Guard:** §5.24 п.5c (restore ≠ remap — перезапись с якорями); метрика false-retraction в health — сигнал о качестве якорей auto_collect
+**Pattern:** P-002-класс «инструмент-предположение» — extract_anchors предполагает, что извлечённый токен = валидный путь; обход: явные anchors при записи
+
 ## [2026-08-13 19:10] — Глобальный AGENTS.md: §5.24 семантическая память + Red Team (DONE)
 **Status:** ✅ Fixed (C:\Users\misha\AppData\Roaming\Zed\AGENTS.md — вне репозитория)
 **verified_from_clean_state:** ⚠️ полный clean-state неприменим (файл вне git); проверено: assert-якоря count==1 ×3, повторное чтение всех регионов, grep-дубли 0; CRLF 1643/1643 + BOM нет — сохранены

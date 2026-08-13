@@ -120,6 +120,55 @@ def test_extract_anchors_no_anchors():
     assert extract_anchors(node) == []
 
 
+def test_extract_anchors_write_path_filters_missing_files(project):
+    """P2: write-path отбрасывает file-якоря, которых нет относительно корня
+    (слепленные/относительные пути из вольного текста коммитов)."""
+    node = _node(
+        "N1",
+        "version sync: src/main.py и src/core/cypher_engine.py, "
+        "плюс pyproject/extension.toml/__init__.py для синка",
+    )
+    anchors = extract_anchors(node, project_root=project)
+    kinds = {(a.kind, a.value) for a in anchors}
+    assert ("file", "src/main.py") in kinds
+    assert ("file", "src/core/cypher_engine.py") in kinds
+    assert ("file", "pyproject/extension.toml/__init__.py") not in kinds
+
+
+def test_extract_anchors_write_path_strips_punctuation(project):
+    """P2: завершающая пунктуация обрезается — «src/.../cypher_engine.py.» валиден."""
+    node = _node("N1", "используется file:src/core/cypher_engine.py.")
+    anchors = extract_anchors(node, project_root=project)
+    assert ("file", "src/core/cypher_engine.py") in {(a.kind, a.value) for a in anchors}
+
+
+def test_extract_anchors_explicit_anchors_filtered(project):
+    """P2: явные data.anchors с несуществующим файлом тоже отбрасываются на write-path."""
+    node = _node(
+        "N1", "claim",
+        anchors=[
+            {"kind": "file", "value": "src/core/cypher_engine.py"},
+            {"kind": "file", "value": "queries/__init__.py"},
+            {"kind": "file", "value": "src/core/cypher_engine.py."},
+        ],
+    )
+    anchors = extract_anchors(node, project_root=project)
+    kinds = {(a.kind, a.value) for a in anchors}
+    assert ("file", "src/core/cypher_engine.py") in kinds
+    assert ("file", "queries/__init__.py") not in kinds
+    assert ("file", "src/core/cypher_engine.py.") not in kinds
+
+
+def test_extract_anchors_read_path_backward_compat():
+    """P2: без project_root (read-path) поведение не меняется: мусорные пути
+    остаются якорями — классификация честная (дрейф -> REFUTED)."""
+    node = _node("N1", "упоминание pyproject/extension.toml/__init__.py")
+    anchors = extract_anchors(node)
+    assert ("file", "pyproject/extension.toml/__init__.py") in {
+        (a.kind, a.value) for a in anchors
+    }
+
+
 # =====================================================================
 # VERDICTS
 # =====================================================================
