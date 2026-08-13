@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 00:15] — Аудит-ресипт памяти: статусы+причины, метрики в ресипте, smoke_memory негативный контроль (DONE, 1146 passed)
+**Status:** ✅ Fixed (код+скрипт+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1146 passed / 4 skipped; `python scripts/smoke_memory.py` → SMOKE MEMORY: PASSED (5/5)
+**Root Cause:** (1) intel_get_project_memory(include_retracted=True) назывался «аудит», но не показывал статусы и причины — список заголовков без контекста (аудит без причин бесполезен); (2) метрики (memory_metrics) жили только в JSON — MCP-способа снять их не было; (3) не было негативного контроля VOR вне pytest («зелёные галочки»)
+**Fix:** (1) ui_formatter: аудит-режим (эвристика: REFUTED/SUPERSEDED в выдаче) → маркеры `[REFUTED: причина]`/`[SUPERSEDED]`/`[VERIFIED]`/`[ACTIVE]`; (2) layer: stats["metrics"]=store.memory_metrics() → строка «📊 Статусы: V·A·R·S | false_retraction: X%»; (3) NEW scripts/smoke_memory.py — реальный путь VOR без моков: positive arm→VERIFIED, negative arm→REFUTED с причиной, no-anchor→ACTIVE, terminal guard, честный ресипт; exit 0/1. Новый MCP-тул НЕ добавлен — guard счётчика 61 (test_count_tools_real_project_guard) + ~15 доков × 3 языка = неоправданный blast radius; метрики в ресипте существующего тула
+**Guard:** smoke_memory.py exit 0 = PASSED (negative control: верификатор обязан падать на мёртвом якоре); +6 тестов; полный pytest 1146 passed / 4 skipped
+**Pattern:** NEW-класс «инструмент называет себя аудитом, но скрывает данные аудита» (1-й экземпляр)
+
 ## [2026-08-13 23:55] — VOR-ресипт: checked/total в intel_get_project_memory (пол Тома) (DONE, 1142 passed)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
 **verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1142 passed / 4 skipped (2026-08-13); LSP-diagnostics чистые в verify_on_read.py/layer.py/ui_formatter.py

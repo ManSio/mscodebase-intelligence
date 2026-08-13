@@ -408,7 +408,10 @@ def format_project_memory(
     По умолчанию 3 — токен-бюджет (память ×22 токенов в полном виде,
     эксперимент 2026-08-11); полный список — limit=0 (аудит).
     stats: VOR-ресипт (пол Тома) — checked/total узлов, budget_exceeded,
-    latency_ms; без stats ресипт не выводится (обратная совместимость).
+    latency_ms, metrics (store.memory_metrics: распределение статусов +
+    false_retraction_rate); без stats ресипт не выводится (обратная совместимость).
+    Аудит-режим (include_retracted=True) детектится по наличию REFUTED/SUPERSEDED
+    узлов в выдаче — тогда каждый узел получает статус и причину отзыва.
     """
     result = _("🧠 **Project Memory**\n\n")
     if stats is not None:
@@ -428,6 +431,25 @@ def format_project_memory(
                 total=total,
                 warn=warn,
             )
+        metrics = stats.get("metrics")
+        if metrics:
+            by = metrics.get("by_status", {})
+            result += _(
+                "📊 **Статусы:** VERIFIED {v} · ACTIVE {a} · REFUTED {r} · SUPERSEDED {s} "
+                "| false_retraction: {fr}%\n\n",
+                v=by.get("VERIFIED", 0),
+                a=by.get("ACTIVE", 0),
+                r=by.get("REFUTED", 0),
+                s=by.get("SUPERSEDED", 0),
+                fr=metrics.get("false_retraction_rate", 0.0),
+            )
+    # Аудит-режим: наличие REFUTED/SUPERSEDED в выдаче означает include_retracted=True
+    # -> показываем статусы и причины (иначе аудит — список заголовков без контекста).
+    audit = any(
+        item.get("status") in ("REFUTED", "SUPERSEDED")
+        for section in memory.values()
+        for item in section
+    )
     for section, items in memory.items():
         if not items:
             continue
@@ -454,6 +476,19 @@ def format_project_memory(
                 title += " ❓️ [неверифицируемо по коду]"
             elif verification == "budget_exceeded":
                 title += " ⚠️ [не проверен: бюджет цикла исчерпан]"
+            # Аудит-режим: статус + причина отзыва (ADR-0002: REFUTED не стирается,
+            # остаётся в истории с причиной — её и показывает выдача).
+            if audit and item.get("status"):
+                status = item["status"]
+                if status == "REFUTED":
+                    reason = str(item.get("retract_reason") or item.get("reason") or "")[:80]
+                    title += f" 🔴 [REFUTED: {reason}]"
+                elif status == "SUPERSEDED":
+                    title += " 🔶 [SUPERSEDED]"
+                elif status == "VERIFIED":
+                    title += " ✅ [VERIFIED]"
+                else:
+                    title += " ⚪ [ACTIVE]"
             result += f"   • {title}\n"
         hidden = len(items) - len(shown)
         if hidden > 0:

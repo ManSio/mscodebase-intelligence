@@ -947,6 +947,8 @@ class ProjectIntelligenceLayer:
             (memory, stats). stats — ресипт проверки (пол Тома): nodes_seen/
             checked/budget_exceeded/latency_ms — потребитель сам видит
             checked/total и решает, преждевременно ли измерение.
+            stats["metrics"] — store.memory_metrics(): распределение статусов
+            и false_retraction_rate (снятие метрик без отдельного тула).
         """
         memory = self.store.load_memory(include_retracted=include_retracted)
         if verify_on_read and not include_retracted:
@@ -972,6 +974,7 @@ class ProjectIntelligenceLayer:
                             node.setdefault("verification", "budget_exceeded")
         else:
             stats = {"verify_on_read": False}
+        stats["metrics"] = self.store.memory_metrics()
         return memory, stats
 
     def _load_flat_memory_nodes(self) -> List[Dict]:
