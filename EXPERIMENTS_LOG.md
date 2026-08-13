@@ -1,5 +1,22 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-13] — EXP: «сервер недоступен во время индексации» — root cause = sync update_all в main loop
+
+**Гипотеза:** таймауты всех MCP-запросов на ~13 мин при полной переиндексации вызваны НЕ индексацией самой по себе (она в run_in_executor, loop свободен), а синхронным AutoDocUpdater.update_all() (generate_docs+README+KNOWN_ISSUES, rglob по docs/) в main event loop ПОСЛЕ индексации (layer.py _run_reindex_job).
+**Команда:** `intel_trigger_reindex(mode="full")` + серия запросов (job_status/hotspots/passport) во время и после; `wmic`/tasklist для состояния процесса; чтение кода (layer.py L672-808, auto_doc_updater.py L114-163).
+**Сырой результат:**
+```
+intel_trigger_reindex → job 0d27f125, ETA 18с
+все запросы ~13 мин: Context server request timeout (включая intel_get_job_status)
+get_logs: Timeout after 771664ms (attempt 1/1)
+job completed: 7383/7383, 552с (ETA 18с vs 552с, ×30)
+после: процесс 19728 мёртв (канал closed) — Zed убил MCP
+код: update_all() вызывается СИНХРОННО в async-задаче (main loop)
+```
+**Вердикт: ✅ подтверждена.** 552с индексации + ~220с update_all = 771с недоступности — совпадает с логом. Индексация в executor (H1 опровергнута); fast-fail search при is_reindexing есть; блокировал именно sync-update_all (BS-11-класс: run_full_diagnostic уже был вынесен в to_thread в intel_predict_root_cause).
+**Урок:** любые синхронные вызовы тяжёлых методов (rglob/generation) в async-функциях = блокировка ВСЕХ запросов; паттерн-эталон — asyncio.to_thread + wait_for (BS-11). Guard-тест: test_reindex_responsive.py (тики loop не замирают во время update_all; max_gap < 0.3с).
+**Связь с отрицательными:** нет.
+
 ## [2026-08-12] — EXP-1 → тест: canary fail-closed внедрён, 13/13 регрессий (атаки EXP-1 больше не проходят)
 
 **Гипотеза:** фикс по уроку EXP-1 (абсолютный якорь + fail-closed + collapse-детектор) переводит атаки (b)(c)(d)(e) из PASSED в BLOCKED, не сломав accepts_good/rejects_bad.

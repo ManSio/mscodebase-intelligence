@@ -399,8 +399,13 @@ def format_incident(component: str, symptom: str, fix: str, incident_id: str) ->
     )
 
 
-def format_project_memory(memory: Dict[str, List]) -> str:
-    """Форматирует вывод intel_get_project_memory."""
+def format_project_memory(memory: Dict[str, List], limit: int = 3) -> str:
+    """Форматирует вывод intel_get_project_memory.
+
+    limit: сколько узлов секции показывать в сводке (limit <= 0 — все).
+    По умолчанию 3 — токен-бюджет (память ×22 токенов в полном виде,
+    эксперимент 2026-08-11); полный список — limit=0 (аудит).
+    """
     result = _("🧠 **Project Memory**\n\n")
     for section, items in memory.items():
         if not items:
@@ -418,7 +423,8 @@ def format_project_memory(memory: Dict[str, List]) -> str:
             section=section.replace("_", " ").title(),
             count=len(items),
         )
-        for item in items[:3]:
+        shown = items if limit <= 0 else items[:limit]
+        for item in shown:
             data = item.get("data", {})
             title = data.get("title", data.get("issue", data.get("fix", "?")))[:80]
             # INCONCLUSIVE flag: external fact без якорей (ADR-0003)
@@ -426,8 +432,9 @@ def format_project_memory(memory: Dict[str, List]) -> str:
             if verification == "no_anchors":
                 title += " ❓️ [неверифицируемо по коду]"
             result += f"   • {title}\n"
-        if len(items) > 3:
-            result += _("   • ...and {more} more\n", more=len(items) - 3)
+        hidden = len(items) - len(shown)
+        if hidden > 0:
+            result += _("   • ...and {more} more\n", more=hidden)
         result += "\n"
     return result
 

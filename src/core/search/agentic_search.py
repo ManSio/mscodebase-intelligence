@@ -724,6 +724,8 @@ class AgenticSearchMixin:
             query: Поисковый запрос
             limit: Максимальное число результатов
         """
+        if self._reindex_fast_fail():
+            return ""
         try:
             results, metadata = self.agentic_deep_search(
                 query,

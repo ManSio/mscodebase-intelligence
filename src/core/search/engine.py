@@ -366,6 +366,23 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             logger.error(f"Ошибка get_chunks_by_parent_id: {e}")
             return []
 
+    def _reindex_fast_fail(self) -> bool:
+        """True, если идёт переиндексация — поиск обязан мгновенно вернуть пусто,
+        а не висеть на lock'ах БД/FTS5 (инцидент 2026-08-13: search_code таймаутил
+        во время full reindex; паттерн hybrid_search fast-fail / chunkhound guard)."""
+        if self.indexer is None:
+            return False
+        dbm = getattr(self.indexer, "db_manager", None)
+        if dbm is None:
+            return False
+        reindexing = getattr(dbm, "is_reindexing", None)
+        if callable(reindexing) and reindexing():
+            logger.warning(
+                "search: reindex in progress, fast-fail (retry in a few seconds)"
+            )
+            return True
+        return False
+
     def hybrid_search(
         self,
         query: str,
@@ -872,6 +889,20 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # ── Tracer for explainability ──
         tracer = SearchTracer(query, enabled=explain) if explain else None
 
+        # Reindex fast-fail (инцидент 2026-08-13): fast-ветка (vector+FTS5) шла
+        # в БД напрямую и висела на lock'ах индексации (search_code таймаутил).
+        # Мгновенный пустой ответ — как hybrid_search (chunkhound guard).
+        if self._reindex_fast_fail():
+            return {
+                "results": [],
+                "mode": mode,
+                "timing_ms": {"total_ms": 0.0},
+                "cache_hit": False,
+                "model_info": None,
+                "rerank_timing": {},
+                "trace": tracer.to_dict() if tracer else None,
+            }
+
         # Проверяем кэш (изолируем по режиму, запросу, лимиту, слою и intent)
         cache_key = f"{mode}:{query}:{limit}:{layer or ''}:{intent_hint}"
         with self._cache_lock:
@@ -1012,6 +1043,8 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             selected_code: Выделенный фрагмент кода
             limit: Максимальное число результатов
         """
+        if self._reindex_fast_fail():
+            return ""
         if not selected_code.strip():
             return _("❌ Empty code fragment for search.")
 
