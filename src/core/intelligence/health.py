@@ -105,6 +105,11 @@ class HealthReport:
         self._check_search_quality()
         logger.warning("[diag] _check_search_quality OK")
 
+        # 6.5. Метрика памяти (false-retractions, спека v1)
+        logger.warning("[diag] _check_memory...")
+        self._check_memory()
+        logger.warning("[diag] _check_memory OK")
+
         # 7. Формирование итогового отчёта
         logger.warning("[diag] _build_report...")
         result = self._build_report()
@@ -672,6 +677,33 @@ class HealthReport:
             return False
         text = (r.get("text_full") or r.get("text") or r.get("snippet") or "").strip()
         return bool(text)
+
+    def _check_memory(self):
+        """Метрика памяти: доля false-retractions (спека v1, раздел «Метрика»).
+
+        Ловит false-negative дрифт самой системы проверки: если verify-on-read
+        или типизация якорей систематически отзывают верные факты, человек
+        возвращает их через intel_restore_memory_node (false_retraction=true).
+        Рост доли сигнализирует о проблеме раньше, чем агенты начнут терять
+        факты из контекста.
+        """
+        from src.core.intelligence.store import IntelligenceStore
+
+        metrics = IntelligenceStore(self.project_path).memory_metrics()
+        self.metrics["memory"] = metrics
+        if metrics["false_retractions"] > 0:
+            self.warnings.append(
+                {
+                    "component": "memory",
+                    "message": (
+                        f"False-retractions: {metrics['false_retractions']}/"
+                        f"{metrics['refuted_total']} (rate="
+                        f"{metrics['false_retraction_rate']:.2%}) — отзывы верных "
+                        "фактов возвращены вручную; проверить точность якорей/"
+                        "verify-on-read"
+                    ),
+                }
+            )
 
     def _check_search_quality(self):
         """Synthetic monitoring: проверка качества семантического поиска.

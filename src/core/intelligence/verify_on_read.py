@@ -62,6 +62,7 @@ VERDICT_INCONCLUSIVE = "INCONCLUSIVE"
 STATUS_ACTIVE = "ACTIVE"
 STATUS_VERIFIED = "VERIFIED"
 STATUS_REFUTED = "REFUTED"
+STATUS_SUPERSEDED = "SUPERSEDED"
 
 DEFAULT_BUDGET_MS = 50.0
 CACHE_FILENAME = "verify_cache.json"
@@ -362,9 +363,13 @@ class VerifyOnRead:
                 n = by_id.get(tr["node_id"])
                 if n is None:
                     continue
+                # Терминальные статусы (REFUTED/SUPERSEDED) verify-on-read'ом не
+                # переписываются: отозванное/заменённое остаётся в истории.
+                # Без этого guard'а SUPERSEDED-узел с живыми якорями был бы
+                # молча откачен в VERIFIED (откат терминального статуса).
+                if n.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                    continue
                 if tr["status"] == STATUS_REFUTED:
-                    if n.get("status") == STATUS_REFUTED:
-                        continue
                     n["status"] = STATUS_REFUTED
                     n["retract_reason"] = tr["reason"]
                     n["retracted_at"] = now
@@ -372,7 +377,9 @@ class VerifyOnRead:
                     logger.info(
                         "verify_on_read: REFUTED %s (%s)", tr["node_id"], tr["reason"]
                     )
-                elif n.get("status") != STATUS_VERIFIED:
+                elif n.get("status") in (None, STATUS_ACTIVE):
+                    # VERIFIED-переход только для ACTIVE/без статуса — legacy-узлы
+                    # интерпретируются как ACTIVE (ADR-0002); прочие статусы не трогаем.
                     n["status"] = STATUS_VERIFIED
                     n["verified_at"] = now
                 changed = True
@@ -457,6 +464,7 @@ class VerifyOnRead:
                     )
                 else:
                     stats["inconclusive"] += 1
+                    stats.setdefault("inconclusive_nodes", []).append(node_id)
 
         self._persist_transitions(transitions)
         self._persist_cache()

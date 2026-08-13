@@ -149,3 +149,15 @@
 - MCPSec/message-auth НЕ применимы: localhost stdio, tools статические
   (guard-тесты test_tool_registration_security). CoREB: короткие запросы
   схлопываются — benchmark2/keywords.jsonl (8 кейсов).
+
+## Memory lifecycle v2 (2026-08-12)
+- Терминальные статусы (REFUTED/SUPERSEDED) НЕ переписываются verify-on-read:
+  VERIFIED-переход только для None/ACTIVE (_persist_transitions guard);
+  store.load_memory скрывает оба терминальных (include_retracted — аудит).
+- Каскадная ретракция (ADR-0004): intel_retract → downstream (data.depends_on /
+  superseded_by) REFUTED с retract_reason=PROPAGATED_FROM:<root>, в том же RMW
+  под _write_lock; restore/verify-on-read не каскадят (v1).
+- Метрика false-retraction: store.memory_metrics() (rate = восстановленные /
+  отозванные) + health._check_memory — ловец false-negative дрифта проверки.
+- Правка CRLF-файлов с эмодзи: edit_file с ФАКТИЧЕСКИМ UTF-8 символом; \U0001F9E0
+  в JSON — невалидный escape; python -c на Windows съедает \\ (bash) — нельзя.

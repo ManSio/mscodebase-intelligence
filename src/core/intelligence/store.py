@@ -24,6 +24,11 @@ __all__ = [
 ]
 logger = logging.getLogger("MSCodeBase.Intelligence.Store")
 
+# Терминальные статусы, скрытые при чтении по умолчанию (ADR-0002/0003):
+# REFUTED — опровергнут, SUPERSEDED — заменён более свежим фактом.
+# include_retracted=True возвращает их для аудита.
+_HIDDEN_STATUSES = ("REFUTED", "SUPERSEDED")
+
 
 # =====================================================================
 # ДАТАКЛАССЫ
@@ -99,6 +104,8 @@ class IntelligenceStore:
         - Старый: dict с секциями как ключами
 
         ADR-0002: узлы со status == "REFUTED" скрыты по умолчанию;
+        SUPERSEDED (ADR-0002 follow-up: intel_supersede_memory_node) — тоже
+        терминальный, скрывается аналогично (заменён более свежим фактом);
         include_retracted=True возвращает их (для аудита). Узлы без поля
         "status" интерпретируются как ACTIVE (backward-compat).
         """
@@ -120,7 +127,7 @@ class IntelligenceStore:
                         for item in v
                         if not (
                             isinstance(item, dict)
-                            and item.get("status") == "REFUTED"
+                            and item.get("status") in _HIDDEN_STATUSES
                         )
                     ]
                 sections[k] = v
@@ -136,13 +143,48 @@ class IntelligenceStore:
             if isinstance(n, dict):
                 sec = n.get("section", "")
                 if sec in sections:
-                    if n.get("status") == "REFUTED" and not include_retracted:
+                    if n.get("status") in _HIDDEN_STATUSES and not include_retracted:
                         continue
                     sections[sec].append(n)
         return sections
 
     def save_memory(self, nodes: List[Dict]):
         self._save_json("project_memory.json", nodes)
+
+    def memory_metrics(self) -> Dict[str, Any]:
+        """Метрики памяти для мониторинга (спека v1, раздел «Метрика»).
+
+        false_retraction_rate — доля когда-либо отозванных узлов (текущие
+        REFUTED + восстановленные с false_retraction=true), которые человек
+        вручную вернул как ложные отзывы (intel_restore_memory_node).
+        Рост метрики сигнализирует о false-negative дрифте самой системы
+        проверки (неточные якоря / verify-on-read), а не только о дрейфе
+        фактов против кода.
+        """
+        nodes = self._load_json("project_memory.json")
+        if isinstance(nodes, dict):
+            # Legacy-формат: {"section": [...]} -> флеттим для подсчёта
+            nodes = [n for v in nodes.values() if isinstance(v, list) for n in v]
+        total = 0
+        by_status: Dict[str, int] = {}
+        false_retractions = 0
+        for n in nodes:
+            if not isinstance(n, dict):
+                continue
+            total += 1
+            status = n.get("status") or "ACTIVE"
+            by_status[status] = by_status.get(status, 0) + 1
+            if n.get("false_retraction"):
+                false_retractions += 1
+        refuted_total = by_status.get("REFUTED", 0) + false_retractions
+        rate = round(false_retractions / refuted_total, 4) if refuted_total else 0.0
+        return {
+            "total": total,
+            "by_status": by_status,
+            "refuted_total": refuted_total,
+            "false_retractions": false_retractions,
+            "false_retraction_rate": rate,
+        }
 
 
 # =====================================================================

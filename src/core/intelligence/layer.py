@@ -923,14 +923,22 @@ class ProjectIntelligenceLayer:
         ADR-0003: verify_on_read=True (по умолчанию) — ACTIVE-узлы проходят
         ленивую проверку якорей (file/import/env) при извлечении: прямые
         отрицательные тесты -> REFUTED (SILENT_ABSENCE_ON_READ), найденные
-        -> VERIFIED, непроверяемые (без якорей) -> остаются ACTIVE.
+        -> VERIFIED, непроверяемые (без якорей) -> остаются ACTIVE с флагом
+        verification="no_anchors" для выдачи агенту (ADR-0003: предохранитель).
         """
         memory = self.store.load_memory(include_retracted=include_retracted)
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
             verifier = get_verifier(self.project_path, self.store, self._write_lock)
-            memory, _stats = await asyncio.to_thread(verifier.run, memory)
+            memory, stats = await asyncio.to_thread(verifier.run, memory)
+            # Помечаем INCONCLUSIVE узлы флагом для выдачи агенту
+            inconclusive_ids = set(stats.get("inconclusive_nodes", []))
+            if inconclusive_ids:
+                for section, nodes in memory.items():
+                    for node in nodes:
+                        if node.get("node_id") in inconclusive_ids:
+                            node.setdefault("verification", "no_anchors")
         return memory
 
     def _load_flat_memory_nodes(self) -> List[Dict]:
@@ -1039,10 +1047,101 @@ class ProjectIntelligenceLayer:
                     n["status"] = "REFUTED"
                     n["retract_reason"] = reason
                     n["retracted_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # ADR-0004: каскад на зависимые узлы (data.depends_on /
+                    # superseded_by) — контаминация не распространяется на
+                    # downstream. В том же RMW под локом (TOCTOU-инвариант).
+                    from src.core.intelligence.propagation_engine import PropagationEngine
+
+                    by_id = {x.get("node_id"): x for x in nodes if isinstance(x, dict)}
+                    cascade = PropagationEngine.retract_cascade(
+                        nodes, node_id, reason
+                    )
+                    for tr in cascade:
+                        dep = by_id.get(tr["node_id"])
+                        if dep is None:
+                            continue
+                        dep["status"] = "REFUTED"
+                        dep["retract_reason"] = tr["retract_reason"]
+                        dep["retracted_at"] = n["retracted_at"]
+                        dep["retract_source"] = tr["retract_source"]
+                        logger.info(
+                            "propagation: REFUTED %s (зависит от %s)",
+                            tr["node_id"],
+                            node_id,
+                        )
                     self.store._save_json("project_memory.json", nodes)
                     logger.info(f"Узел {node_id} отозван: {reason[:50]}...")
+                    extra = (
+                        f" (+{len(cascade)} зависимых отозвано)" if cascade else ""
+                    )
                     return _(
-                        "Узел {node_id} отозван (status=REFUTED). Причина: {reason}",
+                        "Узел {node_id} отозван (status=REFUTED). Причина: {reason}{extra}",
+                        node_id=node_id,
+                        reason=reason,
+                        extra=extra,
+                    )
+            return _("Узел {node_id} не найден.", node_id=node_id)
+
+    async def intel_restore_memory_node(self, node_id: str, reason: str) -> str:
+        """Восстановить узел из REFUTED (ручной возврат факта, ADR-0002/0003).
+
+        Переводит узел из REFUTED обратно в ACTIVE, фиксирует причину восстановления
+        (restore_reason) и время (restored_at). Добавляет флаг
+        false_retraction=true для метрики ложных отзывов (спека v1).
+        Восстановление без непустой причины невозможно.
+        """
+        reason = reason.strip() if reason else ""
+        if not reason:
+            return _(
+                "Восстановление требует непустую причину (reason) — память не восстанавливается молча."
+            )
+        async with _AsyncLockAdapter(self._write_lock):
+            nodes = self._load_flat_memory_nodes()
+            for n in nodes:
+                if n.get("node_id") == node_id:
+                    if n.get("status") != "REFUTED":
+                        return _("Узел {node_id} не в статусе REFUTED (текущий: {status}).",
+                               node_id=node_id, status=n.get("status", "ACTIVE"))
+                    n["status"] = "ACTIVE"
+                    n["restore_reason"] = reason
+                    n["restored_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    n["false_retraction"] = True  # метрика: этот REFUTED был ложным
+                    self.store._save_json("project_memory.json", nodes)
+                    logger.info(f"Узел {node_id} восстановлен: {reason[:50]}...")
+                    return _(
+                        "Узел {node_id} восстановлен (status=ACTIVE, false_retraction=true). Причина: {reason}",
+                        node_id=node_id,
+                        reason=reason,
+                    )
+            return _("Узел {node_id} не найден.", node_id=node_id)
+
+    async def intel_supersede_memory_node(self, node_id: str, reason: str, new_node_id: str = "") -> str:
+        """Пометить узел как SUPERSEDED — заменён более свежим фактом.
+
+        SUPERSEDED — терминальный статус (не REFUTED): факт был верен, но устарел.
+        В отличие от REFUTED, это не опровержение, а естественная смена знания.
+        Опционально: new_node_id — ID нового узла, который замещает старый.
+        """
+        reason = reason.strip() if reason else ""
+        if not reason:
+            return _("SUPERSEDED требует непустую причину (reason).")
+        async with _AsyncLockAdapter(self._write_lock):
+            nodes = self._load_flat_memory_nodes()
+            for n in nodes:
+                if n.get("node_id") == node_id:
+                    if n.get("status") == "SUPERSEDED":
+                        return _("Узел {node_id} уже SUPERSEDED.", node_id=node_id)
+                    if n.get("status") == "REFUTED":
+                        return _("Нельзя SUPERSEDED REFUTED-узел (сначала restore).", node_id=node_id)
+                    n["status"] = "SUPERSEDED"
+                    n["supersede_reason"] = reason
+                    n["superseded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    if new_node_id:
+                        n["superseded_by"] = new_node_id
+                    self.store._save_json("project_memory.json", nodes)
+                    logger.info(f"Узел {node_id} -> SUPERSEDED: {reason[:50]}...")
+                    return _(
+                        "Узел {node_id} заменён (SUPERSEDED). Причина: {reason}",
                         node_id=node_id,
                         reason=reason,
                     )

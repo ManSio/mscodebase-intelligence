@@ -13,6 +13,19 @@
 - **Type resolution:** query-time LSP через basedpyright (не index-time USES_TYPE) — 2026-08-06/07
 - **Edge transparency:** confidence EXTRACTED/INFERRED + evidence в properties рёбер — 2026-08-08
 - **Memory retraction (ADR-0002):** status ACTIVE|VERIFIED|REFUTED + `intel_retract_memory_node` (OWP lifecycle VERIFIED→REFUTED, причина обязательна) — 2026-08-11
+- **Memory v2 (2026-08-12):** SUPERSEDED-фильтр в retrieval + verify-on-read не переписывает терминальные статусы + ADR-0004 Propagation Engine (каскадная ретракция) + метрика false-retraction
+
+---
+
+## [2026-08-12 04:00] — v1-спека памяти закрыта + ADR-0004 Propagation Engine (DONE, не закоммичено)
+**Status:** ✅ Fixed (код+тесты; commit/push по команде)
+**verified_from_clean_state:** ❌ нет — FAILED, единственный фейл — ЧУЖОЙ guard test_count_tools_real_project_guard (61vs58); мои 55 тестов зелёные; ruff 0 в моих файлах
+**Root Cause:** (1) SUPERSEDED не фильтровался в load_memory и откатывался verify-on-read'ом в VERIFIED (verify_on_read.py _persist_transitions: любая не-VERIFIED → VERIFIED) — молчаливый откат терминального статуса; (2) false_retraction был флагом без агрегации; (3) ADR-0004 принят, движка нет.
+**Fix:** (1) store.load_memory: _HIDDEN_STATUSES=(REFUTED,SUPERSEDED), include_retracted для аудита (оба формата); (2) _persist_transitions: VERIFIED-переход только для None/ACTIVE, терминальные не трогаются (guard + константа STATUS_SUPERSEDED); (3) store.memory_metrics() (refuted_total/false_retractions/false_retraction_rate) + health._check_memory в run_full_diagnostic; (4) src/core/intelligence/propagation_engine.py (BFS-каскад по data.depends_on/superseded_by, retract_reason=PROPAGATED_FROM:<root>|reason, retract_source=propagation, циклы-visited) + хук в intel_retract_memory_node (тот же RMW под _write_lock; ответ "+N зависимых отозвано"); ADR-0004 Implementation Notes (PropertyGraph-рёбра/STALE отложены — JSON-стор, O(n)). +21 тест: tests/test_propagation_engine.py (9), test_memory_retraction.py (+10: SUPERSEDED-фильтр, supersede-lifecycle, metrics), test_verify_on_read.py (+2: терминальные не переписываются).
+**Guard:** 55/55 зелёные; ruff чист по моим файлам; полный pytest 1108/1/4/94 (фейл — чужой).
+**Pattern:** P-002-класс «терминальный статус переписывается» — новый экземпляр (verify-on-read откатывал SUPERSEDED); закрыт guard'ом в _persist_transitions (пропуск терминальных).
+**Внешние блокеры (чужой staged-пакет прошлой/параллельной сессии, НЕ коммитил):** system_tools.py — 16 ruff (W293/F401/I001, DualArmHealthCheckTool); test_count_tools_real_project_guard 61vs58 (staged добавил intel_restore/intel_supersede/dual_arm — счётчик 58 и README не синхронизированы, P1 автору пакета); ui_formatter.py:404 unterminated string (битая незакоммиченная правка) — ПОЧИНЕНА мной (1 строка, намерение — эмодзи + \n\n — сохранено).
+**Следующий шаг:** владельцу решить судьбу чужого staged-пакета (синк 58→61 в тесте/README ×3 + ruff system_tools) ДО коммита моей части (иначе pre-commit/CI красные).
 
 ---
 
