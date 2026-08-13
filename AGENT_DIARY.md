@@ -17,9 +17,17 @@
 
 ---
 
+## [2026-08-13 19:10] — Глобальный AGENTS.md: §5.24 семантическая память + Red Team (DONE)
+**Status:** ✅ Fixed (C:\Users\misha\AppData\Roaming\Zed\AGENTS.md — вне репозитория)
+**verified_from_clean_state:** ⚠️ полный clean-state неприменим (файл вне git); проверено: assert-якоря count==1 ×3, повторное чтение всех регионов, grep-дубли 0; CRLF 1643/1643 + BOM нет — сохранены
+**Root Cause:** протокол агента не знал о VOR/retraction/Propagation Engine → дрейфующие факты памяти не отзывались
+**Fix:** §0.0 +2 строки (intel_get_project_memory с VOR / intel_retract_memory_node); §5.24 п.1-4 (текст владельца дословно) + п.5a-f Red Team: закрыт дрейф текст↔код — STALE_PENDING_REVALIDATION/semantic_cause/anchor_remap grep-0 (v1 каскад = REFUTED+PROPAGATED_FROM; semantic_cause — соглашение о тексте reason; restore не принуждает remap); §7 DoD п.11 Memory Lifecycle Integrity
+**Guard:** §5.24 п.5 (сверка протокола с v1); все термины Verified grep'ом по src (не Recalled)
+**Pattern:** — (документационный апдейт; дрейф закрыт на вставке)
+
 ## [2026-08-12 04:00] — v1-спека памяти закрыта + ADR-0004 Propagation Engine (DONE, не закоммичено)
 **Status:** ✅ Fixed (код+тесты; commit/push по команде)
-**verified_from_clean_state:** ❌ нет — FAILED, единственный фейл — ЧУЖОЙ guard test_count_tools_real_project_guard (61vs58); мои 55 тестов зелёные; ruff 0 в моих файлах
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1099 passed / 0 failed / 10 skipped (2026-08-12, после коммитов 688e6cf5 + синк счётчика 61; на момент записи в дневник было ❌ — FAILED из-за чужого guard 61vs58, закрыт в том же цикле коммитов)
 **Root Cause:** (1) SUPERSEDED не фильтровался в load_memory и откатывался verify-on-read'ом в VERIFIED (verify_on_read.py _persist_transitions: любая не-VERIFIED → VERIFIED) — молчаливый откат терминального статуса; (2) false_retraction был флагом без агрегации; (3) ADR-0004 принят, движка нет.
 **Fix:** (1) store.load_memory: _HIDDEN_STATUSES=(REFUTED,SUPERSEDED), include_retracted для аудита (оба формата); (2) _persist_transitions: VERIFIED-переход только для None/ACTIVE, терминальные не трогаются (guard + константа STATUS_SUPERSEDED); (3) store.memory_metrics() (refuted_total/false_retractions/false_retraction_rate) + health._check_memory в run_full_diagnostic; (4) src/core/intelligence/propagation_engine.py (BFS-каскад по data.depends_on/superseded_by, retract_reason=PROPAGATED_FROM:<root>|reason, retract_source=propagation, циклы-visited) + хук в intel_retract_memory_node (тот же RMW под _write_lock; ответ "+N зависимых отозвано"); ADR-0004 Implementation Notes (PropertyGraph-рёбра/STALE отложены — JSON-стор, O(n)). +21 тест: tests/test_propagation_engine.py (9), test_memory_retraction.py (+10: SUPERSEDED-фильтр, supersede-lifecycle, metrics), test_verify_on_read.py (+2: терминальные не переписываются).
 **Guard:** 55/55 зелёные; ruff чист по моим файлам; полный pytest 1108/1/4/94 (фейл — чужой).
