@@ -85,3 +85,69 @@ def test_budget_exceeded_node_marker():
     mem["adrs"][0]["verification"] = "budget_exceeded"
     out = format_project_memory(mem)
     assert "не проверен: бюджет цикла исчерпан" in out
+
+
+def _audit_mem() -> dict:
+    return {
+        "adrs": [
+            {
+                "node_id": "N1",
+                "status": "REFUTED",
+                "retract_reason": "SILENT_ABSENCE_ON_READ: file:src/x.py",
+                "data": {"title": "old-fact"},
+            },
+            {
+                "node_id": "N2",
+                "status": "SUPERSEDED",
+                "data": {"title": "stale-fact"},
+            },
+            {
+                "node_id": "N3",
+                "status": "VERIFIED",
+                "data": {"title": "live-fact"},
+            },
+        ]
+    }
+
+
+def test_audit_mode_shows_statuses_and_reasons():
+    """Аудит (include_retracted=True): REFUTED-узлы несут статус и причину отзыва —
+    иначе аудит был бы списком заголовков без контекста (ADR-0002: история не стирается)."""
+    out = format_project_memory(_audit_mem(), limit=0)
+    assert "🔴 [REFUTED: SILENT_ABSENCE_ON_READ: file:src/x.py]" in out
+    assert "🔶 [SUPERSEDED]" in out
+    assert "✅ [VERIFIED]" in out
+
+
+def test_normal_view_no_status_tags():
+    """Обычный режим (без REFUTED/SUPERSEDED) — статус-теги не выводятся (шум)."""
+    out = format_project_memory(_mem(1))
+    assert "[VERIFIED]" not in out
+    assert "[ACTIVE]" not in out
+
+
+def test_metrics_line_in_receipt():
+    """Снятие метрик: ресипт несёт распределение статусов и false_retraction_rate."""
+    out = format_project_memory(
+        _mem(1),
+        stats={
+            "verify_on_read": False,
+            "metrics": {
+                "total": 43,
+                "by_status": {"VERIFIED": 8, "ACTIVE": 28, "REFUTED": 6, "SUPERSEDED": 1},
+                "false_retraction_rate": 0.0,
+            },
+        },
+    )
+    assert "📊" in out
+    assert "VERIFIED 8" in out
+    assert "REFUTED 6" in out
+    assert "false_retraction: 0.0%" in out
+
+
+def test_no_metrics_no_line():
+    """Без metrics в stats строка метрик не выводится (обратная совместимость)."""
+    out = format_project_memory(
+        _mem(1), stats={"verify_on_read": False}
+    )
+    assert "📊" not in out

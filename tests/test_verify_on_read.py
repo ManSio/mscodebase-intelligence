@@ -457,6 +457,7 @@ def test_layer_hook_verify_on_read_default_on(project: Path):
     mem, stats = asyncio.run(layer.intel_get_project_memory())
     assert mem["adrs"] == []
     assert stats["nodes_seen"] == 1 and stats["checked"] == 1 and stats["refuted"] == 1
+    assert stats["metrics"]["total"] == 1  # снятие метрик в ресипте
     raw = layer.store._load_json("project_memory.json")[0]
     assert raw["status"] == STATUS_REFUTED
     assert raw["retract_source"] == RETRACT_SOURCE
@@ -468,7 +469,8 @@ def test_layer_hook_verify_on_read_off(project: Path):
 
     mem, stats = asyncio.run(layer.intel_get_project_memory(verify_on_read=False))
     assert [n["node_id"] for n in mem["adrs"]] == ["N1"]  # отключено: не проверялся
-    assert stats == {"verify_on_read": False}  # ресипт: VOR выключен
+    assert stats["verify_on_read"] is False  # ресипт: VOR выключен
+    assert "metrics" in stats  # метрики приходят и без VOR
     assert layer.store._load_json("project_memory.json")[0].get("status", STATUS_ACTIVE) == STATUS_ACTIVE
 
 

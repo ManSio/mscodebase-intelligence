@@ -521,6 +521,9 @@ pytest tests/ -m "not integration and not benchmark"
 
 # Live smoke (реальные сервисы, без моков — обязательно после изменений в серверах/индексе)
 python scripts/smoke_e2e.py --project .
+
+# Live smoke памяти (негативный контроль verify-on-read: VERIFIED/REFUTED/терминальные guard'ы)
+python scripts/smoke_memory.py
 ```
 
 ---
