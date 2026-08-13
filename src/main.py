@@ -125,6 +125,27 @@ def setup_logging():
     except Exception:
         pass  # Файловое логирование опционально
 
+    # 4. Фоновая очистка устаревших артефактов (GC) — не блокирует старт.
+    try:
+        import threading
+
+        def _gc_worker() -> None:
+            import time as _t
+
+            _t.sleep(3)  # даём серверу подняться
+            try:
+                from src.core.artifact_gc import prune_stale_artifacts
+
+                prune_stale_artifacts()
+            except Exception as _e:
+                logging.getLogger("MSCodebase").warning(
+                    f"ArtifactGC: {type(_e).__name__}: {_e}", exc_info=True
+                )
+
+        threading.Thread(target=_gc_worker, name="artifact-gc", daemon=True).start()
+    except Exception:
+        pass
+
     return original_stdout
 def main():
     """Главная функция запуска MCP-сервера."""

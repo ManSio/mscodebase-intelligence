@@ -214,12 +214,15 @@ class HealthReport:
             )
 
     def _check_logs(self):
-        """Проверка состояния логов."""
+        """Проверка состояния логов (центральный data_root/logs)."""
         try:
             from src.core.log_manager import get_log_dir
+
             logs_dir = get_log_dir(self.project_path)
         except Exception:
-            logs_dir = self.project_path / ".codebase_indices" / "logs"
+            from src.core.artifact_paths import get_logs_dir
+
+            logs_dir = get_logs_dir()
         if not logs_dir.exists():
             self.warnings.append(
                 {

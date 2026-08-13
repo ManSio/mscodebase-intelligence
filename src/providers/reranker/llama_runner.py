@@ -250,15 +250,45 @@ class _InterProcessLock:
 
     @staticmethod
     def _is_pid_alive(pid: int) -> bool:
-        """Проверяет, жив ли процесс по PID."""
+        """Проверяет, жив ли процесс по PID (с PID-reuse guard).
+
+        Инцидент 2026-08-13: reranker не запускался весь день — stale PID 28828
+        считался «живым», хотя llama-server давно завершился. Причины:
+        1) OpenProcess(SYNCHRONIZE) возвращает валидный handle для ЗАВЕРШЁННОГО
+           процесса, пока у кого-то (родитель/другой MCP) открыт handle на объект
+           процесса → ложный «жив»;
+        2) PID-reuse: мёртвый PID мог быть переиспользован другим процессом.
+
+        Надёжно: GetExitCodeProcess == STILL_ACTIVE (259) И имя процесса —
+        llama-server.exe. Всё остальное — «мёртв для нас» (лок освобождается,
+        сервер перезапускается).
+        """
         if sys.platform == 'win32':
             SYNCHRONIZE = 0x00100000
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
             kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-            handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
-            if handle:
+            handle = kernel32.OpenProcess(
+                SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+            )
+            if not handle:
+                return False
+            try:
+                exit_code = ctypes.c_ulong()
+                if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    return False
+                if exit_code.value != STILL_ACTIVE:
+                    return False
+                # PID-reuse guard: процесс обязан быть llama-server.exe
+                name_buf = ctypes.create_unicode_buffer(1024)
+                size = ctypes.c_ulong(len(name_buf))
+                if kernel32.QueryFullProcessImageNameW(
+                    handle, 0, name_buf, ctypes.byref(size)
+                ):
+                    return "llama-server" in Path(name_buf.value).name.lower()
+                return False
+            finally:
                 kernel32.CloseHandle(handle)
-                return True
-            return False
         else:
             try:
                 os.kill(pid, 0)
@@ -941,7 +971,20 @@ class LlamaRunner:
                     logger.info(f"🔌 llama-server уже запущен на порту {self._port} (другой процесс стартовал)")
                     self._model_key = model_key
                     return True
-                return self._spawn_embedder(model_key)
+                if not self._spawn_embedder(model_key):
+                    return False
+                # Держим lock ДО готовности порта: llama-server bind'ит порт через
+                # секунды после Popen (загрузка модели). Если отпустить lock раньше,
+                # второй MCP-процесс (другое окно Zed) захватит его, увидит пустой
+                # порт и запустит ВТОРОЙ embedder (инцидент 2026-08-13: 2×8080).
+                for _wait in range(60):
+                    time.sleep(0.5)
+                    if self._probe_port_sync(self._port):
+                        logger.info(f"✅ llama-server готов на порту {self._port}")
+                        self._model_key = model_key
+                        return True
+                logger.error("❌ llama-server не появился на порту после запуска")
+                return False
 
         except RuntimeError as e:
             # Не удалось захватить лок — другой процесс уже запускает
@@ -1040,7 +1083,18 @@ class LlamaRunner:
                 if await self._probe_port(self.RERANK_PORT):
                     logger.info(f"🔌 Реренкер уже запущен на порту {self.RERANK_PORT} (другой процесс стартовал)")
                     return True
-                return await self._spawn_reranker()
+                if not await self._spawn_reranker():
+                    return False
+                # Держим lock ДО готовности порта (см. _start_sync — тот же паттерн:
+                # llama-server bind'ит порт после загрузки модели; отпустить lock
+                # раньше = второй MCP-процесс запустит дубль).
+                for _wait in range(60):
+                    await asyncio.sleep(0.5)
+                    if await self._probe_port(self.RERANK_PORT):
+                        logger.info(f"✅ Реренкер готов на порту {self.RERANK_PORT}")
+                        return True
+                logger.error("❌ Реренкер не появился на порту после запуска")
+                return False
 
         except RuntimeError as e:
             # Не удалось захватить лок — другой процесс уже запускает

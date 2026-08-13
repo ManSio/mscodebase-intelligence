@@ -458,10 +458,12 @@ class ProjectIntelligenceLayer:
                 _lm_port_str = "1234"
             _llama_online = False
             # Динамическое сканирование ONNX модели (как в _detect_model_dir RemoteEmbedder)
+            from src.core.artifact_paths import get_onnx_models_base
+
             _search_paths = [
                 self.project_path / ".codebase_models" / "onnx",
                 Path(__file__).resolve().parent.parent.parent / ".codebase_models" / "onnx",
-                Path.home() / ".cache" / "mscodebase" / "models" / ".codebase_models" / "onnx",
+                get_onnx_models_base(),
             ]
             _onnx_loaded = False
             for _base in _search_paths:
@@ -768,13 +770,26 @@ class ProjectIntelligenceLayer:
                     duration = (job.ended_at or time.time()) - job.started_at
                     self.job_history.append_record(job.project_size, duration)
 
-                # 🔄 Авто-обновление документации после реиндекса
+                # 🔄 Авто-обновление документации после реиндекса.
+                # BS-11-класс: update_all (generate_docs+README+KNOWN_ISSUES, rglob по docs/)
+                # — синхронная работа на минуты; в main loop заблокировала бы ВСЕ запросы
+                # (инцидент 2026-08-13: сервер недоступен ~13 мин, таймауты, Zed убил процесс).
+                # Фикс: asyncio.to_thread (как run_full_diagnostic в intel_predict_root_cause)
+                # + wait_for(300) — loop свободен, документы обновляются в фоне.
                 try:
                     from src.core.auto_doc_updater import AutoDocUpdater
+
                     updater = AutoDocUpdater()
-                    doc_result = updater.update_all(str(self.project_path))
+                    doc_result = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            updater.update_all, str(self.project_path)
+                        ),
+                        timeout=300,
+                    )
                     logger.info("Auto-doc after reindex:\n%s", doc_result)
-                except Exception as doc_e:
+                except asyncio.TimeoutError:
+                    logger.warning("Auto-doc after reindex timed out (300s) — пропущено")
+                except Exception as doc_e:  # noqa: BLE001 — фоновая задача не роняет индексацию
                     logger.warning("Auto-doc after reindex failed: %s", doc_e)
 
             except Exception as e:

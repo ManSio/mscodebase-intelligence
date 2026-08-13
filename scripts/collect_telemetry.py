@@ -47,15 +47,21 @@ def _setup_env():
 
 
 def get_telemetry_dir() -> Path:
-    """Возвращает директорию для хранения телеметрии."""
-    for base in (".mscodebase", ".codebase_indices"):
-        d = Path.cwd() / base / "telemetry"
-        d.mkdir(parents=True, exist_ok=True)
-        if d.exists():
-            return d
-    d = Path.cwd() / ".codebase_indices" / "telemetry"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    """Возвращает директорию телеметрии в data_root (не в проекты!).
+
+    Исторически скрипт писал в <cwd>/.mscodebase/telemetry или
+    <cwd>/.codebase_indices/telemetry — засорял пользовательские проекты.
+    Теперь телеметрия идёт в <data_root>/projects/<hash>/telemetry через
+    единый модуль путей (Задача 4/5).
+    """
+    from src.core.artifact_paths import get_telemetry_dir as _get_telemetry_dir
+    from src.core.project_resolution import resolve_project_root
+
+    try:
+        project_path = resolve_project_root()
+    except (OSError, ValueError, RuntimeError):
+        project_path = Path.cwd()
+    return _get_telemetry_dir(project_path)
 
 
 def collect_counters() -> dict:

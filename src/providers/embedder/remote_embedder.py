@@ -118,14 +118,11 @@ class RemoteEmbedder(IEmbedder):
         if not self.ext_root.exists():
             # Test/fallback: try project root
             self.ext_root = Path(__file__).resolve().parent.parent.parent
+        from src.core.artifact_paths import get_onnx_models_base
+
         self._onnx_search_paths = [
             self.ext_root / ".codebase_models" / "onnx",
-            Path.home()
-            / ".cache"
-            / "mscodebase"
-            / "models"
-            / ".codebase_models"
-            / "onnx",
+            get_onnx_models_base(),
         ]
         self.local_model_dir = self._onnx_search_paths[0]
         self._detect_model_dir()

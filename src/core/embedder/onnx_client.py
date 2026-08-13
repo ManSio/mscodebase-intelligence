@@ -154,13 +154,20 @@ class OnnxEmbedderClient:
             logger.error(f"[ONNX Client] Failed to launch server: {e}")
             return False
 
-    def _wait_for_server(self, timeout: float = 30.0) -> bool:
-        """Ждёт готовности сервера."""
+    def _wait_for_server(self, timeout: float = 60.0) -> bool:
+        """Ждёт готовности сервера.
+
+        Таймаут 60s (был 30s): ONNX-модель ~600MB грузится дольше 30s на
+        медленном диске → владелец мутекса отпускал его до готовности, и
+        второй процесс (другое окно Zed) запускал ВТОРОЙ сервер (инцидент
+        2026-08-13: дубль onnx_server.py на 9876).
+        """
         start = time.time()
         while time.time() - start < timeout:
             if self._health_check():
                 return True
             time.sleep(0.5)
+        logger.warning(f"[ONNX Client] Сервер не поднялся за {timeout:.0f}s")
         return False
 
     def ensure_server_running(self) -> bool:

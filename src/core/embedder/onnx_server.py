@@ -252,10 +252,12 @@ def load_model(model_name: str):
     from tokenizers import Tokenizer
 
     # Пути к модели (проверяем несколько вариантов)
+    from src.core.artifact_paths import get_onnx_models_base
+
     search_paths = [
         PROJECT_ROOT / "models" / model_name,
         PROJECT_ROOT / ".codebase_models" / "onnx" / model_name,
-        Path.home() / ".cache" / "mscodebase" / "models" / ".codebase_models" / "onnx" / model_name,
+        get_onnx_models_base() / model_name,
     ]
     # Также проверяем корень расширения Zed: PROJECT_ROOT уже указывает
     # на корень (репо или расширение), см. search_paths[1].
