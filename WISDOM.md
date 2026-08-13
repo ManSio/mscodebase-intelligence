@@ -63,6 +63,12 @@
   Без неё pytest tmp_path плодит папки projects/<hash> в РЕАЛЬНЫЙ каталог (было 2481 папок, 95% мусор).
 - ArtifactGC (artifact_gc.py) чистит при старте: 30д неактивные проекты / 90д телеметрия / 7д логи /
   пустые сразу; активные из ProjectIndexerRegistry защищены; hex-guard на имя папки.
+- LIVE-SMOKE (2026-08-13): scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp dim=384,
+  rerank BGE-M3 top=1, векторный поиск по реальному LanceDB через get_db_path — чтение без PID-lock).
+  «Зелёный pytest ≠ работает»: 7 тестов были зелёными по неверной причине (MagicMock is_reindexing truthy);
+  reranker не запускался весь день без сигнала от тестов. Для runtime-изменений ✅ = live-check (§7 п.10b).
+- Парсинг общего лога обязан фильтровать по времени job (intel_get_job_status: embed-строки старше
+  job.started_at игнорируются) — иначе прошлая индексация выдаётся за текущую («7426/7426» при job 24%).
 
 ## Research verification layers dev.to (2026-08-11, EXP-1..5)
 - verify_clean_state.sh drift-гейт: был МЁРТВ (grep `^\"?pkg==` не матчил пины TOML-массива) → **FIXED 2026-08-12**: scripts/check_lock_drift.sh (`grep -vE '^\s*#' | grep -oE "\"${pkg}==[0-9.]+"`, exact-пины lancedb/pylance) + scripts/negative_control_drift_gate.sh (Arm1 мутант → exit 1, Arm2 sync → exit 0) — контроль на КАЖДОМ clean-state прогоне (правило Тома).

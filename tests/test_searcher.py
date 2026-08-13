@@ -35,9 +35,10 @@ def _chunk(file: str, score: float = 0.9) -> dict:
 
 
 def _make_searcher():
-    """Searcher без БД: indexer.table = None → vector_search возвращает []."""
+    """Searcher без БД: indexer.table = None → vector_search возвращает []"""
     indexer = MagicMock()
     indexer.table = None
+    indexer.db_manager = None  # нет БД → reindex fast-fail не срабатывает (реалистичный мок)
     embedder = MagicMock()
     searcher = Searcher(indexer, embedder)
     searcher._multi_reranker = None

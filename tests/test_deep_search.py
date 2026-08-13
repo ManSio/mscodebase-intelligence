@@ -105,6 +105,7 @@ class TestAgenticDeepSearch:
         """Пустой индекс должен вернуть пустой результат."""
         indexer = MagicMock()
         indexer.table = None
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         embedder.embed.return_value = None
         searcher = Searcher(indexer, embedder)
@@ -116,6 +117,7 @@ class TestAgenticDeepSearch:
     def test_single_iteration_enough_results(self):
         """Если первый поиск даёт достаточно результатов — ранняя остановка."""
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         embedder.embed.return_value = [0.1] * 1024
         searcher = Searcher(indexer, embedder)
@@ -137,6 +139,7 @@ class TestAgenticDeepSearch:
     def test_multiple_iterations_merge_results(self):
         """Результаты из разных итераций должны быть объединены."""
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         embedder.embed.return_value = [0.1] * 1024
         searcher = Searcher(indexer, embedder)
@@ -166,6 +169,7 @@ class TestAgenticDeepSearch:
     def test_deduplication_across_iterations(self):
         """Дубликаты из разных итераций должны быть удалены."""
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
@@ -183,6 +187,7 @@ class TestAgenticDeepSearch:
     def test_metadata_tracks_queries(self):
         """Метаданные должны отслеживать использованные запросы."""
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         searcher = Searcher(indexer, embedder)
 
@@ -203,6 +208,7 @@ class TestDeepSearchMCP:
     def test_empty_index_message(self):
         indexer = MagicMock()
         indexer.table = None
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         embedder.embed.return_value = None
         searcher = Searcher(indexer, embedder)
@@ -212,6 +218,7 @@ class TestDeepSearchMCP:
 
     def test_formatted_output(self):
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         embedder = MagicMock()
         embedder.embed.return_value = [0.1] * 1024
         searcher = Searcher(indexer, embedder)
