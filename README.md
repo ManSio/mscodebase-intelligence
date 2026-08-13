@@ -44,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 58 tools for AI assistant                 │
+│  │  · 61 tools for AI assistant                 │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -67,7 +67,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **58 MCP tools**.
+MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **61 MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 58 tools (28 core + 14 intel + 12 inline + 4 dev), 1180 tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 61 tools (28 core + 16 intel + 13 inline + 4 dev), 1180 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -215,9 +215,9 @@ Deep-dives into specific technical findings from building this project:
 
 ---
 
-## 🔧 MCP Tools (58 total)
+## 🔧 MCP Tools (61 total)
 
-> 59 = 58 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 58 (28 core + 14 intel + 12 inline + 4 dev).
+> 62 = 61 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 58 (28 core + 16 intel + 13 inline + 4 dev).
 
 ### Core Search
 
@@ -367,7 +367,7 @@ Deep-dives into specific technical findings from building this project:
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  28 Tool Classes   │  │  14 intel_* + 12 inline tools    │  │
+│  │  28 Tool Classes   │  │  16 intel_* + 13 inline tools    │  │
 │  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)          │  │
 │  │  Constructor Inj.   │  │  error_boundary decorator          │
@@ -455,7 +455,7 @@ mscodebase-intelligence/
 │   ├── mcp/
 │   │   ├── server.py               # MCP server creation (~597 lines)
 │   │   ├── server_factory.py       # DI setup + server lifecycle (~478 lines)
-│   │   ├── server_tools.py         # Tool registration + 12 inline tools (~607 lines)
+│   │   ├── server_tools.py         # Tool registration + 13 inline tools (~607 lines)
 │   │   └── tools/                  # 13 modules + base class
 │   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis

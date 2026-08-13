@@ -323,6 +323,131 @@ class GetHealthReportTool(MCPTool):
         return result
 
 
+class DualArmHealthCheckTool(MCPTool):
+    """dual_arm_health_check — двухруковая проверка здоровья (mutation + health).
+
+    Arm 1 (Negative): mutmut mutation testing — обязан падать на введённом дефекте.
+    Arm 2 (Positive): get_health_report — обычная диагностика, обязана проходить.
+
+    Negative control (правило Тома): guard, который не умеет падать, бесполезен.
+    mutmut требует fork() — на Windows работает ТОЛЬКО в WSL.
+    CI (ubuntu matrix): полный mutmut run; локально: MSCODEBASE_MUTMUT=1 + WSL.
+    Без WSL / отключено — Arm 1 пропускается с warning, Arm 2 выполняется.
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="dual_arm_health_check")
+
+    @error_boundary("dual_arm_health_check", timeout_ms=300000)
+    async def execute(
+        self,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+        run_mutmut: bool = False,
+    ) -> dict:
+        import os
+        import subprocess
+        from pathlib import Path
+
+        target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
+
+        # Arm 2 (Positive): health report — всегда выполняется
+        from src.core.intelligence.health import HealthReport
+        health_report = HealthReport(
+            project_path=target_path,
+            indexer=self.resolve_indexer(),
+            symbol_index=self.resolve_symbol_index(),
+            embedder=self.resolve_embedder(),
+        )
+        health_result = health_report.run_full_diagnostic()
+
+        # Arm 1 (Negative): mutmut — только если включено и WSL доступен
+        mutmut_result = {"skipped": True, "reason": "mutmut disabled or no WSL"}
+        if run_mutmut or os.environ.get("MSCODEBASE_MUTMUT") == "1":
+            # Проверка WSL
+            wsl_available = False
+            try:
+                wsl_check = subprocess.run(["wsl", "--version"], capture_output=True, timeout=5)
+                wsl_available = wsl_check.returncode == 0
+            except Exception:
+                pass
+
+            if not wsl_available:
+                mutmut_result = {"skipped": True, "reason": "WSL not available (mutmut requires fork)"}
+            else:
+                # Запуск mutmut в WSL
+                mutmut_result = self._run_mutmut_in_wsl(target_path)
+
+        # Negative control: если mutmut запускался — он ОБЯЗАН умеет падать
+        negative_control_passed = True
+        if not mutmut_result.get("skipped"):
+            # Проверяем что mutmut может детектировать дрейф (аналог negative_control_drift_gate.sh)
+            negative_control_passed = self._verify_mutmut_can_fail(target_path)
+
+        return {
+            "status": "ok" if health_result.get("status") != "critical" else "degraded",
+            "health": health_result,
+            "mutmut": mutmut_result,
+            "negative_control": "passed" if negative_control_passed else "failed",
+            "wsl_available": wsl_available if "wsl_available" in locals() else False,
+        }
+
+    def _run_mutmut_in_wsl(self, project_path: Path) -> dict:
+        """Запуск mutmut через WSL в папке проекта."""
+        import subprocess
+
+        # mutmut run с лимитом мутантов для скорости CI
+        cmd = [
+            "wsl", "bash", "-c",
+            f"cd '{project_path.as_posix()}' && \
+            source venv/bin/activate 2>/dev/null || true && \
+            mutmut run --paths-to-mutate 'src/core/intelligence/' --runner 'pytest tests/ -x -q' 2>&1"
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            return {
+                "exit_code": result.returncode,
+                "stdout": result.stdout[-5000:] if result.stdout else "",
+                "stderr": result.stderr[-2000:] if result.stderr else "",
+                "killed": result.returncode != 0,
+            }
+        except subprocess.TimeoutExpired:
+            return {"exit_code": -1, "error": "timeout", "killed": False}
+        except Exception as e:
+            return {"exit_code": -1, "error": str(e), "killed": False}
+
+    def _verify_mutmut_can_fail(self, project_path: Path) -> bool:
+        """Negative control: вводим заведомый дефект и проверяем что mutmut его ловит.
+        Аналог negative_control_drift_gate.sh Arm 1."""
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Копируем минимальный тестовый модуль
+            test_dir = Path(tmpdir) / "mutmut_test"
+            test_dir.mkdir()
+            (test_dir / "src").mkdir()
+            (test_dir / "tests").mkdir()
+
+            # Простой модуль с багом
+            (test_dir / "src" / "mod.py").write_text("def add(a, b): return a + b\n")
+            (test_dir / "tests" / "test_mod.py").write_text("from src.mod import add\ndef test_add(): assert add(1, 2) == 3\n")
+
+            # Запускаем mutmut - должен убить мутант (вернуть exit!=0)
+            cmd = [
+                "wsl", "bash", "-c",
+                f"cd '{test_dir.as_posix()}' && \
+                source venv/bin/activate 2>/dev/null || true && \
+                mutmut run --paths-to-mutate 'src/' --runner 'pytest tests/ -x -q' 2>&1"
+            ]
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                # mutmut должен вернуть exit!=0 (мутант убит = успех negative control)
+                return result.returncode != 0
+            except Exception:
+                return False
+
+
 class ReadLiveFileTool(MCPTool):
     """read_live_file — чтение файла с диска с поддержкой диапазона строк.
 
@@ -511,5 +636,6 @@ __all__ = [
     "WatcherStatusTool",
     "GetLogsTool",
     "GetHealthReportTool",
+    "DualArmHealthCheckTool",
     "ReadLiveFileTool",
 ]

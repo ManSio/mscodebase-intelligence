@@ -15,7 +15,7 @@
 1. [核心原则](#1-核心原则)
 2. [分层架构](#2-分层架构)
 3. [DI 容器（ServiceCollection）](#3-di-容器)
-4. [工具层（28 核心 + 14 intel + 12 内联 + 4 开发 = 58 个）](#4-工具层)
+4. [工具层（28 核心 + 16 intel + 13 内联 + 4 开发 = 61 个）](#4-工具层)
 5. [PropertyGraph 层（v3.0）](#5-propertygraph-层-v30)
 6. [Cypher 查询引擎（v3.0）](#6-cypher-查询引擎-v30)
 7. [错误处理](#7-错误处理)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  第 1 层: main.py              （入口点，最简）                   │
 │  第 2 层: mcp/server.py          （DI 路由，工具注册）              │
-│  第 3 层: mcp/tools/*.py         （20 核心 + 12 内联 + 4 开发）    │
+│  第 3 层: mcp/tools/*.py         （20 核心 + 13 内联 + 4 开发）    │
 │  第 4 层: core/*.py              （纯业务逻辑）                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,7 +91,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建 DI 容器（`create_service_collection()`）
-3. 注册 28 核心 + 14 intel + 12 内联 + 4 开发 = 58 个工具
+3. 注册 28 核心 + 16 intel + 13 内联 + 4 开发 = 61 个工具
 4. 注册系统提示（mscodebase-rules）
 
 **此处没有业务逻辑。** 每个工具都是从 `mcp/tools/` 导入的。
@@ -274,10 +274,10 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
     ]
     # +14 个 intel_* 工具 + 12 个内联诊断 + 4 个开发
-    # 总计：58 个已注册（28 核心 + 14 intel + 12 内联 + 4 开发）
+    # 总计：61 个已注册（28 核心 + 16 intel + 13 内联 + 4 开发）
 ```
 
-**工具可见性过滤器：** 默认显示 43 个工具（28 个核心中的 13 个 + 14 intel + 12 内联 + 4 开发；启用 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时 +1 `execute_script`）。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 58 个。
+**工具可见性过滤器：** 默认显示 46 个工具（28 个核心中的 13 个 + 16 intel + 13 内联 + 4 开发；启用 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时 +1 `execute_script`）。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 61 个。
 
 ### 4.2 按组分组的全部工具
 
@@ -298,7 +298,7 @@ def register_all_tools(mcp, services):
 | **智能层**（14 个） | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
 | **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **总计：** 58 个已注册（28 核心 + 14 intel + 12 内联 + 4 开发）。默认可见：43 个（28 个核心中的 13 个 + 14 + 12 + 4）。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 61 个已注册（28 核心 + 16 intel + 13 内联 + 4 开发）。默认可见：46 个（28 个核心中的 13 个 + 14 + 12 + 4）。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
 ---
 

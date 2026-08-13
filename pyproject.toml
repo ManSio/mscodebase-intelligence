@@ -97,6 +97,11 @@ dev = [
     "isort",
     # tomllib — Python 3.11+; CI matrix включает 3.10 (test_versions.py).
     "tomli>=2.0; python_version < '3.11'",
+    # Mutation testing (negative arm для dual-arm health check).
+    # ⚠️ mutmut требует fork() — на Windows работает ТОЛЬКО в WSL.
+    # CI (ubuntu matrix) запускает полный mutmut; локально — опционально через
+    # MSCODEBASE_MUTMUT=1 (требует WSL). Без WSL — health-only + warning.
+    "mutmut>=3.7.0,<4",
 ]
 
 # ⚠️ COPyleft-зависимости (GPL): leidenalg = GPL-3.0, igraph = GPL-2.0.
