@@ -442,5 +442,9 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 10. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
     - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
     - Результат вставляется в `[🏁 ИТОГ]` как `verified_from_clean_state: <output>`
+10b. **LIVE-SMOKE обязателен для изменений в серверах/индексе/провайдерах** (инцидент 2026-08-13: 7 search-тестов были зелёными по НЕВЕРНОЙ причине — MagicMock is_reindexing truthy; reranker не запускался весь день — тесты не видят реальные сервисы).
+    - `python scripts/smoke_e2e.py --project <root>` — реальный embed (llama.cpp 8080), реальный rerank (BGE-M3 8081), реальный векторный поиск по реальному индексу (LanceDB) — БЕЗ моков.
+    - Вывод должен содержать: `SMOKE E2E: PASSED`.
+    - «Зелёный pytest ≠ работает»: для runtime-изменений ✅ в `[🏁 ИТОГ]` обязан содержать `live-check: <команда> → <вывод>`, а не только pytest.
 11. All correct? → **TASK VERIFIED**
 12. Root чистый? (нет новых одноразовых скриптов/логов в корне — §0.6)

@@ -85,7 +85,9 @@ def test_apply_bucket_weights_intent_hint():
 
 def test_search_with_mode_cache_includes_layer_and_intent():
     """Кэш должен различать layer и intent_hint."""
-    searcher = Searcher(MagicMock(), MagicMock())
+    indexer = MagicMock()
+    indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
+    searcher = Searcher(indexer, MagicMock())
     # Мокаем embedder и vector_search чтобы не обращаться к БД
     searcher.embedder = MagicMock()
     searcher.embedder.embed.return_value = [0.0] * 1024

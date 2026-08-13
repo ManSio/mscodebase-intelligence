@@ -174,6 +174,7 @@ class TestGraphCenter:
         from src.core.search.engine import Searcher
 
         indexer = MagicMock()
+        indexer.db_manager = None  # без БД → reindex fast-fail не срабатывает
         indexer._symbol_index = adapter
         embedder = MagicMock()
         embedder.embed.return_value = [0.1] * 32

@@ -41,6 +41,13 @@
 **Status:** ✅ Fixed (код+тесты 1133 passed; требует reload для проверки) | **Владелец:** misha.
 **Guard:** тест на 1 spawn при конкуренции; полный pytest 1133.
 
+## 2026-08-13 — job-статус показывал СТАРЫЕ чанки при full reindex + нет live-проверок (DONE)
+
+**Что:** intel_get_job_status парсил `[embed] N/M` из общего лога без фильтра по времени — пока новый full reindex в фазе parsing, показывал последнюю embed-строку ПРОШЛОЙ индексации «7426/7426 (100%)» при job 24% (сам индекс обнулялся корректно — врал только парсер). Плюс методологическая дыра: «зелёный pytest ≠ работает» — 7 search-тестов зелёные по неверной причине (MagicMock is_reindexing truthy), reranker не запускался весь день без единого сигнала от тестов.
+**Fix:** tools_reg.py get_job_status — фильтр embed-строк по job.started_at; NEW scripts/smoke_e2e.py — реальные сервисы без моков (health, embed dim=384, rerank top=1, векторный поиск по реальному LanceDB через get_db_path); AGENTS.md §7 п.10b LIVE-SMOKE обязателен для серверов/индекса + live-check в [🏁 ИТОГ]; README Quick Start +smoke_e2e.
+**Status:** 🟢 стабильно (smoke PASSED 4/4; полный pytest 1135; ruff clean) | **Владелец:** misha.
+**Guard:** smoke_e2e exit 0; §7 п.10b; тест-негатив: скрипт при разработке сам нашёл 2 бага (формат /rerank, путь БД).
+
 ## 2026-08-12 — Memory v2 (SUPERSEDED-фильтр + метрика false-retraction + ADR-0004 каскад) — DONE (не закоммичено)
 
 **Что:** v1-спека памяти закрыта + Propagation Engine. (1) store.load_memory скрывает терминальные REFUTED+SUPERSEDED (include_retracted для аудита); (2) verify-on-read больше НЕ переписывает терминальные статусы (SUPERSEDED не откатывается в VERIFIED); (3) store.memory_metrics() + health._check_memory — false_retraction_rate (доля вручную возвращённых отзывов, ловец false-negative дрифта системы проверки); (4) ADR-0004: propagation_engine.py — каскадная ретракция по data.depends_on/superseded_by (PROPAGATED_FROM:<root>, retract_source=propagation), хук в intel_retract_memory_node.
