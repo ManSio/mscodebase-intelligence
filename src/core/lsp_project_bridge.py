@@ -48,8 +48,11 @@ _STALE_AGE_SEC = 300   # 5 минут
 
 
 def _ensure_bridge_dir() -> Path:
-    """Создаёт директорию для bridge-файлов."""
-    _BRIDGE_DIR.mkdir(parents=True, exist_ok=True)
+    """Возвращает директорию bridge-файлов (без создания — писатель удалён).
+
+    Исторически создавала ~/.mscodebase/bridge; LSP-писатель удалён
+    2026-07-20, поэтому директория больше не создаётся (не мусорим в HOME).
+    """
     return _BRIDGE_DIR
 
 

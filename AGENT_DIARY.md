@@ -14,8 +14,35 @@
 - **Edge transparency:** confidence EXTRACTED/INFERRED + evidence в properties рёбер — 2026-08-08
 - **Memory retraction (ADR-0002):** status ACTIVE|VERIFIED|REFUTED + `intel_retract_memory_node` (OWP lifecycle VERIFIED→REFUTED, причина обязательна) — 2026-08-11
 - **Memory v2 (2026-08-12):** SUPERSEDED-фильтр в retrieval + verify-on-read не переписывает терминальные статусы + ADR-0004 Propagation Engine (каскадная ретракция) + метрика false-retraction
+- **Единый PathManager + GC (2026-08-13):** crash-лог → data_root/logs/crash.json (был ~/.mscodebase_crash_log.json); логи MCP → data_root/logs (были ext/.codebase_indices/logs, стирались при переустановке); fallback моделей → data_root/models (был ~/.cache/mscodebase — Linux-путь на Windows); телеметрия скрипта → data_root; ArtifactGC (30д проекты / 90д телеметрия / 7д логи / пустые сразу); autouse-изоляция data_root в тестах (2481 папка мусора)
+- **PID-reuse guard llama_runner (2026-08-13):** _InterProcessLock._is_pid_alive — OpenProcess(SYNCHRONIZE) ложно считал завершённый процесс живым (объект жив, пока у родителя handle) → stale PID блокировал запуск reranker весь день; фикс: GetExitCodeProcess==259 + имя llama-server.exe
+- **Дедупликация серверов при 2 окнах (2026-08-13):** lock embedder/reranker держится ДО готовности порта (был — до Popen; llama-server bind'ит через секунды → второй MCP спавнил дубль); ONNX _wait_for_server 30→60s (модель 600MB)
 
 ---
+
+## [2026-08-13 20:45] — FIX А2: сервер снова отвечает во время/после индексации (sync update_all → to_thread) (DONE)
+**Status:** ✅ Fixed (код+тест; не закоммичено — commit/push по команде; сервер мёртв — нужен Reload)
+**verified_from_clean_state:** ✅ полный `python -m pytest tests/ -q` → 1134 passed / 4 skipped (2026-08-13); ruff clean; guard-тест test_reindex_responsive.py 1/1
+**Root Cause:** layer.py _run_reindex_job: AutoDocUpdater.update_all() (sync, rglob по docs/, минуты) вызывался в MAIN event loop после индексации → все MCP-запросы таймаутили ~13 мин (лог: Timeout after 771664ms = 552с индексация + ~220с update_all), Zed убил MCP-процесс. Индексация сама в executor (H1 опровергнута), search fast-fail при is_reindexing есть (engine.py:395)
+**Fix:** update_all → asyncio.to_thread + wait_for(300) (BS-11-эталон: run_full_diagnostic уже так вынесен в intel_predict_root_cause L1406-1418). Guard-тест: тики event loop не замирают (max_gap < 0.3с) при тяжёлом sync-update_all в потоке. EXPERIMENTS_LOG 2026-08-13; KNOWN_ISSUES А2 → DONE
+**Guard:** test_reindex_responsive.py (negative control: при sync-вызове тики замрут на 0.4с > порога)
+**Pattern:** P-002-класс «sync-вызов тяжёлого метода в async-функции» — 2-й экземпляр (после run_full_diagnostic BS-11); урок: аудит всех async-функций на прямые sync-вызовы (grep-паттерн: rglob/generation/update в async def)
+**OPEN_QUESTION:** A1 (propagation_engine.py невидим для поиска) — root cause не установлен; ETA-модель индексации (18с vs 552с) — отдельный P2
+
+## [2026-08-13 20:20] — Демонстрация инструментов + 2 аномалии: файл невидим для поиска, full-reindex блокирует MCP (OPEN)
+**Status:** 🟡 Partial (демонстрация выполнена; аномалии зафиксированы, root cause P1 не установлен)
+**verified_from_clean_state:** ⚠️ не проверено (демонстрация, код не менялся) | **Root Cause:** (А1) src/core/intelligence/propagation_engine.py не попадает в поисковый индекс/граф символов — search_code×3, get_symbol_info, full reindex (552с, 7383 чанка), notify_change — всё мимо; LSP видит файл; логов ошибок нет. (А2) intel_trigger_reindex(full): ETA 18с vs реальные 552с (×30), на всё время MCP-запросы таймаутят — fire-and-forget не работает
+**Fix:** не внедрялся (требует отладки индексатора — А1; ETA/блокировка — А2). Новый UI: intel_get_project_memory(limit=0) — полный список узлов через MCP (тест 4/4, полный pytest 1129 passed)
+**Guard:** KNOWN_ISSUES 2026-08-13 ×2; A1: next-шаг — лог-трассировка сбора файлов (почему файл не собран)
+**Pattern:** NEW — «индексатор молча пропускает файл без ошибок в логах»; A2 — «обещание fire-and-forget vs реальная блокировка»
+
+## [2026-08-13 20:40] — Унификация путей хранения + ArtifactGC + защита диска + фикс тестов (DONE, 1125 passed)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ полный `python -m pytest tests/ -q` → 1125 passed / 4 skipped / 94 deselected (2026-08-13); ruff check на 14 изменённых файлах — clean
+**Root Cause:** 6 зон записи (data_root, ext_root, ~/.mscodebase, ~/.mscodebase_crash_log.json, ~/.cache/mscodebase, внутри проектов) без механизма очистки; тесты с pytest tmp_path писали папки <data_root>/projects/<hash> в РЕАЛЬНЫЙ каталог (conftest не изолировал data_root) → 2481 папка при ~2 реальных проектах (564+ за сегодня); mkdir без обработки ENOSPC/EACCES; логи в расширении (стираются при uninstall); collect_telemetry.py писал в CWD-проекты
+**Fix:** (1) artifact_paths.py: safe_mkdir (ENOSPC/EACCES → ArtifactStorageError), get_logs_dir/get_crash_log_path/get_shared_models_dir/get_onnx_models_base/check_disk_space, fallback data_root→temp при недоступности; (2) resource_monitor.py: crash-лог → data_root/logs/crash.json; (3) log_manager.py: логи → data_root/logs + _migrate_logs_from_ext (перенос истории из расширения); (4) модели: onnx_server/remote_embedder/layer/llama_install — единый fallback data_root/models; (5) collect_telemetry.py → get_telemetry_dir(data_root); (6) bridge: _ensure_bridge_dir без mkdir (DEPRECATED), project_resolution без чтения ~/.mscodebase/bridge; (7) NEW src/core/artifact_gc.py: prune_stale_artifacts (30д неактивные, 90д телеметрия, 7д логи, пустые сразу, hex-guard, active-защита из реестра) + запуск при старте main.py (фоновый поток); (8) conftest.py autouse-фикстура MSCODEBASE_DATA_DIR→tmp (тесты больше не сорят системный каталог); (9) health._check_logs + get_summary disk_space
+**Guard:** tests/test_artifact_gc.py 12 тестов (активные защищены, hex-guard, телеметрия, идемпотентность, пути в data_root); полный pytest 1125; ruff 0. GC удалит при старте 752 пустые папки (dry-run) + retention 30д для остального мусора
+**Pattern:** NEW P-003 «тест-мусор вне изоляции» — фикстуры пишут в реальный каталог, если conftest не изолирует; guard: autouse-фикстура
 
 ## [2026-08-13 20:05] — P2-фикс: extract_anchors валидация якорей на write-path (DONE, 1113 passed)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)

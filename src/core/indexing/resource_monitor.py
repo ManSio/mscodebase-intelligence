@@ -22,7 +22,6 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 try:
@@ -224,6 +223,12 @@ class ResourceMonitor:
                 f"при RAM={crash['last_ram_mb']:.0f}MB "
                 f"({crash['seconds_ago']}с назад)"
             )
+        try:
+            from src.core.artifact_paths import check_disk_space
+
+            disk_space = check_disk_space()
+        except Exception:
+            disk_space = {"ok": True, "error": "unavailable"}
         return {
             **snap.to_dict(),
             "ram_soft_mb": self._ram_soft,
@@ -237,6 +242,7 @@ class ResourceMonitor:
             "ram_trend": self.get_ram_trend(),
             "gpu": gpu,
             "disk_io": disk,
+            "disk_space": disk_space,
             "crash_history": crash,
         }
 
@@ -536,9 +542,14 @@ class ResourceMonitor:
 
     # ─── Crash detection через файловый heartbeat ────────
     def _get_crash_log_path(self):
-        """Get crash log path safely - returns None if home dir unavailable."""
+        """Путь к crash-логу в data_root/logs (вместо ~/.mscodebase_crash_log.json).
+
+        Возвращает None, если data_root недоступен (например, HOME отсутствует).
+        """
         try:
-            return Path.home() / ".mscodebase_crash_log.json"
+            from src.core.artifact_paths import get_crash_log_path
+
+            return get_crash_log_path()
         except (RuntimeError, OSError):
             return None
 
@@ -572,7 +583,9 @@ class ResourceMonitor:
         Если лог свежий (<60 сек) и другой PID → был перезапуск.
         """
         try:
-            log_path = Path.home() / ".mscodebase_crash_log.json"
+            from src.core.artifact_paths import get_crash_log_path
+
+            log_path = get_crash_log_path()
         except (RuntimeError, OSError):
             return None
         if not log_path.exists():

@@ -2,7 +2,7 @@
 MSCodebase Intelligence — Централизованное логирование с привязкой к проекту и времени.
 
 Функции:
-  • Ротируемый файловый лог в .codebase_indices/logs/
+  • Ротируемый файловый лог в data_root/logs/ (централизованно, вне расширения)
   • Привязка записей к проекту (имя + хэш пути)
   • Лёгкий формат: [время] [УРОВЕНЬ] [проект] модуль: сообщение
   • Автоочистка логов старше 7 дней
@@ -37,39 +37,26 @@ MAIN_LOG_FILE = "mscodebase-intelligence.log"
 def get_main_log_path() -> Path:
     """Возвращает абсолютный путь к основному лог-файлу MCP-сервера.
 
-    Использует централизованную директорию логов расширения.
+    Логи централизованы в data_root/logs (см. get_logs_dir) — в отличие от
+    исторического ext_root/.codebase_indices/logs, который стирается при
+    переустановке расширения.
     """
-    from src.core.platform_utils import get_extension_dir
+    from src.core.artifact_paths import get_logs_dir
 
-    ext_root = get_extension_dir("mscodebase-intelligence")
-    return ext_root / ".codebase_indices" / "logs" / MAIN_LOG_FILE
+    return get_logs_dir() / MAIN_LOG_FILE
 
 _initialized_projects: set = set()
 
 
 def get_log_dir(project_path: Path) -> Path:
-    """Возвращает единую центральную директорию логов.
+    """Возвращает единую центральную директорию логов (data_root/logs).
 
-    Все логи пишутся в один каталог при расширении (ext_root),
-    а НЕ per-project — чтобы не засорять проекты.
-    Если project_path указывает на ext_root — используем его.
-    Если project_path — пользовательский проект, то всё равно
-    пишем в ext_root (централизация).
+    Все логи пишутся в data_root/logs (см. get_logs_dir), а НЕ per-project и
+    НЕ в расширение — расширение стирается при переустановке.
     """
-    # Всегда используем ext_root для центрального лога
-    # Если project_path похож на ext_root (содержит 'extensions'), берём его
-    # Иначе ищем ext_root через стандартный путь установки
-    path_str = str(project_path.resolve()).lower()
-    if "extensions" in path_str and "zed" in path_str:
-        log_dir = project_path / ".codebase_indices" / "logs"
-    else:
-        # Централизованный лог в директории расширения
-        from src.core.platform_utils import get_extension_dir
+    from src.core.artifact_paths import get_logs_dir
 
-        ext_root = get_extension_dir("mscodebase-intelligence")
-        log_dir = ext_root / ".codebase_indices" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
+    return get_logs_dir()
 
 
 def setup_project_logging(
@@ -145,10 +132,42 @@ def setup_project_logging(
     # Очистка старых логов
     _cleanup_old_logs(log_dir)
     _cleanup_stale_project_logs()
+    _migrate_logs_from_ext(log_dir)
 
     root_logger.info(f"📋 Логирование инициализировано: {log_file}")
 
     return root_logger
+
+
+def _migrate_logs_from_ext(target_dir: Path) -> int:
+    """Переносит исторические логи из расширения (ext/.codebase_indices/logs) в data_root.
+
+    Best-effort: при ошибке/отсутствии старых файлов — молча. Перемещает
+    .log и ротационные файлы (.log.1, .log.2...), не перезаписывая
+    существующие в target_dir.
+    """
+    moved = 0
+    try:
+        from src.core.platform_utils import get_extension_dir
+
+        ext_root = get_extension_dir("mscodebase-intelligence")
+        src_dir = ext_root / ".codebase_indices" / "logs"
+        if not src_dir.is_dir():
+            return 0
+        for f in src_dir.glob("*.log*"):
+            dst = target_dir / f.name
+            if dst.exists():
+                continue
+            try:
+                f.rename(dst)
+                moved += 1
+            except (OSError, PermissionError) as e:
+                logger.warning(f"Log migration SKIPPED {f.name}: {e}")
+    except Exception as e:
+        logger.debug(f"Log migration unavailable: {e}")
+    if moved:
+        logger.info(f"📦 Перенесено логов из расширения в data_root: {moved}")
+    return moved
 
 
 def _cleanup_old_logs(log_dir: Path) -> int:
@@ -174,14 +193,13 @@ def _cleanup_stale_project_logs() -> int:
     """Удаляет stale per-project логи из пользовательских проектов.
 
     Раньше логи писались в .codebase_indices/logs/ внутри каждого проекта.
-    Теперь они централизованы в ext_root. Старые файлы удаляем.
+    Теперь они централизованы в data_root/logs. Старые файлы удаляем.
     """
     deleted = 0
     try:
-        from src.core.platform_utils import get_extension_dir
+        from src.core.artifact_paths import get_logs_dir
 
-        ext_root = get_extension_dir("mscodebase-intelligence")
-        ext_log_dir = ext_root / ".codebase_indices" / "logs"
+        central_log_dir = get_logs_dir()
 
         # Ищем .codebase_indices/logs в пользовательских проектах
         # (рядом с ext_root или в common locations)
@@ -192,7 +210,7 @@ def _cleanup_stale_project_logs() -> int:
                 if not proj_dir.is_dir():
                     continue
                 log_dir = proj_dir / ".codebase_indices" / "logs"
-                if log_dir.exists() and log_dir != ext_log_dir:
+                if log_dir.exists() and log_dir != central_log_dir:
                     for f in log_dir.glob("*.log*"):
                         try:
                             f.unlink()

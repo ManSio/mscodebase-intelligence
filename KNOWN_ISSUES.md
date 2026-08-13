@@ -5,10 +5,41 @@
 
 ---
 
+## 2026-08-13 — P1: propagation_engine.py невидим для поиска и графа символов (OPEN, root cause не установлен)
+
+**Что:** src/core/intelligence/propagation_engine.py существует (tracked в git), LSP видит (24 символа, PropagationEngine L44-96), НО search_code (fast/quality, 3 запроса: "class PropagationEngine", "REASON_PREFIX", семантический) и get_symbol_info не находят его. Полная переиндексация (7383 chunks, 552с) и notify_change(файл) НЕ помогли. Логов ошибок парсинга нет. Следствие: агент может решить, что модуля/класса не существует.
+**Тесты:** — (нужна отладка индексатора: фильтр сбора файлов vs _parse_file_only возвращает None молча). | **Fix:** не установлен — требует отладки с логами; гипотезы: фильтр коллекции файлов / парсер / кэш known_hashes.
+
+## 2026-08-13 — P2: сервер недоступен во время/после индексации — sync update_all в main loop (DONE)
+
+**Что:** при полной переиндексации все MCP-запросы таймаутили ~13 мин (логи: Timeout after 771664ms), затем Zed убил MCP-процесс. Root cause: индексация в executor (ок), НО AutoDocUpdater.update_all() (generate_docs+README+KNOWN_ISSUES, rglob по docs/) вызывался СИНХРОННО в main event loop после индексации (layer.py _run_reindex_job) → event loop заблокирован на минуты. ETA в ответе триггера (18с) нереалистичен (реальность 552с, ×30).
+**Тесты:** +1 tests/test_reindex_responsive.py (loop не замирает: max_gap < 0.3с при тяжёлом update_all); полный pytest 1134 passed / 4 skipped; ruff clean. | **Fix:** layer.py — update_all обёрнут в asyncio.to_thread + wait_for(300) (BS-11-эталон, как run_full_diagnostic). EXPERIMENTS_LOG 2026-08-13. ETA-модель индексации — отдельный P2 (не блокирует).
+
 ## 2026-08-13 — P2: extract_anchors — мусорные якоря → ложные отзывы VOR (DONE)
 
 **Что:** anchor-capture (auto_collect_adrs/intel_add_memory_node) вытаскивал из текста коммитов мусорные якоря: слепленные пути («pyproject/extension.toml/__init__.py»), пути с завершающей пунктуацией («__init__.py.»), относительные пути без префикса src/ («queries/__init__.py»). _classify fail-closed (любой NOT_FOUND → REFUTED) → ЛОЖНЫЕ отзывы верных ADR (2026-08-13: ADR-f14435db31f2, ADR-9e0f0c5e7a4c).
 **Тесты:** +5 в tests/test_verify_on_read.py (22/22); полный pytest 1113 passed / 4 skipped; ruff clean. | **Fix:** verify_on_read.py `extract_anchors(node, project_root=None)` — P2: (1) обрезка завершающей пунктуации в _add (rstrip «.,;:!?)]}»); (2) при переданном project_root file-якоря, которых нет относительно корня, отбрасываются (write-path). layer.py: оба вызова (intel_add_memory_node, intel_auto_collect_adrs) передают project_root=self.project_path. Read-path (run()) без root — честная классификация (дрейф → REFUTED) сохранена.
+
+## 2026-08-13 — Разброс путей хранения + 2481 мусорная папка + нет GC (DONE)
+
+**Что:** 6 зон записи артефактов без механизма очистки: data_root (%LOCALAPPDATA%/mscodebase), ext_root (логи MCP — стирались при переустановке расширения), ~/.mscodebase_crash_log.json (crash-лог в HOME), ~/.cache/mscodebase/models (Linux-fallback на Windows), внутри проектов (collect_telemetry.py писал в CWD), D:\tmp (ручной мусор). Тесты писали папки projects/<hash> в РЕАЛЬНЫЙ data_root (pytest tmp_path уникален на прогон) → 2481 папка при ~2 проектах (564+ за сутки).
+**Fix:** единый PathManager (safe_mkdir с ENOSPC/EACCES-диагностикой, get_logs_dir/get_crash_log_path/get_shared_models_dir/get_onnx_models_base/check_disk_space, fallback data_root→temp); crash-лог и логи MCP → data_root/logs (+миграция из расширения); fallback моделей → data_root/models; collect_telemetry → data_root; ArtifactGC (30д неактивные / 90д телеметрия / 7д логи / пустые сразу / hex-guard / активные из реестра защищены) + запуск при старте; conftest autouse-изоляция data_root (тесты в pytest tmp).
+**Status:** 🟢 стабильно (1125 passed, ruff clean; dry-run GC: 752 пустые папки к удалению при старте) | **Владелец:** misha.
+**Guard:** tests/test_artifact_gc.py 12/12; полный pytest 1125; при старте сервера GC чистит мусор.
+
+## 2026-08-13 — Reranker offline весь день: PID-reuse/завершённый объект процесса в _is_pid_alive (DONE)
+
+**Что:** intel_get_runtime_status: reranker 🔴 offline (8081 молчит), 81 ошибка в логе («Reranker не появился за 30s» ×N от двух MCP). Причина: llama_runner._InterProcessLock._is_pid_alive использовал только OpenProcess(SYNCHRONIZE) — возвращает handle для ЗАВЕРШЁННОГО процесса, пока у родителя (старый MCP) открыт handle на объект → stale PID 28828 «жив» → каждый старт пропускал reranker («llama-server already running (PID 28828)»).
+**Fix:** _is_pid_alive: OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION) + GetExitCodeProcess==STILL_ACTIVE(259) + QueryFullProcessImageNameW basename==llama-server.exe (PID-reuse guard). +3 теста (test_llama_mutex.py 4/4).
+**Status:** ✅ Fixed (код+тесты; требует перезапуска MCP для поднятия reranker) | **Владелец:** misha.
+**Guard:** test_is_pid_alive_dead_process_returns_false / nonexistent / non_llama — регресс-защита.
+
+## 2026-08-13 — Дубли серверов при 2 окнах Zed: lock до Popen, а не до готовности порта (DONE)
+
+**Что:** каждый reload двух окон — 2 llama-server embedder на 8080 («синхронно запущен» ×2: 19:49:02+03, 19:57:44+45) и 2 onnx_server.py на 9876 (один без порта). Root cause: _InterProcessLock держался только до Popen (~100ms), llama-server bind'ит порт через секунды (загрузка модели) → второй MCP захватывал lock, double-check видел пустой порт и запускал дубль. ONNX: _wait_for_server 30s < загрузка модели 600MB → мутекс отпускался до готовности.
+**Fix:** llama_runner._start_sync (embedder) и start_reranker — lock держится ДО готовности порта (probe 0.5s×60 внутри with); второй процесс ждёт мутекс → видит занятый порт → подключается. onnx_client._wait_for_server 30→60s. +тест test_start_sync_spawns_embedder_once_under_concurrency (2 потока → 1 spawn).
+**Status:** ✅ Fixed (код+тесты 1133 passed; требует reload для проверки) | **Владелец:** misha.
+**Guard:** тест на 1 spawn при конкуренции; полный pytest 1133.
 
 ## 2026-08-12 — Memory v2 (SUPERSEDED-фильтр + метрика false-retraction + ADR-0004 каскад) — DONE (не закоммичено)
 
@@ -3349,3 +3380,267 @@ Three fixes from the same review:
 - **Описание:** **Status:** ✅ Verified (read-only, src/ не менялся; EXPERIMENTS_LOG#2026-08-08-context-engine-v3)
 30 задач, paired-статистика: recall B vs C2 неразличимы (Δ +0.025, CI95 ±0.054, ничьи 27/30), precision C2 не значимо (+0.036 ± 0.047), токены B стабильно ниже (~980, CI95 ±249, 30/30). Вывод: B-подход (intent-фильтр) = оптимум (recall 0.900 ≥ A 0.875, 1 RT, 275 токенов); расширять get_context по B-схеме, не полный C2.
 - **Статус:** автоматически синхронизировано
+
+## 2026-08-13 20:40 — Унификация путей хранения + ArtifactGC + защита диска + фикс тестов (DONE, 1125 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ полный `python -m pytest tests/ -q` → 1125 passed / 4 skipped / 94 deselected (2026-08-13); ru...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 20:05 — P2-фикс: extract_anchors валидация якорей на write-path (DONE, 1113 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `python -m pytest tests/ -q` → 1113 passed / 4 skipped (2026-08-13); ruff check на 3 изме...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 19:35 — Аудит project memory: VOR работает, 2 ложных авто-отзыва закрыты пересохранением, 1 устаревший узел суперседирован (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (память приведена в порядок; мутации — через MCP-инструменты; файл памяти вне git)
+**verified_from_clean_state:** ✅ да — повторный дамп 36 узлов (5 VERIFIED / 24 ACTIVE / 6 REFUTED...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 19:10 — Глобальный AGENTS.md: §5.24 семантическая память + Red Team (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (C:\Users\misha\AppData\Roaming\Zed\AGENTS.md — вне репозитория)
+**verified_from_clean_state:** ⚠️ полный clean-state неприменим (файл вне git); проверено: assert-якоря count==1 ×3...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-12 04:00 — v1-спека памяти закрыта + ADR-0004 Propagation Engine (DONE, не закоммичено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1099 passed / ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-12 01:00 — FIX P2 canary (fail-closed + abs-порог + collapse-детектор), P3 health (eligible_seen), doc-sync 117 дрейфов → stale_detector RE-ENABLED в pre-commit (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; test_shadow_canary 13/13, test_search_quality_monitoring 12/12, pre-commit hook RC=0; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ yes — `p...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 23:59 — RESEARCH dev.to верификации AI-агентов: 5 экспериментов + 2 живых «guard не может упасть» (DONE, внедрение ждёт решения)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (5 экспериментов выполнены с raw output — EXPERIMENTS_LOG#2026-08-11-EXP-1..5; правок в src/ НЕТ — research base по §1 Шаг 4)
+**Root Cause:** класс Тома ln.strip() подтверждён Д...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 23:55 — Exp 1-V REPLICATION: verify-on-read подтверждён на независимых данных (facts v4) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (эксперимент выполнен, EXPERIMENTS_LOG#2026-08-11-1-V-REP; код-изменений вне experiments/ нет — только параметризация пути фактов в verify-скрипте)
+**Root Cause:** — (Правило од...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 22:10 — ADR-0002 RetractionReceipt: intel_retract_memory_node + статус-модель (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты+доки; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 22:40 — Exp 1-R: ретракция измерена — persistent contamination -88%, memory_first 1.0→0.12 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (эксперимент выполнен, EXPERIMENTS_LOG#2026-08-11-1-R; код-изменений вне experiments/ нет)
+**Root Cause:** — (измерение эффекта ADR-0002; контрольная группа = v3, parity OK: ado...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 23:10 — ADR-0003 Verify-On-Read: Lazy Validation Layer, adoption честного → 0.0 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты+эксперимент; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: P...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 23:50 — ADR-0003 follow-up: write-time anchor capture в intel_add_memory_node/auto_collect_adrs (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 21:15 — FIX: get_context интенты git_history/verify_change возвращали пусто
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (закоммичено локально, не запушено; tests/test_context_tool.py 2 passed, ruff чист)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN ST...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 22:40 — Experiment 1: Memory Contamination (IntelligenceStore) N=24 (DONE, исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (read-only к src/; EXPERIMENTS_LOG#2026-08-11-memory-contamination; изоляция: store_dir tempdir ≠ реальный, подтверждено assert'ом и полем isolation)
+**Root Cause:** — (не инцид...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 21:45 — FIX: hybrid_search_async кэш-хит терял vector-тир
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (закоммичено локально, не запушено; gate-zero 1025 passed/10 skipped, ruff 0)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VE...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-11 — Experiment 1: Multi-RAG Component Ablation N=30 (DONE, исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (read-only эксперимент, src/ не менялся; EXPERIMENTS_LOG#2026-08-11-multi-rag)
+**Root Cause:** — (не инцидент; проверка статьи «Multi-RAG > Single RAG»): recall-максимум даёт ft...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — Фикс D1-D3: единый корень — неранжированный выбор узла в графе
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ⚠️ Fixed (локально: gate-zero 1031 passed / 4 skipped, ruff src/ tests/ = 0; +4 регресс-теста tests/test_graph_adapter_node_selection.py)
+**verified_from_clean_state:** ✅ yes — `bash scrip...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — Повторная верификация deep-research-report(1).md: 25 пунктов, 10 ❌ (исследование)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (исследование, код не менялся; Ledger закрыт в .agent_task_state.md)
+**Root Cause:** — (не инцидент; верификация аудита): 25 утверждений отчёта сверены с текущим кодом. Верно: C...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — Реализация 4 фиксов аудита: mutex, TaskQueue, LanceDB rollback, transformers-pin (DONE, 1026 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 1022→1026 passed / 4 skipped / 94 deselected, ruff check src/ tests/ = 0)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest t...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — F3 остаточный риск закрыт: rollback и reset_connection сериализованы единым lock (DONE, +1 тест)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (тест; 9/9 test_lancedb_recreate, ruff чист; полный прогон 1027 passed — 1 транзиентный фейл test_connection из-за живого MCP, повтор зелёный)
+**verified_from_clean_state:** ⚠️ не ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — Координационный инцидент: git commit без pathspec украл staged-правку параллельной сессии (RESOLVED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Resolved (история не переписана — 568b1f27 уже в origin; урок в WISDOM)
+**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран ad1a6d2d — 7/7 success
+**Root Cause:** две се...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — PYSEC-2026-3552: cryptography 49.0.0 в lock → 50.0.0 + pip-audit в CI (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (lock-bump + CI-гейт; pip-audit: No known vulnerabilities found; ci.yml YAML валиден)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (изменения в...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — CI-механический guard в AGENTS.md §7 + code-scanning алерты 22/24 (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (доки+тесты; ruff check src/ tests/ = 0, TestAuditLog 2 passed)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh (чистый клон) не запускался; pre-commit gate-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — CI: version-compat фейлы на 3.10-3.12 (tomllib/read_text-newline/UNC) (FIXED, matrix локально зелёный на 3.10+3.11)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 3.10: 995 passed / 10 skipped, 3.11: 1000 passed / 5 skipped, coverage 46.6% > 38; ruff чист)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh пос...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — CI ubuntu: test_normalize_diag_uri без Windows-skip (FIXED, CI зелёный на 3.10/3.11/3.12 + clean-state)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; ruff чист; ubuntu-фейлы 2 шт на ВСЕХ версиях + clean-state — одна причина)
+**verified_from_clean_state:** ✅ да — CI-прогон #247 (5a771789): 7/7 джобов success (windows+...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — CI красный 18 прогонов (#226-#243): lint 35 ошибок + clean-state ubuntu (FIXED lint, clean-state pending)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (lint: 35 ошибок → 0; matrix-команда: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% при гейте 38%) | ⏳ clean-state ubuntu — не воспроизводится локально, ждёт лог CI
+**ve...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — Следующий шаг: verify_clean_state Windows-ветка + unclosed transport (DONE, 1005 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; -X dev 1005 passed / 4 skipped / 94 deselected; ruff чисто)
+**verified_from_clean_state:** ✅ РЕАЛЬНЫЙ прогон `bash scripts/verify_clean_state.sh --no-clone` на Windows ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — WS9: PID-lock self-healing (вариант C) — orphan/зомби-детекция + soft-wait 8s + psutil-вывод (DONE, 1022 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 1005→1022 passed / 4 skipped / 94 deselected, ruff чист; НЕ запушено)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался (код не в CI-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит f73be307eeb1)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — WS7 Security Hardening: trust-стампинг, instruction-флаги, tool-guard (DONE, 1005 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 990→1005 passed, +15 тестов; runner benchmark2: 20 задач; активация MCP после Reload Window)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не з...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 — WS1-WS6 roadmap: consistency, trust, late enrichment, Execution Contract 2.0 (DONE, 990 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; 956→990 passed, +34 теста; 2 эксперимента в EXPERIMENTS_LOG; активация MCP после Reload Window)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh н...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 02:15 — 1-2-3: доки 57/58, AsyncMock-фикс sleep-корутин, verify_clean_state (DONE, 990 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (1-2) | ⚠️ Task 3: verify_clean_state.sh не запускается на Windows GitBash (POSIX venv/bin vs Windows venv/Scripts, exit 127) — CI-only; локальный эквивалент: pytest tests/ 990 pas...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-08 01:30 — Верификация внешнего аудита (ChatGPT): 14/15 утверждений подтверждено, полный реиндекс 5205 чанков (DONE, 956 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Verified (код не менялся — исследовательская сессия по запросу владельца; полная переиндексация выполнена)
+**Root Cause:** — (не инцидент; сверка внешнего аудита vs локальный код + внешн...
+- **Статус:** автоматически синхронизировано
+

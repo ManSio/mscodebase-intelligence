@@ -42,6 +42,7 @@ Usage:
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import logging
 import os
@@ -52,6 +53,9 @@ from typing import Dict, List
 from src.core.platform_utils import is_windows
 
 __all__ = [
+    "ArtifactStorageError",
+    "safe_mkdir",
+    "check_disk_space",
     "get_data_root",
     "project_hash",
     "get_project_dir",
@@ -65,10 +69,75 @@ __all__ = [
     "get_telemetry_dir",
     "get_progress_file",
     "get_summaries_cache_dir",
+    "get_logs_dir",
+    "get_crash_log_path",
+    "get_shared_models_dir",
+    "get_onnx_models_base",
     "legacy_project_dirs",
     "migrate_legacy_artifacts",
 ]
 logger = logging.getLogger("mscodebase_server.artifacts")
+
+# Минимальный порог свободного места на диске data_root (health-предупреждение).
+MIN_FREE_DISK_MB = 500
+
+
+class ArtifactStorageError(OSError):
+    """Недостаточно места на диске или нет доступа для артефактов MCP."""
+
+
+def safe_mkdir(path: Path, *, what: str = "") -> bool:
+    """Безопасный mkdir с диагностикой ошибок диска/доступа.
+
+    EEXIST → True (уже существует). ENOSPC/EDQUOT → ArtifactStorageError
+    (полный диск). EACCES/EPERM → ArtifactStorageError (нет доступа).
+    Ошибка оборачивается в понятное сообщение вместо голого OSError.
+    """
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return True
+    except FileExistsError:
+        return True
+    except OSError as e:
+        _ctx = what or str(path)
+        if e.errno in (errno.ENOSPC, errno.EDQUOT):
+            logger.error(f"Недостаточно места на диске при создании {_ctx}: {e}")
+            raise ArtifactStorageError(
+                f"Недостаточно места на диске для {_ctx} (ENOSPC)"
+            ) from e
+        if e.errno in (errno.EACCES, errno.EPERM):
+            logger.error(f"Нет доступа при создании {_ctx}: {e}")
+            raise ArtifactStorageError(
+                f"Нет доступа к {_ctx} (EACCES/EPERM)"
+            ) from e
+        raise
+
+
+def check_disk_space(min_free_mb: int = MIN_FREE_DISK_MB) -> dict:
+    """Проверяет свободное место на диске data_root (для health/GC).
+
+    Returns:
+        {"ok": bool, "free_mb": int, "total_mb": int, "min_free_mb": int}.
+        При ошибке опроса — ok=True (не блокируем по неизвестности).
+    """
+    try:
+        usage = shutil.disk_usage(get_data_root())
+        free_mb = usage.free // (1024 * 1024)
+        return {
+            "ok": free_mb >= min_free_mb,
+            "free_mb": free_mb,
+            "total_mb": usage.total // (1024 * 1024),
+            "min_free_mb": min_free_mb,
+        }
+    except OSError as e:
+        return {
+            "ok": True,
+            "free_mb": 0,
+            "total_mb": 0,
+            "min_free_mb": min_free_mb,
+            "error": str(e),
+        }
+
 
 # Legacy-поддиректории внутри .codebase_indices/, которые переносятся в проектную папку.
 _LEGACY_INDEX_SUBDIRS: tuple = (
@@ -97,15 +166,11 @@ def get_data_root() -> Path:
     """
     env = os.getenv("MSCODEBASE_DATA_DIR", "").strip()
     if env:
-        root = Path(env).expanduser()
-        root.mkdir(parents=True, exist_ok=True)
-        return root
+        return _ensure_data_root(Path(env).expanduser())
 
     legacy = os.getenv("BASE_INDEX_DIR", "").strip()
     if legacy and Path(legacy).is_absolute():
-        root = Path(legacy).expanduser()
-        root.mkdir(parents=True, exist_ok=True)
-        return root
+        return _ensure_data_root(Path(legacy).expanduser())
 
     if is_windows():
         base = Path(os.environ.get("LOCALAPPDATA", "")) / "mscodebase"
@@ -115,8 +180,24 @@ def get_data_root() -> Path:
             base = Path(xdg) / "mscodebase"
         else:
             base = Path.home() / ".cache" / "mscodebase"
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    return _ensure_data_root(base)
+
+
+def _ensure_data_root(root: Path) -> Path:
+    """Создаёт корень данных; при недоступности — временный fallback.
+
+    Не даём серверу упасть при полном диске/битых правах: переключаемся
+    в tempfile-каталог (данные будут временными) и продолжаем работу.
+    """
+    try:
+        safe_mkdir(root, what="data root")
+        return root
+    except ArtifactStorageError as e:
+        import tempfile
+
+        fallback = Path(tempfile.mkdtemp(prefix="mscodebase_data_"))
+        logger.warning(f"data root {root} недоступен ({e}); fallback: {fallback}")
+        return fallback
 
 
 def project_hash(project_path: Path) -> str:
@@ -149,7 +230,7 @@ def get_project_dir(project_path: Path) -> Path:
     """
     d = _compute_project_dir(project_path)
     if not d.exists():
-        d.mkdir(parents=True, exist_ok=True)
+        safe_mkdir(d, what=f"project dir {project_path.name}")
         _migrate_into(d, project_path)
     elif not d.is_dir():
         raise NotADirectoryError(
@@ -167,7 +248,7 @@ def get_project_dir(project_path: Path) -> Path:
 def get_index_dir(project_path: Path) -> Path:
     """Директория LanceDB-индекса (lancedb_v2) в системной папке."""
     d = get_project_dir(project_path) / "lancedb_v2"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="index dir")
     return d
 
 
@@ -185,35 +266,35 @@ def get_graph_db_path(project_path: Path) -> Path:
 def get_intelligence_dir(project_path: Path) -> Path:
     """Project Memory / Incident History (JSON)."""
     d = get_project_dir(project_path) / "intelligence"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="intelligence dir")
     return d
 
 
 def get_metrics_dir(project_path: Path) -> Path:
     """Метрики индексации (job_history.json для адаптивного ETA)."""
     d = get_project_dir(project_path) / "metrics"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="metrics dir")
     return d
 
 
 def get_commit_memory_dir(project_path: Path) -> Path:
     """Кэш семантической памяти коммитов."""
     d = get_project_dir(project_path) / "commit_memory"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="commit_memory dir")
     return d
 
 
 def get_branches_dir(project_path: Path) -> Path:
     """Индексы git-веток (BranchAwareIndex)."""
     d = get_project_dir(project_path) / "branches"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="branches dir")
     return d
 
 
 def get_telemetry_dir(project_path: Path) -> Path:
     """Телеметрия (ежедневные JSON-снэпшоты)."""
     d = get_project_dir(project_path) / "telemetry"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="telemetry dir")
     return d
 
 
@@ -225,8 +306,41 @@ def get_progress_file(project_path: Path) -> Path:
 def get_summaries_cache_dir(project_path: Path) -> Path:
     """Кэш LLM-описаний чанков (ChunkSummarizer)."""
     d = get_project_dir(project_path) / "summaries_cache"
-    d.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(d, what="summaries_cache dir")
     return d
+
+
+def get_logs_dir() -> Path:
+    """Центральная директория логов MCP (вместо ext_root/.codebase_indices/logs).
+
+    Логи живут в data_root, а не в расширении: папка расширения стирается
+    при переустановке Zed-расширения, data_root переживает её.
+    """
+    d = get_data_root() / "logs"
+    safe_mkdir(d, what="logs dir")
+    return d
+
+
+def get_crash_log_path() -> Path:
+    """Crash-лог ResourceMonitor (вместо ~/.mscodebase_crash_log.json)."""
+    return get_logs_dir() / "crash.json"
+
+
+def get_shared_models_dir() -> Path:
+    """Общий кэш моделей (вместо ~/.cache/mscodebase/models).
+
+    На Windows исторический fallback-путь моделей указывал в Linux-кэш
+    (~/.cache/mscodebase) — это третий разбросанный путь. Единый кэш —
+    data_root/models, доступный на всех платформах.
+    """
+    d = get_data_root() / "models"
+    safe_mkdir(d, what="models dir")
+    return d
+
+
+def get_onnx_models_base() -> Path:
+    """База ONNX-моделей в общем кэше (data_root/models/.codebase_models/onnx)."""
+    return get_shared_models_dir() / ".codebase_models" / "onnx"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -305,5 +419,5 @@ def migrate_legacy_artifacts(project_path: Path) -> Dict[str, str]:
     создании папки. Нужен для тестов и явных вызовов из стартовых путей.
     """
     new_dir = _compute_project_dir(project_path)
-    new_dir.mkdir(parents=True, exist_ok=True)
+    safe_mkdir(new_dir, what="project dir")
     return _migrate_into(new_dir, project_path)

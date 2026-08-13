@@ -396,21 +396,6 @@ def resolve_project_root(provided: str = "") -> Path:
 
 def _log_project_resolution_failure() -> None:
     """Логирует детальную причину падения resolve_project_root в ext_root."""
-    try:
-        from src.core.lsp_project_bridge import get_bridge_dir
-
-        bridge_dir = get_bridge_dir()
-        if not bridge_dir.exists():
-            logger.warning("🌉 BRIDGE: директория не существует")
-            return
-        json_files = list(bridge_dir.glob("*.json"))
-        if not json_files:
-            logger.warning(
-                "🌉 BRIDGE: директория существует, но JSON-файлов нет — "
-                "LSP не запущен или упал при старте"
-            )
-        else:
-            for f in json_files:
-                logger.debug(f"🌉 BRIDGE найден: {f.name}")
-    except (ImportError, OSError, ValueError) as _rpf_err:
-        logger.debug(f"_log_project_resolution_failure: {_rpf_err}")
+    # LSP→MCP bridge удалён (2026-07-20): чтение ~/.mscodebase/bridge больше
+    # не выполняется — модуль lsp_project_bridge DEPRECATED, писатель мёртв.
+    logger.debug("resolve_project_root: все источники (CWD/env/Zed-SQLite) пусты")

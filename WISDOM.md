@@ -54,6 +54,16 @@
 - Строка без подтверждения/использования 30+ дней → удалить или архивировать.
 - Свежая строка бьёт старую → старую удалить, `CONTRADICTION RESOLVED` в дневнике (§4.9).
 
+## Единый PathManager + GC (2026-08-13)
+- Артефакты (crash-лог, логи MCP, кэш моделей, телеметрия) — ТОЛЬКО через artifact_paths.py:
+  data_root/logs/crash.json, data_root/logs/*.log, data_root/models/.codebase_models/onnx,
+  data_root/projects/<hash8>/telemetry. Бывшие ~/.mscodebase_crash_log.json, ~/.cache/mscodebase,
+  ext/.codebase_indices/logs — удалены из кода (migrate при старте переносит историю).
+- Тесты ОБЯЗАНЫ изолировать data_root: autouse-фикстура в tests/conftest.py (MSCODEBASE_DATA_DIR→tmp).
+  Без неё pytest tmp_path плодит папки projects/<hash> в РЕАЛЬНЫЙ каталог (было 2481 папок, 95% мусор).
+- ArtifactGC (artifact_gc.py) чистит при старте: 30д неактивные проекты / 90д телеметрия / 7д логи /
+  пустые сразу; активные из ProjectIndexerRegistry защищены; hex-guard на имя папки.
+
 ## Research verification layers dev.to (2026-08-11, EXP-1..5)
 - verify_clean_state.sh drift-гейт: был МЁРТВ (grep `^\"?pkg==` не матчил пины TOML-массива) → **FIXED 2026-08-12**: scripts/check_lock_drift.sh (`grep -vE '^\s*#' | grep -oE "\"${pkg}==[0-9.]+"`, exact-пины lancedb/pylance) + scripts/negative_control_drift_gate.sh (Arm1 мутант → exit 1, Arm2 sync → exit 0) — контроль на КАЖДОМ clean-state прогоне (правило Тома).
 - scripts/stale_detector.py: был placeholder («No drifts») → **FIXED + RE-ENABLED в pre-commit 2026-08-12**: обёртка над tools/stale_detector/stale_check.py; doc-sync (117 дрейфов → 0): live-доки → 3.4.0, леджеры (KNOWN_ISSUES/ISSUE/WISDOM) и архивы (docs/archive, blog, ISSUES) исключены из версионной проверки, исторические маркеры («CHANGELOG 3.2.1», «v3.2.0 Data Flow», «v3.2.0+») — stale-ignore.

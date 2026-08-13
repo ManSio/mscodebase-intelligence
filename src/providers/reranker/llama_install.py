@@ -280,7 +280,10 @@ def _get_ext_dir() -> Path:
     p = Path(__file__).resolve().parent.parent.parent
     if (p / "src" / "main.py").exists():
         return p
-    return Path.home() / ".cache" / "mscodebase"
+    # Последний fallback: единый data root (исторически ~/.cache/mscodebase).
+    from src.core.artifact_paths import get_data_root
+
+    return get_data_root()
 
 
 def _get_llama_dir() -> Path:
