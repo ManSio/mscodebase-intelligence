@@ -26,6 +26,7 @@ pytest tmp_path и закрытые/удалённые проекты накоп
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import time
@@ -43,9 +44,13 @@ DEFAULT_LOG_RETENTION_DAYS = 7
 
 
 def _dir_has_files(path: Path) -> bool:
-    """True, если в дереве path есть хотя бы один файл."""
+    """True, если в дереве path есть хотя бы один файл.
+
+    os.walk (не Path.walk — тот доступен только с Python 3.12,
+    а CI matrix 3.10-3.12; урок WISDOM 2026-08-08).
+    """
     try:
-        for _root, dirs, files in path.walk():
+        for _root, dirs, files in os.walk(path):
             if files:
                 return True
             for d in dirs:
