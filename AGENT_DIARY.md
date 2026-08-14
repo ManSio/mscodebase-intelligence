@@ -31,7 +31,7 @@
 **Pattern:** NEW (первый инцидент класса «console-процесс без подавления окна»; прецедент-флаги уже были у llama-server/onnx/LSP/sandbox — новый фикс распространил конвенцию на остальные).
 **Фаза 2 (19:50, «остаются после закрытия Zed»):**
 - **Root Cause «сирот»:** в settings.json пользователя был ДУБЛЬ регистрации context server (`venv\Scripts\python.exe`, старый способ) — оба (settings.json + extension.toml) запускаются через powershell-обёртку Zed; при закрытии Zed цепочка powershell → venvlauncher → python НЕ получает EOF (powershell ждёт python, python ждёт закрытый канал) → процессы и их чёрные окна остаются навсегда.
-- **Fix 2a:** settings.json → `pythonw.exe` (обновлено через .Replace, JSON валиден); extension.toml env дополнен EMBEDDING_PROVIDER=llama_cpp / EMBEDDING_DIMENSION=384 (эквивалент удалённых из settings.json после его удаления в будущем).
+- **Fix 2a:** settings.json → дубль-регистрация УДАЛЕНА полностью (остался только extension.toml — AGENTS.md §0.5; JSONC-валиден, context_servers_to_query сохранён; до удаления переведена на pythonw.exe); extension.toml env дополнен EMBEDDING_PROVIDER=llama_cpp / EMBEDDING_DIMENSION=384 (эквивалент env удалённого блока; PYTHONPATH избыточен — src/main.py сам вставляет PROJECT_ROOT в sys.path).
 - **Fix 2b:** `server_factory._start_zed_parent_watchdog()` — Windows-only daemon-thread: parent_chain() (WindowsProcessInspector) ищет ближайший Zed.exe в предках; умер → os._exit(0) (llama-дети умирают по JobObject KILL_ON_JOB_CLOSE 0x2000). Для ручных запусков (start_server.bat, нет Zed в цепочке) — не запускается. Живой тест: поток поднялся и следит за Zed PID=10964.
 - **Тесты:** 54 passed (server_factory/database_lock/llama/startup); JSON settings.json валиден.
 
