@@ -232,7 +232,14 @@ def _find_value_span(text: str, key: str):
 
 def _insert_before_final_brace(text: str, snippet: str) -> str | None:
     """Insert `snippet` (a `"key": value` fragment, no leading/trailing comma)
-    as a new top-level property right before the final `}`."""
+    as a new top-level property right before the final `}`.
+
+    Comma logic (инцидент 2026-08-14, CMD-окна/install.py): запятая нужна,
+    если предыдущий токен — конец ПРЕДЫДУЩЕГО ключа (`"`, `}`, `]`, цифра и т.п.);
+    НЕ нужна только когда перед точкой вставки стоит `{` (пустой объект) или `,`
+    (JSONC trailing comma). Старая версия инвертировала логику для `{`/`}`:
+    после вложенного объекта (`"agent": {...}`) запятая не ставилась -> битый JSON.
+    """
     stripped = text.rstrip()
     last = stripped.rfind("}")
     if last < 0:
@@ -241,7 +248,7 @@ def _insert_before_final_brace(text: str, snippet: str) -> str | None:
     j = last - 1
     while j >= 0 and stripped[j] in " \t\r\n":
         j -= 1
-    comma = "," if j >= 0 and stripped[j] not in ",}" else ""
+    comma = "" if j < 0 or stripped[j] in "{," else ","
     return prefix + comma + "\n    " + snippet + "\n" + stripped[last:]
 
 
@@ -280,9 +287,10 @@ def _make_server_entry(existing: dict | None, executable: str, args: list, ext_d
     # Windows: без PYTHONUTF8=1 Python читает исходники в cp1251,
     # ломая индексацию русских комментариев и имён (аудит Item 12/5).
     env["PYTHONUTF8"] = "1"
-    # Optional: keep user value if present, else default.
-    env.setdefault("EMBEDDING_PROVIDER", "e5_onnx")
-    env.setdefault("EMBEDDING_DIMENSION", "768")
+    # EMBEDDING_PROVIDER/EMBEDDING_DIMENSION НЕ навязываем: переменная
+    # DEPRECATED (.env.example — «provider is auto-detected»), размерность
+    # берётся из config (default 384). Значения пользователя, если он их
+    # явно задал в своей записи, сохраняются (env = existing.get(...)).
     entry["env"] = env
     return entry
 
