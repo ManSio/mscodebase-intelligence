@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)
+
+**Что:** при работе MCP (pythonw) в простое каждые ~30с появлялась консоль на ~1с. Монитор console_flash_monitor.py поймал: `resource_monitor._sample_disk_io` → `powershell Get-Process ReadOperationCount` без CREATE_NO_WINDOW → conhost (мигалка). Аналогичный не-флагаунный спавн — `llama_runner._watchdog_loop` (`powershell WorkingSet64`). git cat-file (Contradiction Ledger) мигает реже — mingw64 git переисполняет себя, re-exec теряет флаг.
+**Fix (2026-08-14):** CREATE_NO_WINDOW в resource_monitor + llama_runner watchdog; verify_diary git — CREATE_NO_WINDOW|DETACHED_PROCESS; добавлен scripts/console_flash_monitor.py (атрибуция: время+PID+родительская цепочка+CMD, лог в data_root/logs).
+**Статус:** 🟢 стабильно (после перезагрузки Zed) | **Владелец:** misha.
+
 ## 2026-08-14 — Телеметрия MCP заражена общим tool_metrics.json (FIXED)
 
 **Что:** `tool_metrics.json` — один файл на все инстансы MCP (3 окна Zed) и накапливается между сессиями → intel_tool_health показывал «0%» у всех, телеметрия — чужие «search_code 6.9s error», `total_ms=-994` (отрицательная латентность переживала санитизацию: клампился min_ms, не total_ms). get_runtime_counters — «Blocked 100%» при 0 проверок.

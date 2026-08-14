@@ -460,7 +460,9 @@ class LlamaRunner:
 
                          f'Get-Process -Id {pid} | Select-Object -ExpandProperty WorkingSet64'],
 
-                        timeout=5
+                        timeout=5,
+
+                        creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),  # инцидент 2026-08-14: мигание консоли
 
                     ).decode("utf-8", errors="replace").strip()
 

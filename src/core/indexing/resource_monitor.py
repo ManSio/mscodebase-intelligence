@@ -523,6 +523,7 @@ class ResourceMonitor:
                 ["powershell", "-NoProfile", "-Command",
                  f"(Get-Process -Id {pid} | Select-Object -Property ReadOperationCount,WriteOperationCount) | ConvertTo-Csv -NoHeader"],
                 timeout=5, text=True, encoding="utf-8", errors="replace",
+                creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),  # инцидент 2026-08-14: мигание консоли в простое каждые ~30с
             )
             parts = out.strip().split(",")
             if len(parts) >= 2:

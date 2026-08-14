@@ -364,7 +364,13 @@ def check_commit_exists(commit_hash: str) -> bool:
                 cwd=str(ROOT),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                # CREATE_NO_WINDOW|DETACHED: git (mingw64) переисполняет себя
+                # (git -> git.exe) и дочерний re-exec теряет флаг -> консоль
+                # (инцидент 2026-08-14, мигание при Contradiction Ledger).
+                creationflags=(
+                    getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    | getattr(subprocess, "DETACHED_PROCESS", 0)
+                ),
             )
             proc.communicate(timeout=30)
             if proc.returncode == 0:
