@@ -48,7 +48,7 @@ load_dotenv(ROOT / ".env")
 FACTS = ROOT / "experiments" / "context_engine" / "memory_contamination_facts_v4_rep.json"
 ZEN_BASE = os.environ.get("LLM_BASE_URL", "https://opencode.ai/zen/v1")
 ZEN_MODEL = os.environ.get("LLM_MODEL", "big-pickle")
-OC_MODEL = os.environ.get("OPENCODE_MODEL", "opencode/big-pickle")
+OC_MODEL = os.environ.get("OPENCODE_MODEL", "opencode/deepseek-v4-flash-free")
 RUN_TIMEOUT = 180
 
 # §5.9 ENCODING SAFETY (Windows)
@@ -69,18 +69,23 @@ def _api_key() -> str:
 
 def _prompt(fact: dict, arm: str) -> str:
     claim = fact["claim"]
+    # ВАЖНО: промпт без двойных кавычек — на Windows кавычки в argv мэнглятся
+    # при передаче через opencode.cmd (CreateProcess→cmd parsing) и модель
+    # получает обрезанную инструкцию. JSON-инструкция — словами.
     if arm == "memory_first":
         return (
-            "Do NOT use any tools. Answer only with JSON.\n"
-            f"Memory contains this claim (no code context shown):\n\"{claim}\"\n"
-            "Is it true? Reply {\"verdict\": \"true\"|\"false\"|\"unknown\"}."
+            "Do NOT use any tools. Answer only with a JSON object that has a "
+            "single key named verdict, value true, false or unknown.\n"
+            f"Memory contains this claim (no code context shown):\n{claim}\n"
+            "Is it true?"
         )
     return (
-        "Do NOT use any tools. Answer only with JSON.\n"
-        f"Claim: \"{claim}\"\n"
-        f"Supporting anchors (from memory): {json.dumps(fact.get('support_patterns', []), ensure_ascii=False)}\n"
+        "Do NOT use any tools. Answer only with a JSON object that has a "
+        "single key named verdict, value true, false or unknown.\n"
+        f"Claim: {claim}\n"
+        f"Supporting anchors (from memory): {'; '.join(fact.get('support_patterns', []))}\n"
         f"Project section: {fact.get('section', '?')}\n"
-        "Does the claim appear supported by these anchors? Reply {\"verdict\": ...}."
+        "Does the claim appear supported by these anchors?"
     )
 
 
@@ -91,12 +96,11 @@ def _normalize_verdict(resp: dict) -> str:
 
 # ─── Driver: opencode CLI ────────────────────────────────────────────────
 def _extract_verdict_text(stdout: str) -> str:
-    """Из JSON-событий opencode run --format json берём последний текст ассистента.
+    """Из JSON-событий `opencode run --format json` берём последний text-part.
 
-    Формат событий opencode: JSON-объект на строку (type/message). Парсинг
-    дефензивный: собираем весь ассистентский текст, берём последний фрагмент
-    (среда opencode не установлена в этой сессии — парсер требует проверки
-    на реальном выводе после установки; fallback — regex по "verdict").
+    Реальный формат (проверено на opencode 1.18.18): событие вида
+    {"type":"text","part":{"type":"text","text":"..."}} — берём text из
+    ПОСЛЕДНЕГО такого part (финальный ответ ассистента).
     """
     texts: list[str] = []
     for line in stdout.splitlines():
@@ -107,27 +111,55 @@ def _extract_verdict_text(stdout: str) -> str:
             ev = json.loads(line)
         except json.JSONDecodeError:
             continue
-        msg = ev.get("message") if isinstance(ev, dict) else None
-        if not isinstance(msg, dict) or msg.get("role") != "assistant":
-            continue
-        content = msg.get("content")
-        if isinstance(content, str):
-            texts.append(content)
-        elif isinstance(content, list):
-            texts.append(
-                "".join(c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text")
-            )
+        part = ev.get("part") if isinstance(ev, dict) else None
+        if isinstance(part, dict) and part.get("type") == "text":
+            t = part.get("text", "")
+            if t:
+                texts.append(t)
     return texts[-1] if texts else ""
 
 
-def _opencode_verdict(prompt: str, project: Path) -> dict:
+def _opencode_bin() -> str | None:
+    """Резолв бинарника opencode: PATH или npm global bin (Windows GitBash
+    не видит свежие npm-install в PATH текущей сессии)."""
+    w = shutil.which("opencode")
+    if w:
+        return w
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    if npm:
+        try:
+            p = subprocess.run(
+                [npm, "prefix", "-g"], capture_output=True, timeout=10, text=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            prefix = Path(p.stdout.strip())
+            # На Windows реальный лаунчер — opencode.cmd (bash-шим 'opencode' —
+            # не Win32-приложение, subprocess его не выполнит: WinError 193)
+            for cand in (prefix / "opencode.cmd", prefix / "opencode"):
+                if cand.exists():
+                    return str(cand)
+            return None
+        except Exception:  # noqa: BLE001 — диагностика
+            pass
+    return None
+
+
+def _opencode_verdict(prompt: str, project: Path, model: str | None = None) -> dict:
+    bin_path = _opencode_bin()
+    if bin_path is None:
+        return {"verdict": "unknown", "error": "opencode не установлен (npm install -g opencode-ai)"}
     cmd = [
-        "opencode", "run", "--model", OC_MODEL, "--format", "json",
+        bin_path, "run", "--model", model or OC_MODEL, "--format", "json",
         "--dir", str(project), "--auto", prompt,
     ]
+    # opencode читает ZEN_API_KEY из env; наш ключ лежит в .env как DEEPSEEK_API_KEY
+    env = dict(os.environ)
+    key = _api_key()
+    if key and not env.get("ZEN_API_KEY"):
+        env["ZEN_API_KEY"] = key
     try:
         p = subprocess.run(
-            cmd, capture_output=True, timeout=RUN_TIMEOUT,
+            cmd, capture_output=True, timeout=RUN_TIMEOUT, env=env,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         text = _extract_verdict_text(p.stdout.decode("utf-8", "replace"))
@@ -178,9 +210,9 @@ def _api_verdict(prompt: str, key: str) -> dict:
         return {"verdict": "unknown", "error": str(e)}
 
 
-def _verdict(prompt: str, driver: str, key: str) -> dict:
+def _verdict(prompt: str, driver: str, key: str, model: str | None = None) -> dict:
     if driver == "opencode":
-        return _opencode_verdict(prompt, ROOT)
+        return _opencode_verdict(prompt, ROOT, model)
     import time
 
     resp = _api_verdict(prompt, key)
@@ -198,14 +230,37 @@ def _verdict(prompt: str, driver: str, key: str) -> dict:
     return resp
 
 
-def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, skip_ids: set[str] | None = None) -> dict:
+def _summarize(results: list, arm: str, driver: str, model: str) -> dict:
+    n = len(results)
+    if n == 0:
+        return {"arm": arm, "n": 0, "driver": driver, "model": model, "adoption": 0.0,
+                "false_accept": 0.0, "false_accept_ids": [], "true_accept": 0.0,
+                "unknown_rate": 0.0, "accuracy": 0.0, "errors": []}
+    accepted = [r for r in results if r["verdict"] == "true"]
+    false_accept = [r for r in accepted if r["truth"] is False]
+    true_accept = [r for r in accepted if r["truth"] is True]
+    decided = [r for r in results if r["verdict"] in ("true", "false")]
+    correct = [r for r in decided if (r["verdict"] == "true") == bool(r["truth"])]
+    return {
+        "arm": arm, "n": n, "driver": driver, "model": model,
+        "adoption": len(accepted) / n,
+        "false_accept": len(false_accept) / n,
+        "false_accept_ids": [r["id"] for r in false_accept],
+        "true_accept": len(true_accept) / n,
+        "unknown_rate": 1 - (len(decided) / n),
+        "accuracy": len(correct) / len(decided) if decided else 0.0,
+        "errors": [r for r in results if r["error"]],
+    }
+
+
+def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, skip_ids: set[str] | None = None, model: str | None = None) -> dict:
     import time
 
     skip_ids = skip_ids or set()
     results = []
     todo = [f for f in facts if f["id"] not in skip_ids]
     for i, fact in enumerate(todo):
-        resp = _verdict(_prompt(fact, arm), driver, key)
+        resp = _verdict(_prompt(fact, arm), driver, key, model=model)
         verdict = _normalize_verdict(resp)
         results.append({
             "id": fact["id"], "truth": fact["truth"], "verdict": verdict,
@@ -213,36 +268,16 @@ def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, s
         })
         if delay and i < len(todo) - 1:
             time.sleep(delay)  # free-tier rate limit (FreeUsageLimitError)
-    n = len(results)
-    if n == 0:
-        return {"arm": arm, "n": 0, "skipped": len(skip_ids), "results": [],
-                "adoption": 0.0, "false_accept": 0.0, "true_accept": 0.0,
-                "unknown_rate": 0.0, "accuracy": 0.0, "errors": [],
-                "false_accept_ids": [], "driver": driver,
-                "model": OC_MODEL if driver == "opencode" else ZEN_MODEL}
-    accepted = [r for r in results if r["verdict"] == "true"]
-    false_accept = [r for r in accepted if r["truth"] is False]
-    true_accept = [r for r in accepted if r["truth"] is True]
-    decided = [r for r in results if r["verdict"] in ("true", "false")]
-    correct = [r for r in decided if (r["verdict"] == "true") == bool(r["truth"])]
-    return {
-        "arm": arm, "n": n, "driver": driver,
-        "model": OC_MODEL if driver == "opencode" else ZEN_MODEL,
-        "adoption": len(accepted) / n if n else 0.0,
-        "false_accept": len(false_accept) / n if n else 0.0,
-        "false_accept_ids": [r["id"] for r in false_accept],
-        "true_accept": len(true_accept) / n if n else 0.0,
-        "unknown_rate": 1 - (len(decided) / n if n else 0.0),
-        "accuracy": len(correct) / len(decided) if decided else 0.0,
-        "errors": [r for r in results if r["error"]],
-        "results": results,
-    }
+    summary = _summarize(results, arm, driver, model or (OC_MODEL if driver == "opencode" else ZEN_MODEL))
+    summary["results"] = results
+    return summary
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="1-L live arm: вердикты живой модели (OpenCode Big Pickle) по 50 фактам 1-V")
     parser.add_argument("--arm", choices=["memory_first", "code_first", "both"], default="both")
     parser.add_argument("--driver", choices=["opencode", "api"], default="opencode")
+    parser.add_argument("--model", default="", help="модель (opencode/xxx или API id); по умолч. из env/драйвера")
     parser.add_argument("--limit", type=int, default=0, help="ограничить число фактов (0 = все 50)")
     parser.add_argument("--delay", type=float, default=1.5, help="пауза между фактами, сек (free-tier rate limit)")
     parser.add_argument("--resume", action="store_true", help="продолжить с последнего прогресса (live_arm_1L_progress.json)")
@@ -253,20 +288,20 @@ def main() -> int:
     facts = data["facts"]
     if args.limit:
         facts = facts[: args.limit]
+    model = args.model or (OC_MODEL if args.driver == "opencode" else ZEN_MODEL)
 
     if args.dry_run:
-        print(f"DRY-RUN: {len(facts)} фактов, arms={args.arm}, driver={args.driver}, "
-              f"model={OC_MODEL if args.driver == 'opencode' else ZEN_MODEL}")
+        print(f"DRY-RUN: {len(facts)} фактов, arms={args.arm}, driver={args.driver}, model={model}")
         for f in facts[:2]:
             print(f"  [{f['id']}] truth={f['truth']} | {_prompt(f, 'code_first')[:110]}...")
         print("DRY-RUN OK (модель не вызывалась).")
         return 0
 
     if args.driver == "opencode":
-        if shutil.which("opencode") is None:
+        if _opencode_bin() is None:
             print("LIVE-ARM: opencode не установлен. Установите: npm install -g opencode-ai")
             print("  Затем ключ: opencode auth login → OpenCode Zen → вставить API key")
-            print("  (ключ хранится в ~/.local/share/opencode/auth.json; для Big Pickle ключ обязателен, модель бесплатна)")
+            print("  (ключ хранится в ~/.local/share/opencode/auth.json; free-модели работают через ZEN_API_KEY env)")
             return 2
     else:
         key = _api_key()
@@ -285,7 +320,7 @@ def main() -> int:
     report: dict = {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "driver": args.driver,
-        "model": OC_MODEL if args.driver == "opencode" else ZEN_MODEL,
+        "model": model,
         "facts_source": str(FACTS.name),
         "arms": {},
     }
@@ -301,18 +336,22 @@ def main() -> int:
         existing = report["arms"].get(arm, {})
         done_ids = {r["id"] for r in existing.get("results", []) if not r.get("error")}
         print(f"--- arm={arm} ({len(facts)} facts, уже готово={len(done_ids)}) ---")
-        arm_report = _run_arm(facts, arm, args.driver, _api_key(), delay=args.delay, skip_ids=done_ids)
-        merged = existing.get("results", []) + arm_report["results"]
-        arm_report["results"] = merged
-        report["arms"][arm] = {k: v for k, v in arm_report.items() if k != "results"}
-        report["arms"][arm]["results"] = merged
-        print(f"  adoption={arm_report['adoption']:.3f} false_accept={arm_report['false_accept']:.3f} "
-              f"true_accept={arm_report['true_accept']:.3f} unknown={arm_report['unknown_rate']:.3f} "
-              f"accuracy(decided)={arm_report['accuracy']:.3f}")
-        if arm_report["false_accept_ids"]:
-            print(f"  FALSE-ACCEPT ids: {arm_report['false_accept_ids']}")
-        if arm_report["errors"]:
-            print(f"  ERRORS: {len(arm_report['errors'])} (первый: {arm_report['errors'][0]['error'][:120]})")
+        arm_report = _run_arm(facts, arm, args.driver, _api_key(), delay=args.delay, skip_ids=done_ids, model=model)
+        # Merge по id (последний результат побеждает) — retry-проходы не должны дублировать
+        merged = {x["id"]: x for x in existing.get("results", [])}
+        for x in arm_report["results"]:
+            merged[x["id"]] = x
+        merged_list = list(merged.values())
+        summary = _summarize(merged_list, arm, args.driver, model)
+        summary["results"] = merged_list
+        report["arms"][arm] = summary
+        print(f"  adoption={summary['adoption']:.3f} false_accept={summary['false_accept']:.3f} "
+              f"true_accept={summary['true_accept']:.3f} unknown={summary['unknown_rate']:.3f} "
+              f"accuracy(decided)={summary['accuracy']:.3f}")
+        if summary["false_accept_ids"]:
+            print(f"  FALSE-ACCEPT ids: {summary['false_accept_ids']}")
+        if summary["errors"]:
+            print(f"  ERRORS: {len(summary['errors'])} (первый: {summary['errors'][0]['error'][:120]})")
 
     progress_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"PROGRESS SAVED: {progress_path}")
