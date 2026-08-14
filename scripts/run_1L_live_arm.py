@@ -259,6 +259,7 @@ def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, s
     skip_ids = skip_ids or set()
     results = []
     todo = [f for f in facts if f["id"] not in skip_ids]
+    consecutive_429 = 0
     for i, fact in enumerate(todo):
         resp = _verdict(_prompt(fact, arm), driver, key, model=model)
         verdict = _normalize_verdict(resp)
@@ -266,6 +267,16 @@ def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, s
             "id": fact["id"], "truth": fact["truth"], "verdict": verdict,
             "error": resp.get("error", ""),
         })
+        # FREE-TIER WALL: 3 подряд 429 = окно лимита закрыто — стоп вместо
+        # долгих backoff-снов (раньше ран «висел» 15+ мин на ретраях)
+        if "429" in resp.get("error", ""):
+            consecutive_429 += 1
+            if consecutive_429 >= 3:
+                remaining = len(todo) - i - 1
+                print(f"  FREE-TIER WALL: 3 подряд 429 — стоп (обработано {i + 1}, осталось {remaining}), ждём окно и --resume")
+                break
+        else:
+            consecutive_429 = 0
         if delay and i < len(todo) - 1:
             time.sleep(delay)  # free-tier rate limit (FreeUsageLimitError)
     summary = _summarize(results, arm, driver, model or (OC_MODEL if driver == "opencode" else ZEN_MODEL))
