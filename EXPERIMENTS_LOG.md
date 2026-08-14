@@ -1,5 +1,21 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-14] — Exp 1-L Day 1 (live-arm): вердикты живой модели (opencode + deepseek-v4-flash-free) по 50 фактам 1-V
+
+**Гипотеза (из ревью Part 3):** «детерминированный proxy-агент вместо живой модели — с живой моделью цифры будут другими, возможно сильно другими». Ожидание: adoption/ложные отзывы живого LLM ≠ 0.16/0.24 proxy.
+**Команда:** `python scripts/run_1L_live_arm.py --driver opencode --arm both --limit 50 --model opencode/deepseek-v4-flash-free --delay 2 --resume` (OpenCode Zen, free-тир; ключ из .env; 100 вызовов, дриблинг по окнам лимита free-тира).
+**Сырой результат (дедуплицирован по id, errors=0, n=50 на руку):**
+```
+memory_first: adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 accuracy(decided)=0.500
+  FALSE-ACCEPT ids: [R28, R30, R31, R33, R42]
+code_first:   adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 accuracy(decided)=0.500
+  FALSE-ACCEPT ids: [R26, R31, R45, R47, R50]
+```
+**Вердикт: ✅ подтверждено.** Цифры живой модели радикально отличаются от proxy 1-V: (1) proxy всегда решал (unknown=0), живая модель — **unknown=0.80** (честная неопределённость без кода/даже с якорями); (2) proxy false-accept=0 by construction, живая — **false_accept=0.10** (5 ложных утверждений приняты, R31 — в обеих руках) — риск контаминации реален; (3) accuracy(decided)=0.500 при N=10 решённых — малая выборка, требуется больше данных (1-L продолжается).
+**Оговорки:** модель — free-тир Zen (не Claude/GPT-4o из ревью; harness поддерживает --model для других); 80% unknown частично отражает дизайн промпта memory_first (только claim без кода) — но это и есть измеряемое свойство «доверяет ли память без кода».
+**Урок:** критика ревью подтверждена данными — headline-числа 1-V были свойством эвристики, не поведения LLM; 1-L live-arm теперь даёт реальную базу (Part 4 статья). Связь: docs/blog/verify-on-read.md, experiments/exp_1L_longitudinal_30d.md.
+**Связь с отрицательными:** нет.
+
 ## [2026-08-13] — EXP: «сервер недоступен во время индексации» — root cause = sync update_all в main loop
 
 **Гипотеза:** таймауты всех MCP-запросов на ~13 мин при полной переиндексации вызваны НЕ индексацией самой по себе (она в run_in_executor, loop свободен), а синхронным AutoDocUpdater.update_all() (generate_docs+README+KNOWN_ISSUES, rglob по docs/) в main event loop ПОСЛЕ индексации (layer.py _run_reindex_job).
