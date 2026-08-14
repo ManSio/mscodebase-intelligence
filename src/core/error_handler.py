@@ -78,12 +78,18 @@ _METRICS_SAVE_EVERY: int = 10
 
 
 def set_metrics_path(path: Optional[str | Path]) -> None:
-    """Устанавливает путь для сохранения метрик (вызывается из server.py)."""
+    """Устанавливает путь для сохранения метрик (вызывается из server.py).
+
+    Метрики НЕ загружаются с диска при старте: tool_metrics.json общий для
+    ВСЕХ инстансов MCP (3 окна Zed) и накапливается между сессиями — автозагрузка
+    заражёт телеметрию чужими ошибками и устаревшими задержками (инцидент
+    2026-08-14: «search_code 6.9s error», total_ms=-994 в живом файле). Каждый
+    процесс ведёт метрики с чистого листа; файл пишется при выходе как архив.
+    """
     global _METRICS_PATH
     if path:
         _METRICS_PATH = Path(path)
         _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        load_metrics()
         atexit.register(save_metrics)
 
 
@@ -118,13 +124,17 @@ def load_metrics() -> None:
                         x for x in lat if isinstance(x, (int, float)) and x >= 0
                     ]
                 if name not in _TOOL_METRICS:
+                    # BS-14 + total_ms: старые файлы могли содержать отрицательную
+                    # суммарную латентность (регрессия P1-10) — клампим на 0.
+                    if stats.get("total_ms", 0) < 0:
+                        stats["total_ms"] = 0
                     _TOOL_METRICS[name] = stats
                 else:
                     # Суммируем с текущими метриками
                     cur = _TOOL_METRICS[name]
                     cur["calls"] += stats.get("calls", 0)
                     cur["errors"] += stats.get("errors", 0)
-                    cur["total_ms"] += stats.get("total_ms", 0)
+                    cur["total_ms"] += max(0, stats.get("total_ms", 0))
                     cur["min_ms"] = min(cur["min_ms"], stats.get("min_ms", 999999))
                     cur["max_ms"] = max(cur["max_ms"], stats.get("max_ms", 0))
         logger.info(

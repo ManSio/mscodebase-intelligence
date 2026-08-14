@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-14 — Телеметрия MCP заражена общим tool_metrics.json (FIXED)
+
+**Что:** `tool_metrics.json` — один файл на все инстансы MCP (3 окна Zed) и накапливается между сессиями → intel_tool_health показывал «0%» у всех, телеметрия — чужие «search_code 6.9s error», `total_ms=-994` (отрицательная латентность переживала санитизацию: клампился min_ms, не total_ms). get_runtime_counters — «Blocked 100%» при 0 проверок.
+**Fix (2026-08-14):** `set_metrics_path` не грузит метрики при старте (каждый процесс — с чистого листа, файл — архив при выходе); кламп `total_ms=max(0,...)` в load_metrics; get_runtime_counters — «нет данных» при calls==0. Регрессии: test_bs14_load_metrics_clamps_negative_total_ms + обновлённый sanitize-тест.
+**Статус:** 🟢 стабильно | **Владелец:** misha. | **Наблюдения (не фиксы):** intel_analyze_incident — нерелевантный матчинг (score 0.5); intel_predict_root_cause — 3.3s fallback; intel_get_hotspots — .md как топ-риски; git-таймаут 15s в health — транзиентный; reranker InterProcessLock в multi-window — деградация с fallback.
+
 ## 2026-08-14 — Чёрные окна CMD при работе MCP на Windows (FIXED)
 
 **Что:** MCP запускался Zed как `venv\Scripts\python.exe` — console-приложение; Zed не подавляет консоль → каждое окно Zed с расширением = своё висящее чёрное окно (у пользователя до 3 = 3 окна Zed). Дочерние git/wmic/netstat окна не создавали (наследовали консоль родителя).
