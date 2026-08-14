@@ -9,7 +9,7 @@
 
 **Что:** MCP-тул stale_detector (src/mcp/tools/doc_tools.py) — дублированная реализация без <!-- stale-ignore --> / severity_overrides / ARCHIVED-скипа → 11 ложных дрейфов (AGENTS.md v3.2.0-маркеры, TELEMETRY 3.2.1 в en/ru/zh) при 0 у канонического чекера (CLI/pre-commit). Исправлено: делегирование tools/stale_detector/stale_check.py (+2 теста).
 **Остаток (OPEN):** severity_overrides матчатся forward-slash паттерном (`docs/ru/*`), а rel на Windows содержит backslash → docs/ru|zh НЕ получают warn на Windows (на POSIX работают). Fix: normalize rel в stale_check.py (1 строка) — потребует re-pin (транзитивная фикстура). | **Владелец:** misha.
-**Наблюдения health (мониторить):** 273 orphan-файла в индексе (инкрементальный reindex не чистит — нужен полный); RAM +11..16 MB/мин, пик ~462MB (возможна утечка); метрика «98 ошибок в логе» vs grep=20 ERROR-строк (считает иначе). | **Владелец:** misha.
+**Наблюдения health (мониторить):** ~~273 orphan-файла в индексе~~ — **ЗАКРЫТО (2026-08-14):** артефакт среза rglob на venv/ (22k файлов из verify_clean_state.sh) — health._check_filesystem_sync исключает _INDEX_SKIP_DIRS, реальный скан 800 путей без обрыва; полная переиндексация выполнена (7540 chunks, 528с). RAM +11..16 MB/мин, пик ~462MB (возможна утечка — наблюдать; стартовый тренд нового процесса — шум). | **Владелец:** misha.
 
 ## 2026-08-14 — Guard Inventory: scripts/negative_controls_runner.py (протокол Тома / OWP §5.2, P3 research 08-11) (DONE)
 
@@ -3760,5 +3760,22 @@ Three fixes from the same review:
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** 🟡 Partial (демонстрация выполнена; аномалии зафиксированы, root cause P1 не установлен)
 **verified_from_clean_state:** ⚠️ не проверено (демонстрация, код не менялся) | **Root Cause:** (А1)...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-14 09:35 — P1 CI: revision_gate UNKNOWN на shallow-checkout — clean-state красный (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит + push; CI-проверка после)
+**verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch
+**Root Cause:** CI (actio...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 09:20 — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов; + revision_gate (TC-9) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — verify --no-clone PASSED (1170 passed); делегированный скан 0 дрейфов; revision gate VALID
+**Root C...
 - **Статус:** автоматически синхронизировано
 
