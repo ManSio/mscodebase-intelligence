@@ -63,12 +63,17 @@ class InventoryError(Exception):
 
 
 def _digest_files(files: list[Path]) -> str:
-    """Детерминированный дайджест набора фикстур (имя + \0 + содержимое)."""
+    """Детерминированный дайджест набора фикстур (имя + \0 + содержимое).
+
+    Платформо-независим: CRLF нормализуется в LF — иначе Windows (CRLF в
+    рабочем дереве) и CI-checkout (LF) дают разные digest, и инвентарь
+    ломается на первом кроссплатформенном прогоне (инцидент 199dbe6b)."""
     h = hashlib.sha256()
     for f in files:
+        content = f.read_bytes().replace(b"\r\n", b"\n")
         h.update(f.name.encode("utf-8"))
         h.update(b"\0")
-        h.update(f.read_bytes())
+        h.update(content)
         h.update(b"\0")
     return h.hexdigest()
 

@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 09:00] — P1 CI: digest-pinning CRLF-sensitive — инвентарь UNPROVEN x3 на ubuntu (FIXED)
+**Status:** ✅ Fixed (commit + push; CI зелёный после фикса)
+**verified_from_clean_state:** ✅ да — CI ubuntu matrix зелёный после фикса (gh run watch); локально 12/12 тестов, hook 4/4
+**Root Cause:** _digest_files хешировал сырые байты рабочего дерева; Windows working-tree CRLF vs CI-checkout LF → digest не совпадал → UNPROVEN x3 ТОЛЬКО в CI (локально 3/3 PROVEN — «Windows-прогон слеп к POSIX-фейлам»). CI = независимый свидетель сработал.
+**Fix:** _digest_files — нормализация b"\r\n" → b"\n" перед хешированием; +регрессионный тест test_runner_digest_is_line_ending_agnostic (CRLF==LF при одинаковом имени; имя файла — часть digest by design); re-pin с reason.
+**Guard:** портability-тест; §7.9 CI-check на каждом push.
+**Pattern:** NEW — «локально зелёный, CI красный из-за line endings» — закрыт нормализацией в digest (следствие: любые content-дайджесты фикстур обязаны нормализовать CRLF).
+
 ## [2026-08-14 08:40] — pre-commit hook + negative_controls runner + коммит сессии (DONE)
 **Status:** ✅ Fixed (commit сделан; не запушено — push по команде)
 **verified_from_clean_state:** ✅ да — pre-commit hook 4/4 (verify_diary / stale_detector / check_tool_names / negative_controls); runner ALL PROVEN; ruff чист

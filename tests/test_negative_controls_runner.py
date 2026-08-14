@@ -165,6 +165,26 @@ def test_runner_inventory_all_proven():
     assert "[UNPROVEN]" not in p.stdout
 
 
+def test_runner_digest_is_line_ending_agnostic(tmp_path):
+    """Портability-гвард (инцидент 199dbe6b): digest(CRLF) == digest(LF)
+    при одинаковом имени файла (имя — часть digest by design).
+    Иначе Windows working-tree (CRLF) и CI-checkout (LF) дают разные пины."""
+    mod = _load_runner()
+    d1 = tmp_path / "x"
+    d2 = tmp_path / "y"
+    d1.mkdir()
+    d2.mkdir()
+    a = d1 / "f.txt"
+    b = d2 / "f.txt"
+    a.write_bytes(b"line1\r\nline2\r\n")
+    b.write_bytes(b"line1\nline2\n")
+    assert mod._digest_files([a]) == mod._digest_files([b])
+    # имя файла — часть digest: то же содержимое под другим именем ≠ тот же digest
+    c = d1 / "g.txt"
+    c.write_bytes(b"line1\nline2\n")
+    assert mod._digest_files([a]) != mod._digest_files([c])
+
+
 def test_runner_manifest_schema():
     """Каждая запись: >=1 фикстура, expected_exit, command, provocation_type, pinned digest."""
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
