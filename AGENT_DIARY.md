@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 10:05] — P2 health: «99 ошибок в логе» — подстрока count("error") вместо level-маркеров (FIXED)
+**Status:** ✅ Fixed (код+тесты; push)
+**verified_from_clean_state:** ✅ да — 6 тестов (log_levels 3 + fs_sync 3); ruff чист; реальный лог: 20 [ERROR] vs 99 по подстроке
+**Root Cause:** _check_logs считал content.lower().count("error") — подстрока по ВСЕМУ файлу: 'ValueError', 'latest_log_errors' и т.п. → 99 при 20 реальных [ERROR]-строках; плюс исторические ошибки (7 дней) держали health в critical навсегда.
+**Fix:** health.py — _count_log_levels: level-маркеры [ERROR]/[WARNING] строки + окно 24ч (timedelta); +3 теста (не-подстрока, окно, unparseable).
+**Guard:** tests/test_health_log_levels.py; реальный прогон (20 [ERROR] в файле).
+**Pattern:** P-003 «слепая детекция» — 3-й экземпляр за день (stale_detector dup-impl → 11 ложных; orphan-скан → 273 ложных; log-счёт → 99 vs 20). Общий корень: naive substring / дублирование логики без учёта реального формата.
+
 ## [2026-08-14 09:50] — P2 health: «273 orphan» — артефакт среза rglob на venv/ (22k файлов) (FIXED)
 **Status:** ✅ Fixed (код+тесты; push)
 **verified_from_clean_state:** ✅ да — реальный скан 800 путей (было 23934 с обрывом на 10001); тесты 3/3; CI watch после push
