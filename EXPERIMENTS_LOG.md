@@ -50,6 +50,75 @@ code_first:   adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 
 
 **Связь с отрицательными:** нет.
 
+## [2026-08-14] — Exp 1-L Day 2 (live-arm): мультимодельный свип OpenRouter — 6 дешёвых моделей × 50 фактов × 2 руки
+
+**Гипотеза (продолжение Day 1):** на дешёвых платных моделях OpenRouter (нет free-стены) вердикты будут снова отличаться от proxy 1-V, и — новое — между моделями будет большой разброс (adoption/false_accept зависят от модели, а не только от дизайна памяти). Ожидание: false_accept(code_first) разбросан от ~0 до ~0.3.
+**Команда:** `python scripts/run_1L_live_arm.py --provider openrouter --arm both --models "qwen/qwen3.7-flash,qwen/qwen3.5-flash-02-23,z-ai/glm-4.7-flash,nvidia/nemotron-3.5-lightning,deepseek/deepseek-v4-flash,qwen/qwen3.6-flash" --no-reasoning --resume` (temp=0, seed=42, max_tokens=100, prompt v1, facts sha256=820bbbf60a0fc930; 600 вызовов).
+**Сырой результат (progress-файлы: `<MSCODEBASE_DATA_DIR>/projects/bfe9644b/experiments/live_arm_1L_progress_*.json`, err=0 на всех руках):**
+```
+модель                        arm            adoption  false_acc  true_acc  unknown  acc(decided)   cost$
+qwen/qwen3.7-flash            memory_first   0.22      0.02       0.20      0.66     0.88 (15/17)   0.00023
+qwen/qwen3.7-flash            code_first     0.10      0.00       0.10      0.40     0.87 (26/30)   0.00025
+qwen/qwen3.6-flash            memory_first   0.22      0.00       0.22      0.60     0.85 (17/20)   0.00162
+qwen/qwen3.6-flash            code_first     0.10      0.00       0.10      0.24     0.74 (28/38)   0.00178
+qwen/qwen3.5-flash-02-23      memory_first   0.14      0.02       0.12      0.82     0.89 (8/9)    0.00044
+qwen/qwen3.5-flash-02-23      code_first     0.12      0.02       0.10      0.84     0.88 (7/8)    0.00048
+deepseek/deepseek-v4-flash    memory_first   0.14      0.02       0.12      0.82     0.78 (7/9)    0.00077
+deepseek/deepseek-v4-flash    code_first     0.20      0.02       0.18      0.72     0.79 (11/14)  0.00087
+z-ai/glm-4.7-flash            memory_first   0.10      0.04       0.06      0.88     0.67 (4/6)    0.00045
+z-ai/glm-4.7-flash            code_first     0.68      0.30       0.38      0.26     0.59 (22/37)  0.00048
+nvidia/nemotron-3.5-lightning memory_first   0.44      0.08       0.36      0.32     0.79 (27/34)  0.00063
+nvidia/nemotron-3.5-lightning code_first     0.54      0.18       0.36      0.18     0.66 (27/41)  0.00070
+```
+**Вердикт: ✅ подтверждено (обе части).** (1) Живые модели ≠ proxy 1-V: unknown у всех кроме nemotron — 0.24–0.88 (proxy всегда решал), разброс подтверждает ревью. (2) Разброс между моделями огромный: false_accept(code_first) от **0.00** (qwen3.6-flash, qwen3.7-flash) до **0.30** (glm-4.7-flash, 15/50); adoption(code_first) 0.10→0.68. glm-4.7-flash доверяет якорям почти всегда (code_first adoption=0.68 при memory_first 0.10) — для VOR-проверки такая модель опасна. (3) **R50 (silent-false, loki) принят 4/6 моделей** (qwen3.7, qwen3.5, deepseek, glm) — системная дыра «голый токен якоря = evidence», подтверждает кластер Day 1 (R26–R50). (4) Токены на запрос ≈107 in/10 out (сходится с расчётом); 600 вызовов = **$0.0087**.
+**Оговорки:** один прогон на модель (temp=0, но LLM не идеально детерминирован); порядок фактов — файловый (R01–R25 все true, R26–R50 все false — блочная структура; для независимых вызовов угрозы валидности нет, отмечено как ограничение); V1-промпт с bare-token якорями завышает false_accept (документировано Day 1, V2 — отдельно).
+**Урок:** выбор модели для verify-on-read — не «любая дешёвая»: glm-4.7-flash даёт FA=0.30, qwen3.6/3.7-flash — 0.00. Метрика модели обязана измеряться на этом датасете до использования в рантайме. Связь: EXPERIMENTS_LOG#Day-1-1L, scripts/run_1L_live_arm.py.
+
+### Red Team фаза 2 (2026-08-14): атака на тест + веб-исследование + повторный прогон
+
+**Гипотеза атаки:** тест мог содержать дефекты (парсинг, truncation, язык, наводящий промпт), искажающие вердикты. Метод: §1.16 Red Team + литература (Zheng 2023 LLM-as-judge biases; Sharma 2023 sycophancy; Li 2023 HaluEval; NAACL-2025 Beyond English).
+**Результат (команда: `--provider openrouter --arm both --models <6 моделей> --no-reasoning --force` — повторный полный прогон):**
+```
+Итог: trunc=0 на всех 1200 ответах, err=0, все raw — lowercase JSON, finish_reason=stop.
+Run1->Run2 false_accept: nemotron code_first 0.18->0.08, deepseek code_first 0.02->0.06,
+qwen3.7 mem 0.02->0.00, glm code_first 0.30->0.28, qwen3.6 стабильна 0.00/0.00.
+```
+**Вердикт: гипотеза подтверждена частично.** (1) Парсинг-дефекты (case/bool → unknown) — латентные, на данных НЕ сработали (все raw lowercase); исправлены + тесты. (2) Truncation — опровергнута (finish_reason=stop везде): высокий unknown — честное поведение. (3) **Главная находка: temp=0+seed=42 НЕ дают детерминизма на OpenRouter** — run-to-run вариативность ±0.05–0.10 FA (nemotron 0.18→0.08). Однопроходные тонкие ранжировки недостоверны; выводы — по двум прогонам, выбор модели — по верхней границе FA. (4) Дизайн-дефекты подтверждены литературой: наводящий вопрос code_first (сикофантия), EN/RU языковой сдвиг — V2-промпт реализован, контроль языка — follow-up.
+**Урок:** LLM-оценка без повторных прогонов ненадёжна; raw+finish_reason обязательны для аудита; наводящие вопросы и языковой сдвиг — реальные конфаунды. Связь: отчёт experiments/exp_1L_live_arm_report.md §6.1–6.2.
+
+### Follow-up (2026-08-14): V2-промпт (нейтральный) + контроль языка (RU)
+
+**Команды:** `--prompt-version v2 --tag v2_en` (6 моделей × 2 руки, 600 вызовов); `--prompt-version v2 --prompt-lang ru --tag ru_v2` (3 модели × 2 руки, 300 вызовов).
+**Сырой результат (кратко; полные таблицы — в отчёте §6.3–6.4):**
+```
+V2-en code_first FA: deepseek 0.06->0.00, qwen3.5 0.02->0.00, nemotron 0.08->0.04, glm 0.28->0.24, qwen3.6/3.7 0.00
+V2-en code_first unk: deepseek 0.74->0.94, qwen3.5 0.80->0.96 (модели честнее «не знаю»)
+RU-v2 unk: deepseek code 0.94->0.54 (RU лучше!), qwen3.7 code 0.24->0.58 (RU хуже)
+```
+**Вердикт:** (1) Сикофантия подтверждена данными — наводящий вопрос v1 вносил вклад в false_accept (FA упал у 4/6 моделей с нейтральным промптом, unknown вырос). (2) glm-4.7-flash сохраняет FA=0.24 с нейтральным промптом — красный флаг фундаментальный. (3) Язык промпта — конфаунд модель-зависимый: deepseek лучше с RU (English-centric reasoning завышал unknown), qwen3.7 лучше с EN. Рекомендации: V2 — канонический промпт; язык тестировать пер-модельно; выбор по верхней границе FA за 2 прогона.
+**Урок:** «дешёвая модель» ≠ «пригодная»: glm исключена окончательно; qwen3.6/3.7 — кандидаты. V1/v2/ru данные — в отдельных progress-файлах (tag), v1 сохранён.
+
+### Follow-up 2 (2026-08-14): премиум-арм (Claude из ревью) + семейство nemotron
+
+**Команды:** `--prompt-version v2 --no-reasoning --tag premium_v2` (claude-sonnet-5, qwen3.8-max, glm-5.2, deepseek-v4-pro; 400 выз., ~$0.106); `--tag nemotron_family` (super-120b, nano-30b; 200 выз., ~$0.0014).
+**Сырой результат:**
+```
+claude-sonnet-5:   FA=0.00/0.00, acc=1.0 (7/7, 15/15), unk=0.86/0.70 — эталон осторожности, но $0.049/100
+qwen3.8-max:       HTTP 400 «Reasoning is mandatory… cannot be disabled» (22–49/50) — несовместима с бюджетом 100 токенов
+glm-5.2:           FA=0.00/0.02, unk=0.96/0.76 — кардинально лучше glm-4.7-flash (0.10/0.24)
+deepseek-v4-pro:   FA=0.04/0.00, unk=0.66/0.88
+nemotron-nano-30b: FA=0.06/0.38 (19/50!) — ХУДШАЯ модель свипа, красный флаг №2
+nemotron-super:    50% HTTP 422 апстрима — ненадёжна, исключена
+```
+**Вердикт:** ревью Part 3 закрыто данными: у Claude FA=0.00 (≈proxy), но unknown/adoption другие; премиум не даёт выигрыша по FA vs лучшие flash (qwen3.6/3.7, FA=0.00) при цене ×100. Красные флаги: glm-4.7-flash (0.24–0.30), nemotron-nano (0.38). qwen3.8-max требует отдельного бюджета (≥500 токенов) — вне матрицы 100-токенного условия.
+**Связь:** полный отчёт experiments/exp_1L_live_arm_report.md (§6.3–6.4, 13).
+
+### Follow-up 3 (2026-08-14): подтверждение FA=0.00 — 2-й прогон V2 у qwen3.6/3.7
+
+**Команда:** `--prompt-version v2 --no-reasoning --tag v2_en_run2 --models "qwen/qwen3.7-flash,qwen/qwen3.6-flash"` (200 выз., ~$0.004).
+**Результат:** qwen3.7 code_first FA=0.00 (unk 0.26), mem 0.02 (R50); qwen3.6 code_first FA=0.00 (unk 0.40), mem 0.00.
+**Вердикт:** ✅ FA=0.00 в code_first подтверждён 4 прогонами (v1×2 + v2×2) = **0/400** у обеих моделей; единственная нестабильность — R50 в memory_first. qwen3.6/3.7-flash — безопасный выбор для verify-on-read (дешевле премиума ×100 при том же FA).
+
 ## [2026-08-13] — EXP: «сервер недоступен во время индексации» — root cause = sync update_all в main loop
 
 **Гипотеза:** таймауты всех MCP-запросов на ~13 мин при полной переиндексации вызваны НЕ индексацией самой по себе (она в run_in_executor, loop свободен), а синхронным AutoDocUpdater.update_all() (generate_docs+README+KNOWN_ISSUES, rglob по docs/) в main event loop ПОСЛЕ индексации (layer.py _run_reindex_job).
