@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
-from zed_config import get_zed_config_dir, patch_zed_settings  # noqa: E402
+from zed_config import get_zed_config_dir, remove_zed_settings  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (
@@ -798,15 +798,15 @@ def step_db(lines, lang):
 
 @_step(10)
 def step_zedcfg(lines, lang):
-    cmd = f"{PYTHON_EXE} -u -m src.main"
-    if patch_zed_settings(
-        cmd,
-        mode="global",
-        install_path=str(ZED_EXT_DIR),
-    ):
-        lines.append((C.GRN, "✓ MCP configured"))
+    # AGENTS.md §0.5: MCP context server регистрируется ТОЛЬКО в extension.toml
+    # расширения (step_copy копирует его в ZED_EXT_DIR). Легаси-запись в
+    # settings.json (python.exe — чёрное окно консоли, дубль-регистрация)
+    # удаляем; context_servers_to_query сохраняем — сервер резолвится из
+    # extension.toml по имени. Инцидент 2026-08-14.
+    if remove_zed_settings(keep_to_query=True):
+        lines.append((C.GRN, "✓ settings.json чист (регистрация — в extension.toml)"))
     else:
-        raise RuntimeError("Failed to configure Zed")
+        lines.append((C.YEL, "⚠ settings.json не удалось почистить — проверьте вручную"))
 
 
 @_step(11)

@@ -106,14 +106,23 @@ def get_extension_install_dir() -> Path:
 
 
 def get_python_path() -> Path:
-    """Path to the extension's venv Python interpreter (fallback: sys.executable)."""
+    """Path to the extension's venv Python interpreter (fallback: sys.executable).
+
+    Windows: pythonw.exe (GUI-подсистема) — MCP не должен создавать чёрное окно
+    консоли (инцидент 2026-08-14); python.exe остаётся только для venv/pip
+    внутри install.py, где консоль своя.
+    """
     venv = get_extension_install_dir() / "venv"
-    python = (
-        venv / "Scripts" / "python.exe"
-        if sys.platform == "win32"
-        else venv / "bin" / "python3"
-    )
-    return python if python.exists() else Path(sys.executable)
+    if sys.platform == "win32":
+        for name in ("pythonw.exe", "python.exe"):
+            candidate = venv / "Scripts" / name
+            if candidate.exists():
+                return candidate
+    else:
+        candidate = venv / "bin" / "python3"
+        if candidate.exists():
+            return candidate
+    return Path(sys.executable)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -388,13 +397,19 @@ def patch_zed_settings(
     return True
 
 
-def remove_zed_settings() -> bool:
-    """Remove the MSCodeBase MCP server from Zed's settings.json (uninstall).
+def remove_zed_settings(keep_to_query: bool = False) -> bool:
+    """Remove the MSCodeBase MCP server from Zed's settings.json.
 
     Preserves all other settings. Uses the same targeted text surgery as
     patch_zed_settings — JSONC comments outside the two managed keys stay
     byte-for-byte (only the context_servers / context_servers_to_query
     blocks are re-serialized). The file is never wiped on parse error.
+
+    Args:
+        keep_to_query: True → не трогать context_servers_to_query (install-путь:
+            сервер регистрируется через extension.toml, query-список оставляем
+            — сервер резолвится по имени). False → uninstall-путь: убрать и
+            запись, и список.
     """
     config_dir = get_zed_config_dir()
     settings_path = config_dir / "settings.json"
@@ -427,15 +442,16 @@ def remove_zed_settings() -> bool:
         )
         changed = True
 
-    tq = settings.get("context_servers_to_query")
-    if isinstance(tq, list) and SERVER_NAME in tq:
-        new_tq = [s for s in tq if s != SERVER_NAME]
-        new_content = _set_top_level(
-            new_content,
-            "context_servers_to_query",
-            json.dumps(new_tq, ensure_ascii=False),
-        )
-        changed = True
+    if not keep_to_query:
+        tq = settings.get("context_servers_to_query")
+        if isinstance(tq, list) and SERVER_NAME in tq:
+            new_tq = [s for s in tq if s != SERVER_NAME]
+            new_content = _set_top_level(
+                new_content,
+                "context_servers_to_query",
+                json.dumps(new_tq, ensure_ascii=False),
+            )
+            changed = True
 
     if changed:
         _atomic_write_text(settings_path, new_content)

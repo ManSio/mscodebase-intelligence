@@ -34,6 +34,11 @@
 - **Fix 2a:** settings.json → дубль-регистрация УДАЛЕНА полностью (остался только extension.toml — AGENTS.md §0.5; JSONC-валиден, context_servers_to_query сохранён; до удаления переведена на pythonw.exe); extension.toml env дополнен EMBEDDING_PROVIDER=llama_cpp / EMBEDDING_DIMENSION=384 (эквивалент env удалённого блока; PYTHONPATH избыточен — src/main.py сам вставляет PROJECT_ROOT в sys.path).
 - **Fix 2b:** `server_factory._start_zed_parent_watchdog()` — Windows-only daemon-thread: parent_chain() (WindowsProcessInspector) ищет ближайший Zed.exe в предках; умер → os._exit(0) (llama-дети умирают по JobObject KILL_ON_JOB_CLOSE 0x2000). Для ручных запусков (start_server.bat, нет Zed в цепочке) — не запускается. Живой тест: поток поднялся и следит за Zed PID=10964.
 - **Тесты:** 54 passed (server_factory/database_lock/llama/startup); JSON settings.json валиден.
+**Фаза 3 (20:30, «кто что пишет» — install.py):**
+- **Root Cause:** install.py step_zedcfg вызывал `patch_zed_settings()` и ПИСАЛ легаси-запись (python.exe) в глобальный settings.json при КАЖДОМ запуске — мой ручной фикс settings.json был бы откачен при следующей установке.
+- **Fix 3a:** step_zedcfg теперь вызывает `remove_zed_settings(keep_to_query=True)` — легаси-запись удаляется, `context_servers_to_query` сохраняется (сервер резолвится из extension.toml). Ошибка чистки — warning, не crash (регистрация каноническая — в extension.toml).
+- **Fix 3b:** `get_python_path()` на Windows возвращает pythonw.exe (fallback python.exe) — легаси-CLI `python -m src.main --install-global` тоже пишет запись без консоли.
+- **Тесты:** +5 (tests/test_zed_config_remove.py: keep_to_query/uninstall/noop/missing/corrupted); полный pytest 1194 passed / 10 skipped; живая проверка на реальном settings.json — запись удалена, to_query=[mscodebase-intelligence] сохранён; md5-синк install.py + zed_config.py в расширение.
 
 ## [2026-08-14 16:20] — Фикс 11 дыр в градере реранкера по evalmut-методологии (DONE)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
