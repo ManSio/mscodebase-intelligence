@@ -22,7 +22,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # fetch-depth: 0 — полная история: revision_gate (min_accepted_revision, TC-9)
+      # проверяет ancestry через merge-base; в shallow-clone min-коммит отсутствует →
+      # gate честно даёт UNKNOWN и CI падает (инцидент 2026-08-14, 38f4be7d).
       - uses: actions/checkout@v5  # P2-16 audit: v4 использует Node 20 (deprecated)
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -64,7 +69,10 @@ jobs:
   clean-state:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 — см. комментарий в job test (revision_gate требует ancestry).
       - uses: actions/checkout@v5  # P2-16 audit: v4 использует Node 20 (deprecated)
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

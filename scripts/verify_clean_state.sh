@@ -37,7 +37,9 @@ if [ "$NO_CLONE" -eq 1 ]; then
     echo "No-clone mode: verifying current directory"
 else
     echo "Cloning $REPO_URL ..."
-    git clone --depth 1 "$REPO_URL" "$TMPDIR/repo" 2>&1
+    # Полный clone (без --depth 1): revision_gate (TC-9) проверяет ancestry через
+    # merge-base, а min_accepted_revision в shallow-clone отсутствует → UNKNOWN.
+    git clone "$REPO_URL" "$TMPDIR/repo" 2>&1
     cd "$TMPDIR/repo"
 fi
 
