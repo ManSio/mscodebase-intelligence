@@ -6,6 +6,10 @@ tags: zed, editor, sqlite, reverse-engineering
 cover_image: 
 ---
 
+> **Side Quest of: [MSCodeBase Intelligence — Field Notes](README.md)** — *[Part 1: PageRank Token Savings](pagerank-codebase-myth.md) · [Part 2: Silent Vector Contamination](silent-vector-contamination.md) · [Part 3: Verify-on-Read](verify-on-read.md) · Side Quest: Zed threads.db*
+
+---
+
 > **TL;DR:** Zed IDE stores all AI chat conversations in `threads.db` — a SQLite database with zstd-compressed JSON entries. I decoded the format, and here's everything I found: 300+ threads, 700+ messages, and a structure that's surprisingly well-designed for an IDE chat log.
 
 ---

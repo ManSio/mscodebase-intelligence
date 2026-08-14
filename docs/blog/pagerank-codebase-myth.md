@@ -6,6 +6,10 @@ tags: machinelearning, python, ai, devtools
 cover_image: 
 ---
 
+> **Part 1 of: [MSCodeBase Intelligence — Field Notes](README.md)** — *Part 1: PageRank Token Savings · [Part 2: Silent Vector Contamination](silent-vector-contamination.md) · [Part 3: Verify-on-Read](verify-on-read.md) · [Side Quest: Zed threads.db](zed-threads-db-reverse-engineering.md)*
+
+---
+
 > **TL;DR:** I ran 5 graph densities, 50 test queries with Gold Standard target files, and RAG comparison on a 50K LOC Python project. PageRank Top 20% gives **+14pp over random** on dense graphs (32% vs 18% Hit@Gold), but **RAG (BM25) beats both at 46%**. The previous "keyword accuracy" metric was misleading — real utility requires hitting the *specific* file that answers the question.
 
 ---

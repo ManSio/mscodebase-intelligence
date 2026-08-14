@@ -6,6 +6,10 @@ tags: machinelearning, python, rag, openvino
 cover_image: 
 ---
 
+> **Part 2 of: [MSCodeBase Intelligence — Field Notes](README.md)** — *[Part 1: PageRank Token Savings](pagerank-codebase-myth.md) · Part 2: Silent Vector Contamination · [Part 3: Verify-on-Read](verify-on-read.md) · [Side Quest: Zed threads.db](zed-threads-db-reverse-engineering.md)*
+
+---
+
 > **TL;DR:** If you run concurrent inference (e.g., via OpenVINO `AsyncInferQueue` or custom threading) for text/code embeddings, your tests might show `0 exceptions` and `0 errors`, while silently returning embeddings belonging to *other* inputs in the batch. Here is how we caught a subtle race condition using a cosine-similarity contamination test.
 
 ---

@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 11:15] — Ревью Part 3: серийная навигация Field Notes + 1-M (маппинг, закрыт) + 1-L (дизайн с live-model arm) (DONE)
+**Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
+**Root Cause:** ревью статьи (38 комментариев): (1) серия из нескольких статей не подписана как серия; (2) критика справедливая — детерминированный proxy-агент, headline-числа (0.16/0.24 adoption) от эвристики, не от живой модели; (3) 1-L анонсирован в комментариях, 1-M (manifest-anchoring Skillselion) — готовая гипотеза.
+**Fix:** (1) docs/blog/README.md — индекс «MSCodeBase Intelligence — Field Notes»; «Part N of»-хедеры + cross-links в 3 статьи; docs/blog/verify-on-read.md — Part 3 source-material (не дубль текста, URL — TODO владельцу, не выдуман). (2) experiments/exp_1M_manifest_anchoring.md — маппинг: гипотеза → 7 false-REFUTED [G07,G25,G11,G24,G23,G18,G21] → ADR-0005 pkg:-анкоры → evidence (вердикт: подтверждено — 1-V-REP уже 0). (3) experiments/exp_1L_longitudinal_30d.md — дизайн: LIVE-model arm (Claude/GPT-4o) + proxy-контроль, правило контрольной группы, 30 дней, DoD. (4) scripts/collect_memory_snapshot.py — JSONL-снимок memory-метрик (только чтение store, MCP не нужен).
+**Guard:** ruff; реальный снимок коллектора (jsonl valid).
+**Pattern:** — (документная задача; честная позиция: числа 1-V — доказательство свойства, не замер живой модели — 1-L измерит).
+
 ## [2026-08-14 10:05] — P2 health: «99 ошибок в логе» — подстрока count("error") вместо level-маркеров (FIXED)
 **Status:** ✅ Fixed (код+тесты; push)
 **verified_from_clean_state:** ✅ да — 6 тестов (log_levels 3 + fs_sync 3); ruff чист; реальный лог: 20 [ERROR] vs 99 по подстроке
