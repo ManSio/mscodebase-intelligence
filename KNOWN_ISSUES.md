@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-08-14 — ADR-0005: pkg:-анкоры (closed-world манифест) — dist name vs import path (DONE)
+
+**Что:** VOR имел 3 типа якорей (file/import/env); SILENT-fact trap не ловил прозу без «import», а fastmcp-класс (from mcp.server.fastmcp import ...) давал 7 ложных REFUTED в Exp 1-V (dist name ≠ import path). По итогам комментария Skillselion на dev.to: манифест — закрытый мир, отсутствие там = доказательство, а не тишина.
+**Fix:** verify_on_read.py — 4-й тип якоря `pkg:`: (1) `_Fingerprint.packages` из pyproject.toml (tomllib/tomli, fallback строковый) + requirements[-lock].txt, PEP 503-нормализация; (2) явный синтаксис `pkg:name` на обоих путях; (3) write-path capture слов прозы, совпадающих с манифестом (fail-closed, stdlib вне скоупа); (4) закрытый мир: явный pkg:-якорь + отсутствие в манифесте → REFUTED (SILENT_ABSENCE_ON_READ); (5) schema guard кэша: fingerprint без «packages» пересобирается (иначе ложные REFUTED). layer.py — только docstring-и (код capture уже шёл через extract_anchors(project_root)). ADR: docs/adr/0005-pkg-anchors.md.
+**Тесты:** +7 в tests/test_verify_on_read.py (31 всего); смежные 68 passed; ruff clean. | **Status:** 🟢 (live-проверка: реальный манифест 104 пакета, pkg:celery → REFUTED, stdlib sqlite3 → без якоря) | **Владелец:** misha. | **Остаток:** present-trap import:-якорей (sqlite3 импортирован «по другой причине») — известное ограничение (честный агент читает контекст); claim «uses fastmcp» при dist `mcp` → честный INCONCLUSIVE, не REFUTED; проза-«import path» → ложный import:-якорь → ложный REFUTED (P-002, live-smoke 2026-08-14: NODE-cc88d2 restored, метрика false_retraction 0→0.125%) — гвард (denylist/фильтр по fingerprint/структурированные claims) на решение владельца (OPEN_QUESTION).
+
+## 2026-08-14 — Footgun: memory_contamination_verify.py перезаписывает чужой results-файл (FIXED — документирован)
+
+**Что:** `experiments/context_engine/memory_contamination_verify.py` пишет результат в `memory_contamination_results_v3_generated.json` (исторический артефакт 1-V), а не в собственный файл. Повторный запуск (2026-08-14 при верификации поста) перезаписал метаданные (head/store_dir/порядок; цифры совпали) — восстановлено git checkout. При повторном прогоне без проверки исторические данные были бы потеряны.
+**Fix:** (документирован, код эксперимента не менялся — не входит в scope) перед запуском скриптов экспериментов проверять выходной файл (git status до/после). | **Status:** 🟢 (артефакт восстановлен; 1-V воспроизведён: honest 0.0, lazy 0.16, steady 0.6ms) | **Владелец:** misha.
+
 ## 2026-08-13 — P1: propagation_engine.py невидим для поиска и графа символов (OPEN, root cause не установлен)
 
 **Что:** src/core/intelligence/propagation_engine.py существует (tracked в git), LSP видит (24 символа, PropagationEngine L44-96), НО search_code (fast/quality, 3 запроса: "class PropagationEngine", "REASON_PREFIX", семантический) и get_symbol_info не находят его. Полная переиндексация (7383 chunks, 552с) и notify_change(файл) НЕ помогли. Логов ошибок парсинга нет. Следствие: агент может решить, что модуля/класса не существует.

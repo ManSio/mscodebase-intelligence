@@ -936,7 +936,7 @@ class ProjectIntelligenceLayer:
         ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True
         возвращает их для аудита и отладки.
         ADR-0003: verify_on_read=True (по умолчанию) — ACTIVE-узлы проходят
-        ленивую проверку якорей (file/import/env) при извлечении: прямые
+        ленивую проверку якорей (file/import/env/pkg) при извлечении: прямые
         отрицательные тесты -> REFUTED (SILENT_ABSENCE_ON_READ), найденные
         -> VERIFIED, непроверяемые (без якорей) -> остаются ACTIVE с флагом
         verification="no_anchors" для выдачи агенту (ADR-0003: предохранитель).
@@ -1030,8 +1030,8 @@ class ProjectIntelligenceLayer:
         except json.JSONDecodeError as e:
             return _("JSON parse error: {error}", error=e)
 
-        # ADR-0003: write-time anchor capture — типизированные якоря из синтаксиса
-        # claim/data (file:/import/env), чтобы verify-on-read проверял ТОЧНЫЕ якоря,
+        # ADR-0003/0005: write-time anchor capture — типизированные якоря из синтаксиса
+        # claim/data (file:/import/env/pkg), чтобы verify-on-read проверял ТОЧНЫЕ якоря,
         # а не голые токены (урок Exp 1-V: наивная типизация -> 7/25 ложных REFUTED).
         if isinstance(data, dict):
             from src.core.intelligence.verify_on_read import extract_anchors

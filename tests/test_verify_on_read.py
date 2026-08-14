@@ -495,3 +495,119 @@ def test_write_capture_makes_verify_effective_on_prose(project: Path):
     assert "import:grafana" in grafana_node["retract_reason"]
     fastmcp_node = next(n for n in raw.values() if "fastmcp" in n["data"]["claim"])
     assert fastmcp_node["status"] == STATUS_VERIFIED
+
+
+# =====================================================================
+# ADR-0005: pkg:-якоря (closed-world манифест) — dist name vs import path
+# =====================================================================
+
+
+PYPROJECT_MANIFEST = (
+    "[project]\n"
+    "name = \"probe\"\n"
+    "version = \"0.1.0\"\n"
+    "dependencies = [\n"
+    '    "fastmcp>=1.0.0",\n'
+    '    "PyYAML>=6.0",\n'
+    "]\n"
+)
+
+
+def _write_manifest(project: Path, text: str = PYPROJECT_MANIFEST) -> None:
+    (project / "pyproject.toml").write_text(text, encoding="utf-8")
+
+
+def test_extract_anchors_explicit_pkg_syntax(project: Path):
+    """ADR-0005: явный синтаксис `pkg:name` даёт pkg:-якорь на обоих путях."""
+    anchors = extract_anchors({"data": {"claim": "фоновые задачи — pkg:celery"}})
+    pkgs = [(a.kind, a.value) for a in anchors if a.kind == "pkg"]
+    assert pkgs == [("pkg", "celery")]
+
+
+def test_extract_anchors_write_path_captures_prose_manifest_pkg(project: Path):
+    """ADR-0005: write-path — слово прозы, совпадающее с зависимостью манифеста,
+    становится pkg:-якорем (fastmcp-класс: dist name известен манифесту)."""
+    _write_manifest(project)
+    anchors = extract_anchors(
+        {"data": {"claim": "транспорт использует fastmcp"}}, project_root=project
+    )
+    pkgs = [(a.kind, a.value) for a in anchors if a.kind == "pkg"]
+    assert pkgs == [("pkg", "fastmcp")]
+
+
+def test_write_path_no_pkg_anchor_for_word_not_in_manifest(project: Path):
+    """ADR-0005: stdlib вне скоупа — sqlite3 нет в манифесте -> НЕ pkg:-якорь
+    (нет ложного REFUTED/VERIFIED; Skillselion: stdlib falls out of scope)."""
+    _write_manifest(project)
+    anchors = extract_anchors(
+        {"data": {"claim": "локальный кэш использует sqlite3"}}, project_root=project
+    )
+    assert all(a.kind != "pkg" for a in anchors)
+
+
+def test_pkg_anchor_found_verified_included(project: Path):
+    """ADR-0005: pkg:-якорь, найденный в манифесте -> VERIFIED, узел виден."""
+    _write_manifest(project)
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "pkg", "value": "fastmcp"}])])
+    verifier = _make_verifier(project, store)
+    memory, stats = verifier.run(store.load_memory())
+    assert stats["verified"] == 1
+    assert [n["node_id"] for n in memory["adrs"]] == ["N1"]
+    assert store._load_json("project_memory.json")[0]["status"] == STATUS_VERIFIED
+
+
+def test_pkg_anchor_absent_refuted_excluded(project: Path):
+    """ADR-0005: closed-world — явный pkg:-якорь, отсутствующий в манифесте,
+    -> REFUTED (SILENT_ABSENCE), узел исключён из контекста."""
+    _write_manifest(project)
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "pkg", "value": "celery"}])])
+    verifier = _make_verifier(project, store)
+    memory, stats = verifier.run(store.load_memory())
+    assert stats["refuted"] == 1
+    assert memory["adrs"] == []
+    raw = store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_REFUTED
+    assert REASON_SILENT_ABSENCE in raw["retract_reason"]
+    assert "pkg:celery" in raw["retract_reason"]
+    assert raw["retract_source"] == RETRACT_SOURCE
+
+
+def test_dist_name_pyyaml_prose_verified_via_manifest(project: Path):
+    """ADR-0005: dist name ≠ import path — проза «PyYAML» сверяется с манифестом
+    (нормализация PEP 503: pyyaml), а не с src-импортами (yaml). Закрывает класс
+    ложных REFUTED из Exp 1-V (fastmcp: from mcp.server.fastmcp import ...)."""
+    _write_manifest(project)
+    # claim «используем PyYAML»: write-path даёт pkg:PyYAML, src-импорта yaml нет
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    asyncio.run(layer.intel_add_memory_node(
+        "adrs", json.dumps({"claim": "конфиги парсим через PyYAML"})
+    ))
+    mem, _stats = asyncio.run(layer.intel_get_project_memory())
+    assert len(mem["adrs"]) == 1  # не отозван, несмотря на отсутствие import yaml в src
+    raw = layer.store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_VERIFIED
+    pkg_anchors = [a for a in raw["data"].get("anchors", []) if a["kind"] == "pkg"]
+    assert pkg_anchors and pkg_anchors[0]["value"] == "PyYAML"
+
+
+def test_cache_schema_guard_rebuilds_without_packages(project: Path, tmp_path: Path):
+    """ADR-0005 schema guard: кэш старого формата (fingerprint без 'packages')
+    пересобирается — иначе пустой набор ложно REFUTED'ил бы pkg:-якоря."""
+    _write_manifest(project)
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "pkg", "value": "fastmcp"}])])
+    cache_file = tmp_path / "verify_cache.json"
+    cache_file.write_text(
+        json.dumps({
+            "head": "stale",
+            "fingerprint": {"imports": [], "files": [], "env_keys": []},  # без packages
+            "verdicts": {},
+        }),
+        encoding="utf-8",
+    )
+    verifier = VerifyOnRead(project, store, threading.Lock(), cache_file=cache_file)
+    memory, stats = verifier.run(store.load_memory())
+    assert stats["checked"] == 1
+    assert [n["node_id"] for n in memory["adrs"]] == ["N1"]  # VERIFIED, не REFUTED

@@ -6,7 +6,7 @@ ADR-0003 Verify-On-Read — Lazy Validation Layer для Project Memory.
 `intel_get_project_memory` (хук в layer.py) пропускает узлы через этот слой.
 
 Правила (ADR-0003, решения владельца 2026-08-11):
-- Узлы с checkable-якорями (`file:`/`import:`/`env:`) сверяются с кодовой базой:
+- Узлы с checkable-якорями (`file:`/`import:`/`env:`/`pkg:`) сверяются с кодовой базой:
   * все якоря найдены -> VERIFIED (persist);
   * прямое отрицательное тестирование якоря (указан, но не существует)
     -> REFUTED с причиной SILENT_ABSENCE_ON_READ (persist, retract_source);
@@ -76,7 +76,115 @@ _TEXT_IMPORT_RE = re.compile(r"\bimport\s+([a-zA-Z_][a-zA-Z0-9_.]*)")
 _TEXT_FROM_RE = re.compile(r"\bfrom\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import\b")
 _ENV_PREFIX_RE = re.compile(r"(?:env:|\$)([A-Z][A-Z0-9_]{2,})")
 _FILE_PREFIX_RE = re.compile(r"file:([^\s`'\";,]+)")
-_PATH_RE = re.compile(r"\b(?:src/)?([\w.-]+[/\\][\w./\\-]+)\.(?:py|toml|json|md|yaml|yml|ini|cfg|env|db)\b")
+_PATH_RE = re.compile(r"\b(?:src/)?([\w.-]+[/\\\\][\w./\\\\-]+)\.(?:py|toml|json|md|yaml|yml|ini|cfg|env|db)\b")
+# ADR-0005: явный синтаксис pkg:name и прозa-слово-кандидат (write-path capture).
+_PKG_PREFIX_RE = re.compile(r"\bpkg:([A-Za-z0-9_.-]+)")
+_PKG_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]*")
+
+# tomllib (3.11+) / tomli (3.10, dev-deps проекта). None — строковый fallback.
+try:
+    import tomllib  # type: ignore[no-redef]
+except ImportError:  # pragma: no cover - Python 3.10
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
+
+
+def _norm_pkg(name: str) -> str:
+    """PEP 503 нормализация имени пакета: lowercase, `-_.` -> `-`, срез extras."""
+    name = name.split("[", 1)[0].strip()
+    return re.sub(r"[-_.]+", "-", name.lower())
+
+
+def _req_name(req: Any) -> str:
+    """Имя из PEP 508 requirement-строки (до specifier/extra/marker)."""
+    if not isinstance(req, str):
+        return ""
+    name = re.split(r"[\s<>=!~;\[\]]", req.strip(), maxsplit=1)[0]
+    return _norm_pkg(name) if name else ""
+
+
+def _pyproject_packages(text: str) -> Set[str]:
+    """Имена пакетов из pyproject.toml (закрытый мир для pkg:-якорей)."""
+    if tomllib is not None:
+        try:
+            data = tomllib.loads(text)
+        except Exception as exc:  # noqa: BLE001 - любой сбой парсинга — пустое множество
+            logger.debug("verify_on_read: pyproject parse failed: %s", exc)
+            return set()
+        names: Set[str] = set()
+        project = data.get("project") or {}
+        for key in ("dependencies", "dev-dependencies"):
+            for req in project.get(key) or []:
+                name = _req_name(req)
+                if name:
+                    names.add(name)
+        for reqs in (project.get("optional-dependencies") or {}).values():
+            for req in reqs or []:
+                name = _req_name(req)
+                if name:
+                    names.add(name)
+        for reqs in (data.get("dependency-groups") or {}).values():
+            for req in reqs or []:
+                name = _req_name(req)
+                if name:
+                    names.add(name)
+        return names
+    # Fallback без tomllib/tomli: строки внутри dependencies-блоков.
+    names_fallback: Set[str] = set()
+    in_block = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if (
+            line.startswith("dependencies")
+            or line.startswith("dev-dependencies")
+            or (line.startswith("[project.") and "dependencies" in line)
+            or line.startswith("dependency-groups")
+        ):
+            in_block = "[" in line
+            continue
+        if in_block:
+            if line.startswith("]") or line.startswith("}"):
+                in_block = False
+                continue
+            m = re.search(r'"([^"]+)"', line)
+            if m:
+                name = _req_name(m.group(1))
+                if name:
+                    names_fallback.add(name)
+    return names_fallback
+
+
+def _requirements_packages(text: str) -> Set[str]:
+    """Имена пакетов из requirements[-lock].txt (по строке, `name==x` и т.п.)."""
+    names: Set[str] = set()
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", "-", "--")):
+            continue
+        name = _req_name(line)
+        if name and not name.startswith(("http:", "https:", "git+")):
+            names.add(name)
+    return names
+
+
+def _load_manifest_packages(root: Path) -> Set[str]:
+    """Множество зависимостей проекта из манифестов (ADR-0005, closed world)."""
+    packages: Set[str] = set()
+    for fname in ("pyproject.toml", "requirements.txt", "requirements-lock.txt"):
+        p = root / fname
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if fname == "pyproject.toml":
+            packages |= _pyproject_packages(text)
+        else:
+            packages |= _requirements_packages(text)
+    return packages
 
 
 class Anchor:
@@ -85,7 +193,7 @@ class Anchor:
     __slots__ = ("kind", "value")
 
     def __init__(self, kind: str, value: str):
-        self.kind = kind  # "file" | "import" | "env"
+        self.kind = kind  # "file" | "import" | "env" | "pkg"
         self.value = value
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
@@ -106,7 +214,12 @@ def extract_anchors(
 
     Приоритет: явные `data.anchors` (пишутся при записи узла), затем синтаксис
     в тексте claim/data: `file:path`, `import X` / `from X import y`,
-    `env:KEY` / `$KEY`, пути с разделителями и расширением.
+    `env:KEY` / `$KEY`, `pkg:name` (ADR-0005, закрытый мир манифеста),
+    пути с разделителями и расширением.
+
+    Write-path (project_root задан): file-якоря фильтруются по существованию;
+    слова прозы, совпадающие с зависимостями манифеста, становятся pkg:-якорями
+    (fail-closed — слова вне манифеста якорем не становятся).
 
     project_root (write-path, P2-фикс): при передаче file-якоря, которых нет
     относительно корня, отбрасываются — вольный текст коммитов даёт мусор
@@ -134,12 +247,17 @@ def extract_anchors(
             seen.add(key)
             anchors.append(Anchor(kind, value))
 
+    # ADR-0005: write-path читает манифест для pkg:-capture (fail-closed).
+    pkg_pool: Optional[Set[str]] = None
+    if project_root is not None:
+        pkg_pool = _load_manifest_packages(project_root)
+
     data = node.get("data") or {}
     if isinstance(data, dict):
         raw_anchors = data.get("anchors")
         if isinstance(raw_anchors, list):
             for a in raw_anchors:
-                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env"):
+                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg"):
                     _add(str(a["kind"]), str(a.get("value", "")))
         parts: List[str] = []
         claim = data.get("claim") or ""
@@ -167,8 +285,19 @@ def extract_anchors(
         _add("import", m.group(1))
     for m in _TEXT_FROM_RE.finditer(text):
         _add("import", m.group(1))
+    for m in _PKG_PREFIX_RE.finditer(text):
+        _add("pkg", m.group(1))
     for m in _ENV_PREFIX_RE.finditer(text):
         _add("env", m.group(1))
+    # Write-path (ADR-0005): слово прозы, чьё нормализованное имя есть в манифесте,
+    # становится pkg:-якорем. Fail-closed: слова НЕ в манифесте якорем не становятся
+    # (нет ложного REFUTED для исторических «мы перешли с X»). Read-path — только
+    # явный `pkg:` синтаксис (без present-trap).
+    if pkg_pool:
+        for m in _PKG_WORD_RE.finditer(text):
+            word = m.group(0)
+            if len(word) >= 2 and _norm_pkg(word) in pkg_pool:
+                _add("pkg", word)
     return anchors
 
 
@@ -180,6 +309,9 @@ class _Fingerprint:
             self.imports: Set[str] = set(data.get("imports", []))
             self.files: Set[str] = set(data.get("files", []))
             self.env_keys: Set[str] = set(data.get("env_keys", []))
+            # ADR-0005: старый кэш без "packages" пересобирается (schema guard в
+            # _ensure_fingerprint) — пустой набор здесь привёл бы к ложным REFUTED.
+            self.packages: Set[str] = set(data.get("packages", []))
             self.build_ms: float = 0.0
             return
         if root is None:
@@ -216,6 +348,8 @@ class _Fingerprint:
         self.imports = imports
         self.files = files
         self.env_keys = env_keys
+        # ADR-0005: закрытый мир зависимостей (pyproject/requirements[-lock]).
+        self.packages = _load_manifest_packages(root) if root is not None else set()
         self.build_ms = (time.perf_counter() - t0) * 1000.0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -223,6 +357,7 @@ class _Fingerprint:
             "imports": sorted(self.imports),
             "files": sorted(self.files),
             "env_keys": sorted(self.env_keys),
+            "packages": sorted(self.packages),
             "build_ms": round(self.build_ms, 1),
         }
 
@@ -302,7 +437,9 @@ class VerifyOnRead:
         if self._fingerprint is not None and self._head == head:
             return self._fingerprint
         cached_fp = self._cache.get("fingerprint")
-        if self._cache.get("head") == head and isinstance(cached_fp, dict):
+        # ADR-0005 schema guard: кэш без "packages" (докэшовая версия) пересобирается,
+        # иначе пустой packages ложно REFUTED'ил бы все pkg:-якоря.
+        if self._cache.get("head") == head and isinstance(cached_fp, dict) and "packages" in cached_fp:
             self._fingerprint = _Fingerprint(data=cached_fp)
         else:
             self._fingerprint = _Fingerprint(root=self.root)
@@ -354,6 +491,9 @@ class VerifyOnRead:
             return anchor.value.split(".")[0] in fp.imports
         if anchor.kind == "env":
             return anchor.value in fp.env_keys
+        if anchor.kind == "pkg":
+            # ADR-0005: closed-world — манифест это источник правды для зависимостей.
+            return _norm_pkg(anchor.value) in fp.packages
         return False
 
     def _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:
