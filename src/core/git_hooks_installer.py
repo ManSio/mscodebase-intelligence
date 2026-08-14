@@ -243,6 +243,7 @@ class GitHooksInstaller:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if result.returncode == 0:
                 git_dir = Path(result.stdout.strip())

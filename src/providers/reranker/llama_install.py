@@ -100,7 +100,8 @@ def _detect_cpu() -> dict:
     try:
         if sys.platform == "win32":
             out = subprocess.check_output(
-                ["wmic", "memorychip", "get", "capacity"], timeout=5
+                ["wmic", "memorychip", "get", "capacity"], timeout=5,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             ).decode("utf-8", errors="replace")
             total_bytes = sum(int(x) for x in re.findall(r"\d+", out) if len(x) > 5)
             info["ram_gb"] = total_bytes // (1024**3)
@@ -121,7 +122,8 @@ def _detect_cpu() -> dict:
     try:
         if sys.platform == "win32":
             out = subprocess.check_output(
-                ["wmic", "cpu", "get", "name"], timeout=5
+                ["wmic", "cpu", "get", "name"], timeout=5,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             ).decode("utf-8", errors="replace")
             for line in out.splitlines():
                 if line.strip() and "Name" not in line:
@@ -777,7 +779,8 @@ def get_system_summary() -> dict:
     if sys.platform == "win32":
         try:
             out = subprocess.check_output(
-                ["wmic", "os", "get", "caption"], timeout=5
+                ["wmic", "os", "get", "caption"], timeout=5,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             ).decode()
             for line in out.splitlines():
                 if line.strip() and "caption" not in line.lower():

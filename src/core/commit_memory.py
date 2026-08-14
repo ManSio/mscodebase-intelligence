@@ -81,6 +81,7 @@ class CommitMemory:
                 cwd=str(self.project_path),
                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
                 env=_CLEAN_GIT_ENV,  # не наследуем GIT_* от hook-окружения
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip().split("\n")

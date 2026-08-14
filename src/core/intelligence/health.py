@@ -609,6 +609,7 @@ class HealthReport:
                     stderr=subprocess.DEVNULL,
                     timeout=15,
                     env=_env,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
                 return out.strip().decode("utf-8")
             except subprocess.TimeoutExpired:

@@ -21,6 +21,31 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 @pytest.fixture(autouse=True)
+def _no_console_windows(monkeypatch):
+    """Windows: дочерние процессы тестов не создают видимых окон консоли.
+
+    Терминальная панель Zed запускается без консоли → любой console-процесс
+    без CREATE_NO_WINDOW получает собственное окно (наблюдалось: 2 окна при
+    прогоне тестов). Патчим subprocess.Popen — базовый примитив: run,
+    check_output, check_call, call используют его, фикстура покрывает все
+    вызовы без явных creationflags. Не влияет на POSIX.
+    """
+    if sys.platform != "win32":
+        return
+
+    import subprocess
+
+    _orig_popen = subprocess.Popen
+
+    def _popen_no_window(*args, **kwargs):
+        if "creationflags" not in kwargs:
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        return _orig_popen(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", _popen_no_window)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_data_root(tmp_path: Path, monkeypatch) -> Path:
     """Изолирует data_root в pytest tmp для всех тестов (см. docstring)."""
     root = tmp_path / "mscodebase_data"

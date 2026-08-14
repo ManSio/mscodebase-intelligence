@@ -370,7 +370,8 @@ class ProjectIntelligenceLayer:
         try:
             if _sys.platform == "win32":
                 out = subprocess.check_output(
-                    ["netstat", "-ano"], timeout=3
+                    ["netstat", "-ano"], timeout=3,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 ).decode("utf-8", errors="replace")
                 for line in out.splitlines():
                     if f":{port_int}" in line and "LISTENING" in line:
@@ -1250,6 +1251,7 @@ class ProjectIntelligenceLayer:
                     ["git", "-C", str(self.project_path), "--no-pager", "log",
                      "-1", "--format=%s%x00%b", hash_str],
                     capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=True,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
                 subject, _, body = result.stdout.partition('\x00')
                 return (subject.strip(), body.strip()[:500]) if subject.strip() else None

@@ -100,6 +100,11 @@ logger = logging.getLogger("mscodebase_server.llama_runner")
 
 def _popen_with_job(popen_args, **kwargs):
 
+    # Windows: без CREATE_NO_WINDOW дочерний консольный процесс (llama-server.exe)
+    # создаёт видимое чёрное окно, если у родителя нет консоли (pythonw).
+    if sys.platform == 'win32' and 'creationflags' not in kwargs:
+        kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+
     proc = subprocess.Popen(popen_args, **kwargs)
 
     if sys.platform == 'win32':
@@ -919,6 +924,10 @@ class LlamaRunner:
                 stderr=(log_fh := open(self._log_path(), 'ab')),  # binary mode for Windows
 
                 cwd=str(_llama_bin_vulkan().parent) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin().parent),
+
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+
+                if sys.platform == "win32" else 0,
 
             )
 

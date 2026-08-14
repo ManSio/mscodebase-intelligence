@@ -243,7 +243,8 @@ class OnnxEmbedderClient:
                     # DEVNULL вместо capture_output: задача — только убить процесс,
                     # вывод не читаем (Windows pipe-safety, §6 AGENTS.md).
                     subprocess.run(['taskkill', '/F', '/PID', str(self._server_pid)],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 else:
                     os.kill(self._server_pid, 15)
             except Exception:

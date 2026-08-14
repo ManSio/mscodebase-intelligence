@@ -130,6 +130,7 @@ def _check_source_extension_sync() -> Optional[str]:
             encoding="utf-8",
             errors="replace",
             timeout=10,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if r.returncode == 0:
             current_head = r.stdout.strip()

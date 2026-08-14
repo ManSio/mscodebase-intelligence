@@ -367,7 +367,8 @@ class DualArmHealthCheckTool(MCPTool):
             # Проверка WSL
             wsl_available = False
             try:
-                wsl_check = subprocess.run(["wsl", "--version"], capture_output=True, timeout=5)
+                wsl_check = subprocess.run(["wsl", "--version"], capture_output=True, timeout=5,
+                                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 wsl_available = wsl_check.returncode == 0
             except Exception:
                 pass
@@ -404,7 +405,8 @@ class DualArmHealthCheckTool(MCPTool):
             mutmut run --paths-to-mutate 'src/core/intelligence/' --runner 'pytest tests/ -x -q' 2>&1"
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             return {
                 "exit_code": result.returncode,
                 "stdout": result.stdout[-5000:] if result.stdout else "",
@@ -441,7 +443,8 @@ class DualArmHealthCheckTool(MCPTool):
                 mutmut run --paths-to-mutate 'src/' --runner 'pytest tests/ -x -q' 2>&1"
             ]
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 # mutmut должен вернуть exit!=0 (мутант убит = успех negative control)
                 return result.returncode != 0
             except Exception:

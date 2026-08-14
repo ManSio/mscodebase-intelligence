@@ -73,6 +73,7 @@ def get_base_commit(project_root: str, ttl_sec: float = 30.0) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=5,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             cwd=project_root,
         )
         commit = result.stdout.strip() if result.returncode == 0 else ""
@@ -256,6 +257,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if hash_result.returncode != 0:
                 result["errors"].append(
@@ -274,6 +276,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if msg_result.returncode == 0:
                 commit_msg = msg_result.stdout.strip()
@@ -300,6 +303,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if diff_result.returncode == 0:
                 changed_files = [f for f in diff_result.stdout.strip().split("\n") if f]
@@ -338,6 +342,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if status_result.returncode != 0:
                 result["errors"].append(
