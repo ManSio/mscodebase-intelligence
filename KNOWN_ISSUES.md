@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-14 — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов (FIXED); severity_overrides Windows quirk (OPEN)
+
+**Что:** MCP-тул stale_detector (src/mcp/tools/doc_tools.py) — дублированная реализация без <!-- stale-ignore --> / severity_overrides / ARCHIVED-скипа → 11 ложных дрейфов (AGENTS.md v3.2.0-маркеры, TELEMETRY 3.2.1 в en/ru/zh) при 0 у канонического чекера (CLI/pre-commit). Исправлено: делегирование tools/stale_detector/stale_check.py (+2 теста).
+**Остаток (OPEN):** severity_overrides матчатся forward-slash паттерном (`docs/ru/*`), а rel на Windows содержит backslash → docs/ru|zh НЕ получают warn на Windows (на POSIX работают). Fix: normalize rel в stale_check.py (1 строка) — потребует re-pin (транзитивная фикстура). | **Владелец:** misha.
+**Наблюдения health (мониторить):** 273 orphan-файла в индексе (инкрементальный reindex не чистит — нужен полный); RAM +11..16 MB/мин, пик ~462MB (возможна утечка); метрика «98 ошибок в логе» vs grep=20 ERROR-строк (считает иначе). | **Владелец:** misha.
+
 ## 2026-08-14 — Guard Inventory: scripts/negative_controls_runner.py (протокол Тома / OWP §5.2, P3 research 08-11) (DONE)
 
 **Что:** P3 research (2026-08-11) — «Создать scripts/negative_controls/ runner; digest-pinning (Skillselion): правка фикстуры сбрасывает proven→unproven» — был невнедрён; отчёты smoke/verify не привязаны к ревизии кода.

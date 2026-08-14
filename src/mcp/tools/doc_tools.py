@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.mcp.tools.base import MCPTool
+from tools.stale_detector.stale_check import StaleConfig
+from tools.stale_detector.stale_check import run as stale_run
 
 logger = logging.getLogger(__name__)
 
@@ -94,59 +95,26 @@ class StaleDetectorTool(MCPTool):
     def _scan_docs(
         self, project_root: Path, actual_version: str, config: dict
     ) -> list:
-        exclude_files = set(config.get("exclude_files", []))
-        exclude_dirs = set(config.get("exclude_dirs", []))
-        version_exclude = config.get("version_exclude_patterns", [])
-        version_ignore = config.get("version_ignore_files", [])
+        """Делегирование каноническому чекеру tools/stale_detector/stale_check.py.
 
-        results = []
-        for md_file in sorted(project_root.rglob("*.md")):
-            rel = str(md_file.relative_to(project_root))
-            parts = Path(rel).parts
-
-            name = md_file.name
-            if name in exclude_files:
-                continue
-            if any(d in parts for d in exclude_dirs):
-                continue
-            if any(rel.endswith(f) for f in version_ignore):
-                continue
-
-            try:
-                text = md_file.read_text(encoding="utf-8")
-            except Exception as _read_err:
-                logger.debug(f"Skip unreadable {md_file.name}: {_read_err}")
-                continue
-
-            mtime = datetime.fromtimestamp(md_file.stat().st_mtime)
-            hits = []
-            in_code_block = False
-
-            for i, line in enumerate(text.split("\n"), 1):
-                if line.strip().startswith("```"):
-                    in_code_block = not in_code_block
-                    continue
-                if in_code_block:
-                    continue
-
-                for m in re.finditer(r'(?:v?)(\d+\.\d+\.\d+)', line):
-                    ver = m.group(1)
-                    if any(re.search(p, ver) for p in version_exclude):
-                        continue
-                    if ver != actual_version:
-                        hits.append({
-                            "line": i,
-                            "expected": ver,
-                            "actual": actual_version,
-                            "severity": "error",
-                        })
-
-            if hits:
-                results.append({
-                    "path": rel,
-                    "mtime": mtime.strftime("%Y-%m-%d %H:%M"),
-                    "hits": hits,
-                    "total_hits": len(hits),
-                })
-
-        return results
+        Single source of truth (§6.2): дублированная реализация здесь ранее НЕ
+        поддерживала <!-- stale-ignore -->, severity_overrides и ARCHIVED-скип —
+        давала ложные дрейфы (инцидент 2026-08-14: 11 ложных на AGENTS/TELEMETRY
+        при 0 у канонического чекера).
+        """
+        cfg = StaleConfig(
+            exclude_files=config.get("exclude_files") or [],
+            exclude_dirs=config.get("exclude_dirs"),  # None → канонические defaults
+            version_exclude_patterns=config.get("version_exclude_patterns") or [],
+            version_ignore_files=config.get("version_ignore_files") or [],
+            severity_overrides=config.get("severity_overrides") or {},
+        )
+        return [
+            {
+                "path": rep.path,
+                "mtime": rep.mtime,
+                "hits": rep.hits,
+                "total_hits": rep.total_hits,
+            }
+            for rep in stale_run(project_root, cfg)
+        ]

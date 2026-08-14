@@ -183,6 +183,22 @@ def _pin_digests(manifest_path: Path, data: dict, guards: list[dict]) -> None:
     manifest_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _current_revision() -> str:
+    """git HEAD — min_accepted_revision политики на момент pin (TC-9)."""
+    try:
+        p = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(SCRIPT_DIR.parent),
+            capture_output=True,
+            timeout=15,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        rev = (p.stdout or b"").decode("utf-8", "replace").strip()
+        return rev if p.returncode == 0 and rev else ""
+    except Exception:  # noqa: BLE001 — диагностика: нет git → поле не пишется
+        return ""
+
+
 def _append_pin_log(manifest_path: Path, guards: list[dict], reason: str) -> Path:
     """TC-10: ревью-запись при --pin (кто/когда/что). Сам по себе лог —
     самоаттестация; целостность — через git-историю/co-signer (v0.5)."""
@@ -268,9 +284,14 @@ def main() -> int:
         if not all_proven:
             print("PIN: отказано — есть BROKEN/UNPROVEN, сначала чинить (нельзя благословить сломанное)")
             return 1
+        # TC-9: политика (manifest+fixtures) применяется с текущей ревизии
+        rev = _current_revision()
+        if rev:
+            data["min_accepted_revision"] = rev
         _pin_digests(manifest_path, data, guards)
         log_path = _append_pin_log(manifest_path, guards, args.reason.strip())
         print(f"PIN: fixture digests обновлены в {manifest_path.name}")
+        print(f"PIN: min_accepted_revision={rev[:12] or 'нет git'} (TC-9)")
         print(f"PIN: ревью-запись добавлена в {log_path.name} (reason: {args.reason.strip()[:80]})")
 
     if all_proven:
