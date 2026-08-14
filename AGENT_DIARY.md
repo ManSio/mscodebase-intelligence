@@ -21,6 +21,29 @@
 
 ---
 
+## [2026-08-14 08:40] — pre-commit hook + negative_controls runner + коммит сессии (DONE)
+**Status:** ✅ Fixed (commit сделан; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — pre-commit hook 4/4 (verify_diary / stale_detector / check_tool_names / negative_controls); runner ALL PROVEN; ruff чист
+**Fix:** git_hooks_installer.py — PRE_COMMIT_HOOK += `run_script("scripts/negative_controls_runner.py", "negative_controls")`; хук переустановлен (uninstall→install); stale_config.json += exclude `owp_rfc_001_v04.md` (basename — should_skip_file матчит name, не path).
+**Guard:** ручной прогон hook 4/4; хук поймал 2 version-дрейфа в моих новых файлах (3.3.8 в task state, v3.2.0 в RFC) — stale_detector жив; re-pin x2 (stale_config — транзитивная фикстура, TC-8 продемонстрирован вживую).
+**Pattern:** — (рутинная интеграция)
+
+## [2026-08-14 08:05] — Red team round 2 (TC-7..TC-10) + runner hardening: provocation_type, --pin --reason, pin_log, transitive fixtures (DONE)
+**Status:** ✅ Fixed (код+тесты+RFC; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → PASSED, 1160 passed / 0 failed (включает +3 новых теста)
+**Root Cause:** red team round 2 — 4 новых атаки, все воспроизведены кодом: TC-7 (substring-маркер обходится отрицанием вывода), TC-8 (транзитивные зависимости контроля вне fixtures-списка невидимы для pin), TC-9 (replay старой ревизии после апгрейда политики — consumer-side), TC-10 (pin_log — самоаттестация без внешнего якоря).
+**Fix:** (1) runner: provocation_type обязателен в schema (TC-1); --pin требует --reason (ревью-запись); pin_log.json рядом с manifest (кап 50); path-safety расширен до корня проекта (для tools/-зависимостей). (2) manifest: provocation_type x3; stale_detector fixtures += stale_check.py + stale_config.json (транзитивное замыкание, TC-8). (3) RFC: experiments/owp_rfc_001_v04.md — полный v0.4 + Appendix C (TC-1..6) + D (TC-7..10). (4) тесты: encoding="utf-8" в _run (Windows mojibake), InventoryError → чистое сообщение в stdout вместо traceback.
+**Guard:** +3 теста (pin без reason / pin_log пишется / schema без provocation_type); 11/11 зелёные; ruff чист; verify --no-clone PASSED; pin_log.json создан с reason.
+**Pattern:** NEW — семантическая пиновка (provocation_type) закрывает класс TC-1/TC-8 («digest пинит байты, не намерение»); TC-10 документирован как by design (witness-слой — v0.5).
+
+## [2026-08-14 07:30] — Guard Inventory (OWP §5.2, P3 research 08-11): scripts/negative_controls_runner.py + привязка отчётов к git HEAD (DONE)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, 1157 passed / 0 failed (включает 8 новых тестов); ruff чист по новым файлам; smoke_e2e печатает revision (HEAD 15a440d6)
+**Root Cause:** P3 research (2026-08-11) «negative_controls runner + digest-pinning» остался невнедрённым; smoke/verify-отчёты не были привязаны к ревизии кода (policy_binding-аналог).
+**Fix:** (1) scripts/negative_controls_runner.py + manifest.json (3 guard-а: drift_gate / stale_detector / dead_guard_classifier); классификация PROVEN/UNPROVEN/BROKEN; «crash ≠ catch» (output_contains-маркеры); digest-pinning фикстур (--pin re-prove); --self-test (runner умеет падать); --manifest для тестов. (2) verify_clean_state.sh — вызов runner ДО установки deps + Revision в RESULT. (3) smoke_e2e.py — get_revision() (HEAD + dirty). (4) Windows-ловушка: subprocess(['bash']) резолвит System32\bash.exe (WSL-шим) раньше PATH → _resolve_bash через which + отбраковка WSL.
+**Guard:** 8 тестов (test_negative_controls_runner.py 5: self-test / BROKEN-default / digest-mutant / inventory / schema; test_smoke_revision.py 3); runner --pin поймал собственные правки фикстур → UNPROVEN (digest-pinning работает); §5.9 encoding-guard.
+**Pattern:** NEW — «инвентарь проверок» (OWP §5.2) — база для всех будущих guard-ов (следующий кандидат: pre-commit hook).
+
 ## [2026-08-14 11:45] — Guard проза-«import X» (C-гибрид): частотное слово без src-импорта ≠ якорь (DONE)
 **Status:** ✅ Fixed (код+тесты+ADR; не закоммичено — commit/push)
 **verified_from_clean_state:** ✅ да — полный pytest tests/ 1149 passed / 10 skipped (102s) + `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED

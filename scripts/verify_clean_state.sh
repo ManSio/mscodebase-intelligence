@@ -41,6 +41,9 @@ else
     cd "$TMPDIR/repo"
 fi
 
+# Ревизия кода — привязка отчёта к конкретному состоянию (policy_binding-аналог, OWP)
+echo "Revision: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
 echo "Creating venv..."
 python -m venv venv || { echo "venv creation failed, trying with ensurepip"; python -m venv --without-pip venv; source "$VENV_BIN/activate" && python -m ensurepip; }
 
@@ -77,6 +80,21 @@ if [ -f requirements-lock.txt ]; then
     }
 fi
 
+# Negative controls inventory (протокол Тома / OWP §5.2): каждый guard обязан
+# уметь падать (иначе его зелёные результаты ничего не значат); digest-pinning —
+# правка фикстуры сбрасывает proven → unproven (re-prove — runner --pin).
+# Runner зависит только от stdlib — можно гонять ДО установки зависимостей.
+echo "Checking negative controls inventory (guard can-fail proofs)..."
+if [ -f "$SCRIPT_DIR/negative_controls_runner.py" ]; then
+    python "$SCRIPT_DIR/negative_controls_runner.py" || {
+        echo -e "${RED}NEGATIVE CONTROLS FAILED — guard inventory broken${NC}"
+        exit 1
+    }
+else
+    echo -e "${RED}negative_controls_runner.py отсутствует — инвентарь сломан (файл удалён?)${NC}"
+    exit 1
+fi
+
 # Ставим из pyproject (с exact pins / upper bounds), а не резолвим заново из PyPI.
 # Если платформа совпадает с lock — ставим из lock для битовой воспроизводимости.
 # ВАЖНО: pip-фейл = exit 1 сразу (раньше без set -e установка тихо проваливалась,
@@ -108,6 +126,7 @@ FAILED=$(echo "$RESULT" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+'
 
 echo ""
 echo -e "${YELLOW}=== RESULT ===${NC}"
+echo "Revision: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
 echo "Exit code: $EXIT_CODE"
 echo "Passed: $PASSED"
 echo "Failed: $FAILED"

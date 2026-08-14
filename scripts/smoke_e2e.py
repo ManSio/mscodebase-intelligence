@@ -50,6 +50,41 @@ def _setup_env():
         sys.path.insert(0, str(root))
 
 
+def get_revision() -> str:
+    """git HEAD текущей ревизии — привязка отчёта к коду (policy_binding, OWP).
+
+    «unknown» при отсутствии git/ошибке — честный fallback, а не молчание.
+    main-поток, capture_output безопасен (§5.16 про daemon-треды).
+    """
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root),
+            capture_output=True,
+            timeout=5,
+            creationflags=flags,
+        )
+        rev = head.stdout.decode("utf-8", "replace").strip()
+        if not rev:
+            return "unknown"
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(root),
+            capture_output=True,
+            timeout=5,
+            creationflags=flags,
+        )
+        if dirty.stdout.strip():
+            return f"{rev} (dirty)"
+        return rev
+    except Exception:  # noqa: BLE001 — диагностика
+        return "unknown"
+
+
 def _health(url: str, timeout: float = 3.0) -> bool:
     try:
         if httpx is None:
@@ -168,7 +203,9 @@ def main() -> int:
     args = parser.parse_args()
 
     _setup_env()
+    revision = get_revision()
     print("🧪 Smoke E2E — реальные сервисы (без моков)")
+    print(f"revision: {revision}")
     print("━" * 50)
     failures = 0
 
@@ -203,7 +240,7 @@ def main() -> int:
 
     print("━" * 50)
     if failures == 0:
-        print(f"✅ SMOKE E2E: PASSED (проверок: {3 if args.services_only else 4})")
+        print(f"✅ SMOKE E2E: PASSED (проверок: {3 if args.services_only else 4}, revision: {revision})")
         return 0
     print(f"❌ SMOKE E2E: FAILED ({failures} проверок)")
     return 1

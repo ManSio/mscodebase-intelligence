@@ -6,7 +6,8 @@
     "CHANGELOG.md",
     "KNOWN_ISSUES.md",
     "ISSUE.md",
-    "WISDOM.md"
+    "WISDOM.md",
+    "owp_rfc_001_v04.md"
   ],
   "exclude_dirs": [
     "research",
