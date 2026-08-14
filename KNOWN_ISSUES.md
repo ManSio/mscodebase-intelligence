@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-14 — Чёрные окна CMD при работе MCP на Windows (FIXED)
+
+**Что:** MCP запускался Zed как `venv\Scripts\python.exe` — console-приложение; Zed не подавляет консоль → каждое окно Zed с расширением = своё висящее чёрное окно (у пользователя до 3 = 3 окна Zed). Дочерние git/wmic/netstat окна не создавали (наследовали консоль родителя).
+**Fix (2026-08-14):** (1) extension.toml: `python.exe` → `pythonw.exe` (GUI-подсистема — окна нет; stdio-протокол MCP через каналы работает; console-зависимого кода в src/ нет). (2) `creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)` во ВСЕХ runtime subprocess — 14 сайтов / 13 файлов (git×8, wmic×3, netstat, taskkill, zstd×2, wsl/mutmut×3); llama_runner._popen_with_job — дефолтные флаги `CREATE_NO_WINDOW|DETACHED_PROCESS`, если caller не передал. Без (2) после перехода на pythonw каждый такой вызов мигал бы новым окном. (3) tests/conftest.py — autouse `_no_console_windows` (патч subprocess.Popen, покрывает все тестовые спавны). (4) settings.json пользователя — дубль-регистрация переведена на `pythonw.exe` (источник «остаются после закрытия Zed»). (5) `server_factory._start_zed_parent_watchdog()` — при закрытии Zed цепочка powershell→venvlauncher→python не получает EOF (сироты); watchdog следит за живостью Zed.exe в предках и делает os._exit(0) (llama-дети умирают по JobObject KILL_ON_JOB_CLOSE).
+**Статус:** 🟢 стабильно (применяется после перезагрузки Zed; НЕ закоммичено — commit/push по команде) | **Владелец:** misha.
+
 ## 2026-08-14 — 11 дыр в градере реранкера validate_scores (FIXED)
 
 **Что:** мутационный аудит (перенос evalmut-методологии, EXPERIMENTS_LOG 2026-08-14) нашёл 11 дыр в `src/providers/reranker/reranker_scoring.py` (validate_scores + parse_scores_json + apply_scores). Главная: NaN/Infinity score тихо → 1.0 (`min(1.0, NaN)=1.0`) — чанк, который LLM не оценил, получал максимальный приоритет.

@@ -283,6 +283,7 @@ class GetContextTool(MCPTool):
                 capture_output=True,
                 text=True,
                 timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             out = r.stdout.strip()
             snippet = out or f"[git: no history for {file_path}]"

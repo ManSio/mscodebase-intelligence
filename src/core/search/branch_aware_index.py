@@ -35,6 +35,7 @@ class BranchAwareIndex:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 cwd=str(self.project_path),
             )
             if result.returncode == 0:

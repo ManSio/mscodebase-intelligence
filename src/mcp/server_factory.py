@@ -343,6 +343,52 @@ def _register_extension_handlers(mcp, services):
 # ══════════════════════════════════════════════════════════
 
 
+def _start_zed_parent_watchdog() -> None:
+    """Windows-only: завершает MCP, если запустивший его Zed умер.
+
+    Решает «чёрные окна остаются после закрытия Zed»: Zed спавнит context
+    server через `powershell -C "...python.exe -u -m src.main"`, и при выходе
+    Zed цепочка powershell → venvlauncher → python НЕ получает EOF — powershell
+    ждёт python, python ждёт закрытый канал → процессы остаются сиротами
+    навсегда (окно консоли тоже). Watchdog: ближайший предок Zed.exe умер
+    → os._exit(0). Дети llama-server умирают сами: _popen_with_job вешает их
+    в JobObject с KILL_ON_JOB_CLOSE (0x2000), ONNX — через свой idle-killer.
+    Для ручного запуска (start_server.bat) в цепочке нет Zed.exe — watchdog
+    не запускается, поведение не меняется (консоль гасится CTRL_CLOSE_EVENT).
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        from src.core.indexing.database_lock import WindowsProcessInspector
+
+        insp = WindowsProcessInspector()
+        chain = insp.parent_chain(os.getpid(), max_levels=8) or []
+        zed_pids = [
+            pid for pid, name, _alive in chain
+            if name and name.lower() == "zed.exe"
+        ]
+        if not zed_pids:
+            logger.debug("[parent-watchdog] не Zed-цепочка — не запускаю")
+            return
+        zed_pid = zed_pids[0]  # ближайший Zed, породивший нас
+
+        def _watch() -> None:
+            while True:
+                time.sleep(5.0)
+                if not insp.is_alive(zed_pid):
+                    logger.warning(
+                        f"[parent-watchdog] Zed (PID {zed_pid}) закрылся — завершаю MCP"
+                    )
+                    os._exit(0)
+
+        threading.Thread(
+            target=_watch, daemon=True, name="zed-parent-watchdog"
+        ).start()
+        logger.info(f"[parent-watchdog] активен: слежу за Zed PID={zed_pid}")
+    except Exception as e:  # noqa: BLE001 — диагностика, не критично
+        logger.debug(f"[parent-watchdog] не запущен: {e}")
+
+
 def run_server(original_stdout=None):
     """Запускает MCP-сервер через stdio."""
     mcp = create_mcp_server()
@@ -351,6 +397,9 @@ def run_server(original_stdout=None):
 
     try:
         atexit.register(lambda: _shutdown_services())
+
+        # ─── Anti-orphan: MCP умирает вместе с Zed (Windows) ───
+        _start_zed_parent_watchdog()
 
         # ─── Contradiction Ledger (auto-verify AGENT_DIARY on startup) ───
         _start_contradiction_ledger_background()

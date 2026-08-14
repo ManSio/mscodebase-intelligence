@@ -18,8 +18,10 @@ capabilities = ["context_servers"]
 # Установка из marketplace → один клик, без ручной настройки.
 # Перед первым запуском: python install.py (создаёт venv + скачивает модели).
 [context_servers.mscodebase-intelligence]
-command = "venv\\Scripts\\python.exe"
+# pythonw (GUI-подсистема) вместо python — без чёрного окна консоли на Windows.
+# stdio-протокол MCP работает через каналы, консоль не нужна.
+command = "venv\\Scripts\\pythonw.exe"
 args = ["-u", "-m", "src.main"]
-env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT", "PYTHONUTF8" = "1"}
+env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT", "PYTHONUTF8" = "1", "EMBEDDING_PROVIDER" = "llama_cpp", "EMBEDDING_DIMENSION" = "384"}
 
 [slash_commands]

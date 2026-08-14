@@ -1454,6 +1454,7 @@ class PropertyGraph:
                     check=True,
                     capture_output=True,
                     timeout=60,  # B2: timeout на зависший subprocess
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
                 compressed_size = output_path.stat().st_size
         finally:
@@ -1490,6 +1491,7 @@ class PropertyGraph:
                 [sys.executable, "-m", "zstandard", "-d", str(input_path)],
                 capture_output=True,
                 timeout=60,  # B3: timeout на зависший subprocess
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             decompressed = result.stdout
 

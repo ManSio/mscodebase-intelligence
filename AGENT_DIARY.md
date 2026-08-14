@@ -18,8 +18,22 @@
 - **PID-reuse guard llama_runner (2026-08-13):** _InterProcessLock._is_pid_alive — OpenProcess(SYNCHRONIZE) ложно считал завершённый процесс живым (объект жив, пока у родителя handle) → stale PID блокировал запуск reranker весь день; фикс: GetExitCodeProcess==259 + имя llama-server.exe
 - **Дедупликация серверов при 2 окнах (2026-08-13):** lock embedder/reranker держится ДО готовности порта (был — до Popen; llama-server bind'ит через секунды → второй MCP спавнил дубль); ONNX _wait_for_server 30→60s (модель 600MB)
 - **LIVE-SMOKE (2026-08-13):** scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp / rerank BGE-M3 / векторный поиск по реальному LanceDB); §7 п.10b: для runtime-изменений ✅ = live-check, не только pytest (инцидент: 7 тестов зелёные по неверной причине)
+- **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 
 ---
+
+## [2026-08-14 19:30] — Чёрные окна CMD при работе MCP на Windows (FIXED)
+**Status:** ✅ Fixed (код+синхронизация расширения; НЕ закоммичено — commit/push по команде; перезагрузка Zed для применения)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (100.8s); py_compile 14 файлов; watchdog live-тест (тред следит за Zed PID=10964); md5-синк расширения ALL_SYNCED; live-проверка запуска pythonw — после перезагрузки Zed (действие пользователя)
+**Root Cause:** MCP запускался Zed как `venv\Scripts\python.exe` — console-приложение. Zed не подавляет создание консоли → КАЖДЫЙ MCP-процесс (по одному на окно Zed) получал своё видимое чёрное окно, висящее всё время жизни сервера (у юзера «до 3» = 3 окна Zed). Дочерние git/wmic/netstat окна НЕ создавали — они наследовали консоль родителя.
+**Fix:** (1) extension.toml: `python.exe` → `pythonw.exe` (GUI-подсистема, окна нет; stdio MCP через каналы работает, console-зависимого кода нет — проверено grep input/GetConsoleWindow). (2) CREATE_NO_WINDOW (`getattr(subprocess, "CREATE_NO_WINDOW", 0)`) во ВСЕХ runtime subprocess без флага — 14 сайтов / 13 файлов (git, wmic, netstat, taskkill, zstd, wsl/mutmut); llama_runner._popen_with_job — дефолтные флаги, если caller не передал. Без этого с pythonw (нет консоли) каждый такой вызов мигал бы новым окном. (3) tests/conftest.py — autouse-фикстура `_no_console_windows`: патчит subprocess.Popen (базовый примитив run/check_output/call) — покрывает все тестовые спавны git/sleep без правки ~60 сайтов (наблюдалось: 2 окна при прогоне pytest из терминала Zed).
+**Guard:** test_subprocess_windows.py (существующий) + конвенция AGENTS.md §6 «CREATE_NO_WINDOW обязателен»; md5-сверка расширения после синка; py_compile 14 файлов.
+**Pattern:** NEW (первый инцидент класса «console-процесс без подавления окна»; прецедент-флаги уже были у llama-server/onnx/LSP/sandbox — новый фикс распространил конвенцию на остальные).
+**Фаза 2 (19:50, «остаются после закрытия Zed»):**
+- **Root Cause «сирот»:** в settings.json пользователя был ДУБЛЬ регистрации context server (`venv\Scripts\python.exe`, старый способ) — оба (settings.json + extension.toml) запускаются через powershell-обёртку Zed; при закрытии Zed цепочка powershell → venvlauncher → python НЕ получает EOF (powershell ждёт python, python ждёт закрытый канал) → процессы и их чёрные окна остаются навсегда.
+- **Fix 2a:** settings.json → `pythonw.exe` (обновлено через .Replace, JSON валиден); extension.toml env дополнен EMBEDDING_PROVIDER=llama_cpp / EMBEDDING_DIMENSION=384 (эквивалент удалённых из settings.json после его удаления в будущем).
+- **Fix 2b:** `server_factory._start_zed_parent_watchdog()` — Windows-only daemon-thread: parent_chain() (WindowsProcessInspector) ищет ближайший Zed.exe в предках; умер → os._exit(0) (llama-дети умирают по JobObject KILL_ON_JOB_CLOSE 0x2000). Для ручных запусков (start_server.bat, нет Zed в цепочке) — не запускается. Живой тест: поток поднялся и следит за Zed PID=10964.
+- **Тесты:** 54 passed (server_factory/database_lock/llama/startup); JSON settings.json валиден.
 
 ## [2026-08-14 16:20] — Фикс 11 дыр в градере реранкера по evalmut-методологии (DONE)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
