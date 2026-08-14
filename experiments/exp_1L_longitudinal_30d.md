@@ -37,7 +37,10 @@ production-цикле 30 дней. Статья Part 4 пишет себя са�
 
 - `scripts/collect_memory_snapshot.py` — append JSONL
   `data_root/experiments/longitudinal_1L.jsonl` (только чтение memory store, MCP не нужен).
-- Автозапуск: по решению владельца (планировщик/начало сессии) — скрипт безопасен.
+- `scripts/run_1L_live_arm.py` — Arm A (live model, deepseek-v4-flash): вердикты по тем же
+  50 фактам (memory_first / code_first), ключ только из env (DEEPSEEK_API_KEY/LLM_API_KEY),
+  без ключа — честный exit 2 (не молча, не фейк). Результат — JSON в data_root/experiments/.
+- Автозапуск: по решению владельца (планировщик/начало сессии) — оба скрипта безопасны.
 
 ## Расписание
 
