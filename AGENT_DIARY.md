@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 09:50] — P2 health: «273 orphan» — артефакт среза rglob на venv/ (22k файлов) (FIXED)
+**Status:** ✅ Fixed (код+тесты; push)
+**verified_from_clean_state:** ✅ да — реальный скан 800 путей (было 23934 с обрывом на 10001); тесты 3/3; CI watch после push
+**Root Cause:** health._check_filesystem_sync rglob'ил ВЕСЬ проект, включая venv/ (22 405 файлов из verify_clean_state.sh) → кап 10001 → «осиротевшие файлы» = файлы, которые скан не успел увидеть (273 ложных). Полный reindex (7540 chunks, 528с) НЕ помог — это артефакт детекции, не индекса.
+**Fix:** health.py — извлечён _scan_disk_files с исключением _INDEX_SKIP_DIRS (venv/.venv/.git/__pycache__/node_modules/.codebase_indices); +3 теста (venv/.git исключены, кап детектится, реальный проект без среза).
+**Guard:** tests/test_health_fs_sync.py; реальный прогон скана (800 путей, truncated=False).
+**Pattern:** P-003 «слепая детекция» — health-отчёт врал как stale_detector MCP-тул (ложные срабатывания из-за неучтённого окружения).
+
 ## [2026-08-14 09:35] — P1 CI: revision_gate UNKNOWN на shallow-checkout — clean-state красный (FIXED)
 **Status:** ✅ Fixed (коммит + push; CI-проверка после)
 **verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch

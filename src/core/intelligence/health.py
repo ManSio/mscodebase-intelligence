@@ -16,6 +16,43 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+# Каталоги, которые НЕ индексируются (venv/ = 22k файлов из verify_clean_state.sh):
+# без исключения rglob обрывался на капе 10001, и «осиротевшие файлы» были
+# артефактом обрезанного скана (инцидент 2026-08-14: 273 ложных orphan).
+_INDEX_SKIP_DIRS = {
+    "venv",
+    ".venv",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".codebase_indices",
+}
+
+
+def _scan_disk_files(project_path: Path, cap: int = 10000) -> tuple[set[str], int, bool]:
+    """Файлы проекта на диске (без каталогов вне индекса) + счётчик + флаг среза.
+
+    Returns:
+        (files, count, truncated): rel-пути (с /), число ОТСКАНИРОВАННЫХ (без
+        исключённых) путей, True если cap превышен (скан обрезан).
+    """
+    files: set[str] = set()
+    count = 0
+    truncated = False
+    for p in project_path.rglob("*"):
+        if any(part in _INDEX_SKIP_DIRS for part in p.parts):
+            continue
+        count += 1
+        if count > cap:
+            truncated = True
+            break
+        if p.is_file():
+            try:
+                files.add(str(p.relative_to(project_path)).replace(os.sep, "/"))
+            except ValueError:
+                pass
+    return files, count, truncated
+
 __all__ = [
     "HealthReport",
     "format_health_report",
@@ -338,26 +375,14 @@ class HealthReport:
                         except Exception as _e:
                             logger.warning(f"LanceDB filesystem sync failed: {_e}")
                 if files_in_index:
-                    files_on_disk = set()
-                    rglob_count = 0
-                    for p in self.project_path.rglob("*"):
-                        rglob_count += 1
-                        # Защита: не сканируем больше 10000 файлов
-                        if rglob_count > 10000:
-                            self.warnings.append(
-                                {
-                                    "component": "filesystem_sync",
-                                    "message": f"Проект >10000 файлов — rglob прерван после {rglob_count}",
-                                }
-                            )
-                            break
-                        if p.is_file():
-                            try:
-                                rel = str(p.relative_to(self.project_path))
-                                rel = rel.replace(os.sep, "/")
-                                files_on_disk.add(rel)
-                            except ValueError:
-                                pass
+                    files_on_disk, rglob_count, truncated = _scan_disk_files(self.project_path)
+                    if truncated:
+                        self.warnings.append(
+                            {
+                                "component": "filesystem_sync",
+                                "message": f"Проект >10000 файлов — rglob прерван после {rglob_count}",
+                            }
+                        )
                     orphans = files_in_index - files_on_disk
                     if orphans:
                         # Health report ТОЛЬКО ЧИТАЕТ, не удаляет.
