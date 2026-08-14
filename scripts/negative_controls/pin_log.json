@@ -1,0 +1,29 @@
+[
+  {
+    "pinned_at_utc": "2026-08-14T04:30:22Z",
+    "reason": "v0.4 hardening: provocation_type + transitive fixtures (TC-1/TC-8)",
+    "digests": {
+      "drift_gate": "3598d5179ec39abc971ec58cb09d467de116e118ab3f4c7954af9b7b6ef3d29c",
+      "stale_detector": "7389e5792b72ddb817ccb6a0929ec0d27060577007b6c6573605751746e93f57",
+      "dead_guard_classifier": "d262f1b49fa7a4d04ab5b9a5b85a45d8ed282834fed0496b5c6194f2de192227"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-08-14T04:40:55Z",
+    "reason": "stale_config.json: exclude RFC artifact (raw evidence) from version scan",
+    "digests": {
+      "drift_gate": "3598d5179ec39abc971ec58cb09d467de116e118ab3f4c7954af9b7b6ef3d29c",
+      "stale_detector": "946800faf521871ee3dfde6a685e4dd2ff692db4ac9f40b1223721b2ece1d61a",
+      "dead_guard_classifier": "d262f1b49fa7a4d04ab5b9a5b85a45d8ed282834fed0496b5c6194f2de192227"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-08-14T04:43:20Z",
+    "reason": "stale_config: exclude RFC basename (should_skip_file matches by name, not path)",
+    "digests": {
+      "drift_gate": "3598d5179ec39abc971ec58cb09d467de116e118ab3f4c7954af9b7b6ef3d29c",
+      "stale_detector": "2c198fe98dacd8931b92a05963aeb8cb943ad0ca98a94702ac809c357e3c3afe",
+      "dead_guard_classifier": "d262f1b49fa7a4d04ab5b9a5b85a45d8ed282834fed0496b5c6194f2de192227"
+    }
+  }
+]

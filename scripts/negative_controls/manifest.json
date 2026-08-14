@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "guards": [
+    {
+      "id": "drift_gate",
+      "desc": "check_lock_drift.sh умеет падать на дрейфе (мутант pin vs lock, EXP-5A-класс)",
+      "provocation_type": "lockfile-drift",
+      "command": [
+        "bash",
+        "negative_control_drift_gate.sh"
+      ],
+      "fixtures": [
+        "negative_control_drift_gate.sh",
+        "check_lock_drift.sh"
+      ],
+      "expected_exit": 0,
+      "output_contains": [
+        "NEGATIVE CONTROL: PASSED"
+      ],
+      "fixture_digest": "3598d5179ec39abc971ec58cb09d467de116e118ab3f4c7954af9b7b6ef3d29c"
+    },
+    {
+      "id": "stale_detector",
+      "desc": "stale_check.py умеет падать на version-дрейфе дока (мутант v3.2.0 vs pyproject 3.4.0)",
+      "provocation_type": "doc-version-drift",
+      "command": [
+        "python",
+        "negative_controls/fixtures/stale_drift_fixture.py"
+      ],
+      "fixtures": [
+        "negative_controls/fixtures/stale_drift_fixture.py",
+        "../tools/stale_detector/stale_check.py",
+        "../tools/stale_detector/stale_config.json"
+      ],
+      "expected_exit": 0,
+      "output_contains": [
+        "STALE NEGATIVE CONTROL: PASSED"
+      ],
+      "fixture_digest": "2c198fe98dacd8931b92a05963aeb8cb943ad0ca98a94702ac809c357e3c3afe"
+    },
+    {
+      "id": "dead_guard_classifier",
+      "desc": "инвентарь умеет классифицировать ln.strip()-guard (assert после return) как BROKEN",
+      "provocation_type": "dead-guard-ln-strip",
+      "command": [
+        "python",
+        "negative_controls/fixtures/dead_guard_negative_control.py"
+      ],
+      "fixtures": [
+        "negative_controls/fixtures/dead_guard.py",
+        "negative_controls/fixtures/dead_guard_negative_control.py"
+      ],
+      "expected_exit": 1,
+      "output_contains": [
+        "DEAD GUARD DETECTED"
+      ],
+      "fixture_digest": "d262f1b49fa7a4d04ab5b9a5b85a45d8ed282834fed0496b5c6194f2de192227"
+    }
+  ]
+}

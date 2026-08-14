@@ -4,6 +4,7 @@
 > Эксперименты: `experiments/exp_*.py` (воспроизводимы), сырые выводы — EXPERIMENTS_LOG#2026-08-11-EXP-1..5
 > Автор: agent (MSCodeBase), триггер: задача владельца «изучи посты+комментарии, проведи эксперименты с атаками»
 > **Обновление 2026-08-12:** P1 (drift-гейт + negative control) и P2 (stale_detector placeholder → реальный чекер, отключён из pre-commit) ВНЕДРЕНЫ по команде владельца. Canary P2 и health P3 — ждут команды.
+> **Обновление 2026-08-14:** Canary P2 (fail-closed + collapse) и health P3 (eligible_seen) ВНЕДРЕНЫ (2026-08-12). P3 «negative_controls runner + digest-pinning» и revision binding (git HEAD в smoke/verify) ВНЕДРЕНЫ — scripts/negative_controls_runner.py, см. AGENT_DIARY 2026-08-14 07:30.
 
 ---
 

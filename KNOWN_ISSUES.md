@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-14 — Guard Inventory: scripts/negative_controls_runner.py (протокол Тома / OWP §5.2, P3 research 08-11) (DONE)
+
+**Что:** P3 research (2026-08-11) — «Создать scripts/negative_controls/ runner; digest-pinning (Skillselion): правка фикстуры сбрасывает proven→unproven» — был невнедрён; отчёты smoke/verify не привязаны к ревизии кода.
+**Fix:** scripts/negative_controls_runner.py + manifest.json (3 guard-а: drift_gate / stale_detector / dead_guard_classifier); PROVEN/UNPROVEN/BROKEN + output-маркеры (crash ≠ catch) + digest-pinning (--pin) + --self-test; verify_clean_state.sh вызывает runner и печатает Revision; smoke_e2e.py — get_revision(). Windows-ловушка: subprocess(['bash']) → System32\bash.exe (WSL-шим) — резолв через which + отбраковка.
+**Тесты:** 8 новых (runner 5 + revision 3); verify --no-clone → PASSED (1157 passed). | **Status:** 🟢 стабильно | **Владелец:** misha. | **Остаток:** ЗАКРЫТ (2026-08-14) — runner в pre-commit hook (шаблон git_hooks_installer.py + установленный хук, 4/4 проверки).
+
 ## 2026-08-14 — ADR-0005: pkg:-анкоры (closed-world манифест) — dist name vs import path (DONE)
 
 **Что:** VOR имел 3 типа якорей (file/import/env); SILENT-fact trap не ловил прозу без «import», а fastmcp-класс (from mcp.server.fastmcp import ...) давал 7 ложных REFUTED в Exp 1-V (dist name ≠ import path). По итогам комментария Skillselion на dev.to: манифест — закрытый мир, отсутствие там = доказательство, а не тишина.
