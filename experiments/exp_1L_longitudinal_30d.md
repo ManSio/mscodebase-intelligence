@@ -37,10 +37,19 @@ production-цикле 30 дней. Статья Part 4 пишет себя са�
 
 - `scripts/collect_memory_snapshot.py` — append JSONL
   `data_root/experiments/longitudinal_1L.jsonl` (только чтение memory store, MCP не нужен).
-- `scripts/run_1L_live_arm.py` — Arm A (live model, deepseek-v4-flash): вердикты по тем же
-  50 фактам (memory_first / code_first), ключ только из env (DEEPSEEK_API_KEY/LLM_API_KEY),
-  без ключа — честный exit 2 (не молча, не фейк). Результат — JSON в data_root/experiments/.
+- `scripts/run_1L_live_arm.py` — Arm A (live model, OpenCode Zen «Big Pickle»): вердикты по тем же
+  50 фактам (memory_first / code_first), ключ только из env (.env), `--delay` + backoff на 429 +
+  `--resume` (прогресс в `live_arm_1L_progress.json` переживает окна лимита).
 - Автозапуск: по решению владельца (планировщик/начало сессии) — оба скрипта безопасны.
+
+## Ограничение free-тира (измерено 2026-08-14)
+
+Big Pickle (Zen free) даёт **~3 успешных вызова на окно лимита** (`FreeUsageLimitError 429`,
+окно 30+ мин и не сброшено за час; лимит общий — 429 даже без ключа; ключ-аккаунт не виноват).
+100 фактов (50×2) на этом тарифе растянутся на десятки окон. Варианты: (a) дриблинг через
+`--resume` по 2-3 факта в окно (бесплатно, медленно); (b) платный DeepSeek API
+(`deepseek-v4-flash`, ~$0.01-0.05 за весь прогон) — ключ DeepSeek, не Zen; (c) opencode CLI —
+тот же Zen-бэкенд, лимит не обходит (ошибка от провайдера «Console»).
 
 ## Расписание
 
