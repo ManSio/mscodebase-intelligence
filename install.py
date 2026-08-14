@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
-from zed_config import get_zed_config_dir, remove_zed_settings  # noqa: E402
+from zed_config import get_zed_config_dir, patch_zed_settings  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (
@@ -61,6 +61,8 @@ ZED_EXT_DIR = (
 VENV_DIR = ZED_EXT_DIR / "venv"
 IS_WINDOWS = sys.platform == "win32"
 PYTHON_EXE = VENV_DIR / "Scripts" / "python.exe" if IS_WINDOWS else VENV_DIR / "bin" / "python3"
+# Запуск MCP из расширения без окна консоли (pythonw, инцидент 2026-08-14)
+MCP_PYTHON = VENV_DIR / "Scripts" / "pythonw.exe" if IS_WINDOWS else PYTHON_EXE
 VENV_SITE_PACKAGES = (
     VENV_DIR / "Lib" / "site-packages"
     if IS_WINDOWS
@@ -798,15 +800,19 @@ def step_db(lines, lang):
 
 @_step(10)
 def step_zedcfg(lines, lang):
-    # AGENTS.md §0.5: MCP context server регистрируется ТОЛЬКО в extension.toml
-    # расширения (step_copy копирует его в ZED_EXT_DIR). Легаси-запись в
-    # settings.json (python.exe — чёрное окно консоли, дубль-регистрация)
-    # удаляем; context_servers_to_query сохраняем — сервер резолвится из
-    # extension.toml по имени. Инцидент 2026-08-14.
-    if remove_zed_settings(keep_to_query=True):
-        lines.append((C.GRN, "✓ settings.json чист (регистрация — в extension.toml)"))
+    # Документированная настройка (AI_INSTALLATION_PROMPT.md / README.md / INSTALL.md):
+    # install.py НАСТРАИВАЕТ MCP в settings.json Zed через patch_zed_settings().
+    # Явный путь к venv РАСШИРЕНИЯ (не command=None — get_python_path вернул бы
+    # venv проекта) + pythonw.exe без окна консоли. Инцидент 2026-08-14.
+    cmd = f"{MCP_PYTHON} -u -m src.main"
+    if patch_zed_settings(
+        cmd,
+        mode="global",
+        install_path=str(ZED_EXT_DIR),
+    ):
+        lines.append((C.GRN, "✓ MCP configured"))
     else:
-        lines.append((C.YEL, "⚠ settings.json не удалось почистить — проверьте вручную"))
+        raise RuntimeError("Failed to configure Zed")
 
 
 @_step(11)
