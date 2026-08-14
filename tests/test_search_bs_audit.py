@@ -770,7 +770,12 @@ def test_bs14_record_negative_latency_clamped():
 
 
 def test_bs14_load_metrics_sanitizes_negative(tmp_path):
-    """Загрузка метрик с −994 санитизирует их (старый tool_metrics.json)."""
+    """Загрузка метрик с −994 санитизирует их (старый tool_metrics.json).
+
+    set_metrics_path больше НЕ грузит метрики при старте (чистые метрики на
+    процесс — инцидент 2026-08-14: общий файл на все инстансы MCP).
+    Проверяем санитизацию через прямой вызов load_metrics().
+    """
     from src.core import error_handler as eh
 
     metrics_file = tmp_path / "tool_metrics.json"
@@ -785,12 +790,41 @@ def test_bs14_load_metrics_sanitizes_negative(tmp_path):
     try:
         with eh._TOOL_METRICS_LOCK:
             eh._TOOL_METRICS.clear()
-        eh.set_metrics_path(metrics_file)
+        eh._METRICS_PATH = metrics_file
+        eh.load_metrics()
         with eh._TOOL_METRICS_LOCK:
             stats = dict(eh._TOOL_METRICS.get("get_symbol_info", {}))
         assert stats["min_ms"] == 999999  # отрицательное не загружено
         assert all(x >= 0 for x in stats["latencies"])
         assert stats["total_ms"] >= 0
+    finally:
+        with eh._TOOL_METRICS_LOCK:
+            eh._TOOL_METRICS.clear()
+        eh._METRICS_PATH = old_path
+
+
+def test_bs14_load_metrics_clamps_negative_total_ms(tmp_path):
+    """total_ms < 0 в старом файле клампится в 0 (живой файл содержал −994)."""
+    from src.core import error_handler as eh
+
+    metrics_file = tmp_path / "tool_metrics.json"
+    metrics_file.write_text(
+        '{"get_symbol_info": {"calls": 1, "errors": 0, "total_ms": -994, '
+        '"min_ms": -994, "max_ms": 0, "last_call": "", "route": {}, '
+        '"avg_confidence": 0.0, "avg_results": 0.0, "last_detail": "", '
+        '"latencies": [-994]}}',
+        encoding="utf-8",
+    )
+    old_path = eh._METRICS_PATH
+    try:
+        with eh._TOOL_METRICS_LOCK:
+            eh._TOOL_METRICS.clear()
+        eh._METRICS_PATH = metrics_file
+        eh.load_metrics()
+        with eh._TOOL_METRICS_LOCK:
+            stats = dict(eh._TOOL_METRICS.get("get_symbol_info", {}))
+        assert stats["total_ms"] == 0  # не −994
+        assert stats["min_ms"] == 999999
     finally:
         with eh._TOOL_METRICS_LOCK:
             eh._TOOL_METRICS.clear()

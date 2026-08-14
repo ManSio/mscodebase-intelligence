@@ -524,13 +524,19 @@ def _register_inline_tools(mcp, services):
         result += section(_("📊 Состояние"))
         calls = counters.get("can_execute_calls", 0)
         ready = counters.get("verdict_ready", 0)
-        blocked_pct = round((1 - ready / max(calls, 1)) * 100, 1)
-        result += _(
-            "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n",
-            calls=calls,
-            ready=ready,
-            blocked=blocked_pct,
-        )
+        if calls == 0:
+            # BS: «Blocked 100%» при 0 проверок — артефакт деления на max(1,0).
+            result += _(
+                "• **Checks:** 0 — данных нет (RuntimeCoordinator ещё не вызывался)\n"
+            )
+        else:
+            blocked_pct = round((1 - ready / calls) * 100, 1)
+            result += _(
+                "• **Checks:** {calls} | **Ready:** {ready} | **Blocked:** {blocked}%\n",
+                calls=calls,
+                ready=ready,
+                blocked=blocked_pct,
+            )
         result += section(_("🚫 Блокировки"))
         for k, v in counters.items():
             if k.startswith("verdict_blocked_") and v:
