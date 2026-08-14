@@ -18,6 +18,12 @@ import httpx
 import pytest
 
 from src.providers.reranker.multi_provider import MultiProviderReranker
+from src.providers.reranker.reranker_scoring import (
+    apply_scores,
+    cosine_similarity,
+    parse_scores_json,
+    validate_scores,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -480,42 +486,149 @@ def test_build_batch_prompt_contains_query():
 
 def test_parse_scores_json_pure_json():
     """Парсинг чистого JSON."""
-    reranker = MultiProviderReranker()
     raw = '{"scores": [{"index": 0, "score": 0.9}, {"index": 1, "score": 0.3}]}'
-    result = reranker._parse_scores_json(raw)
+    result = parse_scores_json(raw)
     assert len(result) == 2
     assert result[0] == {"index": 0, "score": 0.9}
 
 
 def test_parse_scores_json_markdown_block():
     """Парсинг JSON внутри markdown-блока."""
-    reranker = MultiProviderReranker()
     raw = '```json\n{"scores": [{"index": 0, "score": 0.85}]}\n```'
-    result = reranker._parse_scores_json(raw)
+    result = parse_scores_json(raw)
     assert len(result) == 1
     assert result[0]["score"] == 0.85
 
 
 def test_parse_scores_json_with_surrounding_text():
     """Парсинг JSON окружённого текстом."""
-    reranker = MultiProviderReranker()
     raw = 'Here is the result:\n{"scores": [{"index": 0, "score": 0.77}]}\nEnd.'
-    result = reranker._parse_scores_json(raw)
+    result = parse_scores_json(raw)
     assert len(result) == 1
 
 
 def test_parse_scores_json_empty_string():
     """Пустая строка → пустой список."""
-    reranker = MultiProviderReranker()
-    result = reranker._parse_scores_json("")
+    result = parse_scores_json("")
     assert result == []
 
 
 def test_parse_scores_json_gibberish():
     """Бессмысленный текст без JSON → пустой список."""
-    reranker = MultiProviderReranker()
-    result = reranker._parse_scores_json("I cannot help with that request.")
+    result = parse_scores_json("I cannot help with that request.")
     assert result == []
+
+
+# ── Мутационная регрессия (evalmut-инвариант: дыра = вывод доказанно
+#    неверен AND градер пропустил) — 2026-08-14, EXPERIMENTS_LOG ───────────
+
+
+def test_validate_scores_nan_inf_rejected():
+    """NaN/Infinity — не «больше 1», а отсутствие оценки: min/max-clamp
+    молча превращал NaN в 1.0 (максимальный скор неоценённому чанку)."""
+    assert validate_scores([{"index": 0, "score": float("nan")}]) == []
+    assert validate_scores([{"index": 0, "score": float("inf")}]) == []
+    assert validate_scores([{"index": 0, "score": float("-inf")}]) == []
+
+
+def test_validate_scores_bool_rejected():
+    """bool — подкласс int: True не является валидным индексом/скором."""
+    assert validate_scores([{"index": True, "score": 0.9}]) == []
+    assert validate_scores([{"index": 0, "score": True}]) == []
+
+
+def test_validate_scores_float_index_rules():
+    """Целый float-индекс легален; дробный (2.7) отбрасывается — иначе
+    int() молча переставил бы скор на соседний чанк."""
+    assert validate_scores([{"index": 2.7, "score": 0.9}]) == []
+    assert validate_scores([{"index": 3.0, "score": 0.9}]) == [
+        {"index": 3, "score": 0.9}
+    ]
+
+
+def test_validate_scores_negative_index_rejected():
+    """Негативный индекс не ссылается ни на один чанк."""
+    assert validate_scores([{"index": -1, "score": 0.9}]) == []
+
+
+def test_validate_scores_clamp_preserved():
+    """Score вне [0,1] — clamp by design (логиты реранкера нормализуются);
+    это правильно-скоупленная проверка, а не дыра."""
+    assert validate_scores([{"index": 0, "score": 2.5}]) == [
+        {"index": 0, "score": 1.0}
+    ]
+    assert validate_scores([{"index": 0, "score": -0.5}]) == [
+        {"index": 0, "score": 0.0}
+    ]
+
+
+def test_parse_scores_json_nan_via_json_rejected():
+    """Python json.loads принимает NaN/Infinity по умолчанию — validate_scores
+    обязан отбросить их (иначе неоценённый чанк получает скор 1.0)."""
+    assert parse_scores_json('{"scores": [{"index": 0, "score": NaN}]}') == []
+    assert parse_scores_json('{"scores": [{"index": 0, "score": Infinity}]}') == []
+
+
+def test_parse_scores_json_regex_path_same_contract():
+    """Regex-путь (попытка 4) применяет тот же контракт, что JSON-пути:
+    clamp+фильтры. Раньше score=99.0 проходил без нормализации."""
+    raw = 'text {"index": 0, "score": 99.0} {"index": 1, "score": 0.5} more'
+    assert parse_scores_json(raw) == [
+        {"index": 0, "score": 1.0},
+        {"index": 1, "score": 0.5},
+    ]
+
+
+def test_parse_scores_json_example_in_explanation_declined():
+    """«Пример формата» в объяснении LLM не должен приниматься за реальный
+    скор: единственный объект без обёртки scores — decline ([])."""
+    raw = ('Here is an example of the format: {"index": 0, "score": 0.95}. '
+           "My actual scores are below.")
+    assert parse_scores_json(raw) == []
+
+
+def test_parse_scores_json_duplicate_index_declined():
+    """Дубликат индекса = сигнал «пример + реальные скоры» — decline ([]),
+    иначе пример с index=0 перезаписал бы реальный скор."""
+    raw = ('{"index": 0, "score": 0.95} {"index": 0, "score": 0.8} '
+           '{"index": 1, "score": 0.2}')
+    assert parse_scores_json(raw) == []
+
+
+def test_parse_scores_json_duplicate_in_wrapper_declined():
+    """Дубликат индекса внутри обёртки scores (пути 1-3) — decline ([]),
+    иначе последний скор молча перезаписал бы первый в apply_scores."""
+    raw = '{"scores": [{"index": 0, "score": 0.9}, {"index": 0, "score": 0.1}]}'
+    assert parse_scores_json(raw) == []
+
+
+def test_apply_scores_orphaned_index_logs_warning(caplog):
+    """Скор с индексом вне диапазона чанков — warning (диагностика),
+    не тихая потеря: парсер не знает число чанков, это слой apply_scores."""
+    chunks = [{"text": "a"}, {"text": "b"}]
+    with caplog.at_level("WARNING"):
+        result = apply_scores(
+            chunks, [{"index": 0, "score": 0.9}, {"index": 99, "score": 1.0}], 2
+        )
+    assert any("вне диапазона" in m for m in caplog.messages)
+    assert result[0]["reranker_score"] == 0.9
+    assert result[1]["reranker_score"] == 0.0
+
+
+def test_parse_scores_json_multi_object_regex_ok():
+    """Несколько голых объектов без обёртки — легитимный fallback-путь."""
+    raw = '{"index": 0, "score": 0.8}, {"index": 1, "score": 0.2}'
+    assert parse_scores_json(raw) == [
+        {"index": 0, "score": 0.8},
+        {"index": 1, "score": 0.2},
+    ]
+
+
+def test_parse_scores_json_garbage_corroboration():
+    """SANITY (corroboration evalmut): структурно разные мусорные входы
+    оба должны давать [] — градер не vacuous."""
+    assert parse_scores_json("I cannot help with that request.") == []
+    assert parse_scores_json("8H@ac3%o zxqfp wgbrtl mnkvd") == []
 
 
 # ── Тест 9: Embedding Rerank (cosine similarity) ──────────────────────────
@@ -578,26 +691,20 @@ async def test_embedding_rerank_fallback_on_error(sample_chunks):
 
 def test_cosine_similarity_identical_vectors():
     """Cosine similarity одинаковых векторов = 1.0."""
-    from src.providers.reranker.multi_provider import MultiProviderReranker
-
     vec = [1.0, 2.0, 3.0]
-    result = MultiProviderReranker._cosine_similarity(vec, vec)
+    result = cosine_similarity(vec, vec)
     assert abs(result - 1.0) < 0.001
 
 
 def test_cosine_similarity_orthogonal_vectors():
     """Cosine similarity ортогональных векторов = 0.0."""
-    from src.providers.reranker.multi_provider import MultiProviderReranker
-
     vec_a = [1.0, 0.0]
     vec_b = [0.0, 1.0]
-    result = MultiProviderReranker._cosine_similarity(vec_a, vec_b)
+    result = cosine_similarity(vec_a, vec_b)
     assert abs(result - 0.0) < 0.001
 
 
 def test_cosine_similarity_empty_vectors():
     """Cosine similarity пустых векторов = 0.0."""
-    from src.providers.reranker.multi_provider import MultiProviderReranker
-
-    assert MultiProviderReranker._cosine_similarity([], []) == 0.0
-    assert MultiProviderReranker._cosine_similarity([1.0], []) == 0.0
+    assert cosine_similarity([], []) == 0.0
+    assert cosine_similarity([1.0], []) == 0.0

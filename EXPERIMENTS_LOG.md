@@ -1,5 +1,29 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-14] — EXP: перенос evalmut-подхода (mutation testing for eval graders) на validate_scores — mutation score 8%
+
+**Гипотеза:** evalmut-техники (инвариант «дыра = вывод доказанно неверен AND градер пропустил», decline-дисциплина против объявленного контракта, corroboration двумя непересекающимися входами) применимы к детерминированному градеру MSCodeBase и находят реальные дыры без false positives.
+**Команда:** `venv/Scripts/python.exe experiments/probe_evalmut_transfer.py` — 12 мутаций по каталогу evalmut (adapt к контракту validate_scores: index int, score float в [0,1]).
+**Сырой результат:**
+```
+mutation score: 1/12 caught (8%)   |   BLIND SPOTS: 11
+  NaN score            -> [{'index': 0, 'score': 1.0}]  ← min(1.0, NaN)=1.0: МАКСИМАЛЬНЫЙ скор
+  Infinity score       -> 1.0;  -Infinity -> 0.0
+  float index 2.7      -> int() -> 2 (тихая порча индекса)
+  index=-1 / index=99  -> проходят (скор теряется молча)
+  regex-path (попытка 4) -> score=99.0 БЕЗ clamp (неконсистентность путей 1-3 vs 4)
+  «пример формата» в объяснении LLM -> принят как реальный скор (regex-путь)
+  дубликат индекса    -> тихая перезапись (coverage gap)
+  NaN/Infinity через json.loads -> парсится (Python принимает по умолчанию)
+правильно скоупленная проверка: score=2.5 -> clamp 1.0 = OK (эквивалент, НЕ дыра)
+corroboration: 2 структурно-непересекающихся мусора -> [] (градер не vacuous)
+tests/test_reranker.py: 25 passed — дыры не покрыты
+```
+**Вердикт: ✅ подтверждена.** Подход находит реальные дыры (11) в живом градере и не даёт false positives на правильно-скоупленной проверке (clamp).
+**Урок:** (1) isinstance-проверка типов НЕ ловит NaN/Inf — нужен math.isfinite() (прецедент уже есть: error_handler.py:707 _sanitize); (2) все пути парсинга должны иметь ОДИН контракт (regex-путь без clamp = дыра); (3) «пример формата в объяснении» — общий класс дыр regex-извлечения из текста LLM.
+**Связь с отрицательными:** нет (первый прогон подхода в репо). Скрипт: experiments/probe_evalmut_transfer.py (воспроизводим).
+**ПОСТ-ФИКС (2026-08-14 16:20):** те же 12 мутаций после фикса → mutation score 8% → 100% (11/11 с полюсностью), BLIND SPOTS: 0; index_out_of_range/duplicate классифицированы как вне контракта validate_scores (N неизвестен / уникальность — ответственность парсера+apply_scores: decline на обёртке и warning на осиротевших индексах). Полный pytest 1189 passed; ruff clean.
+
 ## [2026-08-14] — Exp 1-L Day 1 (live-arm): вердикты живой модели (opencode + deepseek-v4-flash-free) по 50 фактам 1-V
 
 **Гипотеза (из ревью Part 3):** «детерминированный proxy-агент вместо живой модели — с живой моделью цифры будут другими, возможно сильно другими». Ожидание: adoption/ложные отзывы живого LLM ≠ 0.16/0.24 proxy.
@@ -14,6 +38,16 @@ code_first:   adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 
 **Вердикт: ✅ подтверждено.** Цифры живой модели радикально отличаются от proxy 1-V: (1) proxy всегда решал (unknown=0), живая модель — **unknown=0.80** (честная неопределённость без кода/даже с якорями); (2) proxy false-accept=0 by construction, живая — **false_accept=0.10** (5 ложных утверждений приняты, R31 — в обеих руках) — риск контаминации реален; (3) accuracy(decided)=0.500 при N=10 решённых — малая выборка, требуется больше данных (1-L продолжается).
 **Оговорки:** модель — free-тир Zen (не Claude/GPT-4o из ревью; harness поддерживает --model для других); 80% unknown частично отражает дизайн промпта memory_first (только claim без кода) — но это и есть измеряемое свойство «доверяет ли память без кода».
 **Урок:** критика ревью подтверждена данными — headline-числа 1-V были свойством эвристики, не поведения LLM; 1-L live-arm теперь даёт реальную базу (Part 4 статья). Связь: docs/blog/verify-on-read.md, experiments/exp_1L_longitudinal_30d.md.
+
+### Вскрытие R31 + кластер ложных принятий (2026-08-14, после Day 1)
+
+**Факт R31:** «Сканер инструкций использует typesense» (truth=False, kind=mutation_absent), support_patterns=`["typesense"]` — ГОЛЫЙ ТОКЕН, contra=`[file:src/core/instruction_scan.py]`.
+**Кодовая правда:** typesense отсутствует во ВСЁМ проекте (grep src/ + pyproject + requirements = пусто); instruction_scan.py использует только stdlib (re/logging/typing).
+**Почему ложно принят в обеих руках:** memory_first — модель видит правдоподобный claim без кода и решает «true»; code_first — модель видит «supporting anchors: typesense» и принимает голый токен за evidence. Прокси (VOR) такие факты отзывал правильно: проверка токена по коду (typesense отсутствует → REFUTED).
+**Кластер (9 уникальных false-accept):** ВСЕ с голыми токен-якорями — R28 vespa, R30 pinecone, R31 typesense, R33 tantivy, R42 dataclasses, R26 meilisearch, R45 logging, R47 pathlib, R50 loki (silent).
+**Вердикт по честности:** значимая часть false_accept=0.10 Day-1 — АРТЕФАКТ датасета (naive bare-token anchors в mutation-фактах), а не чистое поведение модели. Тот же класс naive-токенов дал 7 false-REFUTED в proxy 1-V — теперь проявился как false-ACCEPT у живой модели (она доверяет строке якоря, не проверяя её по коду).
+**Действие (V2-промпт):** кодовая цель для чистого замера — показывать модели ТИПИРОВАННЫЕ якоря (file:/import:/env:) и contra_patterns как контр-свидетельство; V1-промпт (только support) сохранён для сопоставимости deepseek vs nemotron, V2 — отдельный прогон. Связь: ADR-0005 (типизация якорей закрыла 7 false-REFUTED у прокси — та же типизация нужна live-arm).
+
 **Связь с отрицательными:** нет.
 
 ## [2026-08-13] — EXP: «сервер недоступен во время индексации» — root cause = sync update_all в main loop

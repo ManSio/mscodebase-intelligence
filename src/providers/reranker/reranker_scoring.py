@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from typing import Any, Dict, List
 
@@ -35,20 +36,74 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
 
 
 def validate_scores(scores: List[Any]) -> List[Dict[str, Any]]:
-    """Валидирует и нормализует список скоров."""
+    """Валидирует и нормализует список скоров.
+
+    Контракт (ground truth для мутационных тестов, evalmut-инвариант):
+    - index: неотрицательное ЦЕЛОЕ. bool отбрасывается (bool — подкласс int);
+      float принимается только при целочисленном значении — иначе int()
+      молча переставил бы скор (напр. 2.7 -> 2); негативный индекс не
+      ссылается ни на один чанк.
+    - score: конечное число. NaN/Inf отбрасываются — это НЕ «больше 1»,
+      а отсутствие оценки: min/max-clamp молча превращал NaN в 1.0
+      (максимальный скор неоценённому чанку). Вне [0,1] — clamp
+      (by design: логиты реранкера нормализуются).
+    Элементы, не прошедшие контракт, отбрасываются (fail-safe: потерянный
+    скор лучше переставленного).
+    """
     validated = []
     for item in scores:
-        if isinstance(item, dict):
-            idx = item.get("index")
-            score = item.get("score")
-            if isinstance(idx, (int, float)) and isinstance(score, (int, float)):
-                validated.append(
-                    {
-                        "index": int(idx),
-                        "score": max(0.0, min(1.0, float(score))),
-                    }
-                )
+        if not isinstance(item, dict):
+            continue
+        idx = item.get("index")
+        score = item.get("score")
+        # bool — подкласс int: True не является валидным индексом/скором
+        if isinstance(idx, bool) or isinstance(score, bool):
+            continue
+        if not isinstance(idx, (int, float)) or not isinstance(score, (int, float)):
+            continue
+        if isinstance(idx, float) and not idx.is_integer():
+            continue  # 2.7 -> int() молча переставил бы скор на соседний чанк
+        index = int(idx)
+        if index < 0:
+            continue
+        if not math.isfinite(score):
+            continue  # NaN/Inf проходили isinstance и становились 1.0/0.0
+        validated.append({"index": index, "score": max(0.0, min(1.0, float(score)))})
     return validated
+
+
+def _finalize_scores(
+    parsed: List[Dict[str, Any]],
+    raw: str,
+    *,
+    single_decline: bool,
+) -> List[Dict[str, Any]]:
+    """Общий выходной фильтр путей парсера: decline при недостоверном извлечении.
+
+    Дубликаты индексов — сигнал «пример формата + реальные скоры» (пример в
+    промпте всегда {"index": 0, ...} и совпадёт с реальным 0), а также битого
+    ответа LLM — decline во всех путях. Единственный объект — decline ТОЛЬКО
+    на regex-пути без обёртки (single_decline=True), где объект мог быть
+    примером формата из объяснения; внутри полной обёртки {"scores": [...]}
+    одиночный объект легитимен (реальный ответ для одного чанка).
+    Возвращаем [] (fail-safe: не сортировать вообще, чем по мусору).
+    """
+    if not parsed:
+        return []
+    indices = [s["index"] for s in parsed]
+    if len(indices) != len(set(indices)):
+        logger.warning(
+            f"⚠️ Дублирующиеся индексы скоров (вероятный пример формата "
+            f"в ответе), decline: {raw[:200]}..."
+        )
+        return []
+    if single_decline and len(parsed) == 1:
+        logger.warning(
+            f"⚠️ Единичный объект score без обёртки scores — вероятный "
+            f"пример формата, decline: {raw[:200]}..."
+        )
+        return []
+    return parsed
 
 
 def parse_scores_json(raw: str) -> List[Dict[str, Any]]:
@@ -70,7 +125,7 @@ def parse_scores_json(raw: str) -> List[Dict[str, Any]]:
         data = json.loads(raw)
         scores = data.get("scores", [])
         if isinstance(scores, list) and scores:
-            return validate_scores(scores)
+            return _finalize_scores(validate_scores(scores), raw, single_decline=False)
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -81,7 +136,7 @@ def parse_scores_json(raw: str) -> List[Dict[str, Any]]:
             data = json.loads(md_match.group(1))
             scores = data.get("scores", [])
             if isinstance(scores, list) and scores:
-                return validate_scores(scores)
+                return _finalize_scores(validate_scores(scores), raw, single_decline=False)
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -92,14 +147,22 @@ def parse_scores_json(raw: str) -> List[Dict[str, Any]]:
             data = json.loads(json_match.group(0))
             scores = data.get("scores", [])
             if isinstance(scores, list) and scores:
-                return validate_scores(scores)
+                return _finalize_scores(validate_scores(scores), raw, single_decline=False)
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # Попытка 4: извлечение отдельных объектов score
+    # Попытка 4: извлечение отдельных объектов score (fallback: контракт
+    # промпта требует полный {"scores": [...]}, но отдельные LLM отвечают
+    # голыми объектами). Тот же контракт, что в путях 1-3 (clamp+фильтры).
     items = _SCORE_ITEM_RE.findall(raw)
     if items:
-        return [{"index": int(idx), "score": float(score)} for idx, score in items]
+        return _finalize_scores(
+            validate_scores(
+                [{"index": int(idx), "score": float(score)} for idx, score in items]
+            ),
+            raw,
+            single_decline=True,
+        )
 
     logger.warning(
         f"Не удалось извлечь scores из ответа реранкера: {raw[:200]}..."
@@ -113,6 +176,17 @@ def apply_scores(
     top_n: int,
 ) -> List[Dict[str, Any]]:
     """Применяет скоры реранкера к чанкам и сортирует."""
+    n = len(chunks)
+    # Диагностика «осиротевших» индексов (>= n): парсер не знает число чанков,
+    # поэтому скор, не ссылающийся ни на один чанк, молча терялся. Не влияет
+    # на сортировку остальных — но обязан быть видимым в логе (evalmut:
+    # coverage gap, а не тихая потеря).
+    orphaned = [s["index"] for s in scores if s.get("index", 0) >= n]
+    if orphaned:
+        logger.warning(
+            f"⚠️ Скоры с индексами вне диапазона чанков [0,{n}): {orphaned} — "
+            f"вероятно, LLM вернул индексы несуществующих чанков."
+        )
     score_map = {s["index"]: s["score"] for s in scores}
     for i, chunk in enumerate(chunks):
         chunk["reranker_score"] = score_map.get(i, 0.0)

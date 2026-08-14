@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-08-14 — 11 дыр в градере реранкера validate_scores (FIXED)
+
+**Что:** мутационный аудит (перенос evalmut-методологии, EXPERIMENTS_LOG 2026-08-14) нашёл 11 дыр в `src/providers/reranker/reranker_scoring.py` (validate_scores + parse_scores_json + apply_scores). Главная: NaN/Infinity score тихо → 1.0 (`min(1.0, NaN)=1.0`) — чанк, который LLM не оценил, получал максимальный приоритет.
+**Fix (2026-08-14):** (1) validate_scores — контракт: `math.isfinite()` (NaN/Inf отбрасываются), целые неотрицательные индексы (дробный float 2.7 → отброс, а не тихий int()), bool-гейты (bool — подкласс int); clamp [0,1] сохранён by design. (2) parse_scores_json — общий `_finalize_scores`: decline при дубликатах индексов во ВСЕХ путях; decline «единичный объект» только на regex-пути без обёртки (пример формата в объяснении LLM больше не принимается за скор); regex-путь прогнан через validate_scores (clamp+фильтры — консистентность с путями 1-3). (3) apply_scores — warning при осиротевших индексах (вне [0, len(chunks))). (4) multi_provider.py — удалены 4 мёртвых классовых дубля (_parse_scores_json/_validate_scores/_apply_scores/_cosine_similarity, §6.2) + неиспользуемые импорты/константы.
+**Тесты:** +13 (38 в test_reranker.py): NaN/Inf/bool/float-index/negative, clamp-сохранён, NaN через json.loads, regex-путь тот же контракт, пример-в-объяснении decline, дубликаты decline (regex и обёртка), orphaned-index warning, multi-object regex ok, corroboration. Полный pytest 1189 passed / 10 skipped; ruff clean. | **Status:** 🟢 стабильно | **Владелец:** misha. | **Скрипт:** experiments/probe_evalmut_transfer.py → mutation score 8% → 100% (11/11), BLIND SPOTS: 0.
+
+## 2026-08-14 — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов (FIXED); severity_overrides Windows quirk (OPEN)
+
 ## 2026-08-14 — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов (FIXED); severity_overrides Windows quirk (OPEN)
 
 **Что:** MCP-тул stale_detector (src/mcp/tools/doc_tools.py) — дублированная реализация без <!-- stale-ignore --> / severity_overrides / ARCHIVED-скипа → 11 ложных дрейфов (AGENTS.md v3.2.0-маркеры, TELEMETRY 3.2.1 в en/ru/zh) при 0 у канонического чекера (CLI/pre-commit). Исправлено: делегирование tools/stale_detector/stale_check.py (+2 теста).

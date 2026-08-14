@@ -21,6 +21,22 @@
 
 ---
 
+## [2026-08-14 16:20] — Фикс 11 дыр в градере реранкера по evalmut-методологии (DONE)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (93s); ruff clean на 3 изменённых файлах; mutation score 8% → 100% (experiments/probe_evalmut_transfer.py)
+**Root Cause:** validate_scores (reranker_scoring.py:38) валидировал ТИПЫ (isinstance float), но не ЗНАЧЕНИЯ: NaN/Infinity проходили isinstance → clamp min(1.0, NaN)=1.0 → неоценённый чанк получал МАКСИМАЛЬНЫЙ скор. Плюс: regex-путь (попытка 4) без clamp, «пример формата» в объяснении LLM извлекался как скор, float index тихо int()'ился, дубликаты молча перезаписывались, json.loads парсил NaN/Infinity.
+**Fix:** (1) validate_scores — контракт (docstring): math.isfinite, целые неотрицательные индексы, bool-гейты; clamp by design сохранён. (2) parse_scores_json — _finalize_scores: decline при дубликатах (все пути) и при единичном объекте на regex-пути (пример формата); regex-путь через validate_scores. (3) apply_scores — warning при осиротевших индексах. (4) multi_provider.py — удалены 4 мёртвых классовых дубля (_parse_scores_json/_validate_scores/_apply_scores/_cosine_similarity, §6.2) + неиспользуемые json/re/константы.
+**Guard:** +13 тестов (test_reranker.py 38): каждая дыра — отдельный регрессионный тест; SANITY-corroboration (2 мусорных входа); decline-тесты (дубликат/пример); полный pytest 1189.
+**Pattern:** P-006 «isinstance не ловит NaN/Inf — валидация типов без валидации значений» (1-й экземпляр; прецедент guard'а был в error_handler._sanitize:707 — теперь конвенция в docstring контракта validate_scores).
+
+## [2026-08-14 15:55] — evalmut-перенос: мутационный аудит validate_scores — 11 дыр в градере реранкера (FOUND → FIXED 16:20)
+**Status:** ✅ Fixed (фикс — запись 16:20; 1189 passed, mutation score 100%)
+**verified_from_clean_state:** ✅ да — полный pytest 1189 passed / 10 skipped (2026-08-14 16:20), experiments/probe_evalmut_transfer.py → 0 дыр
+**Root Cause:** validate_scores (reranker_scoring.py:37) валидирует ТИПЫ (isinstance float), но не ЗНАЧЕНИЯ: NaN/Infinity проходят isinstance → clamp min(1.0, NaN)=1.0 → неоценённый чанк получает МАКСИМАЛЬНЫЙ скор (P1). Дополнительно: regex-путь (попытка 4, :100) без clamp — score 99.0 проходит; «пример формата» в объяснении LLM принимается как реальный скор; float index 2.7 тихо int() → 2; дубликаты индексов молча перезаписываются; json.loads парсит NaN/Infinity по умолчанию (:70).
+**Fix:** НЕ внесён (по команде). Кандидаты: math.isfinite() guard (прецедент — error_handler._sanitize:707 уже это делает), clamp в regex-путь, отбраковка нецелых/негативных/дублирующихся индексов, SANITY-тесты на 2+ мусорных входа.
+**Guard:** evalmut-инвариант «дыра = (вывод доказанно неверен) AND (градер пропустил)»; 25 тестов test_reranker.py зелёные при 11 дырах — pytest green ≠ работает (см. EXPERIMENTS_LOG 2026-08-14).
+**Pattern:** P-006 кандидат: «isinstance не ловит NaN/Inf — валидация типов без валидации значений» (встречается также в llama_runner sigmoid-нормализации логитов).
+
 ## [2026-08-14 11:15] — Ревью Part 3: серийная навигация Field Notes + 1-M (маппинг, закрыт) + 1-L (дизайн с live-model arm) (DONE)
 **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
 **verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
