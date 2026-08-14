@@ -21,7 +21,21 @@
 
 ---
 
-## [2026-08-14 00:15] — Аудит-ресипт памяти: статусы+причины, метрики в ресипте, smoke_memory негативный контроль (DONE, 1146 passed)
+## [2026-08-14 11:15] — Live-smoke поймал ложный отзыв: проза-«import path» → REFUTED собственного ADR-узла (DONE)
+**Status:** ✅ Fixed (данные памяти восстановлены; код-гвард — OPEN вопрос владельцу)
+**verified_from_clean_state:** ✅ да — полный pytest tests/ 1143 passed / 10 skipped (92s) + `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED (до правок памяти)
+**Root Cause:** write-path extract_anchors: `\bimport\s+X` матчит англ. фразу «dist name ≠ import path» в прозе узла ADR-0005 → якорь import:path сохранён → read-path: `path` нет в src-импортах → SILENT_ABSENCE_ON_READ: import:path (ложный REFUTED). P-002-класс (проза-якоря), известен с 2026-08-13 (P2: мусорные file-якоря) — но гвард чинил только file-kind, import-kind из прозы остался.
+**Fix:** данные: restore NODE-cc88d2 (false_retraction=true, метрика 0→0.125%) → заменён на NODE-9defb3 (перефразирован, без «import path»). Код-гвард НЕ внедрялся — конфликтует с намерением теста test_write_capture_makes_verify_effective_on_prose (deliberate «используем import grafana» → якорь), варианты (денylist слов / фильтр по fingerprint / структурированные claims) — на решение владельца (OPEN_QUESTION).
+**Guard:** live-smoke (intel_get_project_memory после кода) — именно он поймал; false_retraction-метрика сработала; полный pytest/clean-state зелёные
+**Pattern:** P-002 (повторение: проза-якоря → ложные отзывы; 1-й раз file-kind 2026-08-13, теперь import-kind)
+
+## [2026-08-14 10:45] — ADR-0005 pkg:-анкоры (closed-world манифест) + верификация поста dev.to (DONE, 68 passed)
+**Status:** ✅ Fixed (код+тесты+ADR+KNOWN_ISSUES; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1143 passed / 10 skipped (92s, 2026-08-14, после ADR-0005); `verify_clean_state.sh --no-clone` → PASSED
+**Root Cause:** VOR (ADR-0003) имел 3 типа якорей (file/import/env) — SILENT-fact trap не ловил прозу без «import», fastmcp-класс (dist name ≠ import path) давал 7 ложных REFUTED в Exp 1-V. Комментарий Skillselion к посту dev.to: манифест = закрытый мир, отсутствие там = доказательство.
+**Fix:** verify_on_read.py: 4-й тип якоря `pkg:` — `_Fingerprint.packages` (pyproject tomllib/tomli + requirements[-lock].txt, PEP 503), явный `pkg:name` синтаксис, write-path capture слов-зависимостей (fail-closed, stdlib вне скоупа), closed-world REFUTED, schema guard кэша (fingerprint без packages → rebuild). layer.py — docstring-и только. ADR: docs/adr/0005-pkg-anchors.md.
+**Guard:** +7 тестов (tests/test_verify_on_read.py, 31 всего); 68 passed смежные; ruff clean; live: реальный манифест 104 пакета, pkg:celery→REFUTED(SILENT_ABSENCE), sqlite3→без якоря. Побочное: 1-V воспроизведён (honest 0.0/lazy 0.16/steady 0.6ms) — совпадает с постом; артефакт v3_generated.json перезаписан скриптом и восстановлен git checkout (footgun → KNOWN_ISSUES).
+**Pattern:** NEW (1-й экземпляр класса «закрытый мир манифеста для верификации памяти»)
 **Status:** ✅ Fixed (код+скрипт+тесты; не закоммичено — commit/push по команде)
 **verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1146 passed / 4 skipped; `python scripts/smoke_memory.py` → SMOKE MEMORY: PASSED (5/5)
 **Root Cause:** (1) intel_get_project_memory(include_retracted=True) назывался «аудит», но не показывал статусы и причины — список заголовков без контекста (аудит без причин бесполезен); (2) метрики (memory_metrics) жили только в JSON — MCP-способа снять их не было; (3) не было негативного контроля VOR вне pytest («зелёные галочки»)
