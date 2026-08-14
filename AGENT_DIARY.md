@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 11:45] — Guard проза-«import X» (C-гибрид): частотное слово без src-импорта ≠ якорь (DONE)
+**Status:** ✅ Fixed (код+тесты+ADR; не закоммичено — commit/push)
+**verified_from_clean_state:** ✅ да — полный pytest tests/ 1149 passed / 10 skipped (102s) + `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED
+**Root Cause:** проза-«import path» (англ. фраза) матчила `\bimport\s+X` → ложный якорь → ложный REFUTED (NODE-cc88d2, 2026-08-14 11:15). P-002: гвард 08-13 чинил только file-якоря.
+**Fix:** verify_on_read.py — C-гибрид: `import:`-якорь из прозы отбрасывается, если значение ∈ `_COMMON_WORDS` (частые англ. слова) ∧ отсутствует в src-импортах. Оба пути: read-path (`run()` передаёт `fp.imports`), write-path (кэш `_fingerprint_for`). Редкие слова (grafana/celery) сохранены (smoke-негатив жив); частотные реальные импорты (time в src) сохранены; явные data.anchors не фильтруются. Fail-open: дроп = INCONCLUSIVE.
+**Guard:** +6 тестов (37 в test_verify_on_read.py); live: «import path»→[] оба пути, «import time»→keep, «import grafana»→keep; ruff clean
+**Pattern:** P-002 (закрыт 2-й экземпляр: проза-якоря import-kind; guard на обоих путях)
+
 ## [2026-08-14 11:15] — Live-smoke поймал ложный отзыв: проза-«import path» → REFUTED собственного ADR-узла (DONE)
 **Status:** ✅ Fixed (данные памяти восстановлены; код-гвард — OPEN вопрос владельцу)
 **verified_from_clean_state:** ✅ да — полный pytest tests/ 1143 passed / 10 skipped (92s) + `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED (до правок памяти)
