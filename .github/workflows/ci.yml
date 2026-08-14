@@ -66,6 +66,14 @@ jobs:
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
         timeout-minutes: 10
 
+      # Grader mutation probe (evalmut-перенос, 2026-08-14): мутационный аудит
+      # validate_scores/parse_scores_json — страж контракта градера. Дыра =
+      # (вывод доказанно неверен AND градер пропустил); скрипт выходит с
+      # кодом 1 при любом открытом blind spot (experiments/probe_evalmut_transfer.py).
+      - name: Grader mutation probe (evalmut guard)
+        run: python experiments/probe_evalmut_transfer.py
+        timeout-minutes: 2
+
   clean-state:
     runs-on: ubuntu-latest
     steps:
