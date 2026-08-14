@@ -156,7 +156,7 @@ def _api_verdict(prompt: str, key: str) -> dict:
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.0,
-        "max_tokens": 200,
+        "max_tokens": 400,  # reasoning-модель: размышление ест бюджет, 200 было мало
     }
     try:
         r = httpx.post(
@@ -166,10 +166,14 @@ def _api_verdict(prompt: str, key: str) -> dict:
             timeout=60,
         )
         r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
+        content = r.json()["choices"][0]["message"].get("content", "") or ""
+        if not content.strip():
+            return {"verdict": "unknown", "error": "EMPTY_CONTENT (reasoning съел бюджет)"}
         return json.loads(content)
     except httpx.HTTPStatusError as e:
         return {"verdict": "unknown", "error": f"HTTP {e.response.status_code}: {e.response.text[:200]}"}
+    except json.JSONDecodeError:
+        return {"verdict": "unknown", "error": "NON_JSON_REPLY"}
     except Exception as e:  # noqa: BLE001 — диагностика: вердикт = unknown, не краш
         return {"verdict": "unknown", "error": str(e)}
 
@@ -177,23 +181,50 @@ def _api_verdict(prompt: str, key: str) -> dict:
 def _verdict(prompt: str, driver: str, key: str) -> dict:
     if driver == "opencode":
         return _opencode_verdict(prompt, ROOT)
-    return _api_verdict(prompt, key)
+    import time
+
+    resp = _api_verdict(prompt, key)
+    # Ретрай: empty/reasoning-бюджет + 429 FreeUsageLimitError (rate limit free-tier)
+    for attempt in (1, 2, 3):
+        err = resp.get("error", "")
+        if err in ("EMPTY_CONTENT", "NON_JSON_REPLY"):
+            resp = _api_verdict(prompt, key)
+            continue
+        if "429" in err:
+            time.sleep(5 * attempt)  # backoff 5s/10s/15s
+            resp = _api_verdict(prompt, key)
+            continue
+        break
+    return resp
 
 
-def _run_arm(facts: list, arm: str, driver: str, key: str) -> dict:
+def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, skip_ids: set[str] | None = None) -> dict:
+    import time
+
+    skip_ids = skip_ids or set()
     results = []
-    for fact in facts:
+    todo = [f for f in facts if f["id"] not in skip_ids]
+    for i, fact in enumerate(todo):
         resp = _verdict(_prompt(fact, arm), driver, key)
         verdict = _normalize_verdict(resp)
         results.append({
             "id": fact["id"], "truth": fact["truth"], "verdict": verdict,
             "error": resp.get("error", ""),
         })
+        if delay and i < len(todo) - 1:
+            time.sleep(delay)  # free-tier rate limit (FreeUsageLimitError)
     n = len(results)
+    if n == 0:
+        return {"arm": arm, "n": 0, "skipped": len(skip_ids), "results": [],
+                "adoption": 0.0, "false_accept": 0.0, "true_accept": 0.0,
+                "unknown_rate": 0.0, "accuracy": 0.0, "errors": [],
+                "false_accept_ids": [], "driver": driver,
+                "model": OC_MODEL if driver == "opencode" else ZEN_MODEL}
     accepted = [r for r in results if r["verdict"] == "true"]
     false_accept = [r for r in accepted if r["truth"] is False]
     true_accept = [r for r in accepted if r["truth"] is True]
-    correct = [r for r in results if (r["verdict"] == "true") == bool(r["truth"])]
+    decided = [r for r in results if r["verdict"] in ("true", "false")]
+    correct = [r for r in decided if (r["verdict"] == "true") == bool(r["truth"])]
     return {
         "arm": arm, "n": n, "driver": driver,
         "model": OC_MODEL if driver == "opencode" else ZEN_MODEL,
@@ -201,7 +232,8 @@ def _run_arm(facts: list, arm: str, driver: str, key: str) -> dict:
         "false_accept": len(false_accept) / n if n else 0.0,
         "false_accept_ids": [r["id"] for r in false_accept],
         "true_accept": len(true_accept) / n if n else 0.0,
-        "accuracy": len(correct) / n if n else 0.0,
+        "unknown_rate": 1 - (len(decided) / n if n else 0.0),
+        "accuracy": len(correct) / len(decided) if decided else 0.0,
         "errors": [r for r in results if r["error"]],
         "results": results,
     }
@@ -212,6 +244,8 @@ def main() -> int:
     parser.add_argument("--arm", choices=["memory_first", "code_first", "both"], default="both")
     parser.add_argument("--driver", choices=["opencode", "api"], default="opencode")
     parser.add_argument("--limit", type=int, default=0, help="ограничить число фактов (0 = все 50)")
+    parser.add_argument("--delay", type=float, default=1.5, help="пауза между фактами, сек (free-tier rate limit)")
+    parser.add_argument("--resume", action="store_true", help="продолжить с последнего прогресса (live_arm_1L_progress.json)")
     parser.add_argument("--dry-run", action="store_true", help="без вызова модели: валидация")
     args = parser.parse_args()
 
@@ -244,29 +278,44 @@ def main() -> int:
             return 2
 
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
-    report = {
+
+    from src.core.artifact_paths import get_project_dir
+
+    progress_path = get_project_dir(ROOT) / "experiments" / "live_arm_1L_progress.json"
+    report: dict = {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "driver": args.driver,
         "model": OC_MODEL if args.driver == "opencode" else ZEN_MODEL,
         "facts_source": str(FACTS.name),
         "arms": {},
     }
+    if args.resume and progress_path.exists():
+        try:
+            old = json.loads(progress_path.read_text(encoding="utf-8"))
+            report["arms"] = old.get("arms", {})
+            print("RESUME: загружен прогресс", {k: len(v.get("results", [])) for k, v in report["arms"].items()})
+        except Exception:  # noqa: BLE001 — битый прогресс не блокирует
+            report["arms"] = {}
+
     for arm in arms:
-        print(f"--- arm={arm} ({len(facts)} facts) ---")
-        arm_report = _run_arm(facts, arm, args.driver, _api_key())
+        existing = report["arms"].get(arm, {})
+        done_ids = {r["id"] for r in existing.get("results", []) if not r.get("error")}
+        print(f"--- arm={arm} ({len(facts)} facts, уже готово={len(done_ids)}) ---")
+        arm_report = _run_arm(facts, arm, args.driver, _api_key(), delay=args.delay, skip_ids=done_ids)
+        merged = existing.get("results", []) + arm_report["results"]
+        arm_report["results"] = merged
         report["arms"][arm] = {k: v for k, v in arm_report.items() if k != "results"}
+        report["arms"][arm]["results"] = merged
         print(f"  adoption={arm_report['adoption']:.3f} false_accept={arm_report['false_accept']:.3f} "
-              f"true_accept={arm_report['true_accept']:.3f} accuracy={arm_report['accuracy']:.3f}")
+              f"true_accept={arm_report['true_accept']:.3f} unknown={arm_report['unknown_rate']:.3f} "
+              f"accuracy(decided)={arm_report['accuracy']:.3f}")
         if arm_report["false_accept_ids"]:
             print(f"  FALSE-ACCEPT ids: {arm_report['false_accept_ids']}")
         if arm_report["errors"]:
             print(f"  ERRORS: {len(arm_report['errors'])} (первый: {arm_report['errors'][0]['error'][:120]})")
 
-    from src.core.artifact_paths import get_project_dir
-
-    out = get_project_dir(ROOT) / "experiments" / f"live_arm_{datetime.now(timezone.utc):%Y%m%d}.json"
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"SAVED: {out}")
+    progress_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"PROGRESS SAVED: {progress_path}")
     return 0
 
 
