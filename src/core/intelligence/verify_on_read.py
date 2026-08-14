@@ -18,6 +18,11 @@ ADR-0003 Verify-On-Read — Lazy Validation Layer для Project Memory.
   не перепроверяется (cache hit ~0ms); смена HEAD естественно инвалидирует
   ТОЛЬКО свои записи (per-node keying, без TTL) -> повторная проверка узла
   при следующем чтении (исключает stale-VERIFIED).
+- Guard проза-«import X» (ADR-0005, 2026-08-14): частотное англ. слово без
+  src-импорта (напр. «import path») якорем не становится — ни на write-path
+  (не сохраняется), ни на read-path (не отзывает узел). Редкие слова
+  (grafana/celery) сохраняются — SILENT-детекция и smoke-негатив живы.
+  Явные data.anchors (намеренные) не фильтруются.
 - Бюджет латентности: <= budget_ms на весь проход; при превышении
   необработанные узлы остаются как есть (INCONCLUSIVE-семантика) и передаются
   в контекст без отзыва (graceful degradation).
@@ -187,6 +192,49 @@ def _load_manifest_packages(root: Path) -> Set[str]:
     return packages
 
 
+# ADR-0005 guard (C-гибрид): частые англ. слова, которые в прозе могут стоять
+# после «import» как фразы («import path» = «путь импорта»), а не как команда
+# импорта. Реальные stdlib-имена (time/os/json) тоже здесь: якорь сохраняется,
+# если имя реально импортировано в src (см. _add_import_anchor).
+_COMMON_WORDS = frozenset({
+    "path", "data", "time", "file", "name", "value", "state", "type", "list",
+    "order", "work", "part", "form", "line", "code", "key", "user", "group",
+    "page", "view", "model", "class", "source", "target", "main", "status",
+    "error", "result", "input", "output", "config", "build", "release",
+    "version", "update", "change", "create", "delete", "add", "remove",
+    "open", "close", "save", "load", "read", "write", "print", "send",
+    "receive", "test", "debug", "log", "access", "process", "thread", "task",
+    "job", "event", "loop", "queue", "cache", "stack", "heap", "index",
+    "query", "search", "request", "response", "session", "token", "secret",
+    "auth", "login", "password", "admin", "role", "field", "column", "row",
+    "table", "schema", "network", "protocol", "format", "content", "header",
+    "body", "message", "channel", "stream", "batch", "graph", "node", "edge",
+    "size", "level", "count", "total", "average", "sum", "scope", "system",
+    "service", "client", "server", "runtime", "step", "run", "start", "end",
+    "case", "point", "module", "package", "function", "global", "local",
+    "public", "private", "static", "final", "active", "ready", "os", "io",
+    "re", "sys", "json", "csv", "xml", "yaml", "toml", "url", "http", "api",
+    "db", "ui", "cli", "ml", "ai", "sql", "dns", "ip", "tcp", "tls", "rest",
+})
+
+
+_FINGERPRINT_CACHE: Dict[str, "_Fingerprint"] = {}
+
+
+def _fingerprint_for(root: Path) -> "_Fingerprint":
+    """Кэш отпечатка для write-path guard (auto_collect_adrs вызывает часто).
+
+    Fail-open по стойкости: устаревший кэш даёт дроп лишнего якоря -> INCONCLUSIVE,
+    а не ложный REFUTED (бias поста: false negative дешевле false positive).
+    """
+    key = str(Path(root).resolve())
+    fp = _FINGERPRINT_CACHE.get(key)
+    if fp is None:
+        fp = _Fingerprint(root=root)
+        _FINGERPRINT_CACHE[key] = fp
+    return fp
+
+
 class Anchor:
     """Checkable-якорь узла: что именно проверяется в кодовой базе."""
 
@@ -208,7 +256,9 @@ class Anchor:
 
 
 def extract_anchors(
-    node: Dict[str, Any], project_root: Optional[Path] = None
+    node: Dict[str, Any],
+    project_root: Optional[Path] = None,
+    src_imports: Optional[Set[str]] = None,
 ) -> List[Anchor]:
     """Извлекает checkable-якоря из data/claim узла (лёгкий regex, без LLM).
 
@@ -252,6 +302,21 @@ def extract_anchors(
     if project_root is not None:
         pkg_pool = _load_manifest_packages(project_root)
 
+    # ADR-0005 guard (C-гибрид): src-импорты для отсева проза-«import X».
+    # Read-path (run()) передаёт fp.imports (свежий на HEAD); write-path — кэш.
+    src_pool = src_imports if src_imports is not None else (
+        _fingerprint_for(project_root).imports if project_root is not None else None
+    )
+
+    def _add_import_anchor(value: str) -> None:
+        # Частотное англ. слово БЕЗ src-импорта = фраза («import path»), не якорь.
+        # Редкие слова (grafana/celery) сохраняются даже без src — SILENT-детекция
+        # и smoke-негативный контроль остаются рабочими. Явные data.anchors
+        # (намеренные) guard'ом не фильтруются.
+        if value in _COMMON_WORDS and src_pool is not None and value not in src_pool:
+            return
+        _add("import", value)
+
     data = node.get("data") or {}
     if isinstance(data, dict):
         raw_anchors = data.get("anchors")
@@ -282,9 +347,9 @@ def extract_anchors(
             continue
         _add("file", value)
     for m in _TEXT_IMPORT_RE.finditer(text):
-        _add("import", m.group(1))
+        _add_import_anchor(m.group(1))
     for m in _TEXT_FROM_RE.finditer(text):
-        _add("import", m.group(1))
+        _add_import_anchor(m.group(1))
     for m in _PKG_PREFIX_RE.finditer(text):
         _add("pkg", m.group(1))
     for m in _ENV_PREFIX_RE.finditer(text):
@@ -604,7 +669,9 @@ class VerifyOnRead:
                     continue
 
                 stats["checked"] += 1
-                anchors = extract_anchors(node)
+                # ADR-0005 guard: read-path отсевает проза-«import X» (частотные
+                # слова без src-импорта) тем же правилом, что и write-path.
+                anchors = extract_anchors(node, src_imports=fp.imports)
                 verdict, failed = self._classify(anchors, fp)
                 self._cache.setdefault("verdicts", {})[key] = {
                     "node_id": node_id,

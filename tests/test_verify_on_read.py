@@ -30,6 +30,7 @@ from src.core.intelligence.verify_on_read import (
     STATUS_SUPERSEDED,
     STATUS_VERIFIED,
     VerifyOnRead,
+    _Fingerprint,
     extract_anchors,
 )
 
@@ -611,3 +612,72 @@ def test_cache_schema_guard_rebuilds_without_packages(project: Path, tmp_path: P
     memory, stats = verifier.run(store.load_memory())
     assert stats["checked"] == 1
     assert [n["node_id"] for n in memory["adrs"]] == ["N1"]  # VERIFIED, не REFUTED
+
+
+# =====================================================================
+# ADR-0005 guard (C-гибрид): проза-«import X» с частотным словом без src-импорта
+# =====================================================================
+
+
+def test_prose_import_common_word_not_in_src_dropped_write_path(project: Path):
+    """Guard: «dist name ≠ import path» (частотное слово, нет в src) НЕ даёт
+    import:-якорь на write-path (инцидент NODE-cc88d2)."""
+    anchors = extract_anchors(
+        {"data": {"claim": "dist name ≠ import path для анкоров"}}, project_root=project
+    )
+    assert all(a.kind != "import" for a in anchors)
+
+
+def test_prose_import_common_word_not_in_src_dropped_read_path(project: Path):
+    """Guard на read-path: run()-путь (src_imports=fp.imports) тоже отсевает
+    проза-«import path» — иначе ложный отзыв вернулся бы при извлечении."""
+    fp = _Fingerprint(root=project)
+    anchors = extract_anchors(
+        {"data": {"claim": "dist name ≠ import path"}}, src_imports=fp.imports
+    )
+    assert all(a.kind != "import" for a in anchors)
+
+
+def test_prose_import_path_node_not_refuted(project: Path):
+    """Конец-в-конец: узел с прозой «import path» НЕ отзывается (инцидент)."""
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "dist name ≠ import path", status=STATUS_ACTIVE)])
+    verifier = _make_verifier(project, store)
+    memory, stats = verifier.run(store.load_memory())
+    assert stats["refuted"] == 0
+    assert [n["node_id"] for n in memory["adrs"]] == ["N1"]
+    assert store._load_json("project_memory.json")[0].get("status", STATUS_ACTIVE) == STATUS_ACTIVE
+
+
+def test_prose_import_common_word_in_src_kept(project: Path):
+    """Guard: «import time» при time реально импортированном в src — якорь
+    сохраняется (реальный импорт не теряем)."""
+    (project / "src" / "utils.py").write_text("import time\n", encoding="utf-8")
+    anchors = extract_anchors(
+        {"data": {"claim": "замеры через import time"}}, project_root=project
+    )
+    assert [a.value for a in anchors if a.kind == "import"] == ["time"]
+
+
+def test_prose_import_rare_word_not_in_src_kept(project: Path):
+    """Guard: grafana (редкое слово, нет в src) сохраняется — SILENT-детекция
+    и smoke-негативный контроль остаются рабочими."""
+    anchors = extract_anchors(
+        {"data": {"claim": "транспорт использует import grafana"}}, project_root=project
+    )
+    assert [a.value for a in anchors if a.kind == "import"] == ["grafana"]
+
+
+def test_explicit_import_anchors_not_guarded(project: Path):
+    """Guard фильтрует только прозу: явные data.anchors import:path (намеренный
+    якорь автора) не отбрасываются."""
+    anchors = extract_anchors(
+        {
+            "data": {
+                "claim": "x",
+                "anchors": [{"kind": "import", "value": "path"}],
+            }
+        },
+        project_root=project,
+    )
+    assert any(a.kind == "import" and a.value == "path" for a in anchors)

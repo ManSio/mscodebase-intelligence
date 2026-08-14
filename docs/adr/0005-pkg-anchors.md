@@ -62,6 +62,25 @@ Skillselion) предложило закрыть их манифест-анко�
 - **Guard:** tests/test_verify_on_read.py — новые тесты (парсинг манифеста, found/absent,
   explicit pkg:, write-path capture, stdlib-out-of-scope, cache schema guard).
 
+## Guard (2026-08-14): проза-«import X» — C-гибрид
+
+Инцидент NODE-cc88d2: фраза «dist name ≠ import path» в прозе узла дала
+ложный якорь `import:path` → ложный REFUTED (SILENT_ABSENCE). Live-smoke поймал,
+узел восстановлен (false_retraction 0→0.125%).
+
+Правило (оба пути, только проза): `import:`-якорь из `\bimport\s+X` /
+`from X import` отбрасывается, **если** X ∈ `_COMMON_WORDS` (частые англ. слова:
+path/time/data/...) **и** X отсутствует в src-импортах проекта.
+- Редкие слова (grafana/celery/fastmcp) сохраняются даже без src — SILENT-детекция
+  и smoke-негативный контроль (grafana → REFUTED) живы.
+- Частотное слово, реально импортированное (time/os/json), сохраняется — VERIFIED не теряется.
+- Явные `data.anchors` (намеренные якоря автора) не фильтруются.
+- read-path: `run()` передаёт `fp.imports` (свежий на HEAD); write-path: кэш `_fingerprint_for`.
+- Fail-open bias: дроп = INCONCLUSIVE (false negative дешевле false positive — вывод поста).
+
+Тесты: +6 (tests/test_verify_on_read.py, 37 всего): drop both paths, e2e node not refuted,
+keep common-in-src, keep rare-not-in-src, explicit anchors unguarded.
+
 ## Impact
 
 | Файл | Изменение |
