@@ -25,5 +25,14 @@
       "stale_detector": "2c198fe98dacd8931b92a05963aeb8cb943ad0ca98a94702ac809c357e3c3afe",
       "dead_guard_classifier": "d262f1b49fa7a4d04ab5b9a5b85a45d8ed282834fed0496b5c6194f2de192227"
     }
+  },
+  {
+    "pinned_at_utc": "2026-08-14T04:57:31Z",
+    "reason": "CRLF-normalized digest (portability fix, incident 199dbe6b)",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "81f51e451ad5bd782d93acf4031c8d8d294e5ba74aea346cf39b10fdecbaa53d",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]
