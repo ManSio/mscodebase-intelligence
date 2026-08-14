@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 09:35] — P1 CI: revision_gate UNKNOWN на shallow-checkout — clean-state красный (FIXED)
+**Status:** ✅ Fixed (коммит + push; CI-проверка после)
+**verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch
+**Root Cause:** CI (actions/checkout@v5 без fetch-depth) и clone-режим verify_clean_state.sh (`--depth 1`) — shallow: коммит min_accepted_revision (815222828cf6) отсутствует локально → merge-base не находит → gate честно UNKNOWN (exit 2) → verify падает. Не баг гейта: «не можешь проверить → не доверяй» by design; баг окружения — shallow-история.
+**Fix:** .github/workflows/ci.yml — fetch-depth: 0 в обоих checkout (test + clean-state); verify_clean_state.sh — полный clone (убран --depth 1).
+**Guard:** bash -n; локальный прогон гейта VALID; CI-ран после push.
+**Pattern:** P-001-класс «локально зелёный, CI красный» — новый экземпляр (shallow-clone vs ancestry-проверка).
+
 ## [2026-08-14 09:20] — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов; + revision_gate (TC-9) (DONE)
 **Status:** ✅ Fixed (код+тесты; не запушено — push по команде)
 **verified_from_clean_state:** ✅ да — verify --no-clone PASSED (1170 passed); делегированный скан 0 дрейфов; revision gate VALID
