@@ -95,6 +95,20 @@ else
     exit 1
 fi
 
+# TC-9 (RFC §3.3): min_accepted_revision — потребитель обязан проверить, что
+# ревизия отчёта >= минимальной принятой ревизии политики (иначе replay старой
+# ревизии после ужесточения политики). Grace: поле не запинено → VALID (v0.3).
+echo "Checking revision gate (min_accepted_revision)..."
+if [ -f "$SCRIPT_DIR/revision_gate.py" ]; then
+    python "$SCRIPT_DIR/revision_gate.py" --from-manifest || {
+        echo -e "${RED}REVISION GATE FAILED — ревизия старше/несвязана с min_accepted_revision политики${NC}"
+        exit 1
+    }
+else
+    echo -e "${RED}revision_gate.py отсутствует — gate сломан (файл удалён?)${NC}"
+    exit 1
+fi
+
 # Ставим из pyproject (с exact pins / upper bounds), а не резолвим заново из PyPI.
 # Если платформа совпадает с lock — ставим из lock для битовой воспроизводимости.
 # ВАЖНО: pip-фейл = exit 1 сразу (раньше без set -e установка тихо проваливалась,

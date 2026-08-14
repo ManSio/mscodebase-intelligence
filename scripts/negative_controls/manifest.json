@@ -56,5 +56,6 @@
       ],
       "fixture_digest": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
-  ]
+  ],
+  "min_accepted_revision": "815222828cf682e5b8af5c7d5f3a84feaa037aca"
 }

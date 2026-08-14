@@ -21,6 +21,14 @@
 
 ---
 
+## [2026-08-14 09:20] — Испытание инструментов: stale_detector MCP-тул — 11 ложных дрейфов; + revision_gate (TC-9) (DONE)
+**Status:** ✅ Fixed (код+тесты; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — verify --no-clone PASSED (1170 passed); делегированный скан 0 дрейфов; revision gate VALID
+**Root Cause:** (1) StaleDetectorTool (src/mcp/tools/doc_tools.py) — ДУБЛИРОВАННАЯ реализация сканера БЕЗ <!-- stale-ignore --> / severity_overrides / ARCHIVED-скипа → 11 ложных дрейфов (AGENTS.md v3.2.0-маркеры, TELEMETRY 3.2.1) при 0 у канонического чекера (tools/stale_detector/stale_check.py); нарушение §6.2. (2) TC-9 не реализован — нет валидатора min_accepted_revision.
+**Fix:** (1) doc_tools.py — _scan_docs делегирует каноническому чекеру (single source of truth); +2 регрессионных теста (stale-ignore, canonical defaults). (2) scripts/revision_gate.py — потребительский валидатор (git merge-base --is-ancestor; exit 0=VALID/1=INVALID/2=UNKNOWN; grace при отсутствии min); runner --pin пишет min_accepted_revision (TC-9); verify_clean_state вызывает gate; +7 тестов.
+**Guard:** test_stale_tool_scan.py (2), test_revision_gate.py (7), test_tool_project_root.py (не сломан); hook 4/4; полный pytest 1170 passed.
+**Pattern:** P-003 «дублированная логика дрейфует» — закрыт делегированием; остаток: severity_overrides на Windows (backslash vs forward-slash) → KNOWN_ISSUES; наблюдения health (orphans 273 / RAM +11-16 MB/мин / «98 ошибок» vs grep=20) → KNOWN_ISSUES.
+
 ## [2026-08-14 09:00] — P1 CI: digest-pinning CRLF-sensitive — инвентарь UNPROVEN x3 на ubuntu (FIXED)
 **Status:** ✅ Fixed (commit + push; CI зелёный после фикса)
 **verified_from_clean_state:** ✅ да — CI ubuntu matrix зелёный после фикса (gh run watch); локально 12/12 тестов, hook 4/4
