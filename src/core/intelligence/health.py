@@ -12,7 +12,7 @@ import concurrent.futures
 import logging
 import os
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -52,6 +52,35 @@ def _scan_disk_files(project_path: Path, cap: int = 10000) -> tuple[set[str], in
             except ValueError:
                 pass
     return files, count, truncated
+
+
+def _count_log_levels(content: str, now: datetime, window_hours: int = 24) -> tuple[int, int]:
+    """Число [ERROR]/[WARNING]-строк лога в последнем окне.
+
+    Было: content.lower().count("error") — подстрока по ВСЕМУ файлу: считала
+    'ValueError', 'latest_log_errors' и т.п. (99 vs 20 реальных [ERROR]-строк,
+    инцидент 2026-08-14). Уровень берём из level-маркера строки; строки без
+    разбираемого timestamp пропускаем (многострочные traceback — не level-строки).
+    """
+    cutoff = now - timedelta(hours=window_hours)
+    errors = 0
+    warnings = 0
+    for line in content.splitlines():
+        ts_part = line[:19]  # "YYYY-MM-DD HH:MM:SS"
+        if len(ts_part) < 19:
+            continue
+        try:
+            ts = datetime.strptime(ts_part, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+        if ts < cutoff:
+            continue
+        upper = line.upper()
+        if "[ERROR]" in upper:
+            errors += 1
+        elif "[WARNING]" in upper:
+            warnings += 1
+    return errors, warnings
 
 __all__ = [
     "HealthReport",
@@ -286,8 +315,7 @@ class HealthReport:
             try:
                 with open(latest_log, "r", encoding="utf-8") as f:
                     content = f.read()
-                    error_count = content.lower().count("error")
-                    warning_count = content.lower().count("warning")
+                error_count, warning_count = _count_log_levels(content, datetime.now())
 
                 self.metrics["latest_log_errors"] = error_count
                 self.metrics["latest_log_warnings"] = warning_count
