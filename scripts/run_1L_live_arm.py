@@ -273,6 +273,14 @@ def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, s
     return summary
 
 
+def _progress_path(model: str) -> Path:
+    """Прогресс-файл per-model: сравнение моделей не должно перемешивать вердикты."""
+    tag = model.replace("/", "_").replace(":", "_")
+    from src.core.artifact_paths import get_project_dir
+
+    return get_project_dir(ROOT) / "experiments" / f"live_arm_1L_progress_{tag}.json"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="1-L live arm: вердикты живой модели (OpenCode Big Pickle) по 50 фактам 1-V")
     parser.add_argument("--arm", choices=["memory_first", "code_first", "both"], default="both")
@@ -314,9 +322,7 @@ def main() -> int:
 
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
 
-    from src.core.artifact_paths import get_project_dir
-
-    progress_path = get_project_dir(ROOT) / "experiments" / "live_arm_1L_progress.json"
+    progress_path = _progress_path(model)
     report: dict = {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "driver": args.driver,
