@@ -61,9 +61,9 @@ def main() -> int:
 
     out_path = Path(args.out) if args.out else None
     if out_path is None:
-        from src.core.artifact_paths import get_data_dir
+        from src.core.artifact_paths import get_project_dir
 
-        out_path = get_data_dir(ROOT) / "experiments" / "longitudinal_1L.jsonl"
+        out_path = get_project_dir(ROOT) / "experiments" / "longitudinal_1L.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     snapshot = {
