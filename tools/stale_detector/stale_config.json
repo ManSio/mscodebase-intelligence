@@ -7,7 +7,8 @@
     "KNOWN_ISSUES.md",
     "ISSUE.md",
     "WISDOM.md",
-    "owp_rfc_001_v04.md"
+    "owp_rfc_001_v04.md",
+    "owp_github_discussion_draft.md"
   ],
   "exclude_dirs": [
     "research",

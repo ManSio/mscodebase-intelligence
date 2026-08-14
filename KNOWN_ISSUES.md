@@ -3668,3 +3668,91 @@ Three fixes from the same review:
 **Root Cause:** — (не инцидент; сверка внешнего аудита vs локальный код + внешн...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-14 09:00 — P1 CI: digest-pinning CRLF-sensitive — инвентарь UNPROVEN x3 на ubuntu (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit + push; CI зелёный после фикса)
+**verified_from_clean_state:** ✅ да — CI ubuntu matrix зелёный после фикса (gh run watch); локально 12/12 тестов, hook 4/4
+**Root Cause:** _...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 08:40 — pre-commit hook + negative_controls runner + коммит сессии (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit сделан; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — pre-commit hook 4/4 (verify_diary / stale_detector / check_tool_names / negative_controls); run...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 08:05 — Red team round 2 (TC-7..TC-10) + runner hardening: provocation_type, --pin --reason, pin_log, transitive fixtures (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты+RFC; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → PASSED, 1160 passed / 0 failed (вкл...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 07:30 — Guard Inventory (OWP §5.2, P3 research 08-11): scripts/negative_controls_runner.py + привязка отчётов к git HEAD (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, 1157 ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 11:45 — Guard проза-«import X» (C-гибрид): частотное слово без src-импорта ≠ якорь (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты+ADR; не закоммичено — commit/push)
+**verified_from_clean_state:** ✅ да — полный pytest tests/ 1149 passed / 10 skipped (102s) + `bash scripts/verify_clean_state.sh --no-...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 11:15 — Live-smoke поймал ложный отзыв: проза-«import path» → REFUTED собственного ADR-узла (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (данные памяти восстановлены; код-гвард — OPEN вопрос владельцу)
+**verified_from_clean_state:** ✅ да — полный pytest tests/ 1143 passed / 10 skipped (92s) + `bash scripts/verify_cl...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 10:45 — ADR-0005 pkg:-анкоры (closed-world манифест) + верификация поста dev.to (DONE, 68 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты+ADR+KNOWN_ISSUES; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1143 passed / 10 skipped (92s, 202...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 23:55 — VOR-ресипт: checked/total в intel_get_project_memory (пол Тома) (DONE, 1142 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1142 passed / 4 skipped (2026-08-13); LSP-diagnosti...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 23:20 — Фикс job-чанков (фильтр embed-лога) + LIVE-SMOKE скрипт + правило §7 (DONE, 1135 passed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+скрипт+доки; коммиты 7b38f50a + следующий)
+**verified_from_clean_state:** ✅ да — полный pytest 1135 passed / 4 skipped (2026-08-13); `python scripts/smoke_e2e.py --project .` ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 20:45 — FIX А2: сервер снова отвечает во время/после индексации (sync update_all → to_thread) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тест; не закоммичено — commit/push по команде; сервер мёртв — нужен Reload)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1134 passed / 4 skipped...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-13 20:20 — Демонстрация инструментов + 2 аномалии: файл невидим для поиска, full-reindex блокирует MCP (OPEN)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial (демонстрация выполнена; аномалии зафиксированы, root cause P1 не установлен)
+**verified_from_clean_state:** ⚠️ не проверено (демонстрация, код не менялся) | **Root Cause:** (А1)...
+- **Статус:** автоматически синхронизировано
+

@@ -34,5 +34,14 @@
       "stale_detector": "81f51e451ad5bd782d93acf4031c8d8d294e5ba74aea346cf39b10fdecbaa53d",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-08-14T05:20:56Z",
+    "reason": "stale_config: exclude discussion draft (RFC section refs, raw evidence)",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "e02648544530d605431e15262aafd52d5575c7e25570e4c36fbcc242288e4588",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]
