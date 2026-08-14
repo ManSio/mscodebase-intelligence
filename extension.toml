@@ -22,6 +22,6 @@ capabilities = ["context_servers"]
 # stdio-протокол MCP работает через каналы, консоль не нужна.
 command = "venv\\Scripts\\pythonw.exe"
 args = ["-u", "-m", "src.main"]
-env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT", "PYTHONUTF8" = "1", "EMBEDDING_PROVIDER" = "llama_cpp", "EMBEDDING_DIMENSION" = "384"}
+env = {"PROJECT_PATH" = "$ZED_WORKTREE_ROOT", "PYTHONUTF8" = "1"}
 
 [slash_commands]
