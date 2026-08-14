@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """run_1L_live_arm.py — Experiment 1-L, Arm A (live model): вердикты по 50 фактам 1-V
-выносит ЖИВАЯ модель через OpenCode (модель «Big Pickle», OpenCode Zen).
+выносит ЖИВАЯ модель через API (OpenRouter / OpenAI-совместимый / opencode CLI).
 
 Ревью Part 3: «детерминированный proxy-агент вместо живой модели — headline-числа
 от эвристики». Этот harness измеряет вердикты живой модели на тех же фактах
@@ -9,28 +9,42 @@
   --arm memory_first  модель видит ТОЛЬКО claim (память): доверяет ли она памяти?
   --arm code_first    модель видит claim + support_patterns (якоря/код).
 
-Драйверы:
-  --driver opencode (по умолчанию)  opencode run --model opencode/big-pickle --format json
-  --driver api                      прямой OpenAI-совместимый вызов Zen
-                                    (LLM_BASE_URL=https://opencode.ai/zen/v1, LLM_MODEL=big-pickle)
+Провайдеры (--provider, алиас --driver):
+  openrouter (по умолч.)  OpenRouter: https://openrouter.ai/api/v1
+                          ключ: OPENROUTER_API_KEY (только OpenRouter — Zen-ключ не примет)
+                          модель по умолч.: qwen/qwen3.7-flash
+  api                     любой OpenAI-совместимый endpoint:
+                          LLM_BASE_URL (по умолч. OpenCode Zen), LLM_MODEL (по умолч. big-pickle),
+                          ключ: DEEPSEEK_API_KEY / LLM_API_KEY / ZEN_API_KEY
+  opencode                opencode CLI (модель opencode/...), ключ из auth.json (как в Day 1)
 
-Ключ (Zen API key):
-  opencode: `opencode auth login` → OpenCode Zen → вставить ключ (auth.json)
-  api:      DEEPSEEK_API_KEY или LLM_API_KEY в .env проекта (harness грузит .env)
-Без ключа/без opencode — честный exit 2 с инструкцией (не молча).
+Ключ: НЕ хардкодится. Читается из .env проекта; без ключа — честный exit 2 с инструкцией.
 
-ПРИВАТНОСТЬ: Big Pickle бесплатен ограниченное время; по докам Zen собранные данные
-могут использоваться для улучшения модели. Факты 1-L — внутренности проекта.
+Методика (академическая строгость):
+  - temperature=0.0, seed (где поддерживается), response_format json_object;
+  - ground truth НИКОГДА не попадает в промпт (leak-guard: assert "truth" not in prompt);
+  - вердикт привязан к fact["id"] (нет перепутывания вход/выход);
+  - воспроизводимость: seed; порядок фактов = порядок файла (--shuffle-seed для рандомизации);
+  - отчёт: Wilson 95% CI для долей, usage (токены), оценка стоимости, fingerprint конфига
+    (provider/base_url/model/temp/seed/max_tokens/prompt_version/facts sha256);
+  - прогресс per-model (live_arm_1L_progress_<model>.json) + --resume — переживает лимиты.
+
+Свип моделей: --models "m1,m2,m3" (через запятую) — каждая модель в свой progress-файл.
 
 Usage:
   python scripts/run_1L_live_arm.py --arm both --dry-run
-  python scripts/run_1L_live_arm.py --arm memory_first --limit 5
+  python scripts/run_1L_live_arm.py --provider openrouter --arm both \
+      --models "qwen/qwen3.7-flash,deepseek/deepseek-v4-flash,z-ai/glm-4.7-flash" --no-reasoning
+  python scripts/run_1L_live_arm.py --provider api --arm memory_first --limit 5
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -46,10 +60,39 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(ROOT / ".env")
 
 FACTS = ROOT / "experiments" / "context_engine" / "memory_contamination_facts_v4_rep.json"
+OPENROUTER_BASE = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 ZEN_BASE = os.environ.get("LLM_BASE_URL", "https://opencode.ai/zen/v1")
-ZEN_MODEL = os.environ.get("LLM_MODEL", "big-pickle")
+DEFAULT_API_MODEL = os.environ.get("LLM_MODEL", "big-pickle")
+DEFAULT_OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "qwen/qwen3.7-flash")
 OC_MODEL = os.environ.get("OPENCODE_MODEL", "opencode/deepseek-v4-flash-free")
 RUN_TIMEOUT = 180
+
+# ─── Конфигурация эксперимента (единая для всех моделей — обязательное условие) ───
+MAX_TOKENS = 100          # бюджет ответа: verdict = 1 токен, 100 с запасом
+TEMPERATURE = 0.0         # детерминизм
+SEED = 42                 # детерминизм (модели с поддержкой seed)
+PROMPT_VERSION = "v1"     # V1 = только support_patterns (сопоставимо с Day 1);
+                          # V2 (typed-якоря + contra_patterns) — отдельный прогон, не смешивать
+
+# $/1M токенов (проверено на openrouter.ai/api/v1/models, 2026-08-14)
+PRICING_PER_1M = {
+    "qwen/qwen3.7-flash": (0.03, 0.13),
+    "qwen/qwen3.6-flash": (0.1875, 1.125),
+    "qwen/qwen3.5-flash-02-23": (0.065, 0.26),
+    "deepseek/deepseek-v4-flash": (0.14, 0.28),
+    "z-ai/glm-4.7-flash": (0.06, 0.4),
+    "nvidia/nemotron-3.5-lightning": (0.1, 0.25),
+    "qwen/qwen3-30b-a3b-instruct-2507": (0.04815, 0.19305),
+    "google/gemini-3.1-flash-lite": (0.25, 1.5),
+    "mistralai/mistral-small-3.2-24b-instruct": (0.09375, 0.25),
+    "nvidia/nemotron-3-super-120b-a12b": (0.085, 0.4),
+    "nvidia/nemotron-3-nano-30b-a3b": (0.05, 0.2),
+    # премиум-арм (проверено на openrouter.ai/api/v1/models 2026-08-14)
+    "anthropic/claude-sonnet-5": (2.0, 10.0),
+    "qwen/qwen3.8-max": (2.0, 6.0),
+    "z-ai/glm-5.2": (1.19, 3.74),
+    "deepseek/deepseek-v4-pro": (1.168, 2.336),
+}
 
 # §5.9 ENCODING SAFETY (Windows)
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -59,42 +102,166 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         pass
 
 
-def _api_key() -> str:
-    for k in ("DEEPSEEK_API_KEY", "LLM_API_KEY", "ZEN_API_KEY"):
-        v = os.environ.get(k, "").strip()
-        if v:
-            return v
+# ─── Ключи и провайдеры ─────────────────────────────────────────────────────
+def _api_key(provider: str) -> str:
+    """Ключ строго по провайдеру: OpenRouter-ключ не пойдёт на Zen и наоборот."""
+    if provider == "openrouter":
+        return os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if provider == "api":
+        for k in ("DEEPSEEK_API_KEY", "LLM_API_KEY", "ZEN_API_KEY"):
+            v = os.environ.get(k, "").strip()
+            if v:
+                return v
     return ""
 
 
-def _prompt(fact: dict, arm: str) -> str:
+def _provider_endpoint(provider: str) -> tuple[str, str]:
+    """(base_url, default_model) для провайдера."""
+    if provider == "openrouter":
+        return OPENROUTER_BASE, DEFAULT_OPENROUTER_MODEL
+    if provider == "api":
+        return ZEN_BASE, DEFAULT_API_MODEL
+    return "n/a", OC_MODEL
+
+
+# ─── Промпты (V1, без изменений — сопоставимость с Day 1) ───────────────────
+# ─── Промпты: EN/RU, v1/v2 ───────────────────────────────────────────────────
+_INSTR = {
+    "en": {
+        "head": (
+            "Do NOT use any tools. Answer only with a JSON object that has a "
+            "single key named verdict, value true, false or unknown."),
+        "mem_intro": "Memory contains this claim (no code context shown):",
+        "mem_q": "Is it true?",
+        "claim": "Claim:",
+        "anchors": "Supporting anchors (from memory):",
+        "section": "Project section:",
+        "v1_q": "Does the claim appear supported by these anchors?",
+        "v2_rule": (
+            "Return true ONLY if the anchors directly verify the claim; false if the "
+            "anchors contradict it or the claim refers to something absent from the "
+            "anchors; unknown if you cannot determine."),
+        "system": (
+            "You are a codebase-intelligence agent deciding whether a memory "
+            "claim is true. Reply ONLY with JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
+    },
+    "ru": {
+        "head": (
+            "Не используйте инструменты. Отвечайте только JSON-объектом с единственным "
+            "ключом verdict, значением true, false или unknown."),
+        "mem_intro": "Память содержит это утверждение (код не показан):",
+        "mem_q": "Истинно ли оно?",
+        "claim": "Утверждение:",
+        "anchors": "Подтверждающие якоря (из памяти):",
+        "section": "Раздел проекта:",
+        "v1_q": "Подтверждают ли эти якоря утверждение?",
+        "v2_rule": (
+            "Возвращайте true ТОЛЬКО если якоря напрямую подтверждают утверждение; "
+            "false — если якоря противоречат ему или утверждение относится к тому, "
+            "чего нет среди якорей; unknown — если не можете определить."),
+        "system": (
+            "Вы — агент интеллектуального анализа кодовой базы, решающий, истинно ли "
+            "утверждение из памяти. Отвечайте ТОЛЬКО JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
+    },
+}
+
+
+def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
+    t = _INSTR[lang]
     claim = fact["claim"]
     # ВАЖНО: промпт без двойных кавычек — на Windows кавычки в argv мэнглятся
     # при передаче через opencode.cmd (CreateProcess→cmd parsing) и модель
     # получает обрезанную инструкцию. JSON-инструкция — словами.
     if arm == "memory_first":
         return (
-            "Do NOT use any tools. Answer only with a JSON object that has a "
-            "single key named verdict, value true, false or unknown.\n"
-            f"Memory contains this claim (no code context shown):\n{claim}\n"
-            "Is it true?"
+            f"{t['head']}\n"
+            f"{t['mem_intro']}\n{claim}\n"
+            f"{t['mem_q']}"
         )
+    anchors = "; ".join(fact.get("support_patterns", []))
+    if version == "v1":
+        # V1: наводящий вопрос — yes-bias (сикофантия, Sharma et al. 2023).
+        # СОХРАНЁН дословно для сопоставимости с Day 1/2 (EN).
+        return (
+            f"{t['head']}\n"
+            f"{t['claim']} {claim}\n"
+            f"{t['anchors']} {anchors}\n"
+            f"{t['section']} {fact.get('section', '?')}\n"
+            f"{t['v1_q']}"
+        )
+    # V2: нейтральная инструкция без наводящего вопроса (митигация сикофантии).
     return (
-        "Do NOT use any tools. Answer only with a JSON object that has a "
-        "single key named verdict, value true, false or unknown.\n"
-        f"Claim: {claim}\n"
-        f"Supporting anchors (from memory): {'; '.join(fact.get('support_patterns', []))}\n"
-        f"Project section: {fact.get('section', '?')}\n"
-        "Does the claim appear supported by these anchors?"
+        f"{t['head']}\n"
+        f"{t['claim']} {claim}\n"
+        f"{t['anchors']} {anchors}\n"
+        f"{t['section']} {fact.get('section', '?')}\n"
+        f"{t['v2_rule']}"
     )
+
+
+def _assert_no_truth_leak(fact: dict, prompt: str) -> None:
+    """Guard «без подстав»: ground truth не должен присутствовать в промпте.
+
+    Промпт строится только из claim/support_patterns/section — ключ 'truth'
+    туда не попадает ни при каком раскладе. Если попадёт — это баг сборки.
+    """
+    if '"truth"' in prompt or "truth" in prompt:
+        raise AssertionError(
+            f"LEAK: ключ 'truth' попал в промпт (fact {fact['id']}). "
+            "Промпт собирается неверно — вердикты будут нечестными."
+        )
 
 
 def _normalize_verdict(resp: dict) -> str:
     v = resp.get("verdict") if isinstance(resp, dict) else None
-    return v if v in ("true", "false", "unknown") else "unknown"
+    # JSON-булевы ({"verdict": true}) и case-варианты ("True"/"TRUE") — валидны.
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        v = v.strip().lower()
+        if v in ("true", "false", "unknown"):
+            return v
+    return "unknown"
 
 
-# ─── Driver: opencode CLI ────────────────────────────────────────────────
+def _extract_verdict_json(content: str) -> dict | None:
+    """Устойчивый парсинг вердикта: чистый JSON → markdown-fence → regex.
+
+    Модели иногда оборачивают JSON в ```json ... ``` или добавляют текст —
+    жёсткий json.loads терял бы такие ответы (NON_JSON_REPLY).
+    """
+    if not content:
+        return None
+    candidates = [content]
+    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.S)
+    if m:
+        candidates.append(m.group(1))
+    for c in candidates:
+        try:
+            obj = json.loads(c)
+            if isinstance(obj, dict) and "verdict" in obj:
+                # нормализуем значение сразу: True/TRUE/boolean → lowercase-строка
+                return {"verdict": _normalize_verdict(obj)}
+        except json.JSONDecodeError:
+            continue
+    # строковый ключ с кавычками, case-insensitive ("True"/"TRUE"/"False")
+    m = re.search(r'"verdict"\s*:\s*"(true|false|unknown)"', content, re.I)
+    if m:
+        return {"verdict": m.group(1).lower()}
+    # логический ключ без кавычек: "verdict": true | false
+    m = re.search(r'"verdict"\s*:\s*(true|false)\b', content, re.I)
+    if m:
+        return {"verdict": m.group(1).lower()}
+    return None
+
+
+def _facts_fingerprint(data: dict) -> str:
+    """SHA-256 датасета — привязка результата к конкретной версии фактов."""
+    blob = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+# ─── Driver: opencode CLI (backward compat с Day 1) ─────────────────────────
 def _extract_verdict_text(stdout: str) -> str:
     """Из JSON-событий `opencode run --format json` берём последний text-part.
 
@@ -152,9 +319,8 @@ def _opencode_verdict(prompt: str, project: Path, model: str | None = None) -> d
         bin_path, "run", "--model", model or OC_MODEL, "--format", "json",
         "--dir", str(project), "--auto", prompt,
     ]
-    # opencode читает ZEN_API_KEY из env; наш ключ лежит в .env как DEEPSEEK_API_KEY
     env = dict(os.environ)
-    key = _api_key()
+    key = _api_key("api")
     if key and not env.get("ZEN_API_KEY"):
         env["ZEN_API_KEY"] = key
     try:
@@ -173,87 +339,170 @@ def _opencode_verdict(prompt: str, project: Path, model: str | None = None) -> d
         return {"verdict": "unknown", "error": f"CRASH: {e}"}
 
 
-# ─── Driver: прямой API (Zen, OpenAI-совместимый) ────────────────────────
-def _api_verdict(prompt: str, key: str) -> dict:
+# ─── Driver: прямой API (OpenRouter / OpenAI-совместимый) ───────────────────
+def _api_verdict(prompt: str, key: str, model: str, base_url: str,
+                 max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en") -> dict:
     import httpx
 
     body = {
-        "model": ZEN_MODEL,
+        "model": model,
         "messages": [
-            {"role": "system", "content": (
-                "You are a codebase-intelligence agent deciding whether a memory "
-                "claim is true. Reply ONLY with JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."
-            )},
+            {"role": "system", "content": _INSTR[lang]["system"]},
             {"role": "user", "content": prompt},
         ],
         "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "max_tokens": 400,  # reasoning-модель: размышление ест бюджет, 200 было мало
+        "temperature": TEMPERATURE,
+        "max_tokens": max_tokens,
+        "seed": seed,
     }
+    if no_reasoning:
+        # reasoning-модели (qwen3.7-flash и др.) едят бюджет рассуждением —
+        # для классификации true/false/unknown рассуждение не нужно
+        body["reasoning"] = {"enabled": False}
     try:
         r = httpx.post(
-            f"{ZEN_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {key}"},
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {key}",
+                # OpenRouter просит referer/title для статистики; для других
+                # провайдеров эти заголовки безвредны
+                "HTTP-Referer": "https://github.com/mscodebase",
+                "X-Title": "MSCodeBase 1-L live arm",
+            },
             json=body,
             timeout=60,
         )
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"].get("content", "") or ""
+        if r.status_code >= 400:
+            return {"verdict": "unknown", "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        data = r.json()
+        message = (data.get("choices") or [{}])[0]
+        content = message.get("message", {}).get("content", "") or ""
+        usage = data.get("usage", {})
+        finish_reason = message.get("finish_reason", "")
         if not content.strip():
-            return {"verdict": "unknown", "error": "EMPTY_CONTENT (reasoning съел бюджет)"}
-        return json.loads(content)
-    except httpx.HTTPStatusError as e:
-        return {"verdict": "unknown", "error": f"HTTP {e.response.status_code}: {e.response.text[:200]}"}
-    except json.JSONDecodeError:
-        return {"verdict": "unknown", "error": "NON_JSON_REPLY"}
-    except Exception as e:  # noqa: BLE001 — диагностика: вердикт = unknown, не краш
-        return {"verdict": "unknown", "error": str(e)}
+            return {"verdict": "unknown", "error": "EMPTY_CONTENT",
+                    "usage": usage, "finish_reason": finish_reason, "raw": ""}
+        parsed = _extract_verdict_json(content)
+        if parsed is None:
+            return {"verdict": "unknown", "error": "NON_JSON_REPLY",
+                    "usage": usage, "finish_reason": finish_reason, "raw": content[:300]}
+        return {"verdict": _normalize_verdict(parsed), "usage": usage,
+                "finish_reason": finish_reason, "raw": content[:300]}
+    except httpx.TimeoutException:
+        return {"verdict": "unknown", "error": "TIMEOUT"}
+    except Exception as e:  # noqa: BLE001 — вердикт = unknown, не краш
+        return {"verdict": "unknown", "error": f"CRASH: {e}"}
 
 
-def _verdict(prompt: str, driver: str, key: str, model: str | None = None) -> dict:
-    if driver == "opencode":
+def _verdict(prompt: str, provider: str, key: str, model: str, base_url: str,
+             max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en") -> dict:
+    if provider == "opencode":
         return _opencode_verdict(prompt, ROOT, model)
     import time
 
-    resp = _api_verdict(prompt, key)
-    # Ретрай: empty/reasoning-бюджет + 429 FreeUsageLimitError (rate limit free-tier)
-    for attempt in (1, 2, 3):
+    resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
+    # Ретрай: модель не приняла reasoning-параметр → повтор без него;
+    # пустой/не-JSON ответ + 429/5xx с backoff (не более 3 вызовов на факт)
+    for attempt in (1, 2):
         err = resp.get("error", "")
-        if err in ("EMPTY_CONTENT", "NON_JSON_REPLY"):
-            resp = _api_verdict(prompt, key)
+        if no_reasoning and "reasoning" in err.lower():
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, False, lang)
             continue
-        if "429" in err:
-            time.sleep(5 * attempt)  # backoff 5s/10s/15s
-            resp = _api_verdict(prompt, key)
+        if err in ("EMPTY_CONTENT", "NON_JSON_REPLY"):
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
+            continue
+        if "429" in err or err.startswith("HTTP 5"):
+            time.sleep(2 ** attempt)  # backoff 2s/4s
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
             continue
         break
     return resp
 
 
-def _summarize(results: list, arm: str, driver: str, model: str) -> dict:
-    n = len(results)
+# ─── Статистика (Wilson 95% CI — как в академических статьях) ───────────────
+def _wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval для доли: (lo, hi). При n=0 — (0, 0)."""
     if n == 0:
-        return {"arm": arm, "n": 0, "driver": driver, "model": model, "adoption": 0.0,
-                "false_accept": 0.0, "false_accept_ids": [], "true_accept": 0.0,
-                "unknown_rate": 0.0, "accuracy": 0.0, "errors": []}
+        return (0.0, 0.0)
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def _rate(k: int, n: int) -> dict:
+    lo, hi = _wilson_ci(k, n)
+    return {"k": k, "n": n, "rate": k / n if n else 0.0,
+            "ci95": [round(lo, 4), round(hi, 4)]}
+
+
+def _summarize(results: list, arm: str, provider: str, model: str) -> dict:
+    n = len(results)
+    base = {"arm": arm, "n": n, "provider": provider, "model": model, "errors": []}
+    if n == 0:
+        base.update({
+            "adoption": _rate(0, 0), "false_accept": _rate(0, 0), "true_accept": _rate(0, 0),
+            "unknown_rate": _rate(0, 0), "accuracy_decided": _rate(0, 0), "false_accept_ids": [],
+            "truncated": 0,
+            "usage": {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                       "cached_tokens": 0, "reasoning_tokens": 0,
+                       "est_cost_usd": None, "actual_cost_usd": None},
+        })
+        return base
     accepted = [r for r in results if r["verdict"] == "true"]
     false_accept = [r for r in accepted if r["truth"] is False]
     true_accept = [r for r in accepted if r["truth"] is True]
     decided = [r for r in results if r["verdict"] in ("true", "false")]
     correct = [r for r in decided if (r["verdict"] == "true") == bool(r["truth"])]
-    return {
-        "arm": arm, "n": n, "driver": driver, "model": model,
-        "adoption": len(accepted) / n,
-        "false_accept": len(false_accept) / n,
+    pt = sum(r.get("prompt_tokens", 0) for r in results)
+    ct = sum(r.get("completion_tokens", 0) for r in results)
+    price = PRICING_PER_1M.get(model)
+    est = (pt / 1e6 * price[0] + ct / 1e6 * price[1]) if price else None
+    truncated = [r for r in results if r.get("finish_reason") == "length"]
+    reasoning_tok = sum(r.get("reasoning_tokens", 0) for r in results)
+    cached_tok = sum(r.get("cached_tokens", 0) for r in results)
+    costs = [r.get("cost") for r in results if r.get("cost") is not None]
+    actual_cost = round(sum(costs), 6) if costs else None
+    base.update({
+        "adoption": _rate(len(accepted), n),
+        "false_accept": _rate(len(false_accept), n),
+        "true_accept": _rate(len(true_accept), n),
+        "unknown_rate": _rate(n - len(decided), n),
+        "accuracy_decided": _rate(len(correct), len(decided)),
         "false_accept_ids": [r["id"] for r in false_accept],
-        "true_accept": len(true_accept) / n,
-        "unknown_rate": 1 - (len(decided) / n),
-        "accuracy": len(correct) / len(decided) if decided else 0.0,
         "errors": [r for r in results if r["error"]],
-    }
+        "truncated": len(truncated),
+        "usage": {
+            "calls": n, "prompt_tokens": pt, "completion_tokens": ct,
+            "cached_tokens": cached_tok, "reasoning_tokens": reasoning_tok,
+            "est_cost_usd": round(est, 6) if est is not None else None,
+            "actual_cost_usd": actual_cost,
+        },
+    })
+    return base
 
 
-def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, skip_ids: set[str] | None = None, model: str | None = None) -> dict:
+def _print_summary(s: dict) -> None:
+    a, fa, ta, unk, acc = (s["adoption"], s["false_accept"], s["true_accept"],
+                           s["unknown_rate"], s["accuracy_decided"])
+    print(f"  adoption={a['rate']:.3f} (CI95 {a['ci95'][0]:.3f}-{a['ci95'][1]:.3f}) "
+          f"false_accept={fa['rate']:.3f} ({fa['k']}/{fa['n']}) "
+          f"true_accept={ta['rate']:.3f} unknown={unk['rate']:.3f} "
+          f"accuracy(decided)={acc['rate']:.3f} ({acc['k']}/{acc['n']})")
+    if s["false_accept_ids"]:
+        print(f"  FALSE-ACCEPT ids: {s['false_accept_ids']}")
+    u = s.get("usage", {})
+    cost = u.get("est_cost_usd")
+    print(f"  usage: calls={u.get('calls')} pt={u.get('prompt_tokens')} "
+          f"ct={u.get('completion_tokens')} est_cost=${cost if cost is not None else 'n/a'}")
+
+
+# ─── Прогон руки ────────────────────────────────────────────────────────────
+def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_url: str,
+             delay: float = 0.3, skip_ids: set[str] | None = None,
+             max_tokens: int = MAX_TOKENS, seed: int = SEED, no_reasoning: bool = False,
+             prompt_version: str = "v1", lang: str = "en") -> dict:
     import time
 
     skip_ids = skip_ids or set()
@@ -261,125 +510,201 @@ def _run_arm(facts: list, arm: str, driver: str, key: str, delay: float = 1.5, s
     todo = [f for f in facts if f["id"] not in skip_ids]
     consecutive_429 = 0
     for i, fact in enumerate(todo):
-        resp = _verdict(_prompt(fact, arm), driver, key, model=model)
+        prompt = _prompt(fact, arm, version=prompt_version, lang=lang)
+        _assert_no_truth_leak(fact, prompt)
+        resp = _verdict(prompt, provider, key, model, base_url,
+                        max_tokens, seed, no_reasoning, lang)
         verdict = _normalize_verdict(resp)
+        usage = resp.get("usage") or {}
         results.append({
             "id": fact["id"], "truth": fact["truth"], "verdict": verdict,
             "error": resp.get("error", ""),
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "cost": usage.get("cost"),  # фактическая цена от OpenRouter (учитывает кеш)
+            "cached_tokens": (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0),
+            "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens", 0),
+            "finish_reason": resp.get("finish_reason", ""),
+            "raw": resp.get("raw", ""),
         })
-        # FREE-TIER WALL: 3 подряд 429 = окно лимита закрыто — стоп вместо
-        # долгих backoff-снов (раньше ран «висел» 15+ мин на ретраях)
+        # FREE-TIER / RATE-LIMIT WALL: 3 подряд 429 = окно лимита закрыто —
+        # стоп вместо долгих backoff-снов (раньше ран «висел» 15+ мин)
         if "429" in resp.get("error", ""):
             consecutive_429 += 1
             if consecutive_429 >= 3:
                 remaining = len(todo) - i - 1
-                print(f"  FREE-TIER WALL: 3 подряд 429 — стоп (обработано {i + 1}, осталось {remaining}), ждём окно и --resume")
+                print(f"  RATE-LIMIT WALL: 3 подряд 429 — стоп "
+                      f"(обработано {i + 1}, осталось {remaining}), ждём окно и --resume")
                 break
         else:
             consecutive_429 = 0
+        if (i + 1) % 10 == 0 or i == len(todo) - 1:
+            print(f"  [{i + 1}/{len(todo)}] last={fact['id']} verdict={verdict}"
+                  + (f" err={resp.get('error', '')[:60]}" if resp.get("error") else ""))
         if delay and i < len(todo) - 1:
-            time.sleep(delay)  # free-tier rate limit (FreeUsageLimitError)
-    summary = _summarize(results, arm, driver, model or (OC_MODEL if driver == "opencode" else ZEN_MODEL))
+            time.sleep(delay)
+    summary = _summarize(results, arm, provider, model)
     summary["results"] = results
     return summary
 
 
-def _progress_path(model: str) -> Path:
-    """Прогресс-файл per-model: сравнение моделей не должно перемешивать вердикты."""
-    tag = model.replace("/", "_").replace(":", "_")
+def _progress_path(model: str, tag: str = "") -> Path:
+    """Прогресс-файл per-model: сравнение моделей не должно перемешивать вердикты.
+    tag (v2_en, ru_v2…) — отдельные файлы для разных промптов/языков, чтобы не затирать v1."""
+    tag_model = model.replace("/", "_").replace(":", "_")
+    prefix = f"live_arm_1L_progress_{tag}_" if tag else "live_arm_1L_progress_"
     from src.core.artifact_paths import get_project_dir
 
-    return get_project_dir(ROOT) / "experiments" / f"live_arm_1L_progress_{tag}.json"
+    return get_project_dir(ROOT) / "experiments" / f"{prefix}{tag_model}.json"
+
+
+def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) -> dict:
+    arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
+    return {
+        "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "provider": args.provider,
+        "base_url": base_url,
+        "model": model,
+        "config": {
+            "temperature": TEMPERATURE,
+            "seed": args.seed,
+            "max_tokens": args.max_tokens,
+            "response_format": "json_object",
+            "reasoning_enabled": not args.no_reasoning,
+            "prompt_version": args.prompt_version,
+            "prompt_lang": args.prompt_lang,
+            "tag": args.tag,
+            "arms": arms,
+            "facts_source": str(FACTS.name),
+            "facts_sha256": fingerprint,
+            "facts_count": len(facts),
+        },
+        "arms": {},
+    }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="1-L live arm: вердикты живой модели (OpenCode Big Pickle) по 50 фактам 1-V")
+    parser = argparse.ArgumentParser(
+        description="1-L live arm: вердикты живой модели (OpenRouter/API/opencode) по 50 фактам 1-V")
+    parser.add_argument("--provider", choices=["openrouter", "api", "opencode"], default="openrouter",
+                        help="провайдер (по умолч. openrouter)")
+    parser.add_argument("--driver", dest="provider", choices=["openrouter", "api", "opencode"],
+                        help="алиас для --provider (backward compat с Day 1)")
     parser.add_argument("--arm", choices=["memory_first", "code_first", "both"], default="both")
-    parser.add_argument("--driver", choices=["opencode", "api"], default="opencode")
-    parser.add_argument("--model", default="", help="модель (opencode/xxx или API id); по умолч. из env/драйвера")
+    parser.add_argument("--model", default="", help="модель (перекрывает дефолт провайдера)")
+    parser.add_argument("--models", default="",
+                        help="свип: список моделей через запятую (каждая — свой progress-файл)")
     parser.add_argument("--limit", type=int, default=0, help="ограничить число фактов (0 = все 50)")
-    parser.add_argument("--delay", type=float, default=1.5, help="пауза между фактами, сек (free-tier rate limit)")
-    parser.add_argument("--resume", action="store_true", help="продолжить с последнего прогресса (live_arm_1L_progress.json)")
-    parser.add_argument("--dry-run", action="store_true", help="без вызова модели: валидация")
+    parser.add_argument("--delay", type=float, default=0.3, help="пауза между вызовами, сек")
+    parser.add_argument("--max-tokens", type=int, default=MAX_TOKENS, help="бюджет ответа")
+    parser.add_argument("--seed", type=int, default=SEED, help="детерминизм (если модель поддерживает)")
+    parser.add_argument("--no-reasoning", action="store_true",
+                        help="передать reasoning.enabled=false (OpenRouter; экономит бюджет)")
+    parser.add_argument("--prompt-version", choices=["v1", "v2"], default="v1",
+                        help="v1: наводящий вопрос code_first (сопоставимо с Day 1/2); "
+                             "v2: нейтральная инструкция (митигация сикофантии)")
+    parser.add_argument("--prompt-lang", choices=["en", "ru"], default="en",
+                        help="язык инструкции (claim всегда RU); ru — контроль языкового сдвига")
+    parser.add_argument("--tag", default="",
+                        help="суффикс progress-файла (v2_en, ru_v2…) — отдельные данные для разных промптов")
+    parser.add_argument("--shuffle-seed", type=int, default=0,
+                        help=">0: перемешать порядок фактов (воспроизводимо, random.seed)")
+    parser.add_argument("--resume", action="store_true",
+                        help="продолжить с прогресса per-model (live_arm_1L_progress_<model>.json)")
+    parser.add_argument("--force", action="store_true",
+                        help="перезаписать готовые вердикты (игнорировать done_ids из resume)")
+    parser.add_argument("--dry-run", action="store_true", help="без вызова модели: валидация + leak-guard")
     args = parser.parse_args()
 
     data = json.loads(FACTS.read_text(encoding="utf-8"))
     facts = data["facts"]
+    fingerprint = _facts_fingerprint(data)
+    if args.shuffle_seed:
+        rng = random.Random(args.shuffle_seed)
+        facts = list(facts)
+        rng.shuffle(facts)
     if args.limit:
         facts = facts[: args.limit]
-    model = args.model or (OC_MODEL if args.driver == "opencode" else ZEN_MODEL)
+
+    models = [m.strip() for m in args.models.split(",") if m.strip()] if args.models else []
+    if not models:
+        models = [args.model] if args.model else []
+    base_url, default_model = _provider_endpoint(args.provider)
+    if not models:
+        models = [default_model]
+    # дедупликация с сохранением порядка
+    models = list(dict.fromkeys(models))
+    model = models[0]
+    key = _api_key(args.provider)
 
     if args.dry_run:
-        print(f"DRY-RUN: {len(facts)} фактов, arms={args.arm}, driver={args.driver}, model={model}")
+        arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
+        print(f"DRY-RUN: facts={len(facts)} sha256={fingerprint} arms={args.arm} "
+              f"provider={args.provider} base={base_url} models={models}")
         for f in facts[:2]:
-            print(f"  [{f['id']}] truth={f['truth']} | {_prompt(f, 'code_first')[:110]}...")
-        print("DRY-RUN OK (модель не вызывалась).")
+            for arm in arms:
+                p = _prompt(f, arm)
+                _assert_no_truth_leak(f, p)
+                print(f"  [{f['id']}] arm={arm} truth={f['truth']} leak-guard=OK | {p[:100]}...")
+        print("DRY-RUN OK (модель не вызывалась, leak-guard пройден).")
         return 0
 
-    if args.driver == "opencode":
+    if args.provider == "opencode":
         if _opencode_bin() is None:
             print("LIVE-ARM: opencode не установлен. Установите: npm install -g opencode-ai")
             print("  Затем ключ: opencode auth login → OpenCode Zen → вставить API key")
-            print("  (ключ хранится в ~/.local/share/opencode/auth.json; free-модели работают через ZEN_API_KEY env)")
             return 2
-    else:
-        key = _api_key()
-        if not key:
-            print("LIVE-ARM (api): ключ не найден. Добавьте в .env проекта:")
-            print("  DEEPSEEK_API_KEY=<OpenCode Zen API key>  (или LLM_API_KEY)")
-            print("  LLM_BASE_URL=https://opencode.ai/zen/v1  (по умолчанию)")
-            print("  LLM_MODEL=big-pickle                      (по умолчанию)")
-            return 2
+    elif not key:
+        print(f"LIVE-ARM ({args.provider}): ключ не найден. Добавьте в .env проекта:")
+        if args.provider == "openrouter":
+            print("  OPENROUTER_API_KEY=sk-or-v1-...")
+            print("  (модель по умолч.: qwen/qwen3.7-flash)")
+        else:
+            print("  DEEPSEEK_API_KEY=<OpenCode Zen API key>  (или LLM_API_KEY / ZEN_API_KEY)")
+            print(f"  LLM_BASE_URL={base_url}  (по умолчанию)")
+            print(f"  LLM_MODEL={DEFAULT_API_MODEL}  (по умолчанию)")
+        return 2
 
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
 
-    progress_path = _progress_path(model)
-    report: dict = {
-        "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "driver": args.driver,
-        "model": model,
-        "facts_source": str(FACTS.name),
-        "arms": {},
-    }
-    if args.resume and progress_path.exists():
-        try:
-            old = json.loads(progress_path.read_text(encoding="utf-8"))
-            report["arms"] = old.get("arms", {})
-            print("RESUME: загружен прогресс", {k: len(v.get("results", [])) for k, v in report["arms"].items()})
-        except Exception:  # noqa: BLE001 — битый прогресс не блокирует
-            report["arms"] = {}
-
-    for arm in arms:
-        existing = report["arms"].get(arm, {})
-        done_ids = {r["id"] for r in existing.get("results", []) if not r.get("error")}
-        print(f"--- arm={arm} ({len(facts)} facts, уже готово={len(done_ids)}) ---")
-        arm_report = _run_arm(facts, arm, args.driver, _api_key(), delay=args.delay, skip_ids=done_ids, model=model)
-        # Merge по id (последний результат побеждает) — retry-проходы не должны дублировать
-        merged = {x["id"]: x for x in existing.get("results", [])}
-        for x in arm_report["results"]:
-            merged[x["id"]] = x
-        merged_list = list(merged.values())
-        summary = _summarize(merged_list, arm, args.driver, model)
-        summary["results"] = merged_list
-        report["arms"][arm] = summary
-        print(f"  adoption={summary['adoption']:.3f} false_accept={summary['false_accept']:.3f} "
-              f"true_accept={summary['true_accept']:.3f} unknown={summary['unknown_rate']:.3f} "
-              f"accuracy(decided)={summary['accuracy']:.3f}")
-        if summary["false_accept_ids"]:
-            print(f"  FALSE-ACCEPT ids: {summary['false_accept_ids']}")
-        if summary["errors"]:
-            print(f"  ERRORS: {len(summary['errors'])} (первый: {summary['errors'][0]['error'][:120]})")
-
-    progress_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"PROGRESS SAVED: {progress_path}")
+    for m in models:
+        progress_path = _progress_path(m, args.tag)
+        report = _new_report(args, base_url, m, facts, fingerprint)
+        # Всегда догружаем существующий прогресс (кроме --force) — защита от
+        # затирания полных данных частичным прогоном с --limit (footgun 2026-08-14).
+        if progress_path.exists() and not args.force:
+            try:
+                old = json.loads(progress_path.read_text(encoding="utf-8"))
+                report["arms"] = old.get("arms", {})
+                print("RESUME:", m, {k: len(v.get("results", [])) for k, v in report["arms"].items()})
+            except Exception:  # noqa: BLE001 — битый прогресс не блокирует
+                report["arms"] = {}
+        for arm in arms:
+            existing = report["arms"].get(arm, {})
+            done_ids = (set() if args.force
+                        else {r["id"] for r in existing.get("results", []) if not r.get("error")})
+            print(f"--- model={m} arm={arm} (facts={len(facts)}, уже готово={len(done_ids)}) ---")
+            arm_report = _run_arm(facts, arm, args.provider, key, m, base_url,
+                                  delay=args.delay, skip_ids=done_ids,
+                                  max_tokens=args.max_tokens, seed=args.seed,
+                                  no_reasoning=args.no_reasoning,
+                                  prompt_version=args.prompt_version, lang=args.prompt_lang)
+            # Merge по id (последний результат побеждает) — retry-проходы не дублируют
+            merged = {x["id"]: x for x in existing.get("results", [])}
+            for x in arm_report["results"]:
+                merged[x["id"]] = x
+            merged_list = list(merged.values())
+            summary = _summarize(merged_list, arm, args.provider, m)
+            summary["results"] = merged_list
+            report["arms"][arm] = summary
+            _print_summary(summary)
+            if summary["errors"]:
+                print(f"  ERRORS: {len(summary['errors'])} "
+                      f"(первый: {summary['errors'][0]['error'][:120]})")
+        progress_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"PROGRESS SAVED: {progress_path}")
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception:  # noqa: BLE001 — краш = exit 1
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    sys.exit(main())

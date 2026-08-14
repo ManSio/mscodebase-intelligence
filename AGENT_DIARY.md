@@ -22,6 +22,24 @@
 
 ---
 
+## [2026-08-14 23:20] — Exp 1-L Day 2: свип 6 дешёвых моделей OpenRouter — эксперимент доделан (COMPLETED)
+**Status:** ✅ Completed (код+тесты+данные; commit/push по команде)
+**verified_from_clean_state:** полный `python -m pytest tests/ -q` → 1216 passed / 10 skipped; live: 600 реальных вызовов OpenRouter err=0, total $0.0087; dry-run + leak-guard OK; smoke Zen (честный 429 FreeUsageLimitError — стена free-тира подтверждена)
+**Root Cause (почему эксперимент висел):** Zen free-тир («Big Pickle») — стена FreeUsageLimitError ~3 вызова/окно; Day 1 упёрся в неё, 100 вызовов на десятки окон. Отчётная стена подтверждена live-тестом (2/2 вызова — 429).
+**Fix:** harness `scripts/run_1L_live_arm.py` — провайдеры openrouter|api|opencode, свип `--models`, max_tokens=100, seed=42, `--no-reasoning` (reasoning.enabled=false принят OpenRouter), Wilson 95% CI, usage/стоимость, fingerprint конфига, leak-guard (`assert "truth" not in prompt`), fallback при неприятии reasoning-параметра; тесты tests/test_run_1L_live_arm.py (18).
+**Результат:** разброс моделей огромный — false_accept(code_first) 0.00 (qwen3.6/3.7-flash) → 0.30 (glm-4.7-flash); R50 (silent-false) принят 4/6 моделей (системная дыра «голый токен якоря»); ~107 in/~10 out токенов на запрос; 600 вызовов = $0.0087. Подробности: EXPERIMENTS_LOG#Day-2-1L.
+**Guard:** выбор LLM для verify-on-read обязан проходить замер на этом датасете (glm-4.7-flash FA=0.30 — неприемлема); тесты на парсинг/leak/CI/датасет.
+**Pattern:** NEW (экспериментный harness с API-провайдерами; первая live-верификация OpenRouter в проекте).
+
+## [2026-08-14 23:55] — Red Team атака на Exp 1-L: seed не детерминирует на OpenRouter (±0.05–0.10 FA) (FINDING)
+**Status:** ✅ Проверено (2 полных прогона × 600 вызовов; правки+тесты; данные в progress-файлах)
+**verified_from_clean_state:** pytest tests/test_run_1L_live_arm.py 24/24; полный `python -m pytest tests/ -q` → 1216 passed / 10 skipped; live: 1200 вызовов OpenRouter, trunc=0, err=0, все raw lowercase JSON, finish_reason=stop
+**Root Cause (главная находка):** `temperature=0 + seed=42` НЕ гарантируют воспроизводимость на OpenRouter (разные апстрим-провайдеры, batching) — run-to-run вариативность false_accept до ±0.10 (nemotron code_first 0.18→0.08, qwen3.7 R50 перевернулся, deepseek 0.02→0.06; qwen3.6 стабильна 0.00). Однопроходные тонкие ранжировки недостоверны.
+**Также найдено:** (1) case/bool-парсинг вердиктов (True→unknown) — латентный баг, на данных не сработал, исправлен + тесты; (2) наводящий вопрос code_first — сикофантия (Sharma 2023), V2-промпт реализован; (3) EN/RU языковой сдвиг (NAACL-2025) — follow-up; (4) footgun `--limit` без resume затирал progress — исправлено (авто-догрузка, кроме --force); (5) truncation ОПРОВЕРГНУТА (finish_reason=stop везде — высокий unknown честный).
+**Fix:** case/bool-нормализация + raw+finish_reason в результатах + truncated-счётчик + `--prompt-version v1|v2` (нейтральный V2) + `--force` + авто-догрузка прогресса; тесты 18→24.
+**Guard:** выводы по ≥2 прогонам, выбор модели по верхней границе FA; raw+finish_reason обязательны в отчётах. Подробности: EXPERIMENTS_LOG#Red-Team-фаза-2, отчёт §6.1–6.2.
+**Pattern:** P-002-класс («предположение вместо проверки» — считали seed детерминизмом, не проверив) — но здесь проверено экспериментом до выводов.
+
 ## [2026-08-14 19:30] — Чёрные окна CMD при работе MCP на Windows (FIXED)
 **Status:** ✅ Fixed (код+синхронизация расширения; НЕ закоммичено — commit/push по команде; перезагрузка Zed для применения)
 **verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (100.8s); py_compile 14 файлов; watchdog live-тест (тред следит за Zed PID=10964); md5-синк расширения ALL_SYNCED; live-проверка запуска pythonw — после перезагрузки Zed (действие пользователя)
