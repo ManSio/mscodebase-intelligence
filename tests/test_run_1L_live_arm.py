@@ -333,3 +333,105 @@ def test_config_fingerprint_fields():
     assert cfg["max_tokens"] == 100
     assert cfg["reasoning_enabled"] is False
     assert cfg["facts_count"] == 50
+
+
+# ─── V4: file_content_first (реальный фрагмент файла вместо pattern-строк) ──
+def test_file_content_prompt_no_leak_all_50_facts():
+    """Все 50 фактов: фрагмент реального кода не содержит 'truth' (leak-guard)."""
+    for fact in _facts():
+        prompt = _mod._prompt(fact, "file_content_first")
+        assert "truth" not in prompt, f"LEAK в {fact['id']}: {prompt[:200]}"
+        _mod._assert_no_truth_leak(fact, prompt)
+
+
+def test_file_content_prompt_has_fragment_and_rule():
+    """Промпт V4: claim + section + фрагмент + нейтральное правило (не наводящее)."""
+    fact = _facts()[0]  # R01: consistency.py
+    prompt = _mod._prompt(fact, "file_content_first")
+    assert fact["claim"] in prompt
+    assert fact["section"] in prompt
+    assert "Code fragment" in prompt
+    assert "src/core/consistency.py" in prompt
+    assert "Return true ONLY if" in prompt          # нейтральное правило (v2-стиль)
+    assert "Does the claim appear supported" not in prompt  # НЕ наводящий
+    assert "verdict" in prompt
+
+
+def test_resolve_snippet_file_fact_window_around_value():
+    """file:-факт R03: окно 25 строк вокруг VerifyOnRead (строка 58), НЕ первые строки."""
+    fact = next(f for f in _facts() if f["id"] == "R03")
+    sn = _mod._resolve_snippet(fact)
+    assert sn["resolved"] is True
+    assert sn["path"] == "src/core/intelligence/verify_on_read.py"
+    assert sn["anchor_line"] == 58
+    assert sn["start_line"] <= 58 <= sn["start_line"] + len(sn["lines"]) - 1
+    assert len(sn["lines"]) <= _mod.SNIPPET_LINES
+    assert "VerifyOnRead" in "\n".join(sn["lines"])
+
+
+def test_resolve_snippet_bare_token_resolves_to_real_file():
+    """CamelCase-факт R18 (PropertyGraph): резолв в реальный файл с токеном в окне."""
+    fact = next(f for f in _facts() if f["id"] == "R18")
+    sn = _mod._resolve_snippet(fact)
+    assert sn["resolved"] is True
+    assert sn["path"].startswith("src/")
+    assert "PropertyGraph" in "\n".join(sn["lines"])
+    assert len(sn["lines"]) <= _mod.SNIPPET_LINES
+
+
+def test_resolve_snippet_absent_token_is_decoy():
+    """absent-факт R31 (typesense, grep-0): декой — голова контрольного файла."""
+    fact = next(f for f in _facts() if f["id"] == "R31")
+    sn = _mod._resolve_snippet(fact)
+    assert sn["resolved"] is False
+    assert sn["path"] == _mod.CONTROL_FILE
+    assert sn["anchor_line"] is None
+    body = "\n".join(sn["lines"]).lower()
+    assert "typesense" not in body
+    assert "instruction scan" in body  # голова контрольного файла
+
+
+def test_resolve_snippet_deterministic_across_cache_clear():
+    """Резолв детерминирован: очистка кеша не меняет сниппет (воспроизводимость)."""
+    for fact in _facts():
+        a = _mod._resolve_snippet(fact)
+        _mod._SNIPPET_CACHE.clear()
+        b = _mod._resolve_snippet(fact)
+        assert a == b, f"резолв {fact['id']} недетерминирован"
+
+
+def test_resolve_snippet_coverage_matrix():
+    """Матрица существования: 31 факт резолвится в реальный файл, 19 — декой.
+    Ожидание из дизайна: 25 real + 6 trap = 31 resolved; 16 absent + 3 silent = 19 decoy."""
+    resolved = [f["id"] for f in _facts()
+                if _mod._resolve_snippet(f)["resolved"]]
+    decoy = [f["id"] for f in _facts()
+             if not _mod._resolve_snippet(f)["resolved"]]
+    assert len(resolved) == 31, f"resolved={len(resolved)}: {resolved}"
+    assert len(decoy) == 19, f"decoy={len(decoy)}: {decoy}"
+
+
+def test_file_content_arm_in_dry_run(monkeypatch):
+    """--arm file_content_first принимается парсером и проходит dry-run (leak-guard)."""
+    monkeypatch.setattr(sys, "argv", ["run_1L_live_arm.py", "--arm", "file_content_first", "--dry-run"])
+    assert _mod.main() == 0
+
+
+def test_new_report_evidence_mode():
+    """Конфиг отчёта различает форму evidence (аудит V4-руки)."""
+    import argparse
+
+    facts = _facts()[:50]
+    for arm, expected in [("file_content_first", "file_content"),
+                          ("code_first", "pattern_strings"),
+                          ("both", "mixed")]:
+        args = argparse.Namespace(
+            provider="openrouter", arm=arm, max_tokens=100, seed=42,
+            no_reasoning=True, prompt_version="v2", prompt_lang="en", tag="file_content")
+        cfg = _mod._new_report(args, "https://openrouter.ai/api/v1",
+                               "qwen/qwen3.7-flash", facts, "abc")["config"]
+        assert cfg["evidence_mode"] == expected
+        if arm == "both":
+            assert cfg["arms"] == ["memory_first", "code_first"]
+        else:
+            assert cfg["arms"] == [arm]
