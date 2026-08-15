@@ -1,9 +1,68 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-15] — Exp 1-L Day 3: per-category метрики (ответ на ревью) + V3/Part 5 CoT vs Zero-Shot
+
+**Гипотеза (из ревью Part 4):** (1) FA=0.00 у qwen3.6/3.7 может быть «ленивой моделью» — она режет
+вместе с ложью и правдивую память; нужен True Accept на категории real. (2) Запрет reasoning
+измерил калибровку alignment, не способность верификации — CoT должен изменить картину.
+**Команда (A):** `python scripts/summarize_1L_categories.py --tag v2_en` (новый скрипт-агрегатор
+per-category; read-only к progress-файлам, 0 новых вызовов). **Команда (B, live):**
+`python scripts/run_1L_live_arm.py --provider openrouter --arm both --models
+"qwen/qwen3.6-flash,qwen/qwen3.7-flash,z-ai/glm-4.7-flash,deepseek/deepseek-v4-flash"
+--prompt-version v2 --reasoning --max-tokens 1500 --delay 0.2 --tag v3_cot`
+(новый флаг `--reasoning` в harness; 400 вызовов, ~$0.20, err=0 на qwen3.7/deepseek).
+**Сырой результат (A, zero-shot V2-EN, recall(real)/FA по категориям):**
+```
+qwen3.6 code_first: real acc=2 rej=7 unk=16 | recall=0.08 | FA absent 0/16 trap 0/6 silent 0/3
+qwen3.7 code_first: real acc=5 rej=9 unk=11 | recall=0.20 | FA 0/0/0
+claude  code_first: real acc=11 rej=0 unk=14 | recall=0.44 | FA 0/0/0
+glm-4.7 code_first: real acc=22 rej=1 unk=2  | recall=0.88 | FA 7/16 3/6 2/3
+nemotron-lightning code_first: recall=0.52 | FA 0/1/1
+```
+**Сырой результат (B, CoT vs Zero-Shot):**
+```
+модель             arm        recall ZS->CoT   FA ZS->CoT     ct/выз. ZS->CoT
+qwen3.6-flash      code_first 0.08->0.20       0->0           11->813
+qwen3.7-flash      code_first 0.20->0.16       0->0           9->770
+glm-4.7-flash      code_first 0.88->0.72       12->7          10->1007  (26% EMPTY_CONTENT)
+deepseek-flash     code_first 0.04->0.08       0->0           8->186
+стоимость/100 выз.: qwen3.6 $0.0006->$0.039, qwen3.7 $0.0005->$0.005, glm $0.001->$0.017
+```
+**Вердикт: ✅ (A) подтверждена и усилена — FA=0.00 = fail-closed, а не фильтрация.** qwen3.6
+code_first принимает 2/25 правды, активно отвергает 7/25 (ложные REFUTED), 16/25 unknown;
+recall(real)=0.08. **✅ (B) частично: CoT НЕ окупается для дешёвого VOR.** Единственный заметный
+выигрыш — qwen3.6 code_first recall 0.08→0.20 (FA 0.00 сохранена); glm FA 12→7, но recall
+0.88→0.72 и −26% данных (EMPTY_CONTENT апстрима, finish=stop). qwen3.7/deepseek — шум. Токены
+×20–70, цена ×30–65 — при нулевом/малом выигрыше у 3 из 4 моделей.
+**Урок:** (1) «0.00 FA» без recall — не метрика качества guardrail: выбор qwen3.6/3.7 = политика
+fail-closed (память не будет подтверждаться), glm = max-coverage (правда сохраняется, ложь
+протекает). Выбор модели — выбор политики, должен быть явным. (2) CoT у дешёвых flash-моделей не
+даёт скачка способности верификации — рекалибровка, а не мышление. (3) reasoning.enabled=true у
+glm-4.7-flash — апстрим-дефект (EMPTY_CONTENT 26%) — при CoT-прогонах нужен контроль error-счётчика.
+**Связь с отрицательными:** нет. Артефакты: progress-файлы v3_cot, scripts/summarize_1L_categories.py
++ 8 тестов, флаг --reasoning + 2 теста, отчёт experiments/1L_live_arm/report.md §6.5/6.6/§11/§13.
+
+## [2026-08-15] — Exp 1-L Day 3b: CoT run2 (стабильность) + qwen3.8-max (follow-up по команде владельца)
+
+**Гипотеза:** (1) CoT-выводы Day 3 однопроходные — 2-й прогон должен подтвердить/опровергнуть разброс; (2) qwen3.8-max (единственная модель с mandatory reasoning) в CoT-режиме закроет пробел §13 п.5 и, возможно, даст лучший баланс recall/FA.
+**Команда:** `python scripts/run_1L_live_arm.py --provider openrouter --arm both --models "qwen/qwen3.6-flash,qwen/qwen3.7-flash,z-ai/glm-4.7-flash,deepseek/deepseek-v4-flash" --prompt-version v2 --reasoning --max-tokens 1500 --delay 0.2 --force --tag v3_cot_run2` (400 выз., ~$0.20) + `--models "qwen/qwen3.8-max" --tag v3_cot_max` (100 выз., ~$0.10; err=0 на всех).
+**Сырой результат (run1→run2, recall(real)):**
+```
+qwen3.6 mem 0.48->0.40 (FA 0->0) | code 0.20->0.12 (FA 0->0)
+qwen3.7 mem 0.44->0.40 (FA 0->0) | code 0.16->0.16 (FA 0->0)
+deepseek mem 0.20->0.20 (FA 2->2) | code 0.08->0.12 (FA 0->0)
+glm     mem 0.12->0.08 (EMPTY 18->7 err) | code 0.72->0.68 (EMPTY 8->9 err)
+qwen3.8-max: mem recall 0.28 FA 0 | code recall 0.36 FA 2 (trap 1 + silent 1), err=0, ~$0.10
+```
+**Вердикт: ✅ обе части.** (1) CoT-выводы устойчивы: разброс recall ±0.04–0.08 (шум N=50, CI ±0.14), FA qwen3.6/3.7 = 0.00 в обоих прогонах; glm EMPTY-дефект воспроизводится (16–26%), её CoT-числа только качественные. (2) qwen3.8-max — **лучший code_first recall в свипе (0.36) при FA 0.04**, err=0: срединная опция «не терять живую память» vs fail-closed qwen3.6 (0.08–0.20/0.00); цена ×20–200 от flash, единственный режим CoT.
+**Урок:** для VOR-выбора модель+режим — это континуум «цена × recall × FA»: qwen3.6 (0/0.08–0.20/$0.0006) → qwen3.8-max (0.04/0.36/$0.10) → glm-4.7 (0.24/0.88/$0.001, но лжёт); выбор = политика, не «лучшая модель». Фикс скрипта: фильтр --tag по config.tag (был prefix-матч, захватывал run2).
+**Follow-up (2026-08-15): ревью-ответ 5 «точек укуса» + серверный аудит CSV.** Экспорт дашборда OpenRouter (`experiments/openrouter_activity_2026-08-15.csv`, ключ test567, отфильтрован от 56 записей приложения MSPortfolio): 4087 записей эксперимента, $0.72 за день — сходится с клиентской оценкой; серверные tokens_reasoning подтверждают reasoning>0 ТОЛЬКО в CoT-прогонах (claude 0/100 при --no-reasoning); **маршрутизация ≥8 апстримов (Alibaba 1955, DeepInfra 559, DigitalOcean 531, Cloudflare 283, Novita 253, Baidu 114, StreamLake 110, Bedrock 100)** — серверное подтверждение «иллюзии детерминизма» (точка укуса №1). Пять точек (детерминизм K≥3 / anchor bias / реальный дрифт / single-language / 3-значный каркас) добавлены в отчёт §11.1 со статусами 🟡/🔴 и честной ценой закрытия ($2–5, 1–2 дня) — осознанный техдолг, не умолчание.
+**Связь с отрицательными:** нет. Артефакты: progress-файлы v3_cot_run2/v3_cot_max, отчёт §6.6a/§7/§11.1/§13, тест фильтра tag (+1, 39 всего).
+
 ## [2026-08-14] — EXP: перенос evalmut-подхода (mutation testing for eval graders) на validate_scores — mutation score 8%
 
 **Гипотеза:** evalmut-техники (инвариант «дыра = вывод доказанно неверен AND градер пропустил», decline-дисциплина против объявленного контракта, corroboration двумя непересекающимися входами) применимы к детерминированному градеру MSCodeBase и находят реальные дыры без false positives.
-**Команда:** `venv/Scripts/python.exe experiments/probe_evalmut_transfer.py` — 12 мутаций по каталогу evalmut (adapt к контракту validate_scores: index int, score float в [0,1]).
+**Команда:** `venv/Scripts/python.exe experiments/evalmut/probe_evalmut_transfer.py` — 12 мутаций по каталогу evalmut (adapt к контракту validate_scores: index int, score float в [0,1]).
 **Сырой результат:**
 ```
 mutation score: 1/12 caught (8%)   |   BLIND SPOTS: 11
@@ -21,7 +80,7 @@ tests/test_reranker.py: 25 passed — дыры не покрыты
 ```
 **Вердикт: ✅ подтверждена.** Подход находит реальные дыры (11) в живом градере и не даёт false positives на правильно-скоупленной проверке (clamp).
 **Урок:** (1) isinstance-проверка типов НЕ ловит NaN/Inf — нужен math.isfinite() (прецедент уже есть: error_handler.py:707 _sanitize); (2) все пути парсинга должны иметь ОДИН контракт (regex-путь без clamp = дыра); (3) «пример формата в объяснении» — общий класс дыр regex-извлечения из текста LLM.
-**Связь с отрицательными:** нет (первый прогон подхода в репо). Скрипт: experiments/probe_evalmut_transfer.py (воспроизводим).
+**Связь с отрицательными:** нет (первый прогон подхода в репо). Скрипт: experiments/evalmut/probe_evalmut_transfer.py (воспроизводим).
 **ПОСТ-ФИКС (2026-08-14 16:20):** те же 12 мутаций после фикса → mutation score 8% → 100% (11/11 с полюсностью), BLIND SPOTS: 0; index_out_of_range/duplicate классифицированы как вне контракта validate_scores (N неизвестен / уникальность — ответственность парсера+apply_scores: decline на обёртке и warning на осиротевших индексах). Полный pytest 1189 passed; ruff clean.
 
 ## [2026-08-14] — Exp 1-L Day 1 (live-arm): вердикты живой модели (opencode + deepseek-v4-flash-free) по 50 фактам 1-V
@@ -37,7 +96,7 @@ code_first:   adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 
 ```
 **Вердикт: ✅ подтверждено.** Цифры живой модели радикально отличаются от proxy 1-V: (1) proxy всегда решал (unknown=0), живая модель — **unknown=0.80** (честная неопределённость без кода/даже с якорями); (2) proxy false-accept=0 by construction, живая — **false_accept=0.10** (5 ложных утверждений приняты, R31 — в обеих руках) — риск контаминации реален; (3) accuracy(decided)=0.500 при N=10 решённых — малая выборка, требуется больше данных (1-L продолжается).
 **Оговорки:** модель — free-тир Zen (не Claude/GPT-4o из ревью; harness поддерживает --model для других); 80% unknown частично отражает дизайн промпта memory_first (только claim без кода) — но это и есть измеряемое свойство «доверяет ли память без кода».
-**Урок:** критика ревью подтверждена данными — headline-числа 1-V были свойством эвристики, не поведения LLM; 1-L live-arm теперь даёт реальную базу (Part 4 статья). Связь: docs/blog/verify-on-read.md, experiments/exp_1L_longitudinal_30d.md.
+**Урок:** критика ревью подтверждена данными — headline-числа 1-V были свойством эвристики, не поведения LLM; 1-L live-arm теперь даёт реальную базу (Part 4 статья). Связь: docs/blog/verify-on-read.md, experiments/1L_live_arm/design_longitudinal.md.
 
 ### Вскрытие R31 + кластер ложных принятий (2026-08-14, после Day 1)
 
@@ -84,7 +143,7 @@ Run1->Run2 false_accept: nemotron code_first 0.18->0.08, deepseek code_first 0.0
 qwen3.7 mem 0.02->0.00, glm code_first 0.30->0.28, qwen3.6 стабильна 0.00/0.00.
 ```
 **Вердикт: гипотеза подтверждена частично.** (1) Парсинг-дефекты (case/bool → unknown) — латентные, на данных НЕ сработали (все raw lowercase); исправлены + тесты. (2) Truncation — опровергнута (finish_reason=stop везде): высокий unknown — честное поведение. (3) **Главная находка: temp=0+seed=42 НЕ дают детерминизма на OpenRouter** — run-to-run вариативность ±0.05–0.10 FA (nemotron 0.18→0.08). Однопроходные тонкие ранжировки недостоверны; выводы — по двум прогонам, выбор модели — по верхней границе FA. (4) Дизайн-дефекты подтверждены литературой: наводящий вопрос code_first (сикофантия), EN/RU языковой сдвиг — V2-промпт реализован, контроль языка — follow-up.
-**Урок:** LLM-оценка без повторных прогонов ненадёжна; raw+finish_reason обязательны для аудита; наводящие вопросы и языковой сдвиг — реальные конфаунды. Связь: отчёт experiments/exp_1L_live_arm_report.md §6.1–6.2.
+**Урок:** LLM-оценка без повторных прогонов ненадёжна; raw+finish_reason обязательны для аудита; наводящие вопросы и языковой сдвиг — реальные конфаунды. Связь: отчёт experiments/1L_live_arm/report.md §6.1–6.2.
 
 ### Follow-up (2026-08-14): V2-промпт (нейтральный) + контроль языка (RU)
 
@@ -111,7 +170,7 @@ nemotron-nano-30b: FA=0.06/0.38 (19/50!) — ХУДШАЯ модель свип�
 nemotron-super:    50% HTTP 422 апстрима — ненадёжна, исключена
 ```
 **Вердикт:** ревью Part 3 закрыто данными: у Claude FA=0.00 (≈proxy), но unknown/adoption другие; премиум не даёт выигрыша по FA vs лучшие flash (qwen3.6/3.7, FA=0.00) при цене ×100. Красные флаги: glm-4.7-flash (0.24–0.30), nemotron-nano (0.38). qwen3.8-max требует отдельного бюджета (≥500 токенов) — вне матрицы 100-токенного условия.
-**Связь:** полный отчёт experiments/exp_1L_live_arm_report.md (§6.3–6.4, 13).
+**Связь:** полный отчёт experiments/1L_live_arm/report.md (§6.3–6.4, 13).
 
 ### Follow-up 3 (2026-08-14): подтверждение FA=0.00 — 2-й прогон V2 у qwen3.6/3.7
 
@@ -169,7 +228,7 @@ tests\test_search_quality_monitoring.py ............  [100%]
 ## [2026-08-11] — EXP-1: Shadow Canary attack — дискриминативная способность `_shadow_compare` (5/5 атак прошли)
 
 **Гипотеза:** canary измеряет ОТНОСИТЕЛЬНУЮ деградацию (new vs old), а не абсолютное качество → (b) collapse-to-constant, (c) пустой canary, (d) сбой базлайна, (e) взаимно-вырожденная пара дают ложное PASSED=True. Контроль (a) нулевые векторы обязан дать BLOCKED.
-**Команда:** `python experiments/exp_canary_attack.py` — дословная реплика remote_embedder.py:231-304 (без импорта провайдера), N=20 пар, DIM=384.
+**Команда:** `python experiments/canary_shadow/exp_canary_attack.py` — дословная реплика remote_embedder.py:231-304 (без импорта провайдера), N=20 пар, DIM=384.
 **Сырой результат:**
 ```
 (a) Нулевые векторы (контроль): BLOCKED=True ✅ контроль отработал
@@ -187,7 +246,7 @@ tests\test_search_quality_monitoring.py ............  [100%]
 ## [2026-08-11] — EXP-2: Скан тестов на вакуумность — таблица Max Quimby для MSCodeBase (1133/1143 proven)
 
 **Гипотеза:** часть тестов синтаксически не может упасть (нет assert/raises/warns/fail/raise) — «33 unproven» в миниатюре. Ожидание: 5-15% вакуумных.
-**Команда:** `python experiments/exp_vacuous_scan.py` — AST-скан tests/test_*.py (1143 test-функции/метода); proven = есть assert / pytest.raises/warns/xfail/fail / raise / mock-assert_* (после правки).
+**Команда:** `python experiments/misc_probes/exp_vacuous_scan.py` — AST-скан tests/test_*.py (1143 test-функции/метода); proven = есть assert / pytest.raises/warns/xfail/fail / raise / mock-assert_* (после правки).
 **Сырой результат:**
 ```
 Всего тестов: 1143
@@ -201,7 +260,7 @@ tests\test_search_quality_monitoring.py ............  [100%]
 ## [2026-08-11] — EXP-3: Воспроизведение бага `ln.strip()` (Tom Jones) — 3/8 ложных проходов у сломанного экстрактора
 
 **Гипотеза:** assert-экстрактор, фильтрующий по `ln.strip()` но эмитирующий сырую `ln`, даёт ложные verified для неверного ответа, когда отступ вложенного assert-а попадает ПОСЛЕ `return` в теле функции. Ожидание: ≥2/8 ложных проходов (у fintech — 5/8 на их наборе форм).
-**Команда:** `python experiments/exp_ln_strip_repro.py` — 8 форм вызова (col 0 / 4-space / 8-space / 12-space, до/после return), неверный ответ `add_two(1,2)=4`, сборка module = answer + raw assert-строки (как у fintech-gateway), exit 0 = verified.
+**Команда:** `python experiments/misc_probes/exp_ln_strip_repro.py` — 8 форм вызова (col 0 / 4-space / 8-space / 12-space, до/после return), неверный ответ `add_two(1,2)=4`, сборка module = answer + raw assert-строки (как у fintech-gateway), exit 0 = verified.
 **Сырой результат:**
 ```
 Сломанный экстрактор: 3/8 ложных проходов  (формы 2,3,8 — assert на 4-space после return)
@@ -218,7 +277,7 @@ def add_two(a, b):
 ## [2026-08-11] — EXP-4: Population blind spot — `_check_search_quality` не различает «0 eligible» и «0 собрано» (gap Тома день 2)
 
 **Гипотеза:** пустая популяция (пустой индекс — «здоровый idle») и сломанный коллектор (мусор) дают ОДИНАКОВЫЙ сигнал: `search_quality_passed=0` + warning «нет реальных результатов». `eligible_seen` до селекции не измеряется (health.py:744-756).
-**Команда:** `python experiments/exp_population_blindspot.py` — реальный `src/core/intelligence/health.py` (importlib direct-load, stdlib-only), FakeSearcher: [] vs мусор vs реальные vs raising.
+**Команда:** `python experiments/misc_probes/exp_population_blindspot.py` — реальный `src/core/intelligence/health.py` (importlib direct-load, stdlib-only), FakeSearcher: [] vs мусор vs реальные vs raising.
 **Сырой результат:**
 ```
 (a) ПУСТАЯ популяция ([]): metrics passed=0
@@ -235,7 +294,7 @@ def add_two(a, b):
 ## [2026-08-11] — EXP-5: `verify_clean_state.sh` — falsifiability-проверка гейта + P1: drift-гейт структурно мёртв
 
 **Гипотеза:** (A) drift-гейт (строки 55-71) умеет падать на рассинхроне pin vs lock; (B) вакуумная сюита (0 asserts) проходит → «CLEAN STATE VERIFICATION: PASSED» — reproducibility без falsifiability (ANP2).
-**Команда:** `bash experiments/exp_verify_gate.sh` (drift-цикл дословно из скрипта, temp pyproject/lock; pytest на temp-сюите) + повторный прогон гейт-кода на РЕАЛЬНЫХ файлах проекта.
+**Команда:** `bash experiments/misc_probes/exp_verify_gate.sh` (drift-цикл дословно из скрипта, temp pyproject/lock; pytest на temp-сюите) + повторный прогон гейт-кода на РЕАЛЬНЫХ файлах проекта.
 **Сырой результат:**
 ```
 Часть A: drift (lancedb 0.12.0 pin vs 0.13.0 lock) → «drift НЕ обнаружен → exit 0 ❌»
@@ -308,7 +367,7 @@ all refuted have reason: True
 ## [2026-08-11] — Exp: Memory Contamination — INDEPENDENT AUDIT (second opinion, 48/48 CONFIRMED)
 
 **Гипотеза:** truth-метки фактов v1+v2 достоверны: TRUE-паттерны — рабочая логика (не docstring/мёртвый код), FALSE/SILENT — чистые grep-0 с рабочими контраргументами.
-**Команда:** spawn_agent (независимый аудитор, не видел наш диалог): 48 фактов из memory_contamination_facts.json + _v2.json против src/**/*.py; чек-лист «активный код vs docstring/статические списки»; без MCP-семантического поиска.
+**Команда:** spawn_agent (независимый аудитор, не видел наш диалог): 48 фактов из experiments/1V_memory_contamination/memory_contamination_facts.json + _v2.json против src/**/*.py; чек-лист «активный код vs docstring/статические списки»; без MCP-семантического поиска.
 **Сырой результат:**
 ```
 CONFIRMED 48/48 | DEAD 0 | MISSING 0 | BROKEN 0
@@ -348,7 +407,7 @@ A_memory_first  0.417       0.417       1.0       1.0       0.0         0.714   
 ```
 **Вердикт: ✅ ВОСПРОИЗВЕДЕНО** — идентичные метрики на двух независимых наборах фактов (24+24, разные паттерны, разные внешние системы). Числа детерминированы структурой: внутренние факты о коде опровергаемы 10/10, внешние системы 4/4 SILENT (код молчит), TRUE 10/10 SUPPORT. Итоговые выводы v1 устойчивы: correction_capability (code_first)=1.0 при явном противоречии; система add-only (отзыв невозможен — grep-0); память даёт уверенную ложь на SILENT-фактах (conf_eff=4); память ×22 токенов без выигрыша в точности.
 **Урок:** репликация на независимых данных — обязательна для «одиночных замеров» (§1 «Правило одного бенча»): два набора → одинаковый вердикт → вывод подтверждён. Ограничение прежнее: детерминированный прокси-агент, не живой LLM.
-**Верификация (verify_memory_contamination.py, 2026-08-11):** 3 оси ALL PASS — (A) truth-table decide(): 9/9 путей = спецификации (поймал choice-непоследовательность memory_first@SUPPORT: было CODE, стало MEMORY; вердикты/метрики не изменились); (B) декомпозиция агрегатов из per-fact строк для v1+v2; (C) 24/24 valid, 0 invalid, 0 ambiguous в обоих наборах.
+**Верификация (experiments/1V_memory_contamination/verify_memory_contamination.py, 2026-08-11):** 3 оси ALL PASS — (A) truth-table decide(): 9/9 путей = спецификации (поймал choice-непоследовательность memory_first@SUPPORT: было CODE, стало MEMORY; вердикты/метрики не изменились); (B) декомпозиция агрегатов из per-fact строк для v1+v2; (C) 24/24 valid, 0 invalid, 0 ambiguous в обоих наборах.
 
 ## [2026-08-11] — Exp: Memory Contamination (IntelligenceStore) N=24, v1 (Experiment 1 из second_brain_research)
 
@@ -986,7 +1045,7 @@ AVG wrong    A=15.5%  B=13.0%   Δ=-2.5pp (B лучше: dedup убрал шум
 
 **Побочные наблюдения (реальные данные сессии):**
 1. impact_analysis вернул «not found» для 2/4 символов (_expand_graph_context, intel_code_topology — приватные/не в индексе) → 2 мёртвых вызова в A (соль в wrong 15-23%).
-2. get_symbol_info для build_call_graph вернул НЕВЕРНОЕ определение (experiments/run_experiment_pagerank.py:40 вместо src/core/indexing/symbol_index.py:480) — символ-тень эксперимента скрывает реальный; multi-tool требует доп. поиска (wrong-definition кейс).
+2. get_symbol_info для build_call_graph вернул НЕВЕРНОЕ определение (experiments/misc_probes/run_experiment_pagerank.py:40 вместо src/core/indexing/symbol_index.py:480) — символ-тень эксперимента скрывает реальный; multi-tool требует доп. поиска (wrong-definition кейс).
 3. CodeGraph README: 42 community tools (не 45 — расхождение в их же README), --profile=core (8 tools) для сужения поверхности — паттерн «tool surface inflates prompt cost» признают и они.
 
 **Урок:** (1) архитектура «1 контекстный инструмент с серверной композицией» валидна и для MSCodeBase: −78% вызовов, −89% latency, −19% токенов при паритете полноты; (2) критично: compose ОБЯЗАН включать source+symbols во все intent; (3) файл-скоуп памяти (а не глобальный ADR-список) — условие полезности memory-секции в edit-контексте; (4) impact_analysis «not found» на приватных функциях = тихий провал multi-tool стратегии.
@@ -1013,7 +1072,7 @@ C2 (get_edit_context)     1.000   1230.6    865.3      465.3     0.817  0.705 0.
 **Вердикт:** ПОДТВЕРЖДЕНА (все 4 пункта):
 1. **Latency-декомпозиция:** agent-facing: A=1583ms (3.4 RT, Σ реальных server-латентностей, включая 5.3s search_code на T5) vs C2=865ms (1 RT + 465ms реальной серверной работы: symbol-index + fast-search fallback + git + чтение файла). Выигрыш = round-trips (N→1) + дешёвые точечные запросы вместо семантического поиска. C2 server_ms < A server_ms даже в лобовом сравнении.
 2. **Полнота:** C2 recall=0.817 > A=0.783, precision=0.705 > 0.667 (fallback search_code при пустом gsi закрыл inline-tools: intel_trigger_reindex, notify_change). C1 recall=0.267 — СУЩЕСТВУЮЩИЙ get_context недостаточен (только symbol_info+impact, нет source/git/memory/fallback).
-3. **Wrong-evidence:** дефект «get_symbol_info для build_call_graph возвращает тень experiments/run_experiment_pagerank.py:40» штрафует ВСЕ руки (A wrong=0.09, C2=0.108; T7 wrong=1.0 у всех, секция целиком отравлена). Реальный фикс — не «починить get_symbol_info», а guard в агрегаторе: отбрасывать определения из experiments/ (scaffolding) или сверять файл определения.
+3. **Wrong-evidence:** дефект «get_symbol_info для build_call_graph возвращает тень experiments/misc_probes/run_experiment_pagerank.py:40» штрафует ВСЕ руки (A wrong=0.09, C2=0.108; T7 wrong=1.0 у всех, секция целиком отравлена). Реальный фикс — не «починить get_symbol_info», а guard в агрегаторе: отбрасывать определения из experiments/ (scaffolding) или сверять файл определения.
 4. **Токены — точка напряжения:** C2 без token budgeting = 1231 vs A=241 (source-окно 80 строк + fallback). B (intent-фильтр, CodeGraph-стиль) = 276 токенов при recall 0.833 — лучший recall при минимуме токенов среди 1-RT рук. Вывод: агрегатор обязан иметь токен-бюджет (intent + обрезка секций), иначе побеждает по round-trips/latency, но проигрывает по токенам.
 
 **Итерации методологии (§1.8):** v2.0 wrong_rate не ловил wrong-секции с корректными фактами → штрафуется всегда (ложная уверенность опаснее отсутствия); v2.1 source-окно цепляло docstring/call-site (walk-up от декоратора попадал в чужую def) → Pass A (def с именем) + Pass B (walk-DOWN); v2.2 fallback search_code при пустом gsi (символ вне графа).
@@ -1065,7 +1124,7 @@ Paired B vs C2: recall Δ=+0.017 (CI95 ±0.052, неразличимы), precisi
 tokens B −1152 (CI95 ±315, 30/30) — вывод B-оптимальности НЕ изменился.
 ```
 
-**Вердикт:** ПОДТВЕРЖДЕНА. wrong_rate 0.000 у C1/C2 (тень build_call_graph больше не отравляет секции; T7 wrong 0.993→0.0), C1 recall +0.092 (D2: методы резолвятся), precision вырос. Реальная проверка: build_call_graph → def=src/core/indexing/symbol_index.py:481 (было experiments/run_experiment_pagerank.py:40), callers=9 реальных прод-потребителей (без скриптового main). Полный pytest 1021 passed, ruff src/ tests/ = 0.
+**Вердикт:** ПОДТВЕРЖДЕНА. wrong_rate 0.000 у C1/C2 (тень build_call_graph больше не отравляет секции; T7 wrong 0.993→0.0), C1 recall +0.092 (D2: методы резолвятся), precision вырос. Реальная проверка: build_call_graph → def=src/core/indexing/symbol_index.py:481 (было experiments/misc_probes/run_experiment_pagerank.py:40), callers=9 реальных прод-потребителей (без скриптового main). Полный pytest 1021 passed, ruff src/ tests/ = 0.
 
 **Урок:** (1) корень D1-D3 ОДИН — неранжированный выбор узла при наличии одноимённых (тень/placeholder/реальный); (2) CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers могут лежать на тени: исключать тень из стартов НЕЛЬЗЯ (теряются callers), фильтровать нужно на уровне записей по файлу вызывающего; (3) wrong-evidence guard «отсев experiments/» на композиции (вариант из v2) оказался НЕ нужен — правильный фикс в адаптере дешевле и чище.
 
@@ -1107,7 +1166,7 @@ find_test 0.125, git_history 0.000
 
 **Гипотеза:** (а) консистентностный валидатор (хэш структуры + отсутствие конфликтов записи) принимает внутренне-консистентную семантическую ложь; (б) «эмпирическое доказательство превосходства Verify-On-Read» можно публиковать как железобетонное пруф.
 **Ожидание:** вывод скрипта — «VC принял 2 лжи, VOR — 0».
-**Команда:** `python experiments/experiment_concurrency_vs_semantic.py`
+**Команда:** `python experiments/concurrency/experiment_concurrency_vs_semantic.py`
 **Сырой результат:**
 ```
 Arm VC (Live VC + Merkle): Accepted 2 hallucinated lies as truth.
@@ -1119,7 +1178,7 @@ Arm Verify-On-Read: Accepted 0 hallucinated lies as truth.
 ## [2026-08-11] — EXP-7: Adversarial probe базового VC/VOR-эксперимента (6 атак, Red Team §1.16)
 
 **Гипотеза:** базовый вывод «VC=2 лжи, VOR=0» — не закон, а артефакт входных прав и настройки сценария; VOR на anchor-гранулярности имеет собственные FP; VC имеет уникальное покрытие (конфликты, staleness), которого у VOR нет; VC и VOR — комплементарные слои.
-**Команда:** `python experiments/experiment_concurrency_vs_semantic_attacks.py`
+**Команда:** `python experiments/concurrency/experiment_concurrency_vs_semantic_attacks.py`
 **Сырой результат (метрики per-attack):**
 ```
 A1a baseline VC:             FP=2 FN=0  (VC без семантических входных данных)

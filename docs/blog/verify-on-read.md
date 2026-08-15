@@ -35,9 +35,9 @@ tags: machinelearning, python, rag, llm, memory
 
 Эксперименты — на детерминированном proxy-агенте (эвристики), не на живой LLM.
 Цифры доказывают архитектурное свойство, а не измеряют поведение живой модели.
-→ Experiment 1-L (30-day longitudinal, live-model arm): `experiments/exp_1L_longitudinal_30d.md`
+→ Experiment 1-L (30-day longitudinal, live-model arm): `experiments/1L_live_arm/design_longitudinal.md`
 
 ## Продолжения
 
-- Experiment 1-M (manifest-anchoring, гипотеза Skillselion — проверена): `experiments/exp_1M_manifest_anchoring.md`
-- Experiment 1-L (30-day longitudinal — дизайн): `experiments/exp_1L_longitudinal_30d.md`
+- Experiment 1-M (manifest-anchoring, гипотеза Skillselion — проверена): `experiments/1M_manifest_anchoring/exp_1M_manifest_anchoring.md`
+- Experiment 1-L (30-day longitudinal — дизайн): `experiments/1L_live_arm/design_longitudinal.md`

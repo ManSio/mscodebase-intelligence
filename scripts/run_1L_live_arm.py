@@ -59,7 +59,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
-FACTS = ROOT / "experiments" / "context_engine" / "memory_contamination_facts_v4_rep.json"
+FACTS = ROOT / "experiments" / "1V_memory_contamination" / "memory_contamination_facts_v4_rep.json"
 OPENROUTER_BASE = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 ZEN_BASE = os.environ.get("LLM_BASE_URL", "https://opencode.ai/zen/v1")
 DEFAULT_API_MODEL = os.environ.get("LLM_MODEL", "big-pickle")
@@ -341,7 +341,8 @@ def _opencode_verdict(prompt: str, project: Path, model: str | None = None) -> d
 
 # ─── Driver: прямой API (OpenRouter / OpenAI-совместимый) ───────────────────
 def _api_verdict(prompt: str, key: str, model: str, base_url: str,
-                 max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en") -> dict:
+                 max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en",
+                 reasoning: bool | None = None) -> dict:
     import httpx
 
     body = {
@@ -359,6 +360,10 @@ def _api_verdict(prompt: str, key: str, model: str, base_url: str,
         # reasoning-модели (qwen3.7-flash и др.) едят бюджет рассуждением —
         # для классификации true/false/unknown рассуждение не нужно
         body["reasoning"] = {"enabled": False}
+    elif reasoning:
+        # V3/CoT-рука (Part 5): явное включение рассуждения — модели с поддержкой
+        # reasoning могут проверить claim до вердикта (сравнение zero-shot vs CoT)
+        body["reasoning"] = {"enabled": True}
     try:
         r = httpx.post(
             f"{base_url}/chat/completions",
@@ -395,25 +400,29 @@ def _api_verdict(prompt: str, key: str, model: str, base_url: str,
 
 
 def _verdict(prompt: str, provider: str, key: str, model: str, base_url: str,
-             max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en") -> dict:
+             max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en",
+             reasoning: bool | None = None) -> dict:
     if provider == "opencode":
         return _opencode_verdict(prompt, ROOT, model)
     import time
 
-    resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
+    resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
+                        reasoning)
     # Ретрай: модель не приняла reasoning-параметр → повтор без него;
     # пустой/не-JSON ответ + 429/5xx с backoff (не более 3 вызовов на факт)
     for attempt in (1, 2):
         err = resp.get("error", "")
-        if no_reasoning and "reasoning" in err.lower():
-            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, False, lang)
+        if (no_reasoning or reasoning) and "reasoning" in err.lower():
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, False, lang, None)
             continue
         if err in ("EMPTY_CONTENT", "NON_JSON_REPLY"):
-            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
+                                reasoning)
             continue
         if "429" in err or err.startswith("HTTP 5"):
             time.sleep(2 ** attempt)  # backoff 2s/4s
-            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang)
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
+                                reasoning)
             continue
         break
     return resp
@@ -502,7 +511,8 @@ def _print_summary(s: dict) -> None:
 def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_url: str,
              delay: float = 0.3, skip_ids: set[str] | None = None,
              max_tokens: int = MAX_TOKENS, seed: int = SEED, no_reasoning: bool = False,
-             prompt_version: str = "v1", lang: str = "en") -> dict:
+             prompt_version: str = "v1", lang: str = "en",
+             reasoning: bool | None = None) -> dict:
     import time
 
     skip_ids = skip_ids or set()
@@ -513,7 +523,7 @@ def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_ur
         prompt = _prompt(fact, arm, version=prompt_version, lang=lang)
         _assert_no_truth_leak(fact, prompt)
         resp = _verdict(prompt, provider, key, model, base_url,
-                        max_tokens, seed, no_reasoning, lang)
+                        max_tokens, seed, no_reasoning, lang, reasoning)
         verdict = _normalize_verdict(resp)
         usage = resp.get("usage") or {}
         results.append({
@@ -560,6 +570,7 @@ def _progress_path(model: str, tag: str = "") -> Path:
 
 def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) -> dict:
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
+    reasoning_on = bool(getattr(args, "reasoning", False))
     return {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "provider": args.provider,
@@ -571,6 +582,8 @@ def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) 
             "max_tokens": args.max_tokens,
             "response_format": "json_object",
             "reasoning_enabled": not args.no_reasoning,
+            "reasoning_mode": "off" if args.no_reasoning
+                              else ("on" if reasoning_on else "default"),
             "prompt_version": args.prompt_version,
             "prompt_lang": args.prompt_lang,
             "tag": args.tag,
@@ -600,6 +613,9 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=SEED, help="детерминизм (если модель поддерживает)")
     parser.add_argument("--no-reasoning", action="store_true",
                         help="передать reasoning.enabled=false (OpenRouter; экономит бюджет)")
+    parser.add_argument("--reasoning", action="store_true",
+                        help="передать reasoning.enabled=true (V3/CoT-рука: модели рассуждают "
+                             "до вердикта; бюджет max_tokens нужен больше)")
     parser.add_argument("--prompt-version", choices=["v1", "v2"], default="v1",
                         help="v1: наводящий вопрос code_first (сопоставимо с Day 1/2); "
                              "v2: нейтральная инструкция (митигация сикофантии)")
@@ -688,7 +704,8 @@ def main() -> int:
                                   delay=args.delay, skip_ids=done_ids,
                                   max_tokens=args.max_tokens, seed=args.seed,
                                   no_reasoning=args.no_reasoning,
-                                  prompt_version=args.prompt_version, lang=args.prompt_lang)
+                                  prompt_version=args.prompt_version, lang=args.prompt_lang,
+                                  reasoning=args.reasoning)
             # Merge по id (последний результат побеждает) — retry-проходы не дублируют
             merged = {x["id"]: x for x in existing.get("results", [])}
             for x in arm_report["results"]:
