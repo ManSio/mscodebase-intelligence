@@ -1,0 +1,324 @@
+{
+  "project": "D:\\Project\\MSCodeBase",
+  "timestamp": "2026-07-22 19:22:04",
+  "graph_stats": {
+    "nodes": 8064,
+    "edges": 197
+  },
+  "token_savings": [
+    {
+      "top_pct": 10,
+      "files": 806,
+      "tokens": 1200614,
+      "savings_pct": 89.5061552508031,
+      "pagerank_top5": [
+        [
+          "src\\utils\\i18n.py",
+          0.0008352384039825011
+        ],
+        [
+          "src\\core\\di_container.py",
+          0.0007178016192562255
+        ],
+        [
+          "src\\config\\settings.py",
+          0.0006204199806419816
+        ],
+        [
+          "src\\core\\graph.py",
+          0.000541079822128895
+        ],
+        [
+          "src\\core\\error_handler.py",
+          0.0005240935088419282
+        ]
+      ]
+    },
+    {
+      "top_pct": 20,
+      "files": 1612,
+      "tokens": 2252643,
+      "savings_pct": 80.3110026058624,
+      "pagerank_top5": [
+        [
+          "src\\utils\\i18n.py",
+          0.0008352384039825011
+        ],
+        [
+          "src\\core\\di_container.py",
+          0.0007178016192562255
+        ],
+        [
+          "src\\config\\settings.py",
+          0.0006204199806419816
+        ],
+        [
+          "src\\core\\graph.py",
+          0.000541079822128895
+        ],
+        [
+          "src\\core\\error_handler.py",
+          0.0005240935088419282
+        ]
+      ]
+    },
+    {
+      "top_pct": 50,
+      "files": 4032,
+      "tokens": 6463114,
+      "savings_pct": 43.509808387740854,
+      "pagerank_top5": [
+        [
+          "src\\utils\\i18n.py",
+          0.0008352384039825011
+        ],
+        [
+          "src\\core\\di_container.py",
+          0.0007178016192562255
+        ],
+        [
+          "src\\config\\settings.py",
+          0.0006204199806419816
+        ],
+        [
+          "src\\core\\graph.py",
+          0.000541079822128895
+        ],
+        [
+          "src\\core\\error_handler.py",
+          0.0005240935088419282
+        ]
+      ]
+    },
+    {
+      "top_pct": 100,
+      "files": 8064,
+      "tokens": 11441126,
+      "savings_pct": 0.0,
+      "pagerank_top5": [
+        [
+          "src\\utils\\i18n.py",
+          0.0008352384039825011
+        ],
+        [
+          "src\\core\\di_container.py",
+          0.0007178016192562255
+        ],
+        [
+          "src\\config\\settings.py",
+          0.0006204199806419816
+        ],
+        [
+          "src\\core\\graph.py",
+          0.000541079822128895
+        ],
+        [
+          "src\\core\\error_handler.py",
+          0.0005240935088419282
+        ]
+      ]
+    }
+  ],
+  "accuracy": [
+    {
+      "query": "search code implementation",
+      "top_pct": 10,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "search code implementation",
+      "top_pct": 20,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "search code implementation",
+      "top_pct": 50,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "search code implementation",
+      "top_pct": 100,
+      "accuracy": 100
+    },
+    {
+      "query": "rate limiter debounce",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "rate limiter debounce",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "rate limiter debounce",
+      "top_pct": 50,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "rate limiter debounce",
+      "top_pct": 100,
+      "accuracy": 100.0
+    },
+    {
+      "query": "error handling boundary",
+      "top_pct": 10,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "error handling boundary",
+      "top_pct": 20,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "error handling boundary",
+      "top_pct": 50,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "error handling boundary",
+      "top_pct": 100,
+      "accuracy": 100
+    },
+    {
+      "query": "LanceDB vector database",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "LanceDB vector database",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "LanceDB vector database",
+      "top_pct": 50,
+      "accuracy": 0.0
+    },
+    {
+      "query": "LanceDB vector database",
+      "top_pct": 100,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "OpenVINO embed inference",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "OpenVINO embed inference",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "OpenVINO embed inference",
+      "top_pct": 50,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "OpenVINO embed inference",
+      "top_pct": 100,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "asyncio event loop",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "asyncio event loop",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "asyncio event loop",
+      "top_pct": 50,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "asyncio event loop",
+      "top_pct": 100,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "file guard indexer",
+      "top_pct": 10,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "file guard indexer",
+      "top_pct": 20,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "file guard indexer",
+      "top_pct": 50,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "file guard indexer",
+      "top_pct": 100,
+      "accuracy": 100
+    },
+    {
+      "query": "MCP tool registration",
+      "top_pct": 10,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "MCP tool registration",
+      "top_pct": 20,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "MCP tool registration",
+      "top_pct": 50,
+      "accuracy": 66.66666666666666
+    },
+    {
+      "query": "MCP tool registration",
+      "top_pct": 100,
+      "accuracy": 100
+    },
+    {
+      "query": "project context snapshot",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "project context snapshot",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "project context snapshot",
+      "top_pct": 50,
+      "accuracy": 33.33333333333333
+    },
+    {
+      "query": "project context snapshot",
+      "top_pct": 100,
+      "accuracy": 100.0
+    },
+    {
+      "query": "intelligence layer ADR",
+      "top_pct": 10,
+      "accuracy": 0.0
+    },
+    {
+      "query": "intelligence layer ADR",
+      "top_pct": 20,
+      "accuracy": 0.0
+    },
+    {
+      "query": "intelligence layer ADR",
+      "top_pct": 50,
+      "accuracy": 0.0
+    },
+    {
+      "query": "intelligence layer ADR",
+      "top_pct": 100,
+      "accuracy": 66.66666666666666
+    }
+  ]
+}

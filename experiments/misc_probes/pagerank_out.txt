@@ -1,0 +1,82 @@
+======================================================================
+EXPERIMENT 4: PageRank File Importance Scoring
+======================================================================
+Project: D:\Project\MSCodeBase
+Date: 2026-07-19 15:12:09
+
+STEP 1: Scanning source files...
+  Files: 135
+  Scan time: 286.9ms
+
+STEP 2: Computing importance scores...
+  Compute time: 38.9ms
+
+STEP 3: Top 25 Most Important Files
+----------------------------------------------------------------------
+Rank   Score       PR  InDeg  OutDeg  CrossL File
+----------------------------------------------------------------------
+   1  0.6670 0.356289     43       5       0 src/core/runtime_coordinator.py
+   2  0.5533 0.030628     48       6       0 src/core/search/composition_adapter.py
+   3  0.3773 0.030628     48       6       0 src/core/search/cross_project_deps.py
+   4  0.3696 0.004836     15      18       6 src/core/search/engine.py
+   5  0.3621 0.030022     15       3       0 src/core/search/cypher_ast.py
+   6  0.3403 0.003989     14      11       7 src/providers/reranker/llama_install.py
+   7  0.3233 0.003989     14      11       6 src/providers/reranker/multi_provider.py
+   8  0.3188 0.003989     14       7       6 src/core/multi_project_searcher.py
+   9  0.3141 0.003989     14       3       1 src/core/indexing/watchdog.py
+  10  0.3069 0.003989     14       2       0 src/core/interfaces/embedder.py
+  11  0.2962 0.003989     14      19       2 src/core/intelligence/layer.py
+  12  0.2931 0.003989     14       5       6 src/core/bug_correlation.py
+  13  0.2927 0.004023     15       9       6 src/core/search/agentic_search.py
+  14  0.2880 0.030628     48       1       0 src/core/cross_project_deps.py
+  15  0.2863 0.004023     15       5       6 src/providers/reranker/reranker_scoring.py
+  16  0.2829 0.003989     14      11       2 src/core/lsp_client.py
+  17  0.2826 0.003989     14       6       6 src/core/indexing/symbol_index.py
+  18  0.2802 0.004051     16       4       6 src/core/search/utils.py
+  19  0.2771 0.003989     14       7       6 src/core/indexing/parser.py
+  20  0.2770 0.003553      0       9       7 src/mcp/tools/doc_tools.py
+  21  0.2717 0.009413     11      10       2 src/mcp/tools/system_tools.py
+  22  0.2711 0.004051     16       4       2 src/core/platform_utils.py
+  23  0.2702 0.004023     15       6       6 src/core/search/scoring.py
+  24  0.2692 0.003989     14      13       3 src/providers/reranker/llama_runner.py
+  25  0.2680 0.003989     14       7       1 src/core/intelligence/store.py
+
+STEP 4: Importance by Layer
+----------------------------------------------------------------------
+  core           :  47 files, avg=0.1666, max=0.6670
+  search         :  20 files, avg=0.2345, max=0.5533
+  providers      :   8 files, avg=0.2181, max=0.3403
+  indexing       :  19 files, avg=0.2087, max=0.3141
+  interfaces     :   4 files, avg=0.2241, max=0.3069
+  intelligence   :   7 files, avg=0.2037, max=0.2962
+  mcp            :  18 files, avg=0.1524, max=0.2770
+  utils          :   8 files, avg=0.1532, max=0.2410
+  other          :   4 files, avg=0.0844, max=0.2040
+
+STEP 5: Knowledge Concentration (Pareto Analysis)
+----------------------------------------------------------------------
+  Top  5% (  6 files):   3304 lines (  8.4%),  111 symbols
+  Top 10% ( 13 files):   7034 lines ( 18.0%),  208 symbols
+  Top 20% ( 27 files):  14360 lines ( 36.7%),  424 symbols
+  Top 30% ( 40 files):  19305 lines ( 49.3%),  599 symbols
+  Top 50% ( 67 files):  27664 lines ( 70.7%),  927 symbols
+
+STEP 6: Targeted Fact Sheet vs Full Fact Sheet
+----------------------------------------------------------------------
+  Full fact sheet:      126767 tokens (135 files)
+  Top 20% fact sheet:   129243 tokens (27 files)
+  Top 10% fact sheet:    66403 tokens (13 files)
+  Savings (20%):         -2476 tokens (-2.0%)
+  Savings (10%):         60364 tokens (47.6%)
+
+======================================================================
+VERDICT
+======================================================================
+  PageRank identifies 27 files as architecturally important
+  Top 10% covers 52.4% of code volume
+  Top 20% covers 102.0% of code volume
+
+рџџЎ PageRank provides moderate reduction
+   RECOMMENDATION: Combine with layer-based filtering
+
+Results saved to: D:\Project\MSCodeBase\experiments\pagerank_results.json

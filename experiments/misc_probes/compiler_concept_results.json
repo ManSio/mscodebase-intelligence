@@ -1,0 +1,103 @@
+{
+  "experiment": "compiler_concept",
+  "timestamp": "2026-07-19T15:03:02",
+  "project": "D:/Project/MSCodeBase",
+  "sheet_stats": {
+    "total_files": 136,
+    "total_symbols": 1336,
+    "total_lines": 40316,
+    "sheet_tokens": 8
+  },
+  "query_results": [
+    {
+      "query": "what does engine.py do",
+      "expected": "symbol_info",
+      "got": "none",
+      "correct": false,
+      "time_ms": 1.616,
+      "answers_count": 0
+    },
+    {
+      "query": "where is hybrid_search defined",
+      "expected": "location",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.432,
+      "answers_count": 6
+    },
+    {
+      "query": "show dependencies for db_manager",
+      "expected": "dependencies",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.374,
+      "answers_count": 6
+    },
+    {
+      "query": "what are the hotspots in this project",
+      "expected": "hotspots",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.574,
+      "answers_count": 66
+    },
+    {
+      "query": "show test files",
+      "expected": "test_files",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.211,
+      "answers_count": 16
+    },
+    {
+      "query": "what is the purpose of the MCP server",
+      "expected": "overview",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.458,
+      "answers_count": 12
+    },
+    {
+      "query": "where is the reranker implemented",
+      "expected": "location",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.25,
+      "answers_count": 27
+    },
+    {
+      "query": "show me the core modules",
+      "expected": "overview",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.305,
+      "answers_count": 10
+    },
+    {
+      "query": "what does Searcher class do",
+      "expected": "symbol_info",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.382,
+      "answers_count": 9
+    },
+    {
+      "query": "what imports indexer",
+      "expected": "dependencies",
+      "got": "symbol_info",
+      "correct": true,
+      "time_ms": 1.435,
+      "answers_count": 34
+    }
+  ],
+  "summary": {
+    "accuracy": 90.0,
+    "token_savings": {
+      "tokens_without_facts": 370024,
+      "tokens_with_facts": 8,
+      "tokens_saved": 370016,
+      "savings_percent": 100.0
+    }
+  },
+  "verdict": "SUCCESS"
+}

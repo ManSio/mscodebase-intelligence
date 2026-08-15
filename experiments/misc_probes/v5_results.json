@@ -1,0 +1,441 @@
+{
+  "random_baseline": {
+    "edges": 0,
+    "spearman_rho": 0.018,
+    "savings": {
+      "10": {
+        "files": 12,
+        "tokens": 29549,
+        "savings": 92.7
+      },
+      "20": {
+        "files": 25,
+        "tokens": 69635,
+        "savings": 82.9
+      },
+      "30": {
+        "files": 38,
+        "tokens": 130598,
+        "savings": 67.8
+      },
+      "50": {
+        "files": 64,
+        "tokens": 193845,
+        "savings": 52.3
+      }
+    },
+    "cross_val_20pct": {
+      "keyword": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "symbol": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "semantic": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "coverage": {
+        "mean": 58.0,
+        "std": 4.5,
+        "min": 50.0,
+        "max": 60.0
+      }
+    },
+    "alpha_sweep": {
+      "0.5": 76.0,
+      "0.7": 76.0,
+      "0.85": 76.0,
+      "0.95": 76.0
+    },
+    "top5": [
+      [
+        "__init__.py",
+        0.0078,
+        50
+      ],
+      [
+        "__init__.py",
+        0.0078,
+        4
+      ],
+      [
+        "settings.py",
+        0.0078,
+        2957
+      ],
+      [
+        "__init__.py",
+        0.0078,
+        19
+      ],
+      [
+        "auto_doc_updater.py",
+        0.0078,
+        7586
+      ]
+    ]
+  },
+  "import_only": {
+    "edges": 110,
+    "spearman_rho": 0.024,
+    "savings": {
+      "10": {
+        "files": 12,
+        "tokens": 33854,
+        "savings": 91.7
+      },
+      "20": {
+        "files": 25,
+        "tokens": 65821,
+        "savings": 83.8
+      },
+      "30": {
+        "files": 38,
+        "tokens": 104455,
+        "savings": 74.3
+      },
+      "50": {
+        "files": 64,
+        "tokens": 196525,
+        "savings": 51.6
+      }
+    },
+    "cross_val_20pct": {
+      "keyword": {
+        "mean": 18.0,
+        "std": 14.8,
+        "min": 0.0,
+        "max": 40.0
+      },
+      "symbol": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "semantic": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "coverage": {
+        "mean": 58.0,
+        "std": 8.4,
+        "min": 50.0,
+        "max": 70.0
+      }
+    },
+    "alpha_sweep": {
+      "0.5": 80.0,
+      "0.7": 80.0,
+      "0.85": 80.0,
+      "0.95": 80.0
+    },
+    "top5": [
+      [
+        "composition_adapter.py",
+        0.0984,
+        780
+      ],
+      [
+        "runtime_coordinator.py",
+        0.089,
+        2634
+      ],
+      [
+        "bug_correlation.py",
+        0.0741,
+        2281
+      ],
+      [
+        "eta_predictor.py",
+        0.068,
+        1725
+      ],
+      [
+        "system_artifacts.py",
+        0.0254,
+        2161
+      ]
+    ]
+  },
+  "+class_refs": {
+    "edges": 271,
+    "spearman_rho": 0.366,
+    "savings": {
+      "10": {
+        "files": 12,
+        "tokens": 59490,
+        "savings": 85.4
+      },
+      "20": {
+        "files": 25,
+        "tokens": 119114,
+        "savings": 70.7
+      },
+      "30": {
+        "files": 38,
+        "tokens": 167107,
+        "savings": 58.9
+      },
+      "50": {
+        "files": 64,
+        "tokens": 257775,
+        "savings": 36.5
+      }
+    },
+    "cross_val_20pct": {
+      "keyword": {
+        "mean": 14.0,
+        "std": 8.9,
+        "min": 0.0,
+        "max": 20.0
+      },
+      "symbol": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "semantic": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "coverage": {
+        "mean": 58.0,
+        "std": 23.9,
+        "min": 30.0,
+        "max": 90.0
+      }
+    },
+    "alpha_sweep": {
+      "0.5": 82.0,
+      "0.7": 82.0,
+      "0.85": 82.0,
+      "0.95": 82.0
+    },
+    "top5": [
+      [
+        "bug_correlation.py",
+        0.0982,
+        2281
+      ],
+      [
+        "eta_predictor.py",
+        0.0867,
+        1725
+      ],
+      [
+        "composition_adapter.py",
+        0.068,
+        780
+      ],
+      [
+        "runtime_coordinator.py",
+        0.0497,
+        2634
+      ],
+      [
+        "parser.py",
+        0.0455,
+        11779
+      ]
+    ]
+  },
+  "+func_calls": {
+    "edges": 387,
+    "spearman_rho": 0.412,
+    "savings": {
+      "10": {
+        "files": 12,
+        "tokens": 59197,
+        "savings": 85.4
+      },
+      "20": {
+        "files": 25,
+        "tokens": 106068,
+        "savings": 73.9
+      },
+      "30": {
+        "files": 38,
+        "tokens": 152861,
+        "savings": 62.4
+      },
+      "50": {
+        "files": 64,
+        "tokens": 258586,
+        "savings": 36.3
+      }
+    },
+    "cross_val_20pct": {
+      "keyword": {
+        "mean": 18.0,
+        "std": 8.4,
+        "min": 10.0,
+        "max": 30.0
+      },
+      "symbol": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "semantic": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "coverage": {
+        "mean": 58.0,
+        "std": 14.8,
+        "min": 40.0,
+        "max": 80.0
+      }
+    },
+    "alpha_sweep": {
+      "0.5": 78.0,
+      "0.7": 78.0,
+      "0.85": 78.0,
+      "0.95": 78.0
+    },
+    "top5": [
+      [
+        "composition_adapter.py",
+        0.1108,
+        780
+      ],
+      [
+        "bug_correlation.py",
+        0.0889,
+        2281
+      ],
+      [
+        "eta_predictor.py",
+        0.0776,
+        1725
+      ],
+      [
+        "ui_formatter.py",
+        0.069,
+        4773
+      ],
+      [
+        "i18n.py",
+        0.0649,
+        676
+      ]
+    ]
+  },
+  "full_ast": {
+    "edges": 387,
+    "spearman_rho": 0.412,
+    "savings": {
+      "10": {
+        "files": 12,
+        "tokens": 59197,
+        "savings": 85.4
+      },
+      "20": {
+        "files": 25,
+        "tokens": 106068,
+        "savings": 73.9
+      },
+      "30": {
+        "files": 38,
+        "tokens": 152861,
+        "savings": 62.4
+      },
+      "50": {
+        "files": 64,
+        "tokens": 258586,
+        "savings": 36.3
+      }
+    },
+    "cross_val_20pct": {
+      "keyword": {
+        "mean": 18.0,
+        "std": 16.4,
+        "min": 0.0,
+        "max": 40.0
+      },
+      "symbol": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "semantic": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "coverage": {
+        "mean": 58.0,
+        "std": 20.5,
+        "min": 40.0,
+        "max": 80.0
+      }
+    },
+    "alpha_sweep": {
+      "0.5": 78.0,
+      "0.7": 78.0,
+      "0.85": 78.0,
+      "0.95": 78.0
+    },
+    "top5": [
+      [
+        "composition_adapter.py",
+        0.1108,
+        780
+      ],
+      [
+        "bug_correlation.py",
+        0.0889,
+        2281
+      ],
+      [
+        "eta_predictor.py",
+        0.0776,
+        1725
+      ],
+      [
+        "ui_formatter.py",
+        0.069,
+        4773
+      ],
+      [
+        "i18n.py",
+        0.0649,
+        676
+      ]
+    ]
+  },
+  "smart_summary": {
+    "tokens": 614,
+    "savings": 99.8,
+    "accuracy": 26.0
+  },
+  "_meta": {
+    "files": 128,
+    "total_tokens": 406117,
+    "queries": 50,
+    "folds": 5,
+    "seed": 42,
+    "timestamp": "2026-07-23 00:51:34",
+    "runtime_s": 3.2
+  }
+}

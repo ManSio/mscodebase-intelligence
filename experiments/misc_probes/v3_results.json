@@ -1,0 +1,216 @@
+{
+  "project": "D:\\Project\\MSCodeBase",
+  "timestamp": "2026-07-23 00:15:56",
+  "files": 128,
+  "total_tokens": 406117,
+  "queries": 50,
+  "results": {
+    "import_only": {
+      "edges": 0,
+      "percentages": {
+        "10": {
+          "files": 12,
+          "tokens": 29549,
+          "savings": 92.7,
+          "acc_keyword": 66.0,
+          "acc_symbol": 12.0,
+          "acc_semantic": 52.0
+        },
+        "20": {
+          "files": 25,
+          "tokens": 69635,
+          "savings": 82.9,
+          "acc_keyword": 76.0,
+          "acc_symbol": 22.0,
+          "acc_semantic": 70.0
+        },
+        "30": {
+          "files": 38,
+          "tokens": 130598,
+          "savings": 67.8,
+          "acc_keyword": 84.0,
+          "acc_symbol": 28.0,
+          "acc_semantic": 74.0
+        },
+        "50": {
+          "files": 64,
+          "tokens": 193845,
+          "savings": 52.3,
+          "acc_keyword": 96.0,
+          "acc_symbol": 58.0,
+          "acc_semantic": 80.0
+        }
+      },
+      "smart_summary": {
+        "tokens": 558,
+        "savings": 99.9,
+        "accuracy": 20.0
+      },
+      "top5": [
+        [
+          "src/__init__.py",
+          0.0078,
+          50
+        ],
+        [
+          "src/config/__init__.py",
+          0.0078,
+          4
+        ],
+        [
+          "src/config/settings.py",
+          0.0078,
+          2957
+        ],
+        [
+          "src/core/__init__.py",
+          0.0078,
+          19
+        ],
+        [
+          "src/core/auto_doc_updater.py",
+          0.0078,
+          7586
+        ]
+      ]
+    },
+    "ast_light": {
+      "edges": 167,
+      "percentages": {
+        "10": {
+          "files": 12,
+          "tokens": 69654,
+          "savings": 82.8,
+          "acc_keyword": 74.0,
+          "acc_symbol": 12.0,
+          "acc_semantic": 64.0
+        },
+        "20": {
+          "files": 25,
+          "tokens": 125642,
+          "savings": 69.1,
+          "acc_keyword": 88.0,
+          "acc_symbol": 32.0,
+          "acc_semantic": 70.0
+        },
+        "30": {
+          "files": 38,
+          "tokens": 180089,
+          "savings": 55.7,
+          "acc_keyword": 92.0,
+          "acc_symbol": 38.0,
+          "acc_semantic": 76.0
+        },
+        "50": {
+          "files": 64,
+          "tokens": 257880,
+          "savings": 36.5,
+          "acc_keyword": 96.0,
+          "acc_symbol": 52.0,
+          "acc_semantic": 82.0
+        }
+      },
+      "smart_summary": {
+        "tokens": 552,
+        "savings": 99.9,
+        "accuracy": 34.0
+      },
+      "top5": [
+        [
+          "src/core/indexing/parser.py",
+          0.0466,
+          11779
+        ],
+        [
+          "src/core/indexing/symbol_index.py",
+          0.025,
+          10471
+        ],
+        [
+          "src/core/di_container.py",
+          0.024,
+          4053
+        ],
+        [
+          "src/core/graph.py",
+          0.0232,
+          10662
+        ],
+        [
+          "src/mcp/tools/base.py",
+          0.0211,
+          4686
+        ]
+      ]
+    },
+    "ast_full": {
+      "edges": 0,
+      "percentages": {
+        "10": {
+          "files": 12,
+          "tokens": 29549,
+          "savings": 92.7,
+          "acc_keyword": 66.0,
+          "acc_symbol": 12.0,
+          "acc_semantic": 52.0
+        },
+        "20": {
+          "files": 25,
+          "tokens": 69635,
+          "savings": 82.9,
+          "acc_keyword": 76.0,
+          "acc_symbol": 22.0,
+          "acc_semantic": 70.0
+        },
+        "30": {
+          "files": 38,
+          "tokens": 130598,
+          "savings": 67.8,
+          "acc_keyword": 84.0,
+          "acc_symbol": 28.0,
+          "acc_semantic": 74.0
+        },
+        "50": {
+          "files": 64,
+          "tokens": 193845,
+          "savings": 52.3,
+          "acc_keyword": 96.0,
+          "acc_symbol": 58.0,
+          "acc_semantic": 80.0
+        }
+      },
+      "smart_summary": {
+        "tokens": 558,
+        "savings": 99.9,
+        "accuracy": 20.0
+      },
+      "top5": [
+        [
+          "src/__init__.py",
+          0.0078,
+          50
+        ],
+        [
+          "src/config/__init__.py",
+          0.0078,
+          4
+        ],
+        [
+          "src/config/settings.py",
+          0.0078,
+          2957
+        ],
+        [
+          "src/core/__init__.py",
+          0.0078,
+          19
+        ],
+        [
+          "src/core/auto_doc_updater.py",
+          0.0078,
+          7586
+        ]
+      ]
+    }
+  }
+}
