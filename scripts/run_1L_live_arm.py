@@ -81,23 +81,25 @@ PROMPT_VERSION = "v1"     # V1 = только support_patterns (сопостав
 SNIPPET_LINES = 25        # окно вокруг якоря (12 до + якорь + 12 после)
 CONTROL_FILE = "src/core/instruction_scan.py"  # декой для absent/silent (не резолвятся)
 
-# $/1M токенов (проверено на openrouter.ai/api/v1/models, 2026-08-14)
+# $/1M токенов (проверено на openrouter.ai/api/v1/models, 2026-08-15;
+# цены движутся — перед свипом сверять с /api/v1/models)
 PRICING_PER_1M = {
     "qwen/qwen3.7-flash": (0.03, 0.13),
     "qwen/qwen3.6-flash": (0.1875, 1.125),
     "qwen/qwen3.5-flash-02-23": (0.065, 0.26),
-    "deepseek/deepseek-v4-flash": (0.14, 0.28),
+    "deepseek/deepseek-v4-flash": (0.0643, 0.1285),  # цена упала −55% с 2026-08-14
     "z-ai/glm-4.7-flash": (0.06, 0.4),
     "nvidia/nemotron-3.5-lightning": (0.1, 0.25),
     "qwen/qwen3-30b-a3b-instruct-2507": (0.04815, 0.19305),
     "google/gemini-3.1-flash-lite": (0.25, 1.5),
+    "google/gemini-3.6-flash": (0.75, 3.75),  # NEW (preview Zed 1.16): кандидат в свип — дешёвый, сильнее 3.1-lite
     "mistralai/mistral-small-3.2-24b-instruct": (0.09375, 0.25),
     "nvidia/nemotron-3-super-120b-a12b": (0.085, 0.4),
     "nvidia/nemotron-3-nano-30b-a3b": (0.05, 0.2),
-    # премиум-арм (проверено на openrouter.ai/api/v1/models 2026-08-14)
+    # премиум-арм (проверено на openrouter.ai/api/v1/models 2026-08-15)
     "anthropic/claude-sonnet-5": (2.0, 10.0),
     "qwen/qwen3.8-max": (2.0, 6.0),
-    "z-ai/glm-5.2": (1.19, 3.74),
+    "z-ai/glm-5.2": (0.462, 1.452),  # цена упала −61% с 2026-08-14
     "deepseek/deepseek-v4-pro": (1.168, 2.336),
 }
 

@@ -197,8 +197,10 @@ def test_summarize_known_math():
     assert s["false_accept_ids"] == ["R10", "R11", "R12", "R13", "R14"]
     assert s["usage"]["prompt_tokens"] == 50 * 200
     assert s["usage"]["completion_tokens"] == 50 * 50
-    # deepseek-v4-flash: 0.14/0.28 $/1M → 10k pt + 2.5k ct
-    assert s["usage"]["est_cost_usd"] == pytest.approx(0.14 * 10000 / 1e6 + 0.28 * 2500 / 1e6)
+    # deepseek-v4-flash: 0.0643/0.1285 $/1M (проверено 2026-08-15) → 10k pt + 2.5k ct
+    # _summarize округляет round(est, 6) — тест воспроизводит это же округление
+    assert s["usage"]["est_cost_usd"] == round(
+        10000 / 1e6 * 0.0643 + 2500 / 1e6 * 0.1285, 6)
 
 
 def test_summarize_unknown_model_cost_none():

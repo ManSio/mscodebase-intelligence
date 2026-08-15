@@ -23,6 +23,14 @@
 
 ---
 
+## [2026-08-15 23:35] — Аудит обновлений Zed 1.12–1.16: код почти не затронут, 3 точечные подстройки (DONE)
+**Status:** ✅ Fixed (3 файла: цены харнесса, guard-тест схем, AGENTS.md заметка; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено; полный pytest 1248 passed / 10 skipped; ruff чист
+**Root Cause (аудит):** большинство изменений Zed 1.14.2+ (sandboxing terminal/fetch, MCP-фиксы #60165/#62026/#61928, base_keymap) — Zed-side, наш код не трогают: схемы MCP-тулов проверены runtime (46 тулов, 0 с $defs/$ref — fastmcp/pydantic-стек НЕ затронут #60165); расширение регистрируется через extension.toml context_servers, не через .zed/settings.json (#52849 не про нас). Реальные точки: (1) цены OpenRouter в харнессе дрейфнули (deepseek-v4-flash −55%, glm-5.2 −61% с 2026-08-14); (2) sandbox terminal/fetch требует per-host grants.
+**Fix:** (1) `tests/test_mcp_schema_flat.py` (2 теста) — runtime-guard «схемы без $defs/$ref» (46 тулов, MagicMock-сервисы) — защита от регрессии класса #60165; (2) PRICING_PER_1M: deepseek-v4-flash (0.0643, 0.1285), glm-5.2 (0.462, 1.452) + `google/gemini-3.6-flash` (0.75, 3.75, верифицировано /api/v1/models 2026-08-15) — кандидат в свип (закрытие present-trap); тест цены обновлён под round(est, 6); (3) AGENTS.md §0.2 — заметка про sandbox-гранты.
+**Guard:** test_mcp_schema_flat.py (CI); «цены движутся — сверять с /api/v1/models перед свипом» в комментарии таблицы.
+**Pattern:** NEW-урок: аудит «под обновления» обязан проверять runtime-схемы, а не source-статистику (первый probe дал ложный «0» — t.schema это МЕТОД pydantic-модели, входная схема лежит в t.parameters).
+
 ## [2026-08-15 11:09] — Exp 1-L V4: file_content_first — закрыта «точка укуса №2» (anchor bias, не паранойя) (DONE)
 **Status:** ✅ Fixed (харнесс+тесты+live-прогон 100 выз.; не закоммичено — commit/push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (полный pytest не гонялся; 39/39 на затронутых тестах harness; live: 100 вызовов OpenRouter err=0/0, ~$0.005)
