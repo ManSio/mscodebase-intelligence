@@ -1,10 +1,10 @@
 # Exp 1-L — Memory Contamination, Live-Arm: ПОЛНЫЙ ОТЧЁТ (все прогоны, проверки, воспроизведение)
 
-> **Статус:** ✅ Завершён (Day 1 + Day 2 + Red Team + follow-up'и, 2026-08-14)
-> **Harness:** `scripts/run_1L_live_arm.py` · **Тесты:** `tests/test_run_1L_live_arm.py` (29)
+> **Статус:** ✅ Завершён (Day 1 + Day 2 + Red Team + follow-up'и + V4, 2026-08-15)
+> **Harness:** `scripts/run_1L_live_arm.py` · **Тесты:** `tests/test_run_1L_live_arm.py` (39)
 > **Датасет:** `experiments/1V_memory_contamination/memory_contamination_facts_v4_rep.json` (N=50)
-> **Всего вызовов:** ~3300 · **Суммарная стоимость:** ~$0.14
-> **Записи:** `EXPERIMENTS_LOG.md` · `AGENT_DIARY.md` (2026-08-14 23:20 / 23:55)
+> **Всего вызовов:** ~3400 · **Суммарная стоимость:** ~$0.146
+> **Записи:** `EXPERIMENTS_LOG.md` · `AGENT_DIARY.md` (2026-08-14 23:20 / 23:55 / 2026-08-15 V3, V4)
 > **Полный pytest:** 1226 passed / 10 skipped (2026-08-14)
 
 ---
@@ -42,6 +42,13 @@
 6. **Детерминизм модель-зависим**: qwen3.6/3.7/deepseek детерминированы 3/3 при temp=0+seed; GLM — нет. Однопроходные тонкие ранжировки недостоверны → выводы по верхней границе FA за ≥2 прогона.
 7. **V3/Part 5 (CoT vs Zero-Shot, §6.6): CoT НЕ окупается для дешёвого VOR.** Единственный заметный выигрыш — qwen3.6 code_first recall 0.08→0.20 (FA осталась 0.00); glm-4.7 — FA 12→7, но −26% данных (EMPTY_CONTENT апстрима) и recall 0.88→0.72. Цена CoT: ×30–65 (qwen3.6 $0.0006→$0.039/100 выз., ct 11→~800 на запрос). qwen3.7/deepseek — без изменений. Zero-shot qwen3.6/3.7 остаются выбором для VOR — с честной оговоркой про recall. **Follow-up (run2 + qwen3.8-max, §6.6a):** CoT-выводы устойчивы (2 прогона, FA qwen3.6/3.7 = 0/0 в обоих); **qwen3.8-max (CoT) — лучший code_first recall 0.36 при FA 0.04** — срединная опция «правда сохраняется в 2–4 раза лучше flash», но mandatory reasoning + цена ×20–200.
 8. **FA=0.00 ≠ качество (fail-closed, §6.5):** recall(real) обязан быть в метриках выбора модели — qwen3.6/3.7 code_first принимают 2–5/25 правды и активно отвергают 7–9/25.
+9. **V4/`file_content_first` (§6.6b) — диагноз «anchor bias» подтверждён, «паранойя» опровергнута:**
+   с РЕАЛЬНЫМ фрагментом файла (окно 25 строк вокруг якоря) вместо pattern-строк recall(real)
+   у qwen3.6: **0.08 → 0.88** (×11), у qwen3.7: **0.20 → 0.88** (×4.4) при FA 0.02–0.04
+   (ВСЯ FA — trap-категория: R45/R46, токен есть во фрагменте, субъект другой; absent 0/16,
+   silent 0/3 у обеих). Модель не «ленилась» — у неё не было evidence. Для прод-VOR: показывать
+   модели фрагмент кода вокруг якоря, а не токен-строку; дыра остаётся только в present-trap
+   (проверка СУБЪЕКТА, не токена). Цена: ~$0.005 за 100 вызовов.
 
 ---
 
@@ -117,6 +124,7 @@ code_first v2 EN: … Claim: {claim} · Supporting anchors (from memory): {patte
 | Провайдеры | `--provider openrouter` (по умолч.) · `api` (OpenAI-совместимый) · `opencode` (CLI) |
 | Свип | `--models "a,b,c"` — каждая модель в свой progress-файл |
 | Промпт | `--prompt-version v1\|v2` · `--prompt-lang en\|ru` |
+| Арм V4 | `--arm file_content_first` — РЕАЛЬНЫЙ фрагмент файла (окно 25 строк вокруг якоря; декой для absent/silent) вместо pattern-строк (§6.6b) |
 | Бюджет | `--max-tokens 100` (дефолт) · `--seed 42` · `--no-reasoning` |
 | Изоляция прогонов | `--tag X` → файлы `live_arm_1L_progress_X_<model>.json` |
 | Защита данных | прогресс догружается всегда (кроме `--force`); `--force` — перезапись |
@@ -141,6 +149,7 @@ code_first v2 EN: … Claim: {claim} · Supporting anchors (from memory): {patte
 | 8 | v3_cot (V3/Part 5) | qwen3.6, qwen3.7, glm-4.7, deepseek-flash | v2 EN, **reasoning on**, max_tokens=1500 | 400 | ~$0.20 | `live_arm_1L_progress_v3_cot_*.json` |
 | 9 | v3_cot_run2 | те же 4 flash | те же условия (2-й прогон, стабильность) | 400 | ~$0.20 | `live_arm_1L_progress_v3_cot_run2_*.json` |
 | 10 | v3_cot_max | qwen3.8-max | CoT (mandatory reasoning), 1500 | 100 | ~$0.10 | `live_arm_1L_progress_v3_cot_max_*.json` |
+| 11 | file_content (V4) | qwen3.6, qwen3.7-flash | file_content_first, v2 EN, zero-shot | 100 | ~$0.005 | `live_arm_1L_progress_file_content_*.json` |
 | — | Пробы (кэш/reasoning/детерминизм) | GLM/qwen/deepseek | прямые API-вызовы | ~20 | <$0.001 | — |
 
 **Всего: ~3300 вызовов, ~$0.14.**
@@ -315,6 +324,46 @@ FA=0.04 — она не fail-closed «по-максимуму» (как qwen3.6:
 отличие от glm). Для VOR: если политика «не терять живую память важнее цены» — qwen3.8-max
 (CoT) осмысленнее qwen3.6; если «дёшево и fail-closed» — остаются qwen3.6/3.7 zero-shot.
 
+### 6.6b. V4: file_content_first — реальный фрагмент файла вместо pattern-строк (2026-08-15)
+
+> Закрытие «точки укуса №2» (§11.1 п.2): *«recall 0.08 — паранойя или узкие вырезки кода?»*
+> Новый arm `file_content_first`: вместо `support_patterns: ["typesense"]` модель получает
+> РЕАЛЬНЫЙ фрагмент файла — окно 25 строк вокруг первого вхождения якоря (для `file:`-фактов —
+> вокруг VALUE claim-а; для bare-токенов — вокруг токена; value не найден → голова файла).
+> Для absent/silent (grep-0) — декой: голова контрольного файла `src/core/instruction_scan.py`;
+> декой НЕ помечается в промпте (иначе утечка ground truth «not found» → тривиальный false),
+> помечается в результатах (`evidence: decoy`) для post-hoc анализа. Инструкция идентична
+> code_first v2 (нейтральная) — **единственная переменная vs code_first = форма evidence**
+> (pattern-строка → код). Прогон: `--arm file_content_first --no-reasoning --prompt-version v2
+> --tag file_content` на qwen3.6/qwen3.7, 100 вызовов, ~$0.005.
+
+| Модель | Arm | recall(real) | FA | real acc/rej/unk | precision | F1 | FA absent/16 · trap/6 · silent/3 |
+|---|---|---|---|---|---|---|---|
+| qwen3.6-flash | code_first v2 (baseline) | 0.08 | 0 | 2/7/16 | 1.00 | 0.15 | 0 · 0 · 0 |
+| **qwen3.6-flash** | **file_content_first** | **0.88** | **0.04** | **22/3/0** | 0.92 | 0.90 | 0 · 2 · 0 |
+| qwen3.7-flash | code_first v2 (baseline) | 0.20 | 0 | 5/9/11 | 1.00 | 0.33 | 0 · 0 · 0 |
+| **qwen3.7-flash** | **file_content_first** | **0.88** | **0.02** | **22/2/1** | 0.96 | 0.92 | 0 · 1 · 0 |
+
+**Гипотеза подтверждена: диагноз «anchor bias», а не «паранойя модели».**
+- recall(real): qwen3.6 **0.08 → 0.88** (×11, Wilson CI 22/25 = [0.70, 0.96] — не пересекается
+  с CI baseline 2/25 = [0.02, 0.25]), qwen3.7 **0.20 → 0.88** (×4.4). Модель не «ленилась»:
+  паттерн-строка не доказывает ничего, фрагмент кода — доказывает.
+- FA 0.00 → 0.02–0.04, и ВСЯ FA — trap-категория (токен во фрагменте ЕСТЬ, субъект другой):
+  R45 «Серверная обёртка использует logging» (фрагмент log_manager.py) у обеих; R46
+  «Сторожевой таймер использует threading» (project_indexer_registry.py) у qwen3.6. Модель
+  проверяет наличие токена, но не тождество СУБЪЕКТА claim-а. absent 0/16 и silent 0/3 у обеих
+  — декой-политика работает (фрагмент без токена → false/unknown) без утечки.
+- Остаточные ложные REFUTED (real): R07/R08 у обеих — claim-ы с семантически некорректным
+  value («ONNX-fallback использует отключён», «Сам-индексация использует запрещена» —
+  прилагательное вместо сущности; фрагмент показывает env-var, но не «отключён/запрещена»);
+  R21 (Watchdog, фрагмент indexer.py) у qwen3.6; R03 (VerifyOnRead) — unknown у qwen3.7 при
+  том же фрагменте, что qwen3.6 приняла (индивидуальный порог уверенности).
+- **Практический вывод для VOR:** «поймай ложь и не тронь правду» решаемо ДЕШЁВОЙ flash-моделью
+  при реальном evidence: recall 0.88 / FA 0.02–0.04 (только present-trap). Дыра — та же, что у
+  qwen3.8-max CoT (trap): проверка субъекта, не токена. Архитектурно: VOR-слой обязан показывать
+  модели фрагмент вокруг якоря (окно ±12 строк), а не токен-строку; цена +~200 промпт-токенов
+  на факт (~$0.0001–0.0004 на flash) пренебрежима vs цена ложного отзыва живой памяти.
+
 ---
 
 ## 7. Токены и стоимость
@@ -433,7 +482,7 @@ GLM-4.7-flash      true, true, unknown      ❌ недетерминирован
 | # | Точка укуса | Вопрос ревьюера | Статус | Что сделано / почему не закрыто |
 |---|---|---|---|---|
 | 1 | «Иллюзия детерминизма» (temp=0, seed=42 на MoE/OpenRouter) | «Делали ли K≥3 повторов на пару факт/модель?» | 🟡 | 2 прогона v1/v2 (Red Team фаза 2, разброс FA ±0.05–0.10) + 2 прогона CoT (§6.6a); qwen3.6/3.7 детерминированы 3/3 в контр. пробе, GLM — нет. **Серверный CSV (§7) подтверждает маршрутизацию ≥8 апстримов** — один промпт обслуживался разными бэкендами. K≥3 × 50 × 2 × 14 моделей = 4200 вызовов (~$2–5, 3–4 ч) — НЕ проводилось; выводы построены на ≥2 прогонах и верхней границе FA. |
-| 2 | Anchor bias & snippet truncation (code_first) | «Recall 0.08 — паранойя или узкие вырезки кода?» | 🔴 | Не различимо на текущих данных: в code_first подаются pattern-строки (bare-token якоря), НЕ полные фрагменты кода. V1-промпт завышал FA, V2 — ужесточил (нейтральная формулировка) — оба с одними якорями. Проверка «полный код vs строка паттерна» = V4-дизайн (новый промпт-арм), НЕ проводилась. Признано: recall 0.08 — верхняя граница «узких якорей», нижняя — «паранойи модели». |
+| 2 | Anchor bias & snippet truncation (code_first) | «Recall 0.08 — паранойя или узкие вырезки кода?» | ✅ | **ЗАКРЫТО (2026-08-15, §6.6b):** новый arm `file_content_first` — реальный фрагмент файла (окно 25 строк вокруг якоря) вместо pattern-строк. Диагноз подтверждён: **anchor bias**. qwen3.6 recall(real) 0.08 → 0.88 (×11), qwen3.7 0.20 → 0.88 (×4.4) при FA 0.02–0.04 (вся FA — present-trap, absent/silent 0/0). Модель не «параноила» — у неё не было evidence. Остаточная дыра — trap (проверка субъекта, не токена). |
 | 3 | Синтетические мутации vs реальный дрифт | «Насколько 25 ложных фактов репрезентативны дрифту при git-рефакторинге?» | 🟡 | Факты v4_rep grep-валидированы (реальные паттерны проекта, fingerprint 820bbbf60a0fc930), но синтетичны по конструкции (absent/trap/silent). Реальный дрифт закрывается **по дизайну** протоколом `design_longitudinal.md` (30 дней наблюдения живой памяти) — запущен, данные ещё не собраны. |
 | 4 | Single-Repo & Single-Language bias | «Не измерили ли специфику работы flash-моделей именно с Python?» | 🔴 | Весь датасет — одна кодовая база (Python, динамическая типизация). В TS/Rust/Go имена типов/сигнатуры — более сильные жёсткие якоря; перенос цифр на них — экстраполяция. Мультиязычное расширение = Вариант C (~N 200–300, $0.4–3.6, 1–2 дня на grep-валидацию) — НЕ проводилось. |
 | 5 | Жёсткий трёхзначный каркас (true/false/unknown, max_tokens=100) | «Если бы шкала была 5-балльной (confidence 0–1), остался бы разрыв?» | 🟡 | Бинарный выбор действительно толкает «частично устаревшее» в unknown. НО: unknown — честный, не артефакт бюджета (finish_reason=stop везде в zero-shot, truncation опровергнута §9 атака 2; qwen3.7 run1==run2 — решения стабильны). 5-балльная шкала = новый промпт + парсинг + датасет с частичными фактами — НЕ проводилась. |
@@ -480,6 +529,11 @@ venv\Scripts\python scripts/run_1L_live_arm.py --provider openrouter --arm both 
   --models "qwen/qwen3.7-flash,qwen/qwen3.5-flash-02-23,deepseek/deepseek-v4-flash" \
   --prompt-version v2 --prompt-lang ru --no-reasoning --tag ru_v2
 
+# V4 (закрытие anchor bias): реальный фрагмент файла вместо pattern-строк, 100 вызовов
+venv\Scripts\python scripts/run_1L_live_arm.py --provider openrouter --arm file_content_first \
+  --models "qwen/qwen3.6-flash,qwen/qwen3.7-flash" --no-reasoning --prompt-version v2 --tag file_content
+# сводка: venv\Scripts\python scripts/summarize_1L_categories.py --tag file_content --markdown
+
 # второй прогон для вариативности: тот же свип + --force
 ```
 
@@ -494,6 +548,7 @@ venv\Scripts\python scripts/run_1L_live_arm.py --provider openrouter --arm both 
 ├── live_arm_1L_progress_v3_cot_*.json                    # V3/Part 5: CoT (reasoning on, 1500)
 ├── live_arm_1L_progress_v3_cot_run2_*.json               # CoT 2-й прогон (стабильность)
 ├── live_arm_1L_progress_v3_cot_max_*.json                # CoT qwen3.8-max (mandatory reasoning)
+├── live_arm_1L_progress_file_content_*.json             # V4: file_content_first (реальный фрагмент файла)
 ├── live_arm_1L_v1_original_20260814/                      # v1 run1 (бэкап; qwen3.5 затёрт)
 └── openrouter_activity_2026-08-15.csv                    # серверный экспорт OpenRouter (независимый аудит, §7; отфильтрован: только эксперимент)
 ```
@@ -547,16 +602,20 @@ per-category метрики (recall/precision/F1, §6.5) · CoT vs Zero-Shot (§
 7. ⚠️ Human-разметка вердиктов не проводилась (для FA-метрик достаточно ground truth датасета).
 8. ⚠️ Live-интеграция (LLM-вердикт → исполнение в verify_on_read.py) — НЕ проведена: все измерения —
    изолированный промпт, поведение в живом агентном цикле (Вариант D) остаётся непроверенным.
-9. 🔴 5 «точек укуса» ревью 2026-08-15 (детерминизм K≥3, anchor bias, реальный дрифт,
-   single-language, 5-балльная шкала) — открытые ограничения, разбор и статусы в §11.1;
-   закрытие каждого стоит $2–5 и/или 1–2 дня — осознанный техдолг эксперимента.
+9. ✅ ЗАКРЫТ (2026-08-15, §6.6b): «точка укуса №2» — anchor bias vs паранойя. С реальным фрагментом
+   файла (arm file_content_first) recall(real) qwen3.6: 0.08 → 0.88, qwen3.7: 0.20 → 0.88 при
+   FA 0.02–0.04 (только present-trap: R45/R46; absent/silent 0). Диагноз: anchor bias. Остаточная
+   дыра — trap-категория (модель проверяет токен, не субъект).
+10. 🔴 Оставшиеся 4 «точки укуса» (K≥3 повторов, реальный дрифт, single-language, 5-балльная
+   шкала) — открытые ограничения, разбор и статусы в §11.1; закрытие каждого стоит $2–5
+   и/или 1–2 дня — осознанный техдолг эксперимента.
 
 ---
 
 ## 14. Ссылки
 
-- `EXPERIMENTS_LOG.md` — Day 1, Day 2, Red Team фаза 2, follow-up'и (V2/RU/premium), Day 3 (per-category + CoT)
-- `AGENT_DIARY.md` — 2026-08-14 23:20 (свип), 23:55 (Red Team), 2026-08-15 (V3/Part 5)
+- `EXPERIMENTS_LOG.md` — Day 1, Day 2, Red Team фаза 2, follow-up'и (V2/RU/premium), Day 3 (per-category + CoT), V4 (file_content)
+- `AGENT_DIARY.md` — 2026-08-14 23:20 (свип), 23:55 (Red Team), 2026-08-15 (V3/Part 5, V4)
 - `design_longitudinal.md` — дизайн 30-дневного протокола (эта папка)
 - `scripts/run_1L_live_arm.py` — harness (--reasoning — V3/CoT) · `tests/test_run_1L_live_arm.py` — тесты
 - `scripts/summarize_1L_categories.py` — per-category агрегатор · `tests/test_summarize_1L_categories.py` — тесты

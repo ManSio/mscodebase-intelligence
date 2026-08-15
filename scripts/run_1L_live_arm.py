@@ -6,8 +6,11 @@
 от эвристики». Этот harness измеряет вердикты живой модели на тех же фактах
 (memory_contamination_facts_v4_rep.json, R01-R50, те же якоря):
 
-  --arm memory_first  модель видит ТОЛЬКО claim (память): доверяет ли она памяти?
-  --arm code_first    модель видит claim + support_patterns (якоря/код).
+  --arm memory_first        модель видит ТОЛЬКО claim (память): доверяет ли она памяти?
+  --arm code_first          модель видит claim + support_patterns (якоря/код).
+  --arm file_content_first  модель видит claim + РЕАЛЬНЫЙ фрагмент файла (25 строк
+                            вокруг якоря) вместо pattern-строк — V4-дизайн, закрытие
+                            «точки укуса №2» (§11.1 отчёта: anchor bias vs паранойя).
 
 Провайдеры (--provider, алиас --driver):
   openrouter (по умолч.)  OpenRouter: https://openrouter.ai/api/v1
@@ -73,6 +76,10 @@ TEMPERATURE = 0.0         # детерминизм
 SEED = 42                 # детерминизм (модели с поддержкой seed)
 PROMPT_VERSION = "v1"     # V1 = только support_patterns (сопоставимо с Day 1);
                           # V2 (typed-якоря + contra_patterns) — отдельный прогон, не смешивать
+
+# ─── V4 / file_content_first: реальный evidence вместо pattern-строк ─────────
+SNIPPET_LINES = 25        # окно вокруг якоря (12 до + якорь + 12 после)
+CONTROL_FILE = "src/core/instruction_scan.py"  # декой для absent/silent (не резолвятся)
 
 # $/1M токенов (проверено на openrouter.ai/api/v1/models, 2026-08-14)
 PRICING_PER_1M = {
@@ -141,6 +148,13 @@ _INSTR = {
             "Return true ONLY if the anchors directly verify the claim; false if the "
             "anchors contradict it or the claim refers to something absent from the "
             "anchors; unknown if you cannot determine."),
+        "file_frag": "Code fragment",
+        "frag_around": "around line {n}",
+        "frag_head": "head",
+        "file_rule": (
+            "Return true ONLY if the code fragment directly verifies the claim; false if it "
+            "contradicts the claim or the claim refers to something absent from the "
+            "fragment; unknown if you cannot determine."),
         "system": (
             "You are a codebase-intelligence agent deciding whether a memory "
             "claim is true. Reply ONLY with JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
@@ -159,6 +173,13 @@ _INSTR = {
             "Возвращайте true ТОЛЬКО если якоря напрямую подтверждают утверждение; "
             "false — если якоря противоречат ему или утверждение относится к тому, "
             "чего нет среди якорей; unknown — если не можете определить."),
+        "file_frag": "Фрагмент кода",
+        "frag_around": "около строки {n}",
+        "frag_head": "начало файла",
+        "file_rule": (
+            "Возвращайте true ТОЛЬКО если фрагмент кода напрямую подтверждает утверждение; "
+            "false — если фрагмент противоречит ему или утверждение относится к тому, "
+            "чего нет во фрагменте; unknown — если не можете определить."),
         "system": (
             "Вы — агент интеллектуального анализа кодовой базы, решающий, истинно ли "
             "утверждение из памяти. Отвечайте ТОЛЬКО JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
@@ -177,6 +198,21 @@ def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
             f"{t['head']}\n"
             f"{t['mem_intro']}\n{claim}\n"
             f"{t['mem_q']}"
+        )
+    if arm == "file_content_first":
+        # V4: реальный фрагмент файла (25 строк вокруг якоря) вместо pattern-строк.
+        # Инструкция — нейтральная (v2-стиль): единственная переменная vs code_first
+        # v2 = форма evidence. Декой НЕ помечается в промпте (утечка ground truth).
+        sn = _resolve_snippet(fact)
+        label = (t["frag_around"].format(n=sn["anchor_line"])
+                 if sn["anchor_line"] else t["frag_head"])
+        body = "\n".join("    " + ln for ln in sn["lines"])
+        return (
+            f"{t['head']}\n"
+            f"{t['claim']} {claim}\n"
+            f"{t['section']} {fact.get('section', '?')}\n"
+            f"{t['file_frag']} ({sn['path']}, {label}):\n{body}\n"
+            f"{t['file_rule']}"
         )
     anchors = "; ".join(fact.get("support_patterns", []))
     if version == "v1":
@@ -197,6 +233,113 @@ def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
         f"{t['section']} {fact.get('section', '?')}\n"
         f"{t['v2_rule']}"
     )
+
+
+# ─── V4: резолв реального фрагмента файла (file_content_first) ─────────────
+_src_index_cache: dict[str, str] | None = None  # rel_path -> content (лениво, один раз)
+_SNIPPET_CACHE: dict[str, dict] = {}           # fact id -> сниппет (детерминизм)
+
+
+def _src_index() -> dict[str, str]:
+    """Индекс src/**/*.py: rel_path -> content. Читается один раз на процесс."""
+    global _src_index_cache
+    if _src_index_cache is None:
+        _src_index_cache = {}
+        for fp in sorted((ROOT / "src").rglob("*.py")):
+            rel = str(fp.relative_to(ROOT)).replace("\\", "/")
+            try:
+                _src_index_cache[rel] = fp.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+    return _src_index_cache
+
+
+def _best_file_for_token(token: str) -> str | None:
+    """Детерминированный резолв bare-токена: файл с максимумом вхождений.
+
+    Повторяет grep-валидацию генератора фактов (memory_contamination_generator_rep.py):
+    absent/silent-токены (typesense, terraform…) дают None → декой. 'file:'-паттерны
+    резолвятся по явному пути.
+    """
+    if token.startswith("file:"):
+        p = token[5:]
+        return p if p in _src_index() else None
+    pat = re.compile(re.escape(token))
+    best, best_n = None, -1
+    for rel, content in _src_index().items():
+        n = len(pat.findall(content))
+        if n > best_n:
+            best, best_n = rel, n
+    return best if best_n > 0 else None
+
+
+def _first_line(content: str, token: str) -> int | None:
+    """Номер первой строки (1-based) с токеном (case-insens) или None."""
+    t = token.lower()
+    for i, ln in enumerate(content.splitlines(), 1):
+        if t in ln.lower():
+            return i
+    return None
+
+
+def _resolve_snippet(fact: dict) -> dict:
+    """Реальный evidence для file_content_first: окно SNIPPET_LINES вокруг якоря.
+
+    Политика (детерминированная, документирована в отчёте §6.6b):
+      1. file:-паттерн → файл известен; окно вокруг ПЕРВОГО вхождения value (case-insens);
+         value не найден (R02: 'InstructionScan' не дословно) → голова файла — там
+         'Instruction Scan' в docstring, ближайшее evidence.
+      2. bare-токен → grep src/**/*.py, файл с максимумом вхождений; окно вокруг первого
+         вхождения токена.
+      3. ничего не найдено (absent/silent) → ДЕКОЙ: голова CONTROL_FILE. Декой НЕ
+         помечается в промпте — модель не знает, что фрагмент контрольный (иначе
+         утечка ground truth: 'not found' → тривиальный false).
+    Возвращает {path, start_line, anchor_line, lines, resolved}.
+    """
+    fid = fact["id"]
+    cached = _SNIPPET_CACHE.get(fid)
+    if cached is not None:
+        return cached
+    patterns = fact.get("support_patterns") or []
+    index = _src_index()
+    path: str | None = None
+    anchor_line: int | None = None
+    resolved = False
+    for pat in patterns:
+        if pat.startswith("file:"):
+            p = pat[5:]
+            if p in index:
+                path, resolved = p, True
+                value = fact.get("value") or ""
+                anchor_line = _first_line(index[p], value) if value else None
+                break
+    if path is None:
+        for pat in patterns:
+            p = _best_file_for_token(pat)
+            if p:
+                path, resolved = p, True
+                anchor_line = _first_line(index[p], pat)
+                break
+    if path is None:
+        path, resolved = CONTROL_FILE, False
+    lines = index.get(path, "").splitlines()
+    if anchor_line is not None:
+        start = max(1, anchor_line - SNIPPET_LINES // 2)
+        end = min(len(lines), start + SNIPPET_LINES - 1)
+        start = max(1, end - SNIPPET_LINES + 1)
+        chunk = lines[start - 1:end]
+    else:
+        chunk = lines[:SNIPPET_LINES]
+        start = 1
+    result = {
+        "path": path,
+        "start_line": start,
+        "anchor_line": anchor_line,
+        "lines": chunk,
+        "resolved": resolved,
+    }
+    _SNIPPET_CACHE[fid] = result
+    return result
 
 
 def _assert_no_truth_leak(fact: dict, prompt: str) -> None:
@@ -522,6 +665,8 @@ def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_ur
     for i, fact in enumerate(todo):
         prompt = _prompt(fact, arm, version=prompt_version, lang=lang)
         _assert_no_truth_leak(fact, prompt)
+        # V4: evidence-метадата в результат (для post-hoc анализа; в промпт НЕ идёт)
+        sn = _resolve_snippet(fact) if arm == "file_content_first" else None
         resp = _verdict(prompt, provider, key, model, base_url,
                         max_tokens, seed, no_reasoning, lang, reasoning)
         verdict = _normalize_verdict(resp)
@@ -529,6 +674,8 @@ def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_ur
         results.append({
             "id": fact["id"], "truth": fact["truth"], "verdict": verdict,
             "error": resp.get("error", ""),
+            "evidence": ("file_content" if sn["resolved"] else "decoy") if sn else "",
+            "fragment_path": sn["path"] if sn else "",
             "prompt_tokens": usage.get("prompt_tokens", 0),
             "completion_tokens": usage.get("completion_tokens", 0),
             "cost": usage.get("cost"),  # фактическая цена от OpenRouter (учитывает кеш)
@@ -571,6 +718,8 @@ def _progress_path(model: str, tag: str = "") -> Path:
 def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) -> dict:
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
     reasoning_on = bool(getattr(args, "reasoning", False))
+    evidence_mode = ("file_content" if "file_content_first" in arms
+                     else ("mixed" if len(arms) > 1 else "pattern_strings"))
     return {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "provider": args.provider,
@@ -586,6 +735,7 @@ def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) 
                               else ("on" if reasoning_on else "default"),
             "prompt_version": args.prompt_version,
             "prompt_lang": args.prompt_lang,
+            "evidence_mode": evidence_mode,
             "tag": args.tag,
             "arms": arms,
             "facts_source": str(FACTS.name),
@@ -603,7 +753,10 @@ def main() -> int:
                         help="провайдер (по умолч. openrouter)")
     parser.add_argument("--driver", dest="provider", choices=["openrouter", "api", "opencode"],
                         help="алиас для --provider (backward compat с Day 1)")
-    parser.add_argument("--arm", choices=["memory_first", "code_first", "both"], default="both")
+    parser.add_argument("--arm", choices=["memory_first", "code_first", "file_content_first", "both"],
+                        default="both",
+                        help="memory_first / code_first / file_content_first (V4: реальный фрагмент "
+                             "файла вместо pattern-строк) / both = memory_first+code_first (совместимость)")
     parser.add_argument("--model", default="", help="модель (перекрывает дефолт провайдера)")
     parser.add_argument("--models", default="",
                         help="свип: список моделей через запятую (каждая — свой progress-файл)")
@@ -650,7 +803,6 @@ def main() -> int:
         models = [default_model]
     # дедупликация с сохранением порядка
     models = list(dict.fromkeys(models))
-    model = models[0]
     key = _api_key(args.provider)
 
     if args.dry_run:
