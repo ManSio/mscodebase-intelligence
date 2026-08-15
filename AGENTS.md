@@ -120,6 +120,12 @@ Tool: search_code               Raw Input: { "query": "...", "mode": "quality" }
 | `pytest` / `install.py` / git commit | Shell (операции среды, не поиск) |
 | 2 подряд одинаковых MCP-fail | pivot на grep |
 
+> **Zed 1.14+ sandboxing (2026-08):** `terminal`/`fetch` — сетевые хосты требуют
+> per-host одобрения. При fallback на `fetch` (исследование §1.7) отказ «host not
+> granted» — это песочница, не сбой: запросить одобрение хоста у пользователя.
+> MCP-first режим это обходит (context server, не agent-тул) — ещё одна причина
+> не покидать MCP-first без нужды.
+
 ### Запрещено при живом MCP
 
 - ❌ `grep` вместо `search_code` (если chunks > 0)
