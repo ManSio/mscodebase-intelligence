@@ -261,6 +261,59 @@ def test_pricing_has_qwen_37_flash():
     assert _mod.DEFAULT_OPENROUTER_MODEL == "qwen/qwen3.7-flash"
 
 
+# ─── Reasoning-флаг (V3/CoT-рука, Part 5) ──────────────────────────────────
+def test_reasoning_flag_sets_body(monkeypatch):
+    """--reasoning → reasoning.enabled=true в body; --no-reasoning → false; оба off → нет ключа."""
+    import httpx
+
+    captured = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["body"] = json
+
+        class R:
+            status_code = 200
+
+            def json(self):
+                return {"choices": [{"message": {"content": '{"verdict":"true"}'},
+                                      "finish_reason": "stop"}], "usage": {}}
+
+        return R()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    # явное включение (CoT-рука)
+    r = _mod._api_verdict("p", "k", "m", "https://x", 500, 42, False, "en", reasoning=True)
+    assert r["verdict"] == "true"
+    assert captured["body"]["reasoning"] == {"enabled": True}
+    assert captured["body"]["max_tokens"] == 500
+
+    # отключение (zero-shot, каноническая рука)
+    _mod._api_verdict("p", "k", "m", "https://x", 100, 42, True, "en", reasoning=False)
+    assert captured["body"]["reasoning"] == {"enabled": False}
+
+    # ни один флаг — параметр не передаётся (дефолт модели)
+    _mod._api_verdict("p", "k", "m", "https://x", 100, 42, False, "en")
+    assert "reasoning" not in captured["body"]
+
+
+def test_new_report_reasoning_mode():
+    """Конфиг различает три режима reasoning: off / on / default (аудит CoT-руки)."""
+    import argparse
+
+    facts = _facts()[:50]
+    for no_reasoning, reasoning, expected in [(True, False, "off"), (False, True, "on"), (False, False, "default")]:
+        args = argparse.Namespace(
+            provider="openrouter", arm="both", max_tokens=500, seed=42,
+            no_reasoning=no_reasoning, reasoning=reasoning,
+            prompt_version="v2", prompt_lang="en", tag="v3_cot")
+        cfg = _mod._new_report(args, "https://openrouter.ai/api/v1",
+                               "qwen/qwen3.7-flash", facts, "abc")["config"]
+        assert cfg["reasoning_mode"] == expected
+        assert cfg["reasoning_enabled"] is (not no_reasoning)
+
+
 # ─── Конфигурация эксперимента ──────────────────────────────────────────────
 def test_config_fingerprint_fields():
     """Отчёт обязан нести fingerprint конфига — иначе результат невоспроизводим."""

@@ -88,4 +88,4 @@ keep common-in-src, keep rare-not-in-src, explicit anchors unguarded.
 | `src/core/intelligence/verify_on_read.py` | `pkg:`-якорь: regex, `_load_manifest_packages`, `_Fingerprint.packages`, `_check_anchor`, schema guard кэша |
 | `src/core/intelligence/layer.py` | docstring-обновления (file/import/env → +pkg) — код не меняется (capture уже идёт через `extract_anchors(project_root=...)`) |
 | `tests/test_verify_on_read.py` | +7 тестов |
-| `KNOWN_ISSUES.md` | запись о footgun'е `memory_contamination_verify.py` + этот ADR |
+| `KNOWN_ISSUES.md` | запись о footgun'е `experiments/1V_memory_contamination/memory_contamination_verify.py` + этот ADR |

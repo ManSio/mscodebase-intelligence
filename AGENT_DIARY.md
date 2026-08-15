@@ -19,8 +19,18 @@
 - **Дедупликация серверов при 2 окнах (2026-08-13):** lock embedder/reranker держится ДО готовности порта (был — до Popen; llama-server bind'ит через секунды → второй MCP спавнил дубль); ONNX _wait_for_server 30→60s (модель 600MB)
 - **LIVE-SMOKE (2026-08-13):** scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp / rerank BGE-M3 / векторный поиск по реальному LanceDB); §7 п.10b: для runtime-изменений ✅ = live-check, не только pytest (инцидент: 7 тестов зелёные по неверной причине)
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
+- **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
 ---
+
+## [2026-08-15 00:45] — Exp 1-L Day 3: ответ на ревью Part 4 — per-category метрики + V3/Part 5 CoT vs Zero-Shot (DONE)
+**Status:** ✅ Fixed (доки+скрипты+тесты+live-прогон; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (полный pytest не гонялся; 38/38 на затронутых тестах harness+агрегатор; live: 400 вызовов OpenRouter v3_cot err=0 на 3/4 моделей, ~$0.20)
+**Root Cause (ревью Part 4):** (1) глобальные метрики harness (FA/TA от N=50) не отвечают на вопрос «не режет ли модель правду» — нужен recall на категории real; (2) no-reasoning-рука измерила калибровку alignment, CoT не сравнивался.
+**Fix:** (1) `scripts/summarize_1L_categories.py` (8 тестов) — per-category recall/precision/F1/FA по real/absent/trap/silent из progress-файлов, 0 вызовов; отчёт §6.5 + оговорка fail-closed в выводе 1. (2) флаг `--reasoning` (reasoning.enabled=true) в harness + 2 теста; live-прогон v3_cot (4 модели × 100, max_tokens=1500, ~$0.20) → §6.6.
+**Guard:** отчёт §6.5/6.6/§11/§13; EXPERIMENTS_LOG#2026-08-15; тесты 38; выбор LLM для VOR обязан включать recall(real), а не только FA.
+**Follow-up (Day 3b, 2026-08-15, по команде «12»):** run2 CoT (v3_cot_run2, 400 выз.) — стабильность подтверждена (recall ±0.04–0.08, FA qwen3.6/3.7 = 0/0 в обоих); qwen3.8-max в CoT (v3_cot_max, 100 выз., err=0) — лучший code_first recall 0.36 при FA 0.04 (срединная опция vs fail-closed qwen3.6); фикс фильтра --tag в агрегаторе (config.tag вместо prefix).
+**Pattern:** P-002-класс «предположение вместо проверки» наоборот: ревью предположило ленивость — данные подтвердили (qwen3.6 code_first recall(real)=0.08, 7/25 правды активно отвергнуто); NEW-урок: «FA=0.00 ≠ качество — fail-closed vs max-coverage политика».
 
 ## [2026-08-14 23:20] — Exp 1-L Day 2: свип 6 дешёвых моделей OpenRouter — эксперимент доделан (COMPLETED)
 **Status:** ✅ Completed (код+тесты+данные; commit/push по команде)
@@ -81,7 +91,7 @@
 
 ## [2026-08-14 16:20] — Фикс 11 дыр в градере реранкера по evalmut-методологии (DONE)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
-**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (93s); ruff clean на 3 изменённых файлах; mutation score 8% → 100% (experiments/probe_evalmut_transfer.py)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (93s); ruff clean на 3 изменённых файлах; mutation score 8% → 100% (experiments/evalmut/probe_evalmut_transfer.py)
 **Root Cause:** validate_scores (reranker_scoring.py:38) валидировал ТИПЫ (isinstance float), но не ЗНАЧЕНИЯ: NaN/Infinity проходили isinstance → clamp min(1.0, NaN)=1.0 → неоценённый чанк получал МАКСИМАЛЬНЫЙ скор. Плюс: regex-путь (попытка 4) без clamp, «пример формата» в объяснении LLM извлекался как скор, float index тихо int()'ился, дубликаты молча перезаписывались, json.loads парсил NaN/Infinity.
 **Fix:** (1) validate_scores — контракт (docstring): math.isfinite, целые неотрицательные индексы, bool-гейты; clamp by design сохранён. (2) parse_scores_json — _finalize_scores: decline при дубликатах (все пути) и при единичном объекте на regex-пути (пример формата); regex-путь через validate_scores. (3) apply_scores — warning при осиротевших индексах. (4) multi_provider.py — удалены 4 мёртвых классовых дубля (_parse_scores_json/_validate_scores/_apply_scores/_cosine_similarity, §6.2) + неиспользуемые json/re/константы.
 **Guard:** +13 тестов (test_reranker.py 38): каждая дыра — отдельный регрессионный тест; SANITY-corroboration (2 мусорных входа); decline-тесты (дубликат/пример); полный pytest 1189.
@@ -89,7 +99,7 @@
 
 ## [2026-08-14 15:55] — evalmut-перенос: мутационный аудит validate_scores — 11 дыр в градере реранкера (FOUND → FIXED 16:20)
 **Status:** ✅ Fixed (фикс — запись 16:20; 1189 passed, mutation score 100%)
-**verified_from_clean_state:** ✅ да — полный pytest 1189 passed / 10 skipped (2026-08-14 16:20), experiments/probe_evalmut_transfer.py → 0 дыр
+**verified_from_clean_state:** ✅ да — полный pytest 1189 passed / 10 skipped (2026-08-14 16:20), experiments/evalmut/probe_evalmut_transfer.py → 0 дыр
 **Root Cause:** validate_scores (reranker_scoring.py:37) валидирует ТИПЫ (isinstance float), но не ЗНАЧЕНИЯ: NaN/Infinity проходят isinstance → clamp min(1.0, NaN)=1.0 → неоценённый чанк получает МАКСИМАЛЬНЫЙ скор (P1). Дополнительно: regex-путь (попытка 4, :100) без clamp — score 99.0 проходит; «пример формата» в объяснении LLM принимается как реальный скор; float index 2.7 тихо int() → 2; дубликаты индексов молча перезаписываются; json.loads парсит NaN/Infinity по умолчанию (:70).
 **Fix:** НЕ внесён (по команде). Кандидаты: math.isfinite() guard (прецедент — error_handler._sanitize:707 уже это делает), clamp в regex-путь, отбраковка нецелых/негативных/дублирующихся индексов, SANITY-тесты на 2+ мусорных входа.
 **Guard:** evalmut-инвариант «дыра = (вывод доказанно неверен) AND (градер пропустил)»; 25 тестов test_reranker.py зелёные при 11 дырах — pytest green ≠ работает (см. EXPERIMENTS_LOG 2026-08-14).
@@ -99,7 +109,7 @@
 **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
 **verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
 **Root Cause:** ревью статьи (38 комментариев): (1) серия из нескольких статей не подписана как серия; (2) критика справедливая — детерминированный proxy-агент, headline-числа (0.16/0.24 adoption) от эвристики, не от живой модели; (3) 1-L анонсирован в комментариях, 1-M (manifest-anchoring Skillselion) — готовая гипотеза.
-**Fix:** (1) docs/blog/README.md — индекс «MSCodeBase Intelligence — Field Notes»; «Part N of»-хедеры + cross-links в 3 статьи; docs/blog/verify-on-read.md — Part 3 source-material (не дубль текста, URL — TODO владельцу, не выдуман). (2) experiments/exp_1M_manifest_anchoring.md — маппинг: гипотеза → 7 false-REFUTED [G07,G25,G11,G24,G23,G18,G21] → ADR-0005 pkg:-анкоры → evidence (вердикт: подтверждено — 1-V-REP уже 0). (3) experiments/exp_1L_longitudinal_30d.md — дизайн: LIVE-model arm (Claude/GPT-4o) + proxy-контроль, правило контрольной группы, 30 дней, DoD. (4) scripts/collect_memory_snapshot.py — JSONL-снимок memory-метрик (только чтение store, MCP не нужен).
+**Fix:** (1) docs/blog/README.md — индекс «MSCodeBase Intelligence — Field Notes»; «Part N of»-хедеры + cross-links в 3 статьи; docs/blog/verify-on-read.md — Part 3 source-material (не дубль текста, URL — TODO владельцу, не выдуман). (2) experiments/1M_manifest_anchoring/exp_1M_manifest_anchoring.md — маппинг: гипотеза → 7 false-REFUTED [G07,G25,G11,G24,G23,G18,G21] → ADR-0005 pkg:-анкоры → evidence (вердикт: подтверждено — 1-V-REP уже 0). (3) experiments/1L_live_arm/design_longitudinal.md — дизайн: LIVE-model arm (Claude/GPT-4o) + proxy-контроль, правило контрольной группы, 30 дней, DoD. (4) scripts/collect_memory_snapshot.py — JSONL-снимок memory-метрик (только чтение store, MCP не нужен).
 **Guard:** ruff; реальный снимок коллектора (jsonl valid).
 **Pattern:** — (документная задача; честная позиция: числа 1-V — доказательство свойства, не замер живой модели — 1-L измерит).
 
@@ -299,7 +309,7 @@
 **Status:** ✅ Verified (эксперимент выполнен, EXPERIMENTS_LOG#2026-08-11-1-V-REP; код-изменений вне experiments/ нет — только параметризация пути фактов в verify-скрипте)
 **Root Cause:** — (Правило одного бенча §1: одиночный замер 1-V ≠ доказательство для продакшн-поведения; репликация на независимых данных — обязательна)
 **Fix:** facts v4 (seed=7): TRUE_POOL_REP (file:6+env:2+import:9+CamelCase:8, grep-валидирован), absent 16 (qdrant/weaviate/...), trap 6 (pathlib/threading/dataclasses/json/logging/re), silent 3 (terraform/jaeger/loki). Тот же verify-скрипт (путь фактов из argv — логика не тронута).
-**Guard:** EXPERIMENTS_LOG#2026-08-11-1-V-REP; результат memory_contamination_results_v4_rep.json; DoD ADR-0003 подтверждён независимо: adoption честного 0.0 (1-V: 0.0), 0 ложных REFUTED TRUE при корректной типизации (1-V: 7 — артефакты наивной типизации, закрыты write-time capture), present-trap слепота воспроизведена (memory_first 0.24 vs 0.16).
+**Guard:** EXPERIMENTS_LOG#2026-08-11-1-V-REP; результат experiments/1V_memory_contamination/memory_contamination_results_v4_rep.json; DoD ADR-0003 подтверждён независимо: adoption честного 0.0 (1-V: 0.0), 0 ложных REFUTED TRUE при корректной типизации (1-V: 7 — артефакты наивной типизации, закрыты write-time capture), present-trap слепота воспроизведена (memory_first 0.24 vs 0.16).
 **Pattern:** P-002-класс «прогноз vs замер» — прогноз репликации (adoption 0.0, 0 ложных отзывов) совпал с замером на 5/5 осей.
 **OPEN_QUESTION:** stale auto_collect_adrs → Вариант C (TTL) — остаётся отложенным до 2026-09-11 (deadline наблюдения stale-rate, KNOWN_ISSUES).
 
@@ -315,7 +325,7 @@
 ## [2026-08-11 22:40] — Exp 1-R: ретракция измерена — persistent contamination -88%, memory_first 1.0→0.12 (DONE)
 **Status:** ✅ Verified (эксперимент выполнен, EXPERIMENTS_LOG#2026-08-11-1-R; код-изменений вне experiments/ нет)
 **Root Cause:** — (измерение эффекта ADR-0002; контрольная группа = v3, parity OK: adoption честного S1 = 0.12)
-**Fix:** — (правок нет) | **Guard:** scripts/experiment + memory_contamination_results_v3_retraction.json; ADR-0002 Temporal уточнён
+**Fix:** — (правок нет) | **Guard:** scripts/experiment + experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json; ADR-0002 Temporal уточнён
 **Pattern:** P-002-класс «прогноз vs замер» — «adoption → 0» в ADR Temporal оказался неверным таргетом: SILENT-факты неотзывны (adoption честного остаётся 0.12); падают persistent contamination (-88%), memory_first adoption (1.0→0.12) и токены (-45%).
 
 ## [2026-08-11 23:10] — ADR-0003 Verify-On-Read: Lazy Validation Layer, adoption честного → 0.0 (DONE)
@@ -351,7 +361,7 @@
 **Status:** ✅ Verified (read-only к src/; EXPERIMENTS_LOG#2026-08-11-memory-contamination; изоляция: store_dir tempdir ≠ реальный, подтверждено assert'ом и полем isolation)
 **Root Cause:** — (не инцидент; проверка гипотезы second_brain_research: «персистентная память вносит stale/false контекст»): code_contradictability 0.714 (внутренние факты 10/10, внешние Redis/Celery/MySQL/Kafka 0/4); correction_capability (A code_first) = 1.0 — при явном противоречии Memory vs Code агент выбирает CODE и отзывает; НО система add-only: инструмента отзыва нет (grep-0) → даже корректное решение агента нереализуемо системно; memory_confidence_effect = 4 (SILENT-факты: уверенная ложь vs UNKNOWN без памяти); память-контекст ×22 токенов, выигрыша в correct_rate нет (0.833 == без памяти).
 **Fix:** — (код не менялся). Вывод для прод: (1) verify-on-read при load_memory; (2) retraction-статус VERIFIED/REFUTED (концепт владельца RetractionReceipt) + фильтрация при чтении; (3) intel_auto_collect_adrs — риск stale, ADR об окружении неверифицируемы кодом. KNOWN_ISSUES#2026-08-11-memory-addonly.
-**Guard:** memory_contamination.py + memory_contamination_facts.json (воспроизводимо; детерминированный агент — баг вердикта v1 (CONTRADICT→not truth) исправлен, ловушка «openai-compatible» уточнена до text-embedding-3).
+**Guard:** experiments/1V_memory_contamination/memory_contamination.py + memory_contamination_facts.json (воспроизводимо; детерминированный агент — баг вердикта v1 (CONTRADICT→not truth) исправлен, ловушка «openai-compatible» уточнена до text-embedding-3).
 **Pattern:** NEW (урок: измерили «защитную способность системы», не психологию LLM — честная калибровка обязательна; память без отзыва = кумулятивное заражение).
 
 ---
@@ -378,7 +388,7 @@
 
 **Status:** ⚠️ Fixed (локально: gate-zero 1031 passed / 4 skipped, ruff src/ tests/ = 0; +4 регресс-теста tests/test_graph_adapter_node_selection.py)
 **verified_from_clean_state:** ✅ yes — `bash scripts/verify_clean_state.sh D:/Project/MSCodeBase` → 1018 passed, 0 failed (клон закоммиченного 6170ca38, чистая установка + pytest)
-**Root Cause:** get_symbol_info/impact_analysis/intel_code_topology читали build_call_graph/get_callers, где узел выбирался `find_nodes(name_pattern)[0]` без ранжирования: (D1) тень experiments/run_experiment_pagerank.py:40 опережала src/ (exact-LIKE + порядок вставки); (D2) методы хранятся как «Class.method» — точный LIKE промахивался; (D3) extern-placeholder (пустой file_path) опережал реальное определение. Плюс: CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers лежат на тени.
+**Root Cause:** get_symbol_info/impact_analysis/intel_code_topology читали build_call_graph/get_callers, где узел выбирался `find_nodes(name_pattern)[0]` без ранжирования: (D1) тень experiments/misc_probes/run_experiment_pagerank.py:40 опережала src/ (exact-LIKE + порядок вставки); (D2) методы хранятся как «Class.method» — точный LIKE промахивался; (D3) extern-placeholder (пустой file_path) опережал реальное определение. Плюс: CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers лежат на тени.
 **Fix:** graph_adapter_pure.py + graph_adapter.py: _find_nodes_flexible → union (exact+suffix «%.method»); _pick_best_node (ранг: реальное определение src/ > placeholder > тень experiments//scripts/); _candidate_starts (BFS по ВСЕМ одноимённым — misrouted рёбра); _is_one_off_script (фильтр записей: скриптовые callers не прод-потребители). get_call_chain/get_callers — тот же паттерн (Триггер 3).
 **Guard:** +4 теста (D1 src>тень, D2 метод по голому имени, D3 placeholder не вытесняет, callers-merge); контрольный прогон context_engine v3: wrong_rate C1/C2 = 0.000, C1 recall 0.288→0.380, precision C1 0.700→0.800; real-probe: build_call_graph → symbol_index.py:481, 9 реальных callers.
 **Pattern:** P-002-класс «инструмент-предположение» (nodes[0] предполагал «первый = правильный»); урок: граф при индексации привязывает рёбра к первому матчу — правки выбора узла обязаны учитывать misrouted рёбра.
