@@ -1,0 +1,258 @@
+{
+  "summary": {
+    "total": 31,
+    "top1_accuracy": 0.12903225806451613,
+    "avg_similarity": 0.17483398420155769,
+    "avg_term_overlap": 0.15812909580309384
+  },
+  "details": [
+    {
+      "title": "2026-07-20 19:45",
+      "symptom": "(от пользователя):** `intel_trigger_reindex(mode=\"full\")` часто падает,\njob висит в `Finalizing`, по",
+      "real_cause": "(черновик, заменён выше): LanceDB  при full reindex",
+      "similarity": 0.09561752988047809,
+      "term_overlap": 0.14285714285714285,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-20 22:45",
+      "symptom": "** log-файл содержит 695 ошибок `ModuleNotFoundError: No module named 'src.lsp_main'`\n  каждые 20-30",
+      "real_cause": "**  удалён из кодовой базы, но \n  и  продолжали его импортировать при каждом вызове.\n-   → return Fa",
+      "similarity": 0.06896551724137931,
+      "term_overlap": 0.3076923076923077,
+      "top1_correct": true
+    },
+    {
+      "title": "2026-07-18 17:30",
+      "symptom": "** Claude-аудит нашёл новую гонку в AsyncInferQueue (коммит e34d5e1):\n`self._ov_results` — общий dic",
+      "real_cause": "** Callback писал в  где userdata=0..N-1 —\nчисловые индексы, пересекающиеся между вызовами.",
+      "similarity": 0.08247422680412371,
+      "term_overlap": 0.25,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-17 20:00",
+      "symptom": "** После исправления INT8 модели (cos=1.0) скорость оставалась 18 ch/s,\nхотя бенчмарки small INT8 по",
+      "real_cause": "**\n\n1.   — неоптимально для small INT8 (batch=4 даёт 52 ch/s, batch=64 → 25 ch/s)\n2.   — второй неза",
+      "similarity": 0.2,
+      "term_overlap": 0.13513513513513514,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-17 19:00",
+      "symptom": "** search_code(mode=fast) возвращал мусор. INT8 модель не совпадала с FP32 (cos≈0).",
+      "real_cause": "**  был сквантизирован ИЗ НЕВЕРНОЙ БАЗОВОЙ МОДЕЛИ:\n\n- vocab=30522 (BERT-uncased) вместо 250002 (intf",
+      "similarity": 0.19081272084805653,
+      "term_overlap": 0.1,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-16 21:50",
+      "symptom": "** MCP-сервер падал через 2 сек после запуска, 120MB RAM",
+      "real_cause": "** В SQLite БД Zed поле  содержит 2 пути через :\n\n-  (файл, не папка!)\n-  (настоящий проект)\n\n брал ",
+      "similarity": 0.22040816326530613,
+      "term_overlap": 0.13333333333333333,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-16 21:15",
+      "symptom": "** `name '_is_self_index_path' is not defined` при вызове\n- **Root Cause:** При декомпозиции server.",
+      "real_cause": "** При декомпозиции server.py (Фаза 2, Шаг 1) импорт  не был перенесён в \n-   в \n\n### 4. Убраны пред",
+      "similarity": 0.3887468030690537,
+      "term_overlap": 0.7727272727272727,
+      "top1_correct": true
+    },
+    {
+      "title": "2026-07-15 05:52",
+      "symptom": "2026-07-15 05:52",
+      "real_cause": "глобальное состояние в монолитном server.py\n- Фикс: декомпозиция уменьшила scope глобальных переменн",
+      "similarity": 0.07476635514018691,
+      "term_overlap": 0.0,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-14 22:00",
+      "symptom": "2026-07-14 22:00",
+      "real_cause": "не установлена.\n\n### 5. Ключевые файлы\n\n-  — ADR без subprocess\n-  — MMR + auto_detect_intent\n-  — и",
+      "similarity": 0.009259259259259259,
+      "term_overlap": 0.0,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-14 18:40",
+      "symptom": "** `intel_auto_collect_adrs` падал с \"Context server request timeout\"\nпри каждом вызове. HEAD-фикс (",
+      "real_cause": "**  на русской Windows использует\nкодировку cp1251. git log содержит UTF-8 символы (русские коммиты,",
+      "similarity": 0.15757575757575756,
+      "term_overlap": 0.05,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-14 01:30",
+      "symptom": "** После архитектурной реструктуры (IEmbedder interface, domain split)\nскорость эмбеддинга упала с 3",
+      "real_cause": "(3 проблемы):**\n\n1.  — после переезда  в\n     давал\n   неверный путь. Фикс:  вместо .\n\n2.  — INT8 мо",
+      "similarity": 0.2379746835443038,
+      "term_overlap": 0.06060606060606061,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-13 02:30",
+      "symptom": "** После коммита `e7c61dc` скорость эмбеддинга упала с ~350 до ~9 ch/s.\n`search_code(mode='fast')` в",
+      "real_cause": "(первопричина):** Я (агент сессии 01:30) ошибочно диагностировал,\nчто INT8-модель E5-base требует  н",
+      "similarity": 0.1638418079096045,
+      "term_overlap": 0.0196078431372549,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-13 01:30",
+      "symptom": "(root cause of \"fast mode returns garbage\"):**\n\n- `search_code` mode=`fast` (чистый `vector_search`)",
+      "real_cause": "of \"fast mode returns garbage\"):**\n\n-  mode= (чистый ) возвращал мусор:\n  всегда  /  со score 0.0.\n-",
+      "similarity": 0.57,
+      "term_overlap": 0.6,
+      "top1_correct": true
+    },
+    {
+      "title": "2026-07-12 23:40",
+      "symptom": "** После docs-sync сессии (21:40) остались 4 открытых пункта:\n\n1. MCP index 0 chunks (не подтверждён",
+      "real_cause": "(terminal)**: Zed agent↔tool transport protocol некорректно сериализует optional integer params в to",
+      "similarity": 0.05056179775280899,
+      "term_overlap": 0.05263157894736842,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-12 20:00",
+      "symptom": "** `intel_get_runtime_status` показывал `symbol_index_count: 0`, а `get_health_report` — `symbols: 3",
+      "real_cause": "**  вызывал  только при . Но при cold start  — пустой объект, и перезагрузка с диска не срабатывала ",
+      "similarity": 0.21548821548821548,
+      "term_overlap": 0.08695652173913043,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-12",
+      "symptom": "**\nИндексация работала на 7-8 ch/s (ONNX Runtime FP32). Пользователь\nожидал 270 ch/s на основе ранни",
+      "real_cause": "(3 проблемы):**\n\n1.   → в батче самый длинный чанк\n   определял padding → квадратичный рост attentio",
+      "similarity": 0.17261904761904762,
+      "term_overlap": 0.0,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-11 10:15",
+      "symptom": "**\n\n- `get_index_status()` показывал Files: 1 при реальных 170+ файлах\n- `intel_get_runtime_status()",
+      "real_cause": "**\n\n1.  —  — set, заполняется только при .\n   Если индекс построен ДО добавления этого кэша — set пу",
+      "similarity": 0.25,
+      "term_overlap": 0.06451612903225806,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-10 23:55",
+      "symptom": "**\nНа Windows Insider (build >= 26000, niki_v2) Microsoft удалила виртуальные\nAPI Set DLL (api-ms-wi",
+      "real_cause": "**\n\n-  + 5 других DLL импортируют api-ms-win-crt-*.dll\n  (виртуальные API Set, которых нет на Inside",
+      "similarity": 0.15,
+      "term_overlap": 0.20512820512820512,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-10 23:40",
+      "symptom": "**\nДаже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал\nс STATUS_DLL_NOT_FOUND. MSV",
+      "real_cause": "**\nНа Windows Insider (build >= 26000) Microsoft удалила некоторые CRT API Set DLL.\nMSVC-сборка llam",
+      "similarity": 0.23796033994334279,
+      "term_overlap": 0.21428571428571427,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-10 23:15",
+      "symptom": "**\n`step_llama()` и `step_gguf()` в install.py скачивают бинарник и GGUF модели\nв `_get_ext_dir()` (",
+      "real_cause": "**\n\n-  проверял  (проект), не проверял ZED_EXT_DIR\n- После  не было  в ZED_EXT_DIR\n-  — то же самое ",
+      "similarity": 0.11,
+      "term_overlap": 0.2,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-10 22:58",
+      "symptom": "**\nПосле загрузки MCP-сервера llama.cpp процессы (embed + reranker) не запускались.\n`embedder_mode: ",
+      "real_cause": "**\n\n1.  = True (build >= 26000). На Insider отсутствуют CRT API Set DLL.\n2.  (stub 9 KB) падал с  (0",
+      "similarity": 0.23056300268096513,
+      "term_overlap": 0.08333333333333333,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-10 08:20",
+      "symptom": "** `embed_batch` всегда возвращал нулевые векторы в режиме `llama_cpp`.\n`intel_get_runtime_status` п",
+      "real_cause": "**\n\n1.  — try-except с HTTP-запросом к llama.cpp находился\n   ВНУТРИ блока , поэтому когда mode==\"ll",
+      "similarity": 0.15072463768115943,
+      "term_overlap": 0.09375,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-09 21:00",
+      "symptom": "** Комплексный запрос пользователя:\n\n1. Проверить все MCP инструменты (таймауты)\n2. Почему RAM вырос",
+      "real_cause": "** Дублирование из-за ручного и автоматического запуска.",
+      "similarity": 0.0390625,
+      "term_overlap": 0.14285714285714285,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-09 06:42",
+      "symptom": "** После миграции на ONNX MCP-процесс вырос с ~300MB до ~1.2GB,\nа ONNX-сервер — до 3.5GB. Причина:\n\n",
+      "real_cause": "1.  создавал  только ради размерности\n   — временный спайк +544MB (+ утечка, т.к. сессия не закрывал",
+      "similarity": 0.28,
+      "term_overlap": 0.4857142857142857,
+      "top1_correct": true
+    },
+    {
+      "title": "2026-07-07 23:16",
+      "symptom": "** LanceDB таблица `codebase_chunks` была сброшена извне.\nВсе операции Indexer (add, delete, search,",
+      "real_cause": "** Внешний скрипт дропнул таблицу. Indexer держал stale\nRust-backed handle.  не обрабатывал\nслучай п",
+      "similarity": 0.045,
+      "term_overlap": 0.13333333333333333,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-05",
+      "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
+      "real_cause": "**  вызывался внутри .\n не reentrant — второй захват блокирует поток навсегда.",
+      "similarity": 0.2638888888888889,
+      "term_overlap": 0.08333333333333333,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-05",
+      "symptom": "2026-07-05",
+      "real_cause": "не регистрируется\nв  Zed на Windows.  не может зарегистрировать\nновый LSP — только override пути для",
+      "similarity": 0.01904761904761905,
+      "term_overlap": 0.0,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-04",
+      "symptom": "** `intel_trigger_reindex` → `intel_get_job_status` всегда возвращал `progress: 0.5`.\nJob висел в ст",
+      "real_cause": "**  не передавал  в .\nПрогресс статически ставился на 0.5 перед  и не обновлялся.",
+      "similarity": 0.25961538461538464,
+      "term_overlap": 0.15384615384615385,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-06-29",
+      "symptom": "** Claude-аудит обнаружил что `self._ov_results` — общий dict на процесс.\nConcurrent embed_batch() (",
+      "real_cause": "** Callback писал в , userdata=0..N-1.\nДва concurrent вызова с одинаковыми индексами → перезапись.",
+      "similarity": 0.16778523489932887,
+      "term_overlap": 0.14285714285714285,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-20 22:30",
+      "symptom": "2026-07-20 22:30",
+      "real_cause": "Not Found (полное решение):**\n- Layer 1:  (Event) — search fast-fail при reindex\n- Layer 2:  (Lock) ",
+      "similarity": 0.05555555555555555,
+      "term_overlap": 0.0,
+      "top1_correct": false
+    },
+    {
+      "title": "2026-07-21 00:15",
+      "symptom": "** `intel_get_project_memory()` возвращал пустой результат на старте,\nхотя в git-логе есть архитекту",
+      "real_cause": "**\n1.  никогда не вызывался автоматически — только вручную.\n2. Логи () никогда не чистились, накопил",
+      "similarity": 0.26153846153846155,
+      "term_overlap": 0.1875,
+      "top1_correct": false
+    }
+  ]
+}

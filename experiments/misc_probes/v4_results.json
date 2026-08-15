@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-07-22 22:46:16",
+  "symbol_graph": {
+    "nodes": 547,
+    "edges": 1218
+  },
+  "file_level_top20": {
+    "savings": 69.0,
+    "accuracy": 88
+  },
+  "symbol_level_top20": {
+    "savings": 73.2,
+    "accuracy": 74.0
+  },
+  "verdict": "file_level_sufficient"
+}

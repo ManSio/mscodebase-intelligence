@@ -1,0 +1,1172 @@
+{
+  "ast": {
+    "files": 125,
+    "symbols": 1551,
+    "calls": 12392,
+    "imports": 1558,
+    "time_ms": 327.9,
+    "files_per_sec": 381.0,
+    "kinds": {
+      "class": 175,
+      "function": 1140,
+      "async_function": 236
+    }
+  },
+  "tree_sitter": {
+    "files": 125,
+    "symbols": 384,
+    "calls": 0,
+    "imports": 695,
+    "time_ms": 241.8,
+    "files_per_sec": 517.0,
+    "kinds": {
+      "function": 248,
+      "class": 136
+    }
+  },
+  "per_file": [
+    {
+      "file": "src\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.22,
+      "ts_ms": 0.24
+    },
+    {
+      "file": "src\\config\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.17,
+      "ts_ms": 0.14
+    },
+    {
+      "file": "src\\config\\settings.py",
+      "ast_syms": 26,
+      "ts_syms": 9,
+      "ast_calls": 8,
+      "ts_calls": 0,
+      "ast_ms": 1.85,
+      "ts_ms": 1.68
+    },
+    {
+      "file": "src\\core\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.28,
+      "ts_ms": 0.22
+    },
+    {
+      "file": "src\\core\\auto_doc_updater.py",
+      "ast_syms": 19,
+      "ts_syms": 1,
+      "ast_calls": 67,
+      "ts_calls": 0,
+      "ast_ms": 5.59,
+      "ts_ms": 4.28
+    },
+    {
+      "file": "src\\core\\autonomous_fix.py",
+      "ast_syms": 12,
+      "ts_syms": 2,
+      "ast_calls": 29,
+      "ts_calls": 0,
+      "ast_ms": 3.15,
+      "ts_ms": 2.14
+    },
+    {
+      "file": "src\\core\\bug_correlation.py",
+      "ast_syms": 10,
+      "ts_syms": 1,
+      "ast_calls": 19,
+      "ts_calls": 0,
+      "ast_ms": 1.36,
+      "ts_ms": 1.24
+    },
+    {
+      "file": "src\\core\\code_health.py",
+      "ast_syms": 5,
+      "ts_syms": 5,
+      "ast_calls": 18,
+      "ts_calls": 0,
+      "ast_ms": 1.06,
+      "ts_ms": 1.03
+    },
+    {
+      "file": "src\\core\\commit_memory.py",
+      "ast_syms": 18,
+      "ts_syms": 1,
+      "ast_calls": 44,
+      "ts_calls": 0,
+      "ast_ms": 2.91,
+      "ts_ms": 2.96
+    },
+    {
+      "file": "src\\core\\di_container.py",
+      "ast_syms": 14,
+      "ts_syms": 6,
+      "ast_calls": 40,
+      "ts_calls": 0,
+      "ast_ms": 1.79,
+      "ts_ms": 1.66
+    },
+    {
+      "file": "src\\core\\doc_generator.py",
+      "ast_syms": 6,
+      "ts_syms": 1,
+      "ast_calls": 27,
+      "ts_calls": 0,
+      "ast_ms": 1.15,
+      "ts_ms": 1.04
+    },
+    {
+      "file": "src\\core\\doc_llm_verifier.py",
+      "ast_syms": 11,
+      "ts_syms": 1,
+      "ast_calls": 37,
+      "ts_calls": 0,
+      "ast_ms": 1.5,
+      "ts_ms": 1.55
+    },
+    {
+      "file": "src\\core\\doc_sync_engine.py",
+      "ast_syms": 13,
+      "ts_syms": 1,
+      "ast_calls": 48,
+      "ts_calls": 0,
+      "ast_ms": 2.46,
+      "ts_ms": 2.12
+    },
+    {
+      "file": "src\\core\\error_handler.py",
+      "ast_syms": 28,
+      "ts_syms": 21,
+      "ast_calls": 71,
+      "ts_calls": 0,
+      "ast_ms": 5.41,
+      "ts_ms": 4.18
+    },
+    {
+      "file": "src\\core\\eta_predictor.py",
+      "ast_syms": 10,
+      "ts_syms": 3,
+      "ast_calls": 15,
+      "ts_calls": 0,
+      "ast_ms": 2.1,
+      "ts_ms": 1.29
+    },
+    {
+      "file": "src\\core\\execution_contract.py",
+      "ast_syms": 6,
+      "ts_syms": 2,
+      "ast_calls": 12,
+      "ts_calls": 0,
+      "ast_ms": 1.49,
+      "ts_ms": 1.26
+    },
+    {
+      "file": "src\\core\\extensions.py",
+      "ast_syms": 2,
+      "ts_syms": 2,
+      "ast_calls": 2,
+      "ts_calls": 0,
+      "ast_ms": 0.46,
+      "ts_ms": 0.48
+    },
+    {
+      "file": "src\\core\\git_hooks_installer.py",
+      "ast_syms": 6,
+      "ts_syms": 1,
+      "ast_calls": 20,
+      "ts_calls": 0,
+      "ast_ms": 0.86,
+      "ts_ms": 0.85
+    },
+    {
+      "file": "src\\core\\gitignore_parser.py",
+      "ast_syms": 3,
+      "ts_syms": 3,
+      "ast_calls": 21,
+      "ts_calls": 0,
+      "ast_ms": 0.73,
+      "ts_ms": 0.76
+    },
+    {
+      "file": "src\\core\\graph.py",
+      "ast_syms": 50,
+      "ts_syms": 5,
+      "ast_calls": 64,
+      "ts_calls": 0,
+      "ast_ms": 7.27,
+      "ts_ms": 5.64
+    },
+    {
+      "file": "src\\core\\graph_rag.py",
+      "ast_syms": 12,
+      "ts_syms": 2,
+      "ast_calls": 25,
+      "ts_calls": 0,
+      "ast_ms": 2.11,
+      "ts_ms": 1.55
+    },
+    {
+      "file": "src\\core\\indexing\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.28,
+      "ts_ms": 0.18
+    },
+    {
+      "file": "src\\core\\indexing\\chunk_summarizer.py",
+      "ast_syms": 11,
+      "ts_syms": 2,
+      "ast_calls": 27,
+      "ts_calls": 0,
+      "ast_ms": 1.25,
+      "ts_ms": 1.11
+    },
+    {
+      "file": "src\\core\\indexing\\db_manager.py",
+      "ast_syms": 21,
+      "ts_syms": 1,
+      "ast_calls": 66,
+      "ts_calls": 0,
+      "ast_ms": 3.7,
+      "ts_ms": 2.7
+    },
+    {
+      "file": "src\\core\\indexing\\db_writer.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 28,
+      "ts_calls": 0,
+      "ast_ms": 1.31,
+      "ts_ms": 1.16
+    },
+    {
+      "file": "src\\core\\indexing\\file_guard.py",
+      "ast_syms": 9,
+      "ts_syms": 1,
+      "ast_calls": 33,
+      "ts_calls": 0,
+      "ast_ms": 1.41,
+      "ts_ms": 1.18
+    },
+    {
+      "file": "src\\core\\indexing\\file_move_manager.py",
+      "ast_syms": 4,
+      "ts_syms": 1,
+      "ast_calls": 20,
+      "ts_calls": 0,
+      "ast_ms": 0.69,
+      "ts_ms": 0.59
+    },
+    {
+      "file": "src\\core\\indexing\\freshness.py",
+      "ast_syms": 3,
+      "ts_syms": 1,
+      "ast_calls": 15,
+      "ts_calls": 0,
+      "ast_ms": 0.52,
+      "ts_ms": 0.52
+    },
+    {
+      "file": "src\\core\\indexing\\index_guard.py",
+      "ast_syms": 16,
+      "ts_syms": 2,
+      "ast_calls": 67,
+      "ts_calls": 0,
+      "ast_ms": 3.55,
+      "ts_ms": 3.19
+    },
+    {
+      "file": "src\\core\\indexing\\index_parser.py",
+      "ast_syms": 3,
+      "ts_syms": 1,
+      "ast_calls": 18,
+      "ts_calls": 0,
+      "ast_ms": 1.17,
+      "ts_ms": 1.09
+    },
+    {
+      "file": "src\\core\\indexing\\index_pipeline.py",
+      "ast_syms": 4,
+      "ts_syms": 1,
+      "ast_calls": 28,
+      "ts_calls": 0,
+      "ast_ms": 1.04,
+      "ts_ms": 1.01
+    },
+    {
+      "file": "src\\core\\indexing\\index_project_runner.py",
+      "ast_syms": 12,
+      "ts_syms": 2,
+      "ast_calls": 65,
+      "ts_calls": 0,
+      "ast_ms": 3.65,
+      "ts_ms": 2.58
+    },
+    {
+      "file": "src\\core\\indexing\\index_status.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 31,
+      "ts_calls": 0,
+      "ast_ms": 1.03,
+      "ts_ms": 0.97
+    },
+    {
+      "file": "src\\core\\indexing\\indexer.py",
+      "ast_syms": 27,
+      "ts_syms": 2,
+      "ast_calls": 104,
+      "ts_calls": 0,
+      "ast_ms": 4.75,
+      "ts_ms": 3.56
+    },
+    {
+      "file": "src\\core\\indexing\\indexer_table.py",
+      "ast_syms": 11,
+      "ts_syms": 1,
+      "ast_calls": 53,
+      "ts_calls": 0,
+      "ast_ms": 4.44,
+      "ts_ms": 2.96
+    },
+    {
+      "file": "src\\core\\indexing\\parser.py",
+      "ast_syms": 22,
+      "ts_syms": 1,
+      "ast_calls": 65,
+      "ts_calls": 0,
+      "ast_ms": 8.74,
+      "ts_ms": 6.69
+    },
+    {
+      "file": "src\\core\\indexing\\project_indexer_registry.py",
+      "ast_syms": 17,
+      "ts_syms": 4,
+      "ast_calls": 51,
+      "ts_calls": 0,
+      "ast_ms": 3.78,
+      "ts_ms": 2.54
+    },
+    {
+      "file": "src\\core\\indexing\\resource_monitor.py",
+      "ast_syms": 29,
+      "ts_syms": 3,
+      "ast_calls": 71,
+      "ts_calls": 0,
+      "ast_ms": 4.72,
+      "ts_ms": 3.53
+    },
+    {
+      "file": "src\\core\\indexing\\symbol_index.py",
+      "ast_syms": 33,
+      "ts_syms": 2,
+      "ast_calls": 53,
+      "ts_calls": 0,
+      "ast_ms": 6.4,
+      "ts_ms": 5.97
+    },
+    {
+      "file": "src\\core\\indexing\\watchdog.py",
+      "ast_syms": 4,
+      "ts_syms": 1,
+      "ast_calls": 3,
+      "ts_calls": 0,
+      "ast_ms": 1.42,
+      "ts_ms": 0.57
+    },
+    {
+      "file": "src\\core\\intelligence\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.21,
+      "ts_ms": 0.2
+    },
+    {
+      "file": "src\\core\\intelligence\\health.py",
+      "ast_syms": 17,
+      "ts_syms": 2,
+      "ast_calls": 71,
+      "ts_calls": 0,
+      "ast_ms": 5.36,
+      "ts_ms": 3.57
+    },
+    {
+      "file": "src\\core\\intelligence\\jobs.py",
+      "ast_syms": 6,
+      "ts_syms": 1,
+      "ast_calls": 8,
+      "ts_calls": 0,
+      "ast_ms": 0.79,
+      "ts_ms": 0.65
+    },
+    {
+      "file": "src\\core\\intelligence\\layer.py",
+      "ast_syms": 25,
+      "ts_syms": 2,
+      "ast_calls": 121,
+      "ts_calls": 0,
+      "ast_ms": 10.41,
+      "ts_ms": 6.4
+    },
+    {
+      "file": "src\\core\\intelligence\\project_context.py",
+      "ast_syms": 13,
+      "ts_syms": 1,
+      "ast_calls": 37,
+      "ts_calls": 0,
+      "ast_ms": 2.08,
+      "ts_ms": 1.77
+    },
+    {
+      "file": "src\\core\\intelligence\\sarif_tool.py",
+      "ast_syms": 1,
+      "ts_syms": 1,
+      "ast_calls": 5,
+      "ts_calls": 0,
+      "ast_ms": 0.44,
+      "ts_ms": 0.34
+    },
+    {
+      "file": "src\\core\\intelligence\\store.py",
+      "ast_syms": 15,
+      "ts_syms": 2,
+      "ast_calls": 21,
+      "ts_calls": 0,
+      "ast_ms": 1.27,
+      "ts_ms": 1.17
+    },
+    {
+      "file": "src\\core\\intelligence\\tools_reg.py",
+      "ast_syms": 14,
+      "ts_syms": 1,
+      "ast_calls": 57,
+      "ts_calls": 0,
+      "ast_ms": 5.15,
+      "ts_ms": 3.06
+    },
+    {
+      "file": "src\\core\\interfaces\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.45,
+      "ts_ms": 0.32
+    },
+    {
+      "file": "src\\core\\interfaces\\embedder.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.3,
+      "ts_ms": 0.29
+    },
+    {
+      "file": "src\\core\\interfaces\\reranker.py",
+      "ast_syms": 4,
+      "ts_syms": 1,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.3,
+      "ts_ms": 0.28
+    },
+    {
+      "file": "src\\core\\interfaces\\searcher.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.33,
+      "ts_ms": 0.33
+    },
+    {
+      "file": "src\\core\\log_manager.py",
+      "ast_syms": 8,
+      "ts_syms": 8,
+      "ast_calls": 45,
+      "ts_calls": 0,
+      "ast_ms": 1.55,
+      "ts_ms": 1.48
+    },
+    {
+      "file": "src\\core\\lsp_client.py",
+      "ast_syms": 32,
+      "ts_syms": 2,
+      "ast_calls": 80,
+      "ts_calls": 0,
+      "ast_ms": 4.25,
+      "ts_ms": 4.05
+    },
+    {
+      "file": "src\\core\\lsp_project_bridge.py",
+      "ast_syms": 12,
+      "ts_syms": 12,
+      "ast_calls": 40,
+      "ts_calls": 0,
+      "ast_ms": 2.67,
+      "ts_ms": 1.77
+    },
+    {
+      "file": "src\\core\\modification_guard.py",
+      "ast_syms": 7,
+      "ts_syms": 5,
+      "ast_calls": 22,
+      "ts_calls": 0,
+      "ast_ms": 1.27,
+      "ts_ms": 1.02
+    },
+    {
+      "file": "src\\core\\multi_project_searcher.py",
+      "ast_syms": 15,
+      "ts_syms": 3,
+      "ast_calls": 42,
+      "ts_calls": 0,
+      "ast_ms": 2.36,
+      "ts_ms": 1.84
+    },
+    {
+      "file": "src\\core\\notification_broker.py",
+      "ast_syms": 8,
+      "ts_syms": 1,
+      "ast_calls": 22,
+      "ts_calls": 0,
+      "ast_ms": 1.39,
+      "ts_ms": 0.88
+    },
+    {
+      "file": "src\\core\\onnx_server.py",
+      "ast_syms": 15,
+      "ts_syms": 8,
+      "ast_calls": 63,
+      "ts_calls": 0,
+      "ast_ms": 2.4,
+      "ts_ms": 1.98
+    },
+    {
+      "file": "src\\core\\passport.py",
+      "ast_syms": 2,
+      "ts_syms": 2,
+      "ast_calls": 5,
+      "ts_calls": 0,
+      "ast_ms": 0.61,
+      "ts_ms": 0.54
+    },
+    {
+      "file": "src\\core\\platform_utils.py",
+      "ast_syms": 11,
+      "ts_syms": 11,
+      "ast_calls": 8,
+      "ts_calls": 0,
+      "ast_ms": 0.55,
+      "ts_ms": 0.58
+    },
+    {
+      "file": "src\\core\\rate_limiter.py",
+      "ast_syms": 17,
+      "ts_syms": 3,
+      "ast_calls": 31,
+      "ts_calls": 0,
+      "ast_ms": 2.07,
+      "ts_ms": 1.85
+    },
+    {
+      "file": "src\\core\\relation_extractor.py",
+      "ast_syms": 9,
+      "ts_syms": 1,
+      "ast_calls": 26,
+      "ts_calls": 0,
+      "ast_ms": 1.86,
+      "ts_ms": 1.4
+    },
+    {
+      "file": "src\\core\\runtime_coordinator.py",
+      "ast_syms": 10,
+      "ts_syms": 4,
+      "ast_calls": 16,
+      "ts_calls": 0,
+      "ast_ms": 1.44,
+      "ts_ms": 1.37
+    },
+    {
+      "file": "src\\core\\search\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.32,
+      "ts_ms": 0.27
+    },
+    {
+      "file": "src\\core\\search\\agentic_search.py",
+      "ast_syms": 10,
+      "ts_syms": 1,
+      "ast_calls": 63,
+      "ts_calls": 0,
+      "ast_ms": 4.63,
+      "ts_ms": 3.47
+    },
+    {
+      "file": "src\\core\\search\\bm25.py",
+      "ast_syms": 7,
+      "ts_syms": 1,
+      "ast_calls": 19,
+      "ts_calls": 0,
+      "ast_ms": 1.82,
+      "ts_ms": 1.71
+    },
+    {
+      "file": "src\\core\\search\\branch_aware_index.py",
+      "ast_syms": 10,
+      "ts_syms": 1,
+      "ast_calls": 21,
+      "ts_calls": 0,
+      "ast_ms": 1.56,
+      "ts_ms": 1.22
+    },
+    {
+      "file": "src\\core\\search\\composition_adapter.py",
+      "ast_syms": 14,
+      "ts_syms": 1,
+      "ast_calls": 12,
+      "ts_calls": 0,
+      "ast_ms": 0.72,
+      "ts_ms": 0.62
+    },
+    {
+      "file": "src\\core\\search\\cross_project_deps.py",
+      "ast_syms": 31,
+      "ts_syms": 2,
+      "ast_calls": 68,
+      "ts_calls": 0,
+      "ast_ms": 6.2,
+      "ts_ms": 4.18
+    },
+    {
+      "file": "src\\core\\search\\cypher_ast.py",
+      "ast_syms": 15,
+      "ts_syms": 5,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.9,
+      "ts_ms": 0.74
+    },
+    {
+      "file": "src\\core\\search\\cypher_engine.py",
+      "ast_syms": 1,
+      "ts_syms": 1,
+      "ast_calls": 2,
+      "ts_calls": 0,
+      "ast_ms": 0.41,
+      "ts_ms": 0.41
+    },
+    {
+      "file": "src\\core\\search\\cypher_executor.py",
+      "ast_syms": 4,
+      "ts_syms": 1,
+      "ast_calls": 16,
+      "ts_calls": 0,
+      "ast_ms": 0.7,
+      "ts_ms": 0.7
+    },
+    {
+      "file": "src\\core\\search\\cypher_lexer.py",
+      "ast_syms": 5,
+      "ts_syms": 2,
+      "ast_calls": 11,
+      "ts_calls": 0,
+      "ast_ms": 1.43,
+      "ts_ms": 1.37
+    },
+    {
+      "file": "src\\core\\search\\cypher_parser.py",
+      "ast_syms": 22,
+      "ts_syms": 1,
+      "ast_calls": 41,
+      "ts_calls": 0,
+      "ast_ms": 3.17,
+      "ts_ms": 2.7
+    },
+    {
+      "file": "src\\core\\search\\cypher_sql.py",
+      "ast_syms": 8,
+      "ts_syms": 1,
+      "ast_calls": 22,
+      "ts_calls": 0,
+      "ast_ms": 4.17,
+      "ts_ms": 2.48
+    },
+    {
+      "file": "src\\core\\search\\engine.py",
+      "ast_syms": 17,
+      "ts_syms": 1,
+      "ast_calls": 96,
+      "ts_calls": 0,
+      "ast_ms": 7.97,
+      "ts_ms": 6.01
+    },
+    {
+      "file": "src\\core\\search\\fts5_index.py",
+      "ast_syms": 18,
+      "ts_syms": 2,
+      "ast_calls": 27,
+      "ts_calls": 0,
+      "ast_ms": 4.13,
+      "ts_ms": 2.67
+    },
+    {
+      "file": "src\\core\\search\\fts5_mixin.py",
+      "ast_syms": 9,
+      "ts_syms": 1,
+      "ast_calls": 26,
+      "ts_calls": 0,
+      "ast_ms": 1.45,
+      "ts_ms": 1.18
+    },
+    {
+      "file": "src\\core\\search\\graph_adapter.py",
+      "ast_syms": 36,
+      "ts_syms": 1,
+      "ast_calls": 71,
+      "ts_calls": 0,
+      "ast_ms": 8.18,
+      "ts_ms": 6.52
+    },
+    {
+      "file": "src\\core\\search\\graph_adapter_pure.py",
+      "ast_syms": 12,
+      "ts_syms": 1,
+      "ast_calls": 22,
+      "ts_calls": 0,
+      "ast_ms": 3.73,
+      "ts_ms": 2.26
+    },
+    {
+      "file": "src\\core\\search\\graph_rag_adapter.py",
+      "ast_syms": 9,
+      "ts_syms": 1,
+      "ast_calls": 23,
+      "ts_calls": 0,
+      "ast_ms": 1.31,
+      "ts_ms": 1.06
+    },
+    {
+      "file": "src\\core\\search\\scoring.py",
+      "ast_syms": 7,
+      "ts_syms": 6,
+      "ast_calls": 33,
+      "ts_calls": 0,
+      "ast_ms": 2.64,
+      "ts_ms": 2.03
+    },
+    {
+      "file": "src\\core\\search\\token_savings.py",
+      "ast_syms": 2,
+      "ts_syms": 2,
+      "ast_calls": 6,
+      "ts_calls": 0,
+      "ast_ms": 0.45,
+      "ts_ms": 0.39
+    },
+    {
+      "file": "src\\core\\search\\trace.py",
+      "ast_syms": 20,
+      "ts_syms": 1,
+      "ast_calls": 19,
+      "ts_calls": 0,
+      "ast_ms": 2.95,
+      "ts_ms": 2.36
+    },
+    {
+      "file": "src\\core\\search\\utils.py",
+      "ast_syms": 6,
+      "ts_syms": 6,
+      "ast_calls": 14,
+      "ts_calls": 0,
+      "ast_ms": 2.1,
+      "ts_ms": 1.57
+    },
+    {
+      "file": "src\\core\\structural_search.py",
+      "ast_syms": 12,
+      "ts_syms": 1,
+      "ast_calls": 35,
+      "ts_calls": 0,
+      "ast_ms": 2.22,
+      "ts_ms": 2.02
+    },
+    {
+      "file": "src\\core\\system_artifacts.py",
+      "ast_syms": 10,
+      "ts_syms": 1,
+      "ast_calls": 8,
+      "ts_calls": 0,
+      "ast_ms": 0.81,
+      "ts_ms": 0.79
+    },
+    {
+      "file": "src\\core\\task_queue.py",
+      "ast_syms": 24,
+      "ts_syms": 10,
+      "ast_calls": 44,
+      "ts_calls": 0,
+      "ast_ms": 2.22,
+      "ts_ms": 1.81
+    },
+    {
+      "file": "src\\core\\utils\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.27,
+      "ts_ms": 0.16
+    },
+    {
+      "file": "src\\core\\utils\\extension_paths.py",
+      "ast_syms": 2,
+      "ts_syms": 2,
+      "ast_calls": 4,
+      "ts_calls": 0,
+      "ast_ms": 0.28,
+      "ts_ms": 0.33
+    },
+    {
+      "file": "src\\core\\utils\\self_index_guard.py",
+      "ast_syms": 2,
+      "ts_syms": 2,
+      "ast_calls": 9,
+      "ts_calls": 0,
+      "ast_ms": 0.39,
+      "ts_ms": 0.41
+    },
+    {
+      "file": "src\\core\\version_manager.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 25,
+      "ts_calls": 0,
+      "ast_ms": 1.09,
+      "ts_ms": 0.95
+    },
+    {
+      "file": "src\\main.py",
+      "ast_syms": 6,
+      "ts_syms": 5,
+      "ast_calls": 30,
+      "ts_calls": 0,
+      "ast_ms": 1.56,
+      "ts_ms": 1.32
+    },
+    {
+      "file": "src\\mcp\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.26,
+      "ts_ms": 0.17
+    },
+    {
+      "file": "src\\mcp\\server.py",
+      "ast_syms": 15,
+      "ts_syms": 14,
+      "ast_calls": 46,
+      "ts_calls": 0,
+      "ast_ms": 4.2,
+      "ts_ms": 2.8
+    },
+    {
+      "file": "src\\mcp\\server_factory.py",
+      "ast_syms": 32,
+      "ts_syms": 15,
+      "ast_calls": 101,
+      "ts_calls": 0,
+      "ast_ms": 6.45,
+      "ts_ms": 3.7
+    },
+    {
+      "file": "src\\mcp\\server_tools.py",
+      "ast_syms": 16,
+      "ts_syms": 4,
+      "ast_calls": 70,
+      "ts_calls": 0,
+      "ast_ms": 7.13,
+      "ts_ms": 3.66
+    },
+    {
+      "file": "src\\mcp\\tools\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.41,
+      "ts_ms": 0.25
+    },
+    {
+      "file": "src\\mcp\\tools\\analysis_tools.py",
+      "ast_syms": 9,
+      "ts_syms": 5,
+      "ast_calls": 60,
+      "ts_calls": 0,
+      "ast_ms": 2.9,
+      "ts_ms": 2.47
+    },
+    {
+      "file": "src\\mcp\\tools\\base.py",
+      "ast_syms": 17,
+      "ts_syms": 3,
+      "ast_calls": 23,
+      "ts_calls": 0,
+      "ast_ms": 2.43,
+      "ts_ms": 2.12
+    },
+    {
+      "file": "src\\mcp\\tools\\codebase_tool.py",
+      "ast_syms": 12,
+      "ts_syms": 2,
+      "ast_calls": 35,
+      "ts_calls": 0,
+      "ast_ms": 2.24,
+      "ts_ms": 1.83
+    },
+    {
+      "file": "src\\mcp\\tools\\dev_tools.py",
+      "ast_syms": 5,
+      "ts_syms": 1,
+      "ast_calls": 23,
+      "ts_calls": 0,
+      "ast_ms": 0.98,
+      "ts_ms": 0.82
+    },
+    {
+      "file": "src\\mcp\\tools\\doc_tools.py",
+      "ast_syms": 6,
+      "ts_syms": 1,
+      "ast_calls": 36,
+      "ts_calls": 0,
+      "ast_ms": 1.05,
+      "ts_ms": 0.97
+    },
+    {
+      "file": "src\\mcp\\tools\\git_tools.py",
+      "ast_syms": 8,
+      "ts_syms": 6,
+      "ast_calls": 34,
+      "ts_calls": 0,
+      "ast_ms": 2.53,
+      "ts_ms": 1.36
+    },
+    {
+      "file": "src\\mcp\\tools\\graph_tools.py",
+      "ast_syms": 20,
+      "ts_syms": 6,
+      "ast_calls": 81,
+      "ts_calls": 0,
+      "ast_ms": 6.24,
+      "ts_ms": 4.95
+    },
+    {
+      "file": "src\\mcp\\tools\\indexing_tools.py",
+      "ast_syms": 9,
+      "ts_syms": 3,
+      "ast_calls": 43,
+      "ts_calls": 0,
+      "ast_ms": 2.54,
+      "ts_ms": 1.73
+    },
+    {
+      "file": "src\\mcp\\tools\\investigation_tools.py",
+      "ast_syms": 5,
+      "ts_syms": 3,
+      "ast_calls": 16,
+      "ts_calls": 0,
+      "ast_ms": 1.19,
+      "ts_ms": 1.05
+    },
+    {
+      "file": "src\\mcp\\tools\\lifecycle_tools.py",
+      "ast_syms": 8,
+      "ts_syms": 3,
+      "ast_calls": 32,
+      "ts_calls": 0,
+      "ast_ms": 1.33,
+      "ts_ms": 1.09
+    },
+    {
+      "file": "src\\mcp\\tools\\meta_tools.py",
+      "ast_syms": 19,
+      "ts_syms": 3,
+      "ast_calls": 32,
+      "ts_calls": 0,
+      "ast_ms": 1.56,
+      "ts_ms": 1.62
+    },
+    {
+      "file": "src\\mcp\\tools\\search_tools.py",
+      "ast_syms": 13,
+      "ts_syms": 7,
+      "ast_calls": 65,
+      "ts_calls": 0,
+      "ast_ms": 4.53,
+      "ts_ms": 3.69
+    },
+    {
+      "file": "src\\mcp\\tools\\system_tools.py",
+      "ast_syms": 12,
+      "ts_syms": 8,
+      "ast_calls": 62,
+      "ts_calls": 0,
+      "ast_ms": 4.21,
+      "ts_ms": 3.0
+    },
+    {
+      "file": "src\\mcp\\tools\\write_tools.py",
+      "ast_syms": 30,
+      "ts_syms": 2,
+      "ast_calls": 78,
+      "ts_calls": 0,
+      "ast_ms": 7.93,
+      "ts_ms": 4.9
+    },
+    {
+      "file": "src\\providers\\embedder\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 1.23,
+      "ts_ms": 0.46
+    },
+    {
+      "file": "src\\providers\\embedder\\remote_embedder.py",
+      "ast_syms": 36,
+      "ts_syms": 1,
+      "ast_calls": 112,
+      "ts_calls": 0,
+      "ast_ms": 13.13,
+      "ts_ms": 7.12
+    },
+    {
+      "file": "src\\providers\\reranker\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 1.43,
+      "ts_ms": 0.48
+    },
+    {
+      "file": "src\\providers\\reranker\\llama_install.py",
+      "ast_syms": 30,
+      "ts_syms": 20,
+      "ast_calls": 68,
+      "ts_calls": 0,
+      "ast_ms": 6.94,
+      "ts_ms": 4.32
+    },
+    {
+      "file": "src\\providers\\reranker\\llama_runner.py",
+      "ast_syms": 31,
+      "ts_syms": 4,
+      "ast_calls": 72,
+      "ts_calls": 0,
+      "ast_ms": 6.99,
+      "ts_ms": 4.26
+    },
+    {
+      "file": "src\\providers\\reranker\\multi_provider.py",
+      "ast_syms": 29,
+      "ts_syms": 4,
+      "ast_calls": 61,
+      "ts_calls": 0,
+      "ast_ms": 10.38,
+      "ts_ms": 5.34
+    },
+    {
+      "file": "src\\providers\\reranker\\reranker_scoring.py",
+      "ast_syms": 4,
+      "ts_syms": 4,
+      "ast_calls": 18,
+      "ts_calls": 0,
+      "ast_ms": 1.35,
+      "ts_ms": 1.06
+    },
+    {
+      "file": "src\\providers\\reranker\\search_result_reranker.py",
+      "ast_syms": 9,
+      "ts_syms": 1,
+      "ast_calls": 14,
+      "ts_calls": 0,
+      "ast_ms": 1.02,
+      "ts_ms": 0.94
+    },
+    {
+      "file": "src\\providers\\search\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.31,
+      "ts_ms": 0.25
+    },
+    {
+      "file": "src\\utils\\__init__.py",
+      "ast_syms": 0,
+      "ts_syms": 0,
+      "ast_calls": 0,
+      "ts_calls": 0,
+      "ast_ms": 0.17,
+      "ts_ms": 0.17
+    },
+    {
+      "file": "src\\utils\\i18n.py",
+      "ast_syms": 4,
+      "ts_syms": 4,
+      "ast_calls": 9,
+      "ts_calls": 0,
+      "ast_ms": 0.58,
+      "ts_ms": 0.55
+    },
+    {
+      "file": "src\\utils\\paths.py",
+      "ast_syms": 8,
+      "ts_syms": 2,
+      "ast_calls": 20,
+      "ts_calls": 0,
+      "ast_ms": 0.73,
+      "ts_ms": 0.77
+    },
+    {
+      "file": "src\\utils\\ui_formatter.py",
+      "ast_syms": 17,
+      "ts_syms": 17,
+      "ast_calls": 17,
+      "ts_calls": 0,
+      "ast_ms": 3.87,
+      "ts_ms": 2.57
+    },
+    {
+      "file": "src\\utils\\zed_config.py",
+      "ast_syms": 12,
+      "ts_syms": 12,
+      "ast_calls": 39,
+      "ts_calls": 0,
+      "ast_ms": 2.59,
+      "ts_ms": 2.03
+    }
+  ]
+}

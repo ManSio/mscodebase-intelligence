@@ -2,7 +2,7 @@
 """evaluate_root_cause.py — Evaluate MSCodeBase root cause prediction accuracy.
 
 Usage:
-    python experiments/evaluate_root_cause.py
+    python experiments/root_cause_eval/evaluate_root_cause.py
 
 Measures:
     - Top-1 accuracy

@@ -1,0 +1,583 @@
+{
+  "chunks": 1551,
+  "files": 127,
+  "build_ms": 253.6,
+  "avg_fts5_ms": 2.1,
+  "avg_keyword_ms": 17.3,
+  "speedup": 8.1,
+  "results": [
+    {
+      "query": "hybrid_search",
+      "category": "exact_symbol",
+      "fts5_ms": 2.57,
+      "keyword_ms": 16.18,
+      "fts5_results": [
+        "hybrid_search",
+        "hybrid_search",
+        "hybrid_search_rrf",
+        "hybrid_search_async",
+        "AgenticSearchMixin"
+      ],
+      "keyword_results": [
+        "Searcher",
+        "AgenticSearchMixin",
+        "hybrid_search",
+        "agentic_code_search_async",
+        "agentic_deep_search"
+      ],
+      "overlap": [
+        "hybrid_search",
+        "AgenticSearchMixin"
+      ],
+      "fts5_only": [
+        "hybrid_search_async",
+        "hybrid_search_rrf"
+      ],
+      "keyword_only": [
+        "agentic_deep_search",
+        "agentic_code_search_async",
+        "Searcher"
+      ]
+    },
+    {
+      "query": "AsyncInferQueue",
+      "category": "exact_symbol",
+      "fts5_ms": 2.06,
+      "keyword_ms": 15.99,
+      "fts5_results": [
+        "_infer_layer",
+        "_init_openvino",
+        "InferenceHandler",
+        "RemoteEmbedder",
+        "_infer_package"
+      ],
+      "keyword_results": [
+        "RemoteEmbedder",
+        "_init_openvino"
+      ],
+      "overlap": [
+        "RemoteEmbedder",
+        "_init_openvino"
+      ],
+      "fts5_only": [
+        "InferenceHandler",
+        "_infer_package",
+        "_infer_layer"
+      ],
+      "keyword_only": []
+    },
+    {
+      "query": "embed_batch",
+      "category": "exact_symbol",
+      "fts5_ms": 1.79,
+      "keyword_ms": 16.26,
+      "fts5_results": [
+        "embed_batch",
+        "embed_batch_async",
+        "embed_batch",
+        "_match_symbol_name",
+        "search_symbols"
+      ],
+      "keyword_results": [
+        "RemoteEmbedder",
+        "SymbolIndex",
+        "_match_symbol_name",
+        "embed_batch_async",
+        "_init_openvino"
+      ],
+      "overlap": [
+        "_match_symbol_name",
+        "embed_batch_async"
+      ],
+      "fts5_only": [
+        "search_symbols",
+        "embed_batch"
+      ],
+      "keyword_only": [
+        "RemoteEmbedder",
+        "SymbolIndex",
+        "_init_openvino"
+      ]
+    },
+    {
+      "query": "Searcher",
+      "category": "exact_symbol",
+      "fts5_ms": 2.39,
+      "keyword_ms": 16.02,
+      "fts5_results": [
+        "resolve_searcher",
+        "set_searcher",
+        "ISearcher",
+        "_agentic_search",
+        "Searcher"
+      ],
+      "keyword_results": [
+        "Indexer",
+        "SearchCodeTool",
+        "create_service_collection",
+        "execute",
+        "_create_indexer_for_path"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "Searcher",
+        "_agentic_search",
+        "ISearcher",
+        "set_searcher",
+        "resolve_searcher"
+      ],
+      "keyword_only": [
+        "_create_indexer_for_path",
+        "create_service_collection",
+        "execute",
+        "SearchCodeTool",
+        "Indexer"
+      ]
+    },
+    {
+      "query": "LanceDBManager",
+      "category": "exact_symbol",
+      "fts5_ms": 1.99,
+      "keyword_ms": 16.21,
+      "fts5_results": [
+        "LanceDBManager",
+        "__init__",
+        "LanceDBWriter",
+        "Indexer",
+        "switch_db"
+      ],
+      "keyword_results": [
+        "Indexer",
+        "__init__",
+        "LanceDBManager"
+      ],
+      "overlap": [
+        "LanceDBManager",
+        "Indexer",
+        "__init__"
+      ],
+      "fts5_only": [
+        "switch_db",
+        "LanceDBWriter"
+      ],
+      "keyword_only": []
+    },
+    {
+      "query": "embed",
+      "category": "partial_name",
+      "fts5_ms": 1.94,
+      "keyword_ms": 17.02,
+      "fts5_results": [
+        "embed_async",
+        "embed",
+        "embed_batch_async",
+        "embed",
+        "embed_texts"
+      ],
+      "keyword_results": [
+        "RemoteEmbedder",
+        "MultiProviderReranker",
+        "IndexProjectRunner",
+        "run",
+        "Searcher"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "embed_async",
+        "embed",
+        "embed_batch_async",
+        "embed_texts"
+      ],
+      "keyword_only": [
+        "MultiProviderReranker",
+        "Searcher",
+        "IndexProjectRunner",
+        "RemoteEmbedder",
+        "run"
+      ]
+    },
+    {
+      "query": "search",
+      "category": "partial_name",
+      "fts5_ms": 3.06,
+      "keyword_ms": 16.6,
+      "fts5_results": [
+        "agentic_code_search",
+        "_fts5_search",
+        "_fts5_search_async",
+        "deep_search",
+        "AgenticSearchMixin"
+      ],
+      "keyword_results": [
+        "AgenticSearchMixin",
+        "Searcher",
+        "SearchCodeTool",
+        "Indexer",
+        "MultiProjectSearcher"
+      ],
+      "overlap": [
+        "AgenticSearchMixin"
+      ],
+      "fts5_only": [
+        "agentic_code_search",
+        "deep_search",
+        "_fts5_search",
+        "_fts5_search_async"
+      ],
+      "keyword_only": [
+        "SearchCodeTool",
+        "MultiProjectSearcher",
+        "Indexer",
+        "Searcher"
+      ]
+    },
+    {
+      "query": "index",
+      "category": "partial_name",
+      "fts5_ms": 3.59,
+      "keyword_ms": 16.52,
+      "fts5_results": [
+        "save_symbol_index",
+        "index_project",
+        "_safe_resolve_indexer",
+        "_index_single_file",
+        "ProjectState"
+      ],
+      "keyword_results": [
+        "Indexer",
+        "ProjectIntelligenceLayer",
+        "MCPTool",
+        "ProjectIndexerRegistry",
+        "__init__"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "_safe_resolve_indexer",
+        "index_project",
+        "save_symbol_index",
+        "ProjectState",
+        "_index_single_file"
+      ],
+      "keyword_only": [
+        "MCPTool",
+        "ProjectIndexerRegistry",
+        "ProjectIntelligenceLayer",
+        "__init__",
+        "Indexer"
+      ]
+    },
+    {
+      "query": "rerank",
+      "category": "partial_name",
+      "fts5_ms": 1.95,
+      "keyword_ms": 16.06,
+      "fts5_results": [
+        "stop_reranker",
+        "start_reranker",
+        "_unload_reranker",
+        "touch_reranker",
+        "_http_onnx_rerank"
+      ],
+      "keyword_results": [
+        "LlamaRunner",
+        "MultiProviderReranker",
+        "Searcher",
+        "rerank",
+        "_ensure_multi_reranker_async"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "stop_reranker",
+        "start_reranker",
+        "_http_onnx_rerank",
+        "_unload_reranker",
+        "touch_reranker"
+      ],
+      "keyword_only": [
+        "_ensure_multi_reranker_async",
+        "LlamaRunner",
+        "Searcher",
+        "MultiProviderReranker",
+        "rerank"
+      ]
+    },
+    {
+      "query": "graph",
+      "category": "partial_name",
+      "fts5_ms": 2.09,
+      "keyword_ms": 16.39,
+      "fts5_results": [
+        "_ensure_graph",
+        "build_call_graph",
+        "build_graph",
+        "_graph_build_call_graph",
+        "graph"
+      ],
+      "keyword_results": [
+        "SymbolIndexAdapter",
+        "PureGraphMixin",
+        "GraphQueryTool",
+        "CrossProjectDependencyGraph",
+        "AgenticSearchMixin"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "_graph_build_call_graph",
+        "_ensure_graph",
+        "graph",
+        "build_call_graph",
+        "build_graph"
+      ],
+      "keyword_only": [
+        "PureGraphMixin",
+        "SymbolIndexAdapter",
+        "GraphQueryTool",
+        "CrossProjectDependencyGraph",
+        "AgenticSearchMixin"
+      ]
+    },
+    {
+      "query": "thread safety caching",
+      "category": "concept",
+      "fts5_ms": 1.76,
+      "keyword_ms": 18.89,
+      "fts5_results": [
+        "threading_lock_context",
+        "_load_cache",
+        "_save_cache",
+        "_load_cache",
+        "save_cache"
+      ],
+      "keyword_results": [
+        "RemoteEmbedder",
+        "_detect_model_dir",
+        "LlamaRunner",
+        "Searcher",
+        "NotificationBroker"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "save_cache",
+        "_save_cache",
+        "threading_lock_context",
+        "_load_cache"
+      ],
+      "keyword_only": [
+        "LlamaRunner",
+        "Searcher",
+        "_detect_model_dir",
+        "RemoteEmbedder",
+        "NotificationBroker"
+      ]
+    },
+    {
+      "query": "error handling async",
+      "category": "concept",
+      "fts5_ms": 1.86,
+      "keyword_ms": 18.8,
+      "fts5_results": [
+        "__init__",
+        "_v_error_handling",
+        "_handle_crash",
+        "_handle_embed",
+        "_handle_rerank"
+      ],
+      "keyword_results": [
+        "Searcher",
+        "LspClient",
+        "RemoteEmbedder",
+        "LanceDBManager",
+        "LlamaRunner"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "_handle_rerank",
+        "_handle_embed",
+        "__init__",
+        "_v_error_handling",
+        "_handle_crash"
+      ],
+      "keyword_only": [
+        "LspClient",
+        "LlamaRunner",
+        "Searcher",
+        "RemoteEmbedder",
+        "LanceDBManager"
+      ]
+    },
+    {
+      "query": "file watching changes",
+      "category": "concept",
+      "fts5_ms": 2.05,
+      "keyword_ms": 19.5,
+      "fts5_results": [
+        "notify_change",
+        "_build_changes",
+        "_apply_changes",
+        "record_co_change",
+        "_notify_state_change"
+      ],
+      "keyword_results": [
+        "SymbolIndexAdapter",
+        "SymbolIndex",
+        "WriteTool",
+        "CodeParser",
+        "Indexer"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "record_co_change",
+        "_build_changes",
+        "notify_change",
+        "_apply_changes",
+        "_notify_state_change"
+      ],
+      "keyword_only": [
+        "CodeParser",
+        "WriteTool",
+        "SymbolIndexAdapter",
+        "Indexer",
+        "SymbolIndex"
+      ]
+    },
+    {
+      "query": "token counting",
+      "category": "concept",
+      "fts5_ms": 1.4,
+      "keyword_ms": 17.76,
+      "fts5_results": [
+        "count_tokens",
+        "Token",
+        "calculate_token_savings",
+        "_tokenize",
+        "tokenize"
+      ],
+      "keyword_results": [
+        "RemoteEmbedder",
+        "CypherLexer",
+        "tokenize",
+        "CypherParser",
+        "BM25Mixin"
+      ],
+      "overlap": [
+        "tokenize"
+      ],
+      "fts5_only": [
+        "_tokenize",
+        "count_tokens",
+        "Token",
+        "calculate_token_savings"
+      ],
+      "keyword_only": [
+        "BM25Mixin",
+        "RemoteEmbedder",
+        "CypherLexer",
+        "CypherParser"
+      ]
+    },
+    {
+      "query": "where is reranker defined",
+      "category": "file_location",
+      "fts5_ms": 2.07,
+      "keyword_ms": 20.85,
+      "fts5_results": [
+        "_process_where",
+        "_v_defines",
+        "WhereClause",
+        "is_reranker_alive",
+        "_v_defined_in"
+      ],
+      "keyword_results": [
+        "Searcher",
+        "LlamaRunner",
+        "MultiProviderReranker",
+        "RemoteEmbedder",
+        "PropertyGraph"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "_v_defines",
+        "WhereClause",
+        "is_reranker_alive",
+        "_v_defined_in",
+        "_process_where"
+      ],
+      "keyword_only": [
+        "LlamaRunner",
+        "Searcher",
+        "MultiProviderReranker",
+        "RemoteEmbedder",
+        "PropertyGraph"
+      ]
+    },
+    {
+      "query": "bm25 implementation",
+      "category": "file_location",
+      "fts5_ms": 1.47,
+      "keyword_ms": 17.06,
+      "fts5_results": [
+        "_reset_bm25",
+        "_bm25_search",
+        "BM25Mixin",
+        "_build_bm25_index",
+        "incremental_update_bm25"
+      ],
+      "keyword_results": [
+        "BM25Mixin",
+        "Searcher",
+        "SearchResultReranker",
+        "_build_bm25_index",
+        "hybrid_search_async"
+      ],
+      "overlap": [
+        "BM25Mixin",
+        "_build_bm25_index"
+      ],
+      "fts5_only": [
+        "_bm25_search",
+        "incremental_update_bm25",
+        "_reset_bm25"
+      ],
+      "keyword_only": [
+        "hybrid_search_async",
+        "Searcher",
+        "SearchResultReranker"
+      ]
+    },
+    {
+      "query": "property graph",
+      "category": "file_location",
+      "fts5_ms": 2.4,
+      "keyword_ms": 17.31,
+      "fts5_results": [
+        "PropertyGraph",
+        "CypherExecutor",
+        "find_nodes_by_property",
+        "get_edges_by_properties",
+        "_parse_properties"
+      ],
+      "keyword_results": [
+        "SymbolIndexAdapter",
+        "GraphQueryTool",
+        "PureGraphMixin",
+        "create_service_collection",
+        "CrossProjectDependencyGraph"
+      ],
+      "overlap": [],
+      "fts5_only": [
+        "get_edges_by_properties",
+        "_parse_properties",
+        "CypherExecutor",
+        "PropertyGraph",
+        "find_nodes_by_property"
+      ],
+      "keyword_only": [
+        "create_service_collection",
+        "PureGraphMixin",
+        "SymbolIndexAdapter",
+        "GraphQueryTool",
+        "CrossProjectDependencyGraph"
+      ]
+    }
+  ]
+}

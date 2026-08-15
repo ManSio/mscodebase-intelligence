@@ -1,0 +1,64 @@
+{
+  "experiment": "smart_summary_v1",
+  "timestamp": "2026-07-23T00:14:53",
+  "summary_tokens": 2297,
+  "summary_chars": 9191,
+  "build_time_ms": 0.29778480529785156,
+  "accuracy": 90.0,
+  "hits": 9,
+  "total_queries": 10,
+  "savings_vs_full_pct": 98.2,
+  "query_results": [
+    {
+      "query": "where is hybrid_search defined",
+      "expected": "symbol",
+      "hit": true
+    },
+    {
+      "query": "what does the Searcher class do",
+      "expected": "symbol",
+      "hit": true
+    },
+    {
+      "query": "show dependencies for db_manager",
+      "expected": "dependency_hint",
+      "hit": true
+    },
+    {
+      "query": "what are the hotspots",
+      "expected": "hotspots",
+      "hit": true
+    },
+    {
+      "query": "show test files",
+      "expected": "tests",
+      "hit": true
+    },
+    {
+      "query": "purpose of MCP server",
+      "expected": "file",
+      "hit": false
+    },
+    {
+      "query": "where is the reranker",
+      "expected": "symbol",
+      "hit": true
+    },
+    {
+      "query": "show me core modules",
+      "expected": "overview",
+      "hit": true
+    },
+    {
+      "query": "what imports indexer",
+      "expected": "dependency_hint",
+      "hit": true
+    },
+    {
+      "query": "show intelligence layer code",
+      "expected": "file",
+      "hit": true
+    }
+  ],
+  "summary_preview": "{\"meta\": {\"total_files\": 128, \"total_lines\": 44900, \"total_symbols\": 423}, \"layers\": {\"core\": {\"files\": 35, \"symbols\": 147}, \"indexing\": {\"files\": 19, \"symbols\": 29}, \"intelligence\": {\"files\": 8, \"symbols\": 14}, \"interfaces\": {\"files\": 4, \"symbols\": 3}, \"mcp\": {\"files\": 19, \"symbols\": 85}, \"other\": {\"files\": 4, \"symbols\": 21}, \"providers\": {\"files\": 8, \"symbols\": 34}, \"search\": {\"files\": 23, \"symbols\": 51}, \"utils\": {\"files\": 8, \"symbols\": 39}}, \"files\": [{\"f\": \"runtime_coordinator.py\", \"l\": \"core\", \"n\": 308, \"i\": 0.3789, \"s\": [\"f:get_counters\", \"f:reset_counters\", \"c:RuntimeCoordinator[__init__,can_execute]\", \"c:ExecutionVerdict[__init__,__bool__,__repr__,to_dict]\"], \"d\": \"RuntimeCoordinator — единая точка принятия решения «можно ли выполнять MCP-запрос?».\\n\\nОтвечает на од\"}, {\"f\": \"composition_adapter.py\", \"l\": \"search\", \"n\": 97, \"i\": 0.0417, \"s\": [\"c:CompositionAdapter[__init__,graph,symbol_index,graph_rag]\"], \"d\": \"CompositionAdapter — единая точка входа для всех адаптеров.\\n\\nКомпозирует SymbolIndexAdapter + GraphR\"}, {\"f\": \"cross_project_deps.py\", \"l\": \"search\", \"n\": 932, \"i\": 0.0417, \"s\": [\"c:CrossProjectDependencyGraph[__init__,build_dependency_graph,get_project_dependencies,_find_shared_internal]\", \"f:get_cross_project_deps\"], \"d\": \"MSCodebase Intelligence — Cross-project dependency graph analyzer.\\n\\nСтроит граф зависимостей между п\"}, {\"f\": \"cypher_ast.py\", \"l\": \"search\", \"n\": 117, \"i\": 0.04, \"s\": [\"c:ASTNode\", \"c:NodePattern\", \"c:RelPattern\", \"c:PathPattern\", \"c:MatchClause\", \"c:Comparison\", \"c:WhereClause\", \"c:ReturnItem\"], \"d\": \"Cypher query engine — компонент для подмножества openCypher.\"}, {\"f\": \"system_artifacts.py\", \"l\": \"core\", \"n\": 220, \"i\": 0.0113, \"s\": [\"c:SystemArtifacts[get_system_dirs,get_artifact_patterns,get_feedback_patterns,is_system_dir]\"], \"d\": \"SystemArtifacts — единый модуль для идентификации системных файлов и директорий.\\n\\nОпределяет, какие \"}, {\"f\": \"system_tools.py\", \"l\": \"mcp\", \"n\": 491, \"i\": 0.0106, \"s\": [\"c:GetIndexStatusToo"
+}

@@ -1,0 +1,24 @@
+stdout:
+
+======================================================================
+Root Cause Prediction Evaluation
+Dataset: 34 incidents from AGENT_DIARY.md
+======================================================================
+
+
+
+stderr:
+Traceback (most recent call last):
+  File "D:\Project\MSCodeBase\experiments\evaluate_root_cause.py", line 182, in <module>
+    evaluate()
+    ~~~~~~~~^^
+  File "D:\Project\MSCodeBase\experiments\evaluate_root_cause.py", line 145, in evaluate
+    print(f"  {status} {i:2d}. [{result['time_ms']:.0f}ms] sim={similarity:.2f} terms={term_overlap:.0%}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 2: character maps to <undefined>
+
+
+exit: 1

@@ -1,0 +1,240 @@
+[
+  {
+    "title": "2026-07-21 08:05",
+    "symptom": "2026-07-21 08:05",
+    "root_cause": "|\n|------|-------|--------|\n| 15 ✅ / 96 ❌ (14%) | 85 ✅ / 39 ❌ (68%) | SymbolCache + backtick-парсер + date-filter |\n| timeout (grep -r ×600) | 15 сек | Один проход .py → set lookup |\n| 351 false-positive \"функция\" | 66 | Только из backtick-кода + stdlib stoplist |\n\n### pyproject.toml\n- Добавлен `ruff>=0.5.0` в `[project.optional-dependencies] dev`",
+    "fix": "**Что сделано:**\n\n### CI (`.github/workflows/ci.yml`)\n| Было | Стало |\n|------|-------|\n| Только ubuntu-latest | + windows-latest (основная платформа) |\n| Python 3.11, 3.12, 3.13 | 3.11, 3.12 (актуаль",
+    "files": ""
+  },
+  {
+    "title": "2026-07-20 19:45",
+    "symptom": "(от пользователя):** `intel_trigger_reindex(mode=\"full\")` часто падает,\njob висит в `Finalizing`, поиск возвращает пустышку. Лог:\n```\nWrite complete: 305 files\n[ERROR] Ошибка при выполнении операции Pruning: lance error: Not found:\n  .../codebase_chunks.lance/data/0011100101111001110001117e8d414088b2530860d092b1e1.lance\n[WARNING] Table optimize failed (non-critical, continuing): lance error: Not f",
+    "root_cause": "(черновик, заменён выше): LanceDB `Not found` при full reindex",
+    "fix": "(варианты, по протоколу §1.3):**\n- **А (рекомендую):** single-writer lock на директорию БД (PID-файл\n  `.codebase_indices/.write_lock`). При старте MCP — если lock чужой и жив →\n  завершить процесс (в",
+    "files": "[ERROR] Ошибка при выполнении операции Pruning: lance error: Not found:\n  .../codebase_chunks.lance/data/0011100101111001110001117e8d414088b2530860d092b1e1.lance\n[WARNING] Table optimize failed (non-c"
+  },
+  {
+    "title": "2026-07-20 22:45",
+    "symptom": "** log-файл содержит 695 ошибок `ModuleNotFoundError: No module named 'src.lsp_main'`\n  каждые 20-30 секунд. RAM росла на 13-26 MB/мин (693→700MB за сессию).\n- **Root Cause:** `src.lsp_main` удалён из кодовой базы, но `WatcherStatusTool._check_lsp_import()`\n  и `ReadLiveFileTool.execute()` продолжали его импортировать при каждом вызове.\n- **Fix:** `_check_lsp_import()` → return False (без try/impo",
+    "root_cause": "** `src.lsp_main` удалён из кодовой базы, но `WatcherStatusTool._check_lsp_import()`\n  и `ReadLiveFileTool.execute()` продолжали его импортировать при каждом вызове.\n- **Fix:** `_check_lsp_import()` → return False (без try/import). `ReadLiveFileTool` → читает\n  только с диска, без LSP fallback-импорта.\n- **Файлы:** `src/mcp/tools/system_tools.py`",
+    "fix": "** `_check_lsp_import()` → return False (без try/import). `ReadLiveFileTool` → читает\n  только с диска, без LSP fallback-импорта.\n- **Файлы:** `src/mcp/tools/system_tools.py`",
+    "files": ""
+  },
+  {
+    "title": "2026-07-20 18:05",
+    "symptom": "** `notify_change` возвращал «Context server request timeout»; при\nповторных вызовах весь MCP переставал отвечать даже на `debug_runtime_passport`.",
+    "root_cause": "таймаута (blocking event loop)",
+    "fix": "** оба вызова обёрнуты в `asyncio.to_thread` (как BM25/dense в\n`hybrid_search_async`). Loop больше не блокируется — `debug_runtime_passport`\nотвечает даже во время индексации. Добавлен `import asyncio",
+    "files": ""
+  },
+  {
+    "title": "2026-07-18 17:30",
+    "symptom": "** Claude-аудит нашёл новую гонку в AsyncInferQueue (коммит e34d5e1):\n`self._ov_results` — общий dict на весь процесс, concurrent embed_batch() перезаписывают\nвектора друг друга. Не нули (shape[0]==0), а **тихая подмена** — чанк получает\nсинтаксически корректный, ненулевой вектор, принадлежащий чужому фрагменту кода.",
+    "root_cause": "** Callback писал в `self._ov_results[userdata]` где userdata=0..N-1 —\nчисловые индексы, пересекающиеся между вызовами.",
+    "fix": "** `userdata = (index, local_results_dict)` — каждый embed_batch() создаёт\nсвой локальный dict, callback пишет только в него. Ноль shared mutable state.\nНикакого лока не нужно — полная изоляция вызово",
+    "files": ""
+  },
+  {
+    "title": "2026-07-17 20:00",
+    "symptom": "** После исправления INT8 модели (cos=1.0) скорость оставалась 18 ch/s,\nхотя бенчмарки small INT8 показывали 41-52 ch/s.",
+    "root_cause": "**\n\n1. `indexer.py` `_BATCH_SIZE=64` — неоптимально для small INT8 (batch=4 даёт 52 ch/s, batch=64 → 25 ch/s)\n2. `index_project_runner.py` `BATCH_SIZE=64` — второй независимый батч с тем же значением\n3. `intelligence/layer.py` — хардкод `dimension: 768` вместо реального значения из embedder'а\n4. `remote_embedder.py` — `embedding_dim` не обновлялся из модели (всегда 768 из env)",
+    "fix": "",
+    "files": "** `src/providers/embedder/remote_embedder.py`, `src/core/indexing/indexer.py`,\n`src/core/indexing/index_project_runner.py`, `src/core/intelligence/layer.py`, `install.py`"
+  },
+  {
+    "title": "2026-07-17 19:00",
+    "symptom": "** search_code(mode=fast) возвращал мусор. INT8 модель не совпадала с FP32 (cos≈0).",
+    "root_cause": "** `e5-base-v2-int8/model_quantized.onnx` был сквантизирован ИЗ НЕВЕРНОЙ БАЗОВОЙ МОДЕЛИ:\n\n- vocab=30522 (BERT-uncased) вместо 250002 (intfloat/e5-base-v2)\n- Cosine similarity INT8 vs FP32 = -0.03 (ортогональные векторы)\n- Все эмбеддинги — мусор, маскировалось BM25 в RRF",
+    "fix": "",
+    "files": "** `scripts/nncf_requantize.py`, `.codebase_models/onnx/`"
+  },
+  {
+    "title": "2026-07-16 21:50",
+    "symptom": "** MCP-сервер падал через 2 сек после запуска, 120MB RAM",
+    "root_cause": "** В SQLite БД Zed поле `paths` содержит 2 пути через `\\n`:\n\n- `C:\\Users\\misha\\Downloads\\Project Remaining Tasks Review.md` (файл, не папка!)\n- `D:\\Project\\MSCodeBase` (настоящий проект)\n\n`resolve_project_root()` брал первую часть (файл), `_generate_unique_db_path` пытался создать\nдиректорию по этому пути и падал с FileExistsError.",
+    "fix": "MCP server crash при старте (path с \\n)",
+    "files": ""
+  },
+  {
+    "title": "2026-07-16 21:15",
+    "symptom": "** `name '_is_self_index_path' is not defined` при вызове\n- **Root Cause:** При декомпозиции server.py (Фаза 2, Шаг 1) импорт `_is_self_index_path` не был перенесён в `_register_inline_tools()`\n- **Fix:** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.p",
+    "root_cause": "** При декомпозиции server.py (Фаза 2, Шаг 1) импорт `_is_self_index_path` не был перенесён в `_register_inline_tools()`\n- **Fix:** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `_register_intelligence_tools`\n- f-s",
+    "fix": "** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.py\n",
+    "files": "**\n\n- `src/mcp/tools/graph_tools.py` — GraphQueryTool переписан (+150/-380 строк)\n- `src/mcp/server_tools.py` — чистка импортов + _allowed_names\n- `.agent_task_state.md` — обновлён"
+  },
+  {
+    "title": "2026-07-15 05:52",
+    "symptom": "2026-07-15 05:52",
+    "root_cause": "глобальное состояние в монолитном server.py\n- Фикс: декомпозиция уменьшила scope глобальных переменных\n\n### 5. Коммит и пуш\n\n- commit 79272b8\n- 10 файлов, +2009/-1637 строк\n- 539 тестов, 0 регрессий",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-07-14 22:00",
+    "symptom": "2026-07-14 22:00",
+    "root_cause": "не установлена.\n\n### 5. Ключевые файлы\n\n- `src/core/intelligence/layer.py` — ADR без subprocess\n- `src/core/search/scoring.py` — MMR + auto_detect_intent\n- `src/core/search/engine.py` — интеграция MMR + intent\n- `src/core/search/utils.py` — 39 групп синонимов\n- `src/core/indexing/indexer.py` — vector в результатах\n- `src/mcp/server.py` — free variable fix + debug tools\n- `src/main.py` — src.**path",
+    "fix": "+ debug tools\n- `src/main.py` — src.**path** переключение\n- `experiments/` — mmr_prototype, test_subprocess_windows",
+    "files": "- `src/core/intelligence/layer.py` — ADR без subprocess\n- `src/core/search/scoring.py` — MMR + auto_detect_intent\n- `src/core/search/engine.py` — интеграция MMR + intent\n- `src/core/search/utils.py` —"
+  },
+  {
+    "title": "2026-07-14 18:40",
+    "symptom": "** `intel_auto_collect_adrs` падал с \"Context server request timeout\"\nпри каждом вызове. HEAD-фикс (asyncio.to_thread) не помогал.",
+    "root_cause": "** `subprocess.run(..., text=True)` на русской Windows использует\nкодировку cp1251. git log содержит UTF-8 символы (русские коммиты, эмодзи),\nкоторые не декодируются в cp1251 → UnicodeDecodeError в reader thread →\nresult.stdout=None → AttributeError: 'NoneType' object has no attribute 'strip'\n→ исключение не ловится → MCP-хендлер падает без ответа → клиент ждёт → таймаут.",
+    "fix": "intel_auto_collect_adrs: UnicodeDecodeError на русской Windows",
+    "files": ""
+  },
+  {
+    "title": "2026-07-14 01:30",
+    "symptom": "** После архитектурной реструктуры (IEmbedder interface, domain split)\nскорость эмбеддинга упала с 320-499 ch/s до 5-8 ch/s.\n`search_code(mode=fast)` возвращал `extension.toml` (нулевые векторы).",
+    "root_cause": "(3 проблемы):**\n\n1. **ext_root неверный** — после переезда `remote_embedder.py` в\n   `src/providers/embedder/` `Path(__file__).parent.parent.parent` давал\n   неверный путь. Фикс: `get_extension_dir()` вместо `__file__`.\n\n2. **token_type_ids подавался** — INT8 модель (`model_quantized.onnx`) имеет\n   3 входа. Подача tt убивает скорость в 60× (320→5 ch/s).\n   Оригинальный код (commit 28fc9b8) НЕ под",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-07-13 02:30",
+    "symptom": "** После коммита `e7c61dc` скорость эмбеддинга упала с ~350 до ~9 ch/s.\n`search_code(mode='fast')` возвращал `extension.toml`/`lsp_client.py` (score 0.0).",
+    "root_cause": "(первопричина):** Я (агент сессии 01:30) ошибочно диагностировал,\nчто INT8-модель E5-base требует `token_type_ids` на вход, иначе OpenVINO 2026.2.1\nвозвращает тензор с batch=0 → все эмбеддинги нулевые. На основании ЕДИНСТВЕННОГО\nтестового бенча (ovtest4.py, fresh model compile + infer) сделал вывод\n«INT8 сломан» и переключил приоритет на FP32. Это было ошибкой:\n\n- В реальном рантайме (с кэшированн",
+    "fix": "(как починили):**\n\n1. Revert FP32-приоритета → INT8 restored as primary (commit `0665a4b`).\n2. `_detect_model_dir`: INT8-first sort restored (был alphabet-only).\n3. `_init_openvino`: INT8 load restore",
+    "files": ""
+  },
+  {
+    "title": "2026-07-13 01:30",
+    "symptom": "(root cause of \"fast mode returns garbage\"):**\n\n- `search_code` mode=`fast` (чистый `vector_search`) возвращал мусор:\n  всегда `extension.toml` / `src/core/lsp_client.py` со score 0.0.\n- Диагностика: query-эмбеддинг = все нули (`nonzero=0`).\n- Причина: INT8 E5-base (`e5-base-v2-int8/model_quantized.onnx`) **ОБЯЗАН**\n  получать `token_type_ids` на вход, иначе OpenVINO возвращает тензор с\n  `batch=0",
+    "root_cause": "of \"fast mode returns garbage\"):**\n\n- `search_code` mode=`fast` (чистый `vector_search`) возвращал мусор:\n  всегда `extension.toml` / `src/core/lsp_client.py` со score 0.0.\n- Диагностика: query-эмбеддинг = все нули (`nonzero=0`).\n- Причина: INT8 E5-base (`e5-base-v2-int8/model_quantized.onnx`) **ОБЯЗАН**\n  получать `token_type_ids` на вход, иначе OpenVINO возвращает тензор с\n  `batch=0` → все эмбе",
+    "fix": "broken fast mode (zero-vector embeddings) + reranker model",
+    "files": ""
+  },
+  {
+    "title": "2026-07-12 23:40",
+    "symptom": "** После docs-sync сессии (21:40) остались 4 открытых пункта:\n\n1. MCP index 0 chunks (не подтверждён живой рантайм)\n2. `intel_auto_collect_adrs` таймаут (blocking subprocess in async)\n3. Stale 1024-dim/bge-m3-primary в SEARCH_PIPELINE (en/ru/zh) + LM_STUDIO_SETUP (en/ru) + AI_INSTALLATION_PROMPT\n4. Terminal \"tool input was not fully received\" — не мог запустить install.py / live-проверку",
+    "root_cause": "(terminal)**: Zed agent↔tool transport protocol некорректно сериализует optional integer params в tool schema. Баг не в нашем коде, фиксится в Zed upstream.",
+    "fix": "+ async ADR + index recovery + terminal diagnosis",
+    "files": "changed:** src/core/intelligence_layer.py, docs/en/SEARCH_PIPELINE.md, docs/ru/SEARCH_PIPELINE.md, docs/zh/SEARCH_PIPELINE.md, docs/en/LM_STUDIO_SETUP.md, docs/ru/LM_STUDIO_SETUP.md, AI_INSTALLATION_P"
+  },
+  {
+    "title": "2026-07-12 20:00",
+    "symptom": "** `intel_get_runtime_status` показывал `symbol_index_count: 0`, а `get_health_report` — `symbols: 3197` для одного проекта. Рассинхрон диагностики.",
+    "root_cause": "** `_resolve_symbol_count()` вызывал `guard.load_symbol_index()` только при `count == 0 AND total_chunks > 0`. Но при cold start `active_indexer._symbol_index` — пустой объект, и перезагрузка с диска не срабатывала надёжно (другой экземпляр / гонка инициализации).",
+    "fix": "symbol_index_count 0 vs 3197 (timing race)",
+    "files": "** `src/core/intelligence_layer.py` (`_resolve_symbol_count`)"
+  },
+  {
+    "title": "2026-07-12",
+    "symptom": "**\nИндексация работала на 7-8 ch/s (ONNX Runtime FP32). Пользователь\nожидал 270 ch/s на основе ранних бенчмарков. RAM скакал 870→2550MB.",
+    "root_cause": "(3 проблемы):**\n\n1. **Padding Trap:** `max_length=512` → в батче самый длинный чанк\n   определял padding → квадратичный рост attention (8×304² = 739k ops\n   вместо 8×64² = 33k ops — в 22x больше).\n2. **Dead Code Elimination:** `token_type_ids` (всегда нули для passage)\n   заставлял OpenVINO честно вычислять ветку NSP → 175ms вместо 2.9ms.\n3. **Producer-Consumer deadlock:** queue.put(maxsize=10) бл",
+    "fix": "**\n\n1. OpenVINO INT8 (105 MB вместо 266 MB FP32)\n2. `max_length=128` (фиксация длины, без Padding Trap)\n3. **Без `token_type_ids`** (Dead Code Elimination — 60x speedup)\n4. 3-фазный BatchEmbedder: Par",
+    "files": "** `src/core/remote_embedder.py`, `src/core/indexer.py`, `.env`"
+  },
+  {
+    "title": "2026-07-11 10:15",
+    "symptom": "**\n\n- `get_index_status()` показывал Files: 1 при реальных 170+ файлах\n- `intel_get_runtime_status()` показывал Symbols: 1 (читал total_files вместо symbol_index_count)",
+    "root_cause": "**\n\n1. `indexer.py:get_status()` — `_cached_unique_files` — set, заполняется только при `_index_single_file`.\n   Если индекс построен ДО добавления этого кэша — set пуст, показывает 0/1.\n2. `ui_formatter.py:193` — `symbols = tel.get(\"total_files\", 0)` — баг: в символы подставлялось количество файлов\n3. `intelligence_layer.py` — в index_telemetry не было symbol_index_count",
+    "fix": "get_status показывал 1 files | 1 symbols вместо реальных",
+    "files": "| 1 symbols вместо реальных"
+  },
+  {
+    "title": "2026-07-10 23:55",
+    "symptom": "**\nНа Windows Insider (build >= 26000, niki_v2) Microsoft удалила виртуальные\nAPI Set DLL (api-ms-win-crt-*). Все MSVC-сборки llama.cpp (включая Vulkan\nClang build, где llama-server-impl.dll всё равно MSVC) падали с\nSTATUS_DLL_NOT_FOUND. Vulkan-сборка не работала на CPU-only (require GPU).",
+    "root_cause": "**\n\n- `llama-server-impl.dll` + 5 других DLL импортируют api-ms-win-crt-*.dll\n  (виртуальные API Set, которых нет на Insider)\n- Скопировать .dll файлы бесполезно — загрузчик Windows игнорирует файлы\n  с именами API Set (это виртуальные DLL, обрабатываемые apisetschema.dll)\n- Функции из CRT API Set есть в ucrtbase.dll (загружается нормально)",
+    "fix": "Insider CRT API Set — патч PE-импортов api-ms-win-crt → ucrtbase",
+    "files": "** src/core/llama_runner.py (_patch_dll_imports, download_llama_binary),\nscripts/patch_dll_imports.py (standalone tool), install.py"
+  },
+  {
+    "title": "2026-07-10 23:40",
+    "symptom": "**\nДаже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал\nс STATUS_DLL_NOT_FOUND. MSVC-сборка требует CRT API Set, которых нет на Insider.",
+    "root_cause": "**\nНа Windows Insider (build >= 26000) Microsoft удалила некоторые CRT API Set DLL.\nMSVC-сборка llama.cpp (win-cpu-x64) падает при запуске. downlevel/ заглушки\nне помогли — Microsoft меняет API Set между сборками.",
+    "fix": "Windows Insider → Vulkan/Clang сборка (статический CRT)",
+    "files": "** src/core/llama_runner.py, install.py"
+  },
+  {
+    "title": "2026-07-10 23:15",
+    "symptom": "**\n`step_llama()` и `step_gguf()` в install.py скачивают бинарник и GGUF модели\nв `_get_ext_dir()` (= PROJECT_ROOT), но НЕ копируют их в ZED_EXT_DIR.\nMCP-сервер запускается из папки расширения Zed (%LOCALAPPDATA%/Zed/extensions/...),\nа бинарника там нет → llama.cpp не стартует.",
+    "root_cause": "**\n\n- `step_llama()` проверял `is_installed()` (проект), не проверял ZED_EXT_DIR\n- После `download_llama_binary()` не было `shutil.copytree` в ZED_EXT_DIR\n- `step_gguf()` — то же самое для GGUF моделей\n- `step_models()` (ONNX) делал копирование правильно — шаблон был, но для GGUF/бинарника не применялся",
+    "fix": "llama.cpp не синхронизируется в папку расширения Zed",
+    "files": "** install.py"
+  },
+  {
+    "title": "2026-07-10 22:58",
+    "symptom": "**\nПосле загрузки MCP-сервера llama.cpp процессы (embed + reranker) не запускались.\n`embedder_mode: unknown`, `embedder_available: ✗`.\nВ логах: `llama.cpp не найден за 30с`.",
+    "root_cause": "**\n\n1. `_is_windows_insider()` = True (build >= 26000). На Insider отсутствуют CRT API Set DLL.\n2. `llama-server.exe` (stub 9 KB) падал с `STATUS_DLL_NOT_FOUND` (0xC0000135) при попытке загрузить `api-ms-win-crt-*`.\n3. В ZIP-архиве llama.cpp есть папка `downlevel/` с заглушками CRT, но `download_llama_binary()` не извлекала их.\n4. Popen без `cwd` — Windows не гарантировала загрузку DLL из папки EX",
+    "fix": "llama.cpp не стартует на Windows Insider (STATUS_DLL_NOT_FOUND)",
+    "files": "** src/core/llama_runner.py"
+  },
+  {
+    "title": "2026-07-10 16:20",
+    "symptom": "** При индексации через Qwen3 llama-server растёт на 25-40 MB/сек\nдо 5.5+ GB. Причина: бесконтрольный рост KV-кэша без дефрагментации.",
+    "root_cause": "бесконтрольный рост KV-кэша без дефрагментации.",
+    "fix": "llama-server RAM leak during indexing + full doc update",
+    "files": "** `src/core/llama_runner.py`, `src/core/remote_embedder.py`"
+  },
+  {
+    "title": "2026-07-10 08:20",
+    "symptom": "** `embed_batch` всегда возвращал нулевые векторы в режиме `llama_cpp`.\n`intel_get_runtime_status` показывал `onnx` даже когда llama.cpp работал.",
+    "root_cause": "**\n\n1. `remote_embedder.py:651-670` — try-except с HTTP-запросом к llama.cpp находился\n   ВНУТРИ блока `if self.mode != \"llama_cpp\"`, поэтому когда mode==\"llama_cpp\"\n   (установлен сканером), запрос НИКОГДА не выполнялся. Код падал до возврата нулей.\n2. `intelligence_layer.py:417-418` — жёстко зашит `lm_studio`/`onnx`, без проверки llama.cpp",
+    "fix": "Critical race condition in llama_cpp embed_batch + intel_get_runtime_status",
+    "files": "** `src/core/remote_embedder.py`, `src/core/intelligence_layer.py`"
+  },
+  {
+    "title": "2026-07-09 21:00",
+    "symptom": "** Комплексный запрос пользователя:\n\n1. Проверить все MCP инструменты (таймауты)\n2. Почему RAM выросла с 300MB до 1GB+\n3. Вернуть reranking\n4. Проанализировать Zed 1.10.0\n5. Почему не работает get_index_status\n6. llama.cpp: 0xc000001d на Ryzen 5600H\n7. notify_change timeout\n8. Создать One-Prompt Install\n9. Обновить документацию",
+    "root_cause": "** Дублирование из-за ручного и автоматического запуска.",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-07-09 06:42",
+    "symptom": "** После миграции на ONNX MCP-процесс вырос с ~300MB до ~1.2GB,\nа ONNX-сервер — до 3.5GB. Причина:\n\n1. `_detect_model_dir()` создавал `ort.InferenceSession` только ради размерности\n   — временный спайк +544MB (+ утечка, т.к. сессия не закрывалась)\n2. `MultiProviderReranker._init_onnx_reranker()` грузил bge-reranker-v2-m3\n   in-process в MCP (+545MB)\n3. ONNX-сервер держал bge-m3, и попытка добавить",
+    "root_cause": "1. `_detect_model_dir()` создавал `ort.InferenceSession` только ради размерности\n   — временный спайк +544MB (+ утечка, т.к. сессия не закрывалась)\n2. `MultiProviderReranker._init_onnx_reranker()` грузил bge-reranker-v2-m3\n   in-process в MCP (+545MB)\n3. ONNX-сервер держал bge-m3, и попытка добавить туда reranker удвоила\n   его RAM (3.5GB)",
+    "fix": "P1 Memory regression — MCP жрал 1.2GB + ONNX 3.5GB RAM",
+    "files": "Changed:** src/core/onnx_server.py, src/core/reranker.py, src/core/remote_embedder.py"
+  },
+  {
+    "title": "2026-07-07 23:16",
+    "symptom": "** LanceDB таблица `codebase_chunks` была сброшена извне.\nВсе операции Indexer (add, delete, search, to_pandas) падали с\n\"Table not found\". `_warmup_status` молча глотал ошибку → `Files: 0`.\nBM25 индекс не строился. Поиск возвращал пустоту.",
+    "root_cause": "** Внешний скрипт дропнул таблицу. Indexer держал stale\nRust-backed handle. `_migrate_add_metadata_columns` не обрабатывал\nслучай повреждённой таблицы (to_pandas падал → migration выходил\nбез создания таблицы). `health_score` мигрировался как `0.0` (float value)\nвместо `\"float64\"` (type string).",
+    "fix": "P0 — Table recreation + Graceful Degradation + Schema migration fix",
+    "files": "0`.\nBM25 индекс не строился. Поиск возвращал пустоту."
+  },
+  {
+    "title": "2026-07-05",
+    "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
+    "root_cause": "** `await self._flush()` вызывался внутри `threading.Lock`.\n`threading.Lock` не reentrant — второй захват блокирует поток навсегда.",
+    "fix": "`should_flush` под lock, сам `await` — после lock.",
+    "files": ""
+  },
+  {
+    "title": "2026-07-05",
+    "symptom": "2026-07-05",
+    "root_cause": "`mscodebase-lsp` не регистрируется\nв `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать\nновый LSP — только override пути для уже существующего.\nТребуется Rust/WASM-адаптер для полноценной поддержки.\nMCP-сервер (43 инструмента) работает полноценно и без LSP.",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-07-04",
+    "symptom": "** `intel_trigger_reindex` → `intel_get_job_status` всегда возвращал `progress: 0.5`.\nJob висел в статусе \"running\" бесконечно.",
+    "root_cause": "** `trigger_async_reindex()` не передавал `progress_callback` в `Indexer.index_project()`.\nПрогресс статически ставился на 0.5 перед `await future` и не обновлялся.",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-06-29",
+    "symptom": "** Claude-аудит обнаружил что `self._ov_results` — общий dict на процесс.\nConcurrent embed_batch() (индексатор + поиск) перезаписывали вектора друг друга.\nНе нули, не исключения — **синтаксически корректные, но чужие вектора**.",
+    "root_cause": "** Callback писал в `self._ov_results[userdata]`, userdata=0..N-1.\nДва concurrent вызова с одинаковыми индексами → перезапись.",
+    "fix": "(вариант без лока):** userdata = (index, local_results_dict).\nКаждый вызов создаёт свой dict → callback изолирован → лок не нужен.\nСохранён полный параллелизм внутри одного вызова (jobs=4).",
+    "files": "at 100% cache coverage\n- Schema has `chunk_hash` column, db_writer stores it, index_pipeline queries and skips embed_batch for cached chunks"
+  },
+  {
+    "title": "2026-07-20 22:30",
+    "symptom": "2026-07-20 22:30",
+    "root_cause": "Not Found (полное решение):**\n- Layer 1: `_reindex_guard` (Event) — search fast-fail при reindex\n- Layer 2: `_write_lock` (Lock) — сериализация write/reconnect\n- Layer 3: `_pid_lock` (файл с PID) — только один worker пишет в БД\n- Self-healing: reset_connection + retry при Not Found (до 2 попыток)",
+    "fix": "",
+    "files": ""
+  },
+  {
+    "title": "2026-07-21 00:15",
+    "symptom": "** `intel_get_project_memory()` возвращал пустой результат на старте,\nхотя в git-логе есть архитектурные решения. Логи содержали 738 ошибок.",
+    "root_cause": "**\n1. `intel_auto_collect_adrs` никогда не вызывался автоматически — только вручную.\n2. Логи (`mcp_global.log`) никогда не чистились, накопили 738 error-записей.",
+    "fix": "**\n1. `src/mcp/server_tools.py` — добавлен вызов `intel_layer.intel_auto_collect_adrs(max_commits=100)`\n   сразу после создания `ProjectIntelligenceLayer` в `_register_intelligence_tools()`.\n   Обёрну",
+    "files": ""
+  }
+]

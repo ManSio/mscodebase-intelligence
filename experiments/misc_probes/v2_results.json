@@ -1,0 +1,82 @@
+{
+  "project": "D:\\Project\\MSCodeBase",
+  "timestamp": "2026-07-22 22:24:18",
+  "graph": {
+    "nodes": 128,
+    "edges": 301
+  },
+  "total_files": 128,
+  "total_tokens": 405725,
+  "queries": 30,
+  "pagerank": [
+    {
+      "method": "pagerank",
+      "top_pct": 10,
+      "files": 12,
+      "tokens": 54905,
+      "savings_pct": 86.5,
+      "accuracy_pct": 70.0
+    },
+    {
+      "method": "pagerank",
+      "top_pct": 20,
+      "files": 25,
+      "tokens": 111179,
+      "savings_pct": 72.6,
+      "accuracy_pct": 86.7
+    },
+    {
+      "method": "pagerank",
+      "top_pct": 50,
+      "files": 64,
+      "tokens": 245616,
+      "savings_pct": 39.5,
+      "accuracy_pct": 100.0
+    },
+    {
+      "method": "pagerank",
+      "top_pct": 100,
+      "files": 128,
+      "tokens": 405725,
+      "savings_pct": 0.0,
+      "accuracy_pct": 100.0
+    }
+  ],
+  "smart_summary": {
+    "tokens": 2307,
+    "savings_pct": 99.4,
+    "accuracy_pct": 53.3
+  },
+  "summary_plus_ondemand": {
+    "tokens": 17307,
+    "savings_pct": 95.7,
+    "accuracy_pct": 53.3
+  },
+  "top5_pagerank": [
+    [
+      "src/core/indexing/symbol_index.py",
+      0.2688,
+      10471
+    ],
+    [
+      "src/core/modification_guard.py",
+      0.2469,
+      1676
+    ],
+    [
+      "src/core/search/graph_adapter_pure.py",
+      0.116,
+      3123
+    ],
+    [
+      "src/utils/i18n.py",
+      0.013,
+      676
+    ],
+    [
+      "src/mcp/tools/graph_tools.py",
+      0.0117,
+      7397
+    ]
+  ]
+}
