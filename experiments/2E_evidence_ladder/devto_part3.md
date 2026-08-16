@@ -23,7 +23,7 @@ Verdict schema: `{"verdict": "true"|"false"|"unknown"}`, temp=0, seed=42, zero-s
 ## Rungs 1→2: evidence format beats model
 
 ```
-qwen3.7:    recall(real) 0.24 → 0.92   FA 0.00 → 0.02
+qwen3.7:    recall(real) 0.24 → 0.92   FA 0.00 → 0.02 (old labels; that 0.02 was a mislabeled true fact — corrected FA = 0, see below)
 deepseek:   recall(real) 0.04 → 0.84
 glm-4.7:    recall(real) 0.60 → 0.68
 ```
@@ -32,7 +32,7 @@ Token strings are not evidence. Code is. (Reproduced on the corrected dataset, p
 
 ## Rung 3: graph closes the trap. Or so we thought.
 
-Graph evidence gave qwen3.7 **FA = 0.000**, including zero false accepts on the trap category. We wrote the pre-registered interpretation: "structural layer closes the present-trap failure mode." Then rung 3b, the hybrid, **reopened the trap** (FA 0.02, same fact as before). Not additive: fragment presence dominates graph structure. For qwen, "both" is strictly worse than "fragment only".
+Graph evidence gave qwen3.7 **FA = 0.000**, including zero false accepts on the trap category. We wrote the pre-registered interpretation: "structural layer closes the present-trap failure mode." Then rung 3b, the hybrid, **reopened the trap** (FA 0.02, the same fact as before — which, as the red team below shows, was actually *true*: that "false accept" was a label artifact, not a model failure). Not additive: fragment presence dominates graph structure. For qwen, "both" is strictly worse than "fragment only".
 
 ## The attack: the dataset was lying
 
@@ -93,6 +93,8 @@ PAST ("X WAS defined in F"):  all three 40/40
 Part 2's known weakness: temp=0 + seed=42 on OpenRouter is not determinism — ≥8 upstream backends. Tom Jones' comment suggested `provider.order` with `allow_fallbacks: false`, which pins the endpoint — cheaper than K≥3 repeats.
 
 We probed it: **StreamLake — the most-used upstream for glm in our server CSV (245 calls) — returns unreadable responses when pinned.** Cloudflare/DeepInfra are stable. The full pinned re-run (qwen→Alibaba, deepseek/glm→DeepInfra, ~$0.02) reproduced every conclusion: per-model arm rankings, temporal present-trap (12/12, 9/12, 12/12), past-tense fix (40/40), and FA absent/silent = 0 across evidence arms. One caveat: glm stays non-deterministic even pinned (FA 0.06 → 0.02 → 0.02 across runs) — pinning removes routing, not model variance.
+
+*Reproduction note: if you reproduce pinned runs, avoid StreamLake — it was the top unpinned provider for glm but didn't respond when pinned. Pinning to a provider that serves you well unpinned is not guaranteed to work; probe before committing to a long run.*
 
 ## What this means for verify-on-read
 
