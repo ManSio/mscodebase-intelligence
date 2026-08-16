@@ -408,7 +408,8 @@ def format_project_memory(
     По умолчанию 3 — токен-бюджет (память ×22 токенов в полном виде,
     эксперимент 2026-08-11); полный список — limit=0 (аудит).
     stats: VOR-ресипт (пол Тома) — checked/total узлов, budget_exceeded,
-    latency_ms, metrics (store.memory_metrics: распределение статусов +
+    latency_ms, starved_nodes (MATCHED>0, DELIVERED=0 — систематическое
+    голодание по бюджету), metrics (store.memory_metrics: распределение статусов +
     false_retraction_rate); без stats ресипт не выводится (обратная совместимость).
     Аудит-режим (include_retracted=True) детектится по наличию REFUTED/SUPERSEDED
     узлов в выдаче — тогда каждый узел получает статус и причину отзыва.
@@ -420,16 +421,24 @@ def format_project_memory(
         else:
             checked = stats.get("checked", 0)
             total = stats.get("nodes_seen", 0)
+            starved = stats.get("starved_nodes", [])
+            starved_warn = (
+                f" ⏳ starved: {len(starved)} узлов видны, но ни разу не проверены "
+                "(MATCHED>0, DELIVERED=0)"
+                if starved
+                else ""
+            )
             warn = (
                 " ⚠️ бюджет исчерпан — непроверенные узлы несут статус прошлых циклов"
                 if stats.get("budget_exceeded")
                 else ""
             )
             result += _(
-                "🔎 **VOR coverage:** {checked}/{total} узлов проверено{warn}\n\n",
+                "🔎 **VOR coverage:** {checked}/{total} узлов проверено{warn}{starved}\n\n",
                 checked=checked,
                 total=total,
                 warn=warn,
+                starved=starved_warn,
             )
         metrics = stats.get("metrics")
         if metrics:

@@ -67,6 +67,26 @@ def test_vor_coverage_budget_exceeded_warning():
     assert "бюджет исчерпан" in out
 
 
+def test_vor_coverage_starved_warning():
+    """Том (MATCHED/DELIVERED): ресипт предупреждает о starved-узлах — видимы
+    N циклов, но ни разу не проверены (систематическое голодание, не баг якорей)."""
+    out = format_project_memory(
+        _mem(3),
+        stats={
+            "nodes_seen": 3,
+            "checked": 1,
+            "budget_exceeded": True,
+            "starved_nodes": ["N2", "N3"],
+        },
+    )
+    assert "starved: 2 узлов" in out
+    assert "MATCHED>0, DELIVERED=0" in out
+
+    # Без starved — строка не выводится (обратная совместимость)
+    out2 = format_project_memory(_mem(3), stats={"nodes_seen": 3, "checked": 3})
+    assert "starved" not in out2
+
+
 def test_vor_off_receipt():
     """verify_on_read=False — ресипт честно говорит, что проверки не было."""
     out = format_project_memory(_mem(1), stats={"verify_on_read": False})

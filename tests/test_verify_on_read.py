@@ -499,6 +499,125 @@ def test_write_capture_makes_verify_effective_on_prose(project: Path):
 
 
 # =====================================================================
+# MATCHED/DELIVERED (Том, 2026-08-16)
+# =====================================================================
+
+
+def test_counters_matched_delivered_fresh_and_cache_hit(project: Path):
+    """Том: свежая проверка и cache-hit — обе считаются доставкой (delivered)."""
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}])])
+    verifier = _make_verifier(project, store)
+
+    _, stats1 = verifier.run(store.load_memory())
+    assert stats1["checked"] == 1
+    assert verifier._cache["counters"]["N1"] == {"matched": 1, "delivered": 1}
+    assert "starved_nodes" not in stats1
+
+    # Тот же HEAD -> cache-hit, но вердикт разрешён -> доставка
+    _, stats2 = verifier.run(store.load_memory())
+    assert stats2["cache_hits"] == 1
+    assert verifier._cache["counters"]["N1"] == {"matched": 2, "delivered": 2}
+    assert "starved_nodes" not in stats2
+
+
+def test_starved_node_seen_never_delivered(project: Path):
+    """Том: MATCHED>0, DELIVERED=0 два цикла подряд -> starved (голодание по бюджету)."""
+    store = IntelligenceStore(project)
+    _seed(
+        store,
+        [
+            _node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}]),
+            _node("N2", "b", anchors=[{"kind": "import", "value": "fastmcp"}]),
+        ],
+    )
+    verifier = _make_verifier(project, store)
+
+    def slow_check(anchor, fp):
+        import time as _t
+
+        _t.sleep(0.02)  # 20ms на узел: бюджет 10ms режется со 2-го узла
+        return True
+
+    verifier._check_anchor = slow_check
+    _, stats1 = verifier.run(store.load_memory(), budget_ms=10.0)
+    # N1 (первый узел вне бюджета) проверен; N2 виден, но не проверен
+    assert stats1["checked"] == 1
+    assert verifier._cache["counters"]["N2"] == {"matched": 1, "delivered": 0}
+    assert "starved_nodes" not in stats1  # одного цикла мало
+
+    # Смена HEAD -> N1 снова проверяется (медленно) и снова вытесняет N2 из бюджета.
+    # Без смены HEAD N1 был бы cache-hit (~0ms), бюджет не исчерпался бы и N2
+    # проверился бы — голодание требует реальной работы на каждом цикле.
+    verifier._resolve_head = lambda: "HEAD-B"
+    _, stats2 = verifier.run(store.load_memory(), budget_ms=10.0)
+    assert verifier._cache["counters"]["N2"] == {"matched": 2, "delivered": 0}
+    # N2 видим 2 цикла, но ни разу не доставлен -> starved; N1 не голодает
+    assert stats2["starved_nodes"] == ["N2"]
+
+
+def test_counters_survive_head_change(project: Path):
+    """Счётчики ключуются node_id (не head) — переживают смену HEAD, в отличие от verdicts."""
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}])])
+    verifier = _make_verifier(project, store)
+
+    verifier.run(store.load_memory())
+    verifier._resolve_head = lambda: "NEW-HEAD-abc123"
+    _, stats2 = verifier.run(store.load_memory())
+    assert stats2["checked"] == 1  # смена HEAD -> перепроверка
+    assert verifier._cache["counters"]["N1"] == {"matched": 2, "delivered": 2}
+
+
+def test_counters_persist_to_cache_file(project: Path):
+    """Счётчики персистятся в verify_cache.json — переживают перезапуск процесса."""
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "import", "value": "fastmcp"}])])
+    verifier = _make_verifier(project, store)
+
+    verifier.run(store.load_memory())
+    data = json.loads(verifier.cache_file.read_text(encoding="utf-8"))
+    assert data["counters"]["N1"] == {"matched": 1, "delivered": 1}
+
+    # Новый экземпляр читает сохранённые счётчики (кэш-файл = история)
+    verifier2 = _make_verifier(project, store)
+    assert verifier2._cache["counters"]["N1"] == {"matched": 1, "delivered": 1}
+
+
+def test_layer_starved_flags_nodes(project: Path, monkeypatch):
+    """Слой помечает starved-узлы verification="starved" (кумулятивный сигнал
+    голодания), а разовые budget_exceeded — своим флагом; starved не перетирается."""
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    nodes = [
+        _node(f"N{i}", "c", anchors=[{"kind": "import", "value": "fastmcp"}])
+        for i in range(5)
+    ]
+    layer.store.save_memory(nodes)
+
+    def slow_check(self, anchor, fp):
+        import time as _t
+
+        _t.sleep(0.03)
+        return True
+
+    monkeypatch.setattr(VerifyOnRead, "_check_anchor", slow_check)
+    asyncio.run(layer.intel_get_project_memory())  # цикл 1: хвост виден, не доставлен
+    mem, stats = asyncio.run(layer.intel_get_project_memory())  # цикл 2: хвост starved
+    assert stats["starved_nodes"]  # как минимум один систематически голодает
+    flagged_starved = {
+        n["node_id"] for sec in mem.values() for n in sec if n.get("verification") == "starved"
+    }
+    assert flagged_starved == set(stats["starved_nodes"])
+    flagged_budget = {
+        n["node_id"]
+        for sec in mem.values()
+        for n in sec
+        if n.get("verification") == "budget_exceeded"
+    }
+    assert flagged_budget == set(stats["budget_exceeded_nodes"]) - set(stats["starved_nodes"])
+
+
+# =====================================================================
 # ADR-0005: pkg:-якоря (closed-world манифест) — dist name vs import path
 # =====================================================================
 
