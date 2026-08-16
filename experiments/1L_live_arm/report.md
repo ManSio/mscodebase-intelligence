@@ -83,7 +83,7 @@
 > **Влияние на выводы этого отчёта:** FA/recall по категориям real/absent/silent (44 факта) НЕ затронуты;
 > цифры по trap-категории («FA trap 0.02–0.04» в §6.6b, «остаточная дыра trap») — завышенные: модели,
 > принявшие R45/R46, были ПРАВЫ. corrected-копия: `memory_contamination_facts_v4_rep_corrected.json`
-> (fingerprint `e5f7373d50a3e640`, 29 true / 21 false).
+> (fingerprint `e6ce7b902d0a20a9`, 29 true / 20 false / R44 ambiguous-None).
 
 ---
 

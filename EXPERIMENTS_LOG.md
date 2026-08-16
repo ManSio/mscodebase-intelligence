@@ -1306,15 +1306,15 @@ TEMPORAL (temporal_first, N=48):
 **Вердикт:** ❌ «Граф закрывает present-trap» (E3) — АРТЕФАКТ: qwen graph = fail-closed на категории (miss_true 4/4); «glm не лечится» — ОПРОВЕРГНУТО: glm graph = лучший arm серии (25/29, FA 1/20). Формат evidence — per-model knob, не глобальный. v4_rep требует ре-лейблинга trap-категории; файл НЕ правился (исторический артефакт), corrected-логика в report.md §5.
 **Урок:** FA-метрики на синтетических категориях обязаны проходить grep-валидацию по СУБЪЕКТУ, а не по проекту. P-паттерн: «метрика на mislabeled категории выглядит как результат модели».
 
-## [2026-08-16] — Датасет v4_rep: corrected-копия (e5f7373d50a3e640). Прошлые прогоны 1-L использовали датасет с известной ошибкой в 4 trap-фактах — выводы сохраняются с оговоркой
+## [2026-08-16] — Датасет v4_rep: corrected-копия (e6ce7b902d0a20a9). Прошлые прогоны 1-L использовали датасет с известной ошибкой в 4 trap-фактах — выводы сохраняются с оговоркой
 
 **Команда (пересчёт fingerprint):** `sha256(json.dumps(data, ensure_ascii=False, sort_keys=True))[:16]`
 **Сырой результат:**
 ```
 original: memory_contamination_facts_v4_rep.json  fp=820bbbf60a0fc930  truth: 25 true / 25 false
-corrected: memory_contamination_facts_v4_rep_corrected.json  fp=e5f7373d50a3e640  truth: 29 true / 21 false
+corrected: memory_contamination_facts_v4_rep_corrected.json  fp=e6ce7b902d0a20a9  truth: 29 true / 20 false / 1 None (R44 ambiguous)
 изменены: R43/R45/R46/R47 truth false->true (value импортирован+использован у субъекта);
-R44 — label_note AMBIGUOUS (импорт без usage); остальные 45 фактов БЕЗ изменений.
+R44 — truth=None (AMBIGUOUS, исключён из пулов); остальные 45 фактов БЕЗ изменений.
 ```
 **Вердикт:** фиксация для истории — все прогоны 1-L (v1..v3_cot_max, file_content, ~3400 вызовов) и 2-E (e1..e5, 744 вызова) выполнялись на датасете `820bbbf60a0fc930` со встроенным truth в progress-файлах. Выводы 1-L построены на категориях real/absent/silent (44 факта) — НЕ затронуты; цифры «FA trap» (V4: 0.02–0.04, R45/R46) завышены — модели принимали истинные claims. corrected-пересчёт старых прогонов: verdict из progress + truth из corrected-файла по id (инлайн-логика в experiments/2E_evidence_ladder/report.md §5). Новые прогоны (pinned-rerun) — на corrected-датасете, harness пишет fact["truth"] из --facts.
 **Урок:** fingerprint-привязка результатов к версии фактов — обязательна (работает); corrected-копия вместо правки оригинала — сохраняет историю; summarize_1L_categories.py берёт truth из progress-файлов — для corrected-метрик по старым прогонам нужен inline-пересчёт.
@@ -1391,3 +1391,47 @@ file_content (V4):
 ```
 **Вердикт (corrected-интерпретация 1-L):** (1) **Настоящие trap-FA (R42) — 0 у всех моделей**: «present-trap FA» в 1-L (V4: 0.02-0.04, R45/R46) был артефактом mislabeled данных — модели принимали ИСТИННЫЕ claims. (2) Вскрыт скрытый `trap miss_true`: fail-closed модели (qwen 4/5, deepseek 4/5) ОТВЕРГАЛИ истинные usage-claims — потеря правды, невидимая в старых метриках. (3) Реальный fail-open — absent/silent: glm code_first 7+2, nemotron memory_first 2 silent. (4) V4-вывод «FA 0.02-0.04 остаточная дыра trap» — уточнён: дыра была в лейблах, не в моделях.
 **Урок:** метрики «FA по категории» без truth-валидации категории по субъекту = измерительный артефакт. Инструмент: --facts corrected в summarize (truth-based режим, старые прогоны пересчитываются без повторных вызовов).
+
+## [2026-08-16] — Валидация corrected-пересчёта (ручная сверка перед публикацией): miss_true подтверждён, разъезда нет
+
+**Команда:** сверка original vs corrected по всем 50 id (kind/subject/value/claim/support_patterns) + конкретные R43/R45/R46 в двух прогонах qwen3.7.
+**Сырой результат:**
+```
+orig ids=50, corr ids=50, sets equal, дубликатов нет
+Побочные поля, отличающиеся от original (кроме truth/label_note): НЕТ — 0 расхождений
+Изменённые truth: ровно ['R43','R45','R46','R47']
+v2_en/code_first qwen3.7: R43/R45/R46 verdict=false, truth(corr)=True → miss_true=True (подтверждено)
+file_content qwen3.7: R43 verdict=false (miss_true), R45 verdict=true (ПРАВИЛЬНЫЙ true, не FA), R46 verdict=false (miss_true)
+```
+**Вердикт:** ✅ miss_true 4/5 у fail-closed моделей — РЕАЛЬНЫЙ факт, не артефакт пересчёта: категория trap не сдвигалась (kind идентичен), truth переопределён только у 4 подтверждённых фактов, verdict из progress привязан к тем же id. R45 в file_content (ранее «FA 0.02») — правильная вердикт модели, что подтверждает и V4-уточнение.
+**Урок:** перед публикацией corrected-метрик — сверка id/полей original↔corrected и 2-3 конкретных факта по progress (проверка пользователя, принята).
+
+## [2026-08-16] — Pinned-probe: выбор канонического бэкенда (комментарий Tom Jones, provider.order)
+
+**Команда:** 3 факта (R01 true / R42 false / R45 true-corrected) × 3 повтора × кандидаты: glm-4.7 → StreamLake/Cloudflare/DeepInfra, deepseek-v4 → DeepInfra/Cloudflare (топ по CSV-аудиту).
+**Сырой результат:**
+```
+glm-4.7  pin=StreamLake  R01:?/?/? R42:?/?/? R45:?/?/?  ← нечитаемые ответы (исключён)
+glm-4.7  pin=Cloudflare  R01:true×3 ✓ R42:unknown×3 R45:true×3 ✓ (стабильно)
+glm-4.7  pin=DeepInfra   R01:true×3 ✓ R42:unknown×3 R45:true×3 ✓ (стабильно)
+deepseek pin=DeepInfra   R01:true×3 ✓ R42:unknown×3 R45:unknown×3 (стабильно)
+deepseek pin=Cloudflare  R01:?/?/? R42:?/?/? R45:?/?/?  ← нечитаемые (исключён)
+```
+**Вердикт:** pinned-провайдеры для rerun: qwen → Alibaba (де-факто 248/248), deepseek/glm → **DeepInfra** (Cloudflare эквивалентен для glm; у deepseek Cloudflare битый). StreamLake (топ-1 unpinned у glm, 245 вызовов!) pinned — не отвечает: подтверждает, что unpinned-маршрутизация попадала на бэкенд с дефектным ответом — ещё один аргумент за пининг. R42 → unknown (не FA) у всех pinned — честный отказ, не ложный true.
+**Урок:** объём в CSV ≠ качество бэкенда: StreamLake был самым нагруженным у glm, но pinned не отдаёт JSON — пининг также защищает от «популярного, но битого» апстрима.
+
+## [2026-08-16] — Pinned-rerun на corrected-датасете (fp e6ce7b902d0a20a9): канонические числа серии, routing-полоса убрана
+
+**Команда:** 15 прогонов (5 армов × 3 модели), --pin-provider: qwen→Alibaba, deepseek/glm→DeepInfra (по pinned-probe; StreamLake/Cloudflare-deepseek — битые pinned). corrected-датасет e6ce7b902d0a20a9 (R44 truth=None). Теги 2e_pin_*. +resume для error-фактов qwen. Стоимость ~$0.02.
+**Сырой результат (corrected, pinned; FA trap = только R42; miss_true = отвергнутые истинные trap):**
+```
+| arm | qwen rec/FA-tr/miss | deepseek rec/FA-tr/miss | glm rec/FA-tr/miss |
+| file_content | 0.88/0/3 | 0.80/1/2 | 0.68/2/1 |
+| graph_first | 0.72/0/4 | 0.48/0/2 | 0.84/1/0 |
+| file_graph | 0.84/0/3 | 0.92/1/2 | 0.80/2/1 |
+temporal NOW removed-FA: qwen 12/12, deepseek 9/12, glm 12/12 (как unpinned)
+temporal PAST: все 40/40 (как unpinned)
+FA absent/silent: 0 во всех pinned-ячейках
+```
+**Вердикт:** (1) **Routing-полоса убрана, но per-model выводы серии НЕ изменились**: file_content — лучший recall у qwen (0.88), graph — лучший у glm (0.84, FA trap 1), hybrid — лучший у deepseek (0.92); temporal present-trap универсален (NOW 12/12, 9/12, 12/12), past решается формулировкой (40/40). (2) glm остаётся недетерминированной ДАЖЕ pinned (e3_g: unpin 6FA → pin-force1 2FA → pin-force2 1FA): пининг убрал маршрутизацию, не вариацию модели (±0.02-0.04 FA). (3) FA absent/silent = 0 у всех pinned evidence-армов — corrected-картина 1-L (trap miss_true 4/5 у fail-closed) — главный результат, не зависящий от маршрутизации.
+**Урок:** pinned-rerun подтвердил устойчивость всех выводов серии к маршрутизации; glm-недетерминизм — свойство модели (даже single-backend); StreamLake (топ-1 unpinned у glm) pinned не отдаёт JSON — объём ≠ качество.

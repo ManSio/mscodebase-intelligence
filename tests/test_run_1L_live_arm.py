@@ -403,7 +403,7 @@ def test_new_report_reasoning_mode():
         args = argparse.Namespace(
             provider="openrouter", arm="both", max_tokens=500, seed=42,
             no_reasoning=no_reasoning, reasoning=reasoning,
-            prompt_version="v2", prompt_lang="en", tag="v3_cot")
+            prompt_version="v2", prompt_lang="en", tag="v3_cot", pin_provider=None)
         cfg = _mod._new_report(args, "https://openrouter.ai/api/v1",
                                "qwen/qwen3.7-flash", facts, "abc")["config"]
         assert cfg["reasoning_mode"] == expected
@@ -417,7 +417,7 @@ def test_config_fingerprint_fields():
 
     args = argparse.Namespace(
         provider="openrouter", arm="both", max_tokens=100, seed=42,
-        no_reasoning=True, prompt_version="v1", prompt_lang="en", tag="")
+        no_reasoning=True, prompt_version="v1", prompt_lang="en", tag="", pin_provider=None)
     facts = _facts()[:50]
     report = _mod._new_report(args, "https://openrouter.ai/api/v1",
                               "qwen/qwen3.7-flash", facts, "abc123")
@@ -523,7 +523,8 @@ def test_new_report_evidence_mode():
                           ("both", "mixed")]:
         args = argparse.Namespace(
             provider="openrouter", arm=arm, max_tokens=100, seed=42,
-            no_reasoning=True, prompt_version="v2", prompt_lang="en", tag="file_content")
+            no_reasoning=True, prompt_version="v2", prompt_lang="en", tag="file_content",
+            pin_provider=None)
         cfg = _mod._new_report(args, "https://openrouter.ai/api/v1",
                                "qwen/qwen3.7-flash", facts, "abc")["config"]
         assert cfg["evidence_mode"] == expected

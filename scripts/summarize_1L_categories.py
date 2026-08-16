@@ -269,7 +269,7 @@ def main() -> int:
     parser.add_argument("--facts", type=Path, default=None,
                         help="файл фактов (по умолч. memory_contamination_facts_v4_rep.json). "
                              "Укажите corrected (memory_contamination_facts_v4_rep_corrected.json, "
-                             "fp e5f7373d50a3e640) для truth-based пересчёта: verdict из старых "
+                             "fp e6ce7b902d0a20a9) для truth-based пересчёта: verdict из старых "
                              "progress + truth из corrected (RED TEAM 2026-08-16)")
     args = parser.parse_args()
 

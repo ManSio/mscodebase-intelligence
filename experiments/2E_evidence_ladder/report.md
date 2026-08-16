@@ -86,6 +86,21 @@
 3. **Явная временная формулировка claim решает:** past-вопрос («X был определён») — 48/48 у всех.
 4. E4b-вывод «deepseek/glm устойчивы» — артефакт подсказки «NOT FOUND AT HEAD».
 
+### 2.4 Pinned-rerun на corrected (каноническая матрица, fp e6ce7b902d0a20a9)
+
+Прогоны 2e_pin_* (qwen→Alibaba, deepseek/glm→DeepInfra; routing-полоса убрана).
+FA trap = только R42 (единственный настоящий trap-FA); miss_true = отвергнутые истинные trap-claims.
+
+| arm | qwen recall/FA-tr/miss | deepseek recall/FA-tr/miss | glm recall/FA-tr/miss |
+|---|---|---|---|
+| file_content | **0.88**/0/**3** | 0.80/1/2 | 0.68/2/1 |
+| graph_first | 0.72/0/**4** | 0.48/0/2 | **0.84**/1/**0** |
+| file_graph | 0.84/0/3 | **0.92**/1/2 | 0.80/2/1 |
+| temporal NOW removed-FA | **12/12** | **9/12** | **12/12** |
+| temporal PAST | 40/40 | 40/40 | 40/40 |
+
+**Выводы pinned (стабильны к маршрутизации):** (1) лучший arm — per-model: qwen → file_content (recall 0.88), glm → graph (0.84, miss 0), deepseek → hybrid (0.92); (2) temporal present-trap универсален (NOW 12/12, 9/12, 12/12), past решается формулировкой (40/40); (3) FA absent/silent = 0 во всех evidence-ячейках; (4) glm недетерминирована даже pinned (e3_g: 6FA→2FA→1FA между прогонами) — пининг убирает маршрутизацию, не вариацию модели; (5) ключевой результат серии — **trap miss_true (4/5 у qwen, 2-3 у остальных): fail-closed модели отвергают истинные usage-claims**, невидимый в старых (mislabeled) метриках.
+
 ---
 
 ## 3. Red Team (атаки по протоколу §1.16 — минимум 3 из 5)

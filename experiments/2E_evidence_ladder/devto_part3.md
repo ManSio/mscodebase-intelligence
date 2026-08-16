@@ -4,25 +4,23 @@
 
 In Part 2 we showed that giving an LLM 25 lines of real code instead of bare anchor strings jumps recall from 0.08 to 0.88 (×11). The one remaining hole was the **present-trap**: the model sees the right token in the wrong context and says "true".
 
-This post is the story of what happened when we tried to close that hole with structural evidence — a call graph, ownership, imports. We built a ladder of evidence formats, ran 744 API calls across 5 arms, and then **attacked our own experiment**. The attack found that our dataset was lying: 4 of the 6 "false" trap facts were actually true. And correcting the labels inverted our headline conclusion.
+This post is what happened when we tried to close that hole with structural evidence — and then **attacked our own experiment**. The attack found the dataset was lying: 4 of the 6 "false" trap facts were actually true, and correcting the labels inverted our headline conclusion. Then a temporal follow-up showed the models can't tell "was true then" from "true now" — until you phrase the question in the right tense. And a deterministic re-run (pinned providers) confirmed every conclusion survives routing.
 
 ## The Evidence Ladder
 
-One dataset (50 facts: 25 true / 16 absent / 6 trap / 3 silent), one prompt skeleton, one variable — the form of evidence. Three models: qwen3.7-flash, deepseek-v4-flash, glm-4.7-flash.
+One dataset (50 facts), one prompt skeleton, one variable — the form of evidence. Three models: qwen3.7-flash, deepseek-v4-flash, glm-4.7-flash.
 
-| Rung | Evidence form | What the model sees |
-|---|---|---|
-| 1 | `code_first` | bare anchor strings (`["typesense"]`) |
-| 2 | `file_content_first` | 25 lines of the real file around the anchor |
-| 3 | `graph_first` | serialized structure: definitions, imports, callers/callees, occurrence lists |
-| 3b | `file_graph_first` | file fragment + structure (the "why not both?" arm) |
-| 4 | `temporal_first` | structure + git provenance (commit, date, branch, "existed until C") |
+| Rung | Evidence form |
+|---|---|
+| 1 | bare anchor strings |
+| 2 | 25 lines of the real file around the anchor |
+| 3 | serialized structure: definitions, imports, callers/callees, occurrence lists |
+| 3b | file fragment + structure (the "why not both?" arm) |
+| 4 | structure + git provenance |
 
-Verdict schema: `{"verdict": "true"|"false"|"unknown"}`, temp=0, seed=42, zero-shot. Leak-guard asserts ground truth never enters the prompt.
+Verdict schema: `{"verdict": "true"|"false"|"unknown"}`, temp=0, seed=42, zero-shot, leak-guarded.
 
 ## Rungs 1→2: evidence format beats model
-
-The ladder's base case reproduced cleanly on a fresh model set:
 
 ```
 qwen3.7:    recall(real) 0.24 → 0.92   FA 0.00 → 0.02
@@ -30,82 +28,84 @@ deepseek:   recall(real) 0.04 → 0.84
 glm-4.7:    recall(real) 0.60 → 0.68
 ```
 
-Token strings are not evidence. Code is. (Confirmed against Part 2's V4 run: qwen3.7 file_content matched run-to-run, recall 0.92 vs 0.88.)
+Token strings are not evidence. Code is. (Reproduced on the corrected dataset, pinned: qwen 0.88.)
 
 ## Rung 3: graph closes the trap. Or so we thought.
 
-Graph evidence (for stdlib-ish tokens like `logging`: a list of the 109 files it occurs in, instead of one fragment) gave qwen3.7 **FA = 0.000** — including zero false accepts on the trap category. We wrote the pre-registered interpretation: "structural layer closes the present-trap failure mode."
-
-Then rung 3b, the hybrid. Adding the file fragment back **reopened the trap** (FA 0.02, same R45 as before). Not additive: fragment presence dominates graph structure. For qwen, "both" is strictly worse than "fragment only" (accuracy 0.900 vs 0.940).
-
-That's a useful negative result on its own: don't blindly concatenate evidence formats. But we weren't done — the user of this series asked us to red-team the experiment.
+Graph evidence gave qwen3.7 **FA = 0.000**, including zero false accepts on the trap category. We wrote the pre-registered interpretation: "structural layer closes the present-trap failure mode." Then rung 3b, the hybrid, **reopened the trap** (FA 0.02, same fact as before). Not additive: fragment presence dominates graph structure. For qwen, "both" is strictly worse than "fragment only".
 
 ## The attack: the dataset was lying
 
-Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped the six "present-trap" facts — claims like "The server wrapper uses logging", labeled false because the mutation generator replaced the real value with a stdlib import that exists *somewhere* in the project.
+Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped the six "present-trap" facts — claims like "The server wrapper uses logging", labeled false because the mutation generator replaced the real value with a stdlib import that exists somewhere in the project.
 
-| Fact | Claim (labeled FALSE) | Reality in code |
+| Fact | Claim (labeled FALSE) | Reality |
 |---|---|---|
-| R43 | "The knowledge graph uses re" | `graph.py:31: import re` + 2 usages → **TRUE** |
-| R45 | "The server wrapper uses logging" | `server.py:14: import logging` → **TRUE** |
-| R46 | "The watchdog uses threading" | `watchdog.py` + `threading.Lock()` → **TRUE** |
-| R47 | "Hub model loading uses pathlib" | 6 occurrences → **TRUE** |
-| R44 | "Cross-project search uses pathlib" | imported, never used → **ambiguous** |
+| R43 | "The knowledge graph uses re" | `graph.py:31: import re` + 2 usages → TRUE |
+| R45 | "The server wrapper uses logging" | `server.py:14: import logging` → TRUE |
+| R46 | "The watchdog uses threading" | `watchdog.py` + `threading.Lock()` → TRUE |
+| R47 | "Hub model loading uses pathlib" | 6 occurrences → TRUE |
+| R44 | "Cross-project search uses pathlib" | imported, never used → ambiguous (excluded) |
 | R42 | "The server wrapper uses dataclasses" | 0 occurrences → correctly FALSE |
 
-**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked that the value was absent from the *subject*. The models that "false-accepted" them were right; the ground truth was wrong.
+**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. The models that "false-accepted" them were right; the ground truth was wrong. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
 
-### Corrected matrix (true pool = 25 real + 4 trap-true = 29, false pool = 20)
+### Corrected matrix, pinned re-run (routing eliminated)
 
-| arm | qwen3.7 rec/FA | deepseek rec/FA | glm rec/FA |
+| arm | qwen rec/FA-tr/miss | deepseek rec/FA-tr/miss | glm rec/FA-tr/miss |
 |---|---|---|---|
-| code_first | 6/29, 0/20 | 1/29, 0/20 | 18/29, 5/20 |
-| file_content | **24/29**, 0/20 | 23/29, 1/20 | 20/29, 1/20 |
-| graph_first | 19/29, 0/20 | 13/29, 0/20 | **25/29**, 1/20 |
-| file_graph | 22/29, 0/20 | **24/29**, 1/20 | 24/29, 1/20 |
+| file_content | **0.88**/0/**3** | 0.80/1/2 | 0.68/2/1 |
+| graph_first | 0.72/0/**4** | 0.48/0/2 | **0.84**/1/**0** |
+| file_graph | 0.84/0/3 | **0.92**/1/2 | 0.80/2/1 |
 
-**Inverted conclusions:**
+FA trap counts only R42 (the one genuinely false trap claim). **Inverted conclusions:**
 
-1. **"Graph closes the present-trap" is an artifact.** qwen3.7's graph arm didn't filter false claims — it *rejected all four true trap claims* (fail-closed on the category). The graph made qwen more conservative, and the mislabeled data made that look like precision.
-2. **glm-4.7-flash, which Part 2 told us to exclude as fail-open, is the best structural verifier in the series**: recall 25/29, FA 1/20 on graph evidence. Its weakness was anchor-strings, not evidence-processing.
-3. **The best evidence format is model-specific**: fragment for qwen, graph for glm, hybrid for deepseek. There is no global winner.
+1. **"Graph closes the present-trap" is an artifact.** qwen's graph arm didn't filter false claims — it rejected all four *true* trap claims (miss_true 4/5, hidden recall loss invisible under the old labels).
+2. **glm-4.7, which Part 2 told us to exclude as fail-open, is the best structural verifier in the series**: recall 0.84, FA trap 1, **miss_true 0** on graph evidence.
+3. **The best evidence format is model-specific**: fragment for qwen, graph for glm, hybrid for deepseek. No global winner.
 
-This is the uncomfortable part of publishing honest numbers: your headline can survive a reviewer but die on your own grep.
+### The corrected 1-L re-score (3300+ historical calls, no re-billing)
 
-## Rung 4: git provenance — "was true then" vs "true now"
+We taught the summary tool to recompute metrics from old progress files + corrected truth (verdict-by-id, manually audited — zero field drift). The real 1-L picture:
 
-New dataset from git archaeology (48 facts: 12 symbols removed after commit C / 28 real / 8 never-existed; ground truth validated via `git show C~1`). Evidence: structure at HEAD + "existed until commit C (date, subject, branch)".
+- **True trap-FA (R42): 0 for every model.** The "present-trap FA 0.02–0.04" in Part 2 was mislabeled data — models were right.
+- **Hidden trap miss_true: qwen/deepseek 4/5** — fail-closed models rejected true usage claims. This loss was invisible in the old metrics.
+- Real fail-open is absent/silent: glm code_first 7+2.
+
+## Temporal: "was true then" vs "true now"
+
+We built a temporal dataset from git archaeology (48 facts: 12 symbols removed after commit C / 28 current / 8 never-existed, ground truth from `git show C~1`).
+
+**E4 (git provenance in evidence):** qwen3.7 43/48, deepseek/glm 48/48. Seemed like provenance worked — 2/3 models perfect.
+
+**E4b (blind control, no git strings):** **all three models 48/48.** Git provenance was not just unnecessary — it *hurt* qwen ("existed until C" suggests existence, a token-presence trap in the evidence).
+
+**E4c (duo design, no hints):** one neutral evidence block (HEAD state + "SYMBOLS in F at history" from `git show C~1`), two questions:
 
 ```
-deepseek:  48/48, FA = 0.000
-glm:       48/48, FA = 0.000
-qwen3.7:   43/48, FA = 5/12 removed (accepted "existed until" as "exists")
+NOW  ("X is defined in F"):   removed FA: qwen 12/12, glm 12/12, deepseek 9/12
+PAST ("X WAS defined in F"):  all three 40/40
 ```
 
-Commit + date + branch lets 2/3 models distinguish past from present perfectly. qwen3.7 confuses "existed until C" with "exists" on 5/12 removed facts — no pattern by date or commit (T04 and T05 share a commit, different verdicts). Looks like model-specific weakness in temporal negation, hard to fix with prompt format.
-
-Caveat we're keeping honest: these are existence claims ("symbol X is defined in file F"), which are easier than the usage claims ("X uses Y") of the v4_rep dataset. The two datasets are complementary, not interchangeable.
+**Temporal present-trap is universal.** When the evidence mentions X in history and the question is about the present, every model says "true" (12/12, 9/12, 12/12) — a model cannot distinguish "X appears in the evidence" from "X exists now". But phrasing the question in the past tense solves it completely (40/40). The E4b conclusion ("qwen is fragile, deepseek/glm are robust") was itself an artifact of the "NOT FOUND AT HEAD" hint — without it, nobody is robust.
 
 ## Determinism: pin the provider (thank you, comment section)
 
-Part 2's known weakness #1: temp=0 + seed=42 on OpenRouter is not determinism — ≥8 upstream backends, measured swing ±0.05–0.10 (nemotron FA 0.18 → 0.08 between identical runs). Our plan was K≥3 repeats (~4200 calls, $2–5).
+Part 2's known weakness: temp=0 + seed=42 on OpenRouter is not determinism — ≥8 upstream backends. Tom Jones' comment suggested `provider.order` with `allow_fallbacks: false`, which pins the endpoint — cheaper than K≥3 repeats.
 
-In the comments, Tom Jones shared exactly this problem from his own benchmark — same 400 prompts, endpoint pinned vs not: llama-3.3-70b 95.5% vs 78.2% (17.3-point swing!), gpt-oss-120b 0.6 points. His note: OpenRouter accepts `provider.order` with `allow_fallbacks: false`, which pins the endpoint and takes routing out entirely — much cheaper than K≥3 repeats.
-
-We probed it: 3 facts × 3 repeats, pinned [Alibaba] vs unpinned, qwen3.7-flash. Every response confirms `"provider": "Alibaba"`, verdicts stable 3/3 in both configs (qwen already routed to Alibaba by default — the swing is a multi-backend-model problem, nemotron/glm style). The harness now supports `--pin-provider`; a full pinned rerun costs ~$0.03 instead of $2–5. Adopt it.
+We probed it: **StreamLake — the most-used upstream for glm in our server CSV (245 calls) — returns unreadable responses when pinned.** Cloudflare/DeepInfra are stable. The full pinned re-run (qwen→Alibaba, deepseek/glm→DeepInfra, ~$0.02) reproduced every conclusion: per-model arm rankings, temporal present-trap (12/12, 9/12, 12/12), past-tense fix (40/40), and FA absent/silent = 0 across evidence arms. One caveat: glm stays non-deterministic even pinned (FA 0.06 → 0.02 → 0.02 across runs) — pinning removes routing, not model variance.
 
 ## What this means for verify-on-read
 
-1. **Evidence format is a per-model knob, not a global constant.** Measure yours: fragment-first for qwen-family, graph-first for glm-family, hybrid for deepseek.
+1. **Evidence format is a per-model knob.** qwen-family: file fragment (recall). glm-family: graph (recall + trap precision). deepseek: hybrid.
 2. **Do not concatenate evidence formats blindly.** For qwen, file+graph was strictly worse than file alone.
-3. **Git provenance is a cheap, powerful temporal signal** (2/3 models at 100% on existence claims) — but don't rely on it for every model family.
-4. **Red-team your dataset before trusting your metrics.** One grep on the subject files inverted our headline. The "present-trap" category in our public dataset is partly a measurement artifact — we're disclosing it here rather than letting it quietly inflate future papers.
-5. **Pin providers in production VOR runs.** Cheaper than repeats, removes a confound you can't see in single-pass numbers.
+3. **Red-team your dataset before trusting metrics.** One grep on the subject files inverted our headline. Synthetic categories must be validated *per subject*, not per project — and FA on a category is meaningless until the category's labels are truth-checked.
+4. **Temporal questions must be phrased in time.** "Is X defined in F?" with history in evidence fails universally (12/12, 9/12, 12/12); "Was X defined in F?" succeeds (40/40). For existence checks: HEAD-only evidence, or explicit tense.
+5. **Pin providers in production runs.** Cheaper than repeats, and it protects against "popular but broken" upstreams (StreamLake).
 
 ## Reproduce
 
-Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_first, `--ev-contexts`, `--facts`, `--pin-provider`). Contexts builder: `graph_context_builder.py`; temporal generator: `temporal_facts_generator.py` (ground truth from `git show C~1`, no LLM). Full report with raw outputs: `experiments/2E_evidence_ladder/report.md`. Tests: 56 for the harness/builder/generator, 1265 total, all green.
+Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_blind_first / temporal_duo_first; `--facts`, `--ev-contexts`, `--pin-provider`). Summaries: `scripts/summarize_1L_categories.py --facts <corrected.json>` (truth-based re-score of old runs). Full report with raw outputs and the red-team audit: `experiments/2E_evidence_ladder/report.md`. Tests: 64 for harness/builder/generator/summarize, 1265 total.
 
-Dataset fingerprint v4_rep: `820bbbf60a0fc930` · temporal: `e3c1fdd4` · calls: 744 · est. cost: ~$0.014.
+Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1800 across the series · est. cost: < $0.10.
 
-*Also responding to the comment section of Part 1: Skillselion's manifest anchoring (`pkg:` anchors — closed world, absence is evidence) and Cophy's write-time invalidation triggers are both on our roadmap; UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification — the temporal-provenance experiment here is our first step toward the "archive vs refute" question that ended that thread.*
+*Also responding to the comment section of Part 1: Skillselion's manifest anchoring (closed-world `pkg:` anchors) and Cophy's write-time invalidation triggers remain on our roadmap; UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification — the temporal experiments here show the read-path boundary: even with perfect provenance, the active agent's context window cannot be the source of truth, and neither can a tense-ambiguous claim.*
