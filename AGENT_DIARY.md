@@ -54,6 +54,22 @@
 **Guard:** тест голодания детерминирован сменой HEAD между циклами (cache-hit не съедает бюджет — без этого хвост проверился бы во 2-м цикле); counters backward-compat (setdefault; schema guard ADR-0005 не тронут).
 **Pattern:** продолжение «пола Тома» (агрегат → per-node); P-002-класс «хардкод строки по памяти» закрыт динамическим расчётом.
 
+## [2026-08-16] — CI-фикс zed_config: PYTHONPATH с Windows-путём на POSIX-раннере (DONE)
+**Status:** ✅ Fixed (код; POSIX-верификация — CI-матрица после пуша)
+**verified_from_clean_state:** ⚠️ не проверено (POSIX-сторона — CI после пуша); локально (Windows): 8 passed + PurePosixPath-симуляция ветвления ('C:\\ext' сохраняется)
+**Root Cause:** patch_zed_settings: `ext_dir = Path(install_path).resolve()` — на POSIX Windows-путь ("C:\\ext") — ОТНОСИТЕЛЬНЫЙ, resolve() склеивал с CWD → '/home/runner/.../C:\\ext'. 2 CI-фейла test_zed_config_patch (PYTHONPATH mismatch); pre-existing red с 11:16 UTC (не регресс этого коммита).
+**Fix:** _ext_dir_from_install_path(): Windows-абсолют (диск/UNC) пишется в PYTHONPATH как есть (строка для JSON, не путь локальной ФС); прочие пути — как раньше, resolve(). Локально (Windows) 8 passed + проверка ветвления (PurePosixPath-симуляция: 'C:\\ext' сохраняется); POSIX-сторона — CI-матрица (WISDOM 2026-08-08: локальный Windows-прогон слеп к POSIX-фейлам).
+**Guard:** существующие тесты assert PYTHONPATH=="C:\\ext" — падали на ubuntu-матрице до фикса, зелёные после; новых тестов не нужно (существующие и есть guard).
+**Pattern:** P-002-класс «строка-для-JSON против пути-ФС»; .resolve() пришёл из Initial commit без задокументированного намерения.
+
+## [2026-08-16] — DocGenerator: dist/build в docs-выдаче (инцидент infrawise) (DONE)
+**Status:** ✅ Fixed (код+тесты; live: infrawise — dist исчез из выдачи)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые 111 passed + live: DocGenerator(infrawise) → dist absent; полный pytest — в pre-commit gate)
+**Root Cause:** DocGenerator.generate() (generate_docs/auto_update_docs) имел собственный неполный skip_dirs без dist/build/target и не читал .gitignore — в отличие от SymbolIndex._should_skip_dir (dist есть) и FileGuard (.gitignore). На infrawise dist/context/scanner.py (байт-в-байт дубль src/context/scanner.py) попадал в docs-выдачу.
+**Fix:** skip_dirs синхронизирован с SymbolIndex (dist/build/target/.tox/.mypy_cache/.pytest_cache/.ruff_cache); добавлено уважение .gitignore (gitignore_parser, fail-open) — то же правило, что FileGuard. Модульный докстринг «из PropertyGraph» исправлен (на деле — CodeParser по исходникам).
+**Guard:** tests/test_doc_generator.py (2 теста); live: DocGenerator(infrawise) → dirs [demo\\local\\app, src\\context], dist absent.
+**Смежное, НЕ фиксилось (§4.5 — отдельный blast radius):** gitignore_parser._match_gitignore_pattern теряет dir-семантику («generated/» не исключает вложенные — мёртвая ветка pattern.endswith("/")); затрагивает FileGuard → решение владельца.
+
 ## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
 **Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)
 **Root cause общий:** синтетическая категория с невалидированным по субъекту лейблом → FA/recall на ней отражают дизайн датасета, а не поведение

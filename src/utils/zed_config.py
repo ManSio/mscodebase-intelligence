@@ -268,6 +268,27 @@ def _set_top_level(text: str, key: str, value_json: str) -> str:
 # Server entry merge
 # ─────────────────────────────────────────────────────────────
 
+def _ext_dir_from_install_path(install_path: str | None) -> Path:
+    """install_path -> каталог расширения (для PYTHONPATH).
+
+    install_path — строка из install.py/тестов, пишется в settings.json как есть.
+    Windows-абсолют (диск `C:/...` или UNC `\\...`) НЕ резолвится через локальную
+    ФС: на POSIX такой путь — относительный, `resolve()` склеил бы его с CWD
+    (CI-фейл 2026-08-16: '/home/runner/.../C:\\ext'). Прочие пути (относительные,
+    POSIX-абсолюты) — как раньше, `resolve()`.
+    """
+    if not install_path:
+        return get_extension_install_dir()
+    is_windows_abs = (
+        len(install_path) >= 2
+        and install_path[1] == ":"
+        and install_path[0].isalpha()
+    ) or install_path.startswith(("\\\\", "//"))
+    if is_windows_abs:
+        return Path(install_path)
+    return Path(install_path).resolve()
+
+
 def _make_server_entry(existing: dict | None, executable: str, args: list, ext_dir: Path) -> dict:
     """Build the merged server entry, preserving user customizations in `env`.
 
@@ -356,7 +377,7 @@ def patch_zed_settings(
         rest = tokens[idx:]
     args = rest
 
-    ext_dir = Path(install_path).resolve() if install_path else get_extension_install_dir()
+    ext_dir = _ext_dir_from_install_path(install_path)
 
     original = settings_path.read_text(encoding="utf-8") if settings_path.exists() else "{}"
 
