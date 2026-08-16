@@ -56,7 +56,7 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 
 **4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. The models that "false-accepted" them were right; the ground truth was wrong. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
 
-*Honest gap: we corrected the **labels**, not the generator that produced them. The v4 generator still checks `value != real_value` instead of subject-scoped absence — the corrected dataset is a re-label, and our process rule (P-00X) now requires subject-file grep validation for any synthetic category.*
+*Honest gap: we corrected the **labels**, not the generator that produced them. The original generator still checks `value != real_value` instead of subject-scoped absence — the corrected dataset is a re-label, and our process rule now requires subject-file grep validation for any synthetic category.*
 
 ### Corrected matrix, pinned re-run (routing eliminated)
 
@@ -76,18 +76,18 @@ FA trap counts only R42 (the one genuinely false trap claim). For context, Part 
 
 ### But the trap is real (extended category, subject-validated)
 
-One false trap fact (R42) is statistically meaningless, so we extended the category with a **fixed generator (P-00X)**: false-trap = value present in the project (≥2 files) but absent from the *subject file* (grep = 0). 20 false / 10 true facts, pinned run:
+One false trap fact (R42) is statistically meaningless, so we extended the category with a **fixed generator that validates against the subject file**: false-trap = value present in the project (≥2 files) but absent from the *subject file* (grep = 0). 20 false / 10 true facts, pinned run:
 
 | arm | qwen FA/rec | deepseek FA/rec | glm FA/rec |
 |---|---|---|---|
 | file_content | 2/20, 2/10 | **15/20**, 6/10 | 13/20, 7/10 |
 | graph_first | 2/20, 3/10 | **8/20**, 5/10 | 14/20, 9/10 |
 
-The present-trap is **NOT a label artifact**: on honest labels, file_content false-accepts 10–75% of "X uses Y" claims (deepseek 15/20, glm 13/20). And **graph evidence halves deepseek's false-accept rate (15/20 → 8/20)** — the "graph doesn't close the trap" conclusion from the N=1 v4_rep was itself a small-sample artifact. It just doesn't help glm (14/20), and qwen was already at 2/20 (paying with recall 2/10).
+The present-trap is **NOT a label artifact**: on honest labels, file_content false-accepts 10–75% of "X uses Y" claims (deepseek 15/20, glm 13/20). And **graph evidence halves deepseek's false-accept rate (15/20 → 8/20)** — the "graph doesn't close the trap" conclusion from the original dataset (one false trap fact) was itself a small-sample artifact. It just doesn't help glm (14/20), and qwen was already at 2/20 (paying with recall 2/10).
 
-### The corrected 1-L re-score (3300+ historical calls, no re-billing)
+### Re-scoring the historical runs (3300+ calls, no re-billing)
 
-We taught the summary tool to recompute metrics from old progress files + corrected truth (verdict-by-id, manually audited — zero field drift). The real 1-L picture:
+We taught the summary tool to recompute metrics from old progress files + corrected truth (verdict-by-id, manually audited — zero field drift). The real picture:
 
 - **True trap-FA (R42): 0 for every model.** The "present-trap FA 0.02–0.04" in Part 2 was mislabeled data — models were right.
 - **Hidden trap miss_true: qwen/deepseek 4/5** — fail-closed models rejected true usage claims. This loss was invisible in the old metrics.
@@ -137,10 +137,10 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 ## Known weaknesses (post-red-team)
 
 1. **Fact order matters (measured).** Facts are stored block-ordered (R01–R25 true, R26–R50 false). A shuffled control run (qwen code_first, seed 123) changed 4/50 verdicts vs the original order — no systematic direction, but ~8% sensitivity to order. Shuffle-seed in future runs.
-2. **Trap category size matters.** After relabeling, v4_rep has one genuinely false trap fact — but an extended subject-validated category (E5, 20 false) shows the present-trap is real and mass-scale (file_content FA 10–75%). Metrics from N=1 are flags, not rates.
-3. **Language confound (unchecked).** Claims are Russian, instructions English. Part 2 showed prompt language shifts unknown rates (deepseek 0.94→0.54). A Russian-instruction control was not run for this series.
+2. **Trap category size matters.** After relabeling, the original dataset has one genuinely false trap fact — but an extended subject-validated category (20 false) shows the present-trap is real and mass-scale (file_content FA 10–75%). Metrics from N=1 are flags, not rates.
+3. **Language confound (measured).** Claims are Russian, instructions English. A Russian-instruction control (file_content) shifted deepseek's unknown rate 13/50 → 1/50 and changed 14/50 verdicts — its "skeptic" profile in this series was partly a prompt-language artifact. qwen/glm shifted 5/50.
 4. **Decoy frequency.** 19 facts share the same control symbol block; models could pattern-match repetition. Not controlled.
-5. **Temporal claims are existence claims.** Easier than usage claims (v4_rep); the two datasets are complementary, not interchangeable.
+5. **Temporal claims are existence claims.** Easier than the usage claims of the main dataset; the two datasets are complementary, not interchangeable.
 6. **Small N, wide CIs.** 6 trap facts, 12 removed facts. Headline arm rankings rest on differences of 2–3 facts out of 25.
 7. **Upstream drift across days.** Unpinned vs pinned runs happened ~12h apart; glm's routing changed (StreamLake → DeepInfra). Cross-day numbers mix backends.
 
@@ -150,4 +150,4 @@ Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / gr
 
 Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1900 across the series · est. cost: < $0.10.
 
-*Also responding to the comment section of Part 1: Skillselion's manifest anchoring (closed-world `pkg:` anchors) is **implemented**, not planned — ADR-0005, typed manifest anchors closed 7 false REFUTEDs in our 1-M experiment (credited in the ADR); Cophy's write-time invalidation triggers remain on our roadmap; Glen Allen's freshness-as-dependency is exactly what E4b exposed — a git string kept a stale truth alive inside the evidence, so freshness must apply to the *evidence*, not just the memory node; 473185670's forward-looking claims (trading signals, PENDING → Resolution Loop) are the mirror direction — our temporal series covers "was true then" vs "true now", their loop covers "will it be true" — the same retrieval-boundary problem, mirrored in time. UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification: even with perfect provenance, the active agent's context window cannot be the source of truth, and neither can a tense-ambiguous claim.*
+*Also responding to the comment section of Part 1: Skillselion's manifest anchoring is **implemented**, not planned — we now anchor claims to dependency manifests (pyproject/lockfile), a closed world where absence is evidence, and it closed 7 false rejections of true facts; Cophy's write-time invalidation triggers remain on our roadmap; Glen Allen's freshness-as-dependency is exactly what the temporal blind control exposed — a git string kept a stale truth alive inside the evidence, so freshness must apply to the *evidence*, not just the memory node; 473185670's forward-looking claims (trading signals, PENDING → Resolution Loop) are the mirror direction — our temporal series covers "was true then" vs "true now", their loop covers "will it be true" — the same retrieval-boundary problem, mirrored in time. UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification: even with perfect provenance, the active agent's context window cannot be the source of truth, and neither can a tense-ambiguous claim.*
