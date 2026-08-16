@@ -4,7 +4,7 @@ published: false
 description: "We red-teamed our own memory-verification experiment: 4 of 6 'false' trap facts were true, the conclusions inverted, and the real fix for temporal claims was a verb tense."
 tags: ai, agents, testing, mcp
 ---
-![Image description](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/7zqfqj0ok9mnjx5uyz0n.png)
+![Memory-verification experiment cover](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/7zqfqj0ok9mnjx5uyz0n.png)
 ## The Dataset Was Lying: 4 of 6 "False" Facts Were True
 
 *Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) 
@@ -146,7 +146,7 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 
 > **Synthetic categories must be validated *per subject*, not per project.** A value that exists anywhere in the repo is not evidence that the *subject* of the claim uses it. Check the subject's file.
 
-## Known weaknesses (post-red-team)
+{% details summary="Known weaknesses (post-red-team)" %}
 
 1. **Fact order matters (measured).** Facts are stored block-ordered (R01–R25 true, R26–R50 false). A shuffled control run (qwen code_first, seed 123) changed 4/50 verdicts vs the original order — no systematic direction, but ~8% sensitivity to order. Shuffle-seed in future runs.
 2. **Trap category size matters.** After relabeling, the original dataset has one genuinely false trap fact — but an extended subject-validated category (20 false) shows the present-trap is real and mass-scale (file_content FA 10–75%). Metrics from N=1 are flags, not rates.
@@ -156,6 +156,8 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 6. **Small N, wide CIs.** 6 trap facts, 12 removed facts. Headline arm rankings rest on differences of 2–3 facts out of 25.
 7. **Upstream drift across days.** Unpinned vs pinned runs happened ~12h apart; glm's routing changed (StreamLake → DeepInfra). Cross-day numbers mix backends.
 
+{% enddetails %}
+
 *Thanks to the Part 1 comment section: Tom Jones (provider pinning), Skillselion (manifest anchors), Cophy (invalidation triggers), Glen Allen (freshness), 473185670 (Resolution Loop), UnitBuilds (write-path triples) — each thread sharpened this series.*
 
 ## Reproduce
@@ -163,5 +165,7 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_blind_first / temporal_duo_first; `--facts`, `--ev-contexts`, `--pin-provider`). Summaries: `scripts/summarize_1L_categories.py --facts <corrected.json>` (truth-based re-score of old runs). Full report with raw outputs and the red-team audit: `experiments/2E_evidence_ladder/report.md`. Tests: 64 for harness/builder/generator/summarize, 1265 total.
 
 Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1900 across the series · est. cost: < $0.10.
+
+{% cta link="https://github.com/ManSio/mscodebase-intelligence" %}Full report with raw outputs and the red-team audit{% endcta %}
 
 
