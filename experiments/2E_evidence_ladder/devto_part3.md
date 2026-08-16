@@ -9,9 +9,9 @@ tags: ai, agents, testing, mcp
 
 *Part 3 of the memory-verification series. Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · Part 2: [Your memory layer is lying to you (and your LLM agrees)](https://dev.to/mansio/your-memory-layer-is-lying-to-you-and-your-llm-agrees-1oia)*
 
-Giving an LLM real code instead of bare anchor strings jumps memory-claim verification from recall 0.08 to 0.88 (×11). The one hole left was the **present-trap**: the model sees the right token in the wrong context and says "true".
+A model rejected a claim we believed was false. Then we grepped the file. The claim was true — our dataset had labeled it wrong.
 
-So we tried to close it with structural evidence — then **attacked our own experiment**. The attack found the dataset was lying: 4 of the 6 "false" trap facts were actually true. Correcting the labels inverted every conclusion. Then a temporal follow-up showed the models can't tell "was true then" from "true now" — until you phrase the question in the right tense. And a provider-pinned re-run confirmed it all survives routing. (~1900 calls, < $0.10.)
+That one grep forced us to recompute the entire experiment: 4 of 6 "false" trap facts were actually true, and correcting the labels inverted every conclusion. Digging further exposed a second, real failure mode (the temporal present-trap) and a third layer of attack (provider routing). Every layer of an evaluation pipeline can lie — ground truth, evidence, model interpretation, temporal semantics, execution. This post is the full red-team. (~1900 calls, < $0.10.)
 
 ## The Evidence Ladder
 
@@ -54,7 +54,7 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 | R44 | "Cross-project search uses pathlib" | imported, never used → ambiguous (excluded) |
 | R42 | "The server wrapper uses dataclasses" | 0 occurrences → correctly FALSE |
 
-**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. The models that "false-accepted" them were right; the ground truth was wrong. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
+**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. Those were not false accepts — they were correct verdicts against incorrect labels. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
 
 *Honest gap: we corrected the **labels**, not the generator that produced them. The original generator still checks `value != real_value` instead of subject-scoped absence — the corrected dataset is a re-label, and our process rule now requires subject-file grep validation for any synthetic category.*
 
@@ -110,9 +110,13 @@ NOW  ("X is defined in F"):   removed FA: qwen 12/12, glm 12/12, deepseek 9/12
 PAST ("X WAS defined in F"):  all three 40/40
 ```
 
-**Temporal present-trap is universal.** When the evidence mentions X in history and the question is about the present, every model says "true" (12/12, 9/12, 12/12) — a model cannot distinguish "X appears in the evidence" from "X exists now". But phrasing the question in the past tense solves it completely (40/40). The E4b conclusion ("qwen is fragile, deepseek/glm are robust") was itself an artifact of the "NOT FOUND AT HEAD" hint — without it, nobody is robust.
+Same evidence block for both questions — the only change is the tense of the claim. The 40/40 does not mean the models got better at temporal reasoning; it means they answer the question you actually asked. **The model did not need better memory — it needed a temporally explicit question.**
+
+**All three models exhibited the temporal present-trap.** When the evidence mentions X in history and the question is about the present, every model says "true" (12/12, 9/12, 12/12) — a model cannot distinguish "X appears in the evidence" from "X exists now". But phrasing the question in the past tense solves it completely (40/40). The E4b conclusion ("qwen is fragile, deepseek/glm are robust") was itself an artifact of the "NOT FOUND AT HEAD" hint — without it, nobody is robust.
 
 ## Determinism: pin the provider (thank you, comment section)
+
+Before trusting the corrected results, we attacked the execution layer too.
 
 Part 2's known weakness: temp=0 + seed=42 on OpenRouter is not determinism — ≥8 upstream backends. Tom Jones' comment suggested `provider.order` with `allow_fallbacks: false`, which pins the endpoint — cheaper than K≥3 repeats.
 
@@ -130,7 +134,7 @@ We probed it: **StreamLake — the most-used upstream for glm in our server CSV 
 
 ## The meta-lesson
 
-The most dangerous assumption in LLM evaluation isn't the model — it's the dataset. We spent ~$0.10 and ~1900 calls to learn that 4 of 6 "false" facts were true. Before you trust any LLM benchmark, ask: **who labeled the ground truth, and did they verify it per-example or per-category?** We didn't — we validated the trap category against the *project*, not the *subject*. One grep on subject files inverted every conclusion.
+The most dangerous assumption in LLM evaluation isn't the model — it's the dataset. We spent ~$0.10 and ~1900 calls to learn that 4 of 6 "false" facts were true. Before you trust any LLM benchmark, ask: **who labeled the ground truth, and did they verify it per-example or per-category?** We didn't — we validated the trap category against the *project*, not the *subject*. One grep on subject files inverted every conclusion. Every layer of the pipeline can lie: ground truth (this post), evidence (E4b), model interpretation (E4c), execution (provider drift) — we attacked each in turn.
 
 > **Synthetic categories must be validated *per subject*, not per project.** A value that exists anywhere in the repo is not evidence that the *subject* of the claim uses it. Check the subject's file.
 
@@ -144,10 +148,12 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 6. **Small N, wide CIs.** 6 trap facts, 12 removed facts. Headline arm rankings rest on differences of 2–3 facts out of 25.
 7. **Upstream drift across days.** Unpinned vs pinned runs happened ~12h apart; glm's routing changed (StreamLake → DeepInfra). Cross-day numbers mix backends.
 
+*Notes from the Part 1 comment section: Skillselion's manifest anchoring is implemented (closed 7 false rejections of true facts); Cophy's write-time invalidation triggers remain on our roadmap; UnitBuilds' write-time triples (A+B=C) are the write-path complement; 473185670's Resolution Loop is the mirror temporal direction. Thanks for the threads.*
+
 ## Reproduce
 
 Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_blind_first / temporal_duo_first; `--facts`, `--ev-contexts`, `--pin-provider`). Summaries: `scripts/summarize_1L_categories.py --facts <corrected.json>` (truth-based re-score of old runs). Full report with raw outputs and the red-team audit: `experiments/2E_evidence_ladder/report.md`. Tests: 64 for harness/builder/generator/summarize, 1265 total.
 
 Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1900 across the series · est. cost: < $0.10.
 
-*Also responding to the comment section of Part 1: Skillselion's manifest anchoring is **implemented**, not planned — we now anchor claims to dependency manifests (pyproject/lockfile), a closed world where absence is evidence, and it closed 7 false rejections of true facts; Cophy's write-time invalidation triggers remain on our roadmap; Glen Allen's freshness-as-dependency is exactly what the temporal blind control exposed — a git string kept a stale truth alive inside the evidence, so freshness must apply to the *evidence*, not just the memory node; 473185670's forward-looking claims (trading signals, PENDING → Resolution Loop) are the mirror direction — our temporal series covers "was true then" vs "true now", their loop covers "will it be true" — the same retrieval-boundary problem, mirrored in time. UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification: even with perfect provenance, the active agent's context window cannot be the source of truth, and neither can a tense-ambiguous claim.*
+
