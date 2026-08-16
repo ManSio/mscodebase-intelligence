@@ -4,10 +4,13 @@ published: false
 description: "We red-teamed our own memory-verification experiment: 4 of 6 'false' trap facts were true, the conclusions inverted, and the real fix for temporal claims was a verb tense."
 tags: ai, agents, testing, mcp
 ---
-
+![Image description](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/7zqfqj0ok9mnjx5uyz0n.png)
 ## The Dataset Was Lying: 4 of 6 "False" Facts Were True
 
-*Part 3 of the memory-verification series. Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · Part 2: [Your memory layer is lying to you (and your LLM agrees)](https://dev.to/mansio/your-memory-layer-is-lying-to-you-and-your-llm-agrees-1oia)*
+*Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) 
+Part 2: [Your memory layer is lying to you (and your LLM agrees)](https://dev.to/mansio/your-memory-layer-is-lying-to-you-and-your-llm-agrees-1oia)
+Part 3 of the memory-verification series.* 
+
 
 A model rejected a claim we believed was false. Then we grepped the file. The claim was true — our dataset had labeled it wrong.
 
@@ -24,10 +27,10 @@ One dataset (50 facts), one prompt skeleton, one variable — the form of eviden
 | 3 | serialized structure: definitions, imports, callers/callees, occurrence lists |
 | 3b | file fragment + structure (the "why not both?" arm) |
 | 4 | structure + git provenance |
-![The evidence ladder: claim verification across evidence formats](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875930.png)
 
 Verdict schema: `{"verdict": "true"|"false"|"unknown"}`, temp=0, seed=42, zero-shot, leak-guarded.
 
+![The evidence ladder: claim verification across evidence formats](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875930.png)
 ## Rungs 1→2: evidence format beats model
 
 ```
@@ -56,6 +59,8 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 | R42 | "The server wrapper uses dataclasses" | 0 occurrences → correctly FALSE |
 
 **4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. Those were not false accepts — they were correct verdicts against incorrect labels. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
+
+![The Dataset Was Lying: 4 of 6 "false" facts were actually true](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875957.png)
 
 *Honest gap: we corrected the **labels**, not the generator that produced them. The original generator still checks `value != real_value` instead of subject-scoped absence — the corrected dataset is a re-label, and our process rule now requires subject-file grep validation for any synthetic category.*
 
@@ -114,6 +119,8 @@ PAST ("X WAS defined in F"):  all three 40/40
 Same evidence block for both questions — the only change is the tense of the claim. The 40/40 does not mean the models got better at temporal reasoning; it means they answer the question you actually asked. **The model did not need better memory — it needed a temporally explicit question.**
 
 **All three models exhibited the temporal present-trap.** When the evidence mentions X in history and the question is about the present, every model says "true" (12/12, 9/12, 12/12) — a model cannot distinguish "X appears in the evidence" from "X exists now". But phrasing the question in the past tense solves it completely (40/40). The E4b conclusion ("qwen is fragile, deepseek/glm are robust") was itself an artifact of the "NOT FOUND AT HEAD" hint — without it, nobody is robust.
+
+![The Verb Tense Fix: changing IS to WAS solves temporal hallucination](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875989.png)
 
 ## Determinism: pin the provider (thank you, comment section)
 
