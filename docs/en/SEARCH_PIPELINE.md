@@ -49,11 +49,11 @@ flowchart TD
 ### 1. Query Expansion
 
 ```python
-_EXPANSION_SYNONYMS = {
+_QUERY_SYNONYMS = {
     "auth": ["authentication", "login", "authorize"],
     "error": ["exception", "failure", "bug"],
     "create": ["add", "insert", "new"],
-    # ... 8 more groups
+    # ... 36 more groups (всего 39 — src/core/search/utils.py)
 }
 
 def expand_query(query: str, max_expansions: int = 3) -> list[str]:

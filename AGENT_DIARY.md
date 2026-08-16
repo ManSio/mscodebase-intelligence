@@ -86,6 +86,14 @@
 **Guard:** verify теперь работает: 174 .md / 5376 референсов / «1320 битых» = эвристический шум (field-имена, file:line, архивные доки, hub-маршруты codebase(action=...)) — реальных мёртвых символов не найдено; check_tool_names/verify_diary/stale_detector зелёные; авто-чек «Документация актуальна».
 **Pattern:** P-002-класс «инструмент падал на краевом → проверки фактически не было» (пустой «пол»); числа-в-доках не самообновлялись 2+ недели (updater пишет только EN-бейдж).
 
+## [2026-08-16] — Аудит документации, проход 2: ОПИСАНИЯ (не только числа) — системный дрейф embedder-нарратива (DONE)
+**Status:** ✅ Fixed (README ×3 + ARCHITECTURE + ARCHITECTURE_DEEP + GRACEFUL_DEGRADATION + TELEMETRY + INSTALL + FAQ + SEARCH_PIPELINE + tools_reg; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые 20 passed; полный pytest — pre-commit gate)
+**Root Cause:** проход 1 аудита проверил ТОЛЬКО числа (бейджи/счётчики/даты) — ОПИСАНИЯ не читались (P-002-класс «метрики вместо содержания», 2-й экземпляр после KNOWN_ISSUES 2026-08-12). Системный дрейф: нарратив «ONNX INT8 in-process primary» (2026-07-12) в 5 доках (README/ARCHITECTURE/ARCHITECTURE_DEEP/GRACEFUL_DEGRADATION/TELEMETRY) — фактически llama.cpp GGUF native primary (Zed 1.10.0, preload отменяет ONNX), ONNX — in-process fallback.
+**Fix:** README ×3: intel_* 14→16 (+restore/supersede в таблицы), «49»/«58»→61/62, диаграмма embedder llama.cpp, строка EMBEDDING_MODEL удалена (не читается config.py), пути логов → data_root, «13 modules»→17; ARCHITECTURE §2.6/§7; ARCHITECTURE_DEEP уровни 1/2 + метрики (58→61, 853→1371); GRACEFUL_DEGRADATION L1/L2 swap + auto-recovery; TELEMETRY Model Pipeline; INSTALL/FAQ пути логов; SEARCH_PIPELINE «8 more groups»→«36 more (39)»; tools_reg docstring 14→16.
+**Guard:** check_tool_names (tools_reg 16), verify_diary 139/0, stale_detector, авто-чек «актуальна», 20 тестов, ruff clean.
+**Pattern:** P-002-класс «аудит по метрикам без чтения содержания» — урок: доки сверять по СМЫСЛУ, не по строкам-маркерам.
+
 ## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
 **Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)
 **Root cause общий:** синтетическая категория с невалидированным по субъекту лейблом → FA/recall на ней отражают дизайн датасета, а не поведение

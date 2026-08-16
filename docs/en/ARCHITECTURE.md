@@ -192,16 +192,16 @@ Key modules:
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.6 Embedder: E5-small ONNX (in-process)
+### 2.6 Embedder: llama.cpp GGUF (native, preferred), ONNX INT8 as fallback
 
-The MCP server now uses multilingual-e5-small via ONNX Runtime (CPU, in-process) as its primary embedder:
+The MCP server now uses multilingual-e5-small via **llama.cpp GGUF** (`llama-server.exe`) as its primary embedder; **ONNX Runtime (CPU, in-process)** is the fallback when llama.cpp is unavailable (auto-detected at startup — ONNX preload is canceled once llama.cpp is up):
 
-- **Model**: `intfloat/multilingual-e5-small` (384-dim)
-- **Runtime**: ONNX (CPU, no GPU required)
-- **Architecture**: in-process — no external HTTP server
-- **Performance**: ~37 ch/s (was 18 i/s with BGE-M3)
-- **RAM**: ~265 MB (was 285 MB + VRAM)
-- **Config**: `EMBEDDING_DIMENSION=384`, `EMBEDDING_PROVIDER=e5_onnx`
+- **Model**: `intfloat/multilingual-e5-small` (384-dim), GGUF; fallback INT8 ONNX
+- **Runtime**: llama.cpp (`:8080`, llama-server), fallback ONNX in-process
+- **Architecture**: llama.cpp as a separate process; ONNX in-process only as fallback
+- **Performance**: ~16-50 ch/s (llama.cpp CPU, depends on load)
+- **RAM**: ~1.7 GB (2× llama-server: embed + reranker); ONNX fallback ~265 MB
+- **Config**: model auto-detected (GGUF from `models/`); legacy `EMBEDDING_DIMENSION`/`EMBEDDING_PROVIDER` not used
 
 The reranker still runs via llama-server (1 process, not 2).
 
@@ -393,7 +393,7 @@ error_boundary decorator
         │       ▼
         │   core/search/engine.py
         │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + ONNX E5-small, in-process)
+        │       ├── Vector search (LanceDB + llama.cpp GGUF, ONNX fallback)
         │       ├── FTS5 search (SQLite FTS5, trigram+porter)
         │       └── 3-way RRF fusion + MMR diversity
         │

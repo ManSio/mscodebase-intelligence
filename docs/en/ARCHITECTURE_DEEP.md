@@ -326,14 +326,14 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["Level 1: ONNX/OpenVINO INT8\nin-process embeddings + llama.cpp reranker\n300ms-3s"] -->|offline| L2
-    L2["Level 2: llama.cpp GGUF\nGPU embeddings (optional)\n286ms-3s"] -->|offline| L3
+    L1["Level 1: llama.cpp GGUF\nnative embed + reranker\n300ms-3s"] -->|offline| L2
+    L2["Level 2: ONNX/OpenVINO INT8\nin-process embeddings (fallback)\n300ms-3s"] -->|offline| L3
     L3["Level 3: LM Studio\nExternal API (fallback)\n300ms-5s"] -->|offline| L4
     L4["Level 4: BM25 only\nKeyword search\nNo semantic"] -->|index missing| L5
     L5["Level 5: Fallback\nCreate index\nFirst run"]
 ```
 
-**Auto-recovery:** The system runs ONNX/OpenVINO E5-base in-process by default, and continuously scans for an optional llama.cpp GGUF GPU embedder, then LM Studio/Ollama as fallback. When a higher level becomes available, it switches automatically — no restart needed.
+**Auto-recovery:** The system runs llama.cpp GGUF (native llama-server) by default; if it is unavailable it falls back to ONNX/OpenVINO E5-base in-process, then LM Studio/Ollama. When a higher level becomes available, it switches automatically — no restart needed.
 
 ---
 
@@ -342,12 +342,12 @@ flowchart LR
 | Metric | Value |
 |--------|-------|
 | **Search modes** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP tools** | 58 (28 core + 16 intel + 13 inline + 4 dev) |
+| **MCP tools** | 61 (28 core + 16 intel + 13 inline + 4 dev; +1 execute_script при env=true → 62) |
 | **Services in DI** | 18 |
-| **Tests** | 853 |
+| **Tests** | 1371 |
 | **Languages** | 3 (EN, RU, ZH) |
 | **Schema fields** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Embedding dim** | 384 (E5-small INT8, in-process) |
+| **Embedding dim** | 384 (llama.cpp GGUF e5-small; ONNX INT8 fallback) |
 | **Reranker** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct (optional, mode=ask only) |
 | **Vector DB** | LanceDB v2 |

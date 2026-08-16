@@ -189,10 +189,10 @@ Or manually:
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| **Tools not responding** | MCP server not running | File → Quit → reopen the project. Logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| **Tools not responding** | MCP server not running | File → Quit → reopen the project. Logs: `%LOCALAPPDATA%\mscodebase\logs\` (data_root) |
 | **Wrong project** | SQLite selected another workspace | Close all Zed windows, open only the desired project |
 | **0 chunks** | Index is empty | `intel_trigger_reindex()` — wait 1-5 minutes |
-| **llama.cpp offline** | Embedder not started | Check `intel_get_runtime_status()`. Logs: `extension dir` + `.codebase_indices/logs/` |
+| **llama.cpp offline** | Embedder not started | Check `intel_get_runtime_status()`. Logs: `data_root\logs\` |
 | **LM Studio offline** | Only if using LM Studio | Start LM Studio, check port 1234 |
 | **settings.json warning** | Outdated keys (`lsp`, `mscodebase`) | Run `python install.py` — it will clean up |
 | **ModuleNotFoundError** | PYTHONPATH doesn't point to the extension | `python install.py` — fixes automatically |
@@ -201,7 +201,7 @@ Or manually:
 - **Index (LanceDB):** `<data_root>/projects/<hash>/lancedb_v2/` — vector DB with code chunks
 - **Project Memory (ADR, known_issues):** `<data_root>/projects/<hash>/intelligence/`
 - **PropertyGraph:** `<data_root>/projects/<hash>/graph.db`
-- **Logs:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+- **Logs:** `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
 - `data_root` = `%LOCALAPPDATA%\mscodebase\` (Windows) / `~/.cache/mscodebase` (Unix);
   `<hash>` = md5(путь проекта)[:8]
 

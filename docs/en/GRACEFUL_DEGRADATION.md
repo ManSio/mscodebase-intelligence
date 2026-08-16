@@ -7,33 +7,35 @@
 MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 6 levels,
 maintaining basic functionality even when external services fail.
 
-> **Provider reality (2026-07-12):** The embedding provider runs **in-process** via
-> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s on
-> Windows CPU). This is the **default and primary** path — no external server required for
-> semantic search. `LM Studio` is only an **optional fallback** if the local ONNX/OpenVINO
-> model is unavailable. The **reranker** runs as a separate `llama-server.exe` process
-> serving the `bge-reranker-v2-m3` GGUF model (port `:8081`).
+> **Provider reality (2026-08-16):** The embedding provider runs via **llama.cpp GGUF**
+> (`llama-server.exe`, native, preferred) — ONNX INT8 preload is canceled as soon as
+> llama.cpp is detected, and the runtime scanner switches mode to `llama_cpp`.
+> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim) is the
+> **in-process fallback** (startup path until llama.cpp is up). `LM Studio` is an
+> **optional fallback** if neither local provider is available. The **reranker** runs
+> as a separate `llama-server.exe` process serving the `bge-reranker-v2-m3` GGUF model
+> (port `:8081`).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> L1_ONNX: Default startup (in-process)
+    [*] --> L1_GGUF: Default startup (llama.cpp native)
 
-    state L1_ONNX[Level 1: ONNX/OpenVINO INT8 (in-process)]
-        L1_ONNX: E5-small embedder (384-dim)
-        L1_ONNX: BM25 + Dense + Reranker (llama.cpp)
-        L1_ONNX: ~300ms-3s latency
+    state L1_GGUF[Level 1: llama.cpp GGUF (native)]
+        L1_GGUF: E5-small embedder (384-dim)
+        L1_GGUF: BM25 + Dense + Reranker (llama.cpp)
+        L1_GGUF: ~300ms-3s latency
     end
 
-    L1_ONNX --> L2_GGUF: User has GPU, prefers llama.cpp embed
-    L1_ONNX --> L3_LM: ONNX model missing → LM Studio fallback
+    L1_GGUF --> L2_ONNX: llama.cpp unavailable
+    L1_GGUF --> L3_LM: local providers missing → LM Studio fallback
 
-    state L2_GGUF[Level 2: llama.cpp GGUF (GPU)]
-        L2_GGUF: GGUF embed + reranker (Vulkan GPU)
-        L2_GGUF: BM25 + Dense + Reranker
-        L2_GGUF: ~286ms-3s latency
+    state L2_ONNX[Level 2: ONNX/OpenVINO INT8 (in-process fallback)]
+        L2_ONNX: E5-small INT8 embedder (384-dim)
+        L2_ONNX: BM25 + Dense + Reranker
+        L2_ONNX: ~300ms-3s latency
     end
 
-    L2_GGUF --> L1_ONNX: llama.cpp unavailable
+    L2_ONNX --> L1_GGUF: llama.cpp becomes available
 
     state L3_LM[Level 3: LM Studio (remote, optional)]
         L3_LM: External API (port 1234)
@@ -106,32 +108,28 @@ stateDiagram-v2
 
 ## Level Details
 
-### Level 1: ONNX/OpenVINO INT8 (Default, in-process)
+### Level 1: llama.cpp GGUF (native, default)
 
 ```python
-# Default provider path (EMBEDDING_PROVIDER=e5_onnx)
+# Preferred path: llama.cpp (Zed 1.10.0 native) — ONNX preload is canceled once it is up
 class RemoteEmbedder:
-    def _init_provider_async(self):
-        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-        if _provider in ("e5_onnx", "auto", ""):
-            self._init_onnx()
-            # OpenVINO INT8 has priority (~37 ch/s on Windows CPU)
-            if getattr(self, "_ov_compiled", None) is not None:
-                self.mode = "onnx"
+    def _preload_onnx_delayed(self):
+        if self._check_llama_cpp():
+            self.mode = "llama_cpp"  # ONNX preload отменена — llama.cpp основной
 ```
 
 | Component | Status |
 |-----------|:------:|
-| ONNX/OpenVINO E5-small | ✅ In-process (384-dim, INT8) |
+| llama.cpp GGUF (e5-small) | ✅ Preferred (native llama-server, `:8080`) |
 | BM25 index | ✅ Built |
 | Reranker (llama.cpp) | ✅ Available (`:8081`) |
 | mode=ask | ⚠️ Optional (needs LLM profile) |
 | **Latency** | **300ms-3s** |
 | **Quality** | **Best** (no external dependency) |
 
-**Trigger:** Default startup. No external server required.
+**Trigger:** llama.cpp available (default). Falls back to in-process ONNX when unavailable.
 
-### Level 2: llama.cpp GGUF (GPU, optional)
+### Level 2: ONNX/OpenVINO INT8 (in-process fallback)
 
 If the user has a Vulkan-capable GPU and prefers GGUF embedding, `llama-server.exe` can
 serve the embedder. This is an acceleration path, not the default.
@@ -224,13 +222,14 @@ class Searcher:
 ```mermaid
 sequenceDiagram
     participant EM as RemoteEmbedder
-    participant ONNX as ONNX/OpenVINO (in-process)
+    participant LLAMA as llama.cpp GGUF (native)
+    participant ONNX as ONNX/OpenVINO (in-process fallback)
     participant LM as LM Studio (optional)
     participant BM25 as BM25 Index
 
-    Note over EM: Level 1 (ONNX, default)
-    EM->>ONNX: embed query (in-process)
-    ONNX-->>EM: vector (768-dim)
+    Note over EM: Level 1 (llama.cpp, default)
+    EM->>LLAMA: embed query (llama.cpp native)
+    LLAMA-->>EM: vector (384-dim)
 
     par Every 30s — scanner loop
         EM->>LM: GET /v1/models (if enabled)
