@@ -101,7 +101,7 @@ MSCodeBase **использует LSP только для `codebase(action="rena
 | Возможность | Описание |
 |-------------|----------|
 | 🔍 **Унифицированный поиск** | `search_code(query, mode, intent_hint)` — единый инструмент: fast/quality/deep/context/ask/auto |
-| 🧠 **Интеллектуальный слой** | 14 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
+| 🧠 **Интеллектуальный слой** | 16 высокоуровневых инструментов `intel_*`: самодиагностика, топология, память, предсказание ошибок |
 | 🗃️ **Память проекта** | ADR, известные проблемы, технический долг — автоматически сохраняется между сессиями |
 | 🌐 **Кросс-репозиторный поиск** | Поиск по нескольким проектам с синтаксисом `@mention` |
 | 🌳 **Граф вызовов** | Полный граф вызовов: определение + вызывающие + вызываемые + анализ влияния |
@@ -183,7 +183,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-## MCP Инструменты (49 всего)
+## MCP Инструменты (61 всего)
 
 ### Основной поиск
 
@@ -260,7 +260,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `insert_after` | Вставка кода после тела anchor (preview/apply) |
 | `ack_impact` | Подтверждение влияния для modification guard |
 
-### Интеллектуальный слой (intel_*) — 14 высокоуровневых инструментов
+### Интеллектуальный слой (intel_*) — 16 высокоуровневых инструментов
 
 | Инструмент | Назначение |
 |------------|------------|
@@ -277,6 +277,9 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 | `intel_get_telemetry(days)` | Поинструментальная телеметрия, использование ресурсов, статистика LLM |
 | `intel_auto_collect_adrs(max_commits)` | Автогенерация ADR из истории коммитов |
 | `intel_reset_index()` | Удалить и пересобрать индекс с нуля |
+| `intel_retract_memory_node(node_id, reason)` | Отозвать узел памяти (ACTIVE/VERIFIED → REFUTED, причина обязательна) |
+| `intel_restore_memory_node(node_id, reason)` | Восстановить узел из REFUTED (ручной возврат, ADR-0002/0003) |
+| `intel_supersede_memory_node(node_id, reason, new_node_id)` | Пометить узел как SUPERSEDED — заменён более свежим фактом |
 
 > `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — см. Диагностические инструменты ниже.
 

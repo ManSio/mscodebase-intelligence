@@ -108,7 +108,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | Feature | Description |
 |---------|-------------|
 | 🔍 **Unified Search** | `search_code(query, mode, intent_hint)` — single tool: fast/quality/deep/context/ask/auto |
-| 🧠 **Intelligence Layer** | 14 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
+| 🧠 **Intelligence Layer** | 16 high-level `intel_*` tools: self-diagnostics, topology, memory, error prediction |
 | 🌐 **Cross-repo Search** | Search across multiple projects with `@mention` syntax |
 | 🌳 **Call Graph** | Full call graph: definition + callers + callees + impact analysis |
 | 🏗 **Structural Search** | 13 AST patterns (class_inheritance, async_function, decorator, etc.) |
@@ -300,7 +300,7 @@ Deep-dives into specific technical findings from building this project:
 | `codebase(action="insert_after", anchor, new_code, apply)` | Insert code after anchor's body (preview/apply) |
 | `codebase(action="ack_impact", file_path)` | Acknowledge impact for modification guard |
 
-### Intelligence Layer (intel_*) — 14 High-Level Tools
+### Intelligence Layer (intel_*) — 16 High-Level Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -318,6 +318,8 @@ Deep-dives into specific technical findings from building this project:
 | `intel_auto_collect_adrs(max_commits)` | Auto-generate ADRs from commit history |
 | `intel_reset_index()` | Delete and rebuild index from scratch |
 | `intel_retract_memory_node(node_id, reason)` | Retract a memory node (ACTIVE/VERIFIED → REFUTED, reason required) |
+| `intel_restore_memory_node(node_id, reason)` | Restore a memory node from REFUTED (manual return, ADR-0002/0003) |
+| `intel_supersede_memory_node(node_id, reason, new_node_id)` | Mark a node as SUPERSEDED — replaced by a newer fact |
 
 > `intel_tool_health()`, `intel_explain_project_state()`, `intel_get_project_context()` — see Diagnostic Tools below.
 
@@ -378,11 +380,11 @@ Deep-dives into specific technical findings from building this project:
          ▼
 ┌─────────────────┐     ┌───────────────────┐
 │  RemoteEmbedder  │     │  LanceDB v2       │
-│  (ONNX Runtime     │     │  (Vector DB)       │
-│   e5-small INT8,    │     │  BM25 + Vector    │
-│   in-process;      │     │                    │
-│   LM Studio/Ollama │     │                    │
-│   fallback)        │     │                    │
+│  (llama.cpp GGUF  │     │  (Vector DB)       │
+│   native, primary;│     │  BM25 + Vector    │
+│   ONNX INT8       │     │                    │
+│   in-process      │     │                    │
+│   fallback)       │     │                    │
 └─────────────────┘     └───────────────────┘
 ```
 
@@ -407,11 +409,12 @@ Deep-dives into specific technical findings from building this project:
 | `LM_STUDIO_PORT` | `1234` | LM Studio port |
 | `OLLAMA_HOST` | `localhost` | Ollama hostname |
 | `OLLAMA_PORT` | `11434` | Ollama port |
-| `EMBEDDING_MODEL` | `qwen3-embedding` | Default embedding model name |
 | `LOG_LEVEL` | `INFO` | Logging verbosity level |
 | `MSCODEBASE_MCP_TOOLS` | *(default set)* | Comma-separated list of visible tools (e.g. `search_code,codebase`) |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Enable `execute_script` tool (RCE risk) |
 | `LLAMA_BACKEND` | `auto` | Reranker backend: `auto` / `msvc` (CPU) / `vulkan` (GPU) |
+
+> `EMBEDDING_MODEL` (ранее в таблице) — больше не используется: модель определяется автоматически (llama.cpp GGUF, fallback ONNX e5-small INT8).
 
 ---
 
@@ -424,7 +427,7 @@ Deep-dives into specific technical findings from building this project:
 **Checklist:**
 1. **File → Quit** → reopen the project
 2. Run `python install.py` to reconfigure
-3. Check logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+3. Check logs: `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
 
 ### Index Empty (0 chunks)
 
@@ -456,7 +459,7 @@ mscodebase-intelligence/
 │   │   ├── server.py               # MCP server creation (~597 lines)
 │   │   ├── server_factory.py       # DI setup + server lifecycle (~478 lines)
 │   │   ├── server_tools.py         # Tool registration + 13 inline tools (~607 lines)
-│   │   └── tools/                  # 13 modules + base class
+│   │   └── tools/                  # 17 modules + base class
 │   │       ├── codebase_tool.py    # codebase(action=...) hub + execute_script
 │   │       ├── search_tools.py     # search_code, get_symbol_info, impact_analysis
 │   │       ├── indexing_tools.py   # notify_change, index_project_dir, index_health

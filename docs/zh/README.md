@@ -102,7 +102,7 @@ MSCodeBase **在 `codebase(action="rename")` 中使用 LSP** — LSP 客户端�
 | 功能 | 描述 |
 |---------|-------------|
 | 🔍 **统一搜索** | `search_code(query, mode, intent_hint)` — 单一工具：fast/quality/deep/context/ask/auto |
-| 🧠 **智能层** | 14 个高级 `intel_*` 工具：自诊断、拓扑、记忆、错误预测 |
+| 🧠 **智能层** | 16 个高级 `intel_*` 工具：自诊断、拓扑、记忆、错误预测 |
 | 🗃️ **项目记忆** | ADR、已知问题、技术债务 — 跨会话自动持久化 |
 | 🌐 **跨仓库搜索** | 使用 `@mention` 语法跨多个项目搜索 |
 | 🌳 **调用图** | 完整调用图：定义 + 调用方 + 被调用方 + 影响分析 |
@@ -259,7 +259,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `codebase(action="insert_after", anchor, new_code, apply)` | 在锚点主体后插入代码（预览/应用） |
 | `codebase(action="ack_impact", file_path)` | 确认影响以解除 modification guard |
 
-### 智能层（intel_*）— 14 个高级工具
+### 智能层（intel_*）— 16 个高级工具
 
 | 工具 | 功能 |
 |------|-------------|
@@ -276,6 +276,9 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 | `intel_get_telemetry(days)` | 按工具统计的遥测、资源使用、LLM 统计 |
 | `intel_auto_collect_adrs(max_commits)` | 从提交历史自动生成 ADR |
 | `intel_reset_index()` | 删除并从头重建索引 |
+| `intel_retract_memory_node(node_id, reason)` | 撤回记忆节点（ACTIVE/VERIFIED → REFUTED，必须提供原因） |
+| `intel_restore_memory_node(node_id, reason)` | 从 REFUTED 恢复节点（手动返回，ADR-0002/0003） |
+| `intel_supersede_memory_node(node_id, reason, new_node_id)` | 将节点标记为 SUPERSEDED — 被更新的事实取代 |
 
 > `intel_tool_health()`、`intel_explain_project_state()`、`intel_get_project_context()` — 见下方诊断工具。
 

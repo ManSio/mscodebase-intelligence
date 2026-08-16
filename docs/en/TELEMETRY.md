@@ -178,14 +178,14 @@ Per-tool health dashboard: success rate, latency, confidence, routes.
 
 ---
 
-## Model Pipeline (actual, 2026-07-12)
+## Model Pipeline (actual, 2026-08-16)
 
-The embedding/rerank pipeline is **local and in-process** — no external LLM server is
-required for semantic search:
+The embedding/rerank pipeline is **local** — llama.cpp native (preferred), ONNX in-process
+fallback; no external LLM server is required for semantic search:
 
 | Stage | Engine | Model | Notes |
 |-------|--------|-------|-------|
-| Embedding | ONNX INT8 / OpenVINO INT8 (in-process) | `multilingual-e5-small-int8` (384-dim) | ~37 ch/s on Windows CPU. File: `model_quantized.onnx`. LM Studio is a **fallback provider only**. |
+| Embedding | llama.cpp (`llama-server.exe`, `:8080`, preferred) → ONNX INT8 in-process fallback | `multilingual-e5-small` GGUF (384-dim) / INT8 ONNX | llama.cpp — native (Zed 1.10.0); ONNX preload отменяется при его наличии. LM Studio — **fallback provider only**. |
 | Reranker | llama.cpp (`llama-server.exe`, separate process, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Loaded by `step_gguf` in `install.py`. |
 | LLM (RAG, optional) | reserved | — | Not required for search. |
 

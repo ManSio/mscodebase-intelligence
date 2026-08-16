@@ -23,7 +23,7 @@ required. Consumes 227 MB RAM instead of 1200 MB — 5.3× less.
 **Cause:** Zed wasn't restarted. `window: reload` is not enough.
 **Solution:** File → Quit → reopen the project.
 
-Logs: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+Logs: `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
 
 ### Nothing changed after `python install.py`
 

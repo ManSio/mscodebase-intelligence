@@ -47,6 +47,12 @@
 **Fix:** guard пустого content в _extract_doc_references + регрессия (tests/test_auto_doc_updater.py); README en/ru/zh: бейджи/числа/дата/порядок провайдеров; AGENTS.md арифметика. Заголовок «62 total» сохранён (env execute_script=true).
 **Статус:** 🟢 актуально (авто-чек зелёный; «1320 битых» референсов = эвристический шум, реальных мёртвых символов нет) | **Владелец:** misha.
 
+## 2026-08-16 — Аудит документации, проход 2: описания устарели (embedder-нарратив, пути логов, счётчики) (DONE)
+
+**Что:** проход 1 проверил только числа; чтение ОПИСАНИЙ выявило системный дрейф: 5 доков (README/ARCHITECTURE/ARCHITECTURE_DEEP/GRACEFUL_DEGRADATION/TELEMETRY) описывают embedder как «ONNX INT8 in-process primary» (2026-07-12) — фактически llama.cpp GGUF native primary (Zed 1.10.0), ONNX — fallback; пути логов `.codebase_indices\logs` (перенесены в data_root 2026-08-13); счётчики «14 intel_*»/«49»/«58»/«853 tests»; EMBEDDING_MODEL в env-таблице (переменная не читается config.py).
+**Fix:** README ×3 (intel 16 + restore/supersede, 61/62, диаграмма llama.cpp, лог-пути, 17 modules), ARCHITECTURE §2.6/§7, ARCHITECTURE_DEEP L1/L2 + метрики, GRACEFUL_DEGRADATION уровни, TELEMETRY pipeline, INSTALL/FAQ лог-пути, SEARCH_PIPELINE синонимы (39), tools_reg docstring 14→16.
+**Статус:** 🟢 актуально (guards зелёные, авто-чек «актуальна», 20 тестов) | **Владелец:** misha.
+
 ---
 
 ## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)
