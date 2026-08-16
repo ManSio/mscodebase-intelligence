@@ -58,10 +58,11 @@ def _default_data_dir() -> Path:
     return base / "mscodebase" / "projects" / "bfe9644b" / "experiments"
 
 
-def _load_facts() -> dict:
-    data = json.loads(FACTS.read_text(encoding="utf-8"))
+def _load_facts(facts_path: Path = FACTS) -> tuple[dict, dict, dict]:
+    data = json.loads(facts_path.read_text(encoding="utf-8"))
     facts = data["facts"]
     kind_by_id = {}
+    truth_by_id = {}
     unknown_kinds = set()
     for f in facts:
         kind = f.get("kind", "?")
@@ -69,10 +70,11 @@ def _load_facts() -> dict:
         if label is None:
             unknown_kinds.add(kind)
         kind_by_id[f["id"]] = label if label else kind
+        truth_by_id[f["id"]] = f.get("truth")
     if unknown_kinds:
         print(f"WARN: неизвестные kind в датасете (показаны как есть): {sorted(unknown_kinds)}",
               file=sys.stderr)
-    return kind_by_id, data.get("_meta", {})
+    return kind_by_id, truth_by_id, data.get("_meta", {})
 
 
 def _breakdown(results: list, kind_by_id: dict) -> dict:
@@ -82,6 +84,39 @@ def _breakdown(results: list, kind_by_id: dict) -> dict:
         label = kind_by_id.get(r.get("id"), "?")
         b[label][r.get("verdict", "unknown")] += 1
     return b
+
+
+def _breakdown_corrected(results: list, kind_by_id: dict, truth_by_id: dict) -> dict:
+    """Truth-based пересчёт (RED TEAM 2026-08-16): verdict из progress + truth из corrected.
+
+    {label: {n, n_true, acc_true, rej_true, unk_true, fa, miss_true}} где
+    fa = verdict true на truth=false (настоящие false-accepts),
+    miss_true = verdict != true на truth=true (потерянные истинные).
+    Факты с truth=None (ambiguous: R44) — исключены из счёта.
+    """
+    b = defaultdict(lambda: {"n": 0, "n_true": 0, "acc_true": 0,
+                             "rej_true": 0, "unk_true": 0, "fa": 0, "miss_true": 0})
+    for r in results:
+        fid = r.get("id")
+        label = kind_by_id.get(fid, "?")
+        truth = truth_by_id.get(fid)
+        verdict = r.get("verdict", "unknown")
+        cell = b[label]
+        cell["n"] += 1
+        if truth is True:
+            cell["n_true"] += 1
+            if verdict == "true":
+                cell["acc_true"] += 1
+            elif verdict == "false":
+                cell["rej_true"] += 1
+            else:
+                cell["unk_true"] += 1
+            if verdict != "true":
+                cell["miss_true"] += 1
+        elif truth is False:
+            if verdict == "true":
+                cell["fa"] += 1
+    return {k: dict(v) for k, v in b.items()}
 
 
 def _metrics(b: dict, label: str) -> dict:
@@ -100,7 +135,7 @@ def _metrics(b: dict, label: str) -> dict:
     return m
 
 
-def _summarize_file(path: Path, kind_by_id: dict) -> dict:
+def _summarize_file(path: Path, kind_by_id: dict, truth_by_id: dict | None = None) -> dict:
     report = json.loads(path.read_text(encoding="utf-8"))
     out = {
         "file": path.name,
@@ -115,6 +150,14 @@ def _summarize_file(path: Path, kind_by_id: dict) -> dict:
     for arm, s in report.get("arms", {}).items():
         results = [r for r in s.get("results", []) if not r.get("error")]
         errors = len(s.get("results", [])) - len(results)
+        if truth_by_id is not None:
+            b = _breakdown_corrected(results, kind_by_id, truth_by_id)
+            out["arms"][arm] = {
+                "n": len(results), "errors": errors, "corrected": True, "cats": b,
+                "decided": sum(1 for r in results if r.get("verdict") in ("true", "false")),
+                "unknown": sum(1 for r in results if r.get("verdict") == "unknown"),
+            }
+            continue
         b = _breakdown(results, kind_by_id)
         real = _metrics(b, "real")
         fa = {k: b.get(k, {}).get("true", 0) for k in ("absent", "trap", "silent")}
@@ -128,7 +171,51 @@ def _summarize_file(path: Path, kind_by_id: dict) -> dict:
     return out
 
 
+def _fmt_table_corrected(items: list[dict], markdown: bool = False) -> str:
+    """Corrected-режим: truth-based метрики (verdict из progress + truth из corrected)."""
+    if markdown:
+        lines = [
+            "| файл | модель | arm | n | real acc/rej/unk | recall(real) | "
+            "FA absent | FA trap | FA silent | trap miss_true |",
+            "|---|---|---|---|---|---|---|---|---|---|",
+        ]
+        for it in items:
+            for arm, m in it["arms"].items():
+                r = m["cats"].get("real", {})
+                a = m["cats"].get("absent", {})
+                t = m["cats"].get("trap", {})
+                s = m["cats"].get("silent", {})
+                recall = r.get("acc_true", 0) / r["n_true"] if r.get("n_true") else 0.0
+                lines.append(
+                    f"| {it['file']} | {it['model']} | {arm} | {m['n']} "
+                    f"| {r.get('acc_true', 0)}/{r.get('rej_true', 0)}/{r.get('unk_true', 0)} "
+                    f"| {recall:.2f} "
+                    f"| {a.get('fa', 0)} | {t.get('fa', 0)} | {s.get('fa', 0)} "
+                    f"| {t.get('miss_true', 0)} |"
+                )
+        return "\n".join(lines)
+    lines = []
+    for it in items:
+        lines.append(f"=== {it['file']} (tag={it['tag']}) model={it['model']} CORRECTED")
+        for arm, m in it["arms"].items():
+            r = m["cats"].get("real", {})
+            a = m["cats"].get("absent", {})
+            t = m["cats"].get("trap", {})
+            s = m["cats"].get("silent", {})
+            recall = r.get("acc_true", 0) / r["n_true"] if r.get("n_true") else 0.0
+            lines.append(
+                f"  {arm:>12} | n={m['n']} real(acc={r.get('acc_true', 0)},rej={r.get('rej_true', 0)},"
+                f"unk={r.get('unk_true', 0)}) | recall={recall:.2f} | "
+                f"FA absent={a.get('fa', 0)} trap={t.get('fa', 0)} silent={s.get('fa', 0)} | "
+                f"trap miss_true={t.get('miss_true', 0)}"
+            )
+    return "\n".join(lines)
+
+
+# ─── Corrected-режим: truth из corrected-датасета (RED TEAM 2026-08-16) ────
 def _fmt_table(items: list[dict], markdown: bool = False) -> str:
+    if any(m.get("corrected") for it in items for m in it["arms"].values()):
+        return _fmt_table_corrected(items, markdown)
     if markdown:
         lines = [
             "| файл | модель | arm | n | real acc/rej/unk | recall(real) | precision | F1 | "
@@ -179,6 +266,11 @@ def main() -> int:
     parser.add_argument("--tag", default="",
                         help="фильтр по тегу в имени файла (v2_en, v3_cot…) — пусто = все")
     parser.add_argument("--markdown", action="store_true", help="вывод в markdown-таблицу")
+    parser.add_argument("--facts", type=Path, default=None,
+                        help="файл фактов (по умолч. memory_contamination_facts_v4_rep.json). "
+                             "Укажите corrected (memory_contamination_facts_v4_rep_corrected.json, "
+                             "fp e5f7373d50a3e640) для truth-based пересчёта: verdict из старых "
+                             "progress + truth из corrected (RED TEAM 2026-08-16)")
     args = parser.parse_args()
 
     data_dir = args.data_dir or _default_data_dir()
@@ -188,7 +280,7 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    kind_by_id, _meta = _load_facts()
+    kind_by_id, truth_by_id, _meta = _load_facts(args.facts or FACTS)
     files = sorted(glob.glob(str(data_dir / args.glob)))
     if not files:
         print(f"ERROR: по glob '{args.glob}' в {data_dir} ничего не найдено", file=sys.stderr)
@@ -207,7 +299,10 @@ def main() -> int:
             if raw.get("config", {}).get("tag") != args.tag:
                 continue
         try:
-            items.append(_summarize_file(Path(fp), kind_by_id))
+            # truth_by_id передаётся ТОЛЬКО при явном --facts (corrected-пересчёт),
+            # иначе старое поведение (kind-вердиктная статистика) сохраняется
+            items.append(_summarize_file(Path(fp), kind_by_id,
+                                         truth_by_id if args.facts else None))
         except Exception as e:  # noqa: BLE001 — битый файл не блокирует остальные
             print(f"WARN: {Path(fp).name} пропущен ({e})", file=sys.stderr)
 

@@ -1372,3 +1372,22 @@ PAST («X был определён в F»): removed miss_true 0/12, real 0/28, 
 ```
 **Вердикт:** ✅ temporal present-trap — УНИВЕРСАЛЬНОЕ свойство моделей (не evidence): когда evidence содержит символ в истории, а вопрос про настоящее — ВСЕ модели говорят true (12/12, 9/12, 12/12). Модель не отличает «X упомянут в evidence» от «X существует сейчас». Вопрос про прошлое — ВСЕ идеальны: явная временная формулировка claim решает задачу. E4b-вывод («deepseek/glm устойчивы, qwen нет») — артефакт подсказки «NOT FOUND AT HEAD»: без подсказки устойчивых НЕТ.
 **Урок:** (1) история в evidence без явного маркера текущего состояния = токен-присутствие X = ложный true у любой модели; (2) для VOR проверки «существует сейчас» — evidence ТОЛЬКО HEAD, либо вопрос формулировать явно во времени (past/now). Temporal-вопрос серии ЗАКРЫТ.
+
+## [2026-08-16] — summarize: inline-пересчёт (verdict из старых progress + truth из corrected) — corrected per-category метрики 1-L (3300+ вызовов)
+
+**Команда:** `python scripts/summarize_1L_categories.py --facts experiments/1V_memory_contamination/memory_contamination_facts_v4_rep_corrected.json --markdown > experiments/2E_evidence_ladder/corrected_1L_metrics.md` (95 строк-моделей, все теги 1-L + 2-E)
+**Сырой результат (ключевые ячейки, corrected: R43/45/46/47=true, R42=false, R44 excluded):**
+```
+v2_en code_first (canonical sweep):
+| модель | recall(real) | FA absent | FA trap | FA silent | trap miss_true |
+| qwen3.6 | 0.08 | 0 | 0 | 0 | 4 |
+| qwen3.7 | 0.20 | 0 | 0 | 0 | 4 |
+| deepseek | 0.04 | 0 | 0 | 0 | 4 |
+| glm-4.7 | 0.88 | 7 | 0 | 2 | 1 |
+| nemotron-3.5 | 0.52 | 0 | 0 | 1 | 3 |
+file_content (V4):
+| qwen3.6 | 0.88 | 0 | 0 | 0 | 2 |
+| qwen3.7 | 0.88 | 0 | 0 | 0 | 3 |
+```
+**Вердикт (corrected-интерпретация 1-L):** (1) **Настоящие trap-FA (R42) — 0 у всех моделей**: «present-trap FA» в 1-L (V4: 0.02-0.04, R45/R46) был артефактом mislabeled данных — модели принимали ИСТИННЫЕ claims. (2) Вскрыт скрытый `trap miss_true`: fail-closed модели (qwen 4/5, deepseek 4/5) ОТВЕРГАЛИ истинные usage-claims — потеря правды, невидимая в старых метриках. (3) Реальный fail-open — absent/silent: glm code_first 7+2, nemotron memory_first 2 silent. (4) V4-вывод «FA 0.02-0.04 остаточная дыра trap» — уточнён: дыра была в лейблах, не в моделях.
+**Урок:** метрики «FA по категории» без truth-валидации категории по субъекту = измерительный артефакт. Инструмент: --facts corrected в summarize (truth-based режим, старые прогоны пересчитываются без повторных вызовов).
