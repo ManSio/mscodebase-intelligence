@@ -41,6 +41,12 @@
 **Fix:** dir-паттерн без `/` — «любая глубина» (`path == X` or `startswith(X/)` or `/X/ in path`, git-семантика); dir-паттерн со слэшем (`foo/bar/`) — корневой префикс; no-slash-паттерн (`cache`) — без изменений (осознанное ограничение: git матчил бы и директорию — scope-решение). tests/test_gitignore_parser.py (5 тестов); doc_generator-тест возвращён на честный `generated/`.
 **Статус:** 🟢 реализовано | **Владелец:** misha.
 
+## 2026-08-16 — Аудит документации: verify-инструмент падал, числа README устарели (DONE)
+
+**Что:** (1) `auto_update_docs(action="verify")` — IndexError на пустых backtick-референсах (`` `()` `` / `` `(x)` ``) — проверка code-референсов в .md НИКОГДА не выполнялась; (2) README ×3: бейджи ru/zh «747» vs факт 1371, «1180 тестов» vs 1371, «Без флага — 58» vs 61, порядок провайдеров (llama.cpp — основной, ONNX — fallback); AGENTS.md «(+1 execute_script → 59)» — 61+1=62.
+**Fix:** guard пустого content в _extract_doc_references + регрессия (tests/test_auto_doc_updater.py); README en/ru/zh: бейджи/числа/дата/порядок провайдеров; AGENTS.md арифметика. Заголовок «62 total» сохранён (env execute_script=true).
+**Статус:** 🟢 актуально (авто-чек зелёный; «1320 битых» референсов = эвристический шум, реальных мёртвых символов нет) | **Владелец:** misha.
+
 ---
 
 ## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)
@@ -3841,5 +3847,143 @@ Three fixes from the same review:
 - **Описание:** **Status:** ✅ Fixed (код+тесты; не запушено — push по команде)
 **verified_from_clean_state:** ✅ да — verify --no-clone PASSED (1170 passed); делегированный скан 0 дрейфов; revision gate VALID
 **Root C...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-15 23:50 — Exp 2-E Evidence Ladder E1+E2+E3: форма evidence решает, но не для всех моделей (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Завершено (450 вызовов OpenRouter, $0.007; builder graph_context + arm graph_first + 48 тестов)
+**Root Cause:** «структурное evidence ≠ автоматически лучше»: граф закрывает present-trap ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-15 23:55 — Exp 2-E E3b+E4: гибрид НЕ аддитивен; git-провенанс работает у 2/3 моделей (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Завершено (294 вызова, $0.007; temporal_facts_generator + temporal contexts + arm'ы file_graph_first/temporal_first, 56 тестов)
+**Root Cause:** (1) гибрид file+graph НЕ аддитивен: qwen3....
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16 00:30 — RED TEAM 2-E: 4/6 trap-фактов v4_rep истинны → выводы E3 инвертированы (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Завершено (атака на ground truth; corrected-матрица; pytest 1265 passed; --pin-provider в harness; отчёт + статья)
+**Root Cause:** генератор trap-фактов проверял `value != real_value` су...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16 — CI-фикс zed_config: PYTHONPATH с Windows-путём на POSIX-раннере (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код; POSIX-верификация — CI-матрица после пуша)
+**verified_from_clean_state:** ⚠️ не проверено (POSIX-сторона — CI после пуша); локально (Windows): 8 passed + PurePosixPath-симуля...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16 — DocGenerator: dist/build в docs-выдаче (инцидент infrawise) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; live: infrawise — dist исчез из выдачи)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые 111 passed + live: DocGenerator(infrawise) → dist abs...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16 — gitignore_parser: dir-семантика паттернов (мёртвая ветка → git-корректно) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые: gitignore 5 + doc_generator 2 + FileGuard/индексато...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-15 23:35 — Аудит обновлений Zed 1.12–1.16: код почти не затронут, 3 точечные подстройки (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (3 файла: цены харнесса, guard-тест схем, AGENTS.md заметка; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено; полный pytest 1248 passed / 10...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-15 11:09 — Exp 1-L V4: file_content_first — закрыта «точка укуса №2» (anchor bias, не паранойя) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (харнесс+тесты+live-прогон 100 выз.; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (полный pytest не гонялся; 39/39 на затронутых тестах h...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-15 00:45 — Exp 1-L Day 3: ответ на ревью Part 4 — per-category метрики + V3/Part 5 CoT vs Zero-Shot (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (доки+скрипты+тесты+live-прогон; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (полный pytest не гонялся; 38/38 на затронутых тестах harne...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 23:20 — Exp 1-L Day 2: свип 6 дешёвых моделей OpenRouter — эксперимент доделан (COMPLETED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Completed (код+тесты+данные; commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1216 passed / 10 skipped; live: 600 реальных вызовов Open...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 23:55 — Red Team атака на Exp 1-L: seed не детерминирует на OpenRouter (±0.05–0.10 FA) (FINDING)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Проверено (2 полных прогона × 600 вызовов; правки+тесты; данные в progress-файлах)
+**verified_from_clean_state:** ✅ да — `python -m pytest tests/ -q` → 1226 passed / 10 skipped; live: 12...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 21:30 — Полный живой аудит MCP: телеметрия заражена общим tool_metrics.json (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; commit/push ниже)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1198 passed / 10 skipped; живые вызовы: search_code 177ms / graph_query 27...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 16:20 — Фикс 11 дыр в градере реранкера по evalmut-методологии (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ✅ да — полный `python -m pytest tests/ -q` → 1189 passed / 10 skipped (93s); ruff clean на 3 изм...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 15:55 — evalmut-перенос: мутационный аудит validate_scores — 11 дыр в градере реранкера (FOUND → FIXED 16:20)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (фикс — запись 16:20; 1189 passed, mutation score 100%)
+**verified_from_clean_state:** ✅ да — полный pytest 1189 passed / 10 skipped (2026-08-14 16:20), experiments/evalmut/probe_e...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 11:15 — Ревью Part 3: серийная навигация Field Notes + 1-M (маппинг, закрыт) + 1-L (дизайн с live-model arm) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
+**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
+**Root C...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 10:05 — P2 health: «99 ошибок в логе» — подстрока count("error") вместо level-маркеров (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; push)
+**verified_from_clean_state:** ✅ да — 6 тестов (log_levels 3 + fs_sync 3); ruff чист; реальный лог: 20 [ERROR] vs 99 по подстроке
+**Root Cause:** _check_logs счит...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-14 09:50 — P2 health: «273 orphan» — артефакт среза rglob на venv/ (22k файлов) (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; push)
+**verified_from_clean_state:** ✅ да — реальный скан 800 путей (было 23934 с обрывом на 10001); тесты 3/3; CI watch после push
+**Root Cause:** health._check_filesy...
 - **Статус:** автоматически синхронизировано
 

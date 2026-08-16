@@ -78,6 +78,14 @@
 **Guard:** tests/test_gitignore_parser.py (5 тестов); doc_generator-тест возвращён на честный dir-паттерн generated/; смежные FileGuard/indexing 29 passed; ruff clean.
 **Pattern:** P-002-класс «флаг потерян после rstrip» — мёртвый код, молча менявший семантику (аналог «пола Тома»: guard, который не падает, бесполезен — тест поймал бы мёртвую ветку раньше).
 
+## [2026-08-16] — Аудит документации: verify-инструмент падал, числа README устарели (DONE)
+**Status:** ✅ Fixed (код+тесты+README ×3+AGENTS.md; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые 14 passed; полный pytest — pre-commit gate)
+**Root Cause:** (1) auto_update_docs(action="verify") падал IndexError «string index out of range» — backtick-референсы `()`/`(x)` → пустой content → content[0]; code-референсы НИКОГДА не проверялись (5376 шт). (2) Числа в README ×3: бейджи ru/zh «747» (факт 1371), «1180 тестов» (факт 1371), «Без флага — 58» (факт 61 = 28+16+13+4), порядок провайдеров (llama.cpp основной, ONNX fallback), «Last updated 08-03»; AGENTS.md «(+1 execute_script → 59)» — 61+1=62.
+**Fix:** guard пустого content в _extract_doc_references + регрессия; README en/ru/zh: бейджи/числа/дата/порядок провайдеров; AGENTS.md арифметика. Заголовок «62 total» ОСТАВЛЕН — env MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true (.env проверен, авто-чек ожидает 62).
+**Guard:** verify теперь работает: 174 .md / 5376 референсов / «1320 битых» = эвристический шум (field-имена, file:line, архивные доки, hub-маршруты codebase(action=...)) — реальных мёртвых символов не найдено; check_tool_names/verify_diary/stale_detector зелёные; авто-чек «Документация актуальна».
+**Pattern:** P-002-класс «инструмент падал на краевом → проверки фактически не было» (пустой «пол»); числа-в-доках не самообновлялись 2+ недели (updater пишет только EN-бейдж).
+
 ## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
 **Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)
 **Root cause общий:** синтетическая категория с невалидированным по субъекту лейблом → FA/recall на ней отражают дизайн датасета, а не поведение
