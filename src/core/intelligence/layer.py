@@ -948,6 +948,9 @@ class ProjectIntelligenceLayer:
             (memory, stats). stats — ресипт проверки (пол Тома): nodes_seen/
             checked/budget_exceeded/latency_ms — потребитель сам видит
             checked/total и решает, преждевременно ли измерение.
+            stats["starved_nodes"] — узлы, видимые >=2 циклов, но ни разу не
+            проверенные (MATCHED>0, DELIVERED=0): систематическое голодание
+            по бюджету, не разовый вылет (Том, 2026-08-16).
             stats["metrics"] — store.memory_metrics(): распределение статусов
             и false_retraction_rate (снятие метрик без отдельного тула).
         """
@@ -964,6 +967,16 @@ class ProjectIntelligenceLayer:
                     for node in nodes:
                         if node.get("node_id") in inconclusive_ids:
                             node.setdefault("verification", "no_anchors")
+            # Том (MATCHED/DELIVERED): узлы, видимые N циклов, но ни разу не
+            # проверенные — систематическое голодание по бюджету. Флаг ставится
+            # ДО budget_exceeded (setdefault не перетирает): кумулятивный сигнал
+            # информативнее разового вылета в этом проходе.
+            starved_ids = set(stats.get("starved_nodes", []))
+            if starved_ids:
+                for section, nodes in memory.items():
+                    for node in nodes:
+                        if node.get("node_id") in starved_ids:
+                            node.setdefault("verification", "starved")
             # Пол Тома: узлы, не проверенные в этом цикле из-за бюджета,
             # несут устаревший статус — помечаем явно, чтобы потребитель не
             # принял вчерашний VERIFIED за свежую проверку.

@@ -17,6 +17,12 @@
 **Fix:** P-00Y в AGENT_DIARY; после каждого edit_file в AGENT_DIARY/KNOWN_ISSUES — перечитывать зону правки до следующего действия.
 **Статус:** 🟢 guard принят | **Владелец:** misha.
 
+## 2026-08-16 — VOR MATCHED/DELIVERED: per-node счётчики голодания по бюджету (раунд 2 Тома) (DONE)
+
+**Что:** ресипт VOR (пол Тома, 2026-08-13) — per-pass агрегат: по «плоскому хвосту» (узлы с verification="budget_exceeded" каждый цикл) нельзя отличить мусорные якоря (2 инцидента 2026-08-13) от систематического голодания: граф видит узел каждый цикл, но бюджет 50мс кончается раньше, чем до него доходит очередь.
+**Fix:** verify_on_read.py — per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD и процесс; delivered = свежая проверка ИЛИ cache-hit); starved = matched>=2 && delivered==0; флаг verification="starved" в layer.py (приоритет над budget_exceeded); строка «⏳ starved» в ресипте ui_formatter. 6 новых тестов; pytest 1279 passed / 10 skipped; ruff clean.
+**Статус:** 🟢 реализовано (не закоммичено — commit/push по команде) | **Владелец:** misha.
+
 ---
 
 ## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)

@@ -459,13 +459,23 @@ def test_file_content_prompt_has_fragment_and_rule():
 
 
 def test_resolve_snippet_file_fact_window_around_value():
-    """file:-факт R03: окно 25 строк вокруг VerifyOnRead (строка 58), НЕ первые строки."""
+    """file:-факт R03: окно 25 строк вокруг ПЕРВОГО вхождения value, НЕ первые строки."""
     fact = next(f for f in _facts() if f["id"] == "R03")
     sn = _mod._resolve_snippet(fact)
     assert sn["resolved"] is True
     assert sn["path"] == "src/core/intelligence/verify_on_read.py"
-    assert sn["anchor_line"] == 58
-    assert sn["start_line"] <= 58 <= sn["start_line"] + len(sn["lines"]) - 1
+    # Якорь = первое вхождение value (case-insens, как _first_line). Строка
+    # считается динамически: хардкод (был 58) ломался при любой правке файла
+    # — сдвиг строк это не регресс резолвера, а артефакт числа по памяти.
+    value = fact.get("value") or ""
+    src_lines = (_mod.ROOT / sn["path"]).read_text(encoding="utf-8").splitlines()
+    expected = next(
+        (i + 1 for i, ln in enumerate(src_lines) if value.lower() in ln.lower()),
+        None,
+    )
+    assert expected is not None
+    assert sn["anchor_line"] == expected
+    assert sn["start_line"] <= expected <= sn["start_line"] + len(sn["lines"]) - 1
     assert len(sn["lines"]) <= _mod.SNIPPET_LINES
     assert "VerifyOnRead" in "\n".join(sn["lines"])
 

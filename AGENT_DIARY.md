@@ -21,6 +21,7 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 - **Evidence Ladder (2026-08-15, Exp 2-E E1-E3):** форма evidence — переменная; file_content = лучший recall (qwen 0.92), graph = закрытие present-trap ТОЛЬКО у evidence-честных моделей (qwen3.7 FA trap 1→0 ценой recall 0.92→0.76); fail-open (glm-4.7: FA trap 6/6) не лечится ни одной формой — свойство модели. VOR-конвейер: фрагмент файла для recall + графовая проверка субъекта отдельным сигналом; glm-семейство исключить
+- **VOR MATCHED/DELIVERED (2026-08-16):** per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD); starved = виден ≥2 циклов, ни разу не проверен — отличает голодание по бюджету от бага якорей (раунд 2 Тома; «пол Тома» = раунд 1)
 
 ---
 
@@ -44,6 +45,14 @@
 **Fix:** corrected-лейблы (R43/45/46/47=true, R44=ambiguous); пересчитанная матрица в report.md §5; EXPERIMENTS_LOG аппендикс; статья dev.to part 3 (атака как хук).
 **Guard:** grep-валидация синтетических категорий ПО СУБЪЕКТУ; P-паттерн «метрика на mislabeled категории» (см. ниже); --pin-provider (комментарий Tom Jones) — routing-полоса закрыта дешевле K≥3.
 **Урок:** атаковать данные, не модель: один grep на файлы субъектов инвертировал headline. v4_rep НЕ правился (исторический артефакт) — corrected-логика задокументирована.
+
+## [2026-08-16] — VOR MATCHED/DELIVERED: per-node счётчики голодания по бюджету (раунд 2 Тома) (DONE)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-state скрипт не гонялся); `python -m pytest tests/` → 1279 passed / 10 skipped (133s); ruff clean
+**Root Cause:** ресипт VOR — per-pass агрегат (checked/total/budget_exceeded_nodes): по «плоскому хвосту» нельзя отличить мусорные якоря (2 инцидента 2026-08-13) от систематического голодания: граф видит узел каждый цикл, но бюджет 50мс кончается раньше.
+**Fix:** verify_on_read.py — per-node счётчики matched/delivered в verify_cache.json (ключ node_id, переживают HEAD/процесс; delivered = свежая проверка ИЛИ cache-hit; persist добавлен в payload — рантайм-кэш его терял); stats.starved_nodes = matched>=2 && delivered==0 среди узлов текущего прохода; layer.py — флаг verification="starved" (setdefault до budget_exceeded); ui_formatter — «⏳ starved: N узлов (MATCHED>0, DELIVERED=0)». +6 тестов (run/cache-hit/HEAD/persist/layer/formatter); попутно: хардкод строки 58 в тестах 1L-харнесса (run_1L_live_arm) заменён динамическим расчётом (мои +6 строк в докстринге сдвинули якорь R03).
+**Guard:** тест голодания детерминирован сменой HEAD между циклами (cache-hit не съедает бюджет — без этого хвост проверился бы во 2-м цикле); counters backward-compat (setdefault; schema guard ADR-0005 не тронут).
+**Pattern:** продолжение «пола Тома» (агрегат → per-node); P-002-класс «хардкод строки по памяти» закрыт динамическим расчётом.
 
 ## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
 **Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)

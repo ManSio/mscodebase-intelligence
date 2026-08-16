@@ -26,6 +26,12 @@ ADR-0003 Verify-On-Read — Lazy Validation Layer для Project Memory.
 - Бюджет латентности: <= budget_ms на весь проход; при превышении
   необработанные узлы остаются как есть (INCONCLUSIVE-семантика) и передаются
   в контекст без отзыва (graceful degradation).
+- Счётчики MATCHED/DELIVERED (Том, 2026-08-16): per-node накопительные
+  счётчики в verify_cache.json (ключ node_id, переживают HEAD). matched —
+  сколько раз узел был виден в проходе, delivered — сколько раз вердикт
+  реально разрешён (свежая проверка или cache-hit). matched>=2 && delivered==0
+  -> starved (систематическое голодание по бюджету), в отличие от бага
+  якорей/парсера. Ресипт несёт starved_nodes.
 - Отпечаток кодовой базы (импорты/файлы/env-ключи) строится один раз на HEAD
   и переиспользуется между процессами через verify_cache.json. Первое чтение
   после смены кода платит rebuild (~<=500ms); steady-state — cache hit ~0ms.
@@ -452,7 +458,12 @@ class VerifyOnRead:
         self.cache_file = cache_file
         self._head: Optional[str] = None
         self._fingerprint: Optional[_Fingerprint] = None
-        self._cache: Dict[str, Any] = {"head": None, "fingerprint": None, "verdicts": {}}
+        self._cache: Dict[str, Any] = {
+            "head": None,
+            "fingerprint": None,
+            "verdicts": {},
+            "counters": {},  # per-node MATCHED/DELIVERED (Том) — ключ node_id, не head
+        }
         self._head_cache: Dict[str, Any] = {"head": None, "ts": 0.0}
         self._load_cache()
 
@@ -524,6 +535,7 @@ class VerifyOnRead:
             if isinstance(data, dict):
                 self._cache = data
                 self._cache.setdefault("verdicts", {})
+                self._cache.setdefault("counters", {})
         except (OSError, json.JSONDecodeError):
             self._cache = {"head": None, "fingerprint": None, "verdicts": {}}
 
@@ -539,6 +551,9 @@ class VerifyOnRead:
                 "head": head,
                 "fingerprint": self._fingerprint.to_dict() if self._fingerprint else None,
                 "verdicts": verdicts,
+                # per-node счётчики (Том): ключ node_id — переживают смену HEAD,
+                # в отличие от verdicts (per-head инвалидация выше).
+                "counters": self._cache.get("counters", {}),
             }
             self.cache_file.write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -621,6 +636,10 @@ class VerifyOnRead:
         stats: nodes_seen/checked/verified/refuted/inconclusive/latency_ms +
             budget_exceeded (флаг) и budget_exceeded_nodes (id непроверенных из-за
             бюджета) — потребитель видит checked/total, а не скрытый «пол».
+        starved_nodes (Том): id узлов с matched>=2 && delivered==0 — видимы
+            N циклов, но ни разу не проверены (систематическое голодание по
+            бюджету, а не разовый вылет). Счётчики — в verify_cache.json
+            (ключ node_id), переживают HEAD и перезапуск процесса.
         """
         t_start = time.perf_counter()
         head = self._resolve_head()
@@ -643,12 +662,20 @@ class VerifyOnRead:
             "latency_ms": 0.0,
         }
 
+        # Том (MATCHED/DELIVERED): накопительные per-node счётчики в кэше.
+        # matched — узел был виден в проходе; delivered — вердикт разрешён.
+        counters = self._cache.setdefault("counters", {})
+        seen_this_pass: Set[str] = set()
+
         for section, nodes in memory.items():
             for node in nodes:
                 if not isinstance(node, dict) or not node.get("node_id"):
                     continue
                 node_id = str(node["node_id"])
                 stats["nodes_seen"] += 1
+                counter = counters.setdefault(node_id, {"matched": 0, "delivered": 0})
+                counter["matched"] += 1
+                seen_this_pass.add(node_id)
                 if stats["nodes_seen"] > 1 and (time.perf_counter() - t_check) * 1000.0 > budget_ms:
                     # Бюджет исчерпан: необработанные узлы — INCONCLUSIVE-семантика,
                     # остаются в контексте как есть (graceful degradation).
@@ -664,11 +691,15 @@ class VerifyOnRead:
                 cached = self._cache.get("verdicts", {}).get(key)
                 if cached and cached.get("verdict"):
                     stats["cache_hits"] += 1
+                    # cache-hit = вердикт этого HEAD уже разрешён в прошлом проходе
+                    # -> узел доставлен (delivered), а не голодает.
+                    counters[node_id]["delivered"] += 1
                     if cached["verdict"] == VERDICT_NOT_FOUND:
                         newly_refuted.add(node_id)
                     continue
 
                 stats["checked"] += 1
+                counters[node_id]["delivered"] += 1
                 # ADR-0005 guard: read-path отсевает проза-«import X» (частотные
                 # слова без src-импорта) тем же правилом, что и write-path.
                 anchors = extract_anchors(node, src_imports=fp.imports)
@@ -695,6 +726,17 @@ class VerifyOnRead:
                 else:
                     stats["inconclusive"] += 1
                     stats.setdefault("inconclusive_nodes", []).append(node_id)
+
+        # Том: starved = видим >=2 циклов, но ни разу не проверен (delivered=0).
+        # Сигнал — только по узлам текущего прохода (история остаётся в counters).
+        starved = sorted(
+            nid
+            for nid in seen_this_pass
+            if counters.get(nid, {}).get("matched", 0) >= 2
+            and counters.get(nid, {}).get("delivered", 0) == 0
+        )
+        if starved:
+            stats["starved_nodes"] = starved
 
         self._persist_transitions(transitions)
         self._persist_cache()
