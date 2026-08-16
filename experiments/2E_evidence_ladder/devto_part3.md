@@ -1,5 +1,5 @@
 ---
-title: "The Dataset Was Lying: 4 of 6 \"False\" Facts Were True"
+title: 'The Dataset Was Lying: 4 of 6 "False" Facts Were True'
 published: false
 description: "We red-teamed our own memory-verification experiment: 4 of 6 'false' trap facts were true, the conclusions inverted, and the real fix for temporal claims was a verb tense."
 tags: ai, agents, testing, mcp
