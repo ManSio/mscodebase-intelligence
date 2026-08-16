@@ -1305,3 +1305,53 @@ TEMPORAL (temporal_first, N=48):
 ```
 **Вердикт:** ❌ «Граф закрывает present-trap» (E3) — АРТЕФАКТ: qwen graph = fail-closed на категории (miss_true 4/4); «glm не лечится» — ОПРОВЕРГНУТО: glm graph = лучший arm серии (25/29, FA 1/20). Формат evidence — per-model knob, не глобальный. v4_rep требует ре-лейблинга trap-категории; файл НЕ правился (исторический артефакт), corrected-логика в report.md §5.
 **Урок:** FA-метрики на синтетических категориях обязаны проходить grep-валидацию по СУБЪЕКТУ, а не по проекту. P-паттерн: «метрика на mislabeled категории выглядит как результат модели».
+
+## [2026-08-16] — Датасет v4_rep: corrected-копия (e5f7373d50a3e640). Прошлые прогоны 1-L использовали датасет с известной ошибкой в 4 trap-фактах — выводы сохраняются с оговоркой
+
+**Команда (пересчёт fingerprint):** `sha256(json.dumps(data, ensure_ascii=False, sort_keys=True))[:16]`
+**Сырой результат:**
+```
+original: memory_contamination_facts_v4_rep.json  fp=820bbbf60a0fc930  truth: 25 true / 25 false
+corrected: memory_contamination_facts_v4_rep_corrected.json  fp=e5f7373d50a3e640  truth: 29 true / 21 false
+изменены: R43/R45/R46/R47 truth false->true (value импортирован+использован у субъекта);
+R44 — label_note AMBIGUOUS (импорт без usage); остальные 45 фактов БЕЗ изменений.
+```
+**Вердикт:** фиксация для истории — все прогоны 1-L (v1..v3_cot_max, file_content, ~3400 вызовов) и 2-E (e1..e5, 744 вызова) выполнялись на датасете `820bbbf60a0fc930` со встроенным truth в progress-файлах. Выводы 1-L построены на категориях real/absent/silent (44 факта) — НЕ затронуты; цифры «FA trap» (V4: 0.02–0.04, R45/R46) завышены — модели принимали истинные claims. corrected-пересчёт старых прогонов: verdict из progress + truth из corrected-файла по id (инлайн-логика в experiments/2E_evidence_ladder/report.md §5). Новые прогоны (pinned-rerun) — на corrected-датасете, harness пишет fact["truth"] из --facts.
+**Урок:** fingerprint-привязка результатов к версии фактов — обязательна (работает); corrected-копия вместо правки оригинала — сохраняет историю; summarize_1L_categories.py берёт truth из progress-файлов — для corrected-метрик по старым прогонам нужен inline-пересчёт.
+
+## [2026-08-16] — Аудит прогонов 2-E: серверный CSV OpenRouter (ключ test567) — 744 вызова чисто, полоса роутинга подтверждена
+
+**Команда:** фильтр `openrouter_activity_2026-08-16.csv` (872 строки) → `app_name == "MSCodeBase 1-L live arm"` → `openrouter_activity_2026-08-16_exp.csv` (744 строки).
+**Сырой результат:**
+```
+exp: 744 строки, все в 2026-08-15 21:xx UTC, ключ test567, finish_reason=stop ×744 (0 length/error)
+модели: ровно 248 × {qwen/qwen3.7-flash, deepseek/deepseek-v4-flash, z-ai/glm-4.7-flash} (= 50×4 + 48)
+провайдеры: Alibaba 248 (весь qwen — ОДИН бэкенд), StreamLake 245, DeepInfra 128, Cloudflare 96,
+            Venice 21, Baidu 3, Novita 3 (glm/deepseek — 6 бэкендов)
+стоимость: $0.012605 | prompt 237636 токенов, completion 6655 | generation_time 133ms–10.25s
+удалено: 128 (MSPortfolio agent demo 108 + app_name='' 20 (probe/отладка) + ключ MSPort 11)
+```
+**Вердикт:** (1) прогоны 2-E чистые — 0 ошибок/обрывов, стоимость совпала с оценкой (~$0.013). (2) **Полоса роутинга подтверждена серверно:** qwen3.7 обслуживался ТОЛЬКО Alibaba (поэтому стабилен run-to-run); glm-4.7/deepseek — 6 разных бэкендов (отсюда недетерминизм glm и swing FA). Прямое обоснование `--pin-provider`: пинить нужно модели с мультибэкендной маршрутизацией (glm → StreamLake/Cloudflare/DeepInfra — какой из них канонический — выяснить pinned-probe).
+**Урок:** серверный CSV — независимый аудит (как в 1-L): провайдерная карта объясняет per-model стабильность лучше, чем temp=0/seed.
+
+## [2026-08-16] — E4b: слепой контроль temporal (без git-строк) — git-провенанс НЕ нужен и ВРЕДИТ qwen (48/48 у всех слепых)
+
+**Гипотеза (red team атака 4):** 48/48 в E4 — артефакт лёгкости existence-claims («NOT FOUND AT HEAD» подсказывает вердикт), а не git-провенанса.
+**Команда:**
+```
+python experiments/2E_evidence_ladder/graph_context_builder.py experiments/2E_evidence_ladder/temporal_facts_e3c1fdd4.json experiments/2E_evidence_ladder --blind
+python scripts/run_1L_live_arm.py --provider openrouter --arm temporal_blind_first \
+  --facts experiments/2E_evidence_ladder/temporal_facts_e3c1fdd4.json \
+  --ev-contexts experiments/2E_evidence_ladder/temporal_blind_contexts_e8571628.json \
+  --models "qwen/qwen3.7-flash,deepseek/deepseek-v4-flash,z-ai/glm-4.7-flash" \
+  --prompt-version v2 --no-reasoning --tag 2e_e5b
+```
+**Сырой результат (сравнение sighted 2e_e5 vs blind 2e_e5b, N=48):**
+```
+| модель | sighted acc/FA-removed/12 | blind acc/FA-removed/12 |
+| qwen3.7 | 43/48, 5 | 48/48, 0 |
+| deepseek | 48/48, 0 | 48/48, 0 |
+| glm | 48/48, 0 | 48/48, 0 |
+```
+**Вердикт:** ❌ «git-провенанс — мощный temporal-сигнал» — ОПРОВЕРГНУТО для existence-claims. (1) Blind = sighted у deepseek/glm → git-строки ничего не добавляют; (2) Blind > sighted у qwen (43→48) → git-строки АКТИВНО ВРЕДЯТ: «existed until C (subject с именем символа)» суггестирует существование — token-presence ловушка в evidence, qwen ей поддаётся (5/12), deepseek/glm — устойчивы. (3) Вывод E4 «qwen путает было-тогда/сейчас» — артефакт evidence, не модели.
+**Урок:** добавляя провенанс в evidence, проверяй слепой контроль — дополнительный текст может создавать суггестию, которой без него нет. Для реального temporal-теста нужны claims БЕЗ подсказки «NOT FOUND» (usage-claims с темпоральной осью — предложено как E4c).

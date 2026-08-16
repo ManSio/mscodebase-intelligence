@@ -76,6 +76,15 @@
 **Блочный порядок:** R01–R25 все true, R26–R50 все false (для независимых вызовов — не угроза; зафиксировано).
 **Fingerprint** (в каждом отчёте): `sha256(json.dumps(facts, sort_keys=True))[:16]` = **`820bbbf60a0fc930`**.
 
+> ⚠️ **СНОСКА (RED TEAM 2026-08-16):** этот датасет содержит ошибку лейблов в 4/6 фактах категории `present-trap`:
+> R43 (re в graph.py), R45 (logging в server.py), R46 (threading в watchdog.py), R47 (pathlib в llama_install.py)
+> — value **импортирован и используется в файле субъекта**, т.е. claims по факту ИСТИННЫ (генератор проверял
+> только `value != real_value`, не отсутствие value у субъекта). R44 — ambiguous (импорт без usage). R42 — верно false.
+> **Влияние на выводы этого отчёта:** FA/recall по категориям real/absent/silent (44 факта) НЕ затронуты;
+> цифры по trap-категории («FA trap 0.02–0.04» в §6.6b, «остаточная дыра trap») — завышенные: модели,
+> принявшие R45/R46, были ПРАВЫ. corrected-копия: `memory_contamination_facts_v4_rep_corrected.json`
+> (fingerprint `e5f7373d50a3e640`, 29 true / 21 false).
+
 ---
 
 ## 3. Дизайн: руки, промпты, методология
