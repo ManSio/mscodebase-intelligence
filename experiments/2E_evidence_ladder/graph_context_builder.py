@@ -301,6 +301,35 @@ def build_temporal_contexts(facts: list[dict], builder: GraphContextBuilder) -> 
     return out
 
 
+def build_temporal_blind_contexts(facts: list[dict], builder: GraphContextBuilder) -> dict:
+    """Слепой контроль E4b: те же temporal-факты, БЕЗ git-строк в evidence.
+
+    Проверяет red team атаку 4: «48/48 в E4 — артефакт лёгкости existence-claims
+    (NOT FOUND AT HEAD подсказывает вердикт), а не git-провенанса».
+    removed/absent → 'SYMBOL: X — NOT FOUND AT HEAD' (без 'existed until C');
+    real → обычный блок (без 'GIT: last commit touching').
+    """
+    out: dict = {}
+    for fact in facts:
+        anchors = fact.get("support_patterns") or []
+        blocks, resolved = builder.resolve_anchors(anchors)
+        if resolved:
+            text = "\n\n".join(b["text"] for b in blocks)
+            evidence = "real"
+        else:
+            sym = fact.get("value") or (anchors[0] if anchors else "?")
+            text = f"SYMBOL: {sym} — NOT FOUND AT HEAD"
+            evidence = "removed" if fact.get("valid_at_commit") else "absent"
+        assert "truth" not in text and "truth" not in str(anchors), f"leak in {fact['id']}"
+        out[fact["id"]] = {
+            "block": text,
+            "evidence": evidence,
+            "resolved_anchors": anchors,
+            "tokens": max(1, len(text.split())),
+        }
+    return out
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────
 
 def build_contexts(facts: list[dict], builder: GraphContextBuilder,
@@ -339,6 +368,9 @@ def _control_block(builder: GraphContextBuilder) -> str:
 def main() -> int:
     facts_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_FACTS
     out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_OUT
+    if not out_dir.is_absolute():
+        out_dir = ROOT / out_dir
+    blind = len(sys.argv) > 3 and sys.argv[3] == "--blind"
 
     facts = json.loads(facts_path.read_text(encoding="utf-8"))["facts"]
     raw = facts_path.read_bytes()
@@ -349,7 +381,9 @@ def main() -> int:
     print(f"[builder] PropertyGraph: {'OK' if builder.graph_ok else 'UNAVAILABLE (occurrences-only)'}")
 
     is_temporal = "temporal" in facts_path.name or "valid_at_commit" in raw.decode("utf-8", "replace")
-    if is_temporal:
+    if is_temporal and blind:
+        ctx = build_temporal_blind_contexts(facts, builder)
+    elif is_temporal:
         ctx = build_temporal_contexts(facts, builder)
     else:
         ctx = build_contexts(facts, builder)
@@ -357,7 +391,9 @@ def main() -> int:
     tok_avg = sum(v["tokens"] for v in ctx.values()) / len(ctx)
     print(f"[builder] contexts={len(ctx)} decoys/absent={decoys} avg_tokens={tok_avg:.0f}")
 
-    out_file = out_dir / f"{('temporal_contexts_' if is_temporal else 'graph_contexts_')}{sha}.json"
+    prefix = "temporal_blind_contexts_" if (is_temporal and blind) else \
+             ("temporal_contexts_" if is_temporal else "graph_contexts_")
+    out_file = out_dir / f"{prefix}{sha}.json"
     out_file.write_text(
         json.dumps(ctx, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[builder] written: {out_file.relative_to(ROOT)}")
