@@ -35,11 +35,11 @@
 **Fix:** skip_dirs синхронизирован с SymbolIndex (dist/build/target/.tox/.mypy_cache/.pytest_cache/.ruff_cache) + уважение .gitignore (gitignore_parser, fail-open). tests/test_doc_generator.py (2 теста); live: infrawise → dist исчез.
 **Статус:** 🟢 реализовано | **Владелец:** misha.
 
-## 2026-08-16 — gitignore_parser: dir-паттерны не исключают вложенные файлы (OPEN, решение владельца)
+## 2026-08-16 — gitignore_parser: dir-паттерны не исключали вложенные файлы (FIXED)
 
-**Что:** `_match_gitignore_pattern` обрезает завершающий `/` и теряет dir-семантику: `generated/` НЕ исключает `generated/gen.py` (ветка `pattern.endswith("/")` на L150-151 мёртвая). Затрагивает ВСЕ потребители gitignore_parser — включая FileGuard (индексатор): файлы под ignore-директориями с dir-паттернами индексируются, хотя реальный git их игнорирует.
-**Fix:** НЕ фиксилось (§4.5): изменение семантики парсера меняет поведение индексатора (blast radius — индекс/переиндексация) — требует отдельного решения владельца. Вариант: восстановить is_dir-семантику (pattern → префикс-матч) + тесты.
-**Статус:** 🟡 наблюдаем | **Владелец:** misha.
+**Что:** `_match_gitignore_pattern` обрезал завершающий `/` и терял dir-семантику: `generated/` НЕ исключал `generated/gen.py` (ветка `pattern.endswith("/")` после rstrip — мёртвая). Затрагивал ВСЕ потребители gitignore_parser — включая FileGuard (индексатор): файлы под ignore-директориями с dir-паттернами индексировались, хотя реальный git их игнорирует.
+**Fix:** dir-паттерн без `/` — «любая глубина» (`path == X` or `startswith(X/)` or `/X/ in path`, git-семантика); dir-паттерн со слэшем (`foo/bar/`) — корневой префикс; no-slash-паттерн (`cache`) — без изменений (осознанное ограничение: git матчил бы и директорию — scope-решение). tests/test_gitignore_parser.py (5 тестов); doc_generator-тест возвращён на честный `generated/`.
+**Статус:** 🟢 реализовано | **Владелец:** misha.
 
 ---
 

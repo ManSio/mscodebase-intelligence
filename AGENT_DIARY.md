@@ -70,6 +70,14 @@
 **Guard:** tests/test_doc_generator.py (2 теста); live: DocGenerator(infrawise) → dirs [demo\\local\\app, src\\context], dist absent.
 **Смежное, НЕ фиксилось (§4.5 — отдельный blast radius):** gitignore_parser._match_gitignore_pattern теряет dir-семантику («generated/» не исключает вложенные — мёртвая ветка pattern.endswith("/")); затрагивает FileGuard → решение владельца.
 
+## [2026-08-16] — gitignore_parser: dir-семантика паттернов (мёртвая ветка → git-корректно) (DONE)
+**Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
+**verified_from_clean_state:** ⚠️ не проверено полным прогоном (затронутые: gitignore 5 + doc_generator 2 + FileGuard/индексатор 29 passed; полный pytest — pre-commit gate)
+**Root Cause:** _match_gitignore_pattern терял is_dir_pattern (ветка pattern.endswith("/") после rstrip — мёртвая): «generated/» не исключал вложенные файлы; FileGuard индексировал файлы под ignore-директориями (расхождение с реальным git).
+**Fix:** dir-паттерн без / — любая глубина (path == X or startswith(X/) or /X/ in path, git-семантика); dir-паттерн со слэшем (foo/bar/) — корневой префикс; no-slash-паттерн (cache) — без изменений (осознанное ограничение: git матчил бы и директорию — scope-решение).
+**Guard:** tests/test_gitignore_parser.py (5 тестов); doc_generator-тест возвращён на честный dir-паттерн generated/; смежные FileGuard/indexing 29 passed; ruff clean.
+**Pattern:** P-002-класс «флаг потерян после rstrip» — мёртвый код, молча менявший семантику (аналог «пола Тома»: guard, который не падает, бесполезен — тест поймал бы мёртвую ветку раньше).
+
 ## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
 **Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)
 **Root cause общий:** синтетическая категория с невалидированным по субъекту лейблом → FA/recall на ней отражают дизайн датасета, а не поведение
