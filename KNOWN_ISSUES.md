@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-08-16 — RED TEAM 2-E: 4/6 present-trap-фактов v4_rep по факту ИСТИННЫ (mislabeled ground truth) (OPEN)
+
+**Что:** генератор trap-фактов проверял `value != real_value` субъекта, НЕ отсутствие value у субъекта. R43 (re в graph.py), R45 (logging в server.py), R46 (threading + Lock в watchdog.py), R47 (pathlib в llama_install.py) — по факту истинны; R44 — ambiguous (импорт без usage); R42 — корректно false. «FA trap» в Exp 1-L V4 и 2-E = правильные вердикты моделей; вывод «граф закрывает present-trap» инвертирован (qwen graph = fail-closed на категории, miss_true 4/4; glm graph = лучший arm серии 25/29).
+**Fix:** НЕ править исторический файл фактов (артефакт 1-V/1-L); corrected-лейблы + пересчитанная матрица в experiments/2E_evidence_ladder/report.md §5; будущие генераторы обязаны grep-валидировать лейблы ПО ФАЙЛУ СУБЪЕКТА (P-00X).
+**Статус:** 🟡 документировано; ре-лейблинг датасета — по решению владельца | **Владелец:** misha.
+
+## 2026-08-16 — Guard: перечитывать зону правки после edit_file в дневниках (замечание ревьюера) (DONE)
+
+**Что:** при вставке записи в AGENT_DIARY якорь на заголовок соседней записи поглотил её заголовок + потеряно тело записи E1-E3; найдено при перечитке, восстановлено. Ревьюер (внешняя ИИ): guard обязан быть шагом процесса, а не разовой заметкой.
+**Fix:** P-00Y в AGENT_DIARY; после каждого edit_file в AGENT_DIARY/KNOWN_ISSUES — перечитывать зону правки до следующего действия.
+**Статус:** 🟢 guard принят | **Владелец:** misha.
+
+---
+
 ## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)
 
 **Что:** при работе MCP (pythonw) в простое каждые ~30с появлялась консоль на ~1с. Монитор console_flash_monitor.py поймал: `resource_monitor._sample_disk_io` → `powershell Get-Process ReadOperationCount` без CREATE_NO_WINDOW → conhost (мигалка). Аналогичный не-флагаунный спавн — `llama_runner._watchdog_loop` (`powershell WorkingSet64`). git cat-file (Contradiction Ledger) мигает реже — mingw64 git переисполняет себя, re-exec теряет флаг.

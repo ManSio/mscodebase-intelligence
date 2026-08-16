@@ -152,11 +152,20 @@ _INSTR = {
             "anchors; unknown if you cannot determine."),
         "file_frag": "Code fragment",
         "frag_around": "around line {n}",
-        "frag_head": "head",
+        "frag_head": "head of file",
         "file_rule": (
             "Return true ONLY if the code fragment directly verifies the claim; false if it "
             "contradicts the claim or the claim refers to something absent from the "
             "fragment; unknown if you cannot determine."),
+        "graph_frag": "Codebase structure (definitions, imports, callers/callees)",
+        "graph_rule": (
+            "Return true ONLY if the structure directly verifies the claim; false if it "
+            "contradicts the claim or the claim refers to something absent from the "
+            "structure; unknown if you cannot determine."),
+        "hybrid_rule": (
+            "Return true ONLY if the fragment and structure together directly verify the "
+            "claim; false if they contradict it or the claim refers to something absent "
+            "from both; unknown if you cannot determine."),
         "system": (
             "You are a codebase-intelligence agent deciding whether a memory "
             "claim is true. Reply ONLY with JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
@@ -182,6 +191,15 @@ _INSTR = {
             "Возвращайте true ТОЛЬКО если фрагмент кода напрямую подтверждает утверждение; "
             "false — если фрагмент противоречит ему или утверждение относится к тому, "
             "чего нет во фрагменте; unknown — если не можете определить."),
+        "graph_frag": "Структура кодовой базы (определения, импорты, вызывающие/вызываемые)",
+        "graph_rule": (
+            "Возвращайте true ТОЛЬКО если структура напрямую подтверждает утверждение; "
+            "false — если структура противоречит ему или утверждение относится к тому, "
+            "чего нет в структуре; unknown — если не можете определить."),
+        "hybrid_rule": (
+            "Возвращайте true ТОЛЬКО если фрагмент и структура ВМЕСТЕ напрямую подтверждают "
+            "утверждение; false — если они противоречат ему или утверждение относится к "
+            "тому, чего нет ни там, ни там; unknown — если не можете определить."),
         "system": (
             "Вы — агент интеллектуального анализа кодовой базы, решающий, истинно ли "
             "утверждение из памяти. Отвечайте ТОЛЬКО JSON: {\"verdict\": \"true\"|\"false\"|\"unknown\"}."),
@@ -216,6 +234,38 @@ def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
             f"{t['file_frag']} ({sn['path']}, {label}):\n{body}\n"
             f"{t['file_rule']}"
         )
+    if arm == "graph_first":
+        # Exp 2-E / Rung 3: сериализованный граф-контекст (graph_context_builder.py).
+        # Инструкция — нейтральная (v2-стиль); декой НЕ помечается (см. file_content_first).
+        ctx = _graph_context_for(fact["id"])
+        body = "\n".join("    " + ln for ln in ctx["block"].splitlines())
+        return (
+            f"{t['head']}\n"
+            f"{t['claim']} {claim}\n"
+            f"{t['section']} {fact.get('section', '?')}\n"
+            f"{t['graph_frag']}:\n{body}\n"
+            f"{t['graph_rule']}"
+        )
+    if arm in ("file_graph_first", "temporal_first"):
+        # Exp 2-E / Rung 3b (гибрид: фрагмент + структура) и Rung 4 (структура + git-трейл).
+        # temporal_first: контексты с GIT TRAIL (temporal_context_builder) — тот же блок.
+        sn = _resolve_snippet(fact) if arm == "file_graph_first" else None
+        ctx = _graph_context_for(fact["id"])
+        parts = []
+        if sn is not None:
+            label = (t["frag_around"].format(n=sn["anchor_line"])
+                     if sn["anchor_line"] else t["frag_head"])
+            parts.append(f"{t['file_frag']} ({sn['path']}, {label}):\n"
+                         + "\n".join("    " + ln for ln in sn["lines"]))
+        parts.append(f"{t['graph_frag']}:\n"
+                     + "\n".join("    " + ln for ln in ctx["block"].splitlines()))
+        return (
+            f"{t['head']}\n"
+            f"{t['claim']} {claim}\n"
+            f"{t['section']} {fact.get('section', '?')}\n"
+            + "\n".join(parts) + "\n"
+            f"{t['hybrid_rule']}"
+        )
     anchors = "; ".join(fact.get("support_patterns", []))
     if version == "v1":
         # V1: наводящий вопрос — yes-bias (сикофантия, Sharma et al. 2023).
@@ -240,6 +290,32 @@ def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
 # ─── V4: резолв реального фрагмента файла (file_content_first) ─────────────
 _src_index_cache: dict[str, str] | None = None  # rel_path -> content (лениво, один раз)
 _SNIPPET_CACHE: dict[str, dict] = {}           # fact id -> сниппет (детерминизм)
+
+
+_graph_ctx_cache: dict | None = None
+_graph_ctx_path: Path | None = None
+
+
+def _load_graph_contexts(path: Path) -> dict:
+    """Загрузить graph-контексты (graph_contexts_*.json от graph_context_builder.py)."""
+    global _graph_ctx_cache, _graph_ctx_path
+    _graph_ctx_path = path
+    with open(path, encoding="utf-8") as f:
+        _graph_ctx_cache = json.load(f)
+    return _graph_ctx_cache
+
+
+def _graph_context_for(fact_id: str) -> dict:
+    """Контекст факта для graph_first; без загруженного файла — честный exit 2."""
+    if _graph_ctx_cache is None:
+        print("ERROR: --ev-contexts <graph_contexts_*.json> обязателен для arm graph_first",
+              file=sys.stderr)
+        sys.exit(2)
+    ctx = _graph_ctx_cache.get(fact_id)
+    if ctx is None:
+        print(f"ERROR: факт {fact_id} отсутствует в graph-контекстах", file=sys.stderr)
+        sys.exit(2)
+    return ctx
 
 
 def _src_index() -> dict[str, str]:
@@ -487,7 +563,7 @@ def _opencode_verdict(prompt: str, project: Path, model: str | None = None) -> d
 # ─── Driver: прямой API (OpenRouter / OpenAI-совместимый) ───────────────────
 def _api_verdict(prompt: str, key: str, model: str, base_url: str,
                  max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en",
-                 reasoning: bool | None = None) -> dict:
+                 reasoning: bool | None = None, pin_provider: str | None = None) -> dict:
     import httpx
 
     body = {
@@ -501,6 +577,11 @@ def _api_verdict(prompt: str, key: str, model: str, base_url: str,
         "max_tokens": max_tokens,
         "seed": seed,
     }
+    if pin_provider:
+        # Red Team fix 2026-08-15 (комментарий Tom Jones к статье 2): провайдер.order +
+        # allow_fallbacks:false жёстко закрепляет эндпоинт — убирает полосу роутинга ±0.05-0.10
+        # (nemotron-3.5-lightning FA 0.18→0.08 между двумя идентичными прогонами).
+        body["provider"] = {"order": [pin_provider], "allow_fallbacks": False}
     if no_reasoning:
         # reasoning-модели (qwen3.7-flash и др.) едят бюджет рассуждением —
         # для классификации true/false/unknown рассуждение не нужно
@@ -546,28 +627,29 @@ def _api_verdict(prompt: str, key: str, model: str, base_url: str,
 
 def _verdict(prompt: str, provider: str, key: str, model: str, base_url: str,
              max_tokens: int, seed: int, no_reasoning: bool, lang: str = "en",
-             reasoning: bool | None = None) -> dict:
+             reasoning: bool | None = None, pin_provider: str | None = None) -> dict:
     if provider == "opencode":
         return _opencode_verdict(prompt, ROOT, model)
     import time
 
     resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
-                        reasoning)
+                        reasoning, pin_provider)
     # Ретрай: модель не приняла reasoning-параметр → повтор без него;
     # пустой/не-JSON ответ + 429/5xx с backoff (не более 3 вызовов на факт)
     for attempt in (1, 2):
         err = resp.get("error", "")
         if (no_reasoning or reasoning) and "reasoning" in err.lower():
-            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, False, lang, None)
+            resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, False, lang, None,
+                                pin_provider)
             continue
         if err in ("EMPTY_CONTENT", "NON_JSON_REPLY"):
             resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
-                                reasoning)
+                                reasoning, pin_provider)
             continue
         if "429" in err or err.startswith("HTTP 5"):
             time.sleep(2 ** attempt)  # backoff 2s/4s
             resp = _api_verdict(prompt, key, model, base_url, max_tokens, seed, no_reasoning, lang,
-                                reasoning)
+                                reasoning, pin_provider)
             continue
         break
     return resp
@@ -657,7 +739,7 @@ def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_ur
              delay: float = 0.3, skip_ids: set[str] | None = None,
              max_tokens: int = MAX_TOKENS, seed: int = SEED, no_reasoning: bool = False,
              prompt_version: str = "v1", lang: str = "en",
-             reasoning: bool | None = None) -> dict:
+             reasoning: bool | None = None, pin_provider: str | None = None) -> dict:
     import time
 
     skip_ids = skip_ids or set()
@@ -670,7 +752,7 @@ def _run_arm(facts: list, arm: str, provider: str, key: str, model: str, base_ur
         # V4: evidence-метадата в результат (для post-hoc анализа; в промпт НЕ идёт)
         sn = _resolve_snippet(fact) if arm == "file_content_first" else None
         resp = _verdict(prompt, provider, key, model, base_url,
-                        max_tokens, seed, no_reasoning, lang, reasoning)
+                        max_tokens, seed, no_reasoning, lang, reasoning, pin_provider)
         verdict = _normalize_verdict(resp)
         usage = resp.get("usage") or {}
         results.append({
@@ -720,8 +802,11 @@ def _progress_path(model: str, tag: str = "") -> Path:
 def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) -> dict:
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
     reasoning_on = bool(getattr(args, "reasoning", False))
-    evidence_mode = ("file_content" if "file_content_first" in arms
-                     else ("mixed" if len(arms) > 1 else "pattern_strings"))
+    evidence_mode = ("file_graph" if "file_graph_first" in arms
+                     else ("temporal" if "temporal_first" in arms
+                           else ("graph_context" if "graph_first" in arms
+                                 else ("file_content" if "file_content_first" in arms
+                                       else ("mixed" if len(arms) > 1 else "pattern_strings")))))
     return {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "provider": args.provider,
@@ -755,10 +840,22 @@ def main() -> int:
                         help="провайдер (по умолч. openrouter)")
     parser.add_argument("--driver", dest="provider", choices=["openrouter", "api", "opencode"],
                         help="алиас для --provider (backward compat с Day 1)")
-    parser.add_argument("--arm", choices=["memory_first", "code_first", "file_content_first", "both"],
+    parser.add_argument("--arm", choices=["memory_first", "code_first", "file_content_first",
+                                          "graph_first", "file_graph_first", "temporal_first", "both"],
                         default="both",
                         help="memory_first / code_first / file_content_first (V4: реальный фрагмент "
-                             "файла вместо pattern-строк) / both = memory_first+code_first (совместимость)")
+                             "файла вместо pattern-строк) / graph_first (2-E: структура кода) / "
+                             "file_graph_first (2-E: фрагмент + структура) / temporal_first "
+                             "(2-E: структура + git-трейл) / both = memory_first+code_first (совместимость)")
+    parser.add_argument("--ev-contexts", type=str, default=None,
+                        help="graph-контексты для arm graph_first/file_graph_first/temporal_first "
+                             "(graph_contexts_*.json)")
+    parser.add_argument("--facts", type=str, default=None,
+                        help="файл фактов (по умолч. memory_contamination_facts_v4_rep.json; "
+                             "для temporal_first — temporal_facts_*.json)")
+    parser.add_argument("--pin-provider", type=str, default=None,
+                        help="OpenRouter: провайдер.order=[X] + allow_fallbacks:false — жёстко "
+                             "закрепляет эндпоинт, убирает полосу роутинга (Red Team 2026-08-15)")
     parser.add_argument("--model", default="", help="модель (перекрывает дефолт провайдера)")
     parser.add_argument("--models", default="",
                         help="свип: список моделей через запятую (каждая — свой progress-файл)")
@@ -787,7 +884,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="без вызова модели: валидация + leak-guard")
     args = parser.parse_args()
 
-    data = json.loads(FACTS.read_text(encoding="utf-8"))
+    data = json.loads((Path(args.facts) if args.facts else FACTS).read_text(encoding="utf-8"))
     facts = data["facts"]
     fingerprint = _facts_fingerprint(data)
     if args.shuffle_seed:
@@ -806,6 +903,13 @@ def main() -> int:
     # дедупликация с сохранением порядка
     models = list(dict.fromkeys(models))
     key = _api_key(args.provider)
+
+    if args.arm in ("graph_first", "file_graph_first", "temporal_first"):
+        if not args.ev_contexts:
+            print(f"ERROR: arm {args.arm} требует --ev-contexts <contexts_*.json>",
+                  file=sys.stderr)
+            return 2
+        _load_graph_contexts(Path(args.ev_contexts))
 
     if args.dry_run:
         arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
@@ -859,7 +963,7 @@ def main() -> int:
                                   max_tokens=args.max_tokens, seed=args.seed,
                                   no_reasoning=args.no_reasoning,
                                   prompt_version=args.prompt_version, lang=args.prompt_lang,
-                                  reasoning=args.reasoning)
+                                  reasoning=args.reasoning, pin_provider=args.pin_provider)
             # Merge по id (последний результат побеждает) — retry-проходы не дублируют
             merged = {x["id"]: x for x in existing.get("results", [])}
             for x in arm_report["results"]:

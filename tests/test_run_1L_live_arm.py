@@ -51,6 +51,70 @@ def test_prompt_code_first_shows_anchors():
     assert fact.get("section", "?") in prompt
 
 
+# ─── 2-E / graph_first: структурный evidence (graph_context_builder) ────────
+def _graph_ctx_path():
+    files = sorted((ROOT / "experiments" / "2E_evidence_ladder").glob("graph_contexts_*.json"))
+    assert files, "graph_contexts_*.json не сгенерирован (graph_context_builder.py)"
+    return files[-1]
+
+
+def test_prompt_graph_first_shows_structure_and_no_leak():
+    """graph_first: блок структуры в промпте, truth не утекает, секция видна."""
+    _mod._load_graph_contexts(_graph_ctx_path())
+    try:
+        for fact in _facts()[:10]:
+            prompt = _mod._prompt(fact, "graph_first")
+            ctx = _mod._graph_ctx_cache[fact["id"]]
+            expected = "\n".join("    " + ln for ln in ctx["block"].splitlines())
+            assert expected in prompt, f"блок структуры не в промпте: {fact['id']}"
+            assert "truth" not in prompt, f"LEAK в {fact['id']}/graph_first"
+            _mod._assert_no_truth_leak(fact, prompt)  # не должен бросить
+    finally:
+        _mod._graph_ctx_cache = None
+
+
+def test_graph_contexts_cover_all_facts():
+    """graph_contexts_*.json покрывает все 50 фактов (нет пропусков в промптах)."""
+    ctx = json.loads(_graph_ctx_path().read_text(encoding="utf-8"))
+    ids = {f["id"] for f in _facts()}
+    assert set(ctx) == ids, f"пропущены факты: {ids - set(ctx)}"
+    for fid, v in ctx.items():
+        assert v["block"].strip(), f"пустой блок: {fid}"
+        assert v["evidence"] in ("real", "decoy"), f"битый evidence: {fid}"
+
+
+def test_prompt_file_graph_first_shows_fragment_and_structure():
+    """file_graph_first (гибрид): и фрагмент файла, и структура в промпте, без leak."""
+    _mod._load_graph_contexts(_graph_ctx_path())
+    try:
+        for fact in _facts()[:5]:
+            prompt = _mod._prompt(fact, "file_graph_first")
+            ctx = _mod._graph_ctx_cache[fact["id"]]
+            expected = "\n".join("    " + ln for ln in ctx["block"].splitlines())
+            assert expected in prompt, f"структура не в промпте: {fact['id']}"
+            assert "Code fragment" in prompt or "Фрагмент кода" in prompt
+            assert "truth" not in prompt, f"LEAK в {fact['id']}/file_graph_first"
+            _mod._assert_no_truth_leak(fact, prompt)
+    finally:
+        _mod._graph_ctx_cache = None
+
+
+def test_prompt_temporal_first_shows_structure_only():
+    """temporal_first: структура (с git-трейлом из temporal-контекстов), без фрагмента."""
+    _mod._load_graph_contexts(_graph_ctx_path())
+    try:
+        fact = _facts()[0]
+        prompt = _mod._prompt(fact, "temporal_first")
+        ctx = _mod._graph_ctx_cache[fact["id"]]
+        expected = "\n".join("    " + ln for ln in ctx["block"].splitlines())
+        assert expected in prompt
+        assert "Code fragment" not in prompt and "Фрагмент кода" not in prompt
+        assert "truth" not in prompt
+        _mod._assert_no_truth_leak(fact, prompt)
+    finally:
+        _mod._graph_ctx_cache = None
+
+
 def test_prompt_v2_neutral_no_leading_question():
     """Red Team fix: V2 не задаёт наводящий вопрос (митигация сикофантии)."""
     fact = _facts()[0]

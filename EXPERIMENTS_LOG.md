@@ -1211,3 +1211,97 @@ python scripts/summarize_1L_categories.py --tag file_content --markdown
 ```
 **Вердикт:** ✅ ПОДТВЕРЖДЕНА с оговоркой. recall(real): qwen3.6 **0.08 → 0.88** (×11, CI [0.70,0.96] не пересекается с baseline [0.02,0.25]), qwen3.7 **0.20 → 0.88** (×4.4). Диагноз «точки укуса №2»: **anchor bias**, не паранойя. Оговорка: FA не 0.00, а 0.02–0.04, и ВСЯ FA — present-trap (R45/R46: токен есть во фрагменте, субъект claim-а другой) — модель проверяет токен, не тождество субъекта; absent/silent 0/16 и 0/3 (декой-политика работает без утечки).
 **Урок:** задача «поймай ложь и не тронь правду» решаема ДЕШЁВОЙ flash-моделью, если дать ей реальный код: VOR-слой обязан показывать фрагмент файла вокруг якоря (окно ±12 строк), а не токен-строку. Остаточная дыра — present-trap: нужна проверка СУБЪЕКТА (claim «X использует Y» — Y есть в коде, но X — нет). Цена: +~200 промпт-токенов/факт (~$0.0001–0.0004) пренебрежима vs цена ложного отзыва живой памяти.
+
+## [2026-08-15] — Exp 2-E Evidence Ladder E1+E2+E3: форма evidence (anchor → file_content → graph) против качества верификации memory claims
+
+**Ожидание (pre-registered, experiments/2E_evidence_ladder/README.md §6):** rung 1 (anchor) — слабо; rung 2 (file) — скачок recall; rung 3 (graph) — два исхода: graph≈file → структура не окупается; graph>file на present_trap → структурный слой закрывает failure mode. Один матричный прогон: 3 модели × 3 arm'а × 50 фактов v4_rep, v2 EN, zero-shot, temp=0, seed=42.
+
+**Команда:**
+```
+python scripts/run_1L_live_arm.py --provider openrouter --arm code_first \
+  --models "qwen/qwen3.7-flash,deepseek/deepseek-v4-flash,z-ai/glm-4.7-flash" \
+  --prompt-version v2 --no-reasoning --tag 2e_e1          # rung 1 (anchor-строки)
+python scripts/run_1L_live_arm.py --provider openrouter --arm file_content_first \
+  --models "..." --no-reasoning --prompt-version v2 --tag 2e_e2   # rung 2 (25 строк)
+python scripts/run_1L_live_arm.py --provider openrouter --arm graph_first \
+  --ev-contexts experiments/2E_evidence_ladder/graph_contexts_594dae2a.json \
+  --models "..." --no-reasoning --prompt-version v2 --tag 2e_e3   # rung 3 (структура)
+python scripts/summarize_1L_categories.py --tag 2e_e{1,2,3} --markdown
+```
+(calls=450, errors=0, est_cost ≈ $0.007; progress: %LOCALAPPDATA%/mscodebase/projects/bfe9644b/experiments/live_arm_1L_progress_2e_e{1,2,3}_*.json)
+
+**Сырой результат (per-category):**
+```
+| модель        | arm        | recall(real) | acc(decided) | unknown | FA absent/16 | FA trap/6 | FA silent/3 |
+| qwen3.7-flash | code_first | 0.24 (6/25)  | 0.763 (29/38)| 0.24    | 0 | 0 | 0 |
+| qwen3.7-flash | file       | 0.92 (23/25) | 0.940 (47/50)| 0.00    | 0 | 1 | 0 |
+| qwen3.7-flash | graph      | 0.76 (19/25) | 0.913 (42/46)| 0.08    | 0 | 0 | 0 |
+| deepseek-v4-flash | code  | 0.04 (1/25)  | 0.500 (1/2)  | 0.96    | 0 | 0 | 0 |
+| deepseek-v4-flash | file  | 0.84 (21/25) | 0.875 (28/32)| 0.36    | 0 | 3 | 0 |
+| deepseek-v4-flash | graph | 0.44 (11/25) | 0.824 (14/17)| 0.66    | 0 | 2 | 0 |
+| glm-4.7-flash  | code_first | 0.60 (15/25) | 0.704 (19/27)| 0.46    | 3 | 3 | 2 |
+| glm-4.7-flash  | file      | 0.68 (17/25) | 0.750 (36/48)| 0.04    | 0 | 5 | 0 |
+| glm-4.7-flash  | graph     | 0.84 (21/25) | 0.787 (37/47)| 0.06    | 0 | 6 | 0 |
+```
+
+**Вердикт:** ⏳ ЧАСТИЧНО ПОДТВЕРЖДЕНА — «структурное evidence ≠ автоматически лучше» (исход №1) с важной границей (исход №2 для evidence-честных моделей):
+1. **Rung1→2 подтверждён всеми 3 моделями:** qwen recall 0.24→0.92, deepseek 0.04→0.84, glm 0.60→0.68; FA trap: qwen 0→1, deepseek 0→3, glm 3→5. Фрагмент файла — сильнейший драйвер recall.
+2. **Rung2→3 НЕ однороден (это и есть главный результат):**
+   - **qwen3.7 (evidence-честная):** graph закрыл последний present-trap — FA trap **1/6 → 0/6**, FA total 0.02→**0.000**, но recall 0.92→0.76, acc 0.940→0.913. Граф закрывает failure mode ценой recall.
+   - **deepseek (скептик):** FA trap 3/6→2/6, но recall 0.84→**0.44** (unknown 0.66) — списки вхождений и symbol-блоки подрывают доверие; сомнение вместо проверки.
+   - **glm-4.7 (fail-open):** FA trap 5/6→**6/6**, recall 0.68→0.84 — списки вхождений («logging — 109 файлов») читаются как ПОДТВЕРЖДЕНИЕ. Ни одна форма evidence не лечит fail-open — это свойство модели, не evidence.
+3. **Контроль воспроизводимости:** qwen3.7 file_content совпал с V4 (2026-08-15): recall 0.92 vs 0.88, FA 0.02 vs 0.02 — межпрогонная стабильность подтверждена.
+4. **Ограничение датасета (честно):** R02 «InstructionScan» не дословно в файле — graph честно показал отсутствие символа → deepseek/glm false; file-фрагмент показывал docstring «Instruction Scan» → qwen true. Fuzzy-факты чувствительны к форме evidence.
+
+**Урок:** для VOR: (а) recall-движок = фрагмент файла (25 строк); (б) graph-проверка субъекта = отдельный сигнал против trap, но только для evidence-честных моделей; (в) fail-open модели (glm-семейство) исключить из VOR-конвейера. Следующий шаг: гибридный arm file+graph (аддитивность?) и per-fact анализ расхождений qwen graph (R08/R17/R21/R24).
+
+## [2026-08-15] — Exp 2-E Evidence Ladder E3b+E4: гибрид file+graph (аддитивность?) и temporal_first (git-провенанс: «было тогда» vs «сейчас»)
+
+**Ожидание (pre-registered):** E3b — гибрид file+graph аддитивен (recall 0.92 от файла + FA trap 0 от графа)? E4 — git-провенанс (commit+date+branch в evidence) позволит моделям отличить «существовал до C» от «существует на HEAD».
+
+**Команда:**
+```
+python scripts/run_1L_live_arm.py --provider openrouter --arm file_graph_first \
+  --ev-contexts experiments/2E_evidence_ladder/graph_contexts_594dae2a.json \
+  --models "qwen/qwen3.7-flash,deepseek/deepseek-v4-flash,z-ai/glm-4.7-flash" \
+  --prompt-version v2 --no-reasoning --tag 2e_e4
+python scripts/run_1L_live_arm.py --provider openrouter --arm temporal_first \
+  --facts experiments/2E_evidence_ladder/temporal_facts_e3c1fdd4.json \
+  --ev-contexts experiments/2E_evidence_ladder/temporal_contexts_e8571628.json \
+  --models "..." --no-reasoning --prompt-version v2 --tag 2e_e5
+```
+(calls=294, errors=0, est_cost ≈ $0.007; temporal-датасет: 48 фактов = 12 removed / 28 real / 8 absent, генератор temporal_facts_generator.py, ground truth из git)
+
+**Сырой результат:**
+```
+ГИБРИД (file_graph_first, v4_rep N=50):
+| модель | acc(decided) | unknown | FA total | FA trap/6 | FA ids |
+| qwen3.7 | 0.900 (45/50) | 0.00 | 0.02 | 1 | R45 |
+| deepseek | 0.857 (36/42) | 0.16 | 0.08 | 4 | R42,R44,R45,R46 |
+| glm | 0.820 (41/50) | 0.00 | 0.10 | 5 | R42..R46 |
+TEMPORAL (temporal_first, N=48):
+| модель | acc(decided) | FA removed/12 | real acc/28 | FA absent/8 |
+| qwen3.7 | 0.896 (43/48) | 5 | 28 | 0 |
+| deepseek | 1.000 (48/48) | 0 | 28 | 0 |
+| glm | 1.000 (48/48) | 0 | 28 | 0 |
+```
+
+**Вердикт:** ❌ E3b — АДДИТИВНОСТИ НЕТ (отрицательный результат, ценный): qwen3.7 гибрид вернул FA trap 1/6 (R45) — граф «закрывает trap» ТОЛЬКО когда фрагмента нет; с фрагментом токен-присутствие доминирует (acc гибрида 0.900 < file 0.940). deepseek FA 0.08 > graph 0.04. Файл и граф НЕ складываются — VOR-дизайн выбирает ОДИН формат: фрагмент (recall) ЛИБО граф (trap-точность). ✅ E4 — git-провенанс работает у 2/3 моделей: deepseek и glm 48/48 (FA=0.00) — «existed until C» ≠ «exists» распознаётся идеально на existence-claims; НО qwen3.7 принял 5/12 removed (T04/T09-T12: CompositionAdapter, get_ext_root, _is_self_index_path, ExceptionSanitizer, mean_pool) — путает «existed until» с «exists» (~42%, Wilson CI 0.19-0.69 при N=12). Паттерна по дате/коммиту нет (T04 и T05 — один коммит, вердикты разные) — похоже на token-уровневую фамильярность/шум OpenRouter. КАВЕАТ: temporal-claims = existence-claims (легче usage-claims из v4_rep) — оба датасета комплементарны, не заменяют друг друга.
+
+**Урок:** (1) для VOR — формат evidence выбирается по целевой метрике: fragment для recall, graph для trap-precision; гибрид = худшее из двух (acc 0.90). (2) git-провенанс в evidence — дешёвый и мощный сигнал для temporal-дистинкции (2/3 моделей 100%), но НЕ лечит qwen-семейство (5/12 trap). (3) модель-агент (deepseek-v4-flash) на temporal-датасете — идеальна (48/48); выбор LLM для VOR зависит от типа claims.
+
+## [2026-08-15] — RED TEAM (атака на ground truth): 4/6 present-trap-фактов v4_rep по факту ИСТИННЫ — скорректированная матрица инвертирует выводы E3
+
+**Атака (протокол §1.16, п.1 — атаковать данные, не модель):** grep по файлам субъектов trap-фактов.
+**Команда:** `grep -c "logging" src/mcp/server.py; grep -c "threading" src/core/indexing/watchdog.py; grep -c "re\." src/core/graph.py; grep -c "pathlib" src/providers/reranker/llama_install.py; grep -c "dataclasses" src/mcp/server.py; grep -c "Path(" src/core/multi_project_searcher.py`
+**Сырой результат:** R43 true (re: 2 usage), R45 true (logging: import+usage), R46 true (threading.Lock()), R47 true (pathlib: 6), R44 ambiguous (импорт без usage), R42 false (0). Причина: генератор проверял `value != real_value`, НЕ отсутствие value у субъекта.
+**Скорректированная матрица (TRUE=29, FALSE=20):**
+```
+| arm             | qwen3.7 rec/FA | deepseek rec/FA | glm rec/FA |
+| code_first      | 6/29, 0/20    | 1/29, 0/20     | 18/29, 5/20 |
+| file_content    | 24/29, 0/20   | 23/29, 1/20    | 20/29, 1/20 |
+| graph_first     | 19/29, 0/20   | 13/29, 0/20    | 25/29, 1/20 |
+| file_graph      | 22/29, 0/20   | 24/29, 1/20    | 24/29, 1/20 |
+```
+**Вердикт:** ❌ «Граф закрывает present-trap» (E3) — АРТЕФАКТ: qwen graph = fail-closed на категории (miss_true 4/4); «glm не лечится» — ОПРОВЕРГНУТО: glm graph = лучший arm серии (25/29, FA 1/20). Формат evidence — per-model knob, не глобальный. v4_rep требует ре-лейблинга trap-категории; файл НЕ правился (исторический артефакт), corrected-логика в report.md §5.
+**Урок:** FA-метрики на синтетических категориях обязаны проходить grep-валидацию по СУБЪЕКТУ, а не по проекту. P-паттерн: «метрика на mislabeled категории выглядит как результат модели».
