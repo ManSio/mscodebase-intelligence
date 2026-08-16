@@ -23,6 +23,24 @@
 **Fix:** verify_on_read.py — per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD и процесс; delivered = свежая проверка ИЛИ cache-hit); starved = matched>=2 && delivered==0; флаг verification="starved" в layer.py (приоритет над budget_exceeded); строка «⏳ starved» в ресипте ui_formatter. 6 новых тестов; pytest 1279 passed / 10 skipped; ruff clean.
 **Статус:** 🟢 реализовано (не закоммичено — commit/push по команде) | **Владелец:** misha.
 
+## 2026-08-16 — CI-фейлы test_zed_config_patch на POSIX: PYTHONPATH с Windows-путём (FIXED)
+
+**Что:** `patch_zed_settings` → `ext_dir = Path(install_path).resolve()`: на ubuntu-раннере Windows-путь `"C:\\ext"` — относительный, resolve() склеивал с CWD → `/home/runner/.../C:\\ext`; 2 фейла (test_replace_existing_entry, test_insert_after_nested_object_is_valid_json) на всех ubuntu-джобах + clean-state. Pre-existing red с 11:16 UTC (ран ДО коммита VOR).
+**Fix:** `_ext_dir_from_install_path()` — Windows-абсолют (диск/UNC) пишется в PYTHONPATH как есть (строка для settings.json, не путь локальной ФС); прочие пути — прежний resolve(). Локально 8 passed; POSIX-верификация — CI-матрица.
+**Статус:** 🟢 код готов (POSIX-подтверждение после пуша) | **Владелец:** misha.
+
+## 2026-08-16 — DocGenerator: dist/build в docs-выдаче (generate_docs/auto_update_docs) (FIXED)
+
+**Что:** собственный walk `DocGenerator.generate()` имел неполный skip_dirs (без dist/build/target) и не читал .gitignore — в отличие от SymbolIndex._should_skip_dir и FileGuard. На infrawise `dist/context/scanner.py` (байт-дубль src) попадал в docs-выдачу — «тот же файл дважды».
+**Fix:** skip_dirs синхронизирован с SymbolIndex (dist/build/target/.tox/.mypy_cache/.pytest_cache/.ruff_cache) + уважение .gitignore (gitignore_parser, fail-open). tests/test_doc_generator.py (2 теста); live: infrawise → dist исчез.
+**Статус:** 🟢 реализовано | **Владелец:** misha.
+
+## 2026-08-16 — gitignore_parser: dir-паттерны не исключают вложенные файлы (OPEN, решение владельца)
+
+**Что:** `_match_gitignore_pattern` обрезает завершающий `/` и теряет dir-семантику: `generated/` НЕ исключает `generated/gen.py` (ветка `pattern.endswith("/")` на L150-151 мёртвая). Затрагивает ВСЕ потребители gitignore_parser — включая FileGuard (индексатор): файлы под ignore-директориями с dir-паттернами индексируются, хотя реальный git их игнорирует.
+**Fix:** НЕ фиксилось (§4.5): изменение семантики парсера меняет поведение индексатора (blast radius — индекс/переиндексация) — требует отдельного решения владельца. Вариант: восстановить is_dir-семантику (pattern → префикс-матч) + тесты.
+**Статус:** 🟡 наблюдаем | **Владелец:** misha.
+
 ---
 
 ## 2026-08-14 — Мигающие консоли (~1с) при простоях: resource_monitor powershell каждые ~30с (FIXED)

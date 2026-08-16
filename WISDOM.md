@@ -182,3 +182,7 @@
   → ЛОЖНЫЕ REFUTED от VOR (fail-closed _classify); фикс c3512740: extract_anchors
   на write-path отбрасывает несуществующие пути (project_root) и обрезает
   пунктуацию; read-path остаётся честным (удалённый файл = дрейф → REFUTED).
+- VOR счётчики (2026-08-16, Том): per-node matched/delivered в verify_cache.json
+  (ключ node_id, переживают HEAD); starved = matched>=2 && delivered==0 —
+  систематическое голодание по бюджету 50мс, а НЕ баг якорей/парсера
+  (ресипт: «⏳ starved: N узлов»).

@@ -1,8 +1,8 @@
 """
-Doc Generator — генерация Markdown-документации из PropertyGraph.
+Doc Generator — генерация Markdown-документации из исходников (не из графа).
 
 Для любого проекта (не только MSCodeBase):
-  1. Сканирует .py файлы через CodeParser
+  1. Сканирует .py файлы через CodeParser (skip build-каталогов + .gitignore)
   2. Извлекает символы (функции/классы) и их вызовы
   3. Генерирует Markdown-таблицу: файл → символы → callers → callees
 
@@ -83,12 +83,36 @@ class DocGenerator:
 
         # Собираем все .py файлы
         py_files = sorted(root.rglob("*.py"))
-        # Фильтруем служебные директории
-        skip_dirs = {".git", "__pycache__", "venv", ".venv", "node_modules", ".codebase_indices"}
+        # Фильтруем служебные директории: список синхронизирован с
+        # SymbolIndex._should_skip_dir (build-артефакты dist/build/target и пр.) —
+        # иначе те же файлы попадали в docs/ сгенерированными дважды
+        # (инцидент infrawise 2026-08-16: dist/context/scanner.py == src/...).
+        skip_dirs = {
+            ".git", "__pycache__", "venv", ".venv", "node_modules",
+            ".codebase_indices", "dist", "build", "target", ".tox",
+            ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        }
         py_files = [
             f for f in py_files
             if not any(d in f.parts for d in skip_dirs)
         ]
+        # Уважаем .gitignore (как FileGuard): dist/ и пр. build-артефакты,
+        # исключённые владельцем проекта, не исходники. Сломанный .gitignore
+        # не должен ронять генерацию — fail-open.
+        try:
+            from src.core.gitignore_parser import (
+                is_file_excluded_by_gitignore,
+                load_gitignore_patterns,
+            )
+
+            gi_patterns = load_gitignore_patterns(root)
+            if gi_patterns:
+                py_files = [
+                    f for f in py_files
+                    if not is_file_excluded_by_gitignore(f, root, gi_patterns)
+                ]
+        except Exception:  # noqa: BLE001 - fail-open
+            pass
 
         if not py_files:
             return "# Doc Generator\n\nNo Python files found."
