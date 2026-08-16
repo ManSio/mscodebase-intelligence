@@ -608,6 +608,12 @@ class AutoDocUpdater:
                     content = raw[:raw.index("(")].strip()
                 else:
                     content = raw
+                # Guard: `()` / `(x)` → пустой content → IndexError на content[0]
+                # ниже (инцидент 2026-08-16: auto_update_docs(action="verify")
+                # падал «string index out of range» на любом доке с такими
+                # референсами).
+                if not content:
+                    continue
 
                 # Убираем $ префикс для env vars: `$VAR_NAME` → `VAR_NAME`
                 if content.startswith("$"):

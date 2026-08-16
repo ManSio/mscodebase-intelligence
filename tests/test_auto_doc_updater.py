@@ -66,6 +66,21 @@ def test_count_tools_sums_decorators_and_classes(tmp_path):
     assert AutoDocUpdater()._count_tools(root) == 4  # 2 декоратора + 2 класса
 
 
+def test_extract_doc_references_handles_empty_call_syntax(tmp_path):
+    """Регрессия: `` `()` `` / `` `(x)` `` в доках не роняли verify_references
+    (IndexError: string index out of range на content[0], инцидент 2026-08-16)."""
+    root = _make_tree(tmp_path)
+    (tmp_path / "docs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "x.md").write_text(
+        "Пустые референсы: `()` и `(x)`, нормальный: `fastmcp`.\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+    # Не должен бросить IndexError; возвращает список битых референсов
+    broken = updater._verify_doc_references(root)
+    assert isinstance(broken, list)
+
+
 def test_count_tools_counts_execute_script_when_enabled(tmp_path, monkeypatch):
     """ExecuteScriptTool учитывается только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true."""
     root = _make_tree(tmp_path)

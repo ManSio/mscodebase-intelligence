@@ -13,11 +13,11 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1254%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1371%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-62-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-08-03*
+*Last updated: 2026-08-16*
 
 </div>
 
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 61 tools (28 core + 16 intel + 13 inline + 4 dev), 1180 tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 61 tools (28 core + 16 intel + 13 inline + 4 dev), 1371 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -161,17 +161,17 @@ See also: [AI_INSTALLATION_PROMPT.md](AI_INSTALLATION_PROMPT.md), [docs/en/INSTA
 
 ### Providers
 
-MCP auto-selects the best available provider:
+MCP auto-selects the best available provider (in priority order):
 
 ```
-ONNX INT8 (in-process)         → llama.cpp GGUF (GPU) → LM Studio (if running) → BM25 only
-   ~0.5 GB RAM                    ~1.7 GB RAM (2× llama-server)   ~6 GB RAM          no embeddings
-   e5-small embedder (384dim)     reranker (bge-reranker-v2-m3)     external API
+llama.cpp GGUF (native, preferred) → ONNX INT8 (in-process fallback) → LM Studio (if running) → BM25 only
+   ~1.7 GB RAM (llama-server)          ~0.5 GB RAM                    ~6 GB RAM          no embeddings
+   e5-small GGUF (384dim)              e5-small INT8 (384dim)         external API
 ```
 
-> Embedding runs **in-process** via ONNX Runtime e5-small INT8 (~52 ch/s on Windows CPU).
+> Embedding runs via **llama.cpp** (`llama-server.exe`, preferred; ONNX in-process preload is canceled when llama.cpp is available).
 > The reranker runs as a separate `llama-server.exe` process serving the BGE-M3 GGUF model.
-> LM Studio is only an optional fallback provider if the local ONNX model is unavailable.
+> ONNX INT8 / LM Studio are fallback providers if llama.cpp is unavailable.
 
 Benchmarks: [docs/research/2026-07-10-final-benchmark.md](docs/research/2026-07-10-final-benchmark.md)
 
@@ -217,7 +217,7 @@ Deep-dives into specific technical findings from building this project:
 
 ## 🔧 MCP Tools (62 total)
 
-> 62 = 61 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 58 (28 core + 16 intel + 13 inline + 4 dev).
+> 62 = 61 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 61 (28 core + 16 intel + 13 inline + 4 dev).
 
 ### Core Search
 
