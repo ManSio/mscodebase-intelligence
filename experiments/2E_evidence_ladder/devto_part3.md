@@ -24,6 +24,7 @@ One dataset (50 facts), one prompt skeleton, one variable — the form of eviden
 | 3 | serialized structure: definitions, imports, callers/callees, occurrence lists |
 | 3b | file fragment + structure (the "why not both?" arm) |
 | 4 | structure + git provenance |
+![The evidence ladder: claim verification across evidence formats](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875930.png)
 
 Verdict schema: `{"verdict": "true"|"false"|"unknown"}`, temp=0, seed=42, zero-shot, leak-guarded.
 
