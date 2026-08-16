@@ -111,7 +111,7 @@ JSON files. **Fix:** `asyncio.Lock` in `IntelligenceStore`.
 | Project memory (ADR, issues) | `<data_root>/projects/<hash>/intelligence/` |
 | PropertyGraph | `<data_root>/projects/<hash>/graph.db` |
 | progress.json (file-contract) | `<data_root>/projects/<hash>/progress.json` |
-| Logs | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| Logs | `%LOCALAPPDATA%\mscodebase\logs\` (data_root) |
 | Zed's database | `%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite` |
 
 > Задача 4/5: все артефакты живут ВНЕ проекта — `data_root` =

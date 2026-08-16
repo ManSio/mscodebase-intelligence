@@ -292,8 +292,8 @@ erDiagram
 |-----------|:--------------:|:----------:|:---------:|:------:|
 | **语言** | Python + LanceDB (Rust-core) | Rust | TypeScript | - |
 | **搜索** | BM25 + Dense + RRF + Reranker | 静态分析 | 知识图谱 | 符号查找 |
-| **工具** | **49** | 30+ | - | - |
-| **测试** | **853** | - | - | - |
+| **工具** | **61** | 30+ | - | - |
+| **测试** | **1371** | - | - | - |
 | **Windows** | **原生**（UNC, MAX_PATH） | - | - | - |
 | **增量索引** | MD5 + DebounceBatch | - | - | - |
 | **自恢复** | IndexGuard | - | - | - |
@@ -323,14 +323,14 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["级别 1: ONNX/OpenVINO INT8\n进程内嵌入 + llama.cpp 重排序器\n300ms-3s"] -->|离线| L2
-    L2["级别 2: llama.cpp GGUF\nGPU 嵌入（可选）\n286ms-3s"] -->|离线| L3
+    L1["级别 1: llama.cpp GGUF\n原生嵌入 + 重排序器\n300ms-3s"] -->|离线| L2
+    L2["级别 2: ONNX/OpenVINO INT8\n进程内嵌入（回退）\n300ms-3s"] -->|离线| L3
     L3["级别 3: LM Studio\n外部 API（回退 fallback）\n300ms-5s"] -->|离线| L4
     L4["级别 4: 仅 BM25\n关键词搜索\n无语义"] -->|索引缺失| L5
     L5["级别 5: 回退（fallback）\n创建索引\n首次运行"]
 ```
 
-**自动恢复：** 系统默认运行 ONNX/OpenVINO E5-base（进程内），并持续扫描可选的 llama.cpp GGUF GPU 嵌入器（embedder），然后是 LM Studio/Ollama 作为回退（fallback）。当更高级别变为可用时，自动切换 — 无需重启。
+**自动恢复：** 系统默认运行 llama.cpp GGUF（原生 llama-server）；如果不可用，则回退到 ONNX/OpenVINO E5-base（进程内），然后是 LM Studio/Ollama。当更高级别变为可用时，自动切换 — 无需重启。
 
 ---
 
@@ -339,12 +339,12 @@ flowchart LR
 | 指标 | 值 |
 |--------|-------|
 | **搜索模式** | 6（fast, quality, deep, context, ask, auto） |
-| **MCP 工具** | 58（28 个核心 + 14 个 intel + 12 个内联 + 4 个 dev） |
+| **MCP 工具** | 61（28 个核心 + 16 个 intel + 13 个内联 + 4 个 dev；+1 execute_script 当 env=true → 62） |
 | **DI 中的服务** | 18 |
-| **测试** | 853 |
+| **测试** | 1371 |
 | **语言** | 3（EN, RU, ZH） |
 | **模式字段** | 19（chunk: 9 + metadata: 6 + v3.0: 4） |
-| **嵌入维度** | 384（E5-small INT8，进程内） |
+| **嵌入维度** | 384（llama.cpp GGUF e5-small；ONNX INT8 回退） |
 | **重排序器（reranker）** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct（可选，仅 mode=ask） |
 | **向量数据库** | LanceDB v2 |

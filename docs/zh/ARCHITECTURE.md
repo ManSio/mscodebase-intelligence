@@ -153,7 +153,7 @@ class SearchCodeTool(MCPTool):
 | `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
 | `project_context.py` | `src/core/intelligence/project_context.py` | 项目状态快照 |
 | `llama_runner.py` | `src/providers/reranker/llama_runner.py` | llama-server.exe（重排序器）生命周期 |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | ONNX E5-small INT8 嵌入器 + LM Studio/Ollama 回退 |
+| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | llama.cpp GGUF 嵌入器（首选）+ ONNX INT8 / LM Studio / Ollama 回退 |
 | `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | 自动同步文档与代码（重命名钩子） |
 
 ### 2.5 搜索引擎（v3.3）
@@ -192,16 +192,16 @@ class SearchCodeTool(MCPTool):
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.6 嵌入器（Embedder）：E5-small ONNX（进程内）
+### 2.6 嵌入器（Embedder）：llama.cpp GGUF（原生，首选），ONNX INT8 回退
 
-MCP 服务器现在使用 multilingual-e5-small 通过 ONNX Runtime（CPU，进程内）作为其主要嵌入器（embedder）：
+MCP 服务器现在使用 multilingual-e5-small 通过 **llama.cpp GGUF**（`llama-server.exe`）作为其主要嵌入器（embedder）；**ONNX Runtime（CPU，进程内）** 作为 llama.cpp 不可用时的回退（启动时自动检测 — 一旦 llama.cpp 就绪，ONNX 预加载被取消）：
 
-- **模型：** `intfloat/multilingual-e5-small`（384 维）
-- **运行时：** ONNX（CPU，不需要 GPU）
-- **架构：** 进程内 — 无需外部 HTTP 服务器
-- **性能：** ~37 ch/s（之前使用 BGE-M3 为 18 i/s）
-- **RAM：** ~265 MB（之前为 285 MB + VRAM）
-- **配置：** `EMBEDDING_DIMENSION=384`，`EMBEDDING_PROVIDER=e5_onnx`
+- **模型：** `intfloat/multilingual-e5-small`（384 维），GGUF；回退 — INT8 ONNX
+- **运行时：** llama.cpp（`:8080`，llama-server）；回退 — ONNX 进程内
+- **架构：** llama.cpp 为独立进程；ONNX 进程内仅在回退时使用
+- **性能：** ~16-50 ch/s（llama.cpp CPU，取决于负载）
+- **RAM：** ~1.7 GB（2× llama-server：嵌入 + 重排序）；ONNX 回退 ~265 MB
+- **配置：** 模型自动检测（GGUF 来自 `models/`）；遗留 `EMBEDDING_DIMENSION`/`EMBEDDING_PROVIDER` 不再使用
 
 重排序器（reranker）仍然通过 llama-server 运行（1 个进程，不是 2 个）。
 
@@ -446,7 +446,7 @@ error_boundary 装饰器
         │       ▼
         │   core/search/engine.py
         │       ├── BM25 搜索（内存 TF-IDF）
-        │       ├── 向量搜索（LanceDB + ONNX E5-small，进程内）
+        │       ├── 向量搜索（LanceDB + llama.cpp GGUF，ONNX 回退）
         │       ├── FTS5 搜索（SQLite FTS5，trigram+porter）
         │       └── 3 路 RRF 融合 + MMR 多样性
         │

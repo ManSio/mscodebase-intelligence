@@ -2,11 +2,11 @@
 
 > Choose your method: **Auto** (install.py), **Manual** (ONNX + GGUF), or **LM Studio** (legacy fallback)
 
-> **Provider reality (2026-07-12):** The **embedder runs in-process** via
-> **ONNX multilingual-e5-small-int8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s
-> on Windows CPU). `install.py` downloads this automatically. The **reranker** is a separate
+> **Provider reality (2026-08-16):** The **embedder runs via llama.cpp GGUF** (`llama-server.exe`,
+> preferred; ONNX INT8 in-process is the fallback while llama.cpp starts).
+> `install.py` downloads this automatically. The **reranker** is a separate
 > `llama-server.exe` process serving the `bge-reranker-v2-m3` GGUF model. `LM Studio` is only
-> an optional fallback if the local ONNX model is unavailable.
+> an optional fallback if the local providers are unavailable.
 
 ---
 

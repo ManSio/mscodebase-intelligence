@@ -130,28 +130,27 @@ SELECT paths, timestamp FROM workspaces ORDER BY timestamp DESC
 не является self-indexing (отбрасывается, если путь совпадает с директорией
 расширения или Zed).
 
-**Наша база данных (LanceDB)** — векторный индекс кода, хранится ВНУТРИ проекта:
+**Наша база данных (LanceDB)** — векторный индекс кода, хранится в системном data_root (file-contract, Задача 4/5):
 
 | Проект | Путь к индексу |
 |---------|---------------|
-| `MSCodeBase` | `D:\Project\MSCodeBase\.codebase_indices\lancedb_v2\` |
-| `gemma_agent` | `D:\Project\gemma_agent\.codebase_indices\lancedb_v2\` |
+| `MSCodeBase` | `<data_root>\projects\<hash8>\lancedb_v2\` (data_root = `%LOCALAPPDATA%\mscodebase`, `<hash8>` = md5(нормализованный путь)[:8]) |
 
 Каждый проект имеет **свой изолированный индекс**. Когда расширение удаляется,
-индекс остаётся в проекте. Когда проект удаляется — индекс теряется.
+индекс остаётся в data_root. Когда проект удаляется — индекс чистит ArtifactGC.
 
-**Что ещё хранится в `.codebase_indices/`:** (внутри проекта)
+**Что ещё хранится в `<data_root>\projects\<hash8>\`:**
 
 | Директория | Назначение |
 |-----------|---------|
 | `lancedb_v2/` | Векторная БД LanceDB (индекс кода: чанки + эмбеддинги) |
-| `branches/` | Git-ветки: изолированные индексы по веткам |
-| `commit_memory/` | История коммитов и семантический анализ |
-| `intelligence/` | Память проекта (ADR, known_issues, tech_debt) |
+| `intelligence/` | Память проекта (ADR, known_issues, tech_debt) + verify_cache.json |
+| `graph.db` | PropertyGraph (typed dependency edges) |
+| `progress.json` | Прогресс индексации (file-contract) |
 
-**Логи** (после v2.4.6): централизованы в директории расширения, НЕ в проекте:
+**Логи** (после v2.4.6): централизованы в data_root, НЕ в проекте:
 ```
-%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\
+%LOCALAPPDATA%\mscodebase\logs\
 ```
 
 **База данных Zed** (мы только читаем):
@@ -199,8 +198,7 @@ Zed запускает MCP-серверы с ограниченными прав
 требует повышенных привилегий (Win32 API, защищённые системные папки),
 ОС вернёт `Access Denied`.
 
-**Решение:** Весь индекс хранится внутри `.codebase_indices/` в корне проекта —
-процесс всегда имеет права на запись туда.
+**Решение:** Весь индекс хранится в системном data_root (`%LOCALAPPDATA%\mscodebase`, вне проекта) — права на запись в директорию проекта не нужны.
 
 ### Таймаут инициализации LSP (~10-15 секунд)
 
@@ -216,7 +214,7 @@ Zed блокирует открытые файлы эксклюзивной бл
 (индексатор, сборщик телеметрии) слишком агрессивно изменяет файлы в корне
 рабочей области, Zed может временно заморозить свои вотчеры.
 
-**Решение:** Кеширование соединений. Индексируйте файлы строго в `.codebase_indices/`.
+**Решение:** Кеширование соединений. Индексируйте файлы строго в data_root (`%LOCALAPPDATA%\mscodebase`), не в проекте.
 
 ### Нормализация UNC-путей Windows
 

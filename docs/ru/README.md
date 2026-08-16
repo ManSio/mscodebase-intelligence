@@ -380,7 +380,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 **Что проверить:**
 1. **File → Quit** → откройте проект заново
 2. Запустите `python install.py` для перенастройки
-3. Проверьте логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+3. Проверьте логи: `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
 
 ### Индекс пуст (0 чанков)
 

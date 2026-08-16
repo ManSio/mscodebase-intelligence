@@ -72,7 +72,7 @@ Starting with version 2.0.0, MSCodeBase Intelligence uses a hybrid architecture 
 
 ### Data Protection
 
-- **Local storage**: the entire index is stored in `.codebase_indices/` inside the project
+- **Local storage**: the entire index is stored in the system data root (`%LOCALAPPDATA%\mscodebase\projects\<hash8>\`), outside the project
 - **Path hashing**: project paths are hashed to isolate indices
 - **Filtering**: files from `.gitignore` and binary files are excluded from indexing
 - **Encryption**: data is not encrypted on disk (file system is assumed to be protected by the OS)

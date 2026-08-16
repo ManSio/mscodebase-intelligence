@@ -324,14 +324,14 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    L1["Уровень 1: ONNX/OpenVINO INT8\nin-process эмбеддинги + llama.cpp reranker\n300ms-3s"] -->|offline| L2
-    L2["Уровень 2: llama.cpp GGUF\nGPU эмбеддинги (опционально)\n286ms-3s"] -->|offline| L3
+    L1["Уровень 1: llama.cpp GGUF\nнативный embed + reranker\n300ms-3s"] -->|offline| L2
+    L2["Уровень 2: ONNX/OpenVINO INT8\nin-process эмбеддинги (fallback)\n300ms-3s"] -->|offline| L3
     L3["Уровень 3: LM Studio\nВнешний API (fallback)\n300ms-5s"] -->|offline| L4
     L4["Уровень 4: Только BM25\nКлючевой поиск\nБез семантики"] -->|index missing| L5
     L5["Уровень 5: Fallback\nСоздание индекса\nПервый запуск"]
 ```
 
-**Автовосстановление:** Система по умолчанию запускает ONNX/OpenVINO E5-base in-process и непрерывно сканирует опциональный llama.cpp GGUF GPU-эмбеддер, затем LM Studio/Ollama как fallback. Когда более высокий уровень становится доступен, переключение происходит автоматически — без перезапуска.
+**Автовосстановление:** Система по умолчанию запускает llama.cpp GGUF (нативный llama-server); если он недоступен — ONNX/OpenVINO E5-base in-process, затем LM Studio/Ollama. Когда более высокий уровень становится доступен, переключение происходит автоматически — без перезапуска.
 
 ---
 
@@ -340,12 +340,12 @@ flowchart LR
 | Метрика | Значение |
 |---------|---------|
 | **Режимы поиска** | 6 (fast, quality, deep, context, ask, auto) |
-| **MCP инструменты** | 58 (28 core + 16 intel + 13 inline + 4 dev) |
+| **MCP инструменты** | 61 (28 core + 16 intel + 13 inline + 4 dev; +1 execute_script при env=true → 62) |
 | **Сервисы в DI** | 18 |
-| **Тесты** | 853 |
+| **Тесты** | 1371 |
 | **Языки** | 3 (EN, RU, ZH) |
 | **Поля схемы** | 19 (chunk: 9 + metadata: 6 + v3.0: 4) |
-| **Размерность эмбеддинга** | 384 (E5-small INT8, in-process) |
+| **Размерность эмбеддинга** | 384 (llama.cpp GGUF e5-small; ONNX INT8 fallback) |
 | **Реранкер** | bge-reranker-v2-m3 |
 | **LLM** | phi-4-mini-instruct (опционально, только mode=ask) |
 | **Векторная БД** | LanceDB v2 |

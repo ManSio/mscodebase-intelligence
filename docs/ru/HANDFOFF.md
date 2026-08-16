@@ -107,9 +107,9 @@ JSON-файлы. **Исправление:** `asyncio.Lock` в `IntelligenceStor
 
 | Данные | Путь |
 |--------|------|
-| Векторный индекс | `<проект>/.codebase_indices/lancedb_v2/` |
-| Память проекта (ADR, issues) | `<проект>/.codebase_indices/intelligence/` |
-| Логи | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| Векторный индекс | `<data_root>/projects/<hash>/lancedb_v2/` |
+| Память проекта (ADR, issues) | `<data_root>/projects/<hash>/intelligence/` |
+| Логи | `%LOCALAPPDATA%\mscodebase\logs\` (data_root) |
 | База данных Zed | `%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite` |
 
 ---

@@ -23,7 +23,7 @@ GGUF-модели (bge-m3 Q4_K_M 417 MB и bge-reranker-v2-m3 Q4_K_M 418 MB)
 **Причина:** Zed не был перезапущен. `window: reload` недостаточно.
 **Решение:** File → Quit → снова откройте проект.
 
-Логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+Логи: `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
 
 ### Ничего не изменилось после `python install.py`
 

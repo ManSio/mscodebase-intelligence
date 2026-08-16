@@ -155,7 +155,7 @@ class SearchCodeTool(MCPTool):
 | `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
 | `project_context.py` | `src/core/intelligence/project_context.py` | Снэпшот состояния проекта |
 | `llama_runner.py` | `src/providers/reranker/llama_runner.py` | Жизненный цикл llama-server.exe (реранкер) |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Эмбеддер ONNX E5-small INT8 + fallback LM Studio/Ollama |
+| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Эмбеддер llama.cpp GGUF (primary) + ONNX INT8 / LM Studio / Ollama fallback |
 | `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | Автосинхронизация доков с кодом (rename hook) |
 
 ### 2.5 Search Engine (v3.3)
@@ -194,16 +194,16 @@ class SearchCodeTool(MCPTool):
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.6 Эмбеддер: E5-small ONNX (in-process)
+### 2.6 Эмбеддер: llama.cpp GGUF (native, предпочтительно), ONNX INT8 — fallback
 
-MCP-сервер теперь использует multilingual-e5-small через ONNX Runtime (CPU, in-process) как основной эмбеддер:
+MCP-сервер теперь использует multilingual-e5-small через **llama.cpp GGUF** (`llama-server.exe`) как основной эмбеддер; **ONNX Runtime (CPU, in-process)** — fallback, когда llama.cpp недоступен (автоопределение при старте: ONNX-предзагрузка отменяется, как только llama.cpp поднялся):
 
-- **Модель**: `intfloat/multilingual-e5-small` (384-dim)
-- **Runtime**: ONNX (CPU, без GPU)
-- **Архитектура**: in-process — без внешнего HTTP-сервера
-- **Производительность**: ~37 ch/s (было 18 i/s с BGE-M3)
-- **RAM**: ~265 MB (было 285 MB + VRAM)
-- **Конфиг**: `EMBEDDING_DIMENSION=384`, `EMBEDDING_PROVIDER=e5_onnx`
+- **Модель**: `intfloat/multilingual-e5-small` (384-dim), GGUF; fallback — INT8 ONNX
+- **Runtime**: llama.cpp (`:8080`, llama-server); fallback — ONNX in-process
+- **Архитектура**: llama.cpp — отдельный процесс; ONNX in-process только как fallback
+- **Производительность**: ~16-50 ch/s (llama.cpp CPU, зависит от нагрузки)
+- **RAM**: ~1.7 GB (2× llama-server: embed + reranker); ONNX fallback ~265 MB
+- **Конфиг**: модель определяется автоматически (GGUF из `models/`); legacy `EMBEDDING_DIMENSION`/`EMBEDDING_PROVIDER` не используются
 
 Реранкер по-прежнему работает через llama-server (1 процесс, не 2).
 
@@ -395,7 +395,7 @@ error_boundary decorator
         │       ▼
         │   core/search/engine.py
         │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + ONNX E5-small, in-process)
+        │       ├── Vector search (LanceDB + llama.cpp GGUF, ONNX fallback)
         │       ├── FTS5 search (SQLite FTS5, trigram+porter)
         │       └── 3-way RRF fusion + MMR diversity
         │
