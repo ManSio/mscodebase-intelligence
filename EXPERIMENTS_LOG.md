@@ -1355,3 +1355,20 @@ python scripts/run_1L_live_arm.py --provider openrouter --arm temporal_blind_fir
 ```
 **Вердикт:** ❌ «git-провенанс — мощный temporal-сигнал» — ОПРОВЕРГНУТО для existence-claims. (1) Blind = sighted у deepseek/glm → git-строки ничего не добавляют; (2) Blind > sighted у qwen (43→48) → git-строки АКТИВНО ВРЕДЯТ: «existed until C (subject с именем символа)» суггестирует существование — token-presence ловушка в evidence, qwen ей поддаётся (5/12), deepseek/glm — устойчивы. (3) Вывод E4 «qwen путает было-тогда/сейчас» — артефакт evidence, не модели.
 **Урок:** добавляя провенанс в evidence, проверяй слепой контроль — дополнительный текст может создавать суггестию, которой без него нет. Для реального temporal-теста нужны claims БЕЗ подсказки «NOT FOUND» (usage-claims с темпоральной осью — предложено как E4c).
+
+## [2026-08-16] — E4c: duo-дизайн (HEAD+история без подсказки) — temporal present-trap УНИВЕРСАЛЕН; past-вопрос решается формулировкой
+
+**Гипотеза:** E4b-вывод «deepseek/glm устойчивы к git-суггестии, qwen нет» мог быть артефактом подсказки «NOT FOUND AT HEAD». Честный дизайн: один evidence (HEAD-состояние + «SYMBOLS in F at history» из git show), два вопроса — «X определён в F» (now, truth: removed=false) и «X был определён в F» (past, truth: removed=true).
+**Команда:**
+```
+python experiments/2E_evidence_ladder/graph_context_builder.py experiments/2E_evidence_ladder/temporal_facts_e3c1fdd4.json experiments/2E_evidence_ladder --duo
+# now: temporal_facts_e3c1fdd4.json, tag 2e_e6n; past: temporal_facts_e4c_past.json (fp d1d2c2ed440ec370), tag 2e_e6p
+python scripts/run_1L_live_arm.py --provider openrouter --arm temporal_duo_first --facts <now|past> --ev-contexts experiments/2E_evidence_ladder/temporal_duo_contexts_e8571628.json --models "..." --prompt-version v2 --no-reasoning --tag 2e_e6{n,p}
+```
+**Сырой результат (288 вызовов, ~$0.005):**
+```
+NOW («X определён в F»):  removed FA: qwen 12/12, deepseek 9/12, glm 12/12; real/absent FA=0
+PAST («X был определён в F»): removed miss_true 0/12, real 0/28, absent 0/8 — ВСЕ 48/48
+```
+**Вердикт:** ✅ temporal present-trap — УНИВЕРСАЛЬНОЕ свойство моделей (не evidence): когда evidence содержит символ в истории, а вопрос про настоящее — ВСЕ модели говорят true (12/12, 9/12, 12/12). Модель не отличает «X упомянут в evidence» от «X существует сейчас». Вопрос про прошлое — ВСЕ идеальны: явная временная формулировка claim решает задачу. E4b-вывод («deepseek/glm устойчивы, qwen нет») — артефакт подсказки «NOT FOUND AT HEAD»: без подсказки устойчивых НЕТ.
+**Урок:** (1) история в evidence без явного маркера текущего состояния = токен-присутствие X = ложный true у любой модели; (2) для VOR проверки «существует сейчас» — evidence ТОЛЬКО HEAD, либо вопрос формулировать явно во времени (past/now). Temporal-вопрос серии ЗАКРЫТ.

@@ -330,6 +330,82 @@ def build_temporal_blind_contexts(facts: list[dict], builder: GraphContextBuilde
     return out
 
 
+def _ast_names_from_text(text: str) -> list[str]:
+    """Топ-уровневые классы/функции из текста (git show C:file)."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    return [n.name for n in tree.body
+            if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))]
+
+
+def _git_symbols_at(commit: str, path: str, root: Path) -> list[str]:
+    """Символы файла на коммите (git show; short-lived subprocess, §5.16 не про нас)."""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=root,
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=30,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception:  # noqa: BLE001
+        return []
+    return _ast_names_from_text(r.stdout) if r.returncode == 0 else []
+
+
+def build_temporal_duo_contexts(facts: list[dict], builder: GraphContextBuilder) -> dict:
+    """E4c: ОДИН нейтральный evidence (HEAD + история) на факт, БЕЗ 'NOT FOUND AT HEAD'.
+
+    Позволяет два вопроса: 'X определён в F' (now) и 'X был определён в F' (past).
+      removed → HEAD-состояние файла (file-блок или 'deleted in commit C') +
+                'SYMBOLS in F at <commit>: [...]' (из git show) — X виден в истории,
+                но не в HEAD: ловушка для now, подтверждение для past;
+      real    → обычный FILE-блок + 'GIT: last commit touching F';
+      absent  → 'not found in repository history or current tree'.
+    """
+    out: dict = {}
+    for fact in facts:
+        anchors = fact.get("support_patterns") or []
+        path = _anchor_path(anchors) or "?"
+        g = fact.get("evidence_git") or {}
+        blocks, resolved = builder.resolve_anchors(anchors)
+        if fact.get("valid_at_commit") and g.get("hash"):
+            commit = g["hash"]
+            syms = _git_symbols_at(commit, path, builder.root) or \
+                   _git_symbols_at(f"{commit}~1", path, builder.root)
+            lines = [f"FILE: {path}"]
+            if resolved:
+                lines.append("  " + "\n  ".join(blocks[0]["text"].splitlines()[1:]))
+            else:
+                lines.append(f"  deleted in commit {commit[:8]} ({g.get('date', '?')}, "
+                             f"'{g.get('subject', '?')}', branch {g.get('branch', '?')})")
+            if syms:
+                lines.append(f"  SYMBOLS in {path} at history ({len(syms)}): "
+                             + ", ".join(syms[:12]))
+            text = "\n".join(lines)
+            evidence = "removed"
+        elif resolved:
+            text = "\n\n".join(b["text"] for b in blocks)
+            if g.get("hash"):
+                text += (f"\n\nGIT: last commit touching {path}: {g['hash'][:8]} "
+                         f"{g.get('date', '?')} '{g.get('subject', '?')}' "
+                         f"(branch {g.get('branch', '?')})")
+            evidence = "real"
+        else:
+            sym = fact.get("value") or (anchors[0] if anchors else "?")
+            text = (f"SYMBOL: {sym} — not found in repository history or current tree\n"
+                    f"GIT: no commits touch {path}")
+            evidence = "absent"
+        assert "truth" not in text and "truth" not in str(anchors), f"leak in {fact['id']}"
+        out[fact["id"]] = {
+            "block": text,
+            "evidence": evidence,
+            "resolved_anchors": anchors,
+            "tokens": max(1, len(text.split())),
+        }
+    return out
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────
 
 def build_contexts(facts: list[dict], builder: GraphContextBuilder,
@@ -371,6 +447,7 @@ def main() -> int:
     if not out_dir.is_absolute():
         out_dir = ROOT / out_dir
     blind = len(sys.argv) > 3 and sys.argv[3] == "--blind"
+    duo = len(sys.argv) > 3 and sys.argv[3] == "--duo"
 
     facts = json.loads(facts_path.read_text(encoding="utf-8"))["facts"]
     raw = facts_path.read_bytes()
@@ -381,7 +458,9 @@ def main() -> int:
     print(f"[builder] PropertyGraph: {'OK' if builder.graph_ok else 'UNAVAILABLE (occurrences-only)'}")
 
     is_temporal = "temporal" in facts_path.name or "valid_at_commit" in raw.decode("utf-8", "replace")
-    if is_temporal and blind:
+    if is_temporal and duo:
+        ctx = build_temporal_duo_contexts(facts, builder)
+    elif is_temporal and blind:
         ctx = build_temporal_blind_contexts(facts, builder)
     elif is_temporal:
         ctx = build_temporal_contexts(facts, builder)
@@ -391,8 +470,9 @@ def main() -> int:
     tok_avg = sum(v["tokens"] for v in ctx.values()) / len(ctx)
     print(f"[builder] contexts={len(ctx)} decoys/absent={decoys} avg_tokens={tok_avg:.0f}")
 
-    prefix = "temporal_blind_contexts_" if (is_temporal and blind) else \
-             ("temporal_contexts_" if is_temporal else "graph_contexts_")
+    prefix = "temporal_duo_contexts_" if (is_temporal and duo) else \
+             ("temporal_blind_contexts_" if (is_temporal and blind) else \
+              ("temporal_contexts_" if is_temporal else "graph_contexts_"))
     out_file = out_dir / f"{prefix}{sha}.json"
     out_file.write_text(
         json.dumps(ctx, ensure_ascii=False, indent=2), encoding="utf-8")
