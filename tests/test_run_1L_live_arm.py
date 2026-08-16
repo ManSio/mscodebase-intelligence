@@ -55,6 +55,11 @@ def test_prompt_code_first_shows_anchors():
 def _graph_ctx_path():
     files = sorted((ROOT / "experiments" / "2E_evidence_ladder").glob("graph_contexts_*.json"))
     assert files, "graph_contexts_*.json не сгенерирован (graph_context_builder.py)"
+    # выбрать файл, покрывающий v4_rep (R01) — не расширенные датасеты (TP01, temporal)
+    for f in reversed(files):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        if "R01" in data:
+            return f
     return files[-1]
 
 
