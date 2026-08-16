@@ -170,7 +170,7 @@ uninstall.bat
    ```
    %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
    ```
-3. 从项目根目录删除 `.codebase_indices`（如果存在）
+3. （旧版遗留）如果项目根目录有旧版遗留的 `.codebase_indices`，可删除 — 工件不再写入项目（任务 4/5）
 
 ---
 
@@ -178,18 +178,18 @@ uninstall.bat
 
 | 问题 | 原因 | 解决方案 |
 |---------|-------|----------|
-| **工具无响应** | MCP 服务器未运行 | File → Quit → 重新打开项目。日志：`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| **工具无响应** | MCP 服务器未运行 | File → Quit → 重新打开项目。日志：`%LOCALAPPDATA%\mscodebase\logs\`（data_root） |
 | **项目错误** | SQLite 选择了另一个工作区 | 关闭所有 Zed 窗口，只打开所需项目 |
 | **0 个块** | 索引为空 | `intel_trigger_reindex()` — 等待 1-5 分钟 |
-| **llama.cpp 离线** | 嵌入器（embedder）未启动 | 检查 `intel_get_runtime_status()`。日志：`扩展目录` + `.codebase_indices/logs/` |
+| **llama.cpp 离线** | 嵌入器（embedder）未启动 | 检查 `intel_get_runtime_status()`。日志：`data_root\logs\` |
 | **LM Studio 离线** | 仅当使用 LM Studio 时 | 启动 LM Studio，检查端口 1234 |
 | **settings.json 警告** | 过时的键（`lsp`，`mscodebase`） | 运行 `python install.py` — 它将清理 |
 | **ModuleNotFoundError** | PYTHONPATH 未指向扩展 | `python install.py` — 自动修复 |
 
 **数据存储位置：**
-- **索引（LanceDB）：** `<project>/.codebase_indices/lancedb_v2/` — 代码块的向量数据库
-- **日志：** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
-- **项目记忆（ADR，known_issues）：** `<project>/.codebase_indices/intelligence/`
+- **索引（LanceDB）：** `<data_root>/projects/<hash8>/lancedb_v2/` — 代码块的向量数据库
+- **日志：** `%LOCALAPPDATA%\mscodebase\logs\`（data_root）
+- **项目记忆（ADR，known_issues）：** `<data_root>/projects/<hash8>/intelligence/`
 
 ---
 

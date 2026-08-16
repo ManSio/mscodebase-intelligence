@@ -7,25 +7,34 @@
 MSCodeBase никогда не падает полностью. Вместо этого он **плавно деградирует** через 6 уровней,
 сохраняя базовую функциональность даже при отказе внешних сервисов.
 
-> **Реальность провайдеров (2026-07-12):** Провайдер эмбеддингов работает **in-process** через
-> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s на
-> Windows CPU). Это **основной и дефолтный** путь — внешний сервер для семантического поиска
-> не требуется. `LM Studio` — лишь **опциональный fallback**, если локальная ONNX/OpenVINO
-> модель недоступна. **Реранкер** работает как отдельный процесс `llama-server.exe`,
+> **Реальность провайдеров (2026-08-16):** Провайдер эмбеддингов работает через **llama.cpp GGUF**
+> (`llama-server.exe`, нативный, предпочтительный) — ONNX INT8 предзагрузка отменяется, как только
+> llama.cpp обнаружен, рантайм-сканер переключает режим на `llama_cpp`.
+> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim) — **in-process fallback**
+> (путь при старте, пока llama.cpp не поднялся). `LM Studio` — **опциональный fallback**, если ни один
+> локальный провайдер недоступен. **Реранкер** работает как отдельный процесс `llama-server.exe`,
 > обслуживающий GGUF-модель `bge-reranker-v2-m3` (порт `:8081`).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> L1_ONNX: Старт по умолчанию (in-process)
+    [*] --> L1_GGUF: Старт по умолчанию (llama.cpp native)
 
-    state L1_ONNX[Уровень 1: ONNX/OpenVINO INT8 (in-process)]
-        L1_ONNX: E5-small эмбеддер (384-dim)
-        L1_ONNX: BM25 + Dense + Reranker (llama.cpp)
-        L1_ONNX: ~300ms-3s задержка
+    state L1_GGUF[Уровень 1: llama.cpp GGUF (native)]
+        L1_GGUF: E5-small эмбеддер (384-dim)
+        L1_GGUF: BM25 + Dense + Reranker (llama.cpp)
+        L1_GGUF: ~300ms-3s задержка
     end
 
-    L1_ONNX --> L2_GGUF: Есть GPU, предпочитаем llama.cpp embed
-    L1_ONNX --> L3_LM: ONNX модель отсутствует → LM Studio fallback
+    L1_GGUF --> L2_ONNX: llama.cpp недоступен
+    L1_GGUF --> L3_LM: локальные провайдеры недоступны → LM Studio fallback
+
+    state L2_ONNX[Уровень 2: ONNX/OpenVINO INT8 (in-process fallback)]
+        L2_ONNX: E5-small INT8 эмбеддер (384-dim)
+        L2_ONNX: BM25 + Dense + Reranker
+        L2_ONNX: ~300ms-3s задержка
+    end
+
+    L2_ONNX --> L1_GGUF: llama.cpp стал доступен
 
     state L2_GGUF[Уровень 2: llama.cpp GGUF (GPU)]
         L2_GGUF: GGUF эмбеддер + реранкер (Vulkan GPU)
@@ -106,32 +115,28 @@ stateDiagram-v2
 
 ## Детали уровней
 
-### Уровень 1: ONNX/OpenVINO INT8 (дефолт, in-process)
+### Уровень 1: llama.cpp GGUF (native, дефолт)
 
 ```python
-# Дефолтный путь провайдера (EMBEDDING_PROVIDER=e5_onnx)
+# Предпочтительный путь: llama.cpp (Zed 1.10.0 native) — ONNX предзагрузка отменяется, когда он поднялся
 class RemoteEmbedder:
-    def _init_provider_async(self):
-        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-        if _provider in ("e5_onnx", "auto", ""):
-            self._init_onnx()
-            # OpenVINO INT8 имеет приоритет (~37 ch/s на Windows CPU)
-            if getattr(self, "_ov_compiled", None) is not None:
-                self.mode = "onnx"
+    def _preload_onnx_delayed(self):
+        if self._check_llama_cpp():
+            self.mode = "llama_cpp"  # ONNX предзагрузка отменена — llama.cpp основной
 ```
 
 | Компонент | Статус |
 |-----------|:------:|
-| ONNX/OpenVINO E5-small | ✅ In-process (384-dim, INT8) |
+| llama.cpp GGUF (e5-small) | ✅ Предпочтительный (native llama-server, `:8080`) |
 | BM25 index | ✅ Построен |
 | Reranker (llama.cpp) | ✅ Доступен (`:8081`) |
 | mode=ask | ⚠️ Опционально (нужен LLM profile) |
 | **Задержка** | **300ms-3s** |
 | **Качество** | **Лучшее** (без внешних зависимостей) |
 
-**Триггер:** Старт по умолчанию. Внешний сервер не требуется.
+**Триггер:** llama.cpp доступен (дефолт). При его недоступности — in-process ONNX fallback.
 
-### Уровень 2: llama.cpp GGUF (GPU, опционально)
+### Уровень 2: ONNX/OpenVINO INT8 (in-process fallback)
 
 Если у пользователя есть Vulkan-GPU и он предпочитает GGUF-эмбеддинг, `llama-server.exe`
 может обслуживать эмбеддер. Это путь ускорения, не дефолт.

@@ -56,7 +56,7 @@
 
 | 组件 | 数据 | 发送至 |
 |-----------|------|---------|
-| LanceDB | 向量索引，代码块（chunk） | 本地（`.codebase_indices/`） |
+| LanceDB | 向量索引，代码块（chunk） | 本地（data_root：`%LOCALAPPDATA%\mscodebase\projects\<hash8>\`） |
 | Tree-sitter | AST 解析 | 本地，进程内存中 |
 | SafePathManager | 路径验证 | 本地，无网络 |
 | MCP 工具 | 搜索/分析请求 | 本地，stdio/SSE |
@@ -72,7 +72,7 @@
 
 ### 数据保护
 
-- **本地存储**：整个索引存储在项目内的 `.codebase_indices/` 中
+- **本地存储**：整个索引存储在系统 data_root（`%LOCALAPPDATA%\mscodebase\projects\<hash8>\`）中，项目之外
 - **路径哈希**：项目路径经过哈希处理以隔离索引
 - **过滤**：`.gitignore` 中的文件和二进制文件被排除在索引之外
 - **加密**：数据在磁盘上未加密（假定文件系统受操作系统保护）

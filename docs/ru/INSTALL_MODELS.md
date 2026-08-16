@@ -2,11 +2,11 @@
 
 > Выберите свой способ: **Авто** (install.py), **Вручную** (ONNX + GGUF) или **LM Studio** (legacy fallback)
 
-> **Реальность провайдеров (2026-07-12):** **Эмбеддер работает in-process** через
-> **ONNX multilingual-e5-small-int8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim, ~37 ch/s
-> на Windows CPU). `install.py` скачивает его автоматически. **Реранкер** — отдельный процесс
+> **Реальность провайдеров (2026-08-16):** **Эмбеддер работает через llama.cpp GGUF** (`llama-server.exe`,
+> предпочтительно; ONNX INT8 in-process — fallback, пока llama.cpp поднимается).
+> `install.py` скачивает его автоматически. **Реранкер** — отдельный процесс
 > `llama-server.exe`, обслуживающий GGUF-модель `bge-reranker-v2-m3`. `LM Studio` — лишь
-> опциональный fallback, если локальная ONNX-модель недоступна.
+> опциональный fallback, если локальные провайдеры недоступны.
 
 ---
 

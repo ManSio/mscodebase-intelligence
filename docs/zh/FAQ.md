@@ -19,7 +19,7 @@ GGUF 模型（bge-m3 Q4_K_M 417 MB 和 bge-reranker-v2-m3 Q4_K_M 418 MB）
 **原因：** 未重启 Zed。`window: reload` 不够。
 **解决方案：** File → Quit → 重新打开项目。
 
-日志：`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+日志：`%LOCALAPPDATA%\mscodebase\logs\`（data_root）
 
 ### 运行 `python install.py` 后没有任何变化
 

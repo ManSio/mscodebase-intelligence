@@ -179,12 +179,11 @@ python scripts/collect_telemetry.py --history 7
 
 ## Модельный конвейер (актуально, 2026-07-12)
 
-Конвейер эмбеддинга/реранкинга — **локальный и in-process** — внешний LLM-сервер для
-семантического поиска **не требуется**:
+Конвейер эмбеддинга/реранкинга — **локальный** — llama.cpp native (предпочтительно), ONNX in-process fallback; внешний LLM-сервер для семантического поиска **не требуется**:
 
 | Этап | Движок | Модель | Примечание |
 |-------|--------|-------|-----------|
-| Embedding | ONNX INT8 / OpenVINO INT8 (in-process) | `multilingual-e5-small-int8` (384-dim) | ~37 ch/s на Windows CPU. Файл: `model_quantized.onnx`. LM Studio — **только fallback-провайдер**. |
+| Embedding | llama.cpp (`llama-server.exe`, `:8080`, предпочтительно) → ONNX INT8 in-process fallback | `multilingual-e5-small` GGUF (384-dim) / INT8 ONNX | llama.cpp — native (Zed 1.10.0); ONNX предзагрузка отменяется при его наличии. LM Studio — **только fallback-провайдер**. |
 | Reranker | llama.cpp (`llama-server.exe`, отдельный процесс, `:8081`) | `BAAI/bge-reranker-v2-m3` (GGUF Q4_K_M) | Грузится шагом `step_gguf` в `install.py`. |
 | LLM (RAG, опц.) | зарезервирован | — | Не нужен для поиска. |
 

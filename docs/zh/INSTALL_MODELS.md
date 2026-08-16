@@ -2,10 +2,10 @@
 
 > 选择您的方法：**自动**（install.py）、**手动**（ONNX + GGUF）或 **LM Studio**（旧版回退 fallback）
 
-> **提供者（provider）现状（2026-07-12）：** **嵌入器（embedder）进程内** 运行，通过
-> **ONNX multilingual-e5-small-int8 / OpenVINO INT8**（`multilingual-e5-small-int8`，384 维，Windows CPU 上 ~37 ch/s）。
+> **提供者（provider）现状（2026-08-16）：** **嵌入器（embedder）通过 llama.cpp GGUF**（`llama-server.exe`，
+> 首选；ONNX INT8 进程内为 llama.cpp 启动前的回退）。
 > `install.py` 自动下载它。**重排序器（reranker）** 是独立的 `llama-server.exe` 进程，提供 `bge-reranker-v2-m3`
-> GGUF 模型。`LM Studio` 仅是可选回退（fallback），当本地 ONNX 模型不可用时。
+> GGUF 模型。`LM Studio` 仅是可选回退（fallback），当本地提供者不可用时。
 
 ---
 

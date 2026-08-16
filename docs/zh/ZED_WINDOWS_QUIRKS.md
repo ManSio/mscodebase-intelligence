@@ -110,27 +110,26 @@ SELECT paths, timestamp FROM workspaces ORDER BY timestamp DESC
 
 **重要：** 列名是 `paths`，不是 `absolute_path`。选择最近（按 `timestamp`）的非自索引工作区（如果路径匹配扩展或 Zed 目录则拒绝）。
 
-**我们的数据库 (LanceDB)** — 向量代码索引，存储在项目内部：
+**我们的数据库 (LanceDB)** — 向量代码索引，存储在系统 data_root 中（file-contract，任务 4/5）：
 
 | 项目 | 索引路径 |
 |---------|---------------|
-| `MSCodeBase` | `D:\Project\MSCodeBase\.codebase_indices\lancedb_v2\` |
-| `gemma_agent` | `D:\Project\gemma_agent\.codebase_indices\lancedb_v2\` |
+| `MSCodeBase` | `<data_root>\projects\<hash8>\lancedb_v2\`（data_root = `%LOCALAPPDATA%\mscodebase`，`<hash8>` = md5(规范化路径)[:8]） |
 
-每个项目都有**自己独立的索引**。当扩展被删除时，索引保留在项目中。当项目被删除时 — 索引丢失。
+每个项目都有**自己独立的索引**。当扩展被删除时，索引保留在 data_root 中。当项目被删除时 — 索引由 ArtifactGC 清理。
 
-**`.codebase_indices/` 中还存储了什么：**（项目内部）
+**`<data_root>\projects\<hash8>\` 中还存储了什么：**
 
 | 目录 | 用途 |
 |-----------|---------|
 | `lancedb_v2/` | LanceDB 向量数据库（代码索引：块（chunk）+ 嵌入） |
-| `branches/` | Git 分支：隔离的按分支索引 |
-| `commit_memory/` | 提交历史和语义分析 |
-| `intelligence/` | 项目记忆（ADR, known_issues, tech_debt） |
+| `intelligence/` | 项目记忆（ADR, known_issues, tech_debt）+ verify_cache.json |
+| `graph.db` | PropertyGraph（typed dependency edges） |
+| `progress.json` | 索引进度（file-contract） |
 
-**日志**（v2.4.6 之后）：集中在扩展目录中，不在项目中：
+**日志**（v2.4.6 之后）：集中在 data_root 中，不在项目中：
 ```
-%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\
+%LOCALAPPDATA%\mscodebase\logs\
 ```
 
 **Zed 的数据库本身**（我们只读取）：
@@ -172,7 +171,7 @@ SELECT paths, timestamp FROM workspaces ORDER BY timestamp DESC
 
 Zed 使用受限的 Windows 权限启动 MCP 服务器。如果进程需要提升的权限（Win32 API，受保护的系统文件夹），操作系统将返回 `Access Denied`。
 
-**解决方案：** 整个索引存储在项目根目录的 `.codebase_indices/` 中 — 进程始终拥有写入权限。
+**解决方案：** 整个索引存储在系统 data_root（`%LOCALAPPDATA%\mscodebase`，项目外）中 — 无需项目目录写入权限。
 
 ### LSP 初始化超时（约 10-15 秒）
 
@@ -184,7 +183,7 @@ Zed 使用受限的 Windows 权限启动 MCP 服务器。如果进程需要提�
 
 Zed 使用排他锁锁定打开的文件。如果第三方进程（索引器、遥测收集器）过于激进地修改工作区根目录中的文件，Zed 可能会暂时冻结其监视器。
 
-**解决方案：** 连接缓存。严格在 `.codebase_indices/` 中索引文件。
+**解决方案：** 连接缓存。严格在 data_root（`%LOCALAPPDATA%\mscodebase`）中索引文件，而非项目内。
 
 ### Windows UNC 路径规范化（UNC Path Normalization）
 

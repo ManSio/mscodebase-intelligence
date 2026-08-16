@@ -171,7 +171,7 @@ uninstall.bat
    ```
    %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
    ```
-3. Удалите `.codebase_indices` из корня вашего проекта (если присутствует)
+3. (Легаси) Удалите устаревший `.codebase_indices` из корня проекта, если остался от старых версий — артефакты больше НЕ пишутся в проект (Задача 4/5)
 
 ---
 
@@ -179,18 +179,18 @@ uninstall.bat
 
 | Проблема | Причина | Решение |
 |----------|---------|---------|
-| **Инструменты не отвечают** | MCP-сервер не запущен | File → Quit → снова откройте проект. Логи: `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| **Инструменты не отвечают** | MCP-сервер не запущен | File → Quit → снова откройте проект. Логи: `%LOCALAPPDATA%\mscodebase\logs\` (data_root) |
 | **Неверный проект** | SQLite выбрала другое рабочее пространство | Закройте все окна Zed, откройте только нужный проект |
 | **0 chunks** | Индекс пуст | `intel_trigger_reindex()` — подождите 1-5 минут |
-| **llama.cpp офлайн** | Эмбеддер не запущен | Проверьте `intel_get_runtime_status()`. Логи: `директория расширения` + `.codebase_indices/logs/` |
+| **llama.cpp офлайн** | Эмбеддер не запущен | Проверьте `intel_get_runtime_status()`. Логи: `data_root\logs\` |
 | **LM Studio офлайн** | Только если используется LM Studio | Запустите LM Studio, проверьте порт 1234 |
 | **Предупреждение settings.json** | Устаревшие ключи (`lsp`, `mscodebase`) | Запустите `python install.py` — он очистит их |
 | **ModuleNotFoundError** | PYTHONPATH не указывает на расширение | `python install.py` — исправляет автоматически |
 
 **Где хранятся данные:**
-- **Индекс (LanceDB):** `<проект>/.codebase_indices/lancedb_v2/` — векторная БД с чанками кода
-- **Логи:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
-- **Память проекта (ADR, known_issues):** `<проект>/.codebase_indices/intelligence/`
+- **Индекс (LanceDB):** `<data_root>/projects/<hash8>/lancedb_v2/` — векторная БД с чанками кода
+- **Логи:** `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
+- **Память проекта (ADR, known_issues):** `<data_root>/projects/<hash8>/intelligence/`
 
 ---
 

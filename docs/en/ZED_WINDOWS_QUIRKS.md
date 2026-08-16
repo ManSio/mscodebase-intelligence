@@ -129,28 +129,27 @@ SELECT paths, timestamp FROM workspaces ORDER BY timestamp DESC
 The most recent workspace (by `timestamp`) is selected, which is not
 self-indexing (rejected if the path matches the extension or Zed directory).
 
-**Our database (LanceDB)** — vector code index, stored INSIDE the project:
+**Our database (LanceDB)** — vector code index, stored in the system data root (file-contract, Задача 4/5):
 
 | Project | Path to index |
 |---------|---------------|
-| `MSCodeBase` | `D:\Project\MSCodeBase\.codebase_indices\lancedb_v2\` |
-| `gemma_agent` | `D:\Project\gemma_agent\.codebase_indices\lancedb_v2\` |
+| `MSCodeBase` | `<data_root>\projects\<hash8>\lancedb_v2\` (data_root = `%LOCALAPPDATA%\mscodebase`, `<hash8>` = md5(normalized path)[:8]) |
 
 Each project has **its own isolated index**. When the extension is removed,
-the index stays in the project. When the project is deleted — the index is lost.
+the index stays in data_root. When the project is deleted — the index is cleaned by ArtifactGC.
 
-**What else is stored in `.codebase_indices/`:** (inside the project)
+**What else is stored in `<data_root>\projects\<hash8>\`:**
 
 | Directory | Purpose |
 |-----------|---------|
 | `lancedb_v2/` | LanceDB vector DB (code index: chunks + embeddings) |
-| `branches/` | Git branches: isolated per-branch indices |
-| `commit_memory/` | Commit history and semantic analysis |
-| `intelligence/` | Project memory (ADR, known_issues, tech_debt) |
+| `intelligence/` | Project memory (ADR, known_issues, tech_debt) + verify_cache.json |
+| `graph.db` | PropertyGraph (typed dependency edges) |
+| `progress.json` | Indexing progress (file-contract) |
 
-**Logs** (after v2.4.6): centralized in the extension directory, NOT in the project:
+**Logs** (after v2.4.6, centralized in data_root, NOT in the project):
 ```
-%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\
+%LOCALAPPDATA%\mscodebase\logs\
 ```
 
 **Zed's database itself** (we only read):
@@ -198,8 +197,7 @@ Zed launches MCP servers with restricted Windows permissions. If the process
 requires elevated privileges (Win32 API, protected system folders),
 the OS will return `Access Denied`.
 
-**Solution:** The entire index is stored inside `.codebase_indices/` in the project root —
-the process always has write permissions there.
+**Solution:** The entire index is stored in the system data root (`%LOCALAPPDATA%\mscodebase`, outside the project) — no project-directory write permissions needed.
 
 ### LSP Init Timeout (~10-15 seconds)
 
@@ -215,7 +213,7 @@ Zed locks open files with an exclusive lock. If a third-party process
 (indexer, telemetry collector) modifies files in the workspace root too
 aggressively, Zed may temporarily freeze its watchers.
 
-**Solution:** Connection caching. Index files strictly in `.codebase_indices/`.
+**Solution:** Connection caching. Index files strictly in the data root (`%LOCALAPPDATA%\mscodebase`), not in the project.
 
 ### Windows UNC Path Normalization
 

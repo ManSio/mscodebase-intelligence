@@ -179,11 +179,11 @@ python scripts/collect_telemetry.py --history 7
 
 ## 模型流水线（实际，2026-07-12）
 
-嵌入/重排序流水线是 **本地且进程内** 的 — 语义搜索不需要外部 LLM 服务器：
+嵌入/重排序流水线是 **本地的** — llama.cpp 原生（首选），ONNX 进程内回退；语义搜索不需要外部 LLM 服务器：
 
 | 阶段 | 引擎 | 模型 | 说明 |
 |-------|--------|-------|-------|
-| 嵌入 | ONNX INT8 / OpenVINO INT8（进程内） | `multilingual-e5-small-int8`（384 维） | Windows CPU 上 ~37 ch/s。文件：`model_quantized.onnx`。LM Studio 仅是 **回退（fallback）提供者（provider）**。 |
+| 嵌入 | llama.cpp（`llama-server.exe`，`:8080`，首选）→ ONNX INT8 进程内回退 | `multilingual-e5-small` GGUF（384 维）/ INT8 ONNX | llama.cpp — 原生（Zed 1.10.0）；一旦可用，ONNX 预加载被取消。LM Studio 仅是 **回退（fallback）提供者（provider）**。 |
 | 重排序 | llama.cpp（`llama-server.exe`，独立进程，`:8081`） | `BAAI/bge-reranker-v2-m3`（GGUF Q4_K_M） | 由 `install.py` 的 `step_gguf` 加载。 |
 | LLM（RAG，可选） | 保留 | — | 搜索不需要。 |
 

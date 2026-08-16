@@ -378,7 +378,7 @@ ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如�
 **检查清单：**
 1. **File → Quit** → 重新打开项目
 2. 运行 `python install.py` 重新配置
-3. 检查日志：`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\`
+3. 检查日志：`%LOCALAPPDATA%\mscodebase\logs\`（data_root）
 
 ### 索引为空（0 个块）
 

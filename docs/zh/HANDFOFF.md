@@ -103,9 +103,9 @@ JSON 文件。**修复：** `IntelligenceStore` 中的 `asyncio.Lock`。
 
 | 数据 | 路径 |
 |------|------|
-| 向量索引 | `<project>/.codebase_indices/lancedb_v2/` |
-| 项目记忆（ADR，问题） | `<project>/.codebase_indices/intelligence/` |
-| 日志 | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs\` |
+| 向量索引 | `<data_root>/projects/<hash>/lancedb_v2/` |
+| 项目记忆（ADR，问题） | `<data_root>/projects/<hash>/intelligence/` |
+| 日志 | `%LOCALAPPDATA%\mscodebase\logs\`（data_root） |
 | Zed 的数据库 | `%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite` |
 
 ---
