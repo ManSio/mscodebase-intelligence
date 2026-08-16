@@ -1453,3 +1453,15 @@ z-ai/glm-4.7-flash: endpoints-поле в /api/v1/models отсутствует 
 ```
 **Вердикт (честный аудит, ответ на «уверен ли что эксперимент правильный»):** НЕ полностью. (1) **Shuffle-контроль опроверг «порядок не угроза»**: 4/50 вердиктов чувствительны к порядку (8%). (2) **StreamLake-вывод был неточен**: не «unreadable responses», а 404 — StreamLake не держит glm-4.7-flash; unpinned-маршрутизация дрейфует по времени (StreamLake→DeepInfra) — источник части «недетерминизма» glm между разновременными прогонами. Формулировки исправлены в статье. (3) **FA trap держится на 1 факте (R42)** — статистически хрупко, зафиксировано. (4) Языковой конфаунд (RU claims/EN инструкции) — не проверен. Главные выводы серии (evidence-формат per-model, temporal present-trap, corrected-лейблы) от этих дыр не зависят, но статья дополнена Known weaknesses (7 пунктов).
 **Урок:** «порядок не угроза» и «провайдер битый» — оба были непроверенными утверждениями; shuffle-контроль и сырой 404 — стоили копейки. Проверять, а не декларировать (P-паттерн: «непроверенное допущение в отчёте»).
+
+## [2026-08-16] — E5: расширенная trap-категория (P-00X, лейблы по субъекту) — present-trap МАССОВ, graph реально помогает deepseek (75→40%)
+
+**Команда:** trap_facts_generator.py (20 false-trap: value в проекте ≥2 файлов, НЕ в файле субъекта — grep субъекта=0; 10 true-trap) + прогон file_content_first/graph_first × 3 модели (pinned, correct pin: qwen→Alibaba, deepseek/glm→DeepInfra; первый прогон с Alibaba для всех — 404 glm, переделано). fp 138f306dbe14b66e → cb6f822b9eb66afd.
+**Сырой результат (FA на 20 настоящих false-trap / recall на 10 true-trap):**
+```
+| arm             | qwen FA/rec | deepseek FA/rec | glm FA/rec |
+| file_content    | 2/20, 2/10  | 15/20, 6/10     | 13/20, 7/10 |
+| graph_first     | 2/20, 3/10  | 8/20, 5/10      | 14/20, 9/10 |
+```
+**Вердикт:** (1) **Present-trap — НЕ артефакт mislabeled данных**: на честных лейблах (валидация по субъекту) file_content FA 2-15/20 (10-75%) — «остаточная дыра trap» Part 2 была искажена; реально она массовая. (2) **Graph evidence РЕАЛЬНО закрывает present-trap у deepseek: 75%→40% FA** — на v4_rep (N=1 false) вывод «graph не помогает» был статистическим артефактом; у glm graph не помогает (14/20), у qwen FA и так 2/20 (но recall 2/10 — fail-closed). (3) Per-model формат подтверждён ещё сильнее: graph нужен deepseek против trap; qwen платит recall'ом за низкий FA.
+**Урок:** «FA trap = 0» на категории с N=1 — бессмысленное число; расширение категории с валидацией по субъекту (P-00X) — единственный способ честно измерить present-trap. Ответ на вопрос ревьюера (chatgpt): «does the corrected generator reject value-anywhere-in-subject?» — ДА, trap_facts_generator.py проверяет grep субъекта = 0 (демонстрация фикса).

@@ -1,0 +1,242 @@
+{
+  "TP01": {
+    "block": "TOKEN: time — occurs in 51 files (382 matches):\n  src/core/intelligence/layer.py (27)\n  src/providers/reranker/llama_runner.py (23)\n  src/core/search/engine.py (22)\n  src/core/error_handler.py (21)\n  src/core/lsp_project_bridge.py (18)\n  src/core/indexing/resource_monitor.py (18)\n  src/providers/embedder/remote_embedder.py (17)\n  src/mcp/tools/analysis_tools.py (17)\n  ... +43 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "time"
+    ],
+    "tokens": 29
+  },
+  "TP02": {
+    "block": "SYMBOL: threading\n  definition: function_definition @ src/core/indexing/index_project_runner.py:567",
+    "evidence": "real",
+    "resolved_anchors": [
+      "threading"
+    ],
+    "tokens": 6
+  },
+  "TP03": {
+    "block": "SYMBOL: datetime\n  definition: function_definition @ src/core/search/utils.py:83",
+    "evidence": "real",
+    "resolved_anchors": [
+      "datetime"
+    ],
+    "tokens": 6
+  },
+  "TP04": {
+    "block": "SYMBOL: os\n  definition: function_definition @ src/core/search/agentic_search.py:187\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "os"
+    ],
+    "tokens": 9
+  },
+  "TP05": {
+    "block": "TOKEN: asyncio — occurs in 30 files (255 matches):\n  src/core/lsp_client.py (30)\n  src/mcp/server_factory.py (24)\n  src/core/intelligence/layer.py (24)\n  src/core/task_queue.py (18)\n  src/core/rate_limiter.py (15)\n  src/providers/reranker/llama_runner.py (14)\n  src/core/search/engine.py (12)\n  src/core/autonomous_fix.py (10)\n  ... +22 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "asyncio"
+    ],
+    "tokens": 29
+  },
+  "TP06": {
+    "block": "TOKEN: contextlib — occurs in 4 files (5 matches):\n  src/core/sandbox/executor.py (2)\n  src/core/auto_doc_updater.py (1)\n  src/core/graph.py (1)\n  src/core/indexing/index_status.py (1)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "contextlib"
+    ],
+    "tokens": 17
+  },
+  "TP07": {
+    "block": "TOKEN: __future__ — occurs in 76 files (76 matches):\n  src/core/artifact_gc.py (1)\n  src/core/artifact_paths.py (1)\n  src/core/auto_doc_updater.py (1)\n  src/core/code_health.py (1)\n  src/core/community_detection.py (1)\n  src/core/consistency.py (1)\n  src/core/di_container.py (1)\n  src/core/doc_llm_verifier.py (1)\n  ... +68 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "__future__"
+    ],
+    "tokens": 29
+  },
+  "TP08": {
+    "block": "SYMBOL: os\n  definition: function_definition @ src/core/search/agentic_search.py:187\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "os"
+    ],
+    "tokens": 9
+  },
+  "TP09": {
+    "block": "SYMBOL: lancedb\n  definition: class_definition @ src/core/indexing/db_manager.py:37\n  (+4 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "lancedb"
+    ],
+    "tokens": 9
+  },
+  "TP10": {
+    "block": "TOKEN: typing — occurs in 121 files (125 matches):\n  src/core/sandbox/executor.py (3)\n  src/core/auto_doc_updater.py (2)\n  src/core/doc_sync_engine.py (2)\n  src/config/settings.py (1)\n  src/core/artifact_gc.py (1)\n  src/core/artifact_paths.py (1)\n  src/core/autonomous_fix.py (1)\n  src/core/bug_correlation.py (1)\n  ... +113 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "typing"
+    ],
+    "tokens": 29
+  },
+  "TP11": {
+    "block": "SYMBOL: logging\n  definition: function_definition @ src/main.py:98\n  (+1 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "logging"
+    ],
+    "tokens": 9
+  },
+  "TP12": {
+    "block": "SYMBOL: threading\n  definition: function_definition @ src/core/indexing/index_project_runner.py:567",
+    "evidence": "real",
+    "resolved_anchors": [
+      "threading"
+    ],
+    "tokens": 6
+  },
+  "TP13": {
+    "block": "TOKEN: typing — occurs in 121 files (125 matches):\n  src/core/sandbox/executor.py (3)\n  src/core/auto_doc_updater.py (2)\n  src/core/doc_sync_engine.py (2)\n  src/config/settings.py (1)\n  src/core/artifact_gc.py (1)\n  src/core/artifact_paths.py (1)\n  src/core/autonomous_fix.py (1)\n  src/core/bug_correlation.py (1)\n  ... +113 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "typing"
+    ],
+    "tokens": 29
+  },
+  "TP14": {
+    "block": "TOKEN: time — occurs in 51 files (382 matches):\n  src/core/intelligence/layer.py (27)\n  src/providers/reranker/llama_runner.py (23)\n  src/core/search/engine.py (22)\n  src/core/error_handler.py (21)\n  src/core/lsp_project_bridge.py (18)\n  src/core/indexing/resource_monitor.py (18)\n  src/providers/embedder/remote_embedder.py (17)\n  src/mcp/tools/analysis_tools.py (17)\n  ... +43 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "time"
+    ],
+    "tokens": 29
+  },
+  "TP15": {
+    "block": "TOKEN: hashlib — occurs in 23 files (53 matches):\n  src/core/duplication.py (4)\n  src/providers/reranker/llama_install.py (4)\n  src/core/indexing/parser.py (4)\n  src/core/indexing/db_writer.py (3)\n  src/core/indexing/indexer.py (3)\n  src/core/search/engine.py (3)\n  src/core/artifact_paths.py (2)\n  src/core/execution_contract.py (2)\n  ... +15 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "hashlib"
+    ],
+    "tokens": 29
+  },
+  "TP16": {
+    "block": "SYMBOL: threading\n  definition: function_definition @ src/core/indexing/index_project_runner.py:567",
+    "evidence": "real",
+    "resolved_anchors": [
+      "threading"
+    ],
+    "tokens": 6
+  },
+  "TP17": {
+    "block": "TOKEN: asyncio — occurs in 30 files (255 matches):\n  src/core/lsp_client.py (30)\n  src/mcp/server_factory.py (24)\n  src/core/intelligence/layer.py (24)\n  src/core/task_queue.py (18)\n  src/core/rate_limiter.py (15)\n  src/providers/reranker/llama_runner.py (14)\n  src/core/search/engine.py (12)\n  src/core/autonomous_fix.py (10)\n  ... +22 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "asyncio"
+    ],
+    "tokens": 29
+  },
+  "TP18": {
+    "block": "SYMBOL: datetime\n  definition: function_definition @ src/core/search/utils.py:83",
+    "evidence": "real",
+    "resolved_anchors": [
+      "datetime"
+    ],
+    "tokens": 6
+  },
+  "TP19": {
+    "block": "TOKEN: __future__ — occurs in 76 files (76 matches):\n  src/core/artifact_gc.py (1)\n  src/core/artifact_paths.py (1)\n  src/core/auto_doc_updater.py (1)\n  src/core/code_health.py (1)\n  src/core/community_detection.py (1)\n  src/core/consistency.py (1)\n  src/core/di_container.py (1)\n  src/core/doc_llm_verifier.py (1)\n  ... +68 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "__future__"
+    ],
+    "tokens": 29
+  },
+  "TP20": {
+    "block": "SYMBOL: os\n  definition: function_definition @ src/core/search/agentic_search.py:187\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "os"
+    ],
+    "tokens": 9
+  },
+  "TP21": {
+    "block": "SYMBOL: agentic_search\n  definition: class_definition @ src/core/search/agentic_search.py:24\n  (+4 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "agentic_search"
+    ],
+    "tokens": 9
+  },
+  "TP22": {
+    "block": "TOKEN: pathlib — occurs in 90 files (109 matches):\n  src/core/indexing/symbol_index.py (6)\n  src/core/auto_doc_updater.py (4)\n  src/mcp/tools/graph_tools.py (4)\n  src/core/intelligence/tools_reg.py (3)\n  src/core/doc_sync_engine.py (2)\n  src/core/git_hooks_installer.py (2)\n  src/core/notification_broker.py (2)\n  src/mcp/tools/system_tools.py (2)\n  ... +82 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "pathlib"
+    ],
+    "tokens": 29
+  },
+  "TP23": {
+    "block": "SYMBOL: src\n  definition: class_definition @ src/core/search/cypher_ast.py:10\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "src"
+    ],
+    "tokens": 9
+  },
+  "TP24": {
+    "block": "TOKEN: enum — occurs in 12 files (31 matches):\n  src/core/search/graph_adapter_pure.py (5)\n  src/core/consistency.py (3)\n  src/core/task_queue.py (3)\n  src/core/trust_boundary.py (3)\n  src/core/indexing/database_lock.py (3)\n  src/core/indexing/project_indexer_registry.py (3)\n  src/core/search/cypher_lexer.py (3)\n  src/core/graph.py (2)\n  ... +4 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "enum"
+    ],
+    "tokens": 29
+  },
+  "TP25": {
+    "block": "TOKEN: pathlib — occurs in 90 files (109 matches):\n  src/core/indexing/symbol_index.py (6)\n  src/core/auto_doc_updater.py (4)\n  src/mcp/tools/graph_tools.py (4)\n  src/core/intelligence/tools_reg.py (3)\n  src/core/doc_sync_engine.py (2)\n  src/core/git_hooks_installer.py (2)\n  src/core/notification_broker.py (2)\n  src/mcp/tools/system_tools.py (2)\n  ... +82 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "pathlib"
+    ],
+    "tokens": 29
+  },
+  "TP26": {
+    "block": "SYMBOL: src\n  definition: class_definition @ src/core/search/cypher_ast.py:10\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "src"
+    ],
+    "tokens": 9
+  },
+  "TP27": {
+    "block": "SYMBOL: logging\n  definition: function_definition @ src/main.py:98\n  (+1 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "logging"
+    ],
+    "tokens": 9
+  },
+  "TP28": {
+    "block": "TOKEN: __future__ — occurs in 76 files (76 matches):\n  src/core/artifact_gc.py (1)\n  src/core/artifact_paths.py (1)\n  src/core/auto_doc_updater.py (1)\n  src/core/code_health.py (1)\n  src/core/community_detection.py (1)\n  src/core/consistency.py (1)\n  src/core/di_container.py (1)\n  src/core/doc_llm_verifier.py (1)\n  ... +68 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "__future__"
+    ],
+    "tokens": 29
+  },
+  "TP29": {
+    "block": "SYMBOL: datetime\n  definition: function_definition @ src/core/search/utils.py:83",
+    "evidence": "real",
+    "resolved_anchors": [
+      "datetime"
+    ],
+    "tokens": 6
+  },
+  "TP30": {
+    "block": "TOKEN: asyncio — occurs in 30 files (255 matches):\n  src/core/lsp_client.py (30)\n  src/mcp/server_factory.py (24)\n  src/core/intelligence/layer.py (24)\n  src/core/task_queue.py (18)\n  src/core/rate_limiter.py (15)\n  src/providers/reranker/llama_runner.py (14)\n  src/core/search/engine.py (12)\n  src/core/autonomous_fix.py (10)\n  ... +22 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "asyncio"
+    ],
+    "tokens": 29
+  }
+}
