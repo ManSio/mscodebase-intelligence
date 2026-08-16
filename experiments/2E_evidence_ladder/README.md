@@ -165,13 +165,15 @@ InstructionScan), evidence:"decoy" в метаданных — та же пол�
 | deepseek-v4-flash | **1.000** (48/48) | 0 | 28 | 0 |
 | glm-4.7-flash | **1.000** (48/48) | 0 | 28 | 0 |
 
-**E4b — слепой контроль (без git-строк, tag 2e_e5b):** ВСЕ 3 модели — **48/48, FA=0.000**. Git-провенанс для existence-claims не нужен (deepseek/glm) и вредит qwen (43→48 без строк: «existed until» суггестирует существование). Вывод E4 «qwen путает было/сейчас» — артефакт evidence, не модели.
+**E4b — слепой контроль (без git-строк, tag 2e_e5b):** ВСЕ 3 модели — **48/48, FA=0.000**. Git-провенанс для existence-claims не нужен.
+
+**E4c — duo now/past (tag 2e_e6n/e6p):** NOW («X определён в F»): removed FA **qwen 12/12, glm 12/12, deepseek 9/12** — temporal present-trap УНИВЕРСАЛЕН (история в evidence = токен-присутствие X = ложный true). PAST («X был определён в F»): **все 48/48** — явная временная формулировка claim решает задачу.
 
 **Выводы (полный разбор — EXPERIMENTS_LOG 2026-08-15):**
 1. file_content — лучший recall у всех моделей; graph закрывает present-trap (FA trap 1→0 у qwen3.7) ЦЕНОЙ recall (0.92→0.76).
 2. deepseek: структура усиливает скептицизм (unknown 0.66, recall 0.44) — сомнение вместо проверки.
 3. glm: ни одна форма evidence не лечит fail-open (FA trap 6/6) — свойство модели, не evidence.
 4. **E3b (гибрид file+graph) — НЕ аддитивен:** qwen3.7 FA trap вернулся (R45), acc 0.900 < file 0.940; deepseek FA 0.08 > graph 0.04. Фрагмент доминирует — VOR выбирает ОДИН формат.
-5. **E4+E4b (temporal):** sighted deepseek/glm 48/48, qwen 5/12; **слепой контроль без git-строк — 48/48 у всех** — git-провенанс опровергнут для existence-claims (qwen: строки ВРЕДЯТ, token-presence).
+5. **E4+E4b+E4c (temporal):** blind 48/48 без git; duo NOW — removed FA qwen/glm 12/12, deepseek 9/12 (temporal present-trap универсален); duo PAST — 48/48 (формулировка claim решает). Git-провенанс для existence-claims опровергнут; evidence = HEAD без истории.
 6. Следующий arm: — серия 2-E завершена (E1-E4).
 7. Данные: progress-файлы `live_arm_1L_progress_2e_e{1..5}_*.json` (вне проекта).

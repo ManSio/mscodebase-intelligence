@@ -246,9 +246,9 @@ def _prompt(fact: dict, arm: str, version: str = "v1", lang: str = "en") -> str:
             f"{t['graph_frag']}:\n{body}\n"
             f"{t['graph_rule']}"
         )
-    if arm in ("file_graph_first", "temporal_first", "temporal_blind_first"):
-        # Exp 2-E / Rung 3b (гибрид: фрагмент + структура), Rung 4 (структура + git-трейл)
-        # и E4b (слепой контроль: структура БЕЗ git-строк — red team атака 4).
+    if arm in ("file_graph_first", "temporal_first", "temporal_blind_first", "temporal_duo_first"):
+        # Exp 2-E / Rung 3b (гибрид), Rung 4 (структура + git-трейл), E4b (слепой контроль)
+        # и E4c (duo: HEAD+история без подсказки — now/past по формулировке claim).
         sn = _resolve_snippet(fact) if arm == "file_graph_first" else None
         ctx = _graph_context_for(fact["id"])
         parts = []
@@ -803,11 +803,12 @@ def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) 
     arms = ["memory_first", "code_first"] if args.arm == "both" else [args.arm]
     reasoning_on = bool(getattr(args, "reasoning", False))
     evidence_mode = ("file_graph" if "file_graph_first" in arms
-                     else ("temporal_blind" if "temporal_blind_first" in arms
-                           else ("temporal" if "temporal_first" in arms
-                                 else ("graph_context" if "graph_first" in arms
-                                       else ("file_content" if "file_content_first" in arms
-                                             else ("mixed" if len(arms) > 1 else "pattern_strings"))))))
+                     else ("temporal_duo" if "temporal_duo_first" in arms
+                           else ("temporal_blind" if "temporal_blind_first" in arms
+                                 else ("temporal" if "temporal_first" in arms
+                                       else ("graph_context" if "graph_first" in arms
+                                             else ("file_content" if "file_content_first" in arms
+                                                   else ("mixed" if len(arms) > 1 else "pattern_strings")))))))
     return {
         "date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "provider": args.provider,
@@ -843,13 +844,14 @@ def main() -> int:
                         help="алиас для --provider (backward compat с Day 1)")
     parser.add_argument("--arm", choices=["memory_first", "code_first", "file_content_first",
                                           "graph_first", "file_graph_first", "temporal_first",
-                                          "temporal_blind_first", "both"],
+                                          "temporal_blind_first", "temporal_duo_first", "both"],
                         default="both",
                         help="memory_first / code_first / file_content_first (V4: реальный фрагмент "
                              "файла вместо pattern-строк) / graph_first (2-E: структура кода) / "
                              "file_graph_first (2-E: фрагмент + структура) / temporal_first "
                              "(2-E: структура + git-трейл) / temporal_blind_first (2-E E4b: "
-                             "структура БЕЗ git-строк) / both = memory_first+code_first (совместимость)")
+                             "структура БЕЗ git-строк) / temporal_duo_first (2-E E4c: HEAD+история, "
+                             "now/past по claim) / both = memory_first+code_first (совместимость)")
     parser.add_argument("--ev-contexts", type=str, default=None,
                         help="graph-контексты для arm graph_first/file_graph_first/temporal_first/"
                              "temporal_blind_first (graph_contexts_*.json / temporal_*_contexts_*.json)")
@@ -907,7 +909,8 @@ def main() -> int:
     models = list(dict.fromkeys(models))
     key = _api_key(args.provider)
 
-    if args.arm in ("graph_first", "file_graph_first", "temporal_first", "temporal_blind_first"):
+    if args.arm in ("graph_first", "file_graph_first", "temporal_first", "temporal_blind_first",
+                    "temporal_duo_first"):
         if not args.ev_contexts:
             print(f"ERROR: arm {args.arm} требует --ev-contexts <contexts_*.json>",
                   file=sys.stderr)
