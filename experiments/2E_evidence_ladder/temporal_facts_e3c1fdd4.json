@@ -1,0 +1,924 @@
+{
+  "_meta": {
+    "experiment": "Exp 2-E Evidence Ladder — temporal facts (Rung 4)",
+    "date": "2026-08-15",
+    "seed": 7,
+    "branch": "main",
+    "design": "removed (был правдой на C, false@HEAD) + real (true@HEAD) + absent (grep-0)",
+    "n_total": 48
+  },
+  "facts": [
+    {
+      "id": "T01",
+      "truth": false,
+      "kind": "removed",
+      "subject": "progress_state",
+      "value": "get_last_progress",
+      "claim": "Символ get_last_progress определён в файле src/core/progress_state.py",
+      "support_patterns": [
+        "file:src/core/progress_state.py"
+      ],
+      "valid_at_commit": "409596aeb52a1627e37dc6aace0992cac21be90e",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "409596aeb52a1627e37dc6aace0992cac21be90e",
+        "date": "2026-08-05",
+        "subject": "refactor: remove dead progress_state, ProjectContext jobs -> job_manager.list_jobs + jobs_failed (open thread closed)",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T02",
+      "truth": false,
+      "kind": "removed",
+      "subject": "do_test",
+      "value": "main",
+      "claim": "Символ main определён в файле do_test.py",
+      "support_patterns": [
+        "file:do_test.py"
+      ],
+      "valid_at_commit": "8e2b72e0d2663c18bddf3ba4d3cdf2c11470c8f7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "8e2b72e0d2663c18bddf3ba4d3cdf2c11470c8f7",
+        "date": "2026-08-04",
+        "subject": "chore: cleanup project root + sync AGENTS.md (2026-08-04)",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T03",
+      "truth": false,
+      "kind": "removed",
+      "subject": "execute_test",
+      "value": "main",
+      "claim": "Символ main определён в файле execute_test.py",
+      "support_patterns": [
+        "file:execute_test.py"
+      ],
+      "valid_at_commit": "8e2b72e0d2663c18bddf3ba4d3cdf2c11470c8f7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "8e2b72e0d2663c18bddf3ba4d3cdf2c11470c8f7",
+        "date": "2026-08-04",
+        "subject": "chore: cleanup project root + sync AGENTS.md (2026-08-04)",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T04",
+      "truth": false,
+      "kind": "removed",
+      "subject": "composition_adapter",
+      "value": "CompositionAdapter",
+      "claim": "Символ CompositionAdapter определён в файле src/core/search/composition_adapter.py",
+      "support_patterns": [
+        "file:src/core/search/composition_adapter.py"
+      ],
+      "valid_at_commit": "1d006ad67bb9da0e07ef91f130122e227ba7c654",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "1d006ad67bb9da0e07ef91f130122e227ba7c654",
+        "date": "2026-08-02",
+        "subject": "refactor(di): remove 5 dead DI registrations + 2 dead adapter files",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T05",
+      "truth": false,
+      "kind": "removed",
+      "subject": "graph_rag_adapter",
+      "value": "GraphRAGAdapter",
+      "claim": "Символ GraphRAGAdapter определён в файле src/core/search/graph_rag_adapter.py",
+      "support_patterns": [
+        "file:src/core/search/graph_rag_adapter.py"
+      ],
+      "valid_at_commit": "1d006ad67bb9da0e07ef91f130122e227ba7c654",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "1d006ad67bb9da0e07ef91f130122e227ba7c654",
+        "date": "2026-08-02",
+        "subject": "refactor(di): remove 5 dead DI registrations + 2 dead adapter files",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T06",
+      "truth": false,
+      "kind": "removed",
+      "subject": "onnx_server",
+      "value": "_find_model",
+      "claim": "Символ _find_model определён в файле src/core/onnx_server.py",
+      "support_patterns": [
+        "file:src/core/onnx_server.py"
+      ],
+      "valid_at_commit": "478dfc2d82c668c7c62dfd7497e3f2a49088962f",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "478dfc2d82c668c7c62dfd7497e3f2a49088962f",
+        "date": "2026-07-25",
+        "subject": "fix: remove _onnx_session refs + orphaned onnx_server.py + Popen fix pre-commit",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T07",
+      "truth": false,
+      "kind": "removed",
+      "subject": "benchmark_chunk_cache",
+      "value": "chunk_text",
+      "claim": "Символ chunk_text определён в файле sandbox/chunk_hash_exp/benchmark_chunk_cache.py",
+      "support_patterns": [
+        "file:sandbox/chunk_hash_exp/benchmark_chunk_cache.py"
+      ],
+      "valid_at_commit": "47c9035f648c926fbc0ae5250ec75a29db2a3a43",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "47c9035f648c926fbc0ae5250ec75a29db2a3a43",
+        "date": "2026-07-21",
+        "subject": "feat: audit fixes B1-B12 + 10 test fixes + CI + verify_diary 14%->68%",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T08",
+      "truth": false,
+      "kind": "removed",
+      "subject": "mock_indexer",
+      "value": "chunk_hash",
+      "claim": "Символ chunk_hash определён в файле sandbox/chunk_hash_exp/mock_indexer.py",
+      "support_patterns": [
+        "file:sandbox/chunk_hash_exp/mock_indexer.py"
+      ],
+      "valid_at_commit": "47c9035f648c926fbc0ae5250ec75a29db2a3a43",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "47c9035f648c926fbc0ae5250ec75a29db2a3a43",
+        "date": "2026-07-21",
+        "subject": "feat: audit fixes B1-B12 + 10 test fixes + CI + verify_diary 14%->68%",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T09",
+      "truth": false,
+      "kind": "removed",
+      "subject": "extension_paths",
+      "value": "get_ext_root",
+      "claim": "Символ get_ext_root определён в файле MSCodeBase/src/core/utils/extension_paths.py",
+      "support_patterns": [
+        "file:MSCodeBase/src/core/utils/extension_paths.py"
+      ],
+      "valid_at_commit": "21def8758f50fd41601ebdd662f85dc63b2bb17f",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "21def8758f50fd41601ebdd662f85dc63b2bb17f",
+        "date": "2026-07-19",
+        "subject": "chore: remove accidental nested MSCodeBase/ directory",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T10",
+      "truth": false,
+      "kind": "removed",
+      "subject": "self_index_guard",
+      "value": "_is_self_index_path",
+      "claim": "Символ _is_self_index_path определён в файле MSCodeBase/src/core/utils/self_index_guard.py",
+      "support_patterns": [
+        "file:MSCodeBase/src/core/utils/self_index_guard.py"
+      ],
+      "valid_at_commit": "21def8758f50fd41601ebdd662f85dc63b2bb17f",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "21def8758f50fd41601ebdd662f85dc63b2bb17f",
+        "date": "2026-07-19",
+        "subject": "chore: remove accidental nested MSCodeBase/ directory",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T11",
+      "truth": false,
+      "kind": "removed",
+      "subject": "ast_sanitize",
+      "value": "ExceptionSanitizer",
+      "claim": "Символ ExceptionSanitizer определён в файле scripts/ast_sanitize.py",
+      "support_patterns": [
+        "file:scripts/ast_sanitize.py"
+      ],
+      "valid_at_commit": "2e5870ae4c923b662637ac54ce74a30308ac866a",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "2e5870ae4c923b662637ac54ce74a30308ac866a",
+        "date": "2026-07-18",
+        "subject": "chore: remove obsolete scripts",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T12",
+      "truth": false,
+      "kind": "removed",
+      "subject": "comprehensive_benchmark",
+      "value": "mean_pool",
+      "claim": "Символ mean_pool определён в файле scripts/comprehensive_benchmark.py",
+      "support_patterns": [
+        "file:scripts/comprehensive_benchmark.py"
+      ],
+      "valid_at_commit": "2e5870ae4c923b662637ac54ce74a30308ac866a",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "2e5870ae4c923b662637ac54ce74a30308ac866a",
+        "date": "2026-07-18",
+        "subject": "chore: remove obsolete scripts",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T13",
+      "truth": true,
+      "kind": "real",
+      "subject": "index_parser",
+      "value": "_has_code_lines",
+      "claim": "Символ _has_code_lines определён в файле src/core/indexing/index_parser.py",
+      "support_patterns": [
+        "file:src/core/indexing/index_parser.py"
+      ],
+      "valid_at_commit": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+        "date": "2026-08-07",
+        "subject": "fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub)\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T14",
+      "truth": true,
+      "kind": "real",
+      "subject": "llama_runner",
+      "value": "_popen_with_job",
+      "claim": "Символ _popen_with_job определён в файле src/providers/reranker/llama_runner.py",
+      "support_patterns": [
+        "file:src/providers/reranker/llama_runner.py"
+      ],
+      "valid_at_commit": "23489d2305347a8689aed23eec92e6826ebd207b",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "23489d2305347a8689aed23eec92e6826ebd207b",
+        "date": "2026-08-14",
+        "subject": "fix(win): мигающие консоли при простоях — resource_monitor powershell каждые ~30с без CREATE_NO_WINDOW\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T15",
+      "truth": true,
+      "kind": "real",
+      "subject": "auto_doc_updater",
+      "value": "BrokenRef",
+      "claim": "Символ BrokenRef определён в файле src/core/auto_doc_updater.py",
+      "support_patterns": [
+        "file:src/core/auto_doc_updater.py"
+      ],
+      "valid_at_commit": "688e6cf5f2d3dd567a7062f632756b3782ad17a2",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "688e6cf5f2d3dd567a7062f632756b3782ad17a2",
+        "date": "2026-08-13",
+        "subject": "feat(health): dual_arm_health_check (mutmut negative arm) + tool-count sync 58->61\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T16",
+      "truth": true,
+      "kind": "real",
+      "subject": "error_handler",
+      "value": "set_metrics_path",
+      "claim": "Символ set_metrics_path определён в файле src/core/error_handler.py",
+      "support_patterns": [
+        "file:src/core/error_handler.py"
+      ],
+      "valid_at_commit": "1acb7c3f4b319b68ca24ada69f98ecca4bc1c2de",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "1acb7c3f4b319b68ca24ada69f98ecca4bc1c2de",
+        "date": "2026-08-14",
+        "subject": "fix(telemetry): метрики MCP больше не заражены общим tool_metrics.json + get_runtime_counters без «Blocked 100%»\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T17",
+      "truth": true,
+      "kind": "real",
+      "subject": "symbol_index",
+      "value": "SymbolRef",
+      "claim": "Символ SymbolRef определён в файле src/core/indexing/symbol_index.py",
+      "support_patterns": [
+        "file:src/core/indexing/symbol_index.py"
+      ],
+      "valid_at_commit": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+        "date": "2026-08-07",
+        "subject": "fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub)\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T18",
+      "truth": true,
+      "kind": "real",
+      "subject": "system_artifacts",
+      "value": "SystemArtifacts",
+      "claim": "Символ SystemArtifacts определён в файле src/core/system_artifacts.py",
+      "support_patterns": [
+        "file:src/core/system_artifacts.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T19",
+      "truth": true,
+      "kind": "real",
+      "subject": "graph_adapter_pure",
+      "value": "PureGraphMixin",
+      "claim": "Символ PureGraphMixin определён в файле src/core/search/graph_adapter_pure.py",
+      "support_patterns": [
+        "file:src/core/search/graph_adapter_pure.py"
+      ],
+      "valid_at_commit": "6170ca387ebe19427ccc61500ab2d9c772c1ae1d",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "6170ca387ebe19427ccc61500ab2d9c772c1ae1d",
+        "date": "2026-08-08",
+        "subject": "fix(symbol-index): D1-D3 — ranked node selection in build_call_graph/get_callers/get_call_chain\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T20",
+      "truth": true,
+      "kind": "real",
+      "subject": "doc_generator",
+      "value": "DocGenerator",
+      "claim": "Символ DocGenerator определён в файле src/core/doc_generator.py",
+      "support_patterns": [
+        "file:src/core/doc_generator.py"
+      ],
+      "valid_at_commit": "e3f41ce7589d26fba1f2081faf27e97d253cba78",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "e3f41ce7589d26fba1f2081faf27e97d253cba78",
+        "date": "2026-07-21",
+        "subject": "feat: DocGenerator — generate Markdown docs from PropertyGraph for any project + src/core/doc_generator.py — сканирует .py, извлекает символы+callers+callees + src/mcp/tools/dev_tools.py — generate_docs MCP tool + docs/generated/MODULE_INDEX.md — пример генерации для MSCodeBase\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T21",
+      "truth": true,
+      "kind": "real",
+      "subject": "searcher",
+      "value": "ISearcher",
+      "claim": "Символ ISearcher определён в файле src/core/interfaces/searcher.py",
+      "support_patterns": [
+        "file:src/core/interfaces/searcher.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T22",
+      "truth": true,
+      "kind": "real",
+      "subject": "db_writer",
+      "value": "LanceDBWriter",
+      "claim": "Символ LanceDBWriter определён в файле src/core/indexing/db_writer.py",
+      "support_patterns": [
+        "file:src/core/indexing/db_writer.py"
+      ],
+      "valid_at_commit": "8c4596c0bf43f43ac0ce4dadcfcb4a1981469a67",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "8c4596c0bf43f43ac0ce4dadcfcb4a1981469a67",
+        "date": "2026-08-08",
+        "subject": "fix(core): audit P1s — mutex initialOwner=False, task_queue lock+cleanup, lancedb version-rollback, transformers>=5.3.0 (+4 regression tests)\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T23",
+      "truth": true,
+      "kind": "real",
+      "subject": "extension_paths",
+      "value": "get_ext_root",
+      "claim": "Символ get_ext_root определён в файле src/core/utils/extension_paths.py",
+      "support_patterns": [
+        "file:src/core/utils/extension_paths.py"
+      ],
+      "valid_at_commit": "53107339ad2d137c50754a62807e39f11ca250c8",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "53107339ad2d137c50754a62807e39f11ca250c8",
+        "date": "2026-07-22",
+        "subject": "fix: 217 ruff lint errors blocking CI + 7 manual F821/E402 fixes\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T24",
+      "truth": true,
+      "kind": "real",
+      "subject": "doc_sync_engine",
+      "value": "SyncAction",
+      "claim": "Символ SyncAction определён в файле src/core/doc_sync_engine.py",
+      "support_patterns": [
+        "file:src/core/doc_sync_engine.py"
+      ],
+      "valid_at_commit": "53107339ad2d137c50754a62807e39f11ca250c8",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "53107339ad2d137c50754a62807e39f11ca250c8",
+        "date": "2026-07-22",
+        "subject": "fix: 217 ruff lint errors blocking CI + 7 manual F821/E402 fixes\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T25",
+      "truth": true,
+      "kind": "real",
+      "subject": "file_guard",
+      "value": "FileGuard",
+      "claim": "Символ FileGuard определён в файле src/core/indexing/file_guard.py",
+      "support_patterns": [
+        "file:src/core/indexing/file_guard.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T26",
+      "truth": true,
+      "kind": "real",
+      "subject": "settings",
+      "value": "_is_llama_server_running",
+      "claim": "Символ _is_llama_server_running определён в файле src/config/settings.py",
+      "support_patterns": [
+        "file:src/config/settings.py"
+      ],
+      "valid_at_commit": "e1efe82cd7ec985effd8a10a98929df5e63d5f54",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "e1efe82cd7ec985effd8a10a98929df5e63d5f54",
+        "date": "2026-08-08",
+        "subject": "feat: WS1-WS7 — consistency, trust boundary, late enrichment, exec contract v2, security hardening\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T27",
+      "truth": true,
+      "kind": "real",
+      "subject": "graph_rag",
+      "value": "GraphRAGQueryEngine",
+      "claim": "Символ GraphRAGQueryEngine определён в файле src/core/graph_rag.py",
+      "support_patterns": [
+        "file:src/core/graph_rag.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T28",
+      "truth": true,
+      "kind": "real",
+      "subject": "meta_tools",
+      "value": "IndexTool",
+      "claim": "Символ IndexTool определён в файле src/mcp/tools/meta_tools.py",
+      "support_patterns": [
+        "file:src/mcp/tools/meta_tools.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T29",
+      "truth": true,
+      "kind": "real",
+      "subject": "log_manager",
+      "value": "get_main_log_path",
+      "claim": "Символ get_main_log_path определён в файле src/core/log_manager.py",
+      "support_patterns": [
+        "file:src/core/log_manager.py"
+      ],
+      "valid_at_commit": "63833484ea186cf912bcadbbfa671867bca07393",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "63833484ea186cf912bcadbbfa671867bca07393",
+        "date": "2026-08-13",
+        "subject": "feat(paths+llama): унификация путей хранения + ArtifactGC + фиксы llama/onnx\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T30",
+      "truth": true,
+      "kind": "real",
+      "subject": "freshness",
+      "value": "FreshnessChecker",
+      "claim": "Символ FreshnessChecker определён в файле src/core/indexing/freshness.py",
+      "support_patterns": [
+        "file:src/core/indexing/freshness.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T31",
+      "truth": true,
+      "kind": "real",
+      "subject": "ui_formatter",
+      "value": "_bar",
+      "claim": "Символ _bar определён в файле src/utils/ui_formatter.py",
+      "support_patterns": [
+        "file:src/utils/ui_formatter.py"
+      ],
+      "valid_at_commit": "01f20804bc411a02eb6082f6e3cd1a4491977c50",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "01f20804bc411a02eb6082f6e3cd1a4491977c50",
+        "date": "2026-08-14",
+        "subject": "feat(memory): аудит-ресипт — статусы+причины в include_retracted, метрики в ресипте, smoke_memory негативный контроль\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T32",
+      "truth": true,
+      "kind": "real",
+      "subject": "bm25",
+      "value": "BM25Mixin",
+      "claim": "Символ BM25Mixin определён в файле src/core/search/bm25.py",
+      "support_patterns": [
+        "file:src/core/search/bm25.py"
+      ],
+      "valid_at_commit": "d84adeec930290c6d12be887b1ce60e75130ece7",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "d84adeec930290c6d12be887b1ce60e75130ece7",
+        "date": "2026-07-18",
+        "subject": "Initial commit: restore project state\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T33",
+      "truth": true,
+      "kind": "real",
+      "subject": "codebase_tool",
+      "value": "CodebaseTool",
+      "claim": "Символ CodebaseTool определён в файле src/mcp/tools/codebase_tool.py",
+      "support_patterns": [
+        "file:src/mcp/tools/codebase_tool.py"
+      ],
+      "valid_at_commit": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "59cb04da3f6b4ae01b8f067922cd481a67b44f53",
+        "date": "2026-08-07",
+        "subject": "fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub)\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T34",
+      "truth": true,
+      "kind": "real",
+      "subject": "server_factory",
+      "value": "HeartbeatService",
+      "claim": "Символ HeartbeatService определён в файле src/mcp/server_factory.py",
+      "support_patterns": [
+        "file:src/mcp/server_factory.py"
+      ],
+      "valid_at_commit": "3c81f7807c62a8541beed9543b206cf931a864d4",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "3c81f7807c62a8541beed9543b206cf931a864d4",
+        "date": "2026-08-14",
+        "subject": "fix(win): CMD-окна при работе MCP — pythonw-лаунчер + CREATE_NO_WINDOW везде + watchdog на Zed\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T35",
+      "truth": true,
+      "kind": "real",
+      "subject": "main",
+      "value": "_start_contradiction_ledger",
+      "claim": "Символ _start_contradiction_ledger определён в файле src/main.py",
+      "support_patterns": [
+        "file:src/main.py"
+      ],
+      "valid_at_commit": "63833484ea186cf912bcadbbfa671867bca07393",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "63833484ea186cf912bcadbbfa671867bca07393",
+        "date": "2026-08-13",
+        "subject": "feat(paths+llama): унификация путей хранения + ArtifactGC + фиксы llama/onnx\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T36",
+      "truth": true,
+      "kind": "real",
+      "subject": "artifact_gc",
+      "value": "_dir_has_files",
+      "claim": "Символ _dir_has_files определён в файле src/core/artifact_gc.py",
+      "support_patterns": [
+        "file:src/core/artifact_gc.py"
+      ],
+      "valid_at_commit": "c43630d5b22a1f1224020c33b3923bf8f75f9106",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "c43630d5b22a1f1224020c33b3923bf8f75f9106",
+        "date": "2026-08-13",
+        "subject": "fix(ci): Path.walk→os.walk (py3.10/3.11) + skipif для теста гонки\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T37",
+      "truth": true,
+      "kind": "real",
+      "subject": "zed_config",
+      "value": "_atomic_write_text",
+      "claim": "Символ _atomic_write_text определён в файле src/utils/zed_config.py",
+      "support_patterns": [
+        "file:src/utils/zed_config.py"
+      ],
+      "valid_at_commit": "bb06a9b696c5a8bd6050f730df9577bdc46e65ca",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "bb06a9b696c5a8bd6050f730df9577bdc46e65ca",
+        "date": "2026-08-14",
+        "subject": "fix(install): вернуть документированную настройку MCP в settings.json (pythonw) + фикс _insert_before_final_brace\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T38",
+      "truth": true,
+      "kind": "real",
+      "subject": "base",
+      "value": "resolve_indexer_for_intel",
+      "claim": "Символ resolve_indexer_for_intel определён в файле src/mcp/tools/base.py",
+      "support_patterns": [
+        "file:src/mcp/tools/base.py"
+      ],
+      "valid_at_commit": "229c7156083cf0108fdb5fa0a1b0f92fd8518c22",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "229c7156083cf0108fdb5fa0a1b0f92fd8518c22",
+        "date": "2026-08-07",
+        "subject": "fix(multi-window): CWD-first project resolution for per-window MCP isolation\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T39",
+      "truth": true,
+      "kind": "real",
+      "subject": "project_context",
+      "value": "ProjectContextSnapshot",
+      "claim": "Символ ProjectContextSnapshot определён в файле src/core/intelligence/project_context.py",
+      "support_patterns": [
+        "file:src/core/intelligence/project_context.py"
+      ],
+      "valid_at_commit": "e83fa9240ce27820f31450e77663f80914a79d7a",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "e83fa9240ce27820f31450e77663f80914a79d7a",
+        "date": "2026-08-06",
+        "subject": "feat(lsp): deprecate LSP->MCP bridge (dead writer, remove false 'not synced' warning), expose basedpyright as 3 MCP tools (lsp_find_references/lsp_find_definition/lsp_document_symbols) + JSON-RPC write lock; counters 49->52 (23 core + 13 intel + 12 inline + 4 dev), LSP_WONTFIX re-verified on Zed 1.14.2\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T40",
+      "truth": true,
+      "kind": "real",
+      "subject": "rate_limiter",
+      "value": "SlidingWindowRateLimiter",
+      "claim": "Символ SlidingWindowRateLimiter определён в файле src/core/rate_limiter.py",
+      "support_patterns": [
+        "file:src/core/rate_limiter.py"
+      ],
+      "valid_at_commit": "5601de39055a9c4c838f516592d87c97ea65a3ba",
+      "was_true": true,
+      "evidence_git": {
+        "hash": "5601de39055a9c4c838f516592d87c97ea65a3ba",
+        "date": "2026-07-31",
+        "subject": "fix: audit P0/P1 batch — SQL injection, lock migration, LSP lifecycle, write safety\n",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T41",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "TemporalSnapshotEngine",
+      "claim": "Символ TemporalSnapshotEngine определён в файле src/core/temporalsnapshotengine.py",
+      "support_patterns": [
+        "file:src/core/temporalsnapshotengine.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T42",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "GitProvenanceIndexer",
+      "claim": "Символ GitProvenanceIndexer определён в файле src/core/gitprovenanceindexer.py",
+      "support_patterns": [
+        "file:src/core/gitprovenanceindexer.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T43",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "CommitTimelineStore",
+      "claim": "Символ CommitTimelineStore определён в файле src/core/committimelinestore.py",
+      "support_patterns": [
+        "file:src/core/committimelinestore.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T44",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "BlameVectorizer",
+      "claim": "Символ BlameVectorizer определён в файле src/core/blamevectorizer.py",
+      "support_patterns": [
+        "file:src/core/blamevectorizer.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T45",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "EpochDeltaTracker",
+      "claim": "Символ EpochDeltaTracker определён в файле src/core/epochdeltatracker.py",
+      "support_patterns": [
+        "file:src/core/epochdeltatracker.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T46",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "VersionLattice",
+      "claim": "Символ VersionLattice определён в файле src/core/versionlattice.py",
+      "support_patterns": [
+        "file:src/core/versionlattice.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T47",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "ChangeSetOracle",
+      "claim": "Символ ChangeSetOracle определён в файле src/core/changesetoracle.py",
+      "support_patterns": [
+        "file:src/core/changesetoracle.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    },
+    {
+      "id": "T48",
+      "truth": false,
+      "kind": "absent",
+      "subject": "?",
+      "value": "RetrospectiveSymbolCache",
+      "claim": "Символ RetrospectiveSymbolCache определён в файле src/core/retrospectivesymbolcache.py",
+      "support_patterns": [
+        "file:src/core/retrospectivesymbolcache.py"
+      ],
+      "valid_at_commit": null,
+      "was_true": false,
+      "evidence_git": {
+        "hash": "",
+        "date": "",
+        "subject": "",
+        "branch": "main"
+      }
+    }
+  ]
+}

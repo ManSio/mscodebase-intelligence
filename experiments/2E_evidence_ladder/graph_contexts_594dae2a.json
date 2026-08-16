@@ -1,0 +1,402 @@
+{
+  "R01": {
+    "block": "FILE: src/core/consistency.py (exists)\n  imports (6): from __future__ import annotations, import logging, import threading, import time, from enum import Enum, from typing import Dict\n  defines (3): ConsistencyState@60, ConsistencyTracker@71, get_consistency_tracker@166\n  used by (8): ConsistencyTracker.require @ src/core/consistency.py:148, get_consistency_tracker @ src/core/consistency.py:171, ProjectIntelligenceLayer.intel_get_runtime_status @ src/core/intelligence/layer.py:558, ProjectIntelligenceLayer.trigger_async_reindex @ src/core/intelligence/layer.py:686, ProjectIntelligenceLayer._run_reindex_job @ src/core/intelligence/layer.py:804",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/consistency.py"
+    ],
+    "tokens": 46
+  },
+  "R02": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/instruction_scan.py"
+    ],
+    "tokens": 30
+  },
+  "R03": {
+    "block": "FILE: src/core/intelligence/verify_on_read.py (exists)\n  imports (15): from __future__ import annotations, import hashlib, import json, import logging, import os, import re, import subprocess, import time, from datetime import datetime, from pathlib import Path\n  defines (11): _norm_pkg@99, _req_name@105, _pyproject_packages@113, _requirements_packages@164, _load_manifest_packages@177, _fingerprint_for@224, Anchor@238, extract_anchors@258, _Fingerprint@369, VerifyOnRead@430\n  used by (12): _req_name @ src/core/intelligence/verify_on_read.py:109, extract_anchors @ src/core/intelligence/verify_on_read.py:363, VerifyOnRead._check_anchor @ src/core/intelligence/verify_on_read.py:560, _pyproject_packages @ src/core/intelligence/verify_on_read.py:157, _requirements_packages @ src/core/intelligence/verify_on_read.py:170",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/intelligence/verify_on_read.py"
+    ],
+    "tokens": 61
+  },
+  "R04": {
+    "block": "FILE: src/core/artifact_paths.py (exists)\n  imports (10): from __future__ import annotations, import errno, import hashlib, import logging, import os, import shutil, from pathlib import Path, from typing import Dict, from src.core.platform_utils import is_windows, import tempfile\n  defines (25): ArtifactStorageError@85, safe_mkdir@89, check_disk_space@116, get_data_root@159, _ensure_data_root@186, project_hash@203, _compute_project_dir@219, get_project_dir@224, get_index_dir@248, get_db_path@255\n  used by (36): safe_mkdir @ src/core/artifact_paths.py:109, _ensure_data_root @ src/core/artifact_paths.py:192, get_project_dir @ src/core/artifact_paths.py:232, get_index_dir @ src/core/artifact_paths.py:250, get_intelligence_dir @ src/core/artifact_paths.py:268",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/artifact_paths.py"
+    ],
+    "tokens": 63
+  },
+  "R05": {
+    "block": "FILE: src/core/indexing/database_lock.py (exists)\n  imports (16): from __future__ import annotations, import json, import logging, import os, import sys, import time, from enum import Enum, from pathlib import Path, from typing import List, import ctypes\n  defines (5): LockHolderState@61, LockBusyError@70, ProcessInspector@78, WindowsProcessInspector@104, DatabaseLock@213\n  used by (6): DatabaseLock.acquire @ src/core/indexing/database_lock.py:358, DatabaseLock._wait_for_release @ src/core/indexing/database_lock.py:541, DatabaseLock._make_default_inspector @ src/core/indexing/database_lock.py:253, DatabaseLock._make_default_inspector @ src/core/indexing/database_lock.py:252, _get_parent_pid @ src/core/lsp_project_bridge.py:124",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/database_lock.py"
+    ],
+    "tokens": 58
+  },
+  "R06": {
+    "block": "FILE: src/core/multi_project_searcher.py (exists)\n  imports (8): import logging, import re, from pathlib import Path, from typing import Dict, import lancedb, from src.core.indexing.indexer import _generate_unique_db_path, from src.utils.i18n import _, from src.core.trust_boundary import classify\n  defines (3): parse_cross_repo_query@29, ProjectRegistry@51, MultiProjectSearcher@100\n  used by (5): MultiProjectSearcher.search @ src/core/multi_project_searcher.py:309, MultiProjectSearcher.__init__ @ src/core/multi_project_searcher.py:108, get_cross_project_deps @ src/core/search/cross_project_deps.py:930, create_service_collection @ src/core/di_container.py:208, create_service_collection @ src/core/di_container.py:212",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/multi_project_searcher.py"
+    ],
+    "tokens": 54
+  },
+  "R07": {
+    "block": "TOKEN: DISABLE_ONNX_FALLBACK — occurs in 1 files (6 matches):\n  src/providers/embedder/remote_embedder.py (6)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "DISABLE_ONNX_FALLBACK"
+    ],
+    "tokens": 11
+  },
+  "R08": {
+    "block": "TOKEN: MSCODEBASE_ALLOW_SELF_INDEX — occurs in 5 files (10 matches):\n  src/core/project_resolution.py (2)\n  src/mcp/server.py (2)\n  src/mcp/server_tools.py (2)\n  src/core/intelligence/project_context.py (2)\n  src/core/utils/self_index_guard.py (2)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "MSCODEBASE_ALLOW_SELF_INDEX"
+    ],
+    "tokens": 19
+  },
+  "R09": {
+    "block": "TOKEN: igraph — occurs in 1 files (2 matches):\n  src/core/community_detection.py (2)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "igraph"
+    ],
+    "tokens": 11
+  },
+  "R10": {
+    "block": "TOKEN: leidenalg — occurs in 1 files (2 matches):\n  src/core/community_detection.py (2)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "leidenalg"
+    ],
+    "tokens": 11
+  },
+  "R11": {
+    "block": "TOKEN: chardet — occurs in 1 files (4 matches):\n  src/mcp/tools/system_tools.py (4)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "chardet"
+    ],
+    "tokens": 11
+  },
+  "R12": {
+    "block": "TOKEN: huggingface_hub — occurs in 1 files (3 matches):\n  src/providers/reranker/llama_install.py (3)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "huggingface_hub"
+    ],
+    "tokens": 11
+  },
+  "R13": {
+    "block": "TOKEN: dotenv — occurs in 1 files (2 matches):\n  src/main.py (2)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "dotenv"
+    ],
+    "tokens": 11
+  },
+  "R14": {
+    "block": "TOKEN: onnxruntime — occurs in 4 files (5 matches):\n  src/core/auto_doc_updater.py (2)\n  src/core/doc_sync_engine.py (1)\n  src/providers/reranker/multi_provider.py (1)\n  src/core/embedder/onnx_server.py (1)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "onnxruntime"
+    ],
+    "tokens": 17
+  },
+  "R15": {
+    "block": "TOKEN: pyarrow — occurs in 6 files (9 matches):\n  src/core/indexing/indexer_table.py (3)\n  src/core/error_handler.py (2)\n  src/core/auto_doc_updater.py (1)\n  src/core/doc_sync_engine.py (1)\n  src/core/indexing/db_manager.py (1)\n  src/core/indexing/index_guard.py (1)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "pyarrow"
+    ],
+    "tokens": 21
+  },
+  "R16": {
+    "block": "SYMBOL: mcp\n  definition: class_definition @ src/mcp/tools/codebase_tool.py:30\n  (+4 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "mcp"
+    ],
+    "tokens": 9
+  },
+  "R17": {
+    "block": "SYMBOL: onnx\n  definition: function_definition @ src/providers/reranker/multi_provider.py:218\n  (+4 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "onnx"
+    ],
+    "tokens": 9
+  },
+  "R18": {
+    "block": "SYMBOL: PropertyGraph\n  definition: class_definition @ src/core/graph.py:351\n  called by:\n    Indexer.__init__ @ src/core/indexing/indexer.py:107\n    get_dead_code_sarif @ src/core/intelligence/sarif_tool.py:31\n    GraphQueryTool._execute_cypher @ src/mcp/tools/graph_tools.py:275\n    GraphQueryTool._execute_path @ src/mcp/tools/graph_tools.py:399\n    GraphQueryTool._execute_verify @ src/mcp/tools/graph_tools.py:752",
+    "evidence": "real",
+    "resolved_anchors": [
+      "PropertyGraph"
+    ],
+    "tokens": 23
+  },
+  "R19": {
+    "block": "TOKEN: FastMCP — occurs in 3 files (5 matches):\n  src/mcp/server_factory.py (3)\n  src/core/auto_doc_updater.py (1)\n  src/core/doc_sync_engine.py (1)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "FastMCP"
+    ],
+    "tokens": 15
+  },
+  "R20": {
+    "block": "SYMBOL: Indexer\n  definition: class_definition @ src/core/indexing/indexer.py:33\n  called by:\n    _create_indexer_for_path @ src/core/di_container.py:284\n    _create_indexer_for_path @ src/core/di_container.py:284\n    _create_indexer_for_path @ src/core/di_container.py:284",
+    "evidence": "real",
+    "resolved_anchors": [
+      "Indexer"
+    ],
+    "tokens": 17
+  },
+  "R21": {
+    "block": "SYMBOL: Watchdog\n  definition: class_definition @ src/core/indexing/watchdog.py:9\n  called by:\n    Indexer.__init__ @ src/core/indexing/indexer.py:77\n    Indexer.__init__ @ src/core/indexing/indexer.py:77",
+    "evidence": "real",
+    "resolved_anchors": [
+      "Watchdog"
+    ],
+    "tokens": 14
+  },
+  "R22": {
+    "block": "SYMBOL: LspClient\n  definition: class_definition @ src/core/lsp_client.py:24\n  called by:\n    create_lsp_client @ src/core/lsp_client.py:849\n    _ensure_lsp @ src/mcp/tools/lsp_tools.py:60\n    WriteTool._get_lsp_client @ src/mcp/tools/write_tools.py:671",
+    "evidence": "real",
+    "resolved_anchors": [
+      "LspClient"
+    ],
+    "tokens": 17
+  },
+  "R23": {
+    "block": "SYMBOL: ETAPredictor\n  definition: class_definition @ src/core/eta_predictor.py:42",
+    "evidence": "real",
+    "resolved_anchors": [
+      "ETAPredictor"
+    ],
+    "tokens": 6
+  },
+  "R24": {
+    "block": "SYMBOL: LanceDBWriter\n  definition: class_definition @ src/core/indexing/db_writer.py:19\n  called by:\n    Indexer.__init__ @ src/core/indexing/indexer.py:138",
+    "evidence": "real",
+    "resolved_anchors": [
+      "LanceDBWriter"
+    ],
+    "tokens": 11
+  },
+  "R25": {
+    "block": "SYMBOL: NodeLabel\n  definition: class_definition @ src/core/graph.py:193",
+    "evidence": "real",
+    "resolved_anchors": [
+      "NodeLabel"
+    ],
+    "tokens": 6
+  },
+  "R26": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "meilisearch"
+    ],
+    "tokens": 30
+  },
+  "R27": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "weaviate"
+    ],
+    "tokens": 30
+  },
+  "R28": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "vespa"
+    ],
+    "tokens": 30
+  },
+  "R29": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "weaviate"
+    ],
+    "tokens": 30
+  },
+  "R30": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "pinecone"
+    ],
+    "tokens": 30
+  },
+  "R31": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "typesense"
+    ],
+    "tokens": 30
+  },
+  "R32": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "mariadb"
+    ],
+    "tokens": 30
+  },
+  "R33": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "tantivy"
+    ],
+    "tokens": 30
+  },
+  "R34": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "mariadb"
+    ],
+    "tokens": 30
+  },
+  "R35": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "vespa"
+    ],
+    "tokens": 30
+  },
+  "R36": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "weaviate"
+    ],
+    "tokens": 30
+  },
+  "R37": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "dynamodb"
+    ],
+    "tokens": 30
+  },
+  "R38": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "tantivy"
+    ],
+    "tokens": 30
+  },
+  "R39": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "meilisearch"
+    ],
+    "tokens": 30
+  },
+  "R40": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "mariadb"
+    ],
+    "tokens": 30
+  },
+  "R41": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "vespa"
+    ],
+    "tokens": 30
+  },
+  "R42": {
+    "block": "TOKEN: dataclasses — occurs in 20 files (22 matches):\n  src/core/auto_doc_updater.py (2)\n  src/core/sandbox/executor.py (2)\n  src/config/settings.py (1)\n  src/core/autonomous_fix.py (1)\n  src/core/doc_llm_verifier.py (1)\n  src/core/doc_sync_engine.py (1)\n  src/core/eta_predictor.py (1)\n  src/core/execution_contract.py (1)\n  ... +12 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "dataclasses"
+    ],
+    "tokens": 29
+  },
+  "R43": {
+    "block": "SYMBOL: re\n  definition: class_definition @ src/core/search/cypher_ast.py:10\n  (+3 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "re"
+    ],
+    "tokens": 9
+  },
+  "R44": {
+    "block": "TOKEN: pathlib — occurs in 90 files (109 matches):\n  src/core/indexing/symbol_index.py (6)\n  src/core/auto_doc_updater.py (4)\n  src/mcp/tools/graph_tools.py (4)\n  src/core/intelligence/tools_reg.py (3)\n  src/core/doc_sync_engine.py (2)\n  src/core/git_hooks_installer.py (2)\n  src/core/notification_broker.py (2)\n  src/mcp/tools/system_tools.py (2)\n  ... +82 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "pathlib"
+    ],
+    "tokens": 29
+  },
+  "R45": {
+    "block": "SYMBOL: logging\n  definition: function_definition @ src/main.py:98\n  (+1 more definitions)",
+    "evidence": "real",
+    "resolved_anchors": [
+      "logging"
+    ],
+    "tokens": 9
+  },
+  "R46": {
+    "block": "SYMBOL: threading\n  definition: function_definition @ src/core/indexing/index_project_runner.py:567",
+    "evidence": "real",
+    "resolved_anchors": [
+      "threading"
+    ],
+    "tokens": 6
+  },
+  "R47": {
+    "block": "TOKEN: pathlib — occurs in 90 files (109 matches):\n  src/core/indexing/symbol_index.py (6)\n  src/core/auto_doc_updater.py (4)\n  src/mcp/tools/graph_tools.py (4)\n  src/core/intelligence/tools_reg.py (3)\n  src/core/doc_sync_engine.py (2)\n  src/core/git_hooks_installer.py (2)\n  src/core/notification_broker.py (2)\n  src/mcp/tools/system_tools.py (2)\n  ... +82 more files",
+    "evidence": "real",
+    "resolved_anchors": [
+      "pathlib"
+    ],
+    "tokens": 29
+  },
+  "R48": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "terraform"
+    ],
+    "tokens": 30
+  },
+  "R49": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "jaeger"
+    ],
+    "tokens": 30
+  },
+  "R50": {
+    "block": "FILE: src/core/instruction_scan.py (exists)\n  imports (4): from __future__ import annotations, import logging, import re, from typing import Dict\n  defines (2): scan_instruction_risk@80, has_instruction_risk@103\n  used by (2): has_instruction_risk @ src/core/instruction_scan.py:104, Searcher._stamp_security_metadata @ src/core/search/engine.py:1281",
+    "evidence": "decoy",
+    "resolved_anchors": [
+      "loki"
+    ],
+    "tokens": 30
+  }
+}

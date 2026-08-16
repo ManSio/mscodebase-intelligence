@@ -20,8 +20,40 @@
 - **LIVE-SMOKE (2026-08-13):** scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp / rerank BGE-M3 / векторный поиск по реальному LanceDB); §7 п.10b: для runtime-изменений ✅ = live-check, не только pytest (инцидент: 7 тестов зелёные по неверной причине)
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
+- **Evidence Ladder (2026-08-15, Exp 2-E E1-E3):** форма evidence — переменная; file_content = лучший recall (qwen 0.92), graph = закрытие present-trap ТОЛЬКО у evidence-честных моделей (qwen3.7 FA trap 1→0 ценой recall 0.92→0.76); fail-open (glm-4.7: FA trap 6/6) не лечится ни одной формой — свойство модели. VOR-конвейер: фрагмент файла для recall + графовая проверка субъекта отдельным сигналом; glm-семейство исключить
 
 ---
+
+## [2026-08-15 23:50] — Exp 2-E Evidence Ladder E1+E2+E3: форма evidence решает, но не для всех моделей (DONE)
+**Status:** ✅ Завершено (450 вызовов OpenRouter, $0.007; builder graph_context + arm graph_first + 48 тестов)
+**Root Cause:** «структурное evidence ≠ автоматически лучше»: граф закрывает present-trap (FA trap qwen3.7 1/6→0/6, FA total 0.000) ЦЕНОЙ recall (0.92→0.76); deepseek — unknown 0.66 (структура усиливает скептицизм); glm-4.7 — FA trap 6/6 (списки вхождений читаются как подтверждение, fail-open не лечится ни одной формой evidence).
+**Fix (инструментарий):** graph_context_builder.py (детерминированный резолвер якорей: FILE/SYMBOL/OCCURS-блоки + декой-политика как V4) + arm `graph_first` в run_1L_live_arm.py (--ev-contexts) + tests (48 passed, ruff clean).
+**Guard:** pre-registered интерпретации в experiments/2E_evidence_ladder/README.md §6; контроль воспроизводимости qwen3.7 file_content vs V4 подтверждён (recall 0.92/0.88, FA 0.02/0.02); R02 (fuzzy «InstructionScan») — ограничение датасета, зафиксировано.
+**Урок:** VOR = фрагмент файла (recall-движок) + граф-проверка субъекта (отдельный сигнал); fail-open модели исключить. Следующие: гибрид file+graph, E4 temporal.
+
+## [2026-08-15 23:55] — Exp 2-E E3b+E4: гибрид НЕ аддитивен; git-провенанс работает у 2/3 моделей (DONE)
+**Status:** ✅ Завершено (294 вызова, $0.007; temporal_facts_generator + temporal contexts + arm'ы file_graph_first/temporal_first, 56 тестов)
+**Root Cause:** (1) гибрид file+graph НЕ аддитивен: qwen3.7 acc 0.900 < file 0.940, FA trap вернулся (R45) — фрагмент доминирует, граф «закрывает trap» только когда фрагмента нет; (2) temporal (existence-claims, git-провенанс): deepseek/glm 48/48 (FA=0.00), qwen3.7 принял 5/12 removed (путает «existed until» с «exists», паттерна по дате/коммиту нет).
+**Fix:** temporal_facts_generator.py (git-археология, ground truth из git show C~1, N=48: 12 removed/28 real/8 absent) + build_temporal_contexts (NOT FOUND AT HEAD + git-трейл из evidence_git фактов) + arm'ы file_graph_first/temporal_first + --facts в harness.
+**Guard:** 56 тестов (валидация removed ground truth через git show C~1, absent — grep-0, детерминизм), ruff clean; pre-registered §6; кавеат: existence-claims легче usage-claims — датасеты комплементарны.
+**Урок:** VOR выбирает ОДИН формат evidence (фрагмент → recall, граф → trap-точность, гибрид = худшее из двух); git-провенанс — дешёвый мощный temporal-сигнал (2/3 моделей 100%), но не лечит qwen-семейство; выбор LLM зависит от типа claims.
+
+## [2026-08-16 00:30] — RED TEAM 2-E: 4/6 trap-фактов v4_rep истинны → выводы E3 инвертированы (DONE)
+**Status:** ✅ Завершено (атака на ground truth; corrected-матрица; pytest 1265 passed; --pin-provider в harness; отчёт + статья)
+**Root Cause:** генератор trap-фактов проверял `value != real_value` субъекта, НЕ отсутствие value у субъекта — R43/R45/R46/R47 по факту истинны (re/logging/threading/pathlib в файлах субъектов). «FA trap» = правильные вердикты моделей.
+**Fix:** corrected-лейблы (R43/45/46/47=true, R44=ambiguous); пересчитанная матрица в report.md §5; EXPERIMENTS_LOG аппендикс; статья dev.to part 3 (атака как хук).
+**Guard:** grep-валидация синтетических категорий ПО СУБЪЕКТУ; P-паттерн «метрика на mislabeled категории» (см. ниже); --pin-provider (комментарий Tom Jones) — routing-полоса закрыта дешевле K≥3.
+**Урок:** атаковать данные, не модель: один grep на файлы субъектов инвертировал headline. v4_rep НЕ правился (исторический артефакт) — corrected-логика задокументирована.
+
+## 🧬 P-00X: «Метрика на mislabeled категории выглядит как результат модели»
+**Встречается в:** #2026-08-16-00:30 (trap-факты), #2026-08-15 (V4 «остаточная дыра trap» в 1-L)
+**Root cause общий:** синтетическая категория с невалидированным по субъекту лейблом → FA/recall на ней отражают дизайн датасета, а не поведение
+**Guard:** grep-валидация лейблов по файлу субъекта перед интерпретацией FA; corrected-пересчёт при находке
+
+## 🧬 P-00Y: «Правка дневника поглощает соседний заголовок»
+**Встречается в:** #2026-08-15-23:50 (вставка записи E1-E3 поглотила заголовок аудита 23:35)
+**Root cause общий:** edit_file в markdown-дневнике с якорем на чужой заголовок; результат не перечитывался
+**Guard:** после каждого edit_file в AGENT_DIARY/KNOWN_ISSUES — перечитать зону правки до следующего действия (замечание ревьюера 2026-08-16, принято)
 
 ## [2026-08-15 23:35] — Аудит обновлений Zed 1.12–1.16: код почти не затронут, 3 точечные подстройки (DONE)
 **Status:** ✅ Fixed (3 файла: цены харнесса, guard-тест схем, AGENTS.md заметка; не закоммичено — commit/push по команде)
