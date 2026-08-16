@@ -148,7 +148,7 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 6. **Small N, wide CIs.** 6 trap facts, 12 removed facts. Headline arm rankings rest on differences of 2–3 facts out of 25.
 7. **Upstream drift across days.** Unpinned vs pinned runs happened ~12h apart; glm's routing changed (StreamLake → DeepInfra). Cross-day numbers mix backends.
 
-*Notes from the Part 1 comment section: Skillselion's manifest anchoring is implemented (closed 7 false rejections of true facts); Cophy's write-time invalidation triggers remain on our roadmap; UnitBuilds' write-time triples (A+B=C) are the write-path complement; 473185670's Resolution Loop is the mirror temporal direction. Thanks for the threads.*
+*Thanks to the Part 1 comment section: Tom Jones (provider pinning), Skillselion (manifest anchors), Cophy (invalidation triggers), Glen Allen (freshness), 473185670 (Resolution Loop), UnitBuilds (write-path triples) — each thread sharpened this series.*
 
 ## Reproduce
 
