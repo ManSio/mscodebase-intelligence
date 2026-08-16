@@ -11,7 +11,7 @@ tags: ai, agents, testing, mcp
 
 Giving an LLM real code instead of bare anchor strings jumps memory-claim verification from recall 0.08 to 0.88 (×11). The one hole left was the **present-trap**: the model sees the right token in the wrong context and says "true".
 
-This post is what happened when we tried to close that hole with structural evidence — and then **attacked our own experiment**. The attack found the dataset was lying: 4 of the 6 "false" trap facts were actually true, and correcting the labels inverted our headline conclusion. Then a temporal follow-up showed the models can't tell "was true then" from "true now" — until you phrase the question in the right tense. And a deterministic re-run (pinned providers) confirmed every conclusion survives routing.
+So we tried to close it with structural evidence — then **attacked our own experiment**. The attack found the dataset was lying: 4 of the 6 "false" trap facts were actually true. Correcting the labels inverted every conclusion. Then a temporal follow-up showed the models can't tell "was true then" from "true now" — until you phrase the question in the right tense. And a provider-pinned re-run confirmed it all survives routing. (~1900 calls, < $0.10.)
 
 ## The Evidence Ladder
 
@@ -105,9 +105,9 @@ PAST ("X WAS defined in F"):  all three 40/40
 
 Part 2's known weakness: temp=0 + seed=42 on OpenRouter is not determinism — ≥8 upstream backends. Tom Jones' comment suggested `provider.order` with `allow_fallbacks: false`, which pins the endpoint — cheaper than K≥3 repeats.
 
-We probed it: **StreamLake — the most-used upstream for glm in our server CSV (245 calls) — returns unreadable responses when pinned.** Cloudflare/DeepInfra are stable. The full pinned re-run (qwen→Alibaba, deepseek/glm→DeepInfra, ~$0.02) reproduced every conclusion: per-model arm rankings, temporal present-trap (12/12, 9/12, 12/12), past-tense fix (40/40), and FA absent/silent = 0 across evidence arms. One caveat: glm stays non-deterministic even pinned (FA 0.06 → 0.02 → 0.02 across runs) — pinning removes routing, not model variance.
+We probed it: **StreamLake — the most-used upstream for glm in our server CSV (245 calls) — returns 404 "No endpoints found" when pinned: it no longer serves this model at all.** Cloudflare/DeepInfra are stable. The full pinned re-run (qwen→Alibaba, deepseek/glm→DeepInfra, ~$0.02) reproduced every conclusion: per-model arm rankings, temporal present-trap (12/12, 9/12, 12/12), past-tense fix (40/40), and FA absent/silent = 0 across evidence arms. One caveat: glm stays non-deterministic even pinned (FA 0.06 → 0.02 → 0.02 across runs) — part of that is model variance, but part is **upstream drift**: unpinned glm now routes to DeepInfra (not StreamLake), so cross-day comparisons mix changing backends. Pinning removes routing variance at a point in time, not model or availability drift over time.
 
-*Reproduction note: if you reproduce pinned runs, avoid StreamLake — it was the top unpinned provider for glm but didn't respond when pinned. Pinning to a provider that serves you well unpinned is not guaranteed to work; probe before committing to a long run.*
+*Reproduction note: if you reproduce pinned runs, avoid StreamLake — it was the top unpinned provider for glm in our server CSV but returns 404 when pinned (no endpoint for the model; upstream availability drifts). Pinning to a provider that serves you well unpinned is not guaranteed to work; probe before committing to a long run.*
 
 ## What this means for verify-on-read
 
@@ -122,6 +122,16 @@ We probed it: **StreamLake — the most-used upstream for glm in our server CSV 
 The most dangerous assumption in LLM evaluation isn't the model — it's the dataset. We spent ~$0.10 and ~1900 calls to learn that 4 of 6 "false" facts were true. Before you trust any LLM benchmark, ask: **who labeled the ground truth, and did they verify it per-example or per-category?** We didn't — we validated the trap category against the *project*, not the *subject*. One grep on subject files inverted every conclusion.
 
 > **Synthetic categories must be validated *per subject*, not per project.** A value that exists anywhere in the repo is not evidence that the *subject* of the claim uses it. Check the subject's file.
+
+## Known weaknesses (post-red-team)
+
+1. **Fact order matters (measured).** Facts are stored block-ordered (R01–R25 true, R26–R50 false). A shuffled control run (qwen code_first, seed 123) changed 4/50 verdicts vs the original order — no systematic direction, but ~8% sensitivity to order. Shuffle-seed in future runs.
+2. **FA-trap statistics rest on one fact.** After relabeling, only R42 is genuinely false in the trap category — "FA trap" is a 0-or-1 measurement, not a rate. Treat it as a flag, not a metric.
+3. **Language confound (unchecked).** Claims are Russian, instructions English. Part 2 showed prompt language shifts unknown rates (deepseek 0.94→0.54). A Russian-instruction control was not run for this series.
+4. **Decoy frequency.** 19 facts share the same control symbol block; models could pattern-match repetition. Not controlled.
+5. **Temporal claims are existence claims.** Easier than usage claims (v4_rep); the two datasets are complementary, not interchangeable.
+6. **Small N, wide CIs.** 6 trap facts, 12 removed facts. Headline arm rankings rest on differences of 2–3 facts out of 25.
+7. **Upstream drift across days.** Unpinned vs pinned runs happened ~12h apart; glm's routing changed (StreamLake → DeepInfra). Cross-day numbers mix backends.
 
 ## Reproduce
 

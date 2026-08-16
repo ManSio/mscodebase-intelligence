@@ -1435,3 +1435,21 @@ FA absent/silent: 0 во всех pinned-ячейках
 ```
 **Вердикт:** (1) **Routing-полоса убрана, но per-model выводы серии НЕ изменились**: file_content — лучший recall у qwen (0.88), graph — лучший у glm (0.84, FA trap 1), hybrid — лучший у deepseek (0.92); temporal present-trap универсален (NOW 12/12, 9/12, 12/12), past решается формулировкой (40/40). (2) glm остаётся недетерминированной ДАЖЕ pinned (e3_g: unpin 6FA → pin-force1 2FA → pin-force2 1FA): пининг убрал маршрутизацию, не вариацию модели (±0.02-0.04 FA). (3) FA absent/silent = 0 у всех pinned evidence-армов — corrected-картина 1-L (trap miss_true 4/5 у fail-closed) — главный результат, не зависящий от маршрутизации.
 **Урок:** pinned-rerun подтвердил устойчивость всех выводов серии к маршрутизации; glm-недетерминизм — свойство модели (даже single-backend); StreamLake (топ-1 unpinned у glm) pinned не отдаёт JSON — объём ≠ качество.
+
+## [2026-08-16] — RED TEAM раунд 3 (аудит «проведён ли эксперимент правильно»): shuffle влияет (4/50), StreamLake = 404 no endpoint (не «битые ответы»), FA trap = N=1
+
+**Команды:**
+```
+python scripts/run_1L_live_arm.py ... --arm code_first --facts corrected --models qwen3.7 --pin-provider Alibaba --shuffle-seed 123 --tag 2e_shuf
+# StreamLake probe: httpx POST glm-4.7-flash, provider.order=[StreamLake]
+```
+**Сырой результат:**
+```
+shuffle: qwen code_first shuffled vs original — 4/50 расхождений (R45/R02/R43/R06), без систематического
+         направления — порядок фактов влияет ~8% (блочный порядок R01-25=true, R26-50=false НЕ выверен)
+StreamLake pinned: status=404 {"error":{"message":"No endpoints found for z-ai/glm-4.7-flash."}}
+unpinned glm сейчас: provider=DeepInfra (15-го в CSV было StreamLake 245 вызовов) → маршрутизация ДРЕЙФУЕТ
+z-ai/glm-4.7-flash: endpoints-поле в /api/v1/models отсутствует — проверить провайдеров через API нельзя
+```
+**Вердикт (честный аудит, ответ на «уверен ли что эксперимент правильный»):** НЕ полностью. (1) **Shuffle-контроль опроверг «порядок не угроза»**: 4/50 вердиктов чувствительны к порядку (8%). (2) **StreamLake-вывод был неточен**: не «unreadable responses», а 404 — StreamLake не держит glm-4.7-flash; unpinned-маршрутизация дрейфует по времени (StreamLake→DeepInfra) — источник части «недетерминизма» glm между разновременными прогонами. Формулировки исправлены в статье. (3) **FA trap держится на 1 факте (R42)** — статистически хрупко, зафиксировано. (4) Языковой конфаунд (RU claims/EN инструкции) — не проверен. Главные выводы серии (evidence-формат per-model, temporal present-trap, corrected-лейблы) от этих дыр не зависят, но статья дополнена Known weaknesses (7 пунктов).
+**Урок:** «порядок не угроза» и «провайдер битый» — оба были непроверенными утверждениями; shuffle-контроль и сырой 404 — стоили копейки. Проверять, а не декларировать (P-паттерн: «непроверенное допущение в отчёте»).
