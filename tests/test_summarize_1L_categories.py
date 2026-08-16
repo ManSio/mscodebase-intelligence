@@ -20,12 +20,41 @@ _spec.loader.exec_module(_mod)  # noqa: E402
 
 
 def _kind_by_id():
-    kind_by_id, _ = _mod._load_facts()
+    kind_by_id, _, _ = _mod._load_facts()
     return kind_by_id
+
+
+def _truth_by_id():
+    _, truth_by_id, _ = _mod._load_facts(
+        ROOT / "experiments" / "1V_memory_contamination"
+             / "memory_contamination_facts_v4_rep_corrected.json")
+    return truth_by_id
 
 
 def _res(ids: list, verdict: str):
     return [{"id": i, "truth": True, "verdict": verdict, "error": ""} for i in ids]
+
+
+def test_breakdown_corrected_truth_based():
+    """Corrected-пересчёт (RED TEAM): verdict из progress + truth из corrected-датасета.
+
+    R45/R46 в corrected — true (value импортирован+использован у субъекта): вердикт true
+    у них — acc_true, а НЕ FA; R42 — настоящий FA; R44 (ambiguous) — исключён из счёта.
+    """
+    truth = _truth_by_id()
+    assert truth["R45"] is True and truth["R46"] is True, "corrected-датасет не загружен"
+    k, _, _ = _mod._load_facts()
+    results = [
+        {"id": "R45", "truth": False, "verdict": "true", "error": ""},   # в progress — старый truth
+        {"id": "R42", "truth": False, "verdict": "true", "error": ""},   # настоящий FA
+        {"id": "R44", "truth": False, "verdict": "unknown", "error": ""},  # ambiguous
+        {"id": "R01", "truth": True, "verdict": "true", "error": ""},
+    ]
+    b = _mod._breakdown_corrected(results, k, truth)
+    assert b["trap"]["acc_true"] == 1, "R45 (corrected true) должен быть acc_true, не FA"
+    assert b["trap"]["fa"] == 1, "R42 — единственный настоящий trap-FA"
+    assert b["trap"]["n"] == 3
+    assert b["real"]["acc_true"] == 1
 
 
 def test_breakdown_real_counts():
@@ -114,7 +143,7 @@ def _write_progress(tmp_path: Path, n: int = 50) -> Path:
 def test_summarize_file_short_warns(tmp_path):
     """Неполные данные (n<50) видны в выводе, а не маскируются."""
     fp = _write_progress(tmp_path, n=25)
-    k, _ = _mod._load_facts()
+    k, _, _ = _mod._load_facts()
     s = _mod._summarize_file(fp, k)
     arm = s["arms"]["code_first"]
     assert arm["n"] == 25
@@ -124,7 +153,7 @@ def test_summarize_file_short_warns(tmp_path):
 def test_summarize_file_counts_real_recall(tmp_path):
     """real-метрики считаются от 25 real, а не от общего n."""
     fp = _write_progress(tmp_path, n=50)
-    k, _ = _mod._load_facts()
+    k, _, _ = _mod._load_facts()
     s = _mod._summarize_file(fp, k)
     arm = s["arms"]["code_first"]
     # real: нечётные R (13 шт) → true; чётные → unknown. recall = 13/25.
@@ -133,9 +162,9 @@ def test_summarize_file_counts_real_recall(tmp_path):
     assert arm["fa"]["absent"] == 0 and arm["fa"]["trap"] == 0 and arm["fa"]["silent"] == 0
 
 
-def test_main_tag_filter_exact_not_substring(tmp_path, capsys, monkeypatch):
+def test_main_tag_filter_exact_not_substring(tmp_path, monkeypatch, capsys):
     """--tag v3_cot не должен захватывать v3_cot_run2 (точный фильтр по config.tag)."""
-    k, _ = _mod._load_facts()
+    k, _, _ = _mod._load_facts()
     results = []
     for i in range(1, 51):
         vid = f"R{i:02d}"
