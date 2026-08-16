@@ -1,8 +1,15 @@
+---
+title: "We Attacked Our Own LLM Memory-Verification Experiment. The Dataset Was Lying."
+published: false
+description: "We red-teamed our own memory-verification experiment: 4 of 6 'false' trap facts were true, the conclusions inverted, and the real fix for temporal claims was a verb tense."
+tags: ai, agents, testing, mcp
+---
+
 # We Attacked Our Own LLM Memory-Verification Experiment. The Dataset Was Lying.
 
 *Part 3 of the memory-verification series. Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · Part 2: [Your memory layer is lying to you (and your LLM agrees)](https://dev.to/mansio/your-memory-layer-is-lying-to-you-and-your-llm-agrees-1oia)*
 
-In Part 2 we showed that giving an LLM 25 lines of real code instead of bare anchor strings jumps recall from 0.08 to 0.88 (×11). The one remaining hole was the **present-trap**: the model sees the right token in the wrong context and says "true".
+Giving an LLM real code instead of bare anchor strings jumps memory-claim verification from recall 0.08 to 0.88 (×11). The one hole left was the **present-trap**: the model sees the right token in the wrong context and says "true".
 
 This post is what happened when we tried to close that hole with structural evidence — and then **attacked our own experiment**. The attack found the dataset was lying: 4 of the 6 "false" trap facts were actually true, and correcting the labels inverted our headline conclusion. Then a temporal follow-up showed the models can't tell "was true then" from "true now" — until you phrase the question in the right tense. And a deterministic re-run (pinned providers) confirmed every conclusion survives routing.
 
@@ -49,6 +56,8 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 
 **4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. The models that "false-accepted" them were right; the ground truth was wrong. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
 
+*Honest gap: we corrected the **labels**, not the generator that produced them. The v4 generator still checks `value != real_value` instead of subject-scoped absence — the corrected dataset is a re-label, and our process rule (P-00X) now requires subject-file grep validation for any synthetic category.*
+
 ### Corrected matrix, pinned re-run (routing eliminated)
 
 | arm | qwen rec/FA-tr/miss | deepseek rec/FA-tr/miss | glm rec/FA-tr/miss |
@@ -57,7 +66,9 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 | graph_first | 0.72/0/**4** | 0.48/0/2 | **0.84**/1/**0** |
 | file_graph | 0.84/0/3 | **0.92**/1/2 | 0.80/2/1 |
 
-FA trap counts only R42 (the one genuinely false trap claim). **Inverted conclusions:**
+Columns: **recall** — true claims correctly accepted / 25 real; **FA-trap** — false accepts on the trap category (only R42 is genuinely false after relabeling); **miss_true** — true trap claims wrongly rejected (hidden recall loss, invisible under the old labels).
+
+FA trap counts only R42 (the one genuinely false trap claim). For context, Part 2's headline conclusions were: graph evidence closes the present-trap; qwen3.7 is the safe choice (FA 0.00 zero-shot, recall 0.88 with file content); glm-4.7 is dangerously fail-open (FA 0.24 zero-shot). **Inverted conclusions:**
 
 1. **"Graph closes the present-trap" is an artifact.** qwen's graph arm didn't filter false claims — it rejected all four *true* trap claims (miss_true 4/5, hidden recall loss invisible under the old labels).
 2. **glm-4.7, which Part 2 told us to exclude as fail-open, is the best structural verifier in the series**: recall 0.84, FA trap 1, **miss_true 0** on graph evidence.
@@ -72,6 +83,8 @@ We taught the summary tool to recompute metrics from old progress files + correc
 - Real fail-open is absent/silent: glm code_first 7+2.
 
 ## Temporal: "was true then" vs "true now"
+
+The present-trap wasn't only about wrong labels. Digging deeper exposed a harder problem: **models cannot distinguish "X exists now" from "X existed then"** — unless the question itself carries the tense.
 
 We built a temporal dataset from git archaeology (48 facts: 12 symbols removed after commit C / 28 current / 8 never-existed, ground truth from `git show C~1`).
 
@@ -104,10 +117,16 @@ We probed it: **StreamLake — the most-used upstream for glm in our server CSV 
 4. **Temporal questions must be phrased in time.** "Is X defined in F?" with history in evidence fails universally (12/12, 9/12, 12/12); "Was X defined in F?" succeeds (40/40). For existence checks: HEAD-only evidence, or explicit tense.
 5. **Pin providers in production runs.** Cheaper than repeats, and it protects against "popular but broken" upstreams (StreamLake).
 
+## The meta-lesson
+
+The most dangerous assumption in LLM evaluation isn't the model — it's the dataset. We spent ~$0.10 and ~1900 calls to learn that 4 of 6 "false" facts were true. Before you trust any LLM benchmark, ask: **who labeled the ground truth, and did they verify it per-example or per-category?** We didn't — we validated the trap category against the *project*, not the *subject*. One grep on subject files inverted every conclusion.
+
+> **Synthetic categories must be validated *per subject*, not per project.** A value that exists anywhere in the repo is not evidence that the *subject* of the claim uses it. Check the subject's file.
+
 ## Reproduce
 
 Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_blind_first / temporal_duo_first; `--facts`, `--ev-contexts`, `--pin-provider`). Summaries: `scripts/summarize_1L_categories.py --facts <corrected.json>` (truth-based re-score of old runs). Full report with raw outputs and the red-team audit: `experiments/2E_evidence_ladder/report.md`. Tests: 64 for harness/builder/generator/summarize, 1265 total.
 
-Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1800 across the series · est. cost: < $0.10.
+Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1900 across the series · est. cost: < $0.10.
 
 *Also responding to the comment section of Part 1: Skillselion's manifest anchoring (closed-world `pkg:` anchors) and Cophy's write-time invalidation triggers remain on our roadmap; UnitBuilds' write-time triple validation (A+B=C) is the write-path complement to our read-path verification — the temporal experiments here show the read-path boundary: even with perfect provenance, the active agent's context window cannot be the source of truth, and neither can a tense-ambiguous claim.*
