@@ -69,9 +69,11 @@ jobs:
       # Grader mutation probe (evalmut-перенос, 2026-08-14): мутационный аудит
       # validate_scores/parse_scores_json — страж контракта градера. Дыра =
       # (вывод доказанно неверен AND градер пропустил); скрипт выходит с
-      # кодом 1 при любом открытом blind spot (experiments/probe_evalmut_transfer.py).
+      # кодом 1 при любом открытом blind spot (experiments/evalmut/probe_evalmut_transfer.py).
+      # Путь обновлён после рефактора per-experiment folders (29e1365e) — старый
+      # путь ломал шаг на всех платформах (файл не найден, 2026-08-16).
       - name: Grader mutation probe (evalmut guard)
-        run: python experiments/probe_evalmut_transfer.py
+        run: python experiments/evalmut/probe_evalmut_transfer.py
         timeout-minutes: 2
 
   clean-state:
