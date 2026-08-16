@@ -825,6 +825,7 @@ def _new_report(args, base_url: str, model: str, facts: list, fingerprint: str) 
             "prompt_version": args.prompt_version,
             "prompt_lang": args.prompt_lang,
             "evidence_mode": evidence_mode,
+            "pin_provider": args.pin_provider,
             "tag": args.tag,
             "arms": arms,
             "facts_source": str(FACTS.name),

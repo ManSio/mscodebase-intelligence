@@ -614,7 +614,7 @@
     },
     {
       "id": "R44",
-      "truth": false,
+      "truth": null,
       "section": "tech_debt",
       "kind": "mutation_present",
       "subject": "multi_project",
@@ -626,7 +626,7 @@
       "contra_patterns": [
         "file:src/core/multi_project_searcher.py"
       ],
-      "label_note": "RED TEAM 2026-08-16: AMBIGUOUS — value импортирован, но не используется (Path без Path()); исключён из corrected-пулов"
+      "label_note": "RED TEAM 2026-08-16: AMBIGUOUS — value импортирован, но не используется (Path без Path()); truth=None — исключён из corrected-пулов"
     },
     {
       "id": "R45",

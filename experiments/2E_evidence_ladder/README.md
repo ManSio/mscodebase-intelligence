@@ -175,5 +175,5 @@ InstructionScan), evidence:"decoy" в метаданных — та же пол�
 3. glm: ни одна форма evidence не лечит fail-open (FA trap 6/6) — свойство модели, не evidence.
 4. **E3b (гибрид file+graph) — НЕ аддитивен:** qwen3.7 FA trap вернулся (R45), acc 0.900 < file 0.940; deepseek FA 0.08 > graph 0.04. Фрагмент доминирует — VOR выбирает ОДИН формат.
 5. **E4+E4b+E4c (temporal):** blind 48/48 без git; duo NOW — removed FA qwen/glm 12/12, deepseek 9/12 (temporal present-trap универсален); duo PAST — 48/48 (формулировка claim решает). Git-провенанс для existence-claims опровергнут; evidence = HEAD без истории.
-6. Следующий arm: — серия 2-E завершена (E1-E4).
+6. **Pinned-rerun (fp e6ce7b902d0a20a9):** выводы устойчивы к маршрутизации (qwen→file, glm→graph, deepseek→hybrid); glm недетерминирована даже pinned; StreamLake (топ-1 unpinned у glm) pinned не отвечает. Канонические числа — report.md §2.4.
 7. Данные: progress-файлы `live_arm_1L_progress_2e_e{1..5}_*.json` (вне проекта).
