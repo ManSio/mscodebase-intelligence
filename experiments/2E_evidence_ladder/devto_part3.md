@@ -5,7 +5,7 @@ description: "We red-teamed our own memory-verification experiment: 4 of 6 'fals
 tags: ai, agents, testing, mcp
 ---
 
-# We Attacked Our Own LLM Memory-Verification Experiment. The Dataset Was Lying.
+## We Attacked Our Own LLM Memory-Verification Experiment. The Dataset Was Lying.
 
 *Part 3 of the memory-verification series. Part 1: [The Mechanical vs. The Semantic: What Happens When AI Memory is Wrong?](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · Part 2: [Your memory layer is lying to you (and your LLM agrees)](https://dev.to/mansio/your-memory-layer-is-lying-to-you-and-your-llm-agrees-1oia)*
 
