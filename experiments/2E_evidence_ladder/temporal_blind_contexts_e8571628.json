@@ -1,0 +1,386 @@
+{
+  "T01": {
+    "block": "SYMBOL: get_last_progress — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:src/core/progress_state.py"
+    ],
+    "tokens": 7
+  },
+  "T02": {
+    "block": "SYMBOL: main — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:do_test.py"
+    ],
+    "tokens": 7
+  },
+  "T03": {
+    "block": "SYMBOL: main — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:execute_test.py"
+    ],
+    "tokens": 7
+  },
+  "T04": {
+    "block": "SYMBOL: CompositionAdapter — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:src/core/search/composition_adapter.py"
+    ],
+    "tokens": 7
+  },
+  "T05": {
+    "block": "SYMBOL: GraphRAGAdapter — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:src/core/search/graph_rag_adapter.py"
+    ],
+    "tokens": 7
+  },
+  "T06": {
+    "block": "SYMBOL: _find_model — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:src/core/onnx_server.py"
+    ],
+    "tokens": 7
+  },
+  "T07": {
+    "block": "SYMBOL: chunk_text — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:sandbox/chunk_hash_exp/benchmark_chunk_cache.py"
+    ],
+    "tokens": 7
+  },
+  "T08": {
+    "block": "SYMBOL: chunk_hash — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:sandbox/chunk_hash_exp/mock_indexer.py"
+    ],
+    "tokens": 7
+  },
+  "T09": {
+    "block": "SYMBOL: get_ext_root — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:MSCodeBase/src/core/utils/extension_paths.py"
+    ],
+    "tokens": 7
+  },
+  "T10": {
+    "block": "SYMBOL: _is_self_index_path — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:MSCodeBase/src/core/utils/self_index_guard.py"
+    ],
+    "tokens": 7
+  },
+  "T11": {
+    "block": "SYMBOL: ExceptionSanitizer — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:scripts/ast_sanitize.py"
+    ],
+    "tokens": 7
+  },
+  "T12": {
+    "block": "SYMBOL: mean_pool — NOT FOUND AT HEAD",
+    "evidence": "removed",
+    "resolved_anchors": [
+      "file:scripts/comprehensive_benchmark.py"
+    ],
+    "tokens": 7
+  },
+  "T13": {
+    "block": "FILE: src/core/indexing/index_parser.py (exists)\n  imports (6): from __future__ import annotations, import hashlib, import logging, from pathlib import Path, from typing import Any, from src.core.code_health import score_file\n  defines (2): _has_code_lines@31, IndexParser@46\n  used by (2): IndexParser.parse_file @ src/core/indexing/index_parser.py:141, Indexer.__init__ @ src/core/indexing/indexer.py:65",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/index_parser.py"
+    ],
+    "tokens": 38
+  },
+  "T14": {
+    "block": "FILE: src/providers/reranker/llama_runner.py (exists)\n  imports (21): from __future__ import annotations, import asyncio, import ctypes, import logging, import os, import subprocess, import sys, import tempfile, import threading, import time\n  defines (6): _popen_with_job@101, _InterProcessLock@170, _acquire_llama_lock@309, LlamaRunner@314, get_global_runner@1590, reset_global_runner@1608\n  used by (12): LlamaRunner.start @ src/providers/reranker/llama_runner.py:884, LlamaRunner._spawn_embedder @ src/providers/reranker/llama_runner.py:1023, LlamaRunner._spawn_reranker @ src/providers/reranker/llama_runner.py:1121, _acquire_llama_lock @ src/providers/reranker/llama_runner.py:305, LlamaRunner._start_sync @ src/providers/reranker/llama_runner.py:967",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/providers/reranker/llama_runner.py"
+    ],
+    "tokens": 53
+  },
+  "T15": {
+    "block": "FILE: src/core/auto_doc_updater.py (exists)\n  imports (10): from __future__ import annotations, import logging, import os, import re, from dataclasses import dataclass, from datetime import datetime, from pathlib import Path, from typing import Dict, from src.core.doc_generator import DocGenerator, import re\n  defines (2): BrokenRef@32, AutoDocUpdater@40\n  used by (4): AutoDocUpdater._verify_doc_references @ src/core/auto_doc_updater.py:709, _update_docs_if_stale @ src/core/task_queue.py:382, ProjectIntelligenceLayer._run_reindex_job @ src/core/intelligence/layer.py:781, auto_update_docs @ src/mcp/tools/dev_tools.py:108",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/auto_doc_updater.py"
+    ],
+    "tokens": 56
+  },
+  "T16": {
+    "block": "FILE: src/core/error_handler.py (exists)\n  imports (20): from __future__ import annotations, import asyncio, import atexit, import collections, import concurrent.futures, import functools, import inspect, import json, import logging, import os\n  defines (22): set_metrics_path@80, load_metrics@96, save_metrics@147, record_tool_call@170, record_tool_result@298, _percentile@337, get_global_idle_metrics@349, get_execution_timeline@366, get_tool_metrics@372, get_tool_metrics_summary@378\n  used by (11): create_mcp_server @ src/mcp/server_factory.py:245, set_metrics_path @ src/core/error_handler.py:85, record_tool_call @ src/core/error_handler.py:274, sync_wrapper @ src/core/error_handler.py:670, async_wrapper @ src/core/error_handler.py:605",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/error_handler.py"
+    ],
+    "tokens": 57
+  },
+  "T17": {
+    "block": "FILE: src/core/indexing/symbol_index.py (exists)\n  imports (12): import logging, import os, import re, import threading, from pathlib import Path, from typing import Dict, from pathlib import Path, from pathlib import Path, from pathlib import Path, from pathlib import Path\n  defines (2): SymbolRef@23, SymbolIndex@52\n  used by (10): SymbolIndex.add_definitions @ src/core/indexing/symbol_index.py:95, SymbolIndex.add_references @ src/core/indexing/symbol_index.py:159, SymbolIndexAdapter._hybrid_add_definitions @ src/core/search/graph_adapter.py:102, SymbolIndexAdapter._hybrid_add_references @ src/core/search/graph_adapter.py:264, SymbolIndexAdapter.search_symbols @ src/core/search/graph_adapter.py:497",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/symbol_index.py"
+    ],
+    "tokens": 59
+  },
+  "T18": {
+    "block": "FILE: src/core/system_artifacts.py (exists)\n  imports (4): from __future__ import annotations, import logging, from pathlib import Path, from typing import Set\n  defines (1): SystemArtifacts@108",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/system_artifacts.py"
+    ],
+    "tokens": 22
+  },
+  "T19": {
+    "block": "FILE: src/core/search/graph_adapter_pure.py (exists)\n  imports (5): from __future__ import annotations, from pathlib import Path, from typing import Dict, from src.core.graph import EdgeType, from src.core.indexing.symbol_index import SymbolRef\n  defines (1): PureGraphMixin@24",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/search/graph_adapter_pure.py"
+    ],
+    "tokens": 28
+  },
+  "T20": {
+    "block": "FILE: src/core/doc_generator.py (exists)\n  imports (5): import logging, from pathlib import Path, from typing import Dict, from collections import defaultdict, from src.core.indexing.parser import CodeParser\n  defines (1): DocGenerator@21\n  used by (2): generate_docs @ src/mcp/tools/dev_tools.py:35, AutoDocUpdater._update_generated_docs @ src/core/auto_doc_updater.py:214",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/doc_generator.py"
+    ],
+    "tokens": 35
+  },
+  "T21": {
+    "block": "FILE: src/core/interfaces/searcher.py (exists)\n  imports (2): from abc import ABC, from typing import Any\n  defines (1): ISearcher@9",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/interfaces/searcher.py"
+    ],
+    "tokens": 16
+  },
+  "T22": {
+    "block": "FILE: src/core/indexing/db_writer.py (exists)\n  imports (5): from __future__ import annotations, import hashlib, import logging, from datetime import datetime, from typing import Any\n  defines (1): LanceDBWriter@20\n  used by (1): Indexer.__init__ @ src/core/indexing/indexer.py:138",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/db_writer.py"
+    ],
+    "tokens": 30
+  },
+  "T23": {
+    "block": "FILE: src/core/utils/extension_paths.py (exists)\n  imports (3): from pathlib import Path, from typing import Optional, import importlib\n  defines (2): get_ext_root@12, set_ext_root@27\n  used by (1): ProjectContext._capture_runtime @ src/core/intelligence/project_context.py:246",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/utils/extension_paths.py"
+    ],
+    "tokens": 25
+  },
+  "T24": {
+    "block": "FILE: src/core/doc_sync_engine.py (exists)\n  imports (7): from __future__ import annotations, import logging, import re, from dataclasses import dataclass, from datetime import datetime, from pathlib import Path, from typing import Dict\n  defines (3): SyncAction@35, SyncReport@47, DocSyncEngine@57\n  used by (5): DocSyncEngine.apply_rename @ src/core/doc_sync_engine.py:134, DocSyncEngine.sync_all @ src/core/doc_sync_engine.py:183, DocSyncEngine.apply_rename @ src/core/doc_sync_engine.py:101, DocSyncEngine.sync_all @ src/core/doc_sync_engine.py:153, WriteTool._apply_fallback_rename @ src/mcp/tools/write_tools.py:833",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/doc_sync_engine.py"
+    ],
+    "tokens": 52
+  },
+  "T25": {
+    "block": "FILE: src/core/indexing/file_guard.py (exists)\n  imports (10): import logging, import os, import time, from pathlib import Path, from typing import Set, from src.config.settings import get_config, from src.core.extensions import INDEX_EXTENSIONS, from src.core.system_artifacts import SystemArtifacts, from src.core.gitignore_parser import load_gitignore_patterns, from src.core.gitignore_parser import is_file_excluded_by_gitignore\n  defines (1): FileGuard@26\n  used by (3): ProjectIntelligenceLayer._run_reindex_job @ src/core/intelligence/layer.py:716, ScanChangesTool._run_scan_sync @ src/mcp/tools/analysis_tools.py:267, _create_indexer_for_path @ src/core/di_container.py:279",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/file_guard.py"
+    ],
+    "tokens": 54
+  },
+  "T26": {
+    "block": "FILE: src/config/settings.py (exists)\n  imports (5): import os, from dataclasses import dataclass, from typing import List, import socket, import warnings\n  defines (17): _is_llama_server_running@29, EmbeddingConfig@41, ServerConfig@110, SearchConfig@126, IndexConfig@168, _parse_extensions@189, PerformanceConfig@211, SecurityConfig@279, Config@299, reload_config@317",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/config/settings.py"
+    ],
+    "tokens": 31
+  },
+  "T27": {
+    "block": "FILE: src/core/graph_rag.py (exists)\n  imports (3): import logging, from pathlib import Path, from typing import Dict\n  defines (2): GraphRAGQueryEngine@22, get_query_engine@234\n  used by (2): get_query_engine @ src/core/graph_rag.py:235, GraphQueryTool._execute_query @ src/mcp/tools/graph_tools.py:187",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/graph_rag.py"
+    ],
+    "tokens": 28
+  },
+  "T28": {
+    "block": "FILE: src/mcp/tools/meta_tools.py (exists)\n  imports (24): from __future__ import annotations, import logging, from typing import Any, from src.core.di_container import ServiceCollection, from src.core.error_handler import error_boundary, from src.mcp.tools.base import MCPTool, from src.mcp.tools.indexing_tools import NotifyChangeTool, from src.mcp.tools.indexing_tools import IndexProjectDirTool, from src.mcp.tools.system_tools import GetIndexStatusTool, from src.mcp.tools.system_tools import GetIndexProgressTool\n  defines (3): IndexTool@22, GitTool@142, SystemTool@225\n  used by (1): CodebaseTool._action_system @ src/mcp/tools/codebase_tool.py:231",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/mcp/tools/meta_tools.py"
+    ],
+    "tokens": 54
+  },
+  "T29": {
+    "block": "FILE: src/core/log_manager.py (exists)\n  imports (10): import logging, import time, from logging.handlers import RotatingFileHandler, from pathlib import Path, from typing import Optional, from src.core.artifact_paths import get_logs_dir, from src.core.artifact_paths import get_logs_dir, from src.utils.i18n import _, from src.core.platform_utils import get_extension_dir, from src.core.artifact_paths import get_logs_dir\n  defines (9): get_main_log_path@37, get_log_dir@51, setup_project_logging@62, _migrate_logs_from_ext@142, _cleanup_old_logs@173, _cleanup_stale_project_logs@192, get_recent_errors@238, get_log_summary@283, _parse_log_line@307\n  used by (12): get_job_status @ src/core/intelligence/tools_reg.py:311, setup_project_logging @ src/core/log_manager.py:89, get_recent_errors @ src/core/log_manager.py:247, HealthReport._check_logs @ src/core/intelligence/health.py:220, create_mcp_server @ src/mcp/server_factory.py:226",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/log_manager.py"
+    ],
+    "tokens": 70
+  },
+  "T30": {
+    "block": "FILE: src/core/indexing/freshness.py (exists)\n  imports (5): from __future__ import annotations, import logging, import os, from pathlib import Path, from typing import Callable\n  defines (1): FreshnessChecker@15\n  used by (1): Indexer.__init__ @ src/core/indexing/indexer.py:157",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/indexing/freshness.py"
+    ],
+    "tokens": 30
+  },
+  "T31": {
+    "block": "FILE: src/utils/ui_formatter.py (exists)\n  imports (2): from typing import Any, from src.utils.i18n import _\n  defines (17): _bar@12, _val@18, _status_icon@24, header@28, section@33, empty_result@38, error_result@42, format_index_status@55, format_search_code@95, format_repo_rank@162\n  used by (10): format_eta @ src/utils/ui_formatter.py:370, format_search_code @ src/utils/ui_formatter.py:112, format_repo_rank @ src/utils/ui_formatter.py:172, debug_runtime_passport @ src/mcp/server_tools.py:407, header @ src/utils/ui_formatter.py:28",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/utils/ui_formatter.py"
+    ],
+    "tokens": 43
+  },
+  "T32": {
+    "block": "FILE: src/core/search/bm25.py (exists)\n  imports (5): import asyncio, import logging, import math, from typing import Dict, from src.core.search.utils import _tokenize\n  defines (1): BM25Mixin@21",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/search/bm25.py"
+    ],
+    "tokens": 22
+  },
+  "T33": {
+    "block": "FILE: src/mcp/tools/codebase_tool.py (exists)\n  imports (17): from __future__ import annotations, import asyncio, import json, import logging, import os, from pathlib import Path, from typing import Any, from src.core.di_container import ServiceCollection, from src.core.error_handler import error_boundary, from src.mcp.tools.base import MCPTool\n  defines (3): CodebaseTool@31, ExecuteScriptTool@241, _infer_write_subaction@451\n  used by (1): CodebaseTool._action_write @ src/mcp/tools/codebase_tool.py:125",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/mcp/tools/codebase_tool.py"
+    ],
+    "tokens": 48
+  },
+  "T34": {
+    "block": "FILE: src/mcp/server_factory.py (exists)\n  imports (46): from __future__ import annotations, import asyncio, import atexit, import json, import logging, import os, import sys, import threading, import time, from pathlib import Path\n  defines (14): HeartbeatService@27, init_heartbeat@130, update_heartbeat@134, start_heartbeat_monitor@138, create_mcp_server@156, _register_notification_broker@265, _register_extension_handlers@292, _start_zed_parent_watchdog@346, run_server@392, _delayed_auto_index@434\n  used by (6): create_mcp_server @ src/mcp/server_factory.py:247, _on_heartbeat @ src/mcp/server_factory.py:142, create_mcp_server @ src/mcp/server_factory.py:252, run_server @ src/mcp/server_factory.py:347, create_mcp_server @ src/mcp/server_factory.py:250",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/mcp/server_factory.py"
+    ],
+    "tokens": 59
+  },
+  "T35": {
+    "block": "FILE: src/main.py (exists)\n  imports (15): import logging, import os, import sys, from pathlib import Path, import traceback, import threading, from dotenv import load_dotenv, from src.core.log_manager import setup_project_logging, import threading, from src.mcp.server import run_server\n  defines (5): _start_contradiction_ledger@45, log_crash@81, _load_env@90, setup_logging@99, main@150\n  used by (4): main @ src/main.py:219, setup_logging @ src/main.py:102, main @ src/main.py:151, test_file_content_arm_in_dry_run @ tests/test_run_1L_live_arm.py:450",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/main.py"
+    ],
+    "tokens": 55
+  },
+  "T36": {
+    "block": "FILE: src/core/artifact_gc.py (exists)\n  imports (11): from __future__ import annotations, import logging, import os, import re, import shutil, import time, from pathlib import Path, from typing import Dict, from src.core.artifact_paths import get_data_root, from src.core.log_manager import _cleanup_old_logs\n  defines (5): _dir_has_files@46, _rmtree_safe@64, _prune_project_dirs@76, _prune_telemetry@118, prune_stale_artifacts@140\n  used by (4): _prune_project_dirs @ src/core/artifact_gc.py:99, _prune_project_dirs @ src/core/artifact_gc.py:114, prune_stale_artifacts @ src/core/artifact_gc.py:184, prune_stale_artifacts @ src/core/artifact_gc.py:185",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/artifact_gc.py"
+    ],
+    "tokens": 57
+  },
+  "T37": {
+    "block": "FILE: src/utils/zed_config.py (exists)\n  imports (8): from __future__ import annotations, import json, import logging, import os, import re, import sys, from pathlib import Path, import tempfile\n  defines (13): _atomic_write_text@39, get_zed_config_dir@66, get_extension_install_dir@99, get_python_path@108, _strip_jsonc_comments@135, _strip_trailing_commas@174, parse_jsonc@178, _find_value_span@189, _insert_before_final_brace@233, _set_top_level@255\n  used by (12): patch_zed_settings @ src/utils/zed_config.py:381, remove_zed_settings @ src/utils/zed_config.py:440, patch_zed_settings @ src/utils/zed_config.py:311, remove_zed_settings @ src/utils/zed_config.py:398, step_zed @ install.py:354",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/utils/zed_config.py"
+    ],
+    "tokens": 55
+  },
+  "T38": {
+    "block": "FILE: src/mcp/tools/base.py (exists)\n  imports (23): from __future__ import annotations, import logging, from abc import ABC, from pathlib import Path, from typing import Any, from src.core.di_container import IndexerFactoryKey, from src.core.error_handler import IndexNotReadyError, from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry, from src.core.utils.self_index_guard import _is_self_index_path, from src.core.di_container import IndexerFactoryKey\n  defines (3): resolve_indexer_for_intel@43, resolve_indexer_for_request@100, MCPTool@164\n  used by (7): MCPTool.resolve_indexer @ src/mcp/tools/base.py:221, refresh_db_connection @ src/mcp/server_tools.py:640, _get_dashboard @ src/mcp/server_factory.py:301, _force_reindex @ src/mcp/server_factory.py:310, _clear_memory @ src/mcp/server_factory.py:321",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/mcp/tools/base.py"
+    ],
+    "tokens": 66
+  },
+  "T39": {
+    "block": "FILE: src/core/intelligence/project_context.py (exists)\n  imports (14): from __future__ import annotations, import logging, import os, import time, from dataclasses import dataclass, from datetime import datetime, from pathlib import Path, from typing import Any, from src.core.di_container import ProjectIndexerRegistry, from src.core.passport import RUN_PID\n  defines (2): ProjectContextSnapshot@40, ProjectContext@136\n  used by (3): ProjectContext.capture @ src/core/intelligence/project_context.py:169, intel_get_project_context @ src/mcp/server_tools.py:427, intel_explain_project_state @ src/mcp/server_tools.py:452",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/intelligence/project_context.py"
+    ],
+    "tokens": 55
+  },
+  "T40": {
+    "block": "FILE: src/core/rate_limiter.py (exists)\n  imports (8): from __future__ import annotations, import asyncio, import logging, import threading, import time, from collections import defaultdict, from dataclasses import dataclass, from typing import Any\n  defines (4): SlidingWindowRateLimiter@37, DebounceConfig@120, DebounceBatch@128, CircuitBreaker@258\n  used by (5): create_service_collection @ src/core/di_container.py:321, DebounceBatch.__init__ @ src/core/rate_limiter.py:152, _create_indexer_for_path @ src/core/di_container.py:310, _create_indexer_for_path @ src/core/di_container.py:308, create_service_collection @ src/core/di_container.py:326",
+    "evidence": "real",
+    "resolved_anchors": [
+      "file:src/core/rate_limiter.py"
+    ],
+    "tokens": 53
+  },
+  "T41": {
+    "block": "SYMBOL: TemporalSnapshotEngine — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/temporalsnapshotengine.py"
+    ],
+    "tokens": 7
+  },
+  "T42": {
+    "block": "SYMBOL: GitProvenanceIndexer — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/gitprovenanceindexer.py"
+    ],
+    "tokens": 7
+  },
+  "T43": {
+    "block": "SYMBOL: CommitTimelineStore — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/committimelinestore.py"
+    ],
+    "tokens": 7
+  },
+  "T44": {
+    "block": "SYMBOL: BlameVectorizer — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/blamevectorizer.py"
+    ],
+    "tokens": 7
+  },
+  "T45": {
+    "block": "SYMBOL: EpochDeltaTracker — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/epochdeltatracker.py"
+    ],
+    "tokens": 7
+  },
+  "T46": {
+    "block": "SYMBOL: VersionLattice — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/versionlattice.py"
+    ],
+    "tokens": 7
+  },
+  "T47": {
+    "block": "SYMBOL: ChangeSetOracle — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/changesetoracle.py"
+    ],
+    "tokens": 7
+  },
+  "T48": {
+    "block": "SYMBOL: RetrospectiveSymbolCache — NOT FOUND AT HEAD",
+    "evidence": "absent",
+    "resolved_anchors": [
+      "file:src/core/retrospectivesymbolcache.py"
+    ],
+    "tokens": 7
+  }
+}

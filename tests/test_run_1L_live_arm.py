@@ -115,6 +115,21 @@ def test_prompt_temporal_first_shows_structure_only():
         _mod._graph_ctx_cache = None
 
 
+def test_prompt_temporal_blind_first_same_shape_as_temporal():
+    """temporal_blind_first (E4b): структура без git-строк — тот же промпт-скелет, без leak."""
+    _mod._load_graph_contexts(_graph_ctx_path())
+    try:
+        for fact in _facts()[:5]:
+            prompt = _mod._prompt(fact, "temporal_blind_first")
+            ctx = _mod._graph_ctx_cache[fact["id"]]
+            expected = "\n".join("    " + ln for ln in ctx["block"].splitlines())
+            assert expected in prompt
+            assert "truth" not in prompt, f"LEAK в {fact['id']}/temporal_blind_first"
+            _mod._assert_no_truth_leak(fact, prompt)
+    finally:
+        _mod._graph_ctx_cache = None
+
+
 def test_prompt_v2_neutral_no_leading_question():
     """Red Team fix: V2 не задаёт наводящий вопрос (митигация сикофантии)."""
     fact = _facts()[0]
