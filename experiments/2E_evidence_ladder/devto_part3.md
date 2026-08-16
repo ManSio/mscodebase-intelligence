@@ -74,6 +74,17 @@ FA trap counts only R42 (the one genuinely false trap claim). For context, Part 
 2. **glm-4.7, which Part 2 told us to exclude as fail-open, is the best structural verifier in the series**: recall 0.84, FA trap 1, **miss_true 0** on graph evidence.
 3. **The best evidence format is model-specific**: fragment for qwen, graph for glm, hybrid for deepseek. No global winner.
 
+### But the trap is real (extended category, subject-validated)
+
+One false trap fact (R42) is statistically meaningless, so we extended the category with a **fixed generator (P-00X)**: false-trap = value present in the project (≥2 files) but absent from the *subject file* (grep = 0). 20 false / 10 true facts, pinned run:
+
+| arm | qwen FA/rec | deepseek FA/rec | glm FA/rec |
+|---|---|---|---|
+| file_content | 2/20, 2/10 | **15/20**, 6/10 | 13/20, 7/10 |
+| graph_first | 2/20, 3/10 | **8/20**, 5/10 | 14/20, 9/10 |
+
+The present-trap is **NOT a label artifact**: on honest labels, file_content false-accepts 10–75% of "X uses Y" claims (deepseek 15/20, glm 13/20). And **graph evidence halves deepseek's false-accept rate (15/20 → 8/20)** — the "graph doesn't close the trap" conclusion from the N=1 v4_rep was itself a small-sample artifact. It just doesn't help glm (14/20), and qwen was already at 2/20 (paying with recall 2/10).
+
 ### The corrected 1-L re-score (3300+ historical calls, no re-billing)
 
 We taught the summary tool to recompute metrics from old progress files + corrected truth (verdict-by-id, manually audited — zero field drift). The real 1-L picture:
@@ -126,7 +137,7 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 ## Known weaknesses (post-red-team)
 
 1. **Fact order matters (measured).** Facts are stored block-ordered (R01–R25 true, R26–R50 false). A shuffled control run (qwen code_first, seed 123) changed 4/50 verdicts vs the original order — no systematic direction, but ~8% sensitivity to order. Shuffle-seed in future runs.
-2. **FA-trap statistics rest on one fact.** After relabeling, only R42 is genuinely false in the trap category — "FA trap" is a 0-or-1 measurement, not a rate. Treat it as a flag, not a metric.
+2. **Trap category size matters.** After relabeling, v4_rep has one genuinely false trap fact — but an extended subject-validated category (E5, 20 false) shows the present-trap is real and mass-scale (file_content FA 10–75%). Metrics from N=1 are flags, not rates.
 3. **Language confound (unchecked).** Claims are Russian, instructions English. Part 2 showed prompt language shifts unknown rates (deepseek 0.94→0.54). A Russian-instruction control was not run for this series.
 4. **Decoy frequency.** 19 facts share the same control symbol block; models could pattern-match repetition. Not controlled.
 5. **Temporal claims are existence claims.** Easier than usage claims (v4_rep); the two datasets are complementary, not interchangeable.

@@ -1,0 +1,370 @@
+{
+  "_meta": {
+    "experiment": "Exp 2-E E5 — расширение trap-категории (P-00X фикс генератора)",
+    "date": "2026-08-16",
+    "design": "trap_false: value в проекте (>=2 файлов), НЕ в файле субъекта (grep=0); trap_true: value в файле субъекта. Валидация лейблов ПО СУБЪЕКТУ.",
+    "n_total": 30
+  },
+  "facts": [
+    {
+      "id": "TP01",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "server",
+      "value": "time",
+      "claim": "Серверная обёртка использует time",
+      "support_patterns": [
+        "time"
+      ],
+      "label_validated": "project_files=46, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP02",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "server",
+      "value": "threading",
+      "claim": "Серверная обёртка использует threading",
+      "support_patterns": [
+        "threading"
+      ],
+      "label_validated": "project_files=30, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP03",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "server",
+      "value": "datetime",
+      "claim": "Серверная обёртка использует datetime",
+      "support_patterns": [
+        "datetime"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP04",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "graph",
+      "value": "os",
+      "claim": "Граф знаний использует os",
+      "support_patterns": [
+        "os"
+      ],
+      "label_validated": "project_files=52, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP05",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "graph",
+      "value": "asyncio",
+      "claim": "Граф знаний использует asyncio",
+      "support_patterns": [
+        "asyncio"
+      ],
+      "label_validated": "project_files=27, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP06",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "graph",
+      "value": "contextlib",
+      "claim": "Граф знаний использует contextlib",
+      "support_patterns": [
+        "contextlib"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP07",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "multi_project_searcher",
+      "value": "__future__",
+      "claim": "Кросс-проектный поиск использует __future__",
+      "support_patterns": [
+        "__future__"
+      ],
+      "label_validated": "project_files=76, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP08",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "multi_project_searcher",
+      "value": "os",
+      "claim": "Кросс-проектный поиск использует os",
+      "support_patterns": [
+        "os"
+      ],
+      "label_validated": "project_files=52, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP09",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "multi_project_searcher",
+      "value": "lancedb",
+      "claim": "Кросс-проектный поиск использует lancedb",
+      "support_patterns": [
+        "lancedb"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP10",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "watchdog",
+      "value": "typing",
+      "claim": "Сторожевой таймер использует typing",
+      "support_patterns": [
+        "typing"
+      ],
+      "label_validated": "project_files=121, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP11",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "watchdog",
+      "value": "logging",
+      "claim": "Сторожевой таймер использует logging",
+      "support_patterns": [
+        "logging"
+      ],
+      "label_validated": "project_files=108, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP12",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "watchdog",
+      "value": "threading",
+      "claim": "Сторожевой таймер использует threading",
+      "support_patterns": [
+        "threading"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP13",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "llama_install",
+      "value": "typing",
+      "claim": "Загрузчик моделей использует typing",
+      "support_patterns": [
+        "typing"
+      ],
+      "label_validated": "project_files=121, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP14",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "llama_install",
+      "value": "time",
+      "claim": "Загрузчик моделей использует time",
+      "support_patterns": [
+        "time"
+      ],
+      "label_validated": "project_files=46, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP15",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "llama_install",
+      "value": "hashlib",
+      "claim": "Загрузчик моделей использует hashlib",
+      "support_patterns": [
+        "hashlib"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP16",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "verify_on_read",
+      "value": "threading",
+      "claim": "Слой верификации чтения использует threading",
+      "support_patterns": [
+        "threading"
+      ],
+      "label_validated": "project_files=30, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP17",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "verify_on_read",
+      "value": "asyncio",
+      "claim": "Слой верификации чтения использует asyncio",
+      "support_patterns": [
+        "asyncio"
+      ],
+      "label_validated": "project_files=27, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP18",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "verify_on_read",
+      "value": "datetime",
+      "claim": "Слой верификации чтения использует datetime",
+      "support_patterns": [
+        "datetime"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP19",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "engine",
+      "value": "__future__",
+      "claim": "Поисковый движок использует __future__",
+      "support_patterns": [
+        "__future__"
+      ],
+      "label_validated": "project_files=76, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP20",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "engine",
+      "value": "os",
+      "claim": "Поисковый движок использует os",
+      "support_patterns": [
+        "os"
+      ],
+      "label_validated": "project_files=52, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP21",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "engine",
+      "value": "agentic_search",
+      "claim": "Поисковый движок использует agentic_search",
+      "support_patterns": [
+        "agentic_search"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP22",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "consistency",
+      "value": "pathlib",
+      "claim": "Движок консистентности использует pathlib",
+      "support_patterns": [
+        "pathlib"
+      ],
+      "label_validated": "project_files=90, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP23",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "consistency",
+      "value": "src",
+      "claim": "Движок консистентности использует src",
+      "support_patterns": [
+        "src"
+      ],
+      "label_validated": "project_files=83, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP24",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "consistency",
+      "value": "enum",
+      "claim": "Движок консистентности использует enum",
+      "support_patterns": [
+        "enum"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP25",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "instruction_scan",
+      "value": "pathlib",
+      "claim": "Сканер инструкций использует pathlib",
+      "support_patterns": [
+        "pathlib"
+      ],
+      "label_validated": "project_files=90, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP26",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "instruction_scan",
+      "value": "src",
+      "claim": "Сканер инструкций использует src",
+      "support_patterns": [
+        "src"
+      ],
+      "label_validated": "project_files=83, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP27",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "instruction_scan",
+      "value": "logging",
+      "claim": "Сканер инструкций использует logging",
+      "support_patterns": [
+        "logging"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP28",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "remote_embedder",
+      "value": "__future__",
+      "claim": "Удалённый эмбеддер использует __future__",
+      "support_patterns": [
+        "__future__"
+      ],
+      "label_validated": "project_files=76, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP29",
+      "truth": false,
+      "kind": "trap_false",
+      "subject": "remote_embedder",
+      "value": "datetime",
+      "claim": "Удалённый эмбеддер использует datetime",
+      "support_patterns": [
+        "datetime"
+      ],
+      "label_validated": "project_files=25, subject_file=0 (P-00X: grep субъекта)"
+    },
+    {
+      "id": "TP30",
+      "truth": true,
+      "kind": "trap_true",
+      "subject": "remote_embedder",
+      "value": "asyncio",
+      "claim": "Удалённый эмбеддер использует asyncio",
+      "support_patterns": [
+        "asyncio"
+      ],
+      "label_validated": "subject_file>0 (P-00X: grep субъекта)"
+    }
+  ]
+}

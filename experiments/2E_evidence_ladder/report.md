@@ -101,6 +101,17 @@ FA trap = только R42 (единственный настоящий trap-FA)
 
 **Выводы pinned (стабильны к маршрутизации):** (1) лучший arm — per-model: qwen → file_content (recall 0.88), glm → graph (0.84, miss 0), deepseek → hybrid (0.92); (2) temporal present-trap универсален (NOW 12/12, 9/12, 12/12), past решается формулировкой (40/40); (3) FA absent/silent = 0 во всех evidence-ячейках; (4) glm недетерминирована даже pinned (e3_g: 6FA→2FA→1FA между прогонами) — пининг убирает маршрутизацию, не вариацию модели; (5) ключевой результат серии — **trap miss_true (4/5 у qwen, 2-3 у остальных): fail-closed модели отвергают истинные usage-claims**, невидимый в старых (mislabeled) метриках.
 
+### 2.5 E5 — расширенная trap-категория (P-00X, лейблы по субъекту)
+
+Генератор `trap_facts_generator.py`: false-trap = value в проекте (≥2 файлов) НО НЕ в файле субъекта (grep субъекта=0 — фикс P-00X); true-trap = value у субъекта. N=30 (20 false / 10 true), fp `cb6f822b9eb66afd`. Прогон file_content/graph × 3 модели (pinned, правильные пины):
+
+| arm | qwen FA/recall | deepseek FA/recall | glm FA/recall |
+|---|---|---|---|
+| file_content | 2/20, 2/10 | **15/20**, 6/10 | 13/20, 7/10 |
+| graph_first | 2/20, 3/10 | **8/20**, 5/10 | 14/20, 9/10 |
+
+**Вывод:** (1) present-trap — НЕ артефакт mislabeled: на честных лейблах FA 10-75%; «остаточная дыра» Part 2 была искажена (N=1). (2) **graph evidence реально снижает trap-FA у deepseek вдвое (75%→40%)** — вывод «graph не закрывает trap» на v4_rep был статистическим артефактом; у glm graph не помогает (14/20), у qwen FA и так 2/20 (но recall 2/10 — fail-closed). (3) Ответ ревьюеру (chatgpt): исправленный генератор проверяет отсутствие value у СУБЪЕКТА — тест `tests/test_trap_facts_generator.py` (5 тестов).
+
 ---
 
 ## 3. Red Team (атаки по протоколу §1.16 — минимум 3 из 5)
