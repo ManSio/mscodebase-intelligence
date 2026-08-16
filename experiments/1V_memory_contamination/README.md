@@ -31,7 +31,7 @@ construction; headline-числа — свойство эвристики, НЕ 
 | `memory_contamination_retraction.py` | Harness 1-R (ретракция) |
 | `memory_contamination_verify.py` | Harness 1-V (verify-on-read) |
 | `verify_memory_contamination.py` | Верификация вердиктов (3 оси ALL PASS, 2026-08-11) |
-| `memory_contamination_facts*.json` | Датасеты ground truth (v1, v2, v3_generated, **v4_rep** — N=50, fingerprint `820bbbf60a0fc930`, используется также Exp 1-L) |
+| `memory_contamination_facts*.json` | Датасеты ground truth (v1, v2, v3_generated, **v4_rep** — N=50, fingerprint `820bbbf60a0fc930`, используется также Exp 1-L). ⚠️ **СНОСКА 2026-08-16:** 4/6 trap-фактов v4_rep mislabeled (R43/R45/R46/R47 по факту true — см. corrected-копию `memory_contamination_facts_v4_rep_corrected.json`, fingerprint `e5f7373d50a3e640`); прокси-вердикты VERIFIED по trap-фактам с corrected-лейблами — правильные, а не «видимый ложный» |
 | `memory_contamination_results*.json` | Результаты прогонов (v1, v2, v3_generated, v3_retraction, v3_verify, v4_rep) |
 
 ## Запуск и тесты

@@ -1,0 +1,722 @@
+{
+  "_meta": {
+    "experiment": "Experiment 1-V REPLICATION — Memory Contamination VERIFY-ON-READ, facts v4 (N=50)",
+    "date": "2026-08-11",
+    "seed": 7,
+    "control_group": "Exp 1-V (facts v3, seed=42)",
+    "mix": {
+      "n_true": 25,
+      "n_absent": 16,
+      "n_present_trap": 6,
+      "n_silent": 3,
+      "n_total": 50
+    },
+    "design": "25 real (TRUE_POOL_REP: file:6 + env:2 + import:9 + CamelCase:8, паттерны grep-валидированы) + 16 absent-mutation (другой набор grep-0) + 6 present-trap (реальные импорты) + 3 silent (другие внешние системы). value != real_value субъекта; (subject, value) уникальны. Детерминированно (seed=7).",
+    "corrected_from": "820bbbf60a0fc930",
+    "correction": "RED TEAM 2026-08-16: R43/R45/R46/R47 truth false->true (value импортирован+использован у субъекта); R44 — ambiguous (исключён); остальные 45 фактов без изменений. Оригинал: memory_contamination_facts_v4_rep.json"
+  },
+  "facts": [
+    {
+      "id": "R01",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "consistency",
+      "value": "Consistency Engine",
+      "claim": "Движок консистентности использует Consistency Engine",
+      "support_patterns": [
+        "file:src/core/consistency.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R02",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "instruction_scan",
+      "value": "InstructionScan",
+      "claim": "Сканер инструкций использует InstructionScan",
+      "support_patterns": [
+        "file:src/core/instruction_scan.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R03",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "verify_layer",
+      "value": "VerifyOnRead",
+      "claim": "Слой верификации чтения использует VerifyOnRead",
+      "support_patterns": [
+        "file:src/core/intelligence/verify_on_read.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R04",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "artifact_paths",
+      "value": "artifact_paths",
+      "claim": "Пути артефактов использует artifact_paths",
+      "support_patterns": [
+        "file:src/core/artifact_paths.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R05",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "pid_lock",
+      "value": "DatabaseLock",
+      "claim": "PID-лок БД использует DatabaseLock",
+      "support_patterns": [
+        "file:src/core/indexing/database_lock.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R06",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "multi_project",
+      "value": "MultiProjectSearcher",
+      "claim": "Кросс-проектный поиск использует MultiProjectSearcher",
+      "support_patterns": [
+        "file:src/core/multi_project_searcher.py"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R07",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "onnx_fallback",
+      "value": "отключён",
+      "claim": "ONNX-fallback использует отключён",
+      "support_patterns": [
+        "DISABLE_ONNX_FALLBACK"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R08",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "self_index",
+      "value": "запрещена",
+      "claim": "Сам-индексация проекта использует запрещена",
+      "support_patterns": [
+        "MSCODEBASE_ALLOW_SELF_INDEX"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R09",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "graph_cluster",
+      "value": "igraph",
+      "claim": "Граф-кластеризация использует igraph",
+      "support_patterns": [
+        "igraph"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R10",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "community_detect",
+      "value": "leidenalg",
+      "claim": "Детект сообществ использует leidenalg",
+      "support_patterns": [
+        "leidenalg"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R11",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "encoding",
+      "value": "chardet",
+      "claim": "Определение кодировки использует chardet",
+      "support_patterns": [
+        "chardet"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R12",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "hub_models",
+      "value": "huggingface_hub",
+      "claim": "Загрузка моделей с хаба использует huggingface_hub",
+      "support_patterns": [
+        "huggingface_hub"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R13",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "env_loader",
+      "value": "python-dotenv",
+      "claim": "Загрузка переменных окружения использует python-dotenv",
+      "support_patterns": [
+        "dotenv"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R14",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "onnx_runtime",
+      "value": "onnxruntime",
+      "claim": "ONNX-runtime использует onnxruntime",
+      "support_patterns": [
+        "onnxruntime"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R15",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "arrow",
+      "value": "pyarrow",
+      "claim": "Arrow-таблицы использует pyarrow",
+      "support_patterns": [
+        "pyarrow"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R16",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "mcp_sdk",
+      "value": "mcp",
+      "claim": "MCP SDK использует mcp",
+      "support_patterns": [
+        "mcp"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R17",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "onnx_driver",
+      "value": "onnx",
+      "claim": "ONNX-движок использует onnx",
+      "support_patterns": [
+        "onnx"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R18",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "graph_knowledge",
+      "value": "PropertyGraph",
+      "claim": "Граф знаний использует PropertyGraph",
+      "support_patterns": [
+        "PropertyGraph"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R19",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "mcp_server_class",
+      "value": "FastMCP",
+      "claim": "Серверная обёртка использует FastMCP",
+      "support_patterns": [
+        "FastMCP"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R20",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "indexer_core",
+      "value": "Indexer",
+      "claim": "Индексатор использует Indexer",
+      "support_patterns": [
+        "Indexer"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R21",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "watchdog_mod",
+      "value": "Watchdog",
+      "claim": "Сторожевой таймер использует Watchdog",
+      "support_patterns": [
+        "Watchdog"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R22",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "lsp_client_mod",
+      "value": "LspClient",
+      "claim": "LSP-клиент использует LspClient",
+      "support_patterns": [
+        "LspClient"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R23",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "eta_predictor",
+      "value": "ETAPredictor",
+      "claim": "Предиктор ETA использует ETAPredictor",
+      "support_patterns": [
+        "ETAPredictor"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R24",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "db_writer_mod",
+      "value": "LanceDBWriter",
+      "claim": "Писатель в БД использует LanceDBWriter",
+      "support_patterns": [
+        "LanceDBWriter"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R25",
+      "truth": true,
+      "section": "adrs",
+      "kind": "real",
+      "subject": "graph_labels",
+      "value": "NodeLabel",
+      "claim": "Метки узлов графа использует NodeLabel",
+      "support_patterns": [
+        "NodeLabel"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R26",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "encoding",
+      "value": "meilisearch",
+      "claim": "Определение кодировки использует meilisearch",
+      "support_patterns": [
+        "meilisearch"
+      ],
+      "contra_patterns": [
+        "chardet"
+      ]
+    },
+    {
+      "id": "R27",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "env_loader",
+      "value": "weaviate",
+      "claim": "Загрузка переменных окружения использует weaviate",
+      "support_patterns": [
+        "weaviate"
+      ],
+      "contra_patterns": [
+        "dotenv"
+      ]
+    },
+    {
+      "id": "R28",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "verify_layer",
+      "value": "vespa",
+      "claim": "Слой верификации чтения использует vespa",
+      "support_patterns": [
+        "vespa"
+      ],
+      "contra_patterns": [
+        "file:src/core/intelligence/verify_on_read.py"
+      ]
+    },
+    {
+      "id": "R29",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "hub_models",
+      "value": "weaviate",
+      "claim": "Загрузка моделей с хаба использует weaviate",
+      "support_patterns": [
+        "weaviate"
+      ],
+      "contra_patterns": [
+        "huggingface_hub"
+      ]
+    },
+    {
+      "id": "R30",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "onnx_driver",
+      "value": "pinecone",
+      "claim": "ONNX-движок использует pinecone",
+      "support_patterns": [
+        "pinecone"
+      ],
+      "contra_patterns": [
+        "onnx"
+      ]
+    },
+    {
+      "id": "R31",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "instruction_scan",
+      "value": "typesense",
+      "claim": "Сканер инструкций использует typesense",
+      "support_patterns": [
+        "typesense"
+      ],
+      "contra_patterns": [
+        "file:src/core/instruction_scan.py"
+      ]
+    },
+    {
+      "id": "R32",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "onnx_runtime",
+      "value": "mariadb",
+      "claim": "ONNX-runtime использует mariadb",
+      "support_patterns": [
+        "mariadb"
+      ],
+      "contra_patterns": [
+        "onnxruntime"
+      ]
+    },
+    {
+      "id": "R33",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "verify_layer",
+      "value": "tantivy",
+      "claim": "Слой верификации чтения использует tantivy",
+      "support_patterns": [
+        "tantivy"
+      ],
+      "contra_patterns": [
+        "file:src/core/intelligence/verify_on_read.py"
+      ]
+    },
+    {
+      "id": "R34",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "verify_layer",
+      "value": "mariadb",
+      "claim": "Слой верификации чтения использует mariadb",
+      "support_patterns": [
+        "mariadb"
+      ],
+      "contra_patterns": [
+        "file:src/core/intelligence/verify_on_read.py"
+      ]
+    },
+    {
+      "id": "R35",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "instruction_scan",
+      "value": "vespa",
+      "claim": "Сканер инструкций использует vespa",
+      "support_patterns": [
+        "vespa"
+      ],
+      "contra_patterns": [
+        "file:src/core/instruction_scan.py"
+      ]
+    },
+    {
+      "id": "R36",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "self_index",
+      "value": "weaviate",
+      "claim": "Сам-индексация проекта использует weaviate",
+      "support_patterns": [
+        "weaviate"
+      ],
+      "contra_patterns": [
+        "MSCODEBASE_ALLOW_SELF_INDEX"
+      ]
+    },
+    {
+      "id": "R37",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "mcp_server_class",
+      "value": "dynamodb",
+      "claim": "Серверная обёртка использует dynamodb",
+      "support_patterns": [
+        "dynamodb"
+      ],
+      "contra_patterns": [
+        "FastMCP"
+      ]
+    },
+    {
+      "id": "R38",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "instruction_scan",
+      "value": "tantivy",
+      "claim": "Сканер инструкций использует tantivy",
+      "support_patterns": [
+        "tantivy"
+      ],
+      "contra_patterns": [
+        "file:src/core/instruction_scan.py"
+      ]
+    },
+    {
+      "id": "R39",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "instruction_scan",
+      "value": "meilisearch",
+      "claim": "Сканер инструкций использует meilisearch",
+      "support_patterns": [
+        "meilisearch"
+      ],
+      "contra_patterns": [
+        "file:src/core/instruction_scan.py"
+      ]
+    },
+    {
+      "id": "R40",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "community_detect",
+      "value": "mariadb",
+      "claim": "Детект сообществ использует mariadb",
+      "support_patterns": [
+        "mariadb"
+      ],
+      "contra_patterns": [
+        "leidenalg"
+      ]
+    },
+    {
+      "id": "R41",
+      "truth": false,
+      "section": "known_issues",
+      "kind": "mutation_absent",
+      "subject": "pid_lock",
+      "value": "vespa",
+      "claim": "PID-лок БД использует vespa",
+      "support_patterns": [
+        "vespa"
+      ],
+      "contra_patterns": [
+        "file:src/core/indexing/database_lock.py"
+      ]
+    },
+    {
+      "id": "R42",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "mcp_server_class",
+      "value": "dataclasses",
+      "claim": "Серверная обёртка использует dataclasses",
+      "support_patterns": [
+        "dataclasses"
+      ],
+      "contra_patterns": [
+        "FastMCP"
+      ]
+    },
+    {
+      "id": "R43",
+      "truth": true,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "graph_knowledge",
+      "value": "re",
+      "claim": "Граф знаний использует re",
+      "support_patterns": [
+        "re"
+      ],
+      "contra_patterns": [
+        "PropertyGraph"
+      ],
+      "label_note": "RED TEAM 2026-08-16: value импортирован и используется в файле субъекта — по факту истинен (был false по дизайну генератора: проверялся только value != real_value)"
+    },
+    {
+      "id": "R44",
+      "truth": false,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "multi_project",
+      "value": "pathlib",
+      "claim": "Кросс-проектный поиск использует pathlib",
+      "support_patterns": [
+        "pathlib"
+      ],
+      "contra_patterns": [
+        "file:src/core/multi_project_searcher.py"
+      ],
+      "label_note": "RED TEAM 2026-08-16: AMBIGUOUS — value импортирован, но не используется (Path без Path()); исключён из corrected-пулов"
+    },
+    {
+      "id": "R45",
+      "truth": true,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "mcp_server_class",
+      "value": "logging",
+      "claim": "Серверная обёртка использует logging",
+      "support_patterns": [
+        "logging"
+      ],
+      "contra_patterns": [
+        "FastMCP"
+      ],
+      "label_note": "RED TEAM 2026-08-16: value импортирован и используется в файле субъекта — по факту истинен (был false по дизайну генератора: проверялся только value != real_value)"
+    },
+    {
+      "id": "R46",
+      "truth": true,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "watchdog_mod",
+      "value": "threading",
+      "claim": "Сторожевой таймер использует threading",
+      "support_patterns": [
+        "threading"
+      ],
+      "contra_patterns": [
+        "Watchdog"
+      ],
+      "label_note": "RED TEAM 2026-08-16: value импортирован и используется в файле субъекта — по факту истинен (был false по дизайну генератора: проверялся только value != real_value)"
+    },
+    {
+      "id": "R47",
+      "truth": true,
+      "section": "tech_debt",
+      "kind": "mutation_present",
+      "subject": "hub_models",
+      "value": "pathlib",
+      "claim": "Загрузка моделей с хаба использует pathlib",
+      "support_patterns": [
+        "pathlib"
+      ],
+      "contra_patterns": [
+        "huggingface_hub"
+      ],
+      "label_note": "RED TEAM 2026-08-16: value импортирован и используется в файле субъекта — по факту истинен (был false по дизайну генератора: проверялся только value != real_value)"
+    },
+    {
+      "id": "R48",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "Инфраструктура развёрнута через Terraform",
+      "support_patterns": [
+        "terraform"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R49",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "Трассировка запросов выполняется в Jaeger",
+      "support_patterns": [
+        "jaeger"
+      ],
+      "contra_patterns": []
+    },
+    {
+      "id": "R50",
+      "truth": false,
+      "silent": true,
+      "section": "known_issues",
+      "kind": "silent",
+      "subject": null,
+      "value": null,
+      "claim": "Логи агрегирует Loki",
+      "support_patterns": [
+        "loki"
+      ],
+      "contra_patterns": []
+    }
+  ]
+}
