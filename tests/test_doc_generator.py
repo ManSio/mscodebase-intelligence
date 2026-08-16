@@ -34,19 +34,13 @@ def _dirs(md: str) -> set:
 
 
 def test_build_dirs_and_gitignore_excluded(tmp_path):
-    """dist (build-каталог) и .gitignore-исключение не попадают в docs.
-
-    Внимание: dir-паттерны .gitignore (generated/) парсером не матчатся
-    (KNOWN_ISSUES 2026-08-16 — мёртвая ветка в _match_gitignore_pattern),
-    поэтому тут file-level паттерн: механизм .gitignore-уважения проверяется
-    честно, а dist закрыт skip_dirs.
-    """
-    proj = _project(tmp_path, gitignore="generated/gen.py\n")
+    """dist (build-каталог) и .gitignore dir-паттерн не попадают в docs."""
+    proj = _project(tmp_path, gitignore="generated/\n")
     md = DocGenerator().generate(str(proj))
     dirs = _dirs(md)
     assert "src" in dirs
     assert not any("dist" in d for d in dirs)  # build-артефакт (skip_dirs)
-    assert "generated" not in dirs  # .gitignore (file-level паттерн)
+    assert "generated" not in dirs  # .gitignore dir-паттерн (фикс 2026-08-16)
 
 
 def test_no_gitignore_still_skips_build_dirs(tmp_path):

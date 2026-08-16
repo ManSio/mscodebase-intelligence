@@ -144,10 +144,20 @@ def _match_gitignore_pattern(path: str, pattern: str) -> bool:
 
     # Паттерн для имени файла (без /) — проверяем конец пути
     if "/" not in pattern:
+        if is_dir_pattern:
+            # «generated/» — директория на ЛЮБОЙ глубине и всё под ней
+            # (git-семантика). Было: флаг is_dir терялся, ветка
+            # pattern.endswith("/") ниже — мёртвая, вложенные файлы под
+            # dir-паттерном не исключались (фикс 2026-08-16, KNOWN_ISSUES).
+            return (
+                path == pattern
+                or path.startswith(f"{pattern}/")
+                or f"/{pattern}/" in path
+            )
         return path.endswith(f"/{pattern}") or path == pattern
 
-    # Префикс пути
-    if pattern.endswith("/"):
-        return path.startswith(pattern) or path.startswith(f"{pattern}/")
+    # Префикс пути (паттерн с /); «foo/bar/» — dir-паттерн, префикс-матч
+    if is_dir_pattern:
+        return path.startswith(f"{pattern}/") or path == pattern
 
     return False
