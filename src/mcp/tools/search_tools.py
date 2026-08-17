@@ -386,8 +386,11 @@ class SearchCodeTool(MCPTool):
                 )
 
         # Обогащаем телеметрию
-        # Grep fallback when index is empty/corrupted
-        if results_count == 0:
+        # Grep fallback — ТОЛЬКО для dict-режимов (fast/quality), которые реально
+        # посчитали results_count. str-режимы (deep/context/ask/auto) сами владеют
+        # своим выводом — их НЕ подменяем (баг 2026-08-18: deep/auto всегда падали
+        # в grep, теряя семантический результат, т.к. results_count оставался 0).
+        if results_count == 0 and isinstance(raw, dict):
             grep_results = _grep_fallback(query, filter_layer)
             if grep_results:
                 result_str = stale_banner + project_header + "\n" + grep_results
