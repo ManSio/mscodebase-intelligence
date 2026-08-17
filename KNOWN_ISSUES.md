@@ -4002,3 +4002,76 @@ Three fixes from the same review:
 **Root Cause:** health._check_filesy...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-18 — monitor.py: мониторинг ЛЮБОГО проекта (--project/--data-root/--log + self-bootstrap) (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ внесено и проверено (ruf: 7 < baseline 8, без новых; --help ок; резолв пути подтверждён; не закоммичено)
+**Root Cause:** monitor.py жёстко читал единственный глобальный лог и не имел CLI...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — Верификация ARCLUX-отчёта по протоколу: 10 пунктов, 6 FP/стале, 2 реальных фикса, 3 pre-existing (FIXED 2)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ 2 фикса внесены и проверены (не закоммичено — на параллельной ветке лежат чужие правки engine.py/test_search_bs_audit.py)
+**Root Cause/Итог:** Из 10 пунктов отчёта: (1) цикл error_handle...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-17 — ARCLUX audit: core→mcp импорт и graph.py self-import (FIXED); кластер MCP-циклов (OPEN)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (1294 passed; linter 0 [CORE_MCP]; ruff clean; guard — в дефолтном CI)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (нет сети/URL); локально: п...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-17 — ARCLUX: кластер циклов MCP разорван гибридом A+B (src/mcp/context.py) (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (E1: SCC 19→0, рёбер в циклах 77→0; linter TOOL_REGISTRY 4→0; pytest 1294 passed; ruff clean; import-time без роста; не закоммичено — прототип)
+**verified_from_clean_state:** ⚠️ не...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16/17 — P1 propagation_engine невидим для поиска: H1/H2 ОПРОВЕРГНУТЫ, ЗАКРЫТ перезапуском процесса (✅)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Закрыто (2026-08-17, live-подтверждение после Reload Window)
+**Root Cause:** НЕ дефект индексации — in-memory поисковые структуры ЖИВОГО процесса не подхватывали обновление индекса, пока...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-17 — Поиск: doc-чанки не вытесняют код (Вариант A → A', отбор кандидатов)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (юнит 48 passed; live-подтверждение после Reload — код процесса не хот-релоадится)
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не гонялся; локально: юнит 48 passed...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-16 — Аудит документации, проход 2: ОПИСАНИЯ (не только числа) — системный дрейф embedder-нарратива (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (README ×3 + ARCHITECTURE + ARCHITECTURE_DEEP + GRACEFUL_DEGRADATION + TELEMETRY + INSTALL + FAQ + SEARCH_PIPELINE + tools_reg; не закоммичено — commit/push по команде)
+**verified_...
+- **Статус:** автоматически синхронизировано
+
+
+
+## 2026-08-18 — MCP баг-хэунт: deep/auto подменялись grep-fallback (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (регрессионный тест + отрицательный контроль; live после Reload: deep → 6 реальных результатов)
+**Root Cause:** в SearchCodeTool.execute (search_tools.py) results_count ставился только в fast/quality; str-режимы (deep/context/ask/auto) давали results_count=0 → grep-fallback подменял реальный результат.
+**Fix:** `if results_count == 0 and isinstance(raw, dict):` — grep-fallback только для dict-режимов. Guard: test_next_step_hints.py::TestSearchCodeDeepNotClobbered.
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — monitor.py: не показывал живую переиндексацию (читал лог, а не progress.json) (FIXED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (read_progress_json как приоритет; лог — фолбэк)
+**Root Cause:** после job-manager per-chunk-строки индексации идут в progress.json, а не в лог; monitor парсил лог → устаревшее «Завершено 9146» при идущей переиндексации.
+**Fix:** читать progress.json (get_progress_file) как живой источник (phase/progress/total/current_file/ETA).
+- **Статус:** автоматически синхронизировано

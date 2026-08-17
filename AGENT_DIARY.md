@@ -25,6 +25,34 @@
 
 ---
 
+## [2026-08-18] — MCP баг-хэунт: deep/auto подменялись grep-fallback (FIXED, подтверждено live после Reload)
+**Status:** ✅ Fixed (регрессионный тест + отрицательный контроль; live после Reload: deep → 6 реальных результатов)
+**verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); регрессионный тест + отрицательный контроль + live-прогон после Reload (deep → 6 результатов)
+**Root Cause:** в `SearchCodeTool.execute` (search_tools.py) `results_count` ставился ТОЛЬКО в ветке fast/quality; str-режимы (deep/context/ask/auto) оставляли `results_count=0` → универсальный grep-fallback (`if results_count==0`) стирал реальный семантический результат и заменял на grep. Воспроизведено: запрос, где quality даёт 6, deep/auto возвращали «Grep fallback» (мусор из install.py).
+**Fix:** `if results_count == 0 and isinstance(raw, dict):` — grep-fallback только для dict-режимов (fast/quality); str-режимы владеют своим выводом. Регрессионный guard `test_next_step_hints.py::TestSearchCodeDeepNotClobbered` + отрицательный контроль (на старом коде падает).
+**Guard:** тест в дефолтном pytest; фикс засинчен в расширение, live-подтверждён после Reload (deep → «Agentic Deep Search: 6 результатов»).
+**Pattern:** P-002-класс «условие fallback по незаполненному счётчику подменяет реальный вывод».
+
+## [2026-08-18] — monitor.py: не показывал живую переиндексацию (читал лог, а не progress.json) (FIXED)
+**Status:** ✅ Fixed (read_progress_json; —project/--data-root/--log; ruf: 7<baseline 8; не закоммичено)
+**Root Cause:** после job-manager (Задача 4/5) per-chunk строки индексации пишутся в `progress.json`, а НЕ в лог. `monitor.py` парсил лог → показывал устаревшее «Завершено 9146» при идущей переиндексации (лог молчал, progress.json показывал 66%+).
+**Fix:** читать `progress.json` (get_progress_file) как приоритетный живой источник (phase/progress/total/current_file/ETA), лог — фолбэк; выход по живому прогрессу, а не по устаревшему «done» лога.
+**Guard:** ruff чисто; не покрыт юнит-тестом (скрипт без main) — предлагается добавить (P3).
+
+## [2026-08-18] — monitor.py: мониторинг ЛЮБОГО проекта (--project/--data-root/--log + self-bootstrap) (FIXED)
+**Status:** ✅ внесено и проверено (ruf: 7 < baseline 8, без новых; --help ок; резолв пути подтверждён; не закоммичено)
+**Root Cause:** monitor.py жёстко читал единственный глобальный лог и не имел CLI-args — неустойчив при запуске из чужого каталога/проекта.
+**Fix:** (1) self-bootstrap: корень репо в sys.path (иначе `import src.core` не резолвится вне репо); (2) `--project PATH` — предпочитает per-project <имя>.log, иначе fallback на глобальный main; `--data-root PATH` — ставит MSCODEBASE_DATA_DIR и резолвит `<root>/logs/mscodebase-intelligence.log`; `--log PATH` — прямой файл; (3) понятный вывод резолвнутого «Лог:» + проекта; warning на несуществующий лог; (4) верхний import-блок отсортирован (починил pre-existing I001). Режимы: `python scripts/monitor.py [--project P | --data-root D | --log L]`.
+**Guard:** резолв проверен (--data-root уважает env → data_root/logs/main.log; --log literal; --project picks per-project if exists). ruff не добавил ошибок. "Арх. ограничение": глобальный main-лог общий для всех проектов — при конкурентной индексации нескольких окон монитор не изолирует проект (для true per-project нужен вариант B — per-project логи индексации, на решение владельца).
+
+## [2026-08-18] — Верификация ARCLUX-отчёта по протоколу: 10 пунктов, 6 FP/стале, 2 реальных фикса, 3 pre-existing (FIXED 2)
+**Status:** ✅ 2 фикса внесены и проверены (не закоммичено — на параллельной ветке лежат чужие правки engine.py/test_search_bs_audit.py)
+**verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: targeted-тесты + ruff clean
+**Root Cause/Итог:** Из 10 пунктов отчёта: (1) цикл error_handler↔task_queue — ❌ FP (guarded lazy-импорты, импорты чистые); (2) core→providers→core — ❌ как ломающий цикл (импорты чистые), но 🟡 слой-нарушение, di_container = корректный composition root, linter `_CHECKS` не проверяет core→providers; (3) sandbox executor.py:63 — ❌ FP (блоклист-literal, не eval); (4) download_model.py:202 `model.eval()` — ❌ FP (torch-режим, не eval()); (5) main shadowed 67× — ❌ FP (конвенция `__name__=="__main__"`); (6) verify 1038 — ❌ gate, 0 расхождений ledger (ok=True); (7) LSP-VFS-тест (WinError 32/zero-vector) — ❌ stale; (8) **✅ ConvertTo-Csv -NoHeader + дубль ProcessId колонки в resource_monitor.py — реальный PS 5.1-баг, воспроизведён и исправлен** (get_subprocesses_info на PS5.1 всегда возвращал [] — Select-Object с дублем ProcessId падает «duplicated property», раньше -NoHeader не было видно); (9) **✅ test_contradiction_ledger: assert не на том ключе (`discrepancies` int vs `details` list), slow-маркер прятал FAIL — исправлен**; (10) ONNX E5-base fallback — 🟡 не проверяемо статически (нужен live embedder).
+**Fix:** resource_monitor.py: убран `-NoHeader` (PS 6.0-only) и дубль `,ProcessId` из Select-Object; парсер пропускает `#TYPE`/заголовок PS 5.1 (data-строка = col0 digit). Проверено: get_subprocesses_info возвращает реальный дочерний python.exe, _sample_disk_io парсит 123/456→0.5/1.8MB, ruff clean, 11 тестов resource_monitor passed. tests/test_contradiction_ledger.py: assert isinstance(discrepancies,int) + details list → 2 passed (было 1 fail).
+**Guard:** test_resource_monitor (9 быстрых тестов) + slow-run заставляет contradiction-тест работать; починенные функции не покрыты новым юнит-тестом парсинга PS5.1 — предлагается добавить (P3).
+**Pattern:** P-002-класс «ошибка пряталась за slow-маркером (и тремя зависимостями сканера)» + «scanner FP на блоклист-литералах и torch.eval()/main-конвенции».
+
 ## [2026-08-17] — ARCLUX audit: core→mcp импорт и graph.py self-import (FIXED); кластер MCP-циклов (OPEN)
 **Status:** ✅ Fixed (1294 passed; linter 0 [CORE_MCP]; ruff clean; guard — в дефолтном CI)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (нет сети/URL); локально: полный pytest 1294 passed, linter 0 CORE_MCP, ruff clean
