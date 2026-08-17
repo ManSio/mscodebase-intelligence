@@ -39,8 +39,11 @@ def test_no_false_discrepancies_on_current_repo():
     """
     res = run_contradiction_ledger()
     # We don't assert ok==True blindly (diary may have stale entries),
-    # but we assert the function ran and produced a list.
-    assert isinstance(res["discrepancies"], list)
+    # but we assert the function ran and produced the issues list.
+    # NOTE: `discrepancies` is the int COUNT, `details` is the list of issues
+    # (ARCLUX audit 2026-08-17: old assert checked wrong key -> slow-hid fail).
+    assert isinstance(res["discrepancies"], int)
+    assert isinstance(res["details"], list)
     if not res["ok"]:
         print(f"[WARN] Ledger found discrepancies: {res['discrepancies']}")
         print("  (This may be a stale diary entry, not a code bug.)")
