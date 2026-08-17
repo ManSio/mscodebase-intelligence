@@ -68,6 +68,32 @@ class TestSearchCodeNextStep:
         assert "graph_query" in out, f"empty-path должен предлагать graph_query:\n{out}"
 
 
+class TestSearchCodeDeepNotClobbered:
+    """Багрегрессия 2026-08-18: mode=deep/auto возвращали grep-fallback.
+
+    В SearchCodeTool.execute results_count ставился только в ветке fast/quality.
+    str-режимы (deep/context/ask/auto) оставляли results_count=0 → универсальный
+    grep-fallback подменял реальный семантический результат на grep.
+    Фикс: grep-fallback только для dict-режимов (isinstance(raw, dict)).
+    """
+
+    async def test_deep_mode_keeps_semantic_result(self, services):
+        tool = SearchCodeTool(services)
+        tool.require_ready_project = AsyncMock()
+        mock_searcher = MagicMock()
+        real_deep = "🔍 agentic deep search: found hybrid_search_async at engine.py:647\n..."
+        mock_searcher.deep_search.return_value = real_deep
+        with (
+            patch.object(SearchCodeTool, "resolve_searcher", return_value=mock_searcher),
+            patch.object(SearchCodeTool, "_project_header", return_value=""),
+            patch("src.mcp.tools.search_tools._grep_fallback", return_value="GREP-CLOBBER"),
+        ):
+            out = await tool.execute(query="hybrid search", mode="deep")
+
+        assert "GREP-CLOBBER" not in out, f"реальный deep-результат подменён grep:\n{out}"
+        assert "agentic deep search" in out, f"deep-результат потерян:\n{out}"
+
+
 # ═══════════════════════════════════════════════════════════════
 # get_symbol_info
 # ═══════════════════════════════════════════════════════════════
