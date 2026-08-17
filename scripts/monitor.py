@@ -2,22 +2,41 @@
 Мониторинг индексации — все фазы с точным расчётом.
 Запуск: python scripts/monitor.py (в отдельном терминале)
 
+Режимы для ЛЮБОГО проекта (протокол AGENTS.md — агент вызывает монитор
+после intel_trigger_reindex):
+  python scripts/monitor.py                             → глобальный main-лог
+  python scripts/monitor.py --project "D:/Path/Proj"    → per-project <Proj>.log (если есть)
+  python scripts/monitor.py --data-root "C:/my/mscodebase" → лог из своего data_root
+  python scripts/monitor.py --log "C:/x/mscodebase-intelligence.log" → прямой файл
+
+Скрипт сам добавляет корень репо в sys.path, поэтому запускается из любого
+каталога (не только из каталога MSCodeBase).
+
 v2: fixed avg, IVF progress, weighted speed, per-phase stats.
 v3: + lock status, Not Found counter, auto-index lifecycle.
+v4: + --project/--data-root/--log (мониторинг любого проекта).
 """
-import sys
+import argparse
 import os
-import time
 import re
+import sys
+import time
 from pathlib import Path
-from collections import deque
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
+# Self-bootstrap: позволяем запускать monitor.py из ЛЮБОГО проекта/каталога
+# (протокол AGENTS.md: агент обязан вызывать монитор после intel_trigger_reindex).
+# `python scripts/monitor.py` кладёт в sys.path каталог скрипта, а не корень репо —
+# без этой вставки `import src.core.*` не разрешался бы вне репо.
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path and (_repo_root / "src").is_dir():
+    sys.path.insert(0, str(_repo_root))
+
 # Единое имя лог-файла (Single Source of Truth)
 try:
-    from src.core.log_manager import get_main_log_path
+    from src.core.log_manager import get_main_log_path, get_log_dir  # noqa: I001 — после self-bootstrap
     LOG_FILE = get_main_log_path()
 except ImportError:
     LOG_DIR = Path(os.environ.get(
@@ -25,6 +44,67 @@ except ImportError:
         r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs"
     ))
     LOG_FILE = LOG_DIR / "mscodebase-intelligence.log"
+
+# ── CLI: монитор можно навести на любой проект (AGENTS.md) ──────────
+#   --project PATH    — корень проекта; предпочитает per-project лог <имя>.log,
+#                       иначе падает на глобальный data_root/logs/main.log
+#   --data-root PATH  — override data_root (== MSCODEBASE_DATA_DIR, где logs/)
+#   --log PATH        — прямой путь к лог-файлу (максимальный контроль)
+_ap = argparse.ArgumentParser(description="Мониторинг индексации MSCodebase Intelligence")
+_ap.add_argument("--project", default=None, help="корень проекта (резолв per-project лога)")
+_ap.add_argument("--data-root", default=None, help="override data_root (где data_root/logs)")
+_ap.add_argument("--log", default=None, help="прямой путь к лог-файлу")
+_cli, _ = _ap.parse_known_args()
+
+if _cli.log:
+    LOG_FILE = Path(_cli.log)
+elif _cli.data_root and "get_main_log_path" in globals():
+    os.environ["MSCODEBASE_DATA_DIR"] = _cli.data_root
+    try:
+        LOG_FILE = get_main_log_path()
+    except Exception:  # noqa: BLE001 — резолв-фолбэк
+        pass
+elif _cli.project and "get_log_dir" in globals():
+    try:
+        _pp = Path(_cli.project)
+        _pl = get_log_dir(_pp) / f"{_pp.name}.log"
+        LOG_FILE = _pl if _pl.exists() else get_main_log_path()
+    except Exception:  # noqa: BLE001 — резолв-фолбэк
+        pass
+
+if not LOG_FILE.exists():
+    print(f"⚠️  Лог-файл не найден: {LOG_FILE}", file=sys.stderr)
+    print("   (индексация ещё не начиналась, или неверный --project/--data-root). Жду создания...", file=sys.stderr)
+
+# ── Живой прогресс async-переиндексации (job-manager) ──────────
+# С 2026-08 (Задача 4/5 + job-manager) per-chunk-строки пишутся в progress.json,
+# а НЕ в лог. Лог-парсер показывает устаревиее «Завершено» — читаем progress.json
+# как ЕДИНЫЙ источник для intel_trigger_reindex (баг 2026-08-18).
+_proj_root = Path(_cli.project).resolve() if getattr(_cli, 'project', None) else _repo_root
+PROGRESS_FILE = None
+try:
+    from src.core.artifact_paths import get_progress_file
+    PROGRESS_FILE = get_progress_file(_proj_root)
+except Exception:  # noqa: BLE001
+    PROGRESS_FILE = None
+
+
+def read_progress_json():
+    """Читает живой прогресс job-manager (progress.json).
+
+    Возвращает dict при активной фазе (phase не пустой/idle), иначе None.
+    Является приоритетным источником: лог при async-переиндексации пуст.
+    """
+    if PROGRESS_FILE is None or not PROGRESS_FILE.exists():
+        return None
+    try:
+        import json
+        d = json.loads(PROGRESS_FILE.read_text(encoding='utf-8', errors='replace'))
+        if isinstance(d, dict) and d.get('phase') not in (None, '', 'idle'):
+            return d
+    except Exception:  # noqa: BLE001 — best-effort
+        return None
+    return None
 
 # ─── Состояние ────────────────────────────────────────────
 PHASE_LOADING = "⏳ Загрузка..."
@@ -83,7 +163,7 @@ def read_log_incremental():
             for line in f:
                 new_lines.append(line.rstrip('\n'))
             last_log_offset = f.tell()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort чтение
         pass
     return new_lines
 
@@ -117,8 +197,8 @@ def read_log_tail(n=50):
     try:
         with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
             lines = f.readlines()
-        return [l.rstrip('\n') for l in lines[-n:]]
-    except Exception:
+        return [ln.rstrip('\n') for ln in lines[-n:]]
+    except Exception:  # noqa: BLE001 — tail-чтение best-effort
         return []
 
 
@@ -154,7 +234,7 @@ def parse_found_files(line):
 
 
 def parse_db_write(line):
-    """Записано в БД: src\core\foo.py (12 чанков)"""
+    r"""Записано в БД: src\core\foo.py (12 чанков)"""
     m = re.search(r'Записано в БД:.*\((\d+)\s+чанков\)', line)
     return int(m.group(1)) if m else None
 
@@ -286,6 +366,26 @@ def render():
     print(f"  Время: {fmt_time(total_elapsed)}")
     print()
 
+    # Живой прогресс job-manager (переиндексация async) — ПРИОРИТЕТ над логом.
+    # Если progress.json активен, лог-парсер (старый запуск) вводит в заблуждение.
+    live = read_progress_json()
+    if live:
+        _phase = live.get('phase', 'indexing')
+        _progress = int(live.get('progress', 0) or 0)
+        _total = int(live.get('total_chunks', 0) or 0)
+        _done = round(_total * _progress / 100) if _total else 0
+        print(f"  🟢 Job-manager (progress.json): phase={_phase}, {_progress}%")
+        if _total:
+            print(f"     {bar(_done, _total)} {_progress}%")
+            print(f"     {_done}/{_total} чанков")
+            print(f"     ETA: {fmt_eta(_total - _done, recent_ema or 31)} | EMA ~{recent_ema:.0f} ch/s")
+        else:
+            print(f"     {bar(_progress, 100)} {_progress}%")
+        if live.get('current_file'):
+            print(f"     📄 {live['current_file']}")
+        print("─" * 60)
+        return False  # живём по progress.json, не выходим на устаревшем «done» лога
+
     # PID-lock статус
     print(f"  {render_lock_emoji()} Lock: {lock_status}")
     if not_found_count > 0:
@@ -348,7 +448,6 @@ def render():
 
     # Тренд
     if ema_initialized and done_chunks > 0:
-        remaining = total_chunks - done_chunks
         print(f"  Тренд: {'⬆️' if recent_ema > (avg_log or 1) else '➡️'} "
               f"(EMA vs лог avg)")
         print()
@@ -364,6 +463,9 @@ os.system('cls' if os.name == 'nt' else 'clear')
 print("📊 МОНИТОР ИНДЕКСАЦИИ v3")
 print("─" * 60)
 print("  Инициализация... чтение лога")
+print(f"  Лог: {LOG_FILE}")
+if getattr(_cli, 'project', None):
+    print(f"  Проект: {_cli.project}")
 print("─" * 60)
 
 # Начальная загрузка — последние 200 строк
@@ -377,7 +479,7 @@ for _i, line in enumerate(initial_lines):
 
 if _last_auto_start_idx >= 0:
     initial_lines = initial_lines[_last_auto_start_idx + 1:]
-    _found_complete = any(parse_indexing_complete(l) or parse_ivf_done(l) for l in initial_lines)
+    _found_complete = any(parse_indexing_complete(ln) or parse_ivf_done(ln) for ln in initial_lines)
     if _found_complete:
         # Последний запуск уже завершился — начнём как будто ничего не идёт
         phase = PHASE_LOADING
