@@ -4,12 +4,10 @@ Supports pre-quantized models (direct download, no export) and
 full export pipeline (AutoModel/AutoModelForSequenceClassification).
 """
 
-import json
 import logging
 import os
 import shutil
 import sys
-import time
 from pathlib import Path
 
 logging.basicConfig(
@@ -86,7 +84,7 @@ def _purge_hf_cache(model_name: str):
     if p.exists():
         try:
             shutil.rmtree(p, ignore_errors=True)
-        except:
+        except Exception:  # noqa: BLE001 — purge best-effort
             pass
 
 
@@ -132,13 +130,13 @@ def _download_prequantized(model_name: str, model_dir: Path, onnx_path: Path) ->
                         repo_id=onnx_repo, filename=extra,
                         local_dir=str(model_dir), local_dir_use_symlinks=False,
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001 — optional extra файлы
                     pass  # optional files
 
         sz = target_path.stat().st_size / 1024 / 1024
         logger.info(f"   ✅ Pre-quantized ONNX: {target_path} ({sz:.0f} MB)")
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — download fallback
         logger.warning(f"   ⚠️ Pre-quantized download failed: {e}")
         return False
 
@@ -199,6 +197,8 @@ def download_onnx_model(
     model = model_class.from_pretrained(
         model_name, trust_remote_code=True, cache_dir=str(cache_dir)
     )
+    # НЕ Python eval(): модели переключаются в inference-режим вызовом .eval().
+    # ARCLUX security scanner помечает это как «unsafe-eval» — ложное срабатывание.
     model.eval()
     tokenizer.save_pretrained(str(model_dir))
 
@@ -260,15 +260,13 @@ def download_onnx_model(
             os.rename(q_path, str(onnx_path))
             q_mb = os.path.getsize(str(onnx_path)) / 1024 / 1024
             logger.info(f"   ✅ ONNX int8: {onnx_path} ({q_mb:.0f} MB)")
-        except Exception as qe:
+        except Exception as qe:  # noqa: BLE001 — quantization fallback
             logger.warning(f"   ⚠️ Quantization failed: {qe}. Keeping float32.")
 
     # Cleanup
     if purge_cache:
         _purge_hf_cache(model_name)
         if hasattr(Path.home(), ".cache"):
-            import glob
-
             for d in [
                 Path.home() / ".cache" / "huggingface" / "hub",
                 Path.home() / ".cache" / "torch",
