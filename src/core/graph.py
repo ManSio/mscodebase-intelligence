@@ -684,7 +684,8 @@ class PropertyGraph:
         with self._lock:
             conn = self._get_conn()
             rows = conn.execute(sql, params).fetchall()
-            from .graph import Edge  # local import to avoid circular
+            # Edge/Node определены в этом же модуле (класс Edge — L301) —
+            # lazy-import был self-import'ом (ARCLUX), убран 2026-08-17.
             results = []
             for r in rows:
                 src = Node(

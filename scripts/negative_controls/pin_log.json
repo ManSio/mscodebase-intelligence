@@ -52,5 +52,14 @@
       "stale_detector": "e02648544530d605431e15262aafd52d5575c7e25570e4c36fbcc242288e4588",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-08-17T20:32:17Z",
+    "reason": "stale_config.json: .local/AGENTS.md в version_ignore_files (ARCLUX commit gate unblock, 2026-08-17)",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "4058029f7b592b89f1f7967f6109232cfc7fd9a311f156356ea1b6392a84a483",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

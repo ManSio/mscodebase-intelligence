@@ -20,6 +20,15 @@ import ast
 import sys
 from pathlib import Path
 
+# ENCODING SAFETY (Windows, §5.9): вывод нарушений содержит юникод (❌) —
+# cp1251-консоль падала с UnicodeEncodeError до вывода первого нарушения,
+# линтер молча работал «вхолостую» на Windows (ARCLUX audit 2026-08-17).
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 REPO = Path(__file__).resolve().parent.parent  # D:\Project\MSCodeBase
 
 # ══════════════════════════════════════════════════════════════
@@ -34,14 +43,13 @@ _FORBIDDEN_MCP_IMPORTS = {
     "mcp.tools",
 }
 
-# Core больше не импортирует MCP (resolve_project_root — закрыт в 3.3.11;
-# progress_state/get_last_progress — удалён, единый источник прогресса —
-# job_manager в src/core/intelligence/jobs.py). Оставшиеся исключения —
-# tools.base из intelligence.layer (документированный мост для _grep_fallback).
-_ALLOWED_CORE_MCP_IMPORTS: dict[str, list[str]] = {
-    "src.core.intelligence_layer": ["src.mcp.tools.base"],
-    "src.core.intelligence.layer": ["src.mcp.tools.base"],
-}
+# Core не импортирует MCP вообще (ARCH-03 закрыт 2026-08-05/2026-08-17):
+# resolve_project_root — src/core/project_resolution.py; progress_state —
+# src/core/progress_state.py; _grep_fallback — src/core/utils/grep_fallback.py
+# (перенесён из mcp.tools.search_tools 2026-08-17, ARCLUX audit).
+# Stale-ключи удалены: intelligence_layer (модуль не существует),
+# intelligence.layer (больше не импортирует mcp).
+_ALLOWED_CORE_MCP_IMPORTS: dict[str, list[str]] = {}
 
 
 def _check_core_no_mcp_imports() -> list[str]:
@@ -224,7 +232,7 @@ def main():
         print(f"  ❌ Найдено {total_errors} нарушений")
         sys.exit(1)
     else:
-        print(f"  ✅ Все инварианты соблюдены")
+        print("  ✅ Все инварианты соблюдены")
         sys.exit(0)
 
 

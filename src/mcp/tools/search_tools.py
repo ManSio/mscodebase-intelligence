@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 from src.config.settings import get_config
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.utils.grep_fallback import grep_fallback as _grep_fallback
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
 from src.utils.ui_formatter import format_search_code
@@ -177,55 +178,6 @@ def _is_complex_query(query: str) -> bool:
 # ══════════════════════════════════════════════════════════
 # Search Tools
 # ══════════════════════════════════════════════════════════
-
-
-def _grep_fallback(query: str, filter_layer: Optional[str] = None) -> str:
-    """Fallback to grep when index is empty/corrupted. Uses keyword-based search."""
-    import pathlib as _pl
-
-    # INC-MULTI-WINDOW: корень берём из резолвера (CWD-first, per-window),
-    # а не из __file__: в installed-режиме __file__ = каталог расширения,
-    # и fallback искал в чужом каталоге (аудит Bot_snow #7). Ленивый импорт
-    # — core-слой не зависит от mcp (ARCH-03, направление core←mcp).
-    from src.core.project_resolution import resolve_project_root
-
-    root = _pl.Path(resolve_project_root())
-    results = []
-
-    # Split query into keywords for flexible matching
-    keywords = [w.lower() for w in query.split() if len(w) > 2]
-
-    try:
-        for ext in ("*.py", "*.md", "*.txt", "*.js", "*.ts"):
-            for f in root.rglob(ext):
-                # Skip .git, __pycache__, node_modules
-                parts = f.parts
-                if any(p.startswith(".") or p == "__pycache__" or p == "node_modules" for p in parts):
-                    continue
-                try:
-                    text = f.read_text(encoding="utf-8", errors="ignore")
-                    for i, line in enumerate(text.split("\n"), 1):
-                        line_lower = line.lower()
-                        # Match if ANY keyword is found in the line (OR matching)
-                        if any(kw in line_lower for kw in keywords):
-                            rel = f.relative_to(root)
-                            results.append(f"{rel}:{i}: {line.strip()[:80]}")
-                            if len(results) >= 20:
-                                break
-                except Exception:
-                    continue
-                if len(results) >= 20:
-                    break
-            if len(results) >= 20:
-                break
-
-        if results:
-            formatted = "\n".join(f"  {r}" for r in results)
-            return f"\n🔍 **Grep fallback** (index empty/corrupted, {len(results)} results):\n{formatted}"
-        return ""
-    except Exception:
-        return ""
-
 
 
 class SearchCodeTool(MCPTool):
