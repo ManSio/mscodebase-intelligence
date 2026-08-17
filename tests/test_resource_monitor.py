@@ -1,6 +1,7 @@
 """Unit-тесты для ResourceMonitor (multi-window, INC-6BCB)."""
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -80,6 +81,61 @@ class TestResourceMonitor:
         m3 = get_global_resource_monitor()
         assert m3 is not m1
         reset_global_resource_monitor()
+
+    # ─── PS 5.1 CSV-парсинг (ARCLUX 2026-08-17) ────────────────────────
+    # PowerShell 5.1 (дефолт на Windows) НЕ знает ConvertTo-Csv -NoHeader
+    # и кидает на продублированной колонке ProcessId; выдаёт "#TYPE ..." +
+    # строку-заголовок. Тесты фиксируют, что парсер это переживает.
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell CSV parsing")
+    def test_get_subprocesses_info_parses_ps51_format(self, monkeypatch):
+        import subprocess
+
+        fake = (
+            "#TYPE Selected.Microsoft.Management.Infrastructure.CimInstance\n"
+            '"ProcessId","Name","WorkingSet64"\n'
+            '"24192","python.exe","10485760"\n'
+            '"7980","powershell.exe","2097152"\n'
+        )
+        monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: fake)
+        info = ResourceMonitor().get_subprocesses_info()
+        pids = [i["pid"] for i in info]
+        names = {i["name"] for i in info}
+        assert 24192 in pids and 7980 in pids
+        assert "python.exe" in names and "powershell.exe" in names
+        py = next(i for i in info if i["name"] == "python.exe")
+        assert py["ram_mb"] == 10485760 // (1024 * 1024)
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell CSV parsing")
+    def test_sample_disk_io_parses_ps51_format(self, monkeypatch):
+        import subprocess
+
+        fake = (
+            "#TYPE System.Diagnostics.Process\n"
+            '"ReadOperationCount","WriteOperationCount"\n'
+            '"123","456"\n'
+        )
+        monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: fake)
+        m = ResourceMonitor()
+        m._disk_io_cache = {"read_mb": 0, "write_mb": 0, "timestamp": 0.0}
+        d = m._sample_disk_io()
+        assert d["read_mb"] == round(123 * 4 / 1024, 1)
+        assert d["write_mb"] == round(456 * 4 / 1024, 1)
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell CSV parsing")
+    def test_sample_disk_io_no_data_row_returns_zero(self, monkeypatch):
+        """Процесс умер → остаётся только #TYPE+заголовок → 0/0, без мусора."""
+        import subprocess
+
+        fake = (
+            "#TYPE System.Diagnostics.Process\n"
+            '"ReadOperationCount","WriteOperationCount"\n'
+        )
+        monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: fake)
+        m = ResourceMonitor()
+        m._disk_io_cache = {"read_mb": 0, "write_mb": 0, "timestamp": 0.0}
+        d = m._sample_disk_io()
+        assert d["read_mb"] == 0.0 and d["write_mb"] == 0.0
 
 
 class TestProjectIndexerRegistry:

@@ -295,26 +295,37 @@ class ResourceMonitor:
             try:
                 import subprocess as _sp
                 _pid = os.getpid()
+                # NOTE: PS 5.1 (дефолт на Windows) — `ConvertTo-Csv -NoHeader`
+                # появился только в PS 6.0, а proc с продублированной колонкой
+                # `WorkingSet64,ProcessId` кидает «duplicated property» (ARCLUX 2026-08-17).
+                # Убран `-NoHeader` и дубль ProcessId; 5.1 добавляет "#TYPE ..." +
+                # строку-заголовок — их пропускаем ниже.
                 out = _sp.check_output(
                     ["powershell", "-NoProfile", "-Command",
-                     f"Get-CimInstance Win32_Process | Where-Object {{ $_.ParentProcessId -eq {_pid} }} | Select-Object ProcessId,Name,WorkingSet64,ProcessId | ConvertTo-Csv -NoHeader"],
+                     f"Get-CimInstance Win32_Process | Where-Object {{ $_.ParentProcessId -eq {_pid} }} | Select-Object ProcessId,Name,WorkingSet64 | ConvertTo-Csv"],
                     timeout=5, text=True, encoding="utf-8", errors="replace",
                 )
                 for line in out.strip().splitlines():
+                    if not line or line.startswith("#"):
+                        continue  # #TYPE (PS 5.1) — не данные
                     parts = line.split(",")
-                    if len(parts) >= 3:
-                        _name = parts[0].strip('"')
-                        _pid_s = parts[1].strip('"')
-                        _ram = parts[2].strip('"')
-                        try:
-                            _ram_mb = int(_ram) // (1024 * 1024)
-                        except Exception:
-                            _ram_mb = 0
-                        result.append({
-                            "name": _name,
-                            "pid": int(_pid_s) if _pid_s.isdigit() else 0,
-                            "ram_mb": _ram_mb,
-                        })
+                    # Колонки: ProcessId,Name,WorkingSet64,ProcessId.
+                    # Заголовок PS 5.1 — колонка 0 = "ProcessId" (не цифра);
+                    # данные — колонка 0 = PID (цифра).
+                    if len(parts) < 3 or not parts[0].strip('"').isdigit():
+                        continue
+                    _name = parts[1].strip('"')
+                    _pid_s = parts[0].strip('"')
+                    _ram = parts[2].strip('"')
+                    try:
+                        _ram_mb = int(_ram) // (1024 * 1024)
+                    except Exception:
+                        _ram_mb = 0
+                    result.append({
+                        "name": _name,
+                        "pid": int(_pid_s) if _pid_s.isdigit() else 0,
+                        "ram_mb": _ram_mb,
+                    })
             except Exception as ex:
                 logger.debug(f"get_subprocesses_info failed: {ex}")
         return result
@@ -521,14 +532,16 @@ class ResourceMonitor:
             pid = os.getpid()
             out = _sp.check_output(
                 ["powershell", "-NoProfile", "-Command",
-                 f"(Get-Process -Id {pid} | Select-Object -Property ReadOperationCount,WriteOperationCount) | ConvertTo-Csv -NoHeader"],
+                 f"(Get-Process -Id {pid} | Select-Object -Property ReadOperationCount,WriteOperationCount) | ConvertTo-Csv"],
                 timeout=5, text=True, encoding="utf-8", errors="replace",
                 creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),  # инцидент 2026-08-14: мигание консоли в простое каждые ~30с
             )
-            parts = out.strip().split(",")
+            # PS 5.1: строка-заголовок ("."x) + ; берём последнюю непустую строку данных.
+            lines = [ln for ln in out.strip().splitlines() if ln and not ln.startswith("#")]
+            parts = lines[-1].split(",") if lines else []
             if len(parts) >= 2:
-                reads = int(parts[0]) if parts[0].isdigit() else 0
-                writes = int(parts[1]) if parts[1].isdigit() else 0
+                reads = int(parts[0].strip('"')) if parts[0].strip('"').isdigit() else 0
+                writes = int(parts[1].strip('"')) if parts[1].strip('"').isdigit() else 0
                 # Оцениваем MB примерно (обычно 4KB на операцию)
                 result["read_mb"] = round(reads * 4 / 1024, 1)
                 result["write_mb"] = round(writes * 4 / 1024, 1)
