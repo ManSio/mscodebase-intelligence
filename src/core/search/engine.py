@@ -71,46 +71,103 @@ def _cache_key(*parts: str) -> str:
 # (аудит Bot_snow BS-2/BS-4: точные хиты вытеснялись случайными чанками).
 _IDENTIFIER_QUERY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{1,63}$")
 
+# Вариант A (2026-08-17): doc-чанки не бустуются точным именем символа.
+# KNOWN_ISSUES/docs/adr цитируют имена кода ("class PropagationEngine") и раньше
+# получали тот же boost ×100, что и исходник — доки вытесняли сам код из топа
+# при идентификатор-запросе (fast "PropagationEngine" → 5 doc + 1 code).
+_DOC_SUFFIXES = (".md", ".markdown", ".rst", ".txt", ".ipynb")
+
+
+def _is_doc_chunk(meta: Dict[str, Any]) -> bool:
+    """Doc-чанк (*.md и т.п.) — не бустуется точным именем (Вариант A)."""
+    return str(meta.get("file", "") or "").lower().endswith(_DOC_SUFFIXES)
+
+
+def _exact_name_match(r: Dict, query: str) -> bool:
+    """True, если чанк точно совпадает с именем идентификатора-запроса.
+
+    Логика извлечена из _boost_exact_name_matches: точное имя символа
+    (get_db → symbol "get_db") или вызов вида def <query>( / <query>(.
+    """
+    q = (query or "").strip()
+    if not q:
+        return False
+    meta = r.get("metadata") or {}
+    text = str(r.get("text", "") or "")
+    sym = str(meta.get("symbol_name", "") or "")
+    if not sym:
+        sym = _extract_symbol_name(text)
+    if not sym:
+        return False
+    sym_l = sym.lower()
+    ql = q.lower()
+    return (
+        sym_l == ql
+        or ql in sym_l
+        or bool(re.search(rf"\bdef\s+{re.escape(q)}\s*\(", text))
+        or bool(re.search(rf"\b{re.escape(q)}\s*\(", text))
+    )
+
 
 def _boost_exact_name_matches(results: List[dict], query: str) -> List[dict]:
     """Поднимает результаты, чьё имя символа точно совпадает с запросом.
 
-    Мотивация: dense-эмбеддинги слабо различают релевантность (сжатое
-    пространство, замер 2026-08-07: distance 0.09-0.18 для всех пар),
-    поэтому точный токен имени (get_db → symbol "get_db") — самый
-    надёжный сигнал. Буст применяется ТОЛЬКО если запрос — одиночный
-    идентификатор; семантические фразы не затрагиваются.
+    Мотивация (BS-2/BS-4, 2026-08-07): dense-эмбеддинги слабо различают
+    релевантность, поэтому точный токен имени — самый надёжный сигнал.
+    Применяется ТОЛЬКО к одиночному идентификатору.
     """
     q = (query or "").strip()
     if not _IDENTIFIER_QUERY_RE.match(q):
         return results
-    ql = q.lower()
-
     for r in results:
-        meta = r.get("metadata") or {}
-        text = str(r.get("text", "") or "")
-        sym = str(meta.get("symbol_name", "") or "")
-        if not sym:
-            sym = _extract_symbol_name(text)  # "def get_db(" → "get_db"
-        if not sym:
+        # Вариант A (2026-08-17): doc-чанки (KNOWN_ISSUES/docs/adr цитируют символы
+        # кода) НЕ бустуются точным именем — иначе они вытесняли бы сам код из топа.
+        if _is_doc_chunk(r.get("metadata") or {}):
             continue
-        sym_l = sym.lower()
-        # Точное имя, имя-префикс или вызов вида def <query>( / <query>(
-        if (
-            sym_l == ql
-            or ql in sym_l
-            or re.search(rf"\bdef\s+{re.escape(q)}\s*\(", text)
-            or re.search(rf"\b{re.escape(q)}\s*\(", text)
-        ):
+        if _exact_name_match(r, q):
             r["final_score"] = (r.get("final_score", 0) or 0) * 100.0
             r["exact_name_boost"] = True
 
     # Стабильная сортировка: бустнутые впереди (в исходном порядке), остальные
     # сзади (в исходном порядке). НЕ сортируем по final_score — у dense-хитов
-    # в fast-mode скор = distance (меньше = лучше), у RRF/rerank — больше =
-    # лучше; пересортировка по нему инвертировала бы dense-порядок.
+    # в fast-mode скор = distance (меньше = лучше), у RRF/rerank — больше = лучше.
     results.sort(key=lambda r: 0 if r.get("exact_name_boost") else 1)
     return results
+
+
+def _prepend_code_name_matches(
+    results: List[dict], pool: Optional[List[dict]], query: str, limit: int
+) -> List[dict]:
+    """Вариант A' (2026-08-17): возвращает точные КОДОВЫЕ совпадения из пула.
+
+    RRF-фьюжен + limit на этапе отбора кандидатов могут выбросить кодовый чанк
+    с точным именем (class PropagationEngine), тогда как doc-чанки, цитирующие
+    символ, занимают топ. Этот хелпер prep'ендит точные кодовые совпадения из
+    широкого поискового пула (fts5_raw в fast-пути) поверх уже отобранных
+    результатов, если они отсутствуют в выдаче.
+    """
+    q = (query or "").strip()
+    if not _IDENTIFIER_QUERY_RE.match(q) or not pool:
+        return results
+
+    def _key(r: Dict) -> Tuple[str, str]:
+        meta = r.get("metadata") or {}
+        return (
+            str(meta.get("file", "") or ""),
+            (_extract_symbol_name(str(r.get("text", "") or "")) or ""),
+        )
+
+    exact = [
+        r for r in pool
+        if (not _is_doc_chunk(r.get("metadata") or {})) and _exact_name_match(r, q)
+    ]
+    if not exact:
+        return results
+    have = {_key(r) for r in results}
+    fresh = [r for r in exact if _key(r) not in have]
+    if not fresh:
+        return results
+    return (fresh + results)[:limit]
 
 
 def _dedupe_by_symbol(results: List[dict]) -> List[dict]:
@@ -956,6 +1013,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             # В fast-mode нет reranker, поэтому FTS5-метка гарантированно видна.
             # _fts5_search делает lazy build (~0.6s на первом вызове) — принимаем,
             # т.к. search_with_mode и так блокирующий (вызывается через asyncio.run).
+            fts5_raw: List[dict] = []
             try:
                 fts5_raw = self._fts5_search(query, limit=limit * 2)
                 if fts5_raw:
@@ -968,6 +1026,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             # через hybrid_search_async, поэтому повторяем здесь).
             results = _boost_exact_name_matches(results, query)
             results = _dedupe_by_symbol(results)
+
+            # A' (2026-08-17): идентификатор-запрос — возвращаем точные кодовые
+            # совпадения из fts5-пула, если RRF+limit их выбросил: doc не занимает
+            # топ вместо самого кода (Эмпир.: fast "PropagationEngine" → 5 doc + 1 code).
+            results = _prepend_code_name_matches(results, fts5_raw, query, limit)
 
             # Graph context expansion для fast mode (Задача 5/5): связи из
             # графа вызовов (callers/callees) видны агенту без reranker'а.

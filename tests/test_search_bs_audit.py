@@ -22,6 +22,9 @@ from src.core.search.engine import (
     Searcher,
     _boost_exact_name_matches,
     _dedupe_by_symbol,
+    _exact_name_match,
+    _is_doc_chunk,
+    _prepend_code_name_matches,
 )
 from src.mcp.tools.search_tools import SearchCodeTool
 
@@ -176,6 +179,80 @@ def test_bs4_boost_exact_name_beats_dense_garbage():
     assert boosted[0]["metadata"]["file"] == "src/database.py"
     assert boosted[0].get("exact_name_boost") is True
     assert boosted[0]["final_score"] > boosted[1]["final_score"]
+
+
+def test_bs4_doc_quoting_symbol_does_not_beat_code():
+    """Вариант A (2026-08-17): doc-чанк, цитирующий символ, не вытесняет сам код.
+
+    KNOWN_ISSUES.md/docs/adr содержат 'class PropagationEngine' и на старом коде
+    получали тот же boost ×100, что и src-исходник — доки занимали топ, код падал ниже.
+    Теперь doc-чанки не бустуются точным именем: код с точным совпадением уходит вперёд.
+    """
+    doc = {
+        "text": "## PropagationEngine невидим\nclass PropagationEngine (line 44)",
+        "metadata": {"file": "KNOWN_ISSUES.md", "chunk_index": 0},
+        "final_score": 0.9,
+    }
+    code = {
+        "text": "class PropagationEngine(Engine):\n    def retract(self, ...)",
+        "metadata": {
+            "file": "src/core/intelligence/propagation_engine.py",
+            "chunk_index": 1,
+        },
+        "final_score": 0.8,
+    }
+    out = _boost_exact_name_matches([doc, code], "PropagationEngine")
+    assert out[0]["metadata"]["file"] == "src/core/intelligence/propagation_engine.py"
+    assert out[0].get("exact_name_boost") is True
+    assert out[0]["final_score"] > out[1]["final_score"]
+    assert "exact_name_boost" not in out[1]
+
+
+def test_is_doc_chunk():
+    """A: doc-чанки идентифицируются по файлу (*.md и т.п.), код — нет."""
+    assert _is_doc_chunk({"file": "KNOWN_ISSUES.md"}) is True
+    assert _is_doc_chunk({"file": "docs/adr/0004-typed-dependency-edges.md"}) is True
+    assert _is_doc_chunk({"file": "src/core/search/engine.py"}) is False
+    assert _is_doc_chunk({}) is False
+
+
+def test_exact_name_match():
+    """A: символ-совпадение true, несовпадение false."""
+    code = {"text": "class PropagationEngine(Engine):", "metadata": {"file": "a.py"}}
+    assert _exact_name_match(code, "PropagationEngine") is True
+    fn = {"text": "def find_dependents(num):", "metadata": {"file": "a.py"}}
+    assert _exact_name_match(fn, "PropagationEngine") is False
+
+
+def test_prepend_code_name_matches_restores_code_above_doc():
+    """A' (2026-08-17): кодовый чанк с точным именем, вытесненный RRF+limit,
+    возвращается наверх из широкого пула — doc не занимает топ вместо кода."""
+    doc = {
+        "text": "## PropagationEngine\nclass PropagationEngine (line 44)",
+        "metadata": {"file": "KNOWN_ISSUES.md", "chunk_index": 0},
+        "final_score": 0.9,
+    }
+    code_class = {
+        "text": "class PropagationEngine(Engine):\n    def retract(...)",
+        "metadata": {
+            "file": "src/core/intelligence/propagation_engine.py",
+            "chunk_index": 2,
+        },
+        "final_score": 0.01,  # был бы вытеснен RRF+limit из выдачи
+    }
+    # В выдачу (после RRF) вошёл только doc; класс-чанк остался в широком пуле.
+    results_in = [doc]
+    pooled = [code_class, doc]
+    out = _prepend_code_name_matches(results_in, pooled, "PropagationEngine", limit=6)
+    assert out[0]["metadata"]["file"] == code_class["metadata"]["file"]
+    assert len(out) == 2
+    # Уже присутствующий код не дублируется (дедуп по ключу).
+    out2 = _prepend_code_name_matches([code_class], [code_class, doc], "PropagationEngine", limit=6)
+    assert len(out2) == 1
+    assert out2[0]["metadata"]["file"] == code_class["metadata"]["file"]
+    # Фраза (не идентификатор) не триггерит prepend.
+    out3 = _prepend_code_name_matches([doc], pooled, "REASON_PREFIX propagation", limit=6)
+    assert out3 == [doc]
 
 
 def test_bs2_boost_skips_semantic_phrase():
