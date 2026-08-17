@@ -36,7 +36,7 @@
       "output_contains": [
         "STALE NEGATIVE CONTROL: PASSED"
       ],
-      "fixture_digest": "e02648544530d605431e15262aafd52d5575c7e25570e4c36fbcc242288e4588"
+      "fixture_digest": "4058029f7b592b89f1f7967f6109232cfc7fd9a311f156356ea1b6392a84a483"
     },
     {
       "id": "dead_guard_classifier",
@@ -57,5 +57,5 @@
       "fixture_digest": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
   ],
-  "min_accepted_revision": "815222828cf682e5b8af5c7d5f3a84feaa037aca"
+  "min_accepted_revision": "211519ea7a077b7b942ab6738a8518abea82bac0"
 }

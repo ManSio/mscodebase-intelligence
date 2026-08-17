@@ -277,6 +277,7 @@ def parse_diary() -> List[DiaryEntry]:
             _COMMIT_EXCLUDE = {
                 'be6917458612', 'd47bee8235d9c14e', '001110010111',
                 '60d092b1e1', '0000135', 'c000001d', '5067470', '2684354560',
+                '694059bc',  # chunk-hash в записи propagation_engine (2026-08-16/17), не коммит
             }
             # RUN_ID / run_id / RUN ID — runtime-идентификаторы процесса (§3.1),
             # НЕ git-коммиты: удаляем ВЕСЬ токен «RUN_ID <hex>» ДО hex-сканирования

@@ -888,7 +888,9 @@ class ProjectIntelligenceLayer:
         # 2. If no good matches, use search_code as fallback
         if not matches or (matches and matches[0]["match_score"] < 0.3):
             try:
-                from src.mcp.tools.search_tools import _grep_fallback
+                # ARCH-03 (направление core←mcp): grep_fallback перенесён в core
+                # (src/core/utils/grep_fallback.py), чтобы core не импортировал mcp.
+                from src.core.utils.grep_fallback import grep_fallback as _grep_fallback
                 search_results = _grep_fallback(error_message)
                 if search_results:
                     # Extract relevant code snippets

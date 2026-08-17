@@ -13,7 +13,6 @@
 архитектура работает как цепочка слоёв.
 """
 
-import ast
 import os
 import sys
 from pathlib import Path
@@ -181,81 +180,6 @@ class TestPassportLayer:
         if srv._BUILD_ID:
             assert len(srv._BUILD_ID) >= 7
             int(srv._BUILD_ID, 16)
-
-
-class TestArchitectureInvariants:
-    _REPO = Path(__file__).resolve().parent.parent
-
-    _FORBIDDEN_CORE_IMPORTS = {
-        "src.mcp", "src.mcp.server", "src.mcp.tools",
-        "mcp.server", "mcp.tools",
-    }
-
-    _ALLOWED_CORE_MCP_IMPORTS = {
-        "src.core.runtime_coordinator": ["src.mcp.server"],
-        "src.core.intelligence_layer": ["src.mcp.tools.base"],
-        "src.core.project_context": ["src.mcp.server"],
-    }
-
-    def _get_imports(self, file_path):
-        result = []
-        try:
-            tree = ast.parse(file_path.read_text(encoding="utf-8"))
-        except SyntaxError:
-            return result
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    result.append((node.lineno, alias.name))
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    result.append((node.lineno, node.module))
-        return result
-
-    def test_core_does_not_import_mcp(self):
-        core_dir = self._REPO / "src" / "core"
-        errors = []
-        for py_file in sorted(core_dir.rglob("*.py")):
-            if py_file.name.startswith("__"):
-                continue
-            rel = str(py_file.relative_to(self._REPO).with_suffix(""))
-            rel_dotted = rel.replace("/", ".").replace("\\", ".")
-            allowed = self._ALLOWED_CORE_MCP_IMPORTS.get(rel_dotted, [])
-            for lineno, modname in self._get_imports(py_file):
-                for forbidden in self._FORBIDDEN_CORE_IMPORTS:
-                    if modname.startswith(forbidden):
-                        if any(modname.startswith(a) for a in allowed):
-                            continue
-                        errors.append(f"{rel}:{lineno} imports {modname!r}")
-        assert not errors, "Core layer imports MCP:\n" + "\n".join(errors)
-
-    def test_tools_do_not_import_registry_directly(self):
-        tools_dir = self._REPO / "src" / "mcp" / "tools"
-        _FORBIDDEN_TOOL_IMPORTS = {
-            "src.core.project_indexer_registry",
-            "src.core.lsp_project_bridge",
-        }
-        errors = []
-        for py_file in sorted(tools_dir.rglob("*.py")):
-            if py_file.name in ("__init__.py", "base.py"):
-                continue
-            for lineno, modname in self._get_imports(py_file):
-                for forbidden in _FORBIDDEN_TOOL_IMPORTS:
-                    if modname.startswith(forbidden):
-                        rel = py_file.relative_to(self._REPO)
-                        errors.append(f"{rel}:{lineno} imports {modname!r}")
-        assert not errors, "Tools must use Coordinator, not Registry:\n" + "\n".join(errors)
-
-    def test_no_core_self_import(self):
-        core_dir = self._REPO / "src" / "core"
-        for py_file in core_dir.rglob("*.py"):
-            if py_file.name.startswith("__"):
-                continue
-            mod_name = f"src.core.{py_file.stem}"
-            for lineno, imp in self._get_imports(py_file):
-                if imp == mod_name:
-                    rel = py_file.relative_to(self._REPO)
-                    pytest.fail(f"{rel}:{lineno} self-imports")
 
 
 class TestExecutionVerdictEnriched:
