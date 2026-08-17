@@ -149,5 +149,12 @@ markers = [
     "asyncio: marks tests as asyncio tests",
     "benchmark: marks tests as benchmark tests (deselect with '-m \"not benchmark\"')",
 ]
-norecursedirs = [".git", ".venv", "venv", ".idea", ".vscode", ".codebase_index", ".codebase_indices"]
+norecursedirs = [
+    ".git", ".venv", "venv", ".idea", ".vscode",
+    ".codebase_index", ".codebase_indices",
+    # experiments/ — throwaway-пробы (гигиена корня §0.6): их *_test.py
+    # ломали сборку полного набора (capture ValueError, 2026-08-18)
+    # и не должны авто-собираться в основной suite (pytest tests/).
+    "experiments",
+]
 addopts = "-v --tb=short -m 'not slow and not benchmark'"
