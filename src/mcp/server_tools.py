@@ -338,16 +338,26 @@ def _register_inline_tools(mcp, services):
         """
         import getpass
 
-        from src.mcp.server import (
-            _BUILD_ID,
-            _RUN_ID,
-            _RUN_PID,
-            _RUN_SOURCE_FILE,
-            _RUN_STARTED_AT,
-            _default_project_root,
-            _ext_root,
-            _services_cache,
+        from src.core.passport import (
+            RUN_ID as _RUN_ID,
+        )
+        from src.core.passport import (
+            RUN_PID as _RUN_PID,
+        )
+        from src.core.passport import (
+            RUN_STARTED_AT as _RUN_STARTED_AT,
+        )
+        from src.core.project_resolution import (
+            ext_root as _ext_root,
+        )
+        from src.core.project_resolution import (
             resolve_project_root,
+        )
+        from src.mcp.context import (
+            _BUILD_ID,
+            _RUN_SOURCE_FILE,
+            _default_project_root,
+            _services_cache,
         )
         from src.mcp.tools.base import _is_self_index_path
         from src.utils.ui_formatter import _val, header, section
@@ -421,7 +431,8 @@ def _register_inline_tools(mcp, services):
             JSON со всей известной информацией о проекте.
         """
         from src.core.intelligence.project_context import ProjectContext
-        from src.mcp.server import _default_project_root, resolve_project_root
+        from src.core.project_resolution import resolve_project_root
+        from src.mcp.context import _default_project_root
 
         _default = _default_project_root or resolve_project_root()
         target = Path(project_root).resolve() if project_root else _default
@@ -441,8 +452,9 @@ def _register_inline_tools(mcp, services):
             Текстовый диагноз с состоянием каждого слоя.
         """
         from src.core.intelligence.project_context import ProjectContext
+        from src.core.project_resolution import resolve_project_root
         from src.core.runtime_coordinator import RuntimeCoordinator
-        from src.mcp.server import _default_project_root, resolve_project_root
+        from src.mcp.context import _default_project_root
 
         _default = _default_project_root or resolve_project_root()
         target = Path(project_root).resolve() if project_root else _default

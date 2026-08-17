@@ -55,7 +55,7 @@ async def _ensure_lsp():
             return _lsp_client if _lsp_client is not False else None
         try:
             from src.core.lsp_client import LspClient
-            from src.mcp.server import resolve_project_root
+            from src.core.project_resolution import resolve_project_root
 
             root = resolve_project_root()
             client = LspClient(project_root=Path(root))

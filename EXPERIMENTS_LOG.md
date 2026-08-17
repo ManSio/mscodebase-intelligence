@@ -1,5 +1,20 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-17] — Exp: кластер циклических импортов MCP — E1 инвентаризация + E2 import-time + E3 прототип (гибрид A+B → 0 циклов)
+
+**Гипотеза (H1-E3):** 24/29 «циклических зависимостей» ARCLUX в src/mcp/ — один гигантский сильно-связный компонент (SCC), но ВСЕ циклы runtime-безопасны (lazy/без import-time использования); контрольный инструмент — собственный AST-инвентарь (SCC + классификация lazy/load + fresh-interpreter import test), та же методика до/после. Гибрид (реэкспорты→core + runtime-состояние→новый src/mcp/context.py) должен разорвать SCC до 0 без сломатестов и без роста import-time.
+**Исследование:** Real Python «Handle Cyclical Imports» — (1) циклы безопасны, если модули не используют друг друга на import-time (только определяют функции); (2) три стратегии: разорвать дизайном, держать модули без side-effect'ов, lazy-import внутри функций; (3) опасность цикла — AttributeError частично инициализированного модуля. Наши 24/29 — «дружественные» lazy-циклы; граф module-level рёбер ацикличен, fresh-импорт всех модулей OK.
+**Команды (E1/E2/E3):** `python experiments/arclux_cycles_inventory.py`; `python experiments/imp_time_bench.py`; правки 9 файлов (6 tools + server + factory + server_tools + новый context.py); `python experiments/arclux_cycles_inventory.py` повт.
+**Сырой результат (E1 baseline → E3 после):**
+```
+ДО:   Модулей 20 | SCC: 1 (19 модулей) | рёбер в циклах 77 | load-рёбер 17 (модульных) | import-test: все OK
+ПОСЛЕ: Модулей 21 | SCC: 0 | рёбер в циклах 0 | import-test: все OK (вкл. context)
+import-time (медиана 7, свежий процесс): indexing_tools 421→452ms; meta 421→457ms; server 93→102ms; project_resolution 91→99ms
+архитектурный linter: TOOL_REGISTRY 4→0 (CORE_MCP 0); pytest 1294 passed / 10 skipped / 91 deselected; ruff clean
+```
+**Вердикт:** ГИПОТЕЗА ПОДТВЕРЖДЕНА. Гибрид разрывает ВЕСЬ кластер (19-модульный SCC → 0; все 77 рёбер цикла убраны). import-time: +7% в пределах run-to-run шума (min/max ±15%), достоверного роста нет — доминирующая стоимость не server (93ms), а тяжёлая core-цепочка через tools/base.py (di_container→indexer→embedder), которую ни A ни B не трогают. Архитектурный linter и полный pytest зелёные.
+**Урок (§3.8/§6.6 п.4):** «24/29 циклов» ARCLUX в этой кодовой базе НЕ воспроизводятся текущим ARCLUX-head (doctor/verify циклы не показывают; 356→357 issues — только счётчик орфанов); воспроизводимая метрика — собственный SCC-инвентарь. Цена полного разрыва кластера низкая (9 файлов + 1 новый, нулевой рост старта) → гибрид дешевле, чем «оставить как есть + ADR». Вариация провального подхода: отсутствует (это первый замер этого кластера).
+
 ## [2026-08-15] — Exp 1-L Day 3: per-category метрики (ответ на ревью) + V3/Part 5 CoT vs Zero-Shot
 
 **Гипотеза (из ревью Part 4):** (1) FA=0.00 у qwen3.6/3.7 может быть «ленивой моделью» — она режет

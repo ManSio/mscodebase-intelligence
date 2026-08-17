@@ -668,7 +668,7 @@ class WriteTool(MCPTool):
         if self._lsp_client is None:
             try:
                 from src.core.lsp_client import LspClient
-                from src.mcp.server import resolve_project_root
+                from src.core.project_resolution import resolve_project_root
                 self._lsp_client = LspClient(project_root=resolve_project_root())
             except Exception:
                 self._lsp_client = False

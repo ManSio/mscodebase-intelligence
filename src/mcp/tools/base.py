@@ -64,7 +64,7 @@ def resolve_indexer_for_intel(
     """
     from src.core.di_container import IndexerFactoryKey, ProjectIndexerRegistry, ProjectRootKey
     from src.core.indexing.project_indexer_registry import ProjectIndexerRegistry as PIReg
-    from src.mcp.server import resolve_project_root as _rpr
+    from src.core.project_resolution import resolve_project_root as _rpr
 
     # 1. explicit project_root (highest priority) — bypass fallback, guard всё ещё
     #    активен на уровне resolve_indexer_for_request ниже.
@@ -124,7 +124,7 @@ def resolve_indexer_for_request(
             hint и safe alternatives (открыть правильный проект).
     """
     from src.core.di_container import ProjectRootKey
-    from src.mcp.server import resolve_project_root as _rpr
+    from src.core.project_resolution import resolve_project_root as _rpr
 
     if explicit_project_root and explicit_project_root.strip():
         target = Path(explicit_project_root).resolve()
@@ -254,7 +254,7 @@ class MCPTool(ABC):
             return Path(explicit_project_root).resolve()
         # Default: сначала пробуем resolve_project_root, потом DI.
         try:
-            from src.mcp.server import resolve_project_root as _rpr
+            from src.core.project_resolution import resolve_project_root as _rpr
             return _rpr()
         except Exception as _e:
             logger.warning("exception", exc_info=True)

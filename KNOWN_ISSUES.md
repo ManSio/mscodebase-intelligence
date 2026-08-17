@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-08-17 — ARCLUX audit: кластер циклических импортов MCP-слоя — РАЗОРВАН гибридом A+B (FIXED)
+
+**Что:** внешний линтер (ARCLUX CLI) нашёл в кодовой базе циклические зависимости через кластер `src/mcp/` (server ↔ server_factory ↔ server_tools ↔ tools/*). Собственный AST-инвентарь (эксперимент E1): один гигантский SCC из 19 модулей, 77 рёбер в циклах, 17 module-scope рёбер; НО все циклы runtime-безопасны (lazy, без import-time использования) — fresh-импорт всех 20 модулей без ошибок. Тривиальные реэкспорты (resolve_project_root/_ext_root/passport) уже жили в core; runtime-состояние mcp (_default_project_root/_services_cache/_BUILD_ID/_log_run_passport/_check_source_extension_sync/_RUN_SOURCE_FILE) замыкало server↔factory↔tools.
+**Fix (выбран и реализован, прототип E3):** гибрид A+B — (A) 7 рёбер tools→server перенаправлены на core-источники правды (base ×3, indexing/lsp/write, meta → passport/context); (B) runtime-состояние+хелперы перенесены в НОВЫЙ `src/mcp/context.py`; server.py — тонкий фасад с per-line `# noqa: F401` реэкспортами (обратная совместимость тестов/скриптов). Итог: SCC 19→0, рёбер в циклах 77→0, TOOL_REGISTRY-нарушений 4→0.
+**Статус:** 🟢 реализовано+проверено (pytest 1294 passed, ruff clean, import-time без роста), НЕ закоммичено (прототип — подтверждение владельца «оставляем» перед коммитом) | **Владелец:** misha.
+
+## 2026-08-16 — RED TEAM 2-E: 4/6 present-trap-фактов v4_rep по факту ИСТИННЫ (mislabeled ground truth) (OPEN)
+
 ## 2026-08-16 — RED TEAM 2-E: 4/6 present-trap-фактов v4_rep по факту ИСТИННЫ (mislabeled ground truth) (OPEN)
 
 **Что:** генератор trap-фактов проверял `value != real_value` субъекта, НЕ отсутствие value у субъекта. R43 (re в graph.py), R45 (logging в server.py), R46 (threading + Lock в watchdog.py), R47 (pathlib в llama_install.py) — по факту истинны; R44 — ambiguous (импорт без usage); R42 — корректно false. «FA trap» в Exp 1-L V4 и 2-E = правильные вердикты моделей; вывод «граф закрывает present-trap» инвертирован (qwen graph = fail-closed на категории, miss_true 4/4; glm graph = лучший arm серии 25/29).
@@ -104,10 +112,11 @@
 **Что:** `experiments/context_engine/memory_contamination_verify.py` пишет результат в `memory_contamination_results_v3_generated.json` (исторический артефакт 1-V), а не в собственный файл. Повторный запуск (2026-08-14 при верификации поста) перезаписал метаданные (head/store_dir/порядок; цифры совпали) — восстановлено git checkout. При повторном прогоне без проверки исторические данные были бы потеряны.
 **Fix:** (документирован, код эксперимента не менялся — не входит в scope) перед запуском скриптов экспериментов проверять выходной файл (git status до/после). | **Status:** 🟢 (артефакт восстановлен; 1-V воспроизведён: honest 0.0, lazy 0.16, steady 0.6ms) | **Владелец:** misha.
 
-## 2026-08-13 — P1: propagation_engine.py невидим для поиска и графа символов (OPEN, root cause не установлен)
+## 2026-08-13 — P1: propagation_engine.py невидим для поиска и графа символов (✅ ЗАКРЫТ 2026-08-17)
 
 **Что:** src/core/intelligence/propagation_engine.py существует (tracked в git), LSP видит (24 символа, PropagationEngine L44-96), НО search_code (fast/quality, 3 запроса: "class PropagationEngine", "REASON_PREFIX", семантический) и get_symbol_info не находят его. Полная переиндексация (7383 chunks, 552с) и notify_change(файл) НЕ помогли. Логов ошибок парсинга нет. Следствие: агент может решить, что модуля/класса не существует.
-**Тесты:** — (нужна отладка индексатора: фильтр сбора файлов vs _parse_file_only возвращает None молча). | **Fix:** не установлен — требует отладки с логами; гипотезы: фильтр коллекции файлов / парсер / кэш known_hashes.
+**Диагностика 2026-08-16 (scripts/_diag_propagation_invisible.py):** H1 (FileGuard/os.walk) ОПРОВЕРГНУТА — skip=False, safe=True, файл собран (455 файлов), gitignore included. H2 (parse_file) ОПРОВЕРГНУТА — 5 chunks, hash 694059bc. Логи mcp_global.log: единственная запись «Записано в БД: ... propagation_engine.py (3 чанков)» — 2026-08-13 20:13:19 (notify_change bg), ЗА 7 мин ДО симптома 20:20.
+**Вердикт 2026-08-17 (live после Reload Window, PID 24860):** Root Cause — НЕ дефект индексации: in-memory поисковые структуры ЖИВОГО процесса не подхватывали обновление индекса до перезапуска (hot-reload gotcha §5.16). После перезапуска: search_code(fast,'PropagationEngine') → находит src/.../propagation_engine.py (`🔍fts5`); get_symbol_info → 1 def, line 44. Fix = Reload Window, не повторный reindex. Инцидент INC-D071.
 
 ## 2026-08-13 — P2: сервер недоступен во время/после индексации — sync update_all в main loop (DONE)
 
