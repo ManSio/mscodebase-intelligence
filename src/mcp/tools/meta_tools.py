@@ -327,19 +327,25 @@ class SystemTool(MCPTool):
         return "\n".join(lines)
 
     async def _action_passport(self, **kw) -> str:
-        """Runtime passport — делегирует в server module constants."""
+        """Runtime passport — делегирует в context module constants (ARCLUX 2026-08-17)."""
         import getpass
         import time
         from datetime import datetime
 
-        from src.mcp.server import (
+        from src.core.passport import (
+            RUN_ID as _RUN_ID,
+        )
+        from src.core.passport import (
+            RUN_PID as _RUN_PID,
+        )
+        from src.core.passport import (
+            RUN_STARTED_AT as _RUN_STARTED_AT,
+        )
+        from src.core.project_resolution import ext_root as _ext_root
+        from src.mcp.context import (
             _BUILD_ID,
-            _RUN_ID,
-            _RUN_PID,
             _RUN_SOURCE_FILE,
-            _RUN_STARTED_AT,
             _default_project_root,
-            _ext_root,
         )
 
         uptime_sec = round(time.time() - _RUN_STARTED_AT, 1)

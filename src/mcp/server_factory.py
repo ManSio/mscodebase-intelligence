@@ -159,13 +159,15 @@ def create_mcp_server():
 
     mcp = FastMCP("MSCodebase Intelligence Server")
 
-    # Lazy импорты из server.py (избегаем циклической зависимости)
-    from src.mcp.server import (
-        _check_source_extension_sync,
-        _ext_root,
-        _log_run_passport,
+    # Lazy импорты: хелперы старта — из context (ARCLUX 2026-08-17,
+    # разрыв цикла server↔factory); _ext_root/resolve_project_root — из core (ARCH-03).
+    from src.core.project_resolution import (
+        ext_root as _ext_root,
+    )
+    from src.core.project_resolution import (
         resolve_project_root,
     )
+    from src.mcp.context import _check_source_extension_sync, _log_run_passport
     from src.mcp.server_tools import register_all_tools, register_system_prompt
 
     _log_run_passport()
@@ -199,13 +201,13 @@ def create_mcp_server():
         project_root = _found or Path(_pr_str.split("\n")[0].strip()).resolve()
         logger.warning(f"  -> sanitized: {project_root}")
     # FIX: обновляем модульный атрибут напрямую (from...import создаёт локальную копию)
-    import src.mcp.server as _srv
-    _srv._default_project_root = project_root
-    _srv._services_cache = None  # будет заполнен ниже
+    import src.mcp.context as _ctx
+    _ctx._default_project_root = project_root
+    _ctx._services_cache = None  # будет заполнен ниже
 
     from src.core.di_container import create_service_collection
     services = create_service_collection(project_root)
-    _srv._services_cache = services
+    _ctx._services_cache = services
 
     locale = os.environ.get("MSCODEBASE_LOCALE", "")
     if not locale:
@@ -409,7 +411,7 @@ def run_server(original_stdout=None):
 
         # Запускаем MCP внутри async-функции, где event loop уже работает
         async def _run_with_auto_index():
-            from src.mcp.server import _services_cache
+            from src.mcp.context import _services_cache
             # Auto-index — event loop УЖЕ запущен -> create_task сработает
             if _services_cache is not None:
                 asyncio.create_task(_delayed_auto_index(_services_cache))
@@ -442,7 +444,7 @@ async def _delayed_auto_index(services):
         if indexer is None:
             return
 
-        from src.mcp.server import _ext_root
+        from src.core.project_resolution import ext_root as _ext_root
         try:
             if indexer.project_path.resolve() == _ext_root.resolve():
                 logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
@@ -479,7 +481,7 @@ async def _delayed_auto_index(services):
         # Ждём готовности рантайма
         await asyncio.sleep(1.5)
 
-        from src.mcp.server import _ext_root
+        from src.core.project_resolution import ext_root as _ext_root
         if indexer.project_path.resolve() == _ext_root.resolve():
             logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
             return
@@ -527,7 +529,7 @@ def _start_contradiction_ledger_background() -> None:
                 logger.info(f"Contradiction Ledger: project_root = {_proj}")
                 # Guard: не проверяем сам расширение
                 try:
-                    from src.mcp.server import _ext_root
+                    from src.core.project_resolution import ext_root as _ext_root
                     if _proj.resolve() == _ext_root.resolve():
                         logger.warning(f"Contradiction Ledger: project_root == ext_root ({_proj}), пропускаю")
                         return
@@ -576,7 +578,12 @@ def _resolve_ledger_project_root():
     - ext_root guard блокировал fallback на CWD
     """
     try:
-        from src.mcp.server import _ext_root, resolve_project_root
+        from src.core.project_resolution import (
+            ext_root as _ext_root,
+        )
+        from src.core.project_resolution import (
+            resolve_project_root,
+        )
         p = resolve_project_root()
         if p and p.resolve() != _ext_root.resolve():
             return p
@@ -618,7 +625,7 @@ def _start_llama_sync():
                     try:
                         r = httpx.get("http://127.0.0.1:8080/health", timeout=0.5)
                         if r.status_code == 200:
-                            from src.mcp.server import _services_cache
+                            from src.mcp.context import _services_cache
                             from src.providers.embedder.remote_embedder import RemoteEmbedder
                             embedder = _services_cache.resolve(RemoteEmbedder)
                             with embedder._mode_lock:
@@ -648,7 +655,7 @@ def _start_llama_sync():
 
 def _shutdown_services():
     try:
-        from src.mcp.server import _services_cache
+        from src.mcp.context import _services_cache
         if _services_cache:
             import asyncio
             try:

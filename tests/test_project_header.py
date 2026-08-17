@@ -143,7 +143,9 @@ class TestResolveIndexerSelfIndexGuard:
         fake_project = Path(r"C:\Users\fake\my-project")
         services = self._make_services(fake_project)
         monkeypatch.setattr(
-            "src.mcp.server.resolve_project_root", lambda: fake_project, raising=False
+            "src.core.project_resolution.resolve_project_root",
+            lambda: fake_project,
+            raising=False,
         )
         result = resolve_indexer_for_request(services, explicit_project_root=None)
         assert result is not None  # успешный fallback к default проекту

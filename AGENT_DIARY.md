@@ -25,6 +25,34 @@
 
 ---
 
+## [2026-08-17] — ARCLUX audit: core→mcp импорт и graph.py self-import (FIXED); кластер MCP-циклов (OPEN)
+**Status:** ✅ Fixed (1294 passed; linter 0 [CORE_MCP]; ruff clean; guard — в дефолтном CI)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (нет сети/URL); локально: полный pytest 1294 passed, linter 0 CORE_MCP, ruff clean
+**Root Cause:** guard'ы молча не работали: (1) test_architecture_lifecycle.py целиком pytestmark=slow → test_core_does_not_import_mcp исключён из дефолтного прогона, а layer.py:891 держал запрещённый core→mcp импорт _grep_fallback; (2) test_no_core_self_import сравнивал сырые имена ('.graph' ≠ 'src.core.graph') — graph.py:687 self-import прошёл; (3) scripts/architecture_linter.py падал на Windows cp1251 (UnicodeEncodeError) до вывода первого нарушения + не вшит в CI.
+**Fix:** _grep_fallback → src/core/utils/grep_fallback.py (search_tools re-export алиасом; lazy-import ВНУТРИ функции сохранён — bind-at-import ломал monkeypatch-патчинг resolve_project_root, регрессия поймана test_tool_project_root); graph.py self-import удалён (Edge — модульный класс); TestArchitectureInvariants → tests/test_architecture_invariants.py (новый быстрый файл БЕЗ slow) + _get_imports резолвит relative→absolute; linter: encoding-safe (§5.9) + stale allowed-ключи удалены (core→mcp = 0 импортов, allowlist пуст).
+**Guard:** 3 быстрых AST-теста в дефолтном pytest (1.09s, ловят и lazy, и relative); linter перестал падать на Windows; кластер циклов server↔factory↔tools (24/29, 4× TOOL_REGISTRY) — KNOWN_ISSUES, варианты рефакторинга владельцу.
+**Pattern:** P-002-класс «молча отключённый guard» (slow-маркер на весь файл — архитектурные AST-тесты не должны быть slow) + новый: «перенос функции меняет import placement → ломает patch» (META-CHECK 2026-08-17).
+
+## [2026-08-17] — ARCLUX: кластер циклов MCP разорван гибридом A+B (src/mcp/context.py) (FIXED)
+**Status:** ✅ Fixed (E1: SCC 19→0, рёбер в циклах 77→0; linter TOOL_REGISTRY 4→0; pytest 1294 passed; ruff clean; import-time без роста; не закоммичено — прототип)
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся (нет сети/URL); локально: полный pytest 1294 passed, ruff clean, E1-инвентарь 0 циклов
+**Root Cause:** runtime-состояние mcp (_default_project_root/_services_cache/_BUILD_ID/_log_run_passport/_check_source_extension_sync/_RUN_SOURCE_FILE) жило в server.py и импортировалось из server_factory (10 мест) + server_tools (3) + tools (6 файлов) → один гигантский SCC (19 модулей). Тривиальные реэкспорты (resolve_project_root/_ext_root/passport) уже были в core, но tools тянули их ЧЕРЕЗ server — лишний слой.
+**Fix (гибрид A+B):** новый src/mcp/context.py (состояние+хелперы старта); 7 рёбер tools→server перенаправлены на core-источники (base×3, indexing/lsp/write, meta→passport); server_factory/server_tools → context/core; server.py — тонкий фасад (per-line # noqa F401 реэкспорты). Регрессия: test_project_header патчил server.resolve_project_root — патч перенесён на src.core.project_resolution (источник правды).
+**Guard:** experiments/arclux_cycles_inventory.py (контроль: 0 циклов); test_architecture_invariants ловит core→mcp; linter TOOL_REGISTRY 0.
+**Pattern:** P-002-класс «цикл через модуль-хаб» (состояние собирает импорты) + «--fix на re-export-фасаде вырезает имена» — per-line noqa (3 итерации, META-CHECK).
+
+## [2026-08-16/17] — P1 propagation_engine невидим для поиска: H1/H2 ОПРОВЕРГНУТЫ, ЗАКРЫТ перезапуском процесса (✅)
+**Status:** ✅ Закрыто (2026-08-17, live-подтверждение после Reload Window)
+**Root Cause:** НЕ дефект индексации — in-memory поисковые структуры ЖИВОГО процесса не подхватывали обновление индекса, пока процесс не перезапущен (hot-reload gotcha §5.16). Файл был в БД с 2026-08-13 20:13:19 (запись «Записано в БД», 3 чанка) и в PropertyGraph (get_symbol_info находит def:44). Эксперимент (scripts/_diag_propagation_invisible.py, venv python): FileGuard skip=False/safe=True, os.walk собирает файл, gitignore included, parse_file → 5 chunks (hash 694059bc).
+**Fix/Вердикт:** Reload Window (новый процесс PID 24860) вместо слепой повторной переиндексации. После перезапуска (live, 2026-08-17): search_code(fast,'PropagationEngine') → находит src/.../propagation_engine.py (`🔍fts5`); get_symbol_info → 1 def, line 44. Урок: «поиск не видит свежий файл при живом процессе» — лечится перезапуском, не reindex'ом.
+
+## [2026-08-17] — Поиск: doc-чанки не вытесняют код (Вариант A → A', отбор кандидатов)
+**Status:** ✅ Fixed (юнит 48 passed; live-подтверждение после Reload — код процесса не хот-релоадится)
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не гонялся; локально: юнит 48 passed, live после Reload Window
+**Root Cause (наблюдение):** при идентификатор-запросе doc-чанки (KNOWN_ISSUES/docs/adr, цитирующие символы) занимали топ вместо кода. Вариант A (не бустовать doc ×100) оказался КРАЕВЫМ: главная причина — RRF+limit выбрасывал из кандидатов кодовый чанк класса с точным именем. Эмпир. (live, PID 27540): fast "PropagationEngine" → 5 doc + 1 code НЕ изменился после A.
+**Fix (A'):** (_prepend_code_name_matches) для идентификатор-запроса prep'ендит точные КОДОВЫЕ совпадения из широкого fts5-пула (fts5_raw в fast-пути, без доп. запроса) поверх выдачи, если они вытеснены RRF+limit; doc не бустуется (A). Рефактор: выделены _is_doc_chunk/_exact_name_match (возврат строго bool — ловушка None-or-chain поймана тестом). tests/test_search_bs_audit.py 48 passed.
+**Guard:** 3 новых теста (is_doc_chunk / exact_name_match / prepend restores code above doc + дедуп + не-идентификатор); решение — A' по выбору владельца (B/C — отдельно).
+
 ## [2026-08-15 23:50] — Exp 2-E Evidence Ladder E1+E2+E3: форма evidence решает, но не для всех моделей (DONE)
 **Status:** ✅ Завершено (450 вызовов OpenRouter, $0.007; builder graph_context + arm graph_first + 48 тестов)
 **Root Cause:** «структурное evidence ≠ автоматически лучше»: граф закрывает present-trap (FA trap qwen3.7 1/6→0/6, FA total 0.000) ЦЕНОЙ recall (0.92→0.76); deepseek — unknown 0.66 (структура усиливает скептицизм); glm-4.7 — FA trap 6/6 (списки вхождений читаются как подтверждение, fail-open не лечится ни одной формой evidence).
