@@ -8,13 +8,15 @@
 > in the experiment log below).
 > Language: English per owner protocol §0.-2 (RU translation available on request).
 
-> **STATUS 2026-08-18 (evening):** Фаза 0 + Фаза 1 executed on
-> `feat/universal-engine` (commits 7232a6e2, cb8f671f, 55a2af41): Windows/Zed
-> extraction, gate, plan docs, ledgers. Фаза 1: `src/sources/` created,
-> WorkspaceSource Protocol in core interfaces, LocalFsSource (resolve/watch/
-> fingerprint), Indexer consumes the source (path_manager from LocalFsSource),
-> helpers' final home = src/sources/local_fs/windows.py, adapters/local_fs deleted.
-> 1308 tests green. Not pushed (owner command pending).
+> **STATUS 2026-08-18 (late):** Фаза 0 + Фаза 1 executed on
+> `feat/universal-engine` (commits 7232a6e2, cb8f671f, 55a2af41, e661861f,
+> 7a8e703b, c9800368). Audit round (research agent findings): layer gate wired
+> into pre-commit (installer + reinstall) and CI (ci.yml step); CI OS matrix
+> (ubuntu+windows) already present; KNOWN_ISSUES Фаза-0 drift corrected
+> (helpers' final home); platform_utils.get_zed_* deadline moved to Фаза 3
+> (DI-injected project resolution); experiments/universal-engine/ created;
+> ТЗ draft (MSCODEBASE_UNIVERSAL_TOR.md) stays untracked at root — owner's
+> file, placement decision pending (docs/ru/ per §0.6).
 
 ---
 
@@ -337,11 +339,18 @@ trust-gate works, drift re-prompts, version mismatch refuses to load).
 - Tests: tests/test_local_fs_source.py (8) + full pytest 1308 passed / 10 skipped. ✅
 - DoD: server behaves identically through the new interface (1308 green).
 
-**Фаза 2 — GitUrlSource.** Per §2.2 design. DoD (ТЗ): 5-10 public repos of varying
-size, measured clone→index (E-03); failure cases (private without token, nonexistent
-URL) → INCONCLUSIVE not crash (E-02c already shows git exits 128); SSRF suite
-(E-08); fingerprint skip test (second clone re-embeds 0 files — E-02 measured the
-79ms fingerprint cost).
+**Фаза 2 — GitUrlSource.** ✅ **core done (2026-08-18, feat/universal-engine).**
+- `src/sources/git_url/`: GitUrlSource (WorkspaceSource) + GitRepoCache (LRU(5)+TTL 24h)
+  + SSRF validation. ✅
+- R-2 defenses: scheme allowlist (https-only default), domain allowlist, all A/AAAA
+  must be global (IMDS/RFC1918/loopback → refuse), post-clone origin-check
+  (redirect), size/file/timeout limits, protocol.file.allow=never. ✅
+- Errors → GitUrlSourceError with kind (INCONCLUSIVE contract, ТЗ §6.5). ✅
+- `get_repos_cache_dir()` in artifact_paths. ✅
+- Tests: tests/test_git_url_source.py (12) + pytest 1320 passed / 10 skipped. ✅
+- **Фаза 2 remaining:** E-03 (clone→index on 5-10 real repos, ТЗ DoD), E-08
+  (live SSRF suite: redirect/rebinding), MCP-tool wiring (index_project_dir by
+  URL), UploadSource, DNS-rebinding pinning (Фаза 2.5).
 
 **Фаза 2.5 — private repos** (ТЗ rec. 1: after public path has ~2 weeks clean):
 SSH keys/tokens stored only in OS keychain or `.env` (never in URL/disk cache),
