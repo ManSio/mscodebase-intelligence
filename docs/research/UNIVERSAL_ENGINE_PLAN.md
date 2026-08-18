@@ -8,14 +8,13 @@
 > in the experiment log below).
 > Language: English per owner protocol §0.-2 (RU translation available on request).
 
-> **STATUS 2026-08-18 (evening):** Фаза 0 started + executed — Windows/Zed
-> extraction done, gate created, 1300 tests green (details in §7 Фаза 0).
-> Not committed (owner command pending). Two scope adjustments made during
-> execution: (a) extension.toml physical move DEFERRED to Фаза 4 (it is wired
-> into test_versions.py / install.py / live extension registration — moving it
-> in Фаза 0 breaks the extension for zero user benefit); (b) Windows primitives
-> landed at `adapters/local_fs/windows.py` per ТЗ Phase-0 text, tracked as
-> transitional (3 core importers, must reach 0 by end of Фаза 1).
+> **STATUS 2026-08-18 (evening):** Фаза 0 + Фаза 1 executed on
+> `feat/universal-engine` (commits 7232a6e2, cb8f671f, 55a2af41): Windows/Zed
+> extraction, gate, plan docs, ledgers. Фаза 1: `src/sources/` created,
+> WorkspaceSource Protocol in core interfaces, LocalFsSource (resolve/watch/
+> fingerprint), Indexer consumes the source (path_manager from LocalFsSource),
+> helpers' final home = src/sources/local_fs/windows.py, adapters/local_fs deleted.
+> 1308 tests green. Not pushed (owner command pending).
 
 ---
 
@@ -326,9 +325,17 @@ trust-gate works, drift re-prompts, version mismatch refuses to load).
 - DoD: 1398 tests pass unchanged; `verify_clean_state.sh` on Windows AND first-time
   Linux/macOS; CI matrix ≥2 OS from the first PR (§9б-8); smoke_e2e live-check.
 
-**Фаза 1 — WorkspaceSource abstraction.** `LocalFsSource` = wrapper over current
-logic; server behaves identically through the new interface. DoD: same tests +
-index round-trip through the interface (E-03 partial).
+**Фаза 1 — WorkspaceSource abstraction.** ✅ **DONE 2026-08-18 (branch feat/universal-engine).**
+- `WorkspaceSource` Protocol + `FileChangeEvent` → `src/core/interfaces/workspace_source.py`
+  (core-owned, IEmbedder pattern). ✅
+- `src/sources/local_fs/` — `LocalFsSource` (resolve/watch/fingerprint); helpers' final
+  home `src/sources/local_fs/windows.py`; `adapters/local_fs/` deleted. ✅
+- Indexer accepts `source: WorkspaceSource` and takes `path_manager` from it
+  (default LocalFsSource; default construction moves to DI/registry in Фаза 2). ✅
+- Gate: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg),
+  target 0 by end of Фаза 2. ✅
+- Tests: tests/test_local_fs_source.py (8) + full pytest 1308 passed / 10 skipped. ✅
+- DoD: server behaves identically through the new interface (1308 green).
 
 **Фаза 2 — GitUrlSource.** Per §2.2 design. DoD (ТЗ): 5-10 public repos of varying
 size, measured clone→index (E-03); failure cases (private without token, nonexistent
