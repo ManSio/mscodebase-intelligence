@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-18] — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
+**Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено e661861f на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1308 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional)
+**Root Cause:** ТЗ §2.1 — core не должен знать, откуда код; локальная обработка путей — деталь источника (класса), не всего core.
+**Fix:** протокол `WorkspaceSource` + `FileChangeEvent` в `src/core/interfaces/workspace_source.py` (паттерн IEmbedder); `LocalFsSource` (resolve/watch/fingerprint) в `src/sources/local_fs/`; финальный дом Windows-хелперов `src/sources/local_fs/windows.py`, `adapters/local_fs/` удалён; Indexer принимает `source` и берёт `path_manager` из него (дефолт LocalFsSource); гейт слоёв обновлён (transitional core→src.sources.* = 3, цель 0 к Фазе 2).
+**Guard:** tests/test_local_fs_source.py (8 тестов: resolve/fingerprint/watch/wiring); check_layer_boundaries.py; полный pytest 1308 passed.
+
 ## [2026-08-18] — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
 **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено локально: pytest tests/ 1300 passed / 10 skipped, ruff clean на изменённых, check_layer_boundaries 0 нарушений
