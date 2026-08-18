@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-18 — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (Red Team, FIXED)
+
+**Что:** Red Team (ARCLUX CLI + эксперименты E1-E6): validate_code песочницы обходился конкатенацией строк (`'o'+'pen'` — обход Layer-1 pattern-скана) + `_builtins.__dict__['open']/['eval']` (обход Layer-2: call-проверка не видит func=ast.Subscript; атрибут `__dict__` отсутствовал в списке блокируемых dunder). Runtime-доказано: произвольное чтение файлов (status=ok, прочитан маркер) и исполнение кода (eval('1+1')->2) внутри sandbox-подпроцесса; import-гейт _safe_import (os/subprocess/socket) побег не закрывал — builtins.open/eval не нейтрализовались. Достижимость: execute_script (codebase_tool.py:244,271), флаг MSCODEBASE_EXECUTE_SCRIPT_ENABLED (выкл. по умолчанию).
+**Fix:** (1) `__dict__` добавлен в блокируемый dunder-список ast.Attribute в validate_code (executor.py:292); (2) преамбула изоляции нейтрализует builtins.open/eval/exec (= None) — compile оставлен (ast.parse его вызывает); (3) 2 регресс-теста (test_sandbox.py R5: __dict__ file-read и eval-escape). Проверка: test_sandbox.py 42 passed; runtime-verify: 5 эскейп-векторов -> violation, legit math -> ok.
+**Статус:** 🟢 внесено + проверено (42 passed, runtime-verify 6/6), НЕ закоммичено | **Владелец:** misha.
+
 ## 2026-08-18 — Runtime-зависимости запинены к точным версиям (unpinned-dependency, 38 шт.) (DONE)
 
 **Что:** аудит: в manifest (pyproject.toml `dependencies` + requirements.txt) все runtime-зависимости были диапазонами (`>=`, `<`) — 38 unpinned (23 = tree-sitter family). Единственная действенная группа находок отчёта.
