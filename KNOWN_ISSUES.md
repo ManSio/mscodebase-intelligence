@@ -4075,3 +4075,12 @@ Three fixes from the same review:
 **Root Cause:** после job-manager per-chunk-строки индексации идут в progress.json, а не в лог; monitor парсил лог → устаревшее «Завершено 9146» при идущей переиндексации.
 **Fix:** читать progress.json (get_progress_file) как живой источник (phase/progress/total/current_file/ETA).
 - **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — Аномалия «pytest --collect-only → 5 tests»: fd-capture ValueError при rootdir-обходе (DIAGNOSED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 диагностировано; рабочее решение — `pytest tests/` (1398), fixes
+**Root Cause:** bare `pytest` (из корня) падает с `ValueError: I/O operation on closed file` в `_pytest/capture.py:591` на широком rootdir-обходе в venv (Python 3.14 + pytest 9.1.1). `pytest tests/` работает (1398). Баг окружения/pytest, не кода.
+**Fix:** hygiene: `experiments` → `norecursedirs` (pyproject.toml). Полный фикс bare-краша — отдельно.
+- **Статус:** автоматически синхронизировано
