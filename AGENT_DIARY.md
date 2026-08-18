@@ -25,6 +25,12 @@
 
 ---
 
+## [2026-08-18] — Аномалия «pytest --collect-only → 5 tests»: fd-capture ValueError при rootdir-обходе (DIAGNOSED)
+**Status:** 🟡 диагностировано; рабочее решение — `pytest tests/` (1398), fixes
+**Root Cause:** bare `pytest` (из корня репо) падает с `ValueError: I/O operation on closed file` в `_pytest/capture.py:591` (snap → tmpfile.seek) на широком rootdir-обходе в venv (Python 3.14 + pytest 9.1.1) — какая-то часть обхода закрывает fd-capture → сборка обрывается («5 тестов» из experiments/misc_probes или «0»). `pytest tests/` работает (1398). Это баг окружения/pytest, не кода.
+**Fix:** hygiene-фикс: `experiments` добавлен в `norecursedirs` (pyproject.toml) — throwaway-пробы не в автоколлекции; `pytest tests/` = 1398 без регрессии. Полный фикс bare-краша (пин/апгрейд pytest или локализация fd-закрывающего файла) — отдельно.
+**Guard:** CI/verify_clean_state используют `pytest tests/`, а не bare — краш bare не влияет на CI. Для next-агента: при «не вижу тесты при bare pytest» — используй `pytest tests/`.
+
 ## [2026-08-18] — MCP баг-хэунт: deep/auto подменялись grep-fallback (FIXED, подтверждено live после Reload)
 **Status:** ✅ Fixed (регрессионный тест + отрицательный контроль; live после Reload: deep → 6 реальных результатов)
 **verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); регрессионный тест + отрицательный контроль + live-прогон после Reload (deep → 6 результатов)
