@@ -7,14 +7,13 @@
 > кода в этой сессии; внешние факты — живой загрузкой (URL inline);
 > локальные эксперименты E-01/E-02 прогнаны в этой сессии (raw output ниже).
 
-> **СТАТУС 2026-08-18 (вечер):** Фаза 0 начата и выполнена — Windows/Zed-специфика
-> вынесена, гейт создан, 1300 тестов зелёные (детали в §7 Фаза 0).
-> Не закоммичено (по команде владельца). Две корректировки объёма при
-> исполнении: (a) физический перенос extension.toml ОТЛОЖЕН на Фазу 4 (он
-> завязан на test_versions.py / install.py / живую регистрацию расширения —
-> перенос в Фазе 0 ломает расширение без пользы); (b) Windows-примитивы легли
-> в `adapters/local_fs/windows.py` по тексту Фазы 0 ТЗ, отслеживаются как
-> переходные (3 импортера в core, обязаны стать 0 к концу Фазы 1).
+> **СТАТУС 2026-08-18 (вечер):** Фаза 0 + Фаза 1 выполнены на
+> `feat/universal-engine` (коммиты 7232a6e2, cb8f671f, 55a2af41). Фаза 1:
+> создан `src/sources/`, протокол WorkspaceSource в core-интерфейсах,
+> LocalFsSource (resolve/watch/fingerprint), Indexer потребляет source
+> (path_manager от LocalFsSource), финальный дом хелперов —
+> src/sources/local_fs/windows.py, adapters/local_fs удалён.
+> 1308 тестов зелёные. Не запушено (по команде).
 
 ---
 
@@ -338,9 +337,17 @@ MCP-server-расширений в его пользу).
 - ОТЛОЖЕНО с дедлайнами: extension.toml → Фаза 4; install.py split → Фаза 4/5;
   platform_utils.get_zed_* → Фаза 1.
 
-**Фаза 1 — WorkspaceSource абстракция.** `LocalFsSource` = обёртка над текущей
-логикой; сервер ведёт себя идентично через новый интерфейс. DoD: те же тесты +
-round-trip индекса через интерфейс (частично E-03).
+**Фаза 1 — WorkspaceSource абстракция.** ✅ **ВЫПОЛНЕНО 2026-08-18 (ветка feat/universal-engine).**
+- Протокол `WorkspaceSource` + `FileChangeEvent` → `src/core/interfaces/workspace_source.py`
+  (core-owned, паттерн IEmbedder). ✅
+- `src/sources/local_fs/` — `LocalFsSource` (resolve/watch/fingerprint); финальный дом
+  хелперов `src/sources/local_fs/windows.py`; `adapters/local_fs/` удалён. ✅
+- Indexer принимает `source: WorkspaceSource` и берёт `path_manager` из него
+  (дефолт LocalFsSource; конструкция дефолта переедет в DI/registry в Фазе 2). ✅
+- Гейт: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg),
+  цель — 0 к концу Фазы 2. ✅
+- Тесты: tests/test_local_fs_source.py (8) + полный pytest 1308 passed / 10 skipped. ✅
+- DoD: сервер ведёт себя идентично через новый интерфейс (1308 зелёные).
 
 **Фаза 2 — GitUrlSource.** По дизайну §2.2. DoD (ТЗ): 5-10 публичных репо разного
 размера, замер clone→index (E-03); failure-кейсы (приватный без токена,
