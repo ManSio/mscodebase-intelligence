@@ -145,7 +145,18 @@ RUNTIME_ISOLATION_PREAMBLE = (
     '        raise ImportError(f"Sandbox blocked: {name}")\n'
     '    return _orig_import(name, globals, locals, fromlist, level)\n'
     '_builtins.__import__ = _safe_import\n'
+    '\n'
+    '# Neutralize file-IO / dynamic-exec sinks in builtins (defense\n'
+    '# in depth beyond the AST gate): open/eval/exec have no legit\n'
+    '# sandbox use. compile is intentionally KEPT - the allowed ast\n'
+    '# module calls it internally (ast.parse). Escapes reaching\n'
+    '# _builtins.__dict__[\'open\'] / [\'eval\'] now hit None and\n'
+    '# raise TypeError instead of reaching the real builtin.\n'
+    '_builtins.open = None\n'
+    '_builtins.eval = None\n'
+    '_builtins.exec = None\n'
 )
+
 
 # ── Audit log ────────────────────────────────────────────────────
 
@@ -278,7 +289,7 @@ def validate_code(code: str) -> list[str]:
                 "__subclasses__", "__bases__", "__globals__",
                 "__getattribute__", "__getattr__", "__setattr__", "__delattr__",
                 "__reduce__", "__reduce_ex__", "__init_subclass__",
-                "__class__", "__mro__",
+                "__class__", "__mro__", "__dict__",
             ):
                 raise SandboxViolation(
                     f"Blocked attribute: .{node.attr}",

@@ -169,6 +169,18 @@ class TestValidateCode:
         with pytest.raises(SandboxViolation):
             validate_code('getattr(__import__("os"), "sys" + "tem")')
 
+    # ── R5: builtins.__dict__ introspection escape (Red Team 2026-08-18) ──
+
+    def test_blocked_dunder_dict_file_read_escape(self):
+        """_builtins.__dict__['o' + 'pen'](...) must not read files."""
+        with pytest.raises(SandboxViolation, match="Blocked attribute"):
+            validate_code("_builtins.__dict__['o' + 'pen']('x').read()")
+
+    def test_blocked_dunder_dict_eval_escape(self):
+        """_builtins.__dict__['e' + 'val'](...) must not execute code."""
+        with pytest.raises(SandboxViolation, match="Blocked attribute"):
+            validate_code("_builtins.__dict__['e' + 'val']('1+1')")
+
 
 # ═══════════════════════════════════════════════════════════════
 # execute_sandboxed — subprocess execution

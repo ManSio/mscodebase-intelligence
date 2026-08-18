@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-18 — Runtime-зависимости запинены к точным версиям (unpinned-dependency, 38 шт.) (DONE)
+
+**Что:** аудит: в manifest (pyproject.toml `dependencies` + requirements.txt) все runtime-зависимости были диапазонами (`>=`, `<`) — 38 unpinned (23 = tree-sitter family). Единственная действенная группа находок отчёта.
+**Fix:** все 38 запинены к точным версиям (`==`) с rationale (§5.19): 33 — версии requirements-lock.txt (венв расширения, Python 3.14, live-проверка); 17 tree-sitter-грамматик — PyPI-latest, API-проверены против паттернов parser.py в scratch venv (ALL_OK, реальный parse против tree-sitter 0.26.0); numpy/pandas/onnxruntime — маркер `; python_version >= '3.11'` (==-пин) + диапазон `<3.11` (lock-версии требуют >=3.11, CI matrix включает 3.10, EOL 2026-10). requirements.txt — полный mirror pyproject (заодно устранена CVE-контрадикция: старый текст «запинено <4.56.0» противоречил pyproject «>=5.3.0»).
+**Статус:** 🟢 внесено + проверено (tomllib-парс 43 deps; marker-оценка 3.10/3.14; `pip install --dry-run -e .` резолвится на 3.14 со всеми пинами; 6 version-тестов passed); закоммичено d4e7cfe3 | **Владелец:** misha.
+
 ## 2026-08-17 — ARCLUX audit: кластер циклических импортов MCP-слоя — РАЗОРВАН гибридом A+B (FIXED)
 
 **Что:** внешний линтер (ARCLUX CLI) нашёл в кодовой базе циклические зависимости через кластер `src/mcp/` (server ↔ server_factory ↔ server_tools ↔ tools/*). Собственный AST-инвентарь (эксперимент E1): один гигантский SCC из 19 модулей, 77 рёбер в циклах, 17 module-scope рёбер; НО все циклы runtime-безопасны (lazy, без import-time использования) — fresh-импорт всех 20 модулей без ошибок. Тривиальные реэкспорты (resolve_project_root/_ext_root/passport) уже жили в core; runtime-состояние mcp (_default_project_root/_services_cache/_BUILD_ID/_log_run_passport/_check_source_extension_sync/_RUN_SOURCE_FILE) замыкало server↔factory↔tools.
