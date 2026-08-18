@@ -360,9 +360,12 @@ MCP-server-расширений в его пользу).
 - Ошибки → GitUrlSourceError с kind (INCONCLUSIVE-контракт, ТЗ §6.5). ✅
 - `get_repos_cache_dir()` в artifact_paths. ✅
 - Тесты: tests/test_git_url_source.py (12) + pytest 1320 passed / 10 skipped. ✅
-- **Остаток Фазы 2:** E-03 (clone→index на 5-10 реальных репо, DoD ТЗ), E-08
-  (live SSRF-сьют: редирект/rebinding), MCP-тул-обвязка (index_project_dir
-  по URL), UploadSource, DNS-rebinding-пиннинг (Фаза 2.5).
+- **Остаток Фазы 2:** E-03 ✅ ВЫПОЛНЕНО 2026-08-18 (4/4 репо, реальный embed 8080:
+  httpx 1812 / flask 1605 / rich 2808 чанков; fingerprint 89-123ms; cache-hit
+  ~200-400ms; несуществующий URL → INCONCLUSIVE; **находка**: Windows rename-lock
+  на свежих клонах → clone-in-place + атомарность через манифест; rich: 3 длинных
+  файла — graceful embed-деградация). E-08 (live SSRF-сьют), MCP-тул-обвязка
+  (index_project_dir по URL), UploadSource, DNS-rebinding-пиннинг (Фаза 2.5).
 
 **Фаза 2.5 — приватные репо** (рекомендация 1: после ~2 недель чистоты
 публичного пути): SSH-ключи/токены только в OS keychain или `.env` (никогда в

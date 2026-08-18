@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-18] — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
+**Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: E-03 live (реальный embed 8080) 4/4, pytest 1320+, ruff clean, gate 0
+**Root Cause:** (E-03 находка) `tmp_target.rename(target)` свежих клонов на Windows падает WinError 32/5 — Defender/Search Indexer временно/персистентно держат handle на файлах клона. Retry-rename (5×250ms) не помогал.
+**Fix:** клон напрямую в target (без tmp+rename); атомарность — через манифест (put() только после post-clone-проверок), orphan-каталоги (краш/таймаут) чистятся при следующем resolve; тест test_failed_clone_leaves_no_orphan.
+**Guard:** tests/test_git_url_source.py (13); E-03 live-прогон (DoD Фазы 2).
+**E-03 raw:** httpx 1812 / flask 1605 / rich 2808 чанков; clone 1.6-3.2s; fingerprint 89-123ms; cache-hit 200-422ms; несуществующий URL → INCONCLUSIVE:clone_failed. rich: 3 длинных файла (CHANGELOG/README.*) — graceful embed-деградация (не краш).
+
 ## [2026-08-18] — Фаза 2 Universal Engine: GitUrlSource core (SSRF-защита, кэш, INCONCLUSIVE) (DONE)
 **Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 3bb3b6ae на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1320 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional)
