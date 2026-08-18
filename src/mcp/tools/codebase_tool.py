@@ -180,6 +180,7 @@ class CodebaseTool(MCPTool):
         """
         sub = (kw.get("path") or "").strip().lower()
         from src.mcp.tools.indexing_tools import (
+            IndexGitUrlTool,
             IndexHealthTool,
             IndexProjectDirTool,
             NotifyChangeTool,
@@ -206,6 +207,11 @@ class CodebaseTool(MCPTool):
             if not target:
                 return "❌ index_project_dir: required project_root (целевой путь)"
             return await IndexProjectDirTool(services).execute(path=target)
+        if sub == "git_url":
+            url = kw.get("url", "")
+            if not url:
+                return "❌ index_git_url: required url"
+            return await IndexGitUrlTool(services).execute(url=url)
         if sub == "notify":
             file_path = kw.get("file_path", "")
             if not file_path:
