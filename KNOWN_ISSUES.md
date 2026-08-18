@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-18 — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
+
+**Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR §2.1 — core не должен знать, откуда код; локальная обработка путей — деталь источника, не всего core. Создан SOURCE-слой: протокол `WorkspaceSource` + `FileChangeEvent` в `src/core/interfaces/workspace_source.py` (core-owned, паттерн IEmbedder); `LocalFsSource` (resolve/watch/fingerprint, poll-наблюдатель) в `src/sources/local_fs/`; Windows-хелперы переехали в финальный дом `src/sources/local_fs/windows.py` (adapters/local_fs удалён); Indexer принимает `source: WorkspaceSource` и берёт `path_manager` из него (дефолт — LocalFsSource). Гейт `scripts/check_layer_boundaries.py` обновлён: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg), цель — 0 к концу Фазы 2 (DI инжектит source).
+**Тесты:** tests/test_local_fs_source.py (8) + полный pytest 1308 passed / 10 skipped; ruff clean; гейт 0 нарушений. | **Статус:** 🟢 внесено + проверено, закоммичено e661861f (ветка feat/universal-engine, push по команде) | **Владелец:** misha.
+
 ## 2026-08-18 — Фаза 0 Universal Engine: Windows/Zed-специфика вынесена в adapters/ (DONE, не закоммичено)
 
 **Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR Фаза 0 — разделение без смены поведения. `src/utils/paths.py` (SafePathManager/to_win_long_path) → `adapters/local_fs/windows.py` (POSIX no-op); `src/utils/zed_config.py` → `adapters/zed/zed_config.py`. Импортеры обновлены: db_manager, indexer, tools_reg, scripts/full_reindex, src/main.py (2), install.py (убран path-hack `sys.path.insert(src/utils)`), tests (ast_cache_invalidation, zed_config_patch, zed_config_remove), sync_to_installed.bat (echo). Новый гейт `scripts/check_layer_boundaries.py`: 3 TRANSITIONAL core→adapters.local_fs.windows (обязаны стать 0 к концу Фазы 1), 0 нарушений. Тесты: 1300 passed / 10 skipped.
