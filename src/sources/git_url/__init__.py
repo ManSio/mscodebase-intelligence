@@ -367,28 +367,34 @@ class GitUrlSource:
         if cached is not None:
             return cached
 
+        # Клон напрямую в target (без tmp+rename: rename свежих клонов на Windows
+        # блокируется Defender/Search Indexer — E-03 2026-08-18). Атомарность
+        # обеспечивает манифест: put() только после post-clone-проверок, поэтому
+        # частичный клон (краш/таймаут) невидим для cache.get() и чистится
+        # при следующем resolve (orphan ниже).
         target = self.cache.root / self._url_hash
-        tmp_target = self.cache.root / f".tmp_{self._url_hash}_{int(time.time())}"
         self.cache.root.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)  # orphan от прошлого краха
         try:
             rc, _out, err = _run_git(
-                ["clone", "--depth", "1", "--single-branch", self.url, str(tmp_target)],
+                ["clone", "--depth", "1", "--single-branch", self.url, str(target)],
                 timeout_sec=self._clone_timeout_sec,
                 extra_cfg=self._extra_git_cfg,
             )
             if rc != 0:
+                shutil.rmtree(target, ignore_errors=True)
                 raise GitUrlSourceError(
                     "clone_failed", f"git clone завершился с кодом {rc}: {err.strip()[-400:]}"
                 )
-            self._post_clone_checks(tmp_target)
-            tmp_target.rename(target)
+            self._post_clone_checks(target)
             self.cache.put(self.url, self._url_hash, target, _dir_size(target))
             return target
         except GitUrlSourceError:
-            shutil.rmtree(tmp_target, ignore_errors=True)
+            shutil.rmtree(target, ignore_errors=True)
             raise
         except Exception as e:  # noqa: BLE001 — оборачиваем в INCONCLUSIVE-ошибку
-            shutil.rmtree(tmp_target, ignore_errors=True)
+            shutil.rmtree(target, ignore_errors=True)
             raise GitUrlSourceError("clone_error", f"Клонирование не удалось: {e}") from e
 
     def _post_clone_checks(self, repo: Path) -> None:

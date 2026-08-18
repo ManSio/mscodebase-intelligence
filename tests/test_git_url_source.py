@@ -179,6 +179,21 @@ async def test_nonexistent_repo_is_inconclusive(tmp_path):
     assert ei.value.kind in ("clone_failed", "clone_error")
 
 
+@pytest.mark.asyncio
+async def test_failed_clone_leaves_no_orphan(tmp_path):
+    """Неудачный клон не оставляет orphan-каталог (E-03: clone-in-place + rmtree)."""
+    src = GitUrlSource(
+        (tmp_path / "no-such-repo").as_uri(),
+        tmp_path / "cache",
+        allowed_schemes=frozenset({"file"}),
+    )
+    with pytest.raises(GitUrlSourceError):
+        await src.resolve()
+    cache_root = tmp_path / "cache"
+    leftovers = [p.name for p in cache_root.glob("*") if p.is_dir()] if cache_root.exists() else []
+    assert leftovers == []
+
+
 # ── Кэш: LRU + TTL ────────────────────────────────────────────────────────
 
 def test_cache_lru_eviction(tmp_path):
