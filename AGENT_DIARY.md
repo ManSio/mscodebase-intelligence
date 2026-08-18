@@ -25,6 +25,24 @@
 
 ---
 
+## [2026-08-18] — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (FIXED, не закоммичено)
+
+**Status:** ✅ Fixed (локально, тесты 42 passed; commit по команде)
+**Root Cause:** validate_code: Layer-1 строки обходятся конкатенацией (`'o'+'pen'`); Layer-2 AST не проверяет func=ast.Subscript, атрибут `__dict__` не в списке блокируемых dunder; runtime-нейтрализации builtins.open/eval не было (import-гейт _safe_import их не касается). Доказано runtime (Red Team E6): чтение произвольных файлов + eval.
+**Fix:** __dict__ в блокируемый dunder-список (executor.py:292); преамбула: _builtins.open/eval/exec = None (compile сохранён — ast.parse зависит); 2 регресс-теста (test_sandbox.py R5).
+**Guard:** test_sandbox.py: test_blocked_dunder_dict_file_read_escape / test_blocked_dunder_dict_eval_escape; runtime-verify: 5 векторов -> violation.
+verified_from_clean_state: ⚠️ не проверено — verify_clean_state.sh (clean-clone) не гонял; проверено локально: test_sandbox.py 42 passed + runtime-verify 6/6 + hook gate-zero pytest 1310 passed
+**Pattern:** P-002-вариация (доверие строковому скану как security-границе; introspection-цепи до builtins).
+
+## [2026-08-18] — Все runtime-зависимости запинены (unpinned-dependency, 38 шт.) (DONE)
+**Status:** ✅ внесено и проверено (закоммичено d4e7cfe3)
+**verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: tomllib-парс 43 deps + marker-оценка 3.10/3.14 (packaging) + `pip install --dry-run -e .` (резолв всех пинов на 3.14, конфликтов нет) + scratch-верификация 17 грамматик (паттерны parser.py, ALL_OK) + 6 version-тестов passed
+**Root Cause:** manifest держал диапазоны (`>=,<`) вместо точных пинов → недетерминированный резолв между CI (`pip install -e .` на 3.10/3.11/3.12) и lock (3.14); 38 unpinned runtime-зависимостей (23 = tree-sitter family).
+**Fix:** pyproject.toml + requirements.txt: 38 пинов `==` — 33 из requirements-lock.txt (венв 3.14, live), 17 грамматик — PyPI-latest + API-верификация; numpy/pandas/onnxruntime — per-Python маркеры (== на >=3.11, диапазон на <3.11 — lock-версии требуют >=3.11, колёс cp310 нет); requirements.txt — mirror pyproject, устранена CVE-контрадикция «<4.56.0» (ложь) vs pyproject «>=5.3.0» (истина).
+**Guard:** политика-комментарий в pyproject (бамп — по §5.19 + verify_clean_state); requirements-lock.txt НЕ тронут (венв = 6 грамматик; +17 в lock = отдельное решение владельца).
+**Pattern:** P-00X-класс «диапазон в manifest vs замороженный lock расходятся по Python-версиям — пин обязан проверять колёса на весь CI matrix».
+**Любопытство:** в KNOWN_ISSUES.md дублируется заголовок «RED TEAM 2-E…» (строки 14/16) — pre-existing, не трогал (зафиксировано).
+
 ## [2026-08-18] — Аномалия «pytest --collect-only → 5 tests»: fd-capture ValueError при rootdir-обходе (DIAGNOSED)
 **Status:** 🟡 диагностировано; рабочее решение — `pytest tests/` (1398), fixes
 **Root Cause:** bare `pytest` (из корня репо) падает с `ValueError: I/O operation on closed file` в `_pytest/capture.py:591` (snap → tmpfile.seek) на широком rootdir-обходе в venv (Python 3.14 + pytest 9.1.1) — какая-то часть обхода закрывает fd-capture → сборка обрывается («5 тестов» из experiments/misc_probes или «0»). `pytest tests/` работает (1398). Это баг окружения/pytest, не кода.
