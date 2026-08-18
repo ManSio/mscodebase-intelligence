@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from adapters.local_fs.windows import SafePathManager
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.indexer_table import IndexerTableMixin
-from src.utils.paths import SafePathManager
 
 __all__ = [
     "Indexer",

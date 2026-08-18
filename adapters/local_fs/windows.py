@@ -1,5 +1,15 @@
 """
-MSCodebase Intelligence — Безопасное управление путями файловой системы
+MSCodebase Intelligence — Windows path primitives (adapter layer).
+
+Transitional home (Фаза 0 of the Universal Engine plan, ТЗ MSCODEBASE_UNIVERSAL_TOR):
+- Previously at src/utils/paths.py. Moved here so Windows specifics live in the
+  adapter layer, not in engine core.
+- TRANSITIONAL: core modules still import these (db_manager, indexer, tools_reg).
+  Final home = src/sources/ (LocalFsSource owns path handling) after Фаза 1;
+  then this module keeps only the pure helpers the source layer needs.
+- POSIX behavior: to_win_long_path is a no-op on non-Windows (os.name != "nt").
+
+Tracked by scripts/check_layer_boundaries.py (allowed transitional imports).
 """
 
 import atexit
@@ -81,7 +91,7 @@ class SafePathManager:
                 or safe_path.stat().st_mtime < original_path.stat().st_mtime
             ):
                 shutil.copy2(original_path, safe_path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — copy-fallback: never crash indexing on exotic FS errors
             logger.warning(f"Не удалось создать безопасную копию {original_path}: {e}")
             return original_path
 
@@ -105,7 +115,7 @@ class SafePathManager:
             try:
                 shutil.rmtree(td, ignore_errors=True)
                 logger.debug(f"🧹 Временная папка удалена: {td}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort cleanup
                 logger.warning(
                     f"Ошибка удаления временной папки {td}: {e}"
                 )

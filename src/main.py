@@ -181,7 +181,7 @@ def main():
         if "--install" in sys.argv or "--install-global" in sys.argv:
             mode = "global" if "--install-global" in sys.argv else "project"
 
-            from src.utils.zed_config import patch_zed_settings
+            from adapters.zed.zed_config import patch_zed_settings
 
             # Используем автоопределение путей (абсолютные пути к venv python и main.py)
             success = patch_zed_settings(mode=mode)
@@ -194,7 +194,7 @@ def main():
 
         # Логика деинсталлятора
         if "--remove" in sys.argv:
-            from src.utils.zed_config import remove_zed_settings
+            from adapters.zed.zed_config import remove_zed_settings
 
             success = remove_zed_settings()
             if success:
