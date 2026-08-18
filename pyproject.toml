@@ -24,11 +24,17 @@ classifiers = [
     "Environment :: Plugins",
 ]
 dependencies = [
+    # Политика пинов (2026-08-18, аудит unpinned-dependency): ВСЕ runtime-зависимости
+    # запинены к точным версиям (==). Источник версий — requirements-lock.txt (венв
+    # расширения, Python 3.14, live-проверка) + проверка колёс PyPI на 3.10..3.14.
+    # Бамп — только по §5.19: проверка API целевой версии + verify_clean_state.
+    # Исключение: numpy/pandas/onnxruntime на Python<3.11 (CI matrix включает 3.10,
+    # EOL 2026-10; lock-версия требует >=3.11) — там per-Python диапазон; после дропа 3.10 запинить.
     # MCP Protocol
-    "mcp>=1.0.0,<2",  # upper bound: mcp 2.x меняет транспортный протокол
+    "mcp==1.28.1",  # 1.x: транспортный протокол; 2.x меняет его — не бампить без проверки
     # LSP Protocol
-    "pygls>=2.0.0",
-    "lsprotocol>=24.0.0",
+    "pygls==2.1.1",
+    "lsprotocol==2025.0.0",
     # Vector DB & Embeddings
     # Pinned: lancedb 0.x менял публичный API внутри минорных релизов
     # (сломал тест-сьют 2026-07 через lancedb.LanceDB). Ребилд/бамп —
@@ -38,50 +44,56 @@ dependencies = [
     # (known_hashes bulk load, index_project_runner.py). Проверено 2026-08-01:
     # pylance 9.0.0 + lance-namespace 0.8.6, API to_lance().to_pandas() работает.
     "pylance==9.0.0",
-    "pyarrow>=14.0.0",  # + pyarrow.compute для to_arrow
-    "huggingface_hub>=0.20.0",
-    "numpy>=1.24.0,<3",  # upper bound: numpy 3.x ломает ABI для pyarrow/onnxruntime
+    "pyarrow==25.0.0",  # + pyarrow.compute для to_arrow
+    "huggingface_hub==1.24.0",
+    "numpy==2.4.6; python_version >= '3.11'",
+    "numpy>=1.24.0,<3; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
     # Code parsing (Tree-sitter) — 23 пакета для 23 языков
-        # Core: полный граф (chunking + calls + data flow + imports)
-        "tree-sitter>=0.21.0,<1",
-        "tree-sitter-python>=0.21.0,<1",
-        "tree-sitter-rust>=0.21.0,<1",
-        "tree-sitter-typescript>=0.21.0,<1",  # .ts/.tsx
-        "tree-sitter-javascript>=0.21.0,<1",  # .js/.jsx
-        "tree-sitter-go>=0.21.0,<1",
-        "tree-sitter-java>=0.23.0,<1",
-        "tree-sitter-c-sharp>=0.23.0,<1",
-        "tree-sitter-ruby>=0.23.0,<1",
-        "tree-sitter-php>=0.24.0,<1",
-        "tree-sitter-kotlin>=1.1.0,<2",
-        "tree-sitter-swift>=0.7.0,<1",
-        "tree-sitter-c>=0.24.0,<1",
-        "tree-sitter-cpp>=0.23.0,<1",
-        "tree-sitter-scala>=0.26.0,<1",
-        "tree-sitter-dart>=0.1.0,<1",
-        "tree-sitter-bash>=0.25.0,<1",  # shell, без data flow
-        # Context-языки (только AST-парсинг и чанкинг)
-        "tree-sitter-sql>=0.3.0,<1",
-        "tree-sitter-yaml>=0.7.0,<1",
-        "tree-sitter-toml>=0.7.0,<1",
-        "tree-sitter-html>=0.23.0,<1",
-        "tree-sitter-css>=0.25.0,<1",
-        "tree-sitter-hcl>=1.2.0,<2",  # HCL/Terraform
+    # Core: полный граф (chunking + calls + data flow + imports).
+    # Все грамматики: abi3-колёса (cp39/cp310-abi3) — один пин работает 3.10..3.14.
+    # Импортируются лениво (src/core/indexing/parser.py) — отсутствие грамматики
+    # деградирует язык, а не роняет индексацию.
+    "tree-sitter==0.26.0",
+    "tree-sitter-python==0.25.0",
+    "tree-sitter-rust==0.24.2",
+    "tree-sitter-typescript==0.23.2",  # .ts/.tsx
+    "tree-sitter-javascript==0.25.0",  # .js/.jsx
+    "tree-sitter-go==0.25.0",
+    "tree-sitter-java==0.23.5",
+    "tree-sitter-c-sharp==0.23.5",
+    "tree-sitter-ruby==0.23.1",
+    "tree-sitter-php==0.24.1",
+    "tree-sitter-kotlin==1.1.0",
+    "tree-sitter-swift==0.7.3",
+    "tree-sitter-c==0.24.2",
+    "tree-sitter-cpp==0.23.4",
+    "tree-sitter-scala==0.26.2",
+    "tree-sitter-dart==0.1.0",
+    "tree-sitter-bash==0.25.1",  # shell, без data flow
+    # Context-языки (только AST-парсинг и чанкинг)
+    "tree-sitter-sql==0.3.11",
+    "tree-sitter-yaml==0.7.2",
+    "tree-sitter-toml==0.7.0",
+    "tree-sitter-html==0.23.2",
+    "tree-sitter-css==0.25.0",
+    "tree-sitter-hcl==1.2.0",  # HCL/Terraform
     # Search & Utils
-    "pathspec>=0.14.0",
-    "httpx>=0.24.0",
-    "python-dotenv>=1.0.0",
-    "pandas>=2.0.0",
-    "python-dateutil>=2.8.0",
+    "pathspec==1.1.1",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.2",
+    "pandas==3.0.3; python_version >= '3.11'",
+    "pandas>=2.0.0; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
+    "python-dateutil==2.9.0.post0",
     # ONNX Embedder
-    "onnxruntime>=1.17.0",
-    "openvino>=2026.0.0",
+    "onnxruntime==1.27.0; python_version >= '3.11'",
+    "onnxruntime>=1.17.0; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
+    "openvino==2026.2.1",
     # Reranker (transformers-based; легаси — llama.cpp, но tokenizers используются)
     # Pinned: >=5.3.0 закрывает CVE-2026-1839 (фикс 5.0.0) и CVE-2026-4372
     # (RCE через _attn_implementation_internal, обходит trust_remote_code — фикс ТОЛЬКО 5.3.0).
-    # Lock уже на 5.14.1; нижняя граница защищает установку БЕЗ lock. Проверено 2026-08-08 (OSV).
-    "transformers>=5.3.0,<5.15.0",
-    "tokenizers>=0.15.0",
+    # 5.14.1 — из lock (проверено 2026-08-08, OSV); верхняя граница <5.15.0 сохранена пином.
+    "transformers==5.14.1",
+    "tokenizers==0.22.2",
 ]
 
 [project.optional-dependencies]
