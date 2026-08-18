@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-18 — Фаза 0 Universal Engine: Windows/Zed-специфика вынесена в adapters/ (DONE, не закоммичено)
+
+**Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR Фаза 0 — разделение без смены поведения. `src/utils/paths.py` (SafePathManager/to_win_long_path) → `adapters/local_fs/windows.py` (POSIX no-op); `src/utils/zed_config.py` → `adapters/zed/zed_config.py`. Импортеры обновлены: db_manager, indexer, tools_reg, scripts/full_reindex, src/main.py (2), install.py (убран path-hack `sys.path.insert(src/utils)`), tests (ast_cache_invalidation, zed_config_patch, zed_config_remove), sync_to_installed.bat (echo). Новый гейт `scripts/check_layer_boundaries.py`: 3 TRANSITIONAL core→adapters.local_fs.windows (обязаны стать 0 к концу Фазы 1), 0 нарушений. Тесты: 1300 passed / 10 skipped.
+**Deferred (дедлайны):** extension.toml физический перенос → Фаза 4 (adapter-install split; сейчас завязан на test_versions.py/install.py/живую регистрацию); install.py split core/adapters → Фаза 4/5; platform_utils.get_zed_* миграция → Фаза 1 (WorkspaceSource).
+**Статус:** 🟢 внесено + проверено (pytest 1300 passed), закоммичено 7232a6e2 (ветка feat/universal-engine, push по команде) | **Владелец:** misha.
+
 ## 2026-08-18 — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (Red Team, FIXED)
 
 **Что:** Red Team (ARCLUX CLI + эксперименты E1-E6): validate_code песочницы обходился конкатенацией строк (`'o'+'pen'` — обход Layer-1 pattern-скана) + `_builtins.__dict__['open']/['eval']` (обход Layer-2: call-проверка не видит func=ast.Subscript; атрибут `__dict__` отсутствовал в списке блокируемых dunder). Runtime-доказано: произвольное чтение файлов (status=ok, прочитан маркер) и исполнение кода (eval('1+1')->2) внутри sandbox-подпроцесса; import-гейт _safe_import (os/subprocess/socket) побег не закрывал — builtins.open/eval не нейтрализовались. Достижимость: execute_script (codebase_tool.py:244,271), флаг MSCODEBASE_EXECUTE_SCRIPT_ENABLED (выкл. по умолчанию).
