@@ -25,6 +25,15 @@
 
 ---
 
+## [2026-08-18] — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
+**Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено локально: pytest tests/ 1300 passed / 10 skipped, ruff clean на изменённых, check_layer_boundaries 0 нарушений
+**Root Cause:** ТЗ MSCODEBASE_UNIVERSAL_TOR — Windows (paths.py) и Zed (zed_config.py) специфика жила в src/utils, привязывая движок к платформе+редактору.
+**Fix:** paths → `adapters/local_fs/windows.py` (POSIX no-op), zed_config → `adapters/zed/zed_config.py`; обновлены 9 импортеров (db_manager, indexer, tools_reg, full_reindex, main.py ×2, install.py — убран path-hack, tests ×3, sync_to_installed.bat); старый src/utils/paths.py удалён; новый гейт `scripts/check_layer_boundaries.py` (3 transitional core→adapters.local_fs.windows, 0 нарушений).
+**Guard:** check_layer_boundaries.py (в script-гейт); переходные импорты обязаны стать 0 к концу Фазы 1; KNOWN_ISSUES#2026-08-18-Фаза0.
+**Deferred (дедлайны):** extension.toml → Фаза 4 (завязан на install.py/test_versions.py/живую регистрацию); install.py split → Фаза 4/5; platform_utils.get_zed_* → Фаза 1 (WorkspaceSource).
+**Любопытство:** в корне лежат одноразовые артефакты (crash_debug.log, llama_reranker_stderr.log, spike.db, тест-скрипт в корне) — нарушение §0.6, зафиксировано, не трогал.
+
 ## [2026-08-18] — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (FIXED, не закоммичено)
 
 **Status:** ✅ Fixed (локально, тесты 42 passed; commit по команде)
