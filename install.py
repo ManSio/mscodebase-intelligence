@@ -45,11 +45,10 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from adapters.zed.zed_config import get_zed_config_dir, patch_zed_settings
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src" / "utils"))
-from zed_config import get_zed_config_dir, patch_zed_settings  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ZED_EXT_DIR = (

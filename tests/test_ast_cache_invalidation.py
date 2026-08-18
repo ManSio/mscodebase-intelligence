@@ -160,10 +160,10 @@ class TestASTCacheInvalidation:
         self, code_parser: CodeParser, tmp_producer: Path, tmp_consumer: Path
     ):
         """Full integration: rename in consumer + producer, verify no ghosts."""
+        from adapters.local_fs.windows import SafePathManager
         from src.core.graph import PropertyGraph
         from src.core.indexing.index_parser import IndexParser
         from src.core.search.graph_adapter import SymbolIndexAdapter
-        from src.utils.paths import SafePathManager
 
         db_path = tmp_producer.parent / "test_graph.db"
         pg = PropertyGraph(db_path)

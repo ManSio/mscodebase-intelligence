@@ -215,7 +215,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
                     if _removed_ok:
                         from pathlib import Path as _P
 
-                        from src.utils.paths import to_win_long_path
+                        from adapters.local_fs.windows import to_win_long_path
                         _P(to_win_long_path(_dbm.db_path)).mkdir(
                             parents=True, exist_ok=True
                         )
