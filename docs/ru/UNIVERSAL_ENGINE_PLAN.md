@@ -7,13 +7,15 @@
 > кода в этой сессии; внешние факты — живой загрузкой (URL inline);
 > локальные эксперименты E-01/E-02 прогнаны в этой сессии (raw output ниже).
 
-> **СТАТУС 2026-08-18 (вечер):** Фаза 0 + Фаза 1 выполнены на
-> `feat/universal-engine` (коммиты 7232a6e2, cb8f671f, 55a2af41). Фаза 1:
-> создан `src/sources/`, протокол WorkspaceSource в core-интерфейсах,
-> LocalFsSource (resolve/watch/fingerprint), Indexer потребляет source
-> (path_manager от LocalFsSource), финальный дом хелперов —
-> src/sources/local_fs/windows.py, adapters/local_fs удалён.
-> 1308 тестов зелёные. Не запушено (по команде).
+> **СТАТУС 2026-08-18 (поздно):** Фаза 0 + Фаза 1 выполнены на
+> `feat/universal-engine` (коммиты 7232a6e2, cb8f671f, 55a2af41, e661861f,
+> 7a8e703b, c9800368). Раунд аудита (находки исследовательского агента): гейт
+> слоёв подключён в pre-commit (инсталлятор + переустановка) и CI (шаг ci.yml);
+> CI-матрица ОС (ubuntu+windows) уже была; дрейф KNOWN_ISSUES «Фаза 0»
+> исправлен (финальный дом хелперов); дедлайн platform_utils.get_zed_* → Фаза 3
+> (DI-инъекция резолва проекта); создана experiments/universal-engine/;
+> ТЗ-черновик (MSCODEBASE_UNIVERSAL_TOR.md) остаётся untracked в корне — файл
+> владельца, решение о размещении (docs/ru/ по §0.6) за владельцем.
 
 ---
 
@@ -349,11 +351,18 @@ MCP-server-расширений в его пользу).
 - Тесты: tests/test_local_fs_source.py (8) + полный pytest 1308 passed / 10 skipped. ✅
 - DoD: сервер ведёт себя идентично через новый интерфейс (1308 зелёные).
 
-**Фаза 2 — GitUrlSource.** По дизайну §2.2. DoD (ТЗ): 5-10 публичных репо разного
-размера, замер clone→index (E-03); failure-кейсы (приватный без токена,
-несуществующий URL) → INCONCLUSIVE, не crash (E-02c уже показал exit 128);
-SSRF-сьют (E-08); тест fingerprint-skip (второй клон re-embeds 0 файлов — E-02
-измерил 79ms цену fingerprint).
+**Фаза 2 — GitUrlSource.** ✅ **core готов (2026-08-18, feat/universal-engine).**
+- `src/sources/git_url/`: GitUrlSource (WorkspaceSource) + GitRepoCache (LRU(5)+TTL 24ч)
+  + SSRF-валидация. ✅
+- Защита R-2: scheme allowlist (https-only дефолт), domain allowlist, все A/AAAA
+  обязаны быть global (IMDS/RFC1918/loopback → отказ), post-clone origin-check
+  (редирект), лимиты размера/файлов/таймаут, protocol.file.allow=never. ✅
+- Ошибки → GitUrlSourceError с kind (INCONCLUSIVE-контракт, ТЗ §6.5). ✅
+- `get_repos_cache_dir()` в artifact_paths. ✅
+- Тесты: tests/test_git_url_source.py (12) + pytest 1320 passed / 10 skipped. ✅
+- **Остаток Фазы 2:** E-03 (clone→index на 5-10 реальных репо, DoD ТЗ), E-08
+  (live SSRF-сьют: редирект/rebinding), MCP-тул-обвязка (index_project_dir
+  по URL), UploadSource, DNS-rebinding-пиннинг (Фаза 2.5).
 
 **Фаза 2.5 — приватные репо** (рекомендация 1: после ~2 недель чистоты
 публичного пути): SSH-ключи/токены только в OS keychain или `.env` (никогда в
