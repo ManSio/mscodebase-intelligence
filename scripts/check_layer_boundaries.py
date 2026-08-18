@@ -1,19 +1,22 @@
-"""Layer-boundary gate for the Universal Engine refactor (Фаза 0).
+"""Layer-boundary gate for the Universal Engine refactor (Фаза 1).
 
-Enforces the three-axis split from MSCODEBASE_UNIVERSAL_TOR (§1):
+Enforces the three-axis split from the ТЗ (MSCODEBASE_UNIVERSAL_TOR §1):
 ADAPTER → TRANSPORT → SOURCE → CORE. Core and tools must stay
 platform/editor-agnostic.
 
-Фаза 0 rules:
-1. `src/mcp/tools/` must NOT import `adapters.*` — tools are transport-agnostic.
+Фаза 1 rules:
+1. `src/mcp/tools/` must NOT import `adapters.*` / `src.sources.*` directly —
+   tools are transport-agnostic.
 2. `src/mcp/tools/` must NOT call `sys.platform` / `platform.system()` directly —
    use `src.core.platform_utils.is_windows()` instead.
-3. TRANSITIONAL (WARN + count, must reach 0 by end of Фаза 1): `src/core/**`
-   may still import `adapters.local_fs.windows` (db_manager, indexer, tools_reg).
-4. `src/utils/paths` and `src/utils/zed_config` are DEAD — any import of the old
+3. TRANSITIONAL (WARN + count, must reach 0 by end of Фаза 2): `src/core/**`
+   may still import `src.sources.local_fs.windows` (db_manager, tools_reg).
+   indexer.py уже получает path_manager от LocalFsSource (Фаза 1).
+4. `adapters.*` imported from anywhere in `src/` = ERROR, except `src/main.py`
+   (adapter-dispatch entrypoint). Windows/Zed-примитивы живут в source-слое
+   (src/sources/local_fs/windows.py), НЕ в adapters.
+5. `src/utils/paths` and `src/utils/zed_config` are DEAD — any import of the old
    homes is an ERROR (grep-развёртка §5.14).
-5. `src/main.py` is the adapter-dispatch entrypoint — allowed to import
-   `adapters.zed` (install/configure glue).
 
 Usage: python scripts/check_layer_boundaries.py   (exit 0 = clean, 1 = violation)
 """
@@ -32,8 +35,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 
 IMPORT_RE = re.compile(
-    r"^\s*(?:from\s+(adapters(?:\.\w+)*|src\.utils\.paths|src\.utils\.zed_config)"
-    r"\s+import|import\s+(adapters(?:\.\w+)*|src\.utils\.paths|src\.utils\.zed_config))",
+    r"^\s*(?:from\s+(adapters(?:\.\w+)*|src\.utils\.paths|src\.utils\.zed_config|"
+    r"src\.sources(?:\.\w+)*)"
+    r"\s+import|import\s+(adapters(?:\.\w+)*|src\.utils\.paths|src\.utils\.zed_config|"
+    r"src\.sources(?:\.\w+)*))",
 )
 
 PLATFORM_DIRECT_RE = re.compile(r"^\s*(?:sys\.platform|platform\.system)")
@@ -63,16 +68,19 @@ def main() -> int:
 
             if target in ("src.utils.paths", "src.utils.zed_config"):
                 violations.append(f"[DEAD-IMPORT] {loc}: {line.strip()}")
-            elif target.startswith("adapters.zed"):
+            elif target.startswith("adapters."):
                 if rel == "src/main.py":
-                    continue  # entrypoint = adapter dispatch (rule 5)
-                violations.append(f"[ADAPTER-LEAK] {loc}: {line.strip()} — src/ must not import adapters.zed")
-            elif target.startswith("adapters.local_fs.windows"):
-                if rel.startswith("src/mcp/"):
+                    continue  # entrypoint = adapter dispatch (rule 4)
+                violations.append(f"[ADAPTER-LEAK] {loc}: {line.strip()} — src/ must not import adapters.*")
+            elif target.startswith("src.sources."):
+                if rel.startswith("src/mcp/tools/"):
                     violations.append(
-                        f"[ADAPTER-LEAK] {loc}: {line.strip()} — mcp/ must not import Windows primitives"
+                        f"[SOURCE-LEAK] {loc}: {line.strip()} — mcp/tools must not import source layer"
                     )
-                else:
+                elif rel.startswith("src/core/"):
+                    # TRANSITIONAL: дефолтная реализация (Indexer) + хелперы путей
+                    # (db_manager/tools_reg); цель — 0 к концу Фазы 2, когда DI
+                    # инжектит WorkspaceSource в Indexer/ProjectIndexerRegistry.
                     transitional.append(loc)
 
             # platform-direct check
@@ -81,9 +89,9 @@ def main() -> int:
                     f"[PLATFORM-DIRECT] {loc}: {line.strip()} — use src.core.platform_utils.is_windows()"
                 )
 
-    print("🔍 Layer boundary check (Фаза 0)")
-    print(f"   transitional core→adapters.local_fs.windows imports: {len(transitional)} "
-          f"(must reach 0 by end of Фаза 1)")
+    print("🔍 Layer boundary check (Фаза 1)")
+    print(f"   transitional core→src.sources.* imports: {len(transitional)} "
+          f"(must reach 0 by end of Фаза 2)")
     for loc in transitional:
         print(f"   ⚠️  {loc}")
 
