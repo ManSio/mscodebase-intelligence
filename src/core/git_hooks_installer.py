@@ -12,6 +12,8 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
    мёртвые имена get_variable_flow и др. удалены, гейт не даёт им вернуться)
 4. negative_controls — guard inventory (протокол Тома / OWP §5.2, 2026-08-14:
    каждый guard обязан уметь падать; digest-pinning — правка фикстуры → unproven)
+5. check_layer_boundaries — гейт трёх осей Universal Engine (Фаза 1, 2026-08-18:
+   mcp/tools не импортирует adapters/src.sources, core — не adapters.*)
 """
 
 from __future__ import annotations
@@ -36,7 +38,9 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 Запускает:
 1. verify_diary — проверка AGENT_DIARY.md
 2. stale_detector — проверка дрейфа версий в доках
-3. negative_controls — guard inventory (каждый guard умеет падать)
+3. check_tool_names — semantic-гейт имён MCP-тулов
+4. negative_controls — guard inventory (каждый guard умеет падать)
+5. check_layer_boundaries — гейт трёх осей (Universal Engine)
 \"\"\"
 
 import subprocess
@@ -92,6 +96,7 @@ def main():
     all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
+    all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
@@ -153,7 +158,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls"
+            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls + check_layer_boundaries"
         )
 
     def uninstall(self, project_root: str) -> str:
