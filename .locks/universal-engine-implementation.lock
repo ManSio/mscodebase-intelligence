@@ -1,0 +1,8 @@
+{
+  "resource": "implementation scope: src/, adapters/, tests/, scripts/, .github/workflows/ci.yml, AGENT_DIARY.md, KNOWN_ISSUES.md, docs/{ru,research}/UNIVERSAL_ENGINE_PLAN.md",
+  "agent": "agent-implementer (Universal Engine Фаза 2 + audit fixes)",
+  "acquired_at": "2026-08-18T22:40:00Z",
+  "purpose": "Фаза 2 GitUrlSource + закрытие недоделок (gate в pre-commit/CI, дрейф KNOWN_ISSUES, platform_utils.get_zed_* deadline)",
+  "estimated_duration_min": 90,
+  "note": "Write-scope разъединён с исследовательским агентом (docs/research/universal-engine-study/** — его зона). Push лока и кода — по команде владельца (§5.7)."
+}
