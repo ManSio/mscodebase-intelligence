@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-18 — Фаза 2 Universal Engine: GitUrlSource core (SSRF-защита, кэш, INCONCLUSIVE) (DONE)
+
+**Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR §2.1 — источник кода по URL. `src/sources/git_url/`: GitUrlSource (реализация WorkspaceSource) + GitRepoCache (LRU(5)+TTL 24ч, manifest.json) + SSRF-валидация: scheme allowlist (https-only дефолт; ssh/git/file/scp отклоняются на парсе), domain allowlist (github/gitlab/bitbucket + конфиг), DNS-проверка (все A/AAAA хоста обязаны быть global — IMDS 169.254.169.254/RFC1918/loopback/link-local/multicast → отказ), post-clone origin-check против редиректа, лимиты (500MB / 200k файлов / таймаут 120с), `-c protocol.file.allow=never` + `GIT_TERMINAL_PROMPT=0` + `GIT_LFS_SKIP_SMUDGE=1`. Ошибки → GitUrlSourceError с машинным kind (потребитель мапит в INCONCLUSIVE, ТЗ §6.5). `get_repos_cache_dir()` добавлен в artifact_paths. fingerprint = git-tree (rev-parse HEAD + ls-tree, E-02: 79ms) + manifest-fallback. **Аудит-раунд:** гейт `check_layer_boundaries.py` подключён в pre-commit (git_hooks_installer + переустановка) и CI (шаг ci.yml); CI-матрица ≥2 ОС (ubuntu+windows) уже была — претензия исследовательского агента B.2 опровергнута; KNOWN_ISSUES дрейф «Фаза 0» (adapters.local_fs) исправлен; дедлайн platform_utils.get_zed_* → Фаза 3 (DI-инъекция резолва проекта); создана experiments/universal-engine/; взят лок .locks/universal-engine-implementation.lock (разъединённый write-scope с исследовательским агентом).
+**Тесты:** tests/test_git_url_source.py (12: отказы парсинга, localhost→non_global_ip, лимиты size/count, INCONCLUSIVE на несуществующий репо, LRU/TTL кэша, fingerprint стабилен/меняется по коммиту) + полный pytest 1320 passed / 10 skipped; ruff clean; гейт 0 нарушений. | **Статус:** 🟢 внесено + проверено, закоммичено 3bb3b6ae (ветка feat/universal-engine, push по команде) | **Владелец:** misha.
+**Остаток Фазы 2:** E-03 (clone→index реальные репо), E-08 (live SSRF), MCP-тул-обвязка, UploadSource, DNS-rebinding-пиннинг (Фаза 2.5).
+
 ## 2026-08-18 — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
 
 **Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR §2.1 — core не должен знать, откуда код; локальная обработка путей — деталь источника, не всего core. Создан SOURCE-слой: протокол `WorkspaceSource` + `FileChangeEvent` в `src/core/interfaces/workspace_source.py` (core-owned, паттерн IEmbedder); `LocalFsSource` (resolve/watch/fingerprint, poll-наблюдатель) в `src/sources/local_fs/`; Windows-хелперы переехали в финальный дом `src/sources/local_fs/windows.py` (adapters/local_fs удалён); Indexer принимает `source: WorkspaceSource` и берёт `path_manager` из него (дефолт — LocalFsSource). Гейт `scripts/check_layer_boundaries.py` обновлён: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg), цель — 0 к концу Фазы 2 (DI инжектит source).
@@ -13,8 +19,9 @@
 ## 2026-08-18 — Фаза 0 Universal Engine: Windows/Zed-специфика вынесена в adapters/ (DONE, не закоммичено)
 
 **Что:** ТЗ MSCODEBASE_UNIVERSAL_TOR Фаза 0 — разделение без смены поведения. `src/utils/paths.py` (SafePathManager/to_win_long_path) → `adapters/local_fs/windows.py` (POSIX no-op); `src/utils/zed_config.py` → `adapters/zed/zed_config.py`. Импортеры обновлены: db_manager, indexer, tools_reg, scripts/full_reindex, src/main.py (2), install.py (убран path-hack `sys.path.insert(src/utils)`), tests (ast_cache_invalidation, zed_config_patch, zed_config_remove), sync_to_installed.bat (echo). Новый гейт `scripts/check_layer_boundaries.py`: 3 TRANSITIONAL core→adapters.local_fs.windows (обязаны стать 0 к концу Фазы 1), 0 нарушений. Тесты: 1300 passed / 10 skipped.
-**Deferred (дедлайны):** extension.toml физический перенос → Фаза 4 (adapter-install split; сейчас завязан на test_versions.py/install.py/живую регистрацию); install.py split core/adapters → Фаза 4/5; platform_utils.get_zed_* миграция → Фаза 1 (WorkspaceSource).
+**Deferred (дедлайны):** extension.toml физический перенос → Фаза 4 (adapter-install split; сейчас завязан на test_versions.py/install.py/живую регистрацию); install.py split core/adapters → Фаза 4/5; platform_utils.get_zed_* миграция → Фаза 3 (DI-инъекция резолва проекта).
 **Статус:** 🟢 внесено + проверено (pytest 1300 passed), закоммичено 7232a6e2 (ветка feat/universal-engine, push по команде) | **Владелец:** misha.
+**Correction (Фаза 1, e661861f):** Windows-хелперы переехали в финальный дом `src/sources/local_fs/windows.py` (adapters/local_fs удалён); см. запись «Фаза 1» ниже.
 
 ## 2026-08-18 — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (Red Team, FIXED)
 

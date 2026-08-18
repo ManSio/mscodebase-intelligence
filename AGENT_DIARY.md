@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-18] — Фаза 2 Universal Engine: GitUrlSource core (SSRF-защита, кэш, INCONCLUSIVE) (DONE)
+**Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 3bb3b6ae на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1320 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional)
+**Root Cause:** ТЗ §2.1 — источник кода по URL («дали URL — получили индекс»); без него движок завязан на локальный диск.
+**Fix:** `src/sources/git_url/`: GitUrlSource (WorkspaceSource) + GitRepoCache (LRU(5)+TTL 24ч) + SSRF-валидация (scheme https-only, domain allowlist, все A/AAAA global — IMDS/RFC1918/loopback отказ, post-clone origin-check против редиректа, лимиты размер/файлы/таймаут, protocol.file.allow=never, GIT_TERMINAL_PROMPT=0); ошибки → GitUrlSourceError с kind (INCONCLUSIVE-контракт, ТЗ §6.5); `get_repos_cache_dir()` в artifact_paths; fingerprint = git-tree (E-02: 79ms).
+**Guard:** tests/test_git_url_source.py (12: парсинг-отказы, localhost→non_global_ip, лимиты, INCONCLUSIVE, LRU/TTL, fingerprint); полный pytest 1320 passed. Аудит-раунд: гейт слоёв подключён в pre-commit (инсталлятор + переустановка) и CI (шаг ci.yml); CI-матрица ≥2 ОС уже была (ubuntu+windows); KNOWN_ISSUES дрейф «Фаза 0» исправлен; platform_utils.get_zed_* дедлайн → Фаза 3; experiments/universal-engine/ создана; лок агента-реализатора .locks/universal-engine-implementation.lock.
+
 ## [2026-08-18] — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
 **Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено e661861f на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1308 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional)
