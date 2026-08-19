@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-18] — DNS-rebinding-детект (Фаза 2.5, SSRF DOСЫ sur мостом) (DONE)
+**Status:** ✅ Fixed (git_url 14 + upload 9 = 23 точечных; ruff clean; gate 0)
+**verified_from_clean_state:** ⚠️ не проверено (полный pytest деградирован внешним клоном); локально: 23 точечных passed, ruff clean, gate 0
+**Root Cause:** между SSRF-проверкой IP и фактическим git clone остаётся окно DNS-rebinding (TOCTOU): атакующий мог отдать global IP на проверке и private на клоне.
+**Fix:** `_resolve_and_check_ips` возвращает валидированный набор IP; `_resolve_sync` сверяет набор до/после клона — расхождение → GitUrlSourceError("dns_rebinding_suspected") → INCONCLUSIVE + rmtree. (Полный IP-pinning с SNI-override — вне v1, документировано; контроль egress на уровне сети — вторая линия.)
+**Guard:** tests/test_git_url_source.py::test_dns_rebinding_suspected (мок DNS меняет IP-набор, фейк-клон).
+
 ## [2026-08-18] — UploadSource (Фаза 2, R-3) (DONE)
 **Status:** ✅ Fixed (33 точечных теста; pytest 1324 байзлайн + внешний фейл клона)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone + full pytest заблокированы внешним клоном e-s1-polygon); локально: 33 точечных passed, ruff clean, gate 0
