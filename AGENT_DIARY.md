@@ -25,7 +25,14 @@
 
 ---
 
-## [2026-08-18] — DNS-rebinding-детект (Фаза 2.5, SSRF DOСЫ sur мостом) (DONE)
+## [2026-08-18] — Фаза 3: Streamable HTTP транспорт начат (remote_main) (DONE, шаг 1-3)
+**Status:** ✅ Fixed (5 тестов auth/healthz/mount; полный pytest 1339 passed)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: 5 тестов + полный pytest 1339 passed, ruff clean, gate 0. Live-сборка create_streamable_http_app НЕ проводилась (создаст 2-й MCP и будет драться за PID-lock эмбеддера) — после синка/релода.
+**Root Cause:** движок доступен только по stdio (локальные клиенты) — remote/VPS невозможен; спека MCP 2026: stdio + Streamable HTTP (HTTP+SSE deprecated).
+**Fix:** `src/mcp/transport/streamable_http.py` (create_streamable_http_app — FastMCP.streamable_http_app) + `src/remote_main.py` (Starlette: /mcp mount + /healthz + Bearer-auth MSCODEBASE_REMOTE_TOKEN; app ленивый — импорт не строит сервер). stdio не тронут (transport выбирается на запуске).
+**Guard:** tests/test_remote_main.py (5: healthz open, bearer required, wrong token, no-token→no-auth, mount ok). Остаток Фазы 3: /healthz+rate-limit через existing limiter, Docker-образ, деплой-доки.
+
+## [2026-08-18] — DNS-rebinding-детект (Фаза 2.5, SSRF) (DONE)
 **Status:** ✅ Fixed (git_url 14 + upload 9 = 23 точечных; ruff clean; gate 0)
 **verified_from_clean_state:** ⚠️ не проверено (полный pytest деградирован внешним клоном); локально: 23 точечных passed, ruff clean, gate 0
 **Root Cause:** между SSRF-проверкой IP и фактическим git clone остаётся окно DNS-rebinding (TOCTOU): атакующий мог отдать global IP на проверке и private на клоне.
