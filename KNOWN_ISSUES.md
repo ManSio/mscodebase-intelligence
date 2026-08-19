@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-18 — Фаза 3: Streamable HTTP транспорт начат (remote_main, шаг 1-3) (DONE)
+
+**Что:** ТЗ §3 — движок доступен только по stdio; нужен streamable HTTP для remote/VPS (спека MCP 2026: stdio + Streamable HTTP; HTTP+SSE deprecated SEP-2596). `src/mcp/transport/streamable_http.py` — `create_streamable_http_app()` (FastMCP.streamable_http_app → ASGI). `src/remote_main.py` — Starlette-вход: mount `/mcp` + `/healthz` (внешний мониторинг) + Bearer-auth (`MSCODEBASE_REMOTE_TOKEN`, healthz не auth'ится); `app` ленивый (импорт не строит тяжелый сервер). stdio не тронут. Rate-limit через existing SlidingWindowRateLimiter — в след. шаге.
+**Тесты:** tests/test_remote_main.py (5: healthz открыт, /mcp требует Bearer, неверный токен 401, нет-токена→нет-auth, mount работает через фейк-app). Полный pytest 1339 passed / 10 skipped; ruff clean; гейт 0. Live-сборка create_streamable_http_app отложена (в песочке создаст 2-й MCP — PID-lock конфликт с запущенным; после синка/релода). | **Статус:** 🟢 внесено + проверено, закоммичено (feat/universal-engine) | **Владелец:** misha.
+
 ## 2026-08-18 — DNS-rebinding-детект (Фаза 2.5) (DONE)
 
 **Что:** SSRF-защита GitUrlSource имела окно DNS-rebinding (TOCTOU) между проверкой IP и фактическим клоном. `_resolve_and_check_ips` теперь возвращает валидированный набор IP, `_resolve_sync` сверяет набор до/после клона — расхождение → `GitUrlSourceError(dns_rebinding_suspected)` → INCONCLUSIVE + rmtree (НЕ crash). Полный IP-pinning (подключение к IP с SNI-override) — вне v1 (документировано в KNOWN_ISSUES; сетевой egress-контроль — вторая линия обороны).
