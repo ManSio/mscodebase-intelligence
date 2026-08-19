@@ -366,7 +366,8 @@ MCP-server-расширений в его пользу).
   на свежих клонах → clone-in-place + атомарность через манифест; rich: 3 длинных
   файла — graceful embed-деградация). MCP-тул-обвязка ✅ (index_git_url через
   DI-фабрику; hub: index(action=git_url), codebase(action=index, sub=git_url);
-  INCONCLUSIVE-обработка; read-only). E-08 (live SSRF-сьют), UploadSource,
+  INCONCLUSIVE-обработка; read-only). E-08 ✅ ВЫПОЛНЕНО (9/9 live SSRF: scheme/domain/
+  creds/port/DNS localhost→loopback отклонён, happy-path github.com ок). UploadSource,
   DNS-rebinding-пиннинг (Фаза 2.5).
 
 **Фаза 2.5 — приватные репо** (рекомендация 1: после ~2 недель чистоты
