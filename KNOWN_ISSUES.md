@@ -5,11 +5,17 @@
 
 ---
 
+## 2026-08-19 — E-05: ActionReceipt reproducible_by 4/4 (workdir-фикс) + чужой LSP DRAFT ломает lsp_tools (OPEN)
+
+**Что (E-05):** гейт §11/§12.3 — reproduce `reproducible_by` на реальных действиях (file_write/git_commit/git_push/index_sync) в чистом temp. Первый прогон 2/4 (git_commit/git_push REFUTED vs repro VERIFIED): **root cause** — verify_git_commit/push хардкодили cwd процесса, reproducible_by выполнялся в другом cwd → mismatch вердиктов (ровно опасение §12.3). Фикс: `execution_contract.verify_git_commit(.., cwd)`/`verify_git_push(cwd)` (backward-compatible, default None); `action_receipt.reproducible_command(.., workdir)` кодирует `git -C <dir>`; `ActionReceipt.workdir`; `build_receipt(.., workdir)`; `verify_action` резолвит project_root. Повторный прогон **4/4 PASSED**. Receipt стал самодостаточным (несет workdir).
+**ЧУЖАЯ РЕГРЕССИЯ (не моя, OPEN):** `src/core/lsp_client.py` в рабочем дереве перезаписан DRAFT-новым async-free клиентом (experiments/lsp-артефакт), УДАЛЕНЫ `_path_to_uri`/`_uri_to_path`/`open_file`/`find_definition`/`document_symbols` — ломает `lsp_tools.py` (13 обращений) и `tests/test_lsp_uri_conversion.py` (8 failed: AttributeError). Незакоммичено (M). Требует решения: реверт рабочего дерева к HEAD (`git checkout -- src/core/lsp_client.py`) или завершение переработки. НЕ трогаю (чужая работа, §4.5).
+**Тесты:** E-05 4/4; test_action_receipt+execution_contract+write_tools 72 passed. Полный pytest: **1435 passed, 8 failed** (все 8 — чужой lsp_uri). | **Статус:** E-05 ✅; LSP-регрессия 🔴 OPEN (чужая) | **Владелец:** misha.
+
 ## 2026-08-19 — ТЗ §11 Action Receipt: get_action_receipt + store + retention (DONE, commit blocked)
 
 **Что:** Реализация ТЗ §11 этапы 2-4. `src/core/action_receipt.py` — ActionReceipt dataclass (action_id/claim/before_hash/after_hash/verification_steps/verdict/reproducible_by/supersedes), `verdict_from_results` (трехзначная модель VERIFIED/REFUTED/INCONCLUSIVE; INCONCLUSIVE-маркеры среды: git-not-found/таймаут ≠ REFUTED; index_sync всегда INCONCLUSIVE), `ActionReceiptStore` (JSONL в системной папке `<data_root>/projects/<hash8>/action_receipts.jsonl`, аналог ChangeIntentLedger; record/get/query/count), `gc` retention (INCONCLUSIVE TTL 7d, VERIFIED/REFUTED 60d, keep_last), иммутабельность (пере-верификация = новый receipt, supersedes). `verify_action` расширен: формирует и сохраняет receipt, возвращает action_id. Новый MCP-тул `get_action_receipt(action_id)`. Tool count 61→62 (29 core). Docs/README/ARCHITECTURE счётчики обновлены.
 **Тесты:** tests/test_action_receipt.py 16 (вердикты, store, GC, supersedes); полный pytest **1439 passed**; check_tool_names/stale чисто; diagnostics чисто.
-**Blocked:** коммит заблокирован `.git/index.lock` активной параллельной сессии (multi-agent, KI-2026-08-08 класс) — изменения STAGED, ждут снятия лока и `git commit`. | **Статус:** ⏳ код готов + проверен, commit блокирован конкаренсией | **Владелец:** misha.
+**E-05 (доп 2026-08-19):** `reproducible_by` проверен на реальных действиях 4/4 PASSED — но починил рассинхрон cwd: verify_git_commit/push теперь принимают cwd=, reproducible_command кодирует `git -C <dir>` (workdir). Первый прогон 2/4 подтвердил опасение §12.3 (verify/repro в разных cwd → mismatch вердиктов); после workdir-фикса 4/4. | **Статус:** ✅ закоммичено 381e41bd (не запушено); E-05-fix workdir — отдельный коммит. | **Владелец:** misha.
 
 ## 2026-08-19 — B-1: фаза 1 полная (8 экосистем) + фаза 2 stdlib lockfile'ы (DONE)
 

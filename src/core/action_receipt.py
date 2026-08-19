@@ -78,6 +78,7 @@ class ActionReceipt:
     verification_steps: List[Dict[str, Any]] = field(default_factory=list)
     verdict: str = VERDICT_INCONCLUSIVE
     reproducible_by: str = ""
+    workdir: str = ""
     supersedes: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -91,6 +92,7 @@ class ActionReceipt:
             "verification_steps": self.verification_steps,
             "verdict": self.verdict,
             "reproducible_by": self.reproducible_by,
+            "workdir": self.workdir,
             "supersedes": self.supersedes,
             "timestamp": self.timestamp,
         }
@@ -106,6 +108,7 @@ class ActionReceipt:
             verification_steps=d.get("verification_steps", []),
             verdict=d.get("verdict", VERDICT_INCONCLUSIVE),
             reproducible_by=d.get("reproducible_by", ""),
+            workdir=d.get("workdir", ""),
             supersedes=d.get("supersedes", ""),
             timestamp=d.get("timestamp", ""),
         )
@@ -197,19 +200,27 @@ def _steps_from_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return steps
 
 
-def reproducible_command(action_type: str, file_path: str = "") -> str:
+def reproducible_command(action_type: str, file_path: str = "", workdir: str = "") -> str:
     """Детерминированная команда для независимого перепрогона (ТЗ §11.3/§11.5 3).
 
     Команды не обязаны быть идеальными; ключевое — они не LLM-суждение и
     могут быть перезапущены в чистом окружении.
+
+    workdir (git-типы): рабочая директория, где выполнялось действие. Без неё
+    reproducible_by недетерминирован — `git log` в другом cwd вернёт другой
+    коммит (поймано E-05-2026-08-19). Кодируем через `git -C <dir>`.
     """
     if action_type in ("file_write",):
         _p = file_path or "<file_path>"
         _cmd = "hashlib.sha256(open(r'%s','rb').read()).hexdigest()" % _p
         return 'python -c "import hashlib; print(%s)"' % _cmd
     if action_type == "git_commit":
+        if workdir:
+            return 'git -C "%s" --no-pager log -1 --pretty=%%B' % workdir
         return "git --no-pager log -1 --pretty=%B"
     if action_type == "git_push":
+        if workdir:
+            return 'git -C "%s" --no-optional-locks status -sb' % workdir
         return "git --no-optional-locks status -sb"
     if action_type == "index_sync":
         return "python -m pytest tests/ -q   # либо get_index_status после notify_change"
@@ -226,6 +237,7 @@ def build_receipt(
     file_path: str = "",
     action_id: str = "",
     supersedes: str = "",
+    workdir: str = "",
 ) -> ActionReceipt:
     """Собирает ActionReceipt из verification-results (этап 1 §11.5)."""
     if not action_id:
@@ -239,7 +251,8 @@ def build_receipt(
         after_hash=after_hash,
         verification_steps=steps,
         verdict=verdict_from_results(results),
-        reproducible_by=reproducible_command(action_type, file_path),
+        reproducible_by=reproducible_command(action_type, file_path, workdir),
+        workdir=workdir,
         supersedes=supersedes,
     )
 

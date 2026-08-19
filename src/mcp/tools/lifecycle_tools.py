@@ -149,6 +149,16 @@ class VerifyActionTool(MCPTool):
         results = []
         file_path = params.get("file_path", "")
 
+        # project_root — для git-типов: cwd, в котором выполнялось действие.
+        # (иначе verify и reproducible_by рассинхронизированы — находка E-05-2026-08-19).
+        project_root = params.get("project_root", "")
+        if not project_root:
+            try:
+                idx = self.resolve_indexer()
+                project_root = getattr(idx, "project_path", "")
+            except Exception:  # noqa: BLE001
+                project_root = ""
+
         if action_type == "file_write":
             file_path = params.get("file_path", "")
             expected = params.get("expected_content")
@@ -157,21 +167,20 @@ class VerifyActionTool(MCPTool):
 
         elif action_type == "git_commit":
             expected_msg = params.get("expected_message")
-            results.append(contract.verify_git_commit(expected_msg))
+            results.append(contract.verify_git_commit(expected_msg, cwd=project_root or None))
 
         elif action_type == "git_push":
-            results.append(contract.verify_git_push())
+            results.append(contract.verify_git_push(cwd=project_root or None))
 
         elif action_type == "index_sync":
-            project_root = params.get("project_root", "")
             results.append(contract.verify_index_sync(project_root))
 
         elif action_type == "all":
             file_path = params.get("file_path")
             if file_path:
                 results.append(contract.verify_file_write(file_path))
-            results.append(contract.verify_git_commit())
-            results.append(contract.verify_git_push())
+            results.append(contract.verify_git_commit(cwd=project_root or None))
+            results.append(contract.verify_git_push(cwd=project_root or None))
 
         else:
             return f"❌ Unknown action type: {action_type}"
@@ -202,6 +211,7 @@ class VerifyActionTool(MCPTool):
                 file_path=file_path,
                 action_id=params.get("action_id", ""),
                 supersedes=params.get("supersedes", ""),
+                workdir=project_root or str(Path.cwd()),
             )
             if project_root:
                 from src.core.action_receipt import ActionReceiptStore

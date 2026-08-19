@@ -1,5 +1,55 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-19] — E-05: ActionReceipt `reproducible_by` на реальных действиях (ТЗ §11.5 этап 3 / §12.3)
+
+**Гипотеза (§12.3):** `reproducible_by` воспроизводится 1:1? Или, как с temporal-git-provenance, «очевидно полезное» поле на практике не работает как задумано. **Команда:** `python experiments/universal-engine/e05_action_receipt.py` (реальные действия в чистом temp: file_write с реальными SHA-256, git_commit в чистом репо, git_push status, index_sync). Для каждого: build_receipt → store.record → store.get → выполнить reproducible_by → сравнить вердикт.
+**Сырой результат (после фикса):**
+```
+action       verdict      repro_verdict  result
+file_write   VERIFIED     VERIFIED       PASS
+git_commit   VERIFIED     VERIFIED       PASS
+git_push     VERIFIED     VERIFIED       PASS
+index_sync   INCONCLUSIVE INCONCLUSIVE   PASS
+Store round-trip (E05-git1): PASS
+E-05: 4 cases — 4 PASSED, 0 FAILED  →  SMOKE E-05: PASSED
+```
+**Находка (первый прогон 2/4):** `verify_git_commit`/`verify_git_push` хардкодили cwd ПРОЦЕССА — `git log` шёл в MSCodeBase (коммит 381e41bd), а не в тестовом репо → reproducible_by в др. cwd → mismatch вердиктов. Рovno опасение §12.3 подтвердилось.
+**Фикс:** verify_git_commit/push принимают `cwd=` (backward-compat); `reproducible_command(.., workdir)` кодирует `git -C <dir>`; `ActionReceipt.workdir`; `build_receipt(workdir)`; `verify_action` резолвит project_root. **Вердикт:** подтверждена с оговоркой — reproducible_by работает 1:1 ТОЛЬКО с явным workdir для git-типов; receipt стал самодостаточным.
+**Урок:** verify и reproduce в разных cwd «выглядят правильно», но вердикты расходятся — unit-тест (cwd процесса) это не различает, нужен реальный E-05 с изолированным окружением. Связь: present-trap / «очевидно полезное ≠ работает» KI-2026-08-11.
+
+## [2026-08-19] — Exp: LIVE vendor test — basedpyright (real pyright fork) LSP features
+
+**Гипотеза:** Нереальный сервер даст «правду»: какие LSP-фичи графа реально доступны на Python. Ожидали: call hierarchy + semantic tokens работают; type hierarchy 3.17, moniker и gate индексации — «возможно». **Команда:** `pip install basedpyright` (venv, без npm) → `venv/Scripts/python.exe experiments/lsp/lsp_live_pyright.py` (real `basedpyright-langserver --stdio`, fixture в experiments/lsp/fixture).
+**Сырой результат:**
+```
+INIT: serverInfo = {name: basedpyright, version: 1.39.10}
+callHierarchyProvider: True   typeHierarchyProvider: None
+semanticTokensProvider: {... full:True ...}   monikerProvider: None
+call hierarchy: prepare report -> outgoing [ShapeManager,total_area,build] + incoming [main]  (ranges точные)
+semantic tokens: 62 токена, delta-encoded, result_id=1787169556049
+indexing gate: pyright/beginIndexing/endIndexing НЕ наблюдались (только window/logMessage за 8s)
+```
+**Вердикт:** ЧАСТИЧНО ПОДТВЕРЖДЕНА, с важными негативами: на реальном pyright-форке работают ТОЛЬКО call hierarchy и semantic tokens. Type hierarchy (3.17), moniker (3.16) и pyright/beginIndexing-гейт на базе pyright НЕ доступны — это опровергает их «теоретическую» доступность из прошлой записи (spec-true, но server-false для этого вендора).
+**Урок:** (1) «В спецификации есть feature» ≠ «сервер реализует feature». Проверять НА ЖИВОМ сервере (это и был смысл эксперимента). (2) Для Python-индекса графа реальны: call hierarchy (cross-file рёбра CALLS с точными ranges) и semantic tokens. (3) Реализация тонкого клиента поверх запиненного lsprotocol — `src/core/lsp_client.py` (capability-agnostic), демо `experiments/lsp/lsp_client_demo.py`: CALLS edges `report->ShapeManager/total_area/build` (в т.ч. `print->builtins.pyi`), демо-декодер semantic tokens. (4) Побочный артефакт: `basedpyright` установлен в venv (не в requirements) — dev-tool эксперимента, при желании `pip uninstall basedpyright`.
+
+## [2026-08-19] — Exp: LSP wire probe — advanced features for the code knowledge graph
+
+**Гипотеза:** Заявленные LSP «скрытые» возможности для графа кода реальны и воспроизводятся на проводе: (1) 2-фазный call hierarchy с непрозрачным `data`-кэшем (prepare → incoming/outgoing); (2) type hierarchy 3.17 (prepare → supertypes/subtypes); (3) semantic tokens `[dLine,dStart,len,typeIdx,mods]` одной пачкой; (4) `$/progress` как gate индексации; (5) вендор-методы (rust-analyzer/expandMacro) → -32601 MethodNotFound (graceful degradation). Проверка на запиненных `lsprotocol==2025.0.0` (+cattrs) — реальный Content-Length-framed JSON-RPC round-trip, без сети/внешнего сервера.
+**Команда:** `venv/Scripts/python.exe experiments/lsp/lsp_wire_probe.py`  (исток — `experiments/lsp/`). Схемы типов — `from lsprotocol import types` + `__annotations__`.
+**Сырой результат (ключевое):**
+```
+initialize.capabilities: {callHierarchyProvider:true, typeHierarchyProvider:true, semanticTokensProvider:{legend…, full:true}}
+prepareCallHierarchy → data:{opaque:ctx-v1,id:42}  (data: typing.Any|None в схеме)
+incomingCalls/{item:…с тем же data} → assert id==42 прошёл (server отвечает ИЗ кэша data, без reparse)
+typeHierarchy subtypes → [Circle(Shape), Square(Shape)]
+semanticTokens/full → data:[0,0,5,1,0, 0,6,4,0,0, 0,3,1,1,2, 2,0], resultId:tok-1
+mock/emitProgress → <-- notification: $/progress {token:idx-123, value:{kind:begin,title:indexing}}
+rust-analyzer/expandMacro → {code:-32601, message:Method not found: rust-analyzer/expandMacro}
+WIRE PROBE: PASSED (exit 0)
+```
+**Вердикт:** ГИПОТЕЗА ПОДТВЕРЖДЕНА для стандартной части. Wire-механика (framing, JSON-RPC, camelCase на проводе: selectionRange/resultId/fromRanges, типовая сериализация через converters.get_converter()) воспроизведена на запиненной версии. `data`-кэш работает round-trip. Вендор-методы НЕ в спецификации: спецификация требует `-32601` для неизвестных `$/`-методов и «сервер может игнорировать» неизвестные capabilities — это легальный extension-point для vendor-методов (корабли не проверялись: живых rust-analyzer/pyright/tsserver в среде нет).
+**Урок:** (1) Реальный инцидент в самом эксперименте — self-echo deadlock из-за неверной топологии пайпов (клиент читал собственный request): пойман таймаутом `timeout 15`, не гаданием; фикс — 2 одно-направленных пайпа fwd/back. (2) Граф-полезные LSP-фичи РЕАЛЬНО доступны через запиненный lsprotocol: `moniker` (3.16) — стабильный cross-language id символа (unique: document/project/group/scheme/global) → сильный кандидат для рёбер индекса; `data`-кэш; semanticTokens как быстрый символьный масс-экстрактор. (3) Ограничение: vendor-ветка (expandMacro/checkCompleted/navtree) не проверялась на живом сервере — сети на установку pyright/rust-analyzer нет (sandbox).
+
 ## [2026-08-17] — Exp: кластер циклических импортов MCP — E1 инвентаризация + E2 import-time + E3 прототип (гибрид A+B → 0 циклов)
 
 **Гипотеза (H1-E3):** 24/29 «циклических зависимостей» ARCLUX в src/mcp/ — один гигантский сильно-связный компонент (SCC), но ВСЕ циклы runtime-безопасны (lazy/без import-time использования); контрольный инструмент — собственный AST-инвентарь (SCC + классификация lazy/load + fresh-interpreter import test), та же методика до/после. Гибрид (реэкспорты→core + runtime-состояние→новый src/mcp/context.py) должен разорвать SCC до 0 без сломатестов и без роста import-time.
