@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 3 шаг 5: Docker-деплой remote (Вариант A) (DONE)
+**Status:** ✅ Fixed (deploy/docker/ + .dockerignore; pre-commit 5/5 БЕЗ --no-verify; CLI+YAML валидны)
+**verified_from_clean_state:** ⚠️ не проверено (Docker вне песочницы — образ не собирался); локально: `python -m src.remote_main --help` + YAML-парс compose ок; полный build + smoke E-07 — на CI/машине владельца.
+**Root Cause:** remote-режим требовал окружения/весов; нужен деплой в контейнер (official example-remote-server в SDK — без готового Dockerfile, это голый FastMCP).
+**Fix:** Вариант A (python-only): BM25/FTS5 + SymbolIndex + ONNX in-process CPU embedder; llama.cpp/reranker — опциональный внешний сервис (Вариант C, follow-up, образ api не меняет). `deploy/docker/{Dockerfile, docker-compose.yml, .env.example, README}` + корневой `.dockerignore` (КРИТИЧНО исключает experiments/ — клон исследователя 35k файлов из build-context).
+**Guard:** HEALTHCHECK /healthz (urllib); не-рут uid 10001; том /data; README клиентских конфигов (Claude/VS Code/Zed). KNOWN_ISSUES#2026-08-19-Фаза3-шаг5.
+**Temporal:** T+0 OK | T+30d: Вариант C (llama-server) добавить без правки образа api | T+180d: rolling-restart multi-instance (ТЗ §9б-7).
+
 ## [2026-08-19] — Фаза 3 шаг 4: rate-limit + circuit breaker на remote-гейте (DONE)
 **Status:** ✅ Fixed (remote_main 5→13 тестов; полный pytest 1348 passed / 10 skipped; ruff clean; pre-commit 5/5 зелёные БЕЗ --no-verify)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: полный pytest tests/ 1348 passed, ruff clean, pre-commit gate-zero зелёный. Live create_streamable_http_app не собирал (2-й MCP + PID-lock) — после синка/Reload Window.

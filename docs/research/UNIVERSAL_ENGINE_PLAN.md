@@ -375,6 +375,12 @@ attacks passed before fix — new code is systematically leaky until proven othe
   short-circuit); remote_main tests 5→13.
 - Remaining: step 5 Docker image+compose; E-07 stdio↔HTTP equivalence suite;
   deployment docs.
+- Step 5 ✅ (462ea66f): Docker (Variant A) — `deploy/docker/{Dockerfile, docker-compose.yml,
+  .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
+  /healthz, `/data` volume; llama.cpp/reranker = optional external service (Variant C).
+- Remaining Phase 3: E-07 stdio↔HTTP equivalence suite; live image build on CI /
+  owner machine (Docker not available in sandbox, not run locally); rolling-restart
+  deployment docs (multi-instance) later (ТЗ §9б-7).
 
 **Фаза 4 — Plugin manifest** per §5. DoD: PoC plugin (VOR `verify_claim` extracted),
 RCE negative-control tests, version-mismatch tests, trust-gate UX.
