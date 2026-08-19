@@ -401,6 +401,14 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 
 **Фаза 4 — Plugin-манифест** по §5. DoD: PoC-плагин (VOR `verify_claim`
 вынесенный), RCE-негативные контроли, тесты несовпадения версий, trust-гейт UX.
+- v1 ✅ (ae2b01bb): trust-гейт foundation — `src/plugins/{manifest, trust_store, loader}.py`
+  (srzchema/version/platform/engine-compat валидация, sha256-pin per id@version,
+  TOCTOU re-hash перед import, default-deny resolver, self-check P-001) +
+  `tests/test_plugins.py` (15: RCE не-exec, trust first-then-cached, sha-drif,
+  TOCTOU, self-check, версии/schema/platform, PoC). Полный pytest 1363 (+15).
+- PoC-плагин ✅: `examples/plugins/verify_claim/` (детерминированный VOR без LLM).
+- Инкременты (след. раунд): subprocess-изоляция runner + MCP-proxy + wiring в DI/сервер
+  и trust-гейт UX (промпт издателя) — план §5.4/§5.6.
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.
