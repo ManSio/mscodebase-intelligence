@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
@@ -43,6 +43,7 @@ class ToolPlugin:
     source_sha256: str
     source: str
     load_mode: str = "in_process"  # v1: только in_process; subprocess — следующий инкремент
+    dependencies: List[str] = field(default_factory=list)
 
     @property
     def trust_key(self) -> str:
@@ -125,6 +126,13 @@ def load_manifest(manifest_path: Path) -> ToolPlugin:
             raise PluginManifestError("tool name must be non-empty str", "manifest_invalid")
     raw["tools"] = [t.strip() for t in tools]
 
+    deps = raw.get("dependencies", [])
+    if isinstance(deps, str):
+        deps = [deps]
+    if not isinstance(deps, list):
+        deps = []
+    deps = [str(d).strip() for d in deps if str(d).strip()]
+
     return ToolPlugin(
         id=raw["id"],
         name=raw["name"],
@@ -137,6 +145,7 @@ def load_manifest(manifest_path: Path) -> ToolPlugin:
         source_sha256=str(raw.get("source_sha256", "")).strip(),
         source=str(raw.get("source", "unknown")).strip(),
         load_mode=str(raw.get("load_mode", "in_process")).strip(),
+        dependencies=deps,
     )
 
 
