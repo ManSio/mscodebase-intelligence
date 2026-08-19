@@ -367,6 +367,14 @@ attacks passed before fix — new code is systematically leaky until proven othe
 
 **Фаза 3 — Streamable HTTP transport** per §3. DoD: transport-equivalence suite
 (E-07), auth (Bearer), rate limiting reuse, `/healthz`, Docker image.
+- Step 1-3 ✅ (8ecec52b): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
+  (Starlette /mcp+/healthz + Bearer-auth MSCODEBASE_REMOTE_TOKEN) + tests (5).
+- Step 4 ✅ (9e8b8491): remote-gate rate limit — reuse `SlidingWindowRateLimiter` +
+  `CircuitBreaker` (per-token sha256 + per-IP, MSCODEBASE_REMOTE_RATE_LIMIT_RPS,
+  /healthz exempt; circuit breaker on /mcp via ASGI mount: 5xx→503, OPEN
+  short-circuit); remote_main tests 5→13.
+- Remaining: step 5 Docker image+compose; E-07 stdio↔HTTP equivalence suite;
+  deployment docs.
 
 **Фаза 4 — Plugin manifest** per §5. DoD: PoC plugin (VOR `verify_claim` extracted),
 RCE negative-control tests, version-mismatch tests, trust-gate UX.
@@ -583,5 +591,50 @@ subprocess contract must use `Popen` + `communicate` (WISDOM §5.16), never
    smoke_e2e re-run; commit/PR by owner.
 3. Meanwhile, E-03 (clone→index on 5-10 repos) and E-05 (receipt reproducibility)
    can run in `experiments/universal-engine/` without blocking Фаза 0.
+
+---
+
+## 7. BACKLOG — planned tasks (owner decision / readiness gate)
+
+> Each entry: DoD + readiness-gate (“when we are definitely ready to start”).
+> Added 2026-08-19. Do not implement before the readiness gate unless agreed.
+
+### B-1. Multi-ecosystem manifest parsing for `pkg:` anchors (ADR-0005 / ТЗ §6.2)
+
+**Source:** research-agent HANDOFF (2026-08-19). Thin stdlib extractors, max
+coverage + fresh formats. Scales existing ADR-0005 (closed-world manifest) from
+one Python ecosystem to 8.
+
+**Spec & corpus (implementer should open in this order):**
+1. `docs/research/universal-engine-study/07-manifest-parsers-from-scratch.md` —
+   §9 solution, §10 normalized model `ManifestEntry` + phase 1 (8 ecosystems,
+   12 file types) + phase 2 (lockfiles), §11 effort. “⚠️” notes are mandatory.
+2. `docs/research/universal-engine-study/08-e-s1-polygon.md` — corpus + §5 fixture
+   update mechanism.
+3. `docs/research/universal-engine-study/09-selfcheck-corpus.md` — 5 spec
+   mismatches found by cross-check, do NOT repeat (yarn v1/v2/v10, Gemfile=Ruby
+   code, $(var)/${prop}, pom scope test, pyproject without project.dependencies).
+4. Corpus dataset: `experiments/universal-engine/e-s1-polygon/fixtures/` (30
+   manifests, 20 repos) — test fixtures; each file in at least one test.
+
+**Contract (do not break):** `_load_manifest_packages` (ADR-0005) keeps returning
+`Set[str]` normalized names (the SOURCE LIST grows, not the signature); phase 1 —
+NO version-comparison semantics (store spec as string, closed-world membership);
+stdlib, pnpm-lock.yaml (YAML) is the only allowed dependency, pick PyYAML;
+broken fixture → fix the extractor, not the fixture.
+
+**DoD:** all 30 fixtures covered by tests and parse correctly (name from name,
+spec as string, kind manifest/lockfile); `python -m pytest tests/` green + ruff
+clean; parity check of our extractors vs osv-scanner on same corpus — diff 0
+(Option B, CI); update ADR-0005 / KNOWN_ISSUES when expanding sources.
+
+**Readiness-gate (ready NOW; NOT blocked by Phases 3/4/5):** spec closed
+(07/08/09 delivered), 30-fixture corpus delivered. The task has DISJOINT
+write-scope (src:: manifest-parser sources + tests + ADR-0005) vs the current
+remote/transport/plugin line, so it can be taken either by a parallel agent or
+immediately after the Phase 3 step 5 (Docker) commit in the same session — it
+does NOT wait for Phases 4/5. Only organizational criterion: do not overlap
+`experiments/universal-engine/e-s1-polygon/` and `docs/research/universal-engine-study/**`
+(researcher write-scope — lock via skill multi-agent-coordination).
 
 RU translation of this plan available on request.

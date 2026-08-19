@@ -378,7 +378,15 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 доказано обратное).
 
 **Фаза 3 — Streamable HTTP транспорт** по §3. DoD: сьют эквивалентности
-транспортов (E-07), auth (Bearer), реюз rate limiting, `/healthz`, Docker image.
+транспортов (E-07), auth (Bearer), реюз rate limiting, /healthz, Docker image.
+- Шаг 1-3 ✅ (8ecec52b): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
+  (Starlette /mcp+/healthz + Bearer-auth MSCODEBASE_REMOTE_TOKEN) + tests (5).
+- Шаг 4 ✅ (9e8b8491): rate-limit на гейте — реюз `SlidingWindowRateLimiter` +
+  `CircuitBreaker` (per-token sha256 + per-IP, MSCODEBASE_REMOTE_RATE_LIMIT_RPS,
+  /healthz exempt; circuit breaker на /mcp через ASGI-mount: 5xx→503, OPEN
+  short-circuit); тесты remote_main 5→13.
+- Остаток: шаг 5 Docker image+compose; E-07 сьют эквивалентности stdio↔HTTP;
+  деплой-доки.
 
 **Фаза 4 — Plugin-манифест** по §5. DoD: PoC-плагин (VOR `verify_claim`
 вынесенный), RCE-негативные контроли, тесты несовпадения версий, trust-гейт UX.
@@ -603,3 +611,47 @@ plugin-гейта, но MCP-процесс не должен на него по�
    повторный smoke_e2e; commit/PR владельцем.
 3. Параллельно E-03 (clone→index на 5-10 репо) и E-05 (воспроизводимость receipt)
    можно гонять в `experiments/universal-engine/` без блокировки Фазы 0.
+
+---
+
+## 7. BACKLOG — планируемые задачи (по решению владельца / готовности)
+
+> Каждая запись: DoD + readiness-gate («когда точно готовы начать»).
+> Добавлено 2026-08-19. Не выполнять до готовности-гейта, если не оговорено иначе.
+
+### B-1. Мульти-экосистемный парсинг манифестов для `pkg:`-якорей (ADR-0005 / ТЗ §6.2)
+
+**Источник:** HANDOFF исследовательского агента (2026-08-19). Свои тонкие
+экстракторы на stdlib, максимальный охват + свежие форматы. Масштабирует
+существующий ADR-0005 (closed-world манифест) с одного питона на 8 экосистем.
+
+**Спек и корпус (открыть в этом порядке реализатору):**
+1. `docs/research/universal-engine-study/07-manifest-parsers-from-scratch.md` —
+   §9 решение, §10 нормализованная модель `ManifestEntry` + фаза 1 (8 экосистем,
+   12 типов файлов) + фаза 2 (lockfile'ы), §11 объём. Пометки «⚠️» — обязательные требования.
+2. `docs/research/universal-engine-study/08-e-s1-polygon.md` — корпус + §5 механика обновления фикстур.
+3. `docs/research/universal-engine-study/09-selfcheck-corpus.md` — 5 расхождений спеки,
+   НЕ повторять (yarn v1/v2/v10, Gemfile=Ruby-код, $(var)/${prop}, pom scope test,
+   pyproject без project.dependencies).
+4. Корпус-датасет: `experiments/universal-engine/e-s1-polygon/fixtures/` (30 манифестов, 20 репо) —
+   тест-фикстуры, каждый файл минимум в одном тесте.
+
+**Контракт (не нарушать):** `_load_manifest_packages` (ADR-0005) продолжает
+возвращать `Set[str]` норм. имён (расширяется СПИСОК источников, не сигнатура);
+фаза 1 — сравнение версий НЕ писать (spec строкой, closed-world membership);
+stdlib, pnpm-lock.yaml (YAML) — единственная допущенная зависимость PyYAML;
+сломанная фикстура → править экстрактор, не фикстуру.
+
+**DoD:** все 30 фикстур покрыты тестами и парсятся корректно (имя из имени,
+spec строкой, kind manifest/lockfile); `python -m pytest tests/` зелёный + ruff
+чист; parity-чека выхлопа vs osv-scanner расхождение 0 (Вариант В, CI); ADR-0005 /
+KNOWN_ISSUES обновлены при расширении источников.
+
+**Readiness-gate (готовы СЕЙЧАС, не блокируется Фазами 3/4/5):** спек закрыт
+(07/08/09 отданы), корпус 30 фикстур доставлен. Задача имеет НЕПЕРЕСЕКАЮЩИЙСЯ
+write-scope (src:: sources/manifest-парсеры + tests + ADR-0005) с текущей линией
+(remote/транспорт/плагины), поэтому её можно взять ИЛИ параллельным агентом, ИЛИ
+сразу после коммита Фазы 3 шага 5 (Docker) в той же сессии — не дожидаясь Фаз 4/5.
+Единственный организационный критерий: не пересекаться по `experiments/universal-engine/e-s1-polygon/`
+и `docs/research/universal-engine-study/**` (write-scope исследователя — лок через
+skill multi-agent-coordination).
