@@ -389,6 +389,14 @@ attacks passed before fix — new code is systematically leaky until proven othe
 
 **Фаза 4 — Plugin manifest** per §5. DoD: PoC plugin (VOR `verify_claim` extracted),
 RCE negative-control tests, version-mismatch tests, trust-gate UX.
+- v1 ✅ (ae2b01bb): trust-gate foundation — `src/plugins/{manifest, trust_store, loader}.py`
+  (schema/version/platform/engine-compat validation, sha256-pin per id@version,
+  TOCTOU re-hash before import, default-deny resolver, self-check P-001) +
+  `tests/test_plugins.py` (15: RCE no-exec, trust first-then-cached, sha-drift,
+  TOCTOU, self-check, version/schema/platform, PoC). Full pytest 1363 (+15).
+- PoC plugin ✅: `examples/plugins/verify_claim/` (deterministic VOR, no LLM).
+- Increments (next round): subprocess-isolation runner + MCP proxy + wiring into
+  DI/server and trust-gate UX (publisher prompt) — plan §5.4/§5.6.
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.

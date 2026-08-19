@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
+**Status:** ✅ Fixed (src/plugins/ + PoC; pytest 1363 (+15); ruff clean; pre-commit 5/5 БЕЗ --no-verify)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: полный pytest 1363 passed, ruff clean, pre-commit gate-zero.
+**Root Cause:** транспорты (Фаза 3) готовы; движок не умел безопасно загружать внешние тулы — naive загрузка плагина = RCE (E-01).
+**Fix:** `src/plugins/` — manifest (валидация schema/version/platform/engine-compat без exec), trust_store (per id@version sha256, data_root), loader (TOCTOU-guard: re-hash перед import; default-deny resolver; drif=переспрос; self-check P-001). In-process v1; subprocess/proxy — инкремент. PoC `examples/plugins/verify_claim/` (детерм. VOR).
+**Guard:** tests/test_plugins.py 15 (RCE не-exec, trust first-then-cached, sha-drift, TOCTOU, self-check, версии/schema/platform, PoC). KNOWN_ISSUES#2026-08-19-Фаза4-v1.
+**Temporal:** T+0 OK | T+30d: subprocess-изоляция third-party + MCP-proxy (§5.4) | T+180d: trust-гейт UX (промпт издателя) + registry-маппинг (§5.6).
+
 ## [2026-08-19] — E-07: эквивалентность транспортов stdio↔HTTP (DoD Фазы 3) (DONE)
 **Status:** ✅ (toy live PASSED 2/2; engine-mode отложен на CI/idle)
 **verified_from_clean_state:** ⚠️ engine-режим (реальный create_mcp_server) не гонялся live — создаёт 2-й MCP / PID-lock эмбеддера при работающем основном MCP (прецедент дневник 2026-08-18); toy-гарнесс валидирован live на минимальном FastMCP.

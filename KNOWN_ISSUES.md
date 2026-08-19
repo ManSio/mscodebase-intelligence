@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
+
+**Что:** Фаза 4 (транспорт сделан) — ядро безопасности плагинов. `src/plugins/manifest.py` — ToolPlugin (валидация schema_version/version/platform/requires_engine_version через packaging по версии движка `src.__init__.__version__`), парсится БЕЗ exec. `trust_store.py` — доверие per (id@version) {sha256, source, trusted_at} в `data_root/plugins/trust.json` (атомарная запись). `loader.py` — строгий load-гейт (TOCTOU-guard): engine-compat → payload sha256 → decision (default-deny resolver; untracked=промпт; drif=переспрос) → re-hash ПРЯМО перед import → import entrypoint (importlib, отдельный путь от execute_script) → self-check P-001 (плагин обязан зарегистрировать все заявленные тулы). In-process v1 (доверенные/first-party); subprocess-изоляция + MCP-proxy — следующий инкремент. PoC-плагин `examples/plugins/verify_claim/` (детерминированный VOR-вердикт VERIFIED/REFUTED/UNKNOWN без LLM).
+**Тесты:** tests/test_plugins.py 15 (RCE негативный контроль — naive load БЛОКИРУЕТСЯ и код НЕ исполняется [E-01], trust first-then-cached, sha-drift deny/re-approve, TOCTOU, self-check missing/no-tools, engine/schema/platform mismatch, entrypoint missing, PoC happy). Полный pytest tests/ 1363 passed (+15) / 10 skipped; ruff clean; pre-commit 5/5 БЕЗ --no-verify. | **Статус:** 🟢 внесено + проверено, закоммичено ae2b01bb (feat/universal-engine) | **Владелец:** misha.
+
 ## 2026-08-19 — E-07: эквивалентность транспортов stdio↔HTTP (DoD Фазы 3) (DONE)
 
 **Что:** DoD Фазы 3 — «один и тот же запрос через stdio и HTTP возвращает идентичный JSON». `experiments/universal-engine/e07_equiv.py` — live-харнесс на mcp SDK `ClientSession`: поднимает сервер дважды (stdio + Streamable HTTP), тот же клиент, canonical JSON побайтово сравнивается. `_e07_toy_server.py` — минимальный FastMCP (детерминированный `ping`-эхо) для безопасной валидации гарнесса без тяжёлого движка (нет PID-lock/2-го MCP). Режимы: `--toy` (визв) и default (реальный `create_mcp_server`: stdio `src.main` + HTTP `remote_main`; пробы unknown-method/get_runtime_counters/bad-args).
