@@ -669,6 +669,12 @@ broken fixture → fix the extractor, not the fixture.
 spec as string, kind manifest/lockfile); `python -m pytest tests/` green + ruff
 clean; parity check of our extractors vs osv-scanner on same corpus — diff 0
 (Option B, CI); update ADR-0005 / KNOWN_ISSUES when expanding sources.
+**Status 2026-08-19:** foundation ✅ `11c71262` — `src/sources/manifest/`
+(ManifestEntry + dispatch; python: pyproject dependency-groups/Pipfile/requirements*
++ npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Tests on real
+fixtures uv/requests/pipenv/express + edge-cases (09). pytest 1396 (+9).
+Remaining (phase 1): go/cargo/maven/nuget/composer/gem + lockfiles (phase 2,
+pnpm → PyYAML) + parity osv-scanner (CI).
 
 **Readiness-gate (ready NOW; NOT blocked by Phases 3/4/5):** spec closed
 (07/08/09 delivered), 30-fixture corpus delivered. The task has DISJOINT

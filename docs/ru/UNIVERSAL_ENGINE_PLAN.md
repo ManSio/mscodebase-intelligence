@@ -689,6 +689,12 @@ stdlib, pnpm-lock.yaml (YAML) — единственная допущенная 
 spec строкой, kind manifest/lockfile); `python -m pytest tests/` зелёный + ruff
 чист; parity-чека выхлопа vs osv-scanner расхождение 0 (Вариант В, CI); ADR-0005 /
 KNOWN_ISSUES обновлены при расширении источников.
+**Статус 2026-08-19:** foundation ✅ `11c71262` — `src/sources/manifest/`
+(ManifestEntry + диспетчер; python: pyproject dependency-groups/Pipfile/requirements*
++ npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Тесты на реальных
+фикстурах uv/requests/pipenv/express + edge-кейсы (09). pytest 1396 (+9).
+Остаток (фаза 1): go/cargo/maven/nuget/composer/gem + lockfile'ы (фаза 2, pnpm → PyYAML)
++ parity osv-scanner (CI).
 
 **Readiness-gate (готовы СЕЙЧАС, не блокируется Фазами 3/4/5):** спек закрыт
 (07/08/09 отданы), корпус 30 фикстур доставлен. Задача имеет НЕПЕРЕСЕКАЮЩИЙСЯ
