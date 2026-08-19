@@ -356,7 +356,9 @@ trust-gate works, drift re-prompts, version mismatch refuses to load).
   hub routes: index(action=git_url), codebase(action=index, sub=git_url);
   INCONCLUSIVE handling; read-only). E-08 ✅ DONE (9/9 live SSRF: scheme/domain/
   creds/port/DNS localhost→loopback rejected, github.com happy-path ok).
-  UploadSource, DNS-rebinding pinning (Фаза 2.5).
+  UploadSource ✅ (src/sources/upload/: zip/tar.gz, R-3 path-traversal+symlink+
+  bomb guards, TTL-cache, content-hash fingerprint; 9 tests). DNS-rebinding
+  pinning (Фаза 2.5).
 
 **Фаза 2.5 — private repos** (ТЗ rec. 1: after public path has ~2 weeks clean):
 SSH keys/tokens stored only in OS keychain or `.env` (never in URL/disk cache),

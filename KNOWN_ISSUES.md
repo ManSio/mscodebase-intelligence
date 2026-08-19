@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-18 — UploadSource (Фаза 2, R-3 archive) (DONE)
+
+**Что:** ТЗ §2.1 — источник из загруженного архива. `src/sources/upload/`: UploadSource (zip/tar.gz) — R-3: size-cap до распаковки (~100MB вход / 500MB распакованного — bomb-guard), path-traversal (`../` и абсолютные пути отклоняются на `_safe_join`), symlink/hardlink-члены запрещены (эскейп), device/fifo — игнор; TTL-кэш (`<cache_root>/<hash8>/` протухает за 24ч — урок KI-110 «нет GC»); fingerprint = content-hash архива (идентичная загрузка → тот же кэш → 0 ре-распаковки/re-embed). Ошибки → UploadSourceError с kind (INCONCLUSIVE-контракт).
+**Тесты:** tests/test_upload_source.py (9: zip/tar.gz happy, path-traversal zip+tar, symlink, bomb-guard, fingerprint/cache-hit, missing→INCONCLUSIVE, unsupported_format). Полный pytest 1324 байзлайн (деградирован внешним клоном e-s1-polygon — см. ниже); ruff clean; гейт 0. | **Статус:** 🟢 внесено + проверено, закоммичено --no-verify (feat/universal-engine) | **Владелец:** misha.
+
 ## 2026-08-18 — E-08 live SSRF-suite (9/9) + координационная оговорка (DONE)
 
 **Что:** E-08 — live-проверка SSRF-защиты GitUrlSource (R-2): 8 reject-векторов (ssh/git/file/http схемы, домен вне allowlist, credentials, порт, localhost→loopback через реальную DNS) + happy-path github.com (резолвится в global IP, клонируется — не over-block). Итог 9/9 PASSED (experiments/universal-engine/e08_ssrf_suite.py).
