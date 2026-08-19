@@ -387,6 +387,12 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
   short-circuit); тесты remote_main 5→13.
 - Остаток: шаг 5 Docker image+compose; E-07 сьют эквивалентности stdio↔HTTP;
   деплой-доки.
+- Шаг 5 ✅ (462ea66f): Docker (Вариант A) — `deploy/docker/{Dockerfile, docker-compose.yml,
+  .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
+  /healthz, том `/data`; llama.cpp/reranker = опциональный внешний сервис (Вариант C).
+- Остаток Фазы 3: E-07 сьют эквивалентности stdio↔HTTP; live build образа на
+  CI-джобе/машине владельца (локально Docker вне песочницы не гонялся); деплой-доки
+  для rolling-restart (multi-instance) — позже (ТЗ §9б-7).
 
 **Фаза 4 — Plugin-манифест** по §5. DoD: PoC-плагин (VOR `verify_claim`
 вынесенный), RCE-негативные контроли, тесты несовпадения версий, trust-гейт UX.
