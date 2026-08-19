@@ -194,6 +194,38 @@ async def test_failed_clone_leaves_no_orphan(tmp_path):
     assert leftovers == []
 
 
+@pytest.mark.asyncio
+async def test_dns_rebinding_suspected(monkeypatch, tmp_path):
+    """Фаза 2.5: набор IP до/после клона разошёлся → dns_rebinding_suspected."""
+    from src.sources import git_url as g
+
+    src = g.GitUrlSource(
+        "https://github.com/octocat/Hello-World.git",
+        tmp_path / "cache",
+        clone_timeout_sec=10,
+    )
+    counter = {"n": 0}
+
+    def fake_ips(host):
+        counter["n"] += 1
+        return frozenset({f"1.1.1.{counter['n']}"})  # меняется между вызовами
+
+    def fake_run_git(args, *, cwd=None, timeout_sec=None, extra_cfg=()):
+        if args and args[0] == "clone":
+            target = Path(args[-1])
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "a.py").write_text("x\n", encoding="utf-8")
+            return (0, "", "")
+        return (1, "", "")  # origin/config: не найден → origin-check пропускается
+
+    monkeypatch.setattr(g, "_resolve_and_check_ips", fake_ips)
+    monkeypatch.setattr(g, "_run_git", fake_run_git)
+
+    with pytest.raises(GitUrlSourceError) as ei:
+        await src.resolve()
+    assert ei.value.kind == "dns_rebinding_suspected"
+
+
 # ── Кэш: LRU + TTL ────────────────────────────────────────────────────────
 
 def test_cache_lru_eviction(tmp_path):

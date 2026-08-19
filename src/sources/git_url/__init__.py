@@ -139,18 +139,23 @@ def _parse_url(
     return host, parsed.path
 
 
-def _resolve_and_check_ips(host: str) -> None:
-    """Резолвит host (все A/AAAA) и требует global IP (SSRF-защита, OWASP)."""
+def _resolve_and_check_ips(host: str) -> frozenset[str]:
+    """Резолвит host (все A/AAAA) и требует global IP (SSRF-защита, OWASP).
+
+    Возвращает набор валидированных IP — для DNS-rebinding pinning (Фаза 2.5):
+    тот же набор проверяется ПОСЛЕ клона; расхождение → подозрение на ребиндинг.
+    """
     try:
         infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except socket.gaierror as e:
         raise GitUrlSourceError("dns_unresolved", f"Не удалось резолвить {host}: {e}") from e
-    ips = [info[4][0] for info in infos]
+    ips = frozenset(info[4][0] for info in infos)
     if not _ips_are_global(ips):
         raise GitUrlSourceError(
             "non_global_ip",
-            f"Хост {host} резолвится в не-global IP: {ips} (SSRF-защита)",
+            f"Хост {host} резолвится в не-global IP: {sorted(ips)} (SSRF-защита)",
         )
+    return ips
 
 
 def _run_git(
@@ -360,8 +365,9 @@ class GitUrlSource:
 
     def _resolve_sync(self) -> Path:
         host, _path = _parse_url(self.url, self._allowed_schemes, self._allowed_domains)
+        ips_pre: frozenset[str] = frozenset()
         if self._allowed_schemes & {"https"}:
-            _resolve_and_check_ips(host)  # SSRF: все A/AAAA обязаны быть global
+            ips_pre = _resolve_and_check_ips(host)  # SSRF: все A/AAAA обязаны быть global
 
         cached = self.cache.get(self._url_hash)
         if cached is not None:
@@ -388,6 +394,15 @@ class GitUrlSource:
                     "clone_failed", f"git clone завершился с кодом {rc}: {err.strip()[-400:]}"
                 )
             self._post_clone_checks(target)
+            # DNS-rebinding-детект (Фаза 2.5): если набор IP до/после клона
+            # разошёлся — подозрение на rebinding; INCONCLUSIVE + evict.
+            if self._allowed_schemes & {"https"} and ips_pre:
+                ips_post = _resolve_and_check_ips(host)
+                if ips_post != ips_pre:
+                    raise GitUrlSourceError(
+                        "dns_rebinding_suspected",
+                        f"DNS изменился за время клона: {sorted(ips_pre)} → {sorted(ips_post)}",
+                    )
             self.cache.put(self.url, self._url_hash, target, _dir_size(target))
             return target
         except GitUrlSourceError:
