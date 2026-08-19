@@ -313,3 +313,42 @@ def test_composer_lock_synthetic():
            '"packages-dev":[{"name":"phpstan/phpstan","version":"1.11"}]}')
     names = {e.name for e in _extract_composer_lock(txt, "composer.lock")}
     assert {"composer/ca-bundle", "phpstan/phpstan"} <= names
+
+
+# ── фаза 2: yarn-семейство (v1 / v2 / berry v10) ────────────────────────────
+def test_yarn_v1_scoped():
+    from src.sources.manifest.extract import _extract_yarn_lock
+
+    text = (FIXT / "pnpm" / "yarn-v1.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
+    assert "@pnpm.e2e/dep-of-pkg-with-1-dep" in names
+    assert "@pnpm.e2e/pkg-with-1-dep" in names
+
+
+def test_yarn_v2_metadata():
+    from src.sources.manifest.extract import _extract_yarn_lock
+
+    text = (FIXT / "pnpm" / "yarn-v2.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
+    assert "balanced-match" in names
+    assert "brace-expansion" in names
+
+
+def test_yarn_berry_v10_scoped():
+    from src.sources.manifest.extract import _extract_yarn_lock
+
+    text = (FIXT / "berry" / "yarn.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
+    assert "@aashutoshrathi/word-wrap" in names
+    assert "@actions/core" in names
+
+
+def test_yarn_synthetic():
+    from src.sources.manifest.extract import _extract_yarn_lock
+
+    txt = (
+        "__metadata:\n  version: 10\n"
+        "\"lodash@npm:^4.17.0\":\n  version: 4.17.21\n  resolution: \"lodash@npm:4.17.21\"\n"
+    )
+    names = {e.name for e in _extract_yarn_lock(txt, "yarn.lock")}
+    assert names == {"lodash"}

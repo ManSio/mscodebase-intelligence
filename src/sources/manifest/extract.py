@@ -487,6 +487,49 @@ def _extract_bun_lock(text: str, source: str) -> List[ManifestEntry]:
     return entries
 
 
+def _yarn_block_name(key: str) -> str:
+    """Имя из yarn-ключа блока: '@scope/name@npm:range' (v2/berry) или
+    'name@range'/'@scope/name@range' (v1). Убираем суффикс '@npm:' / '@range'."""
+    if "@npm:" in key:
+        return key.split("@npm:", 1)[0]
+    idx = key.rfind("@")
+    if idx > 1:  # scoped-имя guard: не отрезать первый '@' из '@scope/name'
+        return key[:idx]
+    return key
+
+
+def _extract_yarn_lock(text: str, source: str) -> List[ManifestEntry]:
+    """yarn.lock (семейство v1/v2/berry): блок-ключ -> version.
+
+    v1: `"name@range":` + `version "1.0.0"`;
+    v2/(berry v10): `"name@npm:^range":` + `version: 1.0.2` (определяем по ключу).
+    """
+    entries: List[ManifestEntry] = []
+    pending = None
+    for i, raw in enumerate(text.splitlines(), start=1):
+        line = raw.rstrip()
+        st = line.strip()
+        if not st or st.startswith("__metadata"):
+            continue
+        if st.endswith(":") and not line.startswith((" ", "\t")):
+            # не-индентная строка, оканчивающаяся ':' — блок-ключ
+            key = st.rstrip(":")
+            if (key.startswith('"') and key.endswith('"')) or (key.startswith("'") and key.endswith("'")):
+                key = key[1:-1]
+            if "@" in key and " " not in key:
+                pending = key
+            else:
+                pending = None
+            continue
+        if pending and st.startswith("version"):
+            m = re.search(r"version[\"\s]*[:=]?\s*\"?([^\"\s]+)", st)
+            if m:
+                entries.append(ManifestEntry("npm", normalize_npm(_yarn_block_name(pending)),
+                                             m.group(1), "lockfile", source, i))
+            pending = None
+    return entries
+
+
 def _extract_gemfile_lock(text: str, source: str) -> List[ManifestEntry]:
     """Gemfile.lock (text): только `GEM` sections -> specs: name (version).
 
@@ -539,6 +582,7 @@ _EXTRACTORS = [
     ("Pipfile.lock", _extract_pipfile_lock),
     ("packages.lock.json", _extract_nuget_lock),
     ("bun.lock", _extract_bun_lock),
+    ("yarn.lock", _extract_yarn_lock),
     ("Gemfile.lock", _extract_gemfile_lock),
 ]
 
