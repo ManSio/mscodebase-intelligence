@@ -33,6 +33,7 @@ from src.plugins.registry import (  # noqa: F401
     normalize_tool_name,
     register_fastmcp,
 )
+from src.plugins.server import wire_plugins  # noqa: F401
 from src.plugins.trust_store import (  # noqa: F401
     PluginTrustStore,
     default_trust_store_path,
@@ -60,4 +61,5 @@ __all__ = [
     "register_fastmcp",
     "trust_prompt",
     "validate_dependencies",
+    "wire_plugins",
 ]
