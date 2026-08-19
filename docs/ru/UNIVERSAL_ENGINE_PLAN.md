@@ -428,6 +428,14 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.
+- ✅ (1f07952a): `adapters/clients/` конфиги (Claude Code `mcpServers`, VS Code/Cursor
+  `servers`) — stdio (venv py `-m src.main` + PYTHONPATH + cwd) + http remote
+  (Streamable HTTP /mcp + Bearer); README плейсхолдеры. `src/cli.py` — тонкий wrapper
+  прямого вызова tool-классов через DI без MCP (curated allowlist), JSON in/out,
+  CI-friendly exit-коды. tests/test_cli.py (8).
+- Остаток: ручная проверка на реальном VS Code/Cursor с реальным репо (на машине
+  владельца); доки Claude Code подключения (в README клиентов) — расширить при
+  ручной проверке.
 
 ### §8 Что осознанно НЕ делать — подтверждено
 - Не переписывать Indexer/Searcher/SymbolIndex (проверено: чисто — DI, тесты, разделение).

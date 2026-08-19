@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — Фаза 5: адаптеры клиентов + CLI wrapper (план §4) (DONE)
+
+**Что:** Адаптеры для внешних MCP-клиентов и CI/скриптов. `adapters/clients/`: `claude.code.mcp.json` (mcpServers) и `vscode.mcp.json` (servers; Cursor использует тот же Claude-формат) — по два блока: stdio (venv-python `-m src.main` + PYTHONPATH + cwd) и http remote (Streamable HTTP `/mcp` + Bearer `MSCODEBASE_REMOTE_TOKEN`, Фаза 3). README с плейсхолдерами. `src/cli.py` — `mscodebase-cli`: прямой вызов tool-классов через DI без MCP-протокола (для CI/скриптов), curated allowlist (`get_task_status`, `stale_detector`, `get_context`, `graph_query`, `find_similar_bugs`), JSON in/out, аргументы из CLI или stdin `-`, CI-friendly коды (0/1/2), shutdown DI.
+**Тесты:** tests/test_cli.py 8 (парс конфигов + валидные entrypoints; remote endpoint; CLI unknown/bad-args/dispatch ok/tool-error). Real smoke: `python -m src.cli get_task_status '{}'` — реальный DI построен, тул исполнен, JSON на выходе. Полный pytest tests/ 1387 passed (+8); ruff clean; pre-commit 5/5 БЕЗ --no-verify. | **Статус:** 🟢 внесено + проверено, закоммичено 1f07952a (feat/universal-engine; push по команде) | **Владелец:** misha.
+
 ## 2026-08-19 — Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (план §5) (DONE)
 
 **Что:** Третий increment Фазы 4 — host-оркестратор поверх subprocess-изоляции. `registry.py`: PluginRegistry (discover манифестов → preauthorize БЕЗ exec → спавн runner-proxy → тулы как proxy-callable) + `register_fastmcp` (регистрация plugin-тулов в FastMCP-сервере: asyncio.to_thread → JSON-RPC subprocess). `prompt.py`: trust-гейт UX — trust_prompt (name/version/publisher/sha256), make_trust_resolver (auto_approve для тестов / decide-коллбек / fail-closed default с fast-deny), DENY_ALL. `deps.py`: validate_dependencies — проверка пинов `name==ver` (непрошитый = скрытая RCE-поверхность §5.1; полный pip-audit — на инсталлятор). `manifest.py`: поле dependencies.

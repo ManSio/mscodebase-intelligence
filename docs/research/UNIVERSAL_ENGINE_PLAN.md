@@ -416,6 +416,13 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.
+- ✅ (1f07952a): `adapters/clients/` configs (Claude Code `mcpServers`, VS Code/Cursor
+  `servers`) — stdio (venv py `-m src.main` + PYTHONPATH + cwd) + http remote
+  (Streamable HTTP /mcp + Bearer); README placeholders. `src/cli.py` — thin wrapper
+  that calls tool-classes through DI without MCP (curated allowlist), JSON in/out,
+  CI-friendly exit codes. tests/test_cli.py (8).
+- Remaining: manual check on real VS Code/Cursor with a real repo (owner machine);
+  Claude Code connect docs (in clients README) — expand during manual check.
 
 ### §8 What NOT to do — confirmed
 - No Indexer/Searcher/SymbolIndex rewrite (verified clean: DI, tests, separation).
