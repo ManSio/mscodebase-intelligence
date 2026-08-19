@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (план §5) (DONE)
+**Status:** ✅ Fixed (src/plugins/{registry,prompt,deps}.py; pytest 1379 (+11); ruff clean; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1379, ruff clean, pre-commit gate-zero. Live-интеграция в create_mcp_server не гонялась (2-й MCP/PID-lock) — на idle/CI.
+**Root Cause:** после subprocess-runner нужен был host-оркестратор: как плагины становятся тулами движка.
+**Fix:** PluginRegistry (discover/preauthorize/spawn/proxy-callable) + register_fastmcp (динамические FastMCP-тулы через asyncio.to_thread→JSON-RPC); trust-гейт UX (trust_prompt/make_trust_resolver fail-closed/DENY_ALL); deps-валидатор пинов ==. manifest.dependencies.
+**Guard:** tests/test_plugins_registry.py 11 (end-to-end через PoC verify_claim; untrusted deny; prompt; resolver; deps). KNOWN_ISSUES#2026-08-19-Фаза4-wiring.
+**Temporal:** T+0 OK | T+30d: интеграция в живой create_mcp_server (регистрация plugin-тулов у реальных клиентов) | T+180d: pip-audit на инсталляторе + registry-маппинг.
+
 ## [2026-08-19] — Фаза 4: subprocess-изоляция плагинов (план §5.4) (DONE)
 **Status:** ✅ Fixed (src/plugins/{runner,proxy}.py; pytest 1368 (+5); ruff clean; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1368, ruff clean, pre-commit gate-zero.
