@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 3 шаг 4: rate-limit + circuit breaker на remote-гейте (DONE)
+**Status:** ✅ Fixed (remote_main 5→13 тестов; полный pytest 1348 passed / 10 skipped; ruff clean; pre-commit 5/5 зелёные БЕЗ --no-verify)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: полный pytest tests/ 1348 passed, ruff clean, pre-commit gate-zero зелёный. Live create_streamable_http_app не собирал (2-й MCP + PID-lock) — после синка/Reload Window.
+**Root Cause:** remote-гейт голый (только auth) — нет защиты от флуда per-token/IP и от каскадных сбоев движка.
+**Fix:** реюз SlidingWindowRateLimiter + CircuitBreaker (не новое): per-token (sha256-ключ) + per-IP /healthz-exempt, MSCODEBASE_REMOTE_RATE_LIMIT_RPS; CircuitBreaker на /mcp через ASGI-mount (BaseHTTPMiddleware не ловит исключения вложенного Mount — Starlette деферирует post-dispatch), 5xx/exception→503, OPEN short-circuit. Заодно: модульная ленивость стала реальной (import 180ms, сервер при первом доступе к app — был мёртвый __getattr__ при жадном app = build_app()).
+**Guard:** tests/test_remote_main.py 13 (token-first/IP-backstop/healthz-exempt/rps<=0/hash-ключ/breaker 503+OPEN+recovery+passthrough). KNOWN_ISSUES#2026-08-19-Фаза3-шаг4.
+**Temporal:** T+0 OK | T+30d: XFF-доверие только при trusted-proxy (вне v1) | T+180d: лимиты env-настраиваемы, no hardcode.
+
 ## [2026-08-18] — Фаза 3: Streamable HTTP транспорт начат (remote_main) (DONE, шаг 1-3)
 **Status:** ✅ Fixed (5 тестов auth/healthz/mount; полный pytest 1339 passed)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: 5 тестов + полный pytest 1339 passed, ruff clean, gate 0. Live-сборка create_streamable_http_app НЕ проводилась (создаст 2-й MCP и будет драться за PID-lock эмбеддера) — после синка/релода.

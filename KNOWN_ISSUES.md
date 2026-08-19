@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — Фаза 3 шаг 4: rate-limit + circuit breaker на remote-гейте (DONE)
+
+**Что:** ТЗ §3.2 — remote-гейт был голым (только Bearer-auth), без защиты от флуда per-token/IP и от каскадных сбоев движка. Реюз существующих `SlidingWindowRateLimiter` + `CircuitBreaker` (src/core/rate_limiter.py, threading.Lock loop-agnostic — НЕ новое): (1) `_RateLimitMiddleware` — per-token (ключ sha256, не plaintext) + per-IP (request.client.host, XFF не доверяем — спуфинг), `/healthz` exempt, 429+Retry-After, env `MSCODEBASE_REMOTE_RATE_LIMIT_RPS` (30.0/сек на ключ, <=0 = off); (2) `_CircuitBreakerMount` — ASGI-обёртка `/mcp`, 5xx/exception→503, OPEN short-circuit (движок не вызывается), HALF_OPEN→пробный→CLOSED. Важно: Breaker ПЕРЕПИСАН с BaseHTTPMiddleware на ASGI-mount — BaseHTTPMiddleware НЕ ловит исключения вложенного Mount (Starlette деферирует post-dispatch). Заодно починен «ленивый» модуль: `app = build_app()` ждал жадно на импорте (механизм __getattr__ был мёртв); теперь импорт лёгкий (180ms), сервер собирается при первом доступе к `app`.
+**Тесты:** tests/test_remote_main.py 5→13 (token-first 429, IP-backstop, healthz-exempt, rps<=0 off, hash-ключ без plaintext, breaker 503/OPEN/short-circuit, HALF_OPEN-recovery, passthrough). Полный pytest tests/ 1348 passed / 10 skipped; ruff clean; pre-commit все 5 гейтов зелёные без --no-verify. Live create_streamable_http_app отложена (2-й MCP, PID-lock). | **Статус:** 🟢 внесено + проверено, закоммичено 9e8b8491 (feat/universal-engine; push по команде) | **Владелец:** misha.
+
 ## 2026-08-18 — Фаза 3: Streamable HTTP транспорт начат (remote_main, шаг 1-3) (DONE)
 
 **Что:** ТЗ §3 — движок доступен только по stdio; нужен streamable HTTP для remote/VPS (спека MCP 2026: stdio + Streamable HTTP; HTTP+SSE deprecated SEP-2596). `src/mcp/transport/streamable_http.py` — `create_streamable_http_app()` (FastMCP.streamable_http_app → ASGI). `src/remote_main.py` — Starlette-вход: mount `/mcp` + `/healthz` (внешний мониторинг) + Bearer-auth (`MSCODEBASE_REMOTE_TOKEN`, healthz не auth'ится); `app` ленивый (импорт не строит тяжелый сервер). stdio не тронут. Rate-limit через existing SlidingWindowRateLimiter — в след. шаге.
