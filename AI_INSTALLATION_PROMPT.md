@@ -19,7 +19,7 @@
   ✅ ONNX модель e5-base-v2 (~265 MB) + GGUF модель bge-reranker-v2-m3 (~544 MB)
   ✅ MCP сервер настроен в Zed
   ✅ ~1.0 GB RAM в простое (ONNX in-process + reranker)
-  ✅ 61 инструментов доступны Агенту (28 core + 16 intel + 13 inline + 4 dev + 1 optional execute_script)
+  ✅ 62 инструментов доступны Агенту (29 core + 16 intel + 13 inline + 4 dev + 1 optional execute_script)
 ```
 
 ---

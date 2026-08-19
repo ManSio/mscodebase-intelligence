@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-19 — ТЗ §11 Action Receipt: get_action_receipt + store + retention (DONE, commit blocked)
+
+**Что:** Реализация ТЗ §11 этапы 2-4. `src/core/action_receipt.py` — ActionReceipt dataclass (action_id/claim/before_hash/after_hash/verification_steps/verdict/reproducible_by/supersedes), `verdict_from_results` (трехзначная модель VERIFIED/REFUTED/INCONCLUSIVE; INCONCLUSIVE-маркеры среды: git-not-found/таймаут ≠ REFUTED; index_sync всегда INCONCLUSIVE), `ActionReceiptStore` (JSONL в системной папке `<data_root>/projects/<hash8>/action_receipts.jsonl`, аналог ChangeIntentLedger; record/get/query/count), `gc` retention (INCONCLUSIVE TTL 7d, VERIFIED/REFUTED 60d, keep_last), иммутабельность (пере-верификация = новый receipt, supersedes). `verify_action` расширен: формирует и сохраняет receipt, возвращает action_id. Новый MCP-тул `get_action_receipt(action_id)`. Tool count 61→62 (29 core). Docs/README/ARCHITECTURE счётчики обновлены.
+**Тесты:** tests/test_action_receipt.py 16 (вердикты, store, GC, supersedes); полный pytest **1439 passed**; check_tool_names/stale чисто; diagnostics чисто.
+**Blocked:** коммит заблокирован `.git/index.lock` активной параллельной сессии (multi-agent, KI-2026-08-08 класс) — изменения STAGED, ждут снятия лока и `git commit`. | **Статус:** ⏳ код готов + проверен, commit блокирован конкаренсией | **Владелец:** misha.
+
 ## 2026-08-19 — B-1: фаза 1 полная (8 экосистем) + фаза 2 stdlib lockfile'ы (DONE)
 
 **Что:** B-1 (ADR-0005 scaling). Фаза 1 полная: python/npm (фундамент 11c71262) + go/cargo/maven/nuget/composer/gem (8a28e956). Edge-кейсы спеки 09: uv pyproject без project.dependencies (только dependency-groups), `-e .[socks]`, extras, workspace:/catalog:/npm: в package.json, go.mod много require + replace-исключение + псевдоверсии, Cargo path-deps (workspace-локальные) исключены, maven namespaced-XML (local-tag) + plugin.additionalDependencies исключён, csproj/Directory.Packages.props, composer php/ext-* фильтр, Gemfile (`:git`/`:path`-локальные отброшены). Фаза 2 (stdlib batch 4cd2f55a): uv.lock/Cargo.lock [[package]], package-lock v1+v3, composer.lock, Pipfile.lock, packages.lock.json (nuget), bun.lock (scoped rfind@), Gemfile.lock (только GEM-specs; PATH remote:. локальный гем исключён).

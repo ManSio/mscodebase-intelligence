@@ -113,7 +113,7 @@ MSCodeBase **在 `codebase(action="rename")` 中使用 LSP** — LSP 客户端�
 | 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
 | 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
 | 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-| 🧪 **整洁架构** | DI 容器（18 个服务），61 个工具（28 core + 16 intel + 13 inline + 4 dev），1371 个测试 |
+| 🧪 **整洁架构** | DI 容器（18 个服务），62 个工具（29 core + 16 intel + 13 inline + 4 dev），1371 个测试 |
 | 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
 | ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
