@@ -433,6 +433,88 @@ class CodeParser:
 
         return chunks, symbols
 
+    def _get_signature_and_docstring(self, node, code):
+        """Извлекает сигнатуру и docstring символа из tree-sitter узла.
+
+        signature — первая непустая строка определения (`def f(x):` для
+        функций/методов, `class C(Base):` для классов). docstring — очищенный
+        leading docstring (однострочный, ≤300 симв.) или None.
+        """
+        try:
+            text = code[node.start_byte:node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+        except Exception:
+            return "", None
+
+        signature = next(
+            (line.strip() for line in text.splitlines() if line.strip()), ""
+        )
+
+        docstring = self._extract_docstring(node, code)
+        return signature, docstring
+
+    def _extract_docstring(self, node, code):
+        """Leading docstring узла: первый string в теле (Python), иначе regex.
+
+        Возвращает очищенную строку (≤300 симв.) или None.
+        """
+        raw = None
+        try:
+            block = next((c for c in node.children if c.type == "block"), None)
+            if block is not None and block.children:
+                first = block.children[0]
+                if first.type == "string":
+                    raw = code[first.start_byte:first.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    )
+                elif first.type == "expression_statement":
+                    s = next(
+                        (c for c in first.children if c.type == "string"), None
+                    )
+                    if s is not None:
+                        raw = code[s.start_byte:s.end_byte].decode(
+                            "utf-8", errors="ignore"
+                        )
+        except Exception:
+            raw = None
+
+        if raw is None:
+            # Документированный regex-fallback для грамматик без block/string.
+            try:
+                text = code[node.start_byte:node.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+            except Exception:
+                return None
+            m = re.search(
+                r'^\s*("""|\'\'\')(.+?)\1', text, re.DOTALL | re.MULTILINE
+            )
+            if m:
+                raw = m.group(2)
+
+        if not raw:
+            return None
+        return self._clean_docstring(raw)
+
+    @staticmethod
+    def _clean_docstring(raw):
+        """Убирает обрамляющие кавычки и склеивает строки; ≤300 символов."""
+        s = raw.strip()
+        for q in ('"""', "'''"):
+            if s.startswith(q) and s.endswith(q) and len(s) >= len(q) * 2:
+                s = s[len(q):-len(q)]
+                break
+        else:
+            for q in ('"', "'"):
+                if s.startswith(q) and s.endswith(q) and len(s) >= 2:
+                    s = s[1:-1]
+                    break
+        joined = " ".join(line.strip() for line in s.splitlines()).strip()
+        if len(joined) > 300:
+            return joined[:297].rstrip() + "..."
+        return joined
+
     def _walk_node(
         self,
         node,
@@ -489,11 +571,16 @@ class CodeParser:
                         if current_context
                         else symbol_name
                     )
+                    signature, docstring = self._get_signature_and_docstring(
+                        node, code
+                    )
                     symbols.append(
                         {
                             "name": full_symbol,
                             "line": node.start_point[0],
                             "kind": node.type,
+                            "signature": signature,
+                            "docstring": docstring,
                         }
                     )
 
@@ -914,10 +1001,13 @@ class CodeParser:
             if context_parts:
                 name = ".".join(context_parts + [name])
 
+            signature, docstring = self._get_signature_and_docstring(node, code)
             symbols.append({
                 "name": name,
                 "line": node.start_point[0],
                 "kind": node.type,
+                "signature": signature,
+                "docstring": docstring,
             })
 
         # Дедуп по (name, line) — защита от дублей captures.

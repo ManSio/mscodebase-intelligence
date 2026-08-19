@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-08-19 — B-1: фаза 1 полная (8 экосистем) + фаза 2 stdlib lockfile'ы (DONE)
+
+**Что:** B-1 (ADR-0005 scaling). Фаза 1 полная: python/npm (фундамент 11c71262) + go/cargo/maven/nuget/composer/gem (8a28e956). Edge-кейсы спеки 09: uv pyproject без project.dependencies (только dependency-groups), `-e .[socks]`, extras, workspace:/catalog:/npm: в package.json, go.mod много require + replace-исключение + псевдоверсии, Cargo path-deps (workspace-локальные) исключены, maven namespaced-XML (local-tag) + plugin.additionalDependencies исключён, csproj/Directory.Packages.props, composer php/ext-* фильтр, Gemfile (`:git`/`:path`-локальные отброшены). Фаза 2 (stdlib batch 4cd2f55a): uv.lock/Cargo.lock [[package]], package-lock v1+v3, composer.lock, Pipfile.lock, packages.lock.json (nuget), bun.lock (scoped rfind@), Gemfile.lock (только GEM-specs; PATH remote:. локальный гем исключён).
+**Тесты:** tests/test_manifest_parsers.py 9→31 (реальные фикстуры + синтетика). Полный pytest 1423; ruff clean (мои файлы); pre-commit 5/5 БЕЗ --no-verify. | **Статус:** 🟢 внесено + проверено, закоммичено 8a28e956 + 4cd2f55a (feat/universal-engine; push по команде) | **Владелец:** misha.
+
+## 2026-08-19 — Фаза 4-хвост: wiring плагинов в MCP-сервер (DONE, code; live deferred)
+
+**Что:** последний кусок Фазы 4 — plugin-тулы у реального сервера. `src/plugins/server.py` wire_plugins(mcp) — opt-in через MSCODEBASE_PLUGINS_DIR; fail-safe (missing dir/untrusted/любая ошибка → warning+skip); default-deny; data_root из store-пути (runner читает тот же trust-store); registry закреплён на mcp (subprocess'ы живы). Хук `_wire_plugins(mcp)` в server_factory после register_all_tools (lazy, try/except).
+**Тесты:** tests/test_plugins_registry.py +3 (noop; end-to-end wire+call; untrusted skip). Полный pytest 1423; ruff clean (мои файлы); pre-commit 5/5. **Live-smoke create_mcp_server с плагином отложен** (2-й MCP/PID-lock) — на idle/CI. | **Статус:** 🟢 внесено + проверено (unit), закоммичено efe07e38 (feat/universal-engine; push по команде) | **Владелец:** misha.
+
+## 2026-08-19 — Deep-spec docs: Signature/Description колонки в MODULE_INDEX + парсер enrich (DONE)
+
+**Что:** Пункт 2 «LSP bridge» (research+experiment+handoff) — закрыт gap между мелкой таблицей `name/kind/line` и LSP hover (полная сигнатура+докстринг). Research: `lsp_document_symbols(graph.py)`=423 символа; `lsp_get_type_info(add_node)`=полная сигнатура `def add_node(self: Self@PropertyGraph, ...) -> Node` + docstring; AST-парсер давал только name/kind/line (REFUTED гипотеза #3); DocGenerator — 5 колонок без сигнатур (REFUTED #4). Реализация: `src/core/indexing/parser.py` — `_get_signature_and_docstring`/`_extract_docstring`/`_clean_docstring`, ключи `signature`/`docstring` в `_walk_node`+`extract_definitions_scm` (add-only, name/kind/line сохранены); `src/core/doc_generator.py` — колонки `Signature`/`Description` + `_md_cell()` (escape `|`, collapse newlines, truncation 300/200/100). Фикстура `tests/fixtures/sample_module.py` + `test_parser.py`/`test_doc_generator.py`.
+**Тесты:** tests/test_doc_generator.py+test_parser.py 8 passed; полный pytest tests/ **1423 passed, 10 skipped, 91 deselected**; diagnostics обоих файлов чисты. | **Статус:** 🟢 внесено + проверено, НЕ закоммичено (research-handoff, изменения агента f1b5019b) | **Владелец:** misha.
+
 ## 2026-08-19 — Backlog B-1: манифест-парсеры — фундамент (python/npm batch) (DONE)
 
 **Что:** B-1 (ADR-0005 scaling, многонография pkg:-якорей) — первый батч Фазы 1. `src/sources/manifest/`: `model.py` (ManifestEntry{ecosystem,name,spec,kind,source,line} + нормализация PEP 503/npm/dotted), `extract.py` (диспетчер по имени файла + python: pyproject dependency-groups [PEP 735]/Pipfile/requirements*.txt, npm: package.json; `extract_manifest_entries` + `manifest_packages(root)->Set[str]` — контракт ADR-0005, stdlib [tomllib, tombli-fallback 3.10]). Обработаны edge-кейсы спеки 09: uv pyproject БЕЗ project.dependencies (только dependency-groups), `-e ` editable отсекается, extras отбрасываются, workspace:/catalog:/npm: значения package.json сохраняют имя.

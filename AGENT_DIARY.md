@@ -25,6 +25,22 @@
 
 ---
 
+## [2026-08-19] — B-1: фаза 1 полная + фаза 2 stdlib lockfile'ы (DONE)
+**Status:** ✅ Fixed (src/sources/manifest/ 8 экосистем + 8 lockfile-экстракторов; pytest 1423; ruff clean на моих файлах; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1423, ruff clean, gate zero, layer 0 нарушений.
+**Root Cause:** ADR-0005 pkg:-якоря знали только python; масштаб B-1 — все экосистемы + lockfile'ы.
+**Fix:** Фаза 1: go/cargo/maven/nuget/composer/gem (8a28e956) поверх python/npm; Фаза 2: uv.lock/Cargo.lock/package-lock v1v3/composer.lock/Pipfile.lock/packages.lock.json/bun.lock/Gemfile.lock (4cd2f55a). stdlib; edge-кейсы 09.
+**Guard:** tests/test_manifest_parsers.py 9→31 (реальные фикстуры + синтетика). KNOWN_ISSUES#2026-08-19-B1. Остаток B-1: yarn-семейство + pnpm (PyYAML решение) + parity osv-scanner (CI) + wiring verify_on_read → новый модуль (гейт слоёв).
+**Temporal:** T+0 OK | T+30d: yarn/pnpm + parity | T+180d: verify_on_read-wiring + registry-маппинг.
+
+## [2026-08-19] — Фаза 4-хвост: wiring плагинов в MCP-сервер (PARTIAL, live deferred)
+**Status:** 🟡 Partial (unit-зелёный; live smoke отложен на idle/CI)
+**verified_from_clean_state:** ⚠️ не проверено — live create_mcp_server с плагином не гонялся (2-й MCP/PID-lock) — на idle/CI; unit wiring зелёный.
+**Root Cause:** PluginRegistry существовал, но не был подключён к live-серверу — plugin-тулы не доходили до клиентов.
+**Fix:** wire_plugins(mcp) opt-in (MSCODEBASE_PLUGINS_DIR), fail-safe (default-deny, любая ошибка → skip), data_root из store-пути, registry закреплён на mcp; хук _wire_plugins в server_factory (lazy, try/except — плагины не валят сервер).
+**Guard:** tests/test_plugins_registry.py +3 (noop; end-to-end wire+call; untrusted skip). KNOWN_ISSUES#2026-08-19-Фаза4-wiring.
+**Temporal:** T+0 OK | T+30d: live-smoke на idle/CI | T+180d: trust-гейт UX в UI сервера.
+
 ## [2026-08-19] — Backlog B-1: манифест-парсеры — фундамент (python/npm batch) (DONE)
 **Status:** ✅ Fixed (src/sources/manifest/; pytest 1396 (+9); ruff clean; layer gate clean; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1396, ruff clean, gate zero, layer-boundaries 0.+9.
