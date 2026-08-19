@@ -13,3 +13,15 @@
 | E-05 (Action Receipt) | ⏳ очередь | гейт §11 |
 | E-08 (SSRF-сьют) | ⏳ очередь | Фаза 2 |
 | E-09 (upload bombs) | ⏳ очередь | Фаза 2 |
+
+## Координация с исследовательским агентом
+
+- **Write-scope:** исследователь — `docs/research/universal-engine-study/**` (+ его
+  мелкие `study-detectors/`). Этот каталог (`experiments/universal-engine/`) —
+  зона агента-реализатора.
+- **Экспериментальные кэши-клоны → системный temp, НЕ в репо** (урок E-03-2026-08-18:
+  клонированные доки репо (README/CHANGELOG) ломают stale_detector, а 35k файлов
+  клона — health-скан/cap). Мой кэш E-03 — `%TEMP%/mscodebase_e03_clone_cache`.
+- **Инцедент 2026-08-18:** `e-s1-polygon/repos/uv` (35 823 файла, не закоммичено)
+  лежит в репо и блокирует гейты (health test + stale_detector). ОБЯЗАН переехать
+  в temp (владелец известил исследователя).
