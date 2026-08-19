@@ -409,6 +409,15 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 - PoC-плагин ✅: `examples/plugins/verify_claim/` (детерминированный VOR без LLM).
 - Инкременты (след. раунд): subprocess-изоляция runner + MCP-proxy + wiring в DI/сервер
   и trust-гейт UX (промпт издателя) — план §5.4/§5.6.
+- Subprocess-изоляция ✅ (898e88f0): `src/plugins/{runner, proxy}.py` — хост выполняет
+  trust-гейт БЕЗ import (preauthorize_plugin), runner исполняет плагин в ОТДЕЛЬНОМ
+  процессе (fail-closed, JSON-RPC/stdio), proxy проксирует. tests/test_plugins_subprocess.py
+  (5): untrusted не-spawn/не-exec, изоляция процесса (мутация host-модуля не видна),
+  runner fail-closed, drif. +.gitignore: блок one-off-скриптов с-янкорен на /
+  (pattern `runner.py` скрывал легитимный src/plugins/runner.py — ловушка §9).
+- Остаток Фазы 4: MCP-proxy в сервер (wiring в DI/сервер, регистрация тулов плагина
+  как MCP-тулов движка), trust-гейт UX (промпт издателя: name/version/publisher/sha256),
+  dependencies-скан (pip-audit-стиль, §5.1).
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.

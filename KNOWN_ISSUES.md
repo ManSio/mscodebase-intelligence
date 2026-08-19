@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-19 — Фаза 4: subprocess-изоляция плагинов (план §5.4) (DONE)
+
+**Что:** Второй increment Фазы 4 — код третьестороннего плагина исполняется в ОТДЕЛЬНОМ процессе, хост НЕ импортирует его. `loader.py` разбит: `preauthorize_plugin` (trust-гейт БЕЗ exec: engine-compat → sha256 → trust/default-deny → TOCTOU re-hash) и `load_plugin` (preauthorize + import — in-process только для доверенных). `src/plugins/runner.py` — мини-JSON-RPC/stdio сервер: грузит плагин с resolver=None (fail-closed, untrusted exit 2 до exec), сервит tools/list+call. `src/plugins/proxy.py` — PluginProcess: хост preauthorize (без exec), спавн runner (скриптовым путём — избегает нестабильности -m double-import на Windows), discover тулов, proxy вызовов; захват stderr для диагностики. `trust_store.default_trust_store_path()`.
+**Тесты:** tests/test_plugins_subprocess.py 5 (happy proxy, untrusted deny до спавна + not-exec, изоляция процесса — мутация host-модуля плагином НЕ видна хосту, runner fail-closed напрямую не-exec, sha-drift deny). Полный pytest tests/ 1368 passed (+5) / 10 skipped; ruff clean; pre-commit 5/5 БЕЗ --no-verify.
+**Ловушка §9:** корневой `.gitignore` имел нязкорен-не-якорный `runner.py` (one-off-блок 2026-08-04) — он скрыл `src/plugins/runner.py` из git (коммит прошёл без файла!). Фикс: блок с-янкорен на `/`; runner.py теперь трекается. | **Статус:** 🟢 внесено + проверено, закоммичено 898e88f0 (feat/universal-engine; push по команде) | **Владелец:** misha.
+
 ## 2026-08-19 — Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
 
 **Что:** Фаза 4 (транспорт сделан) — ядро безопасности плагинов. `src/plugins/manifest.py` — ToolPlugin (валидация schema_version/version/platform/requires_engine_version через packaging по версии движка `src.__init__.__version__`), парсится БЕЗ exec. `trust_store.py` — доверие per (id@version) {sha256, source, trusted_at} в `data_root/plugins/trust.json` (атомарная запись). `loader.py` — строгий load-гейт (TOCTOU-guard): engine-compat → payload sha256 → decision (default-deny resolver; untracked=промпт; drif=переспрос) → re-hash ПРЯМО перед import → import entrypoint (importlib, отдельный путь от execute_script) → self-check P-001 (плагин обязан зарегистрировать все заявленные тулы). In-process v1 (доверенные/first-party); subprocess-изоляция + MCP-proxy — следующий инкремент. PoC-плагин `examples/plugins/verify_claim/` (детерминированный VOR-вердикт VERIFIED/REFUTED/UNKNOWN без LLM).

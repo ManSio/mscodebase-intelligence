@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 4: subprocess-изоляция плагинов (план §5.4) (DONE)
+**Status:** ✅ Fixed (src/plugins/{runner,proxy}.py; pytest 1368 (+5); ruff clean; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1368, ruff clean, pre-commit gate-zero.
+**Root Cause:** trust-гейт (v1) грузил плагин in-process — код третьестороннего плагина исполнялся бы в процессе сервера (RCE, план §5.4 требует subprocess-границу).
+**Fix:** разбив preauthorize (trust-гейт БЕЗ exec) vs load_plugin (import); runner — отдельный процесс JSON-RPC/stdio, fail-closed (resolver=None); proxy — спавн+прокси, host не импортирует код плагина. Спавн через скриптовый путь/Avoid -m double-import (Windows RuntimeWarning).
+**Guard:** tests/test_plugins_subprocess.py 5 (untrusted not-exec, изоляция процесса, runner fail-closed, drif). Ловушка §9: нязкорен-не-якорный `.gitignore` `runner.py` скрыл src/plugins/runner.py из git — блок one-off с-янкорен на /; иначе репо не содержало бы executor'а.
+**Temporal:** T+0 OK | T+30d: MCP-proxy в сервер (wiring) + trust-гейт UX | T+180d: dependencies-скан + registry-маппинг.
+
 ## [2026-08-19] — Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
 **Status:** ✅ Fixed (src/plugins/ + PoC; pytest 1363 (+15); ruff clean; pre-commit 5/5 БЕЗ --no-verify)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: полный pytest 1363 passed, ruff clean, pre-commit gate-zero.

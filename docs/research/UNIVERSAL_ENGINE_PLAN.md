@@ -397,6 +397,15 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 - PoC plugin ✅: `examples/plugins/verify_claim/` (deterministic VOR, no LLM).
 - Increments (next round): subprocess-isolation runner + MCP proxy + wiring into
   DI/server and trust-gate UX (publisher prompt) — plan §5.4/§5.6.
+- Subprocess isolation ✅ (898e88f0): `src/plugins/{runner, proxy}.py` — host does
+  trust-gate WITHOUT import (preauthorize_plugin), runner executes plugin in a SEPARATE
+  process (fail-closed, JSON-RPC/stdio), proxy proxies. tests/test_plugins_subprocess.py
+  (5): untrusted no-spawn/no-exec, process isolation (host-module mutation not visible),
+  runner fail-closed, drift. Also .gitignore: anchored the one-off-scripts block to /
+  (pattern `runner.py` silently hid src/plugins/runner.py — trap §9).
+- Remaining Phase 4: MCP proxy wiring into server (register plugin tools as engine MCP
+  tools), trust-gate UX (publisher prompt: name/version/publisher/sha256),
+  dependencies scan (pip-audit style, §5.1).
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.
