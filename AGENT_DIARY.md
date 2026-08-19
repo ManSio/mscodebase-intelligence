@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — E-07: эквивалентность транспортов stdio↔HTTP (DoD Фазы 3) (DONE)
+**Status:** ✅ (toy live PASSED 2/2; engine-mode отложен на CI/idle)
+**verified_from_clean_state:** ⚠️ engine-режим (реальный create_mcp_server) не гонялся live — создаёт 2-й MCP / PID-lock эмбеддера при работающем основном MCP (прецедент дневник 2026-08-18); toy-гарнесс валидирован live на минимальном FastMCP.
+**Root Cause:** DoD Фазы 3 — не было live-доказательства, что одинаковый запрос даёт идентичный JSON через stdio и Streamable HTTP.
+**Fix:** `experiments/universal-engine/e07_equiv.py` — live-харнесс (mcp SDK ClientSession), сервер дважды (stdio+HTTP), canonical JSON побайтово. `_e07_toy_server.py` — минимальный FastMCP `ping`-эхо. Режимы `--toy`/default (движок). Пробы: результат + error-конверт.
+**Guard:** `--toy` PASSED 2/2 live; engine-режим — `python experiments/universal-engine/e07_equiv.py` на CI/idle. KNOWN_ISSUES#2026-08-19-E07.
+**Temporal:** T+0 OK | T+30d: engine-mode прогнать в CI-джобе (Ubuntu) | T+180d: сьют в pre-release gate транспорта.
+
 ## [2026-08-19] — Фаза 3 шаг 5: Docker-деплой remote (Вариант A) (DONE)
 **Status:** ✅ Fixed (deploy/docker/ + .dockerignore; pre-commit 5/5 БЕЗ --no-verify; CLI+YAML валидны)
 **verified_from_clean_state:** ⚠️ не проверено (Docker вне песочницы — образ не собирался); локально: `python -m src.remote_main --help` + YAML-парс compose ок; полный build + smoke E-07 — на CI/машине владельца.

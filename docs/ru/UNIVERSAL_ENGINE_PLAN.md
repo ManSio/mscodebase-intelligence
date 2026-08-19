@@ -393,6 +393,11 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 - Остаток Фазы 3: E-07 сьют эквивалентности stdio↔HTTP; live build образа на
   CI-джобе/машине владельца (локально Docker вне песочницы не гонялся); деплой-доки
   для rolling-restart (multi-instance) — позже (ТЗ §9б-7).
+- E-07 ✅ (76646a0e): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
+  + `E07_RESULTS.md`. Toy-режим (минимальный FastMCP) PASSED live 2/2 (ping-result +
+  bad-args идентичны через stdio/HTTP) — гарнесс доказан. Engine-режим (реальный
+  create_mcp_server) — тот же харнесс, live-прогон отложен на CI/idle (2-й MCP /
+  PID-lock эмбеддера; прецедент дневника).
 
 **Фаза 4 — Plugin-манифест** по §5. DoD: PoC-плагин (VOR `verify_claim`
 вынесенный), RCE-негативные контроли, тесты несовпадения версий, trust-гейт UX.

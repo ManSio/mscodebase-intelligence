@@ -381,6 +381,11 @@ attacks passed before fix — new code is systematically leaky until proven othe
 - Remaining Phase 3: E-07 stdio↔HTTP equivalence suite; live image build on CI /
   owner machine (Docker not available in sandbox, not run locally); rolling-restart
   deployment docs (multi-instance) later (ТЗ §9б-7).
+- E-07 ✅ (76646a0e): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
+  + `E07_RESULTS.md`. Toy mode (minimal FastMCP) PASSED live 2/2 (ping-result +
+  bad-args identical over stdio/HTTP) — harness proven. Engine mode (real
+  create_mcp_server) shared harness, live run deferred to CI/idle (2nd MCP /
+  embedder PID-lock; diary precedent).
 
 **Фаза 4 — Plugin manifest** per §5. DoD: PoC plugin (VOR `verify_claim` extracted),
 RCE negative-control tests, version-mismatch tests, trust-gate UX.
