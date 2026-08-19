@@ -406,6 +406,13 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 - Remaining Phase 4: MCP proxy wiring into server (register plugin tools as engine MCP
   tools), trust-gate UX (publisher prompt: name/version/publisher/sha256),
   dependencies scan (pip-audit style, §5.1).
+- MCP-proxy wiring ✅ (2f30f585): `registry.py` (PluginRegistry: discover/preauthorize/
+  spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-gate UX: trust_prompt,
+  make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (== pin validation),
+  manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end via PoC
+  verify_claim: VERIFIED/REFUTED/UNKNOWN). pytest 1379 (+11).
+- Remaining Phase 4: integrate PluginRegistry into the LIVE create_mcp_server (final
+  DI/server wiring, live check on idle/CI), pip-audit at installer.
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.

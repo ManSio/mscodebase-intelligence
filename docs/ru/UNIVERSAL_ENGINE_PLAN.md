@@ -418,6 +418,13 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 - Остаток Фазы 4: MCP-proxy в сервер (wiring в DI/сервер, регистрация тулов плагина
   как MCP-тулов движка), trust-гейт UX (промпт издателя: name/version/publisher/sha256),
   dependencies-скан (pip-audit-стиль, §5.1).
+- MCP-proxy wiring ✅ (2f30f585): `registry.py` (PluginRegistry: discover/preauthorize/
+  spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-гейт UX: trust_prompt,
+  make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (валидация пинов ==),
+  manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end через PoC
+  verify_claim: VERIFIED/REFUTED/UNKNOWN). pytest 1379 (+11).
+- Остаток Фазы 4: интеграция PluginRegistry в ЖИВОЙ create_mcp_server (конечный
+  wiring в DI/сервер, live-проверка на idle/CI), pip-audit на инсталляторе.
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.

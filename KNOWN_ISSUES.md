@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (план §5) (DONE)
+
+**Что:** Третий increment Фазы 4 — host-оркестратор поверх subprocess-изоляции. `registry.py`: PluginRegistry (discover манифестов → preauthorize БЕЗ exec → спавн runner-proxy → тулы как proxy-callable) + `register_fastmcp` (регистрация plugin-тулов в FastMCP-сервере: asyncio.to_thread → JSON-RPC subprocess). `prompt.py`: trust-гейт UX — trust_prompt (name/version/publisher/sha256), make_trust_resolver (auto_approve для тестов / decide-коллбек / fail-closed default с fast-deny), DENY_ALL. `deps.py`: validate_dependencies — проверка пинов `name==ver` (непрошитый = скрытая RCE-поверхность §5.1; полный pip-audit — на инсталлятор). `manifest.py`: поле dependencies.
+**Тесты:** tests/test_plugins_registry.py 11 (discover; end-to-end proxy-call через реальный PoC verify_claim — VERIFIED/REFUTED/UNKNOWN; untrusted denied; prompt-поля; resolver auto/deny/decide/drift; deps validation; FastMCP-регистрация). Полный pytest tests/ 1379 passed (+11) / 10 skipped; ruff clean; pre-commit 5/5 БЕЗ --no-verify. | **Статус:** 🟢 внесено + проверено, закоммичено 2f30f585 (feat/universal-engine; push по команде) | **Владелец:** misha.
+
 ## 2026-08-19 — Фаза 4: subprocess-изоляция плагинов (план §5.4) (DONE)
 
 **Что:** Второй increment Фазы 4 — код третьестороннего плагина исполняется в ОТДЕЛЬНОМ процессе, хост НЕ импортирует его. `loader.py` разбит: `preauthorize_plugin` (trust-гейт БЕЗ exec: engine-compat → sha256 → trust/default-deny → TOCTOU re-hash) и `load_plugin` (preauthorize + import — in-process только для доверенных). `src/plugins/runner.py` — мини-JSON-RPC/stdio сервер: грузит плагин с resolver=None (fail-closed, untrusted exit 2 до exec), сервит tools/list+call. `src/plugins/proxy.py` — PluginProcess: хост preauthorize (без exec), спавн runner (скриптовым путём — избегает нестабильности -m double-import на Windows), discover тулов, proxy вызовов; захват stderr для диагностики. `trust_store.default_trust_store_path()`.
