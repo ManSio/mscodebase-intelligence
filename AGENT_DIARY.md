@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Фаза 5: адаптеры клиентов + CLI wrapper (план §4) (DONE)
+**Status:** ✅ Fixed (adapters/clients/ + src/cli.py; pytest 1387 (+8); ruff clean; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1387, ruff clean, pre-commit gate-zero. Real CLI-smoke: get_task_status через реальный DI — ок.
+**Root Cause:** движок доступен по stdio (Zed) и Streamable HTTP (remote); не было конфигов для внешних клиентов (Claude Code/VS Code/Cursor) и прямого вызова тулов без MCP для CI/скриптов.
+**Fix:** `adapters/clients/` — claude.code.mcp.json + vscode.mcp.json (stdio+http, плейсхолдеры) + README; `src/cli.py` — тонкий wrapper прямого вызова tool-классов через DI (curated allowlist), JSON in/out, CI exit-коды, shutdown DI.
+**Guard:** tests/test_cli.py 8 (парс конфигов/entrypoints, CLI unknown/bad-args/dispatch/tool-error). KNOWN_ISSUES#2026-08-19-Фаза5.
+**Temporal:** T+0 OK | T+30d: ручная проверка на реальном VS Code/Cursor | T+180d: CLI allowlist расширить + конфиги под registry-путь.
+
 ## [2026-08-19] — Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (план §5) (DONE)
 **Status:** ✅ Fixed (src/plugins/{registry,prompt,deps}.py; pytest 1379 (+11); ruff clean; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1379, ruff clean, pre-commit gate-zero. Live-интеграция в create_mcp_server не гонялась (2-й MCP/PID-lock) — на idle/CI.
