@@ -43,18 +43,19 @@ def compute_payload_sha256(entry_file: Path) -> str:
     return h.hexdigest()
 
 
-def load_plugin(
+def preauthorize_plugin(
     manifest: ToolPlugin,
     plugin_dir: Path,
     store,
     trust_resolver: Optional[Callable[[ToolPlugin, str, bool], bool]] = None,
     engine_version: Optional[str] = None,
-) -> List[dict]:
-    """Выполняет load-гейт и возвращает список тулов плагина.
+) -> str:
+    """Host-side trust-гейт БЕЗ импорта кода плагина (subprocess-изоляция §5.4).
 
-    trust_resolver(manifest, sha256, drift) -> bool — вызывается для принятия/
-    переспроса решения доверия. None → default-deny.
-    Вернёт список {"name", "description", "handler"}.
+    Выполняет: engine-compat → payload sha256 → trust decision (default-deny;
+    untracked=prompt/drift=re-ask через trust_resolver) → store.trust → TOCTOU
+    re-hash. Возвращает sha256. Код НЕ исполняется — его импортирует только
+    runner в ОТДЕЛЬНОМ процессе (fail-closed: runner загружается с resolver=None).
     """
     # 1) engine compat (содержание — из манифеста, без exec; унифицируем ошибку)
     try:
@@ -77,15 +78,31 @@ def load_plugin(
                 f"(id={manifest.id}@{manifest.version})", "untrusted"
             )
     else:
-        # запись есть, но содержимое дрейфануло — переспрашиваем
         if not _resolve_trust(store, manifest, sha, trust_resolver, drift=True):
             raise PluginLoadError("payload hash drifted since trust; not re-approved", "sha_drift")
 
-    # TOCTOU: пересчитываем хэш прямо перед импортом
+    # TOCTOU: пересчитываем хэш прямо перед возвратом (в preauthorize — перед
+    # решением о спавне; в load_plugin — перед импортом).
     if compute_payload_sha256(entry_file) != sha:
         raise PluginLoadError("entrypoint changed between gate and load", "toctou")
+    return sha
 
-    module = _import_entrypoint(manifest, entry_file)
+
+def load_plugin(
+    manifest: ToolPlugin,
+    plugin_dir: Path,
+    store,
+    trust_resolver: Optional[Callable[[ToolPlugin, str, bool], bool]] = None,
+    engine_version: Optional[str] = None,
+) -> List[dict]:
+    """In-process загрузка (доверенные/first-party).
+
+    Trust-гейт (preauthorize) + импорт entrypoint + self-check. Для third-party
+    используй proxy/preauthorize: код должен исполняться в ОТДЕЛЬНОМ процессе.
+    Вернёт список {"name", "description", "handler"}.
+    """
+    preauthorize_plugin(manifest, plugin_dir, store, trust_resolver, engine_version)
+    module = _import_entrypoint(manifest, plugin_dir / manifest.entrypoint)
     return _collect_tools(module, manifest)
 
 

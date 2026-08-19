@@ -17,6 +17,13 @@ from typing import Dict, Optional
 TRUST_DECISION = "trusted"
 
 
+def default_trust_store_path() -> Path:
+    """Путь trust-стора по умолчанию: data_root/plugins/trust.json (вне проекта)."""
+    from src.core.artifact_paths import get_data_root
+
+    return get_data_root() / "plugins" / "trust.json"
+
+
 class PluginTrustStore:
     def __init__(self, path: Path):
         self._path = path
