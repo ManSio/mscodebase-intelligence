@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-19] — Backlog B-1: манифест-парсеры — фундамент (python/npm batch) (DONE)
+**Status:** ✅ Fixed (src/sources/manifest/; pytest 1396 (+9); ruff clean; layer gate clean; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1396, ruff clean, gate zero, layer-boundaries 0.+9.
+**Root Cause:** ADR-0005 pkg:-якоря парсили только python-манифесты (verify_on_read._load_manifest_packages) — closed-world не покрывал npm/go/и т.д.
+**Fix:** `src/sources/manifest/` — ManifestEntry + диспетчер; python (pyproject dependency-groups/Pipfile/requirements*) + npm (package.json) экстракторы; `manifest_packages(root)->Set[str]` (контракт: расширяем список источников, не сигнатуру). stdlib. Edge-кейсы 09 (uv без project.dependencies, -e editable, extras, workspace:/catalog:/npm:).
+**Guard:** tests/test_manifest_parsers.py 9 (реальные фикстуры + синтетика). KNOWN_ISSUES#2026-08-19-B1.
+**Temporal:** T+0 OK | T+30d: остаток фазы 1 + фаза 2 lockfile | T+180d: wiring в verify_on_read (гейт слоёв) + parity osv-scanner (CI).
+
 ## [2026-08-19] — Фаза 5: адаптеры клиентов + CLI wrapper (план §4) (DONE)
 **Status:** ✅ Fixed (adapters/clients/ + src/cli.py; pytest 1387 (+8); ruff clean; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1387, ruff clean, pre-commit gate-zero. Real CLI-smoke: get_task_status через реальный DI — ок.
