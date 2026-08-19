@@ -40,6 +40,21 @@ def test_cap_truncation_detected(tmp_path):
     assert len(files) == 10
 
 
+def test_nested_git_repo_pruned(tmp_path):
+    """Клон/чек-аут (каталог с собственным .git) не исходники проекта (2026-08-18)."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("x", encoding="utf-8")
+    nested = tmp_path / "external_clone"
+    (nested / ".git").mkdir(parents=True)
+    for i in range(20):
+        (nested / f"f{i}.py").write_text("x", encoding="utf-8")
+    files, count, truncated = _scan_disk_files(tmp_path)
+    # внешний клон с 20 файлами не ломает счётчик/cap — прунится
+    assert not any("external_clone" in f for f in files)
+    assert truncated is False
+    assert count == 2  # src + src/main.py
+
+
 def test_real_project_scan_without_venv():
     """На реальном проекте скан без venv даёт ~1.5k файлов, не 24k (без среза)."""
     files, count, truncated = _scan_disk_files(ROOT)
