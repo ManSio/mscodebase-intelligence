@@ -35,22 +35,42 @@ def _scan_disk_files(project_path: Path, cap: int = 10000) -> tuple[set[str], in
     Returns:
         (files, count, truncated): rel-пути (с /), число ОТСКАНИРОВАННЫХ (без
         исключённых) путей, True если cap превышен (скан обрезан).
+
+    Прунинг (os.walk, не rglob — rglob не умеет обрезать поддеревья):
+    - каталоги из _INDEX_SKIP_DIRS (venv/.git/...);
+    - ВЛОЖЕННЫЕ git-репозитории (каталог с собственным .git) — это отдельные
+      клоны/чек-ауты, не исходники проекта (инцедент 2026-08-18: untracked-клон
+      исследователя e-s1-polygon/repos/* 35k файлов валил кап 10000, E-03-урок: кэши-клоны).
     """
     files: set[str] = set()
     count = 0
     truncated = False
-    for p in project_path.rglob("*"):
-        if any(part in _INDEX_SKIP_DIRS for part in p.parts):
-            continue
-        count += 1
-        if count > cap:
-            truncated = True
-            break
-        if p.is_file():
+    for root, dirs, fnames in os.walk(project_path):
+        # Пруним skip-каталоги и вложенные git-клоны ДО захода в них
+        keep = []
+        for d in dirs:
+            if d in _INDEX_SKIP_DIRS:
+                continue
+            if (Path(root) / d / ".git").exists():
+                continue  # независимый git-репо (клон/чек-аут)
+            keep.append(d)
+        dirs[:] = keep
+
+        root_path = Path(root)
+        if root_path != project_path:
+            count += 1
+        for fname in fnames:
+            count += 1
+            if count > cap:
+                truncated = True
+                break
             try:
-                files.add(str(p.relative_to(project_path)).replace(os.sep, "/"))
+                rel = str((root_path / fname).relative_to(project_path)).replace("\\", "/")
+                files.add(rel)
             except ValueError:
                 pass
+        if truncated:
+            break
     return files, count, truncated
 
 
