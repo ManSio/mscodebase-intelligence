@@ -125,9 +125,14 @@ def test_go_mod_migrate_require_and_indirect():
 
 
 def test_cargo_ripgrep_skips_path_deps():
-    pk = manifest_packages(FIXT / "ripgrep")
-    assert {"anyhow", "bstr", "serde_json", "serde", "walkdir", "tikv-jemallocator"} <= pk
-    assert "grep" not in pk  # локальная workspace-крейта (path dep)
+    from src.sources.manifest.extract import _extract_cargo_toml
+
+    text = (FIXT / "ripgrep" / "Cargo.toml").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_cargo_toml(text, "Cargo.toml")}
+    assert {"anyhow", "bstr", "serde_json", "serde", "walkdir", "tikv-jemallocator"} <= names
+    # path-dep (локальная workspace-крейта) в МАНИФЕСТЕ исключён;
+    # Cargo.lock же легитимно содержит все пакеты (в т.ч. workspace-крейты)
+    assert "grep" not in names
 
 
 def test_maven_commons_lang():
@@ -222,3 +227,89 @@ def test_gemfile_synthetic_gitpath_skipped():
     assert "rack" in names
     assert "rails" not in names
     assert "localdep" not in names
+
+
+# ── фаза 2: lockfile'ы (stdlib batch; yarn/pnpm follow-up) ──────────────────
+
+def test_uv_lock_entries():
+    from src.sources.manifest.extract import _extract_uv_lock
+
+    text = (FIXT / "uv" / "uv.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_uv_lock(text, "uv.lock")}
+    assert "annotated-types" in names
+    assert "annotated-doc" in names
+
+
+def test_cargo_lock_transitive():
+    entries = extract_manifest_entries(FIXT / "ripgrep")
+    names = {e.name for e in entries}
+    assert "aho-corasick" in names  # Cargo.lock (транзитивная)
+
+
+def test_package_lock_v3():
+    from src.sources.manifest.extract import _extract_package_lock
+
+    text = (FIXT / "pkg-lock" / "package-lock-v3.json").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_package_lock(text, "package-lock.json")}
+    assert "@pnpm.e2e/dep-of-pkg-with-1-dep" in names
+    assert "@pnpm.e2e/pkg-with-1-dep" in names
+
+
+def test_gemfile_lock_skips_path_project_gem():
+    from src.sources.manifest.extract import _extract_gemfile_lock
+
+    text = (FIXT / "fastlane" / "Gemfile.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_gemfile_lock(text, "Gemfile.lock")}
+    assert "faraday" in names  # GEM-секция резолвов
+
+
+def test_gemfile_lock_synthetic_path_excluded():
+    from src.sources.manifest.extract import _extract_gemfile_lock
+
+    txt = ("PATH\n  remote: .\n  specs:\n    myproj (0.1.0)\n"
+           "GEM\n  remote: https://x\n  specs:\n    rack (2.2.0)\n")
+    names = {e.name for e in _extract_gemfile_lock(txt, "Gemfile.lock")}
+    assert "rack" in names
+    assert "myproj" not in names  # PATH remote: . — локальный проект-гем, не реестр
+
+
+def test_manifest_packages_wiring_pyproject_plus_lock():
+    # uv dir: dependency-groups (pyproject) + [[package]] (uv.lock) — оба источника
+    pk = manifest_packages(FIXT / "uv")
+    assert "black" in pk            # dependency-groups
+    assert "annotated-types" in pk  # uv.lock
+
+
+# ── фаза 2: синтетика lockfile ──────────────────────────────────────────────
+def test_bun_lock_synthetic():
+    from src.sources.manifest.extract import _extract_bun_lock
+
+    txt = '{"packages":{"esbuild":["esbuild@0.21.5","",{},"s"],"@types/bun":["@types/bun@6.0.2","",{},"s"]}}'
+    names = {e.name for e in _extract_bun_lock(txt, "bun.lock")}
+    assert "esbuild" in names
+    assert "@types/bun" in names
+
+
+def test_pipfile_lock_synthetic():
+    from src.sources.manifest.extract import _extract_pipfile_lock
+
+    txt = '{"default":{"pytz":{"version":"==2024.1"}},"develop":{"pytest":{"version":"==8.0.0"}}}'
+    names = {e.name for e in _extract_pipfile_lock(txt, "Pipfile.lock")}
+    assert names == {"pytz", "pytest"}
+
+
+def test_nuget_lock_synthetic():
+    from src.sources.manifest.extract import _extract_nuget_lock
+
+    txt = '{"version":1,"dependencies":{"net8.0":{"xunit":{"type":"Direct","resolved":"2.7.0"}}}}'
+    names = {e.name for e in _extract_nuget_lock(txt, "packages.lock.json")}
+    assert "xunit" in names
+
+
+def test_composer_lock_synthetic():
+    from src.sources.manifest.extract import _extract_composer_lock
+
+    txt = ('{"packages":[{"name":"composer/ca-bundle","version":"1.5.0"}],'
+           '"packages-dev":[{"name":"phpstan/phpstan","version":"1.11"}]}')
+    names = {e.name for e in _extract_composer_lock(txt, "composer.lock")}
+    assert {"composer/ca-bundle", "phpstan/phpstan"} <= names

@@ -358,6 +358,165 @@ def _extract_gemfile(text: str, source: str) -> List[ManifestEntry]:
     return entries
 
 
+# ── lockfile'ы (Фаза 2, stdlib; yarn-семейство + pnpm [PyYAML] — follow-up) ──
+
+def _extract_toml_lockfile(text: str, source: str, eco: str) -> List[ManifestEntry]:
+    """uv.lock / Cargo.lock: [[package]] name + version."""
+    data = _toml(text)
+    if data is None:
+        return []
+    entries: List[ManifestEntry] = []
+    for p in data.get("package") or []:
+        if isinstance(p, dict) and p.get("name"):
+            entries.append(ManifestEntry(eco, normalize_dotted(str(p["name"])),
+                                         str(p.get("version") or ""), "lockfile", source))
+    return entries
+
+
+def _extract_uv_lock(text, source):
+    return _extract_toml_lockfile(text, source, "python")
+
+
+def _extract_cargo_lock(text, source):
+    return _extract_toml_lockfile(text, source, "cargo")
+
+
+def _extract_package_lock(text: str, source: str) -> List[ManifestEntry]:
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return []
+    entries: List[ManifestEntry] = []
+    if isinstance(data, dict) and "packages" in data:  # lockfileVersion 2/3
+        pkgs = data["packages"]
+        if isinstance(pkgs, dict):
+            for key, meta in pkgs.items():
+                if not key or not key.startswith("node_modules/"):
+                    continue
+                if isinstance(meta, dict) and meta.get("version"):
+                    name = key[len("node_modules/"):]
+                    entries.append(ManifestEntry(
+                        "npm", normalize_npm(name), str(meta["version"]), "lockfile", source))
+    elif isinstance(data, dict) and isinstance(data.get("dependencies"), dict):
+        def walk(dd):
+            for name, meta in dd.items():
+                if isinstance(meta, dict):
+                    if meta.get("version"):
+                        entries.append(ManifestEntry(
+                            "npm", normalize_npm(name), str(meta["version"]), "lockfile", source))
+                    if isinstance(meta.get("dependencies"), dict):
+                        walk(meta["dependencies"])
+        walk(data["dependencies"])
+    return entries
+
+
+def _extract_composer_lock(text: str, source: str) -> List[ManifestEntry]:
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return []
+    entries: List[ManifestEntry] = []
+    if not isinstance(data, dict):
+        return []
+    for pkg in list(data.get("packages") or []) + list(data.get("packages-dev") or []):
+        if isinstance(pkg, dict) and pkg.get("name"):
+            entries.append(ManifestEntry("composer", normalize_dotted(str(pkg["name"])),
+                                         str(pkg.get("version") or ""), "lockfile", source))
+    return entries
+
+
+def _extract_pipfile_lock(text: str, source: str) -> List[ManifestEntry]:
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return []
+    entries: List[ManifestEntry] = []
+    if not isinstance(data, dict):
+        return []
+    for sec in ("default", "develop"):
+        secd = data.get(sec, {}) or {}
+        if not isinstance(secd, dict):
+            continue
+        for name, meta in secd.items():
+            ver = meta.get("version") if isinstance(meta, dict) else None
+            entries.append(ManifestEntry("python", normalize_python(str(name)),
+                                         str(ver or ""), "lockfile", source))
+    return entries
+
+
+def _extract_nuget_lock(text: str, source: str) -> List[ManifestEntry]:
+    """packages.lock.json (nuget): dependencies[<framework>].<pkg> -> {resolved}."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return []
+    entries: List[ManifestEntry] = []
+    deps = data.get("dependencies", {}) if isinstance(data, dict) else {}
+    if isinstance(deps, dict):
+        for pkgs in deps.values():
+            if not isinstance(pkgs, dict):
+                continue
+            for name, meta in pkgs.items():
+                if isinstance(meta, dict):
+                    ver = meta.get("resolved") or meta.get("requested") or ""
+                    entries.append(ManifestEntry("nuget", normalize_dotted(str(name)),
+                                                 str(ver), "lockfile", source))
+    return entries
+
+
+def _extract_bun_lock(text: str, source: str) -> List[ManifestEntry]:
+    """bun.lock (JSON): packages -> {name: [name@version, ...]}."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return []
+    entries: List[ManifestEntry] = []
+    pkgs = data.get("packages", {}) if isinstance(data, dict) else {}
+    if isinstance(pkgs, dict):
+        for arr in pkgs.values():
+            if not (isinstance(arr, list) and arr and isinstance(arr[0], str)):
+                continue
+            token = arr[0]
+            idx = token.rfind("@")
+            if idx > 0:
+                name, ver = token[:idx], token[idx + 1:]
+            else:
+                name, ver = token, ""
+            if name:
+                entries.append(ManifestEntry("npm", normalize_npm(name), ver, "lockfile", source))
+    return entries
+
+
+def _extract_gemfile_lock(text: str, source: str) -> List[ManifestEntry]:
+    """Gemfile.lock (text): только `GEM` sections -> specs: name (version).
+
+    PATH remote: — локальные гемы проекта, НЕ внешние.
+    """
+    entries: List[ManifestEntry] = []
+    in_gem = False
+    in_specs = False
+    for i, raw in enumerate(text.splitlines(), start=1):
+        line = raw.rstrip()
+        if not line:
+            in_specs = False
+            continue
+        if line[0] not in " \t":
+            # секция верхнего уровня: PATH / GEM / PLATFORMS / DEPENDENCIES
+            in_gem = line.startswith("GEM")
+            in_specs = False
+            continue
+        if line.strip() == "specs:":
+            # вложенная строка-маркер: specs: под GEM -> источник резолвов
+            in_specs = in_gem
+            continue
+        if in_specs:
+            m = re.match(r"\s+([\w\-.]+)(?: \(([^)]*)\))?", line)
+            if m and m.group(1):
+                entries.append(ManifestEntry("gem", normalize_dotted(m.group(1)),
+                                             m.group(2) or "", "lockfile", source, i))
+    return entries
+
+
 # ── диспетчер ───────────────────────────────────────────────────────────────┐
 
 _EXTRACTORS = [
@@ -373,6 +532,14 @@ _EXTRACTORS = [
     ("Directory.Packages.props", _extract_nuget_central),
     ("composer.json", _extract_composer_json),
     ("Gemfile", _extract_gemfile),
+    ("uv.lock", _extract_uv_lock),
+    ("Cargo.lock", _extract_cargo_lock),
+    ("package-lock.json", _extract_package_lock),
+    ("composer.lock", _extract_composer_lock),
+    ("Pipfile.lock", _extract_pipfile_lock),
+    ("packages.lock.json", _extract_nuget_lock),
+    ("bun.lock", _extract_bun_lock),
+    ("Gemfile.lock", _extract_gemfile_lock),
 ]
 
 
