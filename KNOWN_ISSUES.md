@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — E-07: эквивалентность транспортов stdio↔HTTP (DoD Фазы 3) (DONE)
+
+**Что:** DoD Фазы 3 — «один и тот же запрос через stdio и HTTP возвращает идентичный JSON». `experiments/universal-engine/e07_equiv.py` — live-харнесс на mcp SDK `ClientSession`: поднимает сервер дважды (stdio + Streamable HTTP), тот же клиент, canonical JSON побайтово сравнивается. `_e07_toy_server.py` — минимальный FastMCP (детерминированный `ping`-эхо) для безопасной валидации гарнесса без тяжёлого движка (нет PID-lock/2-го MCP). Режимы: `--toy` (визв) и default (реальный `create_mcp_server`: stdio `src.main` + HTTP `remote_main`; пробы unknown-method/get_runtime_counters/bad-args).
+**Тесты:** `--toy` PASSED live 2/2 (ping-result + bad-args идентичны stdio/HTTP) — гарнесс доказан. Engine-режим (тот же харнесс) live-прогон ОТЛОЖЕН на CI/idle: создаст 2-й MCP и будет драться за PID-lock эмбеддера при работающем основном MCP (прецедент дневник 2026-08-18). Гонять: `python experiments/universal-engine/e07_equiv.py` на чистом раннере. pre-commit 5/5 БЕЗ --no-verify. | **Статус:** 🟢 внесено + проверено (toy live; engine-mode отложен на CI), закоммичено 76646a0e (feat/universal-engine; push по команде) | **Владелец:** misha.
+
 ## 2026-08-19 — Фаза 3 шаг 5: Docker-деплой remote (Вариант A) (DONE)
 
 **Что:** ТЗ §3.2 / шаг 6 — remote-режим в контейнере. Исследование: official example-remote-server в python-sdk не содержит готового Dockerfile (это голый FastMCP-сервер); наш движок тянет ML-стек (llama.cpp/ONNX/веса), поэтому объём образа — реальное решение. Выбран Вариант A (python-only): BM25/FTS5 + SymbolIndex (основной носитель recall, §10) + ONNX in-process CPU embedder; llama.cpp embedder(8080)/reranker(8081) — опциональные внешние сервисы (Вариант C, follow-up, образ api не меняет). `deploy/docker/`: Dockerfile (python:3.12-slim, non-root app uid 10001, HEALTHCHECK /healthz через urllib, MSCODEBASE_DATA_DIR=/data, entrypoint `python -m src.remote_main`), docker-compose.yml (сервис mcp, том mcp-data:/data, env .env), .env.example, README (build/run, клиентские конфиги, security, stop→update→start). Корневой `.dockerignore` — КРИТИЧНО исключает experiments/ (клон исследователя e-s1-polygon, 35k файлов) из build-context.
