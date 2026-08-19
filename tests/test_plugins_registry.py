@@ -5,6 +5,7 @@ proxy call → результат. Тулы плагина из examples/plugins
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,12 @@ from src.plugins import (
 from src.plugins.deps import validate_dependencies
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "plugins"
+
+_ADD_ENTRY = (
+    "def add(a, b):\n"
+    "    return a + b\n"
+    "TOOLS = [{'name': 'add', 'description': 'sum', 'handler': add}]\n"
+)
 
 
 def test_normalize_tool_name():
@@ -119,3 +126,63 @@ def test_register_fastmcp_no_error(tmp_path):
     mcp = FastMCP("test-registration")
     register_fastmcp(reg, mcp)  # не должно бросить (регистрация динамических тулов)
     reg.close()
+
+
+# ── wiring в сервер (Фаза 4 хвост) ─────────────────────────────────────────
+
+def _make_plugin_root(tmp_path, name="addplug", tools=("add",)):
+    d = tmp_path / "plugins"
+    plug = d / name
+    plug.mkdir(parents=True, exist_ok=True)
+    (plug / MANIFEST_NAME).write_text(json.dumps({
+        "id": name, "name": name, "version": "1.0.0", "schema_version": 1,
+        "requires_engine_version": ">=0", "platform": ["any"],
+        "entrypoint": "plugin.py", "tools": list(tools), "source": "wiring-test",
+    }), encoding="utf-8")
+    (plug / "plugin.py").write_text(_ADD_ENTRY, encoding="utf-8")
+    return d
+
+
+def test_wire_plugins_no_env_noop(tmp_path):
+    from mcp.server.fastmcp import FastMCP
+
+    from src.plugins import wire_plugins
+
+    assert wire_plugins(FastMCP("x")) is None  # нет MSCODEBASE_PLUGINS_DIR
+    assert wire_plugins(FastMCP("x"), plugins_root=tmp_path / "nonexistent") is None
+
+
+def test_wire_plugins_registers_and_calls(tmp_path):
+    from mcp.server.fastmcp import FastMCP
+
+    from src.plugins import PluginRegistry, PluginTrustStore, make_trust_resolver, wire_plugins
+
+    root = _make_plugin_root(tmp_path)
+    store = PluginTrustStore(tmp_path / "data" / "plugins" / "trust.json")
+    # pre-trust (доверяем хэш через однократную загрузку с auto_approve)
+    pre = PluginRegistry(root, store=store,
+                         trust_resolver=make_trust_resolver(auto_approve=True),
+                         data_root=tmp_path / "data")
+    pre.load()
+    pre.close()
+
+    mcp = FastMCP("test-wiring")
+    reg = wire_plugins(mcp, plugins_root=root, store=store, trust_resolver=None)
+    assert reg is not None
+    tools = reg.tools()
+    assert tools and tools[0]["name"] == "add"
+    assert tools[0]["call"](a=2, b=3) == 5
+    # registry прикреплён к mcp (subprocess'ы живут весь срок сервера)
+    assert getattr(mcp, "_plugin_registry", None) is reg
+    reg.close()
+
+
+def test_wire_plugins_untrusted_skipped(tmp_path):
+    from mcp.server.fastmcp import FastMCP
+
+    from src.plugins import PluginTrustStore, wire_plugins
+
+    root = _make_plugin_root(tmp_path)
+    store = PluginTrustStore(tmp_path / "data2" / "plugins" / "trust.json")
+    # нет pre-trust → default-deny → wire_plugins возвращает None (fail-safe skip)
+    assert wire_plugins(FastMCP("x"), plugins_root=root, store=store, trust_resolver=None) is None
