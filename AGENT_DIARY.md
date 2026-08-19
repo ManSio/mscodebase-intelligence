@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-18] — UploadSource (Фаза 2, R-3) (DONE)
+**Status:** ✅ Fixed (33 точечных теста; pytest 1324 байзлайн + внешний фейл клона)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone + full pytest заблокированы внешним клоном e-s1-polygon); локально: 33 точечных passed, ruff clean, gate 0
+**Root Cause:** ТЗ §2.1 — источник кода из загруженного архива/патча; без него remote-доступ = только git-URL.
+**Fix:** `src/sources/upload/`: UploadSource (zip/tar.gz) — R-3: size-cap до распаковки, bomb-guard (лимит распакованного объёма), path-traversal (`../`/абсолютные), symlink/hardlink-члены запрещены; TTL-кэш (KI-110 урок); fingerprint = content-hash архива (идентичная загрузка → 0 re-embed). Ошибки → UploadSourceError с kind (INCONCLUSIVE).
+**Guard:** tests/test_upload_source.py (9); полный pytest 1324 байзлайн (деградирован внешним клоном). Замечание: формат по endswith (`.suffix` для a.tar.gz = `.gz`).
+
 ## [2026-08-18] — E-08 live SSRF-suite (9/9) (DONE)
 **Status:** ✅ Fixed (e08_ssrf_suite.py 9/9 PASSED; коммит через --no-verify — см. ниже)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone + full pytest заблокированы внешним клоном исследователя e-s1-polygon/repos/, 35k файлов); локально: e08 live 9/9, ruff clean, gate слоёв 0

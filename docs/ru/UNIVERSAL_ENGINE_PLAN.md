@@ -367,8 +367,9 @@ MCP-server-расширений в его пользу).
   файла — graceful embed-деградация). MCP-тул-обвязка ✅ (index_git_url через
   DI-фабрику; hub: index(action=git_url), codebase(action=index, sub=git_url);
   INCONCLUSIVE-обработка; read-only). E-08 ✅ ВЫПОЛНЕНО (9/9 live SSRF: scheme/domain/
-  creds/port/DNS localhost→loopback отклонён, happy-path github.com ок). UploadSource,
-  DNS-rebinding-пиннинг (Фаза 2.5).
+  creds/port/DNS localhost→loopback отклонён, happy-path github.com ок). UploadSource
+  ✅ (src/sources/upload/: zip/tar.gz, R-3 path-traversal+symlink+bomb guards,
+  TTL-кэш, content-hash fingerprint; 9 тестов). DNS-rebinding-пиннинг (Фаза 2.5).
 
 **Фаза 2.5 — приватные репо** (рекомендация 1: после ~2 недель чистоты
 публичного пути): SSH-ключи/токены только в OS keychain или `.env` (никогда в
