@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-18] — MCP-тул index_git_url (Фаза 2 обвязка) (DONE)
+**Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено e4bc051f на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1324 passed, ruff clean, gate 0; live-изменение требует перезагрузки Zed (тул работает из расширения, не из этого дерева)
+**Root Cause:** движок умел индексировать по URL на уровне source (GitUrlSource, E-03 4/4), но не был доступен через тул-слой.
+**Fix:** тул `IndexGitUrlTool` (indexing_tools.py): URL → DI-фабрика GitUrlSourceFactoryKey (composition root владеет src.sources — гейт слоёв запрещает mcp/tools импорт source) → resolve → индекс клона; ошибки → INCONCLUSIVE [kind]; read-only (write в remote запрещён). Маршруты: index(action=git_url) (meta_tools) + codebase(action=index, sub=git_url) (codebase_tool).
+**Guard:** tests/test_index_git_url_tool.py (3: usage, bad→INCONCLUSIVE, happy); гейт слоёв (source-leak для этого пути закрыт через DI-фабрику); полный pytest 1324 passed.
+
 ## [2026-08-18] — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
 **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: E-03 live (реальный embed 8080) 4/4, pytest 1320+, ruff clean, gate 0

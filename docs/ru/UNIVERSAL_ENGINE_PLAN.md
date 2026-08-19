@@ -364,8 +364,10 @@ MCP-server-расширений в его пользу).
   httpx 1812 / flask 1605 / rich 2808 чанков; fingerprint 89-123ms; cache-hit
   ~200-400ms; несуществующий URL → INCONCLUSIVE; **находка**: Windows rename-lock
   на свежих клонах → clone-in-place + атомарность через манифест; rich: 3 длинных
-  файла — graceful embed-деградация). E-08 (live SSRF-сьют), MCP-тул-обвязка
-  (index_project_dir по URL), UploadSource, DNS-rebinding-пиннинг (Фаза 2.5).
+  файла — graceful embed-деградация). MCP-тул-обвязка ✅ (index_git_url через
+  DI-фабрику; hub: index(action=git_url), codebase(action=index, sub=git_url);
+  INCONCLUSIVE-обработка; read-only). E-08 (live SSRF-сьют), UploadSource,
+  DNS-rebinding-пиннинг (Фаза 2.5).
 
 **Фаза 2.5 — приватные репо** (рекомендация 1: после ~2 недель чистоты
 публичного пути): SSH-ключи/токены только в OS keychain или `.env` (никогда в

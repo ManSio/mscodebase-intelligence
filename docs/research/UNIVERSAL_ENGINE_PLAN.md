@@ -352,8 +352,10 @@ trust-gate works, drift re-prompts, version mismatch refuses to load).
   httpx 1812 / flask 1605 / rich 2808 chunks; fingerprint 89-123ms; cache-hit
   ~200-400ms; nonexistent URL → INCONCLUSIVE; **finding**: Windows rename-lock
   on fresh clones → clone-in-place + manifest-atomicity; rich: 3 long files
-  graceful embed-degradation). E-08 (live SSRF suite), MCP-tool wiring
-  (index_project_dir by URL), UploadSource, DNS-rebinding pinning (Фаза 2.5).
+  graceful embed-degradation). MCP-tool wiring ✅ (index_git_url via DI factory,
+  hub routes: index(action=git_url), codebase(action=index, sub=git_url);
+  INCONCLUSIVE handling; read-only). E-08 (live SSRF suite), UploadSource,
+  DNS-rebinding pinning (Фаза 2.5).
 
 **Фаза 2.5 — private repos** (ТЗ rec. 1: after public path has ~2 weeks clean):
 SSH keys/tokens stored only in OS keychain or `.env` (never in URL/disk cache),

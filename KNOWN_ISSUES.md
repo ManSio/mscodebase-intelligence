@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-18 — MCP-тул index_git_url (Фаза 2 MCP-обвязка) (DONE)
+
+**Что:** Фаза 2 — «дали URL → получили индекс» через тул-слой. `IndexGitUrlTool` (src/mcp/tools/indexing_tools.py): URL → `GitUrlSourceFactoryKey` из DI (composition root `di_container` создаёт GitUrlSource; гейт слоёв запрещает mcp/tools импортировать src.sources — поэтому фабрика) → resolve → индекс клона; сбой источника → INCONCLUSIVE [kind], не crash (ТЗ §6.5); read-only (write в remote-репо запрещён, рекомендация 3). Маршруты: `index(action="git_url")` (meta_tools.py) + `codebase(action="index", sub="git_url")` (codebase_tool.py).
+**Тесты:** tests/test_index_git_url_tool.py (3: usage, bad→INCONCLUSIVE, happy path через реальный ServiceCollection+фабрику); полный pytest 1324 passed / 10 skipped; ruff clean; гейт 0 нарушений. | **Статус:** 🟢 внесено + проверено, закоммичено e4bc051f (ветка feat/universal-engine, push по команде); live требует перезагрузки Zed | **Владелец:** misha.
+
 ## 2026-08-18 — E-03 clone→index live + clone-in-place fix (Windows rename-lock) (DONE)
 
 **Что:** E-03 (DoD Фазы 2) — реальный clone→index на репозиториях с живым embedder (llama.cpp 8080): httpx 100 файлов/1812 чанков (137.8s), flask 139/1605 (100.6s), rich 275/2808 (181.3s); clone 1.6-3.2s; fingerprint git-tree 89-123ms (skip → 0 re-embed); cache-hit 200-422ms; несуществующий URL → INCONCLUSIVE:clone_failed (не crash). Находка: `rename` свежих клонов на Windows падает WinError 32/5 (Defender/Search Indexer держат handle) — фикс: клон напрямую в target, атомарность через манифест (put() после post-clone-проверок), orphan-чистка при следующем resolve. rich: 3 длинных файла (CHANGELOG.md/README.fr/hi) — graceful embed-деградация (исключения не роняют пайплайн).
