@@ -413,6 +413,8 @@ Deep-dives into specific technical findings from building this project:
 | `MSCODEBASE_MCP_TOOLS` | *(default set)* | Comma-separated list of visible tools (e.g. `search_code,codebase`) |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Enable `execute_script` tool (RCE risk) |
 | `LLAMA_BACKEND` | `auto` | Reranker backend: `auto` / `msvc` (CPU) / `vulkan` (GPU) |
+| `MSCODEBASE_REMOTE_TOKEN` | *(empty)* | Bearer token for remote mode (`src/remote_main.py`, Streamable HTTP). Empty = auth disabled |
+| `MSCODEBASE_REMOTE_RATE_LIMIT_RPS` | `30.0` | Remote gate rate limit (requests/sec per key: per-token + per-IP). `0` = disabled |
 
 > `EMBEDDING_MODEL` (ранее в таблице) — больше не используется: модель определяется автоматически (llama.cpp GGUF, fallback ONNX e5-small INT8).
 
