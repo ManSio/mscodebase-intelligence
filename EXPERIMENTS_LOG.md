@@ -1,5 +1,19 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-19] — E-09: upload-bomb защита GitUrlSource (Фаза 2 / ТЗ §4 DoS)
+
+**Гипотеза:** post-clone лимиты GitUrlSource (`_post_clone_checks`) отклоняют оба DoS-вектора upload-bomb — размер и число файлов — машинным kind (→ INCONCLUSIVE), а не крашатся; OK-путь в лимитах чист; редирект-подмена origin блокируется. **Команда:** `python experiments/universal-engine/e09_upload_bombs.py` (локальные деревья без сети, пониженные лимиты).
+**Сырой результат:**
+```
+too_large:    PASS (kind=too_large)
+too_many:     PASS (kind=too_many_files)
+ok-path:      PASS (не бросает)
+redirect:     PASS (domain_not_allowed)
+E-09: 4 cases — 4 PASSED, 0 FAILED → SMOKE E-09: PASSED
+```
+**Вердикт:** подтверждена — upload-bomb gate корректен; Фаза 2 (GitUrlSource) полностью закрыта.
+**Урок:** post-clone лимиты = вторая линия обороны (после SSRF-пред-проверок в `_parse_url`/`_resolve_and_check_ips`); дешёвые локальные деревья достаточно для проверки механики (500MB-клоны не нужны). Связь: ТЗ §4 «ограничение размера/объёма при клонировании».
+
 ## [2026-08-19] — E-05: ActionReceipt `reproducible_by` на реальных действиях (ТЗ §11.5 этап 3 / §12.3)
 
 **Гипотеза (§12.3):** `reproducible_by` воспроизводится 1:1? Или, как с temporal-git-provenance, «очевидно полезное» поле на практике не работает как задумано. **Команда:** `python experiments/universal-engine/e05_action_receipt.py` (реальные действия в чистом temp: file_write с реальными SHA-256, git_commit в чистом репо, git_push status, index_sync). Для каждого: build_receipt → store.record → store.get → выполнить reproducible_by → сравнить вердикт.
