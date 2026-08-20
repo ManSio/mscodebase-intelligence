@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-08-19 — E-09: upload-bomb gate GitUrlSource 4/4 (Фаза 2 закрыта) (DONE)
+
+**Что:** Проверка post-clone лимитов `GitUrlSource._post_clone_checks` (ТЗ §4 DoS/upload bombs): `too_large` (размер), `too_many_files` (число), OK-путь, redirect-check (origin вне allowlist → domain_not_allowed). Локальные изолированные деревья, пониженные лимиты.
+**Тесты/результат:** E-09 4/4 PASSED (e09_upload_bombs.py + E09_RESULTS.md); EXPERIMENTS_LOG обновлён; README experiments обновлён. | **Статус:** 🟢 внесено + проверено, НЕ закоммичено | **Владелец:** misha.
+
 ## 2026-08-19 — E-05: ActionReceipt reproducible_by 4/4 (workdir-фикс) + чужой LSP DRAFT ломает lsp_tools (OPEN)
 
 **Что (E-05):** гейт §11/§12.3 — reproduce `reproducible_by` на реальных действиях (file_write/git_commit/git_push/index_sync) в чистом temp. Первый прогон 2/4 (git_commit/git_push REFUTED vs repro VERIFIED): **root cause** — verify_git_commit/push хардкодили cwd процесса, reproducible_by выполнялся в другом cwd → mismatch вердиктов (ровно опасение §12.3). Фикс: `execution_contract.verify_git_commit(.., cwd)`/`verify_git_push(cwd)` (backward-compatible, default None); `action_receipt.reproducible_command(.., workdir)` кодирует `git -C <dir>`; `ActionReceipt.workdir`; `build_receipt(.., workdir)`; `verify_action` резолвит project_root. Повторный прогон **4/4 PASSED**. Receipt стал самодостаточным (несет workdir).
