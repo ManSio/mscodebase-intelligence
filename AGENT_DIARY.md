@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-19] — Координационный инцидент: commit без pathspec утащил staged-правки парал-агента (RESOLVED)
+**Status:** 🔴 Fixed (зафиксировано; история не переписывалась)
+**verified_from_clean_state:** ⚠️ не проверено — git-операции с локальной историей; воспроизводимо через `git --no-pager log --oneline -1` (HEAD=2d9e8820) + `git show --stat HEAD`.
+**Root Cause:** в index были застейжены файлы параллельного агента (src/core/doc_generator.py, src/core/indexing/parser.py, tests/fixtures/sample_module.py, tests/test_doc_generator.py, tests/test_parser.py); мой `git commit` без pathspec закоммитил ВЕСЬ index, включив их в docs-коммит 2d9e8820. Аналог прецедента 2026-08-08 «git commit без pathspec украл staged-правку».
+**Fix:** файлы агента СОХРАНЕНЫ (не потеряны), тесты зелёные (pytest 1423, включая их 8). История не переписана (уже запушена) — парал-агент продолжит с этого состояния.
+**Guard:** в мультиагентном дереве коммитить ТОЛЬКО с pathspec `git commit -- <paths>`; перед коммитом проверять `git status --short` (staged) на чужие файлы.
+
 ## [2026-08-19] — B-1: фаза 1 полная + фаза 2 stdlib lockfile'ы (DONE)
 **Status:** ✅ Fixed (src/sources/manifest/ 8 экосистем + 8 lockfile-экстракторов; pytest 1423; ruff clean на моих файлах; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1423, ruff clean, gate zero, layer 0 нарушений.
