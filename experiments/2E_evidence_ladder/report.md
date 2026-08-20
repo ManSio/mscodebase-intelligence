@@ -151,6 +151,9 @@ graph_contexts/temporal_contexts сгенерированы один раз; п�
 
 ## 5. ⚠️ СКОРРЕКТИРОВАННАЯ МАТРИЦА (Red Team: corrected labels)
 
+**Машинный flip-линк версий:** `experiments/1V_memory_contamination/flip_ledger_REDTEAM_2026-08-16.json`
+(таблица fact → from → to → evidence с file:line; связывает fp `820bbbf60a0fc930` → `e6ce7b902d0a20a9`).
+
 **Лейблы:** R43/R45/R46/R47 → truth=true (value импортирован+использован у субъекта); R44 → excluded (ambiguous); R42 → false (без изменений).
 **Пул:** TRUE = 29 (25 real + 4 trap-true), FALSE = 20 (16 absent + 3 silent + R42), AMBIG = 1.
 
