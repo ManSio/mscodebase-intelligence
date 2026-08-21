@@ -54,6 +54,16 @@ class IndexerFactoryKey:
     pass
 
 
+class GitUrlSourceFactoryKey:
+    """Sentinel-ключ для фабрики WorkspaceSource по git-URL (Фаза 2 Universal Engine).
+
+    Composition root (этот файл) владеет конкретикой (src.sources.git_url),
+    потребители (тулы/indexer) получают абстракцию через DI — гейт слоёв
+    запрещает mcp/tools импортировать src.sources напрямую."""
+
+    pass
+
+
 # Экспортируем для потребителей.
 __all__ = [
     "ServiceCollection",
@@ -315,6 +325,17 @@ def create_service_collection(
         return p_indexer
 
     services.add_singleton(IndexerFactoryKey, _create_indexer_for_path)
+
+    # Фаза 2: фабрика WorkspaceSource по git-URL (composition root владеет
+    # конкретикой; тулы получают через DI, гейт слоёв запрещает src.sources в mcp/tools).
+
+    def _create_git_url_source(url: str):
+        from src.core.artifact_paths import get_repos_cache_dir
+        from src.sources.git_url import GitUrlSource
+
+        return GitUrlSource(url, get_repos_cache_dir())
+
+    services.add_singleton(GitUrlSourceFactoryKey, _create_git_url_source)
 
     # ══════════════════════════════════════════════════════
     # Rate Limiting компоненты (защита от перегрузки)

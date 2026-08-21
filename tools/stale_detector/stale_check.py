@@ -199,14 +199,34 @@ def scan_doc(doc_path: Path, project_root: Path, actual_version: str,
 
 
 def run(project_root: Path, config: StaleConfig) -> list[DocReport]:
-    """Scan all docs and return reports."""
+    """Scan all docs and return reports.
+
+    os.walk с прунингом (не rglob): не заходим в skip-каталоги и во ВЛОЖЕННЫЕ
+    git-репозитории (каталог с собственным .git = клон/чек-аут — их доки не
+    версии ПРОЕКТА; инцедент 2026-08-18: e-s1-polygon/repos/uv changelogs).
+    """
+    import os as _os
+
     actual_version = get_actual_version(project_root)
     results = []
 
-    for md_file in sorted(project_root.rglob("*.md")):
-        report = scan_doc(md_file, project_root, actual_version, config)
-        if report:
-            results.append(report)
+    for root, dirs, files in _os.walk(project_root):
+        keep = []
+        for d in dirs:
+            if d in config.exclude_dirs:
+                continue
+            if (Path(root) / d / ".git").exists():
+                continue  # независимый git-репо (клон/чек-аут)
+            keep.append(d)
+        dirs[:] = keep
+
+        for fname in files:
+            if not fname.endswith(".md"):
+                continue
+            md_file = Path(root) / fname
+            report = scan_doc(md_file, project_root, actual_version, config)
+            if report:
+                results.append(report)
 
     return results
 

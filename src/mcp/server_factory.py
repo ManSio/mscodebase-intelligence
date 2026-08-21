@@ -253,10 +253,25 @@ def create_mcp_server():
     _register_notification_broker(mcp, services)
     _register_extension_handlers(mcp, services)
     start_heartbeat_monitor(mcp)
+    _wire_plugins(mcp)  # opt-in (MSCODEBASE_PLUGINS_DIR); fail-safe, no-op без env
     # Auto-index НЕ вызываем здесь — event loop ещё не запущен.
     # Вызов будет в run_server() после asyncio.run().
 
     return mcp
+
+
+def _wire_plugins(mcp):
+    """Opt-in подключение plugin-тулов (Фаза 4).
+
+    No-op без MSCODEBASE_PLUGINS_DIR; любой сбой плагина (в т.ч. import) НЕ
+    роняет сервер — warning и продолжаем с core-тулами.
+    """
+    try:
+        from src.plugins.server import wire_plugins
+
+        wire_plugins(mcp)
+    except Exception as e:  # noqa: BLE001 — плагины никогда не должны валить сервер
+        logger.warning(f"plugins wiring skipped: {type(e).__name__}: {e}")
 
 
 # ══════════════════════════════════════════════════════════

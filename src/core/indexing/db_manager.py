@@ -27,7 +27,7 @@ import pyarrow as pa
 
 from src.core.indexing.database_lock import DatabaseLock
 from src.core.indexing.index_guard import IndexGuard
-from src.utils.paths import to_win_long_path
+from src.sources.local_fs.windows import to_win_long_path
 
 __all__ = [
     "LanceDBManager",

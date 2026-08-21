@@ -1,0 +1,30 @@
+# MSCodeBase remote — compose (Фаза 3 шаг 5, Вариант A).
+#
+# Один сервис: Streamable HTTP MCP-сервер. Артефакты/модели — том mcp-data.
+# Полный мульти-контейнер с llama-server (embedder/reranker, Вариант C) — follow-up.
+#
+# Перед запуском: скопировать .env.example -> .env и задать MSCODEBASE_REMOTE_TOKEN
+# (обязателен для remote; без него access-gate выключен — небезопасно в сети).
+#   docker compose -f deploy/docker/docker-compose.yml up -d
+
+services:
+  mcp:
+    build:
+      context: ../..        # корень репо (там .dockerignore)
+      dockerfile: deploy/docker/Dockerfile
+    image: mscodebase-remote:local
+    container_name: mscodebase-remote
+    ports:
+      - "8089:8089"
+    env_file:
+      - .env
+    environment:
+      MSCODEBASE_DATA_DIR: /data
+      MSCODEBASE_REMOTE_RATE_LIMIT_RPS: "${MSCODEBASE_REMOTE_RATE_LIMIT_RPS:-30.0}"
+    volumes:
+      - mcp-data:/data
+    restart: unless-stopped
+    # HEALTHCHECK наследуется из Dockerfile (python urllib на /healthz), не дублируем.
+
+volumes:
+  mcp-data:

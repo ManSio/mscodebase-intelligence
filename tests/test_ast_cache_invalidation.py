@@ -163,7 +163,7 @@ class TestASTCacheInvalidation:
         from src.core.graph import PropertyGraph
         from src.core.indexing.index_parser import IndexParser
         from src.core.search.graph_adapter import SymbolIndexAdapter
-        from src.utils.paths import SafePathManager
+        from src.sources.local_fs.windows import SafePathManager
 
         db_path = tmp_producer.parent / "test_graph.db"
         pg = PropertyGraph(db_path)
