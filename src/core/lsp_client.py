@@ -1,149 +1,403 @@
-"""
-Thin LSP client: spawns pyright-langserver as subprocess,
-JSON-RPC 2.0 over stdin/stdout. Lazy-start, auto-restart.
-Falls back to SymbolIndex when LSP unavailable.
-"""
+"""MSCodeBase LSP client — thin capability-aware engine + production async facade.
 
+Two layers in one module:
+
+1. ``_LspEngine`` — the thin, self-contained transport core (port of the
+   experiment harness in ``experiments/lsp/thin_client.py``, live-validated
+   2026-08-19 against basedpyright 1.39.10: call hierarchy + semantic tokens).
+   It is *synchronous*: owns the subprocess, a reader thread and a queue, and
+   speaks real ``Content-Length`` framed JSON-RPC. It is capability-agnostic
+   and deliberately has no product logic.
+
+2. ``LspClient`` — the production async facade. It is the drop-in for the
+   legacy client used by ``write_tools`` (preflight validation, rename with
+   LSP fallback) and ``lsp_tools`` (find def/refs, symbols, code actions,
+   diagnostics, hover, type info). It wraps every engine call in a single
+   ``asyncio.Lock`` + ``asyncio.to_thread`` so the blocking engine never
+   blocks the event loop and requests never interleave (id-correlation is
+   safe because only one request is in flight at a time).
+
+The facade reconstructs the observable API of the legacy client exactly:
+constructor ``LspClient(project_root=..., language=...)``, async document
+methods, ``_process`` attribute, module-level ``create_lsp_client`` and the
+staticmethod URI helpers required by ``tests/test_lsp_uri_conversion.py`` and
+``tests/test_lsp_tools.py``.
+"""
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
+from urllib.parse import unquote, urlparse
 
-logger = logging.getLogger("mscodebase_server.lsp_client")
+logger = logging.getLogger(__name__)
+
+
+def _server_bin(name: str) -> str:
+    """Resolve a language-server executable next to the running interpreter."""
+    here = os.path.dirname(sys.executable) if sys.executable else "."
+    for candidate in (name, name + ".exe"):
+        path = os.path.join(here, candidate)
+        if os.path.exists(path):
+            return path
+    return shutil.which(name) or name
+
+
+@dataclass
+class ServerSpec:
+    """How to launch a particular language server."""
+
+    language: str
+    argv: list[str]
+    # pyright-fork style indexing notifications (empty if unknown / none)
+    index_begin: tuple[str, ...] = ()
+    index_end: tuple[str, ...] = ()
+
+
+DEFAULT_SERVERS: dict[str, ServerSpec] = {
+    "python": ServerSpec("python", [_server_bin("basedpyright-langserver"), "--stdio"]),
+}
+
+
+def _default_client_caps() -> dict[str, Any]:
+    token_types = [
+        "namespace", "type", "class", "enum", "interface", "struct", "typeParameter",
+        "parameter", "variable", "property", "enumMember", "event", "function",
+        "method", "macro", "keyword", "modifier", "comment", "string", "number",
+        "regexp", "operator", "decorator",
+    ]
+    token_modifiers = [
+        "declaration", "definition", "readonly", "static", "deprecated", "abstract",
+        "async", "modification", "documentation", "defaultLibrary",
+    ]
+    return {
+        "textDocument": {
+            "callHierarchy": {"dynamicRegistration": True},
+            "typeHierarchy": {"dynamicRegistration": True},
+            "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+            "semanticTokens": {
+                "requests": {"range": True, "full": {"delta": True}},
+                "tokenTypes": token_types,
+                "tokenModifiers": token_modifiers,
+                "formats": ["relative"],
+            },
+        },
+        "window": {"workDoneProgress": True},
+    }
+
+
+def send_msg(proc: subprocess.Popen[bytes], msg: dict[str, Any]) -> None:
+    body = json.dumps(msg).encode("utf-8")
+    proc.stdin.write(b"Content-Length: %d\r\n\r\n" % len(body))
+    proc.stdin.write(body)
+    proc.stdin.flush()
+
+
+class _LspEngine:
+    """Synchronous, capability-probing stdio LSP transport (experiment core).
+
+    One reader thread owns stdout; callers own stdin. Requests are matched by
+    id. ``textDocument/publishDiagnostics`` notifications are captured into
+    ``self.diagnostics`` (canonical uri -> list) regardless of pending requests,
+    so the async facade can wait for fresh diagnostics.
+    """
+
+    def __init__(self, language: str, specs: dict[str, ServerSpec] | None = None) -> None:
+        spec = (specs or DEFAULT_SERVERS).get(language)
+        if spec is None:
+            raise ValueError(f"no server spec for language={language!r}")
+        self.language = language
+        self.spec = spec
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._queue: queue.Queue[dict[str, object]] = queue.Queue()
+        self._stop = threading.Event()
+        self._reader: threading.Thread | None = None
+        self._next_id = 1
+        self._notifications: list[dict[str, Any]] = []
+        self.diagnostics: dict[str, list[Any]] = {}
+        self.capabilities: dict[str, Any] = {}
+        self.server_info: dict[str, Any] = {}
+
+    def start(
+        self,
+        root_uri: str,
+        root_path: str | None = None,
+        caps: dict[str, Any] | None = None,
+        timeout: float = 40.0,
+    ) -> dict[str, Any]:
+        """Spawn the server, negotiate ``initialize``, return server capabilities."""
+        if self._proc is not None:
+            raise RuntimeError("client already started")
+        create_no_window = 0x08000000 if os.name == "nt" else 0
+        self._proc = subprocess.Popen(
+            self.spec.argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=create_no_window,
+            cwd=root_path,
+        )
+        self._stop.clear()
+        self._reader = threading.Thread(target=self._read_loop, daemon=True)
+        self._reader.start()
+
+        params: dict[str, Any] = {
+            "processId": os.getpid(),
+            "rootUri": root_uri,
+            "capabilities": caps if caps is not None else _default_client_caps(),
+        }
+        result = self._request("initialize", params, timeout=timeout)
+        assert isinstance(result, dict)
+        self.capabilities = result.get("capabilities", {})
+        self.server_info = result.get("serverInfo", {})
+        self._notify({"method": "initialized", "params": {}})
+        return self.capabilities
+
+    def stop(self) -> None:
+        if self._proc is None:
+            return
+        try:
+            self._request("shutdown", {}, timeout=5)
+            self._notify({"method": "exit", "params": {}})
+        finally:
+            self._stop.set()
+            try:
+                self._proc.wait(timeout=5)
+            except Exception:
+                self._proc.kill()
+            self._proc = None
+
+    def __enter__(self) -> "_LspEngine":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.stop()
+
+    # -- document sync ------------------------------------------------------
+    def open_document(self, uri: str, language_id: str, text: str, version: int = 1) -> None:
+        self._notify({
+            "method": "textDocument/didOpen",
+            "params": {"textDocument": {
+                "uri": uri, "languageId": language_id, "version": version, "text": text}},
+        })
+
+    # -- graph reads (capability-routed) ------------------------------------
+    def call_hierarchy(self, uri: str, line: int, character: int) -> tuple[list[Any], list[Any]]:
+        """Return (incoming, outgoing) call-hierarchy results for a position."""
+        prepared = self._request("textDocument/prepareCallHierarchy", {
+            "textDocument": {"uri": uri}, "position": {"line": line, "character": character},
+        }) or []
+        assert isinstance(prepared, list)
+        outgoing: list[Any] = []
+        incoming: list[Any] = []
+        for item in prepared:
+            outgoing.extend(self._request("callHierarchy/outgoingCalls", {"item": item}) or [])
+            incoming.extend(self._request("callHierarchy/incomingCalls", {"item": item}) or [])
+        return incoming, outgoing
+
+    def semantic_tokens(self, uri: str) -> dict[str, Any] | None:
+        result = self._request("textDocument/semanticTokens/full", {"textDocument": {"uri": uri}})
+        return result if isinstance(result, dict) else None
+
+    def type_hierarchy(self, uri: str, line: int, character: int) -> dict[str, Any]:
+        prepared = self._request("textDocument/prepareTypeHierarchy", {
+            "textDocument": {"uri": uri}, "position": {"line": line, "character": character},
+        }) or []
+        item = prepared[0] if prepared else {}
+        return {
+            "supertypes": self._request("typeHierarchy/supertypes", {"item": item}),
+            "subtypes": self._request("typeHierarchy/subtypes", {"item": item}),
+        }
+
+    def moniker(self, uri: str, line: int, character: int) -> list[Any]:
+        return self._request("textDocument/moniker", {
+            "textDocument": {"uri": uri}, "position": {"line": line, "character": character},
+        }) or []
+
+    # -- internals ----------------------------------------------------------
+    def _notify(self, msg: dict[str, Any]) -> None:
+        if self._proc is None:
+            raise RuntimeError("client not started")
+        send_msg(self._proc, msg)
+
+    def _request(self, method: str, params: dict[str, Any] | None = None, timeout: float = 30.0) -> Any:
+        mid = self._next_id
+        self._next_id += 1
+        if self._proc is None:
+            raise RuntimeError("client not started")
+        send_msg(self._proc, {"jsonrpc": "2.0", "id": mid, "method": method, "params": params or {}})
+        while True:
+            msg = self._queue.get(timeout=timeout)
+            if msg.get("method"):
+                self._notifications.append(msg)
+                continue
+            if msg.get("id") == mid:
+                if "error" in msg:
+                    raise RuntimeError(f"{method} -> {msg['error']}")
+                return msg.get("result")
+            # a different id — ignore and keep reading
+
+    def _read_loop(self) -> None:
+        proc = self._proc
+        if proc is None:
+            return
+        while not self._stop.is_set():
+            try:
+                headers: dict[bytes, bytes] = {}
+                while True:
+                    line = proc.stdout.readline()
+                    if not line:
+                        return
+                    if line in (b"\r\n", b"\n"):
+                        break
+                    if b":" in line:
+                        key, _, val = line.partition(b":")
+                        headers[key.strip().lower()] = val.strip()
+                if b"content-length" not in headers:
+                    continue
+                body = proc.stdout.read(int(headers[b"content-length"])).decode("utf-8")
+                msg = json.loads(body)
+                self._capture_diagnostics(msg)
+                self._queue.put(msg)
+            except Exception as exc:  # noqa: BLE001 - reader must not die silently
+                self._queue.put({"__reader_error__": str(exc)})
+                return
+
+    def _capture_diagnostics(self, msg: dict[str, Any]) -> None:
+        """Persist publishDiagnostics notifications for the async facade."""
+        try:
+            if msg.get("method") == "textDocument/publishDiagnostics":
+                params = msg.get("params") or {}
+                uri = str(params.get("uri", ""))
+                # LspClient resolved at runtime — module fully loaded by then.
+                self.diagnostics[LspClient._normalize_diag_uri(uri)] = list(
+                    params.get("diagnostics") or []
+                )
+        except Exception:  # noqa: BLE001 - capture must never kill the reader
+            pass
 
 
 class LspClient:
-    """Thin LSP client for language servers via stdio JSON-RPC 2.0.
+    """Production async facade over ``_LspEngine``.
 
-    Starts the language server as a subprocess on demand (lazy).
-    Auto-restarts on crash up to MAX_RETRIES attempts.
+    Drop-in for the legacy client consumed by ``write_tools`` and ``lsp_tools``.
+    All engine access is serialized through a single lock and offloaded to a
+    thread so the synchronous engine never blocks the event loop and requests
+    never interleave.
     """
 
-    START_TIMEOUT = float(os.getenv("LSP_START_TIMEOUT", "10.0"))
     MAX_RETRIES = 3
-    REQUEST_TIMEOUT = float(os.getenv("LSP_REQUEST_TIMEOUT", "5.0"))
-    BUFFER_SIZE = 65536
+    START_TIMEOUT = 40.0
 
     def __init__(self, project_root: Path, language: str = "python"):
-        self.project_root = project_root
+        self.project_root = Path(project_root)
         self.language = language
-        self._process: Optional[asyncio.subprocess.Process] = None
-        self._request_id = 1
-        self._pending: Dict[int, asyncio.Future] = {}
-        self._write_lock = asyncio.Lock()  # сериализация фреймов stdin (параллельные вызовы тулов)
-        self._reader_task: Optional[asyncio.Task] = None
-        self._stderr_task: Optional[asyncio.Task] = None
-        self._start_lock = asyncio.Lock()
+        self._engine: Optional[_LspEngine] = None
+        self._process: Optional[subprocess.Popen] = None
         self._started = False
-        self._retries = 0
-        self._capabilities: Dict[str, Any] = {}
-        self._open_files: Set[str] = set()
         self._stopped = False
-        # uri → последний publishDiagnostics (обновляется из _read_loop)
-        self._diagnostics: Dict[str, List[Dict[str, Any]]] = {}
-        # abs_path → version документа (для didChange)
-        self._doc_versions: Dict[str, int] = {}
-        # per-uri lock для preflight_content (сериализация didChange→wait→revert)
-        self._preflight_locks: Dict[str, asyncio.Lock] = {}
+        self._open_files: set[str] = set()
+        self._doc_versions: dict[str, int] = {}
+        self._retries = 0
+        self._start_lock = asyncio.Lock()
+        self._op_lock = asyncio.Lock()
 
-    # ── Public API ────────────────────────────────────────────────────────
-
+    # ── lifecycle ─────────────────────────────────────────────────────────
     async def start(self) -> bool:
-        """Start the language server subprocess. Returns True if ready."""
-        server_cmd = self._find_server()
-        if server_cmd is None:
-            logger.warning("LSP server not found for language=%s", self.language)
-            return False
-        logger.info("Starting LSP: %s", server_cmd)
+        if self._started:
+            return True
+        if self._engine is None:
+            try:
+                self._engine = _LspEngine(self.language)
+            except ValueError as exc:
+                logger.warning("LSP: %s", exc)
+                return False
         try:
-            self._process = await asyncio.create_subprocess_exec(
-                server_cmd,
-                "--stdio",
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            root_uri = self._path_to_uri(str(self.project_root))
+            await asyncio.to_thread(
+                self._engine.start, root_uri, str(self.project_root), None, self.START_TIMEOUT
             )
-        except (FileNotFoundError, PermissionError) as exc:
-            logger.error("Failed to start LSP '%s': %s", server_cmd, exc)
-            return False
-        self._reader_task = asyncio.create_task(self._read_loop())
-        self._stderr_task = asyncio.create_task(self._stderr_consumer())
-        try:
-            result = await asyncio.wait_for(self._initialize(), timeout=self.START_TIMEOUT)
-            self._capabilities = result.get("capabilities", {})
+            self._process = self._engine._proc
             self._started = True
             self._retries = 0
-            logger.info("LSP ready (pid=%d)", self._process.pid)
+            logger.info("LSP ready (pid=%s)", getattr(self._process, "pid", "?"))
             return True
-        except asyncio.TimeoutError:
-            logger.error("LSP start timed out (%.1fs)", self.START_TIMEOUT)
-            await self.stop()
-            return False
-        except Exception as exc:
-            logger.error("LSP init failed: %s", exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("LSP start failed: %s", exc)
             await self.stop()
             return False
 
-    async def stop(self):
-        """Shut down the language server."""
+    async def stop(self) -> None:
         self._stopped = True
-        if self._process is not None and self._process.returncode is None:
-            try:
-                await self._send_request("shutdown", {})
-            except Exception as _e:
-                logger.warning("exception", exc_info=True)
-                pass
-            await self._send_notification("exit", {})
-        for task in (self._reader_task, self._stderr_task):
-            if task is not None:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-        self._reader_task = self._stderr_task = None
-        if self._process is not None and self._process.returncode is None:
-            try:
-                self._process.terminate()
-                await asyncio.wait_for(self._process.wait(), timeout=3.0)
-            except asyncio.TimeoutError:
-                self._process.kill()
-                await self._process.wait()
-            except ProcessLookupError:
-                pass
+        eng = self._engine
+        self._engine = None
         self._process = None
         self._started = False
         self._open_files.clear()
-        self._diagnostics.clear()
         self._doc_versions.clear()
-        for f in self._pending.values():
-            if not f.done():
-                f.set_exception(RuntimeError("LSP stopped"))
-        self._pending.clear()
+        if eng is not None:
+            try:
+                await asyncio.to_thread(eng.stop)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("LSP close failed: %s", exc)
 
     async def is_ready(self) -> bool:
-        """Non-blocking check if LSP server is started and responsive.
-
-        Returns True if the server process is running and initialized.
-        Does NOT attempt to start the server (use _ensure_started for that).
-        """
         if self._stopped:
             return False
-        if self._started and self._process is not None and self._process.returncode is None:
+        eng = self._engine
+        if (
+            self._started
+            and eng is not None
+            and eng._proc is not None
+            and eng._proc.returncode is None
+        ):
             return True
         return False
 
+    async def _ensure_started(self) -> bool:
+        """Lazy start on first request. Auto-restarts on crash."""
+        if await self.is_ready():
+            return True
+        if self._stopped:
+            return False
+        async with self._start_lock:
+            if await self.is_ready():
+                return True
+            if self._retries >= self.MAX_RETRIES:
+                logger.error("LSP max retries (%d/%d) reached", self._retries, self.MAX_RETRIES)
+                return False
+            self._retries += 1
+            return await self.start()
+
+    # ── serialized engine access ──────────────────────────────────────────
+    async def _send_request(self, method: str, params: Optional[dict] = None) -> Any:
+        eng = self._engine
+        if eng is None:
+            raise RuntimeError("client not started")
+        async with self._op_lock:
+            return await asyncio.to_thread(eng._request, method, params or {})
+
+    async def _send_notification(self, method: str, params: dict) -> None:
+        eng = self._engine
+        if eng is None:
+            raise RuntimeError("client not started")
+        async with self._op_lock:
+            await asyncio.to_thread(
+                eng._notify, {"jsonrpc": "2.0", "method": method, "params": params}
+            )
+
+    # ── document methods ──────────────────────────────────────────────────
     async def open_file(self, file_path: str) -> bool:
         """Send textDocument/didOpen. Returns True when file is tracked."""
         if not await self._ensure_started():
@@ -165,30 +419,37 @@ class LspClient:
         self._open_files.add(abs_path)
         return True
 
-    async def close_file(self, file_path: str):
+    async def close_file(self, file_path: str) -> None:
         """Send textDocument/didClose."""
         abs_path = str(Path(file_path).resolve())
         if abs_path not in self._open_files:
             return
-        if self._started and self._process is not None:
+        if self._started and self._engine is not None:
             await self._send_notification("textDocument/didClose", {
                 "textDocument": {"uri": self._path_to_uri(abs_path)},
             })
         self._open_files.discard(abs_path)
 
     async def find_definition(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
-        """textDocument/definition → list of locations."""
+        """textDocument/definition -> list of locations."""
         return await self._send_text_request("textDocument/definition", file_path, line, col)
 
     async def find_references(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
-        """textDocument/references → list of locations."""
+        """textDocument/references -> list of locations."""
         return await self._send_text_request(
             "textDocument/references", file_path, line, col,
             extra={"context": {"includeDeclaration": True}},
         )
 
-    async def rename_symbol(self, file_path: str, line: int, col: int = -1, new_name: str = "", old_name: str = "") -> Optional[Dict[str, Any]]:
-        """textDocument/rename → Optional[WorkspaceEdit].
+    async def rename_symbol(
+        self,
+        file_path: str,
+        line: int,
+        col: int = -1,
+        new_name: str = "",
+        old_name: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """textDocument/rename -> Optional[WorkspaceEdit].
 
         If col == -1, auto-detects the column by scanning the line for old_name.
         """
@@ -200,8 +461,7 @@ class LspClient:
             search_name = old_name or new_name
             col = self._find_symbol_column(file_path, line, search_name)
             if col < 0:
-                # Не используем col=0 как fallback — это переименует
-                # другой символ (первый в строке), а не целевой.
+                # col=0 as fallback would rename the wrong symbol (first on line).
                 logger.warning(
                     "rename_symbol: cannot locate '%s' on line %d — aborting",
                     search_name, line,
@@ -213,13 +473,12 @@ class LspClient:
                 "position": {"line": line, "character": col},
                 "newName": new_name,
             })
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("rename_symbol failed: %s", exc)
-            self._handle_crash()
             return None
 
     async def document_symbols(self, file_path: str) -> List[Dict[str, Any]]:
-        """textDocument/documentSymbol → list of symbols."""
+        """textDocument/documentSymbol -> list of symbols."""
         if not await self._ensure_started():
             return []
         if not await self.open_file(file_path):
@@ -229,16 +488,15 @@ class LspClient:
                 "textDocument": {"uri": self._path_to_uri(file_path)},
             })
             return result if isinstance(result, list) else []
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("document_symbols failed: %s", exc)
-            self._handle_crash()
             return []
 
     async def code_actions(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
-        """textDocument/codeAction → список быстрых правок (CodeAction).
+        """textDocument/codeAction -> список быстрых правок (CodeAction).
 
-        Read-only: pyright вычисляет quickfix'ы из собственного анализа,
-        context.diagnostics пуст — редактор не обязан передавать их.
+        Read-only: pyright computes quickfixes from its own analysis; context
+        diagnostics are left empty (the editor need not supply them).
         """
         if not await self._ensure_started():
             return []
@@ -254,15 +512,13 @@ class LspClient:
                 "context": {"diagnostics": []},
             })
             return result if isinstance(result, list) else []
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("code_actions failed: %s", exc)
-            self._handle_crash()
             return []
 
     async def hover(self, file_path: str, line: int, col: int) -> Optional[str]:
-        """textDocument/hover → human-readable string."""
+        """textDocument/hover -> human-readable string."""
         result = await self._send_text_request("textDocument/hover", file_path, line, col)
-        # _send_text_request оборачивает единичный dict (c "range") в список
         if isinstance(result, list) and result and isinstance(result[0], dict):
             return self._format_hover(result[0].get("contents"))
         if isinstance(result, dict):
@@ -272,96 +528,100 @@ class LspClient:
         return None
 
     async def get_diagnostics(self, file_path: str, wait_ms: int = 800) -> List[Dict[str, Any]]:
-        """textDocument/publishDiagnostics → список диагностик файла.
+        """textDocument/publishDiagnostics -> list of diagnostics for the file.
 
-        basedpyright публикует диагностику асинхронно после didOpen; ждём до
-        wait_ms, пока не придёт СВЕЖИЙ publish для этого файла (entry
-        сбрасывается перед запросом, чтобы не вернуть устаревшие данные).
+        basedpyright publishes diagnostics asynchronously after didOpen; wait up
+        to wait_ms for a FRESH publish. The stored entry is cleared first so we
+        never return stale data.
         """
         if not await self._ensure_started():
             return []
         abs_path = str(Path(file_path).resolve())
         uri = self._path_to_uri(abs_path)
-        self._diagnostics.pop(uri, None)
         if not await self.open_file(abs_path):
             return []
+        eng = self._engine
+        if eng is None:
+            return []
+        eng.diagnostics.pop(uri, None)
         deadline = time.monotonic() + wait_ms / 1000.0
         while time.monotonic() < deadline:
-            if uri in self._diagnostics:
-                return list(self._diagnostics.get(uri, []))
+            if uri in eng.diagnostics:
+                return list(eng.diagnostics.get(uri, []))
             await asyncio.sleep(0.05)
-        return list(self._diagnostics.get(uri, []))
+        return list(eng.diagnostics.get(uri, []))
 
-    async def preflight_content(self, file_path: str, new_content: str, wait_ms: int = 1200) -> List[Dict[str, Any]]:
-        """Проверить НОВЫЙ контент файла через LSP без записи на диск.
+    async def preflight_content(
+        self, file_path: str, new_content: str, wait_ms: int = 1200
+    ) -> List[Dict[str, Any]]:
+        """Check NEW content of a file through LSP without writing to disk.
 
-        Отправляет didChange (или didOpen для нового файла) с new_content,
-        ждёт publishDiagnostics, затем откатывает изменение (didChange к
-        содержимому с диска / didClose), чтобы не отравить состояние
-        LSP-сессии для последующих вызовов (rename и т.п.).
-
-        Возвращает список диагностик для new_content (может быть пустым).
-        При недоступности LSP / ошибке — пустой список (advisory).
+        Sends didChange (or didOpen for a new file) with new_content, waits for
+        publishDiagnostics, then rolls the change back (didChange back to disk
+        content / didClose) so the LSP session is not poisoned for later calls
+        (rename, etc.). Returns diagnostics for new_content (may be empty);
+        empty on LSP unavailable / error (advisory).
         """
         if not await self._ensure_started():
             return []
         abs_path = str(Path(file_path).resolve())
         uri = self._path_to_uri(abs_path)
-        lock = self._preflight_locks.setdefault(abs_path, asyncio.Lock())
-        async with lock:
-            was_open = abs_path in self._open_files
+        eng = self._engine
+        if eng is None:
+            return []
+        was_open = abs_path in self._open_files
+        try:
+            if not was_open:
+                await self._send_notification("textDocument/didOpen", {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": self._language_id(),
+                        "version": 1,
+                        "text": new_content,
+                    },
+                })
+                self._open_files.add(abs_path)
+                self._doc_versions[abs_path] = 1
+            else:
+                version = self._doc_versions.get(abs_path, 1) + 1
+                self._doc_versions[abs_path] = version
+                await self._send_notification("textDocument/didChange", {
+                    "textDocument": {"uri": uri, "version": version},
+                    "contentChanges": [{"text": new_content}],
+                })
+            eng.diagnostics.pop(uri, None)
+            result: List[Dict[str, Any]] = []
+            deadline = time.monotonic() + wait_ms / 1000.0
+            while time.monotonic() < deadline:
+                if uri in eng.diagnostics:
+                    result = list(eng.diagnostics.get(uri, []))
+                    break
+                await asyncio.sleep(0.05)
+            return result
+        finally:
+            # Roll back the LSP session to disk content.
             try:
-                if not was_open:
-                    await self._send_notification("textDocument/didOpen", {
-                        "textDocument": {
-                            "uri": uri,
-                            "languageId": self._language_id(),
-                            "version": 1,
-                            "text": new_content,
-                        },
-                    })
-                    self._open_files.add(abs_path)
-                    self._doc_versions[abs_path] = 1
+                original = self._read_file_content(abs_path)
+                if was_open:
+                    if original is not None:
+                        version = self._doc_versions.get(abs_path, 1) + 1
+                        self._doc_versions[abs_path] = version
+                        await self._send_notification("textDocument/didChange", {
+                            "textDocument": {"uri": uri, "version": version},
+                            "contentChanges": [{"text": original}],
+                        })
                 else:
-                    version = self._doc_versions.get(abs_path, 1) + 1
-                    self._doc_versions[abs_path] = version
-                    await self._send_notification("textDocument/didChange", {
-                        "textDocument": {"uri": uri, "version": version},
-                        "contentChanges": [{"text": new_content}],
-                    })
-                self._diagnostics.pop(uri, None)
-                result: List[Dict[str, Any]] = []
-                deadline = time.monotonic() + wait_ms / 1000.0
-                while time.monotonic() < deadline:
-                    if uri in self._diagnostics:
-                        result = list(self._diagnostics.get(uri, []))
-                        break
-                    await asyncio.sleep(0.05)
-                return result
-            finally:
-                # Откат: вернуть LSP-сессию к содержимому с диска
-                try:
-                    original = self._read_file_content(abs_path)
-                    if was_open:
-                        if original is not None:
-                            version = self._doc_versions.get(abs_path, 1) + 1
-                            self._doc_versions[abs_path] = version
-                            await self._send_notification("textDocument/didChange", {
-                                "textDocument": {"uri": uri, "version": version},
-                                "contentChanges": [{"text": original}],
-                            })
-                    else:
-                        self._open_files.discard(abs_path)
-                        self._doc_versions.pop(abs_path, None)
-                        if self._started and self._process is not None:
-                            await self._send_notification("textDocument/didClose", {
-                                "textDocument": {"uri": uri},
-                            })
-                except Exception as exc:
-                    logger.warning("preflight revert failed for %s: %s", abs_path, exc)
+                    self._open_files.discard(abs_path)
+                    self._doc_versions.pop(abs_path, None)
+                    if self._started and self._engine is not None:
+                        await self._send_notification("textDocument/didClose", {
+                            "textDocument": {"uri": uri},
+                        })
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("preflight revert failed for %s: %s", abs_path, exc)
 
     async def completion(self, file_path: str, line: int, col: int) -> List[Dict[str, Any]]:
-        """textDocument/completion → list of CompletionItem."""
+        """textDocument/completion -> list of CompletionItem."""
         if not await self._ensure_started():
             return []
         if not await self.open_file(file_path):
@@ -374,344 +634,25 @@ class LspClient:
             if isinstance(result, dict):
                 return result.get("items", [])
             return result if isinstance(result, list) else []
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("completion failed: %s", exc)
-            self._handle_crash()
             return []
 
-    # ── Internal lifecycle ────────────────────────────────────────────────
-
-    async def _ensure_started(self) -> bool:
-        """Lazy start on first request. Auto-restarts on crash."""
-        if self._is_alive():
-            return True
-        if self._stopped:
-            return False
-        async with self._start_lock:
-            if self._is_alive():
-                return True
-            if self._retries >= self.MAX_RETRIES:
-                logger.error("LSP max retries (%d/%d) reached", self._retries, self.MAX_RETRIES)
-                return False
-            self._retries += 1
-            return await self.start()
-
-    def _is_alive(self) -> bool:
-        return self._started and self._process is not None and self._process.returncode is None
-
-    async def _initialize(self) -> dict:
-        """Send initialize request with Zed-pyright specific options.
-
-        Key options:
-        - openFilesOnly: True — pyright only indexes files we didOpen
-        - venvPath: project root — so pyright finds local .venv
-        - pythonPath: sys.executable — same Python as MCP
-        """
-        root_uri = self._path_to_uri(str(self.project_root))
-        result = await self._send_request("initialize", {
-            "processId": os.getpid(),
-            "rootPath": str(self.project_root),
-            "rootUri": root_uri,
-            "clientInfo": {"name": "mscodebase-server", "version": "1.0"},
-            "capabilities": {
-                "textDocument": {
-                    "rename": {"dynamicRegistration": True},
-                    "references": {"dynamicRegistration": True},
-                    "definition": {"dynamicRegistration": True},
-                    "hover": {"dynamicRegistration": True},
-                    "documentSymbol": {"dynamicRegistration": True},
-                },
-                "workspace": {
-                    "workspaceEdit": {"documentChanges": True},
-                    "workspaceFolders": True,
-                },
-            },
-            "initializationOptions": {
-                "openFilesOnly": True,
-                "pythonPath": sys.executable,
-                "venvPath": str(self.project_root),
-            },
-            "workspaceFolders": [
-                {"uri": root_uri, "name": self.project_root.name},
-            ],
-        })
-        await self._send_notification("initialized", {})
-        return result
-
-    def _handle_crash(self):
-        """Reset internal state so next call triggers auto-restart.
-
-        Terminates the OS process before nullifying to prevent zombie
-        processes (P2-14 fix). On Windows, terminate() calls
-        TerminateProcess() which is synchronous. Reaping (wait()) is done
-        in a background task so we never leave a <defunct> process.
-        """
-        if self._stopped:
-            return
-        self._started = False
-        for task in (self._reader_task, self._stderr_task):
-            if task is not None:
-                task.cancel()
-        self._reader_task = self._stderr_task = None
-        # Сохраняем ссылку на процесс и reap-им его в фоне (нужен event loop)
-        proc = self._process
-        self._process = None
-        for f in self._pending.values():
-            if not f.done():
-                f.set_exception(RuntimeError("LSP crashed"))
-        self._pending.clear()
-        if proc is not None and proc.returncode is None:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop is not None:
-                loop.create_task(self._reap_process(proc))
-            else:
-                # Нет running loop — sync terminate как last resort
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-
-    async def _reap_process(self, proc):
-        """Terminate + wait() процесс, чтобы не оставить zombie (<defunct>)."""
-        try:
-            proc.terminate()
-            await asyncio.wait_for(proc.wait(), timeout=3.0)
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-                await proc.wait()
-            except Exception:
-                pass
-        except Exception:
-            try:
-                await proc.wait()
-            except Exception:
-                pass
-
-    # ── Server discovery ──────────────────────────────────────────────────
-
-    def _find_server(self) -> Optional[str]:
-        """Find language server binary: PATH → Zed LSP dirs → venvs → project venvs."""
-        if self.language == "python":
-            if sys.platform == "win32":
-                candidates = ["pyright-langserver.cmd", "pyright-langserver", "pyright-langserver.exe"]
-            else:
-                candidates = ["pyright-langserver", "pyright-langserver.exe"]
-        elif self.language in ("typescript", "javascript"):
-            candidates = ["typescript-language-server", "typescript-language-server.cmd"]
-        else:
-            logger.warning("Unsupported LSP language: %s", self.language)
-            return None
-
-        # 1. Поиск в PATH (самый быстрый)
-        for cmd in candidates:
-            found = shutil.which(cmd)
-            if found:
-                return found
-
-        # 2. Поиск в Zed LSP директориях (Zed управляет языковыми серверами сам!)
-        # basedpyright в приоритете — community-форк с лучшим type checking
-        # (см. ACP Registry docs/research/2026-07-11-zed-deep-dive.md)
-        if sys.platform == "win32":
-            zed_data = Path(os.environ.get("LOCALAPPDATA", "")) / "Zed"
-        elif sys.platform == "darwin":
-            zed_data = Path.home() / "Library" / "Application Support" / "Zed"
-        else:  # Linux
-            zed_data = Path.home() / ".local" / "share" / "zed"
-        lsp_dirs = []
-        if self.language == "python":
-            lsp_dirs.append(
-                zed_data / "languages" / "basedpyright" / "node_modules" / ".bin"
-            )
-        lsp_name = "pyright" if self.language == "python" else "typescript-language-server"
-        lsp_dirs.append(
-            zed_data / "languages" / lsp_name / "node_modules" / ".bin"
-        )
-        for d in lsp_dirs:
-            for cmd in candidates:
-                candidate = d / cmd
-                if candidate.is_file():
-                    return str(candidate.resolve())
-
-        # 3. Поиск в venv текущего Python
-        search_dirs: List[Path] = []
-        if hasattr(sys, "prefix") and sys.prefix:
-            p = Path(sys.prefix)
-            search_dirs.extend([p / "bin", p / "Scripts"])
-
-        # 4. Поиск в project venvs
-        for venv_name in (".venv", "venv", ".env"):
-            search_dirs.extend([
-                self.project_root / venv_name / "bin",
-                self.project_root / venv_name / "Scripts",
-            ])
-
-        for d in search_dirs:
-            for cmd in candidates:
-                candidate = d / cmd
-                if candidate.is_file():
-                    return str(candidate.resolve())
-
-        return None
-
-    # ── Wire protocol ─────────────────────────────────────────────────────
-
-    async def _send_request(self, method: str, params: dict) -> Any:
-        """Send JSON-RPC 2.0 request → await response. Raises on error/timeout."""
-        if self._process is None or self._process.stdin is None:
-            raise RuntimeError("LSP not running")
-        req_id = self._request_id
-        self._request_id += 1
-        future = asyncio.get_running_loop().create_future()
-        self._pending[req_id] = future
-        async with self._write_lock:
-            self._write_message(json.dumps(
-                {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
-                ensure_ascii=False, separators=(",", ":"),
-            ))
-            await self._process.stdin.drain()
-        try:
-            response = await asyncio.wait_for(future, timeout=self.REQUEST_TIMEOUT)
-        except asyncio.TimeoutError:
-            self._pending.pop(req_id, None)
-            raise RuntimeError(f"LSP '{method}' timed out ({self.REQUEST_TIMEOUT}s)")
-        if "error" in response:
-            e = response["error"]
-            raise RuntimeError(f"LSP error ({method}): {e.get('message', '?')} [code={e.get('code', -1)}]")
-        return response.get("result")
-
-    async def _send_notification(self, method: str, params: dict):
-        """JSON-RPC 2.0 notification с flush-ем буфера (drain).
-
-        Без drain didOpen/didClose/exit могут застрять в буфере stdin
-        и не дойти до language server-а.
-        """
-        if self._process is None or self._process.stdin is None:
-            return
-        try:
-            async with self._write_lock:
-                self._write_message(json.dumps(
-                    {"jsonrpc": "2.0", "method": method, "params": params},
-                    ensure_ascii=False, separators=(",", ":"),
-                ))
-                await self._process.stdin.drain()
-        except Exception as exc:
-            logger.warning("notify '%s' failed: %s", method, exc)
-
-    def _write_message(self, body: str):
-        """Write Content-Length framed message to subprocess stdin."""
-        data = body.encode("utf-8")
-        raw = f"Content-Length: {len(data)}\r\n\r\n".encode("ascii") + data
-        if self._process and self._process.stdin:
-            self._process.stdin.write(raw)
-
-    # ── Read loop (response dispatcher) ───────────────────────────────────
-
-    async def _read_loop(self):
-        """Background: read Content-Length framed responses from stdout → dispatch."""
-        try:
-            buf = bytearray()
-            while self._process is not None and self._process.stdout is not None:
-                chunk = await self._process.stdout.read(self.BUFFER_SIZE)
-                if not chunk:
-                    if not self._stopped:
-                        self._handle_crash()
-                    break
-                buf.extend(chunk)
-                while True:
-                    resp, consumed = self._parse_one(buf)
-                    if consumed > 0:
-                        # Продвигаем буфер даже при resp is None
-                        # (malformed frame логируется и отбрасывается)
-                        buf = buf[consumed:]
-                    if resp is None:
-                        break
-                    resp_id = resp.get("id")
-                    if resp_id is not None and resp_id in self._pending:
-                        fut = self._pending.pop(resp_id)
-                        if not fut.done():
-                            fut.set_result(resp)
-                    elif resp.get("method") == "textDocument/publishDiagnostics":
-                        # Server-инициированное уведомление (без id):
-                        # копим диагностику по uri для get_diagnostics/preflight.
-                        # basedpyright на Windows перекодирует uri (D: → d%3A) —
-                        # нормализуем к каноническому виду клиента, иначе
-                        # lookup никогда не совпадёт (тихая false-negative).
-                        _params = resp.get("params") or {}
-                        _uri = _params.get("uri", "")
-                        if _uri:
-                            _canonical = self._normalize_diag_uri(_uri)
-                            self._diagnostics[_canonical] = _params.get("diagnostics", [])
-        except asyncio.CancelledError:
-            pass
-        except Exception as exc:
-            if not self._stopped:
-                logger.error("LSP read loop: %s", exc)
-                self._handle_crash()
-
-    @staticmethod
-    def _parse_one(buf: bytearray) -> tuple[Optional[dict], int]:
-        """Parse one Content-Length frame from buffer head → (dict|None, bytes_consumed)."""
-        hdr_end = buf.find(b"\r\n\r\n")
-        if hdr_end == -1:
-            return None, 0
-        headers = {}
-        for line in buf[:hdr_end].split(b"\r\n"):
-            if b":" in line:
-                # Convert bytearray→bytes to avoid 'unhashable type' in Python 3.14+
-                k, v = bytes(line).split(b":", 1)
-                headers[k.strip().lower()] = v.strip()
-        cl = headers.get(b"content-length")
-        if cl is None:
-            return None, hdr_end + 4
-        length = int(cl)
-        body_start = hdr_end + 4
-        if len(buf) < body_start + length:
-            return None, 0
-        try:
-            return json.loads(buf[body_start:body_start + length]), body_start + length
-        except json.JSONDecodeError:
-            # Не возвращаем пустой {} — иначе read loop молча потеряет байты
-            # и задиспатчит фантомный id=None. Логируем и скипаем фрейм:
-            # pending-запрос получит честный timeout вместо тихих данных.
-            logger.error(
-                "LSP: malformed JSON response (%d bytes) — frame dropped, "
-                "pending request will time out",
-                length,
-            )
-            return None, body_start + length
-
-    async def _stderr_consumer(self):
-        """Background: log stderr at debug level."""
-        try:
-            while self._process is not None and self._process.stderr is not None:
-                line = await self._process.stderr.readline()
-                if not line:
-                    break
-                text = line.rstrip(b"\r\n").decode("utf-8", errors="replace")
-                if text:
-                    logger.debug("[LSP stderr] %s", text)
-        except asyncio.CancelledError:
-            pass
-        except Exception as exc:
-            if not self._stopped:
-                logger.debug("stderr consumer: %s", exc)
-
-    # ── Text request helper ───────────────────────────────────────────────
-
+    # ── text request helper ───────────────────────────────────────────────
     async def _send_text_request(
-        self, method: str, file_path: str, line: int, col: int,
+        self,
+        method: str,
+        file_path: str,
+        line: int,
+        col: int,
         extra: Optional[dict] = None,
     ) -> List[Dict[str, Any]]:
-        """Open file then send textDocument/*. Returns list (possibly single dict wrapped)."""
+        """Open file then send textDocument/*. Returns list (single dict wrapped)."""
         if not await self._ensure_started():
             return []
         if not await self.open_file(file_path):
             return []
-        params = {
+        params: dict[str, Any] = {
             "textDocument": {"uri": self._path_to_uri(file_path)},
             "position": {"line": line, "character": col},
         }
@@ -719,9 +660,8 @@ class LspClient:
             params.update(extra)
         try:
             result = await self._send_request(method, params)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("%s failed: %s", method, exc)
-            self._handle_crash()
             return []
         if isinstance(result, list):
             return result
@@ -729,8 +669,7 @@ class LspClient:
             return [result]
         return []
 
-    # ── Small helpers ─────────────────────────────────────────────────────
-
+    # ── small helpers ─────────────────────────────────────────────────────
     @staticmethod
     def _read_file_content(file_path: str) -> Optional[str]:
         try:
@@ -740,8 +679,10 @@ class LspClient:
             return None
 
     def _language_id(self) -> str:
-        mapping = {"python": "python", "typescript": "typescript", "javascript": "javascript",
-                    "html": "html", "css": "css", "json": "json", "yaml": "yaml", "markdown": "markdown"}
+        mapping = {
+            "python": "python", "typescript": "typescript", "javascript": "javascript",
+            "html": "html", "css": "css", "json": "json", "yaml": "yaml", "markdown": "markdown",
+        }
         return mapping.get(self.language, self.language)
 
     @staticmethod
@@ -758,14 +699,13 @@ class LspClient:
             lines = content.split("\n")
             if 0 <= line_0based < len(lines):
                 line_text = lines[line_0based]
-                # Word-boundary: ищем именно токен, а не подстроку
-                # (foo в foo_bar или в строковом литерале — не то же самое).
+                # Word-boundary: match the token, not a substring
+                # (foo in foo_bar or inside a string literal is not the same).
                 m = re.search(rf"\b{re.escape(symbol_name)}\b", line_text)
                 if m:
                     return m.start()
-        except Exception as _e:
+        except Exception:  # noqa: BLE001
             logger.warning("exception", exc_info=True)
-            pass
         return -1
 
     @staticmethod
@@ -790,30 +730,30 @@ class LspClient:
 
     @staticmethod
     def _path_to_uri(path: str) -> str:
-        """Конвертирует файловый путь в file:// URI (включая UNC-пути).
+        """Convert a filesystem path to a file:// URI (including UNC paths).
 
-        WIN-3: Path.as_uri() корректно обрабатывает UNC (двойной backslash
-        server + обратный слеш share, затем file → file://server/share/file)
-        и Windows-диски (C:\\x → file:///C:/x).
+        Path.as_uri() correctly handles UNC (double backslash server + share,
+        then file -> file://server/share/file) and Windows drives (C:\\x ->
+        file:///C:/x).
         """
         try:
             return Path(path).resolve().as_uri()
         except (ValueError, OSError):
-            # Некорректный/недоступный путь. OSError: Python 3.10-3.12
-            # realpath бросает FileNotFoundError для несуществующего UNC-сервера
-            # (3.13+ не бросает) — берём путь как есть (UNC остаётся абсолютным).
+            # Invalid/unreachable path. OSError: Python 3.10-3.12 realpath raises
+            # FileNotFoundError for a nonexistent UNC server (3.13+ does not) —
+            # take path as-is (UNC stays absolute).
             return Path(path).as_uri()
 
     @staticmethod
     def _uri_to_path(uri: str) -> str:
         parsed = urlparse(uri)
         raw = parsed.path
-        # WIN-4: UNC URI (file://server/share/file) — authority это сервер.
+        # UNC URI (file://server/share/file) — the authority is the server.
         if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
             p = Path("//" + parsed.netloc + raw)
             try:
                 return p.resolve().as_posix()
-            except OSError:  # 3.10-3.12: realpath UNC-сервер → FileNotFoundError
+            except OSError:  # 3.10-3.12: realpath UNC server -> FileNotFoundError
                 return p.as_posix()
         if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
             raw = raw[1:]
@@ -821,27 +761,26 @@ class LspClient:
 
     @staticmethod
     def _normalize_diag_uri(uri: str) -> str:
-        """Приводит publishDiagnostics-uri к каноническому виду клиента.
+        """Bring a publishDiagnostics-uri to the client's canonical form.
 
-        basedpyright на Windows перекодирует uri (file:///D:/x →
-        file:///d%3A/x: lowercase-драйв + percent-encoding). Клиент шлёт
-        Path.as_uri() — ищет по нему. Без нормализации диагностика
-        молча теряется (key mismatch).
+        basedpyright on Windows re-encodes the uri (file:///D:/x ->
+        file:///d%3A/x: lowercase drive + percent-encoding). The client sends
+        Path.as_uri() and looks up by it. Without normalization diagnostics are
+        silently lost (key mismatch).
         """
         try:
-            from urllib.parse import unquote
             parsed = urlparse(unquote(uri))
             raw = parsed.path
             if parsed.netloc and parsed.netloc not in ("localhost", "127.0.0.1"):
                 p = Path("//" + parsed.netloc + raw)
                 try:
                     return p.resolve().as_uri()
-                except OSError:  # 3.10-3.12: realpath UNC-сервер → FileNotFoundError
+                except OSError:  # 3.10-3.12: realpath UNC server -> FileNotFoundError
                     return p.as_uri()
             if len(raw) > 2 and raw[0] == "/" and raw[2] == ":":
                 raw = raw[1:]
             return Path(raw).resolve().as_uri()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return uri
 
 
