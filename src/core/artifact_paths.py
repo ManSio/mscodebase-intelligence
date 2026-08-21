@@ -67,6 +67,7 @@ __all__ = [
     "get_commit_memory_dir",
     "get_branches_dir",
     "get_telemetry_dir",
+    "get_repos_cache_dir",
     "get_progress_file",
     "get_summaries_cache_dir",
     "get_logs_dir",
@@ -301,6 +302,17 @@ def get_telemetry_dir(project_path: Path) -> Path:
 def get_progress_file(project_path: Path) -> Path:
     """progress.json — file-contract для агента (см. AGENTS.md §0)."""
     return get_project_dir(project_path) / "progress.json"
+
+
+def get_repos_cache_dir() -> Path:
+    """Кэш remote-репозиториев (GitUrlSource, Фаза 2 Universal Engine).
+
+    <data_root>/repos/<hash8>/ — клоны по хэшу канонического URL;
+    эвикция LRU(5) + TTL 24ч (план §2.2/§9 п.2), см. src/sources/git_url/.
+    """
+    d = get_data_root() / "repos"
+    safe_mkdir(d, what="repos cache dir")
+    return d
 
 
 def get_summaries_cache_dir(project_path: Path) -> Path:

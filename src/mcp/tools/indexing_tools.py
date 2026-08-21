@@ -172,6 +172,56 @@ class NotifyChangeTool(MCPTool):
         return None, "filesystem"
 
 
+class IndexGitUrlTool(MCPTool):
+    """index_git_url — «дали URL → получили индекс» (Фаза 2, ТЗ §2.1).
+
+    Клонирует allowlisted git-репозиторий через GitUrlSource (SRC/sources/git_url),
+    индексирует клон как локальный workspace. Read-only: write в remote-репо
+    запрещён (ТЗ рекомендация 3). Ошибки источника → INCONCLUSIVE-ответ с kind
+    (ТЗ §6.5), не crash.
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="index_git_url")
+
+    @error_boundary("index_git_url", timeout_ms=300000)
+    async def execute(self, url: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+        import asyncio
+
+        from src.core.di_container import GitUrlSourceFactoryKey
+
+        if not url or not url.strip():
+            return "❌ index_git_url: required url (например https://github.com/org/repo.git)"
+        try:
+            # Фабрика из DI: composition root владеет конкретикой GitUrlSource
+            # (гейт слоёв запрещает mcp/tools импортировать src.sources напрямую).
+            factory = self._services.resolve(GitUrlSourceFactoryKey)
+            source = factory(url.strip())
+            path = await source.resolve()
+        except Exception as e:  # noqa: BLE001 — сбой источника = INCONCLUSIVE для тула
+            kind = getattr(e, "kind", "clone_error")
+            logger.error(f"index_git_url: resolve failed [{kind}]: {e}")
+            return (
+                f"❌ INCONCLUSIVE [{kind}]: {e}\n"
+                f"  Это не сбой движка: источник не получен "
+                f"(недоступен/домен не в allowlist/превышен лимит)."
+            )
+
+        logger.info(f"🔄 Indexing remote repo {url.strip()} (cached at {path})...")
+        indexer = self.resolve_indexer(explicit_project_root=str(path))
+        try:
+            indexed = await asyncio.to_thread(indexer.index_project, path)
+        except Exception as e:  # noqa: BLE001 — единый внешний ответ тула
+            logger.error(f"index_git_url: indexing error: {e}")
+            return f"❌ Ошибка индексации: {e}\n  💡 Проверь embed-сервис и повтори."
+        return (
+            f"✅ Индексирован remote-репозиторий: {url.strip()}\n"
+            f"  • Путь (кэш, LRU(5)+TTL 24ч): {path}\n"
+            f"  • Обработано файлов: {indexed}\n"
+            f"  • Read-only: write в remote-репо запрещён (ТЗ рекомендация 3)"
+        )
+
+
 class IndexProjectDirTool(MCPTool):
     """index_project_dir — полная индексация проекта."""
 
@@ -294,4 +344,5 @@ __all__ = [
     "NotifyChangeTool",
     "IndexProjectDirTool",
     "IndexHealthTool",
+    "IndexGitUrlTool",
 ]

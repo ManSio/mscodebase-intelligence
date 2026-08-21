@@ -127,7 +127,13 @@ class GetTaskStatusTool(MCPTool):
 
 
 class VerifyActionTool(MCPTool):
-    """verify_action — верификация выполненного действия (Execution Contract)."""
+    """verify_action — верификация выполненного действия (Execution Contract).
+
+    Расширено (ТЗ §11 Action Receipt): каждый вызов формирует ActionReceipt
+    (verification_steps + детерминированный VERDICT + reproducible_by) и
+    сохраняет его в ActionReceiptStore. Возвращает отчёт + action_id,
+    чтобы позже запросить receipt через get_action_receipt(action_id).
+    """
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="verify_action")
@@ -141,39 +147,132 @@ class VerifyActionTool(MCPTool):
         contract = ExecutionContract()
         params = kwargs or {}
         results = []
+        file_path = params.get("file_path", "")
+
+        # project_root — для git-типов: cwd, в котором выполнялось действие.
+        # (иначе verify и reproducible_by рассинхронизированы — находка E-05-2026-08-19).
+        project_root = params.get("project_root", "")
+        if not project_root:
+            try:
+                idx = self.resolve_indexer()
+                project_root = getattr(idx, "project_path", "")
+            except Exception:  # noqa: BLE001
+                project_root = ""
 
         if action_type == "file_write":
             file_path = params.get("file_path", "")
             expected = params.get("expected_content")
-            results.append(contract.verify_file_write(file_path, expected))
+            expected_hash = params.get("expected_hash")
+            results.append(contract.verify_file_write(file_path, expected, expected_hash))
 
         elif action_type == "git_commit":
             expected_msg = params.get("expected_message")
-            results.append(contract.verify_git_commit(expected_msg))
+            results.append(contract.verify_git_commit(expected_msg, cwd=project_root or None))
 
         elif action_type == "git_push":
-            results.append(contract.verify_git_push())
+            results.append(contract.verify_git_push(cwd=project_root or None))
 
         elif action_type == "index_sync":
-            project_root = params.get("project_root", "")
             results.append(contract.verify_index_sync(project_root))
 
         elif action_type == "all":
             file_path = params.get("file_path")
             if file_path:
                 results.append(contract.verify_file_write(file_path))
-            results.append(contract.verify_git_commit())
-            results.append(contract.verify_git_push())
+            results.append(contract.verify_git_commit(cwd=project_root or None))
+            results.append(contract.verify_git_push(cwd=project_root or None))
 
         else:
             return f"❌ Unknown action type: {action_type}"
 
         report = format_verification_report(results)
+
+        # ТЗ §11: строим ActionReceipt и сохраняем. project_root — через resolve_indexer.
+        receipt_id = ""
+        try:
+            from src.core.action_receipt import build_receipt
+            from src.core.execution_contract import sha256_file
+
+            idx = self.resolve_indexer(explicit_project_root=params.get("project_root", ""))
+            project_root = params.get("project_root") or getattr(idx, "project_path", None)
+
+            before_hash = params.get("before_hash", "")
+            after_hash = params.get("after_hash", "")
+            # Если после записи файла after_hash не передан — берём из диска (актуальное).
+            if not after_hash and file_path:
+                after_hash = sha256_file(Path(file_path)) or ""
+
+            receipt = build_receipt(
+                action_type=action_type,
+                results=results,
+                claim=params.get("claim", ""),
+                before_hash=before_hash,
+                after_hash=after_hash,
+                file_path=file_path,
+                action_id=params.get("action_id", ""),
+                supersedes=params.get("supersedes", ""),
+                workdir=project_root or str(Path.cwd()),
+            )
+            if project_root:
+                from src.core.action_receipt import ActionReceiptStore
+
+                store = ActionReceiptStore(project_root)
+                if store.record(receipt):
+                    receipt_id = receipt.action_id
+                    logger.info(
+                        "ActionReceipt %s (%s) recorded → %s",
+                        receipt_id, action_type, receipt.verdict,
+                    )
+        except Exception as e:  # noqa: BLE001 — receipt-запись не валит verify
+            logger.warning("ActionReceipt запись пропущена (не влияет на verify): %s", e)
+
+        if receipt_id:
+            return (
+                f"✅ Verification: {action_type}\n"
+                + report
+                + f"\n🧾 Action Receipt: {receipt_id} (get_action_receipt(action_id='{receipt_id}'))"
+            )
         return f"✅ Verification: {action_type}\n" + report
+
+
+class GetActionReceiptTool(MCPTool):
+    """get_action_receipt — извлекает ActionReceipt по action_id (ТЗ §11.5 этап 2).
+
+    Receipt — независимо проверяемый артефакт: verdict + verification_steps +
+    reproducible_by. Хранится в ActionReceiptStore (JSONL, системная папка).
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="get_action_receipt")
+
+    @error_boundary("get_action_receipt", timeout_ms=5000)
+    async def execute(
+        self,
+        action_id: str,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        from src.core.action_receipt import (
+            ActionReceiptStore,
+            format_receipt,
+            format_receipt_summary,
+        )
+
+        idx = self.resolve_indexer(explicit_project_root=project_root)
+        pr = project_root or getattr(idx, "project_path", None)
+        if not pr:
+            return "❌ Не удалось определить project_root для поиска receipt"
+
+        store = ActionReceiptStore(pr)
+        receipt = store.get(action_id)
+        if not receipt:
+            return f"❌ Action Receipt не найден: {action_id}"
+        return format_receipt(receipt)
 
 
 __all__ = [
     "SubmitBackgroundTaskTool",
     "GetTaskStatusTool",
     "VerifyActionTool",
+    "GetActionReceiptTool",
 ]
