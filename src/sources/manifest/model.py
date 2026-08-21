@@ -1,6 +1,7 @@
 """Модель манифестной записи (Backlog B-1, ADR-0005 scaling).
 
-Спека: docs/research/universal-engine-study/07-manifest-parsers-from-scratch.md §10.
+Нормализованная модель ManifestEntry по спеке B-1 (детали — в приватных
+research-документах; публичный контракт — archive в ADR-0005 и тестовый корпус).
 """
 from __future__ import annotations
 

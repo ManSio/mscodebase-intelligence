@@ -677,6 +677,20 @@ def test_pkg_anchor_found_verified_included(project: Path):
     assert store._load_json("project_memory.json")[0]["status"] == STATUS_VERIFIED
 
 
+def test_pkg_anchor_npm_dotted_name_verified(project: Path):
+    """B-1 wiring: имена с точками (npm/go) в пуле манифеста — ТОЧНОЕ членство,
+    не только PEP 503 (иначе `lodash.get` -> `lodash-get` давал бы ложный REFUTED)."""
+    (project / "package.json").write_text(
+        json.dumps({"dependencies": {"lodash.get": "^4.4.2"}}), encoding="utf-8"
+    )
+    store = IntelligenceStore(project)
+    _seed(store, [_node("N1", "a", anchors=[{"kind": "pkg", "value": "lodash.get"}])])
+    verifier = _make_verifier(project, store)
+    memory, stats = verifier.run(store.load_memory())
+    assert stats["verified"] == 1
+    assert [n["node_id"] for n in memory["adrs"]] == ["N1"]
+
+
 def test_pkg_anchor_absent_refuted_excluded(project: Path):
     """ADR-0005: closed-world — явный pkg:-якорь, отсутствующий в манифесте,
     -> REFUTED (SILENT_ABSENCE), узел исключён из контекста."""

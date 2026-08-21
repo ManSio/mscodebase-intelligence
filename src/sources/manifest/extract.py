@@ -24,13 +24,15 @@ from src.sources.manifest.model import (
     normalize_python,
 )
 
-try:  # Python >= 3.11
+try:  # Python >= 3.11 (проект 3.14-only с 2026-08-21 — без tomli fallback)
     import tomllib
-except ImportError:  # 3.10 — tomli fallback (если есть)
-    try:
-        import tomli as tomllib  # type: ignore[no-redef]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
+except ImportError:  # pragma: no cover
+    tomllib = None  # type: ignore[assignment]
+
+try:  # PyYAML — единственная НЕ-stdlib зависимость экстракторов (pnpm-lock.yaml). Pinned ==6.0.3
+    import yaml
+except ImportError:  # pragma: no cover
+    yaml = None
 
 _PEP508_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*")
 _EDITS = ("-e ", "--editable ", "-r ", "-c ")
@@ -465,11 +467,22 @@ def _extract_nuget_lock(text: str, source: str) -> List[ManifestEntry]:
 
 
 def _extract_bun_lock(text: str, source: str) -> List[ManifestEntry]:
-    """bun.lock (JSON): packages -> {name: [name@version, ...]}."""
+    """bun.lock (JSON v1): packages -> {name: [name@version, ...]}.
+
+    bun.lock v1 ДОПУСКАЕТ trailing commas (невалидный JSON по спецификации) —
+    сначала обычный json.loads, при сбое — заметаем `,` перед `]`/`}`
+    (риск: запятая внутри строкового значения с такой сигнатурой — в lockfile
+    практически не встречается; подтверждено фикстурой bun.lock).
+    """
     try:
         data = json.loads(text)
     except Exception:  # noqa: BLE001
-        return []
+        data = None
+    if data is None:
+        try:
+            data = json.loads(re.sub(r",\s*([\]}])", r"\1", text))  # bun v1: trailing commas
+        except Exception:  # noqa: BLE001
+            return []
     entries: List[ManifestEntry] = []
     pkgs = data.get("packages", {}) if isinstance(data, dict) else {}
     if isinstance(pkgs, dict):
@@ -477,25 +490,48 @@ def _extract_bun_lock(text: str, source: str) -> List[ManifestEntry]:
             if not (isinstance(arr, list) and arr and isinstance(arr[0], str)):
                 continue
             token = arr[0]
-            idx = token.rfind("@")
-            if idx > 0:
-                name, ver = token[:idx], token[idx + 1:]
+            if "@workspace:" in token:  # локальный workspace-пакет: 'name@workspace:path'
+                name, ver = token.split("@workspace:", 1)[0], "workspace"
             else:
-                name, ver = token, ""
+                idx = token.rfind("@")
+                if idx > 0:
+                    name, ver = token[:idx], token[idx + 1:]
+                else:
+                    name, ver = token, ""
             if name:
                 entries.append(ManifestEntry("npm", normalize_npm(name), ver, "lockfile", source))
     return entries
 
 
+_YARN_DESCRIPTORS = ("@npm:", "@patch:", "@workspace:", "@link:", "@file:", "@virtual:", "@portal:")
+
+
 def _yarn_block_name(key: str) -> str:
-    """Имя из yarn-ключа блока: '@scope/name@npm:range' (v2/berry) или
-    'name@range'/'@scope/name@range' (v1). Убираем суффикс '@npm:' / '@range'."""
-    if "@npm:" in key:
-        return key.split("@npm:", 1)[0]
+    """Имя из yarn-ключа блока. Дескрипторы (berry): 'x@npm:range',
+    'x@patch:x@npm:range' (имя до '@patch:'), '@scope/name@npm:...'.
+    v1: 'name@range' / '@scope/name@range' (rfind('@')). Пробелы в диапазоне
+    (`>= 2.1.2 < 3`) имени не мешают — фильтры по пробелам запрещены."""
+    for d in _YARN_DESCRIPTORS:
+        if d in key:
+            return key.split(d, 1)[0]
     idx = key.rfind("@")
     if idx > 1:  # scoped-имя guard: не отрезать первый '@' из '@scope/name'
         return key[:idx]
     return key
+
+
+def _yarn_lock_key(key: str) -> str:
+    """Первый под-ключ из yarn-ключа блока.
+
+    berry склеивает повторяющиеся пакеты через ', ' и разрешает `||`-диапазоны;
+    workspace-локальные (`@workspace:...`) — НЕ registry-зависимости (исключаем,
+    как osv). Диапазоны версий могут содержать пробелы — по ним НЕ фильтруем.
+    """
+    for part in (k.strip() for k in key.split(", ")):
+        sub = part.split(" || ", 1)[0].strip()
+        if "@" in sub and "@workspace:" not in sub:
+            return sub
+    return ""
 
 
 def _extract_yarn_lock(text: str, source: str) -> List[ManifestEntry]:
@@ -503,9 +539,22 @@ def _extract_yarn_lock(text: str, source: str) -> List[ManifestEntry]:
 
     v1: `"name@range":` + `version "1.0.0"`;
     v2/(berry v10): `"name@npm:^range":` + `version: 1.0.2` (определяем по ключу).
+    Псевдонимы (`esbuild@npm:esbuild-wasm@^0.23.0`): настоящее имя — из
+    resolution-строки (`resolution: "esbuild-wasm@npm:0.23.0"`).
     """
     entries: List[ManifestEntry] = []
     pending = None
+    alias = None
+    pending_ver = None
+
+    def flush(line_no: int) -> None:
+        nonlocal pending, alias, pending_ver
+        if pending and pending_ver is not None:
+            name = alias or _yarn_block_name(pending)
+            entries.append(ManifestEntry("npm", normalize_npm(name),
+                                         pending_ver, "lockfile", source, line_no))
+        pending = alias = pending_ver = None
+
     for i, raw in enumerate(text.splitlines(), start=1):
         line = raw.rstrip()
         st = line.strip()
@@ -513,20 +562,61 @@ def _extract_yarn_lock(text: str, source: str) -> List[ManifestEntry]:
             continue
         if st.endswith(":") and not line.startswith((" ", "\t")):
             # не-индентная строка, оканчивающаяся ':' — блок-ключ
+            flush(i)
             key = st.rstrip(":")
             if (key.startswith('"') and key.endswith('"')) or (key.startswith("'") and key.endswith("'")):
                 key = key[1:-1]
-            if "@" in key and " " not in key:
-                pending = key
-            else:
-                pending = None
+            pending = _yarn_lock_key(key) or None
             continue
         if pending and st.startswith("version"):
             m = re.search(r"version[\"\s]*[:=]?\s*\"?([^\"\s]+)", st)
             if m:
-                entries.append(ManifestEntry("npm", normalize_npm(_yarn_block_name(pending)),
-                                             m.group(1), "lockfile", source, i))
-            pending = None
+                pending_ver = m.group(1)
+            continue
+        if pending and st.startswith("resolution"):
+            # псевдоним-блок: 'esbuild@npm:esbuild-wasm@^0.23.0' ->
+            # resolution 'esbuild-wasm@npm:0.23.0' — настоящее имя; version:
+            # идёт РАНЬШЕ resolution:, поэтому запись отложена до конца блока.
+            m = re.search(r"resolution:\s*[\"']?([^\"'\s]+)", st)
+            if m:
+                res = m.group(1)
+                if "@npm:" in res:
+                    res_name = res.split("@npm:", 1)[0]
+                    key_name = _yarn_block_name(pending)
+                    if res_name != key_name:
+                        alias = res_name
+    flush(len(text.splitlines()) + 1)
+    return entries
+
+
+def _extract_pnpm_lock(text: str, source: str) -> List[ManifestEntry]:
+    """pnpm-lock.yaml (v5.4/v6.0/v9.0): ключи `packages:` -> `name@version`.
+
+    Scoped-имена содержат @ в середине (`@scope/name@1.0.0` — делим по ПОСЛЕДНЕМУ @);
+    v9: peer-суффикс `(peer@x.y.z)` и префикс `/` у ключей отрезаются.
+    """
+    if yaml is None:
+        return []
+    try:
+        data = yaml.safe_load(text)
+    except Exception:  # noqa: BLE001 — сбой парсинга = не манифест
+        return []
+    entries: List[ManifestEntry] = []
+    pkgs = data.get("packages", {}) if isinstance(data, dict) else {}
+    if not isinstance(pkgs, dict):
+        return entries
+    for key in pkgs:
+        if not isinstance(key, str):
+            continue
+        token = key.split("(", 1)[0]  # v9 peer-суффикс: 'name@1.0.0(peer@2.0.0)'
+        if token.startswith("/"):  # v9: '/name@1.0.0'
+            token = token[1:]
+        idx = token.rfind("@")  # scoped: '@scope/name@1.0.0' — последний @ перед версией
+        if idx <= 0:
+            continue
+        name, ver = token[:idx], token[idx + 1:]
+        if name:
+            entries.append(ManifestEntry("npm", normalize_npm(name), ver, "lockfile", source))
     return entries
 
 
@@ -583,6 +673,7 @@ _EXTRACTORS = [
     ("packages.lock.json", _extract_nuget_lock),
     ("bun.lock", _extract_bun_lock),
     ("yarn.lock", _extract_yarn_lock),
+    ("pnpm-lock.yaml", _extract_pnpm_lock),
     ("Gemfile.lock", _extract_gemfile_lock),
 ]
 

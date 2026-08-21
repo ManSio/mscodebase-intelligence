@@ -1,0 +1,135 @@
+# node kinds per grammar (enumerated from compiled Language)
+
+## tree-sitter-python [python] (named: 123, total: 264)
+  imports (15): aliased_import, case_clause, elif_clause, else_clause, except_clause, finally_clause, for_in_clause, future_import_statement, if_clause, import_from_statement, import_prefix, import_statement, relative_import, wildcard_import, with_clause   [anon: _comprehension_clauses, _comprehension_clauses_repeat1, _expression_within_for_in_clause, _import_list, _import_list_repeat1, case_clause_repeat1]
+  calls (1): call
+  conditions (16): case_clause, case_pattern, conditional_expression, elif_clause, else_clause, except_clause, for_in_clause, for_statement, if_clause, if_statement, match_statement, try_statement, while_statement, with_clause, with_item, with_statement   [anon: _collection_elements_repeat1, _comprehension_clauses_repeat1, _expression_within_for_in_clause, _import_list_repeat1, _match_block_repeat1, _parameters_repeat1]
+  assignments (3): assignment, augmented_assignment, typed_parameter
+
+## tree-sitter-rust [rust] (named: 163, total: 327)
+  imports (8): else_clause, scoped_use_list, use_as_clause, use_bounds, use_declaration, use_list, use_wildcard, where_clause   [anon: _use_clause, use, use_bounds_repeat1, use_list_repeat1, where_clause_repeat1]
+  calls (2): call_expression, macro_invocation
+  conditions (13): else_clause, for_expression, for_lifetimes, generic_type_with_turbofish, if_expression, loop_expression, match_arm, match_block, match_expression, match_pattern, try_block, try_expression, while_expression   [anon: _expression_except_range, _non_special_token_repeat1, arguments_repeat1, closure_parameters_repeat1, declaration_list_repeat1, delim_token_tree_repeat1]
+  assignments (9): assignment_expression, compound_assignment_expr, field_declaration, field_declaration_list, let_declaration, metavariable, ordered_field_declaration_list, token_binding_pattern, type_binding   [anon: field_declaration_list_repeat1, ordered_field_declaration_list_repeat1]
+
+## tree-sitter-typescript [typescript,tsx] (named: 185, total: 373)
+  imports (21): catch_clause, else_clause, export_clause, export_specifier, export_statement, extends_clause, extends_type_clause, finally_clause, implements_clause, import, import_alias, import_attribute, import_clause, import_require_clause, import_specifier, import_statement …   [anon: _extends_clause_single, _from_clause, _import_identifier, _module_export_name, export, export_clause_repeat1]
+  calls (3): call_expression, call_signature, new_expression   [anon: _call_signature]
+  conditions (15): catch_clause, conditional_type, do_statement, else_clause, for_in_statement, for_statement, if_statement, switch_body, switch_case, switch_default, switch_statement, ternary_expression, try_statement, while_statement, with_statement   [anon: _for_header, _jsx_start_opening_element_repeat1, _jsx_string_repeat1, _jsx_string_repeat2, array_pattern_repeat1, array_repeat1]
+  assignments (7): assignment_expression, assignment_pattern, augmented_assignment_expression, enum_assignment, object_assignment_pattern, variable_declaration, variable_declarator   [anon: _augmented_assignment_lhs, variable_declaration_repeat1]
+
+## tree-sitter-javascript [js,jsx] (named: 114, total: 253)
+  imports (15): catch_clause, else_clause, export_clause, export_specifier, export_statement, finally_clause, import, import_attribute, import_clause, import_specifier, import_statement, named_imports, namespace_export, namespace_import, using_declaration   [anon: _from_clause, _module_export_name, export, export_clause_repeat1, export_statement_repeat1, named_imports_repeat1]
+  calls (2): call_expression, new_expression
+  conditions (14): catch_clause, do_statement, else_clause, for_in_statement, for_statement, if_statement, switch_body, switch_case, switch_default, switch_statement, ternary_expression, try_statement, while_statement, with_statement   [anon: _for_header, _jsx_string_repeat1, _jsx_string_repeat2, array_pattern_repeat1, array_repeat1, case]
+  assignments (6): assignment_expression, assignment_pattern, augmented_assignment_expression, object_assignment_pattern, variable_declaration, variable_declarator   [anon: _augmented_assignment_lhs, variable_declaration_repeat1]
+
+## tree-sitter-go [go] (named: 107, total: 213)
+  imports (6): for_clause, import_declaration, import_spec, import_spec_list, package_clause, range_clause   [anon: import, import_spec_list_repeat1]
+  calls (2): call_expression, send_statement
+  conditions (9): communication_case, default_case, expression_case, expression_switch_statement, for_clause, for_statement, if_statement, type_case, type_switch_statement   [anon: _type_switch_header, argument_list_repeat1, case, const_declaration_repeat1, const_spec_repeat1, else]
+  assignments (6): assignment_statement, field_declaration, field_declaration_list, send_statement, var_spec, var_spec_list   [anon: field_declaration_list_repeat1, field_declaration_repeat1, var_spec_list_repeat1, var_spec_repeat1]
+
+## tree-sitter-java [java] (named: 142, total: 319)
+  imports (7): catch_clause, exports_module_directive, finally_clause, import_declaration, requires_modifier, requires_module_directive, uses_module_directive   [anon: exports, exports_module_directive_repeat1, import, requires, requires_module_directive_repeat1, uses]
+  calls (2): explicit_constructor_invocation, method_invocation
+  conditions (16): catch_clause, catch_formal_parameter, catch_type, do_statement, enhanced_for_statement, for_statement, if_statement, switch_block, switch_block_statement_group, switch_expression, switch_label, switch_rule, ternary_expression, try_statement, try_with_resources_statement, while_statement   [anon: _multiline_string_literal_repeat1, _string_literal_repeat1, _variable_declarator_list_repeat1, annotation_argument_list_repeat1, annotation_type_body_repeat1, argument_list_repeat1]
+  assignments (4): assignment_expression, field_declaration, local_variable_declaration, variable_declarator   [anon: _constructor_declarator, _method_declarator, _variable_declarator_id, _variable_declarator_list, _variable_declarator_list_repeat1]
+
+## tree-sitter-c-sharp [cs] (named: 215, total: 506)
+  imports (20): arrow_expression_clause, catch_clause, catch_filter_clause, finally_clause, from_clause, group_clause, interpolation_alignment_clause, interpolation_format_clause, join_clause, join_into_clause, let_clause, order_by_clause, positional_pattern_clause, property_pattern_clause, select_clause, type_parameter_constraints_clause …   [anon: _query_clause, _select_or_group_clause, catch_clause_repeat1, interpolation_format_clause_token1, order_by_clause_repeat1, positional_pattern_clause_repeat1]
+  calls (2): calling_convention, invocation_expression   [anon: Fastcall, Stdcall, Thiscall, calling_convention_repeat1]
+  conditions (20): catch_clause, catch_declaration, catch_filter_clause, conditional_access_expression, conditional_expression, do_statement, for_statement, if_statement, preproc_else, preproc_if, preproc_if_in_attribute_list, switch_body, switch_expression, switch_expression_arm, switch_section, switch_statement …   [anon: #else, _class_declaration_initializer_repeat1, _class_declaration_initializer_repeat2, _class_declaration_initializer_repeat3, _class_declaration_initializer_repeat4, _for_statement_conditions]
+  assignments (9): assignment_expression, element_binding_expression, event_field_declaration, field_declaration, member_binding_expression, parenthesized_variable_designation, property_declaration, variable_declaration, variable_declarator   [anon: _anonymous_object_member_declarator, _variable_designation, parenthesized_variable_designation_repeat1, using_variable_declaration_repeat1, variable_declaration_repeat1]
+
+## tree-sitter-ruby [rb] (named: 134, total: 283)
+  imports (1): in_clause
+  calls (1): call   [anon: _call, _chained_command_call, command_argument_list_repeat1]
+  conditions (13): case, case_match, conditional, else, exception_variable, exceptions, if, if_guard, if_modifier, match_pattern, retry, while, while_modifier   [anon: _argument_list_with_trailing_comma, _array_pattern_n_repeat1, _body_statement_repeat1, _hash_pattern_body_repeat1, _mlhs_repeat1, _statements_repeat1]
+  assignments (11): assignment, class_variable, destructured_left_assignment, exception_variable, global_variable, instance_variable, left_assignment_list, operator_assignment, rest_assignment, right_assignment_list, variable_reference_pattern   [anon: _keyword_variable, _nonlocal_variable, _variable]
+
+## tree-sitter-php [php] (named: 157, total: 405)
+  imports (18): anonymous_function_use_clause, base_clause, catch_clause, class_interface_clause, else_clause, else_if_clause, finally_clause, include_expression, include_once_expression, namespace_use_clause, namespace_use_declaration, namespace_use_group, require_expression, require_once_expression, use_as_clause, use_declaration …   [anon: _namespace_use_group, anonymous_function_use_clause_repeat1, base_clause_repeat1, include, include_once, namespace_use_declaration_repeat1]
+  calls (5): function_call_expression, member_call_expression, nullsafe_member_call_expression, scoped_call_expression, shell_command_expression   [anon: _callable_expression, _callable_variable]
+  conditions (18): case_statement, catch_clause, conditional_expression, do_statement, else_clause, else_if_clause, enum_case, for_statement, if_statement, match_block, match_condition_list, match_conditional_expression, match_default_expression, match_expression, switch_block, switch_statement …   [anon: _array_destructing_repeat1, _class_const_declaration_repeat1, _list_destructing_repeat1, anonymous_function_use_clause_repeat1, arguments_repeat1, array_creation_expression_repeat1]
+  assignments (7): assignment_expression, augmented_assignment_expression, dynamic_variable_name, property_declaration, reference_assignment_expression, static_variable_declaration, variable_name   [anon: _callable_variable, _new_variable, _simple_variable, property_declaration_repeat1]
+
+## tree-sitter-kotlin [kt] (named: 114, total: 283)
+  imports (3): import, use_site_target, user_type   [anon: _simple_user_type, user_type_repeat1]
+  calls (4): call_expression, callable_reference, constructor_delegation_call, constructor_invocation
+  conditions (8): catch_block, do_while_statement, enum_entry, for_statement, if_expression, try_expression, when_entry, while_statement   [anon: _statements_repeat1, catch, class_body_repeat1, class_parameters_repeat1, delegation_specifier_repeat1, delegation_specifiers_repeat1]
+  assignments (4): assignment, multi_variable_declaration, property_declaration, variable_declaration   [anon: multi_variable_declaration_repeat1]
+
+## tree-sitter-swift [swift] (named: 186, total: 547)
+  imports (7): didset_clause, import_declaration, protocol_property_requirements, throws_clause, user_type, where_clause, willset_clause   [anon: _import_kind, _simple_user_type, import, protocol_property_requirements_repeat1, required, user_type_repeat1]
+  calls (3): call_expression, call_suffix, macro_invocation   [anon: _fn_call_lambda_arguments, _fn_call_lambda_arguments_repeat1, _locally_permitted_modifier, _locally_permitted_modifiers, nonsending]
+  conditions (15): catch_block, catch_keyword, do_statement, else, enum_entry, for_statement, if_statement, repeat_while_statement, switch_entry, switch_pattern, switch_statement, ternary_expression, try_expression, try_operator, while_statement   [anon: #else, #elseif, _attribute_argument_repeat1, _attribute_argument_repeat2, _availability_argument_repeat1, _case_pattern]
+  assignments (5): assignment, directly_assignable_expression, property_declaration, protocol_property_declaration, value_binding_pattern   [anon: _assignment_and_operator, _binding_kind_and_pattern, _binding_pattern, _binding_pattern_no_expr, _direct_or_indirect_binding, _if_let_binding]
+
+## tree-sitter-c [c] (named: 125, total: 327)
+  imports (5): bitfield_clause, else_clause, preproc_include, seh_except_clause, seh_finally_clause   [anon: #include, preproc_include_token2]
+  calls (3): call_expression, ms_call_modifier, preproc_call   [anon: __clrcall, __fastcall, __stdcall, __thiscall, __vectorcall]
+  conditions (13): case_statement, conditional_expression, do_statement, else_clause, for_statement, if_statement, preproc_else, preproc_if, preproc_ifdef, seh_except_clause, seh_try_statement, switch_statement, while_statement   [anon: #else, __except, __try, _declaration_specifiers_repeat1, _field_declaration_declarator_repeat1, _for_statement_body]
+  assignments (13): abstract_array_declarator, abstract_function_declarator, abstract_parenthesized_declarator, abstract_pointer_declarator, array_declarator, assignment_expression, attributed_declarator, field_declaration, field_declaration_list, function_declarator, init_declarator, parenthesized_declarator, pointer_declarator   [anon: _abstract_declarator, _declaration_declarator, _declarator, _field_declaration_declarator, _field_declaration_declarator_repeat1, _field_declaration_list_item]
+
+## tree-sitter-cpp [cpp,cxx,hpp] (named: 206, total: 489)
+  imports (19): base_class_clause, bitfield_clause, catch_clause, compound_requirement, condition_clause, default_method_clause, delete_method_clause, else_clause, preproc_include, pure_virtual_clause, requirement_seq, requires_clause, requires_expression, seh_except_clause, seh_finally_clause, simple_requirement …   [anon: #include, _enum_base_clause, _requirement, _requirement_clause_constraint, base_class_clause_repeat1, preproc_include_token2]
+  calls (4): call_expression, ms_call_modifier, new_expression, preproc_call   [anon: __clrcall, __fastcall, __stdcall, __thiscall, __vectorcall]
+  conditions (17): case_statement, catch_clause, conditional_expression, do_statement, else_clause, for_range_loop, for_statement, if_statement, noexcept, preproc_else, preproc_if, preproc_ifdef, seh_except_clause, seh_try_statement, switch_statement, try_statement …   [anon: #else, __except, __try, _class_declaration_repeat1, _declaration_specifiers_repeat1, _for_range_loop_body]
+  assignments (19): abstract_array_declarator, abstract_function_declarator, abstract_parenthesized_declarator, abstract_pointer_declarator, abstract_reference_declarator, array_declarator, assignment_expression, attributed_declarator, field_declaration, field_declaration_list, function_declarator, init_declarator, new_declarator, parenthesized_declarator, pointer_declarator, pointer_type_declarator …   [anon: _abstract_declarator, _declarator, _field_declaration_list_item, _field_declarator, _function_declarator_seq, _type_declarator]
+
+## tree-sitter-scala [scala] (named: 171, total: 433)
+  imports (13): case_clause, catch_clause, derives_clause, export_declaration, extends_clause, finally_clause, import_declaration, package_clause, type_case_clause, uses_clause, using_directive, using_directive_key, using_directive_value   [anon: _expr_case_clause, _using_parameters_clause, export, import, import_declaration_repeat1, uses]
+  calls (1): call_expression
+  conditions (20): case_block, case_class_pattern, case_clause, catch_clause, do_while_expression, enum_case_definitions, for_expression, full_enum_case, given_conditional, if_expression, indented_cases, match_expression, match_type, repeat_pattern, repeated_parameter_type, simple_enum_case …   [anon: _argument_list_repeat1, _block_repeat1, _block_statements_repeat1, _case_pattern, _class_constructor_repeat1, _colon_bindings_repeat1]
+  assignments (6): assignment_expression, binding, bindings, capture_variable, val_definition, var_definition   [anon: _colon_bindings_repeat1, bindings_repeat1]
+
+## tree-sitter-dart [dart] (named: 219, total: 521)
+  imports (6): catch_clause, finally_clause, import_or_export, import_specification, library_export, library_import   [anon: _export, _import, _required, _unused_escape_sequence, export, import]
+  calls (2): constructor_invocation, new_expression
+  conditions (22): case_builtin, catch_clause, catch_parameters, conditional_assignable_selector, conditional_expression, do_statement, for_element, for_loop_parts, for_statement, if_element, if_null_expression, if_statement, initializer_list_entry, switch_block, switch_expression, switch_expression_case …   [anon: _argument_list_repeat1, _assignable_selector_part_repeat1, _expression_repeat1, _for_loop_parts, _for_loop_parts_repeat1, _for_loop_parts_repeat2]
+  assignments (10): assignable_expression, assignment_expression, assignment_expression_without_cascade, conditional_assignable_selector, initialized_variable_definition, local_variable_declaration, pattern_assignment, pattern_variable_declaration, unconditional_assignable_selector, variable_pattern   [anon: _assignable_selector, _assignable_selector_part, _assignable_selector_part_repeat1, _assignment_operator, _cascade_assignment_section]
+
+## tree-sitter-bash [sh,bash] (named: 59, total: 236)
+  imports (2): elif_clause, else_clause   [anon: export]
+  calls (7): command, command_name, command_substitution, declaration_command, negated_command, test_command, unset_command   [anon: _heredoc_command, command_repeat1, command_repeat2, declaration_command_repeat1, unset_command_repeat1]
+  conditions (9): c_style_for_statement, case_item, case_statement, elif_clause, else_clause, for_statement, if_statement, ternary_expression, while_statement   [anon: _concatenation_in_expansion_repeat1, _expansion_body_repeat1, _expansion_regex_repeat1, _for_body, _for_body_repeat1, _literal_repeat1]
+  assignments (4): special_variable_name, variable_assignment, variable_assignments, variable_name   [anon: _c_expression_not_assignment, variable_assignments_repeat1]
+
+## tree-sitter-sql [sql] (named: 523, total: 725)
+  imports (6): keyword_unload, keyword_use, keyword_user, keyword_using, when_clause, window_clause   [anon: _include_time_zone, _unload_statement, _user_access_role_config]
+  calls (3): invocation, keyword_called, keyword_invoker   [anon: command, invocation_repeat1, invocation_repeat2]
+  conditions (9): case, keyword_case, keyword_else, keyword_except, keyword_geometry, keyword_if, keyword_match, keyword_matched, keyword_repeatable   [anon: _column_constraint_repeat1, _column_list_repeat1, _compute_stats_repeat1, _compute_stats_repeat2, _copy_statement_repeat1, _create_statement_repeat1]
+  assignments (2): assignment, assignment_list   [anon: assignment_list_repeat1]
+
+## tree-sitter-yaml [yaml] (named: 36, total: 140)
+  imports (0): 
+  calls (0): 
+  conditions (0):    [anon: _br_mtl_dqt_ctn_repeat1, _br_mtl_sqt_ctn_repeat1, _drs_doc_repeat1, _r_blk_map_repeat1, _r_blk_seq_repeat1, _r_blk_str_repeat1]
+  assignments (0): 
+
+## tree-sitter-toml [toml] (named: 19, total: 63)
+  imports (0): 
+  calls (0): 
+  conditions (0):    [anon: _basic_string_repeat1, _multiline_basic_string_repeat1, _multiline_literal_string_repeat1, array_repeat1, array_repeat2, document_repeat1]
+  assignments (0): 
+
+## tree-sitter-html [html] (named: 19, total: 33)
+  imports (0): 
+  calls (0): 
+  conditions (0):    [anon: document_repeat1, start_tag_repeat1]
+  assignments (0): 
+
+## tree-sitter-css [css] (named: 64, total: 129)
+  imports (3): import_statement, important, important_value   [anon: @import, import_statement_repeat1]
+  calls (1): call_expression
+  conditions (0):    [anon: arguments_repeat1, block_repeat1, class_name_repeat1, declaration_repeat1, grid_value_repeat1, import_statement_repeat1]
+  assignments (0): 
+
+## tree-sitter-hcl [hcl] (named: 64, total: 121)
+  imports (0): 
+  calls (1): function_call   [anon: _function_call_end, _function_call_start]
+  conditions (12): conditional, for_cond, for_expr, for_intro, for_object_expr, for_tuple_expr, template_else_intro, template_for_end, template_for_start, template_if, template_if_end, template_if_intro   [anon: _object_elems_repeat1, _tuple_elems_repeat1, attr_splat_repeat1, block_repeat1, body_repeat1, else]
+  assignments (1): variable_expr
+
+DONE
