@@ -26,6 +26,20 @@ Skillselion) предложило закрыть их манифест-анко�
 
 Добавить четвёртый тип якоря `pkg:` (closed-world):
 
+> **B-1 scaling (2026-08-19/21):** источники `_load_manifest_packages` расширены
+> с python-only до мульти-экосистемных экстракторов `src/sources/manifest/`
+> (Backlog B-1): python (pyproject/Pipfile/requirements*.txt) + npm (package.json)
+> + go/cargo/maven/nuget/composer/gem + lockfile'ы (uv/Cargo/package-lock
+> v1v3/composer/Pipfile.lock/packages.lock/bun/yarn v1v2berry/pnpm v5.4-v9).
+> Контракт не менялся: `manifest_packages(root) -> Set[str]`. Проверка членства
+> `_pkg_in_pool`: точное имя (npm/go с точками и слэшами) ИЛИ PEP 503 legacy —
+> иначе `pkg:lodash.get` давал бы ложный REFUTED. Единственная НЕ-stdlib
+> зависимость экстракторов — PyYAML (pnpm-lock.yaml; пин — в pyproject.toml,
+> единственный источник версий). Parity-гейт в CI
+> (scripts/manifest_parity.py vs osv-scanner на корпусе e-s1-polygon,
+> расхождение = 0) — нашёл и закрыл 3 дыры (2026-08-21): bun.lock trailing
+> commas, yarn berry patch/alias/`||`-ключи, workspace-локальные пакеты.
+
 1. **`_Fingerprint.packages`** — множество нормализованных имён пакетов (PEP 503:
    lowercase, `-_.` → `-`), собранных из `pyproject.toml` (`project.dependencies`,
    `project.optional-dependencies.*`, `project.dev-dependencies`,

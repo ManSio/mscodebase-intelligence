@@ -343,6 +343,40 @@ def test_yarn_berry_v10_scoped():
     assert "@actions/core" in names
 
 
+def test_bun_lock_v1_trailing_commas_real():
+    """bun.lock v1: trailing commas (невалидный JSON) — tolerant-парсер.
+    До фикса (2026-08-21, найдено parity-чеком vs osv-scanner) json.loads
+    падал -> экстрактор молча возвращал пусто."""
+    from src.sources.manifest.extract import _extract_bun_lock
+
+    text = (FIXT / "bun" / "bun.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_bun_lock(text, "bun.lock")}
+    assert "@esbuild/darwin-x64" in names
+    assert "oxlint" in names
+    assert "react-dom" in names
+    assert len(names) > 50  # полный ресолв из packages:, не только workspaces
+
+
+def test_bun_synthetic_trailing_comma():
+    from src.sources.manifest.extract import _extract_bun_lock
+
+    txt = '{"lockfileVersion": 1, "configVersion": 1, "packages": {"lodash@4.17.21": ["lodash@4.17.21", "x@1.0.0"],},}'
+    names = {e.name for e in _extract_bun_lock(txt, "bun.lock")}
+    assert names == {"lodash"}  # модель: имя из arr[0] токена (x — второй токен списка)
+
+
+def test_yarn_berry_patch_descriptors():
+    """berry: patch-дескрипторы 'x@patch:x@npm:range' дают ЧИСТОЕ имя x
+    (найдено parity-чеком: мусор 'resolve@patch:resolve' был в пуле)."""
+    from src.sources.manifest.extract import _extract_yarn_lock
+
+    text = (FIXT / "berry" / "yarn.lock").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
+    assert "resolve" in names  # patch-клоны -> базовое имя
+    assert "ink" in names
+    assert not any("@patch:" in n for n in names)  # никакого мусора
+
+
 def test_yarn_synthetic():
     from src.sources.manifest.extract import _extract_yarn_lock
 
@@ -352,3 +386,46 @@ def test_yarn_synthetic():
     )
     names = {e.name for e in _extract_yarn_lock(txt, "yarn.lock")}
     assert names == {"lodash"}
+
+
+def test_pnpm_lock_v9_real():
+    from src.sources.manifest.extract import _extract_pnpm_lock
+
+    text = (FIXT / "pnpm" / "pnpm-lock.yaml").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_pnpm_lock(text, "pnpm-lock.yaml")}
+    assert "balanced-match" in names
+    assert "brace-expansion" in names
+    assert "glob" in names
+    assert "inflight" in names
+
+
+def test_pnpm_lock_monorepo_real():
+    from src.sources.manifest.extract import _extract_pnpm_lock
+
+    text = (FIXT / "pnpm" / "pnpm-lock-monorepo.yaml").read_text(encoding="utf-8", errors="replace")
+    names = {e.name for e in _extract_pnpm_lock(text, "pnpm-lock-monorepo.yaml")}
+    assert "is-positive" in names
+
+
+def test_pnpm_lock_synthetic_scoped_peer_v9():
+    from src.sources.manifest.extract import _extract_pnpm_lock
+
+    txt = (
+        "lockfileVersion: '9.0'\n"
+        "packages:\n"
+        "  '/@babel/code-frame@7.24.7':\n"
+        "    resolution: {integrity: sha512-x}\n"
+        "  'react@19.0.0(react-dom@19.0.0)':\n"
+        "    resolution: {integrity: sha512-y}\n"
+        "  'lodash.get@4.4.2':\n"
+        "    resolution: {integrity: sha512-z}\n"
+    )
+    names = {e.name for e in _extract_pnpm_lock(txt, "pnpm-lock.yaml")}
+    assert names == {"@babel/code-frame", "react", "lodash.get"}
+
+
+def test_pnpm_lock_invalid_yaml_empty():
+    from src.sources.manifest.extract import _extract_pnpm_lock
+
+    assert _extract_pnpm_lock("lockfileVersion: [unclosed", "pnpm-lock.yaml") == []
+    assert _extract_pnpm_lock("packages: 42\n", "pnpm-lock.yaml") == []
