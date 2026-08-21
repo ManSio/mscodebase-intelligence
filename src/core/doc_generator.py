@@ -52,6 +52,18 @@ class DocGenerator:
                 callees[caller].append(callee)
         return callees
 
+    @staticmethod
+    def _md_cell(text: str, max_len: int = 200) -> str:
+        """Экранирует значение для ячейки Markdown-таблицы.
+
+        Заменяет `|` на литеральные `\\|`, склеивает переводы строк пробелом,
+        обрезает до max_len символов.
+        """
+        collapsed = " ".join(text.splitlines()).strip()
+        if len(collapsed) > max_len:
+            collapsed = collapsed[: max_len - 3].rstrip() + "..."
+        return collapsed.replace("|", "\\|")
+
     def _build_callers_index(
         self, all_files: List[Path]
     ) -> Dict[str, List[str]]:
@@ -155,21 +167,32 @@ class DocGenerator:
                 callees = self._get_callees_for_file(fp)
 
                 parts.append(f"\n## {rel}\n")
-                parts.append("| Symbol | Kind | Line | Callers | Callees |\n")
-                parts.append("|--------|------|------|---------|--------|\n")
+                parts.append(
+                    "| Symbol | Kind | Signature | Description | Line | Callers | Callees |\n"
+                )
+                parts.append(
+                    "|--------|------|-----------|-------------|------|---------|--------|\n"
+                )
 
                 for s in symbols[:20]:  # макс 20 символов на файл
                     name = s["name"]
                     kind = s.get("kind", "?").replace("_", " ")
+                    signature = self._md_cell(s.get("signature") or "")
+                    desc = self._md_cell(s.get("docstring") or "", max_len=100)
                     line = s["line"]
                     c_list = callers_index.get(name, [])
                     callers_str = ", ".join(c_list[:5]) if c_list else "—"
                     callee_list = callees.get(name, [])
                     callees_str = ", ".join(callee_list[:5]) if callee_list else "—"
-                    parts.append(f"| `{name}` | {kind} | {line} | {callers_str} | {callees_str} |\n")
+                    parts.append(
+                        f"| `{name}` | {kind} | {signature} | {desc} | {line} "
+                        f"| {callers_str} | {callees_str} |\n"
+                    )
 
                 if len(symbols) > 20:
-                    parts.append(f"| ... и ещё {len(symbols) - 20} символов | | | | |\n")
+                    parts.append(
+                        f"| ... и ещё {len(symbols) - 20} символов | | | | | | |\n"
+                    )
 
             parts.append("\n---\n")
 

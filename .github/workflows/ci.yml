@@ -49,6 +49,13 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: Layer-boundary gate (Фаза 1 Universal Engine)
+        # Три оси ТЗ: ADAPTER → TRANSPORT → SOURCE → CORE. Гейт не даёт
+        # mcp/tools импортировать adapters/src.sources и core — adapters.*
+        # (кроме main.py dispatch); transitional core→src.sources.* обязан
+        # дойти до 0 к концу Фазы 2.
+        run: python scripts/check_layer_boundaries.py
+
       - name: Check version consistency
         run: python scripts/bump_version.py --check
 

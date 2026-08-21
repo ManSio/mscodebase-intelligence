@@ -42,6 +42,8 @@ class IndexTool(MCPTool):
         file_path: str = "",
         # IndexProjectDir params
         path: str = "",
+        # IndexGitUrl params
+        url: str = "",
         # IndexHealth / GetIndexStatus params
         project_root: str = "",
         # general passthrough
@@ -50,15 +52,17 @@ class IndexTool(MCPTool):
         """Execute an index operation.
 
         Args:
-            action: One of: notify, reindex, status, progress, timeline, health
+            action: One of: notify, reindex, git_url, status, progress, timeline, health
             file_path: Path to file (notify)
             path: Project path to index (reindex)
+            url: Git URL to clone and index (git_url)
             project_root: Project root (status, progress, timeline, health)
             kwargs: Optional extra kwargs passthrough
         """
         action_map = {
             "notify": self._action_notify,
             "reindex": self._action_reindex,
+            "git_url": self._action_git_url,
             "status": self._action_status,
             "progress": self._action_progress,
             "timeline": self._action_timeline,
@@ -69,7 +73,7 @@ class IndexTool(MCPTool):
         if handler is None:
             return (
                 f"🚫 **Unknown action:** `{action}`\n\n"
-                f"Available: notify, reindex, status, progress, timeline, health"
+                f"Available: notify, reindex, git_url, status, progress, timeline, health"
             )
 
         # Pass through all kwargs (except control keys)
@@ -98,6 +102,16 @@ class IndexTool(MCPTool):
         return await IndexProjectDirTool.execute.__wrapped__(
             tool,
             path=target,
+            kwargs=kw.get("kwargs"),
+        )
+
+    async def _action_git_url(self, **kw) -> str:
+        from src.mcp.tools.indexing_tools import IndexGitUrlTool
+
+        tool = IndexGitUrlTool(self._services)
+        return await IndexGitUrlTool.execute.__wrapped__(
+            tool,
+            url=kw.get("url", ""),
             kwargs=kw.get("kwargs"),
         )
 
