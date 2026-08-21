@@ -16,7 +16,7 @@
 | Component | Requirement |
 |-----------|-----------|
 | **OS** | Windows 10+ (primary support), macOS 12+, Linux |
-| **Python** | 3.10+ (3.11+ recommended) |
+| **Python** | 3.14+ |
 | **RAM** | 4 GB (8+ GB recommended) |
 | **Disk** | 500 MB (with model — up to 2 GB) |
 | **Zed IDE** | latest version |
