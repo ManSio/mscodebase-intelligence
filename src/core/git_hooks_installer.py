@@ -23,6 +23,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from src import __version__ as _ENGINE_VERSION
+
 logger = logging.getLogger(__name__)
 
 # Шаблон pre-commit хука — вызывает 3 скрипта через Python
@@ -118,7 +120,7 @@ class GitHooksInstaller:
         result = installer.uninstall("/path/to/project")
     """
 
-    def __init__(self, version: str = "3.3.8"):
+    def __init__(self, version: str = _ENGINE_VERSION):
         self.version = version
 
     # ─── Public API ────────────────────────────────────────
