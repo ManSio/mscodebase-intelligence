@@ -25,6 +25,14 @@
 
 ---
 
+## [2026-08-24] — Architecture linter: STALE-ложности убраны, 4-й инвариант (циклы core) реализован и вшит в CI/pre-commit
+**Status:** ✅ Fixed (linter exit 0; 4/4 invariant-тестов; ruff clean)
+**Root Cause:** (1) STALE-паттерн «get_project_context(» матчил новое имя `intel_get_project_context(` как подстроку → 2 ложных срабатывания; (2) allow-list `.codebase_index` содержал неверный путь `src/core/symbol_index.py` (реальный — `src/core/indexing/symbol_index.py`) → 2 ложных на skip-dir-сетах; (3) обещанный docstring'ом инвариант «циклы core» не был реализован; (4) скрипт не был вшит ни в CI, ни в pre-commit — проверялись только pytest-AST-гварды.
+**Fix:** ignore_substr=`intel_get_project_context` в STALE-паттерне; allow-list пути исправлены (+graph_adapter, comment-обновление); новый `_check_core_no_circular_deps` (AST-граф импортов, relative-резолв, DFS-циклы) добавлен в `_CHECKS`; шаг в ci.yml + 6-й хук в git_hooks_installer.py; тест-гвард `test_linter_detects_core_cycles` (положит.+отриц. контроль).
+**Guard:** linter exit≠0 теперь краснит CI; новый цикл core → `[CIRCULAR]` на каждом прогоне (раньше — только ручной прогон).
+**Найдено:** существующий цикл `error_handler⇄task_queue` — НЕ баг: обе стороны импортируют друг друга только lazy-импортами под try/except (error_handler.py:290, task_queue.py:414), разрыв цикла в рантайме, осознанный техдолг → `_ALLOWED_CORE_CYCLES` с комментарием (KNOWN_ISSUES 2026-08-24).
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh на этой ветке не запускался; локально pytest 1475 passed, linter exit 0.
+
 ## [2026-08-19] — Координационный инцидент: commit без pathspec утащил staged-правки парал-агента (RESOLVED)
 **Status:** 🔴 Fixed (зафиксировано; история не переписывалась)
 **verified_from_clean_state:** ⚠️ не проверено — git-операции с локальной историей; воспроизводимо через `git --no-pager log --oneline -1` (HEAD=2d9e8820) + `git show --stat HEAD`.
@@ -1582,4 +1590,11 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **verified_from_clean_state:** ⚠️ no — pytest полный (756 passed) + AST, но verify_clean_state.sh (clone+venv) не гонялся в этой сессии.
 
 ---
+
+## [2026-08-24] — Live Sync: editor RAM → демон (all-IDE, out-of-the-box)
+**Status:** ✅ Feature
+**Root Cause:** FS-watcher бесполезен — IDE держит изменения в RAM до save; текущий `notify_change` VFS-путь мёртв (`src.hybrid_server` удалён 2026-07-20).
+**Fix:** новый пакет `src/sync/`: `LiveBuffer` (RAM-оверлей несохранённого, versioned LRU+TTL, НИКОГДА не пишет на диск — §2.3) + `LiveSyncServer` (WS `/ws/sync` в `remote_main`, Bearer-auth как у HTTP-гейта). Проект авто-регистрируется из `root`, переданного клиентом (roots-only, **нет fallback'а на self-index**). `read_live_file` теперь читает оверлей раньше диска (`source: live_buffer`). Расширение VS Code: `extensions/vscode/mscodebase-sync/` (debounce 350мс, монотонный version, reconnect backoff+jitter).
+**Guard:** 36 тестов (test_live_buffer, test_live_sync_server, test_read_live_file, test_remote_main) PASSED; TS-расширение компилируется (`./node_modules/.bin/tsc`); импорты `src.sync` OK. LIVE-SMOKE: `scripts/smoke_livesync.py` (требует запущенный демон + пакет `websockets`).
+**verified_from_clean_state:** ⚠️ не проверено — чистый клон Live Sync не запускался (требует отдельного прогона с демоном).
 

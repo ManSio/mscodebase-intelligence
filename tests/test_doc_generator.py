@@ -12,7 +12,6 @@ from pathlib import Path
 
 from src.core.doc_generator import DocGenerator
 
-
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_module.py"
 
 
@@ -67,7 +66,7 @@ def test_deep_spec_signature_and_description_columns(tmp_path):
     md = DocGenerator().generate(str(proj))
     lines = md.splitlines()
 
-    header = next(l for l in lines if l.startswith("| Symbol"))
+    header = next(line for line in lines if line.startswith("| Symbol"))
     assert "Signature" in header and "Description" in header
     header_cols = len(re.findall(r"(?<!\\)\|", header))
 
