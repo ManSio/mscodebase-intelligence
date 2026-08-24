@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -19,7 +18,6 @@ from src.core.action_receipt import (
     VERDICT_INCONCLUSIVE,
     VERDICT_REFUTED,
     VERDICT_VERIFIED,
-    ActionReceipt,
     ActionReceiptStore,
     build_receipt,
     format_receipt,

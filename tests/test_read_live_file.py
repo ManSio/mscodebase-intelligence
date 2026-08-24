@@ -98,15 +98,46 @@ async def test_cp1251_file_decoded_not_mojibake(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_utf8_file_decoded_utf8(tmp_path):
+async def test_live_buffer_overlay_served_before_disk(tmp_path, monkeypatch):
+    """Live-оверлей: несохранённый текст читается раньше диска (source=live_buffer)."""
+    from src.sync.live_buffer import LiveBuffer
+
     root = tmp_path / "project"
     root.mkdir()
-    target = root / "utf8.txt"
-    target.write_text("Привет, мир", encoding="utf-8")
+    target = root / "a.py"
+    target.write_text("DISK content", encoding="utf-8")
+
+    # Кладём в оверлей живой (несохранённый) текст.
+    buf = LiveBuffer()
+    buf.update(str(target), "LIVE unsaved content v7", version=7)
+    monkeypatch.setattr("src.sync.live_buffer.get_live_buffer", lambda: buf)
 
     tool = _make_tool(root)
     res = await _run(tool, absolute_path=str(target))
 
     assert res["status"] == "ok"
-    assert res["encoding"] == "utf-8"
-    assert "Привет, мир" in res["content"]
+    assert res["source"] == "live_buffer"
+    assert "LIVE unsaved content v7" in res["content"]
+    # Дисковый текст не должен попасть, когда есть живой.
+    assert "DISK content" not in res["content"]
+
+
+@pytest.mark.asyncio
+async def test_live_buffer_absent_falls_back_to_disk(tmp_path, monkeypatch):
+    """Без оверлея — обычное чтение с диска."""
+    from src.sync.live_buffer import LiveBuffer
+
+    root = tmp_path / "project"
+    root.mkdir()
+    target = root / "a.py"
+    target.write_text("DISK content", encoding="utf-8")
+
+    buf = LiveBuffer()  # пустой — нет живого
+    monkeypatch.setattr("src.sync.live_buffer.get_live_buffer", lambda: buf)
+
+    tool = _make_tool(root)
+    res = await _run(tool, absolute_path=str(target))
+
+    assert res["status"] == "ok"
+    assert res["source"] == "disk"
+    assert "DISK content" in res["content"]

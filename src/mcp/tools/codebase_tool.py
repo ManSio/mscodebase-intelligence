@@ -94,6 +94,7 @@ class CodebaseTool(MCPTool):
             "index": self._action_index,
             "git": self._action_git,
             "system": self._action_system,
+            "set_project": self._action_set_project,
         }
         handler = action_map.get(action)
         if not handler:
@@ -221,6 +222,14 @@ class CodebaseTool(MCPTool):
             f"❌ Unknown index sub-action: '{sub}'. "
             f"Available: status | progress | timeline | health | project_dir | notify"
         )
+
+    async def _action_set_project(self, **kw) -> str:
+        """Set active project — переключает проект без перезапуска."""
+        from src.mcp.tools.indexing_tools import SetProjectTool
+        target = kw.get("project_root", "")
+        if not target:
+            return "❌ set_project: required project_root"
+        return await SetProjectTool(self._services).execute(project_root=target)
 
     async def _action_git(self, **kw) -> str | dict[str, Any]:
         """Git operations — делегирует в GetCommitHistoryTool."""

@@ -1,0 +1,54 @@
+{
+  "name": "mscodebase-sync",
+  "displayName": "MSCodeBase Live Sync",
+  "description": "Передаёт изменения файлов (включая несохранённые) в демон MSCodeBase в реальном времени для всегда-свежего индекса.",
+  "version": "0.1.0",
+  "publisher": "mscodebase",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "MSCodeBase",
+      "properties": {
+        "mscodebase.serverUrl": {
+          "type": "string",
+          "default": "ws://127.0.0.1:8089/ws/sync",
+          "description": "WebSocket URL демона MSCodeBase (в пределах домашней сети — адрес хоста)."
+        },
+        "mscodebase.authToken": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer-токен (MSCODEBASE_REMOTE_TOKEN на стороне демона). Пусто — без auth (localhost)."
+        },
+        "mscodebase.debounceMs": {
+          "type": "number",
+          "default": 350,
+          "description": "Задержка отправки изменений, мс (защита от спама на каждую клавишу)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0",
+    "ws": "^8.16.0",
+    "@types/ws": "^8.5.10"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

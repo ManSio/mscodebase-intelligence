@@ -128,6 +128,13 @@ jobs:
     # Локально при живом основном MCP нестабилен (PID-lock embedder) — автор
     # харнесса: только чистый раннер (CI Ubuntu).
     runs-on: ubuntu-latest
+    # pip install -e делает _ext_root == checkout-каталог, а CWD-first резолвит
+    # его же — self-indexing guard блочит. Индексация самого себя здесь —
+    # намеренный сценарий (движок в own-repo engine-режиме): явный PROJECT_PATH
+    # + dev-флаг MSCODEBASE_ALLOW_SELF_INDEX=1.
+    env:
+      PROJECT_PATH: ${{ github.workspace }}
+      MSCODEBASE_ALLOW_SELF_INDEX: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
