@@ -9,6 +9,12 @@ import json
 import sys
 from pathlib import Path
 
+# §9 п.9 (ENCODING SAFETY): JSON-RPC по stdout — sys.stdout на Windows-CI
+# может быть cp1252 (йириллица в JSON → UnicodeEncodeError → proc_dead
+# у хоста). Всегда пишем в utf-8.
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 
 def _send(msg: dict) -> None:
     sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")

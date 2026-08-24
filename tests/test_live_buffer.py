@@ -7,6 +7,7 @@
 - LRU-кап и TTL-сборка (никогда не пишет на диск — проверяем отсутствие I/O).
 """
 
+import os
 import threading
 import time
 
@@ -17,8 +18,11 @@ def test_update_then_get_returns_live_content():
     b = LiveBuffer()
     assert b.update("/a.py", "x=1", version=1) is True
     assert b.get("/a.py") == "x=1"
-    # Нормализация пути (слеши) — один и тот же физический файл.
-    assert b.get("\\a.py") == "x=1"
+    # Нормализация пути (слеши) — один и тот же физический файл (Windows).
+    # На Linux backslash — обычный символ в имени файла, не разделитель:
+    # эквивалентности слешей нет, проверка ОС-специфична.
+    if os.name == "nt":
+        assert b.get("\\a.py") == "x=1"
 
 
 def test_newer_version_wins():

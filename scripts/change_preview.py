@@ -23,6 +23,7 @@ Exit code: 0 = VERIFIED, 1 = REFUTED, 2 = INCONCLUSIVE.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -171,7 +172,11 @@ class ChangePreview:
                         failures.append(f"[{gate}] Failed (exit {res.returncode})")
                     print(f"  🔒 {gate}: {status}")
                 elif gate == "ruff":
-                    res = _run(["ruff", "check", "src/", "tests/"], wt, timeout=120)
+                    res = _run(
+                        [sys.executable, "-m", "ruff", "check", "src/", "tests/"],
+                        wt,
+                        timeout=120,
+                    )
                     status = "PASSED" if res.returncode == 0 else "FAILED"
                     if res.returncode != 0:
                         failures.append("[ruff] Failed")
