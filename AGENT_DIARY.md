@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-24] — Change Preview (Фаза 1+2) + импорт-граф 56 языков (Вариант A)
+**Status:** ✅ Feature (24 новых теста; ruff clean)
+**Root Cause:** (1) «точно знать что будет»: были impact_analysis (статический blast radius) и ActionReceipt (вердикт постфактум), но НЕ было связки «изменение → affected-тесты → прогон ДО коммита»; (2) IMPORT_NODE_MAP (20 языков, v3.3.0) удалён рефакторингом августа — claim живёт только в CHANGELOG (разрыв доки vs код).
+**Fix:** статический предиктор blast radius (symbol→affected tests, зоны→гейты; чистый AST/refscan БЕЗ live-индекса — детерминизм); превью-раннер незакоммиченного патча в изолированном git-worktree (прогон ровно affected-тестов + гейтов, вердикт VERIFIED/REFUTED/INCONCLUSIVE ДО коммита — трёхзначная модель action_receipt); импорт-экстрактор (duck-typed tree-sitter: карты 20 исходных языков + generic fallback, гейт MSCODEBASE_LANGUAGE_PACK как у language_pack.py).
+**Guard:** 24 новых теста: попадания + НЕ-попадания предиктора, импорт-экстрактор (положит.+отриц. контроль, герметично через fake-деревья), e2e мини-репо превью (REFUTED/VERIFIED/INCONCLUSIVE + worktree cleanup в finally §5.27).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не запускался); полный pytest 1499 passed / 10 skipped / 91 deselected через verify_diary gate-zero.
+
 ## [2026-08-24] — Architecture linter: STALE-ложности убраны, 4-й инвариант (циклы core) реализован и вшит в CI/pre-commit
 **Status:** ✅ Fixed (linter exit 0; 4/4 invariant-тестов; ruff clean)
 **Root Cause:** (1) STALE-паттерн «get_project_context(» матчил новое имя `intel_get_project_context(` как подстроку → 2 ложных срабатывания; (2) allow-list `.codebase_index` содержал неверный путь `src/core/symbol_index.py` (реальный — `src/core/indexing/symbol_index.py`) → 2 ложных на skip-dir-сетах; (3) обещанный docstring'ом инвариант «циклы core» не был реализован; (4) скрипт не был вшит ни в CI, ни в pre-commit — проверялись только pytest-AST-гварды.
