@@ -54,6 +54,12 @@ jobs:
         # дойти до 0 к концу Фазы 2.
         run: python scripts/check_layer_boundaries.py
 
+      - name: Architecture invariants (architecture_linter)
+        # 2026-08-24: скрипт вшит в CI — раньше гонялся только вручную.
+        # pytest-guard (tests/test_architecture_invariants.py) ловит импорты,
+        # но не stale-имена и циклы core-модулей.
+        run: python scripts/architecture_linter.py
+
       - name: Check version consistency
         run: python scripts/bump_version.py --check
 

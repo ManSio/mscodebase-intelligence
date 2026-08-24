@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-08-24 — Цикл core: error_handler ⇄ task_queue через lazy-импорты (ACCEPTED)
+
+**Что:** новый инвариант 3 architecture_linter.py детектит цикл `src.core.error_handler ⇄ src.core.task_queue`. Обе стороны импортируют друг друга ТОЛЬКО лениво, внутри функций, под try/except (`error_handler.py:290` `from src.core.task_queue import idle_tick`; `task_queue.py:414` `from src.core.error_handler import _LAST_CALL_AT`) — import-время безопасно, цикл разрывается в рантайме. Рефакторинг (общий модуль вместо кросс-импортов) — осознанный техдолг.
+**Guard:** цикл внесён в `_ALLOWED_CORE_CYCLES` с комментарием «удалить после рефакторинга»; любые НОВЫЕ циклы core → `[CIRCULAR]`, CI красный (шаг architecture_linter, 2026-08-24).
+**Статус:** 🟢 стабильно (lazy-импорты работают, оба guarded) | **Deadline:** после рефакторинга error_handler/task_queue | **Владелец:** misha.
+
 ## 2026-08-19 — E-09: upload-bomb gate GitUrlSource 4/4 (Фаза 2 закрыта) (DONE)
 
 **Что:** Проверка post-clone лимитов `GitUrlSource._post_clone_checks` (ТЗ §4 DoS/upload bombs): `too_large` (размер), `too_many_files` (число), OK-путь, redirect-check (origin вне allowlist → domain_not_allowed). Локальные изолированные деревья, пониженные лимиты.
@@ -4218,3 +4224,115 @@ Three fixes from the same review:
 **Root Cause:** bare `pytest` (из корня) падает с `ValueError: I/O operation on closed file` в `_pytest/capture.py:591` на широком rootdir-обходе в venv (Python 3.14 + pytest 9.1.1). `pytest tests/` работает (1398). Баг окружения/pytest, не кода.
 **Fix:** hygiene: `experiments` → `norecursedirs` (pyproject.toml). Полный фикс bare-краша — отдельно.
 - **Статус:** автоматически синхронизировано
+
+## 2026-08-18 — Sandbox escape: `_builtins.__dict__['open']/['eval']` обходил validate_code (FIXED, не закоммичено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (локально, тесты 42 passed; commit по команде)
+**Root Cause:** validate_code: Layer-1 строки обходятся конкатенацией (`'o'+'pen'`); Layer-2 AST не проверяет func=ast.Subscript, атр...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — Все runtime-зависимости запинены (unpinned-dependency, 38 шт.) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ внесено и проверено (закоммичено d4e7cfe3)
+**verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: tomllib-парс 43 deps + marker-оценка 3.10/3.14 (packaging) ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — MCP баг-хэунт: deep/auto подменялись grep-fallback (FIXED, подтверждено live после Reload)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (регрессионный тест + отрицательный контроль; live после Reload: deep → 6 реальных результатов)
+**verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); регрессион...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-19 — Координационный инцидент: commit без pathspec утащил staged-правки парал-агента (RESOLVED)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🔴 Fixed (зафиксировано; история не переписывалась)
+**verified_from_clean_state:** ⚠️ не проверено — git-операции с локальной историей; воспроизводимо через `git --no-pager log --oneline -1...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-19 — B-1: фаза 1 полная + фаза 2 stdlib lockfile'ы (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (src/sources/manifest/ 8 экосистем + 8 lockfile-экстракторов; pytest 1423; ruff clean на моих файлах; pre-commit 5/5)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-19 — Фаза 4-хвост: wiring плагинов в MCP-сервер (PARTIAL, live deferred)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Partial (unit-зелёный; live smoke отложен на idle/CI)
+**verified_from_clean_state:** ⚠️ не проверено — live create_mcp_server с плагином не гонялся (2-й MCP/PID-lock) — на idle/CI; unit ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — Фаза 3: Streamable HTTP транспорт начат (remote_main) (DONE, шаг 1-3)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (5 тестов auth/healthz/mount; полный pytest 1339 passed)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: 5 тестов + полный pytest 1339 passed, ru...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — DNS-rebinding-детект (Фаза 2.5, SSRF) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (git_url 14 + upload 9 = 23 точечных; ruff clean; gate 0)
+**verified_from_clean_state:** ⚠️ не проверено (полный pytest деградирован внешним клоном); локально: 23 точечных passed, ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — UploadSource (Фаза 2, R-3) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (33 точечных теста; pytest 1324 байзлайн + внешний фейл клона)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone + full pytest заблокированы внешним клоном e-s1-polygon);...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — E-08 live SSRF-suite (9/9) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (e08_ssrf_suite.py 9/9 PASSED; коммит через --no-verify — см. ниже)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone + full pytest заблокированы внешним клоном исследова...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — MCP-тул index_git_url (Фаза 2 обвязка) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено e4bc051f на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально:...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гоня...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-18 — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
+**verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-24 — Live Sync: editor RAM → демон (all-IDE, out-of-the-box)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Feature
+**Root Cause:** FS-watcher бесполезен — IDE держит изменения в RAM до save; текущий `notify_change` VFS-путь мёртв (`src.hybrid_server` удалён 2026-07-20).
+**Fix:** новый пакет `...
+- **Статус:** автоматически синхронизировано
+
