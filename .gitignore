@@ -18,6 +18,11 @@ dist/
 
 # IDE
 .idea/
+
+# Editor extensions (VS Code) — build artifacts
+extensions/**/node_modules/
+extensions/**/out/
+extensions/**/*.vsix
 .vscode/
 .zed/
 *.sublime-*
@@ -147,7 +152,17 @@ experiments/deep_research_log.md
 experiments/github_research_log.md
 experiments/sandbox_*.py
 experiments/_*.py
-experiments/_*.txt
+>experiments/_*.txt
+
+# Приватные стратегические/исследовательские документы (не публикуются, решение владельца 2026-08-21)
+MSCODEBASE_UNIVERSAL_TOR.md
+docs/research/universal-engine-study/
+experiments/benchmark2/
+experiments/lsp/lsp_client_demo.py
+experiments/lsp/lsp_live_pyright.py
+experiments/lsp/lsp_proto_index.py
+experiments/lsp/lsp_wire_probe.py
+experiments/lsp/fixture/
 experiments/benchmark2/out/
 experiments/_*.bat
 experiments/_*.sh
