@@ -22,6 +22,14 @@ from src.mcp.tools.base import (
     resolve_indexer_for_request,
 )
 
+
+@pytest.fixture(autouse=True)
+def _no_self_index_override(monkeypatch):
+    """Изоляция от dev-флага MSCODEBASE_ALLOW_SELF_INDEX: guard-тесты
+    проверяют prod-контракт (None/Zed install/ext_root = self-indexing).
+    Флаг ставится глобально в dev-окружении и отключает guard целиком."""
+    monkeypatch.delenv("MSCODEBASE_ALLOW_SELF_INDEX", raising=False)
+
 # ════════════════════════════════════════════════════════════
 # _is_self_index_path
 # ════════════════════════════════════════════════════════════
