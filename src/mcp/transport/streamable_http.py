@@ -18,4 +18,20 @@ def create_streamable_http_app():
     from src.mcp.server_factory import create_mcp_server
 
     mcp = create_mcp_server()
-    return mcp.streamable_http_app()
+    # remote_main монтирует этот ASGI-апп на /mcp (Mount("/mcp")). FastMCP по
+    # умолчанию вешает Streamable-HTTP эндпоинт тоже на /mcp — итоговый путь
+    # получался /mcp/mcp, отчего POST /mcp/ отдавал 404. Ставим внутренний
+    # путь на корень "/", чтобы после стрипа префикса Mount совпадал ровно /mcp.
+    try:
+        mcp.settings.streamable_http_path = "/"
+        # FastMCP включает DNS-rebinding защиту (проверка заголовка Host),
+        # которая по умолчанию отвергает localhost/127.0.0.1 (421). Для
+        # локального remote-сервера (bind 127.0.0.1 + Bearer-аутентификация
+        # в remote_main) эта проверка избыточна — отключаем, чтобы opencode
+        # мог подключаться по http://localhost:8089/mcp.
+        sec = mcp.settings.transport_security
+        if sec is not None:
+            sec.enable_dns_rebinding_protection = False
+    except Exception:  # noqa: BLE001 - защита от смены API FastMCP (pragma: no cover)
+        pass
+    return mcp.streamable_http_app(), mcp.session_manager

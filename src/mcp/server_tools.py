@@ -62,16 +62,17 @@ def register_all_tools(mcp, services):
         DetectCommunitiesTool,
         GraphQueryTool,
     )
+    from src.mcp.tools.indexing_tools import SetProjectTool
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
         GetBugCorrelationTool,
         GetHotspotsTool,
     )
     from src.mcp.tools.lifecycle_tools import (
+        GetActionReceiptTool,
         GetTaskStatusTool,
         SubmitBackgroundTaskTool,
         VerifyActionTool,
-        GetActionReceiptTool,
     )
     from src.mcp.tools.lsp_tools import (
         LspDocumentSymbolsTool,
@@ -89,6 +90,8 @@ def register_all_tools(mcp, services):
 
     # Список всех инструментов для регистрации
     tool_classes = [
+        # Project switching
+        SetProjectTool,
         # Search (3)
         SearchCodeTool,
         GetSymbolInfoTool,
@@ -155,6 +158,8 @@ def register_all_tools(mcp, services):
         _allowed_names = {
             # Hub: codebase — единый интерфейс
             "codebase",
+            # Project switching
+            "set_project",
             # execute_script в allowlist при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
             "execute_script",
             # ML-native (не заменяются E2B)

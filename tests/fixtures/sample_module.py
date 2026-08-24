@@ -1,6 +1,5 @@
 """Sample module used to test deep-spec doc generation (signature + docstring)."""
 
-import os
 
 GLOBAL = 42
 

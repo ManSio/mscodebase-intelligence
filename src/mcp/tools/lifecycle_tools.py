@@ -255,7 +255,6 @@ class GetActionReceiptTool(MCPTool):
         from src.core.action_receipt import (
             ActionReceiptStore,
             format_receipt,
-            format_receipt_summary,
         )
 
         idx = self.resolve_indexer(explicit_project_root=project_root)

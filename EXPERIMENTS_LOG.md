@@ -1,5 +1,25 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-21] — B-1 Manifest parity vs osv-scanner: гейт нашёл и закрыл 3 дыры
+
+**Гипотеза (Вариант В спеки 07):** выхлоп наших экстракторов манифестов == osv-scanner
+v2.5.1 на корпусе e-s1-polygon; расхождение = дыра в нашем парсере (не «osv правее»).
+**Команда:** `python scripts/manifest_parity.py --osv <osv-scanner.exe v2.5.1>` (канон-имена,
+свежий tmpdir на проверку, каталог-режим для пар manifest+lockfile).
+**Сырой результат (финальный):** `✅ Parity: расхождений 0` (12 каталогов, 2 skip
+документированы, 8 allowed-diffs с причинами). **Первый прогон: 11 расхождений.**
+**Найденные дыры (закрыты в тот же день):** (1) bun.lock v1 trailing commas — json.loads
+падал → экстрактор молча пусто (0→62 имён); (2) yarn berry: patch-дескрипторы давали мусор
+«resolve@patch:resolve», склейки `, ` и `||`-диапазоны дропались (256 имён), псевдонимы
+эsbuild@npm:esbuild-wasm@… — имя из resolution (version: идёт раньше resolution:),
+пробелы в версиях `>= 2.1.2 < 3` ломались фильтром по пробелам; (3) workspace-локальные
+`@workspace:` исключены из registry-пула (как osv).
+**Вердикт:** подтверждена; гейт в CI (manifest-parity джоба) — guard против «думаем,
+что парсим». **Урок:** osv не сканирует ОДИНОЧНЫЕ манифесты без lockfile-пары
+(«No package sources found») и резолвит `-e .[socks]` в транзитивный граф — семантика
+разных инструментов ≠ «мы неправы»; леджер allowed-diffs обязателен.
+Связь: ADR-0005 (B-1 scaling), KNOWN_ISSUES#2026-08-19-B1.
+
 ## [2026-08-19] — E-09: upload-bomb защита GitUrlSource (Фаза 2 / ТЗ §4 DoS)
 
 **Гипотеза:** post-clone лимиты GitUrlSource (`_post_clone_checks`) отклоняют оба DoS-вектора upload-bomb — размер и число файлов — машинным kind (→ INCONCLUSIVE), а не крашатся; OK-путь в лимитах чист; редирект-подмена origin блокируется. **Команда:** `python experiments/universal-engine/e09_upload_bombs.py` (локальные деревья без сети, пониженные лимиты).

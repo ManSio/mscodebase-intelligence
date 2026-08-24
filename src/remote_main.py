@@ -26,6 +26,9 @@ import hashlib
 import json
 import logging
 import os
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from starlette.applications import Starlette
@@ -33,9 +36,11 @@ from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
+from starlette.routing import Mount, Route, WebSocketRoute
 
+from src.core.di_container import ServiceCollection
 from src.core.rate_limiter import CircuitBreaker, SlidingWindowRateLimiter
+from src.sync.server import LiveSyncServer
 
 if TYPE_CHECKING:
     app: Starlette  # ленивый module-attr через __getattr__ (PEP 562) — см. ниже
@@ -62,7 +67,7 @@ class _EngineFailure(Exception):
 def _build_mcp_app():
     from src.mcp.transport.streamable_http import create_streamable_http_app
 
-    return create_streamable_http_app()
+    return create_streamable_http_app()  # returns (asgi_app, session_manager)
 
 
 async def _send_json(send, status: int, body: dict, extra_headers=()):
@@ -201,10 +206,39 @@ class _CircuitBreakerMount:
             )
 
 
+def _make_live_sync() -> "LiveSyncServer | None":
+    """Строит LiveSyncServer, переиспользуя сервисы MCP-движка.
+
+    Registry (ProjectIndexerRegistry) — module-singleton, поэтому WS и MCP
+    делят один реестр проектов. Если сервисы недоступны — возвращает None
+    (WS-маршрут отвечает noop), чтобы не ломать старт HTTP-сервера.
+    """
+    try:
+        from src.mcp.context import _services_cache as _svc
+
+        services: "ServiceCollection | None" = _svc
+        if services is None:
+            # Fallback: строим свой ServiceCollection (cwd), чтобы получить
+            # registry+factory. Indexer хост-рута НЕ создаётся (не self-index).
+            from src.core.di_container import create_service_collection
+
+            services = create_service_collection(Path.cwd())
+        return LiveSyncServer(services)
+    except Exception as _e:  # noqa: BLE001
+        logger.warning(f"[live-sync] не удалось инициализировать: {_e}")
+        return None
+
+
+async def _live_sync_noop(websocket) -> None:
+    """Заглушка, если LiveSyncServer не поднялся."""
+    await websocket.close(code=1013)  # Try again later
+
+
 def build_app(
     mcp_app=None,
     token: str | None = None,
     *,
+    session_manager=None,
     rate_limit_rps: float | None = None,
     limiter: SlidingWindowRateLimiter | None = None,
     breaker: CircuitBreaker | None = None,
@@ -212,6 +246,7 @@ def build_app(
     """Собирает Starlette-приложение: /mcp (Streamable HTTP) + /healthz + гейт.
 
     mcp_app — тестируемая инъекция; None → реальный create_streamable_http_app().
+    session_manager — StreamableHTTPSessionManager для запуска lifespan (None → без lifespan).
     token None → из env MSCODEBASE_REMOTE_TOKEN.
     rate_limit_rps None → из env MSCODEBASE_REMOTE_RATE_LIMIT_RPS
         (default 30.0 на ключ/сек); <= 0 → rate-limit middleware не добавляется.
@@ -219,8 +254,12 @@ def build_app(
     Порядок гейта (снаружи внутрь): rate-limit → auth → circuit-breaker (на /mcp).
     """
     if mcp_app is None:
-        mcp_app = _build_mcp_app()
+        mcp_app, session_manager = _build_mcp_app()
     token = token if token is not None else os.environ.get("MSCODEBASE_REMOTE_TOKEN", "").strip()
+
+    # Live-sync: один LiveSyncServer на весь демон, шарящий глобальный
+    # ProjectIndexerRegistry + IndexerFactory с MCP-инструментами.
+    live_sync = _make_live_sync()
 
     if rate_limit_rps is None:
         raw = os.environ.get("MSCODEBASE_REMOTE_RATE_LIMIT_RPS", "").strip()
@@ -231,11 +270,30 @@ def build_app(
         middleware.append(Middleware(_RateLimitMiddleware, limiter=limiter, rps=rate_limit_rps))
     if token:
         middleware.append(Middleware(_AuthMiddleware, token=token))
+
+    # Starlette не прокидывает lifespan в mounted sub-apps (Router.__call__
+    # обрабатывает только свой own lifespan). SessionManager.run() должен
+    # стартовать ДО первого запроса — оборачиваем в outer lifespan.
+    _sm = session_manager
+
+    @asynccontextmanager
+    async def _lifespan(app):
+        if _sm is not None:
+            async with _sm.run():
+                yield
+        else:
+            yield
+
     return Starlette(
+        lifespan=_lifespan,
         middleware=middleware,
         routes=[
             Mount("/mcp", app=_CircuitBreakerMount(mcp_app, breaker)),
             Route("/healthz", _healthz),
+            WebSocketRoute(
+                "/ws/sync",
+                live_sync.handle_websocket if live_sync else _live_sync_noop,
+            ),
         ],
     )
 
@@ -264,7 +322,9 @@ def main() -> None:
     args = parser.parse_args()
     import uvicorn
 
-    uvicorn.run(app, host=args.host, port=args.port)  # noqa: F821 — ленивый module-attr (__getattr__)
+    # Атрибутный доступ → триггерит модульный __getattr__('app') (ленивая сборка).
+    # Голое имя `app` НЕ вызывает __getattr__ и падало бы с NameError.
+    uvicorn.run(sys.modules[__name__].app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

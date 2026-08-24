@@ -340,9 +340,51 @@ class IndexHealthTool(MCPTool):
         }
 
 
+_active_project_root: str = ""
+
+
+def get_active_project_root() -> str:
+    return _active_project_root
+
+
+class SetProjectTool(MCPTool):
+    """set_project — переключить активный проект без перезапуска сервера."""
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="set_project")
+
+    @error_boundary("set_project", timeout_ms=5000)
+    async def execute(
+        self,
+        project_root: str,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        global _active_project_root
+        from pathlib import Path
+
+        target = Path(project_root).resolve()
+        if not target.exists():
+            return f"❌ Path does not exist: {project_root}"
+
+        _active_project_root = str(target)
+
+        from src.core.project_resolution import reset_project_root_cache
+        reset_project_root_cache()
+
+        import os
+        os.environ["PROJECT_PATH"] = str(target)
+
+        return (
+            f"✅ Project switched to: {target}\n"
+            f"  All subsequent tool calls will use this project."
+        )
+
+
 __all__ = [
     "NotifyChangeTool",
     "IndexProjectDirTool",
     "IndexHealthTool",
     "IndexGitUrlTool",
+    "SetProjectTool",
+    "get_active_project_root",
 ]
