@@ -97,9 +97,11 @@ ANALYSIS_REPORT.md
 TESTING.md
 
 # Stress / benchmark artifacts (root level)
+# Якорь ^/ обязателен: без него test_*.py матчит файлы на ЛЮБОЙ глубине
+# (src/core/test_impact.py молча исключался из git, 2026-08-24).
 stress_*.py
 stress_*.log
-test_*.py
+/test_*.py
 !tests/test_*.py
 !tests/e2e/test_e2e_mcp_smoke.py
 tmp_*.py
