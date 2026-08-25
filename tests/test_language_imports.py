@@ -127,6 +127,25 @@ class TestExtractImports:
         mods = extract_imports(tree, "python")
         assert mods == ["os"]
 
+    def test_real_treesitter_tree_shape(self):
+        """Регрессия 2026-08-25: реальный tree-sitter даёт TREE с .root_node,
+        а не node с .children — без унификации экстрактор молча возвращал [].
+        Живой прогон с tree-sitter-language-pack вскрыл, fake-дерево — нет.
+        """
+
+        class FakeTree:
+            def __init__(self, root):
+                self.root_node = root
+
+        tree = FakeTree(
+            N(
+                "module",
+                children=[N("import_statement", children=[N("dotted_name", text="os")])],
+            )
+        )
+        mods = extract_imports(tree, "python")
+        assert mods == ["os"]
+
 
 class TestFromFile:
     def test_hermetic_with_fake_provider(self, tmp_path):

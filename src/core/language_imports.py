@@ -66,8 +66,13 @@ _FALLBACK_SUBSTR = ("import", "use", "include")
 
 
 def _iter_nodes(node) -> Sequence:
-    yield node
-    for child in getattr(node, "children", ()) or ():
+    """Обход узлов. Реальный tree-sitter даёт объект TREE (дети в .root_node),
+    fake-узлы — сами родители (.children). Унифицируем через root_node.
+    """
+    root = getattr(node, "root_node", None)
+    start = root if root is not None else node
+    yield start
+    for child in getattr(start, "children", ()) or ():
         yield from _iter_nodes(child)
 
 
@@ -96,20 +101,44 @@ _LEAF_TYPES = (
     "import_prefix", "module", "name", "path", "namespace",
 )
 
+# Subtree, внутри которых лежат ИМЕНА из списка импорта, а не модуль:
+# python import_list / aliased_import, js import_clause. Не спускаемся туда.
+_SKIP_SUBTREES = frozenset({"import_list", "aliased_import", "import_clause"})
+
+
+def _leaf_text(child) -> str:
+    """Текст узла с декодированием байт (tree-sitter отдаёт bytes, не str).
+
+    str(b'ast') → "b'ast'" — реальная ошибка фиделити, вскрыта живым
+    прогоном с tree-sitter-language-pack (fake-деревья давали str).
+    """
+    raw = getattr(child, "text", "") or ""
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    return str(raw).strip().strip('\"\'')
+
 
 def _module_names(node) -> List[str]:
     """Имена модулей из узла импорта — по одному на каждый собирающий лист.
 
     Склейка листьев НЕ выполняется: go-block import ("os"; "strings") даёт
-    два имени, python from-import (dotted 'collections' + identifiers вне
-    _LEAF_TYPES) — одно (модуль), а не 'collections.defaultdict'.
+    два имени, python from-import (dotted 'collections' вне import_list) —
+    одно (модуль), а не 'collections.defaultdict'.
     """
+
+    def walk(n):
+        yield n
+        for ch in getattr(n, "children", ()) or ():
+            if str(getattr(ch, "type", "") or "") in _SKIP_SUBTREES:
+                continue  # имена из списка импорта — не модуль
+            yield from walk(ch)
+
     names: List[str] = []
-    for child in _iter_nodes(node):
+    for child in walk(node):
         ctype = str(getattr(child, "type", "") or "")
         if ctype not in _LEAF_TYPES:
             continue
-        text = str(getattr(child, "text", "") or "").strip().strip('\"\'')
+        text = _leaf_text(child)
         if not text:
             continue
         if len(text) == 1 and text in (".", "/", "\\"):

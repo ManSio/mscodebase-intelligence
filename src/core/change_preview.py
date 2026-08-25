@@ -40,7 +40,7 @@ def _run(cmd: List[str], cwd: Path, timeout: int = DEFAULT_TIMEOUT) -> subproces
             cmd,
             cwd=str(cwd),
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -48,12 +48,17 @@ def _run(cmd: List[str], cwd: Path, timeout: int = DEFAULT_TIMEOUT) -> subproces
     except FileNotFoundError:
         return subprocess.CompletedProcess(cmd, 127, f"command not found: {cmd[0]}")
     try:
-        stdout, _ = proc.communicate(timeout=timeout)
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.communicate()
         raise
-    return subprocess.CompletedProcess(cmd, proc.returncode, stdout or "")
+    # stderr не теряем (git apply и др. пишут ОШИБКУ в stderr): на провале
+    # добавляем её к сообщению — иначе диагностика пустая (2026-08-25).
+    out = stdout or ""
+    if proc.returncode != 0 and stderr and stderr.strip():
+        out = out.rstrip() + "\n[stderr] " + (stderr or "").strip()
+    return subprocess.CompletedProcess(cmd, proc.returncode, out)
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -141,7 +146,7 @@ class ChangePreview:
         # Применяем через файл (надёжнее пайпов на Windows, §5.16)
         patch_file = wt / ".preview.patch"
         try:
-            patch_file.write_text(patch_text, encoding="utf-8")
+            patch_file.write_text(patch_text, encoding="utf-8", newline="\n")
             check = _run(["git", "apply", "--check", str(patch_file)], wt, timeout=60)
             if check.returncode != 0:
                 return [f"patch --check failed: {(check.stdout or '').strip()[:300]}"]
