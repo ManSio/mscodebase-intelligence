@@ -18,6 +18,11 @@ dist/
 
 # IDE
 .idea/
+
+# Editor extensions (VS Code) — build artifacts
+extensions/**/node_modules/
+extensions/**/out/
+extensions/**/*.vsix
 .vscode/
 .zed/
 *.sublime-*
@@ -92,9 +97,11 @@ ANALYSIS_REPORT.md
 TESTING.md
 
 # Stress / benchmark artifacts (root level)
+# Якорь ^/ обязателен: без него test_*.py матчит файлы на ЛЮБОЙ глубине
+# (src/core/test_impact.py молча исключался из git, 2026-08-24).
 stress_*.py
 stress_*.log
-test_*.py
+/test_*.py
 !tests/test_*.py
 !tests/e2e/test_e2e_mcp_smoke.py
 tmp_*.py
@@ -147,7 +154,17 @@ experiments/deep_research_log.md
 experiments/github_research_log.md
 experiments/sandbox_*.py
 experiments/_*.py
-experiments/_*.txt
+>experiments/_*.txt
+
+# Приватные стратегические/исследовательские документы (не публикуются, решение владельца 2026-08-21)
+MSCODEBASE_UNIVERSAL_TOR.md
+docs/research/universal-engine-study/
+experiments/benchmark2/
+experiments/lsp/lsp_client_demo.py
+experiments/lsp/lsp_live_pyright.py
+experiments/lsp/lsp_proto_index.py
+experiments/lsp/lsp_wire_probe.py
+experiments/lsp/fixture/
 experiments/benchmark2/out/
 experiments/_*.bat
 experiments/_*.sh
@@ -167,17 +184,19 @@ scripts/_diag_*.py
 scripts/_run_*.py
 .codebase/
 
-# One-off dev/test scripts — удалены из репозитория 2026-08-04 (hardcoded paths, 0 ссылок)
-runner.py
-quickrun.py
-runtest.py
-do_test.py
-execute_test.py
-quick_test.py
-_run_test.py
-.verify_final_render.py
-run_test.bat
-run_pytest.bat
+# One-off dev/test scripts — удалены из репозитория 2026-08-04 (hardcoded paths, 0 ссылок).
+# ЯКОРЬ-в-корень (/): паттерн должен матчить ТОЛЬКО корневые одноразовые скрипты,
+# а не любой файл с таким именем в дереве (иначе скрывает легитимный src/plugins/runner.py).
+/runner.py
+/quickrun.py
+/runtest.py
+/do_test.py
+/execute_test.py
+/quick_test.py
+/_run_test.py
+/.verify_final_render.py
+/run_test.bat
+/run_pytest.bat
 run_one_test.bat
 run_one_test.sh
 

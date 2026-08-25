@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "mscodebase": {
+      "type": "stdio",
+      "command": "<path-to-venv>/Scripts/python.exe",
+      "args": ["-m", "src.main"],
+      "env": { "PYTHONPATH": "<path-to-repo>" },
+      "cwd": "<path-to-project>"
+    },
+    "mscodebase-remote": {
+      "type": "http",
+      "url": "http://<host>:8089/mcp",
+      "headers": { "Authorization": "Bearer <MSCODEBASE_REMOTE_TOKEN>" }
+    }
+  }
+}

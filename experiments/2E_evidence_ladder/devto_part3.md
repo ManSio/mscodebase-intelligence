@@ -58,7 +58,7 @@ Red-team checklist, item 1: *attack the ground truth, not the model.* We grepped
 | R44 | "Cross-project search uses pathlib" | imported, never used → ambiguous (excluded) |
 | R42 | "The server wrapper uses dataclasses" | 0 occurrences → correctly FALSE |
 
-**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. Those were not false accepts — they were correct verdicts against incorrect labels. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact.
+**4 of 6 "traps" were true.** The generator validated `value != real_value` but never checked the value was absent from the *subject*. Those were not false accepts — they were correct verdicts against incorrect labels. We created a corrected copy (29 true / 20 false / 1 ambiguous, new fingerprint) and kept the original untouched as a historical artifact. The link between the two versions is machine-readable: `experiments/1V_memory_contamination/flip_ledger_REDTEAM_2026-08-16.json` records every move as `id → from → to → evidence[]` with grep coordinates.
 
 ![The Dataset Was Lying: 4 of 6 "false" facts were actually true](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/devto_part3/1786875957.png)
 
@@ -165,6 +165,8 @@ The most dangerous assumption in LLM evaluation isn't the model — it's the dat
 Harness: `scripts/run_1L_live_arm.py` (arms code_first / file_content_first / graph_first / file_graph_first / temporal_blind_first / temporal_duo_first; `--facts`, `--ev-contexts`, `--pin-provider`). Summaries: `scripts/summarize_1L_categories.py --facts <corrected.json>` (truth-based re-score of old runs). Full report with raw outputs and the red-team audit: `experiments/2E_evidence_ladder/report.md`. Tests: 64 for harness/builder/generator/summarize, 1265 total.
 
 Dataset fingerprints: original `820bbbf60a0fc930` (historical, mislabeled trap) · corrected `e6ce7b902d0a20a9` (29 true / 20 false / 1 ambiguous) · temporal `e3c1fdd4` / `d1d2c2ed440ec370` · calls: ~1900 across the series · est. cost: < $0.10.
+
+Flip-link between versions: `experiments/1V_memory_contamination/flip_ledger_REDTEAM_2026-08-16.json`.
 
 {% cta link="https://github.com/ManSio/mscodebase-intelligence" %}Full report with raw outputs and the red-team audit{% endcta %}
 

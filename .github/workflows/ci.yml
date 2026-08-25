@@ -15,9 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        # P2-16 audit: requires-python = ">=3.10" — 3.10 добавлен в matrix
-        # (в т.ч. для регрессий wrong-loop на 3.10, см. P3-12)
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.14"]  # 3.14-only (2026-08-21): 3.10-3.13 выведены — см. requires-python
 
     runs-on: ${{ matrix.os }}
 
@@ -48,6 +46,19 @@ jobs:
 
       - name: Lint (ruff)
         run: ruff check src/ tests/
+
+      - name: Layer-boundary gate (Фаза 1 Universal Engine)
+        # Три оси ТЗ: ADAPTER → TRANSPORT → SOURCE → CORE. Гейт не даёт
+        # mcp/tools импортировать adapters/src.sources и core — adapters.*
+        # (кроме main.py dispatch); transitional core→src.sources.* обязан
+        # дойти до 0 к концу Фазы 2.
+        run: python scripts/check_layer_boundaries.py
+
+      - name: Architecture invariants (architecture_linter)
+        # 2026-08-24: скрипт вшит в CI — раньше гонялся только вручную.
+        # pytest-guard (tests/test_architecture_invariants.py) ловит импорты,
+        # но не stale-имена и циклы core-модулей.
+        run: python scripts/architecture_linter.py
 
       - name: Check version consistency
         run: python scripts/bump_version.py --check
@@ -85,8 +96,62 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
       - name: Verify clean state (no self-clone)
         run: bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"
         timeout-minutes: 15
+
+  manifest-parity:
+    # B-1 (ADR-0005 scaling): наши экстракторы манифестов vs osv-scanner на корпусе
+    # e-s1-polygon (Вариант В спеки 07). Выхлоп обязан совпадать (расхождение = дыра
+    # в нашем парсере). Пин: osv-scanner v2.5.1 (release 2026-08-17); бамп по §5.19.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install project
+        run: pip install -e .
+      - name: Download osv-scanner
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -sL -o "$HOME/bin/osv-scanner" https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
+          chmod +x "$HOME/bin/osv-scanner"
+      - name: Manifest parity
+        run: python scripts/manifest_parity.py --osv "$HOME/bin/osv-scanner"
+        timeout-minutes: 5
+
+  transport-equiv-e2e:
+    # E-07 (DoD Фазы 3): эквивалентность stdio ↔ Streamable HTTP на РЕАЛЬНОМ движке.
+    # Локально при живом основном MCP нестабилен (PID-lock embedder) — автор
+    # харнесса: только чистый раннер (CI Ubuntu).
+    runs-on: ubuntu-latest
+    # pip install -e делает _ext_root == checkout-каталог, а CWD-first резолвит
+    # его же — self-indexing guard блочит. Индексация самого себя здесь —
+    # намеренный сценарий (движок в own-repo engine-режиме): явный PROJECT_PATH
+    # + dev-флаг MSCODEBASE_ALLOW_SELF_INDEX=1.
+    env:
+      PROJECT_PATH: ${{ github.workspace }}
+      MSCODEBASE_ALLOW_SELF_INDEX: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install project
+        run: pip install -e .
+      - name: Transport equivalence (engine mode)
+        run: python experiments/universal-engine/e07_equiv.py
+        timeout-minutes: 10
+
+  docker-build:
+    # DoD Фазы 3 (deploy/docker): образ из python-only remote-движка собирается
+    # (локально Docker недоступен — CI-билд является верификацией).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build remote image
+        run: docker build -t mscodebase-remote:ci -f deploy/docker/Dockerfile .
+        timeout-minutes: 20

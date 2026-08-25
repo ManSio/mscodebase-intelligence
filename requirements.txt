@@ -3,12 +3,14 @@
 # install.py (step_pip) предпочитает requirements-lock.txt (замороженный набор венва);
 # этот файл — фолбэк и человекочитаемый список пинов.
 # Политика пинов 2026-08-18 (аудит unpinned-dependency): все runtime-зависимости
-# запинены к точным версиям (==); версии из requirements-lock.txt (венв, Python 3.14)
-# + проверка колёс PyPI на 3.10..3.14. numpy/pandas/onnxruntime на Python<3.11 —
-# диапазон per-Python (CI matrix включает 3.10, EOL 2026-10).
+# запинены к точным версиям (==); версии из requirements-lock.txt (венв, Python 3.14).
+# Поддержка ТОЛЬКО Python 3.14+ (2026-08-21) — маркеров python_version нет.
 
 # MCP Protocol
 mcp==1.28.1  # 1.x: транспортный протокол; 2.x меняет его — не бампить без проверки
+# PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1); единственная НЕ-stdlib
+# зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3).
+PyYAML==6.0.3
 
 # LSP Protocol
 pygls==2.1.1
@@ -23,8 +25,8 @@ lancedb==0.34.0
 pylance==9.0.0
 pyarrow==25.0.0  # + pyarrow.compute для to_arrow
 huggingface_hub==1.24.0
-numpy==2.4.6; python_version >= '3.11'
-numpy>=1.24.0,<3; python_version < '3.11'  # 3.10: numpy 2.4.x требует >=3.11
+numpy==2.4.6
+pandas==3.0.3
 
 # Code parsing (Tree-sitter) — 23 пакета для 23 языков
 # Все грамматики: abi3-колёса (cp39/cp310-abi3) — один пин работает 3.10..3.14.
@@ -58,14 +60,11 @@ tree-sitter-hcl==1.2.0  # HCL/Terraform
 pathspec==1.1.1
 httpx==0.28.1
 python-dotenv==1.2.2
-pandas==3.0.3; python_version >= '3.11'
-pandas>=2.0.0; python_version < '3.11'  # 3.10: pandas 3.x требует >=3.11
 python-dateutil==2.9.0.post0
 
 # ONNX Runtime / OpenVINO (локальные эмбеддинги; onnxruntime нужен только
 # scripts/download_model.py для ONNX-экспорта — reranker идёт через httpx)
-onnxruntime==1.27.0; python_version >= '3.11'
-onnxruntime>=1.17.0; python_version < '3.11'  # 3.10: 1.27 требует >=3.11
+onnxruntime==1.27.0
 openvino==2026.2.1
 
 # Reranker (transformers; токенизация)

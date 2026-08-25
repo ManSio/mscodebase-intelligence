@@ -513,6 +513,72 @@ class ReadLiveFileTool(MCPTool):
         else:
             return {"status": "error", "message": "Provide absolute_path or file_path"}
 
+        # ─── 0.5 Live-оверлей (несохранённые изменения из редактора) ───
+        # Прежде чем читать диск, смотрим RAM-буфер: если файл открыт и
+        # редактируется в IDE (до save) — отдаём живой текст. Иначе — диск.
+        _live_content = None
+        try:
+            from src.sync.live_buffer import get_live_buffer
+
+            _live_content = get_live_buffer().get(str(target))
+        except Exception:  # noqa: BLE001 — оверлей не блокирует чтение
+            _live_content = None
+
+        if _live_content is not None:
+            # Живой контент: пропускаем детект бинарников/диск.
+            encoding = "utf-8"
+            content = _live_content
+            source = "live_buffer"
+            # ─── 4. Обрезаем по диапазону ───
+            lines = content.split("\n")
+            total_lines = len(lines)
+
+            has_range = bool(start_line) or bool(end_line)
+            if not has_range:
+                display_lines = lines[:50]
+                truncated = total_lines > 50
+            else:
+                start_idx = 0 if start_line == 0 else max(0, start_line - 1)
+                end_idx = total_lines if end_line == 0 else min(total_lines, end_line)
+                if start_idx >= total_lines:
+                    return {
+                        "status": "ok",
+                        "path": str(target),
+                        "source": source,
+                        "encoding": encoding,
+                        "total_lines": total_lines,
+                        "total_chars": len(content),
+                        "content": "",
+                        "warning": f"start_line={start_line} exceeds file length ({total_lines} lines)",
+                        "range": {"start": start_line, "end": end_line},
+                    }
+                if start_idx >= end_idx:
+                    return {
+                        "status": "ok",
+                        "path": str(target),
+                        "source": source,
+                        "encoding": encoding,
+                        "total_lines": total_lines,
+                        "total_chars": len(content),
+                        "content": "",
+                        "warning": f"start_line={start_line} > end_line={end_line}",
+                        "range": {"start": start_line, "end": end_line},
+                    }
+                display_lines = lines[start_idx:end_idx]
+                truncated = end_idx < total_lines
+
+            result_content = "\n".join(display_lines)
+            return {
+                "status": "ok",
+                "path": str(target),
+                "source": source,
+                "encoding": encoding,
+                "total_lines": total_lines,
+                "total_chars": len(content),
+                "content": result_content,
+                "truncated": truncated,
+            }
+
         if not target.exists():
             return {"status": "error", "message": f"File not found: {target}"}
 

@@ -79,6 +79,8 @@ DEFAULT_BUDGET_MS = 50.0
 CACHE_FILENAME = "verify_cache.json"
 HEAD_TTL_SEC = 30.0  # пере-резолв HEAD не чаще раза в 30с на инстанс (git ~50-100ms)
 
+MANIFEST_CACHE_TTL_S = 5.0  # write-path зовёт extract_anchors per-node; полный скан манифестов (B-1) дороже 3 файлов старого парсера
+
 # ── Лёгкие regex-якоря (без LLM) ──
 # Для сканирования исходников: импорты на строке (реальный код).
 _IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.MULTILINE)
@@ -92,15 +94,6 @@ _PATH_RE = re.compile(r"\b(?:src/)?([\w.-]+[/\\\\][\w./\\\\-]+)\.(?:py|toml|json
 _PKG_PREFIX_RE = re.compile(r"\bpkg:([A-Za-z0-9_.-]+)")
 _PKG_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]*")
 
-# tomllib (3.11+) / tomli (3.10, dev-deps проекта). None — строковый fallback.
-try:
-    import tomllib  # type: ignore[no-redef]
-except ImportError:  # pragma: no cover - Python 3.10
-    try:
-        import tomli as tomllib  # type: ignore[no-redef]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
-
 
 def _norm_pkg(name: str) -> str:
     """PEP 503 нормализация имени пакета: lowercase, `-_.` -> `-`, срез extras."""
@@ -108,94 +101,41 @@ def _norm_pkg(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name.lower())
 
 
-def _req_name(req: Any) -> str:
-    """Имя из PEP 508 requirement-строки (до specifier/extra/marker)."""
-    if not isinstance(req, str):
-        return ""
-    name = re.split(r"[\s<>=!~;\[\]]", req.strip(), maxsplit=1)[0]
-    return _norm_pkg(name) if name else ""
+def _pkg_in_pool(pool: Set[str], name: str) -> bool:
+    """Членство pkg:-имени в пуле манифеста: точное (npm/go имена с точками
+    и слэшами: `lodash.get`, `gopkg.in/yaml.v3`) ИЛИ PEP 503-нормализованное
+    (legacy python-имена, `PyYAML` -> `pyyaml`). Только PEP 503 давал бы ложный
+    NOT_FOUND -> REFUTED после B-1 wiring (мульти-экосистемные имена)."""
+    n = (name or "").strip().lower()
+    return n in pool or _norm_pkg(n) in pool
 
 
-def _pyproject_packages(text: str) -> Set[str]:
-    """Имена пакетов из pyproject.toml (закрытый мир для pkg:-якорей)."""
-    if tomllib is not None:
-        try:
-            data = tomllib.loads(text)
-        except Exception as exc:  # noqa: BLE001 - любой сбой парсинга — пустое множество
-            logger.debug("verify_on_read: pyproject parse failed: %s", exc)
-            return set()
-        names: Set[str] = set()
-        project = data.get("project") or {}
-        for key in ("dependencies", "dev-dependencies"):
-            for req in project.get(key) or []:
-                name = _req_name(req)
-                if name:
-                    names.add(name)
-        for reqs in (project.get("optional-dependencies") or {}).values():
-            for req in reqs or []:
-                name = _req_name(req)
-                if name:
-                    names.add(name)
-        for reqs in (data.get("dependency-groups") or {}).values():
-            for req in reqs or []:
-                name = _req_name(req)
-                if name:
-                    names.add(name)
-        return names
-    # Fallback без tomllib/tomli: строки внутри dependencies-блоков.
-    names_fallback: Set[str] = set()
-    in_block = False
-    for raw in text.splitlines():
-        line = raw.strip()
-        if (
-            line.startswith("dependencies")
-            or line.startswith("dev-dependencies")
-            or (line.startswith("[project.") and "dependencies" in line)
-            or line.startswith("dependency-groups")
-        ):
-            in_block = "[" in line
-            continue
-        if in_block:
-            if line.startswith("]") or line.startswith("}"):
-                in_block = False
-                continue
-            m = re.search(r'"([^"]+)"', line)
-            if m:
-                name = _req_name(m.group(1))
-                if name:
-                    names_fallback.add(name)
-    return names_fallback
-
-
-def _requirements_packages(text: str) -> Set[str]:
-    """Имена пакетов из requirements[-lock].txt (по строке, `name==x` и т.п.)."""
-    names: Set[str] = set()
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith(("#", "-", "--")):
-            continue
-        name = _req_name(line)
-        if name and not name.startswith(("http:", "https:", "git+")):
-            names.add(name)
-    return names
+_MANIFEST_CACHE: Dict[str, Tuple[float, Set[str]]] = {}
 
 
 def _load_manifest_packages(root: Path) -> Set[str]:
-    """Множество зависимостей проекта из манифестов (ADR-0005, closed world)."""
-    packages: Set[str] = set()
-    for fname in ("pyproject.toml", "requirements.txt", "requirements-lock.txt"):
-        p = root / fname
-        if not p.is_file():
-            continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if fname == "pyproject.toml":
-            packages |= _pyproject_packages(text)
-        else:
-            packages |= _requirements_packages(text)
-    return packages
+    """Множество зависимостей проекта (ADR-0005, closed world).
+
+    Делегирует мульти-экосистемному парсеру src.sources.manifest (Backlog B-1):
+    python/npm/go/cargo/maven/nuget/composer/gem + lockfile'ы (uv/yarn/bun/pnpm/...).
+    Lazy-import: экстракторы не грузятся при импорте VOR. TTL-кэш: write-path
+    вызывает extract_anchors на узел; устаревший кэш = пропуск пакета ->
+    INCONCLUSIVE (fail-open), не ложный REFUTED.
+    """
+    key = str(Path(root).resolve())
+    now = time.monotonic()
+    hit = _MANIFEST_CACHE.get(key)
+    if hit is not None and now - hit[0] < MANIFEST_CACHE_TTL_S:
+        return hit[1]
+    try:
+        from src.sources.manifest import manifest_packages
+
+        pool = manifest_packages(Path(key))
+    except Exception as exc:  # noqa: BLE001 - сломанный экстрактор не валит write-path
+        logger.debug("verify_on_read: manifest_packages failed for %s: %s", key, exc)
+        pool = set()
+    _MANIFEST_CACHE[key] = (now, pool)
+    return pool
 
 
 # ADR-0005 guard (C-гибрид): частые англ. слова, которые в прозе могут стоять
@@ -367,7 +307,7 @@ def extract_anchors(
     if pkg_pool:
         for m in _PKG_WORD_RE.finditer(text):
             word = m.group(0)
-            if len(word) >= 2 and _norm_pkg(word) in pkg_pool:
+            if len(word) >= 2 and _pkg_in_pool(pkg_pool, word):
                 _add("pkg", word)
     return anchors
 
@@ -573,7 +513,7 @@ class VerifyOnRead:
             return anchor.value in fp.env_keys
         if anchor.kind == "pkg":
             # ADR-0005: closed-world — манифест это источник правды для зависимостей.
-            return _norm_pkg(anchor.value) in fp.packages
+            return _pkg_in_pool(fp.packages, anchor.value)
         return False
 
     def _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:

@@ -1,0 +1,37 @@
+# ─── Образ docker: исключаем всё, что не нужно рантайму ───
+# КРИТИЧНО: experiments/ содержит клоны исследователя (e-s1-polygon, 35k файлов) —
+# попадание в build-context раздувает/ломает сборку.
+
+.git
+.gitignore
+.gitmodules
+**/__pycache__
+**/*.py[cod]
+*.log
+*.pyc
+
+# env/секреты и локальные данные
+**/.env
+.env
+.data
+.locks
+telemetry
+
+# окружения и кэши
+venv
+.venv
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# не рантайм
+tests
+docs
+experiments
+scripts
+tools
+deploy          # сам деплой-артефакт в контексте не нужен (не мешает, но держим image чистым)
+*.md            # README/etc — не нужны в образе

@@ -12,6 +12,12 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
    мёртвые имена get_variable_flow и др. удалены, гейт не даёт им вернуться)
 4. negative_controls — guard inventory (протокол Тома / OWP §5.2, 2026-08-14:
    каждый guard обязан уметь падать; digest-pinning — правка фикстуры → unproven)
+5. check_layer_boundaries — гейт трёх осей Universal Engine (Фаза 1, 2026-08-18:
+   mcp/tools не импортирует adapters/src.sources, core — не adapters.*)
+6. architecture_linter — архитектурные инварианты (core→mcp, registry через
+   Coordinator, циклы core-модулей, stale-имена; 2026-08-24)
+7. lock_guard (advisory) — печать активных git-локов параллельных агентов
+   (ADR-0007, 2026-08-24); exit 0 — не блокирует коммит
 """
 
 from __future__ import annotations
@@ -20,6 +26,8 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+from src import __version__ as _ENGINE_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +44,11 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 Запускает:
 1. verify_diary — проверка AGENT_DIARY.md
 2. stale_detector — проверка дрейфа версий в доках
-3. negative_controls — guard inventory (каждый guard умеет падать)
+3. check_tool_names — semantic-гейт имён MCP-тулов
+4. negative_controls — guard inventory (каждый guard умеет падать)
+5. check_layer_boundaries — гейт трёх осей (Universal Engine)
+6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
+7. lock_guard — активные git-локи (advisory, exit 0)
 \"\"\"
 
 import subprocess
@@ -92,6 +104,9 @@ def main():
     all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
+    all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
+    all_ok &= run_script("scripts/architecture_linter.py", "architecture_linter")
+    all_ok &= run_script("scripts/lock_guard.py", "lock_guard (advisory)")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
@@ -113,7 +128,7 @@ class GitHooksInstaller:
         result = installer.uninstall("/path/to/project")
     """
 
-    def __init__(self, version: str = "3.3.8"):
+    def __init__(self, version: str = _ENGINE_VERSION):
         self.version = version
 
     # ─── Public API ────────────────────────────────────────
@@ -153,7 +168,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls"
+            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls + check_layer_boundaries + architecture_linter + lock_guard (advisory)"
         )
 
     def uninstall(self, project_root: str) -> str:

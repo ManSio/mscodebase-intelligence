@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from src.utils import zed_config
+from adapters.zed import zed_config
 
 SERVER = "mscodebase-intelligence"
 

@@ -195,18 +195,20 @@ class SearchCodeTool(MCPTool):
         filter_layer: Optional[str] = None,
         intent_hint: str = "auto",
         explain: bool = False,
+        project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         from src.core.error_handler import record_tool_result
 
-        await self.require_ready_project()
+        _pr = project_root or (kwargs or {}).get("project_root", "")
+        await self.require_ready_project(explicit_project_root=_pr or None)
 
         if not query or not query.strip():
             return _("❌ Query is empty")
 
         # P1: Adaptive search budget (CodeGraph-inspired)
         # Адаптируем limit под размер проекта если не указан явно.
-        searcher = self.resolve_searcher()
+        searcher = self.resolve_searcher(explicit_project_root=_pr or None)
         adaptive_limit = _get_search_budget(searcher)
         effective_limit = limit if limit != 6 else adaptive_limit
 
@@ -552,10 +554,12 @@ class GetSymbolInfoTool(MCPTool):
     async def execute(
         self,
         query: str,
+        project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        await self.require_ready_project()
-        call_graph = self.resolve_symbol_index().build_call_graph(query, depth=2)
+        _pr = project_root or (kwargs or {}).get("project_root", "")
+        await self.require_ready_project(explicit_project_root=_pr or None)
+        call_graph = self.resolve_symbol_index(explicit_project_root=_pr or None).build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             defs = call_graph["definition"]
@@ -623,16 +627,18 @@ class ImpactAnalysisTool(MCPTool):
         self,
         symbol: str,
         depth: int = 3,
+        project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
         from src.core.error_handler import record_tool_result
 
-        await self.require_ready_project()
+        _pr = project_root or (kwargs or {}).get("project_root", "")
+        await self.require_ready_project(explicit_project_root=_pr or None)
         # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            self.resolve_symbol_index().get_impact_analysis,
+            self.resolve_symbol_index(explicit_project_root=_pr or None).get_impact_analysis,
             symbol,
             depth,
         )

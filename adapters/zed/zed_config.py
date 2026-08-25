@@ -100,7 +100,7 @@ def get_extension_install_dir() -> Path:
     """Directory of the installed extension (contains venv/ and src/).
 
     Works both from the installed extension and from the dev tree
-    (PROJECT_ROOT/src/utils/zed_config.py) — both resolve 3 levels up.
+    (PROJECT_ROOT/adapters/zed/zed_config.py) — both resolve 3 levels up.
     """
     return Path(__file__).resolve().parent.parent.parent
 

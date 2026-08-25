@@ -11,7 +11,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.indexer_table import IndexerTableMixin
-from src.utils.paths import SafePathManager
+from src.core.interfaces.workspace_source import WorkspaceSource
+from src.sources.local_fs import LocalFsSource
 
 __all__ = [
     "Indexer",
@@ -43,11 +44,18 @@ class Indexer(IndexerTableMixin):
         symbol_index=None,
         notification_broker=None,
         searcher=None,
+        source: Optional[WorkspaceSource] = None,
     ):
         self.db_path = db_path
         self.embedder = embedder
         self.file_guard = file_guard
-        self.path_manager = SafePathManager(db_path.parent)
+        # Фаза 1 (ТЗ §2.1): обработка путей — деталь WorkspaceSource.
+        # LocalFsSource владеет path_manager; git/upload-источники (Фаза 2)
+        # определят его для своего resolve()-пути.
+        # TRANSITIONAL: дефолтная реализация конструируется здесь; Фаза 2
+        # перенесёт конструкцию в DI/ProjectIndexerRegistry (см. гейт слоёв).
+        self._source: WorkspaceSource = source or LocalFsSource(db_path.parent)
+        self.path_manager = self._source.path_manager
         self.searcher = searcher
         self.project_path = project_path or db_path.parent.parent.parent
         self.parser = parser
