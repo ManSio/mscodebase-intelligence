@@ -117,3 +117,89 @@ def test_search_fast_fail_during_reindex():
     # Контроль: при is_reindexing=False guard выключен (обычный путь)
     idx.db_manager = SimpleNamespace(is_reindexing=lambda: False)
     assert searcher._reindex_fast_fail() is False
+
+
+def test_get_status_fast_fail_during_reindex_does_not_block():
+    """Инцидент 2026-08-25 (root cause): full reindex держит _table_write_lock
+    ~7.5 мин (begin_write), а get_status() на loop-потоке ждал этот lock →
+    заморожен ВСЕ MCP-вызовы. Теперь: reindex_check=True → get_status()
+    возвращает кэш мгновенно, не трогая lock/БД.
+
+    Двухрукавность (правило Тома):
+    - Arm 1 (reindex_check=True): возврат быстрый (< 0.3с) при ЗАХВАЧЕННОМ lock.
+    - Arm 2 (reindex_check=None): тот же lock → блокируется на acquire
+      (>= 0.4с пока lock держит фоновый поток) — демонстрирует, что БЕЗ
+      guard был именно lock-wait, а guard реально умеет падать/спасать.
+    """
+    import threading
+    import time
+    from pathlib import Path
+
+    from src.core.indexing.index_status import IndexStatusReporter
+
+    lock = threading.RLock()
+    lock.acquire()  # держим lock, как begin_write() во время reindex
+    try:
+        reporter = IndexStatusReporter(
+            table=None,
+            project_path=Path("unused"),
+            file_guard=None,
+            watchdog_callback=None,
+            table_write_lock=lock,
+            reindex_check=lambda: True,
+        )
+        reporter._cached_total_chunks = 42
+        reporter._cached_unique_files = {"a.py", "b.py"}
+
+        t0 = time.perf_counter()
+        status = reporter.get_status()
+        dt = time.perf_counter() - t0
+
+        # Fast-fail: не ждём lock, отдаём кэш + флаг reindex в статусе
+        assert dt < 0.3, f"get_status заблокировался на {dt*1000:.0f}ms"
+        assert status["total_chunks"] == 42
+        assert status["unique_files"] == 2
+        assert status["status"] == "reindexing"
+        assert status["reindex_in_progress"] is True
+    finally:
+        lock.release()
+
+    # Arm 2 (контроль): без reindex_check тот же lock блокирует get_status
+    import threading as _th
+    import time as _time
+
+    lock2 = _th.RLock()
+    lock2.acquire()
+    try:
+        reporter2 = IndexStatusReporter(
+            table=None,
+            project_path=Path("unused"),
+            file_guard=None,
+            watchdog_callback=None,
+            table_write_lock=lock2,
+            reindex_check=None,  # старый путь — lock-wait
+        )
+        t0 = _time.perf_counter()
+        # Воркер в ОТДЕЛЬНОМ потоке: main держит lock, чужой поток обязан
+        # ждать acquire — это и есть заморозка loop-потока в инциденте.
+        result: dict = {}
+
+        def _worker():
+            result["status"] = reporter2.get_status()
+            result["dt"] = _time.perf_counter() - t0
+
+        _th.Thread(target=_worker, daemon=True).start()
+        _time.sleep(0.2)
+        # Через 0.2с воркер всё ещё ждёт lock → блокировка подтверждена
+        assert "status" not in result, \
+            "Без reindex_check get_status НЕ должен вернуться, пока lock занят"
+        lock2.release()  # освобождаем → воркер проходит acquire и завершается
+        _time.sleep(0.3)  # дать воркеру пройти get_status (lock уже свободен)
+        assert "status" in result, "Воркер не завершился после release"
+        assert result["dt"] >= 0.2, \
+            "Контроль: lock-wait обязан был занять >=0.2с"
+    finally:
+        try:
+            lock2.release()
+        except RuntimeError:
+            pass

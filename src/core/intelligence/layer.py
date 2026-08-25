@@ -426,8 +426,13 @@ class ProjectIntelligenceLayer:
 
             # INC-6BCB-v3.1: late-resolve.
             active_indexer = self._resolve_active_indexer()
+            # get_status() — СИНХРОННЫЙ и может блокировать (lock БД / stale-scan).
+            # Инцидент 2026-08-25: full reindex держал _write_lock ~7.5 мин,
+            # get_status() на loop-потоке заморозил ВСЕ MCP-вызовы (таймауты
+            # вкл. debug_runtime_passport). Выносим в поток: loop свободен,
+            # а IndexStatusReporter сам fast-fail-ит при is_reindexing=True.
             status = (
-                active_indexer.get_status()
+                await asyncio.to_thread(active_indexer.get_status)
                 if hasattr(active_indexer, "get_status")
                 else {}
             )

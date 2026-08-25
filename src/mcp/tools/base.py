@@ -22,6 +22,7 @@ Self-Indexing Protection (INC-6BCB-v3):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -388,7 +389,11 @@ class MCPTool(ABC):
         # Проверяем, что индекс не пуст
         try:
             indexer = self.resolve_indexer(explicit_project_root)
-            status = indexer.get_status()
+            # get_status() синхронный и может блокировать на lock БД
+            # (инцидент 2026-08-25: full reindex замораживал event loop
+            # минутами; IndexStatusReporter fast-fail-ит при is_reindexing,
+            # to_thread — страховка для не-reindex транзиентных write-окон).
+            status = await asyncio.to_thread(indexer.get_status)
             if status.get("total_chunks", 0) == 0:
                 raise IndexNotReadyError(
                     detail=(

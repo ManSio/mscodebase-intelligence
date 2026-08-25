@@ -1,5 +1,6 @@
 ## Key Historical Decisions
 
+- **Server freeze during full reindex (2026-08-25):** root cause — `begin_write()` держит `_write_lock` (RLock) весь reindex (~7.5 мин embedding), а `IndexStatusReporter.get_status()` синхронно на event-loop-потоке ждал тот же lock (intel_get_runtime_status/require_ready_project/ProjectContext) → заморозка ВСЕХ MCP-вызовов. Фикс: reindex fast-fail в get_status (кэш + status="reindexing") + asyncio.to_thread в 3 loop-точках + guard в _get_stale_warning.
 - **Embedder:** multilingual-e5-small-int8 + batch=32 (100 ch/s sustained) — 2026-07-17
 - **Concurrency:** AsyncInferQueue → лок (тихая гонка подмены векторов) — 2026-07-18
 - **Cache:** Chunk-level content-addressed cache (skip re-embedding) — 2026-07-18
@@ -24,6 +25,13 @@
 - **VOR MATCHED/DELIVERED (2026-08-16):** per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD); starved = виден ≥2 циклов, ни разу не проверен — отличает голодание по бюджету от бага якорей (раунд 2 Тома; «пол Тома» = раунд 1)
 
 ---
+
+## [2026-08-25] — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
+**Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+**Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock, begin_write) ВЕСЬ reindex (~7.5 мин embedding: 20:04:22→20:12:10). `IndexStatusReporter.get_status()` синхронно захватывает тот же lock, а вызывается ИЗ event-loop-потока: `intel_get_runtime_status` (layer.py:429), `MCPTool.require_ready_project` (base.py:390), `ProjectContext._capture_registry` (project_context.py:206). Один такой вызов → loop замер → ВСЕ MCP-вызовы (вкл. debug_runtime_passport) таймаутят клиент-сайд.
+**Fix:** (1) `IndexStatusReporter.get_status()` — reindex fast-fail: is_reindexing() is True → мгновенный кэш + status="reindexing" (strict `is True` — MagicMock-truthy trap 2026-08-13); (2) `intel_get_runtime_status`/`require_ready_project`/`ProjectContext._capture_registry` — get_status через `asyncio.to_thread` (loop свободен); (3) `_get_stale_warning` (search_tools) — guard is_reindexing → '' (было sync-чтение LanceDB на loop ДО search-guard).
+**Guard:** tests/test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block — двухрукавный: Arm 1 reindex_check=True → кэш <0.3с при захваченном lock; Arm 2 reindex_check=None → lock-wait >=0.2с (control, правило Тома).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1512 passed, ruff clean).
 
 ## [2026-08-24] — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
 **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
