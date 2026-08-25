@@ -443,6 +443,29 @@ class ProjectIntelligenceLayer:
                 status.get("total_files", 0) if isinstance(status, dict) else 0
             )
 
+            # Reindex-состояние (Вариант А, 2026-08-25): при is_reindexing=True
+            # get_status() возвращает кэш + status="reindexing". Пробрасываем
+            # флаг и прогресс в index_telemetry, чтобы агент видел «🔄 Reindex
+            # в процессе (N%)» вместо ложного «0 chunks» (live-прогон показал:
+            # во время full reindex статус врал «индекс пуст» → агент мог
+            # запустить ненужный второй reindex).
+            _reindexing = bool(
+                isinstance(status, dict) and status.get("reindex_in_progress") is True
+            )
+            _reindex_progress_pct = None
+            _reindex_eta_sec = None
+            if _reindexing:
+                try:
+                    _job_id = self.get_active_reindex_job_id()
+                    if _job_id:
+                        _job = job_manager.get_job(_job_id)
+                        if _job and _job.status == "running":
+                            _enriched = self._enrich_job_response(_job)
+                            _reindex_progress_pct = round(_job.progress * 100)
+                            _reindex_eta_sec = _enriched.get("estimated_seconds")
+                except Exception as _reidx_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"reindex progress enrich failed: {_reidx_err}")
+
             # Project path (может быть != self.project_path если был fallback).
             active_path = (
                 str(active_indexer.project_path)
@@ -552,7 +575,15 @@ class ProjectIntelligenceLayer:
                     "symbol_index_count": _resolve_symbol_count(
                         active_indexer, total_chunks
                     ),
-                    "status": "active" if total_chunks > 0 else "empty",
+                    # Reindex-состояние для агента (Вариант А): вместо вранья
+                    # «0 chunks» при переиндексации показываем честный статус
+                    # и прогресс, чтобы агент ждал, а не запускал 2-й reindex.
+                    "status": "reindexing"
+                    if _reindexing
+                    else ("active" if total_chunks > 0 else "empty"),
+                    "reindex_in_progress": _reindexing,
+                    "reindex_progress_pct": _reindex_progress_pct,
+                    "reindex_eta_sec": _reindex_eta_sec,
                 },
                 # Consistency Engine (WS2): состояния артефактов — аддитивно.
                 "consistency": {

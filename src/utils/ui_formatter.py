@@ -238,11 +238,20 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     chunks = tel.get("total_chunks", 0)
     files = tel.get("unique_files", 0)
     symbols = tel.get("symbol_index_count", tel.get("total_files", 0))
+    # Reindex (Вариант А, 2026-08-25): во время переиндексации total_chunks
+    # = 0 — если молчать, агент решит «индекс пуст» и запустит 2-й reindex.
+    # Показываем честный статус + прогресс/ETA (если jobManager дал).
+    reindexing = tel.get("reindex_in_progress") is True
     idx_led = "🟢" if chunks > 1000 else ("🟡" if chunks > 0 else "⚪")
+    if reindexing:
+        idx_led = "🟢"  # процесс идёт — это здоровое состояние, не «пусто»
 
     # ─── Общий статус ─────────────────────────────────
     all_green = provider != "unknown" and chunks > 0
-    health_led = "🟢" if all_green else ("🟡" if chunks > 0 else "⚪")
+    # Reindex: индексация идёт — это не «красный», а «ожидание» (🟡).
+    health_led = (
+        "🟢" if (all_green or reindexing) else ("🟡" if chunks > 0 else "⚪")
+    )
 
     # ─── Reranker ──────────────────────────────────────
     _reranker_port = data.get("resource_usage", {}).get("llama_rerank_ram", None)
@@ -252,6 +261,23 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
     else:
         _reranker_led = "🔴"
         _reranker_info = "offline"
+
+    _reindex_pct = tel.get("reindex_progress_pct")
+    _reindex_eta = tel.get("reindex_eta_sec")
+    if reindexing:
+        # Честный статус вместо «0 chunks»: агент ждёт, а не чинит.
+        _idx_line = (
+            "   {il} 🔄 Reindex in progress"
+            + (f" ({_reindex_pct}%)" if _reindex_pct is not None else "")
+            + (
+                f" (ETA ~{_reindex_eta // 60}m {_reindex_eta % 60}s)"
+                if _reindex_eta is not None
+                else ""
+            )
+            + "\n"
+        )
+    else:
+        _idx_line = "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
 
     result = _(
         "{hl} **MSCodeBase** — {proj}\n"
@@ -263,7 +289,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
         "⚡ **Reranker**\n"
         "   {rrl} {rrn}\n"
         "📦 **Index**\n"
-        "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
+        "   " + _idx_line +
         "⚙️ **System**\n"
         "   PID: {pid}\n",
         hl=health_led,
