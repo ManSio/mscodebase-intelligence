@@ -280,6 +280,24 @@ async def test_require_ready_project_truthful_during_reindex(monkeypatch):
         except IndexNotReadyError:
             pass
 
+    # Контроль (Arm 3): ToolsError пробрасывается КАК ЕСТЬ (status/recoverable),
+    # а не заворачивается в «Failed to check index status» — иначе агент
+    # теряет retry-семантику (live: search показывал двойную обёртку).
+    async def _boom_side_effect():
+        raise ValueError("unexpected")
+
+    fake_indexer_error = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=_boom_side_effect,
+    )
+    with patch.object(_Tool, "resolve_indexer", return_value=fake_indexer_error):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("Ожидали ToolError при неожиданной ошибке")
+        except ToolError as e:
+            assert "Failed to check index status" in str(e.message), \
+                f"Не-реindex ошибка должна заворачиваться, получили: {e.message}"
+
 
 async def test_intel_runtime_status_reports_reindex_progress(monkeypatch, tmp_path):
     """Вариант А: intel_get_runtime_status пробрасывает reindex-флаг и прогресс
