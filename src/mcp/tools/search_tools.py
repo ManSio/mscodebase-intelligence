@@ -84,6 +84,16 @@ def _get_stale_warning(searcher) -> str:
     3. Показываем баннер один раз ("may be stale")
     """
     try:
+        # Reindex fast-fail (инцидент 2026-08-25): во время переиндексации
+        # таблица пересоздаётся — sync-чтение LanceDB на loop-потоке блокирует
+        # event loop (или падает 'Not found'). Баннер не обязателен во время
+        # переиндексации — молчим мгновенно.
+        if callable(getattr(searcher, "_reindex_fast_fail", None)):
+            try:
+                if searcher._reindex_fast_fail() is True:
+                    return ''
+            except Exception:  # noqa: BLE001 — баннер не роняет поиск
+                pass
         indexer = getattr(searcher, 'indexer', None)
         if indexer is None or not hasattr(indexer, 'table') or indexer.table is None:
             return ''

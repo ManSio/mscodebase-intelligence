@@ -23,11 +23,17 @@ class IndexStatusReporter:
     """Собирает статистику индекса: чанки, файлы, stale-проверка."""
 
     def __init__(self, table, project_path: Path, file_guard, watchdog_callback,
-                 table_write_lock=None):
+                 table_write_lock=None, reindex_check=None):
         self.table = table
         self.project_path = project_path
         self.file_guard = file_guard
         self._watchdog_callback = watchdog_callback
+        # reindex_check: callable → bool. Если reindex в процессе — get_status()
+        # обязан МГНОВЕННО вернуть кэш, а не блокировать event loop на
+        # _table_write_lock, который begin_write() держит весь reindex
+        # (инцидент 2026-08-25: full reindex ~7.5 мин заморозил ВСЕ MCP-вызовы,
+        # включая debug_runtime_passport — get_status() на loop-потоке ждал lock).
+        self._reindex_check = reindex_check
         # P2-14 audit: lock для чтений таблицы (сериализация с reset_connection)
         self._table_write_lock = table_write_lock
         self._cached_total_chunks = 0
@@ -43,7 +49,35 @@ class IndexStatusReporter:
 
         Всегда сверяет кэш с реальным count_rows() — stale cache
         не должен показывать данные, которых нет в таблице.
+
+        Reindex fast-fail (инцидент 2026-08-25): пока idёт переиндексация,
+        begin_write() держит _table_write_lock минуты. Это СИНХРОННЫЙ метод,
+        вызываемый из loop-потока (intel_get_runtime_status, require_ready_project,
+        ProjectContext) — блокировка на lock замораживает event loop и все
+        MCP-вызовы. Возвращаем last-known-good кэш мгновенно (chunkhound guard).
         """
+        # ⚠️ строго `is True`: MagicMock-truthy trap (инцидент 2026-08-13) —
+        # в тестах reindex_check может быть MagicMock, чей вызов truthy.
+        if self._reindex_check is not None and callable(self._reindex_check):
+            try:
+                if self._reindex_check() is True:
+                    logger.debug(
+                        "get_status: reindex in progress — fast-fail (cached status)"
+                    )
+                    return {
+                        "total_chunks": self._cached_total_chunks,
+                        "unique_files": len(self._cached_unique_files),
+                        "total_files": len(self._cached_unique_files) or 0,
+                        "stale_files": 0,
+                        "missing_files": 0,
+                        "status": "reindexing",
+                        "watchdog": self._watchdog_callback()
+                        if self._watchdog_callback
+                        else {},
+                        "reindex_in_progress": True,
+                    }
+            except Exception as _reidx_err:  # noqa: BLE001 — статус не роняем
+                logger.debug(f"get_status reindex-check failed: {_reidx_err}")
         try:
             # P2-14 audit: чтения count_rows/to_lance под _table_write_lock,
             # чтобы get_status не читал таблицу в момент reset_connection

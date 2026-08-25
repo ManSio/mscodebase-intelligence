@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-08-25 — Полный заморозок MCP при full reindex (root cause: get_status на loop-потоке) (FIXED)
+
+**Что:** full reindex (~7.5 мин embedding) замораживал ВСЕ MCP-вызовы (вкл. debug_runtime_passport) — commit b03073c5 чинил только search-путь. Root cause: `begin_write()` держит `_write_lock` весь reindex, а `IndexStatusReporter.get_status()` (sync, на event-loop-потоке через intel_get_runtime_status/require_ready_project/ProjectContext) ждал тот же lock.
+**Fix (2026-08-25):** (1) reindex fast-fail в `get_status()` — мгновенный кэш + status="reindexing" (strict `is True`); (2) `asyncio.to_thread` в 3 loop-точках; (3) guard в `_get_stale_warning`.
+**Guard:** test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block (двухрукавный, правило Тома). Полный pytest 1512 passed, ruff clean.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
 ## 2026-08-24 — Цикл core: error_handler ⇄ task_queue через lazy-импорты (ACCEPTED)
 
 **Что:** новый инвариант 3 architecture_linter.py детектит цикл `src.core.error_handler ⇄ src.core.task_queue`. Обе стороны импортируют друг друга ТОЛЬКО лениво, внутри функций, под try/except (`error_handler.py:290` `from src.core.task_queue import idle_tick`; `task_queue.py:414` `from src.core.error_handler import _LAST_CALL_AT`) — import-время безопасно, цикл разрывается в рантайме. Рефакторинг (общий модуль вместо кросс-импортов) — осознанный техдолг.
@@ -4334,5 +4341,28 @@ Three fixes from the same review:
 - **Описание:** **Status:** ✅ Feature
 **Root Cause:** FS-watcher бесполезен — IDE держит изменения в RAM до save; текущий `notify_change` VFS-путь мёртв (`src.hybrid_server` удалён 2026-07-20).
 **Fix:** новый пакет `...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-24 — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
+**Root Cause:** (1) Change Preview жил только в CLI — агент не мог звать предиктор как MCP-инструмент; (2) две го...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-24 — Change Preview (Фаза 1+2) + импорт-граф 56 языков (Вариант A)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Feature (24 новых теста; ruff clean)
+**Root Cause:** (1) «точно знать что будет»: были impact_analysis (статический blast radius) и ActionReceipt (вердикт постфактум), но НЕ было связки ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-24 — Architecture linter: STALE-ложности убраны, 4-й инвариант (циклы core) реализован и вшит в CI/pre-commit
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (linter exit 0; 4/4 invariant-тестов; ruff clean)
+**Root Cause:** (1) STALE-паттерн «get_project_context(» матчил новое имя `intel_get_project_context(` как подстроку → 2 ложных ср...
 - **Статус:** автоматически синхронизировано
 
