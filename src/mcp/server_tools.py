@@ -3,11 +3,11 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- register_all_tools() — регистрация 29 core-инструментов (20 + 6 LSP + find_duplicates + get_context + get_action_receipt) + execute_script
+- register_all_tools() — регистрация 30 core-инструментов (20 + 6 LSP + find_duplicates + get_context + get_action_receipt + predict_change) + execute_script
 - _register_intelligence_tools() — 16 intel_* инструментов (intelligence/tools_reg.py)
 - _register_inline_tools() — 13 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
-- Всего: 29 + 16 + 13 + 4 = 62 инструментов (+ 1 optional execute_script = 63 при env-on)
+- Всего: 30 + 16 + 13 + 4 = 63 инструментов (+ 1 optional execute_script = 64 при env-on)
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 """
 
@@ -82,6 +82,7 @@ def register_all_tools(mcp, services):
         LspGetDiagnosticsTool,
         LspGetTypeInfoTool,
     )
+    from src.mcp.tools.predict_tools import PredictChangeTool
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
@@ -131,6 +132,8 @@ def register_all_tools(mcp, services):
         GetActionReceiptTool,
         # Doc tools (1)
         StaleDetectorTool,
+        # Prediction (1) — «внести изменение и точно знать, что будет»
+        PredictChangeTool,
     ]
 
     # Spoke: execute_cript — только если явно включён
