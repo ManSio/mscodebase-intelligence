@@ -12,6 +12,13 @@
 **Guard:** test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block (двухрукавный, правило Тома). Полный pytest 1512 passed, ruff clean.
 **Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
 
+## 2026-08-25 — Вариант А: честный reindex-статус для агента (FIXED)
+
+**Что:** после фикса заморозки осталась ЛОЖЬ в сообщениях: `intel_get_runtime_status` показывал «0 chunks», `require_ready_project` советовал «run index_project_dir» во время идущего реиндекса (агент мог запустить 2-й), форматтер рендерил «⚪ 0 chunks».
+**Fix (Вариант А):** index_telemetry + `status="reindexing"` + `reindex_progress_pct` + `reindex_eta_sec`; require_ready_project → ToolError «⏳ Index is being reindexed (N%) — retry» вместо IndexNotReadyError; formatter → «🔄 Reindex in progress (N%)».
+**Guard:** +6 тестов (runtime_status reindex/normal, require_ready reindex/empty-control, formatter reindex/без-progress/normal). Полный pytest 1518 passed, ruff clean. Live: полный reindex 9003 chunks (519s) — MCP отвечал мгновенно весь прогон.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
 ## 2026-08-24 — Цикл core: error_handler ⇄ task_queue через lazy-импорты (ACCEPTED)
 
 **Что:** новый инвариант 3 architecture_linter.py детектит цикл `src.core.error_handler ⇄ src.core.task_queue`. Обе стороны импортируют друг друга ТОЛЬКО лениво, внутри функций, под try/except (`error_handler.py:290` `from src.core.task_queue import idle_tick`; `task_queue.py:414` `from src.core.error_handler import _LAST_CALL_AT`) — import-время безопасно, цикл разрывается в рантайме. Рефакторинг (общий модуль вместо кросс-импортов) — осознанный техдолг.
@@ -4364,5 +4371,12 @@ Three fixes from the same review:
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (linter exit 0; 4/4 invariant-тестов; ruff clean)
 **Root Cause:** (1) STALE-паттерн «get_project_context(» матчил новое имя `intel_get_project_context(` как подстроку → 2 ложных ср...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-25 — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+**Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock...
 - **Статус:** автоматически синхронизировано
 

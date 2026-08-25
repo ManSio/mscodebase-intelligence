@@ -203,3 +203,172 @@ def test_get_status_fast_fail_during_reindex_does_not_block():
             lock2.release()
         except RuntimeError:
             pass
+
+
+async def test_require_ready_project_truthful_during_reindex(monkeypatch):
+    """Вариант А (2026-08-25): require_ready_project при reindex-состоянии
+    отдаёт честную ошибку «reindex in progress», а НЕ «Index is empty → run
+    index_project_dir» — иначе агент запустит ВТОРОЙ reindex.
+
+    Контроль: без reindex-флага при пустом индексе — прежний
+    IndexNotReadyError (поведение не изменилось).
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from src.core.error_handler import IndexNotReadyError, ToolError
+    from src.mcp.tools.base import MCPTool
+
+    class _Verdict:
+        def __init__(self, ok=True):
+            self.ok = ok
+            self.reason = "ready" if ok else "project_not_ready"
+            self.state = "READY"
+            self.detail = ""
+            self.retry_after = 0.0
+
+    class _Tool(MCPTool):
+        async def execute(self, **kwargs):
+            return {}
+
+    fake_services = MagicMock()
+    tool = _Tool(fake_services)
+
+    # Mock coordinator: проект READY (can_execute не блокирует реindex-путь)
+    async def _fake_can_execute(self, target, timeout=5.0):
+        return _Verdict(ok=True)
+
+    monkeypatch.setattr(
+        "src.core.runtime_coordinator.RuntimeCoordinator.can_execute",
+        _fake_can_execute,
+    )
+
+    # Fake indexer: is_reindexing() => get_status возвращает reindex-кэш
+    fake_indexer = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=lambda: {
+            "total_chunks": 0,
+            "unique_files": 0,
+            "status": "reindexing",
+            "reindex_in_progress": True,
+            "reindex_progress_pct": 62,
+            "reindex_eta_sec": 264,
+        },
+    )
+    with patch.object(
+        _Tool, "resolve_indexer", return_value=fake_indexer
+    ):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("require_ready_project должен был бросить ToolError")
+        except ToolError as e:
+            assert "reindexing" in str(e.message).lower() or "reindex" in str(e.message).lower(), \
+                f"Ожидали reindex-сообщение, получили: {e.message}"
+            assert "index_project_dir" not in str(e.message), \
+                "Нельзя советовать запустить индексацию, когда она уже идёт"
+            assert e.recoverable is True
+
+    # Контроль (Arm 2): БЕЗ reindex-флага и пустой индекс — прежний путь
+    fake_indexer_empty = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=lambda: {"total_chunks": 0, "unique_files": 0, "status": "empty"},
+    )
+    with patch.object(_Tool, "resolve_indexer", return_value=fake_indexer_empty):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("Ожидали IndexNotReadyError для пустого индекса")
+        except IndexNotReadyError:
+            pass
+
+
+async def test_intel_runtime_status_reports_reindex_progress(monkeypatch, tmp_path):
+    """Вариант А: intel_get_runtime_status пробрасывает reindex-флаг и прогресс
+    в index_telemetry → агент видит «reindexing 62%», а не «0 chunks»."""
+    from types import SimpleNamespace
+
+    from src.core.intelligence.jobs import job_manager
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_path=SimpleNamespace(),
+        get_status=lambda: {
+            "total_chunks": 0,
+            "unique_files": 0,
+            "status": "reindexing",
+            "reindex_in_progress": True,
+        },
+    )
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+    )
+
+    # Регистрируем активный job в job_manager (общий синглтон).
+    # Настоящий BackgroundJob (датакласс), а не SimpleNamespace:
+    # _enrich_job_response делает asdict(job).
+    from src.core.intelligence.jobs import BackgroundJob
+
+    job_id = "test_reindex_job"
+    job_manager.jobs[job_id] = BackgroundJob(
+        job_id=job_id,
+        type="full_reindex",
+        status="running",
+        progress=0.62,
+        started_at=__import__("time").time() - 60,
+    )
+    monkeypatch.setattr(layer, "_reindex_job_id", job_id)
+    monkeypatch.setattr(
+        layer,
+        "_resolve_active_indexer",
+        lambda: fake_indexer,
+    )
+
+    try:
+        status = await layer.intel_get_runtime_status()
+        tel = status["index_telemetry"]
+        assert tel["reindex_in_progress"] is True
+        assert tel["status"] == "reindexing", f"status={tel['status']}"
+        assert tel["reindex_progress_pct"] == 62, f"pct={tel['reindex_progress_pct']}"
+        assert tel["reindex_eta_sec"] is not None
+    finally:
+        job_manager.jobs.pop(job_id, None)
+        monkeypatch.setattr(layer, "_reindex_job_id", None)
+
+
+async def test_intel_runtime_status_normal_state_unchanged(monkeypatch, tmp_path):
+    """Контроль: без reindex — status=active по total_chunks, флагов нет."""
+    from types import SimpleNamespace
+
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_path=SimpleNamespace(),
+        get_status=lambda: {
+            "total_chunks": 100,
+            "unique_files": 10,
+            "status": "active",
+        },
+    )
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+    )
+    monkeypatch.setattr(layer, "_resolve_active_indexer", lambda: fake_indexer)
+
+    status = await layer.intel_get_runtime_status()
+    tel = status["index_telemetry"]
+    assert tel["reindex_in_progress"] is False
+    assert tel["status"] == "active"
+    assert tel["total_chunks"] == 100

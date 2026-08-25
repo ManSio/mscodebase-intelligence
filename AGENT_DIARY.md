@@ -33,6 +33,13 @@
 **Guard:** tests/test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block — двухрукавный: Arm 1 reindex_check=True → кэш <0.3с при захваченном lock; Arm 2 reindex_check=None → lock-wait >=0.2с (control, правило Тома).
 **verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1512 passed, ruff clean).
 
+## [2026-08-25] — Вариант А: честный reindex-статус для агента (вместо вранья «0 chunks»)
+**Status:** ✅ Fixed (live-верификация полного reindex: MCP отвечал мгновенно весь прогон; pytest 1518 passed; ruff clean)
+**Root Cause:** после фикса заморозки осталась ложь в сообщениях: (1) `intel_get_runtime_status` показывал «0 chunks | 0 files» во время reindex (total_chunks=0 при пересоздании таблицы); (2) `require_ready_project` советовал «Index is empty → run index_project_dir()» — агент мог запустить НЕНУЖНЫЙ второй reindex; (3) `format_runtime_status` рендерил «⚪ 0 chunks».
+**Fix (Вариант А):** (1) layer.intel_get_runtime_status — index_telemetry получает `status="reindexing"` + `reindex_in_progress` + `reindex_progress_pct` + `reindex_eta_sec` (из активного job через get_active_reindex_job_id + _enrich_job_response); (2) base.require_ready_project — при reindex поднимает ToolError warning «⏳ Index is being reindexed (N%, ETA ~Xm) — retry in a few seconds», а НЕ IndexNotReadyError; (3) ui_formatter.format_runtime_status — рендерит «🔄 Reindex in progress (N%)» вместо «0 chunks», LED 🟢 (процесс идёт — здоровое состояние, не пусто).
+**Guard:** tests: test_intel_runtime_status_reports_reindex_progress (pct=62 из job), test_intel_runtime_status_normal_state_unchanged (control), test_require_ready_project_truthful_during_reindex (+ control IndexNotReadyError при реально пустом), test_format_runtime_status_shows_reindex_in_progress / reindex_without_progress / normal_path_unchanged.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1518 passed, ruff clean). Live: полный reindex 9003 chunks за 519с — все MCP-вызовы отвечали мгновенно.
+
 ## [2026-08-24] — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
 **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
 **Root Cause:** (1) Change Preview жил только в CLI — агент не мог звать предиктор как MCP-инструмент; (2) две гонки параллельных сессий (19.08, 24.08): общий handoff-файл — TOCTOU, `git add -A` другого агента утаскивал чужие staged-правки.

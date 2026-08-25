@@ -394,6 +394,37 @@ class MCPTool(ABC):
             # минутами; IndexStatusReporter fast-fail-ит при is_reindexing,
             # to_thread — страховка для не-reindex транзиентных write-окон).
             status = await asyncio.to_thread(indexer.get_status)
+            # Reindex-состояние (Вариант А, 2026-08-25): при переиндексации
+            # get_status() возвращает кэш + status="reindexing". Если молчать,
+            # агент увидит «Index is empty → run index_project_dir» и запустит
+            # ВТОРОЙ reindex. Честный fast-fail: «жди, переиндексация идёт».
+            # ⚠️ строго `is True`: MagicMock-truthy trap (инцидент 2026-08-13)
+            # сломал бы все тулы в тестах (status.get → truthy MagicMock).
+            _reindexing = (
+                isinstance(status, dict) and status.get("reindex_in_progress") is True
+            )
+            if _reindexing:
+                _pct = status.get("reindex_progress_pct")
+                _eta = status.get("reindex_eta_sec")
+                _tail = (
+                    f" ({_pct}%"
+                    + (f", ETA ~{_eta // 60}m {_eta % 60}s" if _eta is not None else "")
+                    + ")"
+                    if _pct is not None
+                    else ""
+                )
+                raise ToolError(
+                    status="warning",
+                    message=(
+                        f"⏳ Index is being reindexed{_tail} — "
+                        "retry in a few seconds."
+                    ),
+                    detail=(
+                        "Reindex in progress: search/index tools fast-fail until it "
+                        "finishes. Poll intel_get_job_status for progress."
+                    ),
+                    recoverable=True,
+                )
             if status.get("total_chunks", 0) == 0:
                 raise IndexNotReadyError(
                     detail=(
