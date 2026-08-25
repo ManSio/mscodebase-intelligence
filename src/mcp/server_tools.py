@@ -189,6 +189,8 @@ def register_all_tools(mcp, services):
             "intel_execution_timeline",
             # Doc tools
             "stale_detector",
+            # Prediction (2026-08-24) — «внести изменение и точно знать, что будет»
+            "predict_change",
         }
         _show_all = False
 
