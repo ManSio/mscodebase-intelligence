@@ -9,7 +9,7 @@ description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "ManSio"}]
-requires-python = ">=3.10"
+requires-python = ">=3.14"  # Только 3.14+ (2026-08-21): CI matrix сужен до 3.14; маркеры <3.11 удалены
 keywords = ["zed", "mcp", "code-search", "embeddings", "ai", "lancedb", "semantic-search", "zed-extension"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -32,6 +32,10 @@ dependencies = [
     # EOL 2026-10; lock-версия требует >=3.11) — там per-Python диапазон; после дропа 3.10 запинить.
     # MCP Protocol
     "mcp==1.28.1",  # 1.x: транспортный протокол; 2.x меняет его — не бампить без проверки
+    # PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1). Единственная НЕ-stdlib
+    # зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3,
+    # API yaml.safe_load проверен). Бамп — по §5.19.
+    "PyYAML==6.0.3",
     # LSP Protocol
     "pygls==2.1.1",
     "lsprotocol==2025.0.0",
@@ -46,8 +50,7 @@ dependencies = [
     "pylance==9.0.0",
     "pyarrow==25.0.0",  # + pyarrow.compute для to_arrow
     "huggingface_hub==1.24.0",
-    "numpy==2.4.6; python_version >= '3.11'",
-    "numpy>=1.24.0,<3; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
+    "numpy==2.4.6",  # 3.14-only: маркер <3.11 удалён вместе с поддержкой 3.10-3.13
     # Code parsing (Tree-sitter) — 23 пакета для 23 языков
     # Core: полный граф (chunking + calls + data flow + imports).
     # Все грамматики: abi3-колёса (cp39/cp310-abi3) — один пин работает 3.10..3.14.
@@ -81,12 +84,10 @@ dependencies = [
     "pathspec==1.1.1",
     "httpx==0.28.1",
     "python-dotenv==1.2.2",
-    "pandas==3.0.3; python_version >= '3.11'",
-    "pandas>=2.0.0; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
+    "pandas==3.0.3",
     "python-dateutil==2.9.0.post0",
     # ONNX Embedder
-    "onnxruntime==1.27.0; python_version >= '3.11'",
-    "onnxruntime>=1.17.0; python_version < '3.11'",  # 3.10: lock-версия требует >=3.11
+    "onnxruntime==1.27.0",
     "openvino==2026.2.1",
     # Reranker (transformers-based; легаси — llama.cpp, но tokenizers используются)
     # Pinned: >=5.3.0 закрывает CVE-2026-1839 (фикс 5.0.0) и CVE-2026-4372
@@ -107,8 +108,7 @@ dev = [
     "ruff>=0.5.0,<0.16",
     "black",
     "isort",
-    # tomllib — Python 3.11+; CI matrix включает 3.10 (test_versions.py).
-    "tomli>=2.0; python_version < '3.11'",
+    # tomllib — Python 3.11+; проект 3.14-only (2026-08-21), tomli не нужен.
     # Mutation testing (negative arm для dual-arm health check).
     # ⚠️ mutmut требует fork() — на Windows работает ТОЛЬКО в WSL.
     # CI (ubuntu matrix) запускает полный mutmut; локально — опционально через

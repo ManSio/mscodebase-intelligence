@@ -28,6 +28,7 @@ Exit code: 0 = все проверки прошли; 1 = хотя бы одна 
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 # §5.9 ENCODING SAFETY (Windows): cp1251 не кодирует эмодзи в отчёте
@@ -173,9 +174,17 @@ def check_search(project: Path) -> tuple[bool, str]:
 
         from src.core.artifact_paths import get_db_path
 
-        # Корень БД = <index_dir>/index_<proj>_<hash>.db (внутри таблица codebase_chunks)
-        db = lancedb.connect(str(get_db_path(project)))
-        names = db.table_names()
+        # Корень БД = <index_dir>/index_<proj>_<hash>.db (внутри таблица codebase_chunks).
+        # Ретри: LanceDB-манифест при конкурентной записи (живой MCP переиндексирует)
+        # может транзиентно показать 0 таблиц — повторяем connect с короткой паузой.
+        names: list[str] = []
+        db_path = str(get_db_path(project))
+        for _ in range(3):
+            db = lancedb.connect(db_path)
+            names = db.table_names()
+            if names:
+                break
+            time.sleep(0.5)
         if not names:
             return False, "в индексе нет таблиц (проект не индексирован)"
         table = db.open_table(names[0])
@@ -214,9 +223,15 @@ def main() -> int:
     svc = check_services()
     for name, status in svc.items():
         print(f"   {status} {name}")
-    if any(v == "🔴" for v in svc.values()):
-        print("   ⚠️ Часть сервисов не отвечает — embed/rerank проверки могут упасть")
+    # Обязательные live-сервисы (embedder=llama.cpp 8080, reranker 8081) —
+    # только их отсутствие валит smoke. onnx (9876) — альтернативный embedder-бэкенд,
+    # не обязателен, когда активен llama.cpp (информационно).
+    required = [n for n in ("embedder", "reranker") if svc.get(n) == "🔴"]
+    if required:
+        print(f"   ⚠️ Критичные сервисы не отвечают ({', '.join(required)}) — embed/rerank проверки могут упасть")
         failures += 1
+    elif svc.get("onnx") == "🔴":
+        print("   ℹ️ onnx — альтернативный embedder не запущен (активен llama.cpp); необязательный — пропускаю")
 
     # 2. Embed
     print("2. Реальный embed (llama.cpp):")

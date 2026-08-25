@@ -188,9 +188,18 @@ def get_history(days: int = 30) -> list:
 
 
 def setup_daily_task():
-    """Создаёт задачу в планировщике Windows для ежедневного сбора в 23:00."""
+    """Создаёт задачу в планировщике Windows для ежедневного сбора в 23:00.
+
+    Задача регистрируется с pythonw.exe (GUI-подсистема) вместо python.exe,
+    чтобы при срабатывании не появлялось чёрное окно консоли (инцидент
+    «чёрные окна CMD», 2026-08-14). pythonw берётся рядом с sys.executable.
+    """
     script_path = Path(__file__).resolve()
     python_exe = sys.executable
+    if sys.platform == "win32":
+        pythonw = Path(python_exe).with_name("pythonw.exe")
+        if pythonw.exists():
+            python_exe = str(pythonw)
     task_name = "MSCodeBase Telemetry Collector"
     cmd = (
         f'schtasks /create /tn "{task_name}" /tr '

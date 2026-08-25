@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "ledger_for": "memory_contamination_facts_v4_rep_corrected.json",
+    "ledger_for_fingerprint": "e6ce7b902d0a20a9",
+    "original_of": "memory_contamination_facts_v4_rep.json",
+    "original_of_fingerprint": "820bbbf60a0fc930",
+    "date": "2026-08-16",
+    "author": "RED TEAM (Exp 2-E) — аудит ground truth по протоколу §1.16",
+    "reason": "Генератор v4_rep валидировал только `value != real_value` и НЕ проверял отсутствие value у файла СУБЪЕКТА. Из-за этого лейблы trap-категории были неверны: value, реально используемый субъектом, помечался 'false'. Машинный линк между версиями (какой факт сдвинут и на каком основании).",
+    "note": "Evidence = grep по файлу субъекта, выполнен вручную (file:line Verified). R44 признан AMBIGUOUS и исключён из пулов (truth=null). R42 подтверждён false без изменений."
+  },
+  "flips": [
+    {
+      "id": "R43",
+      "claim": "Граф знаний использует re",
+      "from": false,
+      "to": true,
+      "evidence": [
+        "src/core/graph.py:31: import re",
+        "usage: re.match / re.search в graph.py (>=2 мест)"
+      ],
+      "reason": "imported and used in subject file"
+    },
+    {
+      "id": "R45",
+      "claim": "Серверная обёртка использует logging",
+      "from": false,
+      "to": true,
+      "evidence": [
+        "src/mcp/server.py:14: import logging",
+        "usage: logging.* в server.py"
+      ],
+      "reason": "imported and used in subject file"
+    },
+    {
+      "id": "R46",
+      "claim": "Сторожевой таймер использует threading",
+      "from": false,
+      "to": true,
+      "evidence": [
+        "src/core/indexing/watchdog.py:4: import threading",
+        "src/core/indexing/watchdog.py:17: self._lock = threading.Lock()"
+      ],
+      "reason": "imported and used in subject file"
+    },
+    {
+      "id": "R47",
+      "claim": "Загрузка моделей с хаба использует pathlib",
+      "from": false,
+      "to": true,
+      "evidence": [
+        "src/providers/reranker/llama_install.py:23: from pathlib import Path",
+        "usage: Path(...) в llama_install.py L276/278/282/327/718"
+      ],
+      "reason": "imported and used in subject file"
+    },
+    {
+      "id": "R44",
+      "claim": "Кросс-проектный поиск использует pathlib",
+      "from": false,
+      "to": null,
+      "evidence": [
+        "src/core/multi_project_searcher.py:10: from pathlib import Path",
+        "usage: Path( — не найдено (импорт без использования)"
+      ],
+      "reason": "AMBIGUOUS — imported, not used; excluded from corrected pools (truth=null)"
+    },
+    {
+      "id": "R42",
+      "claim": "Серверная обёртка использует dataclasses",
+      "from": false,
+      "to": false,
+      "evidence": [
+        "src/mcp/server.py: 'dataclasses' — 0 вхождений"
+      ],
+      "reason": "confirmed false (no change)"
+    }
+  ]
+}

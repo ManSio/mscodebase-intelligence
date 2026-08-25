@@ -11,6 +11,7 @@ test_no_core_self_import молча исключались из дефолтно
 """
 
 import ast
+import importlib.util
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -103,6 +104,36 @@ class TestArchitectureInvariants:
                         rel = py_file.relative_to(_REPO)
                         errors.append(f"{rel}:{lineno} imports {modname!r}")
         assert not errors, "Tools must use Coordinator, not Registry:\n" + "\n".join(errors)
+
+    def test_linter_detects_core_cycles(self, tmp_path, monkeypatch):
+        """Инвариант 3: линтер ловит циклы core-модулей, ацикличность — нет.
+
+        Линтер вшит в CI (2026-08-24) — guard проверяет, что новая проверка
+        умеет падать (положительный контроль) и не падает на чистом графе
+        (отрицательный контроль).
+        """
+        spec = importlib.util.spec_from_file_location(
+            "arch_linter_under_test", _REPO / "scripts" / "architecture_linter.py"
+        )
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        monkeypatch.setattr(mod, "REPO", tmp_path)
+
+        core = tmp_path / "src" / "core"
+        core.mkdir(parents=True)
+        (core / "__init__.py").write_text("", encoding="utf-8")
+        (core / "a.py").write_text("import src.core.b\n", encoding="utf-8")
+        (core / "b.py").write_text("import src.core.a\n", encoding="utf-8")
+        errs = mod._check_core_no_circular_deps()
+        assert any("[CIRCULAR]" in e for e in errs), errs
+
+        # Отрицательный контроль: ациклический граф — без ложных срабатываний
+        (core / "a.py").write_text("import src.core.c\n", encoding="utf-8")
+        (core / "b.py").write_text("import src.core.c\n", encoding="utf-8")
+        (core / "c.py").write_text("", encoding="utf-8")
+        errs = mod._check_core_no_circular_deps()
+        assert not errs, errs
 
     def test_no_core_self_import(self):
         """Файл не может импортировать сам себя — включая relative-синтаксис.

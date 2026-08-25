@@ -80,6 +80,39 @@ def test_parser_markdown(temp_file):
     md_file.unlink(missing_ok=True)
 
 
+def test_parser_symbols_have_signature_and_docstring():
+    """Deep-spec: parse_file символы содержат signature и docstring."""
+    from src.core.indexing.parser import CodeParser
+
+    fixture = Path(__file__).parent / "fixtures" / "sample_module.py"
+    parser = CodeParser()
+    _, symbols = parser.parse_file(fixture)
+    assert symbols, "фикстура должна давать символы"
+
+    by_name = {s["name"]: s for s in symbols}
+
+    # Неизменённые ключи сохранены (additive backward-compat).
+    for s in symbols:
+        assert set(("name", "line", "kind")).issubset(s.keys())
+
+    calc = by_name.get("Calculator")
+    assert calc is not None
+    assert calc["kind"] == "class_definition"
+    assert calc["signature"].startswith("class Calculator")
+    assert calc["docstring"] and "pipe" in calc["docstring"]
+
+    add = by_name.get("Calculator.add")
+    assert add is not None
+    assert add["signature"].startswith("def add(")
+    assert "-> int" in add["signature"]
+    assert add["docstring"] and "Add two integers" in add["docstring"]
+
+    standalone = by_name.get("standalone")
+    assert standalone is not None
+    assert standalone["signature"].startswith("def standalone(")
+    assert standalone["docstring"] and "Echo the" in standalone["docstring"]
+
+
 def test_parser_unsupported_extension(temp_file):
     """Тест неподдерживаемого расширения."""
     from src.core.indexing.parser import CodeParser

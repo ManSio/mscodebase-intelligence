@@ -129,11 +129,25 @@ def resolve_indexer_for_request(
     if explicit_project_root and explicit_project_root.strip():
         target = Path(explicit_project_root).resolve()
     else:
+        # active project из set_project tool — приоритет над CWD-first.
+        # Живёт в mcp-слое: в core (resolve_project_root) импорт mcp.tools
+        # запрещён слоевым гейтом (test_core_does_not_import_mcp).
+        target = None
         try:
-            target = _rpr()
-        except Exception as _rpr_err:
-            logger.debug(f"resolve_project_root fallback: {_rpr_err}")
-            target = services.resolve(ProjectRootKey)
+            from src.mcp.tools.indexing_tools import get_active_project_root
+            _active = get_active_project_root()
+            if _active:
+                _p = Path(_active).resolve()
+                if _p.exists():
+                    target = _p
+        except Exception:
+            pass
+        if target is None:
+            try:
+                target = _rpr()
+            except Exception as _rpr_err:
+                logger.debug(f"resolve_project_root fallback: {_rpr_err}")
+                target = services.resolve(ProjectRootKey)
 
     # Self-indexing guard (INC-6BCB-v3)
     if _is_self_index_path(target):

@@ -58,7 +58,7 @@ echo [INFO] Перезапустите Zed, чтобы изменения вст
 echo.
 echo  Файлы синхронизированы:
 echo    - src/mcp/server.py      — MCP инструменты (26 tools)
-echo    - src/utils/zed_config.py — Автонастройка Zed
+echo    - adapters/zed/zed_config.py — Автонастройка Zed (Фаза 0)
 echo    - src/core/              — Ядро расширения
 echo    - docs/                  — Документация
 echo    - .agents/skills/        — Скиллы для AI-агента

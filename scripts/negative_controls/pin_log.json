@@ -70,5 +70,23 @@
       "stale_detector": "e02648544530d605431e15262aafd52d5575c7e25570e4c36fbcc242288e4588",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-08-19T15:51:23Z",
+    "reason": "stale_check.py: os.walk-прунинг вложенных git-клонов (вариант 2 гейт-харденинг, инцидент e-s1-polygon 2026-08-18). Логика мутант-детекта version-дрейфа не изменена.",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "bc1bd3071ecb13be42ac4e252f5cc72bec936a1a013fdc0c292ad7b064d0337c",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-08-24T18:23:57Z",
+    "reason": "stale_config.json: добавлен ^3\\.2\\.1$ в version_exclude_patterns (исторический маркер версии 3.2.1 в docstring auto_detect_intent, не drift); re-prove после изменения фикстуры",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "6a2c174fc5fab01cbf9cb00bbcc337090d56ee5fbdc06c6fc4108c98613f715e",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

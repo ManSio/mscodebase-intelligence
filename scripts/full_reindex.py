@@ -34,7 +34,7 @@ def main():
     from src.core.indexing.parser import CodeParser
     code_parser = CodeParser()
 
-    from src.utils.paths import SafePathManager
+    from src.sources.local_fs.windows import SafePathManager
     path_manager = SafePathManager(DB_PATH.parent)
 
     from src.core.indexing.index_parser import IndexParser

@@ -237,8 +237,16 @@ class ExecutionContract:
         return result
 
     @staticmethod
-    def verify_git_commit(expected_message: Optional[str] = None) -> Dict[str, Any]:
-        """Верификация последнего коммита."""
+    def verify_git_commit(
+        expected_message: Optional[str] = None, cwd: Optional[str | Path] = None
+    ) -> Dict[str, Any]:
+        """Верификация последнего коммита.
+
+        Args:
+            expected_message: подстрока, которая ДОЛЖНА быть в сообщении.
+            cwd: рабочая директория git-репозитория (по умолчанию — cwd процесса).
+        """
+        _cwd = str(cwd) if cwd is not None else None
         result = {
             "action": "git_commit",
             "timestamp": datetime.now().isoformat(),
@@ -257,6 +265,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                cwd=_cwd,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if hash_result.returncode != 0:
@@ -276,6 +285,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                cwd=_cwd,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if msg_result.returncode == 0:
@@ -303,6 +313,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                cwd=_cwd,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if diff_result.returncode == 0:
@@ -324,8 +335,13 @@ class ExecutionContract:
         return result
 
     @staticmethod
-    def verify_git_push() -> Dict[str, Any]:
-        """Верификация что push выполнен (локальная ветка совпадает с remote)."""
+    def verify_git_push(cwd: Optional[str | Path] = None) -> Dict[str, Any]:
+        """Верификация что push выполнен (локальная ветка совпадает с remote).
+
+        Args:
+            cwd: рабочая директория git-репозитория (по умолчанию — cwd процесса).
+        """
+        _cwd = str(cwd) if cwd is not None else None
         result = {
             "action": "git_push",
             "timestamp": datetime.now().isoformat(),
@@ -342,6 +358,7 @@ class ExecutionContract:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                cwd=_cwd,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if status_result.returncode != 0:

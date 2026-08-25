@@ -271,8 +271,8 @@ def register_all_tools(mcp, services):
         CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
         # Investigation (3)
         GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
-        # Lifecycle (3)
-        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool,
+        # Lifecycle (4)
+        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool, GetActionReceiptTool,
     ]
     # +16 intel_* tools + 13 inline diagnostic + 4 dev
     # Total: 61 registered (28 core + 16 intel + 13 inline + 4 dev)
