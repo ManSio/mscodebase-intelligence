@@ -403,15 +403,17 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
             env=env,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
-        # 120s кап флаки при нагрузке (pytest ~108-130s) — 300s запас (2026-08-08).
-        stdout, _ = proc.communicate(timeout=300)
+        # 120s кап флаки при нагрузке (pytest ~108-130s) — 300s запас (2026-08-08);
+        # 300→900 (2026-08-24): сюита выросла (1499+ live-sync/predict-наборы),
+        # даже в CI clean-state pytest идёт ~171s — 300s флакал при параллельной нагрузке.
+        stdout, _ = proc.communicate(timeout=900)
         output = stdout.decode("utf-8", errors="replace").strip()
         # Извлекаем итоговую строку
         lines = [l for l in output.split("\n") if "passed" in l or "failed" in l]
         summary = lines[-1] if lines else output[-200:]
         return proc.returncode == 0, summary
     except subprocess.TimeoutExpired:
-        return False, "TIMEOUT: pytest tests/ > 120s"
+        return False, "TIMEOUT: pytest tests/ > 900s"
     except Exception as e:
         return False, f"ERROR: {e}"
 

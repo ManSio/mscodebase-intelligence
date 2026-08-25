@@ -30,16 +30,23 @@ _MAX_REPORT_LINES = 15
 
 
 def _run(cmd: List[str], cwd: Path, timeout: int = DEFAULT_TIMEOUT) -> subprocess.CompletedProcess:
-    """Popen + communicate (§5.16: не capture_output — pipe-deadlock на Windows)."""
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    """Popen + communicate (§5.16: не capture_output — pipe-deadlock на Windows).
+
+    FileNotFoundError (бинарник не установлен, напр. ruff в clean-state без
+    dev-экстр) → CompletedProcess(returncode=127) — вызывающий решает: skip.
+    """
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(cmd, 127, f"command not found: {cmd[0]}")
     try:
         stdout, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -176,11 +183,19 @@ class ChangePreview:
                 }.get(gate)
                 if script and (wt / script).exists():
                     res = _run([sys.executable, script], wt, timeout=120)
+                    if res.returncode == 127:
+                        print(f"  ⏭️ {gate}: интерпретатор недоступен (skip)")
+                        continue
                     if res.returncode != 0:
                         failures.append(f"[{gate}] Failed (exit {res.returncode})")
                     print(f"  🔒 {gate}: {'PASSED' if res.returncode == 0 else 'FAILED'}")
                 elif gate == "ruff":
                     res = _run(["ruff", "check", "src/", "tests/"], wt, timeout=120)
+                    if res.returncode == 127:
+                        # clean-state ставит только .[base] без dev-экстр — ruff может
+                        # отсутствовать; это окружение, а не провал изменения
+                        print("  ⏭️ ruff: не установлен (skip — окружение без dev-экстр)")
+                        continue
                     if res.returncode != 0:
                         failures.append("[ruff] Failed")
                     print(f"  🔒 ruff: {'PASSED' if res.returncode == 0 else 'FAILED'}")
