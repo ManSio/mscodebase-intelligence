@@ -434,6 +434,11 @@ class MCPTool(ABC):
                 )
         except IndexNotReadyError:
             raise
+        except ToolError:
+            # Reindex-состояние (и другие целевые ToolError) — пробрасываем
+            # как есть, со status/recoverable, а НЕ заворачиваем в «Failed to
+            # check index status» (иначе агент теряет <<retry>>-семантику).
+            raise
         except Exception as e:
             raise ToolError(
                 status="error",
