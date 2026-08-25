@@ -16,6 +16,8 @@ git_hooks_installer.py — установка pre-commit хуков для лю�
    mcp/tools не импортирует adapters/src.sources, core — не adapters.*)
 6. architecture_linter — архитектурные инварианты (core→mcp, registry через
    Coordinator, циклы core-модулей, stale-имена; 2026-08-24)
+7. lock_guard (advisory) — печать активных git-локов параллельных агентов
+   (ADR-0007, 2026-08-24); exit 0 — не блокирует коммит
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 4. negative_controls — guard inventory (каждый guard умеет падать)
 5. check_layer_boundaries — гейт трёх осей (Universal Engine)
 6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
+7. lock_guard — активные git-локи (advisory, exit 0)
 \"\"\"
 
 import subprocess
@@ -103,6 +106,7 @@ def main():
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
     all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
     all_ok &= run_script("scripts/architecture_linter.py", "architecture_linter")
+    all_ok &= run_script("scripts/lock_guard.py", "lock_guard (advisory)")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
@@ -164,7 +168,7 @@ class GitHooksInstaller:
         return (
             f"✅ Pre-commit hook установлен: {hook_path}\n"
             f"   Версия: {self.version}\n"
-            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls + check_layer_boundaries + architecture_linter"
+            f"   Хуки: verify_diary + stale_detector + check_tool_names + negative_controls + check_layer_boundaries + architecture_linter + lock_guard (advisory)"
         )
 
     def uninstall(self, project_root: str) -> str:

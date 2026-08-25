@@ -25,6 +25,13 @@
 
 ---
 
+## [2026-08-24] — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
+**Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
+**Root Cause:** (1) Change Preview жил только в CLI — агент не мог звать предиктор как MCP-инструмент; (2) две гонки параллельных сессий (19.08, 24.08): общий handoff-файл — TOCTOU, `git add -A` другого агента утаскивал чужие staged-правки.
+**Fix:** логика превью перенесена в core (src/core/change_preview.py: ChangePreview, static_predict, changed_files), скрипт — тонкая обёртка (Тумблер); новый MCP-инструмент predict_change (mode static|full, вердикт VERIFIED/REFUTED/INCONCLUSIVE ДО коммита) зарегистрирован в register_all_tools (63/64); git-локи: .locks/README + scripts/lock_guard.py (acquire/release/status; коммит+push = точка атомарности; чужой лок не снимается; stale >2ч снимается только с причиной) + ADR-0007 + advisory-вывод статуса локов в pre-commit (exit 0).
+**Guard:** tests/test_lock_guard.py (жизненный цикл, повторный acquire, чужой лок), tests/test_predict_tool.py (static-режим blast radius, INCONCLUSIVE).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не запускался); подмножество 34 passed.
+
 ## [2026-08-24] — Change Preview (Фаза 1+2) + импорт-граф 56 языков (Вариант A)
 **Status:** ✅ Feature (24 новых теста; ruff clean)
 **Root Cause:** (1) «точно знать что будет»: были impact_analysis (статический blast radius) и ActionReceipt (вердикт постфактум), но НЕ было связки «изменение → affected-тесты → прогон ДО коммита»; (2) IMPORT_NODE_MAP (20 языков, v3.3.0) удалён рефакторингом августа — claim живёт только в CHANGELOG (разрыв доки vs код).
@@ -1605,10 +1612,3 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** 36 тестов (test_live_buffer, test_live_sync_server, test_read_live_file, test_remote_main) PASSED; TS-расширение компилируется (`./node_modules/.bin/tsc`); импорты `src.sync` OK. LIVE-SMOKE: `scripts/smoke_livesync.py` (требует запущенный демон + пакет `websockets`).
 **verified_from_clean_state:** ⚠️ не проверено — чистый клон Live Sync не запускался (требует отдельного прогона с демоном).
 
-
-## [2026-08-24] — CI PR #7: 10 падений → 9/10 зелёных (Universal Engine)
-**Status:** ✅ Fixed (CI: 9/10, единственный красный — github-advanced-security, инфраструктура GitHub «model not supported» 400, ретрай запрещён платформой)
-**Root Cause:** (1) core-резолвер импортировал mcp.tools (set_project 0.5-ступень) — слой-гейт; (2) guard-тесты не изолированы от dev-флага MSCODEBASE_ALLOW_SELF_INDEX=1; (3) ruff 7 ошибок (E741/I001/BLE001/F821); (4) stale_config digest → negative-controls unproven; (5) plugin-runner: stdout cp1252 на Windows-CI → UnicodeEncodeError → proc_dead; (6) change_preview звал `ruff` без PATH (clean-state venv); (7) tool-count контракт 62→63 (get_action_receipt).
-**Fix:** set_project fallback → mcp-слой (resolve_indexer_for_request, base.py); monkeypatch.delenv в test_project_header; ruff clean src/tests; re-pin controls; runner.py ENCODING SAFETY (§9.9); change_preview → sys.executable -m ruff; README+тест 63; test_live_buffer backslash-проверка под os.name=='nt'. Плюс diary-маркеры verified_from_clean_state для 2 чужих записей.
-**Guard:** полный pytest 1499 passed; ruff clean; clean-state PASSED; manifest-parity PASSED; transport-equiv PASSED. Коммиты: c89aafd2, 87df0c07, e0e05039 (feat/lsp-thin-client → PR #7).
-**verified_from_clean_state:** ✅ да — clean-state джоба CI PASSED (коммит e0e05039).
