@@ -1564,3 +1564,23 @@ z-ai/glm-4.7-flash: endpoints-поле в /api/v1/models отсутствует 
 ```
 **Вердикт:** (1) **Present-trap — НЕ артефакт mislabeled данных**: на честных лейблах (валидация по субъекту) file_content FA 2-15/20 (10-75%) — «остаточная дыра trap» Part 2 была искажена; реально она массовая. (2) **Graph evidence РЕАЛЬНО закрывает present-trap у deepseek: 75%→40% FA** — на v4_rep (N=1 false) вывод «graph не помогает» был статистическим артефактом; у glm graph не помогает (14/20), у qwen FA и так 2/20 (но recall 2/10 — fail-closed). (3) Per-model формат подтверждён ещё сильнее: graph нужен deepseek против trap; qwen платит recall'ом за низкий FA.
 **Урок:** «FA trap = 0» на категории с N=1 — бессмысленное число; расширение категории с валидацией по субъекту (P-00X) — единственный способ честно измерить present-trap. Ответ на вопрос ревьюера (chatgpt): «does the corrected generator reject value-anywhere-in-subject?» — ДА, trap_facts_generator.py проверяет grep субъекта = 0 (демонстрация фикса).
+
+---
+
+## [2026-08-25] — Гипотеза: fix заморозки MCP при full reindex (get_status на loop-потоке)
+**Ожидание:** при full reindex ~7.5-12 мин ВСЕ MCP-вызовы отвечают мгновенно, а не таймаутят; search fast-fail; после завершения индекс цел.
+**Команда:** `intel_trigger_reindex(mode="full")` → job 78a88a51; пробы: `intel_get_runtime_status`, `debug_runtime_passport`, `search_code(fast)`, `intel_get_job_status` (8 опросов); полный `python -m pytest tests/ -q`.
+**Сырой результат:**
+```
+REINDEX: 9003/9003 completed за 519s (полный цикл 19:29:34→21:11:13),
+         embedding avg 17-59 ch/s, фазы recreate→parse→embed.
+ПРОБЫ ВО ВРЕМЯ REINDEX (22% → 76%):
+  intel_get_runtime_status : мгновенно ×2 (фаза recreate — 0 chunks честно)
+  debug_runtime_passport   : мгновенно ×2 (NO timeouts, uptime 257s живой)
+  search_code(fast)        : мгновенный fast-fail («Index is not ready»)
+  intel_get_job_status     : 8 опросов, все <1s, прогресс 22→24→34→44→52→62→76→100
+ПОСЛЕ: intel_get_runtime_status → 🟢 9003 chunks | 540 files | 10714 symbols
+pytest полный: 1518 passed, 5 skipped, 91 deselected, 0 failed (было 1512)
+```
+**Вердикт:** ПОДТВЕРЖДЕНА — заморозка устранена (ни одного таймаута за весь прогон). Но живой прогон выявил ВТОРИЧНЫЙ баг: `intel_get_runtime_status` показывал «0 chunks», `search_code` — «Index is empty → run index_project_dir» (враньё, провоцирует 2-й reindex) → закрыт коммитом c41c30e1 (Вариант А: status=reindexing + progress % + честный ToolError).
+**Урок:** исправление блокировки ≠ исправление сигналов; после фикса liveness обязательно проверить семантику сообщений агенту — иначе агент «чинит» здоровое состояние.
