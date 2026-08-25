@@ -183,7 +183,7 @@ multilingual-e5-small ONNX (CPU, in-process) → llama-server reranker
 
 ---
 
-## MCP Инструменты (61 всего)
+## MCP Инструменты (64 всего)
 
 ### Основной поиск
 
