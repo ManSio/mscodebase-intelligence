@@ -535,6 +535,23 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             Все синхронные LanceDB/BM25 вызовы оборачиваются в asyncio.to_thread,
             чтобы не блокировать event loop при параллельных MCP-запросах.
         """
+        # Fast-fail (2026-08-25, живое воспроизведение): пока идёт переиндексация
+        # (`db_manager.is_reindexing()`), чтение LanceDB небезопасно/долго — вместо
+        # зависания отвечаем мгновенным статусом, а не молчим минуты.
+        # ⚠️ строго `is True`: в тестах db_manager — MagicMock, его is_reindexing()
+        # truthy (та же ловушка MagicMock-truthy, инцидент 2026-08-13).
+        _dbm = getattr(self.indexer, "db_manager", None)
+        if _dbm is not None and callable(getattr(_dbm, "is_reindexing", None)):
+            try:
+                _busy = _dbm.is_reindexing()
+            except Exception:  # noqa: BLE001 — ломаный мок не роняет поиск
+                _busy = False
+            if _busy is True:
+                raise RuntimeError(
+                    "⏳ Индекс перестраивается (reindex в процессе) — "
+                    "повторите поисковый запрос через несколько секунд."
+                )
+
         if not query or not query.strip():
             return []
 
