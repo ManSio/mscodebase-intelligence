@@ -283,7 +283,7 @@ async def test_require_ready_project_truthful_during_reindex(monkeypatch):
     # Контроль (Arm 3): ToolsError пробрасывается КАК ЕСТЬ (status/recoverable),
     # а не заворачивается в «Failed to check index status» — иначе агент
     # теряет retry-семантику (live: search показывал двойную обёртку).
-    async def _boom_side_effect():
+    def _boom_side_effect():
         raise ValueError("unexpected")
 
     fake_indexer_error = SimpleNamespace(
@@ -390,3 +390,181 @@ async def test_intel_runtime_status_normal_state_unchanged(monkeypatch, tmp_path
     assert tel["reindex_in_progress"] is False
     assert tel["status"] == "active"
     assert tel["total_chunks"] == 100
+
+
+async def test_delayed_auto_index_sets_state_ready(monkeypatch, tmp_path):
+    """Косметический баг 2026-08-26: после успешной авто-индексации registry
+    обязан перейти в READY (get_indexer ставит INDEXING при пустом индексе).
+    Иначе паспорт вечно показывает «Project State: INDEXING»."""
+    from types import SimpleNamespace
+
+    from src.core.indexing.project_indexer_registry import ProjectState
+    from src.mcp.server_factory import _delayed_auto_index
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    # Fake registry: перехватываем set_state READY
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    registry_stub = _FakeRegistry()
+
+    # Fake services: resolve(ProjectIndexerRegistry) → registry_stub
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    services = SimpleNamespace()
+
+    def _resolve(key):
+        if key is PIRKey:
+            return registry_stub
+        raise KeyError(key)
+
+    services.resolve = _resolve
+
+    # Fake indexer: ПУСТОЙ индекс до индексации (get_status → 0), чтобы
+    # _delayed_auto_index не пропустил запуск; index_project вернёт 42 файла.
+    calls = []
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        index_project=lambda path, *a, **k: calls.append(path) or 42,
+        get_status=lambda: {"total_chunks": 0, "unique_files": 0},
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "src.mcp.tools.base.resolve_indexer_for_request",
+            lambda services, explicit_project_root=None: fake_indexer,
+            raising=False,
+        )
+        await _delayed_auto_index(services)
+
+    assert calls, "index_project не вызывался — авто-индексация не запустилась"
+    assert states, "set_state не вызывался после авто-индекса"
+    assert states[-1][1] is ProjectState.READY, f"state={states[-1][1]}"
+
+
+async def test_delayed_auto_index_skips_when_index_not_empty(monkeypatch, tmp_path):
+    """Контроль: при непустом индексе авто-индексация пропускается,
+    set_state не вызывается (государство уже READY из get_indexer)."""
+    from types import SimpleNamespace
+
+    from src.mcp.server_factory import _delayed_auto_index
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    services = SimpleNamespace()
+    services.resolve = lambda key: _FakeRegistry() if key is PIRKey else None
+
+    called = {"index_project": False}
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        index_project=lambda path, *a, **k: called.__setitem__("index_project", True),
+        get_status=lambda: {"total_chunks": 9000, "unique_files": 500},
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "src.mcp.tools.base.resolve_indexer_for_request",
+            lambda services, explicit_project_root=None: fake_indexer,
+            raising=False,
+        )
+        await _delayed_auto_index(services)
+
+    assert called["index_project"] is False, "Индекс не пуст — индексация не должна запускаться"
+    assert not states, "set_state не должен вызываться при пропуске авто-индекса"
+
+
+async def test_reindex_job_sets_state_ready(monkeypatch, tmp_path):
+    """_run_reindex_job: после успешного job → registry.set_state(READY).
+    Контролируем, что state machine закрывает цикл INDEXING→READY."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from src.core.indexing.project_indexer_registry import ProjectState
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    fake_services = SimpleNamespace()
+    fake_services.resolve = lambda key: _FakeRegistry() if key is PIRKey else None
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        file_guard=None,
+        index_project=lambda path, cb=None: 10,
+    )
+
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+        services=fake_services,
+    )
+
+    # Авто-док после реиндекса — мокаем (не выводим на реальный AutoDocUpdater)
+    class _FakeUpdater:
+        def update_all(self, project_root: str) -> str:
+            return "ok"
+
+    monkeypatch.setattr(
+        "src.core.auto_doc_updater.AutoDocUpdater", _FakeUpdater
+    )
+
+    from src.core.intelligence.jobs import job_manager
+
+    # Сбрасываем возможный мусор от других тестов
+    for _j in list(job_manager.jobs):
+        if _j.startswith("rj_state"):
+            job_manager.jobs.pop(_j, None)
+
+    # Запускаем через публичный путь trigger_async_reindex (запуск задачи)
+    job_id = await layer.trigger_async_reindex()
+    try:
+        for _ in range(100):
+            j = job_manager.get_job(job_id)
+            if j and j.status in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.05)
+    finally:
+        job_manager.jobs.pop(job_id, None)
+
+    assert states, "reindex job не вызвал set_state READY"
+    assert states[-1][1] is ProjectState.READY, f"state={states[-1][1]}"
