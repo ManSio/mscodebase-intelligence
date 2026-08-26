@@ -1,0 +1,1363 @@
+{
+ "topk": 5,
+ "n": 30,
+ "arms": {
+  "fast": {
+   "recall_k": 0.167,
+   "facts_coverage_mean": 0.517,
+   "latency_median_ms": 148.1,
+   "latency_p95_ms": 166.6
+  },
+  "quality": {
+   "recall_k": 0.133,
+   "facts_coverage_mean": 0.861,
+   "latency_median_ms": 2145.3,
+   "latency_p95_ms": 6802.7
+  },
+  "cascade": {
+   "recall_k": 0.233,
+   "facts_coverage_mean": 0.753,
+   "latency_median_ms": 564.1,
+   "latency_p95_ms": 6909.3
+  }
+ },
+ "by_klass": {
+  "find_bug_cause": {
+   "n": 5,
+   "fast_recall": 0.2,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.2
+  },
+  "find_caller_callee": {
+   "n": 2,
+   "fast_recall": 0.0,
+   "quality_recall": 0.5,
+   "cascade_recall": 0.5
+  },
+  "find_impact": {
+   "n": 3,
+   "fast_recall": 0.0,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.0
+  },
+  "find_test": {
+   "n": 2,
+   "fast_recall": 0.0,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.0
+  },
+  "git_history": {
+   "n": 4,
+   "fast_recall": 0.5,
+   "quality_recall": 0.25,
+   "cascade_recall": 0.5
+  },
+  "modify_function": {
+   "n": 4,
+   "fast_recall": 0.0,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.0
+  },
+  "prepare_change": {
+   "n": 4,
+   "fast_recall": 0.25,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.25
+  },
+  "understand_architecture": {
+   "n": 4,
+   "fast_recall": 0.25,
+   "quality_recall": 0.5,
+   "cascade_recall": 0.5
+  },
+  "verify_change": {
+   "n": 2,
+   "fast_recall": 0.0,
+   "quality_recall": 0.0,
+   "cascade_recall": 0.0
+  }
+ },
+ "rows": [
+  {
+   "id": "T1",
+   "klass": "find_bug_cause",
+   "gt": "src/core/indexing/symbol_index.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 4383.787799975835,
+    "server_total_ms": 4383.734500035644,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "src\\core\\relation_extractor.py",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\graph_rag.py",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 9763.495000021067,
+    "server_total_ms": 9763.468199991621,
+    "n_results": 5,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\strategy_a_data.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 14147.282799996901,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T2",
+   "klass": "modify_function",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 164.10490003181621,
+    "server_total_ms": 164.03380001429468,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_v2.json",
+     "KNOWN_ISSUES.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\ARCHITECTURE_LAYERS.md"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 331.39519998803735,
+    "server_total_ms": 331.38019999023527,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 495.50010001985356,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T3",
+   "klass": "find_impact",
+   "gt": "src/core/search/engine.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 130.4492999915965,
+    "server_total_ms": 130.40110003203154,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "src\\core\\graph_rag.py",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\graph_rag.py",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 6289.31849997025,
+    "server_total_ms": 6289.305299986154,
+    "n_results": 3,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\results_v2.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 6419.767799961846,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T4",
+   "klass": "understand_architecture",
+   "gt": "src/core/search/engine.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 152.17749995645136,
+    "server_total_ms": 152.11760002421215,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "src\\core\\search\\engine.py",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": true,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 365.8436000114307,
+    "server_total_ms": 365.83070002961904,
+    "n_results": 8,
+    "files": [
+     "src\\core\\search\\graph_adapter.py",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "src\\core\\search\\engine.py",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": true,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "fast",
+    "latency_ms": 152.17749995645136,
+    "facts": 2,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T5",
+   "klass": "find_test",
+   "gt": "src/core/intelligence/tools_reg.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 148.99450005032122,
+    "server_total_ms": 148.94029998686165,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\SEARCH_PIPELINE.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_v2.json",
+     "docs\\ru\\GRACEFUL_DEGRADATION.md"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 6149.516100005712,
+    "server_total_ms": 6149.503100023139,
+    "n_results": 5,
+    "files": [
+     "experiments\\context_engine\\tasks.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 6298.510600056034,
+    "facts": 3,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T6",
+   "klass": "git_history",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 159.14970001904294,
+    "server_total_ms": 159.09349999856204,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\archive\\DEV_DIARY_2026_07.md",
+     "experiments\\context_engine\\tasks_v2.json",
+     "docs\\ru\\FAQ.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 3
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 373.5336000099778,
+    "server_total_ms": 373.5210999730043,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\utils\\__init__.py",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 3
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 532.6833000290208,
+    "facts": 3,
+    "facts_n": 3
+   }
+  },
+  {
+   "id": "T7",
+   "klass": "find_caller_callee",
+   "gt": "src/core/indexing/symbol_index.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 129.73829999100417,
+    "server_total_ms": 129.68750001164153,
+    "n_results": 8,
+    "files": [
+     "KNOWN_ISSUES.md",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\search\\graph_adapter.py",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5300.28049997054,
+    "server_total_ms": 5300.267899991013,
+    "n_results": 3,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "src\\core\\indexing\\symbol_index.py",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": true,
+    "facts": 0,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "quality",
+    "latency_ms": 5430.018799961545,
+    "facts": 0,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T8",
+   "klass": "prepare_change",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 167.0025999774225,
+    "server_total_ms": 166.94479994475842,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "src\\sources\\__init__.py",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\relation_extractor.py",
+     "experiments\\context_engine\\tasks_v2.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 377.2033999557607,
+    "server_total_ms": 377.19120003748685,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\sources\\__init__.py",
+     "experiments\\context_engine\\tasks_v2.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 544.2059999331832,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T9",
+   "klass": "verify_change",
+   "gt": "src/mcp/server_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 147.6884000003338,
+    "server_total_ms": 147.64069998636842,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\rehenie.md",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\universal-engine\\E07_RESULTS.md",
+     "ISSUE.md"
+    ],
+    "hit": false,
+    "facts": 1,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5553.098299948033,
+    "server_total_ms": 5553.084900020622,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 5700.786699948367,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T10",
+   "klass": "find_bug_cause",
+   "gt": "src/core/indexing/db_writer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 153.24370004236698,
+    "server_total_ms": 153.16739998525009,
+    "n_results": 8,
+    "files": [
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_v2.json",
+     "docs\\ru\\GRACEFUL_DEGRADATION.md"
+    ],
+    "hit": false,
+    "facts": 1,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 309.25930000375956,
+    "server_total_ms": 309.2474000295624,
+    "n_results": 8,
+    "files": [
+     "experiments\\1V_memory_contamination\\memory_contamination_facts_v4_rep_corrected.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\results_v2.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 462.50300004612654,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T11",
+   "klass": "understand_architecture",
+   "gt": "src/mcp/tools/context_tool.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 121.67199997929856,
+    "server_total_ms": 121.61159998504445,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\eta_predictor.py",
+     "experiments\\context_engine\\results_v2.json",
+     "src\\core\\runtime_coordinator.py",
+     "experiments\\context_engine\\results_v2.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5189.495500002522,
+    "server_total_ms": 5189.478800049983,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 5311.167499981821,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T12",
+   "klass": "modify_function",
+   "gt": "src/core/search/utils.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 154.42899998743087,
+    "server_total_ms": 154.36720004072413,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\ARCHITECTURE_LAYERS.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "scripts\\verify_diary.py",
+     "docs\\ru\\TELEMETRY.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 310.4318999685347,
+    "server_total_ms": 310.420099995099,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "scripts\\verify_diary.py"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 464.8608999559656,
+    "facts": 3,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T13",
+   "klass": "find_test",
+   "gt": "src/mcp/tools/search_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 111.10480001661927,
+    "server_total_ms": 111.03969998657703,
+    "n_results": 8,
+    "files": [
+     "docs\\en\\CHANGELOG.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\BENCHMARK.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\CHANGELOG.md"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5787.595300003886,
+    "server_total_ms": 5787.581300013699,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 5898.7001000205055,
+    "facts": 2,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T14",
+   "klass": "git_history",
+   "gt": "src/core/indexing/symbol_index.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 153.63869996508583,
+    "server_total_ms": 153.57480000238866,
+    "n_results": 8,
+    "files": [
+     "scripts\\architecture_linter.py",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "src\\core\\indexing\\symbol_index.py"
+    ],
+    "hit": true,
+    "facts": 0,
+    "facts_n": 2
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 359.74570002872497,
+    "server_total_ms": 359.7326999879442,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "scripts\\architecture_linter.py",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\core\\indexing\\symbol_index.py"
+    ],
+    "hit": true,
+    "facts": 2,
+    "facts_n": 2
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "fast",
+    "latency_ms": 153.63869996508583,
+    "facts": 0,
+    "facts_n": 2
+   }
+  },
+  {
+   "id": "T15",
+   "klass": "prepare_change",
+   "gt": "src/providers/reranker/llama_runner.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 136.78930001333356,
+    "server_total_ms": 136.71749999048188,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\LM_STUDIO_SETUP.md",
+     "src\\providers\\reranker\\llama_runner.py",
+     "src\\providers\\reranker\\llama_runner.py"
+    ],
+    "hit": true,
+    "facts": 1,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5650.110999995377,
+    "server_total_ms": 5650.0973999500275,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "fast",
+    "latency_ms": 136.78930001333356,
+    "facts": 1,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T16",
+   "klass": "find_bug_cause",
+   "gt": "src/mcp/tools/search_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 160.02459998708218,
+    "server_total_ms": 159.95679999468848,
+    "n_results": 8,
+    "files": [
+     "docs\\en\\CHANGELOG.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\CHANGELOG.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\FAQ.md"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 332.78619998600334,
+    "server_total_ms": 332.77369994902983,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\strategy_a_data_v2.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\core\\search\\engine.py",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 492.8107999730855,
+    "facts": 3,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T17",
+   "klass": "modify_function",
+   "gt": "src/core/search/engine.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 142.27010001195595,
+    "server_total_ms": 142.2076000017114,
+    "n_results": 8,
+    "files": [
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "src\\core\\indexing\\parser.py",
+     "docs\\ru\\SECURITY.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5426.475499989465,
+    "server_total_ms": 5426.462500006892,
+    "n_results": 1,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 5568.745600001421,
+    "facts": 3,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T18",
+   "klass": "find_impact",
+   "gt": "src/mcp/server_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 145.0493999873288,
+    "server_total_ms": 144.9853999656625,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "KNOWN_ISSUES.md",
+     "experiments\\context_engine\\results_v2.json",
+     "docs\\ru\\SECURITY.md"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 356.625999964308,
+    "server_total_ms": 356.6123000346124,
+    "n_results": 7,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 501.6753999516368,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T19",
+   "klass": "understand_architecture",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 149.6023999643512,
+    "server_total_ms": 149.5395999518223,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\TELEMETRY.md",
+     "experiments\\context_engine\\results_v2.json",
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\CONTRIBUTING.md"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 6545.70259997854,
+    "server_total_ms": 6545.68979999749,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 6695.304999942891,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T20",
+   "klass": "git_history",
+   "gt": "src/core/indexing/db_writer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 148.38480000616983,
+    "server_total_ms": 148.32360000582412,
+    "n_results": 8,
+    "files": [
+     "scripts\\architecture_linter.py",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "src\\core\\indexing\\db_writer.py"
+    ],
+    "hit": true,
+    "facts": 0,
+    "facts_n": 3
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 305.9301999746822,
+    "server_total_ms": 305.91969995293766,
+    "n_results": 8,
+    "files": [
+     "scripts\\architecture_linter.py",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\utils\\__init__.py",
+     "experiments\\context_engine\\results_v2.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 3
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "fast",
+    "latency_ms": 148.38480000616983,
+    "facts": 0,
+    "facts_n": 3
+   }
+  },
+  {
+   "id": "T21",
+   "klass": "find_caller_callee",
+   "gt": "src/mcp/server_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 106.58369999146089,
+    "server_total_ms": 106.54070001328364,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "KNOWN_ISSUES.md",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 6802.669800003059,
+    "server_total_ms": 6802.655900013633,
+    "n_results": 1,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 6909.25349999452,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T22",
+   "klass": "modify_function",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 147.8400999912992,
+    "server_total_ms": 147.77260000118986,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\rehenie.md",
+     "docs\\en\\investigations\\LSP_WONTFIX.md"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 329.5055999769829,
+    "server_total_ms": 329.49390000430867,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v2.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 477.34569996828213,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T23",
+   "klass": "find_bug_cause",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 127.79550004051998,
+    "server_total_ms": 127.74219998391345,
+    "n_results": 7,
+    "files": [
+     "experiments\\1V_memory_contamination\\memory_contamination_facts_v4_rep_corrected.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "src\\core\\intelligence\\layer.py",
+     "src\\utils\\__init__.py",
+     "experiments\\context_engine\\results_tasks_v3.json"
+    ],
+    "hit": true,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5023.658299993258,
+    "server_total_ms": 5023.648899979889,
+    "n_results": 4,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\strategy_a_data_v3_extra.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "fast",
+    "latency_ms": 127.79550004051998,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T24",
+   "klass": "understand_architecture",
+   "gt": "src/core/runtime_coordinator.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 90.66210000310093,
+    "server_total_ms": 90.59519995935261,
+    "n_results": 8,
+    "files": [
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\ARCHITECTURE_LAYERS.md"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 239.88539999118075,
+    "server_total_ms": 239.87649998161942,
+    "n_results": 7,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\strategy_a_data_v3_extra.json",
+     "src\\core\\runtime_coordinator.py",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": true,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": true,
+    "mode": "quality",
+    "latency_ms": 330.5474999942817,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T25",
+   "klass": "find_bug_cause",
+   "gt": "src/core/project_resolution.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 91.80860000196844,
+    "server_total_ms": 91.75259998301044,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\research_verification_layers_devto_2026-08-11.md",
+     "docs\\ru\\FAQ.md",
+     "src\\core\\indexing\\index_guard.py",
+     "docs\\en\\CHANGELOG.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 3872.92430002708,
+    "server_total_ms": 3872.9108999832533,
+    "n_results": 1,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 3964.7329000290483,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T26",
+   "klass": "git_history",
+   "gt": "src/mcp/tools/search_tools.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 158.24339998653159,
+    "server_total_ms": 158.16709998762235,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\FAQ.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 3
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 398.0153000447899,
+    "server_total_ms": 398.00049999030307,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\utils\\__init__.py",
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 1,
+    "facts_n": 3
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 556.2587000313215,
+    "facts": 1,
+    "facts_n": 3
+   }
+  },
+  {
+   "id": "T27",
+   "klass": "find_impact",
+   "gt": "src/core/intelligence/layer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 134.63849999243394,
+    "server_total_ms": 134.56900004530326,
+    "n_results": 8,
+    "files": [
+     "docs\\BENCHMARK.md",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\2E_evidence_ladder\\temporal_contexts_e8571628.json",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\1V_memory_contamination\\memory_contamination_facts_v4_rep_corrected.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 7281.572400010191,
+    "server_total_ms": 7281.557900016196,
+    "n_results": 2,
+    "files": [
+     "experiments\\context_engine\\tasks_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 1,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 7416.210900002625,
+    "facts": 1,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T28",
+   "klass": "prepare_change",
+   "gt": "src/core/indexing/db_writer.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 158.42609998071566,
+    "server_total_ms": 158.33860001293942,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\TELEMETRY.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "docs\\ru\\CHANGELOG.md",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 2,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 417.6177000044845,
+    "server_total_ms": 417.6015999983065,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\results_v2.json",
+     "experiments\\context_engine\\strategy_a_data_v2.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "experiments\\root_cause_eval\\incident_dataset_full.json"
+    ],
+    "hit": false,
+    "facts": 4,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 576.0437999852002,
+    "facts": 4,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T29",
+   "klass": "verify_change",
+   "gt": "src/core/search/utils.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 136.66690001264215,
+    "server_total_ms": 136.56970002921298,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\tasks_v3.json",
+     "docs\\ru\\SECURITY.md",
+     "src\\core\\structural_search.py",
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md"
+    ],
+    "hit": false,
+    "facts": 0,
+    "facts_n": 4
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 5678.609800001141,
+    "server_total_ms": 5678.59679996036,
+    "n_results": 1,
+    "files": [
+     "experiments\\context_engine\\tasks_v3.json"
+    ],
+    "hit": false,
+    "facts": 3,
+    "facts_n": 4
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 5815.276700013783,
+    "facts": 3,
+    "facts_n": 4
+   }
+  },
+  {
+   "id": "T30",
+   "klass": "prepare_change",
+   "gt": "src/mcp/tools/context_tool.py",
+   "fast": {
+    "mode": "fast",
+    "latency_ms": 166.60870000487193,
+    "server_total_ms": 166.52570001315325,
+    "n_results": 8,
+    "files": [
+     "docs\\ru\\FAQ.md",
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "KNOWN_ISSUES.md",
+     "experiments\\context_engine\\results_v2.json",
+     "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md"
+    ],
+    "hit": false,
+    "facts": 5,
+    "facts_n": 5
+   },
+   "quality": {
+    "mode": "quality",
+    "latency_ms": 405.3698999923654,
+    "server_total_ms": 405.35559999989346,
+    "n_results": 8,
+    "files": [
+     "experiments\\context_engine\\results_tasks_v3.json",
+     "experiments\\context_engine\\tasks_v3.json",
+     "src\\core\\eta_predictor.py",
+     "experiments\\1V_memory_contamination\\memory_contamination_facts_v4_rep_corrected.json",
+     "experiments\\context_engine\\results_v2.json"
+    ],
+    "hit": false,
+    "facts": 5,
+    "facts_n": 5
+   },
+   "cascade": {
+    "hit": false,
+    "mode": "quality",
+    "latency_ms": 571.9785999972373,
+    "facts": 5,
+    "facts_n": 5
+   }
+  }
+ ]
+}
