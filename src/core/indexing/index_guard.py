@@ -349,18 +349,49 @@ class IndexGuard:
         """
         try:
             cache_file = self.db_path / "symbol_index.json"
+
+            # Anti-corruption guard (инцидент 2026-08-26): SymbolIndexAdapter
+            # (graph-backed) не имеет словарей _definitions/_references/_file_to_symbols
+            # и при инкрементальном индексе писал ПУСТОЙ JSON поверх полного файла.
+            # Для адаптера персистенция — сам graph.db; сохранение JSON не нужно.
+            if not all(
+                hasattr(symbol_index, a)
+                for a in ("_definitions", "_references", "_file_to_symbols")
+            ):
+                logger.debug(
+                    "save_symbol_index: graph-backed instance — graph.db is the persistence, skip JSON"
+                )
+                return True
+
+            defs = {
+                k: [r.to_dict() for r in v]
+                for k, v in symbol_index._definitions.items()
+            }
+            refs = {
+                k: [r.to_dict() for r in v]
+                for k, v in symbol_index._references.items()
+            }
+            fts = {k: list(v) for k, v in symbol_index._file_to_symbols.items()}
+
+            # Не перезаписывать непустой файл пустым состоянием (коррупция холодного старта).
+            if not defs and not refs and not fts and cache_file.exists():
+                try:
+                    existing = json.loads(cache_file.read_text(encoding="utf-8"))
+                    if any(
+                        (existing.get(k) or {}) and len(existing.get(k) or {}) > 0
+                        for k in ("definitions", "references", "file_to_symbols")
+                    ):
+                        logger.warning(
+                            f"save_symbol_index: skip EMPTY overwrite (existing file has data) — {cache_file}"
+                        )
+                        return True
+                except Exception:
+                    pass  # повреждённый файл — даём перезаписать
+
             data = {
-                "definitions": {
-                    k: [r.to_dict() for r in v]
-                    for k, v in symbol_index._definitions.items()
-                },
-                "references": {
-                    k: [r.to_dict() for r in v]
-                    for k, v in symbol_index._references.items()
-                },
-                "file_to_symbols": {
-                    k: list(v) for k, v in symbol_index._file_to_symbols.items()
-                },
+                "definitions": defs,
+                "references": refs,
+                "file_to_symbols": fts,
                 "saved_at": datetime.now().isoformat(),
             }
             cache_file.write_text(
