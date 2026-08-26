@@ -27,12 +27,12 @@
 ---
 
 ## [2026-08-26 19:19] — SymbolIndex JSON corruption guard live + E4.2 concept-resolver (verify_change 0→HIT)
-**Status:** ✅ Fixed (guard, live) / 🟡 E4.2 — выполнено и подтверждено на граф-слое; полный 30-задачный live-прогон за владельцем
+**Status:** ✅ Fixed (guard, live) / ✅ E4.2 подтверждена (live same-run: recall 0.50, verify_change 0→1.00)
 **Root Cause:** (guard) `SymbolIndexAdapter` (graph-backed) без `_definitions/_references/_file_to_symbols` писал ПУСТОЙ JSON поверх полного `symbol_index.json` при инкрементальном индексе (инцидент E4, 26.08 — файл пуст при 10748 символах в памяти); (E4.2) `verify_change`=0 — резолв якоря из «бессловесных» промптов: T9 wrong-anchor ('engine' из engine.py, ответ — notify_change), T29 no-anchor (концепт «паттерны извлечения», лексики нет вообще).
 **Fix:** (guard) graph-backed инстанс пропускает JSON-персистенцию (graph.db — источник правды) + защита от пустой перезаписи непустого файла (`src/core/indexing/index_guard.py`, тест `tests/test_symbol_index_persistence.py` 4/4; sync EXT уже был эффективен — md5-идентичны); (E4.2) детерминированный concept-реестр klass-gated (`experiments/mech_orch/resolver.py`) ПЕРЕД лексическим `extract_symbol` + факты граф-строк (`graph_fact_text`): probe на живом graph.db — T9 `notify_change`→server_tools.py HIT facts 4/4, T29 `_extract_symbol_name`→utils.py HIT facts 3/4; 14 тестов (resolver 10 + persistence 4); ruff-гейт `src/ tests/` чист.
-**Guard:** klass-gating реестра (только verify_change; регресс остальных 28 задач исключён по построению); юнит-тесты резолвера без сервисов; полный E4.1 same-run (verify_change 0→2/2, recall ~0.43→~0.50) — команда владельцу (`EXT venv python experiments/mech_orch/E4_1_graph_arm.py`). Портфолио M1–E4.1 — по команде.
+**Guard:** klass-gating реестра (только verify_change; регресс остальных 28 задач исключён по построению И подтверждён прогоном: 9/9 классов ≥ каскада); юнит-тесты резолвера без сервисов; полный E4.1 same-run выполнен: cascade 0.267 → +graph 0.50 (med 196.8ms, цель ≥0.40/<600ms), verify_change graph=1.00 vs cascade=0.00. Портфолио M1–E4.2 синхронизировано (exp-24..31, guard 26 passed).
 **Связано:** EXPERIMENTS_LOG#E4/E4.1/E4.2, tests/test_mech_resolver.py, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}.
-**verified_from_clean_state:** ⚠️ не проверено — E4.2 подтверждён на граф-слое (probe, живой graph.db, raw в EXPERIMENTS_LOG#E4.2); полный 30-задачный live-прогон — владельцу; правки только experiments/+tests/.
+**verified_from_clean_state:** ⚠️ не проверено — live same-run выполнен (recall 0.50, raw в EXPERIMENTS_LOG#E4.2), но verify_clean_state.sh не гонялся; правки только experiments/+tests/.
 
 ## [2026-08-25] — Research: mechanical orchestration without LLM — tool boundary (Exp M1-M3)
 **Status:** 🟡 Research done (no src/ changes; experiments + Red Team + recommendation in EXPERIMENTS_LOG M1-M3)
@@ -1649,3 +1649,13 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** 36 тестов (test_live_buffer, test_live_sync_server, test_read_live_file, test_remote_main) PASSED; TS-расширение компилируется (`./node_modules/.bin/tsc`); импорты `src.sync` OK. LIVE-SMOKE: `scripts/smoke_livesync.py` (требует запущенный демон + пакет `websockets`).
 **verified_from_clean_state:** ⚠️ не проверено — чистый клон Live Sync не запускался (требует отдельного прогона с демоном).
 
+
+---
+
+## [2026-08-26 19:55] — Multi-window: search_code/graph_query/intel_get_project_memory игнорируют project_root (set_project vs CWD-привязка)
+
+**Status:** 🔴 Open (диагноз подтверждён живым repro; фикс — за кодирующим агентом, отчёт: INVESTIGATION_MCP_PROJECT_BINDING.md)
+**Root Cause:** два конкурирующих пути резолва — `base.py:_resolve_target_path` (CWD-first, L266-282, игнорирует active-project из set_project) vs `resolve_indexer_for_request` (active-first, L130-151); `search_tools.py:249` вызывает `resolve_searcher()` БЕЗ explicit `_pr` (проверка готовности L214 — с `_pr`, поиск L249 — по default); graph_query (graph_tools.py:149-156) и intel_get_project_memory (layer.py:994, tools_reg.py:380) не имеют параметра project_root вовсе; `intel_trigger_reindex` пишет индекс вне ProjectIndexerRegistry → реестр держит UNINITIALIZED до первого get_indexer (refresh_db_connection случайно «исцеляет»).
+**Fix (предложен):** единый резолвер explicit→active→CWD→env; `project_root` в схемах search_code L249/L229, graph_query (все _execute_*), intel_*; регистрация состояния реестра по завершении reindex-джобы; тест multi-project.
+**Guard:** тест «set_project + tool без explicit → активный проект»; сверка allowlist server_tools.py L161-194 на наличие project_root в сигнатуре; проверка калграфа (аномалия «time→install.py:413», symbol_index.py:482).
+**verified_from_clean_state:** ⚠️ не проверено — repro выполнен на живом MCP (RUN_ID ddcb0b1f2c31), фикс не вносился; после фикса прогнать сценарий из INVESTIGATION_MCP_PROJECT_BINDING.md §3.

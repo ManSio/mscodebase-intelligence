@@ -1,8 +1,8 @@
 {
- "recall_k": 0.433,
+ "recall_k": 0.5,
  "recall_cascade_samrun": 0.267,
- "latency_median_ms": 177.3,
- "latency_p95_ms": 4219.9,
+ "latency_median_ms": 196.8,
+ "latency_p95_ms": 4514.1,
  "by_klass": {
   "find_bug_cause": {
    "n": 5,
@@ -62,9 +62,9 @@
   },
   "verify_change": {
    "n": 2,
-   "hits": 0,
+   "hits": 2,
    "casc_hits": 0,
-   "recall_graph": 0.0,
+   "recall_graph": 1.0,
    "recall_cascade": 0.0
   }
  },
@@ -75,7 +75,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 8629.6,
+   "latency_ms": 10151.0,
    "gt": "src/core/indexing/symbol_index.py",
    "facts": 4,
    "facts_n": 4
@@ -87,9 +87,9 @@
    "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 181.0,
+   "cascade_latency_ms": 239.2,
    "gt": "src/core/intelligence/layer.py",
-   "facts": 0,
+   "facts": 1,
    "facts_n": 4
   },
   {
@@ -99,9 +99,9 @@
    "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 4273.4,
+   "cascade_latency_ms": 4881.1,
    "gt": "src/core/search/engine.py",
-   "facts": 0,
+   "facts": 2,
    "facts_n": 4
   },
   {
@@ -110,7 +110,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 178.4,
+   "latency_ms": 197.4,
    "gt": "src/core/search/engine.py",
    "facts": 4,
    "facts_n": 4
@@ -122,9 +122,9 @@
    "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 4171.6,
+   "cascade_latency_ms": 4733.2,
    "gt": "src/core/intelligence/tools_reg.py",
-   "facts": 0,
+   "facts": 1,
    "facts_n": 4
   },
   {
@@ -133,7 +133,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 176.2,
+   "latency_ms": 201.0,
    "gt": "src/core/intelligence/layer.py",
    "facts": 3,
    "facts_n": 3
@@ -144,7 +144,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 3984.6,
+   "latency_ms": 4514.1,
    "gt": "src/core/indexing/symbol_index.py",
    "facts": 0,
    "facts_n": 4
@@ -155,7 +155,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 190.1,
+   "latency_ms": 241.9,
    "gt": "src/core/intelligence/layer.py",
    "facts": 4,
    "facts_n": 4
@@ -163,13 +163,13 @@
   {
    "id": "T9",
    "klass": "verify_change",
-   "arm": "graph:engine",
-   "hit": false,
+   "arm": "graph:notify_change",
+   "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 4640.2,
+   "cascade_latency_ms": 5634.1,
    "gt": "src/mcp/server_tools.py",
-   "facts": 0,
+   "facts": 4,
    "facts_n": 4
   },
   {
@@ -178,7 +178,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 178.6,
+   "latency_ms": 216.1,
    "gt": "src/core/indexing/db_writer.py",
    "facts": 4,
    "facts_n": 4
@@ -189,7 +189,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 4219.9,
+   "latency_ms": 4742.2,
    "gt": "src/mcp/tools/context_tool.py",
    "facts": 4,
    "facts_n": 4
@@ -201,7 +201,7 @@
    "hit": false,
    "cascade_hit": false,
    "latency_ms": 5.0,
-   "cascade_latency_ms": 184.6,
+   "cascade_latency_ms": 210.8,
    "gt": "src/core/search/utils.py",
    "facts": 0,
    "facts_n": 4
@@ -213,9 +213,9 @@
    "hit": false,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 4418.3,
+   "cascade_latency_ms": 4598.1,
    "gt": "src/mcp/tools/search_tools.py",
-   "facts": 0,
+   "facts": 1,
    "facts_n": 4
   },
   {
@@ -224,7 +224,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 166.3,
+   "latency_ms": 194.6,
    "gt": "src/core/indexing/symbol_index.py",
    "facts": 2,
    "facts_n": 2
@@ -235,7 +235,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 3663.6,
+   "latency_ms": 3850.8,
    "gt": "src/providers/reranker/llama_runner.py",
    "facts": 4,
    "facts_n": 4
@@ -246,7 +246,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 193.7,
+   "latency_ms": 196.1,
    "gt": "src/mcp/tools/search_tools.py",
    "facts": 3,
    "facts_n": 4
@@ -258,7 +258,7 @@
    "hit": false,
    "cascade_hit": false,
    "latency_ms": 5.0,
-   "cascade_latency_ms": 3218.2,
+   "cascade_latency_ms": 3361.3,
    "gt": "src/core/search/engine.py",
    "facts": 0,
    "facts_n": 4
@@ -270,9 +270,9 @@
    "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 175.3,
+   "cascade_latency_ms": 189.7,
    "gt": "src/mcp/server_tools.py",
-   "facts": 0,
+   "facts": 3,
    "facts_n": 4
   },
   {
@@ -281,7 +281,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 4099.0,
+   "latency_ms": 4293.1,
    "gt": "src/core/intelligence/layer.py",
    "facts": 4,
    "facts_n": 4
@@ -292,7 +292,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 178.9,
+   "latency_ms": 202.2,
    "gt": "src/core/indexing/db_writer.py",
    "facts": 3,
    "facts_n": 3
@@ -303,7 +303,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 3899.6,
+   "latency_ms": 4124.0,
    "gt": "src/mcp/server_tools.py",
    "facts": 4,
    "facts_n": 4
@@ -315,7 +315,7 @@
    "hit": false,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 191.6,
+   "cascade_latency_ms": 194.2,
    "gt": "src/core/intelligence/layer.py",
    "facts": 0,
    "facts_n": 4
@@ -326,7 +326,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 4222.2,
+   "latency_ms": 4428.3,
    "gt": "src/core/intelligence/layer.py",
    "facts": 4,
    "facts_n": 4
@@ -337,7 +337,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 169.5,
+   "latency_ms": 198.4,
    "gt": "src/core/runtime_coordinator.py",
    "facts": 4,
    "facts_n": 4
@@ -348,7 +348,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 3031.7,
+   "latency_ms": 3166.0,
    "gt": "src/core/project_resolution.py",
    "facts": 4,
    "facts_n": 4
@@ -359,7 +359,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 175.9,
+   "latency_ms": 198.2,
    "gt": "src/mcp/tools/search_tools.py",
    "facts": 1,
    "facts_n": 3
@@ -371,9 +371,9 @@
    "hit": true,
    "cascade_hit": false,
    "latency_ms": 15.0,
-   "cascade_latency_ms": 4004.6,
+   "cascade_latency_ms": 4305.6,
    "gt": "src/core/intelligence/layer.py",
-   "facts": 0,
+   "facts": 1,
    "facts_n": 4
   },
   {
@@ -382,7 +382,7 @@
    "arm": "fast+quality",
    "hit": true,
    "cascade_hit": true,
-   "latency_ms": 184.6,
+   "latency_ms": 188.1,
    "gt": "src/core/indexing/db_writer.py",
    "facts": 4,
    "facts_n": 4
@@ -390,13 +390,13 @@
   {
    "id": "T29",
    "klass": "verify_change",
-   "arm": "graph:fallback->cascade",
-   "hit": false,
+   "arm": "graph:_extract_symbol_name",
+   "hit": true,
    "cascade_hit": false,
-   "latency_ms": 5.0,
-   "cascade_latency_ms": 3343.3,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 3347.6,
    "gt": "src/core/search/utils.py",
-   "facts": 0,
+   "facts": 3,
    "facts_n": 4
   },
   {
@@ -405,7 +405,7 @@
    "arm": "fast+quality",
    "hit": false,
    "cascade_hit": false,
-   "latency_ms": 192.0,
+   "latency_ms": 163.5,
    "gt": "src/mcp/tools/context_tool.py",
    "facts": 5,
    "facts_n": 5
