@@ -1705,6 +1705,13 @@ BY KLASS (graph vs cascade): find_impact 1.00 vs 0.00 | find_test 0.50 vs 0.00
 [probe] === E4.2 graph-layer probe: verify_change ALL HIT ===
 [pytest] 14 passed in 2.48s  (test_mech_resolver 10 + test_symbol_index_persistence 4)
 ```
-**Вердикт: ✅ на граф-слое подтверждена (частично — полный same-run 30 задач на живом эмбеддере не гонялся).** на реальном graph.db (10748 узлов) оба verify_change-промаха резолвятся в правильный файл: T9 notify_change→server_tools.py HIT (facts 4/4), T29 _extract_symbol_name→utils.py HIT (facts 3/4). Факты граф-строк теперь считаются (graph_fact_text), а не 0. Регресс исключён по построению (klass-gating). Остаток: полный E4.1 same-run до конца (verify_change 0→2/2, recall 0.433→~0.50) требует живого эмбеддера (llama.cpp 8080, держит MCP) — команда для владельца.
+**Вердикт: ✅ ПОДТВЕРЖДЕНА ПОЛНОСТЬЮ (live same-run 30 задач выполнен).** Граф-слой: оба verify_change-промаха резолвятся в правильный файл (T9 notify_change→server_tools.py HIT facts 4/4, T29 _extract_symbol_name→utils.py HIT facts 3/4). Полный live-прогон:
+```
+cascade alone : recall=0.267
++graph arm    : recall=0.50 med=196.8ms p95=4514.1ms  TARGET recall>=0.40 med<600ms — ДОСТИГНУТА
+verify_change : n=2 graph=1.00 cascade=0.00 (T9 arm=graph:notify_change H, T29 arm=graph:_extract_symbol_name H)
+BY KLASS: find_impact 1.00 | git_history 1.00 | find_test 0.50 | modify_function 0.25 — ни один класс не просел ниже каскада (9/9 >= cascade)
+```
+Регресс подтверждён не только по построению (klass-gating), но и фактом: 9/9 классов ≥ каскада. E4.2 превращает «остаток» E4.1 (verify_change=0, facts не считались) в закрытые пункты: recall 0.433→0.50, verify_change 0→1.0.
 **Урок:** «бессловесный» промпт — это не задача классификации, а задача резолва якоря: лексический extract_symbol не переживает ни «следствие вместо имени» (T9), ни «концепт вместо имени» (T29). Механический concept-реестр с klass-gating — детерминированный и не регрессит; корпусное наполнение рецептов — из 3300-call корпуса (RESEARCH.md rec 3).
 **Связь:** EXPERIMENTS_LOG#E4.1, results_E4_1_graph.json, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}, tests/test_mech_resolver.py.
