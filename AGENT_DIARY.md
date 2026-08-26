@@ -26,6 +26,14 @@
 
 ---
 
+## [2026-08-26 19:19] — SymbolIndex JSON corruption guard live + E4.2 concept-resolver (verify_change 0→HIT)
+**Status:** ✅ Fixed (guard, live) / 🟡 E4.2 — выполнено и подтверждено на граф-слое; полный 30-задачный live-прогон за владельцем
+**Root Cause:** (guard) `SymbolIndexAdapter` (graph-backed) без `_definitions/_references/_file_to_symbols` писал ПУСТОЙ JSON поверх полного `symbol_index.json` при инкрементальном индексе (инцидент E4, 26.08 — файл пуст при 10748 символах в памяти); (E4.2) `verify_change`=0 — резолв якоря из «бессловесных» промптов: T9 wrong-anchor ('engine' из engine.py, ответ — notify_change), T29 no-anchor (концепт «паттерны извлечения», лексики нет вообще).
+**Fix:** (guard) graph-backed инстанс пропускает JSON-персистенцию (graph.db — источник правды) + защита от пустой перезаписи непустого файла (`src/core/indexing/index_guard.py`, тест `tests/test_symbol_index_persistence.py` 4/4; sync EXT уже был эффективен — md5-идентичны); (E4.2) детерминированный concept-реестр klass-gated (`experiments/mech_orch/resolver.py`) ПЕРЕД лексическим `extract_symbol` + факты граф-строк (`graph_fact_text`): probe на живом graph.db — T9 `notify_change`→server_tools.py HIT facts 4/4, T29 `_extract_symbol_name`→utils.py HIT facts 3/4; 14 тестов (resolver 10 + persistence 4); ruff-гейт `src/ tests/` чист.
+**Guard:** klass-gating реестра (только verify_change; регресс остальных 28 задач исключён по построению); юнит-тесты резолвера без сервисов; полный E4.1 same-run (verify_change 0→2/2, recall ~0.43→~0.50) — команда владельцу (`EXT venv python experiments/mech_orch/E4_1_graph_arm.py`). Портфолио M1–E4.1 — по команде.
+**Связано:** EXPERIMENTS_LOG#E4/E4.1/E4.2, tests/test_mech_resolver.py, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}.
+**verified_from_clean_state:** ⚠️ не проверено — E4.2 подтверждён на граф-слое (probe, живой graph.db, raw в EXPERIMENTS_LOG#E4.2); полный 30-задачный live-прогон — владельцу; правки только experiments/+tests/.
+
 ## [2026-08-25] — Research: mechanical orchestration without LLM — tool boundary (Exp M1-M3)
 **Status:** 🟡 Research done (no src/ changes; experiments + Red Team + recommendation in EXPERIMENTS_LOG M1-M3)
 **Root Cause (объект исследования):** 62 MCP-инструмента — большинство мёртвый груз: телеметрия видит только 5/62; LSP-набор 3/8 ошибок (37.5%); search_code(quality) 3666ms мимо, get_symbol_info промахивается по реальному символу; субагент БЕЗ промпта — 0 MCP-вызовов (5/5 IDE).
