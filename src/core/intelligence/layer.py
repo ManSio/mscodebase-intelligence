@@ -791,6 +791,32 @@ class ProjectIntelligenceLayer:
                 job.ended_at = time.time()
                 job.result = {"files_processed": "Индексация завершена", "status": "ok"}
 
+                # State machine (косметический баг 2026-08-26): get_indexer()
+                # ставит INDEXING при пустом индексе; после успешного reindex
+                # обязателен перевод в READY — иначе паспорт вечно показывает
+                # «Project State: INDEXING» и wait_until_ready ждёт до таймаута.
+                try:
+                    _reg = (
+                        self._services.resolve(
+                            __import__(
+                                "src.core.di_container",
+                                fromlist=["ProjectIndexerRegistry"],
+                            ).ProjectIndexerRegistry
+                        )
+                        if self._services is not None
+                        else None
+                    )
+                    if _reg is not None and hasattr(_reg, "set_state"):
+                        _reg.set_state(
+                            self.project_path,
+                            __import__(
+                                "src.core.indexing.project_indexer_registry",
+                                fromlist=["ProjectState"],
+                            ).ProjectState.READY,
+                        )
+                except Exception as _state_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"reindex set_state READY failed: {_state_err}")
+
                 # Consistency Engine (WS2): индексация завершена успешно.
                 try:
                     from src.core.consistency import get_consistency_tracker
