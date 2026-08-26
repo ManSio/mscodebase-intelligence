@@ -13,9 +13,9 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1555%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1594%20passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-64-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-65-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-08-16*
 
@@ -215,7 +215,7 @@ Deep-dives into specific technical findings from building this project:
 
 ---
 
-## 🔧 MCP Tools (64 total)
+## 🔧 MCP Tools (65 total)
 
 > 64 = 63 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 63 (30 core + 16 intel + 13 inline + 4 dev).
 

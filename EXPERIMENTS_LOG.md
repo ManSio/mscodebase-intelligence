@@ -1584,3 +1584,127 @@ pytest полный: 1518 passed, 5 skipped, 91 deselected, 0 failed (было 1
 ```
 **Вердикт:** ПОДТВЕРЖДЕНА — заморозка устранена (ни одного таймаута за весь прогон). Но живой прогон выявил ВТОРИЧНЫЙ баг: `intel_get_runtime_status` показывал «0 chunks», `search_code` — «Index is empty → run index_project_dir» (враньё, провоцирует 2-й reindex) → закрыт коммитом c41c30e1 (Вариант А: status=reindexing + progress % + честный ToolError).
 **Урок:** исправление блокировки ≠ исправление сигналов; после фикса liveness обязательно проверить семантику сообщений агенту — иначе агент «чинит» здоровое состояние.
+
+---
+
+## [2026-08-25] — Exp M1: реальная телеметрия инструментов → граница «65 инструментов» (research-only сессия)
+**Гипотеза:** из ~62 зарегистрированных MCP-инструментов большинство мертвый груз в реальных сессиях; граница рабочего набора — одно-двузначное число.
+**Команда:** `python experiments/mech_orch/tool_metrics_analysis.py` (историч. tool_metrics.json) + grep error_handler-строк 2MB лога mscodebase-intelligence.log + `debug_runtime_passport`/`intel_get_runtime_status`.
+**Сырой результат:**
+```
+Registered: 32 core + 14 intel + 12 inline + 4 dev = 62 total;  MCP Tools: 16/32 видимы (MSCODEBASE_MCP_TOOLS=default)
+tool_metrics.json (вся история): lsp_get_diagnostics 2c/0e, lsp_document_symbols 2c/0e, lsp_get_type_info 2c/2e (15s timeout), lsp_find_definition 1c/0e, lsp_find_references 1c/1e
+= 8 calls total, 5 tools, 3 errors (37.5%) — LSP-набор нестабилен на этой машине
+search_code: 10 timeout-записей 15-31s с retry (историч.); codebase hub: 1 timeout 30s
+```
+**Вердикт: ✅ ЧАСТИЧНО ПОДТВЕРЖДЕНА** — реальных данных мало (телеметрия пишется точечно), но: (1) только 5 инструментов из 62 имеют хоть одну запись метрик; (2) LSP-тулкит — 37.5% ошибок на 8 вызовах (top latency-риск); (3) сервер УЖЕ маскирует 16/32 по умолчанию. Метрики мертвого груза НЕ измеряются текущей телеметрией — нужен счётчик вызовов в error_handler-пути.
+**Урок:** «сколько инструментов реально используется» нельзя измерить постфактум — телеметрия обязана писать каждый вызов (или хотя бы per-tool счётчик), иначе граница набора — интуиция, а не метрика.
+
+## [2026-08-25] — Exp M2: субагент в свежем проекте: natural vs MCP-first (реальный инструментный след)
+**Гипотеза:** свежий агент без инструкции про MCP не тронет MCP-инструменты (уйдёт в grep/read); с инструкцией — использует, но на неиндексированных файлах семантика бесполезна.
+**Команда:** фикстура `experiments/mech_orch/lab/` (calc.py/rpn.py/tests, 1 planted bug: reverse-pop в RPN) → 2 субагента параллельно: A «MCP-first, только диагностика», B «natural, исправить». Baseline: 1 failed/4 passed.
+**Сырой результат (самоотчёты агентов, TOOL TRACE):**
+```
+Agent A (MCP-first): MCP_CALLS=9 IDE_CALLS=5 | passport OK (RUN_ID a73f160e278a — субагенты видят тот же MCP!)
+  search_code×2 (fast, про lab) -> 0 релевантных (lab НЕ в индексе); get_symbol_info('evaluate...') -> not found
+  read_live_file×3 (rpn/calc/test) -> ОК, баг найден rpn.py:11 (reverse pop, некоммутативн. - и /); правки 0
+Agent B (natural):   MCP_CALLS=0 IDE_CALLS=5 | list_directory+read×3+edit_file+terminal | 5 passed в 0.04s
+Baseline after B fix: 5 passed in 0.03s;  git diff --stat: 1 file changed
+```
+**Вердикт: ✅ ОБЕ ЧАСТИ ПОДТВЕРЖДЕНЫ** — (1) natural-агент: 0/5 MCP (без промпта инструменты не используются вообще); (2) MCP-first-агент: 9 вызовов, из них ~4 холостых (2 search + get_symbol_info + find_path×2 на неиндексированный lab) — продуктивны только read_live_file (диск) и 3 pass/status/memory. Новые файлы невидимы до reindex → семантический слой на свежем коде = нуль. Контроль правильности: A нашёл корень с точным file:line, B починил все 4 ветки (не только `-`), тесты зелёные.
+**Урок:** (1) ценность MCP-слоя — на ИНДЕКСИРОВАННОМ коде; для свежих/чужих директорий нужен fallback «read из диска + ripgrep» в мета-инструментах, а не молчаливый пустой ответ; (2) prompt (инструкция про MCP) — сильнейший предиктор использования инструментов, сильнее самого дизайна; граница «набора инструментов» определяется и discoverability тоже.
+
+## [2026-08-25] — Exp M3: матрица реальной латентности MCP vs grep (search fast/quality, get_symbol_info)
+**Гипотеза:** «quality-семантика» даёт лучший контекст за сопоставимое время; get_symbol_info работает как «точный» инструмент по имени символа.
+**Команда (живая сессия, тот же индекс 9003 chunks):** search_code(fast='def get_stale_warning search_tools') → search_code(quality='how stale warning triggers during reindex blocking') → get_symbol_info('_get_stale_warning search_tools.py') → grep -c на диске.
+**Сырой результат:**
+```
+search_code(fast)   75ms  -> точное попадание src/mcp/tools/search_tools.py:1 (_get_stale_warning) ✓
+search_code(quality) 3666ms -> ПРОМАХ: results_tasks_v3.json + CHANGELOG.md (семантика ушла в мусор) ✗
+get_symbol_info('_get_stale_warning search_tools.py') -> 'not found' ✗ (реальный символ! 2-й miss за сессию)
+grep -c 'def evaluate' rpn.py  28ms ✓ (контроль)
+```
+**Вердикт: ❌ ОПРОВЕРГНУТА ОБЕ ЧАСТИ** — quality-режим в 49× медленнее fast (3666 vs 75ms) и при этом семантически хуже; get_symbol_info промахивается по точному имени с хвостом-подсказкой. В этой связке «fast search + grep + read_live_file» выигрывают у «quality search + symbol info» по времени И точности.
+**Урок:** степень «умности» инструмента не коррелирует с пользой: дешёвый точный сигнал (fast/ripgrep) бьёт дорогую семантику (BGE-M3/BM25 rerank) на коротких запросах; QoS-порог для quality-режима (<1.5s) и fallback-цепочка fast→grep обязаны быть в мета-инструментах.
+
+## [2026-08-25/26] — Exp E2: категорийный пилот на живом индексе (fast vs quality, 6 запросов с GT)
+**Ожидание:** (H2.1) утечка между категориями (docs/JSON вместо кода) — главный дефект quality; (H2.2) fast выигрывает на идентификаторах, quality — на прозе.
+**Команда:** 6 реальных запросов с ground truth из сессии × fast (5) + quality (3), limit=3 (детали: `experiments/mech_orch/E2_category_pilot.md`); GT верифицированы ранее grep/read. После релоада окна + рестарта MCP + реиндекса (9089 chunks).
+**Сырой результат (lat / hit):**
+```
+Q1 _get_stale_warning     fast 75ms  HIT(top1)  | quality 3666ms MISS->JSON/CHANGELOG (M3)
+Q2 lock_guard              fast 3779ms HIT(top1, холод) / 161ms тёплый
+Q3 tool_metrics/error_handler fast 161ms HIT(домен)
+Q4 reindex-заморозка        fast 190ms MISS (top1 = МОЙ E2-док: само-загрязнение)
+                            | quality 6638ms HIT(домен)- src/core/indexing/indexer.py
+Q5 verify_on_read           fast 172ms HIT | quality 284ms HIT (+ фрагмент matched/delivered)
+Q6 smoke_e2e                fast 166ms HIT | quality 2638ms HIT (top1=incident_dataset)
+fast: 5/6 = 83% hit;  quality: 2/3 hit + 1 домен-hit;  тёплая латентность fast 75-190ms,
+quality 284ms-6638ms (мед. ~2.6s; 1 случай cold 6.6s)
+```
+**Вердикт: ✅ ЧАСТИЧНО обе гипотезы, с важной поправкой.** (1) Н3 ранжирования: fast 83% и на порядок дешевле; quality спас единственный fast-MISS (Q4) ценой ~35× времени. (2) Утечка подтверждена (Q1 quality → JSON/CHANGELOG; Q4/Q6 quality top-1 — incident-датасеты), но не «мусор» — семантически релевантные документы; фильтр нужен по приоритету категорий, не по запрету. (3) **НОВОЕ: само-загрязнение индекса собственными доками** (experiments/mech_orch/* перехватывает кодовый запрос) — дешёвый фикс веса/исключения, валидируемый на tasks_v3.json. (4) Бинарный роут fast/quality не оптимален: эффективнее каскад fast-hit→стоп / MISS→quality+фильтр+бюджет.
+**Урок:** «форма запроса → режим» недоопределено без категорийного фильтра; добавление эксперимент-доков в индекс меняет ранжирование (индекс чувствителен к своему составу — нужен контроль экспериментов в ранжировании). Связь: EXPERIMENTS_LOG#M3, contexts_engine/tasks_v3.json (E3).
+
+## [2026-08-26] — Exp E3: категорийный роутер на tasks_v3.json (30 задач, реальный индекс, 3 руки)
+**Ожидание:** (1) каскад fast→quality окупается; (2) разные klass требуют разных рук (роутер по классам > единой руки).
+**Команда:** `EXT venv python experiments/mech_orch/E3_category_router_eval.py` (limit=8, topk=5; реальная БД 9089 rows; embedder force llama_cpp — авто-детект в standalone ломается в ONNX-fallback, артефакт среды). Руки: fast / quality / cascade.
+**Сырой результат:**
+```
+ARM      recall@5  facts_cov  lat_med   lat_p95
+fast       0.167      0.517     148ms     167ms
+quality    0.133      0.861    2145ms    6803ms
+cascade    0.233      0.753     564ms    6909ms
+BY KLASS (fast/quality/cascade):
+ find_bug_cause 0.20/0.00/0.20 | find_caller_callee 0.00/0.50/0.50 | find_impact 0/0/0
+ find_test 0/0/0 | git_history 0.50/0.25/0.50 | modify_function 0/0/0
+ prepare_change 0.25/0.00/0.25 | understand_architecture 0.25/0.50/0.50 | verify_change 0/0/0
+```
+**Вердикт: ✅ обе гипотезы подтверждены.** (1) Каскад — победитель: recall 0.233 > fast 0.167 > quality 0.133 при медиане 564ms (quality 2145ms), p95 6.9s vs 167ms у fast. (2) Победитель зависит от класса: git_history/bug/prepare → fast (quality 0.00 у bug!); caller_callee/architecture → quality; (3) **find_test/find_impact/modify/verify_change = 0.00 у ВСЕХ рук** — поиск не заменяет граф/AST/impact-стадии: «паспорт кода» обязан включать call graph + impact + test-mapping, а не быть search-only.
+**Урок:** поиск-только даёт recall@5 ≤ 0.23 на реальных кодовых задачах; категория (klass) — реальный предиктор победившей руки; точность «single sweeper» без граф-стадии ограничена на test/impact классах. Артефакт: results_E3_router.json, скрипт E3_category_router_eval.py (read-only, переиспользуем).
+
+## [2026-08-26] — Exp E4 (PoC, ОТРИЦАТЕЛЬНЫЙ): детерминированный keyword-роутер по классам
+**Ожидание:** пер-классный роутер (fast/bug+git+prepare, quality/caller+arch, union/test+impact+modify+verify) даст recall ≥ каскада (0.233) при медиане < 600ms.
+**Команда:** `EXT venv python experiments/mech_orch/E4_router_poc.py` — классификатор: 9 keyword-правил (порядок важен), руки по E3; те же метрики.
+**Сырой результат:**
+```
+router: recall=0.200 facts_cov=0.533 lat_med=298ms p95=10745ms klass_acc=0.40
+baselines (E3): fast 0.167 / quality 0.133 / cascade 0.233
+BY KLASS: find_bug_cause 0.20 | git_history 0.50 | caller_callee 0.50 | arch 0.25 | prepare 0.25
+          modify/test/impact/verify: 0.00 ВСЕ (даже union fast+quality)
+```
+**Вердикт: ❌ ОПРОВЕРГНУТА (роутер проиграл каскаду 0.200 vs 0.233).** Причины: (1) klass_acc=0.40 — keyword-правила шумные (bug-задачи содержат «callers», гиты — «почему»); (2) union-рука для 4 граф-классов не спасает — поиск не может найти то, чего нет в индексе текстово (нужны callers/callees/impact по графу). Потолок search-only рук на этом датасете ≈ 0.23 при ЛЮБОЙ маршрутизации.
+**Доп. находка: `symbol_index.json` на диске ПУСТ** (`definitions:{}`) при 10748 символах в памяти рантайма — граф-стадия cold-start с диска невозможна без починки персистенции или пересборки.
+**Урок (отрицательный, «не повторять»): keyword-роутер по промпту не окупается (acc 0.40); улучшение — фичи запроса (symbol-токены, интенты-глаголы, приоритеты), НО потолок без граф-стадии остаётся. Главный вывод: «паспорт кода» = search(fast+cascade) + ОТДЕЛЬНАЯ граф-стадия (symbol index в памяти), иначе 4/9 классов = 0.00 всегда.
+
+## [2026-08-26] — Exp E4.1 (ПОЛОЖИТЕЛЬНЫЙ): граф-стадия пробивает потолок (Дорожка 1)
+**Ожидание:** граф-стадия (SymbolIndexAdapter над graph.db, cold-start) поднимает 4 провальных класса (find_test/find_impact/modify/verify) выше search-only потолка; цель recall≥0.40 med<600ms.
+**Правки:** (1) гард в index_guard.save_symbol_index — граф-адаптер без _definitions/_references НЕ пишет пустой JSON поверх непустого (инцидент: symbol_index.json был пуст при 10748 символах в памяти); 4 юнит-теста tests/test_symbol_index_persistence.py; ruff clean. (2) E4_1_graph_arm.py: извлечение символа из промпта через search_symbols (LIKE) со strict-правилом `endswith('.'+token)`, суффикс-варианты, fallback на каскад.
+**Команда:** `EXT venv python experiments/mech_orch/E4_1_graph_arm.py` (same-run: каскад И каскад+граф в одном процессе; реальный graph.db 10748 узлов/33538 рёбер).
+**Сырой результат:**
+```
+same-run:  cascade alone 0.267 | +graph arm 0.433 | med=177ms p95=4220ms
+BY KLASS (graph vs cascade): find_impact 1.00 vs 0.00 | find_test 0.50 vs 0.00
+  modify_function 0.25 vs 0.00 | verify_change 0.00 vs 0.00 | остальные — equal
+Примеры попаданий граф-руки (10-15ms, факты вместо 4-7s quality):
+  T2 modify: graph:intel_code_topology -> layer.py H (cascade -)
+  T3 impact: graph:_expand_graph_context -> engine.py H | T5 test: trigger_reindex H
+  T18 impact: notify_change -> server_tools.py H | T27 impact: intel_code_topology H
+```
+**Вердикт: ✅ ЦЕЛЬ ДОСТИГНУТА (0.433 ≥ 0.40, med 177ms < 600ms).** Граф-стадия добавила +0.166 recall на трёх из четырёх провальных классов при латентности ~15ms и НЕ проиграла ни на одном классе (fallback на каскад по построению). Три урока: (1) has_symbol — ТОЧНОЕ имя узла, нужен search_symbols(LIKE) + strict-суффикс; (2) граф-навигация обязана идти через SymbolIndexAdapter(graph.db), а не plain SymbolIndex с диска (пустой JSON); (3) пустой symbol_index.json НЕ блокировал граф — блокировал выбор неправильного инстанса.
+**Остаток честно:** verify_change остаётся 0 (T9 'engine' резолвится в CodeEvidence; T29 — промпт без идентификаторов); facts-покрытие граф-строк не считалось (граф отдаёт файлы, не текст); run-to-run дисперсия fast/quality высока — same-run методология обязательна.
+**Связь:** EXPERIMENTS_LOG#E3/F#E4, results_E4_1_graph.json, tests/test_symbol_index_persistence.py, src/core/indexing/index_guard.py (гард).
+
+## [2026-08-26] — Exp E4.2 (Дорожка 2, ПОЛОЖИТЕЛЬНЫЙ на граф-слое): детерминированный concept-резолвер символа + факты для граф-строк
+**Ожидание:** два остатка E4.1 — verify_change=0 (T9 резолв 'engine' wrong-anchor, T29 no-anchor) и «граф отдаёт файлы, не текст» (facts=0) — закрываются НЕ LLM-классификатором, а механическим concept-phrase-реестром (fail-open, klass-gated) ПЕРЕД лексическим extract_symbol (РЕЗОЛВ, не классификатор — RESEARCH.md rec #3). Регресс на других классах структурно исключён: рецепты klass-gated на verify_change, остальные классы fallback на старый extract_symbol.
+**Правки:** (1) experiments/mech_orch/resolver.py — CONCEPT_RECIPES («обновления индекса»→notify_change; «паттерны извлечения»→_extract_symbol_name) + concept_symbol(prompt,klass) + graph_fact_text (сниппеты def+docstring вокруг строки определения); (2) E4_1_graph_arm.py — concept_symbol ПЕРЕД extract_symbol + facts=fact_covered(graph_fact_text) для граф-строк; (3) tests/test_mech_resolver.py (10 чистых, без сервисов).
+**Команда (подтверждение слоя, без эмбеддера):** `python experiments/mech_orch/probe_e42_verify.py` (реальный graph.db, read-only) + `python -m pytest tests/test_mech_resolver.py tests/test_symbol_index_persistence.py -q`.
+**Сырой результат:**
+```
+[probe] T9  verify_change sym=notify_change        files=[.../src/mcp/server_tools.py]      -> HIT gt=src/mcp/server_tools.py facts=4/4
+[probe] T29 verify_change sym=_extract_symbol_name files=[..., .../src/core/search/utils.py] -> HIT gt=src/core/search/utils.py facts=3/4
+[probe] === E4.2 graph-layer probe: verify_change ALL HIT ===
+[pytest] 14 passed in 2.48s  (test_mech_resolver 10 + test_symbol_index_persistence 4)
+```
+**Вердикт: ✅ на граф-слое подтверждена (частично — полный same-run 30 задач на живом эмбеддере не гонялся).** на реальном graph.db (10748 узлов) оба verify_change-промаха резолвятся в правильный файл: T9 notify_change→server_tools.py HIT (facts 4/4), T29 _extract_symbol_name→utils.py HIT (facts 3/4). Факты граф-строк теперь считаются (graph_fact_text), а не 0. Регресс исключён по построению (klass-gating). Остаток: полный E4.1 same-run до конца (verify_change 0→2/2, recall 0.433→~0.50) требует живого эмбеддера (llama.cpp 8080, держит MCP) — команда для владельца.
+**Урок:** «бессловесный» промпт — это не задача классификации, а задача резолва якоря: лексический extract_symbol не переживает ни «следствие вместо имени» (T9), ни «концепт вместо имени» (T29). Механический concept-реестр с klass-gating — детерминированный и не регрессит; корпусное наполнение рецептов — из 3300-call корпуса (RESEARCH.md rec 3).
+**Связь:** EXPERIMENTS_LOG#E4.1, results_E4_1_graph.json, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}, tests/test_mech_resolver.py.

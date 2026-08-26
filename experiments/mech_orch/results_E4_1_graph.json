@@ -1,0 +1,414 @@
+{
+ "recall_k": 0.433,
+ "recall_cascade_samrun": 0.267,
+ "latency_median_ms": 177.3,
+ "latency_p95_ms": 4219.9,
+ "by_klass": {
+  "find_bug_cause": {
+   "n": 5,
+   "hits": 1,
+   "casc_hits": 1,
+   "recall_graph": 0.2,
+   "recall_cascade": 0.2
+  },
+  "modify_function": {
+   "n": 4,
+   "hits": 1,
+   "casc_hits": 0,
+   "recall_graph": 0.25,
+   "recall_cascade": 0.0
+  },
+  "find_impact": {
+   "n": 3,
+   "hits": 3,
+   "casc_hits": 0,
+   "recall_graph": 1.0,
+   "recall_cascade": 0.0
+  },
+  "understand_architecture": {
+   "n": 4,
+   "hits": 1,
+   "casc_hits": 1,
+   "recall_graph": 0.25,
+   "recall_cascade": 0.25
+  },
+  "find_test": {
+   "n": 2,
+   "hits": 1,
+   "casc_hits": 0,
+   "recall_graph": 0.5,
+   "recall_cascade": 0.0
+  },
+  "git_history": {
+   "n": 4,
+   "hits": 4,
+   "casc_hits": 4,
+   "recall_graph": 1.0,
+   "recall_cascade": 1.0
+  },
+  "find_caller_callee": {
+   "n": 2,
+   "hits": 1,
+   "casc_hits": 1,
+   "recall_graph": 0.5,
+   "recall_cascade": 0.5
+  },
+  "prepare_change": {
+   "n": 4,
+   "hits": 1,
+   "casc_hits": 1,
+   "recall_graph": 0.25,
+   "recall_cascade": 0.25
+  },
+  "verify_change": {
+   "n": 2,
+   "hits": 0,
+   "casc_hits": 0,
+   "recall_graph": 0.0,
+   "recall_cascade": 0.0
+  }
+ },
+ "rows": [
+  {
+   "id": "T1",
+   "klass": "find_bug_cause",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 8629.6,
+   "gt": "src/core/indexing/symbol_index.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T2",
+   "klass": "modify_function",
+   "arm": "graph:intel_code_topology",
+   "hit": true,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 181.0,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T3",
+   "klass": "find_impact",
+   "arm": "graph:_expand_graph_context",
+   "hit": true,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 4273.4,
+   "gt": "src/core/search/engine.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T4",
+   "klass": "understand_architecture",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 178.4,
+   "gt": "src/core/search/engine.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T5",
+   "klass": "find_test",
+   "arm": "graph:trigger_reindex",
+   "hit": true,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 4171.6,
+   "gt": "src/core/intelligence/tools_reg.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T6",
+   "klass": "git_history",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 176.2,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 3,
+   "facts_n": 3
+  },
+  {
+   "id": "T7",
+   "klass": "find_caller_callee",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 3984.6,
+   "gt": "src/core/indexing/symbol_index.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T8",
+   "klass": "prepare_change",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 190.1,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T9",
+   "klass": "verify_change",
+   "arm": "graph:engine",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 4640.2,
+   "gt": "src/mcp/server_tools.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T10",
+   "klass": "find_bug_cause",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 178.6,
+   "gt": "src/core/indexing/db_writer.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T11",
+   "klass": "understand_architecture",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 4219.9,
+   "gt": "src/mcp/tools/context_tool.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T12",
+   "klass": "modify_function",
+   "arm": "graph:fallback->cascade",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 5.0,
+   "cascade_latency_ms": 184.6,
+   "gt": "src/core/search/utils.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T13",
+   "klass": "find_test",
+   "arm": "graph:search_code",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 4418.3,
+   "gt": "src/mcp/tools/search_tools.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T14",
+   "klass": "git_history",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 166.3,
+   "gt": "src/core/indexing/symbol_index.py",
+   "facts": 2,
+   "facts_n": 2
+  },
+  {
+   "id": "T15",
+   "klass": "prepare_change",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 3663.6,
+   "gt": "src/providers/reranker/llama_runner.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T16",
+   "klass": "find_bug_cause",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 193.7,
+   "gt": "src/mcp/tools/search_tools.py",
+   "facts": 3,
+   "facts_n": 4
+  },
+  {
+   "id": "T17",
+   "klass": "modify_function",
+   "arm": "graph:fallback->cascade",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 5.0,
+   "cascade_latency_ms": 3218.2,
+   "gt": "src/core/search/engine.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T18",
+   "klass": "find_impact",
+   "arm": "graph:notify_change",
+   "hit": true,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 175.3,
+   "gt": "src/mcp/server_tools.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T19",
+   "klass": "understand_architecture",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 4099.0,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T20",
+   "klass": "git_history",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 178.9,
+   "gt": "src/core/indexing/db_writer.py",
+   "facts": 3,
+   "facts_n": 3
+  },
+  {
+   "id": "T21",
+   "klass": "find_caller_callee",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 3899.6,
+   "gt": "src/mcp/server_tools.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T22",
+   "klass": "modify_function",
+   "arm": "graph:reindex",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 191.6,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T23",
+   "klass": "find_bug_cause",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 4222.2,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T24",
+   "klass": "understand_architecture",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 169.5,
+   "gt": "src/core/runtime_coordinator.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T25",
+   "klass": "find_bug_cause",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 3031.7,
+   "gt": "src/core/project_resolution.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T26",
+   "klass": "git_history",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 175.9,
+   "gt": "src/mcp/tools/search_tools.py",
+   "facts": 1,
+   "facts_n": 3
+  },
+  {
+   "id": "T27",
+   "klass": "find_impact",
+   "arm": "graph:intel_code_topology",
+   "hit": true,
+   "cascade_hit": false,
+   "latency_ms": 15.0,
+   "cascade_latency_ms": 4004.6,
+   "gt": "src/core/intelligence/layer.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T28",
+   "klass": "prepare_change",
+   "arm": "fast+quality",
+   "hit": true,
+   "cascade_hit": true,
+   "latency_ms": 184.6,
+   "gt": "src/core/indexing/db_writer.py",
+   "facts": 4,
+   "facts_n": 4
+  },
+  {
+   "id": "T29",
+   "klass": "verify_change",
+   "arm": "graph:fallback->cascade",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 5.0,
+   "cascade_latency_ms": 3343.3,
+   "gt": "src/core/search/utils.py",
+   "facts": 0,
+   "facts_n": 4
+  },
+  {
+   "id": "T30",
+   "klass": "prepare_change",
+   "arm": "fast+quality",
+   "hit": false,
+   "cascade_hit": false,
+   "latency_ms": 192.0,
+   "gt": "src/mcp/tools/context_tool.py",
+   "facts": 5,
+   "facts_n": 5
+  }
+ ]
+}
