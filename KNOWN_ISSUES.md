@@ -19,6 +19,13 @@
 **Guard:** +6 тестов (runtime_status reindex/normal, require_ready reindex/empty-control, formatter reindex/без-progress/normal). Полный pytest 1518 passed, ruff clean. Live: полный reindex 9003 chunks (519s) — MCP отвечал мгновенно весь прогон.
 **Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
 
+## 2026-08-25 — Live-косметика: reindex ToolError обёртки + Project State INDEXING после авто-индекса (FIXED)
+
+**Что:** (1) require_ready_project reindex-ToolError ловился общим except и терял retry-семантику (live: «Failed to check index status: ⏳ Index is being reindexed»); (2) Project State оставался INDEXING после успешного (авто)реиндекса — паспорт врал, wait_until_ready ждал таймаута.
+**Fix:** except ToolError: raise; set_state(READY) в `_delayed_auto_index` и `_run_reindex_job` после успеха.
+**Guard:** +4 теста. Полный pytest 1521 passed, ruff clean. Live: search во время реиндекса — честное «⏳ Index is being reindexed» без обёртки.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
 ## 2026-08-24 — Цикл core: error_handler ⇄ task_queue через lazy-импорты (ACCEPTED)
 
 **Что:** новый инвариант 3 architecture_linter.py детектит цикл `src.core.error_handler ⇄ src.core.task_queue`. Обе стороны импортируют друг друга ТОЛЬКО лениво, внутри функций, под try/except (`error_handler.py:290` `from src.core.task_queue import idle_tick`; `task_queue.py:414` `from src.core.error_handler import _LAST_CALL_AT`) — import-время безопасно, цикл разрывается в рантайме. Рефакторинг (общий модуль вместо кросс-импортов) — осознанный техдолг.

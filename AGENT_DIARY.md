@@ -26,6 +26,13 @@
 
 ---
 
+## [2026-08-25] — Research: mechanical orchestration without LLM — tool boundary (Exp M1-M3)
+**Status:** 🟡 Research done (no src/ changes; experiments + Red Team + recommendation in EXPERIMENTS_LOG M1-M3)
+**Root Cause (объект исследования):** 62 MCP-инструмента — большинство мёртвый груз: телеметрия видит только 5/62; LSP-набор 3/8 ошибок (37.5%); search_code(quality) 3666ms мимо, get_symbol_info промахивается по реальному символу; субагент БЕЗ промпта — 0 MCP-вызовов (5/5 IDE).
+**Fix (рекомендация, НЕ реализована):** (1) дефолтный пресет ~8-12 инструментов + presets/on-demand (паттерн roam-code 17/245, arXiv 2605.24660: adaptive depth avg 7 → 93.1% vs fixed-5 87.1%); (2) мета-инструменты с механическим внутренним каскадом fast→grep→semantic + fallback на диск для неиндексированного кода (провал Exp M2); (3) телеметрия per-call счётчиков, иначе граница не измерима; (4) БЕЗ LLM-оркестрации: детерминированный маршрутизатор по рецептам (как roam ask — 31 рецепт).
+**Guard:** предложен — QoS-порог quality<1.5s, fallback-цепочки в мета-инструментах, per-call метрики, субагент-тест M2 как регрессионный сценарий discoverability.
+**verified_from_clean_state:** ⚠️ неприменимо — исследовательская сессия без изменений src/; pytest фикстуры lab: 5 passed в 0.03s локально.
+
 ## [2026-08-25] — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
 **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
 **Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock, begin_write) ВЕСЬ reindex (~7.5 мин embedding: 20:04:22→20:12:10). `IndexStatusReporter.get_status()` синхронно захватывает тот же lock, а вызывается ИЗ event-loop-потока: `intel_get_runtime_status` (layer.py:429), `MCPTool.require_ready_project` (base.py:390), `ProjectContext._capture_registry` (project_context.py:206). Один такой вызов → loop замер → ВСЕ MCP-вызовы (вкл. debug_runtime_passport) таймаутят клиент-сайд.
@@ -39,6 +46,13 @@
 **Fix (Вариант А):** (1) layer.intel_get_runtime_status — index_telemetry получает `status="reindexing"` + `reindex_in_progress` + `reindex_progress_pct` + `reindex_eta_sec` (из активного job через get_active_reindex_job_id + _enrich_job_response); (2) base.require_ready_project — при reindex поднимает ToolError warning «⏳ Index is being reindexed (N%, ETA ~Xm) — retry in a few seconds», а НЕ IndexNotReadyError; (3) ui_formatter.format_runtime_status — рендерит «🔄 Reindex in progress (N%)» вместо «0 chunks», LED 🟢 (процесс идёт — здоровое состояние, не пусто).
 **Guard:** tests: test_intel_runtime_status_reports_reindex_progress (pct=62 из job), test_intel_runtime_status_normal_state_unchanged (control), test_require_ready_project_truthful_during_reindex (+ control IndexNotReadyError при реально пустом), test_format_runtime_status_shows_reindex_in_progress / reindex_without_progress / normal_path_unchanged.
 **verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1518 passed, ruff clean). Live: полный reindex 9003 chunks за 519с — все MCP-вызовы отвечали мгновенно.
+
+## [2026-08-25] — Косметика live: reindex ToolError терял retry-семантику (двойная обёртка) + Project State INDEXING после авто-индекса
+**Status:** ✅ Fixed (оба; pytest полный 1521 passed; ruff clean)
+**Root Cause:** (1) reindex-ToolError из require_ready_project ловился общим `except Exception` и заворачивался в «Failed to check index status» — агент терял status='warning'/recoverable (live: search показал двойную обёртку); (2) `get_indexer()` ставит ProjectState.INDEXING при пустом индексе, но переход в READY после (авто)реиндекса никто не делал — паспорт вечно «Project State: INDEXING», wait_until_ready ждал до таймаута.
+**Fix:** (1) base.require_ready_project: `except ToolError: raise` перед `except Exception`; (2) server_factory._delayed_auto_index + layer._run_reindex_job: после успешной индексации `registry.set_state(READY)`.
+**Guard:** +4 теста (require_ready ToolError propagation + control wrap; auto-index → READY; skip при непустом; reindex job → READY).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest 1521 passed, ruff clean). Live: search_code во время реиндекса — честное «⏳ Index is being reindexed» без обёртки.
 
 ## [2026-08-24] — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
 **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
