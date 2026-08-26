@@ -88,5 +88,14 @@
       "stale_detector": "6a2c174fc5fab01cbf9cb00bbcc337090d56ee5fbdc06c6fc4108c98613f715e",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-08-26T16:41:19Z",
+    "reason": "stale_config.json exclude_files + ARCLUX_AUDIT_2026-08-26.md (external 3rd-party audit artifact); digest invalidated by config edit, control logic unchanged",
+    "digests": {
+      "drift_gate": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f",
+      "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]
