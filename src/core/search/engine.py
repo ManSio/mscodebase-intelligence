@@ -555,6 +555,16 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         if not query or not query.strip():
             return []
 
+        # ── Symbol Graph Path (Вариант А, Step 2): deterministic short-circuit ──
+        # Для идентификатор-запросов граф даёт точную локацию за ~6.8ms и полностью
+        # заменяет векторный поиск (~3600ms). NL-запросы → graph [], идём вниз.
+        _q_strip = query.strip()
+        if _IDENTIFIER_QUERY_RE.match(_q_strip):
+            _g = self._graph_stage(_q_strip, limit, layer=layer)
+            if _g:
+                logger.debug(f"[graph_stage] short-circuit '{_q_strip}': {len(_g)} refs")
+                return _g
+
         # Строим filter_expr для LanceDB (если указан layer)
         # Экранируем layer через _escape_sql_value, т.к. LanceDB
         # не поддерживает параметризованные запросы (см. indexer_table.py)
@@ -661,9 +671,16 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 seen_keys.add(key)
                 unique_bm25.append(r)
 
+        # Symbol Graph Path (Вариант А): детерминированный бакет в RRF.
+        # Для NL/сложных запросов graph_results=[] → поведение идентично 3-way.
+        # Пропускаем граф-вызов для чистого NL (экономим ~6ms на каждом поиске).
+        _symbolish = bool(re.search(r"[_\.::/]", query)) or _IDENTIFIER_QUERY_RE.match(_q_strip)
+        graph_results = self._graph_stage(query, raw_limit, layer=layer) if _symbolish else []
+
         if use_rrf:
             rrf_results = reciprocal_rank_fusion_3way(
-                unique_bm25, all_dense_results, all_fts5_results, raw_limit
+                unique_bm25, all_dense_results, all_fts5_results, raw_limit,
+                graph_results=graph_results,
             )
             if tracer:
                 tracer.record_rrf(rrf_results)
@@ -1049,8 +1066,27 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             # топ вместо самого кода (Эмпир.: fast "PropagationEngine" → 5 doc + 1 code).
             results = _prepend_code_name_matches(results, fts5_raw, query, limit)
 
+            # Symbol Graph Path (Вариант А, Step 2): детерминированные symbol-указатели
+            # поверх fast-конвейера (short-circuit для identifier уже в hybrid-пути;
+            # здесь — merge, т.к. fast-mode опционален и лёгкий).
+            _gs = self._graph_stage(query, limit, layer=layer)
+            if _gs:
+                _have = {
+                    (r.get("metadata", {}).get("file"),
+                     r.get("metadata", {}).get("symbol_name"))
+                    for r in results
+                }
+                _fresh = [
+                    r for r in _gs
+                    if (r["metadata"]["file"], r["metadata"]["symbol_name"]) not in _have
+                ]
+                if _fresh:
+                    results = _fresh + results
+
             # Graph context expansion для fast mode (Задача 5/5): связи из
             # графа вызовов (callers/callees) видны агенту без reranker'а.
+            # Запускается ПОСЛЕ graph-merge, чтобы единым проходом обогатить
+            # и symbol-указатели (Вариант А), и кодовые чанки.
             # Стоимость измерена ~7ms на 10 результатов (SQLite граф).
             t1 = time.perf_counter()
             results = self._expand_graph_context(results, query)
@@ -1181,6 +1217,72 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
 
 
+    def _layer_from_path(self, file_path: str) -> str:
+        """Эвристический слой из пути файла (для metadata граф-результатов)."""
+        p = (file_path or "").replace("\\", "/")
+        if "/tests/" in p:
+            return "tests"
+        for layer in ("core", "mcp", "providers", "utils", "interfaces",
+                     "sources", "adapters", "cli", "plugins"):
+            if f"/{layer}/" in p:
+                return layer
+        return "src"
+
+    def _graph_stage(self, query: str, limit: int, layer: Optional[str] = None) -> List[dict]:
+        """Symbol Graph Path (Вариант А, Step 2): детерминированный первичный retrieval.
+
+        Обходит PropertyGraph (`SymbolIndexAdapter.search_symbols`) и возвращает
+        SymbolRef-указатели (symbol/file/line/kind) как search-result dict.
+
+        Свойства:
+        - Для NL-запросов search_symbols возвращает [] (не загрязняет выдачу) — Proof of Origin.
+        - Граф недоступен (None / нет атрибута) → [] (graceful degradation).
+        - Если указан `layer`, фильтрует результаты по слою.
+        - Защита от перематчинга: сначала определения (is_definition), потом использования.
+        """
+        try:
+            si = getattr(self.indexer, "_symbol_index", None)
+            if si is None:
+                si = getattr(self.indexer, "symbol_index", None)
+            if si is None or not hasattr(si, "search_symbols"):
+                return []
+            refs = si.search_symbols(query, top_k=limit)
+            if not refs:
+                return []
+            # Сортируем: определения выше использований (защита от перематчинга)
+            refs_sorted = sorted(refs, key=lambda r: 0 if r.is_definition else 1)
+            out: List[dict] = []
+            for ref in refs_sorted[:limit]:
+                ref_layer = self._layer_from_path(ref.file_path)
+                if layer and ref_layer != layer:
+                    continue
+                out.append({
+                    "text": f"{ref.kind} {ref.symbol}\n📍 {ref.file_path}:{ref.line}",
+                    "metadata": {
+                        "file": ref.file_path,
+                        # Sentinel chunk_index: гарантированно уникален vs реальных
+                        # чанков (положительные int) → не коллайдит в RRF-ключе.
+                        "chunk_index": -(10_000_000 + ref.line),
+                        "layer": ref_layer,
+                        "symbol": ref.symbol,
+                        "symbol_name": ref.symbol,
+                        "line": ref.line,
+                        "kind": ref.kind,
+                        "graph_stage": True,
+                        "is_symbol_ref": True,
+                        "is_definition": ref.is_definition,
+                    },
+                    "bm25_score": 0.0,
+                    "dense_score": 0.0,
+                    "fts5_score": 0.0,
+                    "graph_score": 1.0 if ref.is_definition else 0.5,
+                    "final_score": 1.0 if ref.is_definition else 0.5,
+                })
+            return out
+        except Exception as e:
+            logger.debug(f"graph_stage error: {e}")
+            return []
+
     def _expand_graph_context(
         self, results: List[dict], original_query: str
     ) -> List[dict]:
@@ -1215,21 +1317,26 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 return results
 
             for r in results[:10]:  # только топ-10 результатов
-                text = r.get("text", "")
-                if not text:
-                    continue
-
-                # Извлекаем имя символа из текста чанка
-                name = _extract_symbol_name(text)
-                if not name or len(name) < 2:
-                    continue
-
                 meta = r.get("metadata", {})
                 if not isinstance(meta, dict):
                     meta = {}
 
+                # Имя символа: приоритет — из metadata (graph-stage / symbol-указатели),
+                # иначе извлекаем из текста чанка (обратная совместимость).
+                name = (
+                    meta.get("symbol_name")
+                    or meta.get("symbol")
+                    or _extract_symbol_name(r.get("text", ""))
+                )
+                if not name or len(name) < 2:
+                    continue
+
                 # Находим callers (кто вызывает этот символ)
                 refs = si.find_references(name)
+                if not refs and "." in name:
+                    # qualified-имя не резолвится (адаптер ключует reference по
+                    # bare-имени) → фолбэк на последний компонент.
+                    refs = si.find_references(name.rsplit(".", 1)[-1])
                 callers_list = []
                 for ref in refs[:3]:
                     if not ref.is_definition and ref.symbol != name:

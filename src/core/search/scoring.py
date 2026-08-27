@@ -96,6 +96,7 @@ def reciprocal_rank_fusion_3way(
     fts5_results: List[dict],
     limit: int = 5,
     rrf_k: int = 60,
+    graph_results: Optional[List[dict]] = None,
 ) -> List[dict]:
     """3-way RRF: объединяет BM25 + dense + FTS5.
 
@@ -124,6 +125,10 @@ def reciprocal_rank_fusion_3way(
     _ingest(bm25_results, "bm25_score")
     _ingest(dense_results, "dense_score")
     _ingest(fts5_results, "fts5_score")
+    # Symbol Graph Path (Вариант А, Step 2): граф — 4-й независимый источник рангов.
+    # graph_results не содержит dense-вектор, поэтому graph_score=0 для остальных.
+    if graph_results:
+        _ingest(graph_results, "graph_score")
 
     sorted_keys = sorted(scores.keys(), key=lambda k: (-scores[k], k))[:limit]
 
@@ -137,6 +142,7 @@ def reciprocal_rank_fusion_3way(
                 "bm25_score": result["bm25_score"],
                 "dense_score": result["dense_score"],
                 "fts5_score": result.get("fts5_score", 0.0),
+                "graph_score": result.get("graph_score", 0.0),
                 "final_score": scores[key],
             }
         )
