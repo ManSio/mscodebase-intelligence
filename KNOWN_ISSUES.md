@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-08-27 — Data Gap: папка tests/ не индексируется Tree-sitter AST (OPEN / Planned)
+
+**Что:** E4.1-бенчмарк (`experiments/bench_e4_1.py`) показал Recall=0.00 на классах `test`/`verify` НЕ из-за бага алгоритма/сериализации, а потому что реальные файлы `tests/test_*.py` НЕ присутствуют в PropertyGraph (`graph.db` содержит только `tests/fixtures/sample_module.py` — 270 узлов из 10768). `SymbolIndexAdapter.search_symbols` детерминированно возвращает `[]` на символы, которых нет в базе — свойство Proof of Origin (честно и предсказуемо).
+**Fix (плановая задача индексатора):** включить `tests/` в scope парсинга AST (parser/indexer config) либо индексировать тест-файлы как отдельный layer; после реиндекса E4.1 test/verify поднимутся с 0.00. НЕ блокирует продакшн (основной код индексируется полностью).
+**Guard:** `experiments/bench_e4_1.py` — повторный прогон после реиндекса должен показать Recall>0 на test/verify; текущий бенчмарк фиксирует базовую линию.
+**Статус:** 🟡 запланировано (индексатор) | **Deadline:** следующая сессия | **Владелец:** misha.
+
+## 2026-08-26 — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 убит) (FIXED)
+
+**Что:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на мёртвом предке ДО живого Zed — venvwlauncher-цепочка), затем `_terminate_holder()` убивал его `TerminateProcess`. Инцидент: PID 20052 (ARCLUX MCP) убит 12524 при `refresh_db_connection`. Реализация WS9 (2026-08-08, «PID-lock self-healing вариант C» с ORPHAN→TerminateProcess) теперь ПЕРЕКЛАССИФИЦИРОВАНА как root cause инцидента, не фича (§4.9).
+**Fix (Вариант A+):** удалён kill-путь; `classify_holder` — только proof-of-death (DEAD/HEALTHY/AMBIGUOUS), живой PID → fail-closed `LockBusyError` (wait, never kill); добавлены hostname+version в lock-данные; `db_manager`: read-only при `LockBusyError` на старте, PID-lock gate в `begin_write`, `recreate_table_physical` reacquire-fail → raise; `tools_reg` reacquire → fail-closed.
+**Guard:** `tests/test_database_lock_selfhealing.py` (живой PID → HEALTHY/HELD, НЕ ORPHAN/kill) + exp2 (holder survives) + `smoke_e2e.py` PASSED (4/4). Red Team 7 находок закрыты.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
 ## 2026-08-25 — Полный заморозок MCP при full reindex (root cause: get_status на loop-потоке) (FIXED)
 
 **Что:** full reindex (~7.5 мин embedding) замораживал ВСЕ MCP-вызовы (вкл. debug_runtime_passport) — commit b03073c5 чинил только search-путь. Root cause: `begin_write()` держит `_write_lock` весь reindex, а `IndexStatusReporter.get_status()` (sync, на event-loop-потоке через intel_get_runtime_status/require_ready_project/ProjectContext) ждал тот же lock.
@@ -4387,3 +4401,12 @@ Three fixes from the same review:
 **Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock...
 - **Статус:** автоматически синхронизировано
 
+
+## 2026-08-26 — Multi-window project-binding: search_code/graph_query/intel_* игнорируют project_root (set_project vs CWD-привязка)
+
+- **Источник:** AGENT_DIARY.md (2026-08-26 19:55) + INVESTIGATION_MCP_PROJECT_BINDING.md
+- **Описание:** **Status:** ✅ Fixed (scope 🅳+🅲+🅵+🅰+🅱; 🅴 подтверждён в коде)
+**Root Cause:** search_tools.py звал resolve_searcher() без explicit project_root; graph_query/intel_get_project_memory не принимали project_root; reindex оставлял реестр UNINITIALIZED.
+**Fix:** 🅳 base.py:resolve_indexer роутит explicit→active (уже было). 🅰 search_tools.py: _pr проброшен во все resolve_searcher/_project_header + _agentic_search. 🅲 intel_get_project_memory строит IntelligenceStore(project_root) с fallback. 🅵 покрыто 🅳. 🅴 layer.py:794-818 set_state(READY). 🅱 graph_tools.py: execute()+_execute_* пробрасывают project_root; добавлен _resolve_pg(); убран hardcoded D:/Project/MSCodeBase в drift/verify; structural_search уже имеет обязательный project_root. Синхронизировано в расширение.
+**Guard:** tests/test_graph_query_project_binding.py (2 passed) + обновлены фейки test_search_bs_audit.py (3 passed).
+- **Статус:** ✅ Fixed (2026-08-26; live-check не гонялся — требует multi-project+llama.cpp; проверит пользователь через Android-сервер)
