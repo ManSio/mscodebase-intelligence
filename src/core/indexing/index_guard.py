@@ -350,10 +350,34 @@ class IndexGuard:
         try:
             cache_file = self.db_path / "symbol_index.json"
 
-            # Anti-corruption guard (инцидент 2026-08-26): SymbolIndexAdapter
-            # (graph-backed) не имеет словарей _definitions/_references/_file_to_symbols
-            # и при инкрементальном индексе писал ПУСТОЙ JSON поверх полного файла.
-            # Для адаптера персистенция — сам graph.db; сохранение JSON не нужно.
+            # [E4 FIX] Explicit Guard (Уровень 1): SymbolIndexAdapter в MODE_PURE
+            # хранит символы исключительно в PropertyGraph (graph.db). In-memory
+            # _definitions пуст. Дамп пустого JSON коррумпирует cold-start
+            # (0.00 Recall на modify/test/impact/verify). Persistence = graph.db,
+            # JSON-сейв не нужен и вреден.
+            if getattr(symbol_index, "_mode", None) == "pure":
+                logger.debug(
+                    "save_symbol_index: MODE_PURE adapter — graph.db is persistence, skip JSON"
+                )
+                return True
+
+            # [E4 FIX] Anti-corruption Backup (Уровень 2): если _definitions пуст,
+            # но граф содержит узлы (graph-backed instance любого режима без
+            # in-memory дублей) — не пишем пустой JSON поверх данных на диске.
+            if (
+                not getattr(symbol_index, "_definitions", None)
+                and hasattr(symbol_index, "graph")
+                and symbol_index.graph is not None
+                and symbol_index.graph.count_nodes() > 0
+            ):
+                logger.debug(
+                    "save_symbol_index: empty _definitions but graph has nodes — skip JSON corruption"
+                )
+                return True
+
+            # Legacy anti-corruption guard (инцидент 2026-08-26): отсутствие
+            # словарей _definitions/_references/_file_to_symbols у graph-backed
+            # инстанса (без .graph-атрибута) — graph.db есть persistence.
             if not all(
                 hasattr(symbol_index, a)
                 for a in ("_definitions", "_references", "_file_to_symbols")

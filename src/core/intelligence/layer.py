@@ -995,8 +995,15 @@ class ProjectIntelligenceLayer:
         self,
         include_retracted: bool = False,
         verify_on_read: bool = True,
+        project_root: Optional[str] = None,
     ) -> Tuple[Dict[str, List[Dict]], Dict[str, Any]]:
         """Получить полную карту памяти проекта + ресипт VOR-проверки.
+
+        R3TF (2026-08-26, multi-window): project_root позволяет читать память
+        ЦЕЛЕВОГО проекта, а не только self.project_path (CWD/DI). layer — core-
+        модуль, не может импортировать mcp-резолвер active/CWD; явный project_root
+        пробрасывается из тула (mcp-слой), который резолвит проект сам.
+        Если project_root не задан — используется self.store (поведение до фикса).
 
         ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True
         возвращает их для аудита и отладки.
@@ -1018,11 +1025,28 @@ class ProjectIntelligenceLayer:
             stats["metrics"] — store.memory_metrics(): распределение статусов
             и false_retraction_rate (снятие метрик без отдельного тула).
         """
-        memory = self.store.load_memory(include_retracted=include_retracted)
+        # R3TF: выбираем store целевого проекта при явном project_root.
+        target_path: Path = self.project_path
+        store: "IntelligenceStore" = self.store
+        if project_root and project_root.strip():
+            try:
+                target_path = Path(project_root).resolve()
+                store = IntelligenceStore(target_path)
+            except Exception:
+                logger.warning(
+                    "intel_get_project_memory: не удалось открыть store для %s, "
+                    "используется self.store (%s)",
+                    project_root,
+                    self.project_path,
+                )
+                target_path = self.project_path
+                store = self.store
+
+        memory = store.load_memory(include_retracted=include_retracted)
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
-            verifier = get_verifier(self.project_path, self.store, self._write_lock)
+            verifier = get_verifier(target_path, store, self._write_lock)
             memory, stats = await asyncio.to_thread(verifier.run, memory)
             # Помечаем INCONCLUSIVE узлы флагом для выдачи агенту
             inconclusive_ids = set(stats.get("inconclusive_nodes", []))
@@ -1052,7 +1076,7 @@ class ProjectIntelligenceLayer:
                             node.setdefault("verification", "budget_exceeded")
         else:
             stats = {"verify_on_read": False}
-        stats["metrics"] = self.store.memory_metrics()
+        stats["metrics"] = store.memory_metrics()
         return memory, stats
 
     def _load_flat_memory_nodes(self) -> List[Dict]:

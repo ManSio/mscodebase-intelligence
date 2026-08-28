@@ -26,6 +26,14 @@
 
 ---
 
+## [2026-08-26 21:00] — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 killed)
+**Status:** ✅ Fixed (код+тесты; live-smoke PASSED; exp2 holder survived)
+**Root Cause:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на мёртвом предке ДО живого Zed — venvwlauncher-цепочка), затем `_terminate_holder()` убивал его `TerminateProcess`. Так PID 20052 (ARCLUX MCP) убит 12524 при `refresh_db_connection`.
+**Fix (Вариант A+):** удалён kill-путь; `classify_holder` — только proof-of-death (DEAD/HEALTHY/AMBIGUOUS), живой PID → fail-closed `LockBusyError` (wait, never kill); добавлены hostname+version в lock-данные; `db_manager`: read-only при `LockBusyError` на старте, PID-lock gate в `begin_write`, `recreate_table_physical` reacquire-fail → raise; `tools_reg` reacquire → fail-closed.
+**Guard:** `tests/test_database_lock_selfhealing.py` (живой PID → HEALTHY/HELD, НЕ ORPHAN/kill) + exp2 (holder survives) + `smoke_e2e.py` PASSED (4/4). Red Team 7 находок закрыты.
+**Связано:** EXPERIMENTS_LOG (E1/E2), probe3, REDTEAM_lock_attacks.md, `.agent_task_state.md`.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся, локально 89 pytest + exp2 + smoke_e2e PASSED.
+
 ## [2026-08-26 19:19] — SymbolIndex JSON corruption guard live + E4.2 concept-resolver (verify_change 0→HIT)
 **Status:** ✅ Fixed (guard, live) / ✅ E4.2 подтверждена (live same-run: recall 0.50, verify_change 0→1.00)
 **Root Cause:** (guard) `SymbolIndexAdapter` (graph-backed) без `_definitions/_references/_file_to_symbols` писал ПУСТОЙ JSON поверх полного `symbol_index.json` при инкрементальном индексе (инцидент E4, 26.08 — файл пуст при 10748 символах в памяти); (E4.2) `verify_change`=0 — резолв якоря из «бессловесных» промптов: T9 wrong-anchor ('engine' из engine.py, ответ — notify_change), T29 no-anchor (концепт «паттерны извлечения», лексики нет вообще).
@@ -1654,8 +1662,23 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-26 19:55] — Multi-window: search_code/graph_query/intel_get_project_memory игнорируют project_root (set_project vs CWD-привязка)
 
-**Status:** 🔴 Open (диагноз подтверждён живым repro; фикс — за кодирующим агентом, отчёт: INVESTIGATION_MCP_PROJECT_BINDING.md)
-**Root Cause:** два конкурирующих пути резолва — `base.py:_resolve_target_path` (CWD-first, L266-282, игнорирует active-project из set_project) vs `resolve_indexer_for_request` (active-first, L130-151); `search_tools.py:249` вызывает `resolve_searcher()` БЕЗ explicit `_pr` (проверка готовности L214 — с `_pr`, поиск L249 — по default); graph_query (graph_tools.py:149-156) и intel_get_project_memory (layer.py:994, tools_reg.py:380) не имеют параметра project_root вовсе; `intel_trigger_reindex` пишет индекс вне ProjectIndexerRegistry → реестр держит UNINITIALIZED до первого get_indexer (refresh_db_connection случайно «исцеляет»).
-**Fix (предложен):** единый резолвер explicit→active→CWD→env; `project_root` в схемах search_code L249/L229, graph_query (все _execute_*), intel_*; регистрация состояния реестра по завершении reindex-джобы; тест multi-project.
-**Guard:** тест «set_project + tool без explicit → активный проект»; сверка allowlist server_tools.py L161-194 на наличие project_root в сигнатуре; проверка калграфа (аномалия «time→install.py:413», symbol_index.py:482).
-**verified_from_clean_state:** ⚠️ не проверено — repro выполнен на живом MCP (RUN_ID ddcb0b1f2c31), фикс не вносился; после фикса прогнать сценарий из INVESTIGATION_MCP_PROJECT_BINDING.md §3.
+**Status:** ✅ Fixed (scope: 🅳+🅲+🅵+🅰+🅱; 🅴 подтверждён в коде)
+**Root Cause:** search_tools.py вызывал `resolve_searcher()` без explicit project_root; graph_query и intel_get_project_memory не принимали project_root; reindex оставлял реестр UNINITIALIZED.
+**Fix:** (1) 🅳 `base.py:resolve_indexer` уже роутит explicit→active (R3TF-фикс присутствует). (2) 🅰 `search_tools.py`: `_pr` (explicit_project_root) проброшен во ВСЕ `resolve_searcher`/`_project_header` (L221/229/249/326/336/349/375/391) + `_agentic_search`. (3) 🅲 `intel_get_project_memory` (layer.py:994, tools_reg.py:388) строит `IntelligenceStore(Path(project_root).resolve())` с fallback на self.store. (4) 🅵 graph_query-привязка покрыта 🅳. (5) 🅴 `layer.py:794-818` registry.set_state(READY) по завершении reindex (UNINITIALIZED→READY). (6) 🅱 `graph_tools.py`: `execute()` + все `_execute_*` принимают и пробрасывают `project_root`; добавлен `_resolve_pg()` (explicit override → active); убран hardcoded `D:/Project/MSCodeBase` fallback в drift/verify; structural_search уже имеет обязательный project_root. Синхронизировано в расширение.
+**Guard:** `tests/test_graph_query_project_binding.py` (2 passed: threading + _resolve_pg explicit); обновлены фейки в `test_search_bs_audit.py` (3 passed). `py_compile` OK.
+**verified_from_clean_state:** ⚠️ не проверено — требует индексированные multi-project + llama.cpp; покрыто unit-тестами связывания. Пользователь проверит через Android-сервер (opencode web :4096).
+
+---
+
+## [2026-08-27 21:30] — MCP freeze during full reindex = logging deadlock (не CPU/не crash)
+**Status:** ✅ Fixed (код синк в расширение; unit-verified; live-smoke = full reindex пользователем)
+**Root Cause:** `setup_logging()` (main.py) вешал синхронный `StreamHandler(stderr)` + `RotatingFileHandler` (log_manager) напрямую на логгеры. Во время тяжёлого reindex event-loop поток пишет лог → `StreamHandler` блокируется на записи в stderr-pipe (opencode не осушает) → держит глобальный `logging._lock` → ВСЕ последующие логи (вкл. обработку `debug_runtime_passport` в MainThread) зависают. Доказано `py-spy dump --pid 16708`: thread 6204 (reindex) и MainThread оба стоят в `logging.callHandlers`.
+**Fix:** `QueueHandler`+`QueueListener` (main.py `setup_logging`); `setup_project_logging` получил `attach=False` (возвращает RotatingFileHandler без подключения). Логи неблокирующие, listener держится в `_LOG_LISTENER` (не GC).
+**Guard:** реиндекс больше не держит `logging._lock` на event-loop. LIVE-SMOKE: пользователь гоняет full reindex — не должно заморозить.
+
+## [2026-08-27 21:30] — off-by-one: индекс/граф хранят 0-based строки (340 вместо 341)
+**Status:** ✅ Fixed (код синк в расширение; unit-verified: save_symbol_index=341, _ensure_symbol_index=332)
+**Root Cause:** tree-sitter `node.start_point[0]` — 0-based; индексер складывал его КАК ЕСТЬ в `start_line`/`line` (parser.py:1007 definitions-SCM, 1123 calls, 1459 imports, 1643 assignments; 630/631 chunks). `search_tools.py` компенсировал `+1` на выдаче (костыль BS-3). Граф `ref.line` брался из SCM-символов → 340. Системный −1 на всех функциях (проверено на 2-х).
+**Fix:** `+1` на месте захвата во ВСЕХ tree-sitter capture-сайтах (1007/1123/1459/1643 + 630/631/1765-1766). Убран костыль `+1` в `search_tools.py:530`. `scope_id` (1573) оставлен 0-based — непрозрачный ключ корреляции data-flow графа (не display-координата), чтобы не сломать joins.
+**Guard:** требуется full reindex (старый индекс ещё 0-based). После реиндекса `check_index.py` должен показать `save_symbol_index` start_line=341. LIVE-SMOKE: пользователь проверяет search_code → 📍 :341.
+**Обобщение:** аудит всех `node.start_point` capture-сайтов выявил 8 мест; 4 уже имели `+1` (decorators/methods 1260/1279/1303/1408), 4 нет — единообразно исправлено у источника.
