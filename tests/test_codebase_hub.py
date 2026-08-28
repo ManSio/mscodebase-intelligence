@@ -110,4 +110,79 @@ class TestHubWriteRouting:
     async def test_unknown_subaction_returns_helpful_error(self, hub):
         result = await hub.execute(action="write")
         assert "Не удалось определить" in result
+
+
+class TestHubGitRouting:
+    """Regression (bug #1): codebase(action='git', path='log') must pass the
+    real project_root to the git tool, NOT the subcommand string 'log'
+    (which previously produced 'Path does not exist: .../log').
+
+    NOTE: hub.execute is wrapped by @error_boundary/MCP layer, so it returns a
+    formatted STRING, not the raw dict. We assert on captured project_root
+    (the actual fix) and on string content.
+    """
+
+    @pytest.mark.asyncio
+    async def test_git_log_passes_real_project_root(self, mock_services, tmp_path, monkeypatch):
+        captured = {}
+
+        class FakeCommitHistory:
+            def __init__(self, services):
+                self.services = services
+
+            async def execute(self, project_root="", limit=10, **kw):
+                captured["project_root"] = project_root
+                captured["limit"] = limit
+                return {"status": "ok", "commits": [], "total_commits_in_history": 0, "displayed": 0, "authors": {}}
+
+        # NOTE: _action_git imports from git_tools inside the function, so patch there.
+        monkeypatch.setattr("src.mcp.tools.git_tools.GetCommitHistoryTool", FakeCommitHistory)
+
+        idx = MagicMock()
+        idx.project_path = str(tmp_path)
+        hub = CodebaseTool(mock_services)
+        hub.resolve_indexer = MagicMock(return_value=idx)
+
+        result = await hub.execute(action="git", path="log")
+        assert captured.get("project_root") == str(tmp_path), (
+            f"git log must pass real project_root, got {captured.get('project_root')!r}"
+        )
+        assert isinstance(result, str)
+        assert "Completed" in result
+
+    @pytest.mark.asyncio
+    async def test_git_branch_routes_to_branch_tool(self, mock_services, tmp_path, monkeypatch):
+        captured = {}
+
+        class FakeBranch:
+            def __init__(self, services):
+                self.services = services
+
+            async def execute(self, project_root="", **kw):
+                captured["project_root"] = project_root
+                return {"status": "ok", "branch": "main", "index_exists": True, "total_chunks": 0}
+
+        monkeypatch.setattr("src.mcp.tools.git_tools.GetBranchInfoTool", FakeBranch)
+
+        idx = MagicMock()
+        idx.project_path = str(tmp_path)
+        hub = CodebaseTool(mock_services)
+        hub.resolve_indexer = MagicMock(return_value=idx)
+
+        result = await hub.execute(action="git", path="branch")
+        assert captured.get("project_root") == str(tmp_path)
+        assert isinstance(result, str)
+        assert "main" in result
+
+    @pytest.mark.asyncio
+    async def test_git_unknown_subaction_errors(self, mock_services, tmp_path, monkeypatch):
+        idx = MagicMock()
+        idx.project_path = str(tmp_path)
+        hub = CodebaseTool(mock_services)
+        hub.resolve_indexer = MagicMock(return_value=idx)
+        result = await hub.execute(action="git", path="frobnicate")
+        assert isinstance(result, str)
+        # Bug #1 fix: unknown subcommand must NOT be treated as a filesystem path
+        # (previously: "Path does not exist: .../frobnicate").
+        assert "Unknown git sub-action" in result
         assert FakeWriteTool.last_action is None

@@ -335,12 +335,18 @@ Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `
 `lsp_find_references(file_path, line, col)`, `lsp_find_definition(file_path, line, col)`,
 `lsp_document_symbols(file_path)`, `lsp_get_type_info(file_path, line, col)`,
 `lsp_get_diagnostics(file_path)`, `lsp_get_code_actions(file_path, line, col)`,
-`codebase(action=...)`, `structural_search`, `get_repo_map`,
-`get_repo_rank`, `get_hotspots`, `get_bug_correlation`,
-`graph_query(action=query|cypher|related|flow)`, `detect_communities`,
-`cross_repo_search`, `cross_project_deps`, `find_duplicates`,
-`generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `get_context`,
-`verify_action`, `get_task_status`, `submit_background_task`, `stale_detector`.
+`codebase(action=...)`, `structural_search`,
+`graph_query(action=query|cypher|related|flow)`,
+`submit_background_task`, `stale_detector`.
+
+> **Not registered (consolidated):** the 14 names below are documented in older
+> revisions but are **NOT exposed as MCP tools** in the current build — their
+> functionality is covered by `search_code`, `get_symbol_info`, `impact_analysis`,
+> and the `intel_*` suite. Do not call them; they return `tool not found`.
+> `get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`,
+> `detect_communities`, `cross_repo_search`, `cross_project_deps`,
+> `find_duplicates`, `generate_chunk_summaries`, `scan_changes`,
+> `find_similar_bugs`, `get_context`, `verify_action`, `get_task_status`.
 
 > Hub-маршруты `codebase(action=...)` (не отдельные MCP-тулы):
 > `codebase(action="index", path=status|progress|health|timeline|project_dir)` — индекс;

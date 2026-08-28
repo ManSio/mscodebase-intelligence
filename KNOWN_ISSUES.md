@@ -13,6 +13,31 @@
 **Статус:** 🔴 наблюдается (блокирует завершение full reindex) | **Deadline:** следующая сессия | **Владелец:** misha.
 **Note:** Новых реальных багов от фиксов A (logging deadlock) и B (off-by-one) НЕТ — оба live-верифицированы (embed-фаза без freeze; LanceDB 341/332). Finalization-hang — отдельный pre-existing инцидент индексатора, не связан с A/B.
 
+## 2026-08-28 — Codebase hub write-actions: 4 бага (git routing, dry-run, move import, safe_delete) (OPEN / WATCHING)
+
+**Что:** Live-верификация всех MCP-тулов (после перезапуска Zed, index READY 9193 chunks, job-суб-агенты) выявила 4 реальных бага в `codebase` hub (`src/mcp/tools/codebase_tool.py` / `server_tools.py`):
+1. `codebase(action="git", path="log")` — `path="log"` уходит в filesystem-resolver → «Path does not exist: D:\Project\MSCodeBase\log» вместо git log (routing-баг).
+2. `replace`/`insert_before`/`insert_after` с `apply=false` — dry-run НЕ соблюдается, лезут в write → `Permission denied` (guard не применён).
+3. `move` генерирует невалидный import `from D:\.Project.MSCodeBase import ...` (raw drive + backslash вместо dotted module).
+4. `safe_delete` недосчитывает usages: reports `usage count: 0`, тогда как `rename` корректно нашёл 2 call sites (`indexer.py:327,760` / `index_project_runner.py:473`) — сканирует только definitions, не callers.
+**Fix (плановая задача mcp/tools):** (1) `git` action роутить на git-log, не path-resolver; (2) `apply=false` обязан предотвращать любой write (в т.ч. open для записи); (3) move import-rewrite — нормализовать путь в dotted module; (4) safe_delete считать callers через reference-index.
+**Guard:** регресс-тесты на каждый case (dry-run nil-write; git log возвращает commits; move валидный import; safe_delete считает callers).
+**Статус:** 🔴 наблюдается | **Deadline:** следующая сессия | **Владелец:** misha.
+
+## 2026-08-28 — LSP-тулы: basedpyright не установлен (OPEN / ENV)
+
+**Что:** `lsp_find_definition/references/document_symbols/get_diagnostics/get_type_info/get_code_actions` отвечают, но возвращают «basedpyright not found» — LSP-сервер не установлен в окружении. Сам MCP-тул слой исправен (проксирует ошибку LSP корректно).
+**Fix:** установить basedpyright в venv расширения (`pip install basedpyright`) либо сконфигурировать LSP-провайдера; не блокирует продакшн (semantic search/graph работают).
+**Guard:** smoke: lsp_find_definition на существующем символе возвращает позицию.
+**Статус:** 🟡 env-gap | **Deadline:** — | **Владелец:** misha.
+
+## 2026-08-28 — AGENTS.md §2 противоречит реальной регистрации тулов (CONTRADICTION, §4.9)
+
+**Что:** §2 перечисляет 31 Core MCP-тул, но в РЕАЛЬНОМ сервере (RUN_ID ad89b2d4) НЕ зарегистрированы 14: `get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`, `detect_communities`, `cross_repo_search`, `cross_project_deps`, `find_duplicates`, `generate_chunk_summaries`, `scan_changes`, `find_similar_bugs`, `get_context`, `verify_action`, `get_task_status`. Ни суб-агент, ни Orchestrator не могут их вызвать (tool-not-found). Док-контрадикция (§4.9): док «доступно», рантайм — нет.
+**Fix:** либо зарегистрировать эти тулы в `server_tools.py`/`tools_reg.py` (если задумывались), либо убрать из §2 (если deprecated). Сверить с `📐 MCP Tools: N/M` логом старта.
+**Guard:** систематический cross-check (§6.5): grep имён тулов §2 против реальной регистрации.
+**Статус:** 🔴 наблюдается | **Deadline:** следующая сессия | **Владелец:** misha.
+
 ## 2026-08-27 — Data Gap: папка tests/ не индексируется Tree-sitter AST (OPEN / Planned)
 
 **Что:** E4.1-бенчмарк (`experiments/bench_e4_1.py`) показал Recall=0.00 на классах `test`/`verify` НЕ из-за бага алгоритма/сериализации, а потому что реальные файлы `tests/test_*.py` НЕ присутствуют в PropertyGraph (`graph.db` содержит только `tests/fixtures/sample_module.py` — 270 узлов из 10768). `SymbolIndexAdapter.search_symbols` детерминированно возвращает `[]` на символы, которых нет в базе — свойство Proof of Origin (честно и предсказуемо).

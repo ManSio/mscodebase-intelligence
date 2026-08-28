@@ -1152,3 +1152,81 @@ class TestWriteToolPreflight:
         assert "Preflight" in result
         assert "LSP" in result
         assert f.read_text() == before  # запись не производилась
+
+
+class TestInferPackage:
+    """Regression (bug #3): _infer_package must produce a valid dotted
+    module relative to the project root, NOT a corrupt Windows absolute
+    path like `D:\\.Project.MSCodeBase...`."""
+
+    def test_returns_dotted_module_relative_to_root(self, write_tool, tmp_path):
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+
+        target = tmp_path / "src" / "core" / "indexing" / "index_guard.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        pkg = write_tool._infer_package(str(target))
+
+        assert pkg == "src.core.indexing.index_guard"
+        assert "\\" not in pkg
+        assert ":" not in pkg
+
+
+class TestSafeDeleteCallers:
+    """Regression (bug #4): safe_delete must count cross-file call sites
+    (usages), consistent with rename's reference lookup."""
+
+    @pytest.mark.asyncio
+    async def test_counts_cross_file_callers(self, write_tool, tmp_path):
+        from src.core.indexing.symbol_index import SymbolIndex, SymbolRef
+
+        si = SymbolIndex()
+        si.add_definitions(str(tmp_path / "mod.py"), [
+            {"name": "target_func", "line": 1, "kind": "function"},
+        ])
+        si._references["target_func"] = [
+            SymbolRef(symbol="target_func", file_path=str(tmp_path / "caller_a.py"), line=10, kind="call", is_definition=False),
+            SymbolRef(symbol="target_func", file_path=str(tmp_path / "caller_b.py"), line=20, kind="call", is_definition=False),
+        ]
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+
+        result = await write_tool._action_safe_delete(
+            symbol="target_func", file_path="", apply=False, force=False
+        )
+        assert result["status"] == "denied"
+        assert result["usage_count"] == 2
+
+
+class TestDryRunNoWrite:
+    """Regression (bug #2): apply=False must never write to disk."""
+
+    @pytest.mark.asyncio
+    async def test_replace_dry_run_does_not_write(self, write_tool, tmp_path, monkeypatch):
+        from src.mcp.tools import write_tools as wt_module
+
+        src = tmp_path / "m.py"
+        src.write_text("def foo():\n    return 1\n")
+        si = _build_index_for_file(
+            src,
+            extra_defs=[{"name": "foo", "line": 1, "kind": "function"}],
+            add_refs=False,
+        )
+        write_tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        write_tool.resolve_indexer = MagicMock(return_value=idx)
+
+        spy = MagicMock()
+        monkeypatch.setattr(wt_module, "_atomic_write", spy)
+
+        result = await write_tool._action_replace(
+            symbol="foo",
+            new_code="def foo():\n    return 2\n",
+            apply=False,
+        )
+        spy.assert_not_called()
+        assert "preview" in result.lower() or "🔍" in result
