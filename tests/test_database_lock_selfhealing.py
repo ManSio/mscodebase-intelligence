@@ -33,7 +33,6 @@ from src.core.indexing.database_lock import (
     LockBusyError,
     LockHolderState,
     ProcessInspector,
-    WindowsProcessInspector,
 )
 
 DEAD_PID = 999_999_999
