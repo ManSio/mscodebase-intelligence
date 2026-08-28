@@ -98,7 +98,10 @@ def test_bs3_vector_search_carries_start_line():
 
 
 def test_bs3_format_results_renders_1based_line():
-    """Рендер конвертирует 0-based start_line в 1-based (L27, а не 0/2)."""
+    """Рендер отображает корректную 1-based строку (L27, а не chunk_index 0/2).
+
+    start_line теперь хранится 1-based (реальная строка файла), конверсия
+    больше не нужна — см. фикс off-by-one (parser.py capture +1)."""
     raw = {
         "results": [
             {
@@ -106,7 +109,7 @@ def test_bs3_format_results_renders_1based_line():
                 "metadata": {
                     "file": "src/database.py",
                     "chunk_index": 0,
-                    "start_line": 26,
+                    "start_line": 27,
                     "end_line": 28,
                     "layer": "core",
                 },
@@ -470,7 +473,7 @@ async def test_bs7_cypher_accepts_query_param():
     tool = GraphQueryTool.__new__(GraphQueryTool)
     captured = {}
 
-    async def fake_cypher(query, kwargs):
+    async def fake_cypher(query, kwargs, project_root=""):
         captured["query"] = query
         return {"status": "ok", "action": "cypher", "query": query, "results": []}
 
@@ -496,7 +499,7 @@ async def test_bs7_flow_accepts_name_param():
     tool = GraphQueryTool.__new__(GraphQueryTool)
     captured = {}
 
-    async def fake_flow(name, kwargs):
+    async def fake_flow(name, kwargs, project_root=""):
         captured["name"] = name
         return {"status": "ok", "action": "flow", "variable": name}
 
@@ -519,7 +522,7 @@ async def test_bs7_default_action_still_query():
 
     tool = GraphQueryTool.__new__(GraphQueryTool)
 
-    async def fake_query(query_type, target, kwargs):
+    async def fake_query(query_type, target, kwargs, project_root=""):
         return {"status": "ok", "action": "query", "query_type": query_type, "target": target}
 
     tool._execute_query = fake_query

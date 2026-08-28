@@ -577,7 +577,7 @@ class CodeParser:
                     symbols.append(
                         {
                             "name": full_symbol,
-                            "line": node.start_point[0],
+                            "line": node.start_point[0] + 1,
                             "kind": node.type,
                             "signature": signature,
                             "docstring": docstring,
@@ -627,8 +627,8 @@ class CodeParser:
                             "text": prefix + text,
                             "text_compact": prefix + compact_text,
                             "file": str(file_path),
-                            "start_line": node.start_point[0],
-                            "end_line": node.end_point[0],
+                            "start_line": node.start_point[0] + 1,
+                            "end_line": node.end_point[0] + 1,
                             "type": node.type,
                             "context": current_context,
                             "symbol_name": symbol_name,
@@ -1004,7 +1004,7 @@ class CodeParser:
             signature, docstring = self._get_signature_and_docstring(node, code)
             symbols.append({
                 "name": name,
-                "line": node.start_point[0],
+                "line": node.start_point[0] + 1,
                 "kind": node.type,
                 "signature": signature,
                 "docstring": docstring,
@@ -1120,7 +1120,7 @@ class CodeParser:
                     {
                         "caller": current_function,
                         "callee": callee_name,
-                        "line": node.start_point[0],
+                        "line": node.start_point[0] + 1,
                         "file": str(file_path),
                     }
                 )
@@ -1456,7 +1456,7 @@ class CodeParser:
                         {
                             "source_file": str(file_path),
                             "target_module": module_name,
-                            "line": node.start_point[0],
+                            "line": node.start_point[0] + 1,
                             "text": import_text.strip(),
                         }
                     )
@@ -1640,7 +1640,7 @@ class CodeParser:
                     assigned=assigned,
                     assignments=assignments,
                     file_path=file_path,
-                    line=node.start_point[0],
+                    line=node.start_point[0] + 1,
                     function=current_function,
                     condition_path=list(condition_path),
                     scope_id=scope_id,
@@ -1762,8 +1762,8 @@ class CodeParser:
                         "text": f"{prefix}// [Part {part_num}]\n{text}",
                         "text_compact": f"{prefix}// [Part {part_num}]\n{compact}",
                         "file": file_path,
-                        "start_line": start_line_offset + i,
-                        "end_line": start_line_offset + i + len(chunk_lines) - 1,
+                        "start_line": start_line_offset + i + 1,
+                        "end_line": start_line_offset + i + len(chunk_lines),
                         "type": "giant_function_part",
                         "context": context,
                         "symbol_name": "",

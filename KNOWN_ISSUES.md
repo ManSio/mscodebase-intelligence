@@ -5,11 +5,26 @@
 
 ---
 
+## 2026-08-28 — Full reindex зависает в фазе «Finalizing» (PropertyGraph.optimize/create_index) (OPEN / WATCHING)
+
+**Что:** При live-верификации фиксов A/B (полный реиндекс job 1ff77294) embedding-фаза прошла БЕЗ заморозки сервера (подтверждает фикс A — QueueHandler), chunks записались корректно (1-based; см. AGENT_DIARY post-mortem off-by-one: save_symbol_index=341). После embed job завис в фазе «Finalizing» (отладка через intel_get_job_status + лог + netstat/py-spy: оба процесса 0% CPU — заблокированы, не считают) на `PropertyGraph.optimize()`/`create_index()` (`src/core/intelligence/layer.py:741` и `:1786`). Флаг `set_reindexing(True)` не снимается → блокирует concurrent search. Это PRE-EXISTING баг индексатора/графа, НЕ вызван фиксами A/B (фиксы касаются только логирования и display-строки; они live-верифицированы на этапе embed).
+**Fix (плановая задача индексатора):** исследовать deadlock/зависание в PropertyGraph.optimize/create_index (возможен contention на write-lock или незавершающийся цикл в optimize). Временное обходное: ручной restart сервера снимает флаг, уже записанный во время embed индекс перегружается корректно (runtime status 🟢 9191 chunks / 563 files / 11032 symbols).
+**Guard:** check_index.py подтверждает корректность записанных chunks (341/332) независимо от зависания финализации; re-verify после restart показал валидный индекс.
+**Статус:** 🔴 наблюдается (блокирует завершение full reindex) | **Deadline:** следующая сессия | **Владелец:** misha.
+**Note:** Новых реальных багов от фиксов A (logging deadlock) и B (off-by-one) НЕТ — оба live-верифицированы (embed-фаза без freeze; LanceDB 341/332). Finalization-hang — отдельный pre-existing инцидент индексатора, не связан с A/B.
+
 ## 2026-08-27 — Data Gap: папка tests/ не индексируется Tree-sitter AST (OPEN / Planned)
 
 **Что:** E4.1-бенчмарк (`experiments/bench_e4_1.py`) показал Recall=0.00 на классах `test`/`verify` НЕ из-за бага алгоритма/сериализации, а потому что реальные файлы `tests/test_*.py` НЕ присутствуют в PropertyGraph (`graph.db` содержит только `tests/fixtures/sample_module.py` — 270 узлов из 10768). `SymbolIndexAdapter.search_symbols` детерминированно возвращает `[]` на символы, которых нет в базе — свойство Proof of Origin (честно и предсказуемо).
 **Fix (плановая задача индексатора):** включить `tests/` в scope парсинга AST (parser/indexer config) либо индексировать тест-файлы как отдельный layer; после реиндекса E4.1 test/verify поднимутся с 0.00. НЕ блокирует продакшн (основной код индексируется полностью).
 **Guard:** `experiments/bench_e4_1.py` — повторный прогон после реиндекса должен показать Recall>0 на test/verify; текущий бенчмарк фиксирует базовую линию.
+**Статус:** 🟡 запланировано (индексатор) | **Deadline:** следующая сессия | **Владелец:** misha.
+
+## 2026-08-27 — Graph node enrichment: узлы без file_path (OPEN / Planned)
+
+**Что:** При live-проверке Step 2 (граф-стадия, коммит 95237f68) `search_code`/`hybrid_search_async` на `save_symbol_index` вернул ДВА граф-результата: корректный `📍 D:/Project/MSCodeBase/src/core/indexing/index_guard.py:340` и второй `📍 :310` с ПУСТЫМ `file_path` (узел `save_symbol_index` в graph.db не имеет `file`/строку пути). Решено владельцем: `_graph_stage` НЕ должен молча отбрасывать такие узлы — лучше отдавать строку без пути, чем терять релевантный символ (см. переписку Step 2). Это граф-data gap (обогащение индексатора), а не баг engine.
+**Fix (плановая задача индексатора):** обогатить graph-узлы `file_path` при индексации (AST-парсер/parser config), чтобы все symbol-узлы несли путь+строку; после реиндекса `📍 :310` исчезнет. НЕ блокирует продакшн (основной символ возвращается корректно).
+**Guard:** `experiments/bench_e4_1.py` + live-проверка `search_code` после реиндекса не должны давать `📍` с пустым file.
 **Статус:** 🟡 запланировано (индексатор) | **Deadline:** следующая сессия | **Владелец:** misha.
 
 ## 2026-08-26 — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 убит) (FIXED)
