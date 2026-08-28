@@ -143,11 +143,12 @@ mscodebase-mcp = "src.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "scripts*"]
+include = ["src*", "scripts*", "tools.stale_detector*", "adapters*", "locales*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.md", "*.bat", "*.cfg", "*.scm"]
 "src" = ["*.json", "*.txt", "*.cfg", "*.scm"]
+"locales" = ["*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

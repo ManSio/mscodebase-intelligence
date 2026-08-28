@@ -181,12 +181,43 @@ def setup_logging():
         pass
 
     return original_stdout
+
+
+def _cli_project_path() -> str:
+    """Извлекает --project-path/--project-dir из sys.argv (значение или после =).
+
+    Возвращает пустую строку, если аргумент не передан. Значение — путь
+    к целевому проекту (корень, для которого работают MCP-инструменты).
+    """
+    for flag in ("--project-path", "--project-dir"):
+        for i, arg in enumerate(sys.argv):
+            if arg == flag and i + 1 < len(sys.argv):
+                return sys.argv[i + 1].strip()
+            if arg.startswith(flag + "="):
+                return arg[len(flag) + 1:].strip()
+    return ""
+
+
 def main():
     """Главная функция запуска MCP-сервера."""
     original_stdout = setup_logging()
     logger = logging.getLogger("MSCodebase")
     logger.info("MSCodebase Intelligence MCP Server запускается...")
     logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
+
+    # ─── CLI --project-path: явный выбор целевого проекта ───
+    # Устанавливаем MSCODEBASE_PROJECT_PATH (приоритет над CWD, см.
+    # resolve_project_root). PROJECT_ROOT (корень установки/расширения) НЕ
+    # трогаем — он не является корнем целевого проекта. Env задаётся ДО
+    # любого вызова resolve_project_root (в т.ч. при --install резолв корня).
+    _cli_proj = _cli_project_path()
+    if _cli_proj and not os.environ.get("MSCODEBASE_PROJECT_PATH"):
+        try:
+            _resolved_cli = str(Path(_cli_proj).resolve())
+        except (OSError, ValueError):
+            _resolved_cli = _cli_proj
+        os.environ["MSCODEBASE_PROJECT_PATH"] = _resolved_cli
+        logger.info(f"CLI --project-path: {_resolved_cli}")
 
     try:
         # Обработка аргументов командной строки
@@ -195,6 +226,10 @@ def main():
             print("\nИспользование:", file=sys.stderr)
             print(
                 "  python -m src.main              # Запуск MCP сервера",
+                file=sys.stderr,
+            )
+            print(
+                "  python -m src.main --project-path <DIR>   # Запуск на указанном проекте",
                 file=sys.stderr,
             )
             print(
