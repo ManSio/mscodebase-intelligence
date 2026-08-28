@@ -205,6 +205,49 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
     return False
 
 
+def _try_resolve_path_env(raw: str, source: str, *, trust_self_index: bool = False) -> Optional[Path]:
+    """Резолвит путь из env-raw (литерал $ZED_WORKTREE_ROOT или прямой путь).
+
+    Общая логика для PROJECT_PATH и MSCODEBASE_PROJECT_PATH. Возвращает Path
+    или None (невалид / self-indexing / пусто).
+
+    trust_self_index=True — доверяем явному override даже если это ext_root
+    (аналог ACTIVE_WORKSPACE). Используется ТОЛЬКО для MSCODEBASE_PROJECT_PATH
+    (клиент осознанно указал проект через --project-path); PROJECT_PATH
+    сохраняет блокировку self-indexing для обратной совместимости.
+    """
+    if not raw:
+        return None
+    # Случай 1: Zed literal "$ZED_WORKTREE_ROOT" без подстановки.
+    if raw.startswith("$"):
+        zed_root = os.environ.get("ZED_WORKTREE_ROOT")
+        if zed_root:
+            p = Path(zed_root).resolve()
+            if p.exists() and not _reject_self_index_target(p, source="ZED_WORKTREE_ROOT"):
+                return p
+        return None
+    # Случай 2: прямой путь.
+    try:
+        resolved = Path(raw).resolve()
+    except (OSError, ValueError):
+        return None
+    if not resolved.exists() or not resolved.is_dir():
+        return None
+    # Self-indexing guard: для автоматических fallback'ов блокируем ext_root;
+    # для явного CLI override (trust_self_index=True) — доверяем.
+    if (
+        not trust_self_index
+        and _reject_self_index_target(resolved, source=source)
+        and os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip().lower() not in ("1", "true", "yes")
+    ):
+        logger.warning(
+            f"{source} указывает на self-indexing target ({resolved}). "
+            f"Игнорирую — установите MSCODEBASE_ALLOW_SELF_INDEX=1 или используйте ACTIVE_WORKSPACE."
+        )
+        return None
+    return resolved
+
+
 def _resolve_env_project_root() -> Optional[Path]:
     """Резолвит PROJECT_PATH из окружения лениво + один раз кэширует результат.
 
@@ -216,38 +259,9 @@ def _resolve_env_project_root() -> Optional[Path]:
         if _env_project_root_cache is not None:
             return _env_project_root_cache
         raw = os.environ.get("PROJECT_PATH", "").strip()
-        if not raw:
-            return None
-        # Случай 1: Zed literal "$ZED_WORKTREE_ROOT" без подстановки.
-        if raw.startswith("$"):
-            zed_root = os.environ.get("ZED_WORKTREE_ROOT")
-            if zed_root:
-                p = Path(zed_root).resolve()
-                if p.exists() and not _reject_self_index_target(
-                    p, source="ZED_WORKTREE_ROOT"
-                ):
-                    _env_project_root_cache = p
-                    return _env_project_root_cache
-            return None
-        # Случай 2: прямой путь.
-        try:
-            resolved = Path(raw).resolve()
-        except (OSError, ValueError):
-            return None
-        if not resolved.exists() or not resolved.is_dir():
-            return None
-        # Self-indexing guard (см. INC-53EC / REFC-02): если PROJECT_PATH
-        # Если пользователь ЯВНО задал PROJECT_PATH — доверяем ему,
-        # не блокируем self-indexing guard. Он знает, что делает.
-        # Только автоматический fallback (CWD/ext_root) блокируем.
-        if _reject_self_index_target(resolved, source="PROJECT_PATH") and os.environ.get("MSCODEBASE_ALLOW_SELF_INDEX", "").strip() not in ("1", "true", "yes"):
-            logger.warning(
-                f"PROJECT_PATH указывает на self-indexing target ({resolved}). "
-                f"Игнорирую — установите PROJECT_PATH=$ZED_WORKTREE_ROOT или MSCODEBASE_ALLOW_SELF_INDEX=1."
-            )
-            return None
-        _env_project_root_cache = resolved
-        return _env_project_root_cache
+        env_root = _try_resolve_path_env(raw, "PROJECT_PATH")
+        _env_project_root_cache = env_root
+        return env_root
 
 
 def reset_project_root_cache() -> None:
@@ -262,22 +276,38 @@ def resolve_project_root(provided: str = "") -> Path:
 
     Приоритет (каждый вызов резолвит заново — см. INC-53EC / REFC-02):
     0. Явно переданный provided
-    1. CWD (корень окна, для которого запущен MCP-процесс) — per-window
+    1. MSCODEBASE_PROJECT_PATH env (явный override CLI/владельца, НАД CWD).
+       Приоритет над CWD — только для этого явного override; обычный Zed-режим
+       CWD-first сохраняет per-window изоляцию (INC-MULTI-WINDOW).
+    2. CWD (корень окна, для которого запущен MCP-процесс) — per-window
        изоляция (INC-MULTI-WINDOW): Zed запускает отдельный MCP на окно
        и ставит CWD = корень окна. SQLite active_workspace_id глобальный
        на весь Zed — два окна резолвят один проект → PID-lock конфликт.
        Self-indexing guard: CWD == ext_root отклоняется (dev/test-режим
        добирается через SQLite active_workspace с доверием ACTIVE_WORKSPACE).
-    2. PROJECT_PATH из окружения (lazy, с self-indexing guard) — явный
+    3. PROJECT_PATH из окружения (lazy, с self-indexing guard) — явный
        override пользователя; Zed-литерал "$ZED_WORKTREE_ROOT" → None.
-    3. SQLite multi_workspace_state.active_workspace_id (fallback для
+    4. SQLite multi_workspace_state.active_workspace_id (fallback для
        single-window / когда CWD отклонён self-indexing guard'ом)
-    4. Zed SQLite DB (workspaces table — fallback, если нет active)
-    5. ZED_WORKTREE_ROOT env
-    6. ext_root как fallback
+    5. Zed SQLite DB (workspaces table — fallback, если нет active)
+    6. ZED_WORKTREE_ROOT env
+    7. ext_root как fallback
     """
     if provided and provided.strip():
         return Path(provided).resolve()
+
+    # ─── 0.5. MSCODEBASE_PROJECT_PATH: явный override НАД CWD ───
+    # Отличается от PROJECT_PATH (см. ниже, позиция 3): имеет приоритет над
+    # CWD, т.к. это намеренный override (CLI --project-path устанавливает
+    # именно его). В обычном Zed-режиме env не задан → CWD-first сохраняется.
+    prio_raw = os.environ.get("MSCODEBASE_PROJECT_PATH", "").strip()
+    if prio_raw:
+        prio_root = _try_resolve_path_env(
+            prio_raw, "MSCODEBASE_PROJECT_PATH", trust_self_index=True
+        )
+        if prio_root is not None:
+            logger.debug(f"resolve_project_root: MSCODEBASE_PROJECT_PATH={prio_root}")
+            return prio_root
 
     # ─── 1. CWD-FIRST: per-window изоляция (INC-MULTI-WINDOW) ───
     # Раньше CWD был предпоследним в цепочке, а SQLite active_workspace_id

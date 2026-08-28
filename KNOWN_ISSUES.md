@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-08-28 — PyPI-упаковка: `tools`/`locales`/`adapters` вне wheel, модели/бинарники в site-packages, нет `--project-path` (CLOSED)
+
+**Что:** При упаковке в PyPI-пакет (wheel) сервер не стартовал из установленного пакета по трём причинам: (1) `ModuleNotFoundError: No module named 'tools'` — `tools.stale_detector` (single source of truth для stale-проверки, инцидент 2026-08-14) не был в `include`; (2) `locales/` и `adapters/` не пакетизировались — i18n-предупреждения при старте и `--install` не работал из пакета; (3) в pip-режиме `_get_ext_dir()` мог писать бинарники/модели в site-packages; не было CLI-выбора целевого проекта.
+**Fix:** `pyproject.toml` `include += ["tools.stale_detector*", "adapters*", "locales*"]`, `package-data "locales" = ["*.json"]`; добавить `locales/__init__.py`; `_get_ext_dir()` гейтится маркером `__mscodebase_ext__.marker` → без маркера (pip/uvx) бинарники/модели уходят в `get_data_root()` (`%LOCALAPPDATA%\mscodebase`); CLI `--project-path/--project-dir` → env `MSCODEBASE_PROJECT_PATH` (приоритет над CWD, trust_self_index) в `resolve_project_root()`; `PROJECT_PATH` остался после CWD (обратная совместимость/multi-window).
+**Guard:** пустые `tools/__init__.py`, `tools/stale_detector/__init__.py`, `locales/__init__.py`; Live-Smoke из чистого venv с `--project-path` (tools-ok, locales `en (78 ключей)`, корень проекта резолвится); полный прогон `1562 passed / 0 failed`; +4 теста на `MSCODEBASE_PROJECT_PATH` (multiwindow). Удалён side-effect-мусор `write_text(r"C:\temp\mscb_MAIN.txt")` в `write_tools.py` (из исходников и wheel).
+**Статус:** ✅ CLOSED (live-верифицирован из wheel, чистая установка) | **Deadline:** — | **Владелец:** misha.
+**Note:** `tools/__init__.py` не попадает в wheel (namespace package PEP-420) — import `doc_tools.py:14-15` работает; безвредно.
+
 ## 2026-08-28 — Full reindex зависает в фазе «Finalizing» (PropertyGraph.optimize/create_index) (OPEN / WATCHING)
 
 **Что:** При live-верификации фиксов A/B (полный реиндекс job 1ff77294) embedding-фаза прошла БЕЗ заморозки сервера (подтверждает фикс A — QueueHandler), chunks записались корректно (1-based; см. AGENT_DIARY post-mortem off-by-one: save_symbol_index=341). После embed job завис в фазе «Finalizing» (отладка через intel_get_job_status + лог + netstat/py-spy: оба процесса 0% CPU — заблокированы, не считают) на `PropertyGraph.optimize()`/`create_index()` (`src/core/intelligence/layer.py:741` и `:1786`). Флаг `set_reindexing(True)` не снимается → блокирует concurrent search. Это PRE-EXISTING баг индексатора/графа, НЕ вызван фиксами A/B (фиксы касаются только логирования и display-строки; они live-верифицированы на этапе embed).
