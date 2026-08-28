@@ -23,6 +23,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Dict, Optional, Set
 
@@ -167,6 +168,44 @@ class IndexProjectRunner:
         self.table = new_table
         if hasattr(self, '_db_writer') and self._db_writer is not None:
             self._db_writer.table = new_table
+
+    @contextmanager
+    def _suspend_write_lock(self):
+        """Temporarily releases the global write-lock (held by this same thread
+        via ``begin_write()``) for the duration of a ``with`` block.
+
+        KI 2026-08-28: ``_safe_ivf_index()`` (LanceDB ``optimize()`` /
+        ``create_index()``) is invoked from inside the ``begin_write()``
+        context that ``run()`` keeps for the WHOLE reindex. Running those
+        heavy operations under the global lock deadlocks the "Finalizing"
+        phase (both processes at 0% CPU, job never completes). Releasing
+        the lock around them removes the contention.
+
+        Safe because the reindex guard (``is_reindexing()``) — not this lock —
+        is what blocks concurrent search during reindex.
+        """
+        _dbm = self.db_manager
+        if _dbm is None:
+            yield
+            return
+        _wl = _dbm.begin_write()  # returns the same lock object as run() holds
+        # The outer `with begin_write()` holds this RLock exactly once in this
+        # thread. Release all nesting levels so optimize/create_index run free.
+        _released = 0
+        while True:
+            try:
+                _wl.release()
+                _released += 1
+            except RuntimeError:
+                break
+        try:
+            yield
+        finally:
+            for _ in range(_released):
+                try:
+                    _wl.acquire()
+                except RuntimeError:
+                    pass
 
     def run(
         self,
@@ -493,22 +532,49 @@ class IndexProjectRunner:
                 return 0
         return 0
 
-    def _safe_ivf_index(self):
-        """IVF index с self-healing от Not Found."""
+    def _safe_ivf_index(self, timeout: float = 300.0) -> None:
+        """IVF index с self-healing от Not Found.
+
+        KI 2026-08-28: этот метод вызывается ИЗ-ПОД begin_write() (который
+        держит глобальный _write_lock весь reindex). Вызывающий ОБЯЗАН
+        отпустить lock вокруг этого вызова (см. _suspend_write_lock в run()),
+        иначе optimize()/create_index() deadlock'уют в фазе Finalizing.
+
+        ``create_index`` жёстко ограничен ``timeout``'ом: даже если LanceDB
+        зависнет, фаза Finalizing гарантированно завершится и job не висит
+        вечно (индекс — non-critical, поиск работает и без него).
+        """
+        # KI 2026-08-28: тяжёлые LanceDB-операции НЕ должны выполняться под
+        # глобальным _write_lock (который держит run() весь reindex) — иначе
+        # deadlock в фазе Finalizing. Отпускаем lock на время optimize/create_index.
+        with self._suspend_write_lock():
+            self._run_ivf_index_body(timeout=timeout)
+
+
+    def _run_ivf_index_body(self, timeout: float = 300.0) -> None:
         # Phase 1: optimize
         def _safe_optimize():
             for attempt in range(2):
                 try:
                     _opt_ex = ThreadPoolExecutor(max_workers=1)
                     try:
-                        _opt_ex.submit(self.table.optimize).result(timeout=300)
+                        _opt_ex.submit(self.table.optimize).result(timeout=timeout)
                     except Exception as _opt_to:
                         logger.warning(
-                            f"Table optimize exceeded 300s timeout "
-                            f"(continuing to wait for completion): {_opt_to}"
+                            f"Table optimize exceeded {timeout:.0f}s timeout "
+                            f"(continuing without blocking the job): {_opt_to}"
                         )
+                        # Не ждём вечно завершения optimize в фоне — job не должен висеть.
+                        try:
+                            _opt_ex.shutdown(wait=False)
+                        except Exception:
+                            pass
+                        return True
                     finally:
-                        _opt_ex.shutdown(wait=True)
+                        try:
+                            _opt_ex.shutdown(wait=True)
+                        except Exception:
+                            pass
                     return True
                 except Exception as e:
                     if attempt == 0 and self._reset_table_if_not_found(e, "optimize", attempt):
@@ -531,38 +597,50 @@ class IndexProjectRunner:
             logger.debug(f"Drop old index (non-critical): {_drop_err}")
 
         # Phase 2: create IVF_FLAT index
+        def _create_index_once(self=self) -> None:
+            try:
+                self.table.create_index(
+                    "vector",
+                    index_type="IVF_FLAT",
+                    metric="cosine",
+                    replace=True,
+                )
+                logger.info("IVF_FLAT index created")
+            except TypeError:
+                # Fallback to legacy positional API (< 0.33)
+                self.table.create_index(
+                    metric="cosine", vector_column_name="vector",
+                    index_type="IVF_FLAT", replace=True,
+                )
+                logger.info("IVF_FLAT index created (legacy API)")
+
         def _safe_create_index():
+            from concurrent.futures import TimeoutError as _FuturesTimeout
+
             for attempt in range(2):
                 try:
-                    self.table.create_index(
-                        "vector",
-                        index_type="IVF_FLAT",
-                        metric="cosine",
-                        replace=True,
-                    )
-                    logger.info("IVF_FLAT index created")
-                    return True
-                except TypeError:
-                    # Fallback to legacy positional API (< 0.33)
+                    _ci_ex = ThreadPoolExecutor(max_workers=1)
                     try:
-                        self.table.create_index(
-                            metric="cosine", vector_column_name="vector",
-                            index_type="IVF_FLAT", replace=True,
+                        _ci_ex.submit(_create_index_once).result(timeout=timeout)
+                    except _FuturesTimeout:
+                        logger.warning(
+                            f"create_index exceeded {timeout:.0f}s timeout — "
+                            f"proceeding WITHOUT vector index (non-critical)"
                         )
-                        logger.info("IVF_FLAT index created (legacy API)")
-                        return True
-                    except Exception as _legacy_e:
-                        logger.warning(f"Legacy create_index failed: {_legacy_e}")
-                        raise
+                        return
+                    finally:
+                        try:
+                            _ci_ex.shutdown(wait=False)
+                        except Exception:
+                            pass
+                    return
                 except Exception as e:
                     if attempt == 0 and self._reset_table_if_not_found(e, "create_index", attempt):
                         continue
                     logger.warning(f"create_index failed (non-critical): {e}")
-                    return False
-            return False
+                    return
 
-        if not _safe_create_index():
-            logger.warning("create_index failed after retries")
+        _safe_create_index()
 
 
 def threading_lock_context():
