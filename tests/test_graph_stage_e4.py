@@ -7,6 +7,7 @@
    (доказывает отказ от тяжёлого векторного поиска ~3600ms).
 """
 import asyncio
+
 import pytest
 
 from src.core.graph import PropertyGraph
