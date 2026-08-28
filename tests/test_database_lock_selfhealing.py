@@ -1,19 +1,21 @@
-"""Regression-тесты WS9: self-healing PID-lock (вариант C).
+"""Regression-тесты R3TF: fail-closed PID-lock (вариант A+, 2026-08-26).
 
-Покрывают (AC-1..AC-8, KNOWN_ISSUES#2026-08-08-multiwindow-pidlock):
-1. healthy Zed/Python/LSP chain → wait ≤ wait_timeout → LockBusyError (holder НЕ убит);
-2. Zed alive + child dead (holder мёртв) → stale → steal;
-3. orphan root (holder жив, корень цепочки мёртв) → terminate + steal;
-4. PID reuse (create_time > started + tolerance) → stale → steal;
-5. lock race (N процессов, ровно один владелец);
-6. termination race (lock пересоздан другим процессом во время steal) → fail-closed,
+Покрывают (AK-1..AK-8, REDTEAM_lock_attacks.md):
+1. живой PID (в т.ч. с мёртвым корнем цепочки — venvwlauncher) → wait →
+   LockBusyError, holder НЕ убит (инцидент 2026-08-26: PID 20052 killed by 12524);
+2. мёртвый PID (Zed alive + child dead) → stale → steal;
+3. PID reuse (create_time > started + tolerance) → stale → steal;
+4. hostname чужой (v2) → AMBIGUOUS → wait, не трогаем;
+5. неизвестная версия формата → AMBIGUOUS → wait;
+6. lock race (N процессов, ровно один владелец);
+7. termination race (lock пересоздан другим процессом во время steal) → fail-closed,
    чужой lock не удаляется;
-7. stale lock (мёртвый pid) → steal без ожидания;
-8. concurrent acquisition (N потоков: 1 winner, остальные LockBusyError).
+8. stale lock (мёртвый pid) → steal без ожидания.
+
+TerminateProcess удалён полностью (R3TF): DatabaseLock никогда не убивает
+живые процессы — «break stale lock only on proof of death» (PostgreSQL/Qt/filelock).
 
 Используют инжектируемый ProcessInspector (фейковые цепочки без реальных
-OS-процессов — работает на Linux CI). Windows-only live-тест TerminateProcess —
-skipif.
 """
 
 import json
@@ -101,25 +103,58 @@ class TestClassifyHolder:
         lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
         assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.HEALTHY
 
-    def test_orphan_root_dead(self, tmp_path):
+    def test_live_pid_with_dead_root_is_healthy(self, tmp_path):
+        """R3TF: живой PID с мёртвым корнем цепочки → HEALTHY (wait),
+        НЕ ORPHAN и НЕ kill. Это фикс инцидента 2026-08-26 (PID 20052:
+        venvwlauncher-цепочка обрывается на мёртвом предке).
+        """
         chain = [(12345, "python.exe", True), (77777, "?", False)]  # корень мёртв
         insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=chain)
         lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
-        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.ORPHAN
+        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.HEALTHY
 
-    def test_ambiguous_no_chain(self, tmp_path):
+    def test_live_pid_no_chain_is_healthy(self, tmp_path):
+        """R3TF: chain=None больше не = AMBIGUOUS: живой PID с валидным
+        create_time — HELD (fail-closed wait), независимо от цепочки."""
         insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=None)
         lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
-        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.AMBIGUOUS
+        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.HEALTHY
 
-    def test_ambiguous_live_root_no_zed(self, tmp_path):
+    def test_live_pid_live_root_no_zed_is_healthy(self, tmp_path):
+        """R3TF: живой, но не Zed-предок → HEALTHY (не AMBIGUOUS)."""
         chain = [
             (12345, "python.exe", True),
             (22222, "python.exe", True),  # живой, но не Zed
         ]
         insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=chain)
         lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
-        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.AMBIGUOUS
+        assert lock.classify_holder(12345, time.time() - 5) is LockHolderState.HEALTHY
+
+    def test_foreign_hostname_is_ambiguous(self, tmp_path):
+        """R3TF (атака 6): lock с чужого host → AMBIGUOUS (PID непроверяем)."""
+        insp = FakeInspector(alive=True, create_time=time.time() - 5)
+        lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
+        holder_data = {"pid": 12345, "started": time.time() - 5,
+                       "hostname": "other-machine", "v": 2}
+        assert lock.classify_holder(12345, time.time() - 5, holder_data) is LockHolderState.AMBIGUOUS
+
+    def test_unsupported_version_is_ambiguous(self, tmp_path):
+        """R3TF (атака 7): неизвестная версия формата → AMBIGUOUS (fail-closed)."""
+        import socket
+        insp = FakeInspector(alive=True, create_time=time.time() - 5)
+        lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
+        holder_data = {"pid": 12345, "started": time.time() - 5,
+                       "hostname": socket.gethostname(), "v": 99}
+        assert lock.classify_holder(12345, time.time() - 5, holder_data) is LockHolderState.AMBIGUOUS
+
+    def test_own_host_v2_is_healthy(self, tmp_path):
+        """Нормальный v2-lock (наш host, валидный create_time) → HEALTHY."""
+        import socket
+        insp = FakeInspector(alive=True, create_time=time.time() - 5)
+        lock = DatabaseLock(tmp_path / ".write_lock", holder_inspector=insp)
+        holder_data = {"pid": 12345, "started": time.time() - 5,
+                       "hostname": socket.gethostname(), "v": 2}
+        assert lock.classify_holder(12345, time.time() - 5, holder_data) is LockHolderState.HEALTHY
 
 
 # ─── Кейс 1: healthy chain → wait → LockBusyError, holder НЕ убит ─
@@ -178,42 +213,51 @@ class TestZedAliveChildDead:
             lock.release()
 
 
-# ─── Кейс 3: orphan root → terminate → steal ───────────────────
+# ─── Кейс 3: живой holder (мёртвый корень цепочки) → wait → LockBusyError, НЕ kill ─
 
-class TestOrphanHolder:
-    def test_orphan_terminated_and_stolen(self, tmp_path, monkeypatch):
+class TestLiveHolderWithDeadRoot:
+    """R3TF (инцидент 2026-08-26): живой процесс с мёртвым предком больше
+    НЕ терминейтится — TerminateProcess удалён. Venvwlauncher-цепочки живых
+    MCP дают ложный «orphan»-вид, но holder HELD → LockBusyError (fail-closed).
+    """
+
+    def test_live_holder_with_dead_root_waits_and_soft_fails(self, tmp_path):
         chain = [(12345, "python.exe", True), (77777, "?", False)]
         insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=chain)
         lock_path = tmp_path / ".write_lock"
         _write_lock(lock_path, 12345, time.time() - 5)
 
-        lock = DatabaseLock(lock_path, wait_timeout=0.3, holder_inspector=insp)
-        terminated = []
-        monkeypatch.setattr(lock, "_terminate_holder",
-                            lambda pid: terminated.append(pid) or True)
-        lock.acquire()
-        try:
-            assert terminated == [12345], "зомби должен быть терминейтнут"
-            assert lock.is_held()
-            data = json.loads(lock_path.read_text(encoding="utf-8"))
-            assert data["pid"] == os.getpid()
-        finally:
-            lock.release()
-
-    def test_orphan_terminate_fails_soft(self, tmp_path, monkeypatch):
-        chain = [(12345, "python.exe", True), (77777, "?", False)]
-        insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=chain)
-        lock_path = tmp_path / ".write_lock"
-        _write_lock(lock_path, 12345, time.time() - 5)
-
-        lock = DatabaseLock(lock_path, wait_timeout=0.3, holder_inspector=insp)
-        monkeypatch.setattr(lock, "_terminate_holder", lambda pid: False)
-        with pytest.raises(LockBusyError, match="не удалось завершить"):
+        lock = DatabaseLock(lock_path, wait_timeout=0.3, poll_interval=0.05,
+                            holder_inspector=insp)
+        with pytest.raises(LockBusyError, match="still held by alive pid"):
             lock.acquire()
-        # fail-closed: чужой lock не тронут
+        # holder НЕ убит и lock не тронут (TerminateProcess отсутствует)
         assert lock_path.exists()
+        assert not lock.is_held()
         data = json.loads(lock_path.read_text(encoding="utf-8"))
         assert data["pid"] == 12345
+        # terminate-путь не вызывался: нет ни одного _terminate_holder вызова
+        assert not hasattr(lock, "_terminate_holder"), "TerminateProcess путь удалён"
+
+    def test_fake_lock_foreign_live_pid_not_killed(self, tmp_path):
+        """R3TF (атака 1): поддельный lock с чужим ЖИВЫМ PID (например
+        explorer.exe) → HELD (wait → LockBusyError), НЕ TerminateProcess.
+        """
+        import socket
+        insp = FakeInspector(alive=True, create_time=time.time() - 5)
+        lock_path = tmp_path / ".write_lock"
+        _write_lock(lock_path, 12345, time.time() - 5)
+        # v2 формат, чужой hostname отсутствует → наш host, но PID чужой живой
+        lock_path.write_text(json.dumps({
+            "v": 2, "pid": 12345, "started": time.time() - 5,
+            "role": "worker", "hostname": socket.gethostname(),
+        }), encoding="utf-8")
+
+        lock = DatabaseLock(lock_path, wait_timeout=0.3, poll_interval=0.05,
+                            holder_inspector=insp)
+        with pytest.raises(LockBusyError):
+            lock.acquire()
+        assert lock_path.exists()  # чужой lock не удалён, никто не убит
 
 
 # ─── Кейс 4: PID reuse → steal ─────────────────────────────────
@@ -271,23 +315,27 @@ class TestConcurrentAcquisition:
             lock.release()
 
 
-# ─── Кейс 6: termination race ──────────────────────────────────
+# ─── Кейс 6: steal-race (DEAD) ──────────────────────────────
 
-class TestTerminationRace:
+class TestStealRace:
     def test_fresh_owner_not_stolen_during_steal(self, tmp_path, monkeypatch):
         """Lock пересоздан другим процессом до unlink — чужой свежий lock
-        не удаляется (fail-closed), несмотря на подтверждённый ORPHAN."""
-        chain = [(999_999_998, "python.exe", True), (77777, "?", False)]
-        insp = FakeInspector(alive=True, create_time=time.time() - 5, chain=chain)
+        не удаляется (fail-closed). Путь steal теперь ДОСТИЖИМ только для
+        мёртвого holder'а (DEAD): TerminateProcess удалён, живой holder
+        → HELD, steal не начинается.
+        """
+        insp = FakeInspector(alive=False)  # мёртвый holder → DEAD → steal
         lock = DatabaseLock(tmp_path / ".write_lock", wait_timeout=0.2,
                              holder_inspector=insp)
-        monkeypatch.setattr(lock, "_terminate_holder", lambda pid: True)
+        # R3TF: _terminate_holder больше не существует в классе —
+        # assert отсутствия kill-пути.
+        assert not hasattr(lock, "_terminate_holder")
 
         started_old = time.time() - 5
         _write_lock(tmp_path / ".write_lock", 999_999_998, started_old)
 
-        # Первый вызов _read_holder — ORPHAN-holder; второй (после terminate,
-        # перед unlink) — lock уже пересоздан ДРУГИМ процессом.
+        # Первый вызов _read_holder — мёртвый holder (DEAD); второй (после
+        # классификации, перед unlink) — lock уже пересоздан ДРУГИМ процессом.
         calls = {"n": 0}
 
         def _fake_read():
@@ -298,16 +346,13 @@ class TestTerminationRace:
 
         monkeypatch.setattr(lock, "_read_holder", _fake_read)
 
-        try:
-            with pytest.raises(LockBusyError, match="пересоздан другим процессом"):
-                lock.acquire()
-            # чужой lock не удалён (файл на диске не тронут — данные прежние)
-            assert (tmp_path / ".write_lock").exists()
-            data = json.loads((tmp_path / ".write_lock").read_text(encoding="utf-8"))
-            assert data["pid"] == 999_999_998
-            assert not lock.is_held()
-        finally:
-            pass
+        with pytest.raises(LockBusyError, match="пересоздан другим процессом"):
+            lock.acquire()
+        # чужой lock не удалён (файл на диске не тронут — данные прежние)
+        assert (tmp_path / ".write_lock").exists()
+        data = json.loads((tmp_path / ".write_lock").read_text(encoding="utf-8"))
+        assert data["pid"] == 999_999_998
+        assert not lock.is_held()
 
 
 # ─── Кейс 7: stale lock ────────────────────────────────────────
@@ -334,16 +379,17 @@ class TestStaleLock:
             lock.release()
 
 
-# ─── Live-тест: реальная TerminateProcess (Windows) ────────────
+# ─── Live-тест: реальный живой процесс НЕ убивается (R3TF) ────
 
-class TestLiveTerminateWindows:
-    @pytest.mark.skipif(sys.platform != "win32", reason="TerminateProcess — Windows-only")
-    def test_real_orphan_process_terminated_and_stolen(self, tmp_path):
-        """Реальный дочерний процесс + реальный TerminateProcess.
+class TestLiveProcessNotKilled:
+    """Регрессия инцидента 2026-08-26: живой процесс (даже с «мёртвым
+    предком»-видом) → HELD → LockBusyError, НИКОГДА TerminateProcess.
+    """
 
-        Инжектор: реальный is_alive/create_time (WindowsProcessInspector),
-        но parent_chain фейковый (корень мёртв) → ORPHAN.
-        """
+    @pytest.mark.skipif(sys.platform != "win32", reason="Процесс-тест — Windows-only")
+    def test_real_live_process_not_terminated(self, tmp_path):
+        """Реальный дочерний процесс держит lock — второй acquire НЕ убивает
+        его, а ждёт и падает с LockBusyError (сценарий PID 20052)."""
         proc = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(60)"],
             stdout=subprocess.DEVNULL,
@@ -355,22 +401,17 @@ class TestLiveTerminateWindows:
             # иначе create_time-guard отнесёт к PID-reuse).
             _write_lock(lock_path, proc.pid, time.time())
 
-            class LiveOrphanInspector(WindowsProcessInspector):
-                def parent_chain(self, pid, max_levels=8):
-                    return [(pid, "python.exe", True), (77777, "?", False)]
-
-            lock = DatabaseLock(lock_path, wait_timeout=0.3,
-                                holder_inspector=LiveOrphanInspector())
+            lock = DatabaseLock(lock_path, wait_timeout=0.3, poll_interval=0.05)
             t0 = time.monotonic()
-            lock.acquire()
+            with pytest.raises(LockBusyError, match="still held by alive pid"):
+                lock.acquire()
             elapsed = time.monotonic() - t0
-            try:
-                assert lock.is_held()
-                assert elapsed < 3.0, f"terminate+steal занял {elapsed:.2f}s"
-            finally:
-                lock.release()
-            # дочерний процесс реально убит
-            proc.wait(timeout=10)
+            # HELD-путь ждёт ≤ wait_timeout (0.3s), потом LockBusyError
+            assert 0.2 <= elapsed < 1.5, f"HELD-wait занял {elapsed:.2f}s"
+            assert not lock.is_held()
+            # ЖИВОЙ процесс НЕ убит (центральный инвариант R3TF!)
+            assert proc.poll() is None, "holder БЫЛ УБИТ — регрессия инцидента!"
+            assert lock_path.exists()  # чужой lock не тронут
         finally:
             if proc.poll() is None:
                 proc.kill()

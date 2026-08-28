@@ -63,7 +63,8 @@ def setup_project_logging(
     project_path: Path,
     level: str = "INFO",
     project_label: Optional[str] = None,
-) -> logging.Logger:
+    attach: bool = True,
+) -> "logging.Logger | RotatingFileHandler":
     """Настраивает файловое логирование для конкретного проекта.
 
     Создаёт RotatingFileHandler в .codebase_indices/logs/<project>.log
@@ -73,19 +74,25 @@ def setup_project_logging(
         project_path: Корневая директория проекта
         level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
         project_label: Метка проекта (если None — имя директории)
+        attach: Если True — подключает хендлер к логгерам (старое поведение).
+            Если False — только возвращает настроенный RotatingFileHandler,
+            чтобы вызывающий мог встроить его в QueueListener (неблокирующее
+            логирование, см. main.setup_logging).
 
     Returns:
-        Корневой логгер проекта
+        attach=True: корневой логгер проекта.
+        attach=False: настроенный RotatingFileHandler.
     """
     if project_label is None:
         project_label = project_path.name
 
-    # Защита от повторной инициализации
-    project_key = str(project_path.resolve())
-    if project_key in _initialized_projects:
-        return logging.getLogger("mscodebase")
+    if attach:
+        # Защита от повторной инициализации
+        project_key = str(project_path.resolve())
+        if project_key in _initialized_projects:
+            return logging.getLogger("mscodebase")
 
-    _initialized_projects.add(project_key)
+        _initialized_projects.add(project_key)
 
     log_dir = get_log_dir(project_path)
     log_file = log_dir / f"{project_label}.log"
@@ -108,6 +115,10 @@ def setup_project_logging(
     # Уровень
     log_level = getattr(logging, level.upper(), logging.INFO)
     handler.setLevel(log_level)
+
+    if not attach:
+        # Только возвращаем хендлер — без подключения к логгерам и без очистки.
+        return handler
 
     # Подключаем к корневому логгеру mscodebase
     root_logger = logging.getLogger("mscodebase")

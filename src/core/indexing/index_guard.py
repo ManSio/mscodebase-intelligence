@@ -349,18 +349,73 @@ class IndexGuard:
         """
         try:
             cache_file = self.db_path / "symbol_index.json"
+
+            # [E4 FIX] Explicit Guard (Уровень 1): SymbolIndexAdapter в MODE_PURE
+            # хранит символы исключительно в PropertyGraph (graph.db). In-memory
+            # _definitions пуст. Дамп пустого JSON коррумпирует cold-start
+            # (0.00 Recall на modify/test/impact/verify). Persistence = graph.db,
+            # JSON-сейв не нужен и вреден.
+            if getattr(symbol_index, "_mode", None) == "pure":
+                logger.debug(
+                    "save_symbol_index: MODE_PURE adapter — graph.db is persistence, skip JSON"
+                )
+                return True
+
+            # [E4 FIX] Anti-corruption Backup (Уровень 2): если _definitions пуст,
+            # но граф содержит узлы (graph-backed instance любого режима без
+            # in-memory дублей) — не пишем пустой JSON поверх данных на диске.
+            if (
+                not getattr(symbol_index, "_definitions", None)
+                and hasattr(symbol_index, "graph")
+                and symbol_index.graph is not None
+                and symbol_index.graph.count_nodes() > 0
+            ):
+                logger.debug(
+                    "save_symbol_index: empty _definitions but graph has nodes — skip JSON corruption"
+                )
+                return True
+
+            # Legacy anti-corruption guard (инцидент 2026-08-26): отсутствие
+            # словарей _definitions/_references/_file_to_symbols у graph-backed
+            # инстанса (без .graph-атрибута) — graph.db есть persistence.
+            if not all(
+                hasattr(symbol_index, a)
+                for a in ("_definitions", "_references", "_file_to_symbols")
+            ):
+                logger.debug(
+                    "save_symbol_index: graph-backed instance — graph.db is the persistence, skip JSON"
+                )
+                return True
+
+            defs = {
+                k: [r.to_dict() for r in v]
+                for k, v in symbol_index._definitions.items()
+            }
+            refs = {
+                k: [r.to_dict() for r in v]
+                for k, v in symbol_index._references.items()
+            }
+            fts = {k: list(v) for k, v in symbol_index._file_to_symbols.items()}
+
+            # Не перезаписывать непустой файл пустым состоянием (коррупция холодного старта).
+            if not defs and not refs and not fts and cache_file.exists():
+                try:
+                    existing = json.loads(cache_file.read_text(encoding="utf-8"))
+                    if any(
+                        (existing.get(k) or {}) and len(existing.get(k) or {}) > 0
+                        for k in ("definitions", "references", "file_to_symbols")
+                    ):
+                        logger.warning(
+                            f"save_symbol_index: skip EMPTY overwrite (existing file has data) — {cache_file}"
+                        )
+                        return True
+                except Exception:
+                    pass  # повреждённый файл — даём перезаписать
+
             data = {
-                "definitions": {
-                    k: [r.to_dict() for r in v]
-                    for k, v in symbol_index._definitions.items()
-                },
-                "references": {
-                    k: [r.to_dict() for r in v]
-                    for k, v in symbol_index._references.items()
-                },
-                "file_to_symbols": {
-                    k: list(v) for k, v in symbol_index._file_to_symbols.items()
-                },
+                "definitions": defs,
+                "references": refs,
+                "file_to_symbols": fts,
                 "saved_at": datetime.now().isoformat(),
             }
             cache_file.write_text(

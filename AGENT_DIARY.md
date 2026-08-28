@@ -1,5 +1,6 @@
 ## Key Historical Decisions
 
+- **Server freeze during full reindex (2026-08-25):** root cause — `begin_write()` держит `_write_lock` (RLock) весь reindex (~7.5 мин embedding), а `IndexStatusReporter.get_status()` синхронно на event-loop-потоке ждал тот же lock (intel_get_runtime_status/require_ready_project/ProjectContext) → заморозка ВСЕХ MCP-вызовов. Фикс: reindex fast-fail в get_status (кэш + status="reindexing") + asyncio.to_thread в 3 loop-точках + guard в _get_stale_warning.
 - **Embedder:** multilingual-e5-small-int8 + batch=32 (100 ch/s sustained) — 2026-07-17
 - **Concurrency:** AsyncInferQueue → лок (тихая гонка подмены векторов) — 2026-07-18
 - **Cache:** Chunk-level content-addressed cache (skip re-embedding) — 2026-07-18
@@ -24,6 +25,50 @@
 - **VOR MATCHED/DELIVERED (2026-08-16):** per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD); starved = виден ≥2 циклов, ни разу не проверен — отличает голодание по бюджету от бага якорей (раунд 2 Тома; «пол Тома» = раунд 1)
 
 ---
+
+## [2026-08-26 21:00] — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 killed)
+**Status:** ✅ Fixed (код+тесты; live-smoke PASSED; exp2 holder survived)
+**Root Cause:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на мёртвом предке ДО живого Zed — venvwlauncher-цепочка), затем `_terminate_holder()` убивал его `TerminateProcess`. Так PID 20052 (ARCLUX MCP) убит 12524 при `refresh_db_connection`.
+**Fix (Вариант A+):** удалён kill-путь; `classify_holder` — только proof-of-death (DEAD/HEALTHY/AMBIGUOUS), живой PID → fail-closed `LockBusyError` (wait, never kill); добавлены hostname+version в lock-данные; `db_manager`: read-only при `LockBusyError` на старте, PID-lock gate в `begin_write`, `recreate_table_physical` reacquire-fail → raise; `tools_reg` reacquire → fail-closed.
+**Guard:** `tests/test_database_lock_selfhealing.py` (живой PID → HEALTHY/HELD, НЕ ORPHAN/kill) + exp2 (holder survives) + `smoke_e2e.py` PASSED (4/4). Red Team 7 находок закрыты.
+**Связано:** EXPERIMENTS_LOG (E1/E2), probe3, REDTEAM_lock_attacks.md, `.agent_task_state.md`.
+**verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не гонялся, локально 89 pytest + exp2 + smoke_e2e PASSED.
+
+## [2026-08-26 19:19] — SymbolIndex JSON corruption guard live + E4.2 concept-resolver (verify_change 0→HIT)
+**Status:** ✅ Fixed (guard, live) / ✅ E4.2 подтверждена (live same-run: recall 0.50, verify_change 0→1.00)
+**Root Cause:** (guard) `SymbolIndexAdapter` (graph-backed) без `_definitions/_references/_file_to_symbols` писал ПУСТОЙ JSON поверх полного `symbol_index.json` при инкрементальном индексе (инцидент E4, 26.08 — файл пуст при 10748 символах в памяти); (E4.2) `verify_change`=0 — резолв якоря из «бессловесных» промптов: T9 wrong-anchor ('engine' из engine.py, ответ — notify_change), T29 no-anchor (концепт «паттерны извлечения», лексики нет вообще).
+**Fix:** (guard) graph-backed инстанс пропускает JSON-персистенцию (graph.db — источник правды) + защита от пустой перезаписи непустого файла (`src/core/indexing/index_guard.py`, тест `tests/test_symbol_index_persistence.py` 4/4; sync EXT уже был эффективен — md5-идентичны); (E4.2) детерминированный concept-реестр klass-gated (`experiments/mech_orch/resolver.py`) ПЕРЕД лексическим `extract_symbol` + факты граф-строк (`graph_fact_text`): probe на живом graph.db — T9 `notify_change`→server_tools.py HIT facts 4/4, T29 `_extract_symbol_name`→utils.py HIT facts 3/4; 14 тестов (resolver 10 + persistence 4); ruff-гейт `src/ tests/` чист.
+**Guard:** klass-gating реестра (только verify_change; регресс остальных 28 задач исключён по построению И подтверждён прогоном: 9/9 классов ≥ каскада); юнит-тесты резолвера без сервисов; полный E4.1 same-run выполнен: cascade 0.267 → +graph 0.50 (med 196.8ms, цель ≥0.40/<600ms), verify_change graph=1.00 vs cascade=0.00. Портфолио M1–E4.2 синхронизировано (exp-24..31, guard 26 passed).
+**Связано:** EXPERIMENTS_LOG#E4/E4.1/E4.2, tests/test_mech_resolver.py, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}.
+**verified_from_clean_state:** ⚠️ не проверено — live same-run выполнен (recall 0.50, raw в EXPERIMENTS_LOG#E4.2), но verify_clean_state.sh не гонялся; правки только experiments/+tests/.
+
+## [2026-08-25] — Research: mechanical orchestration without LLM — tool boundary (Exp M1-M3)
+**Status:** 🟡 Research done (no src/ changes; experiments + Red Team + recommendation in EXPERIMENTS_LOG M1-M3)
+**Root Cause (объект исследования):** 62 MCP-инструмента — большинство мёртвый груз: телеметрия видит только 5/62; LSP-набор 3/8 ошибок (37.5%); search_code(quality) 3666ms мимо, get_symbol_info промахивается по реальному символу; субагент БЕЗ промпта — 0 MCP-вызовов (5/5 IDE).
+**Fix (рекомендация, НЕ реализована):** (1) дефолтный пресет ~8-12 инструментов + presets/on-demand (паттерн roam-code 17/245, arXiv 2605.24660: adaptive depth avg 7 → 93.1% vs fixed-5 87.1%); (2) мета-инструменты с механическим внутренним каскадом fast→grep→semantic + fallback на диск для неиндексированного кода (провал Exp M2); (3) телеметрия per-call счётчиков, иначе граница не измерима; (4) БЕЗ LLM-оркестрации: детерминированный маршрутизатор по рецептам (как roam ask — 31 рецепт).
+**Guard:** предложен — QoS-порог quality<1.5s, fallback-цепочки в мета-инструментах, per-call метрики, субагент-тест M2 как регрессионный сценарий discoverability.
+**verified_from_clean_state:** ⚠️ неприменимо — исследовательская сессия без изменений src/; pytest фикстуры lab: 5 passed в 0.03s локально.
+
+## [2026-08-25] — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
+**Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+**Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock, begin_write) ВЕСЬ reindex (~7.5 мин embedding: 20:04:22→20:12:10). `IndexStatusReporter.get_status()` синхронно захватывает тот же lock, а вызывается ИЗ event-loop-потока: `intel_get_runtime_status` (layer.py:429), `MCPTool.require_ready_project` (base.py:390), `ProjectContext._capture_registry` (project_context.py:206). Один такой вызов → loop замер → ВСЕ MCP-вызовы (вкл. debug_runtime_passport) таймаутят клиент-сайд.
+**Fix:** (1) `IndexStatusReporter.get_status()` — reindex fast-fail: is_reindexing() is True → мгновенный кэш + status="reindexing" (strict `is True` — MagicMock-truthy trap 2026-08-13); (2) `intel_get_runtime_status`/`require_ready_project`/`ProjectContext._capture_registry` — get_status через `asyncio.to_thread` (loop свободен); (3) `_get_stale_warning` (search_tools) — guard is_reindexing → '' (было sync-чтение LanceDB на loop ДО search-guard).
+**Guard:** tests/test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block — двухрукавный: Arm 1 reindex_check=True → кэш <0.3с при захваченном lock; Arm 2 reindex_check=None → lock-wait >=0.2с (control, правило Тома).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1512 passed, ruff clean).
+
+## [2026-08-25] — Вариант А: честный reindex-статус для агента (вместо вранья «0 chunks»)
+**Status:** ✅ Fixed (live-верификация полного reindex: MCP отвечал мгновенно весь прогон; pytest 1518 passed; ruff clean)
+**Root Cause:** после фикса заморозки осталась ложь в сообщениях: (1) `intel_get_runtime_status` показывал «0 chunks | 0 files» во время reindex (total_chunks=0 при пересоздании таблицы); (2) `require_ready_project` советовал «Index is empty → run index_project_dir()» — агент мог запустить НЕНУЖНЫЙ второй reindex; (3) `format_runtime_status` рендерил «⚪ 0 chunks».
+**Fix (Вариант А):** (1) layer.intel_get_runtime_status — index_telemetry получает `status="reindexing"` + `reindex_in_progress` + `reindex_progress_pct` + `reindex_eta_sec` (из активного job через get_active_reindex_job_id + _enrich_job_response); (2) base.require_ready_project — при reindex поднимает ToolError warning «⏳ Index is being reindexed (N%, ETA ~Xm) — retry in a few seconds», а НЕ IndexNotReadyError; (3) ui_formatter.format_runtime_status — рендерит «🔄 Reindex in progress (N%)» вместо «0 chunks», LED 🟢 (процесс идёт — здоровое состояние, не пусто).
+**Guard:** tests: test_intel_runtime_status_reports_reindex_progress (pct=62 из job), test_intel_runtime_status_normal_state_unchanged (control), test_require_ready_project_truthful_during_reindex (+ control IndexNotReadyError при реально пустом), test_format_runtime_status_shows_reindex_in_progress / reindex_without_progress / normal_path_unchanged.
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest полный 1518 passed, ruff clean). Live: полный reindex 9003 chunks за 519с — все MCP-вызовы отвечали мгновенно.
+
+## [2026-08-25] — Косметика live: reindex ToolError терял retry-семантику (двойная обёртка) + Project State INDEXING после авто-индекса
+**Status:** ✅ Fixed (оба; pytest полный 1521 passed; ruff clean)
+**Root Cause:** (1) reindex-ToolError из require_ready_project ловился общим `except Exception` и заворачивался в «Failed to check index status» — агент терял status='warning'/recoverable (live: search показал двойную обёртку); (2) `get_indexer()` ставит ProjectState.INDEXING при пустом индексе, но переход в READY после (авто)реиндекса никто не делал — паспорт вечно «Project State: INDEXING», wait_until_ready ждал до таймаута.
+**Fix:** (1) base.require_ready_project: `except ToolError: raise` перед `except Exception`; (2) server_factory._delayed_auto_index + layer._run_reindex_job: после успешной индексации `registry.set_state(READY)`.
+**Guard:** +4 теста (require_ready ToolError propagation + control wrap; auto-index → READY; skip при непустом; reindex job → READY).
+**verified_from_clean_state:** ⚠️ не проверено (verify_clean_state.sh не гонялся; локально pytest 1521 passed, ruff clean). Live: search_code во время реиндекса — честное «⏳ Index is being reindexed» без обёртки.
 
 ## [2026-08-24] — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
 **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
@@ -1612,3 +1657,28 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** 36 тестов (test_live_buffer, test_live_sync_server, test_read_live_file, test_remote_main) PASSED; TS-расширение компилируется (`./node_modules/.bin/tsc`); импорты `src.sync` OK. LIVE-SMOKE: `scripts/smoke_livesync.py` (требует запущенный демон + пакет `websockets`).
 **verified_from_clean_state:** ⚠️ не проверено — чистый клон Live Sync не запускался (требует отдельного прогона с демоном).
 
+
+---
+
+## [2026-08-26 19:55] — Multi-window: search_code/graph_query/intel_get_project_memory игнорируют project_root (set_project vs CWD-привязка)
+
+**Status:** ✅ Fixed (scope: 🅳+🅲+🅵+🅰+🅱; 🅴 подтверждён в коде)
+**Root Cause:** search_tools.py вызывал `resolve_searcher()` без explicit project_root; graph_query и intel_get_project_memory не принимали project_root; reindex оставлял реестр UNINITIALIZED.
+**Fix:** (1) 🅳 `base.py:resolve_indexer` уже роутит explicit→active (R3TF-фикс присутствует). (2) 🅰 `search_tools.py`: `_pr` (explicit_project_root) проброшен во ВСЕ `resolve_searcher`/`_project_header` (L221/229/249/326/336/349/375/391) + `_agentic_search`. (3) 🅲 `intel_get_project_memory` (layer.py:994, tools_reg.py:388) строит `IntelligenceStore(Path(project_root).resolve())` с fallback на self.store. (4) 🅵 graph_query-привязка покрыта 🅳. (5) 🅴 `layer.py:794-818` registry.set_state(READY) по завершении reindex (UNINITIALIZED→READY). (6) 🅱 `graph_tools.py`: `execute()` + все `_execute_*` принимают и пробрасывают `project_root`; добавлен `_resolve_pg()` (explicit override → active); убран hardcoded `D:/Project/MSCodeBase` fallback в drift/verify; structural_search уже имеет обязательный project_root. Синхронизировано в расширение.
+**Guard:** `tests/test_graph_query_project_binding.py` (2 passed: threading + _resolve_pg explicit); обновлены фейки в `test_search_bs_audit.py` (3 passed). `py_compile` OK.
+**verified_from_clean_state:** ⚠️ не проверено — требует индексированные multi-project + llama.cpp; покрыто unit-тестами связывания. Пользователь проверит через Android-сервер (opencode web :4096).
+
+---
+
+## [2026-08-27 21:30] — MCP freeze during full reindex = logging deadlock (не CPU/не crash)
+**Status:** ✅ Fixed (код синк в расширение; unit-verified; live-smoke = full reindex пользователем)
+**Root Cause:** `setup_logging()` (main.py) вешал синхронный `StreamHandler(stderr)` + `RotatingFileHandler` (log_manager) напрямую на логгеры. Во время тяжёлого reindex event-loop поток пишет лог → `StreamHandler` блокируется на записи в stderr-pipe (opencode не осушает) → держит глобальный `logging._lock` → ВСЕ последующие логи (вкл. обработку `debug_runtime_passport` в MainThread) зависают. Доказано `py-spy dump --pid 16708`: thread 6204 (reindex) и MainThread оба стоят в `logging.callHandlers`.
+**Fix:** `QueueHandler`+`QueueListener` (main.py `setup_logging`); `setup_project_logging` получил `attach=False` (возвращает RotatingFileHandler без подключения). Логи неблокирующие, listener держится в `_LOG_LISTENER` (не GC).
+**Guard:** реиндекс больше не держит `logging._lock` на event-loop. LIVE-SMOKE: пользователь гоняет full reindex — не должно заморозить.
+
+## [2026-08-27 21:30] — off-by-one: индекс/граф хранят 0-based строки (340 вместо 341)
+**Status:** ✅ Fixed (код синк в расширение; unit-verified: save_symbol_index=341, _ensure_symbol_index=332)
+**Root Cause:** tree-sitter `node.start_point[0]` — 0-based; индексер складывал его КАК ЕСТЬ в `start_line`/`line` (parser.py:1007 definitions-SCM, 1123 calls, 1459 imports, 1643 assignments; 630/631 chunks). `search_tools.py` компенсировал `+1` на выдаче (костыль BS-3). Граф `ref.line` брался из SCM-символов → 340. Системный −1 на всех функциях (проверено на 2-х).
+**Fix:** `+1` на месте захвата во ВСЕХ tree-sitter capture-сайтах (1007/1123/1459/1643 + 630/631/1765-1766). Убран костыль `+1` в `search_tools.py:530`. `scope_id` (1573) оставлен 0-based — непрозрачный ключ корреляции data-flow графа (не display-координата), чтобы не сломать joins.
+**Guard:** требуется full reindex (старый индекс ещё 0-based). После реиндекса `check_index.py` должен показать `save_symbol_index` start_line=341. LIVE-SMOKE: пользователь проверяет search_code → 📍 :341.
+**Обобщение:** аудит всех `node.start_point` capture-сайтов выявил 8 мест; 4 уже имели `+1` (decorators/methods 1260/1279/1303/1408), 4 нет — единообразно исправлено у источника.

@@ -1,0 +1,23 @@
+{
+  "overall_recall": 0.5384615384615384,
+  "overall_median_latency_ms": 6.777600036002696,
+  "per_class": {
+    "modify": {
+      "recall": 1.0,
+      "median_latency_ms": 7.423450006172061
+    },
+    "test": {
+      "recall": 0.0,
+      "median_latency_ms": 6.482299999333918
+    },
+    "impact": {
+      "recall": 1.0,
+      "median_latency_ms": 15.492600039578974
+    },
+    "verify": {
+      "recall": 0.0,
+      "median_latency_ms": 5.898499977774918
+    }
+  },
+  "target_met": true
+}

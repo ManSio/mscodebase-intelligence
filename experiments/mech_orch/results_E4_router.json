@@ -1,0 +1,552 @@
+{
+ "klass_accuracy": 0.4,
+ "recall_k": 0.2,
+ "facts_coverage_mean": 0.533,
+ "latency_median_ms": 297.8,
+ "latency_p95_ms": 10745.2,
+ "by_klass": {
+  "find_bug_cause": {
+   "n": 5,
+   "hits": 1,
+   "lat": [
+    16452.26749998983,
+    271.5598999639042,
+    151.70470002340153,
+    139.21260001370683,
+    136.4670000039041
+   ],
+   "recall": 0.2
+  },
+  "modify_function": {
+   "n": 4,
+   "hits": 0,
+   "lat": [
+    613.9323999523185,
+    323.9513000007719,
+    10480.327700031921,
+    136.0685999970883
+   ],
+   "recall": 0.0
+  },
+  "find_impact": {
+   "n": 3,
+   "hits": 0,
+   "lat": [
+    12313.205199956428,
+    528.7009999738075,
+    7243.187699990813
+   ],
+   "recall": 0.0
+  },
+  "understand_architecture": {
+   "n": 4,
+   "hits": 1,
+   "lat": [
+    537.1337000397034,
+    251.1122000287287,
+    7408.832900051493,
+    142.22769998013973
+   ],
+   "recall": 0.25
+  },
+  "find_test": {
+   "n": 2,
+   "hits": 0,
+   "lat": [
+    10745.198499993421,
+    720.7019000197761
+   ],
+   "recall": 0.0
+  },
+  "git_history": {
+   "n": 4,
+   "hits": 2,
+   "lat": [
+    178.19040000904351,
+    176.47489998489618,
+    159.2209999798797,
+    124.12609998136759
+   ],
+   "recall": 0.5
+  },
+  "find_caller_callee": {
+   "n": 2,
+   "hits": 1,
+   "lat": [
+    385.10400004452094,
+    388.4533999953419
+   ],
+   "recall": 0.5
+  },
+  "prepare_change": {
+   "n": 4,
+   "hits": 1,
+   "lat": [
+    157.5773999793455,
+    155.9357000514865,
+    158.61889999359846,
+    158.9362000231631
+   ],
+   "recall": 0.25
+  },
+  "verify_change": {
+   "n": 2,
+   "hits": 0,
+   "lat": [
+    9785.04139999859,
+    514.9425000417978
+   ],
+   "recall": 0.0
+  }
+ },
+ "rows": [
+  {
+   "id": "T1",
+   "gt_klass": "find_bug_cause",
+   "pred_klass": "find_caller_callee",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 16452.26749998983,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks_v2.json",
+    "experiments\\context_engine\\tasks_v3.json",
+    "experiments\\context_engine\\strategy_a_data.json"
+   ]
+  },
+  {
+   "id": "T2",
+   "gt_klass": "modify_function",
+   "pred_klass": "find_caller_callee",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 613.9323999523185,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "experiments\\context_engine\\tasks_v2.json",
+    "experiments\\context_engine\\results_v2.json"
+   ]
+  },
+  {
+   "id": "T3",
+   "gt_klass": "find_impact",
+   "pred_klass": "find_impact",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 12313.205199956428,
+   "facts": 2,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\results_v2.json",
+    "src\\core\\graph_rag.py",
+    "experiments\\context_engine\\results_tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T4",
+   "gt_klass": "understand_architecture",
+   "pred_klass": "understand_architecture",
+   "arm": "quality",
+   "hit": true,
+   "latency_ms": 537.1337000397034,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "src\\core\\search\\graph_adapter.py",
+    "experiments\\context_engine\\results_v2.json",
+    "experiments\\context_engine\\tasks_v2.json"
+   ]
+  },
+  {
+   "id": "T5",
+   "gt_klass": "find_test",
+   "pred_klass": "understand_architecture",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 10745.198499993421,
+   "facts": 3,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks.json",
+    "experiments\\context_engine\\tasks_v3.json",
+    "experiments\\context_engine\\tasks_v2.json"
+   ]
+  },
+  {
+   "id": "T6",
+   "gt_klass": "git_history",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 178.19040000904351,
+   "facts": 0,
+   "facts_n": 3,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\tasks_v3.json",
+    "docs\\archive\\DEV_DIARY_2026_07.md"
+   ]
+  },
+  {
+   "id": "T7",
+   "gt_klass": "find_caller_callee",
+   "pred_klass": "find_caller_callee",
+   "arm": "quality",
+   "hit": true,
+   "latency_ms": 385.10400004452094,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "src\\core\\indexing\\symbol_index.py",
+    "scripts\\architecture_linter.py",
+    "experiments\\context_engine\\results_tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T8",
+   "gt_klass": "prepare_change",
+   "pred_klass": "git_history",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 157.5773999793455,
+   "facts": 3,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\results_v2.json",
+    "src\\sources\\__init__.py",
+    "experiments\\context_engine\\results_tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T9",
+   "gt_klass": "verify_change",
+   "pred_klass": "modify_function",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 9785.04139999859,
+   "facts": 1,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks_v3.json",
+    "experiments\\rehenie.md",
+    "experiments\\context_engine\\tasks_v2.json"
+   ]
+  },
+  {
+   "id": "T10",
+   "gt_klass": "find_bug_cause",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 271.5598999639042,
+   "facts": 1,
+   "facts_n": 4,
+   "files": [
+    "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\ru\\FAQ.md"
+   ]
+  },
+  {
+   "id": "T11",
+   "gt_klass": "understand_architecture",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 251.1122000287287,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "src\\core\\eta_predictor.py",
+    "experiments\\context_engine\\results_v2.json"
+   ]
+  },
+  {
+   "id": "T12",
+   "gt_klass": "modify_function",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 323.9513000007719,
+   "facts": 0,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\ARCHITECTURE_LAYERS.md",
+    "experiments\\context_engine\\tasks_v3.json",
+    "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md"
+   ]
+  },
+  {
+   "id": "T13",
+   "gt_klass": "find_test",
+   "pred_klass": "find_test",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 720.7019000197761,
+   "facts": 2,
+   "facts_n": 4,
+   "files": [
+    "docs\\en\\CHANGELOG.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\BENCHMARK.md"
+   ]
+  },
+  {
+   "id": "T14",
+   "gt_klass": "git_history",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": true,
+   "latency_ms": 176.47489998489618,
+   "facts": 0,
+   "facts_n": 2,
+   "files": [
+    "scripts\\architecture_linter.py",
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T15",
+   "gt_klass": "prepare_change",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": true,
+   "latency_ms": 155.9357000514865,
+   "facts": 1,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\tasks_v3.json",
+    "docs\\ru\\LM_STUDIO_SETUP.md"
+   ]
+  },
+  {
+   "id": "T16",
+   "gt_klass": "find_bug_cause",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 151.70470002340153,
+   "facts": 2,
+   "facts_n": 4,
+   "files": [
+    "docs\\en\\CHANGELOG.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\ru\\CHANGELOG.md"
+   ]
+  },
+  {
+   "id": "T17",
+   "gt_klass": "modify_function",
+   "pred_klass": "modify_function",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 10480.327700031921,
+   "facts": 0,
+   "facts_n": 4,
+   "files": [
+    "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "experiments\\context_engine\\tasks_v3.json",
+    "src\\core\\indexing\\parser.py"
+   ]
+  },
+  {
+   "id": "T18",
+   "gt_klass": "find_impact",
+   "pred_klass": "find_impact",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 528.7009999738075,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "KNOWN_ISSUES.md"
+   ]
+  },
+  {
+   "id": "T19",
+   "gt_klass": "understand_architecture",
+   "pred_klass": "understand_architecture",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 7408.832900051493,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks_v3.json",
+    "experiments\\context_engine\\results_tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T20",
+   "gt_klass": "git_history",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": true,
+   "latency_ms": 159.2209999798797,
+   "facts": 0,
+   "facts_n": 3,
+   "files": [
+    "scripts\\architecture_linter.py",
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T21",
+   "gt_klass": "find_caller_callee",
+   "pred_klass": "find_caller_callee",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 388.4533999953419,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "experiments\\context_engine\\tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T22",
+   "gt_klass": "modify_function",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 136.0685999970883,
+   "facts": 2,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "experiments\\context_engine\\tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T23",
+   "gt_klass": "find_bug_cause",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": true,
+   "latency_ms": 139.21260001370683,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "experiments\\1V_memory_contamination\\memory_contamination_facts_v4_rep_corrected.json",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "src\\core\\intelligence\\layer.py"
+   ]
+  },
+  {
+   "id": "T24",
+   "gt_klass": "understand_architecture",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 142.22769998013973,
+   "facts": 4,
+   "facts_n": 4,
+   "files": [
+    "docs\\archive\\AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\ru\\FAQ.md"
+   ]
+  },
+  {
+   "id": "T25",
+   "gt_klass": "find_bug_cause",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 136.4670000039041,
+   "facts": 0,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks_v3.json",
+    "experiments\\research_verification_layers_devto_2026-08-11.md",
+    "docs\\ru\\FAQ.md"
+   ]
+  },
+  {
+   "id": "T26",
+   "gt_klass": "git_history",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 124.12609998136759,
+   "facts": 0,
+   "facts_n": 3,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\ru\\FAQ.md"
+   ]
+  },
+  {
+   "id": "T27",
+   "gt_klass": "find_impact",
+   "pred_klass": "find_caller_callee",
+   "arm": "quality",
+   "hit": false,
+   "latency_ms": 7243.187699990813,
+   "facts": 1,
+   "facts_n": 4,
+   "files": [
+    "experiments\\context_engine\\tasks_v2.json",
+    "experiments\\context_engine\\tasks_v3.json"
+   ]
+  },
+  {
+   "id": "T28",
+   "gt_klass": "prepare_change",
+   "pred_klass": "git_history",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 158.61889999359846,
+   "facts": 2,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\TELEMETRY.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "docs\\ru\\CHANGELOG.md"
+   ]
+  },
+  {
+   "id": "T29",
+   "gt_klass": "verify_change",
+   "pred_klass": "modify_function",
+   "arm": "union",
+   "hit": false,
+   "latency_ms": 514.9425000417978,
+   "facts": 0,
+   "facts_n": 4,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\tasks_v3.json",
+    "docs\\ru\\SECURITY.md"
+   ]
+  },
+  {
+   "id": "T30",
+   "gt_klass": "prepare_change",
+   "pred_klass": "find_bug_cause",
+   "arm": "fast",
+   "hit": false,
+   "latency_ms": 158.9362000231631,
+   "facts": 5,
+   "facts_n": 5,
+   "files": [
+    "docs\\ru\\FAQ.md",
+    "experiments\\context_engine\\results_tasks_v3.json",
+    "KNOWN_ISSUES.md"
+   ]
+  }
+ ]
+}

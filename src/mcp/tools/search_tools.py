@@ -84,6 +84,16 @@ def _get_stale_warning(searcher) -> str:
     3. Показываем баннер один раз ("may be stale")
     """
     try:
+        # Reindex fast-fail (инцидент 2026-08-25): во время переиндексации
+        # таблица пересоздаётся — sync-чтение LanceDB на loop-потоке блокирует
+        # event loop (или падает 'Not found'). Баннер не обязателен во время
+        # переиндексации — молчим мгновенно.
+        if callable(getattr(searcher, "_reindex_fast_fail", None)):
+            try:
+                if searcher._reindex_fast_fail() is True:
+                    return ''
+            except Exception:  # noqa: BLE001 — баннер не роняет поиск
+                pass
         indexer = getattr(searcher, 'indexer', None)
         if indexer is None or not hasattr(indexer, 'table') or indexer.table is None:
             return ''
@@ -216,7 +226,7 @@ class SearchCodeTool(MCPTool):
         stale_banner = _get_stale_warning(searcher)
 
         # === Project header ===
-        project_header = self._project_header()
+        project_header = self._project_header(explicit_project_root=_pr or None)
         if filter_layer:
             project_header += _("\n🔬 Layer filter: {layer}", layer=filter_layer)
         if effective_limit != limit:
@@ -236,7 +246,7 @@ class SearchCodeTool(MCPTool):
             # на future.result(30) и могла отравить общий _sync_executor
             # застрявшими asyncio.run-тасками → все последующие quality-поиски
             # падали в 30s-таймаут, а веб-инструменты висли.
-            _searcher = self.resolve_searcher()
+            _searcher = self.resolve_searcher(explicit_project_root=_pr or None)
             raw = await asyncio.to_thread(
                 _searcher.search_with_mode,
                 query,
@@ -313,7 +323,7 @@ class SearchCodeTool(MCPTool):
                 + project_header
                 + "\n"
                 + await asyncio.to_thread(
-                    self.resolve_searcher().deep_search, query, limit=effective_limit
+                    self.resolve_searcher(explicit_project_root=_pr or None).deep_search, query, limit=effective_limit
                 )
             )
 
@@ -323,7 +333,7 @@ class SearchCodeTool(MCPTool):
                 stale_banner
                 + project_header
                 + "\n"
-                + self.resolve_searcher().context_search(query, limit=effective_limit)
+                + self.resolve_searcher(explicit_project_root=_pr or None).context_search(query, limit=effective_limit)
             )
 
         elif mode == "ask":
@@ -336,7 +346,7 @@ class SearchCodeTool(MCPTool):
                     "Переключение на mode=quality."
                 )
                 raw = await asyncio.to_thread(
-                    self.resolve_searcher().search_with_mode,
+                    self.resolve_searcher(explicit_project_root=_pr or None).search_with_mode,
                     query,
                     mode="quality",
                     limit=effective_limit,
@@ -362,7 +372,7 @@ class SearchCodeTool(MCPTool):
                     stale_banner
                     + project_header
                     + "\n"
-                    + await self.resolve_searcher().ask_async(query, limit=effective_limit)
+                    + await self.resolve_searcher(explicit_project_root=_pr or None).ask_async(query, limit=effective_limit)
                 )
 
         else:
@@ -371,14 +381,14 @@ class SearchCodeTool(MCPTool):
             since = kwargs.get("since") if kwargs else None
             before = kwargs.get("before") if kwargs else None
             if _is_complex_query(query):
-                result_str = stale_banner + project_header + "\n" + await self._agentic_search(query)
+                result_str = stale_banner + project_header + "\n" + await self._agentic_search(query, _pr)
             else:
                 result_str = (
                     stale_banner
                     + project_header
                     + "\n"
                     + await asyncio.to_thread(
-                        self.resolve_searcher().search,
+                        self.resolve_searcher(explicit_project_root=_pr or None).search,
                         query,
                         limit=effective_limit,
                         since=since,
@@ -442,15 +452,16 @@ class SearchCodeTool(MCPTool):
 
         return result_str
 
-    async def _agentic_search(self, query: str) -> str:
+    async def _agentic_search(self, query: str, project_root: str = "") -> str:
         """Agentic Code Search с декомпозицией и связями.
 
         Multi-window (INC-6BCB-v2): self.searcher / self.symbol_index
         НЕ существуют в базовом MCPTool (Indexer per-project → Searcher
         per-project). Резолвим через resolve_searcher() / resolve_symbol_index().
+        project_root: явный путь (R3TF, 2026-08-26) — искать в целевом проекте.
         """
-        searcher = self.resolve_searcher()
-        symbol_index = self.resolve_symbol_index()
+        searcher = self.resolve_searcher(explicit_project_root=project_root or None)
+        symbol_index = self.resolve_symbol_index(explicit_project_root=project_root or None)
         try:
             results, metadata = searcher.agentic_code_search(
                 query,
@@ -512,11 +523,11 @@ class SearchCodeTool(MCPTool):
                 if not ln.startswith("// File:") and not ln.startswith("// File :")
             ]
             clean_text = "\n".join(clean_lines).strip()
-            # BS-3: координаты в БД 0-based (tree-sitter), пользователю нужны
-            # 1-based номера строк (аудит Bot_snow: «line 0/2 вместо L27-71»).
+            # Координаты хранятся 1-based на месте захвата (parser.py),
+            # поэтому коррекция не нужна (BS-3 закрыт в capture-сайте).
             sl = meta.get("start_line")
             if isinstance(sl, int) and sl >= 0:
-                start_line_display = sl + 1
+                start_line_display = sl
             else:
                 # Фолбэк для старых данных/других источников без start_line
                 start_line_display = meta.get("chunk_index", "")

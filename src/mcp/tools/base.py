@@ -22,6 +22,7 @@ Self-Indexing Protection (INC-6BCB-v3):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -388,7 +389,42 @@ class MCPTool(ABC):
         # Проверяем, что индекс не пуст
         try:
             indexer = self.resolve_indexer(explicit_project_root)
-            status = indexer.get_status()
+            # get_status() синхронный и может блокировать на lock БД
+            # (инцидент 2026-08-25: full reindex замораживал event loop
+            # минутами; IndexStatusReporter fast-fail-ит при is_reindexing,
+            # to_thread — страховка для не-reindex транзиентных write-окон).
+            status = await asyncio.to_thread(indexer.get_status)
+            # Reindex-состояние (Вариант А, 2026-08-25): при переиндексации
+            # get_status() возвращает кэш + status="reindexing". Если молчать,
+            # агент увидит «Index is empty → run index_project_dir» и запустит
+            # ВТОРОЙ reindex. Честный fast-fail: «жди, переиндексация идёт».
+            # ⚠️ строго `is True`: MagicMock-truthy trap (инцидент 2026-08-13)
+            # сломал бы все тулы в тестах (status.get → truthy MagicMock).
+            _reindexing = (
+                isinstance(status, dict) and status.get("reindex_in_progress") is True
+            )
+            if _reindexing:
+                _pct = status.get("reindex_progress_pct")
+                _eta = status.get("reindex_eta_sec")
+                _tail = (
+                    f" ({_pct}%"
+                    + (f", ETA ~{_eta // 60}m {_eta % 60}s" if _eta is not None else "")
+                    + ")"
+                    if _pct is not None
+                    else ""
+                )
+                raise ToolError(
+                    status="warning",
+                    message=(
+                        f"⏳ Index is being reindexed{_tail} — "
+                        "retry in a few seconds."
+                    ),
+                    detail=(
+                        "Reindex in progress: search/index tools fast-fail until it "
+                        "finishes. Poll intel_get_job_status for progress."
+                    ),
+                    recoverable=True,
+                )
             if status.get("total_chunks", 0) == 0:
                 raise IndexNotReadyError(
                     detail=(
@@ -397,6 +433,11 @@ class MCPTool(ABC):
                     )
                 )
         except IndexNotReadyError:
+            raise
+        except ToolError:
+            # Reindex-состояние (и другие целевые ToolError) — пробрасываем
+            # как есть, со status/recoverable, а НЕ заворачиваем в «Failed to
+            # check index status» (иначе агент теряет <<retry>>-семантику).
             raise
         except Exception as e:
             raise ToolError(

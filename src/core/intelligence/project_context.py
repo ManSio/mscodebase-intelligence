@@ -21,6 +21,7 @@ ProjectContext — единая точка входа для получения 
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -174,7 +175,10 @@ class ProjectContext:
         )
 
         # ─── State + Index (Registry) ───────────────────────
-        snap = self._capture_registry(snap)
+        # Синхронная работа (get_status() → count_rows + stale os.walk) —
+        # выносим в поток: инцидент 2026-08-25 — get_status() на loop-потоке
+        # заморозил все MCP-вызовы на ~7.5 мин во время full reindex.
+        snap = await asyncio.to_thread(self._capture_registry, snap)
 
         # ─── Bridge (LSP) ────────────────────────────────────
         snap = self._capture_bridge(snap)

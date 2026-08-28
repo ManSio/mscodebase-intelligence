@@ -3,11 +3,17 @@
 """
 
 import logging
+import logging.handlers
 import os
+import queue
 import sys
 from pathlib import Path
 
 logger = logging.getLogger("MSCodebase")
+
+# Хранится на уровне модуля, чтобы QueueListener не был собран GC за время
+# работы процесса (неблокирующее логирование, см. setup_logging).
+_LOG_LISTENER = None
 
 # Определяем PROJECT_ROOT:
 # Если Python запущен из расширения -> корень расширения
@@ -109,21 +115,49 @@ def setup_logging():
     sys.stdout = sys.stderr
 
     level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=getattr(logging, level, logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-        stream=sys.stderr,
-    )
+    log_level = getattr(logging, level, logging.INFO)
+    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    datefmt = "%H:%M:%S"
 
-    # 3. Подключаем файловое логирование (проект определится позже в create_mcp_server)
+    # 3. Неблокирующее логирование через очередь (QueueListener).
+    #    Блокирующая запись в stderr/файл из event-loop потока держит
+    #    logging._lock и замораживает цикл (root cause реидексации, py-spy).
+    root = logging.getLogger()
+    for h in list(root.handlers):
+        root.removeHandler(h)
+
+    log_queue: "queue.Queue[logging.LogRecord]" = queue.Queue(-1)
+
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(logging.Formatter(fmt, datefmt))
+
+    file_handler = None
     try:
         from src.core.log_manager import setup_project_logging
+
         ext_root = Path(__file__).resolve().parent.parent
-        # Фиксированное имя лог-файла для единообразия (см. MAIN_LOG_FILE в log_manager.py)
-        setup_project_logging(ext_root, project_label="mscodebase-intelligence")
+        # attach=False — получаем RotatingFileHandler, не подключаем напрямую
+        file_handler = setup_project_logging(
+            ext_root, project_label="mscodebase-intelligence", attach=False
+        )
     except Exception:
         pass  # Файловое логирование опционально
+
+    listeners = [stderr_handler]
+    if file_handler is not None:
+        listeners.append(file_handler)
+
+    listener = logging.handlers.QueueListener(
+        log_queue, *listeners, respect_handler_level=True
+    )
+    listener.start()
+
+    queue_handler = logging.handlers.QueueHandler(log_queue)
+    root.addHandler(queue_handler)
+    root.setLevel(log_level)
+
+    global _LOG_LISTENER
+    _LOG_LISTENER = listener
 
     # 4. Фоновая очистка устаревших артефактов (GC) — не блокирует старт.
     try:

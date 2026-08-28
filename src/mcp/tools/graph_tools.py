@@ -145,6 +145,22 @@ class GraphQueryTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="graph_query")
 
+    def _resolve_pg(self, project_root: str = "") -> "PropertyGraph":
+        """Резолвит PropertyGraph для effective project (explicit override ИЛИ active)."""
+        from src.core.artifact_paths import get_graph_db_path
+        from src.core.graph import PropertyGraph
+
+        if project_root and project_root.strip():
+            candidate = get_graph_db_path(Path(project_root).resolve())
+            if candidate.exists():
+                return PropertyGraph(candidate)
+        # Fallback: активный проект (DI default = текущий MCP-проект сессии)
+        try:
+            return self._services.resolve(PropertyGraph)
+        except KeyError:
+            indexer = self.resolve_indexer()
+            return PropertyGraph(get_graph_db_path(indexer.project_path))
+
     @error_boundary("graph_query", timeout_ms=15000)
     async def execute(
         self,
@@ -154,6 +170,7 @@ class GraphQueryTool(MCPTool):
         query: str = "",
         name: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Мультиплексированный графовый запрос.
 
@@ -161,33 +178,38 @@ class GraphQueryTool(MCPTool):
         клиент не мог передать Cypher-запрос или имя переменной
         («query is required» / «name is required» при пустом target).
         Теперь параметры в схеме; `target` остаётся как backward-compat.
+
+        project_root (multi-window): если задан — графовые операции
+        биндятся к этому проекту, иначе к активному проекту MCP-сессии.
         """
+        _project_root = project_root or (kwargs or {}).get("project_root", "")
         if action == "cypher":
-            return await self._execute_cypher(query or target, kwargs)
+            return await self._execute_cypher(query or target, kwargs, project_root=_project_root)
         elif action == "related":
-            return await self._execute_related(target, kwargs)
+            return await self._execute_related(target, kwargs, project_root=_project_root)
         elif action == "path":
-            return await self._execute_path(target, kwargs)
+            return await self._execute_path(target, kwargs, project_root=_project_root)
         elif action == "flow":
-            return await self._execute_flow(name or target, kwargs)
+            return await self._execute_flow(name or target, kwargs, project_root=_project_root)
         elif action == "drift":
-            return await self._execute_arch_drift(target)
+            return await self._execute_arch_drift(target, project_root=_project_root)
         elif action == "verify":
-            return await self._execute_verify(target, kwargs)
+            return await self._execute_verify(target, kwargs, project_root=_project_root)
         else:
             # По умолчанию — GraphRAG (action="query")
-            return await self._execute_query(query_type or "impact", target, kwargs)
+            return await self._execute_query(query_type or "impact", target, kwargs, project_root=_project_root)
 
     async def _execute_query(
-        self, query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None
+        self, query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """GraphRAG: impact/feature/deps/tests запросы к графу знаний."""
         from src.core.graph_rag import GraphRAGQueryEngine
 
-        indexer = self.resolve_indexer()
+        indexer = self.resolve_indexer(explicit_project_root=project_root or None)
         engine = GraphRAGQueryEngine(
             indexer.project_path,
-            symbol_index=self.resolve_symbol_index(),
+            symbol_index=self.resolve_symbol_index(explicit_project_root=project_root or None),
         )
 
         if query_type == "impact":
@@ -254,27 +276,17 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}. {hint}"}
 
     async def _execute_cypher(
-        self, query: str, kwargs: Optional[Dict[str, Any]] = None
+        self, query: str, kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Cypher-like запрос к PropertyGraph."""
-        from src.core.graph import PropertyGraph
         from src.core.search.cypher_engine import CypherExecutor
 
         limit = (kwargs or {}).get("limit", 50)
         if not query:
             return {"status": "error", "action": "cypher", "message": "query is required"}
 
-        _kwargs = kwargs or {}
-        try:
-            pg = self._services.resolve(PropertyGraph)
-        except KeyError:
-            from src.core.artifact_paths import get_graph_db_path
-
-            indexer = self.resolve_indexer()
-            project_path = indexer.project_path
-            db_path = get_graph_db_path(project_path)
-            pg = PropertyGraph(db_path)
-
+        pg = self._resolve_pg(project_root)
         executor = CypherExecutor(pg)
 
         q = query.strip()
@@ -305,22 +317,26 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         }
 
     async def _execute_related(
-        self, file_path: str, kwargs: Optional[Dict[str, Any]] = None
+        self, file_path: str, kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Связанные файлы через CommitMemory + RelationExtractor."""
         from src.core.commit_memory import CommitMemory
         from src.core.relation_extractor import RelationExtractor
 
         _kwargs = kwargs or {}
-        project_root = _kwargs.get("project_root", "")
+        project_root = project_root or _kwargs.get("project_root", "")
         max_depth = _kwargs.get("max_depth", 1)
 
-        target_path = Path(project_root).resolve()
+        if project_root and project_root.strip():
+            target_path = Path(project_root).resolve()
+        else:
+            target_path = Path(self.resolve_indexer().project_path)
         if not target_path.exists():
             return {
                 "status": "error",
                 "action": "related",
-                "message": f"Path does not exist: {project_root}",
+                "message": f"Path does not exist: {target_path}",
             }
 
         memory = CommitMemory(target_path)
@@ -358,7 +374,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         }
 
     async def _execute_path(
-        self, target: str = "", kwargs: Optional[Dict[str, Any]] = None
+        self, target: str = "", kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Path Query: кратчайший путь между двумя символами (BFS PropertyGraph).
 
@@ -388,16 +405,7 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
                 "message": f"direction должен быть outgoing|incoming|both, got {direction!r}",
             }
 
-        from src.core.graph import PropertyGraph
-
-        try:
-            pg = self._services.resolve(PropertyGraph)
-        except KeyError:
-            from src.core.artifact_paths import get_graph_db_path
-
-            indexer = self.resolve_indexer()
-            project_path = indexer.project_path
-            pg = PropertyGraph(get_graph_db_path(project_path))
+        pg = self._resolve_pg(project_root)
 
         def _resolve(qname_or_name: str):
             node = pg.get_node(qname_or_name)
@@ -442,10 +450,10 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         }
 
     async def _execute_flow(
-        self, name: str, kwargs: Optional[Dict[str, Any]] = None
+        self, name: str, kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Трассировка потока данных переменной (ASSIGNED_FROM)."""
-        from src.core.graph import PropertyGraph
         from src.core.search.graph_adapter import SymbolIndexAdapter
 
         _kwargs = kwargs or {}
@@ -456,19 +464,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         if not name:
             return {"status": "error", "action": "flow", "message": "name is required"}
 
-        try:
-            pg = self._services.resolve(PropertyGraph)
-            adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
-        except KeyError:
-            indexer = self.resolve_indexer()
-            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
-            if not pg:
-                return {
-                    "status": "error",
-                    "action": "flow",
-                    "message": "PropertyGraph not available. Run reindex first.",
-                }
-            adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+        pg = self._resolve_pg(project_root)
+        adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
 
         variables = adapter.find_variables(name=name, scope_id=scope_id, limit=20)
         if not variables:
@@ -543,7 +540,7 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
             },
         }
 
-    async def _execute_arch_drift(self, file_path: str = "") -> dict:
+    async def _execute_arch_drift(self, file_path: str = "", project_root: str = "") -> dict:
         """Architecture Drift Detector: ищет структурные аномалии импортов.
 
         Анализирует PropertyGraph на паттерны, которые указывают
@@ -562,37 +559,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         import sqlite3
         from pathlib import Path
 
-        # Находим PropertyGraph (через indexer или напрямую)
-        db_path = None
-        try:
-            indexer = self.resolve_indexer()
-            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
-            if pg:
-                db_path = pg._db_path if hasattr(pg, '_db_path') else getattr(pg, 'path', None)
-        except Exception:
-            pass
-
-        # Fallback: прямой путь к PropertyGraph (вне проекта, Задача 4/5)
-        if not db_path:
-            from pathlib import Path
-
-            from src.core.artifact_paths import get_graph_db_path
-            try:
-                registry = self._services.resolve(ProjectIndexerRegistry)
-                roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
-                for r in roots:
-                    candidate = get_graph_db_path(Path(r))
-                    if candidate.exists():
-                        db_path = str(candidate)
-                        break
-            except Exception:
-                pass
-        if not db_path:
-            from src.core.artifact_paths import get_graph_db_path
-            candidate = get_graph_db_path(Path("D:/Project/MSCodeBase"))
-            if candidate.exists():
-                db_path = str(candidate)
-
+        pg = self._resolve_pg(project_root)
+        db_path = getattr(pg, "_db_path", None) or getattr(pg, "path", None)
         if not db_path or not Path(str(db_path)).exists():
             return {
                 "status": "error",
@@ -678,7 +646,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
     # ── Claim Verifier ─────────────────────────────────────
 
     async def _execute_verify(
-        self, claim: str, kwargs: Optional[Dict[str, Any]] = None
+        self, claim: str, kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> dict:
         """Проверяет утверждение AI-агента против SymbolIndex + PropertyGraph.
 
@@ -715,36 +684,9 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         if predicate not in SUPPORTED:
             return {"status": "error", "message": f"Unsupported predicate '{predicate}'. Supported: {sorted(SUPPORTED)}"}
 
-        # Get PropertyGraph
-        pg = None
-        db_path = None
-        try:
-            indexer = self.resolve_indexer()
-            pg = getattr(indexer, "_graph", None) or getattr(indexer, "property_graph", None)
-            if pg:
-                db_path = pg._db_path if hasattr(pg, '_db_path') else getattr(pg, 'path', None)
-        except Exception:
-            pass
-        if not db_path:
-            from pathlib import Path
-
-            from src.core.artifact_paths import get_graph_db_path
-            try:
-                registry = self._services.resolve(ProjectIndexerRegistry)
-                roots = registry.active_project_paths() if hasattr(registry, 'active_project_paths') else []
-                for r in roots:
-                    candidate = get_graph_db_path(Path(r))
-                    if candidate.exists():
-                        db_path = str(candidate)
-                        break
-            except Exception:
-                pass
-        if not db_path:
-            from src.core.artifact_paths import get_graph_db_path
-            candidate = get_graph_db_path(Path("D:/Project/MSCodeBase"))
-            if candidate.exists():
-                db_path = str(candidate)
-
+        # Get PropertyGraph (explicit override ИЛИ активный проект)
+        pg = self._resolve_pg(project_root)
+        db_path = getattr(pg, "_db_path", None) or getattr(pg, "path", None)
         if not db_path or not Path(str(db_path)).exists():
             return _unverifiable("PropertyGraph not available", predicate)
 
