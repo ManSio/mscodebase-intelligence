@@ -222,10 +222,18 @@ def register_intelligence_tools(mcp_app, intel_layer):
                         if _lock_released:
                             try:
                                 _dbm._db_lock.acquire()
+                                if hasattr(_dbm, "_pid_lock_acquired"):
+                                    _dbm._pid_lock_acquired = True
                             except Exception as _reacq_err:
-                                logger.warning(
-                                    f"reset_index: PID-lock re-acquire failed: {_reacq_err}"
-                                )
+                                if hasattr(_dbm, "_pid_lock_acquired"):
+                                    _dbm._pid_lock_acquired = False
+                                # R3TF (атака 6): продолжение без lock = два
+                                # писателя → fail-closed.
+                                raise RuntimeError(
+                                    f"reset_index: PID-lock re-acquire failed — "
+                                    f"БД очищена, но запись без lock невозможна. "
+                                    f"{_reacq_err}"
+                                ) from _reacq_err
                         _dbm.reset_connection()
                     else:
                         _dbm._switch_to_fresh_path()
@@ -382,6 +390,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
         include_retracted: bool = False,
         verify_on_read: bool = True,
         limit: int = 3,
+        project_root: str = "",
     ) -> str:
         """Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли).
 
@@ -389,11 +398,15 @@ def register_intelligence_tools(mcp_app, intel_layer):
         ADR-0003: verify_on_read=True (по умолчанию) — ленивая проверка ACTIVE-узлов при чтении
         (SILENT_ABSENCE -> REFUTED, найденные -> VERIFIED); False — отключить для отладки.
         limit: сколько узлов секции показывать в сводке (0 — показать все; аудит/полный список).
+        project_root: явный путь к целевому проекту (multi-window) — читать память
+        ИМЕННО этого проекта, а не активного/CWD (R3TF, 2026-08-26).
         Вывод включает VOR-ресипт: checked/total узлов, бюджет, latency — потребитель
         видит, сколько реально проверено в этом чтении (пол: измерение ниже пола — преждевременно).
         """
         memory, stats = await intel_layer.intel_get_project_memory(
-            include_retracted=include_retracted, verify_on_read=verify_on_read
+            include_retracted=include_retracted,
+            verify_on_read=verify_on_read,
+            project_root=project_root.strip() if project_root and project_root.strip() else None,
         )
         from src.utils.ui_formatter import format_project_memory
 

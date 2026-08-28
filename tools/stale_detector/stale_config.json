@@ -8,7 +8,8 @@
     "ISSUE.md",
     "WISDOM.md",
     "owp_rfc_001_v04.md",
-    "owp_github_discussion_draft.md"
+    "owp_github_discussion_draft.md",
+    "ARCLUX_AUDIT_2026-08-26.md"
   ],
   "exclude_dirs": [
     "research",

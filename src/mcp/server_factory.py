@@ -510,6 +510,21 @@ async def _delayed_auto_index(services):
         try:
             c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
             logger.info(f"✅ Auto-index: completed ({c} files)")
+            # State machine: get_indexer() ставил INDEXING при пустом индексе —
+            # после успешной авто-индексации переводим в READY, иначе паспорт
+            # вечно показывает «Project State: INDEXING» (косметический баг,
+            # 2026-08-26; заодно разблокирует wait_until_ready).
+            try:
+                from src.core.di_container import ProjectIndexerRegistry as _PIRKey
+                from src.core.indexing.project_indexer_registry import (
+                    ProjectState as _PS,
+                )
+
+                _reg = services.resolve(_PIRKey)
+                if _reg is not None and hasattr(_reg, "set_state"):
+                    _reg.set_state(indexer.project_path, _PS.READY)
+            except Exception as _state_err:  # noqa: BLE001 — статус не роняем
+                logger.debug(f"auto-index set_state READY failed: {_state_err}")
         finally:
             if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
                 _dbm.clear_reindexing()

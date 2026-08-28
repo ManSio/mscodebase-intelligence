@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-08-28 — Full reindex зависает в фазе «Finalizing» (PropertyGraph.optimize/create_index) (OPEN / WATCHING)
+
+**Что:** При live-верификации фиксов A/B (полный реиндекс job 1ff77294) embedding-фаза прошла БЕЗ заморозки сервера (подтверждает фикс A — QueueHandler), chunks записались корректно (1-based; см. AGENT_DIARY post-mortem off-by-one: save_symbol_index=341). После embed job завис в фазе «Finalizing» (отладка через intel_get_job_status + лог + netstat/py-spy: оба процесса 0% CPU — заблокированы, не считают) на `PropertyGraph.optimize()`/`create_index()` (`src/core/intelligence/layer.py:741` и `:1786`). Флаг `set_reindexing(True)` не снимается → блокирует concurrent search. Это PRE-EXISTING баг индексатора/графа, НЕ вызван фиксами A/B (фиксы касаются только логирования и display-строки; они live-верифицированы на этапе embed).
+**Fix (плановая задача индексатора):** исследовать deadlock/зависание в PropertyGraph.optimize/create_index (возможен contention на write-lock или незавершающийся цикл в optimize). Временное обходное: ручной restart сервера снимает флаг, уже записанный во время embed индекс перегружается корректно (runtime status 🟢 9191 chunks / 563 files / 11032 symbols).
+**Guard:** check_index.py подтверждает корректность записанных chunks (341/332) независимо от зависания финализации; re-verify после restart показал валидный индекс.
+**Статус:** 🔴 наблюдается (блокирует завершение full reindex) | **Deadline:** следующая сессия | **Владелец:** misha.
+**Note:** Новых реальных багов от фиксов A (logging deadlock) и B (off-by-one) НЕТ — оба live-верифицированы (embed-фаза без freeze; LanceDB 341/332). Finalization-hang — отдельный pre-existing инцидент индексатора, не связан с A/B.
+
+## 2026-08-27 — Data Gap: папка tests/ не индексируется Tree-sitter AST (OPEN / Planned)
+
+**Что:** E4.1-бенчмарк (`experiments/bench_e4_1.py`) показал Recall=0.00 на классах `test`/`verify` НЕ из-за бага алгоритма/сериализации, а потому что реальные файлы `tests/test_*.py` НЕ присутствуют в PropertyGraph (`graph.db` содержит только `tests/fixtures/sample_module.py` — 270 узлов из 10768). `SymbolIndexAdapter.search_symbols` детерминированно возвращает `[]` на символы, которых нет в базе — свойство Proof of Origin (честно и предсказуемо).
+**Fix (плановая задача индексатора):** включить `tests/` в scope парсинга AST (parser/indexer config) либо индексировать тест-файлы как отдельный layer; после реиндекса E4.1 test/verify поднимутся с 0.00. НЕ блокирует продакшн (основной код индексируется полностью).
+**Guard:** `experiments/bench_e4_1.py` — повторный прогон после реиндекса должен показать Recall>0 на test/verify; текущий бенчмарк фиксирует базовую линию.
+**Статус:** 🟡 запланировано (индексатор) | **Deadline:** следующая сессия | **Владелец:** misha.
+
+## 2026-08-27 — Graph node enrichment: узлы без file_path (OPEN / Planned)
+
+**Что:** При live-проверке Step 2 (граф-стадия, коммит 95237f68) `search_code`/`hybrid_search_async` на `save_symbol_index` вернул ДВА граф-результата: корректный `📍 D:/Project/MSCodeBase/src/core/indexing/index_guard.py:340` и второй `📍 :310` с ПУСТЫМ `file_path` (узел `save_symbol_index` в graph.db не имеет `file`/строку пути). Решено владельцем: `_graph_stage` НЕ должен молча отбрасывать такие узлы — лучше отдавать строку без пути, чем терять релевантный символ (см. переписку Step 2). Это граф-data gap (обогащение индексатора), а не баг engine.
+**Fix (плановая задача индексатора):** обогатить graph-узлы `file_path` при индексации (AST-парсер/parser config), чтобы все symbol-узлы несли путь+строку; после реиндекса `📍 :310` исчезнет. НЕ блокирует продакшн (основной символ возвращается корректно).
+**Guard:** `experiments/bench_e4_1.py` + live-проверка `search_code` после реиндекса не должны давать `📍` с пустым file.
+**Статус:** 🟡 запланировано (индексатор) | **Deadline:** следующая сессия | **Владелец:** misha.
+
+## 2026-08-26 — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 убит) (FIXED)
+
+**Что:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на мёртвом предке ДО живого Zed — venvwlauncher-цепочка), затем `_terminate_holder()` убивал его `TerminateProcess`. Инцидент: PID 20052 (ARCLUX MCP) убит 12524 при `refresh_db_connection`. Реализация WS9 (2026-08-08, «PID-lock self-healing вариант C» с ORPHAN→TerminateProcess) теперь ПЕРЕКЛАССИФИЦИРОВАНА как root cause инцидента, не фича (§4.9).
+**Fix (Вариант A+):** удалён kill-путь; `classify_holder` — только proof-of-death (DEAD/HEALTHY/AMBIGUOUS), живой PID → fail-closed `LockBusyError` (wait, never kill); добавлены hostname+version в lock-данные; `db_manager`: read-only при `LockBusyError` на старте, PID-lock gate в `begin_write`, `recreate_table_physical` reacquire-fail → raise; `tools_reg` reacquire → fail-closed.
+**Guard:** `tests/test_database_lock_selfhealing.py` (живой PID → HEALTHY/HELD, НЕ ORPHAN/kill) + exp2 (holder survives) + `smoke_e2e.py` PASSED (4/4). Red Team 7 находок закрыты.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
+## 2026-08-25 — Полный заморозок MCP при full reindex (root cause: get_status на loop-потоке) (FIXED)
+
+**Что:** full reindex (~7.5 мин embedding) замораживал ВСЕ MCP-вызовы (вкл. debug_runtime_passport) — commit b03073c5 чинил только search-путь. Root cause: `begin_write()` держит `_write_lock` весь reindex, а `IndexStatusReporter.get_status()` (sync, на event-loop-потоке через intel_get_runtime_status/require_ready_project/ProjectContext) ждал тот же lock.
+**Fix (2026-08-25):** (1) reindex fast-fail в `get_status()` — мгновенный кэш + status="reindexing" (strict `is True`); (2) `asyncio.to_thread` в 3 loop-точках; (3) guard в `_get_stale_warning`.
+**Guard:** test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block (двухрукавный, правило Тома). Полный pytest 1512 passed, ruff clean.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
+## 2026-08-25 — Вариант А: честный reindex-статус для агента (FIXED)
+
+**Что:** после фикса заморозки осталась ЛОЖЬ в сообщениях: `intel_get_runtime_status` показывал «0 chunks», `require_ready_project` советовал «run index_project_dir» во время идущего реиндекса (агент мог запустить 2-й), форматтер рендерил «⚪ 0 chunks».
+**Fix (Вариант А):** index_telemetry + `status="reindexing"` + `reindex_progress_pct` + `reindex_eta_sec`; require_ready_project → ToolError «⏳ Index is being reindexed (N%) — retry» вместо IndexNotReadyError; formatter → «🔄 Reindex in progress (N%)».
+**Guard:** +6 тестов (runtime_status reindex/normal, require_ready reindex/empty-control, formatter reindex/без-progress/normal). Полный pytest 1518 passed, ruff clean. Live: полный reindex 9003 chunks (519s) — MCP отвечал мгновенно весь прогон.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
+## 2026-08-25 — Live-косметика: reindex ToolError обёртки + Project State INDEXING после авто-индекса (FIXED)
+
+**Что:** (1) require_ready_project reindex-ToolError ловился общим except и терял retry-семантику (live: «Failed to check index status: ⏳ Index is being reindexed»); (2) Project State оставался INDEXING после успешного (авто)реиндекса — паспорт врал, wait_until_ready ждал таймаута.
+**Fix:** except ToolError: raise; set_state(READY) в `_delayed_auto_index` и `_run_reindex_job` после успеха.
+**Guard:** +4 теста. Полный pytest 1521 passed, ruff clean. Live: search во время реиндекса — честное «⏳ Index is being reindexed» без обёртки.
+**Статус:** 🟢 стабильно | **Deadline:** — | **Владелец:** misha.
+
 ## 2026-08-24 — Цикл core: error_handler ⇄ task_queue через lazy-импорты (ACCEPTED)
 
 **Что:** новый инвариант 3 architecture_linter.py детектит цикл `src.core.error_handler ⇄ src.core.task_queue`. Обе стороны импортируют друг друга ТОЛЬКО лениво, внутри функций, под try/except (`error_handler.py:290` `from src.core.task_queue import idle_tick`; `task_queue.py:414` `from src.core.error_handler import _LAST_CALL_AT`) — import-время безопасно, цикл разрывается в рантайме. Рефакторинг (общий модуль вместо кросс-импортов) — осознанный техдолг.
@@ -4336,3 +4386,42 @@ Three fixes from the same review:
 **Fix:** новый пакет `...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-24 — predict_change (MCP) + git-локи параллельных агентов (ADR-0007)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Feature (subset 34 passed; ruff clean; полный pytest — через pre-commit)
+**Root Cause:** (1) Change Preview жил только в CLI — агент не мог звать предиктор как MCP-инструмент; (2) две го...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-24 — Change Preview (Фаза 1+2) + импорт-граф 56 языков (Вариант A)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Feature (24 новых теста; ruff clean)
+**Root Cause:** (1) «точно знать что будет»: были impact_analysis (статический blast radius) и ActionReceipt (вердикт постфактум), но НЕ было связки ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-24 — Architecture linter: STALE-ложности убраны, 4-й инвариант (циклы core) реализован и вшит в CI/pre-commit
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (linter exit 0; 4/4 invariant-тестов; ruff clean)
+**Root Cause:** (1) STALE-паттерн «get_project_context(» матчил новое имя `intel_get_project_context(` как подстроку → 2 ложных ср...
+- **Статус:** автоматически синхронизировано
+
+## 2026-08-25 — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+**Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-26 — Multi-window project-binding: search_code/graph_query/intel_* игнорируют project_root (set_project vs CWD-привязка)
+
+- **Источник:** AGENT_DIARY.md (2026-08-26 19:55) + INVESTIGATION_MCP_PROJECT_BINDING.md
+- **Описание:** **Status:** ✅ Fixed (scope 🅳+🅲+🅵+🅰+🅱; 🅴 подтверждён в коде)
+**Root Cause:** search_tools.py звал resolve_searcher() без explicit project_root; graph_query/intel_get_project_memory не принимали project_root; reindex оставлял реестр UNINITIALIZED.
+**Fix:** 🅳 base.py:resolve_indexer роутит explicit→active (уже было). 🅰 search_tools.py: _pr проброшен во все resolve_searcher/_project_header + _agentic_search. 🅲 intel_get_project_memory строит IntelligenceStore(project_root) с fallback. 🅵 покрыто 🅳. 🅴 layer.py:794-818 set_state(READY). 🅱 graph_tools.py: execute()+_execute_* пробрасывают project_root; добавлен _resolve_pg(); убран hardcoded D:/Project/MSCodeBase в drift/verify; structural_search уже имеет обязательный project_root. Синхронизировано в расширение.
+**Guard:** tests/test_graph_query_project_binding.py (2 passed) + обновлены фейки test_search_bs_audit.py (3 passed).
+- **Статус:** ✅ Fixed (2026-08-26; live-check не гонялся — требует multi-project+llama.cpp; проверит пользователь через Android-сервер)

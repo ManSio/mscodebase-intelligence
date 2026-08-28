@@ -79,17 +79,20 @@ class LanceDBManager:
         # Диагностика при старте (Задача 3/5): человеческий текст с действием
         # вместо RuntimeError из глубины при живом владельце lock-а.
         # Семантика lock-а НЕ меняется — только сообщение об ошибке.
+        # R3TF (2026-08-26): второе окно Zed на ту же БД НЕ падает при старте —
+        # переходит в read-only режим (запись будет отвергнута в begin_write).
         self._startup_issue: Optional[str] = None
+        self._pid_lock_acquired = False
         try:
             self._db_lock.acquire()
+            self._pid_lock_acquired = True
         except RuntimeError as _lock_err:
             self._startup_issue = (
-                f"База занята другим процессом MCP. Закройте второе окно Zed "
-                f"или подождите завершения его индексации. "
+                f"База занята другим процессом MCP — работаю read-only. "
+                f"Запись/индексация будут отвергнуты до освобождения lock-а. "
                 f"Детали: {_lock_err}"
             )
-            logger.error(self._startup_issue)
-            raise
+            logger.warning(self._startup_issue)
 
         self._on_recreate = None
 
@@ -476,6 +479,7 @@ class LanceDBManager:
             if self._db_lock is not None:
                 try:
                     self._db_lock.release()
+                    self._pid_lock_acquired = False
                 except Exception as _lock_release_err:
                     logger.debug(f"recreate_table_physical: lock release warning: {_lock_release_err}")
             db_root = self.db_path
@@ -485,12 +489,19 @@ class LanceDBManager:
                     logger.info(f"✅ Physically removed LanceDB DB dir: {db_root}")
                 # Пересоздаём чистую директорию БД (версионная цепочка = 0)
                 Path(to_win_long_path(db_root)).mkdir(parents=True, exist_ok=True)
-                # Перезахватываем PID-lock на новой директории
+                # Перезахватываем PID-lock на новой директории.
+                # R3TF (атака 6): отказ re-acquire НЕ прощается — продолжение
+                # без lock даёт двух писателей (corruption). Fail-closed: raise.
                 if self._db_lock is not None:
                     try:
                         self._db_lock.acquire()
+                        self._pid_lock_acquired = True
                     except RuntimeError as _lock_racq_err:
-                        logger.warning(f"recreate_table_physical: lock re-acquire failed: {_lock_racq_err}")
+                        self._pid_lock_acquired = False
+                        raise RuntimeError(
+                            f"recreate_table_physical: PID-lock re-acquire failed — "
+                            f"БД пересоздана, но запись без lock невозможна. {_lock_racq_err}"
+                        ) from _lock_racq_err
                 self.reset_connection()
                 return True
             except PermissionError as _perm_err:
@@ -600,7 +611,22 @@ class LanceDBManager:
 
         Использовать в index_project / drop_table, чтобы search не читал
         поломанный индекс (паттерн chunkhound SerialDatabaseExecutor).
+
+        R3TF (2026-08-26): перед записью требует PID-lock. Если старт
+        прошёл в read-only (БД занята другим окном MCP) — повторная попытка
+        захвата здесь, иначе RuntimeError (fail-closed: запись без lock
+        означает два писателя → corruption).
         """
+        _ensure_pid_lock = getattr(self, "_pid_lock_acquired", True) is False
+        if _ensure_pid_lock:
+            try:
+                self._db_lock.acquire()
+                self._pid_lock_acquired = True
+            except RuntimeError as _lock_err:
+                raise RuntimeError(
+                    f"Запись в БД невозможна: база занята другим процессом MCP "
+                    f"(read-only режим). {_lock_err}"
+                ) from _lock_err
         return self._write_lock
 
     # ══════════════════════════════════════════════════════════

@@ -138,6 +138,14 @@ class Indexer(IndexerTableMixin):
             file_guard=self.file_guard,
             watchdog_callback=self.watchdog_status,
             table_write_lock=self._table_write_lock,
+            # Reindex fast-fail (инцидент 2026-08-25): get_status() обязан
+            # вернуть кэш мгновенно, пока begin_write() держит _write_lock
+            # весь reindex — иначе event loop замерзает на минуты.
+            reindex_check=lambda: bool(
+                getattr(self, "db_manager", None)
+                and callable(getattr(self.db_manager, "is_reindexing", None))
+                and self.db_manager.is_reindexing() is True
+            ),
         )
         self._cached_total_chunks = self._status_reporter._cached_total_chunks
         self._cached_unique_files = self._status_reporter._cached_unique_files

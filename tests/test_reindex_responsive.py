@@ -117,3 +117,454 @@ def test_search_fast_fail_during_reindex():
     # Контроль: при is_reindexing=False guard выключен (обычный путь)
     idx.db_manager = SimpleNamespace(is_reindexing=lambda: False)
     assert searcher._reindex_fast_fail() is False
+
+
+def test_get_status_fast_fail_during_reindex_does_not_block():
+    """Инцидент 2026-08-25 (root cause): full reindex держит _table_write_lock
+    ~7.5 мин (begin_write), а get_status() на loop-потоке ждал этот lock →
+    заморожен ВСЕ MCP-вызовы. Теперь: reindex_check=True → get_status()
+    возвращает кэш мгновенно, не трогая lock/БД.
+
+    Двухрукавность (правило Тома):
+    - Arm 1 (reindex_check=True): возврат быстрый (< 0.3с) при ЗАХВАЧЕННОМ lock.
+    - Arm 2 (reindex_check=None): тот же lock → блокируется на acquire
+      (>= 0.4с пока lock держит фоновый поток) — демонстрирует, что БЕЗ
+      guard был именно lock-wait, а guard реально умеет падать/спасать.
+    """
+    import threading
+    import time
+    from pathlib import Path
+
+    from src.core.indexing.index_status import IndexStatusReporter
+
+    lock = threading.RLock()
+    lock.acquire()  # держим lock, как begin_write() во время reindex
+    try:
+        reporter = IndexStatusReporter(
+            table=None,
+            project_path=Path("unused"),
+            file_guard=None,
+            watchdog_callback=None,
+            table_write_lock=lock,
+            reindex_check=lambda: True,
+        )
+        reporter._cached_total_chunks = 42
+        reporter._cached_unique_files = {"a.py", "b.py"}
+
+        t0 = time.perf_counter()
+        status = reporter.get_status()
+        dt = time.perf_counter() - t0
+
+        # Fast-fail: не ждём lock, отдаём кэш + флаг reindex в статусе
+        assert dt < 0.3, f"get_status заблокировался на {dt*1000:.0f}ms"
+        assert status["total_chunks"] == 42
+        assert status["unique_files"] == 2
+        assert status["status"] == "reindexing"
+        assert status["reindex_in_progress"] is True
+    finally:
+        lock.release()
+
+    # Arm 2 (контроль): без reindex_check тот же lock блокирует get_status
+    import threading as _th
+    import time as _time
+
+    lock2 = _th.RLock()
+    lock2.acquire()
+    try:
+        reporter2 = IndexStatusReporter(
+            table=None,
+            project_path=Path("unused"),
+            file_guard=None,
+            watchdog_callback=None,
+            table_write_lock=lock2,
+            reindex_check=None,  # старый путь — lock-wait
+        )
+        t0 = _time.perf_counter()
+        # Воркер в ОТДЕЛЬНОМ потоке: main держит lock, чужой поток обязан
+        # ждать acquire — это и есть заморозка loop-потока в инциденте.
+        result: dict = {}
+
+        def _worker():
+            result["status"] = reporter2.get_status()
+            result["dt"] = _time.perf_counter() - t0
+
+        _th.Thread(target=_worker, daemon=True).start()
+        _time.sleep(0.2)
+        # Через 0.2с воркер всё ещё ждёт lock → блокировка подтверждена
+        assert "status" not in result, \
+            "Без reindex_check get_status НЕ должен вернуться, пока lock занят"
+        lock2.release()  # освобождаем → воркер проходит acquire и завершается
+        _time.sleep(0.3)  # дать воркеру пройти get_status (lock уже свободен)
+        assert "status" in result, "Воркер не завершился после release"
+        assert result["dt"] >= 0.2, \
+            "Контроль: lock-wait обязан был занять >=0.2с"
+    finally:
+        try:
+            lock2.release()
+        except RuntimeError:
+            pass
+
+
+async def test_require_ready_project_truthful_during_reindex(monkeypatch):
+    """Вариант А (2026-08-25): require_ready_project при reindex-состоянии
+    отдаёт честную ошибку «reindex in progress», а НЕ «Index is empty → run
+    index_project_dir» — иначе агент запустит ВТОРОЙ reindex.
+
+    Контроль: без reindex-флага при пустом индексе — прежний
+    IndexNotReadyError (поведение не изменилось).
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from src.core.error_handler import IndexNotReadyError, ToolError
+    from src.mcp.tools.base import MCPTool
+
+    class _Verdict:
+        def __init__(self, ok=True):
+            self.ok = ok
+            self.reason = "ready" if ok else "project_not_ready"
+            self.state = "READY"
+            self.detail = ""
+            self.retry_after = 0.0
+
+    class _Tool(MCPTool):
+        async def execute(self, **kwargs):
+            return {}
+
+    fake_services = MagicMock()
+    tool = _Tool(fake_services)
+
+    # Mock coordinator: проект READY (can_execute не блокирует реindex-путь)
+    async def _fake_can_execute(self, target, timeout=5.0):
+        return _Verdict(ok=True)
+
+    monkeypatch.setattr(
+        "src.core.runtime_coordinator.RuntimeCoordinator.can_execute",
+        _fake_can_execute,
+    )
+
+    # Fake indexer: is_reindexing() => get_status возвращает reindex-кэш
+    fake_indexer = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=lambda: {
+            "total_chunks": 0,
+            "unique_files": 0,
+            "status": "reindexing",
+            "reindex_in_progress": True,
+            "reindex_progress_pct": 62,
+            "reindex_eta_sec": 264,
+        },
+    )
+    with patch.object(
+        _Tool, "resolve_indexer", return_value=fake_indexer
+    ):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("require_ready_project должен был бросить ToolError")
+        except ToolError as e:
+            assert "reindexing" in str(e.message).lower() or "reindex" in str(e.message).lower(), \
+                f"Ожидали reindex-сообщение, получили: {e.message}"
+            assert "index_project_dir" not in str(e.message), \
+                "Нельзя советовать запустить индексацию, когда она уже идёт"
+            assert e.recoverable is True
+
+    # Контроль (Arm 2): БЕЗ reindex-флага и пустой индекс — прежний путь
+    fake_indexer_empty = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=lambda: {"total_chunks": 0, "unique_files": 0, "status": "empty"},
+    )
+    with patch.object(_Tool, "resolve_indexer", return_value=fake_indexer_empty):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("Ожидали IndexNotReadyError для пустого индекса")
+        except IndexNotReadyError:
+            pass
+
+    # Контроль (Arm 3): ToolsError пробрасывается КАК ЕСТЬ (status/recoverable),
+    # а не заворачивается в «Failed to check index status» — иначе агент
+    # теряет retry-семантику (live: search показывал двойную обёртку).
+    def _boom_side_effect():
+        raise ValueError("unexpected")
+
+    fake_indexer_error = SimpleNamespace(
+        project_path=SimpleNamespace(name="demo"),
+        get_status=_boom_side_effect,
+    )
+    with patch.object(_Tool, "resolve_indexer", return_value=fake_indexer_error):
+        try:
+            await tool.require_ready_project()
+            raise AssertionError("Ожидали ToolError при неожиданной ошибке")
+        except ToolError as e:
+            assert "Failed to check index status" in str(e.message), \
+                f"Не-реindex ошибка должна заворачиваться, получили: {e.message}"
+
+
+async def test_intel_runtime_status_reports_reindex_progress(monkeypatch, tmp_path):
+    """Вариант А: intel_get_runtime_status пробрасывает reindex-флаг и прогресс
+    в index_telemetry → агент видит «reindexing 62%», а не «0 chunks»."""
+    from types import SimpleNamespace
+
+    from src.core.intelligence.jobs import job_manager
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_path=SimpleNamespace(),
+        get_status=lambda: {
+            "total_chunks": 0,
+            "unique_files": 0,
+            "status": "reindexing",
+            "reindex_in_progress": True,
+        },
+    )
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+    )
+
+    # Регистрируем активный job в job_manager (общий синглтон).
+    # Настоящий BackgroundJob (датакласс), а не SimpleNamespace:
+    # _enrich_job_response делает asdict(job).
+    from src.core.intelligence.jobs import BackgroundJob
+
+    job_id = "test_reindex_job"
+    job_manager.jobs[job_id] = BackgroundJob(
+        job_id=job_id,
+        type="full_reindex",
+        status="running",
+        progress=0.62,
+        started_at=__import__("time").time() - 60,
+    )
+    monkeypatch.setattr(layer, "_reindex_job_id", job_id)
+    monkeypatch.setattr(
+        layer,
+        "_resolve_active_indexer",
+        lambda: fake_indexer,
+    )
+
+    try:
+        status = await layer.intel_get_runtime_status()
+        tel = status["index_telemetry"]
+        assert tel["reindex_in_progress"] is True
+        assert tel["status"] == "reindexing", f"status={tel['status']}"
+        assert tel["reindex_progress_pct"] == 62, f"pct={tel['reindex_progress_pct']}"
+        assert tel["reindex_eta_sec"] is not None
+    finally:
+        job_manager.jobs.pop(job_id, None)
+        monkeypatch.setattr(layer, "_reindex_job_id", None)
+
+
+async def test_intel_runtime_status_normal_state_unchanged(monkeypatch, tmp_path):
+    """Контроль: без reindex — status=active по total_chunks, флагов нет."""
+    from types import SimpleNamespace
+
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_path=SimpleNamespace(),
+        get_status=lambda: {
+            "total_chunks": 100,
+            "unique_files": 10,
+            "status": "active",
+        },
+    )
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+    )
+    monkeypatch.setattr(layer, "_resolve_active_indexer", lambda: fake_indexer)
+
+    status = await layer.intel_get_runtime_status()
+    tel = status["index_telemetry"]
+    assert tel["reindex_in_progress"] is False
+    assert tel["status"] == "active"
+    assert tel["total_chunks"] == 100
+
+
+async def test_delayed_auto_index_sets_state_ready(monkeypatch, tmp_path):
+    """Косметический баг 2026-08-26: после успешной авто-индексации registry
+    обязан перейти в READY (get_indexer ставит INDEXING при пустом индексе).
+    Иначе паспорт вечно показывает «Project State: INDEXING»."""
+    from types import SimpleNamespace
+
+    from src.core.indexing.project_indexer_registry import ProjectState
+    from src.mcp.server_factory import _delayed_auto_index
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    # Fake registry: перехватываем set_state READY
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    registry_stub = _FakeRegistry()
+
+    # Fake services: resolve(ProjectIndexerRegistry) → registry_stub
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    services = SimpleNamespace()
+
+    def _resolve(key):
+        if key is PIRKey:
+            return registry_stub
+        raise KeyError(key)
+
+    services.resolve = _resolve
+
+    # Fake indexer: ПУСТОЙ индекс до индексации (get_status → 0), чтобы
+    # _delayed_auto_index не пропустил запуск; index_project вернёт 42 файла.
+    calls = []
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        index_project=lambda path, *a, **k: calls.append(path) or 42,
+        get_status=lambda: {"total_chunks": 0, "unique_files": 0},
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "src.mcp.tools.base.resolve_indexer_for_request",
+            lambda services, explicit_project_root=None: fake_indexer,
+            raising=False,
+        )
+        await _delayed_auto_index(services)
+
+    assert calls, "index_project не вызывался — авто-индексация не запустилась"
+    assert states, "set_state не вызывался после авто-индекса"
+    assert states[-1][1] is ProjectState.READY, f"state={states[-1][1]}"
+
+
+async def test_delayed_auto_index_skips_when_index_not_empty(monkeypatch, tmp_path):
+    """Контроль: при непустом индексе авто-индексация пропускается,
+    set_state не вызывается (государство уже READY из get_indexer)."""
+    from types import SimpleNamespace
+
+    from src.mcp.server_factory import _delayed_auto_index
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    services = SimpleNamespace()
+    services.resolve = lambda key: _FakeRegistry() if key is PIRKey else None
+
+    called = {"index_project": False}
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        index_project=lambda path, *a, **k: called.__setitem__("index_project", True),
+        get_status=lambda: {"total_chunks": 9000, "unique_files": 500},
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "src.mcp.tools.base.resolve_indexer_for_request",
+            lambda services, explicit_project_root=None: fake_indexer,
+            raising=False,
+        )
+        await _delayed_auto_index(services)
+
+    assert called["index_project"] is False, "Индекс не пуст — индексация не должна запускаться"
+    assert not states, "set_state не должен вызываться при пропуске авто-индекса"
+
+
+async def test_reindex_job_sets_state_ready(monkeypatch, tmp_path):
+    """_run_reindex_job: после успешного job → registry.set_state(READY).
+    Контролируем, что state machine закрывает цикл INDEXING→READY."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from src.core.indexing.project_indexer_registry import ProjectState
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    project_path = tmp_path / "demo"
+    project_path.mkdir(parents=True, exist_ok=True)
+
+    states: list = []
+
+    class _FakeRegistry:
+        def set_state(self, path, state):
+            states.append((str(path), state))
+
+    from src.core.di_container import ProjectIndexerRegistry as PIRKey
+
+    fake_services = SimpleNamespace()
+    fake_services.resolve = lambda key: _FakeRegistry() if key is PIRKey else None
+
+    fake_indexer = SimpleNamespace(
+        project_path=project_path,
+        db_manager=SimpleNamespace(
+            set_reindexing=lambda: None,
+            clear_reindexing=lambda: None,
+            is_reindexing=lambda: False,
+        ),
+        file_guard=None,
+        index_project=lambda path, cb=None: 10,
+    )
+
+    layer = ProjectIntelligenceLayer(
+        project_path=project_path,
+        indexer=fake_indexer,
+        searcher=None,
+        symbol_index=None,
+        services=fake_services,
+    )
+
+    # Авто-док после реиндекса — мокаем (не выводим на реальный AutoDocUpdater)
+    class _FakeUpdater:
+        def update_all(self, project_root: str) -> str:
+            return "ok"
+
+    monkeypatch.setattr(
+        "src.core.auto_doc_updater.AutoDocUpdater", _FakeUpdater
+    )
+
+    from src.core.intelligence.jobs import job_manager
+
+    # Сбрасываем возможный мусор от других тестов
+    for _j in list(job_manager.jobs):
+        if _j.startswith("rj_state"):
+            job_manager.jobs.pop(_j, None)
+
+    # Запускаем через публичный путь trigger_async_reindex (запуск задачи)
+    job_id = await layer.trigger_async_reindex()
+    try:
+        for _ in range(100):
+            j = job_manager.get_job(job_id)
+            if j and j.status in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.05)
+    finally:
+        job_manager.jobs.pop(job_id, None)
+
+    assert states, "reindex job не вызвал set_state READY"
+    assert states[-1][1] is ProjectState.READY, f"state={states[-1][1]}"

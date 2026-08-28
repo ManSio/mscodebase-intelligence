@@ -426,8 +426,13 @@ class ProjectIntelligenceLayer:
 
             # INC-6BCB-v3.1: late-resolve.
             active_indexer = self._resolve_active_indexer()
+            # get_status() — СИНХРОННЫЙ и может блокировать (lock БД / stale-scan).
+            # Инцидент 2026-08-25: full reindex держал _write_lock ~7.5 мин,
+            # get_status() на loop-потоке заморозил ВСЕ MCP-вызовы (таймауты
+            # вкл. debug_runtime_passport). Выносим в поток: loop свободен,
+            # а IndexStatusReporter сам fast-fail-ит при is_reindexing=True.
             status = (
-                active_indexer.get_status()
+                await asyncio.to_thread(active_indexer.get_status)
                 if hasattr(active_indexer, "get_status")
                 else {}
             )
@@ -437,6 +442,29 @@ class ProjectIntelligenceLayer:
             total_files = (
                 status.get("total_files", 0) if isinstance(status, dict) else 0
             )
+
+            # Reindex-состояние (Вариант А, 2026-08-25): при is_reindexing=True
+            # get_status() возвращает кэш + status="reindexing". Пробрасываем
+            # флаг и прогресс в index_telemetry, чтобы агент видел «🔄 Reindex
+            # в процессе (N%)» вместо ложного «0 chunks» (live-прогон показал:
+            # во время full reindex статус врал «индекс пуст» → агент мог
+            # запустить ненужный второй reindex).
+            _reindexing = bool(
+                isinstance(status, dict) and status.get("reindex_in_progress") is True
+            )
+            _reindex_progress_pct = None
+            _reindex_eta_sec = None
+            if _reindexing:
+                try:
+                    _job_id = self.get_active_reindex_job_id()
+                    if _job_id:
+                        _job = job_manager.get_job(_job_id)
+                        if _job and _job.status == "running":
+                            _enriched = self._enrich_job_response(_job)
+                            _reindex_progress_pct = round(_job.progress * 100)
+                            _reindex_eta_sec = _enriched.get("estimated_seconds")
+                except Exception as _reidx_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"reindex progress enrich failed: {_reidx_err}")
 
             # Project path (может быть != self.project_path если был fallback).
             active_path = (
@@ -547,7 +575,15 @@ class ProjectIntelligenceLayer:
                     "symbol_index_count": _resolve_symbol_count(
                         active_indexer, total_chunks
                     ),
-                    "status": "active" if total_chunks > 0 else "empty",
+                    # Reindex-состояние для агента (Вариант А): вместо вранья
+                    # «0 chunks» при переиндексации показываем честный статус
+                    # и прогресс, чтобы агент ждал, а не запускал 2-й reindex.
+                    "status": "reindexing"
+                    if _reindexing
+                    else ("active" if total_chunks > 0 else "empty"),
+                    "reindex_in_progress": _reindexing,
+                    "reindex_progress_pct": _reindex_progress_pct,
+                    "reindex_eta_sec": _reindex_eta_sec,
                 },
                 # Consistency Engine (WS2): состояния артефактов — аддитивно.
                 "consistency": {
@@ -755,6 +791,32 @@ class ProjectIntelligenceLayer:
                 job.ended_at = time.time()
                 job.result = {"files_processed": "Индексация завершена", "status": "ok"}
 
+                # State machine (косметический баг 2026-08-26): get_indexer()
+                # ставит INDEXING при пустом индексе; после успешного reindex
+                # обязателен перевод в READY — иначе паспорт вечно показывает
+                # «Project State: INDEXING» и wait_until_ready ждёт до таймаута.
+                try:
+                    _reg = (
+                        self._services.resolve(
+                            __import__(
+                                "src.core.di_container",
+                                fromlist=["ProjectIndexerRegistry"],
+                            ).ProjectIndexerRegistry
+                        )
+                        if self._services is not None
+                        else None
+                    )
+                    if _reg is not None and hasattr(_reg, "set_state"):
+                        _reg.set_state(
+                            self.project_path,
+                            __import__(
+                                "src.core.indexing.project_indexer_registry",
+                                fromlist=["ProjectState"],
+                            ).ProjectState.READY,
+                        )
+                except Exception as _state_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"reindex set_state READY failed: {_state_err}")
+
                 # Consistency Engine (WS2): индексация завершена успешно.
                 try:
                     from src.core.consistency import get_consistency_tracker
@@ -933,8 +995,15 @@ class ProjectIntelligenceLayer:
         self,
         include_retracted: bool = False,
         verify_on_read: bool = True,
+        project_root: Optional[str] = None,
     ) -> Tuple[Dict[str, List[Dict]], Dict[str, Any]]:
         """Получить полную карту памяти проекта + ресипт VOR-проверки.
+
+        R3TF (2026-08-26, multi-window): project_root позволяет читать память
+        ЦЕЛЕВОГО проекта, а не только self.project_path (CWD/DI). layer — core-
+        модуль, не может импортировать mcp-резолвер active/CWD; явный project_root
+        пробрасывается из тула (mcp-слой), который резолвит проект сам.
+        Если project_root не задан — используется self.store (поведение до фикса).
 
         ADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True
         возвращает их для аудита и отладки.
@@ -956,11 +1025,28 @@ class ProjectIntelligenceLayer:
             stats["metrics"] — store.memory_metrics(): распределение статусов
             и false_retraction_rate (снятие метрик без отдельного тула).
         """
-        memory = self.store.load_memory(include_retracted=include_retracted)
+        # R3TF: выбираем store целевого проекта при явном project_root.
+        target_path: Path = self.project_path
+        store: "IntelligenceStore" = self.store
+        if project_root and project_root.strip():
+            try:
+                target_path = Path(project_root).resolve()
+                store = IntelligenceStore(target_path)
+            except Exception:
+                logger.warning(
+                    "intel_get_project_memory: не удалось открыть store для %s, "
+                    "используется self.store (%s)",
+                    project_root,
+                    self.project_path,
+                )
+                target_path = self.project_path
+                store = self.store
+
+        memory = store.load_memory(include_retracted=include_retracted)
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
-            verifier = get_verifier(self.project_path, self.store, self._write_lock)
+            verifier = get_verifier(target_path, store, self._write_lock)
             memory, stats = await asyncio.to_thread(verifier.run, memory)
             # Помечаем INCONCLUSIVE узлы флагом для выдачи агенту
             inconclusive_ids = set(stats.get("inconclusive_nodes", []))
@@ -990,7 +1076,7 @@ class ProjectIntelligenceLayer:
                             node.setdefault("verification", "budget_exceeded")
         else:
             stats = {"verify_on_read": False}
-        stats["metrics"] = self.store.memory_metrics()
+        stats["metrics"] = store.memory_metrics()
         return memory, stats
 
     def _load_flat_memory_nodes(self) -> List[Dict]:
