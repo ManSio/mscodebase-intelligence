@@ -16,9 +16,9 @@
 ## 2026-08-28 — Full reindex зависает в фазе «Finalizing» (PropertyGraph.optimize/create_index) (OPEN / WATCHING)
 
 **Что:** При live-верификации фиксов A/B (полный реиндекс job 1ff77294) embedding-фаза прошла БЕЗ заморозки сервера (подтверждает фикс A — QueueHandler), chunks записались корректно (1-based; см. AGENT_DIARY post-mortem off-by-one: save_symbol_index=341). После embed job завис в фазе «Finalizing» (отладка через intel_get_job_status + лог + netstat/py-spy: оба процесса 0% CPU — заблокированы, не считают) на `PropertyGraph.optimize()`/`create_index()` (`src/core/intelligence/layer.py:741` и `:1786`). Флаг `set_reindexing(True)` не снимается → блокирует concurrent search. Это PRE-EXISTING баг индексатора/графа, НЕ вызван фиксами A/B (фиксы касаются только логирования и display-строки; они live-верифицированы на этапе embed).
-**Fix (плановая задача индексатора):** исследовать deadlock/зависание в PropertyGraph.optimize/create_index (возможен contention на write-lock или незавершающийся цикл в optimize). Временное обходное: ручной restart сервера снимает флаг, уже записанный во время embed индекс перегружается корректно (runtime status 🟢 9191 chunks / 563 files / 11032 symbols).
+**Fix:** #18 — `IndexProjectRunner.run()` держал `db_manager.begin_write()` (глобальный `_write_lock` RLock) весь reindex, включая тяжёлые LanceDB `optimize()/create_index()` в `_safe_ivf_index()` → deadlock в фазе Finalizing (оба процесса 0% CPU). Фикс: `_suspend_write_lock()` отпускает лок вокруг optimize/create_index (reindex-guard `is_reindexing()` по-прежнему блокирует search), `create_index` ограничен `timeout=300s` + non-blocking `shutdown(wait=False)`. Символ-индекс теперь догружается → write-тулы верифицируемы live.
 **Guard:** check_index.py подтверждает корректность записанных chunks (341/332) независимо от зависания финализации; re-verify после restart показал валидный индекс.
-**Статус:** 🔴 наблюдается (блокирует завершение full reindex) | **Deadline:** следующая сессия | **Владелец:** misha.
+**Статус:** ✅ CLOSED (fix #18, 1578a1bb; guard test_reindex_finalizing_deadlock.py 2 passed, CI green ubuntu+windows) | **Deadline:** — | **Владелец:** misha.
 **Note:** Новых реальных багов от фиксов A (logging deadlock) и B (off-by-one) НЕТ — оба live-верифицированы (embed-фаза без freeze; LanceDB 341/332). Finalization-hang — отдельный pre-existing инцидент индексатора, не связан с A/B.
 
 ## 2026-08-28 — Codebase hub write-actions: 4 бага (git routing, dry-run, move import, safe_delete) (OPEN / WATCHING)
@@ -28,9 +28,9 @@
 2. `replace`/`insert_before`/`insert_after` с `apply=false` — dry-run НЕ соблюдается, лезут в write → `Permission denied` (guard не применён).
 3. `move` генерирует невалидный import `from D:\.Project.MSCodeBase import ...` (raw drive + backslash вместо dotted module).
 4. `safe_delete` недосчитывает usages: reports `usage count: 0`, тогда как `rename` корректно нашёл 2 call sites (`indexer.py:327,760` / `index_project_runner.py:473`) — сканирует только definitions, не callers.
-**Fix (плановая задача mcp/tools):** (1) `git` action роутить на git-log, не path-resolver; (2) `apply=false` обязан предотвращать любой write (в т.ч. open для записи); (3) move import-rewrite — нормализовать путь в dotted module; (4) safe_delete считать callers через reference-index.
+**Fix:** #16 — (1) `git` action роутится на git-log; (2) `apply=false` предотвращает любой write; (3) move import-rewrite нормализует путь в dotted module; (4) safe_delete считает callers через reference-index. Live-верификация #1 (git log) подтверждена (41 коммит); #2/#3/#4 блокировались отсутствием символ-индекса из-за reindex-deadlock (#18) — теперь устранено, требуют re-verify после reindex.
 **Guard:** регресс-тесты на каждый case (dry-run nil-write; git log возвращает commits; move валидный import; safe_delete считает callers).
-**Статус:** 🔴 наблюдается | **Deadline:** следующая сессия | **Владелец:** misha.
+**Статус:** 🟡 pending live-reverify (#2/#3/#4) — блокер reindex устранён #18, нужен прогон reindex + live-проверка | **Deadline:** текущая сессия | **Владелец:** misha.
 
 ## 2026-08-28 — LSP-тулы: basedpyright не установлен (OPEN / ENV)
 

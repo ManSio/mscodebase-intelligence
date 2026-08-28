@@ -28,6 +28,14 @@
 
 ---
 
+## [2026-08-28 14:30] — Reindex Finalizing deadlock (write-lock held across optimize/create_index)
+**Status:** ✅ Fixed (#18, 1578a1bb) — блокер live-верификации снят
+**Root Cause:** `IndexProjectRunner.run()` держал глобальный `_write_lock` (RLock) весь reindex, включая LanceDB `optimize()/create_index()` в `_safe_ivf_index()` → оба процесса 0% CPU, фаза Finalizing не завершалась, `is_reindexing` не снимался → символ-индекс не догружался → write-тулы падали `FileNotFoundError`.
+**Fix:** `_suspend_write_lock()` отпускает лок вокруг optimize/create_index; `create_index` ограничен `timeout=300s` + non-blocking `shutdown(wait=False)`. Reindex-guard `is_reindexing()` сохранён (search заблокирован во время reindex, безопасно).
+**Guard:** tests/test_reindex_finalizing_deadlock.py (2 passed); CI green ubuntu+windows+clean-state.
+**Meta (loop-ловушка):** агент неделю обходил СИМПТОМ (stale-код / FileNotFoundError / «сервер не видит правки») вместо починки задокументированного OPEN-блокера (KNOWN_ISSUES reindex-Finalizing). Rule: при OPEN-блокере — чинить блокер, не расследовать симптом. Также агент инъектил debug-маркеры `write_text(r"C:\temp\mscb_*.txt")` в 4 копии write_tools.py (реинтродукция KI-мусора из 2026-08-28) — удалены; нужен pre-commit guard на stray `write_text`/`C:\temp\mscb` в src/.
+**verified_from_clean_state:** ✅ yes — clean-state job green on PR #18 (tests/test_reindex_finalizing_deadlock.py 2 passed, CI green ubuntu+windows).
+
 ## [2026-08-26 21:00] — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 killed)
 **Status:** ✅ Fixed (код+тесты; live-smoke PASSED; exp2 holder survived)
 **Root Cause:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на мёртвом предке ДО живого Zed — venvwlauncher-цепочка), затем `_terminate_holder()` убивал его `TerminateProcess`. Так PID 20052 (ARCLUX MCP) убит 12524 при `refresh_db_connection`.
