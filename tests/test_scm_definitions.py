@@ -1,7 +1,7 @@
 """Тесты SCM-определений (tags.scm) — Workstream A: wiring в parse_file.
 
 Проверяют:
-1. Формат-паритет с TARGET_NODES walk (qualified name, 0-based line, kind=node.type).
+1. Формат-паритет с TARGET_NODES walk (qualified name, 1-based line, kind=node.type).
 2. SCM ⊇ walk для языков с tags.scm (recall 100% + доп. символы: классы/async).
 3. Fallback на walk-символы для языков БЕЗ tags.scm (yaml/toml/...).
 4. Исключены variable/import/декораторные captures.
@@ -69,7 +69,7 @@ class TestFormatParity:
         _, symbols = parser.parse_file(f)
         by_name = {s["name"]: s for s in symbols}
 
-        assert by_name["MyClass"]["line"] == 2  # 0-based (1-based строка 3)
+        assert by_name["MyClass"]["line"] == 3  # 1-based (строка 3)
         assert by_name["MyClass"]["kind"] == "class_definition"
         assert by_name["MyClass.method_a"]["kind"] == "function_definition"
         # имя квалифицировано контекстом класса
