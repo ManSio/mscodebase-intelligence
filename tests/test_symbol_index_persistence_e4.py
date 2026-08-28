@@ -10,17 +10,17 @@ Regression test для E4 FIX: SymbolIndex persistence (PURE vs HYBRID).
 - test_hybrid_normal_save: HYBRID adapter пишет непустой symbol_index.json
 - test_raw_symbol_index_save: сырой SymbolIndex пишет нормально
 """
-import sys
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.core.search.graph_adapter import SymbolIndexAdapter
 from src.core.graph import PropertyGraph
-from src.core.indexing.symbol_index import SymbolIndex
 from src.core.indexing.index_guard import IndexGuard
+from src.core.indexing.symbol_index import SymbolIndex
+from src.core.search.graph_adapter import SymbolIndexAdapter
 
 
 def _make_guard_and_pg():
@@ -84,7 +84,7 @@ def test_raw_symbol_index_save():
     assert json_file.exists(), "Raw SymbolIndex ДОЛЖЕН писать JSON"
     data = json.loads(json_file.read_text(encoding="utf-8"))
     assert len(data.get("definitions", {})) == 1, "Raw SymbolIndex должен сохранить 1 def"
-    print(f"[PASS] test_raw_symbol_index_save — JSON с 1 def")
+    print("[PASS] test_raw_symbol_index_save — JSON с 1 def")
 
 
 if __name__ == "__main__":
