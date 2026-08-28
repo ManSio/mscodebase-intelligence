@@ -232,12 +232,43 @@ class CodebaseTool(MCPTool):
         return await SetProjectTool(self._services).execute(project_root=target)
 
     async def _action_git(self, **kw) -> str | dict[str, Any]:
-        """Git operations — делегирует в GetCommitHistoryTool."""
-        from src.mcp.tools.git_tools import GetCommitHistoryTool
+        """Git operations — делегирует в git-tools по subcommand (kw.path).
 
-        path = kw.get("path", ".")
-        gt = GetCommitHistoryTool(self._services)
-        return await gt.execute(project_root=path, limit=kw.get("max_count", 10))
+        path: "log"|"history" -> GetCommitHistoryTool
+              "branch"        -> GetBranchInfoTool
+              "file"          -> GetFileHistoryTool (требует file_path)
+        project_root берётся из kw.project_root или resolve_indexer()
+        (НЕ из path — path это git subcommand, а не путь ФС).
+        """
+        from src.mcp.tools.git_tools import (
+            GetBranchInfoTool,
+            GetCommitHistoryTool,
+            GetFileHistoryTool,
+        )
+
+        sub = (kw.get("path") or ".").strip().lower()
+        limit = int(kw.get("max_count", kw.get("limit", 10)))
+        try:
+            project_root = kw.get("project_root") or str(self.resolve_indexer().project_path)
+        except Exception:
+            project_root = str(Path.cwd())
+
+        if sub in ("", ".", "log", "history", "commits"):
+            gt = GetCommitHistoryTool(self._services)
+            return await gt.execute(project_root=project_root, limit=limit)
+        if sub == "branch":
+            gt = GetBranchInfoTool(self._services)
+            return await gt.execute(project_root=project_root)
+        if sub == "file":
+            file_path = kw.get("file_path", "")
+            if not file_path:
+                return {"status": "error", "message": "file_path is required for git action 'file'."}
+            gt = GetFileHistoryTool(self._services)
+            return await gt.execute(project_root=project_root, file_path=file_path)
+        return {
+            "status": "error",
+            "message": f"Unknown git sub-action '{sub}'. Use one of: log, history, branch, file.",
+        }
 
     async def _action_system(self, **kw) -> str:
         """System operations — делегирует в SystemTool."""
