@@ -420,7 +420,7 @@ class WriteTool(MCPTool):
             target = Path(file_path).resolve().as_posix()
             defs = [d for d in defs if Path(d.file_path).resolve().as_posix() == target]
 
-        all_refs = si.find_references(symbol)
+        all_refs = si.find_all_references(symbol)
         usages = [r for r in all_refs if not r.is_definition and r.symbol == symbol]
         if usages and not force:
             usage_files = list(set(r.file_path for r in usages))
@@ -639,10 +639,15 @@ class WriteTool(MCPTool):
 
     def _infer_package(self, file_path: str) -> str:
         p = Path(file_path).resolve()
-        stem = p.stem  # e.g. "foo.py" → "foo"
-        parts = list(p.parent.parts)
-        if stem:
-            parts.append(stem)
+        # Корень проекта нужен, чтобы генерировать dotted-импорт
+        # относительно проекта, а не абсолютный Windows-путь
+        # (иначе получаем невалидный `from D:\.Project... import X`).
+        try:
+            root = Path(self.resolve_indexer().project_path).resolve()
+            rel = p.relative_to(root)
+        except Exception:
+            rel = p
+        parts = list(rel.with_suffix("").parts)
         return ".".join(pt for pt in parts if pt)
 
     def _find_body_end(self, lines: list, def_line: int) -> int:
