@@ -274,15 +274,19 @@ def _get_ext_dir() -> Path:
     # Frozen (PyInstaller) — sys.executable это сам бинарник
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent.parent.parent
-    # Расширение: .../venv/Scripts/python.exe → …/
+    # Расширение: .../venv/Scripts/python.exe → …/ (маркер расширения обязателен).
+    # Маркер __mscodebase_ext__.marker отличает исходники/расширение от
+    # установленного pip/wheel-пакета: в site-packages маркера НЕТ, поэтому
+    # бинарники/модели НЕ пишутся в site-packages, а уходят в data_root.
     p = Path(sys.executable).resolve().parent.parent.parent
-    if (p / "src" / "main.py").exists():
+    if (p / "src" / "main.py").exists() and (p / "__mscodebase_ext__.marker").exists():
         return p
-    # Режим разработки
+    # Режим разработки (исходники с маркером расширения в корне)
     p = Path(__file__).resolve().parent.parent.parent
-    if (p / "src" / "main.py").exists():
+    if (p / "src" / "main.py").exists() and (p / "__mscodebase_ext__.marker").exists():
         return p
-    # Последний fallback: единый data root (исторически ~/.cache/mscodebase).
+    # Установленный пакет (pip/uvx) или неизвестный контекст: единый data root
+    # (%LOCALAPPDATA%/mscodebase | ~/.cache/mscodebase) — НЕ site-packages.
     from src.core.artifact_paths import get_data_root
 
     return get_data_root()

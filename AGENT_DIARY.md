@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **PyPI-packaging + user-data isolation (2026-08-28):** wheel теперь содержит `tools.stale_detector`, `adapters`, `locales` (норм. данные в site-packages); бинарники/модели в pip-режиме — `get_data_root()` (`%LOCALAPPDATA%\mscodebase`), гейт-маркер `__mscodebase_ext__.marker` отличает расширение от установленного пакета; CLI `--project-path/--project-dir` → env `MSCODEBASE_PROJECT_PATH` (приоритет НАД CWD, trust_self_index); `PROJECT_PATH` остался после CWD (multi-window сохранён). Live-Smoke из чистого venv: tools-ok, `en (78 ключей)`, корень резолвится. Файлы: `pyproject.toml`, `project_resolution.py`, `main.py`, `llama_install.py`. INC-C4CD.
+
 - **Server freeze during full reindex (2026-08-25):** root cause — `begin_write()` держит `_write_lock` (RLock) весь reindex (~7.5 мин embedding), а `IndexStatusReporter.get_status()` синхронно на event-loop-потоке ждал тот же lock (intel_get_runtime_status/require_ready_project/ProjectContext) → заморозка ВСЕХ MCP-вызовов. Фикс: reindex fast-fail в get_status (кэш + status="reindexing") + asyncio.to_thread в 3 loop-точках + guard в _get_stale_warning.
 - **Embedder:** multilingual-e5-small-int8 + batch=32 (100 ch/s sustained) — 2026-07-17
 - **Concurrency:** AsyncInferQueue → лок (тихая гонка подмены векторов) — 2026-07-18

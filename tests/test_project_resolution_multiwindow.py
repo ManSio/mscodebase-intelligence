@@ -144,3 +144,60 @@ class TestSqliteSchemaHealth:
 
     def test_none_connection(self):
         assert _check_sqlite_schema_health(None) is not None
+
+
+class TestPriorityProjectPathOverride:
+    """Явный CLI-override через MSCODEBASE_PROJECT_PATH (США Заглушка Step 2, Вариант A).
+
+    Приоритет: CLI/env MSCODEBASE_PROJECT_PATH → CWD → PROJECT_PATH → SQLite...
+    В обычном Zed-режиме env не задан → CWD-first сохраняется (INC-MULTI-WINDOW).
+    """
+
+    def _isolated(self, monkeypatch):
+        monkeypatch.delenv("MSCODEBASE_PROJECT_PATH", raising=False)
+        monkeypatch.delenv("PROJECT_PATH", raising=False)
+        monkeypatch.delenv("ZED_WORKTREE_ROOT", raising=False)
+        monkeypatch.setattr(pr, "_get_sqlite_connection", lambda: None)
+
+    def test_mscb_path_wins_over_cwd(self, tmp_path, _cwd_restorer, monkeypatch):
+        """MSCODEBASE_PROJECT_PATH (явный CLI) побеждает CWD."""
+        self._isolated(monkeypatch)
+        project = _make_project(tmp_path, "project_a")
+        override = _make_project(tmp_path, "override_b")
+
+        monkeypatch.setenv("MSCODEBASE_PROJECT_PATH", str(override))
+        os.chdir(project)
+        assert resolve_project_root().resolve() == override.resolve()
+
+    def test_mscb_path_trusts_ext_root(self, tmp_path, _cwd_restorer, monkeypatch):
+        """MSCODEBASE_PROJECT_PATH == ext_root доверяется (trust_self_index=True),
+        как явный осознанный override CLI (--project-path на корень разработки)."""
+        self._isolated(monkeypatch)
+        os.chdir(tmp_path)
+        monkeypatch.setattr(pr, "ext_root", tmp_path)  # == CWD == ext_root
+        monkeypatch.setenv("MSCODEBASE_PROJECT_PATH", str(tmp_path))
+
+        # guard бы отклонил (CWD/PROJECT_PATH), но доверие перекрывает
+        assert resolve_project_root().resolve() == tmp_path.resolve()
+
+    def test_plain_project_path_still_behind_cwd(self, tmp_path, _cwd_restorer, monkeypatch):
+        """PROJECT_PATH без MSCODEBASE остаётся ПОСЛЕ CWD (обратная совместимость,
+        multi-window безопасность: не переопределяет корень окна без явного CLI)."""
+        self._isolated(monkeypatch)
+        project = _make_project(tmp_path, "project_a")
+        env_override = _make_project(tmp_path, "env_project")
+
+        monkeypatch.setenv("PROJECT_PATH", str(env_override))
+        os.chdir(project)
+        assert resolve_project_root().resolve() == project.resolve()
+
+    def test_bad_mscb_path_falls_back(self, tmp_path, _cwd_restorer, monkeypatch):
+        """Несуществующий MSCODEBASE_PROJECT_PATH — не падает, срабатывает CWD-first."""
+        self._isolated(monkeypatch)
+        project = _make_project(tmp_path, "project_a")
+
+        monkeypatch.setenv(
+            "MSCODEBASE_PROJECT_PATH", str(tmp_path / "no_such_dir")
+        )
+        os.chdir(project)
+        assert resolve_project_root().resolve() == project.resolve()
