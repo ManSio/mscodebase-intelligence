@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-08-29 — Архитектурный техдолг: крупные модули (>800 строк) по §2.4 God Object Guard (ACKNOWLEDGED)
+
+**Что:** По результатам `arclux doctor .` обнаружено **102 крупных модуля** (файлы >800 строк). Канонический список:
+| Файл | Строки | Назначение |
+|---|---|---|
+| `src/core/indexing/parser.py` | 2348 | Tree-sitter парсер (23 языка) |
+| `src/core/intelligence/layer.py` | 1821 | Ядро PropertyGraph + embedding pipeline |
+| `src/providers/reranker/llama_runner.py` | 1653 | llama.cpp runner (CPU/Vulkan) |
+| `src/core/graph.py` | 1591 | PropertyGraph (узлы, рёбра, оптимизация) |
+| `src/core/search/engine.py` | 1580 | Search engine (hybrid/vector/semantic) |
+| `src/core/indexing/symbol_index.py` | 1284 | SymbolIndex (definitions/references/env_accesses) |
+| `src/providers/embedder/remote_embedder.py` | 1258 | Remote embedder API |
+| `src/core/search/graph_adapter.py` | 1230 | Graph-backed search adapter |
+| `src/mcp/tools/write_tools.py` | 1056 | Write tools (rename/move/delete/replace) |
+| `src/core/intelligence/health.py` | 981 | Health diagnostics |
+| `src/providers/reranker/multi_provider.py` | 966 | Multi-provider reranker |
+| `src/core/search/cross_project_deps.py` | 932 | Cross-project dependency analysis |
+| `src/mcp/tools/graph_tools.py` | 904 | Graph query tools |
+| `src/mcp/server_tools.py` | 881 | MCP tool registry + allowlist |
+| `src/core/error_handler.py` | 856 | Error handling + logging |
+| `src/providers/reranker/llama_install.py` | 851 | Model download/install |
+| `src/core/auto_doc_updater.py` | 806 | Auto documentation generation |
+| `src/core/lsp_client.py` | 796 | LSP client (basedpyright) |
+| `src/core/indexing/indexer.py` | 786 | Indexer orchestration |
+| `src/core/search/agentic_search.py` | 768 | Agentic search agent |
+| `src/mcp/tools/search_tools.py` | 731 | Search/query tools |
+| `src/core/indexing/index_guard.py` | 720 | Index guard (locks, freshness) |
+| `src/mcp/tools/system_tools.py` | 710 | System utilities |
+| `src/core/intelligence/verify_on_read.py` | 707 | Verify-on-read protocol |
+
+**Почему не рефакторится сейчас:** §2.4 требует декомпозицию в «следующей сессии редактирования», но ни один из этих файлов НЕ редактируется в рамках текущей задачи. Масштабный рефакторинг без конкретной задачи = риск регрессии (§5.1).
+
+**Решение:** осознанный техдолг. Декомпозиция будет выполнена при следующей сессии, затрагивающей конкретный крупный модуль.
+
+**Guard:** каждый крупный модуль имеет ≥1 набор тестов (`pytest tests/`). При изменении файла >800 строк — обязательный полный прогон pytest + ruff.
+
+**Статус:** 🟡 ACKNOWLEDGED (осознанный техдолг) | **Deadline:** следующая сессия, затрагивающая конкретный модуль | **Владелец:** misha.
+
+---
+
 ## 2026-08-29 — Env-access extractor: deferred языки (elixir, haskell, ocaml, r, perl, lua, zig) без грамматики (WATCHING / deferred)
 
 **Что:** `ENV_FUNCS_BY_LANG` / `ENV_MEMBERS_BY_LANG` (`parser.py:40-60`) содержат 17 языков из `lang_specs.c`, но в MSCodeBase `self.parsers` (`parser.py:182-390`) зарегистрированы только те, для которых есть tree-sitter грамматика в venv (`.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.kt`, `.scala`, `.c`, `.cpp`, `.cs`, `.php`, `.rb`, `.swift`, `.dart`, `.sh`, `.bash`, `.sql`, `.yaml`, `.toml`, `.html`, `.css`, `.hcl`). Deferred-языки (`elixir`, `haskell`, `ocaml`, `r`, `perl`, `lua`, `zig`, `clojure`, `erlang`) — нет грамматики в venv; экстрактор пропускает (`lang = None` → `return []`, `parser.py:1547-1553`). Это осознанное ограничение, не баг.
