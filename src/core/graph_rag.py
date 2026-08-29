@@ -48,6 +48,11 @@ class GraphRAGQueryEngine:
         # Add file nodes
         if self.symbol_index:
             try:
+                if hasattr(self.symbol_index, "graph"):
+                    from src.core.search.graph_resolver import GraphSymbolResolver
+                    resolved = GraphSymbolResolver.resolve_all(self.symbol_index.graph)
+                    if resolved > 0:
+                        logger.info(f"GraphSymbolResolver resolved {resolved} placeholder nodes.")
                 repo_map = self.symbol_index.get_repo_map(str(self.project_path))
                 if repo_map:
                     for file_path, symbols in repo_map.get("symbols_by_file", {}).items():

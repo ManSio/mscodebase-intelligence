@@ -171,7 +171,15 @@ class PureGraphMixin:
                     name=callee,
                     label=NodeLabel.FUNCTION,
                     qualified_name=callee_qname,
-                    properties={"line": line, "file": file_path, "placeholder": True},
+                    file_path=file_path,
+                    properties={
+                        "line": line,
+                        "file": file_path,
+                        "placeholder": True,
+                        "caller_node_id": caller_qname,
+                        "line_number": line,
+                        "raw_symbol_name": callee,
+                    },
                 )
                 self._graph.add_edge(
                     source_qname=caller_qname,
