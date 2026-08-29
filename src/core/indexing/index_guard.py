@@ -396,9 +396,22 @@ class IndexGuard:
                 for k, v in symbol_index._references.items()
             }
             fts = {k: list(v) for k, v in symbol_index._file_to_symbols.items()}
+            # ENV-accesses: {file -> [{env_key, line, enclosing_function}, ...]}
+            # Коллекция (не graph-узлы). Отсутствует в MODE_PURE/graph-backed
+            # режимах — KNOWN_ISSUES: env-persistence в JSON, в этих режимах RAM-only
+            # до следующего полного reindex (Phase 0 / Q1: deferred).
+            env = {}
+            if hasattr(symbol_index, "_file_to_env_accesses"):
+                for fp, rows in symbol_index._file_to_env_accesses.items():
+                    env[fp] = [
+                        {"env_key": k, "line": ln, "enclosing_function": fn}
+                        for k, ln, fn in rows
+                    ]
 
             # Не перезаписывать непустой файл пустым состоянием (коррупция холодного старта).
-            if not defs and not refs and not fts and cache_file.exists():
+            # env здесь учтён: если есть старые env-записи, а новых нет — всё равно НЕ
+            # перезаписываем (env = derived data, не schema-критичное, но лучше сохранить).
+            if not defs and not refs and not fts and not env and cache_file.exists():
                 try:
                     existing = json.loads(cache_file.read_text(encoding="utf-8"))
                     if any(
@@ -416,6 +429,7 @@ class IndexGuard:
                 "definitions": defs,
                 "references": refs,
                 "file_to_symbols": fts,
+                "file_to_env_accesses": env,
                 "saved_at": datetime.now().isoformat(),
             }
             cache_file.write_text(
@@ -468,6 +482,9 @@ class IndexGuard:
                         k: list(v) if isinstance(v, set) else v
                         for k, v in data.get("file_to_symbols", {}).items()
                     }
+                    # Legacy pickle не содержал env-accesses (Phase 0 фича) —
+                    # инициализируем пустым, иначе save_symbol_index упадёт на .items().
+                    data.setdefault("file_to_env_accesses", {})
                     cache_file.write_text(
                         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
                     )
@@ -511,8 +528,22 @@ class IndexGuard:
             symbol_index._file_to_symbols = {
                 k: set(v) for k, v in raw.get("file_to_symbols", {}).items()
             }
-
-            logger.info(f"SymbolIndex loaded: {len(symbol_index._definitions)} symbols")
+            # ENV-accesses (Phase 0 / persistence): backward-compat — если в JSON
+            # нет поля, инициализируем пустым dict (старые индексы).
+            if hasattr(symbol_index, "_file_to_env_accesses"):
+                env_raw = raw.get("file_to_env_accesses", {})
+                symbol_index._file_to_env_accesses = {
+                    fp: [(r["env_key"], r["line"], r.get("enclosing_function", "")) for r in rows]
+                    for fp, rows in env_raw.items()
+                    if isinstance(rows, list)
+                }
+            env_count = sum(
+                len(v) for v in getattr(symbol_index, "_file_to_env_accesses", {}).values()
+            )
+            logger.info(
+                f"SymbolIndex loaded: {len(symbol_index._definitions)} symbols, "
+                f"{env_count} env-accesses"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to load SymbolIndex: {e}")

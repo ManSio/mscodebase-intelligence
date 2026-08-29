@@ -32,27 +32,55 @@ logger = logging.getLogger("mscodebase_server.lsp_tools")
 
 _lsp_client: Optional[Any] = None
 _lsp_start_lock: Optional[Any] = None
+_lsp_last_failed_at: Optional[float] = None  # monotonic time of last failed start
 
 
 async def _ensure_lsp():
     """Ленивый общий LspClient: стартует один раз, кэшируется.
 
-    False = попытка старта уже была и провалилась (больше не пробуем в
-    рамках сессии — ошибка старта почти всегда означает отсутствие
-    basedpyright на машине).
+    False = последняя попытка старта провалилась. ПЕРЕПРОВЕРЯЕМ basedpyright при
+    каждом вызове: если бинарь появился (например, установили venv-среду в середине
+    сессии) — ретрай без рестарта MCP. Без этого — одна failed-сессия живёт до
+    рестарта (прецедент 2026-08-28: basedpyright установили в ext venv, но MCP
+    не рестартовали, LSP продолжил отдавать "basedpyright не найден").
+
+    `_last_failed_at` хранит monotonic time последней неудачи — кеш на 30 сек,
+    чтобы не дёргать shutil.which на каждом вызове (стоимость ~1ms, не блокер,
+    но не нужна).
     """
-    global _lsp_client, _lsp_start_lock
+    global _lsp_client, _lsp_start_lock, _lsp_last_failed_at
+    import time as _time
+
     if _lsp_client is False:
-        return None
-    if _lsp_client is not None:
+        # Кешированный провал: проверяем, не появился ли basedpyright,
+        # и не истёк ли TTL кеша.
+        _retry = (
+            _lsp_last_failed_at is None
+            or (_time.monotonic() - _lsp_last_failed_at) > 30.0
+        )
+        if not _retry:
+            return None
+        # TTL истёк — перепроверяем существование basedpyright
+        import shutil
+        if not shutil.which("basedpyright-langserver"):
+            # Бинаря всё ещё нет — обновляем timestamp и возвращаем None
+            _lsp_last_failed_at = _time.monotonic()
+            return None
+        # Бинарь есть — пробуем заново (сбрасываем кеш)
+        _lsp_client = None
+    if _lsp_client is not None and _lsp_client is not False:
         return _lsp_client
     if _lsp_start_lock is None:
         import asyncio
 
         _lsp_start_lock = asyncio.Lock()
     async with _lsp_start_lock:
-        if _lsp_client is not None:
-            return _lsp_client if _lsp_client is not False else None
+        if _lsp_client is not None and _lsp_client is not False:
+            return _lsp_client
+        if _lsp_client is False and _lsp_last_failed_at is not None:
+            # Конкурентный ретрай уже состоялся в другой корутине
+            if (_time.monotonic() - _lsp_last_failed_at) <= 30.0:
+                return None
         try:
             from src.core.lsp_client import LspClient
             from src.core.project_resolution import resolve_project_root
@@ -61,12 +89,14 @@ async def _ensure_lsp():
             client = LspClient(project_root=Path(root))
             if await client.start():
                 _lsp_client = client
+                _lsp_last_failed_at = None
                 logger.info("LspClient ready (pid=%s)", getattr(client._process, "pid", "?"))
                 return client
         except Exception as _e:  # noqa: BLE001
             # Ленивый старт: любой сбой LSP (loop/transport/init) → graceful fallback (None).
             logger.warning("LspClient start failed: %s", _e)
         _lsp_client = False
+        _lsp_last_failed_at = _time.monotonic()
         return None
 
 

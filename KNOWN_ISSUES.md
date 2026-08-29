@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-08-29 — Env-access extractor: deferred языки (elixir, haskell, ocaml, r, perl, lua, zig) без грамматики (WATCHING / deferred)
+
+**Что:** `ENV_FUNCS_BY_LANG` / `ENV_MEMBERS_BY_LANG` (`parser.py:40-60`) содержат 17 языков из `lang_specs.c`, но в MSCodeBase `self.parsers` (`parser.py:182-390`) зарегистрированы только те, для которых есть tree-sitter грамматика в venv (`.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.kt`, `.scala`, `.c`, `.cpp`, `.cs`, `.php`, `.rb`, `.swift`, `.dart`, `.sh`, `.bash`, `.sql`, `.yaml`, `.toml`, `.html`, `.css`, `.hcl`). Deferred-языки (`elixir`, `haskell`, `ocaml`, `r`, `perl`, `lua`, `zig`, `clojure`, `erlang`) — нет грамматики в venv; экстрактор пропускает (`lang = None` → `return []`, `parser.py:1547-1553`). Это осознанное ограничение, не баг.
+**Fix:** при необходимости — добавить через `language_pack` (`parser.py:392-416`) или расширить `self.parsers` в `_init_tree_sitter`. Не блокирует текущий контракт.
+**Guard:** `tests/test_env_extractor.py::test_unsupported_extension_returns_empty` (L316-320) — подтверждает, что неизвестные расширения возвращают `[]` без ошибки.
+**Статус:** 🟡 deferred (не блокер) | **Deadline:** — | **Владелец:** misha.
+
+---
+
 ## 2026-08-28 — PyPI-упаковка: `tools`/`locales`/`adapters` вне wheel, модели/бинарники в site-packages, нет `--project-path` (CLOSED)
 
 **Что:** При упаковке в PyPI-пакет (wheel) сервер не стартовал из установленного пакета по трём причинам: (1) `ModuleNotFoundError: No module named 'tools'` — `tools.stale_detector` (single source of truth для stale-проверки, инцидент 2026-08-14) не был в `include`; (2) `locales/` и `adapters/` не пакетизировались — i18n-предупреждения при старте и `--install` не работал из пакета; (3) в pip-режиме `_get_ext_dir()` мог писать бинарники/модели в site-packages; не было CLI-выбора целевого проекта.
@@ -4458,3 +4467,72 @@ Three fixes from the same review:
 **Fix:** 🅳 base.py:resolve_indexer роутит explicit→active (уже было). 🅰 search_tools.py: _pr проброшен во все resolve_searcher/_project_header + _agentic_search. 🅲 intel_get_project_memory строит IntelligenceStore(project_root) с fallback. 🅵 покрыто 🅳. 🅴 layer.py:794-818 set_state(READY). 🅱 graph_tools.py: execute()+_execute_* пробрасывают project_root; добавлен _resolve_pg(); убран hardcoded D:/Project/MSCodeBase в drift/verify; structural_search уже имеет обязательный project_root. Синхронизировано в расширение.
 **Guard:** tests/test_graph_query_project_binding.py (2 passed) + обновлены фейки test_search_bs_audit.py (3 passed).
 - **Статус:** ✅ Fixed (2026-08-26; live-check не гонялся — требует multi-project+llama.cpp; проверит пользователь через Android-сервер)
+
+## 2026-08-26 21:00 — DatabaseLock ORPHAN-kill → A+ fail-closed (PID 20052 killed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (код+тесты; live-smoke PASSED; exp2 holder survived)
+**Root Cause:** `DatabaseLock.classify_holder()` возвращал `ORPHAN` для ЖИВОГО MCP чужого окна (parent-chain walk обрывался на ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-26 19:19 — SymbolIndex JSON corruption guard live + E4.2 concept-resolver (verify_change 0→HIT)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (guard, live) / ✅ E4.2 подтверждена (live same-run: recall 0.50, verify_change 0→1.00)
+**Root Cause:** (guard) `SymbolIndexAdapter` (graph-backed) без `_definitions/_references/_fi...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-25 — Research: mechanical orchestration without LLM — tool boundary (Exp M1-M3)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** 🟡 Research done (no src/ changes; experiments + Red Team + recommendation in EXPERIMENTS_LOG M1-M3)
+**Root Cause (объект исследования):** 62 MCP-инструмента — большинство мёртвый груз: тел...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-25 — Вариант А: честный reindex-статус для агента (вместо вранья «0 chunks»)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (live-верификация полного reindex: MCP отвечал мгновенно весь прогон; pytest 1518 passed; ruff clean)
+**Root Cause:** после фикса заморозки осталась ложь в сообщениях: (1) `intel_g...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-25 — Косметика live: reindex ToolError терял retry-семантику (двойная обёртка) + Project State INDEXING после авто-индекса
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (оба; pytest полный 1521 passed; ruff clean)
+**Root Cause:** (1) reindex-ToolError из require_ready_project ловился общим `except Exception` и заворачивался в «Failed to check inde...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-26 19:55 — Multi-window: search_code/graph_query/intel_get_project_memory игнорируют project_root (set_project vs CWD-привязка)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (scope: 🅳+🅲+🅵+🅰+🅱; 🅴 подтверждён в коде)
+**Root Cause:** search_tools.py вызывал `resolve_searcher()` без explicit project_root; graph_query и intel_get_project_memory не принимали...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-27 21:30 — MCP freeze during full reindex = logging deadlock (не CPU/не crash)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **verified_from_clean_state:** ✅ live — full reindex  embed-phase без заморозки сервера (QueueHandler/QueueListener); py_compile чист; pytest 1553 passed. Reindex доведён restart-ом (отдельный pre-exi...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-27 21:30 — off-by-one: индекс/граф хранят 0-based строки (340 вместо 341)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **verified_from_clean_state:** ✅ live — LanceDB после реиндекса+рестарта: save_symbol_index start_line=341, _ensure_symbol_index=332; runtime-status 🟢 9191 chunks; check_index.py подтвердил; pytest 15...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-28 — Env-extractor: deferred languages + from-import limitation (OPEN / STABLE)
+
+**Что:** `extract_env_accesses` покрывает 14 расширений из 17 в MSCodeBase. Исключения: (1) `.swift`, `.dart`, `.sh`, `.bash` — грамматика есть, но в cbm-таблицах lang_specs.c нет записей; экстрактор возвращает `[]` (silent skip, не ошибка). (2) Языки cbm без грамматики в MSCodeBase: elixir, haskell, ocaml, r, perl, lua, zig, clojure, erlang — deferred. (3) Паттерн матчит только полное `os.environ[...]`/`process.env[...]`; форма `from os import environ` → `environ["X"]` НЕ даёт запись (cbm-семантика сохранена дословно, матч по полному pattern).
+**Fix:** при необходимости добавить в `ENV_MEMBERS_BY_LANG` Python — `environ` (unqualified), JS — `env` (unqualified). Пока: KNOWN_LIMITATION.
+**Статус:** 🟡 STABLE | **Deadline:** — | **Владелец:** misha.
+**Note:** tree-sitter-node-типы `subscript_expression` (JS/TS) и `element_reference` (Ruby) добавлены как локальные расширения `_ENV_MEMBER_NODE_TYPES` — это терпимое усиление спеки (алгоритмический смысл «доступ к полю по индексу»), не нарушение. Java `System.getenv` не ловится — `method_invocation` нет в MSCodeBase `CALL_NODES` (preexisting limitation extract_calls, не введённая портом).

@@ -15,7 +15,7 @@
 1. [核心原则](#1-核心原则)
 2. [分层架构](#2-分层架构)
 3. [DI 容器（ServiceCollection）](#3-di-容器)
-4. [工具层（28 核心 + 16 intel + 13 内联 + 4 开发 = 61 个）](#4-工具层)
+4. [工具层（31 核心 + 16 intel + 13 内联 + 4 开发 = 64 个）](#4-工具层)
 5. [PropertyGraph 层（v3.0）](#5-propertygraph-层-v30)
 6. [Cypher 查询引擎（v3.0）](#6-cypher-查询引擎-v30)
 7. [错误处理](#7-错误处理)
@@ -91,7 +91,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建 DI 容器（`create_service_collection()`）
-3. 注册 28 核心 + 16 intel + 13 内联 + 4 开发 = 61 个工具
+3. 注册 31 核心 + 16 intel + 13 内联 + 4 开发 = 64 个工具
 4. 注册系统提示（mscodebase-rules）
 
 **此处没有业务逻辑。** 每个工具都是从 `mcp/tools/` 导入的。

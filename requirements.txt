@@ -15,6 +15,11 @@ PyYAML==6.0.3
 # LSP Protocol
 pygls==2.1.1
 lsprotocol==2025.0.0
+# basedpyright — backend для 6 lsp_* MCP-тулов (lsp_find_references/definition/
+# document_symbols/type_info/diagnostics/code_actions). Без этого бинаря в extension
+# venv все 6 тулов graceful-fallback'ят на "basedpyright не найден" (P0, 2026-08-28).
+# Pinned: проверено с 1.39.10 (2026-08-19) против текущей кодовой базы.
+basedpyright==1.39.10
 
 # Vector DB & Embeddings
 # Pinned: lancedb 0.x менял публичный API внутри минорных релизов
