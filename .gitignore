@@ -215,3 +215,4 @@ test_result.txt
 *.log
 _mcp_reindex_client.py
 _measure_*.py
+.red_team_state.md

@@ -13,7 +13,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1594%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1636%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-65-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
@@ -545,3 +545,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 - [LM Studio](https://lmstudio.ai/) — local LLM inference
 - [LanceDB](https://lancedb.github.io/) — vector database
 - [Model Context Protocol](https://modelcontextprotocol.io/) — MCP standard
+# Env Access Extractor
+Ported from codebase-memory-mcp (MIT, DeusData 2025). See `src/core/indexing/parser.py` (ENV_FUNCS_BY_LANG, ENV_MEMBERS_BY_LANG, _walk_env_accesses_iter) and `tests/test_env_extractor.py` (22 tests).

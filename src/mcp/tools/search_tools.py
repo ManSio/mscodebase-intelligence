@@ -570,7 +570,8 @@ class GetSymbolInfoTool(MCPTool):
     ) -> str:
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
-        call_graph = self.resolve_symbol_index(explicit_project_root=_pr or None).build_call_graph(query, depth=2)
+        si = self.resolve_symbol_index(explicit_project_root=_pr or None)
+        call_graph = si.build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             defs = call_graph["definition"]
@@ -598,6 +599,25 @@ class GetSymbolInfoTool(MCPTool):
                 result += _("\n⬇️ **Calls:**\n")
                 for c in callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+            # Phase 1 / env-integration: env-accesses для символа (без нового тула).
+            # Только если SymbolIndex поддерживает метод (backward compat с индексами,
+            # где не было add_env_accesses — pre-Phase-0).
+            if hasattr(si, "get_env_accesses_for_symbol"):
+                env_rows = si.get_env_accesses_for_symbol(query)
+                if env_rows:
+                    # Дедуп по env_key: один символ может читать DB_PORT в 3 строках
+                    # — выводим 1 раз, со счётчиком occurrences.
+                    by_key: Dict[str, int] = {}
+                    for r in env_rows:
+                        by_key[r["env_key"]] = by_key.get(r["env_key"], 0) + 1
+                    env_line = ", ".join(
+                        f"`{k}`×{n}" if n > 1 else f"`{k}`"
+                        for k, n in sorted(by_key.items())
+                    )
+                    result += _(
+                        "\n🌍 **Reads ENV:** {env_line}\n",
+                        env_line=env_line,
+                    )
             return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
         # Fallback: поиск по имени

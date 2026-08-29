@@ -101,6 +101,7 @@ class RuntimeCoordinator:
         try:
             from src.core.system_artifacts import SystemArtifacts
             if SystemArtifacts.is_system_path(path):
+                _COUNTERS["verdict_blocked_system_path"] += 1
                 return ExecutionVerdict(
                     ok=False,
                     reason="system_path",
@@ -124,6 +125,7 @@ class RuntimeCoordinator:
             if state == ProjectState.UNINITIALIZED:
                 state = await registry.wait_until_ready(path, timeout=timeout)
                 if state == ProjectState.UNINITIALIZED:
+                    _COUNTERS["verdict_blocked_not_ready"] += 1
                     return ExecutionVerdict(
                         ok=False,
                         reason="project_not_ready",
@@ -136,6 +138,7 @@ class RuntimeCoordinator:
                     )
 
             if state == ProjectState.FAILED:
+                _COUNTERS["verdict_blocked_failed"] += 1
                 return ExecutionVerdict(
                     ok=False,
                     reason="project_failed",
@@ -147,6 +150,7 @@ class RuntimeCoordinator:
                 warnings.append("Background indexing in progress")
 
             if state not in (ProjectState.READY, ProjectState.INDEXING):
+                _COUNTERS["verdict_blocked_not_ready"] += 1
                 return ExecutionVerdict(
                     ok=False,
                     reason="project_not_ready",

@@ -15,7 +15,7 @@
 1. [Основные принципы](#1-core-principles)
 2. [Слойная архитектура](#2-layer-architecture)
 3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (28 core + 16 intel + 13 inline + 4 dev = 61 всего)](#4-tool-layer)
+4. [Слой инструментов (31 core + 16 intel + 13 inline + 4 dev = 64 всего)](#4-tool-layer)
 5. [PropertyGraph (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Обработка ошибок](#7-error-handling)
@@ -93,7 +93,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
 2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 28 core + 16 intel + 13 inline + 4 dev = 61 всего
+3. Зарегистрировать 31 core + 16 intel + 13 inline + 4 dev = 64 всего
 4. Зарегистрировать system prompt (mscodebase-rules)
 
 **Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
@@ -301,7 +301,7 @@ def register_all_tools(mcp, services):
 | **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
 | **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **Всего:** 61 зарегистрировано (28 core + 16 intel + 13 inline + 4 dev). По умолчанию видимо: 46 (13 из 28 core по default-allowlist + 16 + 13 + 4). Показать все: `MSCODEBASE_MCP_TOOLS=""`.
+> **Всего:** 64 зарегистрировано (31 core + 16 intel + 13 inline + 4 dev). По умолчанию видимо: 49 (16 из 31 core по default-allowlist + 16 + 13 + 4). Показать все: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Обработка ошибок
 

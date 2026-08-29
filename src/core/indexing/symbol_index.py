@@ -71,6 +71,12 @@ class SymbolIndex:
         # Регулярка для поиска идентификаторов в тексте
         self._id_pattern = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
 
+        # ENV-access storage (ported from codebase-memory-mcp, MIT DeusData 2025).
+        # Коллекция: file_path -> list of {env_key, line, enclosing_function}.
+        # Дубликаты (file, env_key, line) дедуплицируются при записи.
+        # Query-слой для "какие env читает файл/функция" — позже.
+        self._file_to_env_accesses: Dict[str, List[Tuple[str, int, str]]] = {}
+
     # --- Импорт из парсера ---
 
     def add_definitions(self, file_path: str, symbols: List[Dict]) -> None:
@@ -176,6 +182,65 @@ class SymbolIndex:
                 # так как это создаёт фантомные пустые записи.
                 # Дефинишены добавляются ТОЛЬКО через add_definitions.
 
+    def add_env_accesses(self, file_path: str, accesses: List[Dict]) -> None:
+        """Добавляет env-доступы (os.getenv, process.env, и т.п.) из файла.
+
+        accesses: список {env_key, enclosing_function, line, file} от
+        parser.extract_env_accesses(). Источник: cbm/extract_env_accesses.c
+        (ported, MIT DeusData 2025).
+
+        Хранение — коллекция на SymbolIndex (НЕ LanceDB). Это даёт быстрый
+        in-memory query "какие env-переменные читает этот файл" без новых
+        миграций. Graph-узлы env:KEY — задача следующего шага (если нужны).
+
+        Дедуп: (file, env_key, line) — один и тот же env-доступ в одной строке
+        не пишется дважды. Разные строки — разные записи (если в одной
+        функции os.getenv вызывается дважды — две записи).
+        """
+        from pathlib import Path
+
+        file_path = Path(file_path).resolve().as_posix()
+
+        with self._lock:
+            existing = self._file_to_env_accesses.setdefault(file_path, [])
+            seen_keys = {(e, ln) for e, ln, _ in existing}
+            for acc in accesses:
+                env_key = acc.get("env_key", "")
+                line = acc.get("line", 0)
+                if not env_key or not line:
+                    continue
+                if (env_key, line) in seen_keys:
+                    continue
+                existing.append((env_key, line, acc.get("enclosing_function", "")))
+                seen_keys.add((env_key, line))
+
+    def get_env_accesses(self, file_path: str) -> List[Dict]:
+        """Возвращает env-доступы для файла (для query-слоя)."""
+        from pathlib import Path
+
+        file_path = Path(file_path).resolve().as_posix()
+        with self._lock:
+            rows = self._file_to_env_accesses.get(file_path, [])
+            return [
+                {"env_key": k, "line": ln, "enclosing_function": fn}
+                for k, ln, fn in rows
+            ]
+
+    def get_env_accesses_for_symbol(self, symbol_name: str) -> List[Dict]:
+        """Возвращает env-доступы, относящиеся к символу (точёчный запрос).
+
+        symbol_name: квалифицированное имя (Class.method или module.func).
+        Сравнение — точное по enclosing_function (Q3: substring НЕ используется,
+        иначе "get_token" сматчит "Class.get_token_more" — ложное срабатывание).
+        """
+        with self._lock:
+            out: List[Dict] = []
+            for rows in self._file_to_env_accesses.values():
+                for env_key, line, fn in rows:
+                    if fn == symbol_name:
+                        out.append({"env_key": env_key, "line": line})
+            return out
+
     def remove_file(self, file_path: str) -> None:
         """Удаляет все записи о файле (при удалении/переиндексации)."""
         from pathlib import Path
@@ -187,6 +252,7 @@ class SymbolIndex:
             symbols = self._file_to_symbols.pop(file_path, set())
             self._file_to_defs.pop(file_path, None)
             self._file_to_calls.pop(file_path, None)
+            self._file_to_env_accesses.pop(file_path, None)
             for sym in symbols:
                 # Удаляем определения
                 if sym in self._definitions:

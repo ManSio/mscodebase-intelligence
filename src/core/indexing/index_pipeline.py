@@ -114,6 +114,13 @@ class IndexPipeline:
                     if overrides:
                         with self._symbol_index_lock:
                             self._symbol_index.add_overrides(str(full_path), overrides)
+                # ENV_ACCESSES (ported from codebase-memory-mcp, MIT DeusData 2025).
+                # Коллекция на SymbolIndex — без миграции схемы LanceDB.
+                if hasattr(self._symbol_index, "add_env_accesses"):
+                    env_accesses = self.parser.extract_env_accesses(full_path)
+                    if env_accesses:
+                        with self._symbol_index_lock:
+                            self._symbol_index.add_env_accesses(str(full_path), env_accesses)
             except Exception as sym_err:
                 logger.warning(f"SymbolIndex update failed for {rel_path_str}: {sym_err}")
 

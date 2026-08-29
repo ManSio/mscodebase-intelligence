@@ -32,6 +32,83 @@ QUERIES_DIR = Path(__file__).parent / "queries"
 # Валидный идентификатор для SCM-символов (фильтр мусора макро-грамматик)
 _VALID_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+# ── ENV access tables (ported from codebase-memory-mcp, MIT DeusData 2025) ──
+# Источник: cbm/internal/cbm/lang_specs.c L704-725.
+# Содержит ТОЛЬКО языки, для которых в MSCodeBase есть tree-sitter грамматика
+# (см. self.parsers в _init_tree_sitter). Остальные языки cbm (elixir, haskell,
+# ocaml, r, perl, lua, zig, clojure, erlang) — deferred: нет грамматики в venv.
+ENV_FUNCS_BY_LANG: dict[str, tuple[str, ...]] = {
+    "go": ("os.Getenv", "os.LookupEnv"),
+    "python": ("os.getenv", "os.environ.get"),
+    "rust": ("env::var", "std::env::var"),
+    "java": ("System.getenv", "System.getProperty"),
+    "cpp": ("getenv", "std::getenv"),
+    "c_sharp": ("Environment.GetEnvironmentVariable",),
+    "php": ("getenv", "env"),
+    "scala": ("sys.env", "System.getenv", "System.getProperty"),
+    "kotlin": ("System.getenv", "System.getProperty"),
+    "c": ("getenv",),
+    # js/ts/ruby — обрабатываются через ENV_MEMBERS (process.env / ENV)
+    # perl (cbm "$ENV") — deferred (нет грамматики, см. KNOWN_ISSUES)
+}
+
+ENV_MEMBERS_BY_LANG: dict[str, tuple[str, ...]] = {
+    "python": ("os.environ",),
+    "javascript": ("process.env",),
+    "typescript": ("process.env",),
+    "ruby": ("ENV",),
+}
+
+# Mapping: расширение файла → ключ в ENV_FUNCS_BY_LANG / ENV_MEMBERS_BY_LANG.
+# MSCodeBase хранит парсеры по .ext, а cbm — по lang-имени. Этот маппинг —
+# единственное место, где они связываются.
+_EXT_TO_ENV_LANG: dict[str, str] = {
+    ".py": "python",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".kt": "kotlin",
+    ".scala": "scala",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".cs": "c_sharp",
+    ".php": "php",
+    ".rb": "ruby",
+    # .swift, .dart, .sh, .bash — грамматика есть, но в cbm-таблицах нет:
+    # экстрактор просто пропустит файл (ENV_FUNCS_BY_LANG.get(ext) is None).
+}
+
+# Типы узлов-«доступов к члену», которые матчатся по тексту (subscript / attr / member).
+# В cbm: {"member_expression", "subscript", "attribute"}. В MSCodeBase tree-sitter
+# JS/TS даёт "subscript_expression" (а не "subscript"). Включаем оба варианта —
+# это терпимое расширение спеки (алгоритмический смысл «доступ к полю по индексу»).
+_ENV_MEMBER_NODE_TYPES: frozenset[str] = frozenset({
+    "member_expression",
+    "subscript",
+    "subscript_expression",  # tree-sitter-javascript/typescript
+    "attribute",  # tree-sitter-python
+    "element_reference",  # tree-sitter-ruby: ENV["X"]
+    # Rust field_expression (std::env::var().ok) — НЕ включаем: cbm проверяет
+    # точное равенство callee, и field_expression в Rust НЕ является самостоятельным
+    # доступом, это часть более крупного выражения.
+})
+
+# Валидация имени env-переменной: ≥ 2 символов, ≥ 1 заглавной A-Z, остальное
+# только A-Z0-9_. Скомпилировано один раз (горячий путь в обходе AST).
+_ENV_VAR_NAME_RE = re.compile(r"^[A-Z0-9_]{2,}$")
+# Дополнительная проверка наличия ≥1 заглавной буквы — идёт после regex
+# (regex выше уже гарантирует, что все символы из [A-Z0-9_]).
+
+# Минимальный размер env-имени (cbm enum: MIN_ENV_NAME_LEN = 2).
+# Дублируем для читаемости тестов; реальная проверка — в _ENV_VAR_NAME_RE.
+_MIN_ENV_NAME_LEN = 2
+
 
 class CodeParser:
     """Парсит код и разбивает на семантически значимые чанки (функции, методы)."""
@@ -1423,6 +1500,262 @@ class CodeParser:
                 else:
                     stack.append(child)
         return names
+
+    # ── ENV access extraction (ported from codebase-memory-mcp, MIT DeusData 2025) ─
+    #
+    # Алгоритм портирован из cbm/internal/cbm/extract_env_accesses.c.
+    # Ключевые отличия от рекурсивных extract_* в этом модуле:
+    #   1) Итеративный обход (явный стек) — защита от Python recursion limit
+    #      на глубоко вложенном коде (cbm мотивация: «deeply nested ASTs»).
+    #   2) На матче НЕ спускаемся в детей (continue) — без этого один
+    #      os.getenv("X") породил бы несколько записей при обходе.
+    #   3) Точное (а не substring) сравнение callee с таблицей — иначе
+    #      os.getenv_with_default() сматчилось бы как os.getenv.
+    #
+    # Хранение — в SymbolIndex (collection, без изменения схемы LanceDB).
+    # Query-слой для env:KEY — позже через symbol_index.get_env_accesses().
+
+    def extract_env_accesses(self, file_path: Path) -> List[Dict]:
+        """Извлекает доступы к переменным окружения из файла.
+
+        Поддерживаемые паттерны (см. ENV_FUNCS_BY_LANG / ENV_MEMBERS_BY_LANG):
+          - python: os.getenv("X"), os.environ.get("X"), os.environ["X"], os.environ.X
+          - js/ts:  process.env.X, process.env["X"]
+          - go:     os.Getenv("X"), os.LookupEnv("X")
+          - rust:   env::var("X"), std::env::var("X")
+          - java:   System.getenv("X"), System.getProperty("X")
+          - c/cpp:  getenv("X"), std::getenv("X")
+          - c#:     Environment.GetEnvironmentVariable("X")
+          - php:    getenv("X"), env("X")
+          - scala:  sys.env.X, System.getenv("X"), System.getProperty("X")
+          - kotlin: System.getenv("X"), System.getProperty("X")
+          - ruby:   ENV["X"], ENV.X
+
+        Returns:
+            [{"env_key": ..., "enclosing_function": ..., "line": ..., "file": ...}, ...]
+            env_key — имя переменной (например, "API_KEY").
+            enclosing_function — QN включающей функции/метода (или "" для top-level).
+
+        Note:
+            Использует _get_tree — один Tree-sitter parse на файл благодаря
+            thread-local кэшу (см. _get_tree docstring).
+        """
+        code, tree = self._get_tree(file_path)
+        if tree is None:
+            return []
+        ext = file_path.suffix.lower()
+        lang = _EXT_TO_ENV_LANG.get(ext)
+        if lang is None:
+            return []
+        env_funcs = ENV_FUNCS_BY_LANG.get(lang, ())
+        env_members = ENV_MEMBERS_BY_LANG.get(lang, ())
+        if not env_funcs and not env_members:
+            return []
+        return self._walk_env_accesses_iter(
+            tree.root_node, code, file_path,
+            env_funcs=env_funcs, env_members=env_members,
+        )
+
+    def _walk_env_accesses_iter(
+        self,
+        root_node,
+        code: bytes,
+        file_path: Path,
+        env_funcs: tuple,
+        env_members: tuple,
+    ) -> List[Dict]:
+        """Итеративный обход AST для извлечения env-доступов (cbm walk_env_accesses).
+
+        Использует явный стек (LIFO) — НЕ рекурсию. На матче НЕ пушит детей
+        узла (continue), чтобы не задвоить записи. Отслеживает
+        enclosing_function через параллельный стек контекстов.
+        """
+        accesses: List[Dict] = []
+        # Стек узлов для обхода + параллельный стек контекстов.
+        # Контекст — (function_qn, class_qn). При входе в TARGET/CONTAINER узел
+        # контекст обновляется. Это менее точно чем рекурсивный трекинг
+        # в extract_calls (там current_function — параметр), но достаточно
+        # для ответа «какая функция читает X».
+        node_stack: list = [root_node]
+        ctx_stack: list = [("", "")]
+
+        while node_stack:
+            node = node_stack.pop()
+            current_class, current_function = ctx_stack.pop()
+
+            # Обновить контекст для определений (function/method/class).
+            if node.type in self.TARGET_NODES:
+                name_node = self._find_child_by_type(
+                    node, "identifier"
+                ) or self._find_child_by_type(node, "name")
+                if name_node is not None:
+                    fname = code[
+                        name_node.start_byte : name_node.end_byte
+                    ].decode("utf-8", errors="ignore")
+                    if current_class:
+                        current_function = f"{current_class}.{fname}"
+                    else:
+                        current_function = fname
+            elif node.type in self.CONTAINER_NODES:
+                name_node = self._find_child_by_type(
+                    node, "identifier"
+                ) or self._find_child_by_type(node, "type_identifier")
+                if name_node is not None:
+                    cname = code[
+                        name_node.start_byte : name_node.end_byte
+                    ].decode("utf-8", errors="ignore")
+                    current_class = (
+                        f"{current_class}.{cname}" if current_class else cname
+                    )
+
+            env_key: Optional[str] = None
+
+            # 1) Call-pattern: callee ∈ ENV_FUNCS
+            if env_funcs and node.type in self.CALL_NODES:
+                env_key = self._env_key_from_call(
+                    node, code, env_funcs
+                )
+
+            # 2) Member-pattern: text starts with pattern + '.' or '['
+            if env_key is None and env_members and node.type in _ENV_MEMBER_NODE_TYPES:
+                env_key = self._env_key_from_member(
+                    node, code, env_members
+                )
+
+            if env_key and self._is_env_var_name(env_key):
+                accesses.append({
+                    "env_key": env_key,
+                    "enclosing_function": current_function,
+                    "line": node.start_point[0] + 1,
+                    "file": str(file_path),
+                })
+                # cbm: continue (не пушим детей — избегаем дублей).
+                # Контекст не сохраняем — выходим из этого поддерева.
+                continue
+
+            # Иначе: пушим детей. Контекст наследуется текущим.
+            # Дети обрабатываются в обратном порядке для стабильности обхода.
+            children = list(node.children)
+            for child in reversed(children):
+                node_stack.append(child)
+                ctx_stack.append((current_class, current_function))
+
+        return accesses
+
+    def _env_key_from_call(
+        self, node, code: bytes, env_funcs: tuple
+    ) -> Optional[str]:
+        """Env-ключ из call-узла: os.getenv("X") → 'X'.
+
+        Возвращает None, если callee не в env_funcs или нет валидного аргумента.
+        """
+        # child_by_field_name("function") работает в tree-sitter для py/js/go/rust/c/cs
+        # (проверено в Phase Zero). Fallback на скан по типу — не нужен для
+        # поддерживаемых грамматик, но оставлен как защита (бывает: некоторые
+        # версии grammar-js не выставляют field name на call_expression).
+        func_node = node.child_by_field_name("function")
+        if func_node is None or func_node.type == "":
+            # Fallback: первый ребёнок с типом attribute/scoped_identifier/identifier/field_expression
+            for child in node.children:
+                if child.type in self.CALL_IDENTIFIER_TYPES:
+                    func_node = child
+                    break
+        if func_node is None or func_node.type == "":
+            return None
+
+        callee = code[func_node.start_byte : func_node.end_byte].decode(
+            "utf-8", errors="ignore"
+        )
+        if not callee or callee not in env_funcs:
+            return None
+
+        # Достаём первый «значимый» ребёнок arguments (пропускаем скобки и запятую).
+        args = node.child_by_field_name("arguments")
+        if args is None or args.type == "":
+            return None
+        for child in args.children:
+            if child.type in ("(", ")", ","):
+                continue
+            arg_text = code[child.start_byte : child.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            return self._unquote_env_literal(arg_text)
+        return None
+
+    def _env_key_from_member(
+        self, node, code: bytes, env_members: tuple
+    ) -> Optional[str]:
+        """Env-ключ из member/subscript/attribute: process.env.X / os.environ["X"].
+
+        Текст узла начинается с pattern (env_members) и сразу после pattern —
+        '.' (dot-access) или '[' (subscript-access). Если после pattern идёт
+        конец текста — НЕ даёт запись (голый os.environ / process.env).
+        """
+        text = code[node.start_byte : node.end_byte].decode(
+            "utf-8", errors="ignore"
+        )
+        if not text:
+            return None
+        for pat in env_members:
+            if not text.startswith(pat):
+                continue
+            tail_idx = len(pat)
+            if tail_idx >= len(text):
+                # Голый pattern без . / [ после — не access
+                continue
+            ch = text[tail_idx]
+            if ch == ".":
+                # Dot-access: process.env.API_KEY
+                # Ключ — от точки+1 до конца, но если в ключе есть . или [ —
+                # это вложенный доступ (например, process.env.foo.bar),
+                # НЕ env-переменная.
+                key = text[tail_idx + 1:]
+                if not key or "." in key or "[" in key:
+                    continue
+                return key
+            elif ch == "[":
+                # Subscript-access: process.env["API_KEY"]
+                inner = text[tail_idx + 1:]
+                # Ищем закрывающую ]
+                close = inner.find("]")
+                if close == -1:
+                    continue
+                bracket_content = inner[:close]
+                return self._unquote_env_literal(bracket_content)
+        return None
+
+    @staticmethod
+    def _unquote_env_literal(s: str) -> Optional[str]:
+        """Снять парные кавычки с литерала: '"FOO"' → 'FOO'.
+
+        None если строка пустая. Без unquote '"FOO"' прошёл бы валидацию
+        (заглавные есть, A-Z0-9_ есть) и дал бы ложный env_key='"FOO"'.
+        """
+        if not s:
+            return None
+        s = s.strip()
+        if not s:
+            return None
+        if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'", "`"):
+            return s[1:-1]
+        return s
+
+    @staticmethod
+    def _is_env_var_name(s: str) -> bool:
+        """True если s похоже на имя env-переменной.
+
+        Критерии (cbm is_env_var_name):
+          - len >= 2
+          - ≥ 1 заглавная A-Z
+          - остальное только A-Z0-9_ (без точек, скобок, минусов, lower-case)
+        """
+        if not s or len(s) < _MIN_ENV_NAME_LEN:
+            return False
+        if not _ENV_VAR_NAME_RE.match(s):
+            return False
+        # Доп. проверка: хотя бы одна заглавная (regex выше разрешает всё в верхнем
+        # регистре + цифры + подчёркивания, но требует явно наличия буквы)
+        return any(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for c in s)
 
     def _extract_imports_recursive(
         self,
