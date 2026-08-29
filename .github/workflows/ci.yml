@@ -69,6 +69,8 @@ jobs:
         # --disable-pip + --no-deps: lock уже полностью разрешён; резолв через pip
         # в temp-venv валил CI (pywin32 — Windows-only на ubuntu, numpy 2.4.6
         # без колёс для py3.10). --no-deps обязателен с --disable-pip для не-hashed файла.
+        env:
+          PYTHONUTF8: "1"
         run: |
           python -m pip install "pip-audit==2.10.1"
           pip-audit -r requirements-lock.txt --no-deps --disable-pip

@@ -7,7 +7,7 @@ certifi==2026.6.17
 cffi==2.1.0
 click==8.4.2
 colorama==0.4.6
-# Bumped 2026-08-08: 49.0.0 → 50.0.0 (PYSEC-2026-3552, fix 50.0.0).
+# Bumped 2026-08-08: 49.0.0 -> 50.0.0 (PYSEC-2026-3552, fix 50.0.0).
 # Verified: pyjwt 2.13.0 + cryptography 50.0.0 RS256 roundtrip + import mcp ok.
 cryptography==50.0.0
 deprecation==2.1.0
@@ -45,9 +45,7 @@ pydantic-settings==2.14.2
 pydantic_core==2.46.4
 pygls==2.1.1
 pylance==9.0.0
-# Added 2026-08-28: restore 6 lsp_* MCP-тулов (basedpyright был установлен
-# только в проектный venv, но не в extension venv — все LSP-тулы падали).
-# Проверено 1.39.10 с basedpyright-langserver.exe.
+# Added 2026-08-28: restore 6 lsp_* MCP tools (basedpyright backend)
 basedpyright==1.39.10
 nodejs-wheel-binaries==24.19.0
 Pygments==2.20.0
