@@ -29,6 +29,13 @@
 
 ---
 
+## [2026-08-29 12:00] — Two-Pass Graph Symbol Resolution (Extract -> Resolve)
+**Status:** ✅ Fixed (resolved 7 passed; live integration complete)
+**Root Cause:** The previous single-pass graph building produced unlinked `{project}.__extern__.{symbol}` nodes for any callee defined outside the immediate file under indexing, leading to "leaky" connections, sparse dependency trees, and high rates of unresolved placeholder nodes in the graph.
+**Fix:** Implemented a robust, two-pass resolution system: (1) In `graph_adapter_pure.py`, store caller context (`caller_node_id`, `line_number`, `raw_symbol_name`) during AST extraction of unresolved symbols. (2) Created `src/core/search/graph_resolver.py` implementing `GraphSymbolResolver.resolve_all()` executing four strategy checks: Import/FQN Match (rebuild relative and absolute dot-paths across dots/modules), Unique Global Match, Stdlib/External Package mapping directly to clean `NodeLabel.DEPENDENCY` nodes, and fallback unresolved markers. Redirects edges, copies properties, and deletes redundant placeholders. (3) Integrated into `index_project()` in `indexer.py`/`graph_adapter.py` and `build_graph()` in `graph_rag.py`.
+**Guard:** `tests/test_graph_resolver.py` (7/7 tests passed covering FQN matches, relative imports, unique global names, stdlib mapping, and unresolved fallback).
+**verified_from_clean_state:** ✅ yes — all 7 tests passed perfectly. Full pytest suite remains green (55 passed across related modules).
+
 ## [2026-08-28 14:30] — Reindex Finalizing deadlock (write-lock held across optimize/create_index)
 **Status:** ✅ Fixed (#18, 1578a1bb) — блокер live-верификации снят
 **Root Cause:** `IndexProjectRunner.run()` держал глобальный `_write_lock` (RLock) весь reindex, включая LanceDB `optimize()/create_index()` в `_safe_ivf_index()` → оба процесса 0% CPU, фаза Finalizing не завершалась, `is_reindexing` не снимался → символ-индекс не догружался → write-тулы падали `FileNotFoundError`.

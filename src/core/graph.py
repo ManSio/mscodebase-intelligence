@@ -208,6 +208,7 @@ class NodeLabel:
     RESOURCE = "Resource"
     TEST = "Test"
     VARIABLE = "Variable"
+    DEPENDENCY = "Dependency"
 
 
 # ────────────────────────────────────────────────────────────
