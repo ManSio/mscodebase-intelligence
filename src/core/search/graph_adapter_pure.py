@@ -394,6 +394,10 @@ class PureGraphMixin:
         (name LIKE 'method') не матчит "Class.method", поэтому объединяем
         exact и suffix "%.method" — покрывает оба случая (D1-D3: иначе тень
         experiments/ в exact-выборке исключала src/ метод из суффикса).
+
+        Для квалифицированных символов ("Class.method") дополнительно
+        ищем bare-имя ("method"), т.к. CALLS-рёбра могут лежать на голом
+        узле, если парсер не квалифицировал callee.
         """
         exact = self._graph.find_nodes(name_pattern=symbol, limit=limit)
         suffix = self._graph.find_nodes(name_pattern=f"%.{symbol}", limit=limit)
@@ -403,6 +407,12 @@ class PureGraphMixin:
             if n.qualified_name not in seen:
                 seen.add(n.qualified_name)
                 merged.append(n)
+        bare = symbol.split(".")[-1] if "." in symbol else symbol
+        if bare != symbol:
+            for n in self._graph.find_nodes(name_pattern=bare, limit=limit):
+                if n.qualified_name not in seen:
+                    seen.add(n.qualified_name)
+                    merged.append(n)
         return merged
 
     def _pick_best_node(self, nodes: List[Node], symbol: str):

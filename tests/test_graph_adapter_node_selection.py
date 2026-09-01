@@ -92,3 +92,26 @@ def test_callers_merged_across_placeholder_and_real(tmp_path):
     caller_files = {c["file"] for c in g["callers"]}
     assert caller_files, "callers не должны теряться из-за выбора real-узла"
     assert any(f and f.endswith("consumer.py") for f in caller_files), caller_files
+
+
+def test_qualified_symbol_includes_bare_node_callers(tmp_path):
+    ad = _adapter(tmp_path)
+    ad.add_definitions("D:/Project/X/src/pipeline.py", [
+        {"name": "Pipeline.process_articles", "line": 50, "kind": "method_definition"},
+    ])
+    ad.add_references("D:/Project/X/src/pipeline.py", [
+        {"caller": "Pipeline.process_articles", "callee": "list_articles", "line": 55},
+    ])
+    ad.add_definitions("D:/Project/X/src/clients/devto.py", [
+        {"name": "DevToClient.list_articles", "line": 30, "kind": "method_definition"},
+    ])
+
+    nodes = ad._find_nodes_flexible("DevToClient.list_articles", limit=20)
+    has_bare = any(n.name == "list_articles" for n in nodes)
+    assert has_bare, f"bare 'list_articles' node not found in: {[(n.name, n.qualified_name) for n in nodes]}"
+
+    g = ad.build_call_graph("DevToClient.list_articles")
+    caller_names = [c["symbol"] for c in g["callers"]]
+    assert any("process_articles" in c for c in caller_names), (
+        f"expected Pipeline.process_articles in callers, got: {g['callers']}"
+    )

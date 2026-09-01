@@ -29,6 +29,16 @@
 
 ---
 
+## [2026-08-31] — Blast radius fix: bare-callee edges now reach qualified method node
+**Status:** ✅ Fixed (13+67 tests green, ruff clean; local, not pushed)
+**Root Cause:** `impact_analysis("Class.method")` returned 0 callers because the parser intentionally emits BARE callee (`_extract_callee_name`, parser.py:1239-1247, takes last identifier → `list_articles` for `self.devto.list_articles()`), while the definition node is QUALIFIED (`DevToClient.list_articles`). `_candidate_starts` only fanned out to full-qualified matches (`%.DevToClient.list_articles`), so the bare node holding the real CALLS edges never entered the BFS start set — blast radius systematically under-estimated for any object-method call. Confirmed by real parser run on DEV.to/core/pipeline.py:85/135 → callee `list_articles` (bare).
+**Fix:** `graph_adapter_pure.py:410-416` — `_find_nodes_flexible` now ALSO queries `find_nodes(name_pattern=<bare last-dot component>)` and merges (dedup by qualified_name) when symbol is qualified. Since both impact (graph_adapter.build_call_graph) and topology (graph_adapter_pure.get_call_chain) share this funnel (D1-D3), both now see bare-node callers. Root fix at the single shared funnel (Trigger-3 generalization); NOT parser receiver-type qualification (needs Pyright-class inference, too large).
+**Guard:** `tests/test_graph_adapter_node_selection.py:97` `test_qualified_symbol_includes_bare_node_callers` (mirrors DEV.to: caller→bare `list_articles` edge now found by `build_call_graph("DevToClient.list_articles")`). Also fixed stale docstring `health.py:617` (timeout=30s → 15s, actual is 15).
+**Pattern:** Continuation of P-002-class (unranked/unqualified node resolution misroutes callers), residual of 2026-08-03 Задача 5/5 + D1-D3. Prior known_issue NODE-420101 → SUPERSEDED by ADR NODE-c2a537.
+**verified_from_clean_state:** ⚠️ не проверено — clean clone не выполнен (фикс не запушен в origin); gate-zero полный pytest прошёл через pre-commit hook (1595 passed, 4 skipped, 91 deselected в 243s)
+
+---
+
 ## [2026-08-29 12:00] — Two-Pass Graph Symbol Resolution (Extract -> Resolve)
 **Status:** ✅ Fixed (resolved 7 passed; live integration complete)
 **Root Cause:** The previous single-pass graph building produced unlinked `{project}.__extern__.{symbol}` nodes for any callee defined outside the immediate file under indexing, leading to "leaky" connections, sparse dependency trees, and high rates of unresolved placeholder nodes in the graph.
