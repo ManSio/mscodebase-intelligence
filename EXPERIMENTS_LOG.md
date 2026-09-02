@@ -1,5 +1,22 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-08-05] — Neuro-Symbolic spike: NL → LLM → Cypher → parser+schema → PropertyGraph (exp-lab-2026-01)
+
+**Ожидание:** связка (LLM-генерация Cypher + двухслойная валидация parser+schema + исполнение) отсекает невалидные генерации ДО исполнения: 10 вопросов → 8 исполнимых + 2 отсечённых (галлюцинированная метка SERVICE, функция cycle()).
+**Команда:** `python experiments/neuro_symbolic_spike.py` (MockLLM, без сети; `--lm-studio` — реальный phi-4, не мерился — LM Studio не запущен).
+**Сырой результат:**
+```
+Что вызывает main?     -> EXEC ok (2 rows)
+Какие функции используют config? -> EXEC ok (1 rows)
+Сколько функций в графе? -> EXEC ok (5 rows)
+Есть ли цикл в графе?  -> SCHEMA-REJECT: empty RETURN (parser ignored expression)
+Какие сервисы есть?    -> SCHEMA-REJECT: unknown label :SERVICE
+=== METRICS === total=10 parse_ok=8 rejected_by_parser=0 rejected_by_schema=2 exec_ok=8 exec_error=0 latency avg=0.1 ms
+VERDICT: HYPOTHESIS SUPPORTED (3-layer validation)
+```
+**Вердикт:** подтверждена с оговоркой — parser-слой ОДИН не ловит галлюцинации (SERVICE — синтаксически валидно; cycle(a) → parser молча return_items=[]); schema-слой закрыл оба. FINDINGS по Cypher-стеку: (1) label case-sensitive — MATCH (f:FUNCTION)→[] при хранимом 'Function'; (2) count() → SQLite "near *"; (3) CypherExecutor глотает SQL-ошибки → тихий []; (4) parser игнорирует RETURN-вызовы функций.
+**Урок:** parser-валидация ≠ исполняемость — нужен schema-слой (метки/связи/functions против схемы графа); это общий паттерн text-to-cypher (schema-aware prompting). Баги executor'а — кандидаты в KNOWN_ISSUES (вне скоупа спайка). Связь с отрицательными: не из таблицы §3.8.
+
 ## [2026-08-21] — B-1 Manifest parity vs osv-scanner: гейт нашёл и закрыл 3 дыры
 
 **Гипотеза (Вариант В спеки 07):** выхлоп наших экстракторов манифестов == osv-scanner
