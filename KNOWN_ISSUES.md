@@ -122,7 +122,7 @@
 - [FIXED] get_last_progress → core (техдолг ARCH-03 закрыт) 
 - [FIXED] experiments/audit.md: 16 пунктов проверено, 12 исп
 - [?] D1: schema-слой спайка → CypherExecutor (P-004 зак
-- [FIXED] C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01) 
+- [FIXED] C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01). Spike-артефакт (experiments/neuro_symbolic_spike.py + EXPERIMENTS_LOG entry) carried into main 848fdf33, branch experiment/lab-2026 deleted. 
 - [?] A2: sandbox execute_script — модель угроз (ADR-000
 - [FIXED] A1 (внешний аудит): ThreadPoolExecutor max_workers
 - [?] A3 (внешний аудит): 626 except Exception — тихих г
