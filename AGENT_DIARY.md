@@ -29,6 +29,20 @@
 
 ---
 
+---
+
+## [2026-09-02] - PR #20 merged green; issues #21/#22 auto-closed
+**Status:** Fixed (merged to main, CI fully green)
+**Root Cause:** PR #20 (two-pass symbol resolution) introduced 4 CI failures:
+1. git_hooks_installer.py:54 - premature """ closed the PRE_COMMIT_HOOK literal -> 91 invalid-syntax (escaped-quote bug; surrounding escaped quotes are intentional, this one wasn't).
+2. graph_resolver.py - 5 F401 unused imports + 1 BLE001 (except Exception).
+3. test_graph_adapter_node_selection.py tie-test asserted hardcoded Windows path D:/.../pkg_a/impl.py; adapter normalizes file_path via Path.resolve(), so on Linux CI the value differed -> clean-state job failed.
+4. test_modification_guard.py:505 - E731 lambda in class attr (ruff lints src/ AND tests/).
+**Fix:** reused escaped quotes; trimmed imports + narrowed except; tie-test asserts chosen.file_path.endswith(pkg_a/impl.py) (platform-stable); lambda->def (4cb1b695, 9659f591).
+**Guard:** CI Lint(ruff) runs `ruff check src/ tests/` -> verify BOTH incl. tests, not just src/ (checked src/ only first pass).
+**Result:** PR #20 merged; issues #21 (ambiguous writes refuse) & #22 (fail-closed anchors / head-freshness) auto-closed via Fixes footer in commit B (cb88c961).
+**verified_from_clean_state:** ✅ yes - CI on head 9659f591: test(ubuntu 3.14) PASS, test(windows 3.14) PASS, clean-state PASS, ruff check src/ tests/ PASS; full pre-commit gate-zero for both fix commits.
+
 ## [2026-08-31] — Blast radius fix: bare-callee edges now reach qualified method node
 **Status:** ✅ Fixed (13+67 tests green, ruff clean; local, not pushed)
 **Root Cause:** `impact_analysis("Class.method")` returned 0 callers because the parser intentionally emits BARE callee (`_extract_callee_name`, parser.py:1239-1247, takes last identifier → `list_articles` for `self.devto.list_articles()`), while the definition node is QUALIFIED (`DevToClient.list_articles`). `_candidate_starts` only fanned out to full-qualified matches (`%.DevToClient.list_articles`), so the bare node holding the real CALLS edges never entered the BFS start set — blast radius systematically under-estimated for any object-method call. Confirmed by real parser run on DEV.to/core/pipeline.py:85/135 → callee `list_articles` (bare).
