@@ -1720,3 +1720,13 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** `tests/test_env_extractor.py` (22 теста) — позитив (py/js/ts/go/rust/c/ruby), негатив (no-uppercase, len<2, bare pattern, nested member, non-env callee, unsupported ext), не-дублирование (1 access = 1 record), SymbolIndex round-trip + remove_file cleanup. Full pytest: 1582 passed, 5 skipped (регрессия 0). Ruff: clean.
 **Обобщение:** Отличия от cbm (портировано как enhancement, не нарушение спеки): (1) `subscript_expression` + `element_reference` в `_ENV_MEMBER_NODE_TYPES` — реальные имена node-типов в tree-sitter-javascript/typescript/ruby. (2) `_env_key_from_call` содержит `node.child_by_field_name("function")` (tree-sitter library method) с fallback на скан по `CALL_IDENTIFIER_TYPES` (защита от пустого field name в старых grammar-js). (3) `from os import environ` НЕ матчится `os.environ` — cbm-семантика сохранена дословно; задокументировано в KNOWN_ISSUES.
 **verified_from_clean_state:** ✅ live — 22 unit-tests passed; full pytest 1582 passed (регрессия 0); ruff lint clean. Live-smoke (runtime) не требуется — extractor это pure AST walk без embedder/индекса. yes (live: full pytest 1582 passed; ruff clean; SymbolIndex collection verified).
+
+---
+
+## [2026-09-02 20:51] — drift_gate заблокировал коммит: контроль остановил самого автора
+**Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+**Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH процесса > shutil.which("bash") резолвит System32\bash.exe (WSL-шим) > _resolve_bash возвращает None > negative_controls BROKEN. Доказано предсуществование: файлы drift_gate не тронуты в этой сессии (git log), gate был зелёным 2026-08-12 (AGENT_DIARY:723-724) > деградация среды, НЕ вечный UNAVAILABLE.
+**Fix:** commit A (08281f37, fixes #21/#22) выполнен процессом с prepend PATH "C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin" > negative_controls все 3 PROVEN, все 5 hook-проверок OK. **--no-verify НЕ использовался** (запрещён): устранена причина (bash в PATH), незаглушена проверка.
+**Guard:** паттерн в WISDOM: «hook блокирует > чини среду, не пропуск» (PATH-фикс делает контроль работающим и коммитит ПОД ним; --no-verify оставляет контроль мёртвым).
+**Сопутствующее:** пере-стейдж дрейфнувших fail-closed файлов (layer/verify_on_read/test) — стейдж отставал от рабочего дерева после поздних эдитов; пойман повторным git diff --staged (привычка: сверять перед каждым коммитом). Многострочный PS heredoc ломает git commit > использовать -F <файл>.
+**verified_from_clean_state:** да (на рабочем дереве = стейдж A): 126 тестов A-зоны passed; hook 5/5 OK; git show --stat 08281f37 = 7 файлов 328+/16-, footer Fixes #21/#22.

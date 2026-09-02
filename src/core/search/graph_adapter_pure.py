@@ -11,7 +11,7 @@ Pure mode methods for SymbolIndexAdapter.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from src.core.graph import (
     EdgeType,
@@ -522,6 +522,18 @@ class PureGraphMixin:
                 return [r for r in fallback if r.is_definition]
             except Exception:
                 return []
+
+    def build_head(self) -> Optional[str]:
+        """HEAD, на котором был построен PropertyGraph (из meta.build_head).
+
+        Возвращает None, если граф построен без фиксации HEAD (например,
+        в тестах/ручной загрузке) — отсутствие метки означает «свежесть
+        неизвестна», потребитель обязан трактовать это как недоверие.
+        """
+        try:
+            return self._graph.get_meta("build_head")
+        except Exception:
+            return None
 
     def find_references(self, symbol: str) -> List[SymbolRef]:
         """Где используется символ."""

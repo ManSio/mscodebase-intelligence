@@ -52,7 +52,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 if os.name == "nt":
     import subprocess as _sp
@@ -179,6 +179,92 @@ def _fingerprint_for(root: Path) -> "_Fingerprint":
         fp = _Fingerprint(root=root)
         _FINGERPRINT_CACHE[key] = fp
     return fp
+
+
+# ── Freshness для symbol-anchors (issue #21/#22, commit B) ──
+# A symbol anchor can only REFUTE honestly when the index it was verified
+# against provably reflects the current codebase. These two helpers gate that:
+#   * evaluate_freshness(build_head, current_head, dirty): pure decision — is the
+#     substrate fresh enough that "not found" is real evidence of absence?
+#   * resolve_head_dirty(root): (current_HEAD, dirty) or None when unresolvable.
+
+
+def evaluate_freshness(
+    build_head: Optional[str],
+    current_head: Optional[str],
+    dirty: bool,
+) -> bool:
+    """True only when the symbol index is provably fresh enough to REFUTE.
+
+    REFUTE (absent) requires: an index build_head that equals the live HEAD,
+    a resolvable current HEAD, and a clean working tree. Any other state
+    (mismatched HEAD, legacy index with no build_head, non-git repo
+    / unresolvable HEAD, or a dirty tree) means absence is UNVERIFIABLE ->
+    the resolver must return None (INCONCLUSIVE), never False (REFUTED).
+    """
+    if build_head is None:
+        return False            # legacy index / no freshness mark -> unknown
+    if current_head is None:
+        return False            # non-git / git failure -> unresolvable
+    if dirty:
+        return False            # uncommitted edits may redefine the symbol
+    return build_head == current_head
+
+
+def resolve_head_dirty(root: Union[str, Path]) -> Optional[Tuple[str, bool]]:
+    """Current HEAD plus dirty-flag for a git repo; None when unresolvable.
+
+    Returns (head, dirty): head is the bare 40-char rev-parse HEAD, dirty is
+    True when ``git status --porcelain`` is non-empty (uncommitted changes).
+    None when git is unavailable / not a repo / any error — caller must treat
+    that as INCONCLUSIVE. Both are resolved best-effort subprocess calls.
+    """
+    root_p = Path(root).resolve()
+    if (root_p / ".git").exists() is False and not _is_git_worktree(root_p):
+        return None  # no git metadata at all -> not resolvable
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        if proc.returncode != 0:
+            return None
+        head = out.decode("utf-8", "replace").strip()[:40]
+        if not head:
+            return None
+        sproc = subprocess.Popen(
+            ["git", "status", "--porcelain"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        sout, _ = sproc.communicate(timeout=5)
+        dirty = sproc.returncode == 0 and bool(sout.strip())
+        return head, dirty
+    except Exception as exc:  # noqa: BLE001 - любой сбой git -> не резолвится
+        logger.debug("resolve_head_dirty: git failed for %s: %s", root_p, exc)
+        return None
+
+
+def _is_git_worktree(root: Path) -> bool:
+    """A subdir of a git worktree may have no own .git file; check nearest root."""
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        return proc.returncode == 0 and out.decode("utf-8", "replace").strip() == "true"
+    except Exception:  # noqa: BLE001
+        return False
 
 
 class Anchor:
@@ -539,19 +625,14 @@ class VerifyOnRead:
             return VERDICT_INCONCLUSIVE, None
         for a in anchors:
             check = self._check_anchor(a, fp)
-            # TRI-STATE: None = unverifiable (e.g. graph unavailable for a
-            # symbol anchor) -> INCONCLUSIVE, NEVER promoted to VERIFIED.
+            # TRI-STATE: None = unverifiable (e.g. graph unavailable, or the
+            # symbol resolver could not prove index freshness) -> INCONCLUSIVE,
+            # NEVER promoted to VERIFIED.
             if check is None:
                 return VERDICT_INCONCLUSIVE, None
-            # FAIL-CLOSED symbol (issue #22): the graph/index carries no
-            # freshness mark in this build, so a `symbol` anchor whose referent
-            # is NOT confirmed present can never REFUTE — "not found" here is
-            # NOT evidence of absence (stale index). Only True confirms; any
-            # non-True (False/None) for a symbol -> INCONCLUSIVE.
-            if a.kind == "symbol":
-                if check is not True:
-                    return VERDICT_INCONCLUSIVE, None
-                continue
+            # Symbol anchors are freshness-gated in the RESOLVER (commit B): a
+            # False only arrives when the index build_head matches the live HEAD
+            # on a clean tree, so REFUTED here is honest — no stale-index hazard.
             if not check:
                 return VERDICT_NOT_FOUND, f"{a.kind}:{a.value}"
         return VERDICT_FOUND, None
