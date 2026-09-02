@@ -144,8 +144,13 @@ def test_pick_best_node_rank_tie_is_deterministic_and_mitigated_upstream(tmp_pat
     assert len(nodes) == 2, f"expected 2 tied candidates, got {len(nodes)}"
     chosen = ad._pick_best_node(nodes, "run")
     # Determinism + incidental identity: first-by-insertion (rowid) wins.
+    # file_path is normalized (Path.resolve/abspath) in the adapter, so the
+    # literal "D:/Project/X/..." differs across platforms; assert by the
+    # platform-stable suffix (pkg_a added first -> wins) instead of a hardcoded
+    # path. portability fix for the Linux CI clean-state job.
     assert chosen is not None, "read-path must still resolve deterministically"
-    assert chosen.file_path == "D:/Project/X/src/pkg_a/impl.py", (
-        "tie-break must be the first-by-rowid node (incidental, deterministic)"
+    assert chosen.file_path.replace("\\", "/").endswith("pkg_a/impl.py"), (
+        "tie-break must be the first-by-rowid node (incidental, deterministic): "
+        f"got {chosen.file_path!r}"
     )
     assert len(nodes) > 1, "the ambiguous set must survive at the graph layer"
