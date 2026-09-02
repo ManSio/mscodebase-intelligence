@@ -31,6 +31,13 @@
 
 ---
 
+## [2026-09-03] - Carried exp-lab-2026-01 neuro-symbolic spike artifact into main
+**Status:** Fixed (branch closed, artifact merged into main)
+**Root Cause:** experiment/lab-2026 branch (spike exp-lab-2026-01: NL->LLM->Cypher->parser+schema->PropertyGraph) was orphaned - its artifact experiments/neuro_symbolic_spike.py and EXPERIMENTS_LOG entry never landed on main. Findings C1-C4 were already fixed on main via D1 (CypherExecutor schema layer).
+**Fix:** Re-ran spike from clean main (VERDICT: HYPOTHESIS SUPPORTED, parse_ok=8, rejected_by_schema=2 - schema layer correctly rejects hallucinated :SERVICE label and cycle() empty-RETURN). Carried only the useful artifact (spike script + EXPERIMENTS_LOG entry 848fdf33), avoiding a blind merge that would have conflicted in 3 doc files. Deleted orphaned local branch experiment/lab-2026.
+**Guard:** When a long-lived experiment branch diverges, carry only the result artifact, never blind-merge doc files that evolved on main.
+**verified_from_clean_state:** ✅ yes - spike re-run from clean working tree on main (MockLLM, no network); pre-commit gate-zero green (verify_diary/stale_detector/check_tool_names/negative_controls/check_layer_boundaries).
+
 ## [2026-09-02] - PR #20 merged green; issues #21/#22 auto-closed
 **Status:** Fixed (merged to main, CI fully green)
 **Root Cause:** PR #20 (two-pass symbol resolution) introduced 4 CI failures:
