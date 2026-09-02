@@ -54,11 +54,30 @@ load_memory() ──► Retrieval candidate ──► Is Node UNVERIFIED/SILENT?
    - **импорты** — имена модулей → проверка по импортам кодовой базы
      (переиспользование `CodeParser._extract_imports_recursive`, `parser.py:1362`,
      или PropertyGraph `IMPORTS`-рёбер);
-   - **конфиг-ключи** — имена ключей → поиск в `.env`/`.env.example`/`config`.
+   - **конфиг-ключи** — имена ключей → поиск в `.env`/`.env.example`/`config`;
+   - **sym/symbol (2026-09-01, issue #22; freshness-gated 2026-09-02, commit B)** —
+     qname референта → проверка против графа/AST через инжектируемый
+     `symbol_resolver` (в `_check_anchor`): `True` (референт существует) |
+     `False` (референт удалён) | `None` (граф/индекс недоступен). При отсутствии
+     резолвера или `None` — вердикт **INCONCLUSIVE, никогда VERIFIED** (fail-closed:
+     symbol-якорь не может подтвердить узел без реальной проверки референта).
+   - **Свежесть индекса для `symbol` (commit B, issue #22):** `False` (REFUTED)
+     разрешён ТОЛЬКО когда индекс доказуемо свеж: записанный при индексации
+     `build_head` (мета PropertyGraph) совпадает с живым `HEAD` И рабочее дерево
+     чистое (`git status --porcelain` пуст). Любое другое состояние — легаси-индекс
+     без `build_head`, расхождение HEAD, не-git репозиторий, грязное дерево,
+     сбой резолвера — `None` → **INCONCLUSIVE** (STALE-безопасно, без ложных REFUTED).
+     Свежесть решает РЕЗОЛВЕР (layer), не `_classify`: `_classify` доверяет резолверу.
 2. **Автоматический переход в REFUTED.** При нечувствительности среды
    (ни один якорь не найден) узел помечается `status=REFUTED` с причиной
    **`SILENT_ABSENCE_ON_READ`** и отсекается **до формирования системного
-   промпта**. Переход пишется тем же путём, что и ручной отзыв
+   промпта**. **REFUTED требует доказательства отсутствия:** для `file`/`import`/
+   `env`/`pkg` — прямое отрицательное значение проверки; для `symbol` — резолвер
+   вернул `False` (референт подтверждённо отсутствует). `None`/непроверяемо
+   (граф недоступен, неизвестный kind) — это НЕ доказательство отсутствия:
+   узел получает **INCONCLUSIVE и остаётся ACTIVE**, а не REFUTED (фоллбек
+   `_check_anchor` для неизвестного kind — `None`, не `False`).
+   Переход пишется тем же путём, что и ручной отзыв
    (`retract_reason`/`retracted_at` + маркер `retract_source="verify_on_read"`) —
    переходы видны в аудите через `include_retracted=True`.
 3. **Latency Budget & Caching.** Результаты Verify-On-Read кэшируются **по хешу
@@ -120,14 +139,18 @@ load_memory() ──► Retrieval candidate ──► Is Node UNVERIFIED/SILENT?
   retract_source), как и ручные.
 - **Риск ложных отзывов** истинных фактов о внешнем окружении — закрыт
   INCONCLUSIVE-веткой (см. Open Question 1).
-- **VERIFIED не деградирует при смене HEAD** (v1): stale-VERIFIED после изменения
-  кода — отдельная задача (TTL/перепроверка VERIFIED), не входит в объём B.
+- **VERIFIED не деградирует при смене HEAD** (v1→B): для `symbol`-якорей
+  stale-VERIFIED закрыт commit B — REFUTED по отсутствию возможен только на
+  доказуемо свежем индексе (build_head == HEAD, чистое дерево), что исключает
+  ложный REFUTED по устаревшему индексу. Для `file`/`import`/`env`/`pkg`,
+  не требующих индекса, stale-VERIFIED (TTL/перепроверка VERIFIED) остаётся
+  отдельной задачей вне объёма B.
 
 ## Impact
 
 | Файл | Изменение |
 |---|---|
-| `src/core/intelligence/verify_on_read.py` | **новый** — Lazy Validation Layer: извлечение якорей из node (file:/import/env-key), проверка по кодовой базе, вердикты FOUND/NOT_FOUND/INCONCLUSIVE, запись переходов, кэш по HEAD; guard против абсолютных/вложенных путей в `_PATH_RE` |
+| `src/core/intelligence/verify_on_read.py` | **новый** — Lazy Validation Layer: извлечение якорей из node (file:/import/env-key/pkg/symbol), проверка по кодовой базе, вердикты FOUND/NOT_FOUND/INCONCLUSIVE, запись переходов, кэш по HEAD; guard против абсолютных/вложенных путей в `_PATH_RE` |
 | `src/core/intelligence/layer.py` | хук слоя в `intel_get_project_memory` (L914-916); переходы пишутся через общий write-путь (тот же `_write_lock`); **write-time anchor capture** в `intel_add_memory_node` и `intel_auto_collect_adrs` (типизированные якоря `data.anchors` из синтаксиса claim/data) |
 | `src/core/intelligence/tools_reg.py` | (опц.) флаг `verify_on_read` в `intel_get_project_memory` для отладки |
 | `tests/test_verify_on_read.py` | **новый** — юнит: FOUND→VERIFIED, NOT_FOUND→REFUTED(SILENT_ABSENCE_ON_READ), INCONCLUSIVE→ACTIVE, кэш по HEAD, бюджет-таймаут |

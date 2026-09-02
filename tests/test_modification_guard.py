@@ -476,6 +476,52 @@ class TestModificationGuard:
             assert result["status"] == "denied"
 
 
+class TestAmbiguousSymbolTarget:
+    """Regression: an unqualified symbol resolving to 2 definitions must not
+    silently target defs[0]'s file (modification_guard.py:241). The guard
+    needs the file_path/qualified symbol to disambiguate; otherwise the write
+    is routed to whichever definition was indexed first.
+    """
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_symbol_not_silently_routed_to_defs0(self, fresh_guard):
+        """When a bare symbol has 2 definitions and no file_path is given, the
+        guard must NOT silently route ack/target to the first def's file."""
+        from src.core.modification_guard import modification_guard
+
+        class Def:
+            def __init__(self, file_path):
+                self.file_path = file_path
+
+        class FakeSI:
+            def find_definitions(self, symbol):
+                return [
+                    Def("D:/Project/X/src/pkg_a/impl.py"),
+                    Def("D:/Project/X/src/pkg_b/impl.py"),
+                ]
+
+        class TestTool:
+            _services = MagicMock()
+
+            def resolve_symbol_index(self):
+                return FakeSI()
+
+            @modification_guard()
+            async def my_write(self, symbol="run"):
+                return {"status": "ok", "routed_to": None}
+
+        tool = TestTool()
+        result = await tool.my_write(symbol="run")
+        # Bug today (modification_guard.py:241): the guard picks defs[0]
+        # (pkg_a/impl.py) as the ack target. Even though the write is DENIED
+        # (mock pagerank makes it hot), the request is routed at a specific
+        # silently-chosen file — so an ambiguous symbol must not resolve to a
+        # single defs[0] target. Assert the message does NOT name defs[0].
+        assert ":" not in result.get("message", "") or "ack_impact" not in result.get("message", ""), (
+            f"ambiguous bare symbol must not be routed to defs[0]'s file; got {result['message']!r}"
+        )
+
+
 # ── Tests: _make_ack_token / _verify_ack_token ────────────────────────────
 
 

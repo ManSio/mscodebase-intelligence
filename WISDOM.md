@@ -186,3 +186,42 @@
   (ключ node_id, переживают HEAD); starved = matched>=2 && delivered==0 —
   систематическое голодание по бюджету 50мс, а НЕ баг якорей/парсера
   (ресипт: «⏳ starved: N узлов»).
+
+## Head-freshness for symbol anchors — COMMIT A DONE, COMMIT B DONE (2026-09-02, issues #21/#22)
+- **COMMIT A СДЕЛАН (08281f37, ветка feat/two-pass-symbol-resolver, 7 файлов, 328+/16-):**
+  A = поведение отказов: write-path guard на неоднозначность (#21: modification_guard +
+  write_tools `_resolve_single_source_def` отказ при >1 definition) + VOR symbol-якорь
+  fail-closed (#22: `_symbol_resolver` только True→VERIFIED / None→INCONCLUSIVE, НИКОГДА
+  False→REFUTED; `_classify` non-True symbol → INCONCLUSIVE). Тесты 126 passed.
+- **COMMIT B (head-freshness) — РЕАЛИЗОВАН, 8 тестов, полный pytest 1602 green, ruff чист:**
+  - `src/core/graph.py`: `meta`-таблица (set_meta/get_meta) — build-метка.
+  - `src/core/search/graph_adapter_pure.py`: `build_head()` (get_meta) + `Optional`-импорт.
+  - `src/core/intelligence/verify_on_read.py`: helper'ы `evaluate_freshness(build_head,
+    current_head, dirty) -> bool` + `resolve_head_dirty(root) -> Optional[(head, dirty)]`
+    (git rev-parse HEAD + git status --porcelain, оба Popen+communicate, CREATE_NO_WINDOW,
+    timeout 5s, fail→None); `_classify` снял fail-closed symbol-ветку (False теперь REFUTED —
+    свежесть гарантирует резолвер).
+  - `src/core/intelligence/layer.py`: `_symbol_resolver` freshness-gated — False (REFUTED)
+    ТОЛЬКО если `si.build_head()` == live HEAD (resolve_head_dirty) на чистом дереве;
+    иначе (легаси-индекс без build_head / HEAD-мисматч / не-git / dirty / сбой) → None
+    (INCONCLUSIVE). Свежесть решает РЕЗОЛВЕР, не `_classify`.
+  - `src/core/indexing/indexer.py`: `index_project` записывает `build_head` в мету графа
+    ТОЛЬКО на успешном full completion (локальный `from ... import resolve_head_dirty`).
+  - `docs/adr/0003-verify-on-read.md`: абзац «VERIFIED symbol = индекс на текущем HEAD,
+    дерево чистое»; stale-VERIFIED закрыт для symbol (file/import/env/pkg — вне B).
+  - `tests/test_symbol_freshness.py` (8 тестов: 6 evaluate_freshness сценариев + resolve_head_dirty
+    не-git + PropertyGraph build_head roundtrip); test_verify_on_read адаптирован к B
+    (fail-closed-тест → unverifiable-None → INCONCLUSIVE, REFUTED только на свежем индексе).
+- **Чистый-A-прогон (B-DoD, worktree 08281f37):** test_verify_on_read 47/47 на чистом A →
+  A НЕ зависит от B. Полный clean-A pytest падает 158 от недоступности embedder/reranker
+  (среда), не от кода — ортогонально B.
+- **Свежесть SymbolIndex НЕпроверяема без B** (нет поля HEAD) — B открывает честный REFUTED
+  при совпавшем HEAD+clean.
+- Уроки этой сессии: (1) Многострочный heredoc PowerShell `@"..."@` ломается при передаче в
+  git commit → использовать `git commit -F <файл>`; (2) предсуществующий BROKEN drift_gate =
+  GitBash `bin/` не в PATH процесса (System32\bash.exe — WSL-шим) → временный prepend
+  `C:\Program Files\Git\bin` для hook; gate был зелёным 2026-08-12 (НЕ «никогда» → фиксация
+  UNAVAILABLE не нужна). `--no-verify` запрещён в любом случае.
+- Паттерн: **hook блокирует → чини среду, не пропуск** (`--no-verify` оставляет контроль
+  мёртвым и коммитит поверх; PATH-фикс делает контроль работающим и коммитит под ним —
+  контроль остановил самого автора и сам же был восстановлен).

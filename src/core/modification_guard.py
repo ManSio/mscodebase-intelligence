@@ -231,22 +231,50 @@ def modification_guard(
             # Если указан file_path — используем его
             if file_path:
                 target_path = _normalize_path(file_path)
+                ambiguous_target = False
             elif symbol:
                 # Пытаемся найти файл по символу через SymbolIndex
                 try:
                     si = self.resolve_symbol_index() if hasattr(self, "resolve_symbol_index") else None
                     if si:
                         defs = si.find_definitions(symbol)
-                        if defs:
+                        if len(defs) == 1:
                             target_path = _normalize_path(defs[0].file_path)
+                            ambiguous_target = False
+                        elif len(defs) > 1:
+                            # Ambiguity guard (issue #21): a bare symbol resolving
+                            # to >1 definition must NOT be silently routed to
+                            # defs[0]'s file (write could hit the wrong module).
+                            target_path = ""
+                            ambiguous_target = True
+                            ambiguous_candidates = [
+                                f"{_normalize_path(d.file_path)}:{d.line}" for d in defs
+                            ]
                         else:
                             target_path = ""
+                            ambiguous_target = False
                     else:
                         target_path = ""
+                        ambiguous_target = False
                 except Exception:
                     target_path = ""
+                    ambiguous_target = False
             else:
                 target_path = ""
+                ambiguous_target = False
+
+            if ambiguous_target:
+                return {
+                    "status": "denied",
+                    "guard": {"ambiguous": True, "candidates": ambiguous_candidates},
+                    "message": (
+                        "Modification guard: symbol is ambiguous.\n"
+                        f"  Symbol `{symbol}` resolves to {len(ambiguous_candidates)} "
+                        "definitions. Refusing to target a silently-picked one.\n"
+                        "  Candidates:\n" + "\n".join(f"    - {c}" for c in ambiguous_candidates) +
+                        "\nPass an explicit `file_path` that matches exactly one."
+                    ),
+                }
 
             # Проверяем ack (per-project registry)
             ack_project_root = _project_root_for_file(target_path) if target_path else ""

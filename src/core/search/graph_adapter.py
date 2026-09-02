@@ -909,6 +909,11 @@ class SymbolIndexAdapter(PureGraphMixin):
                     if overrides:
                         self.add_overrides(rel_path, overrides)
 
+        # Run Symbol Resolution Pass
+        from src.core.search.graph_resolver import GraphSymbolResolver
+        resolved = GraphSymbolResolver.resolve_all(self._graph)
+        logger.info(f"SymbolIndexAdapter resolution pass: resolved {resolved} nodes.")
+
     def _should_skip_dir(self, dir_name: str) -> bool:
         skip_dirs = {
             ".git", "node_modules", "venv", ".venv", "__pycache__",
