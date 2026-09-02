@@ -10,10 +10,9 @@ import importlib.util
 import logging
 import re
 import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Tuple
 
-from src.core.graph import Edge, EdgeType, Node, NodeLabel, PropertyGraph
+from src.core.graph import EdgeType, Node, NodeLabel, PropertyGraph
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +126,7 @@ def is_external_or_stdlib(module_name: str) -> bool:
                     return True
             else:
                 return True
-    except Exception:
+    except (ImportError, ValueError, TypeError):
         pass
 
     common_external = {

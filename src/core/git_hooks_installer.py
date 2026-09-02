@@ -51,7 +51,7 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
 7. lock_guard — активные git-локи (advisory, exit 0)
 8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
-"""
+\"\"\"
 \"\"\"
 
 import subprocess
