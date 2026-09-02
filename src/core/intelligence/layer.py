@@ -1046,7 +1046,35 @@ class ProjectIntelligenceLayer:
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
-            verifier = get_verifier(target_path, store, self._write_lock)
+            resolver = None
+            si = getattr(self, "symbol_index", None)
+            if si is not None:
+                def _symbol_resolver(qname: str) -> Optional[bool]:
+                    # Fail-closed (issue #22): symbol anchors never yield REFUTED
+                    # in this build. The graph/index carries no freshness mark, so
+                    # "not found" cannot prove absence -> INCONCLUSIVE (None), not
+                    # REFUTED (False). Honest REFUTED becomes reachable only after
+                    # the freshness layer (build HEAD + clean) is added.
+                    # Returns: True (referent exists & on disk -> VERIFIED),
+                    #          None (unknown/unverifiable/absent -> INCONCLUSIVE).
+                    try:
+                        defs = si.find_definitions(qname)
+                        if defs is None:
+                            return None
+                        for d in defs:
+                            fp = getattr(d, "file_path", None) or getattr(d, "file", None)
+                            if fp and Path(fp).exists():
+                                return True
+                        # Not found in the possibly-stale index, or no live file:
+                        # freshness is unverifiable here -> INCONCLUSIVE, not REFUTED.
+                        return None
+                    except Exception:
+                        # Graph/index unavailable -> unverifiable -> INCONCLUSIVE.
+                        return None
+
+                resolver = _symbol_resolver
+
+            verifier = get_verifier(target_path, store, self._write_lock, symbol_resolver=resolver)
             memory, stats = await asyncio.to_thread(verifier.run, memory)
             # Помечаем INCONCLUSIVE узлы флагом для выдачи агенту
             inconclusive_ids = set(stats.get("inconclusive_nodes", []))

@@ -368,7 +368,9 @@ class WriteTool(MCPTool):
         if not defs:
             return {"status": "warning", "message": f"Symbol '{symbol}' not found in specified file."}
 
-        source_def = defs[0]
+        source_def, ambiguous = self._resolve_single_source_def(defs, symbol)
+        if ambiguous:
+            return {"status": "error", "message": ambiguous}
         source_file = source_def.file_path
         all_refs = si.find_all_references(symbol)
         target_path = Path(to_file)
@@ -469,7 +471,9 @@ class WriteTool(MCPTool):
         if not defs:
             return f"🚫 **Error:** Symbol '{symbol}' not found in specified file."
 
-        source_def = defs[0]
+        source_def, ambiguous = self._resolve_single_source_def(defs, symbol)
+        if ambiguous:
+            return _R({"status": "error", "message": ambiguous})
         source_file = source_def.file_path
         abs_path = Path(source_file).resolve()
         if not abs_path.exists():
@@ -565,7 +569,9 @@ class WriteTool(MCPTool):
         if not defs:
             return f"🚫 **Error:** Symbol '{anchor_symbol}' not found in specified file."
 
-        source_def = defs[0]
+        source_def, ambiguous = self._resolve_single_source_def(defs, anchor_symbol)
+        if ambiguous:
+            return f"🚫 {ambiguous}"
         source_file = source_def.file_path
         abs_path = Path(source_file).resolve()
         if not abs_path.exists():
@@ -636,6 +642,38 @@ class WriteTool(MCPTool):
                 changes.append({"file": r.file_path, "line": r.line, "kind": r.kind, "old": old_name, "new": new_name})
         changes.sort(key=lambda c: (c["file"], c["line"]))
         return changes
+
+    def _resolve_single_source_def(self, defs: list, symbol: str):
+        """Resolve a write-path single-target definition, refusing ambiguity.
+
+        Contract (mirrors graph_resolver.py:277-279): a one-target write
+        (move/replace/insert_before/insert_after) requires exactly ONE matching
+        definition. When the symbol maps to >1 definition (identical name in
+        different files), the operation is REFUSED with the full candidate list
+        (file:line) so the caller can disambiguate with an explicit file_path —
+        a silent `defs[0]` pick could mutate the wrong file (issue #21).
+
+        Callers MUST filter `defs` by file_path *before* calling this; the
+        remaining list is the effective candidate set.
+
+        Returns (source_def, error). error is not None (and source_def None)
+        when the candidate set is ambiguous.
+        """
+        if not defs:
+            return None, None
+        if len(defs) == 1:
+            return defs[0], None
+        candidates = [
+            f"{Path(d.file_path).resolve().as_posix()}:{d.line}"
+            for d in defs
+        ]
+        err = (
+            f"🚫 **Ambiguous symbol** `'{symbol}'` resolves to {len(defs)} "
+            f"definitions; a one-target write requires exactly one. "
+            f"Candidates:\n" + "\n".join(f"- {c}" for c in candidates) +
+            "\nProvide an explicit `file_path` that matches exactly one."
+        )
+        return None, err
 
     def _infer_package(self, file_path: str) -> str:
         p = Path(file_path).resolve()
