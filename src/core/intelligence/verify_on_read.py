@@ -52,7 +52,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 if os.name == "nt":
     import subprocess as _sp
@@ -268,7 +268,7 @@ def extract_anchors(
         raw_anchors = data.get("anchors")
         if isinstance(raw_anchors, list):
             for a in raw_anchors:
-                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg"):
+                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg", "symbol"):
                     _add(str(a["kind"]), str(a.get("value", "")))
         parts: List[str] = []
         claim = data.get("claim") or ""
@@ -387,10 +387,15 @@ class VerifyOnRead:
         store: Any,
         write_lock: Any,
         cache_file: Optional[Path] = None,
+        symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
     ):
         self.root = project_root
         self.store = store
         self.lock = write_lock
+        # symbol_resolver(qname) -> True (exists) | False (gone) | None (unknown).
+        # Optional: intel layer injects a SymbolIndex-backed resolver; when None,
+        # a `symbol` anchor is UNVERIFIABLE -> classify INCONCLUSIVE (never VERIFIED).
+        self.symbol_resolver = symbol_resolver
         if cache_file is None:
             from src.core.artifact_paths import get_intelligence_dir
 
@@ -503,10 +508,16 @@ class VerifyOnRead:
 
     # ── Проверка якорей ──
 
-    def _check_anchor(self, anchor: Anchor, fp: _Fingerprint) -> bool:
+    def _check_anchor(self, anchor: Anchor, fp: _Fingerprint) -> Optional[bool]:
+        """Проверяет якорь против отпечатка.
+
+        Returns:
+            True (найден) | False (отсутствует/drift) | None (не проверяемо
+            — consumer обязан трактовать как INCONCLUSIVE, никогда VERIFIED).
+        """
         if anchor.kind == "file":
-            target = self.root / anchor.value
-            return target.is_file() or anchor.value in fp.files
+            target_is_file = (self.root / anchor.value).is_file() or anchor.value in fp.files
+            return target_is_file
         if anchor.kind == "import":
             return anchor.value.split(".")[0] in fp.imports
         if anchor.kind == "env":
@@ -514,14 +525,34 @@ class VerifyOnRead:
         if anchor.kind == "pkg":
             # ADR-0005: closed-world — манифест это источник правды для зависимостей.
             return _pkg_in_pool(fp.packages, anchor.value)
-        return False
+        if anchor.kind == "symbol":
+            # Referent-identity check: the qname must still resolve. Without a
+            # resolver (graph unavailable/not built) -> None -> INCONCLUSIVE.
+            if self.symbol_resolver is None:
+                return None
+            return self.symbol_resolver(anchor.value)
+        return None
 
     def _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:
         """Вердикт: FOUND / NOT_FOUND(+проваленный якорь) / INCONCLUSIVE."""
         if not anchors:
             return VERDICT_INCONCLUSIVE, None
         for a in anchors:
-            if not self._check_anchor(a, fp):
+            check = self._check_anchor(a, fp)
+            # TRI-STATE: None = unverifiable (e.g. graph unavailable for a
+            # symbol anchor) -> INCONCLUSIVE, NEVER promoted to VERIFIED.
+            if check is None:
+                return VERDICT_INCONCLUSIVE, None
+            # FAIL-CLOSED symbol (issue #22): the graph/index carries no
+            # freshness mark in this build, so a `symbol` anchor whose referent
+            # is NOT confirmed present can never REFUTE — "not found" here is
+            # NOT evidence of absence (stale index). Only True confirms; any
+            # non-True (False/None) for a symbol -> INCONCLUSIVE.
+            if a.kind == "symbol":
+                if check is not True:
+                    return VERDICT_INCONCLUSIVE, None
+                continue
+            if not check:
                 return VERDICT_NOT_FOUND, f"{a.kind}:{a.value}"
         return VERDICT_FOUND, None
 
@@ -695,13 +726,20 @@ class VerifyOnRead:
 _VERIFIERS: Dict[str, VerifyOnRead] = {}
 
 
-def get_verifier(project_root: Path, store: Any, write_lock: Any) -> VerifyOnRead:
+def get_verifier(
+    project_root: Path,
+    store: Any,
+    write_lock: Any,
+    symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
+) -> VerifyOnRead:
     """Возвращает (и кэширует) VerifyOnRead для проекта.
 
     Store/lock берутся от первого создателя; в процессе слой интеллекта —
     синглтон, поэтому lock един для всех вызовов.
+    symbol_resolver: qname -> True/False/None; инжектируется сервером при
+    наличии SymbolIndex. None => symbol-якоря UNVERIFIABLE -> INCONCLUSIVE.
     """
     key = str(Path(project_root).resolve())
     if key not in _VERIFIERS:
-        _VERIFIERS[key] = VerifyOnRead(project_root, store, write_lock)
+        _VERIFIERS[key] = VerifyOnRead(project_root, store, write_lock, symbol_resolver=symbol_resolver)
     return _VERIFIERS[key]
