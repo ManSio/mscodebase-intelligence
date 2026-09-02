@@ -289,14 +289,13 @@ def test_unknown_anchor_kind_inconclusive_not_refuted(project: Path):
     )
 
 
-def test_symbol_fail_closed_even_if_resolver_reports_gone(project: Path):
-    """Regression (attack C, issue #22 — owner's Block 2 = variant A, fail-closed).
-    A `symbol` anchor carries the referent qname as its identity; VOR checks it
-    against the graph/AST, NOT file-existence. In this build the graph carries no
-    freshness mark, so "not found" is NOT evidence of absence: even if a resolver
-    (hypothetically) reported the referent as GONE (False), that must NOT lead to
-    REFUTED — the correct fail-closed verdict is INCONCLUSIVE (stays ACTIVE).
-    Honest REFUTED by symbol becomes reachable only with the freshness layer."""
+def test_symbol_anchor_stays_inconclusive_when_resolver_cant_prove_freshness(project: Path):
+    """B contract (issue #21/#22, commit B): freshness is the RESOLVER's job.
+    The layer resolver returns False ONLY on a fresh index (build_head == HEAD
+    on a clean tree); it returns None whenever freshness is unprovable (legacy
+    index, HEAD mismatch, dirty tree, non-git, resolver failure). VOR stays
+    fail-closed on that None: an absent referent whose freshness can't be shown
+    -> INCONCLUSIVE (stays ACTIVE), never REFUTED, never VERIFIED."""
     store = IntelligenceStore(project)
     seed = _node(
         "N-SYM-DEL",
@@ -305,17 +304,19 @@ def test_symbol_fail_closed_even_if_resolver_reports_gone(project: Path):
     )
     _seed(store, [seed])
 
-    # (a) Even a resolver returning False (gone) must NOT REFUTE: fail-closed.
-    verifier_gone = _make_verifier(project, store, symbol_resolver=lambda q: False)
-    verifier_gone.run(store.load_memory())
+    # An UNVERIFIABLE resolver (freshness cannot be established) -> None, and
+    # VOR must keep the node INCONCLUSIVE, not REFUTE it on "not known absent".
+    verifier = _make_verifier(project, store, symbol_resolver=lambda q: None)
+    verifier.run(store.load_memory())
     persisted = {n["node_id"]: n for n in store._load_json("project_memory.json")}
     node = persisted["N-SYM-DEL"]
     assert node.get("status") != STATUS_VERIFIED, (
-        "absent referent must not be promoted to VERIFIED (variant-A contract)"
+        "unverifiable referent must not be promoted to VERIFIED"
     )
     assert node.get("status") != STATUS_REFUTED, (
-        "fail-closed symbol must not REFUTE on 'not found' without a freshness mark"
+        "unverifiable freshness must not REFUTE ('not found' without a fresh index)"
     )
+
 
 
 def test_symbol_anchor_inconclusive_when_no_resolver(project: Path):
