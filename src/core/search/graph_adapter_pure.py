@@ -11,7 +11,7 @@ Pure mode methods for SymbolIndexAdapter.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from src.core.graph import (
     EdgeType,
@@ -171,7 +171,15 @@ class PureGraphMixin:
                     name=callee,
                     label=NodeLabel.FUNCTION,
                     qualified_name=callee_qname,
-                    properties={"line": line, "file": file_path, "placeholder": True},
+                    file_path=file_path,
+                    properties={
+                        "line": line,
+                        "file": file_path,
+                        "placeholder": True,
+                        "caller_node_id": caller_qname,
+                        "line_number": line,
+                        "raw_symbol_name": callee,
+                    },
                 )
                 self._graph.add_edge(
                     source_qname=caller_qname,
@@ -386,6 +394,10 @@ class PureGraphMixin:
         (name LIKE 'method') не матчит "Class.method", поэтому объединяем
         exact и suffix "%.method" — покрывает оба случая (D1-D3: иначе тень
         experiments/ в exact-выборке исключала src/ метод из суффикса).
+
+        Для квалифицированных символов ("Class.method") дополнительно
+        ищем bare-имя ("method"), т.к. CALLS-рёбра могут лежать на голом
+        узле, если парсер не квалифицировал callee.
         """
         exact = self._graph.find_nodes(name_pattern=symbol, limit=limit)
         suffix = self._graph.find_nodes(name_pattern=f"%.{symbol}", limit=limit)
@@ -395,6 +407,12 @@ class PureGraphMixin:
             if n.qualified_name not in seen:
                 seen.add(n.qualified_name)
                 merged.append(n)
+        bare = symbol.split(".")[-1] if "." in symbol else symbol
+        if bare != symbol:
+            for n in self._graph.find_nodes(name_pattern=bare, limit=limit):
+                if n.qualified_name not in seen:
+                    seen.add(n.qualified_name)
+                    merged.append(n)
         return merged
 
     def _pick_best_node(self, nodes: List[Node], symbol: str):
@@ -504,6 +522,18 @@ class PureGraphMixin:
                 return [r for r in fallback if r.is_definition]
             except Exception:
                 return []
+
+    def build_head(self) -> Optional[str]:
+        """HEAD, на котором был построен PropertyGraph (из meta.build_head).
+
+        Возвращает None, если граф построен без фиксации HEAD (например,
+        в тестах/ручной загрузке) — отсутствие метки означает «свежесть
+        неизвестна», потребитель обязан трактовать это как недоверие.
+        """
+        try:
+            return self._graph.get_meta("build_head")
+        except Exception:
+            return None
 
     def find_references(self, symbol: str) -> List[SymbolRef]:
         """Где используется символ."""

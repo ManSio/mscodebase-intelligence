@@ -1046,7 +1046,51 @@ class ProjectIntelligenceLayer:
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
-            verifier = get_verifier(target_path, store, self._write_lock)
+            resolver = None
+            si = getattr(self, "symbol_index", None)
+            if si is not None:
+                def _symbol_resolver(qname: str) -> Optional[bool]:
+                    # Freshness-gated symbol resolver (issue #21/#22, commit B).
+                    # A symbol anchor can REFUTE (False) ONLY when the index is
+                    # provably fresh: its recorded build_head equals the live
+                    # HEAD and the working tree is clean. Any other state
+                    # (legacy index w/o build_head, HEAD mismatch, non-git repo,
+                    # dirty tree, resolver failure) -> None (INCONCLUSIVE) —
+                    # absence is then UNVERIFIABLE, never REFUTED.
+                    # Returns: True (referent on disk -> VERIFIED),
+                    #          False (fresh index, absent -> honest REFUTED),
+                    #          None (freshness unverifiable -> INCONCLUSIVE).
+                    try:
+                        build_fn = getattr(si, "build_head", None)
+                        build_head = build_fn() if build_fn is not None else None
+                        if build_head is None:
+                            return None  # legacy/in-memory index -> unknown
+                        from src.core.intelligence.verify_on_read import (
+                            evaluate_freshness,
+                            resolve_head_dirty,
+                        )
+                        cur = resolve_head_dirty(self.project_path)
+                        if cur is None:
+                            return None  # non-git / unresolvable HEAD
+                        cur_head, dirty = cur
+                        if not evaluate_freshness(build_head, cur_head, dirty):
+                            return None  # mismatch / dirty / unknown -> inconclusive
+                        defs = si.find_definitions(qname)
+                        if defs is None:
+                            return None
+                        for d in defs:
+                            fp = getattr(d, "file_path", None) or getattr(d, "file", None)
+                            if fp and Path(fp).exists():
+                                return True
+                        # Fresh index + clean tree: absence is real evidence.
+                        return False
+                    except Exception:
+                        # Graph/index/git unavailable -> unverifiable -> INCONCLUSIVE.
+                        return None
+
+                resolver = _symbol_resolver
+
+            verifier = get_verifier(target_path, store, self._write_lock, symbol_resolver=resolver)
             memory, stats = await asyncio.to_thread(verifier.run, memory)
             # Помечаем INCONCLUSIVE узлы флагом для выдачи агенту
             inconclusive_ids = set(stats.get("inconclusive_nodes", []))

@@ -614,7 +614,7 @@ class HealthReport:
             )
 
     def _check_execution_contract(self):
-        """Проверка Execution Contract (git operations, timeout=30s)."""
+        """Проверка Execution Contract (git operations, timeout=15s)."""
 
         def _git_worker():
             try:

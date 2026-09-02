@@ -77,8 +77,13 @@ def _seed(store: IntelligenceStore, nodes: list) -> None:
     store.save_memory(nodes)
 
 
-def _make_verifier(project: Path, store: IntelligenceStore, lock=None) -> VerifyOnRead:
-    return VerifyOnRead(project, store, lock or threading.Lock())
+def _make_verifier(project: Path, store: IntelligenceStore, lock=None, symbol_resolver=None) -> VerifyOnRead:
+    return VerifyOnRead(
+        project,
+        store,
+        lock or threading.Lock(),
+        symbol_resolver=symbol_resolver,
+    )
 
 
 # =====================================================================
@@ -256,6 +261,104 @@ def test_file_anchor_found(project: Path):
     memory, _ = verifier.run(store.load_memory())
     assert [n["node_id"] for n in memory["adrs"]] == ["N7"]
     assert store._load_json("project_memory.json")[0]["status"] == STATUS_VERIFIED
+
+
+def test_unknown_anchor_kind_inconclusive_not_refuted(project: Path):
+    """Contract: an unknown/unhandled anchor kind must NOT be REFUTED (silent
+    evidence of absence) and must NOT be VERIFIED. `_check_anchor` returns
+    None -> classify INCONCLUSIVE -> node stays ACTIVE. Fail-closed: unknown
+    kinds neither confirm nor falsely deny a memory."""
+    store = IntelligenceStore(project)
+    seed = _node(
+        "N-UNKNOWN-KIND",
+        "some claim",
+        anchors=[{"kind": "bogus", "value": "whatever"}],
+    )
+    _seed(store, [seed])
+
+    verifier = _make_verifier(project, store)
+    verifier.run(store.load_memory())
+    persisted = {n["node_id"]: n for n in store._load_json("project_memory.json")}
+    node = persisted.get("N-UNKNOWN-KIND")
+    assert node is not None, "node must survive the pass"
+    assert node.get("status") != STATUS_VERIFIED, (
+        "unknown anchor kind must not be promoted to VERIFIED"
+    )
+    assert node.get("status") != STATUS_REFUTED, (
+        "unknown anchor kind must not REFUTE a node (needs evidence of absence)"
+    )
+
+
+def test_symbol_anchor_stays_inconclusive_when_resolver_cant_prove_freshness(project: Path):
+    """B contract (issue #21/#22, commit B): freshness is the RESOLVER's job.
+    The layer resolver returns False ONLY on a fresh index (build_head == HEAD
+    on a clean tree); it returns None whenever freshness is unprovable (legacy
+    index, HEAD mismatch, dirty tree, non-git, resolver failure). VOR stays
+    fail-closed on that None: an absent referent whose freshness can't be shown
+    -> INCONCLUSIVE (stays ACTIVE), never REFUTED, never VERIFIED."""
+    store = IntelligenceStore(project)
+    seed = _node(
+        "N-SYM-DEL",
+        "pipeline calls run_transforms",
+        anchors=[{"kind": "symbol", "value": "run_transforms"}],
+    )
+    _seed(store, [seed])
+
+    # An UNVERIFIABLE resolver (freshness cannot be established) -> None, and
+    # VOR must keep the node INCONCLUSIVE, not REFUTE it on "not known absent".
+    verifier = _make_verifier(project, store, symbol_resolver=lambda q: None)
+    verifier.run(store.load_memory())
+    persisted = {n["node_id"]: n for n in store._load_json("project_memory.json")}
+    node = persisted["N-SYM-DEL"]
+    assert node.get("status") != STATUS_VERIFIED, (
+        "unverifiable referent must not be promoted to VERIFIED"
+    )
+    assert node.get("status") != STATUS_REFUTED, (
+        "unverifiable freshness must not REFUTE ('not found' without a fresh index)"
+    )
+
+
+
+def test_symbol_anchor_inconclusive_when_no_resolver(project: Path):
+    """Owner Block 2 requirement 2: when the graph/index is unavailable (no
+    resolver), a `symbol` anchor is UNVERIFIABLE -> INCONCLUSIVE (stays ACTIVE),
+    NEVER promoted to VERIFIED."""
+    store = IntelligenceStore(project)
+    seed = _node(
+        "N-SYM-NORES",
+        "pipeline calls run_transforms",
+        anchors=[{"kind": "symbol", "value": "run_transforms"}],
+    )
+    _seed(store, [seed])
+
+    verifier = _make_verifier(project, store)  # no resolver -> graph unavailable
+    verifier.run(store.load_memory())
+    persisted = {n["node_id"]: n for n in store._load_json("project_memory.json")}
+    node = persisted.get("N-SYM-NORES")
+    assert node is not None, "node must survive the pass"
+    assert node.get("status") != STATUS_VERIFIED, (
+        "unverifiable symbol anchor (no graph) must not be promoted to VERIFIED"
+    )
+
+
+def test_symbol_anchor_verified_when_referent_present(project: Path):
+    """Positive control: with a resolver reporting the qname present, a node
+    with a `symbol` anchor IS promoted to VERIFIED (the referent is the
+    identity — not a file-existence shortcut)."""
+    store = IntelligenceStore(project)
+    seed = _node(
+        "N-SYM-OK",
+        "pipeline calls run_transforms",
+        anchors=[{"kind": "symbol", "value": "run_transforms"}],
+    )
+    _seed(store, [seed])
+
+    verifier = _make_verifier(project, store, symbol_resolver=lambda q: True)
+    verifier.run(store.load_memory())
+    persisted = {n["node_id"]: n for n in store._load_json("project_memory.json")}
+    assert persisted["N-SYM-OK"].get("status") == STATUS_VERIFIED, (
+        "referent present, resolver confirms -> VERIFIED"
+    )
 
 
 # =====================================================================

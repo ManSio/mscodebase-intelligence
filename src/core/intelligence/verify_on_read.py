@@ -52,7 +52,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 if os.name == "nt":
     import subprocess as _sp
@@ -181,6 +181,92 @@ def _fingerprint_for(root: Path) -> "_Fingerprint":
     return fp
 
 
+# ── Freshness для symbol-anchors (issue #21/#22, commit B) ──
+# A symbol anchor can only REFUTE honestly when the index it was verified
+# against provably reflects the current codebase. These two helpers gate that:
+#   * evaluate_freshness(build_head, current_head, dirty): pure decision — is the
+#     substrate fresh enough that "not found" is real evidence of absence?
+#   * resolve_head_dirty(root): (current_HEAD, dirty) or None when unresolvable.
+
+
+def evaluate_freshness(
+    build_head: Optional[str],
+    current_head: Optional[str],
+    dirty: bool,
+) -> bool:
+    """True only when the symbol index is provably fresh enough to REFUTE.
+
+    REFUTE (absent) requires: an index build_head that equals the live HEAD,
+    a resolvable current HEAD, and a clean working tree. Any other state
+    (mismatched HEAD, legacy index with no build_head, non-git repo
+    / unresolvable HEAD, or a dirty tree) means absence is UNVERIFIABLE ->
+    the resolver must return None (INCONCLUSIVE), never False (REFUTED).
+    """
+    if build_head is None:
+        return False            # legacy index / no freshness mark -> unknown
+    if current_head is None:
+        return False            # non-git / git failure -> unresolvable
+    if dirty:
+        return False            # uncommitted edits may redefine the symbol
+    return build_head == current_head
+
+
+def resolve_head_dirty(root: Union[str, Path]) -> Optional[Tuple[str, bool]]:
+    """Current HEAD plus dirty-flag for a git repo; None when unresolvable.
+
+    Returns (head, dirty): head is the bare 40-char rev-parse HEAD, dirty is
+    True when ``git status --porcelain`` is non-empty (uncommitted changes).
+    None when git is unavailable / not a repo / any error — caller must treat
+    that as INCONCLUSIVE. Both are resolved best-effort subprocess calls.
+    """
+    root_p = Path(root).resolve()
+    if (root_p / ".git").exists() is False and not _is_git_worktree(root_p):
+        return None  # no git metadata at all -> not resolvable
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        if proc.returncode != 0:
+            return None
+        head = out.decode("utf-8", "replace").strip()[:40]
+        if not head:
+            return None
+        sproc = subprocess.Popen(
+            ["git", "status", "--porcelain"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        sout, _ = sproc.communicate(timeout=5)
+        dirty = sproc.returncode == 0 and bool(sout.strip())
+        return head, dirty
+    except Exception as exc:  # noqa: BLE001 - любой сбой git -> не резолвится
+        logger.debug("resolve_head_dirty: git failed for %s: %s", root_p, exc)
+        return None
+
+
+def _is_git_worktree(root: Path) -> bool:
+    """A subdir of a git worktree may have no own .git file; check nearest root."""
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        return proc.returncode == 0 and out.decode("utf-8", "replace").strip() == "true"
+    except Exception:  # noqa: BLE001
+        return False
+
+
 class Anchor:
     """Checkable-якорь узла: что именно проверяется в кодовой базе."""
 
@@ -268,7 +354,7 @@ def extract_anchors(
         raw_anchors = data.get("anchors")
         if isinstance(raw_anchors, list):
             for a in raw_anchors:
-                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg"):
+                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg", "symbol"):
                     _add(str(a["kind"]), str(a.get("value", "")))
         parts: List[str] = []
         claim = data.get("claim") or ""
@@ -387,10 +473,15 @@ class VerifyOnRead:
         store: Any,
         write_lock: Any,
         cache_file: Optional[Path] = None,
+        symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
     ):
         self.root = project_root
         self.store = store
         self.lock = write_lock
+        # symbol_resolver(qname) -> True (exists) | False (gone) | None (unknown).
+        # Optional: intel layer injects a SymbolIndex-backed resolver; when None,
+        # a `symbol` anchor is UNVERIFIABLE -> classify INCONCLUSIVE (never VERIFIED).
+        self.symbol_resolver = symbol_resolver
         if cache_file is None:
             from src.core.artifact_paths import get_intelligence_dir
 
@@ -503,10 +594,16 @@ class VerifyOnRead:
 
     # ── Проверка якорей ──
 
-    def _check_anchor(self, anchor: Anchor, fp: _Fingerprint) -> bool:
+    def _check_anchor(self, anchor: Anchor, fp: _Fingerprint) -> Optional[bool]:
+        """Проверяет якорь против отпечатка.
+
+        Returns:
+            True (найден) | False (отсутствует/drift) | None (не проверяемо
+            — consumer обязан трактовать как INCONCLUSIVE, никогда VERIFIED).
+        """
         if anchor.kind == "file":
-            target = self.root / anchor.value
-            return target.is_file() or anchor.value in fp.files
+            target_is_file = (self.root / anchor.value).is_file() or anchor.value in fp.files
+            return target_is_file
         if anchor.kind == "import":
             return anchor.value.split(".")[0] in fp.imports
         if anchor.kind == "env":
@@ -514,14 +611,29 @@ class VerifyOnRead:
         if anchor.kind == "pkg":
             # ADR-0005: closed-world — манифест это источник правды для зависимостей.
             return _pkg_in_pool(fp.packages, anchor.value)
-        return False
+        if anchor.kind == "symbol":
+            # Referent-identity check: the qname must still resolve. Without a
+            # resolver (graph unavailable/not built) -> None -> INCONCLUSIVE.
+            if self.symbol_resolver is None:
+                return None
+            return self.symbol_resolver(anchor.value)
+        return None
 
     def _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:
         """Вердикт: FOUND / NOT_FOUND(+проваленный якорь) / INCONCLUSIVE."""
         if not anchors:
             return VERDICT_INCONCLUSIVE, None
         for a in anchors:
-            if not self._check_anchor(a, fp):
+            check = self._check_anchor(a, fp)
+            # TRI-STATE: None = unverifiable (e.g. graph unavailable, or the
+            # symbol resolver could not prove index freshness) -> INCONCLUSIVE,
+            # NEVER promoted to VERIFIED.
+            if check is None:
+                return VERDICT_INCONCLUSIVE, None
+            # Symbol anchors are freshness-gated in the RESOLVER (commit B): a
+            # False only arrives when the index build_head matches the live HEAD
+            # on a clean tree, so REFUTED here is honest — no stale-index hazard.
+            if not check:
                 return VERDICT_NOT_FOUND, f"{a.kind}:{a.value}"
         return VERDICT_FOUND, None
 
@@ -695,13 +807,20 @@ class VerifyOnRead:
 _VERIFIERS: Dict[str, VerifyOnRead] = {}
 
 
-def get_verifier(project_root: Path, store: Any, write_lock: Any) -> VerifyOnRead:
+def get_verifier(
+    project_root: Path,
+    store: Any,
+    write_lock: Any,
+    symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
+) -> VerifyOnRead:
     """Возвращает (и кэширует) VerifyOnRead для проекта.
 
     Store/lock берутся от первого создателя; в процессе слой интеллекта —
     синглтон, поэтому lock един для всех вызовов.
+    symbol_resolver: qname -> True/False/None; инжектируется сервером при
+    наличии SymbolIndex. None => symbol-якоря UNVERIFIABLE -> INCONCLUSIVE.
     """
     key = str(Path(project_root).resolve())
     if key not in _VERIFIERS:
-        _VERIFIERS[key] = VerifyOnRead(project_root, store, write_lock)
+        _VERIFIERS[key] = VerifyOnRead(project_root, store, write_lock, symbol_resolver=symbol_resolver)
     return _VERIFIERS[key]

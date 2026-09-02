@@ -750,7 +750,7 @@ class Indexer(IndexerTableMixin):
         phase_callback: Optional[Callable] = None,
     ) -> int:
         """Полная индексация проекта (делегировано IndexProjectRunner)."""
-        return self._project_runner.run(
+        res = self._project_runner.run(
             project_path=project_path,
             progress_callback=progress_callback,
             phase_callback=phase_callback,
@@ -759,6 +759,26 @@ class Indexer(IndexerTableMixin):
             get_status=self.get_status,
             save_symbol_index=lambda: self._index_guard.save_symbol_index(self._symbol_index),
         )
+        # Run Symbol Resolution Pass
+        if self._symbol_index and hasattr(self._symbol_index, "graph"):
+            from src.core.search.graph_resolver import GraphSymbolResolver
+            resolved = GraphSymbolResolver.resolve_all(self._symbol_index.graph)
+            logger.info(f"[index_project] GraphSymbolResolver resolved {resolved} nodes.")
+            # Record freshness stamp (issue #21/#22, commit B): the HEAD this
+            # index was built on. Written ONLY on a full successful completion
+            # (control reached the final resolve pass without an early exit),
+            # so a build_head in meta means "built on this exact HEAD".
+            # read-time uses evaluate_freshness() + resolve_head_dirty().
+            from src.core.intelligence.verify_on_read import resolve_head_dirty
+            try:
+                fresh = resolve_head_dirty(project_path)
+                if fresh is not None:
+                    head, _dirty = fresh
+                    self._symbol_index.graph.set_meta("build_head", head)
+                    logger.info(f"[index_project] build_head recorded: {head[:8]}")
+            except Exception as exc:
+                logger.warning("[index_project] build_head record skipped: %s", exc)
+        return res
 
     def index_file(
         self, full_path: Path, project_path: Path, content: Optional[str] = None

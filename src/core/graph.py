@@ -208,6 +208,7 @@ class NodeLabel:
     RESOURCE = "Resource"
     TEST = "Test"
     VARIABLE = "Variable"
+    DEPENDENCY = "Dependency"
 
 
 # ────────────────────────────────────────────────────────────
@@ -410,6 +411,11 @@ class PropertyGraph:
                 properties TEXT NOT NULL DEFAULT '{}'
             );
 
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            );
+
             CREATE INDEX IF NOT EXISTS idx_nodes_label ON nodes(label);
             CREATE INDEX IF NOT EXISTS idx_nodes_qname ON nodes(qualified_name);
             CREATE INDEX IF NOT EXISTS idx_nodes_file ON nodes(file_path);
@@ -437,6 +443,28 @@ class PropertyGraph:
     @property
     def db_path(self) -> Path:
         return self._db_path
+
+    # ── Meta (key-value) ─────────────────────────────────────
+
+    def set_meta(self, key: str, value: str) -> None:
+        """Записывает метаданные графа (например, build_head) в таблицу meta."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value),
+            )
+            conn.commit()
+
+    def get_meta(self, key: str) -> Optional[str]:
+        """Возвращает метаданные графа по ключу или None, если ключ отсутствует."""
+        with self._lock:
+            conn = self._get_conn()
+            row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+            if row is None:
+                return None
+            return row[0]
 
     # ── Node CRUD ──────────────────────────────────────────
 
