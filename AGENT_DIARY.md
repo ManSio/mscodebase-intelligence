@@ -1730,3 +1730,14 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** паттерн в WISDOM: «hook блокирует > чини среду, не пропуск» (PATH-фикс делает контроль работающим и коммитит ПОД ним; --no-verify оставляет контроль мёртвым).
 **Сопутствующее:** пере-стейдж дрейфнувших fail-closed файлов (layer/verify_on_read/test) — стейдж отставал от рабочего дерева после поздних эдитов; пойман повторным git diff --staged (привычка: сверять перед каждым коммитом). Многострочный PS heredoc ломает git commit > использовать -F <файл>.
 **verified_from_clean_state:** да (на рабочем дереве = стейдж A): 126 тестов A-зоны passed; hook 5/5 OK; git show --stat 08281f37 = 7 файлов 328+/16-, footer Fixes #21/#22.
+
+---
+
+## [2026-09-02 21:40] — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+**Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+**Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутствие референта не доказывало удаление (stale-индекс). Требование fresh-индекса для честного REFUTED.
+**Fix 1 (B):** (1) `evaluate_freshness(build_head,current_head,dirty)` + `resolve_head_dirty(root)` (git rev-parse HEAD + git status --porcelain, Popen+communicate, CREATE_NO_WINDOW, timeout 5s, fail→None) в verify_on_read.py; (2) `index_project` пишет `build_head` в graph meta ТОЛЬКО на успешном completion; (3) freshness-gated `_symbol_resolver` в layer.py — False (REFUTED) только при build_head==HEAD на чистом дереве, иначе None (INCONCLUSIVE); (4) `_classify` снял fail-closed symbol-ветку (резолвер несёт freshness); (5) test_verify_on_read fail-closed-тест → unverifiable-None→INCONCLUSIVE. +8 тестов `tests/test_symbol_freshness.py`.
+**Root Cause 2 (encoding):** PowerShell `Set-Content` записал мою русскую запись дневника (эм-даши «—») в cp1251 → AGENT_DIARY.md стал смешанным UTF-8+cp1251 → verify_diary упал (index 0x97). §9 п.9.
+**Fix 2 (encoding):** декодировал cp1251-блок (с маркера `## [2026-09-02 20:51]` до EOF) как cp1251, префикс как UTF-8, переписал файл UTF-8 (strict-валиден). Пере-стейджил. verify_diary 5/5 OK. **Урок: никогда не писать русские .md через PS — только edit/write tools (UTF-8) или Python `encoding="utf-8"`.**
+**Guard:** WISDOM B-DONE-блок; паттерн §9 «PS cp1251» (запись); чистый-A-прогон (worktree 08281f37): test_verify_on_read 47/47 → A не зависит от B; полный clean-A pytest = 158 среда-fail (embedder/reranker в изолированном worktree), ортогонально B.
+**verified_from_clean_state:** ✅ да — полный pytest 1608 passed (hook verify_diary, рабочий B-дерево) / 1602 passed (ручной B-прогон); ruff clean; git show --stat cb88c961 = 10 файлов 343+/42-, создан tests/test_symbol_freshness.py.
