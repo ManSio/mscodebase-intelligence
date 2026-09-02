@@ -502,7 +502,9 @@ class TestAmbiguousSymbolTarget:
 
         class TestTool:
             _services = MagicMock()
-            resolve_symbol_index = lambda self: FakeSI()
+
+            def resolve_symbol_index(self):
+                return FakeSI()
 
             @modification_guard()
             async def my_write(self, symbol="run"):
