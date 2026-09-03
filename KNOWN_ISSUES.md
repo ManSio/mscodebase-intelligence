@@ -15,9 +15,9 @@
 - [🟡 deferred (не блокер) | Deadl] Env-access extractor: deferred языки (elixir, hask
 - [✅ CLOSED (live-верифицирован и] PyPI-упаковка: `tools`/`locales`/`adapters` вне wh
 - [✅ CLOSED (fix #18, 1578a1bb; g] `1ff77294` Full reindex зависает в фазе «Finalizing» (Propert
-- [🟡 pending live-reverify (#2/#3] Codebase hub write-actions: 4 бага (git routing, d
+- [✅ CLOSED (live-reverified #1-4: git routing 41 commits, apply=false short-circuits, dotted import, callers-cou] Codebase hub write-actions: 4 бага (git routing, d
 - [🟡 env-gap | Deadline: — | Влад] LSP-тулы: basedpyright не установлен (OPEN / ENV)
-- [🔴 наблюдается | Deadline: след] `ad89b2d4` AGENTS.md §2 противоречит реальной регистрации тул
+- [✅ Fixed (AGENTS.md §2 61→64, inline 12→13 + dual_arm_health] `ad89b2d4` AGENTS.md §2 противоречит реальной регистрации тул
 - [🟡 запланировано (индексатор) |] Data Gap: папка tests/ не индексируется Tree-sitte
 - [🟡 запланировано (индексатор) |] `95237f68` Graph node enrichment: узлы без file_path (OPEN / 
 - [🟢 стабильно | Deadline: — | Вл] DatabaseLock ORPHAN-kill → A+ fail-closed (PID 200

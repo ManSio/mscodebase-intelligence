@@ -302,7 +302,7 @@ intel_get_project_memory      ──>   codebase(action="git", path="log") / cod
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (61)
+## 2. AVAILABLE TOOLS (64)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
@@ -317,7 +317,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 `intel_predict_root_cause`, `intel_get_hotspots`, `intel_get_telemetry`,
 `intel_retract_memory_node`, `intel_restore_memory_node`, `intel_supersede_memory_node`.
 
-Inline/Diagnostic (12): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact`.
+Inline/Diagnostic (13): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `dual_arm_health_check`, `ack_impact`.
 
 ### B. Core MCP & Search (31 tools)
 

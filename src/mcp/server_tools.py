@@ -280,10 +280,10 @@ def register_all_tools(mcp, services):
     else:
         logger.info(f"✅ Все {registered} инструментов зарегистрированы")
 
-    # ─── Intelligence Layer (14 инструментов) ──────
+    # ─── Intelligence Layer (16 инструментов) ──────────
     _register_intelligence_tools(mcp, services)
 
-    # ─── Inline diagnostic tools (12 шт) ────────────
+    # ─── Inline diagnostic tools (13 шт) ────────────────
     _register_inline_tools(mcp, services)
 
     # ─── Dev tools (4 шт: generate_docs, bump_version, auto_update_docs, install_git_hooks) ───
