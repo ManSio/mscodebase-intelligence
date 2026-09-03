@@ -499,7 +499,14 @@ class IndexProjectRunner:
             if self.table:
                 _row_count = self.table.count_rows()
                 if _row_count > 1000:
+                    # Finalizing-фаза: IVF create_index — тяжёлая операция без единого
+                    # progress-колбэка (прогресс-бар застывал на 0.8/~90% на эту минуту,
+                    # 2026-09-03). Сообщаем о входе в фазу, чтобы job.progress двигался.
+                    if progress_callback:
+                        progress_callback("", 10, 10, "finalizing")
                     self._safe_ivf_index()
+                    if progress_callback:
+                        progress_callback("", 10, 10, "finalizing")
 
             final_stats = get_status() if get_status else {}
             if progress_callback:

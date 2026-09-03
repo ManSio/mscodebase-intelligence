@@ -39,6 +39,58 @@ from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
 from src.utils.i18n import _
 
 
+def _embed_progress_from_log(started_at: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """Парсит последнюю строку `[embed] done/total …` из основного лога MCP.
+
+    Единый источник правды для подсчёта реальной ETA/скорости индексации
+    (дублирующие regex в tools_reg.get_job_status убраны сюда, 2026-09-03).
+
+    Args:
+        started_at: таймстамп старта job (unix). Строки лога старше
+            started_at - 2 пропускаются (лог общий, накапливается между сессиями).
+
+    Returns:
+        dict {done, total, inst, avg, elapsed, remaining} — или None, если
+        строка не найдена (embed ещё не начался / режим non-embed).
+    """
+    import datetime as _dt
+    import re
+
+    from src.core.log_manager import get_main_log_path
+
+    _log_path = get_main_log_path()
+    if not _log_path.exists():
+        return None
+    with open(str(_log_path), "r", encoding="utf-8", errors="replace") as _f:
+        for _line in reversed(_f.readlines()):
+            try:
+                _line_ts = _dt.datetime.strptime(
+                    _line[:19], "%Y-%m-%d %H:%M:%S"
+                ).timestamp()
+                if started_at and _line_ts < started_at - 2:
+                    continue
+            except (ValueError, IndexError):
+                continue
+            _m = re.search(r"\[embed\]\s+(\d+)/(\d+)", _line)
+            if _m:
+                _done, _total = int(_m.group(1)), int(_m.group(2))
+                _m_inst = re.search(r"batch=\d+ch/[\d.]+s=(\d+)ch/s", _line)
+                _inst = int(_m_inst.group(1)) if _m_inst else 0
+                _m_avg = re.search(r"avg=(\d+)ch/s", _line)
+                _avg = int(_m_avg.group(1)) if _m_avg else 0
+                _m_elapsed = re.search(r"elapsed=(\d+)s", _line)
+                _elapsed = int(_m_elapsed.group(1)) if _m_elapsed else 0
+                return {
+                    "done": _done,
+                    "total": _total,
+                    "inst": _inst,
+                    "avg": _avg,
+                    "elapsed": _elapsed,
+                    "remaining": _total - _done,
+                }
+    return None
+
+
 class _AsyncLockAdapter:
     """Адаптирует threading.Lock к async-контексту.
 
@@ -757,7 +809,7 @@ class ProjectIntelligenceLayer:
                     # Если метод синхронный, запускаем в executor
                     loop = asyncio.get_event_loop()
 
-                    # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..0.8)
+                    # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..1.0)
                     def _index_progress_callback(
                         current_file, files_done, files_total, phase
                     ):
@@ -767,6 +819,10 @@ class ProjectIntelligenceLayer:
                                 job.progress = round(0.5 + ratio * 0.3, 2)
                             elif phase in ("parsing", "scanning"):
                                 job.progress = round(0.1 + ratio * 0.4, 2)
+                            elif phase == "finalizing":
+                                # Writing/Finalizing: 0.8 → 0.95 (не застываем на 0.8,
+                                # как было — IVF index шёл без единого callback).
+                                job.progress = round(0.8 + ratio * 0.15, 2)
                             else:
                                 job.progress = round(0.1 + ratio * 0.7, 2)
 
@@ -1831,26 +1887,39 @@ class ProjectIntelligenceLayer:
         else:
             base["progress_label"] = "Finishing..."
 
-        # Примерное оставшееся время (адаптивный ETA)
+        # Примерное оставшееся время (адаптивный ETA).
+        # Источник правды — реальная скорость из лога ([embed] done/total
+        # batch=…ch/s), а НЕ линейная экстраполяция первых 2 секунд (та давала
+        # ложное «~8с»: ранний progress симулированный/parsing-домин., 2026-09-03).
+        base["eta_phase"] = None  # "embed" | "finalizing" | None
         if job.status == "running":
-            elapsed = max(time.time() - job.started_at, 1.0)
-            # 1. Если есть история похожих проектов — используем rolling average
-            if job.project_size:
-                avg_duration = self.job_history.get_estimated_duration(job.project_size)
-                if avg_duration and avg_duration > 5:
-                    remaining = max(avg_duration - elapsed, 5)
-                    base["estimated_seconds"] = int(remaining)
-                    return base
-            # 2. Fallback: линейная экстраполяция по текущему прогрессу
-            if job.progress > 0.05:
-                if job.progress < 0.95:
-                    estimated = int(elapsed / job.progress * (1.0 - job.progress))
-                    base["estimated_seconds"] = max(estimated, 5)
+            _ep = _embed_progress_from_log(job.started_at)
+            if _ep and _ep["done"] < _ep["total"]:
+                base["eta_phase"] = "embed"
+                _speed = _ep["inst"] if _ep["inst"] > 0 else _ep["avg"]
+                if _speed > 0:
+                    estimated = int(_ep["remaining"] / _speed)
+                    # нижняя граница 3с — не обещаем мгновенное завершение
+                    base["estimated_seconds"] = max(estimated, 3)
                 else:
-                    base["estimated_seconds"] = 10
+                    base["estimated_seconds"] = None
+            elif _ep and _ep["done"] >= _ep["total"]:
+                # Эмбеддинг завершён (done==total) — идёт writing/Finalizing.
+                # По чанкам ETA не посчитать; если есть история — используем её,
+                # иначе честный None (UI покажет «финализация…» вместо фейка).
+                base["eta_phase"] = "finalizing"
+                if job.project_size:
+                    avg_duration = self.job_history.get_estimated_duration(
+                        job.project_size
+                    )
+                    if avg_duration and avg_duration > 5:
+                        elapsed = max(time.time() - job.started_at, 1.0)
+                        base["estimated_seconds"] = int(max(avg_duration - elapsed, 10))
+                        return base
+                base["estimated_seconds"] = None
             else:
-                # Старт: заглушка 120с (нет данных для экстраполяции)
-                base["estimated_seconds"] = 120
+                # Embed ещё не дал прогресса / non-embed режим — честно без ETA.
+                base["estimated_seconds"] = None
 
         return base
 
