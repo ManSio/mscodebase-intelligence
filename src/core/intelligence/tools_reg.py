@@ -321,9 +321,9 @@ def register_intelligence_tools(mcp_app, intel_layer):
         )
         # Парсим прогресс чанков из embed лога ТЕКУЩЕГО job (инцидент 2026-08-13:
         # лог общий и накапливается — фильтр по job.started_at обязателен).
-        # Единый парсер — _embed_progress_from_log (layer.py), 2026-09-03.
+        # Единый парсер — embed_progress._embed_progress_from_log (2026-09-03).
         try:
-            from src.core.intelligence.layer import _embed_progress_from_log
+            from src.core.intelligence.embed_progress import _embed_progress_from_log
 
             _ep = _embed_progress_from_log(job.started_at or 0)
             if _ep is not None:
