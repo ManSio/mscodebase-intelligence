@@ -106,3 +106,71 @@ def test_corrupted_history_recovers(temp_project: Path):
     # И запись всё ещё работает
     store.append_record(10, 5.0)
     assert len(store.load_history()) == 1
+
+
+def _make_layer():
+    """Собирает слой с пустой историей (ветка project_size не активна)."""
+    from types import SimpleNamespace
+
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
+
+    layer = SimpleNamespace()
+    layer.job_history = SimpleNamespace(get_estimated_duration=lambda *a, **k: None)
+    return layer
+
+
+def test_enrich_eta_none_when_no_embed_progress(monkeypatch, temp_project):
+    """Честный ETA: нет реального embed-прогресса → estimated_seconds=None (2026-09-03).
+
+    Раньше здесь была линейная экстраполяция первых 2с (давала ложное «~8с»).
+    Теперь без данных — честный None.
+    """
+    import time
+
+    from src.core.intelligence.jobs import BackgroundJob
+    from src.core.intelligence.layer import (
+        ProjectIntelligenceLayer,
+        _embed_progress_from_log,
+    )
+
+    monkeypatch.setattr(
+        "src.core.intelligence.layer._embed_progress_from_log", lambda *a, **k: None
+    )
+    layer = _make_layer()
+    job = BackgroundJob(
+        job_id="no_data", type="full_reindex", status="running",
+        progress=0.1, started_at=time.time(),
+    )
+    res = ProjectIntelligenceLayer._enrich_job_response(layer, job)
+    assert res["estimated_seconds"] is None
+    assert res["eta_phase"] is None
+
+
+def test_enrich_eta_uses_real_embed_speed(monkeypatch, temp_project):
+    """Честный ETA из реальной скорости embed (инцидент 2026-09-03: «~8с» было
+    артефактом линейной экстраполяции, а не реальной скорости)."""
+    import time
+
+    from src.core.intelligence.jobs import BackgroundJob
+    from src.core.intelligence.layer import (
+        ProjectIntelligenceLayer,
+        _embed_progress_from_log,
+    )
+
+    # 1339 total, 992 done, inst=16 ch/s → remaining=347 → ETA ≈ 21.7 → 21с
+    monkeypatch.setattr(
+        "src.core.intelligence.layer._embed_progress_from_log",
+        lambda *a, **k: {
+            "done": 992, "total": 1339, "inst": 16,
+            "avg": 20, "elapsed": 49, "remaining": 347,
+        },
+    )
+    layer = _make_layer()
+    job = BackgroundJob(
+        job_id="real_speed", type="full_reindex", status="running",
+        progress=0.7, started_at=time.time(),
+    )
+    res = ProjectIntelligenceLayer._enrich_job_response(layer, job)
+    assert res["eta_phase"] == "embed"
+    # 347 / 16 = 21.7 → 21
+    assert res["estimated_seconds"] == 21

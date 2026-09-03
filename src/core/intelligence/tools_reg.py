@@ -108,24 +108,31 @@ def register_intelligence_tools(mcp_app, intel_layer):
         # Берём real-time ETA из job'а, если хватило прогресса
         enriched = intel_layer._enrich_job_response(job) if job else {}
         estimated_sec = enriched.get("estimated_seconds", 120)
+        eta_phase = enriched.get("eta_phase")
 
         from datetime import datetime, timedelta
 
-        _started = (
-            datetime.fromtimestamp(job.started_at)
-            if job and job.started_at
-            else datetime.now()
-        )
-        _eta_dt = _started + timedelta(seconds=estimated_sec)
-        _eta_time = _eta_dt.strftime("%H:%M:%S")
-
-        # Форматируем ETA человекочитаемо
-        if estimated_sec >= 120:
-            eta_str = f"~{estimated_sec // 60}м"
-        elif estimated_sec >= 60:
-            eta_str = f"~{estimated_sec // 60}м {estimated_sec % 60}с"
+        # Честный ETA: если данных для расчёта нет (None) — не выдумываем «~8с»
+        # (старый линейный экстраполятор считал 2с старта → ложные 8с).
+        _eta_time_str = ""
+        if estimated_sec is None:
+            eta_str = "расчёт…" if eta_phase == "embed" else "определяется…"
+            if eta_phase == "finalizing":
+                eta_str = "finalizing (IVF index)…"
         else:
-            eta_str = f"~{estimated_sec}с"
+            if job and job.started_at:
+                _eta_dt = datetime.fromtimestamp(job.started_at) + timedelta(
+                    seconds=estimated_sec
+                )
+                _eta_time_str = f" (готовность к `{_eta_dt.strftime('%H:%M:%S')}`)"
+            else:
+                _eta_time_str = ""
+            if estimated_sec >= 120:
+                eta_str = f"~{estimated_sec // 60}м"
+            elif estimated_sec >= 60:
+                eta_str = f"~{estimated_sec // 60}м {estimated_sec % 60}с"
+            else:
+                eta_str = f"~{estimated_sec}с"
 
         _now = datetime.now().strftime("%H:%M:%S")
         _bar = "[" + "█" * (progress // 7) + "░" * (15 - progress // 7) + "]"
@@ -139,7 +146,7 @@ def register_intelligence_tools(mcp_app, intel_layer):
             f"{'━' * 30}\n"
             f"🏗️ **Progress:** {_bar} `{progress}%`\n"
             f"⏱️ Старт: `{_now}` | Статус: `{p_label}`\n"
-            f"⏱️ **ETA:** {eta_str} (готовность к `{_eta_time}`)\n"
+            f"⏱️ **ETA:** {eta_str}{_eta_time_str}\n"
             f"📌 Job ID: `{job_id}`\n"
             f"{'━' * 30}\n"
             f"💡 *Следующая проверка: не ранее `{_next_poll}`.*\n"
@@ -250,14 +257,19 @@ def register_intelligence_tools(mcp_app, intel_layer):
         enriched = intel_layer._enrich_job_response(job) if job else {}
         estimated_sec = enriched.get("estimated_seconds", 120)
         from datetime import datetime, timedelta
-        _eta_dt = datetime.now() + timedelta(seconds=estimated_sec)
-        _eta_time = _eta_dt.strftime("%H:%M:%S")
-        if estimated_sec >= 120:
-            eta_str = f"~{estimated_sec // 60}м"
-        elif estimated_sec >= 60:
-            eta_str = f"~{estimated_sec // 60}м {estimated_sec % 60}с"
+        _eta_time = ""
+        if estimated_sec is None:
+            # Честно: данных для ETA нет (реальной скорости embed ещё нет).
+            eta_str = "расчёт…"
         else:
-            eta_str = f"~{estimated_sec}с"
+            _eta_dt = datetime.now() + timedelta(seconds=estimated_sec)
+            _eta_time = _eta_dt.strftime("%H:%M:%S")
+            if estimated_sec >= 120:
+                eta_str = f"~{estimated_sec // 60}м"
+            elif estimated_sec >= 60:
+                eta_str = f"~{estimated_sec // 60}м {estimated_sec % 60}с"
+            else:
+                eta_str = f"~{estimated_sec}с"
         _now = datetime.now().strftime("%H:%M:%S")
         _bar = "[" + "█" * (progress // 7) + "░" * (15 - progress // 7) + "]"
         _pct = min(progress, 100)
@@ -308,56 +320,37 @@ def register_intelligence_tools(mcp_app, intel_layer):
             f"   Прогресс: {enriched.get('progress_label', 'N/A')}\n"
         )
         # Парсим прогресс чанков из embed лога ТЕКУЩЕГО job (инцидент 2026-08-13:
-        # лог-файл общий и накапливается — без фильтра по времени парсер показывал
-        # СТАРЫЕ «7426/7426 (100%)» прошлой индексации, пока текущий full reindex
-        # ещё в фазе parsing (embed-строки не писаны). Фильтр: только строки,
-        # не старше job.started_at.
+        # лог общий и накапливается — фильтр по job.started_at обязателен).
+        # Единый парсер — _embed_progress_from_log (layer.py), 2026-09-03.
         try:
-            import datetime as _dt
-            import re
+            from src.core.intelligence.layer import _embed_progress_from_log
 
-            from src.core.log_manager import get_main_log_path
-            _log_path = get_main_log_path()
-            _started_ts = job.started_at or 0
-            if _log_path.exists():
-                with open(str(_log_path), 'r', encoding='utf-8', errors='replace') as _f:
-                    for _line in reversed(_f.readlines()):
-                        # Строки до старта job — прошлая сессия/индексация, пропускаем
-                        try:
-                            _line_ts = _dt.datetime.strptime(
-                                _line[:19], "%Y-%m-%d %H:%M:%S"
-                            ).timestamp()
-                            if _line_ts < _started_ts - 2:
-                                continue
-                        except (ValueError, IndexError):
-                            continue
-                        _m = re.search(r'\[embed\]\s+(\d+)/(\d+)', _line)
-                        if _m:
-                            _done, _total = int(_m.group(1)), int(_m.group(2))
-                            # Instant скорость (мгновенная) — из batch=4ch/0.1s=56ch/s
-                            _m_inst = re.search(r'batch=\d+ch/[\d.]+s=(\d+)ch/s', _line)
-                            _inst = int(_m_inst.group(1)) if _m_inst else 0
-                            # Average скорость (средняя) — из avg=21ch/s
-                            _m_avg = re.search(r'avg=(\d+)ch/s', _line)
-                            _avg = int(_m_avg.group(1)) if _m_avg else 0
-                            _m_elapsed = re.search(r'elapsed=(\d+)s', _line)
-                            _elapsed = int(_m_elapsed.group(1)) if _m_elapsed else 0
-                            _remaining = _total - _done
-                            # ETA на основе instant скорости (более точная)
-                            _speed = _inst if _inst > 0 else _avg
-                            _eta = _remaining / max(_speed, 1)
-                            _pct = _done / _total * 100
-                            _bar_len = 25
-                            _filled = int(_bar_len * _done / _total)
-                            _ch_bar = "█" * _filled + "░" * (_bar_len - _filled)
-                            result += (
-                                f"\n"
-                                f"📊 **Чанки:** {_ch_bar} `{_pct:.0f}%`\n"
-                                f"   `{_done}/{_total}` ({_remaining} осталось)\n"
-                                f"   Скорость: `{_inst} ch/s` (avg: `{_avg} ch/s`) | ETA: `{_eta:.0f}с ({_eta/60:.1f}мин)`\n"
-                                f"   Прошло: `{_elapsed}с`"
-                            )
-                            break
+            _ep = _embed_progress_from_log(job.started_at or 0)
+            if _ep is not None:
+                _done, _total = _ep["done"], _ep["total"]
+                if _done < _total:
+                    _remaining = _ep["remaining"]
+                    _pct = _done / _total * 100
+                    _bar_len = 25
+                    _filled = int(_bar_len * _done / _total)
+                    _ch_bar = "█" * _filled + "░" * (_bar_len - _filled)
+                    _speed = _ep["inst"] if _ep["inst"] > 0 else _ep["avg"]
+                    _eta = _remaining / max(_speed, 1)
+                    result += (
+                        f"\n"
+                        f"📊 **Чанки:** {_ch_bar} `{_pct:.0f}%`\n"
+                        f"   `{_done}/{_total}` ({_remaining} осталось)\n"
+                        f"   Скорость: `{_ep['inst']} ch/s` (avg: `{_ep['avg']} ch/s`) | ETA: `{_eta:.0f}с ({_eta/60:.1f}мин)`\n"
+                        f"   Прошло: `{_ep['elapsed']}с`"
+                    )
+                else:
+                    # done == total: эмбеддинг завершён, идёт writing/Finalizing
+                    # (optimize + IVF index) — чанковый счётчик больше не растёт,
+                    # показываем честную строку фазы вместо застывшего «100%».
+                    _phase = "⚙️ Finalizing: optimize + IVF index (без новых чанков)"
+                    if enriched.get("eta_phase") == "finalizing":
+                        _phase = "⚙️ Writing + Finalizing: optimize + IVF index"
+                    result += f"\n   🏁 Embedded {_done}/{_total} · {_phase}"
         except Exception:
             pass
         if job.error:

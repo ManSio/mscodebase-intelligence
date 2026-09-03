@@ -353,7 +353,11 @@ async def test_intel_runtime_status_reports_reindex_progress(monkeypatch, tmp_pa
         assert tel["reindex_in_progress"] is True
         assert tel["status"] == "reindexing", f"status={tel['status']}"
         assert tel["reindex_progress_pct"] == 62, f"pct={tel['reindex_progress_pct']}"
-        assert tel["reindex_eta_sec"] is not None
+        # 2026-09-03: честный ETA. В мокнутом окружении свежих [embed]-строк
+        # в реальном логе нет (лог общий, job фиктивный) → данных нет → None
+        # (ранее тут была фальшивая экстраполяция «36с» из 60с/0.62). Оставляем
+        # контракт: если реальной скорости нет — ETA честно отсутствует.
+        assert tel["reindex_eta_sec"] is None or tel["reindex_eta_sec"] > 0
     finally:
         job_manager.jobs.pop(job_id, None)
         monkeypatch.setattr(layer, "_reindex_job_id", None)
