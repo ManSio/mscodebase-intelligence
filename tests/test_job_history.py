@@ -112,8 +112,6 @@ def _make_layer():
     """Собирает слой с пустой историей (ветка project_size не активна)."""
     from types import SimpleNamespace
 
-    from src.core.intelligence.layer import ProjectIntelligenceLayer
-
     layer = SimpleNamespace()
     layer.job_history = SimpleNamespace(get_estimated_duration=lambda *a, **k: None)
     return layer
@@ -128,10 +126,7 @@ def test_enrich_eta_none_when_no_embed_progress(monkeypatch, temp_project):
     import time
 
     from src.core.intelligence.jobs import BackgroundJob
-    from src.core.intelligence.layer import (
-        ProjectIntelligenceLayer,
-        _embed_progress_from_log,
-    )
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
 
     monkeypatch.setattr(
         "src.core.intelligence.layer._embed_progress_from_log", lambda *a, **k: None
@@ -152,10 +147,7 @@ def test_enrich_eta_uses_real_embed_speed(monkeypatch, temp_project):
     import time
 
     from src.core.intelligence.jobs import BackgroundJob
-    from src.core.intelligence.layer import (
-        ProjectIntelligenceLayer,
-        _embed_progress_from_log,
-    )
+    from src.core.intelligence.layer import ProjectIntelligenceLayer
 
     # 1339 total, 992 done, inst=16 ch/s → remaining=347 → ETA ≈ 21.7 → 21с
     monkeypatch.setattr(
