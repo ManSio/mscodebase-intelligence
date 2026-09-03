@@ -1636,3 +1636,43 @@
 **Root Cause:** В PropertyGraph не было узлов для env-переменных → запросы "какие env читает функци...
 - **Статус:** автоматически синхронизировано
 
+## 2026-08-31 — Blast radius fix: bare-callee edges now reach qualified method node
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (13+67 tests green, ruff clean; local, not pushed)
+**Root Cause:** `impact_analysis("Class.method")` returned 0 callers because the parser intentionally emits BARE callee (`_extrac...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-08-29 12:00 — Two-Pass Graph Symbol Resolution (Extract -> Resolve)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (resolved 7 passed; live integration complete)
+**Root Cause:** The previous single-pass graph building produced unlinked `{project}.__extern__.{symbol}` nodes for any callee define...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+**Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+**Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит 32f11662; все 5 pre-commit hook'ов OK; полный pytest 1587 passed, 2 pre-existing env_extractor fail)
+**Root Cause 1:** `_enrich_job_response` — мёртвая ветка истории (job.project_size никогда не присваивается) + сломанная линейная экстраполяция первых 2с → ложный ETA «~8с». **Fix 1:** единый парсер `_embed_progress_from_log` + реальная скорость из лога (remaining/speed), честный None без данных.
+**Root Cause 2:** `_safe_ivf_index` без единого progress-колбэка → бар застывал на 0.8, чанки не росли. **Fix 2:** emission «finalizing» колбэка до/после IVF, отображение 0.8→0.95, честная строка в get_job_status.
+- **Статус:** автоматически синхронизировано
+
