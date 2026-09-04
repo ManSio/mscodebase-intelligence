@@ -47,6 +47,20 @@ class TestGraphResolverHelper:
         assert is_external_or_stdlib("pydantic") is True
         assert is_external_or_stdlib("my_hypothetical_project_module") is False
 
+    def test_stdlib_newer_modules_classified_as_stdlib(self):
+        """Stdlib added after Python 3.10 (regression for the fixed hardcoded list).
+
+        These were absent from the old 39-name hardcoded set and relied on the
+        fragile find_spec/origin fallback. The canonical sys.stdlib_module_names
+        set now covers them unconditionally.
+        """
+        import sys
+
+        if not hasattr(sys, "stdlib_module_names"):
+            pytest.skip("needs Python >= 3.10 (sys.stdlib_module_names)")
+        for mod in ("tomllib", "graphlib", "zoneinfo", "contextlib"):
+            assert is_external_or_stdlib(mod) is True, mod
+
 
 class TestGraphSymbolResolver:
     """Tests the resolution behavior of GraphSymbolResolver."""
