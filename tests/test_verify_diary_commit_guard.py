@@ -16,8 +16,6 @@ import importlib.util
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
 _SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "verify_diary.py"
 _spec = importlib.util.spec_from_file_location("verify_diary_under_test", _SCRIPT)
 verify = importlib.util.module_from_spec(_spec)
@@ -41,7 +39,7 @@ def _popen_returning(returncode):
     return _fake_popen
 
 
-def test_numeric_run_id_does_not_fail(monkeypatch):
+def test_numeric_run_id_does_not_fail():
     """Run-ID (11+ digits, no git object) must be treated as NOT a commit."""
     # Fake: git cat-file fails (returncode != 0) for any token.
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
@@ -49,27 +47,27 @@ def test_numeric_run_id_does_not_fail(monkeypatch):
         assert verify.check_commit_exists("2684354560") is True
 
 
-def test_numeric_byte_count_does_not_fail(monkeypatch):
+def test_numeric_byte_count_does_not_fail():
     """Byte-count (10 digits) also must not fail."""
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
         assert verify.check_commit_exists("2684354560") is True
 
 
-def test_hex_missing_commit_still_warns(monkeypatch):
+def test_hex_missing_commit_still_warns():
     """Hex-with-letters that git does NOT have must still be flagged (False)."""
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
         # Mimics a real short-hex that is not present in this repo.
         assert verify.check_commit_exists("f00baa1") is False
 
 
-def test_real_numeric_commit_resolves(monkeypatch):
+def test_real_numeric_commit_resolves():
     """Numeric-lead commit present in repo -> git finds it -> True (guard not hit)."""
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(0)):
         # `3578642` is the real all-digit 7-prefix present in this repo.
         assert verify.check_commit_exists("3578642") is True
 
 
-def test_mixed_hex_is_not_guard_bypassed_when_absent(monkeypatch):
+def test_mixed_hex_is_not_guard_bypassed_when_absent():
     """Guard must NOT bypass mixed hex-with-letters that git rejects."""
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
         # Has letters -> isdigit() False -> still flagged as missing.
