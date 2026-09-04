@@ -99,20 +99,18 @@ def is_external_or_stdlib(module_name: str) -> bool:
     """Checks if a module name is a standard library module or an external package."""
     if not module_name:
         return False
-    # Builtin modules
+    # Builtin modules (compiled into this interpreter)
     if module_name in sys.builtin_module_names:
         return True
 
-    # Common stdlib modules fallback list
-    stdlib_modules = {
-        "os", "sys", "json", "math", "re", "collections", "datetime", "urllib", "http",
-        "hashlib", "time", "pathlib", "functools", "typing", "subprocess", "logging",
-        "ctypes", "sqlite3", "tempfile", "shutil", "ast", "inspect", "enum", "abc",
-        "threading", "queue", "socket", "select", "asyncio", "xml", "csv", "uuid",
-        "copy", "argparse", "weakref", "platform", "importlib", "traceback", "trace"
-    }
+    # Canonical stdlib set (Python >= 3.10). Covers pure/builtin/frozen/extension
+    # modules, same across platforms, and auto-updates with new stdlib — no manual
+    # drift list to maintain (PR-24 review: the old hardcoded set covered only
+    # 39/297 stdlib names). Only top-level packages are listed, so we compare the
+    # top-level segment.
+    _STDLIB_NAMES = getattr(sys, "stdlib_module_names", frozenset())
     top_level = module_name.split(".")[0]
-    if top_level in stdlib_modules:
+    if top_level in _STDLIB_NAMES:
         return True
 
     # Check if we can find it in the environment as stdlib or third party
