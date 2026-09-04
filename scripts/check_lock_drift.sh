@@ -21,15 +21,23 @@ if [ ! -f requirements-lock.txt ]; then
 fi
 
 # Только exact-пины (==). Диапазоны (>=, <) не сравниваются — нужен semver-парсер.
+# Сравниваются ВСЕ exact-пины pyproject против requirements-lock.txt — и версия,
+# и НАЛИЧИЕ (раньше сверялись только lancedb/pylance и только когда оба присутствуют,
+# поэтому «декларирован в pyproject, но вообще отсутствует в lock» проходил
+# незамеченным — дрейф tree-sitter-c/ruby 2026-09-04).
 DRIFT=0
-for pkg in lancedb pylance; do
-    PINNED=$(grep -vE '^\s*#' pyproject.toml | grep -oE "\"${pkg}==[0-9.]+" | head -1 | grep -oE '[0-9][0-9.]*' | head -1)
-    LOCKED=$(grep -iE "^${pkg}==" requirements-lock.txt | head -1 | grep -oE '[0-9][0-9.]*' | head -1)
-    if [ -n "$PINNED" ] && [ -n "$LOCKED" ] && [ "$PINNED" != "$LOCKED" ]; then
+while IFS= read -r spec; do
+    pkg="${spec%%==*}"
+    PINNED="${spec#*==}"
+    LOCKED=$(grep -iE "^${pkg}==" requirements-lock.txt | head -1 | sed -E 's/^[[:space:]]*[^=]*==//')
+    if [ -z "$LOCKED" ]; then
+        echo "DRIFT: ${pkg}==${PINNED} pinned in pyproject but absent in lock"
+        DRIFT=1
+    elif [ "$PINNED" != "$LOCKED" ]; then
         echo "DRIFT: ${pkg} pinned ${PINNED} in pyproject but ${LOCKED} in lock"
         DRIFT=1
     fi
-done
+done < <(grep -oE '"[a-zA-Z0-9_.-]+==[0-9][0-9.a-z+]*"' pyproject.toml | tr -d '"' | sort -u)
 
 if [ "$DRIFT" -ne 0 ]; then
     exit 1

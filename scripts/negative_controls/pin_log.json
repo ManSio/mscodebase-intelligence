@@ -97,5 +97,14 @@
       "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-09-04T03:31:51Z",
+    "reason": "Arm3 absent-in-lock mutant added and check_lock_drift.sh rewritten to walk all pyproject exact-pins; re-prove drift_gate guard",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

@@ -64,5 +64,30 @@ if ! echo "$OUT" | grep -q "Lockfile in sync"; then
 fi
 echo "Arm2 (sync-контроль): ✅ exit 0 — гейт не даёт ложных срабатываний"
 
+# ── Arm 3: мутант — пакет декларирован в pyproject, но ОТСУТСТВУЕТ в lock ──
+# (2026-09-04: реальный дрейф tree-sitter-c/ruby прошёл = «pinned, absent in lock».
+#  Старый гейт сверял только версию двоих (lancedb/pylance) при обоих присутствующих —
+#  отсутствие пакета детектирующим был структурно слеп. Arm 3 закрепляет ловлю общей дыры.)
+mkdir -p "$TMP/absent"
+cat > "$TMP/absent/pyproject.toml" <<'EOF'
+[project]
+name = "absent-fixture"
+dependencies = [
+    "lancedb==0.34.0",
+    "tree-sitter-c==0.24.2",
+]
+EOF
+cat > "$TMP/absent/requirements-lock.txt" <<'EOF'
+lancedb==0.34.0
+EOF
+OUT=$("$GATE" "$TMP/absent" 2>&1); RC=$?
+if [ "$RC" -ne 1 ]; then
+    fail "absent-мутант: гейт НЕ упал (rc=$RC, ожидался 1) — отсутствие пакета в lock недетектируемо. Вывод: $OUT"
+fi
+if ! echo "$OUT" | grep -q "absent in lock"; then
+    fail "absent-мутант: exit 1, но не 'absent in lock'. Вывод: $OUT"
+fi
+echo "Arm3 (absent-мутант): ✅ exit 1 + 'absent in lock' — гейт ловит отсутствие пакета"
+
 echo "NEGATIVE CONTROL: PASSED (drift-gate может упасть; crash ≠ catch)"
 exit 0

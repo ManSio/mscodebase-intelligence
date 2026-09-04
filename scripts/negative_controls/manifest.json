@@ -17,7 +17,7 @@
       "output_contains": [
         "NEGATIVE CONTROL: PASSED"
       ],
-      "fixture_digest": "8fe3226bb877415ab76225ac6136fbb41d75c613b82c8f24e8fddfda297b5c3f"
+      "fixture_digest": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f"
     },
     {
       "id": "stale_detector",
@@ -57,5 +57,5 @@
       "fixture_digest": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
   ],
-  "min_accepted_revision": "682b5af0435f84ebc682201c3a4aa7462d84c46c"
+  "min_accepted_revision": "f210ed7c206e3f7d55513bdf377dbb52683aa07b"
 }
