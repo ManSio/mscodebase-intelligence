@@ -378,6 +378,13 @@ def check_commit_exists(commit_hash: str) -> bool:
                 return True
         except Exception:
             pass  # таймаут/спавн-ошибка → одна retry-попытка, потом False
+    # git не нашёл объект. Чисто-числовой токен — это run-ID/byte-count/Windows-код
+    # (issue #24), а НЕ пропавший hex-коммит: не считаем ошибкой ledgers.
+    # Валидные числовые 7-13-цифровые префиксы реальных коммитов (3578642…,
+    # 197463476449…, 3253115559558…) уходят через returncode==0 выше и сюда
+    # не доходят — поэтому guard безопасен и не трогает их.
+    if commit_hash.isdigit():
+        return True
     return False
 
 
