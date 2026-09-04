@@ -52,7 +52,6 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 7. lock_guard — активные git-локи (advisory, exit 0)
 8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
 \"\"\"
-\"\"\"
 
 import subprocess
 import sys
@@ -113,6 +112,7 @@ def main():
     all_ok &= run_script("scripts/architecture_linter.py", "architecture_linter")
     all_ok &= run_script("scripts/lock_guard.py", "lock_guard (advisory)")
     all_ok &= run_script("scripts/check_known_issues.py", "check_known_issues")
+    all_ok &= run_script("scripts/ruff_gate.py", "ruff_gate")
 
     if not all_ok:
         print("\\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
