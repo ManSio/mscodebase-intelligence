@@ -347,6 +347,32 @@ def _check_test_file_exists(test_name: str) -> bool:
         return False
 
 
+def _kill_git_tree(proc: subprocess.Popen) -> None:
+    """Убить зависший git вместе с re-exec деревом и conhost.
+
+    Popen.kill() убивает только shim (git), а Git for Windows делает
+    self re-exec (git -> git.exe) — осиротевший git.exe и его conhost
+    остались бы жить. taskkill /T на Windows снимает всё дерево.
+    """
+    try:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                creationflags=(
+                    getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    | getattr(subprocess, "DETACHED_PROCESS", 0)
+                ),
+            )
+        else:
+            proc.kill()
+            proc.wait(timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass  # аварийная ветка: утечка одной цепочки лучше, чем петля kill
+
+
 def check_commit_exists(commit_hash: str) -> bool:
     """Проверяет наличие коммита в истории.
 
@@ -373,7 +399,15 @@ def check_commit_exists(commit_hash: str) -> bool:
                     | getattr(subprocess, "DETACHED_PROCESS", 0)
                 ),
             )
-            proc.communicate(timeout=30)
+            try:
+                proc.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                # Инц. 2026-09-05: communicate() на таймауте НЕ убивает процесс.
+                # Git for Windows spawns git shim -> git.exe (re-exec), поэтому
+                # без kill утёкшая цепочка git + git.exe + conhost жила бы вечно
+                # (+3 процесса на каждый зависший cat-file при CPU/Defender
+                # contention — 81% RAM и «размножение» за длинную сессию).
+                _kill_git_tree(proc)
             if proc.returncode == 0:
                 return True
         except Exception:

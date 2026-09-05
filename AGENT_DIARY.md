@@ -1771,3 +1771,36 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Fix 2:** emit a `finalizing` progress-callback before/after IVF in index_project_runner.py; `_index_progress_callback` maps "finalizing" → 0.8→0.95; `get_job_status` shows honest "⚙️ Finalizing: optimize + IVF index" when done>=total.
 **Guard:** 2 new honesty tests in test_job_history.py (ETA None when no data; real rate from mocked `_embed_progress_from_log`). §9: "trust the log speed, never linear-extrapolate simulated early progress".
 **verified_from_clean_state:** ⚠️ не проверено — clean-clone verification not run this session; full pytest 1587 passed (2 pre-existing unrelated env_extractor failures), targeted set 51 green.
+
+## [2026-09-03 19:30] — CI RED: circular import layer ↔ tools_reg (architecture_linter)
+**Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+**Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer → tools_reg` (re-export `register_intelligence_tools`) cycle. `scripts/architecture_linter.py` caught it as `[CIRCULAR]`.
+**Fix:** Extracted `_embed_progress_from_log` into neutral `src/core/intelligence/embed_progress.py`. Both layer and tools_reg import from it. Zero cycle, single source of truth preserved.
+**Guard:** `architecture_linter.py` is a CI gate — any future circular import will be caught before merge. §9: "before adding a cross-module import, check if the target already imports back."
+**verified_from_clean_state:** ✅ да — CI clean-state job (ubuntu clone+venv+install+tests) passed; full pytest 1587 passed (2 pre-existing); ruff clean; architecture_linter all OK.
+
+## [2026-09-04 11:15] — CI RED: ruff lint errors caught only after push (3 commits)
+**Status:** ✅ Fixed (commit 986c9be7)
+**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times (5a771789, b121ab19, 3dd79ba2). Also discovered pre-existing SyntaxError in hook template from bb05d9af (stray `\"\"\"` in PRE_COMMIT_HOOK docstring) — hook never compiled, was installed via MCP after commits pushed so never caught.
+**Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK, run via `run_script()`). Graceful skip when ruff not installed (advisory). Removed stray `\"\"\"` in template. 3/3 negative control tests passed.
+**Guard:** ruff_gate.py now blocks commits locally when ruff finds lint errors. test_ruff_gate.py prevents regression (happy/fail/no-ruff paths). KNOWN_ISSUES.md#2026-09-04-CI-RED-ruff.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не гонялся; локально подтверждено: ruff clean (3 файла), py_compile hook OK, 3/3 unit tests, hook template .format() verified.
+
+## [2026-09-05 09:15] — Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
+**Status:** ✅ Fixed (code only, не запушено) — verify_diary.py + git_hooks_installer.py
+**Root Cause:** `check_commit_exists` (verify_diary.py:361): `proc.communicate(timeout=30)` на таймауте в Python НЕ убивает процесс, `except Exception: pass` глотает TimeoutExpired → Popen утекает навсегда. Git for Windows делает re-exec (git → git.exe), теряя DETACHED_PROCESS → каждый зависший `git cat-file` = 3 вечных процесса (git + git.exe + conhost). Наблюдение: цепочка 9660→24156→24428 жила 6+ часов; триггер — стартовая Contradiction Ledger-проверка (main.py:62, server_factory.py:547) при CPU/Defender contention.
+**Fix:** `_kill_git_tree()` — `taskkill /F /T /PID` (снимает re-exec дерево; верифицировано на живой цепочке: исчезли все 3 процесса) + `except subprocess.TimeoutExpired` вокруг communicate в check_commit_exists; тот же kill-tree в run_script (git_hooks_installer.py:93). Новые except — конкретные `(OSError, subprocess.SubprocessError)`, ноль новых ruff-нарушений.
+**Guard:** правило §9: communicate(timeout=) на Windows ОБЯЗАН сопровождаться kill на TimeoutExpired (иначе Popen утекает вечно); unit-мок не ловит (мок не бросает TimeoutExpired) — факт подтверждён реальным прогоном (test_contradiction_ledger slow, 2 passed за 10s). Тесты: commit_guard 5 + test_subprocess_windows 2 + ledger slow 2 = 9 passed.
+**verified_from_clean_state:** ⚠️ не проверено — clean-clone не гонялся; full local: 9 passed, ruff clean по новым строкам.
+
+## [2026-09-05 12:30] — FIX: stale_detector + predict_change стабильно таймаутили через MCP (-32001): блокирующий sync-код в async-контексте
+**Status:** ✅ Fixed (code only, не запушено) — src/mcp/tools/doc_tools.py + predict_tools.py
+**Root Cause:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)` вокруг `execute`, но внутри `execute` вызывается **синхронный блокирующий код** (`stale_run` 10-29s, `static_predict`/`ChangePreview` с git-subprocess). На Windows `asyncio.wait_for` НЕ может отменить работающий синхронный блок → event loop заблокирован, клиент (opencode) отваливается по транспортному таймауту `-32001` ДО того, как сервер вернёт ответ.
+**Эксперименты (EXPERIMENTS_LOG#2026-09-05):**
+1. `stale_run` напрямую: 10.06s (73 файла, 609 дрейфов) — впритык к `timeout_ms=10000`.
+2. `asyncio.wait_for(10000ms)` вокруг синхронного `stale_run` → НЕ прервал, вернулся через 24.7s (loop заблокирован).
+3. `asyncio.to_thread(stale_run)` + `wait_for` → РЕАЛЬНЫЙ таймаут на 5.0s/10.0s, event loop жив; `wait_for(30000ms)` успевает за 28.96s.
+4. `static_predict` из терминала: 0.53s (быстрый!) — таймаут predict_change -32001 из opencode — артефакт транспортной обвязки, не логика.
+**Fix:** оба инструмента обернули синхронные блоки в `asyncio.to_thread` (doc_tools.py `_scan_docs`, predict_tools.py `static_predict` + `ChangePreview.run`); таймауты подняты: stale_detector 10s→60s, predict_change 60s→120s. `asyncio.wait_for` теперь реально прерывает операцию при превышении, event loop остаётся живым.
+**Guard:** §9: в async-MCP-инструменте синхронные subprocess/filesystem блоки ОБЯЗАНЫ жить в `asyncio.to_thread`, иначе `error_boundary.timeout_ms` иллюзорен. Правило «таймаут без возможности прерывания = фарс».
+**verified_from_clean_state:** ⚠️ не проверено — MCP-процесс в Zed не перезапущен (нужен reload окна для применения); прямой вызов `StaleDetectorTool.execute({})` → OK 13.0s (0 дрейфов), `PredictChangeTool.execute({'mode':'static'})` → OK 1.4s (7 files, risk); 62 теста (вкл. subprocess_windows) passed.

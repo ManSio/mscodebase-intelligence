@@ -1732,3 +1732,35 @@ BY KLASS: find_impact 1.00 | git_history 1.00 | find_test 0.50 | modify_function
 Регресс подтверждён не только по построению (klass-gating), но и фактом: 9/9 классов ≥ каскада. E4.2 превращает «остаток» E4.1 (verify_change=0, facts не считались) в закрытые пункты: recall 0.433→0.50, verify_change 0→1.0.
 **Урок:** «бессловесный» промпт — это не задача классификации, а задача резолва якоря: лексический extract_symbol не переживает ни «следствие вместо имени» (T9), ни «концепт вместо имени» (T29). Механический concept-реестр с klass-gating — детерминированный и не регрессит; корпусное наполнение рецептов — из 3300-call корпуса (RESEARCH.md rec 3).
 **Связь:** EXPERIMENTS_LOG#E4.1, results_E4_1_graph.json, experiments/mech_orch/{resolver.py,probe_e42_verify.py,E4_1_graph_arm.py}, tests/test_mech_resolver.py.
+
+
+## [2026-09-05] — Гипотеза: stale_detector + predict_change таймаутят (-32001) из-за блокирующего sync-кода в async-контексте, а не из-за медленной логики
+
+**Ожидание:** Если `asyncio.wait_for` (в `error_boundary`) обёрнут вокруг асинхронной корутины, которая вызывает СИНХРОННЫЙ блокирующий код (`stale_run`, git subprocess) — то wait_for НЕ сможет прервать операцию вовремя (Windows не отменяет работающий sync-IO), event loop заблокирован, MCP-клиент отваливается по транспортному таймауту ДО ответа. Перенос sync-блока в `asyncio.to_thread` должен восстановить прерываемость и живость event loop.
+
+**Команда (контролируемый замер, venv расширения):**
+```python
+# 1. baseline: старый код без to_thread
+asyncio.wait_for(stub(), timeout=10)   # stub = sync stale_run
+# → вернулся через 24.7s (wait_for НЕ прервал!) — loop заблокирован
+# 2. фикс: to_thread
+asyncio.wait_for(asyncio.to_thread(stale_run, ...), timeout=5)  # → REAL TIMEOUT 5.02s, loop жив
+asyncio.wait_for(asyncio.to_thread(...), timeout=30)            # → OK 28.96s (73 файла)
+```
+
+**Сырой результат:**
+```
+CASE timeout=10000ms (без to_thread) -> OK in 24.73s: 73 files, drift=609   ← wait_for НЕ прервал
+CASE timeout=30000ms (без to_thread) -> OK in 22.76s: 73 files, drift=609
+to_thread timeout=5000ms  -> REAL TIMEOUT after 5.02s (event loop alive!)
+to_thread timeout=10000ms -> REAL TIMEOUT after 10.02s
+to_thread timeout=30000ms -> OK 28.96s files=73
+stale_run напрямую (терминал): ELAPSED 10.06s, files 73, total_drift 609
+static_predict напрямую (терминал): ELAPSED 0.53s, changed=3, affected_tests=21, risk=high
+```
+
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА. Корень — не «медленная логика», а блокирующий sync-код в async-функции: `wait_for` не может прервать sync-блок на Windows (дождался 24.7s при лимите 10s), event loop мёртв → клиент -32001. После `to_thread` — реальное прерывание за 5/10s, loop жив. Фикс: `asyncio.to_thread` для `_scan_docs`, `static_predict`, `ChangePreview.run`; таймауты 10s→60s (stale), 60s→120s (predict). Верификация: `StaleDetectorTool.execute({})` → OK 13.0s (0 дрейфов), `PredictChangeTool.execute({'mode':'static'})` → OK 1.4s (7 files, risk); 62 теста passed.
+
+**Урок:** «таймаут, который не может прервать работающий sync-блок, — фарс». В async MCP-инструментах любой потенциально долгий subprocess/filesystem-блок обязан быть в `asyncio.to_thread` (§9 incorporate). Завышенный впрок таймаут (60-120s) лучше заниженного (10s): реальная длительность изменчива (10→29s в потоке).
+
+**Связь:** AGENT_DIARY#2026-09-05-1230, KNOWN_ISSUES#2026-09-05-stale-predict-timeout, files src/mcp/tools/doc_tools.py, src/mcp/tools/predict_tools.py.
