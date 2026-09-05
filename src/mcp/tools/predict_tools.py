@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -39,7 +40,7 @@ class PredictChangeTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="predict_change")
 
-    @error_boundary("predict_change", timeout_ms=60000)
+    @error_boundary("predict_change", timeout_ms=120000)
     async def execute(
         self,
         kwargs: Optional[Dict[str, Any]] = None,
@@ -57,10 +58,12 @@ class PredictChangeTool(MCPTool):
 
         repo = resolve_project_root()
         if mode == "full":
-            verdict, message = ChangePreview(repo, base, timeout=timeout).run()
+            verdict, message = await asyncio.to_thread(
+                ChangePreview(repo, base, timeout=timeout).run
+            )
             return f"VERDICT: {verdict}\n{message}"
 
-        info = static_predict(repo, base)
+        info = await asyncio.to_thread(static_predict, repo, base)
         if not info["changed"]:
             return f"VERDICT: INCONCLUSIVE\n{info['note']}"
         lines = [

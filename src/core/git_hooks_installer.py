@@ -89,7 +89,27 @@ def run_script(script_path: str, label: str) -> bool:
     # нагрузкой) — кап 120s давал флаки TimeoutExpired на коммитах (2026-08-08);
     # 300→900 (2026-08-24): сюита выросла (live-sync + predict-наборы), 300s
     # начал флакать при параллельной нагрузке.
-    stdout, _ = proc.communicate(timeout=900)
+    try:
+        stdout, _ = proc.communicate(timeout=900)
+    except subprocess.TimeoutExpired:
+        # Инц. 2026-09-05: таймаут не убивает процесс — утекает не только сам
+        # скрипт, но и его дети (verify_diary -> pytest workers). taskkill /T
+        # снимает всё дерево (тот же паттерн, что _kill_git_tree в verify_diary).
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+            else:
+                proc.kill()
+                proc.wait(timeout=10)
+            stdout = ""
+        except (OSError, subprocess.SubprocessError):
+            stdout = ""
     if proc.returncode != 0:
         print(f"  ❌ {{label}}: exit {{proc.returncode}}")
         if stdout:

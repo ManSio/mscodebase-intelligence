@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -27,7 +28,7 @@ class StaleDetectorTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="stale_detector")
 
-    @error_boundary("stale_detector", timeout_ms=10000)
+    @error_boundary("stale_detector", timeout_ms=60000)
     async def execute(
         self,
         kwargs: Optional[Dict[str, Any]] = None,
@@ -45,7 +46,13 @@ class StaleDetectorTool(MCPTool):
         if actual_version == "unknown":
             return "Cannot determine project version from pyproject.toml"
 
-        results = self._scan_docs(project_root, actual_version, config)
+        # Блокирующее сканирование docs выносим в поток: напрямую stale_run
+        # (10-30s, синхронный subprocess/filesystem) блокирует async event loop,
+        # и asyncio.wait_for из error_boundary не может прервать его на таймауте
+        # (см. инцидент 2026-09-05 — stale_detector стабильно падал по -32001).
+        results = await asyncio.to_thread(
+            self._scan_docs, project_root, actual_version, config
+        )
         total_hits = sum(r["total_hits"] for r in results)
         errors = sum(
             1 for r in results for h in r["hits"] if h["severity"] == "error"
