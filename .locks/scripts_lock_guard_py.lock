@@ -1,7 +1,0 @@
-{
-  "resource": "scripts/lock_guard.py",
-  "agent": "MSCodeBase Agent",
-  "acquired_at": "2026-09-06T18:09:03+00:00",
-  "purpose": "raise git-commit timeout: pre-commit hook needs up to 900s, not 60s",
-  "estimated_duration_min": 30
-}
