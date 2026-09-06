@@ -1,0 +1,7 @@
+{
+  "resource": "tests/test_probe_lock.txt",
+  "agent": "MSCodeBase Agent",
+  "acquired_at": "2026-09-06T18:21:36+00:00",
+  "purpose": "verify timeout fix full cycle",
+  "estimated_duration_min": 30
+}
