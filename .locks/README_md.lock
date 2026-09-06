@@ -1,0 +1,7 @@
+{
+  "resource": "README.md",
+  "agent": "MSCodeBase Agent",
+  "acquired_at": "2026-09-06T17:46:21+00:00",
+  "purpose": "sync tests badge to verified 1608",
+  "estimated_duration_min": 30
+}
