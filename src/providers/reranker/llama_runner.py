@@ -1341,7 +1341,9 @@ class LlamaRunner:
 
                      f'Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess'],
 
-                    timeout=5, stderr=_sp.DEVNULL
+                    timeout=5, stderr=_sp.DEVNULL,
+
+                    creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
 
                 ).decode("utf-8", errors="replace").strip()
 
@@ -1367,7 +1369,9 @@ class LlamaRunner:
 
                          f'Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = {pid}" | Select-Object -ExpandProperty CommandLine'],
 
-                        timeout=3
+                        timeout=3,
+
+                        creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
 
                     ).decode().strip().lower()
 
@@ -1387,7 +1391,8 @@ class LlamaRunner:
 
                 # Шаг 3: убиваем
 
-                _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True, timeout=3)
+                _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True, timeout=3,
+                    creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0))
 
                 logger.warning(f'🧹 Убит процесс llama-server PID {pid} (порт {port})')
 
