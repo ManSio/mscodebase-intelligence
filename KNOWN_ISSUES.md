@@ -100,8 +100,9 @@
 - **Fix:** `_run` timeout 60→900s. Проверено полным циклом acquire→status→release на `README.md`, `scripts/lock_guard.py`, тестовом ресурсе: exit 0, коммиты+push проходят hook. INC-CD6E.
 - **Статус:** ✅ Fixed
 
-## 2026-09-06 — [P] аудит sync-subprocess в async-MCP (context_tool, git_tools) — не начат
+## 2026-09-06 — [P] sync-subprocess в async-MCP вызовов (context_tool, system_tools) — fixed
 
-- **Источник:** системное обобщение §5/T3 после фикса stale/predict; кандидаты: `context_tool.py:280` subprocess.run в get_context (30s), `git_tools.py:52-99` _git_run (10-15s), `system_tools.py:370/408/446` (dual_arm/health, 300s/45s — запас большой). Ни один не подтверждён замером.
-- **Статус:** ⏳ открыто — замер и to_thread при необходимости
+- **Источник:** AGENT_DIARY.md#2026-09-06-2130; кандидаты: `context_tool.py:280` subprocess.run в get_context (30s), `system_tools.py:370/408/446` (dual_arm, mutmut-WSL 180s).
+- **Fix:** `_section_git` стал async, `subprocess.run` обёрнут в `asyncio.to_thread` (context_tool.py); wsl_check/`_run_mutmut_in_wsl`/`_verify_mutmut_can_fail` — через `asyncio.to_thread` (system_tools.py). `git_tools._git_run` уже был async (эталон, не тронут). Проверено: test_context_tool 2 passed, ruff clean, импорты OK, реальный `_section_git` возвращает git-history.
+- **Статус:** ✅ Fixed (code only, MCP reload требуется)
 
