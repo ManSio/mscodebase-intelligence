@@ -92,3 +92,16 @@
 - **Fix:** оба инструмента обёрнуты в `asyncio.to_thread` (doc_tools._scan_docs, predict_tools.static_predict/ChangePreview.run); таймауты 10s→60s (stale), 60s→120s (predict). Прямые вызовы: stale OK 13.0s, predict OK 1.4s; 62 теста passed.
 - **Статус:** ✅ Fixed (code only, MCP reload требуется)
 
+
+## 2026-09-06 — lock_guard acquire/release падал ThreadExpired: таймаут 60s < pre-commit hook 5-10min (fixed)
+
+- **Источник:** AGENT_DIARY.md#2026-09-06-2100
+- **Описание:** `scripts/lock_guard.py` (`_run`) использовал `timeout=60s` для `git commit`, но любой commit прогоняет pre-commit hook (verify_diary → полный pytest), занимающий 5-10 мин на Windows. 60s давал TimeoutExpired даже когда коммит успешно создавался в фоне → ложное ощущение провала протокола `.locks` при параллельной работе агентов.
+- **Fix:** `_run` timeout 60→900s. Проверено полным циклом acquire→status→release на `README.md`, `scripts/lock_guard.py`, тестовом ресурсе: exit 0, коммиты+push проходят hook. INC-CD6E.
+- **Статус:** ✅ Fixed
+
+## 2026-09-06 — [P] аудит sync-subprocess в async-MCP (context_tool, git_tools) — не начат
+
+- **Источник:** системное обобщение §5/T3 после фикса stale/predict; кандидаты: `context_tool.py:280` subprocess.run в get_context (30s), `git_tools.py:52-99` _git_run (10-15s), `system_tools.py:370/408/446` (dual_arm/health, 300s/45s — запас большой). Ни один не подтверждён замером.
+- **Статус:** ⏳ открыто — замер и to_thread при необходимости
+
