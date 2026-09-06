@@ -6,6 +6,7 @@ watcher_status, get_logs, get_health_report, predict_eta, run_health_check.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -367,8 +368,13 @@ class DualArmHealthCheckTool(MCPTool):
             # Проверка WSL
             wsl_available = False
             try:
-                wsl_check = subprocess.run(["wsl", "--version"], capture_output=True, timeout=5,
-                                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                wsl_check = await asyncio.to_thread(
+                    subprocess.run,
+                    ["wsl", "--version"],
+                    timeout=5,
+                    capture_output=True,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
                 wsl_available = wsl_check.returncode == 0
             except Exception:
                 pass
@@ -377,13 +383,13 @@ class DualArmHealthCheckTool(MCPTool):
                 mutmut_result = {"skipped": True, "reason": "WSL not available (mutmut requires fork)"}
             else:
                 # Запуск mutmut в WSL
-                mutmut_result = self._run_mutmut_in_wsl(target_path)
+                mutmut_result = await asyncio.to_thread(self._run_mutmut_in_wsl, target_path)
 
         # Negative control: если mutmut запускался — он ОБЯЗАН умеет падать
         negative_control_passed = True
         if not mutmut_result.get("skipped"):
             # Проверяем что mutmut может детектировать дрейф (аналог negative_control_drift_gate.sh)
-            negative_control_passed = self._verify_mutmut_can_fail(target_path)
+            negative_control_passed = await asyncio.to_thread(self._verify_mutmut_can_fail, target_path)
 
         return {
             "status": "ok" if health_result.get("status") != "critical" else "degraded",

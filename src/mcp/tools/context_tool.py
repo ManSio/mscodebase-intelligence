@@ -9,6 +9,7 @@ Backward compat: targets без intent → explain.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import subprocess
@@ -168,7 +169,7 @@ class GetContextTool(MCPTool):
 
         # Git (нужен file_path из symbols)
         if "git" in keep_sections and symbols_data:
-            git_data = self._section_git(target, symbols_data)
+            git_data = await self._section_git(target, symbols_data)
             if git_data:
                 sections.append(git_data)
 
@@ -260,7 +261,7 @@ class GetContextTool(MCPTool):
             "signature": ("source", file_path),
         }
 
-    def _section_git(self, target: str, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _section_git(self, target: str, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """git секция: последние 6 коммитов по файлу."""
         text = symbols_data.get("text", "")
         # Сначала пробуем из impact (affected_files)
@@ -277,7 +278,8 @@ class GetContextTool(MCPTool):
 
         try:
             project_root = self._resolve_target_path(None) or Path.cwd()
-            r = subprocess.run(
+            r = await asyncio.to_thread(
+                subprocess.run,
                 ["git", "--no-pager", "log", "--oneline", "-6", "--", file_path],
                 cwd=str(project_root),
                 capture_output=True,
