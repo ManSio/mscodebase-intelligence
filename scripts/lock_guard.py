@@ -41,7 +41,10 @@ LOCKS_DIR = Path(__file__).resolve().parent.parent / ".locks"
 STALE_HOURS = 2
 
 
-def _run(cmd: List[str], cwd: Path, timeout: int = 60) -> subprocess.CompletedProcess:
+# Таймаут 900s: любой commit проходит pre-commit hook (verify_diary →
+# полный pytest), который на Windows занимает 5-10 мин. 60s давал
+# TimeoutExpired даже когда commit успешно создавался в фоне (2026-09-06).
+def _run(cmd: List[str], cwd: Path, timeout: int = 900) -> subprocess.CompletedProcess:
     proc = subprocess.Popen(
         cmd,
         cwd=str(cwd),
