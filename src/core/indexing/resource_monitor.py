@@ -304,6 +304,7 @@ class ResourceMonitor:
                     ["powershell", "-NoProfile", "-Command",
                      f"Get-CimInstance Win32_Process | Where-Object {{ $_.ParentProcessId -eq {_pid} }} | Select-Object ProcessId,Name,WorkingSet64 | ConvertTo-Csv"],
                     timeout=5, text=True, encoding="utf-8", errors="replace",
+                    creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
                 )
                 for line in out.strip().splitlines():
                     if not line or line.startswith("#"):
@@ -503,6 +504,7 @@ class ResourceMonitor:
                 ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
                  "--format=csv,noheader,nounits"],
                 timeout=5, text=True, encoding="utf-8", errors="replace",
+                creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
             )
             parts = out.strip().split(", ")
             if len(parts) >= 3:
