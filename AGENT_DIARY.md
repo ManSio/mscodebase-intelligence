@@ -31,7 +31,14 @@
 
 ---
 
-## [2026-09-03] - Carried exp-lab-2026-01 neuro-symbolic spike artifact into main
+## [2026-09-07] — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
+**Status:** Open — зафиксировано как проблема + план эксперимента (10-continuous-verification.md)
+**Root Cause:** По дизайну (ADR-0003) VOR ленивый, но точки вызова всего одна (layer.py:1097); IdleScheduler включается только из record_tool_call(), VOR в idle не подключён, 2 из 3 idle-задач — заглушки (_improve_summaries_batch/_check_index_health — пустые тела). Живой срез текущего проекта: 42/136 узлов ACTIVE без verified_at/TTL висят с 2026-08-11; узлы без якорей → INCONCLUSIVE → VOR не пишет ничего → «проверено» = «кто-то когда-то вызвал».
+**Fix (план эксперимента, не внесён):** H1 idle-ticker VOR с budget; H2 event-driven на HEAD (ключ hash(node_id+commit_sha) уже есть); H3 TTL-гниение INCONCLUSIVE → STALE. Baseline замера: полный прогон 136 узлов = 431.6ms (fingerprint 371.6ms) — дешевле порога. Контр-риски: false_retraction не выше 0.083%, цена при нагрузке.
+**Guard:** новые «проверки» проектной памяти обязаны иметь точку вызова вне ручного чтения (idle/event/ttl) — иначе это снова lazy-by-hand.
+**verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md, live-данные из реального сервера PID 10036)
+
+---
 **Status:** Fixed (branch closed, artifact merged into main)
 **Root Cause:** experiment/lab-2026 branch (spike exp-lab-2026-01: NL->LLM->Cypher->parser+schema->PropertyGraph) was orphaned - its artifact experiments/neuro_symbolic_spike.py and EXPERIMENTS_LOG entry never landed on main. Findings C1-C4 were already fixed on main via D1 (CypherExecutor schema layer).
 **Fix:** Re-ran spike from clean main (VERDICT: HYPOTHESIS SUPPORTED, parse_ok=8, rejected_by_schema=2 - schema layer correctly rejects hallucinated :SERVICE label and cycle() empty-RETURN). Carried only the useful artifact (spike script + EXPERIMENTS_LOG entry 848fdf33), avoiding a blind merge that would have conflicted in 3 doc files. Deleted orphaned local branch experiment/lab-2026.
