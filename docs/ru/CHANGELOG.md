@@ -21,12 +21,15 @@
 - **Поддержка Jupyter**: `.ipynb` в INDEX/PARSE_EXTENSIONS; `CodeParser._parse_notebook` — code cells → чанки через tree-sitter (stdlib json; nbformat не требуется).
 - **find_duplicates**: детектор copy-paste — AST-нормализованные отпечатки + multiset-Jaccard + minhash-LSH, мультиязычно (src/core/duplication.py).
 - **get_context(targets=[...])**: task-shaped агрегатор — контекст по нескольким символам одним вызовом.
+- **Per-language grammar maps** (B3): `CALL_NODES`/`IMPORT_NODE_MAP`/`ASSIGNMENT_NODE_MAP`/`CONDITIONAL_NODE_MAP` в `CodeParser` выверены против живых tree-sitter грамматик 11 языков (callee `simple_identifier` Swift/Kotlin/Dart, Ruby `method` target, PHP/Swift assigns, C/C++ `#include`, Dart `library_import` dedup, Ruby `require/include`; live-тесты TestMultiLangCalls/TestMultiLangImports).
+- **Derived import maps + gated fallback** (B4): `LANGUAGE_IMPORT_NODES` теперь производная от `CodeParser.IMPORT_NODE_MAP` (единый источник истины; ушёл дрейф kt/dart/php); fallback-режим 2 (расширение без карты) выполняется только в else-ветке `_walk_file` и за флагом `MSCODEBASE_LANGUAGE_PACK`; дедуп импортов вынесен в общий путь; деривация карты ленивая (module `__getattr__`, PEP 562 — на import-time parser не импортируется).
 
 ### Изменено
 - Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 13 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
 
 ### Тесты
 - +19 новых тестов (test_graph_path, test_duplication, test_jupyter, test_edge_transparency); полный pytest: 956 passed / 4 skipped / 94 deselected.
+- B3: 94 targeted passed (assignments+calls+imports), полный прогон 1646 passed; B4: 68 targeted passed (language_imports + call_graph), полный прогон 1651 passed / 5 skipped / 91 deselected (Windows).
 
 ---
 ## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), bump_version fix, test sys.path pollution fix
