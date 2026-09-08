@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -650,6 +651,45 @@ class TestWriteToolReplace:
         assert "return 999" in content
         # The old body should be gone
         assert "return 1" not in content.split("def old_func")[1].split("\n\ndef")[0]
+
+    @pytest.mark.asyncio
+    async def test_apply_records_action_receipt(self, mock_services, tmp_path):
+        """Apply on write-пути пишет ActionReceipt в системную папку (не только ChangeIntent)."""
+        py_file = tmp_path / "receipt_target.py"
+        py_file.write_text(
+            "def old_func():\n"
+            "    return 1\n"
+        )
+        si = _build_index_for_file(py_file, extra_defs=[
+            {"name": "old_func", "line": 1, "kind": "function"},
+        ], add_refs=False)
+
+        tool = WriteTool(mock_services)
+        tool.require_ready_project = AsyncMock()
+        tool.resolve_symbol_index = MagicMock(return_value=si)
+        idx = _make_mock_indexer()
+        idx.project_path = str(tmp_path)
+        tool.resolve_indexer = MagicMock(return_value=idx)
+
+        result = await tool._action_replace(
+            symbol="old_func",
+            new_code="def old_func():\n    return 999\n",
+            file_path=str(py_file),
+            apply=True,
+        )
+        assert "✅" in result or "Replaced" in result
+
+        # Receipt должен появиться в <data_root>/projects/<hash8>/action_receipts.jsonl
+        from src.core.artifact_paths import get_project_dir
+        receipts_file = get_project_dir(Path(tmp_path)) / "action_receipts.jsonl"
+        assert receipts_file.exists()
+        lines = [ln for ln in receipts_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        assert lines, "action_receipts.jsonl пуст после write-операции"
+        last = json.loads(lines[-1])
+        assert last["action_type"] == "write:replace"
+        assert last["claim"]
+        assert last["before_hash"] and last["after_hash"]
+        assert last["verdict"] == "VERIFIED"
 
     @pytest.mark.asyncio
     async def test_filter_by_file_path(self, write_tool, temp_py_file, tmp_path):

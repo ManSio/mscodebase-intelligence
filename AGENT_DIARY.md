@@ -39,6 +39,14 @@
 **verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md, live-данные из реального сервера PID 10036)
 
 ---
+## [2026-09-07] — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
+**Status:** Fixed (оба блока закрыты, тесты зелёные)
+**Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; переменная ребра `[e:]` не регистрировалась → `no such column: e`. (2) Receipts: `_contract_record` (ChangeIntent) вызывался только в rename-fallback и safe_delete; replace/insert/move/workspace_edit писали файл напрямую → ни ChangeIntent, ни ActionReceipt.
+**Fix:** (1) cypher_sql.py: alias левого узла резолвится в `n{path_idx*2}`, `edge_vars` + `edge_prop_map` (type/source_id/target_id → колонки, остальное → json_extract), `count(e)` → COUNT(e.id). 10 регресс-тестов + 5 Red Team атак. (2) write_tools.py: новый `_contract_receipt()` (build_receipt + ActionReceiptStore) вызывается из `_contract_record`; сам `_contract_record` добавлен во все write-пути (replace/insert/rename-LSP/move включая refs). Receipt-запись warning-only, не валит write. +1 тест (JSONL создаётся, verdict VERIFIED).
+**Guard:** write-операция без ChangeIntent+ActionReceipt = дефект; правило «каждый write пишет оба артефакта». collect() остаётся open (сочтён отдельной записью KNOWN_ISSUES).
+**verified_from_clean_state:** ⚠️ не прогонялся (изменения в 2 файлах, pytest tests/ 1629 passed + ruff clean)
+
+---
 **Status:** Fixed (branch closed, artifact merged into main)
 **Root Cause:** experiment/lab-2026 branch (spike exp-lab-2026-01: NL->LLM->Cypher->parser+schema->PropertyGraph) was orphaned - its artifact experiments/neuro_symbolic_spike.py and EXPERIMENTS_LOG entry never landed on main. Findings C1-C4 were already fixed on main via D1 (CypherExecutor schema layer).
 **Fix:** Re-ran spike from clean main (VERDICT: HYPOTHESIS SUPPORTED, parse_ok=8, rejected_by_schema=2 - schema layer correctly rejects hallucinated :SERVICE label and cycle() empty-RETURN). Carried only the useful artifact (spike script + EXPERIMENTS_LOG entry 848fdf33), avoiding a blind merge that would have conflicted in 3 doc files. Deleted orphaned local branch experiment/lab-2026.
