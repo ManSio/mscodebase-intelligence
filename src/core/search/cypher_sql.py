@@ -39,6 +39,7 @@ class CypherToSQL:
 
         # Фаза 1: определяем все переменные узлов и их алиасы в SQL
         node_vars: Dict[str, str] = {}  # переменная Cypher → SQL алиас
+        edge_vars: Dict[str, str] = {}  # переменная ребра [e:] → SQL алиас
         path_joins: List[str] = []
         path_where: List[str] = []  # WHERE условия из label/type фильтров
         path_where_params: List[Any] = []  # params для path_where (добавляются в конце)
@@ -46,14 +47,14 @@ class CypherToSQL:
         select_cols: List[str] = []
 
         for path_idx, path in enumerate(query.match.paths):
-            self._process_path_pattern(path, node_vars, path_joins, path_where, params, path_idx, path_where_params)
+            self._process_path_pattern(path, node_vars, edge_vars, path_joins, path_where, params, path_idx, path_where_params)
 
         # Фаза 1.5: OPTIONAL MATCH — LEFT JOIN
         opt_path_counter = len(query.match.paths)
         for opt_clause in query.optional_match:
             for opt_path in opt_clause.paths:
                 self._process_path_pattern(
-                    opt_path, node_vars, path_joins, path_where, params,
+                    opt_path, node_vars, edge_vars, path_joins, path_where, params,
                     opt_path_counter, path_where_params,
                     join_type="LEFT JOIN", left_labels_in_on=True,
                 )
@@ -67,14 +68,14 @@ class CypherToSQL:
         params.extend(path_where_params)
 
         if query.where:
-            self._process_where(query.where.expr, node_vars, where_clauses, params)
+            self._process_where(query.where.expr, node_vars, edge_vars, where_clauses, params)
 
         # Фаза 3: RETURN
         agg_columns = []
         group_by = []
 
         for item in query.return_items:
-            sql_col = self._translate_return_expr(item.expression, node_vars)
+            sql_col = self._translate_return_expr(item.expression, node_vars, edge_vars)
             if self._is_aggregate(item.expression):
                 agg_columns.append(sql_col)
             else:
@@ -101,7 +102,10 @@ class CypherToSQL:
         select_distinct = "DISTINCT " if query.return_distinct else ""
 
         # FROM — первый узел первого паттерна (target)
-        from_node_alias = node_vars.get(query.match.paths[0].left.variable or "n", "n1")
+        first_path = query.match.paths[0]
+        from_node_alias = node_vars.get(
+            first_path.left.variable or f"n{0 * 2}", "n1"
+        )
 
         columns_sql = ", ".join(select_cols)
         joins_sql = "\n".join(path_joins)
@@ -118,7 +122,7 @@ class CypherToSQL:
         if query.order_by:
             order_parts = []
             for o in query.order_by:
-                col = self._translate_return_expr(o.expression, node_vars)
+                col = self._translate_return_expr(o.expression, node_vars, edge_vars)
                 order_parts.append(f"{col} {o.direction}")
             order_sql = f"ORDER BY {', '.join(order_parts)}"
 
@@ -147,6 +151,7 @@ class CypherToSQL:
         self,
         path: PathPattern,
         node_vars: Dict[str, str],
+        edge_vars: Dict[str, str],
         joins: List[str],
         wheres: List[str],
         params: List[Any],
@@ -193,7 +198,9 @@ class CypherToSQL:
             node_vars[right_var] = right_var
 
         # Ребро
-        edge_alias = f"e{path_idx}"
+        edge_alias = path.rel.variable if path.rel.variable else f"e{path_idx}"
+        if path.rel.variable:
+            edge_vars[path.rel.variable] = edge_alias
         edge_on = ""  # дополнительное условие для ON
 
         if path.rel.rel_types:
@@ -265,12 +272,13 @@ class CypherToSQL:
         self,
         expr: ASTNode,
         node_vars: Dict[str, str],
+        edge_vars: Dict[str, str],
         clauses: List[str],
         params: List[Any],
     ):
         """Рекурсивно обрабатывает WHERE."""
         if isinstance(expr, Comparison):
-            sql_ref = self._property_ref_to_sql(expr.left, node_vars)
+            sql_ref = self._property_ref_to_sql(expr.left, node_vars, edge_vars)
 
             if expr.op in ("IN",):
                 if isinstance(expr.right, list):
@@ -322,8 +330,8 @@ class CypherToSQL:
         elif isinstance(expr, _BinaryOp):
             left_clauses: List[str] = []
             right_clauses: List[str] = []
-            self._process_where(expr.left, node_vars, left_clauses, params)
-            self._process_where(expr.right, node_vars, right_clauses, params)
+            self._process_where(expr.left, node_vars, edge_vars, left_clauses, params)
+            self._process_where(expr.right, node_vars, edge_vars, right_clauses, params)
 
             all_clauses = left_clauses + right_clauses
             if expr.op == "OR":
@@ -333,7 +341,7 @@ class CypherToSQL:
 
         elif isinstance(expr, _UnaryOp):
             inner: List[str] = []
-            self._process_where(expr.expr, node_vars, inner, params)
+            self._process_where(expr.expr, node_vars, edge_vars, inner, params)
             if expr.op == "NOT":
                 clauses.append(f"NOT ({inner[0]})" if inner else "1=0")
 
@@ -366,11 +374,32 @@ class CypherToSQL:
                     f"EXISTS (SELECT 1 FROM edges e WHERE e.source_id = {left_alias}.id {edge_filter})"
                 )
 
-    def _property_ref_to_sql(self, ref: str, node_vars: Dict[str, str]) -> str:
+    def _property_ref_to_sql(
+        self, ref: str, node_vars: Dict[str, str], edge_vars: Optional[Dict[str, str]] = None
+    ) -> str:
         """Переводит n.name или n.label в SQL: n_alias.name или n_alias.label."""
         parts = ref.split(".")
         if len(parts) == 2:
             var, prop = parts
+            if edge_vars and var in edge_vars:
+                alias = edge_vars[var]
+
+                # Validate property name - defense in depth against SQL injection
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prop):
+                    raise ValueError(f"Invalid property name: {prop}")
+
+                # Специальные имена свойств ребра
+                edge_prop_map = {
+                    "type": "type",
+                    "source_id": "source_id",
+                    "target_id": "target_id",
+                    "id": "id",
+                }
+                if prop in edge_prop_map:
+                    return f"{alias}.{edge_prop_map[prop]}"
+                # properties JSON path (e.g. e.weight)
+                return f"json_extract({alias}.properties, '$.{prop}')"
+
             alias = node_vars.get(var, var)
 
             # Validate property name - defense in depth against SQL injection
@@ -397,7 +426,9 @@ class CypherToSQL:
 
         return ref
 
-    def _translate_return_expr(self, expr: str, node_vars: Dict[str, str]) -> str:
+    def _translate_return_expr(
+        self, expr: str, node_vars: Dict[str, str], edge_vars: Optional[Dict[str, str]] = None
+    ) -> str:
         """Переводит RETURN выражение в SQL."""
         # count(*)
         if expr == "count(*)":
@@ -425,7 +456,16 @@ class CypherToSQL:
                     f"Aggregate {func}({inner}) over node variable is not supported; "
                     f"use a property, e.g. {inner}.name"
                 )
-            sql_inner = self._property_ref_to_sql(inner, node_vars)
+            if edge_vars and inner in edge_vars:
+                # count(e) / count(e.type) над ребром-переменной
+                alias = edge_vars[inner]
+                if func == "COUNT":
+                    return f"COUNT({alias}.id)"
+                raise ValueError(
+                    f"Aggregate {func}({inner}) over edge variable is not supported; "
+                    f"use a property, e.g. {inner}.type"
+                )
+            sql_inner = self._property_ref_to_sql(inner, node_vars, edge_vars)
             return f"{func}({sql_inner})"
 
         # C4: неизвестная функция в RETURN — явная ошибка вместо невалидного SQL
@@ -438,7 +478,7 @@ class CypherToSQL:
             )
 
         # Простое свойство
-        return self._property_ref_to_sql(expr, node_vars)
+        return self._property_ref_to_sql(expr, node_vars, edge_vars)
 
     def _is_aggregate(self, expr: str) -> bool:
         return bool(re.match(r"(count|sum|avg|min|max|collect)\(", expr, re.IGNORECASE))
